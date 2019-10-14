@@ -67,6 +67,8 @@
       real(r4), allocatable :: rsf_tab(:,:,:,:,:)
       logical :: jlong_used = .false.
 
+      integer :: begw=-1, endw=-1
+
       contains
 
       subroutine jlong_init( xs_long_file, rsf_file, lng_indexer )
@@ -74,7 +76,8 @@
       use ppgrid,         only : pver
       use mo_util,        only : rebin
       use solar_irrad_data,only : data_nw => nbins, data_we => we, data_etf => sol_etf
-
+      use wavelength_grid, only : wgrid_wc=>wc, wgrid_nw=>nwave
+      
       implicit none
 
 !------------------------------------------------------------------------------
@@ -83,6 +86,8 @@
       integer, intent(inout)       :: lng_indexer(:)
       character(len=*), intent(in) :: xs_long_file, rsf_file
 
+      integer :: w
+      
 !------------------------------------------------------------------------------
 !     ... read Cross Section * QY NetCDF file
 !         find temperature index for given altitude
@@ -114,6 +119,14 @@
 
       jlong_used = .true.
  
+       find_begw: do w=1,wgrid_nw
+         if (wgrid_wc(w) >= 200._r8 ) then
+            begw = w
+            exit find_begw
+         end if
+      end do find_begw
+      endw = wgrid_nw
+      
       end subroutine jlong_init
 
       subroutine get_xsqy( xs_long_file, lng_indexer )
@@ -642,7 +655,7 @@ level_loop_1 : &
       end subroutine jlong_hrates
 
        subroutine jlong_photo( nlev, sza_in, alb_in, p_in, t_in, &
-                              colo3_in, j_long )
+                              colo3_in, j_long, actflx )
 !==============================================================================
 !   Purpose:                                                                   
 !     To calculate the total J for selective species longward of 200nm.        
@@ -661,7 +674,7 @@ level_loop_1 : &
 !        will be derived.
 !==============================================================================
 
- use spmd_utils,   only : masterproc
+        use spmd_utils,   only : masterproc
         use error_messages, only : alloc_err
 
 	implicit none
@@ -676,6 +689,8 @@ level_loop_1 : &
       real(r8), intent(in)     :: t_in(nlev)         ! Temperature profile (K)
       real(r8), intent(in)     :: colo3_in(nlev)     ! o3 column density (molecules/cm^3)
       real(r8), intent(out)    :: j_long(:,:)	     ! photo rates (1/s)
+
+      real(r8), intent(in) :: actflx(:,:) ! (nwave, pver)
 
 !----------------------------------------------------------------------
 !  	... local variables
@@ -706,8 +721,12 @@ level_loop_1 : &
 !----------------------------------------------------------------------
 !        ... interpolate table rsf to model variables
 !----------------------------------------------------------------------
-      call interpolate_rsf( alb_in, sza_in, p_in, colo3_in, nlev, rsf )
+!      call interpolate_rsf( alb_in, sza_in, p_in, colo3_in, nlev, rsf )
 
+      do k = 1,nlev
+         rsf(:nw,k) = etfphot(:) * wlintv(:) * actflx(begw:endw,nlev-k+1) 
+      end do
+      
 !------------------------------------------------------------------------------
 !     ... calculate total Jlong for wavelengths >200nm
 !------------------------------------------------------------------------------

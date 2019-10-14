@@ -355,7 +355,8 @@ end function chem_is
     use noy_ubc,          only: noy_ubc_readnl
     use mo_sulf,          only: sulf_readnl
     use species_sums_diags,only: species_sums_readnl
-
+    use radxfr_cam, only: radxfr_cam_readnl
+    
    ! args
 
     character(len=*), intent(in) :: nlfile  ! filepath for file containing namelist input
@@ -676,8 +677,9 @@ end function chem_is
    call noy_ubc_readnl(nlfile)
    call sulf_readnl(nlfile)
    call species_sums_readnl(nlfile)
+   call radxfr_cam_readnl(nlfile)
 
-  endsubroutine chem_readnl
+ endsubroutine chem_readnl
 
 !================================================================================================
 

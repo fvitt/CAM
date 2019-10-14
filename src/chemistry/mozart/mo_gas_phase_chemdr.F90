@@ -23,6 +23,7 @@ module mo_gas_phase_chemdr
 
   integer :: synoz_ndx, so4_ndx, h2o_ndx, o2_ndx, o_ndx, hno3_ndx, hcl_ndx, dst_ndx, cldice_ndx, snow_ndx
   integer :: o3_ndx, o3s_ndx
+  integer :: so2_ndx, no2_ndx, no_ndx
   integer :: het1_ndx
   integer :: ndx_cldfr, ndx_cmfdqr, ndx_nevapr, ndx_cldtop, ndx_prain
   integer :: ndx_h2so4
@@ -60,7 +61,8 @@ contains
     use physics_buffer,    only : pbuf_get_index
     use rate_diags,        only : rate_diags_init
     use cam_abortutils,    only : endrun
-
+    use radxfr_cam, only: radxfr_cam_init
+    
     implicit none
 
     character(len=3) :: string
@@ -121,6 +123,9 @@ contains
     o3s_ndx = get_spc_ndx('O3S')
     o_ndx   = get_spc_ndx('O')
     o2_ndx  = get_spc_ndx('O2')
+    so2_ndx = get_spc_ndx('SO2')
+    no2_ndx = get_spc_ndx('NO2')
+    no_ndx  = get_spc_ndx('NO')
     so4_ndx = get_spc_ndx('SO4')
     h2o_ndx = get_spc_ndx('H2O')
     hno3_ndx = get_spc_ndx('HNO3')
@@ -236,6 +241,8 @@ contains
 
     call chem_prod_loss_diags_init
 
+    call radxfr_cam_init
+
   end subroutine gas_phase_chemdr_inti
 
 
@@ -313,6 +320,9 @@ contains
     use aero_model,        only : aero_model_gasaerexch
 
     use aero_model,        only : aero_model_strat_surfarea
+    use cam_abortutils,    only : endrun
+    use radxfr_cam, only : radxfr_cam_update
+    use wavelength_grid, only: nwave
 
     implicit none
 
@@ -842,6 +852,13 @@ contains
        call outfld('FRACDAY', fracday(:ncol), ncol, lchnk )
 
     else
+       if (o2_ndx>0 .and. o3_ndx>0 .and. so2_ndx>0 .and. no2_ndx>0 .and. no_ndx>0) then
+          call radxfr_cam_update( ncol, lchnk, sza, asdir, pmid, zmid, tfld, &
+               vmr(:,:,o2_ndx), vmr(:,:,o3_ndx), vmr(:,:,so2_ndx), vmr(:,:,no2_ndx), vmr(:,:,no_ndx), &
+               cldfr, cldw )
+       else
+          call endrun('gas_phase_chemdr: must include O2, O3, SO2, NO2, and NO')
+       end if
        !-----------------------------------------------------------------
        !	... lookup the photolysis rates from table
        !-----------------------------------------------------------------

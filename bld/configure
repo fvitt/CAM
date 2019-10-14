@@ -2849,6 +2849,9 @@ sub write_filepath
 
     print $fh "$camsrcdir/src/chemistry/mozart\n";
     print $fh "$camsrcdir/src/chemistry/utils\n";
+    print $fh "$camsrcdir/src/chemistry/photolysis/share\n";
+    print $fh "$camsrcdir/src/chemistry/photolysis/molec_ox_xsect\n";
+    print $fh "$camsrcdir/src/chemistry/photolysis/rad_xfer\n";
 
     if ($rad eq 'rrtmg') {
         print $fh "$camsrcdir/src/physics/rrtmg\n";

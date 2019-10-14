@@ -6490,6 +6490,17 @@ otherwise use the look up table method.
 Default: FALSE
 </entry>
 
+<entry id="radxfr_input_data_root" type="char*256" input_pathname="abs" category="cam_chem"
+       group="photo_radxfr_opts" valid_values="" >
+Root path of the input data for photolysis radiation transfer.
+Default: none
+</entry>
+<entry id="radxfr_wavelength_grid_file" type="char*64" input_pathname="rel:radxfr_input_data_root" category="cam_chem"
+       group="photo_radxfr_opts" valid_values="" >
+Name of the wavelength grid input data filepath for photolysis radiation transfer.
+Default: none
+</entry>
+
 <entry id="xs_coef_file" type="char*256" input_pathname="abs" category="cam_chem"
        group="chem_inparm" valid_values="" >
 Full pathname of dataset for  Chebyshev polynomial Coeff data used for photolysis
