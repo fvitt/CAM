@@ -525,7 +525,7 @@
 
       subroutine jlong_hrates( nlev, sza_in, alb_in, p_in, t_in, &
                                mw, o2_vmr, o3_vmr, colo3_in, qrl_col, &
-                               cparg, kbot )
+                               cparg, kbot, actflx )
 !==============================================================================
 !   Purpose:                                                                   
 !     To calculate the thermal heating rates longward of 200nm.        
@@ -547,6 +547,8 @@
 	use physconst,       only : avogad
         use error_messages, only : alloc_err
 
+        use infnan, only : nan, assignment(=)
+
 	implicit none
 
 !------------------------------------------------------------------------------
@@ -564,6 +566,7 @@
       real(r8), intent(in)     :: mw(nlev)           ! atms molecular weight
       real(r8), intent(in)     :: cparg(nlev)        ! specific heat capacity
       real(r8), intent(inout)  :: qrl_col(:,:)	     ! heating rates
+      real(r8), intent(in) :: actflx(:,:) ! (nwave, pver)
 
 !----------------------------------------------------------------------
 !  	... local variables
@@ -591,10 +594,15 @@
          call alloc_err( astat, 'jlong_hrates', 'xswk,wrk', 3*nw )
       end if
 
+      rsf(:,:) = nan
+      
 !----------------------------------------------------------------------
 !        ... interpolate table rsf to model variables
 !----------------------------------------------------------------------
-      call interpolate_rsf( alb_in, sza_in, p_in, colo3_in, kbot, rsf )
+!      call interpolate_rsf( alb_in, sza_in, p_in, colo3_in, kbot, rsf )
+      do k = 1,kbot
+         rsf(:nw,k) = etfphot(:) * wlintv(:) * actflx(begw:endw,nlev-k+1) 
+      end do
 
 !------------------------------------------------------------------------------
 !     ... calculate thermal heating rates for wavelengths >200nm

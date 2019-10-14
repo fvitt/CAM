@@ -22,6 +22,7 @@
       public :: waccm_hrates, init_hrates, has_hrates
 
       integer :: id_co2, id_o2, id_o3, id_o2_1d, id_o2_1s, id_o1d, id_h2o, id_o, id_h
+      integer :: id_so2, id_no2, id_no
       logical :: has_hrates
       integer :: ele_temp_ndx, ion_temp_ndx
 
@@ -40,6 +41,9 @@
 
         id_co2   = get_spc_ndx( 'CO2' )
         id_o2    = get_spc_ndx( 'O2' )
+        id_so2   = get_spc_ndx( 'SO2' )
+        id_no2   = get_spc_ndx( 'NO2' )
+        id_no    = get_spc_ndx( 'NO' )
         id_o3    = get_spc_ndx( 'O3' )
         id_o2_1d = get_spc_ndx( 'O2_1D' )
         id_o2_1s = get_spc_ndx( 'O2_1S' )
@@ -123,6 +127,8 @@
       use physics_buffer,    only : physics_buffer_desc
       use phys_control,      only : waccmx_is
       use orbit,             only : zenith
+      use radxfr_cam,        only : radxfr_cam_update, actinic_fluxes
+      use cam_abortutils,    only : endrun
 
 !-----------------------------------------------------------------------
 !        ... dummy arguments
@@ -197,6 +203,9 @@
 
       real(r8), pointer :: ele_temp_fld(:,:) ! electron temperature pointer
       real(r8), pointer :: ion_temp_fld(:,:) ! ion temperature pointer
+
+      real(r8)   :: cldfr(pcols,pver)
+      real(r8)   :: cldw(pcols,pver)
 
       if ( ele_temp_ndx>0 .and. ion_temp_ndx>0 ) then
          call pbuf_get_field(pbuf, ele_temp_ndx, ele_temp_fld)
@@ -351,6 +360,18 @@
          euv_hrate(:,k) = 0._r8
          co2_hrate(:,k) = 0._r8
       end do
+
+      if (id_o2>0 .and. id_o3>0 .and. id_so2>0 .and. id_no2>0 .and. id_no>0) then
+         cldfr = 0._r8
+         cldw = 0._r8
+         call radxfr_cam_update( ncol, lchnk, zen_angle(:ncol)*r2d, asdir, state%pmid, state%zm(:ncol,:)*1.e-3_r8 , state%t, &
+               vmr(:,:,id_o2), vmr(:,:,id_o3), vmr(:,:,id_so2), vmr(:,:,id_no2), vmr(:,:,id_no), &
+               cldfr, cldw )
+       else
+          call endrun('waccm_hrates: must include O2, O3, SO2, NO2, and NO')
+       end if
+
+
 column_loop : &
       do i = 1,ncol
          sza = zen_angle(i)*r2d
@@ -378,10 +399,10 @@ column_loop : &
             do_diag     = .false.
             call jshort( pver, sza, o2_line, o3_line, o2cc, &
                          o3cc, tline, zarg, mw, qrs_col, &
-                         cparg, lchnk, i, co2cc, scco2, do_diag )
+                         cparg, lchnk, i, co2cc, scco2, do_diag, actinic_fluxes(:,:,i,lchnk) )
             call jlong( pver, sza, eff_alb, parg, tline, &
                         mw, o2_line, o3_line, colo3, qrl_col, &
-                        cparg, kbot_hrates )
+                        cparg, kbot_hrates, actinic_fluxes(:,:,i,lchnk) )
             do m = 1,4
                qrs(i,pver:1:-1,m) = qrs_col(:,m) * esfact
             end do

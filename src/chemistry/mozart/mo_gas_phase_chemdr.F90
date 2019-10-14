@@ -322,7 +322,6 @@ contains
     use aero_model,        only : aero_model_strat_surfarea
     use cam_abortutils,    only : endrun
     use radxfr_cam, only : radxfr_cam_update
-    use wavelength_grid, only: nwave
 
     implicit none
 

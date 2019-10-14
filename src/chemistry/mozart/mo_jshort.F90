@@ -509,7 +509,7 @@
 
       subroutine jshort_hrates( nlev, zen, o2_vmr, o3_vmr, o2cc, &
                                 o3cc, tlev, zkm, mw, qrs, cparg, &
-                                lchnk, long, co2cc, scco2, do_diag )
+                                lchnk, long, co2cc, scco2, do_diag, actflx )
 !==============================================================================!
 !   Subroutine Jshort                                                          !
 !==============================================================================!
@@ -583,6 +583,8 @@
        real(r8), intent(inout) :: qrs(:,:)             ! sw heating rates
        real(r8), intent(out)   :: scco2(nlev)          ! co2 column concentration (molec/cm^2)
        logical,  intent(in)    :: do_diag
+
+       real(r8), intent(in) :: actflx(:,:) ! (nwave, pver)
 
 !------------------------------------------------------------------------------
 !     ... local variables
@@ -719,7 +721,8 @@
 !         corrected for O2 and O3 absorption
 !------------------------------------------------------------------------------
       do wn = 1,nw                                  ! nw = 33 (nsrb_tot+nsrc_tot)
-         fnorm(:,wn) = etfphot(wn)*trans_o2(:,wn)*trans_o3(:,wn)
+!         fnorm(:,wn) = etfphot(wn)*trans_o2(:,wn)*trans_o3(:,wn)
+         fnorm(:,wn) = etfphot(wn)*actflx(wn,:)
       end do
 
 !------------------------------------------------------------------------------
