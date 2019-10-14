@@ -36,10 +36,10 @@ contains
     integer :: errflg
     integer :: unitn, ierr
 
+    namelist /photo_radxfr_opts/ radxfr_wavelength_grid_file, radxfr_input_data_root
+
     errflg=0
     errmsg=' '
-
-    namelist /photo_radxfr_opts/ radxfr_wavelength_grid_file, radxfr_input_data_root
 
     if (masterproc) then
        unitn = getunit()

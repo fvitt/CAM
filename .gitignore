@@ -7,7 +7,7 @@ src/physics/carma/base
 src/physics/clubb
 src/physics/cosp2/src
 src/physics/silhs
-
+src/chemistry/photolysis
 
 # Ignore compiled python
 buildnmlc
@@ -18,3 +18,10 @@ buildcppc
 .#*
 \#*#
 *.swp
+
+# Ignore test output files
+test_dr.o*
+td.*.log
+td.*.status
+test_driver_*.sh
+cam_test_summaries

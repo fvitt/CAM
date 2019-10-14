@@ -82,6 +82,8 @@ sm471 TSM.sh f10c6aqwmadm outfrq3s 9s
 sm472 TSM.sh f4c6aqwmadm outfrq3s 9s
 sm473 TSM.sh f4c6aqwmtdm outfrq3s_sums 9s
 sm474 TSM.sh f1.9c6aqwmth outfrq3s_sums 9s
+sm475 TSM.sh f10c6aqwmadm outfrq3s_radxfr 9s
+sm476 TSM.sh f4c6aqwmadm outfrq3s_radxfr 9s
 
 sm501 TSM.sh h5c5aqdm outfrq3s_unstr_emis 9s
 
@@ -190,6 +192,8 @@ er471 TER.sh f10c6aqwmadm outfrq3s 4+5s
 er472 TER.sh f4c6aqwmadm outfrq3s 4+5s
 er473 TER.sh f4c6aqwmtdm outfrq3s_sums 4+5s
 er474 TER.sh f1.9c6aqwmth outfrq3s_sums 4+5s
+er475 TER.sh f10c6aqwmadm outfrq3s_radxfr 4+5s
+er476 TER.sh f4c6aqwmadm outfrq3s_radxfr 4+5s
 
 er501 TER.sh h5c5aqdm outfrq3s_unstr_emis 4+5s
 

@@ -1,0 +1,12 @@
+&camexp
+ start_ymd=20000101
+ restart_option='nsteps'
+ restart_n=3
+ mfilt=1,1,1,1,1,1
+ ndens=1,1,1,1,1,1
+ nhtfrq=3,3,3,3,3,3
+ inithist='ENDOFRUN'
+ pbuf_global_allocate=.false.
+ radxfr_wavelength_grid_file = 'wavelength_grid_test.nc'
+ radxfr_input_data_root = '/home/fvitt/camdev/bardeen_rsf/src/chemistry/photolysis/inputs'
+/
