@@ -46,7 +46,7 @@ contains
     character(len=265) :: radxfr_input_data_root = 'NONE'
     character(len=512) :: wavelen_grid_filepath
     character(len=512) :: errmsg
-    logical            :: radxfr_has_aer_ra_feedback
+    logical            :: radxfr_has_aer_ra_feedback = .false.
     integer :: errflg
     integer :: unitn, ierr
 
