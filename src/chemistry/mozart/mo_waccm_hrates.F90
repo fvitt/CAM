@@ -366,7 +366,7 @@
          cldw = 0._r8
          call radxfr_cam_update( ncol, lchnk, zen_angle(:ncol)*r2d, asdir, state%pmid, state%zm(:ncol,:)*1.e-3_r8 , state%t, &
                vmr(:,:,id_o2), vmr(:,:,id_o3), vmr(:,:,id_so2), vmr(:,:,id_no2), vmr(:,:,id_no), &
-               cldfr, cldw )
+               cldfr, cldw, pbuf )
        else
           call endrun('waccm_hrates: must include O2, O3, SO2, NO2, and NO')
        end if

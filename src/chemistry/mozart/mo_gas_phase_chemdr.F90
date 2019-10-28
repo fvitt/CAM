@@ -854,7 +854,7 @@ contains
        if (o2_ndx>0 .and. o3_ndx>0 .and. so2_ndx>0 .and. no2_ndx>0 .and. no_ndx>0) then
           call radxfr_cam_update( ncol, lchnk, sza, asdir, pmid, zmid, tfld, &
                vmr(:,:,o2_ndx), vmr(:,:,o3_ndx), vmr(:,:,so2_ndx), vmr(:,:,no2_ndx), vmr(:,:,no_ndx), &
-               cldfr, cldw )
+               cldfr, cldw, pbuf )
        else
           call endrun('gas_phase_chemdr: must include O2, O3, SO2, NO2, and NO')
        end if
