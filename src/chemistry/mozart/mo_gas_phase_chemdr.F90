@@ -485,6 +485,8 @@ contains
 
     real(r8) :: o3s_loss(ncol,pver)
 
+    real(r8) :: so2_radxfr(ncol,pver)                            ! so2 for radxfr (vmr)
+
     if ( ele_temp_ndx>0 .and. ion_temp_ndx>0 ) then
        call pbuf_get_field(pbuf, ele_temp_ndx, ele_temp_fld)
        call pbuf_get_field(pbuf, ion_temp_ndx, ion_temp_fld)
@@ -851,13 +853,23 @@ contains
        call outfld('FRACDAY', fracday(:ncol), ncol, lchnk )
 
     else
-       if (o2_ndx>0 .and. o3_ndx>0 .and. so2_ndx>0 .and. no2_ndx>0 .and. no_ndx>0) then
-          call radxfr_cam_update( ncol, lchnk, sza, asdir, pmid, zmid, tfld, &
-               vmr(:,:,o2_ndx), vmr(:,:,o3_ndx), vmr(:,:,so2_ndx), vmr(:,:,no2_ndx), vmr(:,:,no_ndx), &
+       if (o2_ndx>0 .and. o3_ndx>0 .and. no2_ndx>0 .and. no_ndx>0) then
+
+          ! If the mechanism doesn't contain sulfur, then just zero out the
+          ! SO2 column.
+          if (so2_ndx>0) then
+             so2_radxfr(:,:) = vmr(:,:,so2_ndx)
+          else
+             so2_radxfr(:,:) = 0._r8
+          end if
+
+          call radxfr_cam_update( ncol, lchnk, esfact, sza, asdir, pmid, zmid, tfld, &
+               vmr(:,:,o2_ndx), vmr(:,:,o3_ndx), so2_radxfr(:,:), vmr(:,:,no2_ndx), vmr(:,:,no_ndx), &
                cldfr, cldw, pbuf )
        else
-          call endrun('gas_phase_chemdr: must include O2, O3, SO2, NO2, and NO')
+          call endrun('gas_phase_chemdr: must include O2, O3, NO2, and NO')
        end if
+
        !-----------------------------------------------------------------
        !	... lookup the photolysis rates from table
        !-----------------------------------------------------------------

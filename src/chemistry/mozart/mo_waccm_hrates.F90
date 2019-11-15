@@ -206,6 +206,7 @@
 
       real(r8)   :: cldfr(pcols,pver)
       real(r8)   :: cldw(pcols,pver)
+      real(r8)   :: so2_radxfr(ncol,pver)                            ! so2 for radxfr (vmr)
 
       if ( ele_temp_ndx>0 .and. ion_temp_ndx>0 ) then
          call pbuf_get_field(pbuf, ele_temp_ndx, ele_temp_fld)
@@ -361,16 +362,24 @@
          co2_hrate(:,k) = 0._r8
       end do
 
-      if (id_o2>0 .and. id_o3>0 .and. id_so2>0 .and. id_no2>0 .and. id_no>0) then
+      if (id_o2>0 .and. id_o3>0 .and. id_no2>0 .and. id_no>0) then
          cldfr = 0._r8
          cldw = 0._r8
-         call radxfr_cam_update( ncol, lchnk, zen_angle(:ncol)*r2d, asdir, state%pmid, state%zm(:ncol,:)*1.e-3_r8 , state%t, &
-               vmr(:,:,id_o2), vmr(:,:,id_o3), vmr(:,:,id_so2), vmr(:,:,id_no2), vmr(:,:,id_no), &
+         
+         ! If the mechanism doesn't contain sulfur, then just zero out the
+         ! SO2 column.
+         if (id_so2>0) then
+            so2_radxfr(:,:) = vmr(:,:,id_so2)
+         else
+            so2_radxfr(:,:) = 0._r8
+         end if
+        
+         call radxfr_cam_update( ncol, lchnk, esfact, zen_angle(:ncol)*r2d, asdir, state%pmid, state%zm(:ncol,:)*1.e-3_r8 , state%t, &
+               vmr(:,:,id_o2), vmr(:,:,id_o3), so2_radxfr(:,:), vmr(:,:,id_no2), vmr(:,:,id_no), &
                cldfr, cldw, pbuf )
        else
-          call endrun('waccm_hrates: must include O2, O3, SO2, NO2, and NO')
+          call endrun('waccm_hrates: must include O2, O3, NO2, and NO')
        end if
-
 
 column_loop : &
       do i = 1,ncol

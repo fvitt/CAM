@@ -141,6 +141,9 @@ integer :: flnt_idx     = 0
 integer :: cldfsnow_idx = 0 
 integer :: cld_idx      = 0 
 integer :: cldfgrau_idx = 0    
+integer :: swaertau_idx   = -1
+integer :: swaertauw_idx  = -1
+integer :: swaertauwg_idx = -1
 
 character(len=4) :: diag(0:N_DIAG) =(/'    ','_d1 ','_d2 ','_d3 ','_d4 ','_d5 ','_d6 ','_d7 ','_d8 ','_d9 ','_d10'/)
 
@@ -253,6 +256,12 @@ subroutine radiation_register
       call pbuf_add_field('LU'  , 'global',dtype_r8,(/pcols,pverp,nlwbands/), lu_idx) ! longwave upward flux (per band)
       call pbuf_add_field('LD'  , 'global',dtype_r8,(/pcols,pverp,nlwbands/), ld_idx) ! longwave downward flux (per band)
    end if
+   
+   ! Put the shortwave aerosol optical properties into the physics buffer so
+   ! that they can be used in the photolysis code.
+   call pbuf_add_field('SWAERTAU',   'global',dtype_r8,(/pcols,pver,nswbands/), swaertau_idx)   ! shortwave tau 
+   call pbuf_add_field('SWAERTAUW',  'global',dtype_r8,(/pcols,pver,nswbands/), swaertauw_idx)  ! shortwave tau * w
+   call pbuf_add_field('SWAERTAUWG', 'global',dtype_r8,(/pcols,pver,nswbands/), swaertauwg_idx) ! shortwave tau * w * g
 
    call rad_data_register()
 
@@ -832,6 +841,10 @@ subroutine radiation_tend( &
    real(r8) :: aer_tau_w_f(pcols,0:pver,nswbands) ! aerosol forward scattered fraction * w * tau
    real(r8) :: aer_lw_abs (pcols,pver,nlwbands)   ! aerosol absorption optics depth (LW)
 
+   real(r8), pointer, dimension(:,:,:) :: swaertau   ! shortwave aerosol tau
+   real(r8), pointer, dimension(:,:,:) :: swaertauw  ! shortwave aerosol tau * w
+   real(r8), pointer, dimension(:,:,:) :: swaertauwg ! shortwave aerosol tau * w * g
+
    real(r8) :: fns(pcols,pverp)     ! net shortwave flux
    real(r8) :: fcns(pcols,pverp)    ! net clear-sky shortwave flux
    real(r8) :: fnl(pcols,pverp)     ! net longwave flux
@@ -1166,6 +1179,19 @@ subroutine radiation_tend( &
                call aer_rad_props_sw(icall, state, pbuf, nnite, idxnite, &
                                      aer_tau, aer_tau_w, aer_tau_w_g, aer_tau_w_f)
                
+               
+               ! Save aerosol optical properties in the physics puffer for
+               ! photolysis, but only for the climate call.
+               if (icall .eq. 0) then
+                  call pbuf_get_field(pbuf, swaertau_idx,   swaertau)
+                  call pbuf_get_field(pbuf, swaertauw_idx,  swaertauw)
+                  call pbuf_get_field(pbuf, swaertauwg_idx, swaertauwg)
+
+                  swaertau(:ncol,:,:)   = aer_tau(:ncol,1:pver,:)
+                  swaertauw(:ncol,:,:)  = aer_tau_w(:ncol,1:pver,:)
+                  swaertauwg(:ncol,:,:) = aer_tau_w_g(:ncol,1:pver,:)
+               end if
+
                rd%cld_tau_cloudsim(:ncol,:) = cld_tau(rrtmg_sw_cloudsim_band,:ncol,:)
                rd%aer_tau550(:ncol,:)       = aer_tau(:ncol,:,idx_sw_diag)
                rd%aer_tau400(:ncol,:)       = aer_tau(:ncol,:,idx_sw_diag+1)

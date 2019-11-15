@@ -2,6 +2,9 @@ mfilt=1,1,1,1,1,1,1,1,1
 ndens=1,1,1,1,1,1,1,1,1
 nhtfrq=9,9,9,9,9,9,9,9,9
 inithist='ENDOFRUN'
+fincl3 = 'TUV_AFLXLOW','TUV_AFLXLOW', 'TUV_AFLX180','TUV_AFLX210', 'TUV_AFLX240','TUV_AFLX308','TUV_AFLX400','TUV_AFLX600',
+         'TUV_TAULOW','TUV_WLOW', 'TUV_GLOW','TUV_TAU600','TUV_W600','TUV_G600','TUV_TAUHIGH','TUV_WHIGH','TUV_GHIGH', 
+         'TUV_UVA','TUV_UVB','TUV_UVBSTAR', 'TUV_PAR','TUV_UVINDEX','TUV_UVINDEXMX'
 fincl9 = 'jo2_a','jo2_b','jo3_a','jo3_b','jh2o_a','jh2o_b','jh2o_c','jho2no2_a','jho2no2_b','jn2o','jno','jcl2','jno2','jno3_a','jno3_b',
          'jhbr','jhcl','jcf2cl2','jh2so4','jso2', 
          'QRS_SO2A','QRS_SO2B','QRS_SO3A','QRS_SO3B', 'QRS_LO2B','QRS_LO3A','QRS_LO3B','QRS_LO3',
