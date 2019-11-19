@@ -20,13 +20,13 @@ module heelis
 
   contains
 !-----------------------------------------------------------------------
-  subroutine heelis_model(sunlons)
+  subroutine heelis_model(sunlon)
     use aurora_params, only: aurora_params_set
 
 ! Driver for Heelis empirical model to calculate high-latitude potential.
 !
 ! Args:
-    real(r8),intent(in) :: sunlons(nlat)  ! sun's location
+    real(r8),intent(in) :: sunlon  ! sun's location
 
 !
 ! Set auroral parameters:
@@ -38,18 +38,18 @@ module heelis
 ! Calculate  the heelis potential phihm in geomagnetic coordinates:
 ! (potm calls sub flwv32)
 !
-    call potm(sunlons)
+    call potm(sunlon)
 
   end subroutine heelis_model
 
 !-----------------------------------------------------------------------
-  subroutine potm(sunlons)
+  subroutine potm(sunlon)
     use edyn_params, only: pi_dyn ! pi used in dynamo calculations
 !
 ! Calculate heelis potential in geomagnetic coordinates.
 !
 ! Args:
-    real(r8),intent(in) :: sunlons(nlat)
+    real(r8),intent(in) :: sunlon
 !
 ! Local:
     integer :: j
@@ -60,7 +60,7 @@ module heelis
     do j=1,nmlat
       iflag(:) = 1 ! must be updated at each j
       dlat(:) = ylatm(j)
-      dlon(:) = ylonm(1:nmlon)-sunlons(1)
+      dlon(:) = ylonm(1:nmlon)-sunlon
 !
 ! flwv32 returns single-level Heelis potential in geomag coords:
 !

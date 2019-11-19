@@ -4236,6 +4236,15 @@ cache file to be consistent with how CAM was built.
 Default: set by build-namelist
 </entry>
 
+<entry id="cam_physics_mesh" type="char*256" input_pathname="abs"
+       category="build" group="phys_ctl_nl" valid_values="" >
+Full pathname to CAM physics grid ESMF mesh file.
+N.B. this variable may not be set by the user.
+It is set by build-namelist via information in the configure
+cache file to be consistent with how CAM was built.
+Default: set by build-namelist
+</entry>
+
 <entry id="waccmx_opt" type="char*16" category="waccmx"
        group="phys_ctl_nl" valid_values="ionosphere,neutral,off" >
 Runtime options of upper thermosphere WACCM-X.  'ionosphere' for
@@ -4269,6 +4278,32 @@ Default: TRUE
 Switch to apply ring polar filter within in ionosphere O+ transport.
 Default: FALSE
 </entry>
+
+<entry id="oplus_grid" type="integer(2)"
+       category="waccmx" group="ionosphere_nl" valid_values="" >
+Oplus transport grid size, entered as num_longitudes, num_latitudes.
+Default: set by build-namelist
+</entry>
+
+<!--
+<entry id="oplus_npes" type="integer"
+       category="waccmx" group="ionosphere_nl" valid_values="" >
+Number of MPI processes on which to run the Oplus transport scheme.
+Default: 0 (use all atmosphere tasks)
+</entry>
+
+<entry id="ionos_dynamo_grid" type="integer(2)"
+       category="waccmx" group="ionosphere_nl" valid_values="" >
+Ionosphere dynamo grid size, entered as num_longitudes, num_latitudes.
+Default: set by build-namelist
+</entry>
+
+<entry id="ionos_dynamo_npes" type="integer"
+       category="waccmx" group="ionosphere_nl" valid_values="" >
+Number of MPI processes on which to run the ionosphere dynamo.
+Default: 0 (use all atmosphere tasks)
+</entry>
+  -->
 
 <entry id="ionos_xport_active" type="logical"  category="waccmx"
        group="ionosphere_nl" valid_values="">

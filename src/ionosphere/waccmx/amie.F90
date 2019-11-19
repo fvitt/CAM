@@ -4,28 +4,28 @@ module amie_module
   !   and energy flux).
   !
 
-  use shr_kind_mod   ,only: r8 => shr_kind_r8
-  use cam_logfile    ,only: iulog
-  use spmd_utils     ,only: masterproc
-  use cam_abortutils ,only: endrun
-  use edyn_maggrid,   only: nmlat,nmlonp1
-  use edyn_mpi       ,only: mlon0,mlon1,mlat0,mlat1, &
-                            lon0,lon1,lat0,lat1
+  use shr_kind_mod,   only: r8 => shr_kind_r8
+  use cam_logfile,    only: iulog
+  use spmd_utils,     only: masterproc
+  use cam_abortutils, only: endrun
+  use edyn_maggrid,   only: nmlat, nmlonp1
+  use edyn_mpi,       only: mlon0, mlon1, mlat0, mlat1, lon0, lon1, lat0, lat1
 #ifdef WACCMX_EDYN_ESMF
-  use edyn_params    ,only: finit
-  use edyn_maggrid   ,only:  &
-                            ylonm,  &     ! magnetic latitudes (nmlat) (radians)
-                            ylatm         ! magnetic longtitudes (nmlonp1) (radians)
-  use edyn_esmf      ,only: mag_efx,mag_kev,geo_efx,geo_kev
-  use esmf           ,only: ESMF_FIELD        ! ESMF library module
-  use cam_pio_utils, only: cam_pio_openfile, cam_pio_closefile
-  use pio, only: pio_inq_dimid, pio_inquire_dimension, pio_inquire, pio_inq_varid
-  use pio, only: file_desc_t, pio_noerr, pio_nowrite, pio_get_var
+  use edyn_params,    only: finit
+  use edyn_maggrid,   only: ylonm     ! magnetic latitudes (nmlat) (radians)
+  use edyn_maggrid,   only: ylatm     ! magnetic longtitudes (nmlonp1) (radians)
+!!$  use edyn_esmf,      only: mag_efx, mag_kev, phys_efx, phys_kev
+  use esmf,           only: ESMF_FIELD        ! ESMF library module
+  use cam_pio_utils,  only: cam_pio_openfile, cam_pio_closefile
+  use pio,            only: pio_inq_dimid, pio_inquire_dimension
+  use pio,            only: pio_inquire, pio_inq_varid
+  use pio,            only: file_desc_t, pio_noerr, pio_nowrite, pio_get_var
 #endif
   implicit none
 
   private
-  public :: init_amie, getamie
+  public :: init_amie
+  public :: getamie
 #ifdef WACCMX_EDYN_ESMF
 
   ! Define parameters for AMIE input data file:
@@ -39,13 +39,8 @@ module amie_module
   integer :: lonp1,latp1
   !     integer,dimension(mxtimes) :: year,month,day,jday
   ! Define AMIE output fields
-  real(r8) :: &
-       tiepot(nmlonp1,nmlat),tieekv(nmlonp1,nmlat),  &
-       tieefx(nmlonp1,nmlat)
-  ! defined output AMIE fields in TGCM geographic grid
-  !     real,dimension(nlonp4,nlat) ::
-  !    |  potg_sech, ekvg_sech, efxg_sech
-  !     real,dimension(nmlonp1,-2:nlevp1) :: tiepot_sech
+  real(r8) :: tiepot(nmlonp1,nmlat),tieekv(nmlonp1,nmlat)
+  real(r8) :: tieefx(nmlonp1,nmlat)
   !
   ! Define fields for AMIE input data file:
   ! electric potential in Volt
@@ -57,21 +52,22 @@ module amie_module
   ! amie_pcp_nh(sh) are AMIE polar-cap potential drop
   ! Saved AMIE outputs with suffix _amie
   !
-  real(r8),allocatable,dimension(:,:,:),save :: & ! (lonp1,latp1,ntimes)
-       amie_pot_nh, amie_pot_sh, amie_ekv_nh, amie_ekv_sh, & 
+  real(r8), allocatable, dimension(:,:,:), save :: & ! (lonp1,latp1,ntimes)
+       amie_pot_nh, amie_pot_sh,                   &
+       amie_ekv_nh, amie_ekv_sh,                   &
        amie_efx_nh, amie_efx_sh
-  real(r8),allocatable,dimension(:,:),save ::  &  ! (lonp1,latp1)
-       pot_nh_amie,pot_sh_amie, ekv_nh_amie,ekv_sh_amie, &
-       efx_nh_amie,efx_sh_amie
-  integer, allocatable,dimension(:),save :: & ! (ntimes)
-       year,month,day,jday
-  real(r8), allocatable,dimension(:),save :: & ! (ntimes)
-       amie_cusplat_nh, amie_cuspmlt_nh, amie_hpi_nh, &
-       amie_pcp_nh, amie_nh_ut, &
-       amie_cusplat_sh, amie_cuspmlt_sh, amie_hpi_sh, &
+  real(r8), allocatable, dimension(:,:), save ::           &  ! (lonp1,latp1)
+       pot_nh_amie, pot_sh_amie, ekv_nh_amie, ekv_sh_amie, &
+       efx_nh_amie, efx_sh_amie
+  integer,  allocatable, dimension(:), save ::                 & ! (ntimes)
+       year, month, day, jday
+  real(r8), allocatable, dimension(:), save ::                 & ! (ntimes)
+       amie_cusplat_nh, amie_cuspmlt_nh, amie_hpi_nh,          &
+       amie_pcp_nh, amie_nh_ut,                                &
+       amie_cusplat_sh, amie_cuspmlt_sh, amie_hpi_sh,          &
        amie_pcp_sh, amie_sh_ut
-  real(r8) :: &
-       cusplat_nh_amie, cuspmlt_nh_amie, cusplat_sh_amie, &
+  real(r8) ::                                                  &
+       cusplat_nh_amie, cuspmlt_nh_amie, cusplat_sh_amie,      &
        cuspmlt_sh_amie, hpi_sh_amie, hpi_nh_amie, pcp_sh_amie, &
        pcp_nh_amie
   !
@@ -79,23 +75,24 @@ module amie_module
 
 contains
   !-----------------------------------------------------------------------
-  subroutine init_amie(amienh,amiesh)
-    !
-    ! Called from tgcm.F
-    ! (this is not in init.F to avoid circular dependencies)
-    !
-    character(len=*),intent(in) :: amienh, amiesh
+  subroutine init_amie(amienh, amiesh)
+    character(len=*), intent(in) :: amienh
+    character(len=*), intent(in) :: amiesh
 
 #ifdef WACCMX_EDYN_ESMF
     ! read north hemisphere file:
     if (len_trim(amienh) > 0) then
-       if (masterproc) write(iulog,"('Reading AMIENH file ',a)") trim(amienh)
+       if (masterproc) then
+          write(iulog,"('Reading AMIENH file ',a)") trim(amienh)
+       end if
        call rdamie_nh(amienh)
     end if
     !
     ! Read south hemisphere file:
     if (len_trim(amiesh) > 0) then
-       if (masterproc) write(iulog,"('Reading AMIESH file ',a)") trim(amiesh)
+       if (masterproc) then
+          write(iulog,"('Reading AMIESH file ',a)") trim(amiesh)
+       end if
        call rdamie_sh(amiesh)
     end if
 #else
@@ -103,378 +100,416 @@ contains
 #endif
   end subroutine init_amie
 #ifdef WACCMX_EDYN_ESMF
+
   !-----------------------------------------------------------------------
   subroutine rdamie_nh(amienh)
     !
     ! Read AMIE data for the northern hemisphere from amienh
     !
-    ! Local:
 
-    character(len=*),intent(in) :: amienh
-    integer :: istat,ntimes,ndims,nvars,ngatts,idunlim,ier
-    integer :: id_lon,id_lat,id_time, &
-         idv_year,idv_mon,idv_day,idv_jday, &
-         idv_ut,idv_pot,idv_ekv, &
-         idv_efx,idv_cusplat,idv_cuspmlt,idv_hpi,idv_pcp
-    type(file_desc_t) :: ncid
+    ! Dummy argument
+    character(len=*), intent(in) :: amienh
+    ! Local variables:
+    integer                      :: istat, ntimes, ndims, nvars, ngatts
+    integer                      :: idunlim, ier
+    integer                      :: id_lon, id_lat, id_time
+    integer                      :: idv_year, idv_mon, idv_day, idv_jday
+    integer                      :: idv_ut, idv_pot, idv_ekv
+    integer                      :: idv_efx, idv_cusplat, idv_cuspmlt
+    integer                      :: idv_hpi, idv_pcp
+    type(file_desc_t)            :: ncid
+    character(len=*), parameter  :: subname = 'rdamie_nh'
     !
-    if (masterproc) write(iulog,"(/,72('-'))")
-    if (masterproc) write(iulog,"('RDAMIE_NH: read AMIE data for northern hemisphere:')")
+    if (masterproc) then
+       write(iulog, "(/,72('-'))")
+       write(iulog, "(a,': read AMIE data for northern hemisphere:')") subname
+    end if
     !
     ! Open netcdf file:
     call cam_pio_openfile(ncid, amienh, pio_nowrite)
     !
     ! Get AMIE grid dimension:
-    istat = pio_inq_dimid(ncid,'lon',id_lon)
-    istat = pio_inquire_dimension(ncid,id_lon,len=lonp1)
-    if (istat /= pio_noerr) call rpt_ncerr(istat, 'rdamie_nh: Error getting AMIE longitude dimension')
+    istat = pio_inq_dimid(ncid, 'lon', id_lon)
+    istat = pio_inquire_dimension(ncid, id_lon, len=lonp1)
+!!XXgoldyXX: v debug only
+    istat = 13
+!!XXgoldyXX: ^ debug only
+    call check_ncerr(istat, subname, 'AMIE longitude dimension')
 
-    istat = pio_inq_dimid(ncid,'lat',id_lat)
-    istat = pio_inquire_dimension(ncid,id_lat,len=latp1)
-    if (istat /= pio_noerr) call rpt_ncerr(istat, 'rdamie_nh: Error getting AMIE latitude dimension')
-    !     write(iulog,"('lonp1=',i3,' latp1=',i3)") lonp1,latp1
+    istat = pio_inq_dimid(ncid, 'lat', id_lat)
+    istat = pio_inquire_dimension(ncid, id_lat, len=latp1)
+    call check_ncerr(istat, subname, 'AMIE latitude dimension')
+    !     write(iulog, "('lonp1=', i3, ' latp1=', i3)") lonp1, latp1
     !
     ! Get time dimension:
-    istat = pio_inquire(ncid,unlimiteddimid=id_time)
-    istat = pio_inquire_dimension(ncid,id_time,len=ntimes)
+    istat = pio_inquire(ncid, unlimiteddimid=id_time)
+    istat = pio_inquire_dimension(ncid, id_time, len=ntimes)
     !
     ! Search for requested AMIE output fields
-    istat = pio_inquire(ncid,ndims,nvars,ngatts,idunlim)
+    istat = pio_inquire(ncid, ndims, nvars, ngatts, idunlim)
     !
     ! Get 1-D AMIE fields (ntimes)
-    if (.not. allocated(year)) allocate(year(ntimes),stat=ier)
-    istat = pio_inq_varid(ncid,'year',idv_year)
-    istat = pio_get_var(ncid,idv_year,year)
-    !     write(iulog,*)'rdamie_nh: year=', year(1:10)
-    if (.not. allocated(month)) allocate(month(ntimes),stat=ier)
-    istat = pio_inq_varid(ncid,'month',idv_mon)
-    istat = pio_get_var(ncid,idv_mon,month)
-    if (.not. allocated(day)) allocate(day(ntimes),stat=ier)
-    istat = pio_inq_varid(ncid,'day',idv_day)
-    istat = pio_get_var(ncid,idv_day,day)
-    !     write(iulog,*)'rdamie_nh: day=', day(1:10)
-    if (.not. allocated(jday)) allocate(jday(ntimes),stat=ier)
-    istat = pio_inq_varid(ncid,'jday',idv_jday)
-    istat = pio_get_var(ncid,idv_jday,jday)
+    if (.not. allocated(year)) then
+       allocate(year(ntimes), stat=ier)
+       call check_alloc(ier, subname, 'year', ntimes=ntimes)
+    end if
+    istat = pio_inq_varid(ncid, 'year', idv_year)
+    call check_ncerr(istat, subname, 'AMIE year id')
+    istat = pio_get_var(ncid, idv_year, year)
+    call check_ncerr(istat, subname, 'AMIE year')
+    !     write(iulog, *)'rdamie_nh: year=', year(1:10)
+    if (.not. allocated(month)) then
+       allocate(month(ntimes), stat=ier)
+!!XXgoldyXX: v debug only
+       ier = 12
+!!XXgoldyXX: ^ debug only
+       call check_alloc(ier, subname, 'month', ntimes=ntimes)
+    end if
+    istat = pio_inq_varid(ncid, 'month', idv_mon)
+    call check_ncerr(istat, subname, 'AMIE month id')
+    istat = pio_get_var(ncid, idv_mon, month)
+    call check_ncerr(istat, subname, 'AMIE month')
+    if (.not. allocated(day)) then
+       allocate(day(ntimes), stat=ier)
+       call check_alloc(ier, subname, 'day', ntimes=ntimes)
+    end if
+    istat = pio_inq_varid(ncid, 'day', idv_day)
+    call check_ncerr(istat, subname, 'AMIE day id')
+    istat = pio_get_var(ncid, idv_day, day)
+    call check_ncerr(istat, subname, 'AMIE day')
+    !     write(iulog, *)'rdamie_nh: day=', day(1:10)
+    if (.not. allocated(jday)) then
+       allocate(jday(ntimes), stat=ier)
+       call check_alloc(ier, subname, 'jday', ntimes=ntimes)
+    end if
+    istat = pio_inq_varid(ncid, 'jday', idv_jday)
+    call check_ncerr(istat, subname, 'AMIE jday id')
+    istat = pio_get_var(ncid, idv_jday, jday)
+    call check_ncerr(istat, subname, 'AMIE jday')
     !
     ! Allocate 1-d fields:
-    if (.not. allocated(amie_nh_ut)) &
-         allocate(amie_nh_ut(ntimes),stat=ier)
-    if (ier /= 0) write(iulog,"('>>> rdamie_nh: error allocating',  &
-         ' amie_nh_ut: ntimes=',i3)")ntimes
-    if (.not. allocated(amie_cusplat_nh))  &
-         allocate(amie_cusplat_nh(ntimes),stat=ier)
-    if (ier /= 0) write(iulog,"('>>> rdamie_nh: error allocating',  &
-         ' amie_cusplat_nh: ntimes=',i3)")ntimes
-    if (.not. allocated(amie_cuspmlt_nh))  &
-         allocate(amie_cuspmlt_nh(ntimes),stat=ier)
-    if (ier /= 0) write(iulog,"('>>> rdamie_nh: error allocating',  &
-         ' amie_cuspmlt_nh: ntimes=',i3)")ntimes
-    if (.not. allocated(amie_hpi_nh)) &
-         allocate(amie_hpi_nh(ntimes),stat=ier)
-    if (ier /= 0) write(iulog,"('>>> rdamie_nh: error allocating',  &
-         ' amie_hpi_nh: ntimes=',i3)")ntimes
-    if (.not. allocated(amie_pcp_nh)) &
-         allocate(amie_pcp_nh(ntimes),stat=ier)
-    if (ier /= 0) write(iulog,"('>>> rdamie_nh: error allocating',  &
-         ' amie_pcp_nh: ntimes=',i3)")ntimes
+    if (.not. allocated(amie_nh_ut)) then
+       allocate(amie_nh_ut(ntimes), stat=ier)
+       call check_alloc(ier, subname, 'amie_nh_ut', ntimes=ntimes)
+    end if
+    if (.not. allocated(amie_cusplat_nh)) then
+       allocate(amie_cusplat_nh(ntimes), stat=ier)
+       call check_alloc(ier, subname, 'amie_cusplat_nh', ntimes=ntimes)
+    end if
+    if (.not. allocated(amie_cuspmlt_nh)) then
+       allocate(amie_cuspmlt_nh(ntimes), stat=ier)
+       call check_alloc(ier, subname, 'amie_cuspmlt_nh', ntimes=ntimes)
+    end if
+    if (.not. allocated(amie_hpi_nh)) then
+       allocate(amie_hpi_nh(ntimes), stat=ier)
+       call check_alloc(ier, subname, 'amie_hpi_nh', ntimes=ntimes)
+    end if
+    if (.not. allocated(amie_pcp_nh)) then
+       allocate(amie_pcp_nh(ntimes), stat=ier)
+       call check_alloc(ier, subname, 'amie_pcp_nh', ntimes=ntimes)
+    end if
     !
     ! Get ut
-    istat = pio_inq_varid(ncid,'ut',idv_ut)
-    if (istat /= pio_noerr) call rpt_ncerr(istat,  &
-         'rdamie_nh: Error getting NH AMIE UT id')
-    istat = pio_get_var(ncid,idv_ut,amie_nh_ut)
-    if (istat /= pio_noerr) call rpt_ncerr(istat,  &
-         'rdamie_nh: Error getting NH AMIE variable ut')
+    istat = pio_inq_varid(ncid, 'ut', idv_ut)
+    call check_ncerr(istat, subname, 'AMIE ut id')
+    istat = pio_get_var(ncid, idv_ut, amie_nh_ut)
+    call check_ncerr(istat, subname, 'AMIE ut')
     !
     ! Get HPI
-    istat = pio_inq_varid(ncid,'hpi',idv_hpi)
-    if (istat /= pio_noerr) call rpt_ncerr(istat,  &
-         'rdamie_nh: Error getting NH AMIE hpi id')
-    istat = pio_get_var(ncid,idv_hpi,amie_hpi_nh)
-    if (istat /= pio_noerr) call rpt_ncerr(istat,  &
-         'rdamie_nh: Error getting NH AMIE variable hpi')
+    istat = pio_inq_varid(ncid, 'hpi', idv_hpi)
+    call check_ncerr(istat, subname, 'AMIE hpi id')
+    istat = pio_get_var(ncid, idv_hpi, amie_hpi_nh)
+    call check_ncerr(istat, subname, 'AMIE hpi')
     !
     ! Get PCP
-    istat = pio_inq_varid(ncid,'pcp',idv_pcp)
-    if (istat /= pio_noerr) call rpt_ncerr(istat,  &
-         'rdamie_nh: Error getting NH AMIE pcp id')
-    istat = pio_get_var(ncid,idv_pcp,amie_pcp_nh)
-    if (istat /= pio_noerr) call rpt_ncerr(istat,  &
-         'rdamie_nh: Error getting NH AMIE variable pcp')
+    istat = pio_inq_varid(ncid, 'pcp', idv_pcp)
+    call check_ncerr(istat, subname, 'AMIE pcp id')
+    istat = pio_get_var(ncid, idv_pcp, amie_pcp_nh)
+    call check_ncerr(istat, subname, 'AMIE pcp')
     !
     ! Get cusplat
-    istat = pio_inq_varid(ncid,'cusplat',idv_cusplat)
-    if (istat /= pio_noerr) call rpt_ncerr(istat,  &
-         'rdamie_nh: Error getting NH AMIE cusplat id')
-    istat = pio_get_var(ncid,idv_cusplat,amie_cusplat_nh)
-    if (istat /= pio_noerr) call rpt_ncerr(istat,  &
-         'rdamie_nh: Error getting NH AMIE variable cusplat')
+    istat = pio_inq_varid(ncid, 'cusplat', idv_cusplat)
+    call check_ncerr(istat, subname, 'AMIE cusplat id')
+    istat = pio_get_var(ncid, idv_cusplat, amie_cusplat_nh)
+    call check_ncerr(istat, subname, 'AMIE cusplat')
     !
     ! Get cuspmlt
-    istat = pio_inq_varid(ncid,'cuspmlt',idv_cuspmlt)
-    if (istat /= pio_noerr) call rpt_ncerr(istat,  &
-         'rdamie_nh: Error getting NH AMIE cusplat id')
-    istat = pio_get_var(ncid,idv_cuspmlt,amie_cuspmlt_nh)
-    if (istat /= pio_noerr) call rpt_ncerr(istat,  &
-         'rdamie_nh: Error getting NH AMIE variable cuspmlt')
+    istat = pio_inq_varid(ncid, 'cuspmlt', idv_cuspmlt)
+    call check_ncerr(istat, subname, 'AMIE cuspmlt id')
+    istat = pio_get_var(ncid, idv_cuspmlt, amie_cuspmlt_nh)
+    call check_ncerr(istat, subname, 'AMIE cuspmlt')
     !
     ! Allocate 2-d fields:
-    if (.not. allocated(pot_nh_amie)) &
-         allocate(pot_nh_amie(lonp1,latp1),stat=ier)
-    if (ier /= 0) write(iulog,"('>>> rdamie_nh: error allocating',  &
-         ' pot_nh_amie: lonp1=',i3,' latp1=',i3)")lonp1,latp1
-    if (.not. allocated(ekv_nh_amie)) &
-         allocate(ekv_nh_amie(lonp1,latp1),stat=ier)
-    if (ier /= 0) write(iulog,"('>>> rdamie_nh: error allocating',  &
-         ' ekv_nh_amie: lonp1=',i3,' latp1=',i3)")lonp1,latp1
-    if (.not. allocated(efx_nh_amie)) &
-         allocate(efx_nh_amie(lonp1,latp1),stat=ier)
-    if (ier /= 0) write(iulog,"('>>> rdamie_nh: error allocating',  &
-         ' efx_nh_amie: lonp1=',i3,' latp1=',i3)")lonp1,latp1
+    if (.not. allocated(pot_nh_amie)) then
+       allocate(pot_nh_amie(lonp1, latp1), stat=ier)
+       call check_alloc(ier, subname, 'pot_nh_amie', lonp1=lonp1, latp1=latp1)
+    end if
+    if (.not. allocated(ekv_nh_amie)) then
+       allocate(ekv_nh_amie(lonp1, latp1), stat=ier)
+       call check_alloc(ier, subname, 'ekv_nh_amie', lonp1=lonp1, latp1=latp1)
+    end if
+    if (.not. allocated(efx_nh_amie)) then
+       allocate(efx_nh_amie(lonp1, latp1), stat=ier)
+!!XXgoldyXX: v debug only
+ier = 22
+!!XXgoldyXX: ^ debug only
+       call check_alloc(ier, subname, 'efx_nh_amie', lonp1=lonp1, latp1=latp1)
+    end if
     !
     ! Allocate 3-d fields:
-    if (.not. allocated(amie_pot_nh))  &
-         allocate(amie_pot_nh(lonp1,latp1,ntimes),stat=ier)
-    if (ier /= 0) WRITE(iulog,"('>>> rdamie_nh: error allocating',  &
-         ' amie_pot_nh: lonp1=',i3,' latp1=',i3,' ntimes=',i3)") &
-         lonp1,latp1,ntimes
-    if (.not. allocated(amie_ekv_nh))  &
-         allocate(amie_ekv_nh(lonp1,latp1,ntimes),stat=ier)
-    if (ier /= 0) write(iulog,"('>>> rdamie_nh: error allocating',  &
-         ' amie_ekv_nh: lonp1=',i3,' latp1=',i3,' ntimes=',i3)") &
-         lonp1,latp1,ntimes
-    if (.not. allocated(amie_efx_nh))  &
-         allocate(amie_efx_nh(lonp1,latp1,ntimes),stat=ier)
-    if (ier /= 0) write(iulog,"('>>> rdamie_nh: error allocating',  &
-         ' amie_efx_nh: lonp1=',i3,' latp1=',i3,' ntimes=',i3)") &
-         lonp1,latp1,ntimes
+    if (.not. allocated(amie_pot_nh)) then
+       allocate(amie_pot_nh(lonp1, latp1, ntimes), stat=ier)
+!!XXgoldyXX: v debug only
+ier = 33
+!!XXgoldyXX: ^ debug only
+       call check_alloc(ier, subname, 'amie_pot_nh', &
+            lonp1=lonp1, latp1=latp1, ntimes=ntimes)
+    end if
+    if (.not. allocated(amie_ekv_nh)) then
+       allocate(amie_ekv_nh(lonp1, latp1, ntimes), stat=ier)
+       call check_alloc(ier, subname, 'amie_ekv_nh', &
+            lonp1=lonp1, latp1=latp1, ntimes=ntimes)
+    end if
+    if (.not. allocated(amie_efx_nh)) then
+       allocate(amie_efx_nh(lonp1, latp1, ntimes), stat=ier)
+       call check_alloc(ier, subname, 'amie_efx_nh', &
+            lonp1=lonp1, latp1=latp1, ntimes=ntimes)
+    end if
     !
-    ! Get 3-D AMIE fields (lon,lat,ntimes)
+    ! Get 3-D AMIE fields (lon, lat, ntimes)
     !
     ! AMIE electric potential
-    istat = pio_inq_varid(ncid,'pot',idv_pot)
-    if (istat /= pio_noerr) call rpt_ncerr(istat,  &
-         'rdamie_nh: Error getting NH AMIE electric potential id')
-    istat = pio_get_var(ncid,idv_pot,amie_pot_nh)
-    if (istat /= pio_noerr) call rpt_ncerr(istat,  &
-         'rdamie_nh: Error getting NH AMIE variable pot')
+    istat = pio_inq_varid(ncid, 'pot', idv_pot)
+    call check_ncerr(istat, subname, 'AMIE pot id')
+    istat = pio_get_var(ncid, idv_pot, amie_pot_nh)
+    call check_ncerr(istat, subname, 'AMIE pot')
     !
     ! AMIE mean energy
-    istat = pio_inq_varid(ncid,'ekv',idv_ekv)
-    if (istat /= pio_noerr) call rpt_ncerr(istat,  &
-         'rdamie_nh: Error getting NH AMIE mean energy id')
-    istat = pio_get_var(ncid,idv_ekv,amie_ekv_nh)
-    if (istat /= pio_noerr) call rpt_ncerr(istat,  &
-         'rdamie_nh: Error getting NH AMIE variable ekv')
+    istat = pio_inq_varid(ncid, 'ekv', idv_ekv)
+    call check_ncerr(istat, subname, 'AMIE ekv id')
+    istat = pio_get_var(ncid, idv_ekv, amie_ekv_nh)
+    call check_ncerr(istat, subname, 'AMIE ekv')
     !
     ! AMIE energy flux
-    istat = pio_inq_varid(ncid,'efx',idv_efx)
-    if (istat /= pio_noerr) call rpt_ncerr(istat,  &
-         'rdamie_nh: Error getting NH AMIE energy flux id')
-    istat = pio_get_var(ncid,idv_efx,amie_efx_nh)
-    if (istat /= pio_noerr) call rpt_ncerr(istat,  &
-         'rdamie_nh: Error getting NH AMIE variable efx')
+    istat = pio_inq_varid(ncid, 'efx', idv_efx)
+!!XXgoldyXX: v debug only
+istat = 44
+!!XXgoldyXX: ^ debug only
+    call check_ncerr(istat, subname, 'AMIE efx id')
+    istat = pio_get_var(ncid, idv_efx, amie_efx_nh)
+    call check_ncerr(istat, subname, 'AMIE efx')
     !
     ! Close the file:
     call cam_pio_closefile(ncid)
-    if (masterproc)  &
-         write(iulog,"('Completed read from NH AMIE data file ',a)") trim(amienh)
-    if (masterproc) write(iulog,"(72('-'),/)")
+    if (masterproc) then
+       write(iulog, "('Completed read from NH AMIE data file ',a)") trim(amienh)
+       write(iulog, "(72('-'),/)")
+    end if
   end subroutine rdamie_nh
+
   !-----------------------------------------------------------------------
   subroutine rdamie_sh(amiesh)
     !
-    ! Read AMIE data for the northern hemisphere from amiesh
+    ! Read AMIE data for the southern hemisphere from amiesh
     !
     ! Local:
 
-    character(len=*),intent(in) :: amiesh
-    integer :: istat,ntimes,ndims,nvars,ngatts,idunlim,ier
-    integer :: id_lon,id_lat,id_time, &
-         idv_year,idv_mon,idv_day,idv_jday, &
-         idv_ut,idv_pot,idv_ekv, &
-         idv_efx,idv_cusplat,idv_cuspmlt,idv_hpi,idv_pcp
-    type(file_desc_t) :: ncid
+    character(len=*), intent(in) :: amiesh
+    integer                      :: istat, ntimes, ndims, nvars, ngatts, ier
+    integer                      :: idunlim
+    integer                      :: id_lon, id_lat, id_time
+    integer                      :: idv_year, idv_mon, idv_day, idv_jday
+    integer                      :: idv_ut, idv_pot, idv_ekv, idv_efx
+    integer                      :: idv_cusplat, idv_cuspmlt, idv_hpi, idv_pcp
+    type(file_desc_t)            :: ncid
+    character(len=*), parameter  :: subname = 'rdamie_sh'
     !
-    if (masterproc) write(iulog,"(/,72('-'))")
-    if (masterproc) write(iulog,"('RDAMIE_SH: read AMIE data for northern hemisphere:')")
+    if (masterproc) then
+       write(iulog, "(/, 72('-'))")
+       write(iulog, "(a, ': read AMIE data for southern hemisphere:')") subname
+    end if
     !
     ! Open netcdf file:
     call cam_pio_openfile(ncid, amiesh, pio_nowrite)
     !
     ! Get AMIE grid dimension:
-    istat = pio_inq_dimid(ncid,'lon',id_lon)
-    istat = pio_inquire_dimension(ncid,id_lon,len=lonp1)
-    if (istat /= pio_noerr) call rpt_ncerr(istat, 'rdamie_sh: Error getting AMIE longitude dimension')
+    istat = pio_inq_dimid(ncid, 'lon', id_lon)
+    istat = pio_inquire_dimension(ncid, id_lon, len=lonp1)
+    call check_ncerr(istat, subname, 'AMIE longitude dimension')
 
-    istat = pio_inq_dimid(ncid,'lat',id_lat)
-    istat = pio_inquire_dimension(ncid,id_lat,len=latp1)
-    if (istat /= pio_noerr) call rpt_ncerr(istat, 'rdamie_sh: Error getting AMIE latitude dimension')
-    !     write(iulog,"('lonp1=',i3,' latp1=',i3)") lonp1,latp1
+    istat = pio_inq_dimid(ncid, 'lat', id_lat)
+    istat = pio_inquire_dimension(ncid, id_lat, len=latp1)
+    call check_ncerr(istat, subname, 'AMIE latitude dimension')
+    !     write(iulog, "('lonp1=', i3, ' latp1=', i3)") lonp1, latp1
     !
     ! Get time dimension:
-    istat = pio_inquire(ncid,unlimiteddimid=id_time)
-    istat = pio_inquire_dimension(ncid,id_time,len=ntimes)
+    istat = pio_inquire(ncid, unlimiteddimid=id_time)
+    istat = pio_inquire_dimension(ncid, id_time, len=ntimes)
     !
     ! Search for requested AMIE output fields
-    istat = pio_inquire(ncid,ndims,nvars,ngatts,idunlim)
+    istat = pio_inquire(ncid, ndims, nvars, ngatts, idunlim)
     !
     ! Get 1-D AMIE fields (ntimes)
-    if (.not. allocated(year)) allocate(year(ntimes),stat=ier)
-    istat = pio_inq_varid(ncid,'year',idv_year)
-    istat = pio_get_var(ncid,idv_year,year)
+    if (.not. allocated(year)) then
+       allocate(year(ntimes), stat=ier)
+       call check_alloc(ier, subname, 'year', ntimes=ntimes)
+    end if
+    istat = pio_inq_varid(ncid, 'year', idv_year)
+    call check_ncerr(istat, subname, 'AMIE year id')
+    istat = pio_get_var(ncid, idv_year, year)
+    call check_ncerr(istat, subname, 'AMIE year')
     !     write(iulog,*)'rdamie_sh: year=', year(1:10)
-    if (.not. allocated(month)) allocate(month(ntimes),stat=ier)
-    istat = pio_inq_varid(ncid,'month',idv_mon)
-    istat = pio_get_var(ncid,idv_mon,month)
-    if (.not. allocated(day)) allocate(day(ntimes),stat=ier)
-    istat = pio_inq_varid(ncid,'day',idv_day)
-    istat = pio_get_var(ncid,idv_day,day)
+    if (.not. allocated(month)) then
+       allocate(month(ntimes), stat=ier)
+       call check_alloc(ier, subname, 'month', ntimes=ntimes)
+    end if
+    istat = pio_inq_varid(ncid, 'month', idv_mon)
+    call check_ncerr(istat, subname, 'AMIE month id')
+    istat = pio_get_var(ncid, idv_mon, month)
+    call check_ncerr(istat, subname, 'AMIE month')
+    if (.not. allocated(day)) then
+       allocate(day(ntimes), stat=ier)
+       call check_alloc(ier, subname, 'day', ntimes=ntimes)
+    end if
+    istat = pio_inq_varid(ncid, 'day', idv_day)
+    call check_ncerr(istat, subname, 'AMIE day id')
+    istat = pio_get_var(ncid, idv_day, day)
+    call check_ncerr(istat, subname, 'AMIE day')
     !     write(iulog,*)'rdamie_sh: day=', day(1:10)
-    if (.not. allocated(jday)) allocate(jday(ntimes),stat=ier)
-    istat = pio_inq_varid(ncid,'jday',idv_jday)
-    istat = pio_get_var(ncid,idv_jday,jday)
+    if (.not. allocated(jday)) then
+       allocate(jday(ntimes), stat=ier)
+       call check_alloc(ier, subname, 'jday', ntimes=ntimes)
+    end if
+    istat = pio_inq_varid(ncid, 'jday', idv_jday)
+    call check_ncerr(istat, subname, 'AMIE jday id')
+    istat = pio_get_var(ncid, idv_jday, jday)
+    call check_ncerr(istat, subname, 'AMIE jday')
     !
     ! Allocate 1-d fields:
-    if (.not. allocated(amie_sh_ut)) &
-         allocate(amie_sh_ut(ntimes),stat=ier)
-    if (ier /= 0) write(iulog,"('>>> rdamie_sh: error allocating',  &
-         ' amie_sh_ut: ntimes=',i3)")ntimes
-    if (.not. allocated(amie_cusplat_sh))  &
-         allocate(amie_cusplat_sh(ntimes),stat=ier)
-    if (ier /= 0) write(iulog,"('>>> rdamie_sh: error allocating',  &
-         ' amie_cusplat_sh: ntimes=',i3)")ntimes
-    if (.not. allocated(amie_cuspmlt_sh))  &
-         allocate(amie_cuspmlt_sh(ntimes),stat=ier)
-    if (ier /= 0) write(iulog,"('>>> rdamie_sh: error allocating',  &
-         ' amie_cuspmlt_sh: ntimes=',i3)")ntimes
-    if (.not. allocated(amie_hpi_sh)) &
-         allocate(amie_hpi_sh(ntimes),stat=ier)
-    if (ier /= 0) write(iulog,"('>>> rdamie_sh: error allocating',  &
-         ' amie_hpi_sh: ntimes=',i3)")ntimes
-    if (.not. allocated(amie_pcp_sh)) &
-         allocate(amie_pcp_sh(ntimes),stat=ier)
-    if (ier /= 0) write(iulog,"('>>> rdamie_sh: error allocating',  &
-         ' amie_pcp_sh: ntimes=',i3)")ntimes
+    if (.not. allocated(amie_sh_ut)) then
+       allocate(amie_sh_ut(ntimes), stat=ier)
+       call check_alloc(ier, subname, 'amie_sh_ut', ntimes=ntimes)
+    end if
+    if (.not. allocated(amie_cusplat_sh)) then
+       allocate(amie_cusplat_sh(ntimes), stat=ier)
+       call check_alloc(ier, subname, 'amie_cusplat_sh', ntimes=ntimes)
+    end if
+    if (.not. allocated(amie_cuspmlt_sh)) then
+       allocate(amie_cuspmlt_sh(ntimes), stat=ier)
+       call check_alloc(ier, subname, 'amie_cuspmlt_sh', ntimes=ntimes)
+    end if
+    if (.not. allocated(amie_hpi_sh)) then
+       allocate(amie_hpi_sh(ntimes), stat=ier)
+       call check_alloc(ier, subname, 'amie_hpi_sh', ntimes=ntimes)
+    end if
+    if (.not. allocated(amie_pcp_sh)) then
+       allocate(amie_pcp_sh(ntimes), stat=ier)
+       call check_alloc(ier, subname, 'amie_pcp_sh', ntimes=ntimes)
+    end if
     !
     ! Get ut
-    istat = pio_inq_varid(ncid,'ut',idv_ut)
-    if (istat /= pio_noerr) call rpt_ncerr(istat,  &
-         'rdamie_sh: Error getting SH AMIE UT id')
-    istat = pio_get_var(ncid,idv_ut,amie_sh_ut)
-    if (istat /= pio_noerr) call rpt_ncerr(istat,  &
-         'rdamie_sh: Error getting SH AMIE variable ut')
+    istat = pio_inq_varid(ncid, 'ut', idv_ut)
+    call check_ncerr(istat, subname, 'AMIE ut id')
+    istat = pio_get_var(ncid, idv_ut, amie_sh_ut)
+    call check_ncerr(istat, subname, 'AMIE ut')
     !
     ! Get HPI
-    istat = pio_inq_varid(ncid,'hpi',idv_hpi)
-    if (istat /= pio_noerr) call rpt_ncerr(istat,  &
-         'rdamie_sh: Error getting SH AMIE hpi id')
-    istat = pio_get_var(ncid,idv_hpi,amie_hpi_sh)
-    if (istat /= pio_noerr) call rpt_ncerr(istat,  &
-         'rdamie_sh: Error getting SH AMIE variable hpi')
+    istat = pio_inq_varid(ncid, 'hpi', idv_hpi)
+    call check_ncerr(istat, subname, 'AMIE hpi id')
+    istat = pio_get_var(ncid, idv_hpi, amie_hpi_sh)
+    call check_ncerr(istat, subname, 'AMIE hpi')
     !
     ! Get PCP
-    istat = pio_inq_varid(ncid,'pcp',idv_pcp)
-    if (istat /= pio_noerr) call rpt_ncerr(istat,  &
-         'rdamie_sh: Error getting SH AMIE pcp id')
-    istat = pio_get_var(ncid,idv_pcp,amie_pcp_sh)
-    if (istat /= pio_noerr) call rpt_ncerr(istat,  &
-         'rdamie_sh: Error getting SH AMIE variable pcp')
+    istat = pio_inq_varid(ncid, 'pcp', idv_pcp)
+    call check_ncerr(istat, subname, 'AMIE pcp id')
+    istat = pio_get_var(ncid, idv_pcp, amie_pcp_sh)
+    call check_ncerr(istat, subname, 'AMIE pcp')
     !
     ! Get cusplat
-    istat = pio_inq_varid(ncid,'cusplat',idv_cusplat)
-    if (istat /= pio_noerr) call rpt_ncerr(istat,  &
-         'rdamie_sh: Error getting SH AMIE cusplat id')
-    istat = pio_get_var(ncid,idv_cusplat,amie_cusplat_sh)
-    if (istat /= pio_noerr) call rpt_ncerr(istat,  &
-         'rdamie_sh: Error getting SH AMIE variable cusplat')
+    istat = pio_inq_varid(ncid, 'cusplat', idv_cusplat)
+    call check_ncerr(istat, subname, 'AMIE cusplat id')
+    istat = pio_get_var(ncid, idv_cusplat, amie_cusplat_sh)
+    call check_ncerr(istat, subname, 'AMIE cusplat')
     !
     ! Get cuspmlt
-    istat = pio_inq_varid(ncid,'cuspmlt',idv_cuspmlt)
-    if (istat /= pio_noerr) call rpt_ncerr(istat,  &
-         'rdamie_sh: Error getting SH AMIE cusplat id')
-    istat = pio_get_var(ncid,idv_cuspmlt,amie_cuspmlt_sh)
-    if (istat /= pio_noerr) call rpt_ncerr(istat,  &
-         'rdamie_sh: Error getting SH AMIE variable cuspmlt')
+    istat = pio_inq_varid(ncid, 'cuspmlt', idv_cuspmlt)
+    call check_ncerr(istat, subname, 'AMIE cuspmlt id')
+    istat = pio_get_var(ncid, idv_cuspmlt, amie_cuspmlt_sh)
+    call check_ncerr(istat, subname, 'AMIE cuspmlt')
     !
     ! Allocate 2-d fields:
-    if (.not. allocated(pot_sh_amie)) &
-         allocate(pot_sh_amie(lonp1,latp1),stat=ier)
-    if (ier /= 0) write(iulog,"('>>> rdamie_sh: error allocating',  &
-         ' pot_sh_amie: lonp1=',i3,' latp1=',i3)")lonp1,latp1
-    if (.not. allocated(ekv_sh_amie)) &
-         allocate(ekv_sh_amie(lonp1,latp1),stat=ier)
-    if (ier /= 0) write(iulog,"('>>> rdamie_sh: error allocating',  &
-         ' ekv_sh_amie: lonp1=',i3,' latp1=',i3)")lonp1,latp1
-    if (.not. allocated(efx_sh_amie)) &
-         allocate(efx_sh_amie(lonp1,latp1),stat=ier)
-    if (ier /= 0) write(iulog,"('>>> rdamie_sh: error allocating',  &
-         ' efx_sh_amie: lonp1=',i3,' latp1=',i3)")lonp1,latp1
+    if (.not. allocated(pot_sh_amie)) then
+       allocate(pot_sh_amie(lonp1, latp1), stat=ier)
+       call check_alloc(ier, subname, 'pot_sh_amie', lonp1=lonp1, latp1=latp1)
+    end if
+    if (.not. allocated(ekv_sh_amie)) then
+       allocate(ekv_sh_amie(lonp1, latp1), stat=ier)
+       call check_alloc(ier, subname, 'ekv_sh_amie', lonp1=lonp1, latp1=latp1)
+    end if
+    if (.not. allocated(efx_sh_amie)) then
+       allocate(efx_sh_amie(lonp1, latp1), stat=ier)
+       call check_alloc(ier, subname, 'efx_sh_amie', lonp1=lonp1, latp1=latp1)
+    end if
     !
     ! Allocate 3-d fields:
-    if (.not. allocated(amie_pot_sh))  &
-         allocate(amie_pot_sh(lonp1,latp1,ntimes),stat=ier)
-    if (ier /= 0) write(iulog,"('>>> rdamie_sh: error allocating',  &
-         ' amie_pot_sh: lonp1=',i3,' latp1=',i3,' ntimes=',i3)") &
-         lonp1,latp1,ntimes
-    if (.not. allocated(amie_ekv_sh))  &
-         allocate(amie_ekv_sh(lonp1,latp1,ntimes),stat=ier)
-    if (ier /= 0) write(iulog,"('>>> rdamie_sh: error allocating',  &
-         ' amie_ekv_sh: lonp1=',i3,' latp1=',i3,' ntimes=',i3)") &
-         lonp1,latp1,ntimes
-    if (.not. allocated(amie_efx_sh))  &
-         allocate(amie_efx_sh(lonp1,latp1,ntimes),stat=ier)
-    if (ier /= 0) write(iulog,"('>>> rdamie_sh: error allocating',  &
-         ' amie_efx_sh: lonp1=',i3,' latp1=',i3,' ntimes=',i3)") &
-         lonp1,latp1,ntimes
+    if (.not. allocated(amie_pot_sh)) then
+       allocate(amie_pot_sh(lonp1, latp1, ntimes), stat=ier)
+       call check_alloc(ier, subname, 'amie_pot_sh', &
+            lonp1=lonp1, latp1=latp1, ntimes=ntimes)
+    end if
+    if (.not. allocated(amie_ekv_sh)) then
+       allocate(amie_ekv_sh(lonp1, latp1, ntimes), stat=ier)
+       call check_alloc(ier, subname, 'amie_ekv_sh', &
+            lonp1=lonp1, latp1=latp1, ntimes=ntimes)
+    end if
+    if (.not. allocated(amie_efx_sh)) then
+       allocate(amie_efx_sh(lonp1, latp1, ntimes), stat=ier)
+       call check_alloc(ier, subname, 'amie_efx_sh', &
+            lonp1=lonp1, latp1=latp1, ntimes=ntimes)
+    end if
     !
-    ! Get 3-D AMIE fields (lon,lat,ntimes)
+    ! Get 3-D AMIE fields (lon, lat, ntimes)
     !
     ! AMIE electric potential
-    istat = pio_inq_varid(ncid,'pot',idv_pot)
-    if (istat /= pio_noerr) call rpt_ncerr(istat,  &
-         'rdamie_sh: Error getting SH AMIE electric potential id')
-    istat = pio_get_var(ncid,idv_pot,amie_pot_sh)
-    if (istat /= pio_noerr) call rpt_ncerr(istat,  &
-         'rdamie_sh: Error getting SH AMIE variable pot')
+    istat = pio_inq_varid(ncid, 'pot', idv_pot)
+    call check_ncerr(istat, subname, 'AMIE pot id')
+    istat = pio_get_var(ncid, idv_pot, amie_pot_sh)
+    call check_ncerr(istat, subname, 'AMIE pot')
     !
     ! AMIE mean energy
-    istat = pio_inq_varid(ncid,'ekv',idv_ekv)
-    if (istat /= pio_noerr) call rpt_ncerr(istat,  &
-         'rdamie_sh: Error getting SH AMIE mean energy id')
-    istat = pio_get_var(ncid,idv_ekv,amie_ekv_sh)
-    if (istat /= pio_noerr) call rpt_ncerr(istat,  &
-         'rdamie_sh: Error getting SH AMIE variable ekv')
+    istat = pio_inq_varid(ncid, 'ekv', idv_ekv)
+    call check_ncerr(istat, subname, 'AMIE ekv id')
+    istat = pio_get_var(ncid, idv_ekv, amie_ekv_sh)
+    call check_ncerr(istat, subname, 'AMIE ekv')
     !
     ! AMIE energy flux
-    istat = pio_inq_varid(ncid,'efx',idv_efx)
-    if (istat /= pio_noerr) call rpt_ncerr(istat,  &
-         'rdamie_sh: Error getting SH AMIE energy flux id')
-    istat = pio_get_var(ncid,idv_efx,amie_efx_sh)
-    if (istat /= pio_noerr) call rpt_ncerr(istat,  &
-         'rdamie_sh: Error getting SH AMIE variable efx')
+    istat = pio_inq_varid(ncid, 'efx', idv_efx)
+    call check_ncerr(istat, subname, 'AMIE efx id')
+    istat = pio_get_var(ncid, idv_efx, amie_efx_sh)
+    call check_ncerr(istat, subname, 'AMIE efx')
     !
     ! Close the file:
     call cam_pio_closefile(ncid)
-    if (masterproc)  &
-         write(iulog,"('Completed read from SH AMIE data file ',a)") trim(amiesh)
-    if (masterproc) write(iulog,"(72('-'),/)")
+    if (masterproc) then
+       write(iulog, "('Completed read from SH AMIE data file ', a)") trim(amiesh)
+       write(iulog, "(72('-'),/)")
+    end if
   end subroutine rdamie_sh
 #endif
   !-----------------------------------------------------------------------
-  subroutine getamie(iyear,imo,iday,iutsec,sunlon,amie_ibkg,iprint,  &
-                     iamie,phihm,amie_efxm,amie_kevm,crad, efxg,kevg)
+  subroutine getamie(iyear, imo, iday, iutsec, sunlon, amie_ibkg, iprint,  &
+                     iamie, phihm, amie_efxm, amie_kevm, crad, efxg, kevg)
     use cam_history_support, only: fillvalue
-    use rgrd_mod, only: rgrd2
+    use rgrd_mod,            only: rgrd2
+    use edyn_esmf,           only: pdim1s, pdim1e, pdim2s, pdim2e
     !
-    !     Read AMIE outputs from amie_ncfile file, returning electric potential,
-    !     auroral mean energy and energy flux at current date and time,
-    !     and the data is linearly interpolated to the model time
-    !     gl - 12/07/2002
+    !    Read AMIE outputs from amie_ncfile file, returning electric potential,
+    !    auroral mean energy and energy flux at current date and time,
+    !    and the data is linearly interpolated to the model time
+    !    gl - 12/07/2002
     !
     !
-    !     Args:
+    !    Args:
 
     integer,  intent(in)    :: iyear
     integer,  intent(in)    :: imo
@@ -488,29 +523,32 @@ contains
     real(r8), intent(out)   :: amie_efxm(nmlonp1,nmlat) ! on geomag grid
     real(r8), intent(out)   :: amie_kevm(nmlonp1,nmlat) ! on geomag grid
     real(r8), intent(out)   :: crad(2)
-    real(r8), intent(out)   :: efxg(lon0:lon1,lat0:lat1) ! on geographic grid
-    real(r8), intent(out)   :: kevg(lon0:lon1,lat0:lat1) ! on geographic grid
+    ! Physics grid outputs
+    real(r8), intent(out)   :: efxg(pdim1s:pdim1e, pdim2s:pdim2e)
+    real(r8), intent(out)   :: kevg(pdim1s:pdim1e, pdim2s:pdim2e)
 #ifdef WACCMX_EDYN_ESMF
-
     !
     !     Local:
-    real(r8) :: potm(lonp1,jmxm),efxm(lonp1,jmxm),ekvm(lonp1,jmxm),  &
-                alat(jmxm),alon(lonp1),alatm(jmxm),alonm(lonp1)
-    integer :: ier,lw,liw,intpol(2)
-    integer, allocatable :: iw(:)
-    real(r8),allocatable :: w(:)
-    integer :: i,j
-    integer :: nn, iset, iset1, m, mp1, n
-    integer :: iboxcar
-    real(r8) :: model_ut, denoma, f1, f2
-    real(r8) :: del,xmlt,dmlat,dlatm,dlonm,dmltm,rot,dtr,rtd
-    integer :: idate,bdate,edate
-    real(r8) :: pi
+    real(r8)                    :: potm(lonp1,jmxm)
+    real(r8)                    :: efxm(lonp1,jmxm), ekvm(lonp1,jmxm)
+    real(r8)                    :: alat(jmxm), alon(lonp1)
+    real(r8)                    :: alatm(jmxm), alonm(lonp1)
+    integer                     :: ier, lw, liw, intpol(2)
+    integer,  allocatable       :: iw(:)
+    real(r8), allocatable       :: w(:)
+    integer                     :: i, j
+    integer                     :: nn, iset, iset1, m, mp1, n
+    integer                     :: iboxcar
+    integer                     :: idate, bdate, edate
+    real(r8)                    :: model_ut, denoma, f1, f2
+    real(r8)                    :: del, xmlt, dmlat, dlatm, dlonm, dmltm, rot
+    real(r8)                    :: pi, dtr, rtd
+    character(len=*), parameter :: subname = 'getamie'
 
-    pi = 4._r8*atan(1._r8)
-    dtr = pi/180._r8          ! degrees to radians
-    rtd = 180._r8/pi
-    !     
+    pi = 4._r8 * atan(1._r8)
+    dtr = pi / 180._r8          ! degrees to radians
+    rtd = 180._r8 / pi          ! radians to degrees
+    !
 
     phihm = fillvalue
     amie_efxm = fillvalue
@@ -522,9 +560,9 @@ contains
     !
     if (iprint > 0 .and. masterproc) then
        write(iulog,"(/,72('-'))")
-       write(iulog,"('GETAMIE:')")
-       write(iulog,"('Initial requested iyear=',i4,  &
-            ' iday=',i3,' iutsec=', i10)") iyear,iday,iutsec
+       write(iulog,"(a,':')") subname
+       write(iulog,"(a,i4,', iday = ',i3,', iutsec = ',i10)")                &
+            'Initial requested iyear= ', iyear, iday, iutsec
     end if
 
     !
@@ -535,22 +573,28 @@ contains
     edate = year(nn)*10000+month(nn)*100+day(nn)
     idate = iyear*10000+imo*100+iday
 
-    if (idate<bdate) then
-       if (masterproc) write(iulog, "('getamie: Model date prior to AMIE first date:',3I5)") &
-            year(1),month(1),day(1)
+    if (idate < bdate) then
+       if (masterproc) then
+          write(iulog, "(a,': Model date prior to AMIE first date:',3I5)")   &
+               subname, year(1), month(1), day(1)
+       end if
        iamie = 2
        return
     endif
-    if (idate>edate) then
-       if (masterproc) write(iulog, "('getamie: Model date beyond the AMIE last Data:',3I5)") &
-            year(nn),month(nn),day(nn)
+    if (idate > edate) then
+       if (masterproc) then
+          write(iulog, "(a,': Model date beyond the AMIE last Data:',3I5)")  &
+               subname, year(nn), month(nn), day(nn)
+       end if
        iamie = 0
        return
     endif
 
-    if (iamie/=1) return
-    
-    model_ut = dble(iutsec)/3600._r8
+    if (iamie /= 1) then
+       return
+    end if
+
+    model_ut = real(iutsec, kind=r8) / 3600._r8
 
     !
     !     interpolate AMIE data to modeltime iutsec
@@ -583,8 +627,9 @@ contains
 
        denoma = amie_sh_ut(iset1) - amie_sh_ut(iset)
        if (denoma > 1._r8) then
-          write(iulog, "('getamie: Finding a gap in the AMIE Data set:',  &
-               'modelday, amieday =',2I5)") iday,day(n)
+          write(iulog, "(a,2(a,i0))")                                        &
+               subname, ': Finding a gap in the AMIE Data set: modelday = ', &
+               iday, ', amieday = ', day(n)
           iamie = 2
           return
        end if
@@ -687,8 +732,9 @@ contains
 
        denoma = amie_nh_ut(iset1) - amie_nh_ut(iset)
        if (denoma > 1._r8) then
-          write(iulog, "('getamie: Finding a gap in the AMIE Data set:',  &
-               'modelday, amieday =',2I5)") iday,day(n)
+          write(iulog, "(a,2(a,i0))")                                        &
+               subname, ': Finding a gap in the AMIE Data set: modelday = ', &
+               iday, ', amieday = ', day(n)
           iamie = 2
           return
        end if
@@ -816,19 +862,21 @@ contains
 
     !     mlongitude starts from 180 degree
     rot = sunlon*rtd
-    if(rot.lt.0) rot = rot + 360._r8    !  0 to 360 degrees
-    rot = rot/15._r8                    !  convert from degree to hrs
+    if(rot < 0) then
+       rot = rot + 360._r8    !  0 to 360 degrees
+    end if
+    rot = rot / 15._r8        !  convert from degree to hrs
 
-    dmltm = 24._r8/dble(lonmx)
-    do i=1,lonp1
-       xmlt = dble(i-1)*dmltm - rot + 24._r8
-       xmlt = MOD(xmlt,24._r8)
+    dmltm = 24._r8 / real(lonmx, kind=r8)
+    do i = 1, lonp1
+       xmlt = (real(i-1, kind=r8) * dmltm) - rot + 24._r8
+       xmlt = MOD(xmlt, 24._r8)
        m = int(xmlt/dmltm + 1.01_r8)
        mp1 = m + 1
        if (mp1 > lonp1) mp1 = 2
        del = xmlt - (m-1)*dmltm
        !     Initialize arrays around equator
-       do j=latp1+1,ithmx
+       do j = latp1+1, ithmx
           potm(i,j) = 0._r8
           potm(i,jmxm+1-j) = 0._r8
           ekvm(i,j) = (1._r8-del)*ekv_sh_amie(m,latp1) + &
@@ -839,7 +887,7 @@ contains
           efxm(i,jmxm+1-j) = 0._r8
        end do
        !     Put in AMIE arrays from pole to latp1
-       do j=1,latp1
+       do j = 1, latp1
           potm(i,j) = (1._r8-del)*pot_sh_amie(m,j) + &
                del*pot_sh_amie(mp1,j)
           potm(i,jmxm+1-j) = (1._r8-del)*pot_nh_amie(m,j) + &
@@ -858,21 +906,20 @@ contains
 
     !     Set up coeffs to go between EPOTM(IMXMP,JMNH) and TIEPOT(IMAXM,JMAXMH)
 
-    !     ****     SET GRID SPACING DLATM, DLONG, DLONM
+    !     ****     SET GRID SPACING DLATM, DLONM
     !     DMLAT=lat spacing in degrees of AMIE apex grid
-    dtr = pi/180._r8
-    dmlat = 180._r8 / dble(jmxm-1)
-    dlatm = dmlat*dtr
-    dlonm = 2._r8*pi/dble(lonmx)
-    dmltm = 24._r8/dble(lonmx)
+    dmlat = 180._r8 / real(jmxm-1, kind=r8)
+    dlatm = dmlat * dtr
+    dlonm = 2._r8 * pi / real(lonmx, kind=r8)
+    dmltm = 24._r8 / real(lonmx, kind=r8)
     !     ****
     !     ****     SET ARRAY YLATM (LATITUDE VALUES FOR GEOMAGNETIC GRID
     !     ****
-    alatm(1) = -pi/2._r8
+    alatm(1) = -pi / 2._r8
     alat(1) = -90._r8
-    alatm(jmxm) = pi/2._r8
+    alatm(jmxm) = pi / 2._r8
     alat(jmxm) = 90._r8
-    do i = 2,ithmx
+    do i = 2, ithmx
        alat(i) = alat(i-1)+dlatm/dtr
        alat(jmxm+1-i) = alat(jmxm+2-i)-dlatm/dtr
        alatm(i) = alatm(i-1)+dlatm
@@ -880,7 +927,7 @@ contains
     end do
     alon(1) = -pi/dtr
     alonm(1) = -pi
-    do i=2,lonp1
+    do i = 2, lonp1
        alon(i) = alon(i-1) + dlonm/dtr
        alonm(i) = alonm(i-1) + dlonm
     end do
@@ -891,51 +938,53 @@ contains
     !
     !     Allocate workspace for regrid routine rgrd2.f:
     lw = nmlonp1+nmlat+2*nmlonp1
-    if (.not. allocated(w)) allocate(w(lw),stat=ier)
-    IF (ier /= 0) WRITE(iulog,"('>>> horizontal_interp: error allocating',  &
-         ' w(lw): lw=',i6,' ier=',i4)") lw,ier
+    if (.not. allocated(w)) then
+       allocate(w(lw), stat=ier)
+       call check_alloc(ier, 'getamie', 'w', lw=lw)
+    end if
     liw = nmlonp1 + nmlat
-    if (.not. allocated(iw)) allocate(iw(liw),stat=ier)
-    if (ier /= 0) write(iulog,"('>>> horzontal_interp: error allocating',  &
-         ' iw(liw): liw=',i6,' ier=',i4)") liw,ier
+    if (.not. allocated(iw)) then
+       allocate(iw(liw), stat=ier)
+       call check_alloc(ier, 'getamie', 'iw', lw=liw)
+    end if
     intpol(:) = 1             ! linear (not cubic) interp in both dimensions
-    if (alatm(1) > ylatm(1)) alatm(1) = ylatm(1)
-    if (alatm(jmxm) < ylatm(nmlat)) alatm(jmxm) = ylatm(nmlat)
-    if (alonm(1) > ylonm(1)) alonm(1) = ylonm(1)
-    if (alonm(lonp1) < ylonm(nmlonp1)) alonm(lonp1) = ylonm(nmlonp1)
+    if (alatm(1) > ylatm(1)) then
+       alatm(1) = ylatm(1)
+    end if
+    if (alatm(jmxm) < ylatm(nmlat)) then
+       alatm(jmxm) = ylatm(nmlat)
+    end if
+    if (alonm(1) > ylonm(1)) then
+       alonm(1) = ylonm(1)
+    end if
+    if (alonm(lonp1) < ylonm(nmlonp1)) then
+       alonm(lonp1) = ylonm(nmlonp1)
+    end if
     !     write(iulog,"('  AMIE: ylatm =',/,(6e12.4))") ylatm
     !     write(iulog,"('  AMIE: ylonm =',/,(6e12.4))") ylonm
     !     write(iulog,"('  AMIE: potm(1,:) =',/,(6e12.4))") potm(1,:)
     !     ylatm from -pi/2 to pi/2, and ylonm from -pi to pi
-    call rgrd2(lonp1,jmxm,alonm,alatm,potm,nmlonp1,nmlat,  &
-         ylonm,ylatm,tiepot,intpol,w,lw,iw,liw,ier)
-    call rgrd2(lonp1,jmxm,alonm,alatm,ekvm,nmlonp1,nmlat,  &
-         ylonm,ylatm,tieekv,intpol,w,lw,iw,liw,ier)
-    call rgrd2(lonp1,jmxm,alonm,alatm,efxm,nmlonp1,nmlat,  &
-         ylonm,ylatm,tieefx,intpol,w,lw,iw,liw,ier)
+    call rgrd2(lonp1, jmxm, alonm, alatm, potm, nmlonp1, nmlat,  &
+         ylonm, ylatm, tiepot, intpol, w, lw, iw, liw, ier)
+    call rgrd2(lonp1, jmxm, alonm, alatm, ekvm, nmlonp1, nmlat,  &
+         ylonm, ylatm, tieekv, intpol, w, lw, iw, liw, ier)
+    call rgrd2(lonp1, jmxm, alonm, alatm, efxm, nmlonp1, nmlat,  &
+         ylonm, ylatm, tieefx, intpol, w, lw, iw, liw, ier)
     !     write(iulog,"('  AMIE: tiepot(1,:) =',/,(6e12.4))") tiepot(1,:)
     phihm(:,:) = tiepot(:,:)
     amie_efxm(:,:) = tieefx(:,:)
     amie_kevm(:,:) = tieekv(:,:)
 
-    !     Convert from WACCM-X distorted magnetic grid to geographic one
-    !     call mag2geo(tiepot(1,1),potg(1,0),im(1,0),jm(1,0),
-    !     |    dim(1,0),djm(1,0),nlonp1,nmlonp1,nlon,nlat+2,nmlon,nmlat)
-    !     call mag2geo(tieekv(1,1),ekvg(1,0),im(1,0),jm(1,0),
-    !     |    dim(1,0),djm(1,0),nlonp1,nmlonp1,nlon,nlat+2,nmlon,nmlat)
-    !     call mag2geo(tieefx(1,1),efxg(1,0),im(1,0),jm(1,0),
-    !     |    dim(1,0),djm(1,0),nlonp1,nmlonp1,nlon,nlat+2,nmlon,nmlat)
-
-    call mag2geo_2d(amie_efxm(mlon0:mlon1,mlat0:mlat1),  &
-         efxg, mag_efx,geo_efx,'MEFXAMIE')
-    call mag2geo_2d(amie_kevm(mlon0:mlon1,mlat0:mlat1),  &
-         kevg, mag_kev,geo_kev,'MKEVAMIE')
-
-    !     call mag2geo_2d(amie_kevm,amie_kevg,mag_kev,geo_kev,'KEVM')
-    if (iprint > 0 .and. masterproc) write(iulog,*) 'Max,min amie_efxm = ',  &
-         maxval(amie_efxm),minval(amie_efxm)
-    if (iprint > 0 .and. masterproc) write(iulog,*)  &
-         'Max,min efxg = ',maxval(efxg),minval(efxg)
+!!$    call mag2phys_2d(amie_efxm(mlon0:mlon1,mlat0:mlat1),  &
+!!$         efxg, mag_efx, phys_efx, 'MEFXAMIE')
+!!$    call mag2phys_2d(amie_kevm(mlon0:mlon1,mlat0:mlat1),  &
+!!$         kevg, mag_kev, phys_kev, 'MKEVAMIE')
+!!$
+    if (iprint > 0 .and. masterproc) then
+       write(iulog, *) subname, ': Max, min amie_efxm = ', &
+            maxval(amie_efxm), minval(amie_efxm)
+       write(iulog, *) subname, ': Max, min efxg = ', maxval(efxg), minval(efxg)
+    end if
     !     ****
     !     ****     INSERT PERIODIC POINTS
     !     ****
@@ -946,13 +995,13 @@ contains
     !     ENDDO
     !
     if (iprint > 0 .and. masterproc) then
-       write(iulog, "('getamie: AMIE data interpolated to date and time')")
-       write(iulog,"('getamie: iyear,imo,iday,iutsec = ',3i6,i10)")  &
-            iyear,imo,iday,iutsec
-       write(iulog,"('getamie: AMIE iset f1,f2,year,mon,day,ut = ',  &
-            i6,2F9.5,3I6,f10.4)")  &
-            iset,f1,f2,year(iset),month(iset),day(iset),amie_nh_ut(iset)
-       write(iulog,*)'getamie: max,min phihm= ', maxval(phihm),minval(phihm)
+       write(iulog, "(a': AMIE data interpolated to date and time')") subname
+       write(iulog,"(a,': iyear,imo,iday,iutsec = ',3i6,i10)") subname,       &
+            iyear, imo, iday, iutsec
+       write(iulog,"(2a,i6,2F9.5,3I6,f10.4)")                                 &
+            subname, ': AMIE iset f1,f2,year,mon,day,ut = ', iset,            &
+            f1, f2, year(iset), month(iset), day(iset), amie_nh_ut(iset)
+       write(iulog,*) subname, ': max,min phihm= ', maxval(phihm), minval(phihm)
        !     write(iulog,*)'getamie: max,min phihm,amie_efx,amie_kev = ',
        !     |    maxval(phihm),minval(tiepot),maxval(amie_efx),
        !     |    minval(amie_efx),maxval(amie_kev),minval(amie_kev)
@@ -963,7 +1012,7 @@ contains
   end subroutine getamie
 #ifdef WACCMX_EDYN_ESMF
   !-------------------------------------------------------------------
-  subroutine boxcar_ave(x,y,lon,lat,mtime,itime,ibox)
+  subroutine boxcar_ave(x, y, lon, lat, mtime, itime, ibox)
     !
     ! perform boxcar average
     !
@@ -975,7 +1024,7 @@ contains
     integer,  intent(in)  :: ibox
     real(r8), intent(in)  :: x(lon,lat,mtime)
     real(r8), intent(out) :: y(lon,lat)
-    
+
     ! Local:
     integer :: i, iset, iset1
     !
@@ -996,92 +1045,110 @@ contains
     if (ibox > 0) y(:,:) = y(:,:)/ibox
     !
   end subroutine boxcar_ave
+
   !-----------------------------------------------------------------------
-  subroutine mag2geo(am,ag,im,jm,dim,djm,lg,lm,nlong,nlatg)
+  subroutine mag2phys_2d(fmag, fphys, ESMF_mag, ESMF_phys, fname)
     !
-    ! Args:
-    integer,  intent(in)  :: lg
-    integer,  intent(in)  :: lm
-    real(r8), intent(in)  :: am(lm,*)
-    real(r8), intent(out) :: ag(lg,*)
-    integer,  intent(in)  :: im(lg,*)
-    integer,  intent(in)  :: jm(lg,*)
-    real(r8), intent(in)  :: dim(lg,*)
-    real(r8), intent(in)  :: djm(lg,*)
-    integer,  intent(in)  :: nlong
-    integer,  intent(in)  :: nlatg
+    ! Convert field on geomagnetic grid fmag to physics grid in fphys.
     !
-    ! Local:
-    integer :: ig,jg
-    !
-    do jg=1,nlatg
-       do ig=1,nlong
-          ag(ig,jg) =  &
-               am(im(ig,jg)  ,jm(ig,jg))  *(1._r8-dim(ig,jg))*(1._r8-djm(ig,jg))+  &
-               am(im(ig,jg)+1,jm(ig,jg))  *    dim(ig,jg) *(1._r8-djm(ig,jg))+  &
-               am(im(ig,jg)  ,jm(ig,jg)+1)*(1._r8-dim(ig,jg))*djm(ig,jg)+  &
-               am(im(ig,jg)+1,jm(ig,jg)+1)*    dim(ig,jg) *djm(ig,jg)
-       end do ! ig=1,nlong
-    end do ! jg=1,nlatg
-  end subroutine mag2geo
-  !-----------------------------------------------------------------------
-  subroutine mag2geo_2d(fmag,fgeo,ESMF_mag,ESMF_geo,fname)
-    !
-    ! Convert field on geomagnetic grid fmag to geographic grid in fgeo.
-    !
-    use edyn_esmf,only: edyn_esmf_set2d_mag,edyn_esmf_regrid,  &
-                        edyn_esmf_get_2dfield
+    use edyn_esmf, only: edyn_esmf_set2d_mag, edyn_esmf_regrid_mag2phys
+    use edyn_esmf, only: edyn_esmf_get_2dfield
+    use edyn_esmf, only: pdim1s, pdim1e, pdim2s, pdim2e
     !
     ! Args:
     real(r8),         intent(in)    :: fmag(mlon0:mlon1,mlat0:mlat1)
-    real(r8),         intent(out)   :: fgeo(lon0:lon1,lat0:lat1)
-    type(ESMF_Field), intent(inout) :: ESMF_mag, ESMF_geo
+    real(r8),         intent(out)   :: fphys(pdim1s:pdim1e, pdim2s:pdim2e)
+    type(ESMF_Field), intent(inout) :: ESMF_mag, ESMF_phys
     character(len=*), intent(in)    :: fname
-    !
-    ! Local:
-    integer :: j
-    character (len=8) :: fnames(1)
-    type(ESMF_Field) :: magfields(1)
-    real(r8),pointer,dimension(:,:) :: fptr
-
-    fgeo = finit
-    fnames(1) = fname
-    magfields(1) = ESMF_mag
-    !
-    ! Put fmag into ESMF mag field on mag source grid:
-    call edyn_esmf_set2d_mag(magfields,fnames,fmag,1, &
-         mlon0,mlon1,mlat0,mlat1)
-    !
-    ! Regrid to geographic destination grid, defining ESMF_geo:
-    call edyn_esmf_regrid(ESMF_mag,ESMF_geo,'mag2geo',2)
-    !
-    ! Put regridded geo field into pointer:
-    call edyn_esmf_get_2dfield(ESMF_geo,fptr,fname)
-    !      write(iulog,*) 'mag2geo: Max,min fptr = ',maxval(fptr),minval(fptr)
+ !
+ ! Local:
+    integer                         :: d2
+    character (len=8)               :: fnames(1)
+    type(ESMF_Field)                :: magfields(1)
+    real(r8), pointer               :: fptr(:,:)
+!!$
+!!$    fphys = finit
+!!$    fnames(1) = fname
+!!$    magfields(1) = ESMF_mag
+!!$    !
+!!$    ! Put fmag into ESMF mag field on mag source grid:
+!!$    call edyn_esmf_set2d_mag(magfields, fnames, fmag, 1, &
+!!$         mlon0, mlon1, mlat0, mlat1)
+!!$    !
+!!$    ! Regrid to physics destination grid, defining ESMF_phys:
+!!$    call edyn_esmf_regrid_mag2phys(ESMF_mag, ESMF_phys, 2)
+!!$    !
+!!$    ! Put regridded phys field into pointer:
+!!$    call edyn_esmf_get_2dfield(ESMF_phys, fptr, fname)
+!!$    !      write(iulog,*) 'mag2phys: Max,min fptr = ',maxval(fptr),minval(fptr)
     !
     ! Transfer from pointer to output arg:
-    do j=lat0,lat1
-       fgeo(:,j) = fptr(:,j)
+    do d2 = pdim2s, pdim2e
+       fphys(:, d2) = fptr(:, d2)
     end do
-    !      write(iulog,*) 'mag2geo: max,min fmag = ',maxval(fmag),minval(fmag)
-    !      write(iulog,*) 'mag2geo: max,min fgeo = ',maxval(fgeo),minval(fgeo)
-  end subroutine mag2geo_2d
+    !    write(iulog,*) 'mag2phys: max,min fmag = ',maxval(fmag),minval(fmag)
+    !    write(iulog,*) 'mag2phys: max,min fphys = ',maxval(fphys),minval(fhpys)
+ end subroutine mag2phys_2d
+
   !-----------------------------------------------------------------------
-  subroutine rpt_ncerr(istat,msg)
+  subroutine check_alloc(ierror, subname, varname, lonp1, latp1, ntimes, lw)
+    integer,           intent(in) :: ierror
+    character(len=*),  intent(in) :: subname
+    character(len=*),  intent(in) :: varname
+    integer, optional, intent(in) :: lonp1
+    integer, optional, intent(in) :: latp1
+    integer, optional, intent(in) :: ntimes
+    integer, optional, intent(in) :: lw
+    ! Local variable
+    character(len=256) :: errmsg
+
+    if (ierror /= 0) then
+       write(errmsg, '(">>> ",a,": error allocating ",a)')                   &
+            trim(subname), trim(varname)
+       if (present(lonp1)) then
+          write(errmsg(len_trim(errmsg)+1:), '(", lonp1 = ",i0)') lonp1
+       end if
+       if (present(latp1)) then
+          write(errmsg(len_trim(errmsg)+1:), '(", latp1 = ",i0)') latp1
+       end if
+       if (present(ntimes)) then
+          write(errmsg(len_trim(errmsg)+1:), '(", ntimes = ",i0)') ntimes
+       end if
+       if (present(lw)) then
+          write(errmsg(len_trim(errmsg)+1:), '(", lw = ",i0)') lw
+       end if
+       if (masterproc) then
+          write(iulog, *) trim(errmsg)
+       end if
+       call endrun(trim(errmsg))
+    end if
+
+  end subroutine check_alloc
+
+  !-----------------------------------------------------------------------
+  subroutine check_ncerr(istat, subname, msg)
     !
     ! Handle a netcdf lib error:
     !
-    integer,         intent(in) :: istat
-    character(len=*),intent(in) :: msg
+    integer,          intent(in) :: istat
+    character(len=*), intent(in) :: subname
+    character(len=*), intent(in) :: msg
     !
-    write(iulog,"(/72('-'))")
-    write(iulog,"('>>> Error from netcdf library:')")
-    write(iulog,"(a)") trim(msg)
+    ! Local variable
+    character(len=256) :: errmsg
+    !
+    if (istat /= pio_noerr) then
+       write(iulog,"(/72('-'))")
+       write(iulog,"('>>> Error from netcdf library:')")
+       write(iulog,"(a,': Error getting ',a)") trim(subname), trim(msg)
 
-    write(iulog,"('istat=',i5)") istat
-    write(iulog,"(72('-')/)")
-    return
-  end subroutine rpt_ncerr
+       write(iulog,"('istat=',i5)") istat
+       write(iulog,"(72('-')/)")
+       write(errmsg, '("NetCDF Error in ",a,": ",2a,", istat = ",i0)')        &
+            trim(subname), 'Error getting ', trim(msg), istat
+       call endrun(trim(errmsg))
+    end if
+  end subroutine check_ncerr
 
 #endif
 

@@ -252,7 +252,7 @@ OPTIONS
                         perl \$OSNAME variable.
      -usr_src <dir1>[,<dir2>[,<dir3>[...]]]
                         Directories containing user source code.
-     -offline_drv <name> Specify offline unit driver [ aur | rad | stub ]
+     -offline_drv <name> Specify offline unit driver [ aur | rad | wxie | stub ]
 
 EOF
 }
@@ -1970,9 +1970,6 @@ if ($cfg_ref->get('analytic_ic')) {
 #WACCM-X extended thermosphere/ionosphere model
 if ($waccmx) {
     $cfg_cppdefs .= ' -DWACCMX_PHYS'; 
-    if (($dyn_pkg ne 'fv') and ($ionos ne 'none'))  {
-        die "ERROR:  Ionosphere is only available for FV dycore \n";
-    }
     if ($ionos =~ /wxi/) {
        $cfg_cppdefs .= ' -DWACCMX_IONOS';
     }

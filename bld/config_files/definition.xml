@@ -35,10 +35,11 @@ Switch to turn on waccm physics: 0 => no, 1 => yes.
 <entry id="offline_dyn" valid_values="0,1" value="0">
 Switch to turn on FV offline driver: 0 => no, 1 => yes.
 </entry>
-<entry id="offline_drv" valid_values="aur,rad,stub" value="stub">
+<entry id="offline_drv" valid_values="aur,rad,wxie,stub" value="stub">
  Offline unit driver:
   aur  : aurora module unit test
   rad  : radiation offline unit driver
+  wxie : ionosphere O+ ion transport unit driver
   stub : stub offline unit driver
 </entry>
 <entry id="analytic_ic" valid_values="0,1" value="0">
