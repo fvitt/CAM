@@ -109,6 +109,8 @@ contains
       call alloc_apex
       call alloc_magfield
 
+      dddarr = 0._r8
+      dvec = 0._r8
       rekm = re_dyn*cm2km  ! earth radius (km)
       h0km = h0*cm2km
       alt  = hs*cm2km  ! modified apex reference altitude (km)
@@ -173,18 +175,16 @@ contains
                     (ylatm(jjm) - ylatm(jm(i,j)))
                exit
             end do
-            if (j /= jspole .and. j /= jnpole) then
-               dvec(i,j,1,1) = d1(1)
-               dvec(i,j,2,1) = d1(2)
-               dvec(i,j,3,1) = d1(3)
-               dvec(i,j,1,2) = d2(1)
-               dvec(i,j,2,2) = d2(2)
-               dvec(i,j,3,2) = d2(3)
-               dddarr(i,j)   = d
-               !
-               ! Scale be3 from 130 km to a reference height of 90 km.
-               be3arr(i,j)   = be3 * ror03
-            end if
+            dvec(i,j,1,1) = d1(1)
+            dvec(i,j,2,1) = d1(2)
+            dvec(i,j,3,1) = d1(3)
+            dvec(i,j,1,2) = d2(1)
+            dvec(i,j,2,2) = d2(2)
+            dvec(i,j,3,2) = d2(3)
+            dddarr(i,j)   = d
+            !
+            ! Scale be3 from 130 km to a reference height of 90 km.
+            be3arr(i,j)   = be3 * ror03
          end do ! i=1,nlonp1
       end do ! j=jspole,jnpole
       !

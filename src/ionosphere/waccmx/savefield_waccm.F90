@@ -1,7 +1,6 @@
 module savefield_waccm
   use shr_kind_mod,only: r8 => shr_kind_r8 ! 8-byte reals
   use cam_history ,only: hist_fld_active,outfld  ! Routine to output fields to history files
-  use edyn_mpi    ,only: array_ptr_type
 !
 ! Save fields to WACCM output history file.
 !

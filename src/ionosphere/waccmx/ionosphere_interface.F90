@@ -534,8 +534,6 @@ contains
             blksize = blksize + get_ncols_p(lchnk)
          end do
 
-         !print*,'FVDBG.  blksize = ',blksize
-
          allocate(phis(pcols))
          allocate(u_blck(pver, blksize))
          allocate(v_blck(pver, blksize))
@@ -754,34 +752,34 @@ contains
          ! Compute geometric height and some diagnostic fields needed by
          ! the dynamo. Output some fields from physics grid
          ! This code is inside the timer as it is part of the coupling
-if (masterproc) then
-         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(omega_blck) : ',minval(omega_blck),maxval(omega_blck) 
-         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(pmid_blck) : ',minval(pmid_blck),maxval(pmid_blck) 
-         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(zi_blck) : ',minval(zi_blck),maxval(zi_blck) 
-         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(zm_blck) : ',minval(zm_blck),maxval(zm_blck) 
-         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(hi_blck) : ',minval(hi_blck),maxval(hi_blck) 
-         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(u_blck) : ',minval(u_blck),maxval(u_blck) 
-         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(v_blck) : ',minval(v_blck),maxval(v_blck) 
-         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(tn_blck) : ',minval(tn_blck),maxval(tn_blck) 
-         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(sigma_ped_blck) : ',minval(sigma_ped_blck),maxval(sigma_ped_blck) 
-         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(sigma_hall_blck) : ',minval(sigma_hall_blck),maxval(sigma_hall_blck) 
-         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(te_blck) : ',minval(te_blck),maxval(te_blck) 
-         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(ti_blck) : ',minval(ti_blck),maxval(ti_blck) 
-         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(mbar_blck) : ',minval(mbar_blck),maxval(mbar_blck) 
-         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(o2mmr_blck) : ',minval(o2mmr_blck),maxval(o2mmr_blck) 
-         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(o1mmr_blck) : ',minval(o1mmr_blck),maxval(o1mmr_blck) 
-         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(h1mmr_blck) : ',minval(h1mmr_blck),maxval(h1mmr_blck) 
-         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(o2pmmr_blck) : ',minval(o2pmmr_blck),maxval(o2pmmr_blck) 
-         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(o2pmmr_blck) : ',minval(o2pmmr_blck),maxval(o2pmmr_blck) 
-         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(nopmmr_blck) : ',minval(nopmmr_blck),maxval(nopmmr_blck) 
-         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(n2pmmr_blck) : ',minval(n2pmmr_blck),maxval(n2pmmr_blck) 
-         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(opmmr_blck) : ',minval(opmmr_blck),maxval(opmmr_blck) 
-         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(opmmrtm1_blck) : ',minval(opmmrtm1_blck),maxval(opmmrtm1_blck) 
-         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(ui_blck) : ',minval(ui_blck),maxval(ui_blck) 
-         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(vi_blck) : ',minval(vi_blck),maxval(vi_blck) 
-         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(wi_blck) : ',minval(wi_blck),maxval(wi_blck) 
-         write(*,'(a,4e20.12)') 'FVDBG... rmassO2p, rmassNOp, rmassN2p, rmassOp : ', rmassO2p, rmassNOp, rmassN2p, rmassOp
- endif
+!!$if (masterproc) then
+!!$         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(omega_blck) : ',minval(omega_blck),maxval(omega_blck) 
+!!$         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(pmid_blck) : ',minval(pmid_blck),maxval(pmid_blck) 
+!!$         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(zi_blck) : ',minval(zi_blck),maxval(zi_blck) 
+!!$         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(zm_blck) : ',minval(zm_blck),maxval(zm_blck) 
+!!$         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(hi_blck) : ',minval(hi_blck),maxval(hi_blck) 
+!!$         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(u_blck) : ',minval(u_blck),maxval(u_blck) 
+!!$         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(v_blck) : ',minval(v_blck),maxval(v_blck) 
+!!$         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(tn_blck) : ',minval(tn_blck),maxval(tn_blck) 
+!!$         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(sigma_ped_blck) : ',minval(sigma_ped_blck),maxval(sigma_ped_blck) 
+!!$         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(sigma_hall_blck) : ',minval(sigma_hall_blck),maxval(sigma_hall_blck) 
+!!$         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(te_blck) : ',minval(te_blck),maxval(te_blck) 
+!!$         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(ti_blck) : ',minval(ti_blck),maxval(ti_blck) 
+!!$         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(mbar_blck) : ',minval(mbar_blck),maxval(mbar_blck) 
+!!$         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(o2mmr_blck) : ',minval(o2mmr_blck),maxval(o2mmr_blck) 
+!!$         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(o1mmr_blck) : ',minval(o1mmr_blck),maxval(o1mmr_blck) 
+!!$         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(h1mmr_blck) : ',minval(h1mmr_blck),maxval(h1mmr_blck) 
+!!$         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(o2pmmr_blck) : ',minval(o2pmmr_blck),maxval(o2pmmr_blck) 
+!!$         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(o2pmmr_blck) : ',minval(o2pmmr_blck),maxval(o2pmmr_blck) 
+!!$         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(nopmmr_blck) : ',minval(nopmmr_blck),maxval(nopmmr_blck) 
+!!$         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(n2pmmr_blck) : ',minval(n2pmmr_blck),maxval(n2pmmr_blck) 
+!!$         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(opmmr_blck) : ',minval(opmmr_blck),maxval(opmmr_blck) 
+!!$         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(opmmrtm1_blck) : ',minval(opmmrtm1_blck),maxval(opmmrtm1_blck) 
+!!$         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(ui_blck) : ',minval(ui_blck),maxval(ui_blck) 
+!!$         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(vi_blck) : ',minval(vi_blck),maxval(vi_blck) 
+!!$         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(wi_blck) : ',minval(wi_blck),maxval(wi_blck) 
+!!$         write(*,'(a,4e20.12)') 'FVDBG... rmassO2p, rmassNOp, rmassN2p, rmassOp : ', rmassO2p, rmassNOp, rmassN2p, rmassOp
+!!$ endif
 
          ! waccmx ionosphere electro-dynamics -- transports O+ and
          !   provides updates to ion drift velocities (on physics grid)

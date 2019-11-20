@@ -52,7 +52,6 @@ contains
      sini = 0.0_r8
 
      do j = lat0, lat1
-!!$        if (j==jspole .or. j==jnpole) cycle
         do i = lon0, lon1
            sinalat = sin(alatm(i,j))               ! sin(lam)
            clm2(i,j) = 1._r8 - (sinalat * sinalat) ! cos^2(lam)
@@ -106,12 +105,6 @@ contains
         end do ! i=lon0,lon1
 
      end do ! j=lat0,lat1
-!!$
-!!$     do j = lat0, lat1
-!!$        do i = lon0, lon1
-!!$           sini(i,j) = zb(i,j)/bmod(i,j) ! sin(I_m)
-!!$        end do
-!!$     end do
 
   end subroutine calc_adotv
 

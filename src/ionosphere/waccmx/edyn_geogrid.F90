@@ -60,7 +60,7 @@ module edyn_geogrid
 ! calculations, then reversed back to the native WACCM sequence
 ! (top2bottom) before writing to the edynamo output file.
 !
-  character(len=10) :: lev_sequence
+!  character(len=10) :: lev_sequence
 !
 ! lon_sequence is a string indicating ordering of the longitude
 ! coordinate lon, and of the field arrays along this dimension.
@@ -295,12 +295,6 @@ contains
          end do
       enddo jloop
 
-      if (masterproc) then
-         write(iulog,'(a,)') '****************************************************** '
-         write(iulog,'(a,3i)') '*** set_geogrid: npes, ntasks_lon, ntasks_lat : ', npes, ntasks_lon, ntasks_lat
-         write(iulog,'(a,)') '****************************************************** '
-      endif
-      
       call mp_distribute_geo(lon_beg, lon_end, lat_beg, lat_end, 1, nlev, ntasks_lon, ntasks_lat)
       !!XXgoldyXX: Do we need the geogrid_mpicom for anything?
       call MPI_comm_free(geogrid_mpicom, ierr)

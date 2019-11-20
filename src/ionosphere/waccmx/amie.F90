@@ -995,7 +995,7 @@ istat = 44
     !     ENDDO
     !
     if (iprint > 0 .and. masterproc) then
-       write(iulog, "(a': AMIE data interpolated to date and time')") subname
+       write(iulog, "(a,': AMIE data interpolated to date and time')") subname
        write(iulog,"(a,': iyear,imo,iday,iutsec = ',3i6,i10)") subname,       &
             iyear, imo, iday, iutsec
        write(iulog,"(2a,i6,2F9.5,3I6,f10.4)")                                 &
@@ -1065,7 +1065,7 @@ istat = 44
     integer                         :: d2
     character (len=8)               :: fnames(1)
     type(ESMF_Field)                :: magfields(1)
-    real(r8), pointer               :: fptr(:,:)
+!!$    real(r8), pointer               :: fptr(:,:)
 !!$
 !!$    fphys = finit
 !!$    fnames(1) = fname
@@ -1081,13 +1081,13 @@ istat = 44
 !!$    ! Put regridded phys field into pointer:
 !!$    call edyn_esmf_get_2dfield(ESMF_phys, fptr, fname)
 !!$    !      write(iulog,*) 'mag2phys: Max,min fptr = ',maxval(fptr),minval(fptr)
-    !
-    ! Transfer from pointer to output arg:
-    do d2 = pdim2s, pdim2e
-       fphys(:, d2) = fptr(:, d2)
-    end do
-    !    write(iulog,*) 'mag2phys: max,min fmag = ',maxval(fmag),minval(fmag)
-    !    write(iulog,*) 'mag2phys: max,min fphys = ',maxval(fphys),minval(fhpys)
+!!$    !
+!!$    ! Transfer from pointer to output arg:
+!!$    do d2 = pdim2s, pdim2e
+!!$       fphys(:, d2) = fptr(:, d2)
+!!$    end do
+!!$    !    write(iulog,*) 'mag2phys: max,min fmag = ',maxval(fmag),minval(fmag)
+!!$    !    write(iulog,*) 'mag2phys: max,min fphys = ',maxval(fphys),minval(fhpys)
  end subroutine mag2phys_2d
 
   !-----------------------------------------------------------------------
