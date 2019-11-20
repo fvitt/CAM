@@ -232,14 +232,14 @@ contains
       errstr = ''
       ! error check differences between internally generated lons and those read in
       do n = 1,lsize
-         if (abs(lonMesh(n) - lon(n)) > 0.0001) then
-            if ( (abs(lonMesh(n)-lon(n)) > 360.0001) .or. (abs(lonMesh(n)-lon(n)) < 359.999) ) then
+         if (abs(lonMesh(n) - lon(n)) > 0.0001_r8) then
+            if ( (abs(lonMesh(n)-lon(n)) > 360.0001_r8) .or. (abs(lonMesh(n)-lon(n)) < 359.999_r8) ) then
                write(errstr,100) n,lon(n),lonMesh(n), abs(lonMesh(n)-lon(n))
                write(*,*) trim(errstr)
             endif
          end if
-         if (abs(latMesh(n) - lat(n)) > 0.0001) then ! 1.e-12_r8
-            if (.not.( (abs(lat(n))>88.0) .and. (abs(latMesh(n))>88.0) )) then
+         if (abs(latMesh(n) - lat(n)) > 0.0001_r8) then ! 1.e-12_r8
+            if (.not.( (abs(lat(n))>88.0_r8) .and. (abs(latMesh(n))>88.0_r8) )) then
                write(errstr,101) n,lat(n),latMesh(n), abs(latMesh(n)-lat(n))
                write(*,*) trim(errstr)
             endif
