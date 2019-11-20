@@ -940,6 +940,8 @@ contains
 
          physgrid = cam_grid_id('physgrid')
          call cam_grid_dimensions(physgrid, gdims(1:2), nhdims)
+         nhdims = nhdims + 1
+         gdims(nhdims) = pver
          dims(1) = pcols
          dims(2) = pver
          dims(3) = endchunk - begchunk + 1
@@ -973,6 +975,8 @@ contains
 
          physgrid = cam_grid_id('physgrid')
          call cam_grid_dimensions(physgrid, gdims(1:2), nhdims)
+         nhdims = nhdims + 1
+         gdims(nhdims) = pver
          dims(1) = pcols
          dims(2) = pver
          dims(3) = endchunk - begchunk + 1
