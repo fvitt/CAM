@@ -238,24 +238,21 @@ contains
          npes = ntasks_atm ! Use all tasks by default
       end if
       call MPI_comm_rank(atm_mpicom, iam, ierr)
-      if (nlat / npes < minlats_per_pe) then
-         ! We need to work up a 2-D decomposition
-         ntasks_lat = floor(real(nlat, r8) / real(minlats_per_pe, r8))
-         ntasks_lon = 1
-         do lonind = 2, npes / ntasks_lat
-            if (nlon / lonind < minlats_per_pe) then
-               exit
-            else
-               ntasks_lon = lonind
-            end if
-            if (ntasks_lon * ntasks_lat >= npes) then
-               exit
-            end if
-         end do
-      else
-         ntasks_lat = npes
-         ntasks_lon = 1
-      end if
+
+      do ntasks_lon = 1,nlon_g
+         ntasks_lat = npes/ntasks_lon
+         if ( minlats_per_pe*ntasks_lat<nlat_g .and. ntasks_lat*ntasks_lon==npes ) then
+            exit
+         endif
+      end do
+      if (masterproc) then
+         write(iulog,'(a,3i)') 'set_geogrid: npes,nlon_g,nlat_g: ',npes,nlon_g,nlat_g
+         write(iulog,'(a,2i)') 'set_geogrid: ntasks_lon,ntasks_lat: ',ntasks_lon,ntasks_lat
+      endif
+
+      if (ntasks_lat*ntasks_lon/=npes) then
+         call endrun('set_geogrid: ntasks_lat*ntasks_lon/=npes')
+      endif
 
       ! Create the geogrid communicator
       color = iam / (ntasks_lat * ntasks_lon)
