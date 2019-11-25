@@ -64,6 +64,7 @@ contains
 
     call addfld ('OpDens' ,(/ 'lev' /), 'I', 'cm^-3','O+ Number Density'                       , gridname='physgrid')
     call addfld ('EDens'  ,(/ 'lev' /), 'I', 'cm^-3','e Number Density (sum of O2+,NO+,N2+,O+)', gridname='physgrid')
+
     call addfld ('amie_efxg'  , horiz_only, 'I','mW/m2','AMIE energy flux on geo grid'     ,gridname='physgrid')
     call addfld ('amie_kevg'  , horiz_only, 'I','keV  ','AMIE mean energy on geo grid'     ,gridname='physgrid')
 
@@ -73,34 +74,31 @@ contains
   end subroutine d_pie_init
 
   !-----------------------------------------------------------------------
-  subroutine d_pie_epotent(highlat_potential_model, crit_out,                 &
-       cols, cole, chnks, chnke, efxg, kevg)
-     use edyn_solve,       only: pfrac    ! NH fraction of potential (nmlonp1,nmlat0)
-     use time_manager,     only: get_curr_date
-     use heelis,           only: heelis_model
-     use wei05sc,          only: weimer05  ! driver for weimer high-lat convection model
-     use edyn_esmf,        only: edyn_esmf_update
-     use solar_parms_data, only: solar_parms_advance
-     use solar_wind_data,  only: solar_wind_advance
-     use solar_wind_data,  only: bzimf=>solar_wind_bzimf
-     use solar_wind_data,  only: byimf=>solar_wind_byimf
-     use solar_wind_data,  only: swvel=>solar_wind_swvel
-     use solar_wind_data,  only: swden=>solar_wind_swden
-     use edyn_mpi,         only: mlat0, mlat1, mlon0, omlon1
-     use edyn_maggrid,     only: nmlonp1, nmlat
+  subroutine d_pie_epotent( highlat_potential_model, crit_out, cols, cole, efx_phys, kev_phys )
+    use edyn_solve,       only: pfrac    ! NH fraction of potential (nmlonp1,nmlat0)
+    use time_manager,     only: get_curr_date
+    use heelis,           only: heelis_model
+    use wei05sc,          only: weimer05  ! driver for weimer high-lat convection model
+    use edyn_esmf,        only: edyn_esmf_update
+    use solar_parms_data, only: solar_parms_advance
+    use solar_wind_data,  only: solar_wind_advance
+    use solar_wind_data,  only: bzimf=>solar_wind_bzimf
+    use solar_wind_data,  only: byimf=>solar_wind_byimf
+    use solar_wind_data,  only: swvel=>solar_wind_swvel
+    use solar_wind_data,  only: swden=>solar_wind_swden
+    use edyn_mpi,         only: mlat0, mlat1, mlon0, mlon1, omlon1
+    use edyn_maggrid,     only: nmlonp1, nmlat
+    use regridder,  only: regrid_mag2phys_2d
+
     ! Args:
     !
     character(len=*),  intent(in)  :: highlat_potential_model
     real(r8),          intent(out) :: crit_out(2) ! critical colatitudes (degrees)
-    integer, optional, intent(in)  ::                                         &
-         cols,                                                                &
-         cole,                                                                &
-         chnks,                                                               &
-         chnke
     ! energy flux from AMIE
-    real(r8), optional, intent(out) :: efxg(:,:)
+    integer, optional, intent(in)  :: cols, cole
+    real(r8), optional, intent(out) :: efx_phys(:)
      ! characteristic mean energy from AMIE
-    real(r8), optional, intent(out) :: kevg(:,:)
+    real(r8), optional, intent(out) :: kev_phys(:)
     !
     ! local vars
     !
@@ -117,8 +115,6 @@ contains
     !
     real(r8) :: amie_efxm(nmlonp1,nmlat), amie_kevm(nmlonp1,nmlat)
     real(r8) :: amie_phihm(nmlonp1,nmlat)
-    real(r8),allocatable,target :: amie_efxg (:,:,:) ! AMIE energy flux
-    real(r8),allocatable,target :: amie_kevg (:,:,:) ! AMIE characteristic mean energy
 
     call edyn_esmf_update()
 
@@ -154,10 +150,10 @@ contains
        call endrun('d_pie_epotent: Unknown highlat_potential_model')
     end if
 
-    if (present(efxg)) then
-       ! the presence of efxg indicate the user wishes to use prescribed potential
-       if (.not. present(kevg)) then
-          call endrun('d_pie_epotent: kevg must be present if efxg is present')
+    if (present(efx_phys)) then
+       ! the presence of efx_phys indicate the user wishes to use prescribed potential
+       if (.not. present(kev_phys)) then
+          call endrun('d_pie_epotent: kevg must be present if efx_phys is present')
        end if
        iprint = 0
        amie_ibkg = 0
@@ -167,13 +163,13 @@ contains
        end if
 
        call getamie(iyear, imo, iday, tod, sunlon, amie_ibkg, iprint, iamie, &
-            amie_phihm, amie_efxm, amie_kevm, crad, efxg, kevg)
+                    amie_phihm, amie_efxm, amie_kevm, crad)
 
        if (masterproc) then
           write(iulog,"('After Calling getamie >>> iamie = ', i2)") iamie
        end if
        amie_period = iamie == 1
-
+       
        do j = mlat0, mlat1
           call outfld('amie_phihm',amie_phihm(mlon0:omlon1,j),omlon1-mlon0+1,j)
           call outfld('amie_efxm', amie_efxm(mlon0:omlon1,j), omlon1-mlon0+1,j)
@@ -181,15 +177,14 @@ contains
        end do
 
        if (amie_period) then
-
           phihm = amie_phihm
-
        end if
 
-       do j = chnks, chnke
-          call outfld('amie_efxg', efxg(:,j), (cole - cols + 1), j)
-          call outfld('amie_kevg', kevg(:,j), (cole - cols + 1), j)
-       end do
+       call regrid_mag2phys_2d(amie_kevm(mlon0:mlon1,mlat0:mlat1), kev_phys, cols, cole)
+       call regrid_mag2phys_2d(amie_efxm(mlon0:mlon1,mlat0:mlat1), efx_phys, cols, cole)
+
+       call outfld_phys1d( 'amie_efxg', efx_phys )
+       call outfld_phys1d( 'amie_kevg', kev_phys )
     end if
 
     call calc_pfrac(sunlon, pfrac) ! returns pfrac for dynamo (edyn_solve)

@@ -54,7 +54,8 @@ module edyn_esmf
    public :: edyn_esmf_regrid_mag2phys
    public :: edyn_esmf_regrid_geo2mag
    public :: edyn_esmf_regrid_mag2geo
-
+   
+   public :: edyn_esmf_get_1dfield
    public :: edyn_esmf_get_2dfield ! Retrieve a pointer to 2D ESMF field data
    public :: edyn_esmf_get_3dfield ! Retrieve a pointer to 3D ESMF field data
    public :: edyn_esmf_set3d_geo   ! Set ESMF field with 3D geo data
@@ -575,7 +576,7 @@ contains
       !     staggerloc=ESMF_STAGGERLOC_CENTER, filename="geoGrid",rc=rc)
       !   call ESMF_GridWriteVTK(mag_des_grid, &
       !     staggerloc=ESMF_STAGGERLOC_CENTER, filename="magGrid",rc=rc)
-#if 0
+
       !
       ! Compute and store route handle for phys2mag 2d fields:
       !
@@ -592,7 +593,6 @@ contains
            factorList, factorIndexList, srcTermProcessing=smm_srctermproc,    &
            pipelineDepth=smm_pipelinedep, rc=rc)
       call edyn_esmf_chkerr(subname, 'ESMF_FieldSMMStore for 2D phys2mag', rc)
-#endif
       
       !
       ! Compute and store route handle for phys2mag 3d fields:
@@ -635,7 +635,6 @@ contains
            pipelineDepth=smm_pipelinedep, rc=rc)
       call edyn_esmf_chkerr(subname, 'ESMF_FieldSMMStore for 3D mag2phys', rc)
  
-#if 0
       ! Compute and store route handle for mag2phys 2d (amie) fields:
       call ESMF_FieldRegridStore(srcField=mag_src_2dfld, dstField=phys_2dfld,         &
            regridMethod=ESMF_REGRIDMETHOD_BILINEAR,                           &
@@ -650,7 +649,7 @@ contains
            factorList, factorIndexList, srcTermProcessing=smm_srctermproc,    &
            pipelineDepth=smm_pipelinedep, rc=rc)
       call edyn_esmf_chkerr(subname, 'ESMF_FieldSMMStore for 3D mag2phys', rc)
-#endif
+
       !
       ! Compute and store route handle for phys2geo 3d fields:
       !
@@ -1325,14 +1324,14 @@ contains
     !
   end subroutine edyn_esmf_set2d_phys
   !-----------------------------------------------------------------------
-  subroutine edyn_esmf_get_3dfield(field, data, ilon0,ilon1,ilat0,ilat1,ilev0,ilev1 )
+  subroutine edyn_esmf_get_3dfield(field, data, i0,i1,j0,j1,k0,k1 )
     !
     ! Get pointer to 3d esmf field (i,j,k):
     !
     ! Args:
-    integer,           intent(in)  :: ilon0,ilon1,ilat0,ilat1,ilev0,ilev1
+    integer,           intent(in)  :: i0,i1,j0,j1,k0,k1
     type(ESMF_field),  intent(in)  :: field
-    real(r8),          intent(out) :: data(ilon0:ilon1,ilat0:ilat1,ilev0:ilev1)
+    real(r8),          intent(out) :: data(i0:i1,j0:j1,k0:k1)
     !
     ! Local:
     real(r8), pointer           :: fptr(:,:,:)
@@ -1346,14 +1345,14 @@ contains
     data(:,:,:) = fptr(:,:,:)
   end subroutine edyn_esmf_get_3dfield
   !-----------------------------------------------------------------------
-  subroutine edyn_esmf_get_2dfield(field, data, ilon0,ilon1,ilat0,ilat1 )
+  subroutine edyn_esmf_get_2dfield(field, data, i0,i1,j0,j1 )
     !
     ! Get pointer to 2d esmf field (i,j):
     !
     ! Args:
-    integer,           intent(in)  :: ilon0,ilon1,ilat0,ilat1
+    integer,           intent(in)  :: i0,i1,j0,j1
     type(ESMF_field),  intent(in)  :: field
-    real(r8),          intent(out) :: data(ilon0:ilon1,ilat0:ilat1)
+    real(r8),          intent(out) :: data(i0:i1,j0:j1)
     !
     ! Local:
     real(r8), pointer :: fptr(:,:)
@@ -1366,6 +1365,27 @@ contains
     data(:,:) = fptr(:,:)
 
   end subroutine edyn_esmf_get_2dfield
+  !-----------------------------------------------------------------------
+  subroutine edyn_esmf_get_1dfield(field, data, i0,i1 )
+    !
+    ! Get pointer to 2d esmf field (i,j):
+    !
+    ! Args:
+    integer,           intent(in)  :: i0,i1
+    type(ESMF_field),  intent(in)  :: field
+    real(r8),          intent(out) :: data(i0:i1)
+    !
+    ! Local:
+    real(r8), pointer :: fptr(:)
+    integer :: rc
+    character(len=*),   parameter :: subname = 'edyn_esmf_get_2dfield'
+
+    call ESMF_FieldGet(field, localDe=0, farrayPtr=fptr, rc=rc)
+    call edyn_esmf_chkerr(subname, 'ESMF_FieldGet', rc)
+
+    data(:) = fptr(:)
+
+  end subroutine edyn_esmf_get_1dfield
    !-----------------------------------------------------------------------
    subroutine edyn_esmf_regrid_phys2mag(srcfield, dstfield, ndim)
       !
@@ -1397,8 +1417,8 @@ contains
    subroutine edyn_esmf_regrid_mag2phys(srcfield, dstfield, ndim)
       !
       ! Args:
-      integer                         :: ndim
       type(ESMF_Field), intent(inout) :: srcfield, dstfield
+      integer                         :: ndim
       !
       ! Local:
       integer                     :: rc
@@ -1411,7 +1431,7 @@ contains
       else
          call ESMF_FieldSMM(srcfield, dstfield, routehandle_mag2phys,         &
            termorderflag=ESMF_TERMORDER_SRCSEQ, rc=rc)
-         call edyn_esmf_chkerr(subname, 'ESMF_FieldSMM mag2phys 2D', rc)
+         call edyn_esmf_chkerr(subname, 'ESMF_FieldSMM mag2phys 3D', rc)
       end if
    end subroutine edyn_esmf_regrid_mag2phys
    !-----------------------------------------------------------------------

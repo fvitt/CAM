@@ -390,15 +390,15 @@ contains
       type(physics_buffer_desc), pointer :: pbuf2d(:,:)
 
       ! local vars
-      integer :: i, k, lchnk  ! indices
+      integer :: i, j, lchnk,  blksize ! indices
       type(physics_buffer_desc), pointer :: pbuf_chnk(:)
 
       real(r8), pointer :: pbuf_amie_efxg(:) ! Pointer to AMIE energy flux in pbuf
       real(r8), pointer :: pbuf_amie_kevg(:) ! Pointer to AMIE mean energy in pbuf
 
       integer :: ncol
-      real(r8), allocatable :: amie_efxg(:,:) ! energy flux from AMIE
-      real(r8), allocatable :: amie_kevg(:,:) ! characteristic mean energy from AMIE
+      real(r8), allocatable :: amie_efxg(:) ! energy flux from AMIE
+      real(r8), allocatable :: amie_kevg(:) ! characteristic mean energy from AMIE
 
       if( write_inithist() .and. ionos_xport_active ) then
          do lchnk = begchunk, endchunk
@@ -407,21 +407,33 @@ contains
       end if
 
       amie_active: if ( ionos_epotential_amie ) then
+         blksize = 0
+         do lchnk = begchunk, endchunk
+            blksize = blksize + get_ncols_p(lchnk)
+         end do
+         
+         allocate(amie_efxg(blksize))
+         allocate(amie_kevg(blksize))
 
          ! data assimilated potential
-         call d_pie_epotent(ionos_epotential_model, epot_crit_colats,         &
-              cols=1, cole=pcols, chnks=begchunk, chnke=endchunk,             &
-              efxg=amie_efxg, kevg=amie_kevg )
+         call d_pie_epotent( ionos_epotential_model, epot_crit_colats, &
+                             cols=1, cole=blksize, efx_phys=amie_efxg, kev_phys=amie_kevg )
 
          ! transform to pbuf for aurora...
 
-         chnk_loop1 : do lchnk = begchunk,endchunk
+         j = 0
+         chnk_loop1: do lchnk = begchunk, endchunk
             ncol = get_ncols_p(lchnk)
             pbuf_chnk => pbuf_get_chunk(pbuf2d, lchnk)
             call pbuf_get_field(pbuf_chnk, indxAMIEefxg, pbuf_amie_efxg)
             call pbuf_get_field(pbuf_chnk, indxAMIEkevg, pbuf_amie_kevg)
-            pbuf_amie_efxg(:ncol) = amie_efxg(:ncol, lchnk)
-            pbuf_amie_kevg(:ncol) = amie_kevg(:ncol, lchnk)
+
+            do i = 1, ncol
+               j = j + 1
+               pbuf_amie_efxg(i) = amie_efxg(j)
+               pbuf_amie_kevg(i) = amie_kevg(j)
+            end do
+
             call outfld('amie_efx_phys', pbuf_amie_efxg, pcols, lchnk)
             call outfld('amie_kev_phys', pbuf_amie_kevg, pcols, lchnk)
          end do chnk_loop1
@@ -752,35 +764,7 @@ contains
          ! Compute geometric height and some diagnostic fields needed by
          ! the dynamo. Output some fields from physics grid
          ! This code is inside the timer as it is part of the coupling
-!!$if (masterproc) then
-!!$         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(omega_blck) : ',minval(omega_blck),maxval(omega_blck) 
-!!$         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(pmid_blck) : ',minval(pmid_blck),maxval(pmid_blck) 
-!!$         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(zi_blck) : ',minval(zi_blck),maxval(zi_blck) 
-!!$         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(zm_blck) : ',minval(zm_blck),maxval(zm_blck) 
-!!$         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(hi_blck) : ',minval(hi_blck),maxval(hi_blck) 
-!!$         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(u_blck) : ',minval(u_blck),maxval(u_blck) 
-!!$         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(v_blck) : ',minval(v_blck),maxval(v_blck) 
-!!$         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(tn_blck) : ',minval(tn_blck),maxval(tn_blck) 
-!!$         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(sigma_ped_blck) : ',minval(sigma_ped_blck),maxval(sigma_ped_blck) 
-!!$         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(sigma_hall_blck) : ',minval(sigma_hall_blck),maxval(sigma_hall_blck) 
-!!$         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(te_blck) : ',minval(te_blck),maxval(te_blck) 
-!!$         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(ti_blck) : ',minval(ti_blck),maxval(ti_blck) 
-!!$         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(mbar_blck) : ',minval(mbar_blck),maxval(mbar_blck) 
-!!$         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(o2mmr_blck) : ',minval(o2mmr_blck),maxval(o2mmr_blck) 
-!!$         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(o1mmr_blck) : ',minval(o1mmr_blck),maxval(o1mmr_blck) 
-!!$         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(h1mmr_blck) : ',minval(h1mmr_blck),maxval(h1mmr_blck) 
-!!$         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(o2pmmr_blck) : ',minval(o2pmmr_blck),maxval(o2pmmr_blck) 
-!!$         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(o2pmmr_blck) : ',minval(o2pmmr_blck),maxval(o2pmmr_blck) 
-!!$         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(nopmmr_blck) : ',minval(nopmmr_blck),maxval(nopmmr_blck) 
-!!$         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(n2pmmr_blck) : ',minval(n2pmmr_blck),maxval(n2pmmr_blck) 
-!!$         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(opmmr_blck) : ',minval(opmmr_blck),maxval(opmmr_blck) 
-!!$         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(opmmrtm1_blck) : ',minval(opmmrtm1_blck),maxval(opmmrtm1_blck) 
-!!$         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(ui_blck) : ',minval(ui_blck),maxval(ui_blck) 
-!!$         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(vi_blck) : ',minval(vi_blck),maxval(vi_blck) 
-!!$         write(*,'(a,2e20.12)') 'FVDBG... minval,maxval(wi_blck) : ',minval(wi_blck),maxval(wi_blck) 
-!!$         write(*,'(a,4e20.12)') 'FVDBG... rmassO2p, rmassNOp, rmassN2p, rmassOp : ', rmassO2p, rmassNOp, rmassN2p, rmassOp
-!!$ endif
-
+!
          ! waccmx ionosphere electro-dynamics -- transports O+ and
          !   provides updates to ion drift velocities (on physics grid)
          ! All fields are on physics mesh, (pver, blksize),
