@@ -127,6 +127,7 @@ contains
       use edyn_params,    only: kbotdyn, pbotdyn
       use edyn_mpi,       only: mp_distribute_geo
       use spmd_utils,     only: masterproc
+      use edyn_maggrid,   only: nmlat
 
       ! Dummy Args
       integer,            intent(in) :: nlon_g        ! Global num longitudes
@@ -172,7 +173,7 @@ contains
       if (present(min_lat_pe_in)) then
          minlats_per_pe = min_lat_pe_in
       else
-         minlats_per_pe = 3
+         minlats_per_pe = 2
       end if
 
       dphi   = pi / real(nlat,r8)
@@ -241,7 +242,7 @@ contains
 
       do ntasks_lon = 1,nlon_g
          ntasks_lat = npes/ntasks_lon
-         if ( minlats_per_pe*ntasks_lat<nlat_g .and. ntasks_lat*ntasks_lon==npes ) then
+         if ( minlats_per_pe*ntasks_lat<nmlat .and. ntasks_lat*ntasks_lon==npes ) then
             exit
          endif
       end do
