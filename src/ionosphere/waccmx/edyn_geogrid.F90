@@ -72,7 +72,7 @@ module edyn_geogrid
 ! Note that TIMEGCM convention is '-180to180' and WACCM convention is 'zeroto360'
 ! (this is treating similarly to lev_sequence above)
 !
-  character(len=9) :: lon_sequence
+!  character(len=9) :: lon_sequence
 
   ! distribute_geogrid lays out the oplus grid
 !!XXgoldyXX: v debug only
@@ -247,8 +247,8 @@ contains
          endif
       end do
       if (masterproc) then
-         write(iulog,'(a,3i)') 'set_geogrid: npes,nlon_g,nlat_g: ',npes,nlon_g,nlat_g
-         write(iulog,'(a,2i)') 'set_geogrid: ntasks_lon,ntasks_lat: ',ntasks_lon,ntasks_lat
+         write(iulog,'(a,3i6)') 'set_geogrid: npes,nlon_g,nlat_g: ',npes,nlon_g,nlat_g
+         write(iulog,'(a,2i6)') 'set_geogrid: ntasks_lon,ntasks_lat: ',ntasks_lon,ntasks_lat
       endif
 
       if (ntasks_lat*ntasks_lon/=npes) then
