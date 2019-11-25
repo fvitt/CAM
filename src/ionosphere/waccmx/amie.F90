@@ -131,9 +131,6 @@ contains
     ! Get AMIE grid dimension:
     istat = pio_inq_dimid(ncid, 'lon', id_lon)
     istat = pio_inquire_dimension(ncid, id_lon, len=lonp1)
-!!XXgoldyXX: v debug only
-    istat = 13
-!!XXgoldyXX: ^ debug only
     call check_ncerr(istat, subname, 'AMIE longitude dimension')
 
     istat = pio_inq_dimid(ncid, 'lat', id_lat)
@@ -160,9 +157,6 @@ contains
     !     write(iulog, *)'rdamie_nh: year=', year(1:10)
     if (.not. allocated(month)) then
        allocate(month(ntimes), stat=ier)
-!!XXgoldyXX: v debug only
-       ier = 12
-!!XXgoldyXX: ^ debug only
        call check_alloc(ier, subname, 'month', ntimes=ntimes)
     end if
     istat = pio_inq_varid(ncid, 'month', idv_mon)
@@ -250,18 +244,12 @@ contains
     end if
     if (.not. allocated(efx_nh_amie)) then
        allocate(efx_nh_amie(lonp1, latp1), stat=ier)
-!!XXgoldyXX: v debug only
-ier = 22
-!!XXgoldyXX: ^ debug only
        call check_alloc(ier, subname, 'efx_nh_amie', lonp1=lonp1, latp1=latp1)
     end if
     !
     ! Allocate 3-d fields:
     if (.not. allocated(amie_pot_nh)) then
        allocate(amie_pot_nh(lonp1, latp1, ntimes), stat=ier)
-!!XXgoldyXX: v debug only
-ier = 33
-!!XXgoldyXX: ^ debug only
        call check_alloc(ier, subname, 'amie_pot_nh', &
             lonp1=lonp1, latp1=latp1, ntimes=ntimes)
     end if
@@ -292,9 +280,6 @@ ier = 33
     !
     ! AMIE energy flux
     istat = pio_inq_varid(ncid, 'efx', idv_efx)
-!!XXgoldyXX: v debug only
-istat = 44
-!!XXgoldyXX: ^ debug only
     call check_ncerr(istat, subname, 'AMIE efx id')
     istat = pio_get_var(ncid, idv_efx, amie_efx_nh)
     call check_ncerr(istat, subname, 'AMIE efx')
@@ -498,10 +483,11 @@ istat = 44
 #endif
   !-----------------------------------------------------------------------
   subroutine getamie(iyear, imo, iday, iutsec, sunlon, amie_ibkg, iprint,  &
-                     iamie, phihm, amie_efxm, amie_kevm, crad, efxg, kevg)
+                     iamie, phihm, amie_efxm, amie_kevm, crad)
     use cam_history_support, only: fillvalue
     use rgrd_mod,            only: rgrd2
-    use edyn_esmf,           only: pdim1s, pdim1e, pdim2s, pdim2e
+    use regridder,           only: regrid_mag2phys_2d
+
     !
     !    Read AMIE outputs from amie_ncfile file, returning electric potential,
     !    auroral mean energy and energy flux at current date and time,
@@ -523,9 +509,6 @@ istat = 44
     real(r8), intent(out)   :: amie_efxm(nmlonp1,nmlat) ! on geomag grid
     real(r8), intent(out)   :: amie_kevm(nmlonp1,nmlat) ! on geomag grid
     real(r8), intent(out)   :: crad(2)
-    ! Physics grid outputs
-    real(r8), intent(out)   :: efxg(pdim1s:pdim1e, pdim2s:pdim2e)
-    real(r8), intent(out)   :: kevg(pdim1s:pdim1e, pdim2s:pdim2e)
 #ifdef WACCMX_EDYN_ESMF
     !
     !     Local:
@@ -553,8 +536,6 @@ istat = 44
     phihm = fillvalue
     amie_efxm = fillvalue
     amie_kevm = fillvalue
-    efxg = fillvalue
-    kevg = fillvalue
     crad = fillvalue
 
     !
@@ -975,15 +956,9 @@ istat = 44
     amie_efxm(:,:) = tieefx(:,:)
     amie_kevm(:,:) = tieekv(:,:)
 
-!!$    call mag2phys_2d(amie_efxm(mlon0:mlon1,mlat0:mlat1),  &
-!!$         efxg, mag_efx, phys_efx, 'MEFXAMIE')
-!!$    call mag2phys_2d(amie_kevm(mlon0:mlon1,mlat0:mlat1),  &
-!!$         kevg, mag_kev, phys_kev, 'MKEVAMIE')
-!!$
     if (iprint > 0 .and. masterproc) then
        write(iulog, *) subname, ': Max, min amie_efxm = ', &
             maxval(amie_efxm), minval(amie_efxm)
-       write(iulog, *) subname, ': Max, min efxg = ', maxval(efxg), minval(efxg)
     end if
     !     ****
     !     ****     INSERT PERIODIC POINTS
@@ -1045,50 +1020,6 @@ istat = 44
     if (ibox > 0) y(:,:) = y(:,:)/ibox
     !
   end subroutine boxcar_ave
-
-  !-----------------------------------------------------------------------
-  subroutine mag2phys_2d(fmag, fphys, ESMF_mag, ESMF_phys, fname)
-    !
-    ! Convert field on geomagnetic grid fmag to physics grid in fphys.
-    !
-    use edyn_esmf, only: edyn_esmf_set2d_mag, edyn_esmf_regrid_mag2phys
-    use edyn_esmf, only: edyn_esmf_get_2dfield
-    use edyn_esmf, only: pdim1s, pdim1e, pdim2s, pdim2e
-    !
-    ! Args:
-    real(r8),         intent(in)    :: fmag(mlon0:mlon1,mlat0:mlat1)
-    real(r8),         intent(out)   :: fphys(pdim1s:pdim1e, pdim2s:pdim2e)
-    type(ESMF_Field), intent(inout) :: ESMF_mag, ESMF_phys
-    character(len=*), intent(in)    :: fname
- !
- ! Local:
-    integer                         :: d2
-    character (len=8)               :: fnames(1)
-    type(ESMF_Field)                :: magfields(1)
-!!$    real(r8), pointer               :: fptr(:,:)
-!!$
-!!$    fphys = finit
-!!$    fnames(1) = fname
-!!$    magfields(1) = ESMF_mag
-!!$    !
-!!$    ! Put fmag into ESMF mag field on mag source grid:
-!!$    call edyn_esmf_set2d_mag(magfields, fnames, fmag, 1, &
-!!$         mlon0, mlon1, mlat0, mlat1)
-!!$    !
-!!$    ! Regrid to physics destination grid, defining ESMF_phys:
-!!$    call edyn_esmf_regrid_mag2phys(ESMF_mag, ESMF_phys, 2)
-!!$    !
-!!$    ! Put regridded phys field into pointer:
-!!$    call edyn_esmf_get_2dfield(ESMF_phys, fptr, fname)
-!!$    !      write(iulog,*) 'mag2phys: Max,min fptr = ',maxval(fptr),minval(fptr)
-!!$    !
-!!$    ! Transfer from pointer to output arg:
-!!$    do d2 = pdim2s, pdim2e
-!!$       fphys(:, d2) = fptr(:, d2)
-!!$    end do
-!!$    !    write(iulog,*) 'mag2phys: max,min fmag = ',maxval(fmag),minval(fmag)
-!!$    !    write(iulog,*) 'mag2phys: max,min fphys = ',maxval(fphys),minval(fhpys)
- end subroutine mag2phys_2d
 
   !-----------------------------------------------------------------------
   subroutine check_alloc(ierror, subname, varname, lonp1, latp1, ntimes, lw)
