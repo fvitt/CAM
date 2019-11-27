@@ -621,7 +621,7 @@
 <!-- Oplus transport grid configuration -->
 <oplus_grid> 144,96 </oplus_grid>
 <oplus_grid hgrid="0.9x1.25"> 288,192 </oplus_grid>
-<oplus_grid hgrid="0.47x0.63"> 576,368 </oplus_grid>
+<oplus_grid hgrid="0.47x0.63"> 576,384 </oplus_grid>
 <oplus_npes> 0 </oplus_npes>
 
 <!-- ESMF mesh files for physics decomposition -->
