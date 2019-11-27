@@ -191,10 +191,10 @@ contains
   end subroutine d_pie_epotent
 
   !-----------------------------------------------------------------------
-  subroutine d_pie_coupling(omega, pmid, zgi, zgpmid, zht, u, v, tn,          &
-       sigma_ped, sigma_hall, te, ti, mbar, n2mmr, o2mmr, o1mmr, h1mmr, o2pmmr,      &
+  subroutine d_pie_coupling(omega, pmid, zgi, zht, u, v, tn,                  &
+       sigma_ped, sigma_hall, te, ti, mbar, n2mmr, o2mmr, o1mmr, o2pmmr,      &
        nopmmr, n2pmmr, opmmr, opmmrtm1, ui, vi, wi,                           &
-       rmassO2p, rmassNOp, rmassN2p, rmassOp, cols, cole, plev, plevp)
+       rmassO2p, rmassNOp, rmassN2p, rmassOp, cols, cole, plev )
      !
      ! Call dynamo to calculate electric potential and electric field
      ! Note: dynamo calculates ion drifts. (!!XXgoldyXX: Do we want this?)
@@ -224,14 +224,12 @@ contains
      integer,intent(in) :: &
           cols,            & ! First column (usually 1)
           cole,            & ! Last column
-          plev,            & ! Number of levels in physics midpoint fields
-          plevp              ! Number of levels in physics interface fields
+          plev               ! Number of levels in physics midpoint fields
 
      ! Input arguments on physics grid
      real(r8), intent(in)    :: omega(plev, cols:cole)      ! pressure velocity on midpoints (Pa/s) (i,k,j)
      real(r8), intent(in)    :: pmid(plev, cols:cole)       ! pressure at midpoints (Pa)
      real(r8), intent(in)    :: zgi(plev, cols:cole)        ! geopotential height (on interfaces) (m)
-     real(r8), intent(in)    :: zgpmid(plev, cols:cole)     ! geopotential height (on midpoints) (m)
      real(r8), intent(in)    :: zht(plev, cols:cole)        ! geometric height (m) (Simple method - interfaces)
      real(r8), intent(in)    :: u(plev, cols:cole)          ! U-wind (m/s)
      real(r8), intent(in)    :: v(plev, cols:cole)          ! V-wind (m/s)
@@ -244,7 +242,6 @@ contains
      real(r8), intent(in)    :: n2mmr(plev, cols:cole)      ! N2 mass mixing ratio (for oplus)
      real(r8), intent(in)    :: o2mmr(plev, cols:cole)      ! O2 mass mixing ratio (for oplus)
      real(r8), intent(in)    :: o1mmr(plev, cols:cole)      ! O mass mixing ratio (for oplus)
-     real(r8), intent(in)    :: h1mmr(plev, cols:cole)      ! H mass mixing ratio (for oplus)
      real(r8), intent(in)    :: o2pmmr(plev, cols:cole)     ! O2+ mass mixing ratio (for oplus)
      real(r8), intent(in)    :: nopmmr(plev, cols:cole)     ! NO+ mass mixing ratio (for oplus)
      real(r8), intent(in)    :: n2pmmr(plev, cols:cole)     ! N2+ mass mixing ratio (for oplus)

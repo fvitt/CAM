@@ -2,7 +2,7 @@ module ionosphere_interface
 
    use shr_kind_mod,        only: r8 => shr_kind_r8
    use cam_abortutils,      only: endrun
-   use ppgrid,              only: pcols, pver, pverp
+   use ppgrid,              only: pcols, pver
    use phys_grid,           only: begchunk, endchunk, get_ncols_p
 
    use dpie_coupling,       only: d_pie_init
@@ -490,7 +490,6 @@ contains
       real(r8), allocatable :: te_blck(:,:)
       real(r8), allocatable :: zi_blck(:,:) ! Geopotential on interfaces
       real(r8), allocatable :: hi_blck(:,:) ! Geometric height on interfaces
-      real(r8), allocatable :: zm_blck(:,:) ! Geopotential on midpoints
       real(r8), allocatable :: ui_blck(:,:)
       real(r8), allocatable :: vi_blck(:,:)
       real(r8), allocatable :: wi_blck(:,:)
@@ -540,7 +539,6 @@ contains
          allocate(hi_blck(pver, blksize))
          allocate(te_blck(pver, blksize))
          allocate(zi_blck(pver, blksize))
-         allocate(zm_blck(pver, blksize))
          allocate(ui_blck(pver, blksize))
          allocate(vi_blck(pver, blksize))
          allocate(wi_blck(pver, blksize))
@@ -630,7 +628,6 @@ contains
                   ! physics state fields on levels
                   u_blck(k, j)     = phys_state(lchnk)%u(i, k)
                   v_blck(k, j)     = phys_state(lchnk)%v(i, k)
-                  zm_blck(k, j)    = phys_state(lchnk)%zm(i, k) + phis(i)/gravit
                   !------------------------------------------------------------
                   ! Might need geometric height on midpoints for output
                   !------------------------------------------------------------
@@ -749,12 +746,12 @@ contains
          !   provides updates to ion drift velocities (on physics grid)
          ! All fields are on physics mesh, (pver, blksize),
          !    where blksize is the total number of columns on this task
-         call d_pie_coupling(omega_blck, pmid_blck, zi_blck, zm_blck, hi_blck,&
+         call d_pie_coupling(omega_blck, pmid_blck, zi_blck, hi_blck,&
               u_blck, v_blck, tn_blck, sigma_ped_blck, sigma_hall_blck,       &
               te_blck, ti_blck, mbar_blck, n2mmr_blck, o2mmr_blck, o1mmr_blck,            &
-              h1mmr_blck, o2pmmr_blck, nopmmr_blck, n2pmmr_blck,              &
+              o2pmmr_blck, nopmmr_blck, n2pmmr_blck,              &
               opmmr_blck, opmmrtm1_blck, ui_blck, vi_blck, wi_blck,           &
-              rmassO2p, rmassNOp, rmassN2p, rmassOp, 1, blksize, pver, pverp)
+              rmassO2p, rmassNOp, rmassN2p, rmassOp, 1, blksize, pver )
 
          call t_stopf ('d_pie_coupling')
 
@@ -830,7 +827,6 @@ contains
          deallocate(hi_blck)
          deallocate(te_blck)
          deallocate(zi_blck)
-         deallocate(zm_blck)
          deallocate(ui_blck)
          deallocate(vi_blck)
          deallocate(wi_blck)
