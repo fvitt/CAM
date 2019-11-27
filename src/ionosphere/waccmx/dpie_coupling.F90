@@ -9,7 +9,6 @@ module dpie_coupling
   use cam_history_support, only: fillvalue
   use cam_abortutils,      only: endrun
   use spmd_utils,          only: masterproc
-  use savefield_waccm,     only: savefld_waccm
   use edyn_mpi,            only: array_ptr_type
   use perf_mod,            only: t_startf, t_stopf
   use amie_module,         only: getamie
@@ -108,8 +107,7 @@ contains
     real(r8)             :: sunlon
 
     integer              :: iprint,amie_ibkg
-    integer              :: i, j, iamie
-    type(array_ptr_type) :: ptrs(2)
+    integer              :: j, iamie
     !
     ! AMIE fields (extra dimension added for longitude switch)
     !
@@ -205,14 +203,14 @@ contains
      ! This routine is called from ionosphere_run2 (ionosphere_interface.F90)
      !   when nstep > 0.
      !
-     use edyn_geogrid,  only: nlev, nilev
+     use edyn_geogrid,  only: nlev
      use shr_const_mod, only: grav => shr_const_g ! gravitational accel. (m/s^2)
      use shr_const_mod, only: kboltz => shr_const_boltz ! Boltzmann const. (J/K/molecule)
      use time_manager,  only: get_nstep, get_curr_date
      use edynamo,       only: dynamo
      use edyn_mpi,      only: mp_geo_halos, mp_pole_halos
      ! Mag grid distribution info
-     use edyn_mpi,      only: mlon0, mlon1, mlat0, mlat1, omlon1, mlev0, mlev1
+     use edyn_mpi,      only: mlon0, mlon1, mlat0, mlat1, mlev0, mlev1
      use edyn_mpi,      only: lon0, lon1, lat0, lat1, lev0, lev1
      use oplus,         only: oplus_xport
      use ref_pres,      only: pref_mid
@@ -355,7 +353,6 @@ contains
      real(r8), dimension(mlon0:mlon1,mlat0:mlat1) :: &
           adota1_mag, adota2_mag, a1dta2_mag, be3_mag, sini_mag
 
-     character(len=300) :: prntstr
      call t_startf(subname)
 
      if (debug .and. masterproc) then
@@ -751,7 +748,7 @@ contains
      real(r8),intent(out) :: wn(nlev, cols:cole) ! vertical velocity output (m/s)
      !
      ! Local:
-     integer :: i,j,k
+     integer :: i,k
      real(r8) :: scheight(nlev, cols:cole) ! dimensioned for vectorization
 
      do i = cols, cole

@@ -3,7 +3,7 @@
       use shr_kind_mod ,only: r8 => shr_kind_r8
       use cam_abortutils   ,only: endrun
       use edyn_solve   ,only: cee
-      use cam_logfile  ,only: iulog
+!     use cam_logfile  ,only: iulog
 
       implicit none
 

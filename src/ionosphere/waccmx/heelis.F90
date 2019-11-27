@@ -1,7 +1,6 @@
 module heelis
   use shr_kind_mod  ,only: r8 => shr_kind_r8 ! 8-byte reals
   use edyn_maggrid  ,only: nmlon,nmlonp1,nmlat,ylonm,ylatm
-  use edyn_geogrid  ,only: nlat
   use heelis_mod    ,only: heelis_update, heelis_flwv32
 !
 ! phihm and pfrac are output of this module:

@@ -12,8 +12,6 @@ module edyn_init
    private
    public :: edynamo_init, lonshift_global
 
-   logical :: debug=.false. ! set true for prints to stdout at each call
-
 contains
 !-----------------------------------------------------------------------
    subroutine edynamo_init(mpicomm, nlon_in, nlat_in, nlev_in,                 &

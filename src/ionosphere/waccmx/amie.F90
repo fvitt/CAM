@@ -9,12 +9,9 @@ module amie_module
   use spmd_utils,     only: masterproc
   use cam_abortutils, only: endrun
   use edyn_maggrid,   only: nmlat, nmlonp1
-  use edyn_mpi,       only: mlon0, mlon1, mlat0, mlat1, lon0, lon1, lat0, lat1
 #ifdef WACCMX_EDYN_ESMF
-  use edyn_params,    only: finit
   use edyn_maggrid,   only: ylonm     ! magnetic latitudes (nmlat) (radians)
   use edyn_maggrid,   only: ylatm     ! magnetic longtitudes (nmlonp1) (radians)
-  use esmf,           only: ESMF_FIELD        ! ESMF library module
   use cam_pio_utils,  only: cam_pio_openfile, cam_pio_closefile
   use pio,            only: pio_inq_dimid, pio_inquire_dimension
   use pio,            only: pio_inquire, pio_inq_varid
@@ -485,7 +482,6 @@ contains
                      iamie, phihm, amie_efxm, amie_kevm, crad)
     use cam_history_support, only: fillvalue
     use rgrd_mod,            only: rgrd2
-    use regridder,           only: regrid_mag2phys_2d
 
     !
     !    Read AMIE outputs from amie_ncfile file, returning electric potential,
