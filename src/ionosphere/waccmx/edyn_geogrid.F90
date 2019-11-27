@@ -74,52 +74,12 @@ module edyn_geogrid
 !
 !  character(len=9) :: lon_sequence
 
-  ! distribute_geogrid lays out the oplus grid
-!!XXgoldyXX: v debug only
-!  public :: distribute_geo_grid
-!!XXgoldyXX: ^ debug only
   ! set_geogrid sets up a distributed finite-volume lat/lon grid
   public :: set_geogrid
 
   logical :: debug = .false. ! set true for prints to stdout at each call
 
 contains
-
-!!XXgoldyXX: v debug only
-   ! !-----------------------------------------------------------------------
-   ! subroutine distribute_geo_grid(mpicom, oplus_npes, oplus_nlon, oplus_nlat, &
-   !            lon0, lon1, lat0, lat1, lev0, lev1, ntaski, ntaskj, glon, glat)
-   !    ! distribute_geo_grid imitates the action of the FV dycore's
-   !    ! decomposition routine. This allows us to separete the geogrid from
-   !    ! the FV dycore
-
-   !    ! Dummy arguments
-   !    integer, intent(in) :: mpicom
-   !    integer, intent(in) :: oplus_npes
-   !    integer, intent(in) :: oplus_nlon
-   !    integer, intent(in) :: oplus_nat
-   !    integer, intent(in) :: lat0, lat1       ! first and last latitude  indices
-   !    integer, intent(in) :: lon0, lon1       ! first and last longitude indices
-   !    integer, intent(in) :: lev0, lev1       ! first and last pressure indices
-   !    integer, intent(in) :: ntaski  ! number of MPI tasks in lon dimensions
-   !    integer, intent(in) :: ntaskj  ! number of MPI tasks in lat dimensions
-   !    real(r8), allocatable, intent(out) :: glon(:) ! global geo-graphic longitudes (degrees)
-   !    real(r8), allocatable, intent(out) :: glat(:) ! global geo-graphic latitudes (degrees)
-
-   !    ! Local variables
-   !    integer :: iam, ierr       ! MPI task number
-
-   !    if (iam < oplus_npes, ionos_dynamo_npes)) then
-
-   !          allocate(glon(oplus_nlon))
-   !          allocate(glat(oplus_nlat))
-
-   !          lon0 = grid%ifirstxy ; lon1 = grid%ilastxy
-   !          lat0 = grid%jfirstxy ; lat1 = grid%jlastxy
-   !          lev0 = 1             ; lev1 = grid%km
-   !          ntaski = grid%nprxy_x
-   !          ntaskj = grid%nprxy_y
-!!XXgoldyXX: ^ debug only
 
    !-----------------------------------------------------------------------
    subroutine set_geogrid(nlon_g, nlat_g, nlev_in, npes_in, atm_mpicom, pres_mid_in, pres_edge_in, min_lat_pe_in)

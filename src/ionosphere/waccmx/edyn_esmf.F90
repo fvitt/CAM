@@ -23,12 +23,8 @@ module edyn_esmf
    use ESMF,           only: ESMF_ArrayCreate, ESMF_FieldSMM
    use ESMF,           only: ESMF_GridComp, ESMF_TERMORDER_SRCSEQ
    use edyn_mpi,       only: ntask, ntaski, ntaskj, tasks, lon0, lon1, lat0
-!!XXgoldyXX: Eventually remove these items?
-#if 1
    use edyn_mpi,       only: lat1, mytid, nmagtaski, nmagtaskj, mlon0, mlon1
    use edyn_mpi,       only: mlat0,mlat1
-#endif
-!!XXgoldyXX: ^ Eventually remove these items?
    use getapex,        only: gdlatdeg, gdlondeg
    ! dynamically allocated geo grid for Oplus transport model
    use edyn_geogrid,   only: nlon, nlat, nlev, glon, glat, jspole, jnpole
@@ -957,7 +953,7 @@ contains
       character(len=256)          :: errmsg
       !
       errmsg = ''
-      ! this call to FieldGet is not successful when field is not instantiated
+ ! this call to FieldGet is not successful when field is not instantiated
       call ESMF_FieldGet(field, status=fstatus, rc=rc)
       call edyn_esmf_chkerr(subname, 'ESMF_FieldGet', rc)
       if (fstatus /= ESMF_FIELDSTATUS_EMPTY) then

@@ -33,7 +33,6 @@ module edyn_mpi
    public :: array_ptr_type
    ! Public interfaces
    public :: mp_init
-!!$   public :: switch_model_format
    public :: mp_geo_halos
    public :: mp_pole_halos
    public :: mp_mag_halos

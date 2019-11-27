@@ -14,7 +14,6 @@ module amie_module
   use edyn_params,    only: finit
   use edyn_maggrid,   only: ylonm     ! magnetic latitudes (nmlat) (radians)
   use edyn_maggrid,   only: ylatm     ! magnetic longtitudes (nmlonp1) (radians)
-!!$  use edyn_esmf,      only: mag_efx, mag_kev, phys_efx, phys_kev
   use esmf,           only: ESMF_FIELD        ! ESMF library module
   use cam_pio_utils,  only: cam_pio_openfile, cam_pio_closefile
   use pio,            only: pio_inq_dimid, pio_inquire_dimension

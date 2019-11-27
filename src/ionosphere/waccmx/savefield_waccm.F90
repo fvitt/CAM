@@ -5,10 +5,10 @@ module savefield_waccm
 ! Save fields to WACCM output history file.
 !
   implicit none
-  save
   private
-  public savefld_waccm
-  contains
+  public :: savefld_waccm
+
+contains
 !-----------------------------------------------------------------------
   subroutine savefld_waccm(f,name,nlev,i0,i1,j0,j1)
 !
