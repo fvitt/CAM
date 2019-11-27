@@ -15,12 +15,12 @@ module ionosphere_interface
    use physics_buffer,      only: pbuf_get_chunk, pbuf_get_field
    use physics_buffer,      only: pbuf_get_index
 
-   use constituents,        only: cnst_get_ind, cnst_mw, pcnst
+   use constituents,        only: cnst_get_ind, cnst_mw
    use physconst,           only: gravit
    use oplus,               only: oplus_init
    use edyn_init,           only: edynamo_init
    use pio,                 only: var_desc_t
-   use perf_mod,            only: t_barrierf, t_startf, t_stopf
+   use perf_mod,            only: t_startf, t_stopf
    use epotential_params,   only: epot_active, epot_crit_colats
    implicit none
 
@@ -209,7 +209,6 @@ contains
       use cam_history,     only: addfld, add_default, horiz_only
       use edyn_mpi,        only: mp_init
       use edyn_geogrid,    only: set_geogrid
-      use edyn_maggrid,    only: gmlat, gmlon
       use mo_apex,         only: mo_apex_init1
       ! Hybrid level definitions:
       use ref_pres,        only: pref_mid  ! target alev(pver) midpoint levels
@@ -222,7 +221,6 @@ contains
 
       ! local variables:
       integer :: sIndx
-      integer :: iam, ierr             ! iam is MPI task number
       character(len=*), parameter :: subname = 'ionosphere_init'
 
       if ( ionos_epotential_amie ) then
@@ -379,11 +377,8 @@ contains
    !----------------------------------------------------------------------------
    !----------------------------------------------------------------------------
    subroutine ionosphere_run1(pbuf2d)
-      use spmd_utils,     only: iam
       use physics_buffer, only: physics_buffer_desc
       use cam_history,    only: outfld, write_inithist
-      use ppgrid,         only: pcols, begchunk, endchunk, pver
-      use phys_grid,      only: get_ncols_p
 
       ! args
       type(physics_buffer_desc), pointer :: pbuf2d(:,:)
@@ -455,9 +450,7 @@ contains
 
       use physics_types,  only: physics_state
       use physics_buffer, only: physics_buffer_desc
-      use shr_const_mod,  only: kboltz => shr_const_boltz
       use cam_history,    only: outfld, write_inithist, hist_fld_active
-      use spmd_utils,     only: masterproc
       
       ! - pull some fields from pbuf and dyn_in
       ! - invoke ionosphere/electro-dynamics coupling
@@ -489,12 +482,7 @@ contains
 
       integer :: ncol
 
-      integer :: nSIons      ! number of ions set to non-advected
-      integer :: ibuffOp, ibuffO2p, ibuffNOp, ibuffN2p ! Buffer indices for non-advected ions
-
       integer :: blksize ! number of columns in 2D block
-      integer :: tsize  ! amount of data per grid point passed to physics
-      integer :: ierr   ! MPI return code
 
       real(r8), allocatable :: sigma_ped_blck (:,:)
       real(r8), allocatable :: sigma_hall_blck(:,:)
@@ -512,7 +500,7 @@ contains
       ! From physics state
       real(r8), allocatable :: u_blck(:,:)
       real(r8), allocatable :: v_blck(:,:)
-     real(r8), allocatable :: pmid_blck(:,:)
+      real(r8), allocatable :: pmid_blck(:,:)
       real(r8), allocatable :: phis(:)            ! surface geopotential
       ! Constituents
       real(r8), allocatable :: n2mmr_blck(:,:)
@@ -934,9 +922,8 @@ contains
    subroutine ionosphere_read_restart(File)
       use pio,              only: io_desc_t, file_desc_t, pio_inq_varid
       use pio,              only: pio_read_darray, pio_double
-      use cam_grid_support, only: cam_grid_id, cam_grid_write_var
+      use cam_grid_support, only: cam_grid_id
       use cam_grid_support, only: cam_grid_get_decomp, cam_grid_dimensions
-      use phys_grid,        only: phys_decomp
 
       type(file_desc_t), intent(inout) :: File
 

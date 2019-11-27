@@ -9,7 +9,7 @@ module edyn_esmf
 
 #ifdef WACCMX_EDYN_ESMF
    use ESMF,           only: ESMF_Grid, ESMF_Mesh, ESMF_Field, ESMF_RouteHandle
-   use ESMF,           only: ESMF_LOGKIND_NONE, ESMF_SUCCESS, ESMF_END_KEEPMPI
+   use ESMF,           only: ESMF_SUCCESS
    use ESMF,           only: ESMF_KIND_R8, ESMF_KIND_I4
    use ESMF,           only: ESMF_FieldGet, ESMF_GridWriteVTK
    use ESMF,           only: ESMF_STAGGERLOC_CENTER, ESMF_FieldRegridStore
@@ -23,12 +23,12 @@ module edyn_esmf
    use ESMF,           only: ESMF_ArrayCreate, ESMF_FieldSMM
    use ESMF,           only: ESMF_GridComp, ESMF_TERMORDER_SRCSEQ
    use edyn_mpi,       only: ntask, ntaski, ntaskj, tasks, lon0, lon1, lat0
-   use edyn_mpi,       only: lat1, mytid, nmagtaski, nmagtaskj, mlon0, mlon1
+   use edyn_mpi,       only: lat1, nmagtaski, nmagtaskj, mlon0, mlon1
    use edyn_mpi,       only: mlat0,mlat1
    use getapex,        only: gdlatdeg, gdlondeg
    ! dynamically allocated geo grid for Oplus transport model
-   use edyn_geogrid,   only: nlon, nlat, nlev, glon, glat, jspole, jnpole
-   use edyn_maggrid,   only: nmlev, nmlon, nmlonp1, gmlat, gmlon
+   use edyn_geogrid,   only: nlon, nlev, glon, glat
+   use edyn_maggrid,   only: gmlat, gmlon
    use spmd_utils,     only: masterproc
 #endif
 
@@ -68,8 +68,6 @@ module edyn_esmf
    public :: mag_des_3dfld, mag_des_2dfld
    public :: mag_src_3dfld, mag_src_2dfld
 
-   type(ESMF_GridComp)  :: phys_comp ! physics grid mesh
-
    type(ESMF_Grid) :: &
         mag_src_grid, & ! source grid (will not have periodic pts)
         mag_des_grid, & ! destination grid (will have periodic pts)
@@ -97,7 +95,6 @@ module edyn_esmf
         routehandle_geo2mag_2d     ! for 2d geo to mag
 
    !
-   real(r8)              :: r8_nlon
    real(r8), allocatable :: unitv(:)
    !
 
@@ -131,7 +128,6 @@ contains
    subroutine edyn_create_physmesh(mesh_out)
       use ESMF,         only: ESMF_DistGridCreate, ESMF_DistGrid
       use ESMF,         only: ESMF_FILEFORMAT_ESMFMESH, ESMF_MeshCreate, ESMF_MeshGet
-      use cam_instance, only: inst_name
       use phys_control, only: phys_getopts
       use phys_grid,    only: get_ncols_p, get_gcol_p, get_rlon_all_p, get_rlat_all_p
       use ppgrid,       only: pcols, begchunk, endchunk
@@ -389,6 +385,8 @@ contains
       integer, allocatable :: petlist(:)
       type(ESMF_VM)        :: vm_init
       type(ESMF_VM)        :: vm_curr
+
+      type(ESMF_GridComp)  :: phys_comp ! physics grid mesh
 
       call ESMF_VMGetCurrent(vm_init, rc=rc)
       call edyn_esmf_chkerr('ESMF_VMGetCurrent', rc)

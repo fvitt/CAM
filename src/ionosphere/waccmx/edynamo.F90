@@ -13,7 +13,7 @@ module edynamo
   use edyn_params,     only: finit                    ! initialization value
   use edyn_maggrid,    only: nmlon, nmlonp1, nmlat, nmlath, nmlev
   use edyn_mpi,        only: mlon0, mlon1, omlon1, mytid, mlat0, mlat1
-  use edyn_mpi,        only: mlev0, mlev1, lon0, lon1, lat0, lat1, lev0, lev1
+  use edyn_mpi,        only: mlev0, mlev1, lon0, lon1, lat0, lat1
   use edyn_solve,      only: solve_edyn
   use time_manager,    only: get_nstep                ! for debug
   use cam_history,     only: outfld, hist_fld_active
@@ -277,7 +277,6 @@ contains
 !
 !
      use edyn_params,  only: h0, kbotdyn
-     use edyn_geogrid, only: nlev
      use edyn_mpi,     only: mp_mageq              ! get global values at mag equator
 
 !
