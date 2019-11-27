@@ -340,7 +340,6 @@ contains
 
       end if op_transport
       ! This has to be after edynamo_init (where maggrid is initialized)
-!!$      call mo_apex_init1(gmlat, gmlon)
       call mo_apex_init1()
 
       if (ionos_edyn_active) then
@@ -513,9 +512,7 @@ contains
       ! From physics state
       real(r8), allocatable :: u_blck(:,:)
       real(r8), allocatable :: v_blck(:,:)
-!      real(r8), allocatable :: u(:,:,:)
-!      real(r8), allocatable :: v(:,:,:)
-      real(r8), allocatable :: pmid_blck(:,:)
+     real(r8), allocatable :: pmid_blck(:,:)
       real(r8), allocatable :: phis(:)            ! surface geopotential
       ! Constituents
       real(r8), allocatable :: n2mmr_blck(:,:)
@@ -687,8 +684,6 @@ contains
                   else
                      call endrun(subname//': No source for O2p')
                   end if
-!!$                  r8tmp = o2pmmr_blck(k, j) * mbar(k, j) * pmid_blck(k, j)
-!!$                  o2pmmr_blck(k, i) = r8tmp /(rmassO2p * kboltz * tn_blck(k, i))
                   if (ixnop > 0) then
                      nopmmr_blck(k, j) = phys_state(lchnk)%q(i, k, ixnop)
                   else if (sIndxNOp > 0) then
@@ -752,9 +747,6 @@ contains
                   mbar_blck(k, j) = 1.0_r8 / r8tmp
                   tempm(i, k) = mbar_blck(k, j)
                end do
-!!$               do i = ncol + 1, pcols
-!!$                  tempm(i, k) = 0.0_r8
-!!$               end do
                call outfld('DPIE_MBAR', tempm, pcols, lchnk)
             end do
          end do
