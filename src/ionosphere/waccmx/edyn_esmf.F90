@@ -13,7 +13,9 @@ module edyn_esmf
    use ESMF,           only: ESMF_KIND_R8, ESMF_KIND_I4
    use ESMF,           only: ESMF_FieldGet, ESMF_GridWriteVTK
    use ESMF,           only: ESMF_STAGGERLOC_CENTER, ESMF_FieldRegridStore
+   use ESMF,           only: ESMF_STAGGERLOC_CORNER, ESMF_StaggerLoc
    use ESMF,           only: ESMF_REGRIDMETHOD_BILINEAR, ESMF_POLEMETHOD_ALLAVG
+   use ESMF,           only: ESMF_REGRIDMETHOD_CONSERVE, ESMF_POLEMETHOD_NONE
    use ESMF,           only: ESMF_FieldSMMStore
    use ESMF,           only: ESMF_GridCreate1PeriDim, ESMF_INDEX_GLOBAL
    use ESMF,           only: ESMF_GridAddCoord, ESMF_GridGetCoord
@@ -22,6 +24,7 @@ module edyn_esmf
    use ESMF,           only: ESMF_GridGet, ESMF_ArraySpecSet
    use ESMF,           only: ESMF_ArrayCreate, ESMF_FieldSMM
    use ESMF,           only: ESMF_GridComp, ESMF_TERMORDER_SRCSEQ
+   use ESMF, only: ESMF_EXTRAPMETHOD_NEAREST_STOD, ESMF_UNMAPPEDACTION_IGNORE
    use edyn_mpi,       only: ntask, ntaski, ntaskj, tasks, lon0, lon1, lat0
    use edyn_mpi,       only: lat1, nmagtaski, nmagtaskj, mlon0, mlon1
    use edyn_mpi,       only: mlat0,mlat1
@@ -64,19 +67,22 @@ module edyn_esmf
    public :: edyn_esmf_update_flag ! Set value of edyn_esmf_update_step
 
    public :: phys_3dfld, phys_2dfld
-   public :: geo_3dfld, geo_2dfld
+   public :: geo_3dfld, geo_2dfld, geo2phys_3dfld
    public :: mag_des_3dfld, mag_des_2dfld
    public :: mag_src_3dfld, mag_src_2dfld
-
+   public :: can_do_mag2phys
+   
    type(ESMF_Grid) :: &
         mag_src_grid, & ! source grid (will not have periodic pts)
         mag_des_grid, & ! destination grid (will have periodic pts)
         geo_grid        ! geographic grid for Oplus transport
+   type(ESMF_Grid) :: geo2phys_grid
+   
    type(ESMF_Mesh) :: phys_mesh ! Mesh representation of physics decomposition
 
    ! ESMF fields used for mapping between physics, oplus geographic, and geomagnetic grids
    type(ESMF_Field) :: phys_3dfld, phys_2dfld
-   type(ESMF_Field) :: geo_3dfld, geo_2dfld
+   type(ESMF_Field) :: geo_3dfld, geo_2dfld, geo2phys_3dfld
    type(ESMF_Field) :: mag_des_3dfld, mag_des_2dfld
    type(ESMF_Field) :: mag_src_3dfld, mag_src_2dfld
 
@@ -85,12 +91,12 @@ module edyn_esmf
         routehandle_phys2geo,    & ! for physics to geo 3-D regrid
         routehandle_geo2phys,    & ! for geo to physics 3-D regrid
         routehandle_phys2mag,    & ! for physics to mag 3-D regrid
-        routehandle_mag2phys,    & ! for mag to physics 3-D regrid
+!!$        routehandle_mag2phys,    & ! for mag to physics 3-D regrid
         routehandle_geo2mag,     & ! for geo to mag 3-D regrid
         routehandle_mag2geo,     & ! for geo to mag 3-D regrid
         routehandle_phys2mag_2d, & ! for 2d geo to phys
         routehandle_mag2phys_2d, & ! for 2d phys to geo for AMIE fields
-        routehandle_geo2phys_2d, & ! for 2d mag to phys
+!!$        routehandle_geo2phys_2d, & ! for 2d mag to phys
         routehandle_phys2geo_2d, & ! for 2d phys to geo
         routehandle_geo2mag_2d     ! for 2d geo to mag
 
@@ -99,6 +105,7 @@ module edyn_esmf
    !
 
    logical, protected :: edyn_esmf_update_step = .true.
+   logical, protected :: can_do_mag2phys
    logical, parameter :: debug = .false.
 #endif
    integer, parameter :: pdim1s = 1
@@ -225,13 +232,13 @@ contains
       errstr = ''
       ! error check differences between internally generated lons and those read in
       do n = 1,lsize
-         if (abs(lonMesh(n) - lon(n)) > 0.0001_r8) then
-            if ( (abs(lonMesh(n)-lon(n)) > 360.0001_r8) .or. (abs(lonMesh(n)-lon(n)) < 359.999_r8) ) then
+         if (abs(lonMesh(n) - lon(n)) > 0.000001_r8) then
+            if ( (abs(lonMesh(n)-lon(n)) > 360.000001_r8) .or. (abs(lonMesh(n)-lon(n)) < 359.99999_r8) ) then
                write(errstr,100) n,lon(n),lonMesh(n), abs(lonMesh(n)-lon(n))
                write(*,*) trim(errstr)
             endif
          end if
-         if (abs(latMesh(n) - lat(n)) > 0.0001_r8) then ! 1.e-12_r8
+         if (abs(latMesh(n) - lat(n)) > 0.000001_r8) then ! 1.e-12_r8
             if (.not.( (abs(lat(n))>88.0_r8) .and. (abs(latMesh(n))>88.0_r8) )) then
                write(errstr,101) n,lat(n),latMesh(n), abs(latMesh(n)-lat(n))
                write(*,*) trim(errstr)
@@ -471,6 +478,7 @@ contains
       ! Make geographic grid for phys2geo and geo2phys regridding:
       !
       call create_geo_grid(geo_grid)  ! geo (Oplus) grid
+      call create_geo2phys_grid(geo2phys_grid)  ! geo (Oplus) grid
       !
       ! Make magnetic grid for phys2mag regridding:
       !
@@ -495,6 +503,7 @@ contains
       
       call edyn_esmf_create_geofield(geo_2dfld, geo_grid, 'GEO_2DFLD', 0)
       call edyn_esmf_create_geofield(geo_3dfld, geo_grid, 'GEO_3DFLD', nlev)
+      call edyn_esmf_create_geofield(geo2phys_3dfld, geo2phys_grid, 'GEO2PHYS_3DFLD', nlev)
 
       call edyn_esmf_create_magfield(mag_des_2dfld, mag_des_grid, 'MAG_DES_2DFLD', 0)
       call edyn_esmf_create_magfield(mag_des_3dfld, mag_des_grid, 'MAG_DES_3DFLD', nlev)
@@ -577,6 +586,8 @@ contains
       call ESMF_FieldRegridStore(srcField=phys_2dfld, dstField=mag_des_2dfld,        &
            regridMethod=ESMF_REGRIDMETHOD_BILINEAR,                           &
            polemethod=ESMF_POLEMETHOD_ALLAVG,                                 &
+!!$           unmappedaction=ESMF_UNMAPPEDACTION_IGNORE, &
+!!$           extrapMethod=ESMF_EXTRAPMETHOD_NEAREST_STOD, &
            routeHandle=routehandle_phys2mag_2d,                               &
            factorIndexList=factorIndexList,                                   &
            factorList=factorList, srcTermProcessing=smm_srctermproc,          &
@@ -613,22 +624,22 @@ contains
       !     staggerloc=ESMF_STAGGERLOC_CENTER, filename="magSrcGrid",rc=rc)
       !   call ESMF_GridWriteVTK(geo_des_grid, &
       !     staggerloc=ESMF_STAGGERLOC_CENTER, filename="geoDesGrid",rc=rc)
-
-      ! Compute and store route handle for mag2phys 3d fields:
-      !
-      call ESMF_FieldRegridStore(srcField=mag_src_3dfld, dstField=phys_3dfld,     &
-           regridMethod=ESMF_REGRIDMETHOD_BILINEAR,                           &
-           polemethod=ESMF_POLEMETHOD_ALLAVG,                                 &
-           routeHandle=routehandle_mag2phys, factorIndexList=factorIndexList, &
-           factorList=factorList, srcTermProcessing=smm_srctermproc,          &
-           pipelineDepth=smm_pipelinedep, rc=rc)
-      call edyn_esmf_chkerr(subname, 'ESMF_FieldRegridStore for 3D mag2phys', &
-           rc)
-      call ESMF_FieldSMMStore(mag_src_3dfld, phys_3dfld, routehandle_mag2phys,    &
-           factorList, factorIndexList, srcTermProcessing=smm_srctermproc,    &
-           pipelineDepth=smm_pipelinedep, rc=rc)
-      call edyn_esmf_chkerr(subname, 'ESMF_FieldSMMStore for 3D mag2phys', rc)
- 
+!!$
+!!$      ! Compute and store route handle for mag2phys 3d fields:
+!!$      !
+!!$      call ESMF_FieldRegridStore(srcField=mag_src_3dfld, dstField=phys_3dfld,     &
+!!$           regridMethod=ESMF_REGRIDMETHOD_BILINEAR,                           &
+!!$           polemethod=ESMF_POLEMETHOD_ALLAVG,                                 &
+!!$           routeHandle=routehandle_mag2phys, factorIndexList=factorIndexList, &
+!!$           factorList=factorList, srcTermProcessing=smm_srctermproc,          &
+!!$           pipelineDepth=smm_pipelinedep, rc=rc)
+!!$      call edyn_esmf_chkerr(subname, 'ESMF_FieldRegridStore for 3D mag2phys', &
+!!$           rc)
+!!$      call ESMF_FieldSMMStore(mag_src_3dfld, phys_3dfld, routehandle_mag2phys,    &
+!!$           factorList, factorIndexList, srcTermProcessing=smm_srctermproc,    &
+!!$           pipelineDepth=smm_pipelinedep, rc=rc)
+!!$      call edyn_esmf_chkerr(subname, 'ESMF_FieldSMMStore for 3D mag2phys', rc)
+!!$ 
       ! Compute and store route handle for mag2phys 2d (amie) fields:
       call ESMF_FieldRegridStore(srcField=mag_src_2dfld, dstField=phys_2dfld,         &
            regridMethod=ESMF_REGRIDMETHOD_BILINEAR,                           &
@@ -637,13 +648,15 @@ contains
            factorIndexList=factorIndexList,                                   &
            factorList=factorList, srcTermProcessing=smm_srctermproc,          &
            pipelineDepth=smm_pipelinedep, rc=rc)
-      call edyn_esmf_chkerr(subname, 'ESMF_FieldRegridStore for 2D mag2phys', &
-           rc)
+      can_do_mag2phys = rc==ESMF_SUCCESS ! kluge to get SE phys grid working -- need mag grid corners
+!      call edyn_esmf_chkerr(subname, 'ESMF_FieldRegridStore for 2D mag2phys', &
+!           rc)
+    if (can_do_mag2phys) then
       call ESMF_FieldSMMStore(mag_src_2dfld, phys_2dfld, routehandle_mag2phys_2d,     &
            factorList, factorIndexList, srcTermProcessing=smm_srctermproc,    &
            pipelineDepth=smm_pipelinedep, rc=rc)
-      call edyn_esmf_chkerr(subname, 'ESMF_FieldSMMStore for 3D mag2phys', rc)
-
+      call edyn_esmf_chkerr(subname, 'ESMF_FieldSMMStore for 2D mag2phys', rc)
+    endif
       !
       ! Compute and store route handle for phys2geo 3d fields:
       !
@@ -663,15 +676,17 @@ contains
       !
       ! Compute and store route handle for geo2phys 3d fields:
       !
-      call ESMF_FieldRegridStore(srcField=geo_3dfld, dstField=phys_3dfld,         &
-           regridMethod=ESMF_REGRIDMETHOD_BILINEAR,                           &
-           polemethod=ESMF_POLEMETHOD_ALLAVG,                                 &
+      call ESMF_FieldRegridStore(srcField=geo2phys_3dfld, dstField=phys_3dfld,         &
+!!$           regridMethod=ESMF_REGRIDMETHOD_BILINEAR,                           &
+!!$           polemethod=ESMF_POLEMETHOD_ALLAVG,                                 &
+           regridmethod=ESMF_REGRIDMETHOD_CONSERVE, &
+           polemethod=ESMF_POLEMETHOD_NONE, &
            routeHandle=routehandle_geo2phys, factorIndexList=factorIndexList, &
            factorList=factorList, srcTermProcessing=smm_srctermproc,          &
            pipelineDepth=smm_pipelinedep, rc=rc)
       call edyn_esmf_chkerr(subname, 'ESMF_FieldRegridStore for 3D geo2phys', &
            rc)
-      call ESMF_FieldSMMStore(geo_3dfld, phys_3dfld, routehandle_geo2phys,        &
+      call ESMF_FieldSMMStore(geo2phys_3dfld, phys_3dfld, routehandle_geo2phys,        &
            factorList, factorIndexList, srcTermProcessing=smm_srctermproc,    &
            pipelineDepth=smm_pipelinedep, rc=rc)
       call edyn_esmf_chkerr(subname, 'ESMF_FieldSMMStore for 3D geo2phys', rc)
@@ -926,6 +941,95 @@ contains
       end if
 
    end subroutine create_geo_grid
+
+   !-----------------------------------------------------------------------
+   subroutine create_geo2phys_grid(grid_out)
+      use edyn_geogrid, only: glat_corner,glon_corner
+      !
+      ! Args:
+      type(ESMF_Grid),intent(out) :: grid_out
+      !
+      ! Local:
+      integer                       :: i, j, n, rc
+      integer                       :: lbnd_lat, ubnd_lat, lbnd_lon, ubnd_lon
+      integer                       :: lbnd(1), ubnd(1)
+      integer                       :: nlons_task(ntaski) ! # lons per task
+      integer                       :: nlats_task(ntaskj) ! # lats per task
+      real(ESMF_KIND_R8), pointer   :: coordX(:), coordY(:)
+      character(len=*),   parameter :: subname = 'create_geo_grid'
+      !
+      ! nlons_task(ntaski) = number of geo lons per task.
+      !
+      do i = 1, ntaski
+         loop: do n = 0, ntask-1
+            if (tasks(n)%mytidi == i-1) then
+               nlons_task(i) = tasks(n)%nlons
+               exit loop
+            end if
+         end do loop
+      end do
+      !
+      do j = 1, ntaskj
+         loop1: do n = 0, ntask-1
+            if (tasks(n)%mytidj == j-1) then
+               nlats_task(j) = tasks(n)%nlats
+               exit loop1
+            end if
+         end do loop1
+      end do
+      !     
+      !
+      ! Create 2d geographic source grid (with poles)
+      grid_out = ESMF_GridCreate1PeriDim(                       &
+           countsPerDEDim1=nlons_task, coordDep1=(/1/),         &
+           countsPerDEDim2=nlats_task, coordDep2=(/2/),         &
+           indexflag=ESMF_INDEX_GLOBAL,minIndex=(/1,1/), rc=rc)
+      call edyn_esmf_chkerr(subname, 'ESMF_GridCreate1PeriDim', rc)
+      !
+      ! Allocate coordinates:
+      !
+      call ESMF_GridAddCoord(grid_out, staggerloc=ESMF_STAGGERLOC_CORNER, rc=rc)
+      call edyn_esmf_chkerr(subname, 'ESMF_GridAddCoord', rc)
+      !
+      ! Get pointer and set geo grid longitude coordinates:
+      !
+      call ESMF_GridGetCoord(grid_out, coordDim=1, localDE=0,                 &
+           computationalLBound=lbnd, computationalUBound=ubnd,                &
+           farrayPtr=coordX, staggerloc=ESMF_STAGGERLOC_CORNER, rc=rc)
+      call edyn_esmf_chkerr(subname,                                          &
+           'ESMF_GridGetCoord for longitude coords', rc)
+      !
+      ! Note glon was shifted to +/-180 by sub set_geogrid (edyn_init.F90)
+      !
+      lbnd_lon = lbnd(1)
+      ubnd_lon = ubnd(1)
+      do i = lbnd_lon, ubnd_lon
+         coordX(i) = glon_corner(i)
+      end do
+      !
+      ! Get pointer and set geo grid latitude coordinates, including poles:
+      !
+      call ESMF_GridGetCoord(grid_out, coordDim=2, localDE=0,                 &
+           computationalLBound=lbnd, computationalUBound=ubnd,                &
+           farrayPtr=coordY, staggerloc=ESMF_STAGGERLOC_CORNER, rc=rc)
+      call edyn_esmf_chkerr(subname,                                          &
+           'ESMF_GridGetCoord for latitude coords', rc)
+
+      lbnd_lat = lbnd(1)
+      ubnd_lat = ubnd(1)
+      print*,'FVDBG... lbnd_lat, ubnd_lat: ',lbnd_lat, ubnd_lat
+      do i = lbnd_lat, ubnd_lat
+         coordY(i) = glat_corner(i)
+      end do
+
+      if (debug .and. masterproc) then
+         write(iulog,"(2a,2i4,a,2i4,a,2i4,a,2i4)") 'Created ESMF geo2phys_grid:',  &
+              ' lbnd,ubnd_lon=', lbnd_lon, ubnd_lon, ' lon0,1=', lon0, lon1,  &
+              ' lbnd,ubnd_lat=', lbnd_lat, ubnd_lat, ' lat0,1=', lat0, lat1
+         write(iulog,"('coordX for geo2phys grid = ',/,(8f10.4))") coordX
+         write(iulog,"('coordY for geo2phys grid = ',/,(8f10.4))") coordY
+      end if
+   end subroutine create_geo2phys_grid
    !-----------------------------------------------------------------------
    subroutine edyn_esmf_create_physfield(field, mesh, name, nlev)
       use ESMF, only: ESMF_FieldStatus_Flag, ESMF_FIELDSTATUS_EMPTY, ESMF_MESHLOC_ELEMENT, ESMF_SUCCESS
@@ -1419,13 +1523,18 @@ contains
       character(len=*), parameter :: subname = 'edyn_esmf_regrid_mag2phys'
       !
       if (ndim == 2) then
-         call ESMF_FieldSMM(srcfield, dstfield, routehandle_mag2phys_2d,      &
-           termorderflag=ESMF_TERMORDER_SRCSEQ, rc=rc)
-         call edyn_esmf_chkerr(subname, 'ESMF_FieldSMM mag2phys 2D', rc)
+         if (can_do_mag2phys) then
+            call ESMF_FieldSMM(srcfield, dstfield, routehandle_mag2phys_2d,      &
+                 termorderflag=ESMF_TERMORDER_SRCSEQ, rc=rc)
+            call edyn_esmf_chkerr(subname, 'ESMF_FieldSMM mag2phys 2D', rc)
+         else
+            call endrun('edyn_esmf_regrid_mag2phys: mag2phys 2D not working')
+         end if
       else
-         call ESMF_FieldSMM(srcfield, dstfield, routehandle_mag2phys,         &
-           termorderflag=ESMF_TERMORDER_SRCSEQ, rc=rc)
-         call edyn_esmf_chkerr(subname, 'ESMF_FieldSMM mag2phys 3D', rc)
+!!$         call ESMF_FieldSMM(srcfield, dstfield, routehandle_mag2phys,         &
+!!$              termorderflag=ESMF_TERMORDER_SRCSEQ, rc=rc)
+!!$         call edyn_esmf_chkerr(subname, 'ESMF_FieldSMM mag2phys 3D', rc)
+         call endrun('edyn_esmf_regrid_mag2phys: no 3D routehandle')
       end if
    end subroutine edyn_esmf_regrid_mag2phys
    !-----------------------------------------------------------------------
@@ -1467,9 +1576,10 @@ contains
       character(len=*), parameter :: subname = 'edyn_esmf_regrid_geo2phys'
       !
       if (ndim == 2) then
-         call ESMF_FieldSMM(srcfield, dstfield, routehandle_geo2phys_2d,      &
-           termorderflag=ESMF_TERMORDER_SRCSEQ, rc=rc)
-         call edyn_esmf_chkerr(subname, 'ESMF_FieldSMM geo2phys 2D', rc)
+!!$         call ESMF_FieldSMM(srcfield, dstfield, routehandle_geo2phys_2d,      &
+!!$           termorderflag=ESMF_TERMORDER_SRCSEQ, rc=rc)
+!!$         call edyn_esmf_chkerr(subname, 'ESMF_FieldSMM geo2phys 2D', rc)
+         call endrun('edyn_esmf_regrid_geo2phys: 2D not working')
       else
          call ESMF_FieldSMM(srcfield, dstfield, routehandle_geo2phys,         &
            termorderflag=ESMF_TERMORDER_SRCSEQ, rc=rc)
