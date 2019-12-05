@@ -13,6 +13,7 @@
 
 <dtime dyn="fv"                    >1800</dtime>
 <dtime dyn="fv"    waccmx="1"      >300 </dtime>
+<dtime dyn="se"    waccmx="1"      >300 </dtime>
 
 <dtime dyn="se"                    >1800</dtime>
 <dtime dyn="se"    hgrid="ne5np4"  >1800</dtime>
@@ -112,6 +113,8 @@
 <ncdata dyn="fv"  hgrid="0.47x0.63" nlev="130" waccmx="1">atm/waccm/ic/FC6X2000_f05_spinup01.cam.i.0002-01-01-00000_c190711.nc</ncdata>
 <ncdata dyn="fv"  hgrid="4x5"       nlev="130" waccmx="1"  ic_ymd="101" aquaplanet="1">atm/waccm/ic/waccmx_mam4_aqua_4x5_L130_c180803.nc</ncdata>
 <ncdata dyn="fv"  hgrid="1.9x2.5"   nlev="130" waccmx="1"  ic_ymd="101" aquaplanet="1">atm/waccm/ic/waccmx_mam4_aqua_1.9x2.5_L130_c180803.nc</ncdata>
+<ncdata dyn="se"  hgrid="ne16np4"   nlev="126" waccmx="1"               >atm/waccm/ic/waccmx_ne16np4_126L_c191204.nc</ncdata>
+<ncdata dyn="se"  hgrid="ne16np4"   nlev="126" waccmx="1" aquaplanet="1">atm/waccm/ic/waccmx_aqua_ne16np4_126L_c191108.nc</ncdata>
 
 <ncdata dyn="eul" hgrid="512x1024"  nlev="26"              ic_ymd="101" >atm/cam/inic/gaus/T341clim01.cam2.i.0024-01-01-00000.nc</ncdata>
 <ncdata dyn="eul" hgrid="256x512"   nlev="26"              ic_ymd="101" >atm/cam/inic/gaus/cami_0000-01-01_256x512_L26_c030918.nc</ncdata>
@@ -2005,6 +2008,7 @@
 
 <se_nsplit hgrid="ne5np4"   waccm_phys="1"        >  3  </se_nsplit>
 <se_nsplit hgrid="ne16np4"  waccm_phys="1"        >  3  </se_nsplit>
+<se_nsplit hgrid="ne16np4"  waccm_phys="1" waccmx="1">10</se_nsplit>
 <se_nsplit hgrid="ne30np4"  waccm_phys="1"        > 12  </se_nsplit>
 <se_nsplit hgrid="ne30np4"  waccm_phys="1" npg="2">  6  </se_nsplit>
 <se_nsplit hgrid="ne30np4"  waccm_phys="1" npg="3">  6  </se_nsplit>
