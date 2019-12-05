@@ -171,7 +171,7 @@ contains
          glat_corner(latind) = glat(latind-1) + 0.5_r8*delta
       end do
 
-      if (masterproc) then
+      if (masterproc.and.debug) then
         write(iulog,*) 'set_geogrid glon : ',glon(:)
         write(iulog,*) 'set_geogrid glat : ',glat(:)
         write(iulog,*) 'set_geogrid glon_corner : ',glon_corner(:)

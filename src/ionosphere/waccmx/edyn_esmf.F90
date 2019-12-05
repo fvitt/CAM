@@ -1017,7 +1017,6 @@ contains
 
       lbnd_lat = lbnd(1)
       ubnd_lat = ubnd(1)
-      print*,'FVDBG... lbnd_lat, ubnd_lat: ',lbnd_lat, ubnd_lat
       do i = lbnd_lat, ubnd_lat
          coordY(i) = glat_corner(i)
       end do
