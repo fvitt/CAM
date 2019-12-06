@@ -377,6 +377,7 @@ contains
       use ESMF,         only: ESMF_GridCompSetServices
       use spmd_utils,   only: MPI_INTEGER
       use cam_instance, only: inst_index, inst_name
+      use dycore,       only: dycore_is
 
       ! Dummy arguments
       integer, intent(in)  :: mpi_comm
@@ -415,7 +416,7 @@ contains
       call edyn_esmf_chkerr('ESMF_GridCompRun '//trim(inst_name), rc)
 #endif
 !!XXgoldyXX: ^ remove?
-
+      can_do_mag2phys = (.not. dycore_is('UNSTRUCTURED'))
    end subroutine edyn_esmf_init
 
    !-----------------------------------------------------------------------
@@ -640,6 +641,7 @@ contains
 !!$           pipelineDepth=smm_pipelinedep, rc=rc)
 !!$      call edyn_esmf_chkerr(subname, 'ESMF_FieldSMMStore for 3D mag2phys', rc)
 !!$ 
+   if (can_do_mag2phys) then
       ! Compute and store route handle for mag2phys 2d (amie) fields:
       call ESMF_FieldRegridStore(srcField=mag_src_2dfld, dstField=phys_2dfld,         &
            regridMethod=ESMF_REGRIDMETHOD_BILINEAR,                           &
@@ -648,10 +650,10 @@ contains
            factorIndexList=factorIndexList,                                   &
            factorList=factorList, srcTermProcessing=smm_srctermproc,          &
            pipelineDepth=smm_pipelinedep, rc=rc)
-      can_do_mag2phys = rc==ESMF_SUCCESS ! kluge to get SE phys grid working -- need mag grid corners
-!      call edyn_esmf_chkerr(subname, 'ESMF_FieldRegridStore for 2D mag2phys', &
-!           rc)
-    if (can_do_mag2phys) then
+!      can_do_mag2phys = rc==ESMF_SUCCESS ! kluge to get SE phys grid working -- need mag grid corners
+      call edyn_esmf_chkerr(subname, 'ESMF_FieldRegridStore for 2D mag2phys', &
+           rc)
+!    if (can_do_mag2phys) then
       call ESMF_FieldSMMStore(mag_src_2dfld, phys_2dfld, routehandle_mag2phys_2d,     &
            factorList, factorIndexList, srcTermProcessing=smm_srctermproc,    &
            pipelineDepth=smm_pipelinedep, rc=rc)
