@@ -70,6 +70,7 @@ contains
     call addfld ('WACCM_UI'   ,(/ 'lev' /), 'I', 'm/s'  ,'WACCM_UI (dpie output)', gridname='physgrid')
     call addfld ('WACCM_VI'   ,(/ 'lev' /), 'I', 'm/s'  ,'WACCM_VI (dpie output)', gridname='physgrid')
     call addfld ('WACCM_WI'   ,(/ 'lev' /), 'I', 'm/s'  ,'WACCM_WI (dpie output)', gridname='physgrid')
+    call addfld ('WACCM_OP'   ,(/ 'lev' /), 'I', 'kg/kg'  ,'WACCM_OP (dpie output)', gridname='physgrid')
   end subroutine d_pie_init
 
   !-----------------------------------------------------------------------
@@ -710,6 +711,8 @@ contains
           end do
        end do
 
+       call outfld_geo('Op_geo2',op_geo)
+       
        call regrid_geo2phys_3d( op_geo, opmmr, plev, cols, cole )
        call regrid_geo2phys_3d( optm1_geo, opmmrtm1, plev, cols, cole )
        call regrid_geo2phys_3d( ui_geo, ui, plev, cols, cole )
@@ -721,6 +724,7 @@ contains
     call outfld_phys('WACCM_UI',ui)
     call outfld_phys('WACCM_VI',vi)
     call outfld_phys('WACCM_WI',wi)
+    call outfld_phys('WACCM_OP',opmmr)
     
     call t_stopf('d_pie_coupling')
 

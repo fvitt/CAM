@@ -229,6 +229,7 @@ contains
 
       call addfld ('Op_phys',(/ 'lev' /), 'I', ' ',' '   , gridname='physgrid')
       call addfld ('Op_geo', (/ 'lev' /), 'I', ' ',' '   , gridname='geo_grid')
+      call addfld ('Op_geo2', (/ 'lev' /), 'I', ' ',' '   , gridname='geo_grid')
 
       call addfld ('Optm1_phys',(/ 'lev' /), 'I', 'cm-3',' '   , gridname='physgrid')
       call addfld ('Optm1_geo', (/ 'lev' /), 'I', 'cm-3',' '   , gridname='geo_grid')
