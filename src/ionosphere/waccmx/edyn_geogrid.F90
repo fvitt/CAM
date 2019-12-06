@@ -156,7 +156,7 @@ contains
       delta = 360.0_r8 / real(nlon, r8)
       do lonind = 1, nlon
          glon(lonind) = -180.0_r8 + ((lonind - 1) * delta)
-         glon_corner(lonind) = glon(lonind) + 0.5_r8*delta
+         glon_corner(lonind) = glon(lonind) - 0.5_r8*delta
       end do
       delta = 180.0_r8 / real((nlat - 1), r8)
       ! Set the poles exactly (they might be checked later)
