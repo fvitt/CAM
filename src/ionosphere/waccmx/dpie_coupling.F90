@@ -666,6 +666,8 @@ contains
        deallocate(ptrs,polesign)
        call t_stopf('dpie_halo')
 
+       call outfld_geokij( 'OPtm1i',optm1_in, lev0,lev1, lon0,lon1, lat0,lat1 )
+
        call t_startf('dpie_oplus_xport')
        do isplit = 1, nspltop
 
@@ -693,6 +695,7 @@ contains
     !
     if (ionos_oplus_xport) then
        call outfld_geokij( 'OPLUS', op_out, lev0,lev1, lon0,lon1, lat0,lat1 )
+       call outfld_geokij( 'OPtm1o',optm1_out, lev0,lev1, lon0,lon1, lat0,lat1 )
        !
        ! Pass new O+ for current and previous time step back to physics (convert from cm^3 to m^3 and back to mmr).
        !

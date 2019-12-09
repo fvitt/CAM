@@ -184,6 +184,8 @@ contains
       call addfld ('RJAC22'       ,(/'lev'/), 'I', '  ',' '  ,gridname='geo_grid')
 
       call addfld ('OPLUS',   (/ 'lev' /), 'I', 'cm^3','O+ (oplus_xport output)',    gridname='geo_grid')
+      call addfld ('OPtm1i',   (/ 'lev' /), 'I', 'cm^3','O+ (oplus_xport output)',    gridname='geo_grid')
+      call addfld ('OPtm1o',   (/ 'lev' /), 'I', 'cm^3','O+ (oplus_xport output)',    gridname='geo_grid')
 
       call addfld ('TN_phys',(/ 'lev' /), 'I', 'deg K   ','T'   , gridname='physgrid')
       call addfld ('TN_geo', (/ 'lev' /), 'I', 'deg K   ','T'   , gridname='geo_grid')
