@@ -220,7 +220,8 @@ end subroutine physconst_readnl
 
 subroutine physconst_init()
    use constituents, only: cnst_get_ind, cnst_mw
-
+   use infnan,       only: nan, assignment(=)
+   
    integer :: n_ndx
    integer :: ierr
    real(r8) :: o2_mw, o_mw, h_mw, n_mw
@@ -243,6 +244,8 @@ subroutine physconst_init()
    rairv(:pcols,:pver,begchunk:endchunk) = rair
    cappav(:pcols,:pver,begchunk:endchunk) = rair/cpair
    mbarv(:pcols,:pver,begchunk:endchunk) = mwdry
+   kmvis = nan
+   kmcnd = nan
 
    call cnst_get_ind('O2',o2_ndx,abort=.false.)
    call cnst_get_ind('O' ,o_ndx, abort=.false.)
@@ -293,7 +296,7 @@ end subroutine physconst_init
     real(r8):: kv1, kv2, kv3, kv4                  ! Coefficients for kmvis calculation
     real(r8):: kc1, kc2, kc3, kc4                  ! Coefficients for kmcnd calculation
     real(r8) :: to_moist_fact(ncol,pver)
-    
+
     !--------------------------------------------
     ! Set constants needed for updates
     !--------------------------------------------

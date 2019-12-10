@@ -61,6 +61,8 @@ subroutine d_p_coupling(phys_state, phys_tend,  pbuf2d, dyn_out)
    use time_mod,               only: timelevel_qdp
    use control_mod,            only: qsplit
    use test_fvm_mapping,       only: test_mapping_overwrite_dyn_state, test_mapping_output_phys_state
+   use physconst,      only: physconst_update
+   use phys_control,   only: waccmx_is
 
    ! arguments
    type(dyn_export_t),  intent(inout)                               :: dyn_out             ! dynamics export
@@ -381,6 +383,13 @@ subroutine d_p_coupling(phys_state, phys_tend,  pbuf2d, dyn_out)
    do lchnk = begchunk, endchunk
       ncols = phys_state(lchnk)%ncol
       q_prev(1:ncols,1:pver,1:pcnst,lchnk) = phys_state(lchnk)%q(1:ncols,1:pver,1:pcnst)
+      !-----------------------------------------------------------------------------
+      ! Call physconst_update to compute cpairv, rairv, mbarv, and cappav as constituent dependent variables
+      ! and compute molecular viscosity(kmvis) and conductivity(kmcnd) -- fixes B4B restart problem
+      !-----------------------------------------------------------------------------
+      if ( waccmx_is('ionosphere') .or. waccmx_is('neutral') ) then
+         call physconst_update(phys_state(lchnk)%q, phys_state(lchnk)%t, lchnk, ncols)
+      endif
    end do
    call test_mapping_output_phys_state(phys_state,dyn_out%fvm)
 
