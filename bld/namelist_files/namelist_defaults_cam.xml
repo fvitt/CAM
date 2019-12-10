@@ -113,6 +113,7 @@
 <ncdata dyn="fv"  hgrid="0.47x0.63" nlev="130" waccmx="1">atm/waccm/ic/FC6X2000_f05_spinup01.cam.i.0002-01-01-00000_c190711.nc</ncdata>
 <ncdata dyn="fv"  hgrid="4x5"       nlev="130" waccmx="1"  ic_ymd="101" aquaplanet="1">atm/waccm/ic/waccmx_mam4_aqua_4x5_L130_c180803.nc</ncdata>
 <ncdata dyn="fv"  hgrid="1.9x2.5"   nlev="130" waccmx="1"  ic_ymd="101" aquaplanet="1">atm/waccm/ic/waccmx_mam4_aqua_1.9x2.5_L130_c180803.nc</ncdata>
+<ncdata dyn="se"  hgrid="ne5np4"    nlev="126" waccmx="1"               >atm/waccm/ic/waccmx_aqua_ne5np4_126L_c191104.nc</ncdata>
 <ncdata dyn="se"  hgrid="ne16np4"   nlev="126" waccmx="1"               >atm/waccm/ic/waccmx_ne16np4_126L_c191204.nc</ncdata>
 <ncdata dyn="se"  hgrid="ne16np4"   nlev="126" waccmx="1" aquaplanet="1">atm/waccm/ic/waccmx_aqua_ne16np4_126L_c191108.nc</ncdata>
 <ncdata dyn="se"  hgrid="ne30np4"   nlev="130" waccmx="1"               >atm/waccm/ic/waccmx_2000_ne30np4_L130_c191210.nc</ncdata>
@@ -624,6 +625,9 @@
 
 <!-- Oplus transport grid configuration -->
 <oplus_grid> 144,96 </oplus_grid>
+<oplus_grid hgrid="ne5np4"> 60,31 </oplus_grid>
+<oplus_grid hgrid="ne16np4"> 144,96 </oplus_grid>
+<oplus_grid hgrid="ne30np4"> 288,192 </oplus_grid>
 <oplus_grid hgrid="0.9x1.25"> 288,192 </oplus_grid>
 <oplus_grid hgrid="0.47x0.63"> 576,384 </oplus_grid>
 <oplus_npes> 0 </oplus_npes>
@@ -633,6 +637,7 @@
 <cam_physics_mesh waccmx_opt="ionosphere" hgrid="0.9x1.25">atm/cam/coords/fv0.9x1.25_esmf_191121.nc</cam_physics_mesh>
 <cam_physics_mesh waccmx_opt="ionosphere" hgrid="1.9x2.5">atm/cam/coords/fv1.9x2.5_esmf_191122.nc</cam_physics_mesh>
 <cam_physics_mesh waccmx_opt="ionosphere" hgrid="4x5">atm/cam/coords/fv4x5_esmf_191122.nc</cam_physics_mesh>
+<cam_physics_mesh waccmx_opt="ionosphere" hgrid="ne5np4">atm/cam/coords/ne5np4_esmf_20191204.nc</cam_physics_mesh>
 <cam_physics_mesh waccmx_opt="ionosphere" hgrid="ne30np4">atm/cam/coords/ne30np4_esmf_191122.nc</cam_physics_mesh>
 <cam_physics_mesh waccmx_opt="ionosphere" hgrid="ne16np4">atm/cam/coords/ne16np4_esmf_191122.nc</cam_physics_mesh>
 

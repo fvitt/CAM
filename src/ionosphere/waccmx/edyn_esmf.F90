@@ -24,6 +24,7 @@ module edyn_esmf
    use ESMF,           only: ESMF_GridGet, ESMF_ArraySpecSet
    use ESMF,           only: ESMF_ArrayCreate, ESMF_FieldSMM
    use ESMF,           only: ESMF_GridComp, ESMF_TERMORDER_SRCSEQ
+   use ESMF, only: ESMF_EXTRAPMETHOD_NEAREST_IDAVG
    use ESMF, only: ESMF_EXTRAPMETHOD_NEAREST_STOD, ESMF_UNMAPPEDACTION_IGNORE
    use edyn_mpi,       only: ntask, ntaski, ntaskj, tasks, lon0, lon1, lat0
    use edyn_mpi,       only: lat1, nmagtaski, nmagtaskj, mlon0, mlon1
@@ -105,7 +106,7 @@ module edyn_esmf
    !
 
    logical, protected :: edyn_esmf_update_step = .true.
-   logical, protected :: can_do_mag2phys
+   logical, protected :: can_do_mag2phys=.true.
    logical, parameter :: debug = .false.
 #endif
    integer, parameter :: pdim1s = 1
@@ -587,8 +588,7 @@ contains
       call ESMF_FieldRegridStore(srcField=phys_2dfld, dstField=mag_des_2dfld,        &
            regridMethod=ESMF_REGRIDMETHOD_BILINEAR,                           &
            polemethod=ESMF_POLEMETHOD_ALLAVG,                                 &
-!!$           unmappedaction=ESMF_UNMAPPEDACTION_IGNORE, &
-!!$           extrapMethod=ESMF_EXTRAPMETHOD_NEAREST_STOD, &
+           extrapMethod=ESMF_EXTRAPMETHOD_NEAREST_IDAVG, &
            routeHandle=routehandle_phys2mag_2d,                               &
            factorIndexList=factorIndexList,                                   &
            factorList=factorList, srcTermProcessing=smm_srctermproc,          &
@@ -606,6 +606,7 @@ contains
       call ESMF_FieldRegridStore(srcField=phys_3dfld, dstField=mag_des_3dfld, &
            regridMethod=ESMF_REGRIDMETHOD_BILINEAR,                           &
            polemethod=ESMF_POLEMETHOD_ALLAVG,                                 &
+           extrapMethod=ESMF_EXTRAPMETHOD_NEAREST_IDAVG, &
            routeHandle=routehandle_phys2mag, factorIndexList=factorIndexList, &
            factorList=factorList, srcTermProcessing=smm_srctermproc,          &
            pipelineDepth=smm_pipelinedep, rc=rc)
@@ -646,14 +647,13 @@ contains
       call ESMF_FieldRegridStore(srcField=mag_src_2dfld, dstField=phys_2dfld,         &
            regridMethod=ESMF_REGRIDMETHOD_BILINEAR,                           &
            polemethod=ESMF_POLEMETHOD_ALLAVG,                                 &
+!           extrapMethod=ESMF_EXTRAPMETHOD_NEAREST_IDAVG, &
            routeHandle=routehandle_mag2phys_2d,                               &
            factorIndexList=factorIndexList,                                   &
            factorList=factorList, srcTermProcessing=smm_srctermproc,          &
            pipelineDepth=smm_pipelinedep, rc=rc)
-!      can_do_mag2phys = rc==ESMF_SUCCESS ! kluge to get SE phys grid working -- need mag grid corners
       call edyn_esmf_chkerr(subname, 'ESMF_FieldRegridStore for 2D mag2phys', &
            rc)
-!    if (can_do_mag2phys) then
       call ESMF_FieldSMMStore(mag_src_2dfld, phys_2dfld, routehandle_mag2phys_2d,     &
            factorList, factorIndexList, srcTermProcessing=smm_srctermproc,    &
            pipelineDepth=smm_pipelinedep, rc=rc)
@@ -665,6 +665,7 @@ contains
       call ESMF_FieldRegridStore(srcField=phys_3dfld, dstField=geo_3dfld,         &
            regridMethod=ESMF_REGRIDMETHOD_BILINEAR,                           &
            polemethod=ESMF_POLEMETHOD_ALLAVG,                                 &
+           extrapMethod=ESMF_EXTRAPMETHOD_NEAREST_IDAVG, &
            routeHandle=routehandle_phys2geo, factorIndexList=factorIndexList, &
            factorList=factorList, srcTermProcessing=smm_srctermproc,          &
            pipelineDepth=smm_pipelinedep, rc=rc)
