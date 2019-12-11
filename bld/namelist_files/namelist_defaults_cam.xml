@@ -625,7 +625,6 @@
 
 <!-- Oplus transport grid configuration -->
 <oplus_grid> 144,96 </oplus_grid>
-<oplus_grid hgrid="ne5np4"> 60,31 </oplus_grid>
 <oplus_grid hgrid="ne16np4"> 144,96 </oplus_grid>
 <oplus_grid hgrid="ne30np4"> 288,192 </oplus_grid>
 <oplus_grid hgrid="0.9x1.25"> 288,192 </oplus_grid>
