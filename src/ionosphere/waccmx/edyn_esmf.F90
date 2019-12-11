@@ -12,17 +12,16 @@ module edyn_esmf
    use ESMF,           only: ESMF_SUCCESS
    use ESMF,           only: ESMF_KIND_R8, ESMF_KIND_I4
    use ESMF,           only: ESMF_FieldGet, ESMF_GridWriteVTK
-   use ESMF,           only: ESMF_STAGGERLOC_CENTER, ESMF_FieldRegridStore
+   use ESMF,           only: ESMF_STAGGERLOC_CENTER, ESMF_FieldRegridStore, ESMF_FieldRegrid
    use ESMF,           only: ESMF_STAGGERLOC_CORNER, ESMF_StaggerLoc
    use ESMF,           only: ESMF_REGRIDMETHOD_BILINEAR, ESMF_POLEMETHOD_ALLAVG
    use ESMF,           only: ESMF_REGRIDMETHOD_CONSERVE, ESMF_POLEMETHOD_NONE
-   use ESMF,           only: ESMF_FieldSMMStore
    use ESMF,           only: ESMF_GridCreate1PeriDim, ESMF_INDEX_GLOBAL
    use ESMF,           only: ESMF_GridAddCoord, ESMF_GridGetCoord
    use ESMF,           only: ESMF_TYPEKIND_R8, ESMF_FieldCreate, ESMF_Array
    use ESMF,           only: ESMF_ArraySpec, ESMF_DistGrid
    use ESMF,           only: ESMF_GridGet, ESMF_ArraySpecSet
-   use ESMF,           only: ESMF_ArrayCreate, ESMF_FieldSMM
+   use ESMF,           only: ESMF_ArrayCreate
    use ESMF,           only: ESMF_GridComp, ESMF_TERMORDER_SRCSEQ
    use ESMF, only: ESMF_EXTRAPMETHOD_NEAREST_IDAVG
    use ESMF, only: ESMF_EXTRAPMETHOD_NEAREST_STOD, ESMF_UNMAPPEDACTION_IGNORE
@@ -585,20 +584,16 @@ contains
       !
       ! Compute and store route handle for phys2mag 2d fields:
       !
-      call ESMF_FieldRegridStore(srcField=phys_2dfld, dstField=mag_des_2dfld,        &
+      call ESMF_FieldRegridStore(srcField=phys_2dfld, dstField=mag_des_2dfld, &
            regridMethod=ESMF_REGRIDMETHOD_BILINEAR,                           &
            polemethod=ESMF_POLEMETHOD_ALLAVG,                                 &
-           extrapMethod=ESMF_EXTRAPMETHOD_NEAREST_IDAVG, &
+           extrapMethod=ESMF_EXTRAPMETHOD_NEAREST_IDAVG,                      &
            routeHandle=routehandle_phys2mag_2d,                               &
            factorIndexList=factorIndexList,                                   &
            factorList=factorList, srcTermProcessing=smm_srctermproc,          &
            pipelineDepth=smm_pipelinedep, rc=rc)
       call edyn_esmf_chkerr(subname, 'ESMF_FieldRegridStore for 2D phys2mag', &
            rc)
-      call ESMF_FieldSMMStore(phys_2dfld, mag_des_2dfld, routehandle_phys2mag_2d,    &
-           factorList, factorIndexList, srcTermProcessing=smm_srctermproc,    &
-           pipelineDepth=smm_pipelinedep, rc=rc)
-      call edyn_esmf_chkerr(subname, 'ESMF_FieldSMMStore for 2D phys2mag', rc)
       
       !
       ! Compute and store route handle for phys2mag 3d fields:
@@ -606,16 +601,12 @@ contains
       call ESMF_FieldRegridStore(srcField=phys_3dfld, dstField=mag_des_3dfld, &
            regridMethod=ESMF_REGRIDMETHOD_BILINEAR,                           &
            polemethod=ESMF_POLEMETHOD_ALLAVG,                                 &
-           extrapMethod=ESMF_EXTRAPMETHOD_NEAREST_IDAVG, &
+           extrapMethod=ESMF_EXTRAPMETHOD_NEAREST_IDAVG,                      &
            routeHandle=routehandle_phys2mag, factorIndexList=factorIndexList, &
            factorList=factorList, srcTermProcessing=smm_srctermproc,          &
            pipelineDepth=smm_pipelinedep, rc=rc)
       call edyn_esmf_chkerr(subname, 'ESMF_FieldRegridStore for 3D phys2mag', &
            rc)
-      call ESMF_FieldSMMStore(phys_3dfld, mag_des_3dfld, routehandle_phys2mag,        &
-           factorList, factorIndexList, srcTermProcessing=smm_srctermproc,    &
-           pipelineDepth=smm_pipelinedep, rc=rc)
-      call edyn_esmf_chkerr(subname, 'ESMF_FieldSMMStore for 3D phys2mag', rc)
 
       !
       ! Save route handle and get esmf indices and weights for mag2phys:
@@ -637,67 +628,48 @@ contains
 !!$           pipelineDepth=smm_pipelinedep, rc=rc)
 !!$      call edyn_esmf_chkerr(subname, 'ESMF_FieldRegridStore for 3D mag2phys', &
 !!$           rc)
-!!$      call ESMF_FieldSMMStore(mag_src_3dfld, phys_3dfld, routehandle_mag2phys,    &
-!!$           factorList, factorIndexList, srcTermProcessing=smm_srctermproc,    &
-!!$           pipelineDepth=smm_pipelinedep, rc=rc)
-!!$      call edyn_esmf_chkerr(subname, 'ESMF_FieldSMMStore for 3D mag2phys', rc)
-!!$ 
-   if (can_do_mag2phys) then
+
+    if (can_do_mag2phys) then
       ! Compute and store route handle for mag2phys 2d (amie) fields:
-      call ESMF_FieldRegridStore(srcField=mag_src_2dfld, dstField=phys_2dfld,         &
+      call ESMF_FieldRegridStore(srcField=mag_src_2dfld, dstField=phys_2dfld, &
            regridMethod=ESMF_REGRIDMETHOD_BILINEAR,                           &
            polemethod=ESMF_POLEMETHOD_ALLAVG,                                 &
-!           extrapMethod=ESMF_EXTRAPMETHOD_NEAREST_IDAVG, &
            routeHandle=routehandle_mag2phys_2d,                               &
            factorIndexList=factorIndexList,                                   &
            factorList=factorList, srcTermProcessing=smm_srctermproc,          &
            pipelineDepth=smm_pipelinedep, rc=rc)
       call edyn_esmf_chkerr(subname, 'ESMF_FieldRegridStore for 2D mag2phys', &
            rc)
-      call ESMF_FieldSMMStore(mag_src_2dfld, phys_2dfld, routehandle_mag2phys_2d,     &
-           factorList, factorIndexList, srcTermProcessing=smm_srctermproc,    &
-           pipelineDepth=smm_pipelinedep, rc=rc)
-      call edyn_esmf_chkerr(subname, 'ESMF_FieldSMMStore for 2D mag2phys', rc)
     endif
       !
       ! Compute and store route handle for phys2geo 3d fields:
       !
-      call ESMF_FieldRegridStore(srcField=phys_3dfld, dstField=geo_3dfld,         &
+      call ESMF_FieldRegridStore(srcField=phys_3dfld, dstField=geo_3dfld,     &
            regridMethod=ESMF_REGRIDMETHOD_BILINEAR,                           &
            polemethod=ESMF_POLEMETHOD_ALLAVG,                                 &
-           extrapMethod=ESMF_EXTRAPMETHOD_NEAREST_IDAVG, &
+           extrapMethod=ESMF_EXTRAPMETHOD_NEAREST_IDAVG,                      &
            routeHandle=routehandle_phys2geo, factorIndexList=factorIndexList, &
            factorList=factorList, srcTermProcessing=smm_srctermproc,          &
            pipelineDepth=smm_pipelinedep, rc=rc)
       call edyn_esmf_chkerr(subname, 'ESMF_FieldRegridStore for 3D phys2geo', &
            rc)
-      call ESMF_FieldSMMStore(phys_3dfld, geo_3dfld, routehandle_phys2geo,        &
-           factorList, factorIndexList, srcTermProcessing=smm_srctermproc,    &
-           pipelineDepth=smm_pipelinedep, rc=rc)
-      call edyn_esmf_chkerr(subname, 'ESMF_FieldSMMStore for 3D phys2geo', rc)
 
       !
       ! Compute and store route handle for geo2phys 3d fields:
       !
-      call ESMF_FieldRegridStore(srcField=geo2phys_3dfld, dstField=phys_3dfld,         &
-!!$           regridMethod=ESMF_REGRIDMETHOD_BILINEAR,                           &
-!!$           polemethod=ESMF_POLEMETHOD_ALLAVG,                                 &
-           regridmethod=ESMF_REGRIDMETHOD_CONSERVE, &
-           polemethod=ESMF_POLEMETHOD_NONE, &
+      call ESMF_FieldRegridStore(srcField=geo2phys_3dfld, dstField=phys_3dfld, &
+           regridmethod=ESMF_REGRIDMETHOD_CONSERVE,                           &
+           polemethod=ESMF_POLEMETHOD_NONE,                                   &
            routeHandle=routehandle_geo2phys, factorIndexList=factorIndexList, &
            factorList=factorList, srcTermProcessing=smm_srctermproc,          &
            pipelineDepth=smm_pipelinedep, rc=rc)
       call edyn_esmf_chkerr(subname, 'ESMF_FieldRegridStore for 3D geo2phys', &
            rc)
-      call ESMF_FieldSMMStore(geo2phys_3dfld, phys_3dfld, routehandle_geo2phys,        &
-           factorList, factorIndexList, srcTermProcessing=smm_srctermproc,    &
-           pipelineDepth=smm_pipelinedep, rc=rc)
-      call edyn_esmf_chkerr(subname, 'ESMF_FieldSMMStore for 3D geo2phys', rc)
 
       !
       ! Compute and store route handle for geo2mag 3d fields:
       !
-      call ESMF_FieldRegridStore(srcField=geo_3dfld, dstField=mag_des_3dfld,       &
+      call ESMF_FieldRegridStore(srcField=geo_3dfld, dstField=mag_des_3dfld,  &
            regridMethod=ESMF_REGRIDMETHOD_BILINEAR,                           &
            polemethod=ESMF_POLEMETHOD_ALLAVG,                                 &
            routeHandle=routehandle_geo2mag, factorIndexList=factorIndexList,  &
@@ -705,10 +677,6 @@ contains
            pipelineDepth=smm_pipelinedep, rc=rc)
       call edyn_esmf_chkerr(subname, 'ESMF_FieldRegridStore for 3D mag2geo',  &
            rc)
-      call ESMF_FieldSMMStore(geo_3dfld, mag_des_3dfld, routehandle_geo2mag,         &
-           factorList, factorIndexList, srcTermProcessing=smm_srctermproc,    &
-           pipelineDepth=smm_pipelinedep, rc=rc)
-      call edyn_esmf_chkerr(subname, 'ESMF_FieldSMMStore for 3D geo2mag', rc)
       !
       ! Compute and store route handle for geo2mag 2d fields:
       !
@@ -721,10 +689,6 @@ contains
            pipelineDepth=smm_pipelinedep, rc=rc)
       call edyn_esmf_chkerr(subname, 'ESMF_FieldRegridStore for 2D geo2mag',  &
            rc)
-      call ESMF_FieldSMMStore(geo_2dfld, mag_des_2dfld, routehandle_geo2mag_2d,     &
-           factorList, factorIndexList, srcTermProcessing=smm_srctermproc,    &
-           pipelineDepth=smm_pipelinedep, rc=rc)
-      call edyn_esmf_chkerr(subname, 'ESMF_FieldSMMStore for 2D geo2mag', rc)
 
       !
       ! Compute and store route handle for mag2geo 3d fields:
@@ -737,10 +701,6 @@ contains
            pipelineDepth=smm_pipelinedep, rc=rc)
       call edyn_esmf_chkerr(subname, 'ESMF_FieldRegridStore for 3D mag2geo',  &
            rc)
-      call ESMF_FieldSMMStore(mag_src_3dfld, geo_3dfld, routehandle_mag2geo,  &
-           factorList, factorIndexList, srcTermProcessing=smm_srctermproc,    &
-           pipelineDepth=smm_pipelinedep, rc=rc)
-      call edyn_esmf_chkerr(subname, 'ESMF_FieldSMMStore for 3D mag2geo', rc)
 
       edyn_esmf_update_step = .true.
 #endif
@@ -1501,16 +1461,16 @@ contains
          !
          ! Do sparse matrix multiply for 2d phys2mag.
          !
-         call ESMF_FieldSMM(srcfield, dstfield, routehandle_phys2mag_2d,      &
+         call ESMF_FieldRegrid(srcfield, dstfield, routehandle_phys2mag_2d,      &
               termorderflag=ESMF_TERMORDER_SRCSEQ, rc=rc)
-         call edyn_esmf_chkerr(subname, 'ESMF_FieldSMM phys2mag 2D', rc)
+         call edyn_esmf_chkerr(subname, 'ESMF_FieldRegrid phys2mag 2D', rc)
       else ! 3d geo2mag
          !
          ! Do sparse matrix multiply for 3d geo2mag.
          !
-         call ESMF_FieldSMM(srcfield, dstfield, routehandle_phys2mag,         &
+         call ESMF_FieldRegrid(srcfield, dstfield, routehandle_phys2mag,         &
               termorderflag=ESMF_TERMORDER_SRCSEQ, rc=rc)
-         call edyn_esmf_chkerr(subname, 'ESMF_FieldSMM phys2mag 3D', rc)
+         call edyn_esmf_chkerr(subname, 'ESMF_FieldRegrid phys2mag 3D', rc)
       end if
    end subroutine edyn_esmf_regrid_phys2mag
    !-----------------------------------------------------------------------
@@ -1526,16 +1486,16 @@ contains
       !
       if (ndim == 2) then
          if (can_do_mag2phys) then
-            call ESMF_FieldSMM(srcfield, dstfield, routehandle_mag2phys_2d,      &
+            call ESMF_FieldRegrid(srcfield, dstfield, routehandle_mag2phys_2d,      &
                  termorderflag=ESMF_TERMORDER_SRCSEQ, rc=rc)
-            call edyn_esmf_chkerr(subname, 'ESMF_FieldSMM mag2phys 2D', rc)
+            call edyn_esmf_chkerr(subname, 'ESMF_FieldRegrid mag2phys 2D', rc)
          else
             call endrun('edyn_esmf_regrid_mag2phys: mag2phys 2D not working')
          end if
       else
-!!$         call ESMF_FieldSMM(srcfield, dstfield, routehandle_mag2phys,         &
+!!$         call ESMF_FieldRegrid(srcfield, dstfield, routehandle_mag2phys,         &
 !!$              termorderflag=ESMF_TERMORDER_SRCSEQ, rc=rc)
-!!$         call edyn_esmf_chkerr(subname, 'ESMF_FieldSMM mag2phys 3D', rc)
+!!$         call edyn_esmf_chkerr(subname, 'ESMF_FieldRegrid mag2phys 3D', rc)
          call endrun('edyn_esmf_regrid_mag2phys: no 3D routehandle')
       end if
    end subroutine edyn_esmf_regrid_mag2phys
@@ -1554,16 +1514,17 @@ contains
          !
          ! Do sparse matrix multiply for 2d phys2mag.
          !
-         call ESMF_FieldSMM(srcfield, dstfield, routehandle_phys2geo_2d,      &
-              termorderflag=ESMF_TERMORDER_SRCSEQ, rc=rc)
-         call edyn_esmf_chkerr(subname, 'ESMF_FieldSMM phys2geo 2D', rc)
+!!$         call ESMF_FieldRegrid( srcfield, dstfield, routehandle_phys2geo_2d,         &
+!!$              termorderflag=ESMF_TERMORDER_SRCSEQ, rc=rc)
+!!$         call edyn_esmf_chkerr(subname, 'ESMF_FieldRegrid phys2geo 2D', rc)
+         call endrun('edyn_esmf_regrid_phys2geo: 2D not working')
       else ! 3d phys2geo
          !
          ! Do sparse matrix multiply for 3d phys2geo.
          !
-         call ESMF_FieldSMM(srcfield, dstfield, routehandle_phys2geo,         &
+         call ESMF_FieldRegrid( srcfield, dstfield, routehandle_phys2geo,         &
               termorderflag=ESMF_TERMORDER_SRCSEQ, rc=rc)
-         call edyn_esmf_chkerr(subname, 'ESMF_FieldSMM phys2geo 3D', rc)
+         call edyn_esmf_chkerr(subname, 'ESMF_FieldRegrid phys2geo 3D', rc)
       end if
    end subroutine edyn_esmf_regrid_phys2geo
    !-----------------------------------------------------------------------
@@ -1578,14 +1539,14 @@ contains
       character(len=*), parameter :: subname = 'edyn_esmf_regrid_geo2phys'
       !
       if (ndim == 2) then
-!!$         call ESMF_FieldSMM(srcfield, dstfield, routehandle_geo2phys_2d,      &
+!!$         call ESMF_FieldRegrid(srcfield, dstfield, routehandle_geo2phys_2d,      &
 !!$           termorderflag=ESMF_TERMORDER_SRCSEQ, rc=rc)
-!!$         call edyn_esmf_chkerr(subname, 'ESMF_FieldSMM geo2phys 2D', rc)
+!!$         call edyn_esmf_chkerr(subname, 'ESMF_FieldRegrid geo2phys 2D', rc)
          call endrun('edyn_esmf_regrid_geo2phys: 2D not working')
       else
-         call ESMF_FieldSMM(srcfield, dstfield, routehandle_geo2phys,         &
-           termorderflag=ESMF_TERMORDER_SRCSEQ, rc=rc)
-         call edyn_esmf_chkerr(subname, 'ESMF_FieldSMM geo2phys 3D', rc)
+         call ESMF_FieldRegrid( srcfield, dstfield, routehandle_geo2phys,        &
+              termorderflag=ESMF_TERMORDER_SRCSEQ, rc=rc)
+         call edyn_esmf_chkerr(subname, 'ESMF_FieldRegrid geo2phys 3D', rc)
       end if
    end subroutine edyn_esmf_regrid_geo2phys
    !-----------------------------------------------------------------------
@@ -1603,16 +1564,16 @@ contains
          !
          ! Do sparse matrix multiply for 2d geo2mag.
          !
-         call ESMF_FieldSMM(srcfield, dstfield, routehandle_geo2mag_2d,       &
+         call ESMF_FieldRegrid(srcfield, dstfield, routehandle_geo2mag_2d,       &
               termorderflag=ESMF_TERMORDER_SRCSEQ, rc=rc)
-         call edyn_esmf_chkerr(subname, 'ESMF_FieldSMM geo2mag 2D', rc)
+         call edyn_esmf_chkerr(subname, 'ESMF_FieldRegrid geo2mag 2D', rc)
       else ! 3d geo2mag
          !
          ! Do sparse matrix multiply for 3d geo2mag.
          !
-         call ESMF_FieldSMM(srcfield, dstfield, routehandle_geo2mag,          &
+         call ESMF_FieldRegrid(srcfield, dstfield, routehandle_geo2mag,          &
               termorderflag=ESMF_TERMORDER_SRCSEQ, rc=rc)
-         call edyn_esmf_chkerr(subname, 'ESMF_FieldSMM geo2mag 3D', rc)
+         call edyn_esmf_chkerr(subname, 'ESMF_FieldRegrid geo2mag 3D', rc)
       end if
    end subroutine edyn_esmf_regrid_geo2mag
    !-----------------------------------------------------------------------
@@ -1632,9 +1593,9 @@ contains
         !
         ! Do sparse matrix multiply for 2d geo2mag.
         !
-        call ESMF_FieldSMM(srcfield, dstfield, routehandle_mag2geo_2d,       &
+        call ESMF_FieldRegrid(srcfield, dstfield, routehandle_mag2geo_2d,       &
              termorderflag=ESMF_TERMORDER_SRCSEQ, rc=rc)
-        call edyn_esmf_chkerr(subname, 'ESMF_FieldSMM geo2mag 2D', rc)
+        call edyn_esmf_chkerr(subname, 'ESMF_FieldRegrid geo2mag 2D', rc)
 #else
         call endrun(subname//' need routehandle_mag2geo_2d ')
 #endif
@@ -1642,9 +1603,9 @@ contains
         !
         ! Do sparse matrix multiply for 3d geo2mag.
         !
-        call ESMF_FieldSMM(srcfield, dstfield, routehandle_mag2geo,          &
+        call ESMF_FieldRegrid(srcfield, dstfield, routehandle_mag2geo,          &
              termorderflag=ESMF_TERMORDER_SRCSEQ, rc=rc)
-        call edyn_esmf_chkerr(subname, 'ESMF_FieldSMM geo2mag 3D', rc)
+        call edyn_esmf_chkerr(subname, 'ESMF_FieldRegrid geo2mag 3D', rc)
      end if
    end subroutine edyn_esmf_regrid_mag2geo
    !-----------------------------------------------------------------------
