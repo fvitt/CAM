@@ -1000,6 +1000,9 @@ contains
             call infld('Op', fh_ini, dim1name, 'lev', dim2name, 1, pcols, 1, pver, &
                  begchunk, endchunk, opmmrtm1_phys, readvar, gridname='physgrid')
          end if
+         if (.not. readvar) then
+            call endrun('ionosphere_read_ic: NOT able to initialize opmmrtm1_phys')
+         end if
       end if
 
    end subroutine ionosphere_read_ic
