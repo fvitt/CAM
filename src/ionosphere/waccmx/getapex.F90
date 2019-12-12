@@ -22,6 +22,7 @@ module getapex
    public :: be3arr, dddarr, dvec
    public :: alatm, alonm
    public :: gdlatdeg, gdlondeg
+   public :: gdlatdeg_corners, gdlondeg_corners
    public :: rjac
 
    integer ::             &
@@ -34,6 +35,9 @@ module getapex
    real(r8),dimension(nmlonp1,nmlat) :: & ! geo lat,lon coords on mag grid
         gdlatdeg,   & ! geographic latitude of each magnetic grid point (deg)
         gdlondeg      ! geographic longitude of each magnetic grid point (deg)
+   real(r8),dimension(nmlonp1,nmlat+1) :: & ! geo lat,lon coords on mag grid
+        gdlatdeg_corners,   & ! geographic latitude of grid cell corners (deg)
+        gdlondeg_corners      ! geographic longitude of grid cell corners (deg)
 !
 ! Variables on geographic grid needed by other modules must
 ! be allocated dynamically to be grid-independent (sub alloc_apex):
@@ -244,7 +248,31 @@ contains
             gdlondeg(i,j) = gdlon*rtd
          enddo ! j=1,nmlat
       enddo ! i=1,nmlonp1
-   end subroutine get_apex
+
+      ! grid cell corners
+      do i = 1, nmlonp1
+         qdlon = (ylonm(i)-dlonm*0.5_r8)*rtd
+         do j = 2, nmlat
+            qdlat = (ylatm(j-1)+ylatm(j))*0.5_r8*rtd
+            call apex_q2g(qdlat, qdlon, alt, gdlat, gdlon, ier)
+            gdlatdeg_corners(i,j) = gdlat
+            gdlondeg_corners(i,j) = gdlon
+         end do
+
+         ! S Pole
+         qdlat = -90._r8 ! ylatm(1)*rtd
+         call apex_q2g(qdlat, qdlon, alt, gdlat, gdlon, ier)
+         gdlatdeg_corners(i,1) = gdlat
+         gdlondeg_corners(i,1) = gdlon
+
+         ! N pole
+         qdlat = 90._r8 ! ylatm(nmlat)*rtd
+         call apex_q2g(qdlat, qdlon, alt, gdlat, gdlon, ier)
+         gdlatdeg_corners(i,nmlat+1) = gdlat
+         gdlondeg_corners(i,nmlat+1) = gdlon
+      end do
+            
+  end subroutine get_apex
 !-----------------------------------------------------------------------
   subroutine magfield
 !
