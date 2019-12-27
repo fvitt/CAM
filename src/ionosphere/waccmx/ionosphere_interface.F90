@@ -42,6 +42,7 @@ module ionosphere_interface
    ! On physics grid
    real(r8), allocatable :: opmmrtm1_phys(:,:,:)
    type(var_desc_t)      :: Optm1_vdesc
+   logical :: opmmrtm1_initialized 
 
    integer :: index_ped, index_hall, index_te, index_ti
    integer :: index_ui, index_vi, index_wi
@@ -584,6 +585,21 @@ contains
             allocate(tempi(pcols, pver))
          end if
 
+         if (.not.opmmrtm1_initialized) then
+            do lchnk = begchunk, endchunk
+               ncol = get_ncols_p(lchnk)
+
+               if (sIndxOp > 0) then
+                  pbuf_chnk => pbuf_get_chunk(pbuf2d, lchnk)
+                  call pbuf_get_field(pbuf_chnk, slvd_pbf_ndx, mmrPOp_phys,  start=(/1,1,sIndxOp/), kount=(/pcols,pver,1/) )
+                  opmmrtm1_phys(:ncol,:pver,lchnk) = mmrPOp_phys(:ncol,:pver)
+               else 
+                  opmmrtm1_phys(:ncol,:pver,lchnk) = phys_state(lchnk)%q(:ncol,:pver, ixop)
+               endif
+            enddo
+            opmmrtm1_initialized=.true.
+         endif
+
          j = 0
          do lchnk = begchunk, endchunk
             ncol = get_ncols_p(lchnk)
@@ -1000,9 +1016,7 @@ contains
             call infld('Op', fh_ini, dim1name, 'lev', dim2name, 1, pcols, 1, pver, &
                  begchunk, endchunk, opmmrtm1_phys, readvar, gridname='physgrid')
          end if
-         if (.not. readvar) then
-            call endrun('ionosphere_read_ic: NOT able to initialize opmmrtm1_phys')
-         end if
+         opmmrtm1_initialized = readvar
       end if
 
    end subroutine ionosphere_read_ic
@@ -1019,6 +1033,7 @@ contains
             call endrun('ionosphere_alloc: failed to allocate opmmrtm1_phys')
          end if
          opmmrtm1_phys = nan
+         opmmrtm1_initialized = .false.
       end if
 
    end subroutine ionosphere_alloc
