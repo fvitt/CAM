@@ -960,6 +960,7 @@ contains
 
          ierr = pio_inq_varid(File, 'Optm1', Optm1_vdesc)
          call pio_read_darray(File, Optm1_vdesc, iodesc3d, opmmrtm1_phys, ierr)
+         opmmrtm1_initialized = .true.
       end if
 
    end subroutine ionosphere_read_restart
