@@ -488,42 +488,42 @@ contains
       real(r8), pointer :: vi_phys(:,:)       ! meridional ion drift from pbuf
       real(r8), pointer :: wi_phys(:,:)       ! vertical ion drift from pbuf
 
-      integer :: ncol
+      integer           :: ncol
 
-      integer :: blksize ! number of columns in 2D block
+      integer           :: blksize ! number of columns in 2D block
 
-      real(r8), allocatable :: sigma_ped_blck (:,:)
-      real(r8), allocatable :: sigma_hall_blck(:,:)
-      real(r8), allocatable :: ti_blck(:,:)
-      real(r8), allocatable :: te_blck(:,:)
-      real(r8), allocatable :: zi_blck(:,:) ! Geopotential on interfaces
-      real(r8), allocatable :: hi_blck(:,:) ! Geometric height on interfaces
-      real(r8), allocatable :: ui_blck(:,:)
-      real(r8), allocatable :: vi_blck(:,:)
-      real(r8), allocatable :: wi_blck(:,:)
-      real(r8), allocatable :: omega_blck(:,:)
-      real(r8), allocatable :: tn_blck(:,:)
+      real(r8), pointer :: sigma_ped_blck (:,:)
+      real(r8), pointer :: sigma_hall_blck(:,:)
+      real(r8), pointer :: ti_blck(:,:)
+      real(r8), pointer :: te_blck(:,:)
+      real(r8), pointer :: zi_blck(:,:) ! Geopotential on interfaces
+      real(r8), pointer :: hi_blck(:,:) ! Geometric height on interfaces
+      real(r8), pointer :: ui_blck(:,:)
+      real(r8), pointer :: vi_blck(:,:)
+      real(r8), pointer :: wi_blck(:,:)
+      real(r8), pointer :: omega_blck(:,:)
+      real(r8), pointer :: tn_blck(:,:)
 
       ! From physics state
-      real(r8), allocatable :: u_blck(:,:)
-      real(r8), allocatable :: v_blck(:,:)
-      real(r8), allocatable :: pmid_blck(:,:)
-      real(r8), allocatable :: phis(:)            ! surface geopotential
+      real(r8), pointer :: u_blck(:,:)
+      real(r8), pointer :: v_blck(:,:)
+      real(r8), pointer :: pmid_blck(:,:)
+      real(r8), pointer :: phis(:)            ! surface geopotential
       ! Constituents
-      real(r8), allocatable :: n2mmr_blck(:,:)
-      real(r8), allocatable :: o2mmr_blck(:,:)
-      real(r8), allocatable :: o1mmr_blck(:,:)
-      real(r8), allocatable :: h1mmr_blck(:,:)
-      real(r8), allocatable :: o2pmmr_blck(:,:) ! O2+ (blocks)
-      real(r8), allocatable :: nopmmr_blck(:,:) ! NO+ (blocks)
-      real(r8), allocatable :: n2pmmr_blck(:,:) ! N2+ (blocks)
-      real(r8), allocatable :: opmmr_blck(:,:)  ! O+ (blocks)
-      real(r8), allocatable :: opmmrtm1_blck(:,:)  ! O+ previous time step (blocks)
-      real(r8), allocatable :: mbar_blck(:,:)   ! mean molecular weight
+      real(r8), pointer :: n2mmr_blck(:,:)
+      real(r8), pointer :: o2mmr_blck(:,:)
+      real(r8), pointer :: o1mmr_blck(:,:)
+      real(r8), pointer :: h1mmr_blck(:,:)
+      real(r8), pointer :: o2pmmr_blck(:,:) ! O2+ (blocks)
+      real(r8), pointer :: nopmmr_blck(:,:) ! NO+ (blocks)
+      real(r8), pointer :: n2pmmr_blck(:,:) ! N2+ (blocks)
+      real(r8), pointer :: opmmr_blck(:,:)  ! O+ (blocks)
+      real(r8), pointer :: opmmrtm1_blck(:,:)  ! O+ previous time step (blocks)
+      real(r8), pointer :: mbar_blck(:,:)   ! mean molecular weight
      ! Temp fields for outfld
-      real(r8)              :: r8tmp
-      real(r8), allocatable :: tempm(:,:) ! Temp midpoint field for outfld
-      real(r8), allocatable :: tempi(:,:) ! Temp interface field for outfld
+      real(r8)          :: r8tmp
+      real(r8), pointer :: tempm(:,:) ! Temp midpoint field for outfld
+      real(r8), pointer :: tempi(:,:) ! Temp interface field for outfld
       !!XXgoldyXX: v Why is this re different than the one in edyn_params?
       real(r8) :: re = 6.370e6_r8                      ! earth radius (m)
       !!XXgoldyXX: ^ Why is this re different than the one in edyn_params?
@@ -769,12 +769,12 @@ contains
          !   provides updates to ion drift velocities (on physics grid)
          ! All fields are on physics mesh, (pver, blksize),
          !    where blksize is the total number of columns on this task
-         call d_pie_coupling(omega_blck, pmid_blck, zi_blck, hi_blck,&
+         call edyn_grid_comp_run2(omega_blck, pmid_blck, zi_blck, hi_blck,    &
               u_blck, v_blck, tn_blck, sigma_ped_blck, sigma_hall_blck,       &
-              te_blck, ti_blck, mbar_blck, n2mmr_blck, o2mmr_blck, o1mmr_blck,            &
-              o2pmmr_blck, nopmmr_blck, n2pmmr_blck,              &
+              te_blck, ti_blck, mbar_blck, n2mmr_blck, o2mmr_blck, o1mmr_blck, &
+              o2pmmr_blck, nopmmr_blck, n2pmmr_blck,                          &
               opmmr_blck, opmmrtm1_blck, ui_blck, vi_blck, wi_blck,           &
-              rmassO2p, rmassNOp, rmassN2p, rmassOp, 1, blksize, pver )
+              rmassO2p, rmassNOp, rmassN2p, rmassOp, 1, blksize, pver)
 
          call t_stopf ('d_pie_coupling')
 
@@ -825,43 +825,70 @@ contains
             end if
          end do
 
-         if (allocated(opmmr_blck)) then
+         if (associated(opmmr_blck)) then
             deallocate(opmmr_blck)
+            nullify(opmmr_blck)
          end if
-         if (allocated(o2pmmr_blck)) then
+         if (associated(o2pmmr_blck)) then
             deallocate(o2pmmr_blck)
+            nullify(o2pmmr_blck)
          end if
-         if (allocated(nopmmr_blck)) then
+         if (associated(nopmmr_blck)) then
             deallocate(nopmmr_blck)
+            nullify(nopmmr_blck)
          end if
-         if (allocated(n2pmmr_blck)) then
+         if (associated(n2pmmr_blck)) then
             deallocate(n2pmmr_blck)
+            nullify(n2pmmr_blck)
          end if
-         if (allocated(tempi)) then
+         if (associated(tempi)) then
             deallocate(tempi)
+            nullify(tempi)
          end if
          deallocate(opmmrtm1_blck)
+         nullify(opmmrtm1_blck)
          deallocate(phis)
+         nullify(phis)
          deallocate(u_blck)
+         nullify(u_blck)
          deallocate(v_blck)
+         nullify(v_blck)
          deallocate(sigma_ped_blck)
+         nullify(sigma_ped_blck)
          deallocate(sigma_hall_blck)
+         nullify(sigma_hall_blck)
          deallocate(ti_blck)
+         nullify(ti_blck)
          deallocate(hi_blck)
+         nullify(hi_blck)
          deallocate(te_blck)
+         nullify(te_blck)
          deallocate(zi_blck)
+         nullify(zi_blck)
          deallocate(ui_blck)
+         nullify(ui_blck)
          deallocate(vi_blck)
+         nullify(vi_blck)
          deallocate(wi_blck)
+         nullify(wi_blck)
          deallocate(omega_blck)
+         nullify(omega_blck)
          deallocate(tn_blck)
+         nullify(tn_blck)
          deallocate(n2mmr_blck)
+         nullify(n2mmr_blck)
          deallocate(o2mmr_blck)
+         nullify(o2mmr_blck)
          deallocate(o1mmr_blck)
+         nullify(o1mmr_blck)
          deallocate(h1mmr_blck)
+         nullify(h1mmr_blck)
          deallocate(mbar_blck)
+         nullify(mbar_blck)
          deallocate(pmid_blck)
+         nullify(pmid_blck)
          deallocate(tempm)
+         nullify(tempm)
 
       end if ionos_cpl
 
