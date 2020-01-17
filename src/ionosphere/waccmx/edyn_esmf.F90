@@ -4,6 +4,7 @@ module edyn_esmf
    use ppgrid,         only: pdim1e => pcols
    use ppgrid,         only: pdim2s => begchunk, pdim2e => endchunk
    use cam_logfile,    only: iulog
+   use shr_sys_mod,    only: shr_sys_flush
    use cam_abortutils, only: endrun
    use infnan,         only: nan, assignment(=)
 
@@ -19,12 +20,13 @@ module edyn_esmf
    use ESMF,           only: ESMF_GridCreate1PeriDim, ESMF_INDEX_GLOBAL
    use ESMF,           only: ESMF_GridAddCoord, ESMF_GridGetCoord
    use ESMF,           only: ESMF_TYPEKIND_R8, ESMF_FieldCreate, ESMF_Array
-   use ESMF,           only: ESMF_ArraySpec, ESMF_DistGrid
+   use ESMF,           only: ESMF_ArraySpec, ESMF_DistGrid, ESMF_DELayout
    use ESMF,           only: ESMF_GridGet, ESMF_ArraySpecSet
    use ESMF,           only: ESMF_ArrayCreate
    use ESMF,           only: ESMF_GridComp, ESMF_TERMORDER_SRCSEQ
-   use ESMF, only: ESMF_EXTRAPMETHOD_NEAREST_IDAVG
-   use ESMF, only: ESMF_EXTRAPMETHOD_NEAREST_STOD, ESMF_UNMAPPEDACTION_IGNORE
+   use ESMF,           only: ESMF_EXTRAPMETHOD_NEAREST_IDAVG
+   use ESMF,           only: ESMF_EXTRAPMETHOD_NEAREST_STOD
+   use ESMF,           only: ESMF_UNMAPPEDACTION_IGNORE
    use edyn_mpi,       only: ntask, ntaski, ntaskj, tasks, lon0, lon1, lat0
    use edyn_mpi,       only: lat1, nmagtaski, nmagtaskj, mlon0, mlon1
    use edyn_mpi,       only: mlat0,mlat1
@@ -54,7 +56,7 @@ module edyn_esmf
    public :: edyn_esmf_regrid_mag2phys
    public :: edyn_esmf_regrid_geo2mag
    public :: edyn_esmf_regrid_mag2geo
-   
+
    public :: edyn_esmf_get_1dfield
    public :: edyn_esmf_get_2dfield ! Retrieve a pointer to 2D ESMF field data
    public :: edyn_esmf_get_3dfield ! Retrieve a pointer to 3D ESMF field data
@@ -66,12 +68,20 @@ module edyn_esmf
    public :: edyn_esmf_set2d_phys  ! Set ESMF field with 2D physics field data
    public :: edyn_esmf_update_step ! .true. iff this is an update step
    public :: edyn_esmf_update_flag ! Set value of edyn_esmf_update_step
+   public :: edyn_esmf_update_phys_mesh
 
    public :: phys_3dfld, phys_2dfld
    public :: geo_3dfld, geo_2dfld, geo2phys_3dfld
    public :: mag_des_3dfld, mag_des_2dfld
    public :: mag_src_3dfld, mag2phys_2dfld
-   
+
+   public :: edyn_esmf_chkerr
+
+   !! Distribution information for grids
+   type(ESMF_DELayout)  :: phys_delayout
+   type(ESMF_DistGrid)  :: geo_distgrid
+   type(ESMF_DistGrid)  :: mag_distgrid
+
    type(ESMF_Grid) :: &
         mag_src_grid, & ! source grid (will not have periodic pts)
         mag_des_grid, & ! destination grid (will have periodic pts)
@@ -79,7 +89,8 @@ module edyn_esmf
    type(ESMF_Grid) :: geo2phys_grid
    type(ESMF_Grid) :: mag2phys_grid
 
-   type(ESMF_Mesh) :: phys_mesh ! Mesh representation of physics decomposition
+   ! phys_mesh: Mesh representation of physics decomposition
+   type(ESMF_Mesh), public, protected :: phys_mesh
 
    ! ESMF fields used for mapping between physics, oplus geographic, and geomagnetic grids
    type(ESMF_Field) :: phys_3dfld, phys_2dfld
@@ -87,7 +98,7 @@ module edyn_esmf
    type(ESMF_Field) :: mag_des_3dfld, mag_des_2dfld, mag2phys_2dfld
    type(ESMF_Field) :: mag_src_3dfld
 
-   
+
    type(ESMF_RouteHandle) ::     & ! ESMF route handles for regridding
         routehandle_phys2geo,    & ! for physics to geo 3-D regrid
         routehandle_geo2phys,    & ! for geo to physics 3-D regrid
@@ -260,125 +271,18 @@ contains
 101   format('edyn_create_physmesh: coord mismatch... n, lat(n), latmesh(n), diff_lat = ',i6,2(f21.13,3x),d21.5)
 
    end subroutine edyn_create_physmesh
-!!XXgoldyXX: v remove?
-#if 0
-   subroutine edyn_gcomp_init(comp, importState, exportState, clock, rc)
-      use ESMF,         only: ESMF_State, ESMF_Clock, ESMF_SUCCESS
-      use ESMF,         only: ESMF_VM, ESMF_VMGet, ESMF_VMGetCurrent
-      use ESMF,         only: ESMF_DistGridCreate, ESMF_MeshCreate
-      use ESMF,         only: ESMF_FILEFORMAT_ESMFMESH
-      use ESMF,         only: ESMF_DistGrid
-      use cam_instance, only: inst_name
-      use phys_control, only: phys_getopts
-      use phys_grid,    only: get_ncols_p, get_gcol_p
-      use ppgrid,       only: begchunk, endchunk
 
-      ! Dummy arguments
-      type(ESMF_GridComp)  :: comp
-      type(ESMF_State)     :: importState
-      type(ESMF_State)     :: exportState
-      type(ESMF_Clock)     :: clock
-      integer, intent(out) :: rc
-
-      integer              :: petCount
-      integer              :: ncols
-      integer              :: lsize
-      integer              :: chnk, col, dindex
-      integer, allocatable :: decomp(:)
-      character(len=256)   :: grid_file
-      type(ESMF_VM)        :: vm_curr
-      type(ESMF_DistGrid)  :: dist_grid
-
-      call ESMF_VMGetCurrent(vm_curr, rc=rc)
-      call edyn_esmf_chkerr('ESMF_VMGetCurrent in run '//trim(inst_name), rc)
-      call ESMF_VMGet(vm_curr, petCount=petCount, rc=rc)
-      call edyn_esmf_chkerr('ESMF_VMGet in run '//trim(inst_name), rc)
-
-      ! Find the physics grid file
-      call phys_getopts(physics_grid_out=grid_file)
-      ! Compute the local decomp
-      lsize = 0
-      do chnk = begchunk, endchunk
-         lsize = lsize + get_ncols_p(chnk)
-      end do
-      allocate(decomp(lsize))
-      dindex = 0
-      do chnk = begchunk, endchunk
-         ncols = get_ncols_p(chnk)
-         do col = 1, ncols
-            dindex = dindex + 1
-            decomp(dindex) = get_gcol_p(chnk, col)
-         end do
-      end do
-      ! Create a DistGrid based on the physics decomp
-      dist_grid = ESMF_DistGridCreate(arbSeqIndexList=decomp, rc=rc)
-      call edyn_esmf_chkerr('ESMF_DistGridCreate', rc)
-      ! Create an ESMF_mesh for the physics decomposition
-      geo_mesh = ESMF_MeshCreate(trim(grid_file), ESMF_FILEFORMAT_ESMFMESH,  &
-           elementDistgrid=dist_grid, rc=rc)
-      call edyn_esmf_chkerr('ESMF_MeshCreateFromFile', rc)
-
-   end subroutine edyn_gcomp_Init
-
-   !-----------------------------------------------------------------------
-   subroutine edyn_gcomp_run(comp, importState, exportState, clock, rc)
-      use ESMF,         only: ESMF_GridComp, ESMF_State, ESMF_Clock
-
-      type(ESMF_GridComp)  :: comp
-      type(ESMF_State)     :: importState
-      type(ESMF_State)     :: exportState
-      type(ESMF_Clock)     :: clock
-      integer, intent(out) :: rc
-
-      rc = ESMF_SUCCESS
-
-   end subroutine edyn_gcomp_Run
-   !-----------------------------------------------------------------------
-   subroutine edyn_gcomp_final(comp, importState, exportState, clock, rc)
-      use ESMF, only: ESMF_GridComp, ESMF_State, ESMF_Clock, ESMF_SUCCESS
-
-      type(ESMF_GridComp)  :: comp
-      type(ESMF_State)     :: importState
-      type(ESMF_State)     :: exportState
-      type(ESMF_Clock)     :: clock
-      integer, intent(out) :: rc
-
-      rc = ESMF_SUCCESS
-
-   end subroutine edyn_gcomp_final
-   !-----------------------------------------------------------------------
-   subroutine edyn_gcomp_SetServices(comp, rc)
-      use ESMF, only: ESMF_GridComp, ESMF_GridCompSetEntryPoint
-      use ESMF, only: ESMF_METHOD_INITIALIZE, ESMF_METHOD_RUN
-      use ESMF, only: ESMF_METHOD_FINALIZE, ESMF_SUCCESS
-
-      type(ESMF_GridComp)  :: comp
-      integer, intent(out) :: rc
-
-      ! Set the entry points for standard ESMF Component methods
-      call ESMF_GridCompSetEntryPoint(comp, ESMF_METHOD_INITIALIZE, &
-           userRoutine=edyn_gcomp_Init, rc=rc)
-      call edyn_esmf_chkerr('ESMF_GridCompSetEntryPoint init', rc)
-      call ESMF_GridCompSetEntryPoint(comp, ESMF_METHOD_RUN, &
-           userRoutine=edyn_gcomp_Run, rc=rc)
-      call edyn_esmf_chkerr('ESMF_GridCompSetEntryPoint run', rc)
-      call ESMF_GridCompSetEntryPoint(comp, ESMF_METHOD_FINALIZE, &
-           userRoutine=edyn_gcomp_Final, rc=rc)
-      call edyn_esmf_chkerr('ESMF_GridCompSetEntryPoint final', rc)
-
-   end subroutine edyn_gcomp_SetServices
-#endif
-!!XXgoldyXX: ^ remove?
    !-----------------------------------------------------------------------
    subroutine edyn_esmf_init( mpi_comm )
       use ESMF,         only: ESMF_GridCompCreate, ESMF_CONTEXT_OWN_VM
       use ESMF,         only: ESMF_VMGetCurrent, ESMF_VMGet
+      use ESMF,         only: ESMF_DELayoutCreate
+      use ESMF,         only: ESMF_DistGridCreate
       use ESMF,         only: ESMF_VM, ESMF_GridCompInitialize
       use ESMF,         only: ESMF_GridCompSetServices
-      use spmd_utils,   only: MPI_INTEGER
-      use cam_instance, only: inst_index, inst_name
+      use edyn_geogrid, only: geo_npes => npes
 
-      ! Dummy arguments
+      ! Dummy argument
       integer, intent(in)  :: mpi_comm
 
 !!XXgoldyXX: v remove?
@@ -389,30 +293,42 @@ contains
       integer              :: petCount
       integer              :: iam
       integer              :: npes
-      integer, allocatable :: petlist(:)
+      integer              :: mag_npes !!XXgoldyXX: get this from mag grid?
+      type(ESMF_DELayout)  :: geo_delayout
+      type(ESMF_DELayout)  :: mag_delayout
       type(ESMF_VM)        :: vm_init
-      type(ESMF_VM)        :: vm_curr
+#endif
+!!XXgoldyXX: ^ remove?
+      character(len=*), parameter :: subname = 'edyn_esmf_init'
 
-      type(ESMF_GridComp)  :: phys_comp ! physics grid mesh
-
+!!XXgoldyXX: v remove?
+#if 0
+      !! Create distribution and PE information for each grid
       call ESMF_VMGetCurrent(vm_init, rc=rc)
-      call edyn_esmf_chkerr('ESMF_VMGetCurrent', rc)
+      call edyn_esmf_chkerr(subname, 'ESMF_VMGetCurrent', rc)
       call ESMF_VMGet(vm_init, localPet=localPet, petCount=petCount)
-      call edyn_esmf_chkerr('ESMF_VMGet', rc)
+      call edyn_esmf_chkerr(subname, 'ESMF_VMGet', rc)
       call mpi_comm_size(mpi_comm, npes, rc)
       call mpi_comm_rank(mpi_comm, iam, rc)
-
-      ! Collect all the PETS for each instance
+      ! Collect all the PETS for each instance for phys grid
       allocate(petlist(npes))
       call mpi_allgather(localPet, 1, MPI_INTEGER, petlist, 1, &
            MPI_INTEGER, mpi_comm, rc)
-      ! Now, we should be able to create a gridded component with these pets
-      phys_comp = ESMF_GridCompCreate(petList=petList, name=trim(inst_name), rc=rc)
-      call edyn_esmf_chkerr('ESMF_GridCompCreate '//trim(inst_name), rc)
-      call ESMF_GridCompSetServices(phys_comp, edyn_gcomp_SetServices, rc=rc)
-      call edyn_esmf_chkerr('ESMF_GridCompSetServices '//trim(inst_name), rc)
-      call ESMF_GridCompInitialize(phys_comp, rc=rc)
-      call edyn_esmf_chkerr('ESMF_GridCompRun '//trim(inst_name), rc)
+      phys_delayout = ESMF_DELayoutCreate(deCount=npes, petList=petlist, rc=rc)
+      call edyn_esmf_chkerr(subname, 'phys ESMF_DELayoutCreate', rc)
+      geo_delayout = ESMF_DELayoutCreate(deCount=geo_npes,                    &
+           petList=petlist(1:geo_npes), rc=rc)
+      call edyn_esmf_chkerr(subname, 'geo ESMF_DELayoutCreate', rc)
+      geo_distgrid = ESMF_DistGridCreate(minIndex=(/1/),                      &
+           maxIndex=(/geo_npes/), delayout=geo_delayout, rc=rc)
+      call edyn_esmf_chkerr(subname, 'geo ESMF_DistGridCreate', rc)
+      mag_npes = npes !!XXgoldyXX: get this from mag grid?
+      mag_delayout = ESMF_DELayoutCreate(deCount=mag_npes,                    &
+           petList=petlist(1:mag_npes), rc=rc)
+      call edyn_esmf_chkerr(subname, 'mag ESMF_DELayoutCreate', rc)
+      mag_distgrid = ESMF_DistGridCreate(minIndex=(/1/),                      &
+           maxIndex=(/mag_npes/), delayout=mag_delayout, rc=rc)
+      call edyn_esmf_chkerr(subname, 'mag ESMF_DistGridCreate', rc)
 #endif
 !!XXgoldyXX: ^ remove?
 
@@ -501,7 +417,7 @@ contains
       !
       call edyn_esmf_create_physfield(phys_2dfld, phys_mesh, 'PHYS_2DFLD', 0)
       call edyn_esmf_create_physfield(phys_3dfld, phys_mesh, 'PHYS_3DFLD', nlev)
-      
+
       call edyn_esmf_create_geofield(geo_2dfld, geo_grid, 'GEO_2DFLD', 0)
       call edyn_esmf_create_geofield(geo_3dfld, geo_grid, 'GEO_3DFLD', nlev)
       call edyn_esmf_create_geofield(geo2phys_3dfld, geo2phys_grid, 'GEO2PHYS_3DFLD', nlev)
@@ -593,7 +509,7 @@ contains
            factorList=factorList, srcTermProcessing=smm_srctermproc,          &
            pipelineDepth=smm_pipelinedep, rc=rc)
       call edyn_esmf_chkerr(subname, 'ESMF_FieldRegridStore for 2D phys2mag', rc)
-      
+
       !
       ! Compute and store route handle for phys2mag 3d fields:
       !
@@ -712,6 +628,7 @@ contains
       integer                     :: lbnd(2),ubnd(2)
       integer                     :: nmlons_task(ntaski) ! number of lons per task
       integer                     :: nmlats_task(ntaskj) ! number of lats per task
+      integer                     :: petMap(ntaski,ntaskj,1)
       character(len=*), parameter :: subname = 'create_mag_grid'
       !
       ! We are creating either a source grid or a destination grid:
@@ -1027,7 +944,7 @@ contains
             end if
          end do loop1
       end do
-      !     
+      !
       !
       ! Create 2d geographic source grid (with poles)
       grid_out = ESMF_GridCreate1PeriDim(                       &
@@ -1097,7 +1014,7 @@ contains
       integer                     :: rc
       type(ESMF_ArraySpec)        :: arrayspec
       character(len=*), parameter :: subname = 'edyn_esmf_create_physfield'
-#if 0      
+#if 0
       type(ESMF_FieldStatus_Flag) :: fstatus
       character(len=256)          :: errmsg
       !
@@ -1151,7 +1068,7 @@ contains
       type(ESMF_ArraySpec)        :: arrayspec
       character(len=*), parameter :: subname = 'edyn_esmf_create_geofield'
       !
-#if 0      
+#if 0
       type(ESMF_FieldStatus_Flag) :: fstatus
       character(len=256)          :: errmsg
       errmsg = ''
@@ -1351,8 +1268,8 @@ contains
      ! Set ESMF pointer:
      !
      do k = lbnd(3), ubnd(3)
-        do j = lbnd(2), ubnd(2) 
-           do i = lbnd(1), ubnd(1)  
+        do j = lbnd(2), ubnd(2)
+           do i = lbnd(1), ubnd(1)
               fptr(i,j,k) = fdata(i,j,k)
            end do
         end do
@@ -1484,7 +1401,7 @@ contains
     character(len=*), parameter :: subname = 'edyn_esmf_get_3dfield'
 
     call ESMF_FieldGet(field, localDe=0, farrayPtr=fptr,                   &
-         computationalLBound=lbnd, computationalUBound=ubnd, rc=rc)      
+         computationalLBound=lbnd, computationalUBound=ubnd, rc=rc)
     call edyn_esmf_chkerr(subname, 'ESMF_FieldGet', rc)
 
     data(:,:,:) = fptr(:,:,:)
@@ -1658,7 +1575,7 @@ contains
       end if
    end subroutine edyn_esmf_regrid_geo2mag
    !-----------------------------------------------------------------------
-   
+
    subroutine edyn_esmf_regrid_mag2geo(srcfield, dstfield, ndim)
      !
      ! Args:
@@ -1689,13 +1606,30 @@ contains
         call edyn_esmf_chkerr(subname, 'ESMF_FieldRegrid geo2mag 3D', rc)
      end if
    end subroutine edyn_esmf_regrid_mag2geo
-   !-----------------------------------------------------------------------
 
+   !-----------------------------------------------------------------------
 
    subroutine edyn_esmf_update_flag( flag )
      logical, intent(in) :: flag
      edyn_esmf_update_step=flag
    end subroutine edyn_esmf_update_flag
+
+   !-----------------------------------------------------------------------
+
+   subroutine edyn_esmf_update_phys_mesh(new_phys_mesh)
+      use ESMF, only: ESMF_Mesh, ESMF_MeshIsCreated, ESMF_MeshDestroy
+
+      ! Dummy argument
+      type(ESMF_Mesh), intent(in) :: new_phys_mesh
+
+      ! Ignore return code here as all we need is an attempt to reclaim memory
+      if (ESMF_MeshIsCreated(phys_mesh)) then
+         call ESMF_MeshDestroy(phys_mesh)
+      end if
+
+      phys_mesh = new_phys_mesh
+
+   end subroutine edyn_esmf_update_phys_mesh
 
 #endif
 end module edyn_esmf
