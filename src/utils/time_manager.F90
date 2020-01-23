@@ -61,9 +61,9 @@ integer :: cal_type = uninit_int            ! calendar type
 
 ! The target attribute for tm_cal is needed (at least by NAG) because there are
 ! pointers to this object inside ESMF_Time objects.
-type(ESMF_Calendar), target :: tm_cal        ! calendar
-type(ESMF_Clock)            :: tm_clock      ! Model clock   
-type(ESMF_Time)             :: tm_perp_date  ! perpetual date
+type(ESMF_Calendar), target         :: tm_cal       ! calendar
+type(ESMF_Clock), public, protected :: tm_clock     ! Model clock
+type(ESMF_Time)                     :: tm_perp_date ! perpetual date
 
 !=========================================================================================
 contains
@@ -267,9 +267,9 @@ subroutine set_time_float_from_date( time, year, month, day, sec )
         useday = 28
         call ESMF_TimeSet( date, yy=year, mm=month, dd=useday, s=sec, calendar=tm_cal, rc=rc)
      else  ! legitimate error, let the model quit
-        call chkrc(rc, sub//': error return from ESMF_TimeSet for set_time_float_from_date')        
-     endif 
-  endif  
+        call chkrc(rc, sub//': error return from ESMF_TimeSet for set_time_float_from_date')
+     endif
+  endif
 
   call ESMF_ClockGet(tm_clock, refTime=ref_date, rc=rc )
   call chkrc(rc, sub//': error return from ESMF_ClockGet for set_time_float_from_date')
@@ -550,7 +550,7 @@ subroutine get_curr_date(yr, mon, day, tod, offset)
       tod     ! time of day (seconds past 0Z)
 
    integer, optional, intent(in) :: offset  ! Offset from current time in seconds.
-                                            ! Positive for future times, negative 
+                                            ! Positive for future times, negative
                                             ! for previous times.
 
 ! Local variables
@@ -594,7 +594,7 @@ subroutine get_perp_date(yr, mon, day, tod, offset)
       tod     ! time of day (seconds past 0Z)
 
    integer, optional, intent(in) :: offset  ! Offset from current time in seconds.
-                                            ! Positive for future times, negative 
+                                            ! Positive for future times, negative
                                             ! for previous times.
 
 ! Local variables
@@ -773,7 +773,7 @@ function get_curr_calday(offset)
 
 ! Arguments
    integer, optional, intent(in) :: offset  ! Offset from current time in seconds.
-                                            ! Positive for future times, negative 
+                                            ! Positive for future times, negative
                                             ! for previous times.
 ! Return value
    real(r8) :: get_curr_calday
@@ -821,7 +821,7 @@ function get_curr_calday(offset)
 !
 ! The zenith angle calculation is only capable of using a 365-day calendar.
 ! If a Gregorian calendar is being used, the last day of a leap year (day 366)
-! is sent to the model as a repetition of the previous day (day 365). 
+! is sent to the model as a repetition of the previous day (day 365).
 ! This is done by decrementing calday by 1 immediately below.
 ! bundy, July 2008
 !
@@ -867,7 +867,7 @@ function get_calday(ymd, tod)
 !
 ! The zenith angle calculation is only capable of using a 365-day calendar.
 ! If a Gregorian calendar is being used, the last day of a leap year (day 366)
-! is sent to the model as a repetition of the previous day (day 365). 
+! is sent to the model as a repetition of the previous day (day 365).
 ! This is done by decrementing calday by 1 immediately below.
 ! bundy, July 2008
 !
@@ -905,7 +905,7 @@ character(len=SHR_KIND_CS) function timemgr_get_calendar_cf()
 
 end function timemgr_get_calendar_cf
 !=========================================================================================
- 
+
 function timemgr_is_caltype( cal_in )
 
 ! Return true if incoming calendar type string matches actual calendar type in use
@@ -921,7 +921,7 @@ function timemgr_is_caltype( cal_in )
 
 end function timemgr_is_caltype
 !=========================================================================================
- 
+
 function is_end_curr_day()
 
 ! Return true if current timestep is last timestep in current day.

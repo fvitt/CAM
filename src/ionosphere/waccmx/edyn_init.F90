@@ -27,7 +27,8 @@ contains
       use edyn_mpi,     only: mp_distribute_mag
 #ifdef WACCMX_EDYN_ESMF
       use edynamo,      only: alloc_edyn
-      use edyn_esmf,    only: edyn_esmf_init  ! initialize ESMF
+!      use edyn_esmf,    only: edyn_esmf_init  ! initialize ESMF
+      use edyn_grid_comp, only: edyn_grid_comp_init
 #endif
 !
       ! Args:
@@ -52,7 +53,8 @@ contains
 
 #ifdef WACCMX_EDYN_ESMF
       call alloc_edyn()      ! allocate dynamo arrays
-      call edyn_esmf_init(mpicomm)       ! initialize ESMF
+!      call edyn_esmf_init(mpicomm)       ! initialize ESMF
+      call edyn_grid_comp_init(mpicomm)
 #endif
 
       call add_fields()      ! add fields to WACCM history master list
@@ -272,7 +274,7 @@ contains
       integer(iMap),       pointer :: grid_map(:,:)
       integer(iMap),       pointer :: coord_map(:)
       integer                      :: i, j, ind
-      
+
       allocate(grid_map(4, ((omlon1 - mlon0 + 1) * (mlat1 - mlat0 + 1))))
       ind = 0
       do i = mlat0, mlat1

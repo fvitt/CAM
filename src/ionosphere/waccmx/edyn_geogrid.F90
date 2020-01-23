@@ -16,7 +16,8 @@ module edyn_geogrid
     nlat,    & ! number of latitudes
     nlon,    & ! number of longitudes
     nlev,    & ! number of midpoint levels
-    nilev      ! number of interface latitudes
+    nilev,   & ! number of interface latitudes
+    npes       ! number of PEs in geogrid
 
   real(r8), public, protected, allocatable , dimension(:) :: & ! coordinate vars
     glat,    & ! latitude coordinates (degrees)
@@ -110,7 +111,7 @@ contains
       integer                        :: lons_overflow, lats_overflow
       integer                        :: ntasks_lat, ntasks_lon, ntasks_atm
       integer                        :: task_cnt, i,j
-      integer                        :: minlats_per_pe, npes
+      integer                        :: minlats_per_pe
       integer                        :: geogrid_mpicom
       integer                        :: iam, color
       integer                        :: ierr
@@ -177,7 +178,7 @@ contains
         write(iulog,*) 'set_geogrid glon_corner : ',glon_corner(:)
         write(iulog,*) 'set_geogrid glat_corner : ',glat_corner(:)
       end if
-     
+
       allocate(zlev(nlev))
       allocate(zilev(nilev))
       !

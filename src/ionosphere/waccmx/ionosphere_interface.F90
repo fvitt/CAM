@@ -6,7 +6,6 @@ module ionosphere_interface
    use phys_grid,           only: begchunk, endchunk, get_ncols_p
 
    use dpie_coupling,       only: d_pie_init
-   use dpie_coupling,       only: d_pie_epotent
    use dpie_coupling,       only: d_pie_coupling         ! WACCM-X ionosphere/electrodynamics coupling
    use short_lived_species, only: slvd_index, slvd_pbf_ndx => pbf_idx ! Routines to access short lived species
 
@@ -42,7 +41,7 @@ module ionosphere_interface
    ! On physics grid
    real(r8), allocatable :: opmmrtm1_phys(:,:,:)
    type(var_desc_t)      :: Optm1_vdesc
-   logical :: opmmrtm1_initialized 
+   logical :: opmmrtm1_initialized
 
    integer :: index_ped, index_hall, index_te, index_ti
    integer :: index_ui, index_vi, index_wi
@@ -380,6 +379,8 @@ contains
    subroutine ionosphere_run1(pbuf2d)
       use physics_buffer, only: physics_buffer_desc
       use cam_history,    only: outfld, write_inithist
+      ! Gridded component call
+      use edyn_grid_comp,  only: edyn_grid_comp_run1
 
       ! args
       type(physics_buffer_desc), pointer :: pbuf2d(:,:)
@@ -392,8 +393,8 @@ contains
       real(r8), pointer :: pbuf_amie_kevg(:) ! Pointer to AMIE mean energy in pbuf
 
       integer :: ncol
-      real(r8), allocatable :: amie_efxg(:) ! energy flux from AMIE
-      real(r8), allocatable :: amie_kevg(:) ! characteristic mean energy from AMIE
+      real(r8), pointer :: amie_efxg(:) ! energy flux from AMIE
+      real(r8), pointer :: amie_kevg(:) ! characteristic mean energy from AMIE
 
       if( write_inithist() .and. ionos_xport_active ) then
          do lchnk = begchunk, endchunk
@@ -401,18 +402,20 @@ contains
          end do
       end if
 
+      nullify(amie_efxg)
+      nullify(amie_kevg)
       amie_active: if ( ionos_epotential_amie ) then
          blksize = 0
          do lchnk = begchunk, endchunk
             blksize = blksize + get_ncols_p(lchnk)
          end do
-         
+
          allocate(amie_efxg(blksize))
          allocate(amie_kevg(blksize))
 
          ! data assimilated potential
-         call d_pie_epotent( ionos_epotential_model, epot_crit_colats, &
-                             cols=1, cole=blksize, efx_phys=amie_efxg, kev_phys=amie_kevg )
+         call edyn_grid_comp_run1(ionos_epotential_model, &
+              cols=1, cole=blksize, efx_phys=amie_efxg, kev_phys=amie_kevg)
 
          ! transform to pbuf for aurora...
 
@@ -434,12 +437,14 @@ contains
          end do chnk_loop1
 
          deallocate(amie_efxg, amie_kevg)
+         nullify(amie_efxg)
+         nullify(amie_kevg)
 
       else
 
          ! set cross tail potential before physics --
          !   aurora uses weimer derived potential
-         call d_pie_epotent(ionos_epotential_model, epot_crit_colats)
+         call edyn_grid_comp_run1(ionos_epotential_model)
 
       end if amie_active
 
@@ -452,7 +457,9 @@ contains
       use physics_types,  only: physics_state
       use physics_buffer, only: physics_buffer_desc
       use cam_history,    only: outfld, write_inithist, hist_fld_active
-      
+      ! Gridded component call
+      use edyn_grid_comp,  only: edyn_grid_comp_run2
+
       ! - pull some fields from pbuf and dyn_in
       ! - invoke ionosphere/electro-dynamics coupling
       ! - push some fields back to physics via pbuf...
@@ -481,42 +488,42 @@ contains
       real(r8), pointer :: vi_phys(:,:)       ! meridional ion drift from pbuf
       real(r8), pointer :: wi_phys(:,:)       ! vertical ion drift from pbuf
 
-      integer :: ncol
+      integer           :: ncol
 
-      integer :: blksize ! number of columns in 2D block
+      integer           :: blksize ! number of columns in 2D block
 
-      real(r8), allocatable :: sigma_ped_blck (:,:)
-      real(r8), allocatable :: sigma_hall_blck(:,:)
-      real(r8), allocatable :: ti_blck(:,:)
-      real(r8), allocatable :: te_blck(:,:)
-      real(r8), allocatable :: zi_blck(:,:) ! Geopotential on interfaces
-      real(r8), allocatable :: hi_blck(:,:) ! Geometric height on interfaces
-      real(r8), allocatable :: ui_blck(:,:)
-      real(r8), allocatable :: vi_blck(:,:)
-      real(r8), allocatable :: wi_blck(:,:)
-      real(r8), allocatable :: omega_blck(:,:)
-      real(r8), allocatable :: tn_blck(:,:)
+      real(r8), pointer :: sigma_ped_blck (:,:)
+      real(r8), pointer :: sigma_hall_blck(:,:)
+      real(r8), pointer :: ti_blck(:,:)
+      real(r8), pointer :: te_blck(:,:)
+      real(r8), pointer :: zi_blck(:,:) ! Geopotential on interfaces
+      real(r8), pointer :: hi_blck(:,:) ! Geometric height on interfaces
+      real(r8), pointer :: ui_blck(:,:)
+      real(r8), pointer :: vi_blck(:,:)
+      real(r8), pointer :: wi_blck(:,:)
+      real(r8), pointer :: omega_blck(:,:)
+      real(r8), pointer :: tn_blck(:,:)
 
       ! From physics state
-      real(r8), allocatable :: u_blck(:,:)
-      real(r8), allocatable :: v_blck(:,:)
-      real(r8), allocatable :: pmid_blck(:,:)
-      real(r8), allocatable :: phis(:)            ! surface geopotential
+      real(r8), pointer :: u_blck(:,:)
+      real(r8), pointer :: v_blck(:,:)
+      real(r8), pointer :: pmid_blck(:,:)
+      real(r8), pointer :: phis(:)            ! surface geopotential
       ! Constituents
-      real(r8), allocatable :: n2mmr_blck(:,:)
-      real(r8), allocatable :: o2mmr_blck(:,:)
-      real(r8), allocatable :: o1mmr_blck(:,:)
-      real(r8), allocatable :: h1mmr_blck(:,:)
-      real(r8), allocatable :: o2pmmr_blck(:,:) ! O2+ (blocks)
-      real(r8), allocatable :: nopmmr_blck(:,:) ! NO+ (blocks)
-      real(r8), allocatable :: n2pmmr_blck(:,:) ! N2+ (blocks)
-      real(r8), allocatable :: opmmr_blck(:,:)  ! O+ (blocks)
-      real(r8), allocatable :: opmmrtm1_blck(:,:)  ! O+ previous time step (blocks)
-      real(r8), allocatable :: mbar_blck(:,:)   ! mean molecular weight
+      real(r8), pointer :: n2mmr_blck(:,:)
+      real(r8), pointer :: o2mmr_blck(:,:)
+      real(r8), pointer :: o1mmr_blck(:,:)
+      real(r8), pointer :: h1mmr_blck(:,:)
+      real(r8), pointer :: o2pmmr_blck(:,:) ! O2+ (blocks)
+      real(r8), pointer :: nopmmr_blck(:,:) ! NO+ (blocks)
+      real(r8), pointer :: n2pmmr_blck(:,:) ! N2+ (blocks)
+      real(r8), pointer :: opmmr_blck(:,:)  ! O+ (blocks)
+      real(r8), pointer :: opmmrtm1_blck(:,:)  ! O+ previous time step (blocks)
+      real(r8), pointer :: mbar_blck(:,:)   ! mean molecular weight
      ! Temp fields for outfld
-      real(r8)              :: r8tmp
-      real(r8), allocatable :: tempm(:,:) ! Temp midpoint field for outfld
-      real(r8), allocatable :: tempi(:,:) ! Temp interface field for outfld
+      real(r8)          :: r8tmp
+      real(r8), pointer :: tempm(:,:) ! Temp midpoint field for outfld
+      real(r8), pointer :: tempi(:,:) ! Temp interface field for outfld
       !!XXgoldyXX: v Why is this re different than the one in edyn_params?
       real(r8) :: re = 6.370e6_r8                      ! earth radius (m)
       !!XXgoldyXX: ^ Why is this re different than the one in edyn_params?
@@ -593,7 +600,7 @@ contains
                   pbuf_chnk => pbuf_get_chunk(pbuf2d, lchnk)
                   call pbuf_get_field(pbuf_chnk, slvd_pbf_ndx, mmrPOp_phys,  start=(/1,1,sIndxOp/), kount=(/pcols,pver,1/) )
                   opmmrtm1_phys(:ncol,:pver,lchnk) = mmrPOp_phys(:ncol,:pver)
-               else 
+               else
                   opmmrtm1_phys(:ncol,:pver,lchnk) = phys_state(lchnk)%q(:ncol,:pver, ixop)
                endif
             enddo
@@ -652,7 +659,7 @@ contains
                      tempm(i, k) = r8tmp * (1._r8 + (r8tmp / re))
                   end if
                   ! physics state fields on interfaces (but only to pver)
-                  zi_blck(k, j)    = phys_state(lchnk)%zi(i, k) + phis(i)/gravit 
+                  zi_blck(k, j)    = phys_state(lchnk)%zi(i, k) + phis(i)/gravit
                   !------------------------------------------------------------
                   ! Convert geopotential to geometric height at interfaces:
                   !------------------------------------------------------------
@@ -762,12 +769,12 @@ contains
          !   provides updates to ion drift velocities (on physics grid)
          ! All fields are on physics mesh, (pver, blksize),
          !    where blksize is the total number of columns on this task
-         call d_pie_coupling(omega_blck, pmid_blck, zi_blck, hi_blck,&
+         call edyn_grid_comp_run2(omega_blck, pmid_blck, zi_blck, hi_blck,    &
               u_blck, v_blck, tn_blck, sigma_ped_blck, sigma_hall_blck,       &
-              te_blck, ti_blck, mbar_blck, n2mmr_blck, o2mmr_blck, o1mmr_blck,            &
-              o2pmmr_blck, nopmmr_blck, n2pmmr_blck,              &
+              te_blck, ti_blck, mbar_blck, n2mmr_blck, o2mmr_blck, o1mmr_blck, &
+              o2pmmr_blck, nopmmr_blck, n2pmmr_blck,                          &
               opmmr_blck, opmmrtm1_blck, ui_blck, vi_blck, wi_blck,           &
-              rmassO2p, rmassNOp, rmassN2p, rmassOp, 1, blksize, pver )
+              rmassO2p, rmassNOp, rmassN2p, rmassOp, 1, blksize, pver)
 
          call t_stopf ('d_pie_coupling')
 
@@ -818,44 +825,71 @@ contains
             end if
          end do
 
-         if (allocated(opmmr_blck)) then
+         if (associated(opmmr_blck)) then
             deallocate(opmmr_blck)
+            nullify(opmmr_blck)
          end if
-         if (allocated(o2pmmr_blck)) then
+         if (associated(o2pmmr_blck)) then
             deallocate(o2pmmr_blck)
+            nullify(o2pmmr_blck)
          end if
-         if (allocated(nopmmr_blck)) then
+         if (associated(nopmmr_blck)) then
             deallocate(nopmmr_blck)
+            nullify(nopmmr_blck)
          end if
-         if (allocated(n2pmmr_blck)) then
+         if (associated(n2pmmr_blck)) then
             deallocate(n2pmmr_blck)
+            nullify(n2pmmr_blck)
          end if
-         if (allocated(tempi)) then
+         if (associated(tempi)) then
             deallocate(tempi)
+            nullify(tempi)
          end if
          deallocate(opmmrtm1_blck)
+         nullify(opmmrtm1_blck)
          deallocate(phis)
+         nullify(phis)
          deallocate(u_blck)
+         nullify(u_blck)
          deallocate(v_blck)
+         nullify(v_blck)
          deallocate(sigma_ped_blck)
+         nullify(sigma_ped_blck)
          deallocate(sigma_hall_blck)
+         nullify(sigma_hall_blck)
          deallocate(ti_blck)
+         nullify(ti_blck)
          deallocate(hi_blck)
+         nullify(hi_blck)
          deallocate(te_blck)
+         nullify(te_blck)
          deallocate(zi_blck)
+         nullify(zi_blck)
          deallocate(ui_blck)
+         nullify(ui_blck)
          deallocate(vi_blck)
+         nullify(vi_blck)
          deallocate(wi_blck)
+         nullify(wi_blck)
          deallocate(omega_blck)
+         nullify(omega_blck)
          deallocate(tn_blck)
+         nullify(tn_blck)
          deallocate(n2mmr_blck)
+         nullify(n2mmr_blck)
          deallocate(o2mmr_blck)
+         nullify(o2mmr_blck)
          deallocate(o1mmr_blck)
+         nullify(o1mmr_blck)
          deallocate(h1mmr_blck)
+         nullify(h1mmr_blck)
          deallocate(mbar_blck)
+         nullify(mbar_blck)
          deallocate(pmid_blck)
+         nullify(pmid_blck)
          deallocate(tempm)
-  
+         nullify(tempm)
+
       end if ionos_cpl
 
    end subroutine ionosphere_run2
