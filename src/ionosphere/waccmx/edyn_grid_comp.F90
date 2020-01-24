@@ -8,6 +8,8 @@ module edyn_grid_comp
    use shr_sys_mod,    only: shr_sys_flush
    use cam_abortutils, only: endrun
 
+   implicit none
+
    public :: edyn_grid_comp_init
    public :: edyn_grid_comp_run1
    public :: edyn_grid_comp_run2
@@ -133,8 +135,6 @@ CONTAINS
       ! Local variables
       type(ESMF_Array)                    :: run_type
       integer                             :: cols, cole, blksize
-      real(r8),                   pointer :: amie_efxg(:)
-      real(r8),                   pointer :: amie_kevg(:)
       character(len=64)                   :: errmsg
       character(len=*), parameter         :: subname = 'edyn_gcomp_run'
 
@@ -265,15 +265,15 @@ CONTAINS
       character(len=*),           intent(in) :: ionos_epotential_model_in
       integer,          optional, intent(in) :: cols
       integer,          optional, intent(in) :: cole
-      real(r8),         optional, pointer    :: efx_phys(:)
-      real(r8),         optional, pointer    :: kev_phys(:)
+      real(r8),         optional, target, intent(out) :: efx_phys(:)
+      real(r8),         optional, target, intent(out) :: kev_phys(:)
       ! Local variables
       integer                                :: rc
       character(len=*), parameter            :: subname = 'edyn_grid_comp_run1'
 
       do_run = 1
-      if ( present(cols) .and. present(cole) .and. present(efx_phys) .and.    &
-           present(kev_phys)) then
+      if ( present(cols) .and. present(cole) .and. &
+           present(efx_phys) .and. present(kev_phys) ) then
          amie_efxg => efx_phys
          amie_kevg => kev_phys
          col_start = cols
