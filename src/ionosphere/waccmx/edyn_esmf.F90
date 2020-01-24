@@ -4,7 +4,6 @@ module edyn_esmf
    use ppgrid,         only: pdim1e => pcols
    use ppgrid,         only: pdim2s => begchunk, pdim2e => endchunk
    use cam_logfile,    only: iulog
-   use shr_sys_mod,    only: shr_sys_flush
    use cam_abortutils, only: endrun
    use infnan,         only: nan, assignment(=)
 
@@ -25,7 +24,6 @@ module edyn_esmf
    use ESMF,           only: ESMF_ArrayCreate
    use ESMF,           only: ESMF_GridComp, ESMF_TERMORDER_SRCSEQ
    use ESMF,           only: ESMF_EXTRAPMETHOD_NEAREST_IDAVG
-   use ESMF,           only: ESMF_EXTRAPMETHOD_NEAREST_STOD
    use ESMF,           only: ESMF_UNMAPPEDACTION_IGNORE
    use edyn_mpi,       only: ntask, ntaski, ntaskj, tasks, lon0, lon1, lat0
    use edyn_mpi,       only: lat1, nmagtaski, nmagtaskj, mlon0, mlon1
@@ -47,7 +45,6 @@ module edyn_esmf
 
 #ifdef WACCMX_EDYN_ESMF
 
-   public :: edyn_esmf_init        ! Make sure ESMF is properly initialized
    public :: edyn_esmf_final       ! Clean up any edyn usage of ESMF
 
    public :: edyn_esmf_regrid_phys2geo
@@ -271,68 +268,6 @@ contains
 101   format('edyn_create_physmesh: coord mismatch... n, lat(n), latmesh(n), diff_lat = ',i6,2(f21.13,3x),d21.5)
 
    end subroutine edyn_create_physmesh
-
-   !-----------------------------------------------------------------------
-   subroutine edyn_esmf_init( mpi_comm )
-      use ESMF,         only: ESMF_GridCompCreate, ESMF_CONTEXT_OWN_VM
-      use ESMF,         only: ESMF_VMGetCurrent, ESMF_VMGet
-      use ESMF,         only: ESMF_DELayoutCreate
-      use ESMF,         only: ESMF_DistGridCreate
-      use ESMF,         only: ESMF_VM, ESMF_GridCompInitialize
-      use ESMF,         only: ESMF_GridCompSetServices
-      use edyn_geogrid, only: geo_npes => npes
-
-      ! Dummy argument
-      integer, intent(in)  :: mpi_comm
-
-!!XXgoldyXX: v remove?
-#if 0
-      ! Local variables
-      integer              :: rc
-      integer              :: localPet
-      integer              :: petCount
-      integer              :: iam
-      integer              :: npes
-      integer              :: mag_npes !!XXgoldyXX: get this from mag grid?
-      type(ESMF_DELayout)  :: geo_delayout
-      type(ESMF_DELayout)  :: mag_delayout
-      type(ESMF_VM)        :: vm_init
-#endif
-!!XXgoldyXX: ^ remove?
-      character(len=*), parameter :: subname = 'edyn_esmf_init'
-
-!!XXgoldyXX: v remove?
-#if 0
-      !! Create distribution and PE information for each grid
-      call ESMF_VMGetCurrent(vm_init, rc=rc)
-      call edyn_esmf_chkerr(subname, 'ESMF_VMGetCurrent', rc)
-      call ESMF_VMGet(vm_init, localPet=localPet, petCount=petCount)
-      call edyn_esmf_chkerr(subname, 'ESMF_VMGet', rc)
-      call mpi_comm_size(mpi_comm, npes, rc)
-      call mpi_comm_rank(mpi_comm, iam, rc)
-      ! Collect all the PETS for each instance for phys grid
-      allocate(petlist(npes))
-      call mpi_allgather(localPet, 1, MPI_INTEGER, petlist, 1, &
-           MPI_INTEGER, mpi_comm, rc)
-      phys_delayout = ESMF_DELayoutCreate(deCount=npes, petList=petlist, rc=rc)
-      call edyn_esmf_chkerr(subname, 'phys ESMF_DELayoutCreate', rc)
-      geo_delayout = ESMF_DELayoutCreate(deCount=geo_npes,                    &
-           petList=petlist(1:geo_npes), rc=rc)
-      call edyn_esmf_chkerr(subname, 'geo ESMF_DELayoutCreate', rc)
-      geo_distgrid = ESMF_DistGridCreate(minIndex=(/1/),                      &
-           maxIndex=(/geo_npes/), delayout=geo_delayout, rc=rc)
-      call edyn_esmf_chkerr(subname, 'geo ESMF_DistGridCreate', rc)
-      mag_npes = npes !!XXgoldyXX: get this from mag grid?
-      mag_delayout = ESMF_DELayoutCreate(deCount=mag_npes,                    &
-           petList=petlist(1:mag_npes), rc=rc)
-      call edyn_esmf_chkerr(subname, 'mag ESMF_DELayoutCreate', rc)
-      mag_distgrid = ESMF_DistGridCreate(minIndex=(/1/),                      &
-           maxIndex=(/mag_npes/), delayout=mag_delayout, rc=rc)
-      call edyn_esmf_chkerr(subname, 'mag ESMF_DistGridCreate', rc)
-#endif
-!!XXgoldyXX: ^ remove?
-
-   end subroutine edyn_esmf_init
 
    !-----------------------------------------------------------------------
    !-----------------------------------------------------------------------
@@ -616,7 +551,6 @@ contains
    subroutine create_mag_grid(grid_out, srcdes)
       !
       ! Create ESMF geomagnetic grid, w/ lon,lat coordinates.
-      ! This is called from esmf_init during model initialization.
       !
       ! Args:
       type(ESMF_Grid),  intent(out) :: grid_out
@@ -628,7 +562,6 @@ contains
       integer                     :: lbnd(2),ubnd(2)
       integer                     :: nmlons_task(ntaski) ! number of lons per task
       integer                     :: nmlats_task(ntaskj) ! number of lats per task
-      integer                     :: petMap(ntaski,ntaskj,1)
       character(len=*), parameter :: subname = 'create_mag_grid'
       !
       ! We are creating either a source grid or a destination grid:
@@ -727,7 +660,6 @@ contains
      use edyn_maggrid,only: dlonm, nmlat
      !
      ! Create ESMF geomagnetic grid, w/ lon,lat coordinates.
-     ! This is called from esmf_init during model initialization.
      !
      ! Args:
      type(ESMF_Grid),  intent(out) :: grid_out

@@ -27,7 +27,6 @@ contains
       use edyn_mpi,     only: mp_distribute_mag
 #ifdef WACCMX_EDYN_ESMF
       use edynamo,      only: alloc_edyn
-!      use edyn_esmf,    only: edyn_esmf_init  ! initialize ESMF
       use edyn_grid_comp, only: edyn_grid_comp_init
 #endif
 !
@@ -53,7 +52,6 @@ contains
 
 #ifdef WACCMX_EDYN_ESMF
       call alloc_edyn()      ! allocate dynamo arrays
-!      call edyn_esmf_init(mpicomm)       ! initialize ESMF
       call edyn_grid_comp_init(mpicomm)
 #endif
 

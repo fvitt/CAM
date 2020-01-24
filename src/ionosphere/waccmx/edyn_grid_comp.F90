@@ -20,8 +20,6 @@ module edyn_grid_comp
    type(ESMF_Mesh)     :: phys_mesh
    ! edyn_comp: ESMF gridded component for the ionosphere models
    type(ESMF_GridComp) :: phys_comp
-   ! import and export states
-   type(ESMF_State)    :: gcomp_state
    ! Local copy of ionosphere epotential model
    character(len=16)   :: ionos_epotential_model = 'none'
    ! Total number of columns on this task
@@ -211,7 +209,7 @@ CONTAINS
       use ESMF,         only: ESMF_GridCompCreate, ESMF_GridCompSetServices
       use ESMF,         only: ESMF_VM, ESMF_VMGetCurrent, ESMF_VMGet
       use cam_instance, only: inst_index, inst_name
-      use edyn_esmf,    only: edyn_esmf_init, edyn_esmf_chkerr
+      use edyn_esmf,    only: edyn_esmf_chkerr
 
       ! Dummy argument
       integer, intent(in)           :: mpi_comm
@@ -224,8 +222,6 @@ CONTAINS
       integer                       :: rc
       type(ESMF_VM)                 :: vm_init
       character(len=*), parameter   :: subname = 'edyn_grid_comp_init'
-
-      call edyn_esmf_init(mpi_comm)
 
       !! Gather PE information for this instance
       call ESMF_VMGetCurrent(vm_init, rc=rc)
@@ -247,10 +243,7 @@ CONTAINS
       call edyn_esmf_chkerr(subname,                                          &
            'ESMF_GridCompSetServices '//trim(inst_name), rc)
       ! Initialize the required component arguments
-      gcomp_state = ESMF_StateCreate(name='gcomp state', rc=rc)
-      call edyn_esmf_chkerr(subname, 'ESMF_StateCreate', rc)
-      call ESMF_GridCompInitialize(phys_comp, importState=gcomp_state,        &
-           exportState=gcomp_state, rc=rc)
+      call ESMF_GridCompInitialize(phys_comp, rc=rc)
       call edyn_esmf_chkerr(subname, 'ESMF_GridCompInitialize', rc)
 
    end subroutine edyn_grid_comp_init
@@ -284,8 +277,7 @@ CONTAINS
          nullify(amie_kevg)
       end if
       ionos_epotential_model = ionos_epotential_model_in
-      call ESMF_GridCompRun(phys_comp, importState=gcomp_state,               &
-           exportState=gcomp_state, rc=rc)
+      call ESMF_GridCompRun(phys_comp, rc=rc)
       call edyn_esmf_chkerr(subname, 'ESMF_GridCompRun', rc)
 
    end subroutine edyn_grid_comp_run1
@@ -366,8 +358,7 @@ CONTAINS
       col_start = cols
       col_end = cole
       nlev = pver
-      call ESMF_GridCompRun(phys_comp, importState=gcomp_state,               &
-           exportState=gcomp_state, rc=rc)
+      call ESMF_GridCompRun(phys_comp, rc=rc)
       call edyn_esmf_chkerr(subname, 'ESMF_GridCompRun', rc)
 
    end subroutine edyn_grid_comp_run2
@@ -380,8 +371,7 @@ CONTAINS
       integer                     :: rc
       character(len=*), parameter :: subname = 'edyn_grid_comp_final'
 
-      call ESMF_GridCompFinalize(phys_comp, importState=gcomp_state,          &
-           exportState=gcomp_state, rc=rc)
+      call ESMF_GridCompFinalize(phys_comp, rc=rc)
       call edyn_esmf_chkerr(subname, 'ESMF_GridCompInitialize', rc)
 
    end subroutine edyn_grid_comp_final

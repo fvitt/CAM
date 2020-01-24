@@ -16,7 +16,7 @@ module edyn_geogrid
     nlat,    & ! number of latitudes
     nlon,    & ! number of longitudes
     nlev,    & ! number of midpoint levels
-    nilev,   & ! number of interface latitudes
+    nilev,   & ! number of interface levels
     npes       ! number of PEs in geogrid
 
   real(r8), public, protected, allocatable , dimension(:) :: & ! coordinate vars
