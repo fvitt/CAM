@@ -636,7 +636,7 @@
       <machine name="cheyenne" compiler="intel" category="waccmx_se"/>
     </machines>
   </test>
-  <test compset="FX2000" grid="ne16_ne16_mg17" name="SMS_Ld1"   testmods="cam/outfrq9s">
+  <test compset="FX2000" grid="ne16_ne16_mg17" name="SMS_Ld1"   testmods="cam/outfrq1d">
     <machines>
       <machine name="cheyenne" compiler="intel" category="waccmx"/>
       <machine name="cheyenne" compiler="intel" category="waccmx_se"/>
@@ -648,7 +648,7 @@
       <machine name="cheyenne" compiler="intel" category="waccmx_se"/>
     </machines>
   </test>
-  <test compset="FC6X2000" grid="ne30_ne30_mg17" name="SMS_Ld1"   testmods="cam/outfrq9s">
+  <test compset="FC6X2000" grid="ne30_ne30_mg17" name="SMS_Ld1"   testmods="cam/outfrq1d">
     <machines>
       <machine name="cheyenne" compiler="intel" category="waccmx"/>
       <machine name="cheyenne" compiler="intel" category="waccmx_se"/>
