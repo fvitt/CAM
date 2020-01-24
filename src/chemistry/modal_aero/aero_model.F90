@@ -72,6 +72,7 @@ module aero_model
 
   integer :: nh3_ndx    = 0
   integer :: nh4_ndx    = 0
+  integer :: bergso_idx = 0
 
   ! variables for table lookup of aerosol impaction/interception scavenging rates
   integer, parameter :: nimptblgrow_mind=-7, nimptblgrow_maxd=12
@@ -229,6 +230,7 @@ contains
     nevapr_shcu_idx = pbuf_get_index('NEVAPR_SHCU') 
     nevapr_dpcu_idx = pbuf_get_index('NEVAPR_DPCU') 
     sulfeq_idx      = pbuf_get_index('MAMH2SO4EQ',errcode)
+    bergso_idx      = pbuf_get_index('BERGSO')
     
     call phys_getopts(history_aerosol_out = history_aerosol, &
                       history_chemistry_out=history_chemistry, &
@@ -1063,8 +1065,13 @@ contains
 
     type(wetdep_inputs_t) :: dep_inputs
 
+    real(r8) :: dcondt_resusp3d(2*pcnst,pcols, pver)
+    real(r8), pointer :: bergso(:,:)
+
     lchnk = state%lchnk
     ncol  = state%ncol
+
+    dcondt_resusp3d(:,:,:) = 0._r8
 
     call physics_ptend_init(ptend, state%psetcols, 'aero_model_wetdep', lq=wetdep_lq)
     
@@ -1089,6 +1096,7 @@ contains
     call pbuf_get_field(pbuf, dgnumwet_idx,       dgnumwet, start=(/1,1,1/), kount=(/pcols,pver,nmodes/) )
     call pbuf_get_field(pbuf, qaerwat_idx,        qaerwat,  start=(/1,1,1/), kount=(/pcols,pver,nmodes/) )
     call pbuf_get_field(pbuf, fracis_idx,         fracis, start=(/1,1,1/), kount=(/pcols, pver, pcnst/) )
+    call pbuf_get_field(pbuf, bergso_idx,     bergso )
 
     prec(:ncol)=0._r8
     do k=1,pver
@@ -1303,7 +1311,7 @@ contains
                      f_act_conv=f_act_conv, &
                      icscavt=icscavt, isscavt=isscavt, bcscavt=bcscavt, bsscavt=bsscavt, &
                      convproc_do_aer=convproc_do_aer, rcscavt=rcscavt, rsscavt=rsscavt,  &
-                     sol_facti_in=sol_facti, sol_factic_in=sol_factic )
+                     sol_facti_in=sol_facti, sol_factic_in=sol_factic, bergso_in=bergso )
 
                 do_hygro_sum_del = .false.
                 if ( lspec > 0 ) do_hygro_sum_del = .true. 
@@ -1529,7 +1537,7 @@ contains
                         is_strat_cloudborne=.true.,  &
                         icscavt=icscavt, isscavt=isscavt, bcscavt=bcscavt, bsscavt=bsscavt, &
                         convproc_do_aer=convproc_do_aer, rcscavt=rcscavt, rsscavt=rsscavt,  &
-                        sol_facti_in=sol_facti, sol_factic_in=sol_factic )
+                        sol_facti_in=sol_facti, sol_factic_in=sol_factic, bergso_in=bergso )
 
                    if(convproc_do_aer) then
                       ! save resuspension of cloudborne species
@@ -1603,7 +1611,32 @@ contains
     if (convproc_do_aer) then
        call t_startf('ma_convproc')
        call ma_convproc_intr( state, ptend, pbuf, dt,                &
-               nsrflx_mzaer2cnvpr, qsrflx_mzaer2cnvpr, aerdepwetis)
+            nsrflx_mzaer2cnvpr, qsrflx_mzaer2cnvpr, aerdepwetis, &
+            dcondt_resusp3d)
+       do m = 1, ntot_amode ! main loop over aerosol modes
+          do lphase = strt_loop,end_loop, stride_loop 
+             ! loop over interstitial (1) and cloud-borne (2) forms
+             do lspec = 0, nspec_amode(m)+1 ! loop over number + chem constituents + water
+                if (lspec == 0) then ! number
+                   if (lphase == 1) then
+                      mm = numptr_amode(m)
+                   else
+                      mm = numptrcw_amode(m)
+                   endif
+                else if (lspec <= nspec_amode(m)) then ! non-water mass
+                   if (lphase == 1) then
+                      mm = lmassptr_amode(lspec,m)
+                   else
+                      mm = lmassptrcw_amode(lspec,m)
+                   endif
+                endif
+                if (lphase .eq. 2) then
+                   fldcw => qqcw_get_field(pbuf, mm,lchnk)
+                   fldcw(:,:) = fldcw(:,:) + dcondt_resusp3d(mm,:,:)*dt
+                end if
+             end do ! loop over number + chem constituents + water
+          end do  ! lphase
+       end do   ! m aerosol modes
        call t_stopf('ma_convproc')
     endif
 

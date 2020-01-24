@@ -258,8 +258,10 @@ integer :: &
    frzcnt_idx = -1, &
    frzdep_idx = -1
 
-   logical :: allow_sed_supersat  ! allow supersaturated conditions after sedimentation loop
-   logical :: micro_do_sb_physics = .false. ! do SB 2001 autoconversion and accretion 
+logical :: allow_sed_supersat  ! allow supersaturated conditions after sedimentation loop
+logical :: micro_do_sb_physics = .false. ! do SB 2001 autoconversion and accretion 
+
+integer :: bergso_idx = -1
 
 interface p
    module procedure p1
@@ -699,6 +701,8 @@ subroutine micro_mg_cam_register
       call pbuf_add_field('QCSEVAP', 'physpkg', dtype_r8, (/pcols,pver/), qcsevap_idx)
       call pbuf_add_field('QISEVAP', 'physpkg', dtype_r8, (/pcols,pver/), qisevap_idx)
    end if
+
+   call pbuf_add_field('BERGSO',  'physpkg',dtype_r8,(/pcols,pver/), bergso_idx)
 
 end subroutine micro_mg_cam_register
 
@@ -1826,7 +1830,6 @@ subroutine micro_mg_cam_tend_pack(state, ptend, dtime, pbuf, mgncol, mgcols, nle
    real(r8) :: homoo_grid(pcols,pver)
    real(r8) :: msacwio_grid(pcols,pver)
    real(r8) :: psacwso_grid(pcols,pver)
-   real(r8) :: bergso_grid(pcols,pver)
    real(r8) :: cmeiout_grid(pcols,pver)
    real(r8) :: qireso_grid(pcols,pver)
    real(r8) :: prcio_grid(pcols,pver)
@@ -1909,6 +1912,7 @@ subroutine micro_mg_cam_tend_pack(state, ptend, dtime, pbuf, mgncol, mgcols, nle
    real(r8), pointer :: icswp_grid(:,:)
    real(r8), pointer :: ast_grid(:,:)
    real(r8), pointer :: cldfsnow_grid(:,:)
+   real(r8), pointer :: bergso_grid(:,:)
 
    real(r8), pointer :: icgrauwp_grid(:,:)
    real(r8), pointer :: cldfgrau_grid(:,:)
@@ -2087,6 +2091,7 @@ subroutine micro_mg_cam_tend_pack(state, ptend, dtime, pbuf, mgncol, mgcols, nle
       call pbuf_get_field(pbuf, sadsnow_idx,     sadsnow_grid)
       call pbuf_get_field(pbuf, wsedl_idx,       wsedl_grid)
       call pbuf_get_field(pbuf, qme_idx,         qme_grid)
+      call pbuf_get_field(pbuf, bergso_idx,      bergso_grid)
       if (degrau_idx > 0)   call pbuf_get_field(pbuf, degrau_idx,   degrau_grid)
       if (icgrauwp_idx > 0) call pbuf_get_field(pbuf, icgrauwp_idx, icgrauwp_grid)
       if (cldfgrau_idx > 0) call pbuf_get_field(pbuf, cldfgrau_idx, cldfgrau_grid)
@@ -2756,8 +2761,9 @@ subroutine micro_mg_cam_tend_pack(state, ptend, dtime, pbuf, mgncol, mgcols, nle
       call subcol_field_avg(nevapr,    ngrdcol, lchnk, nevapr_grid)
       call subcol_field_avg(prain,     ngrdcol, lchnk, prain_grid)
       call subcol_field_avg(evapsnow,  ngrdcol, lchnk, evpsnow_st_grid)
+      call subcol_field_avg(bergso,    ngrdcol, lchnk, bergso_grid)
 
-         call subcol_field_avg(am_evp_st, ngrdcol, lchnk, am_evp_st_grid)
+      call subcol_field_avg(am_evp_st, ngrdcol, lchnk, am_evp_st_grid)
 
       ! Average fields which are not in pbuf
       call subcol_field_avg(qrout,     ngrdcol, lchnk, qrout_grid)
@@ -2773,7 +2779,6 @@ subroutine micro_mg_cam_tend_pack(state, ptend, dtime, pbuf, mgncol, mgcols, nle
       call subcol_field_avg(homoo,     ngrdcol, lchnk, homoo_grid)
       call subcol_field_avg(msacwio,   ngrdcol, lchnk, msacwio_grid)
       call subcol_field_avg(psacwso,   ngrdcol, lchnk, psacwso_grid)
-      call subcol_field_avg(bergso,    ngrdcol, lchnk, bergso_grid)
       call subcol_field_avg(cmeiout,   ngrdcol, lchnk, cmeiout_grid)
       call subcol_field_avg(qireso,    ngrdcol, lchnk, qireso_grid)
       call subcol_field_avg(prcio,     ngrdcol, lchnk, prcio_grid)
@@ -2853,8 +2858,9 @@ subroutine micro_mg_cam_tend_pack(state, ptend, dtime, pbuf, mgncol, mgcols, nle
       qme_grid        => qme
       nevapr_grid     => nevapr
       prain_grid      => prain
+      bergso_grid     => bergso
 
-         am_evp_st_grid  = am_evp_st
+      am_evp_st_grid  = am_evp_st
 
       evpsnow_st_grid = evapsnow
       qrout_grid      = qrout
@@ -2870,7 +2876,6 @@ subroutine micro_mg_cam_tend_pack(state, ptend, dtime, pbuf, mgncol, mgcols, nle
       homoo_grid      = homoo
       msacwio_grid    = msacwio
       psacwso_grid    = psacwso
-      bergso_grid     = bergso
       cmeiout_grid    = cmeiout
       qireso_grid     = qireso
       prcio_grid      = prcio

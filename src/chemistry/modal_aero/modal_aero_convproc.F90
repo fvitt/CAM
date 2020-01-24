@@ -43,8 +43,12 @@ public :: &
    ma_convproc_init,             &!
    ma_convproc_intr               !
 
+! These could all be made namelist options. These are the defaults for
+! CAM6.
 logical, parameter, public :: convproc_do_gas = .false.
 logical, parameter, public :: deepconv_wetdep_history = .true.
+logical, parameter, public :: convproc_do_shallow = .false.
+logical, parameter, public :: convproc_do_deep = .true.
 
 logical, parameter :: use_cwaer_for_activate_maxsat = .false.
 logical, parameter :: apply_convproc_tend_to_ptend = .true.
@@ -99,6 +103,8 @@ integer :: zm_ideep_idx       = 0
 
 integer :: cmfmc_sh_idx       = 0
 integer :: sh_e_ed_ratio_idx  = 0
+
+integer :: istat
 
 !=========================================================================================
 contains
@@ -201,7 +207,7 @@ subroutine ma_convproc_init
    zm_ideep_idx    = pbuf_get_index('ZM_IDEEP')
 
    cmfmc_sh_idx    = pbuf_get_index('CMFMC_SH')
-   sh_e_ed_ratio_idx = pbuf_get_index('SH_E_ED_RATIO')
+   sh_e_ed_ratio_idx = pbuf_get_index('SH_E_ED_RATIO', istat)
 
    if (masterproc ) then
 
@@ -239,7 +245,7 @@ end subroutine ma_convproc_init
 
 subroutine ma_convproc_intr( state, ptend, pbuf, ztodt,             &
                            nsrflx_mzaer2cnvpr, qsrflx_mzaer2cnvpr,  &
-                           aerdepwetis)
+                           aerdepwetis, dcondt_resusp3d )
 !----------------------------------------------------------------------- 
 ! 
 ! Convective cloud processing (transport, activation/resuspension,
@@ -266,6 +272,7 @@ subroutine ma_convproc_intr( state, ptend, pbuf, ztodt,             &
    integer,  intent(in)    :: nsrflx_mzaer2cnvpr
    real(r8), intent(in)    :: qsrflx_mzaer2cnvpr(pcols,pcnst,nsrflx_mzaer2cnvpr)
    real(r8), intent(inout) :: aerdepwetis(pcols,pcnst)  ! aerosol wet deposition (interstitial)
+   real(r8), intent(inout) :: dcondt_resusp3d(2*pcnst,pcols,pver)
 
    ! Local variables
    integer, parameter :: nsrflx = 5        ! last dimension of qsrflx
@@ -323,76 +330,77 @@ subroutine ma_convproc_intr( state, ptend, pbuf, ztodt,             &
    if (convproc_do_aer .or. convproc_do_gas) then
 
       ! do deep conv processing
+      if (convproc_do_deep) then
+         call ma_convproc_dp_intr(                    &
+            state, pbuf, dt,                          &
+            qb, dqdt, dotend, nsrflx, qsrflx, dcondt_resusp3d )
 
-      call ma_convproc_dp_intr(                    &
-         state, pbuf, dt,                          &
-         qb, dqdt, dotend, nsrflx, qsrflx)
 
+         ! apply deep conv processing tendency and prepare for shallow conv processing
+         do l = 1, pcnst
+            if ( .not. dotend(l) ) cycle
 
-      ! apply deep conv processing tendency and prepare for shallow conv processing
-      do l = 1, pcnst
-         if ( .not. dotend(l) ) cycle
+            ! calc new q (after ma_convproc_dp_intr)
+            qa(1:ncol,:,l) = qb(1:ncol,:,l) + dt*dqdt(1:ncol,:,l)
+            qb(1:ncol,:,l) = max( 0.0_r8, qa(1:ncol,:,l) ) 
 
-         ! calc new q (after ma_convproc_dp_intr)
-         qa(1:ncol,:,l) = qb(1:ncol,:,l) + dt*dqdt(1:ncol,:,l)
-         qb(1:ncol,:,l) = max( 0.0_r8, qa(1:ncol,:,l) ) 
+            if ( apply_convproc_tend_to_ptend ) then
+               ! add dqdt onto ptend%q and set ptend%lq
+               ptend%q(1:ncol,:,l) = ptend%q(1:ncol,:,l) + dqdt(1:ncol,:,l)
+               ptend%lq(l) = .true.
+            end if
 
-         if ( apply_convproc_tend_to_ptend ) then
-            ! add dqdt onto ptend%q and set ptend%lq
-            ptend%q(1:ncol,:,l) = ptend%q(1:ncol,:,l) + dqdt(1:ncol,:,l)
-            ptend%lq(l) = .true.
-         end if
+            if ((cnst_species_class(l) == cnst_spec_class_aerosol) .or. &
+                (cnst_species_class(l) == cnst_spec_class_gas    )) then
+               ! these used for history file wetdep diagnostics
+               sflxic(1:ncol,l) = sflxic(1:ncol,l) + qsrflx(1:ncol,l,4) 
+               sflxid(1:ncol,l) = sflxid(1:ncol,l) + qsrflx(1:ncol,l,4) 
+               sflxec(1:ncol,l) = sflxec(1:ncol,l) + qsrflx(1:ncol,l,5) 
+               sflxed(1:ncol,l) = sflxed(1:ncol,l) + qsrflx(1:ncol,l,5) 
+            end if
 
-         if ((cnst_species_class(l) == cnst_spec_class_aerosol) .or. &
-             (cnst_species_class(l) == cnst_spec_class_gas    )) then
-            ! these used for history file wetdep diagnostics
-            sflxic(1:ncol,l) = sflxic(1:ncol,l) + qsrflx(1:ncol,l,4) 
-            sflxid(1:ncol,l) = sflxid(1:ncol,l) + qsrflx(1:ncol,l,4) 
-            sflxec(1:ncol,l) = sflxec(1:ncol,l) + qsrflx(1:ncol,l,5) 
-            sflxed(1:ncol,l) = sflxed(1:ncol,l) + qsrflx(1:ncol,l,5) 
-         end if
-
-         if (cnst_species_class(l) == cnst_spec_class_aerosol) then
-            ! this used for surface coupling
-            aerdepwetis(1:ncol,l) = aerdepwetis(1:ncol,l) &
-               + qsrflx(1:ncol,l,4) + qsrflx(1:ncol,l,5) 
-         end if
-
-      end do
+            if (cnst_species_class(l) == cnst_spec_class_aerosol) then
+               ! this used for surface coupling
+               aerdepwetis(1:ncol,l) = aerdepwetis(1:ncol,l) &
+                  + qsrflx(1:ncol,l,4) + qsrflx(1:ncol,l,5) 
+            end if
+         end do
+      end if
 
       dqdt(:,:,:) = 0.0_r8
       qsrflx(:,:,:) = 0.0_r8
+      if (convproc_do_shallow) then
+         call ma_convproc_sh_intr(                    &
+            state, pbuf, dt,                          &
+            qb, dqdt, dotend, nsrflx, qsrflx, dcondt_resusp3d )
 
-      call ma_convproc_sh_intr(                    &
-         state, pbuf, dt,                          &
-         qb, dqdt, dotend, nsrflx, qsrflx)
+         ! apply shallow conv processing tendency
+         do l = 1, pcnst
+            if ( .not. dotend(l) ) cycle
 
-      ! apply shallow conv processing tendency
-      do l = 1, pcnst
-         if ( .not. dotend(l) ) cycle
+           ! calc new q (after ma_convproc_sh_intr)
+           qa(1:ncol,:,l) = qb(1:ncol,:,l) + dt*dqdt(1:ncol,:,l)
+           qb(1:ncol,:,l) = max( 0.0_r8, qa(1:ncol,:,l) ) 
 
-         ! calc new q (after ma_convproc_sh_intr)
-         qa(1:ncol,:,l) = qb(1:ncol,:,l) + dt*dqdt(1:ncol,:,l)
-         qb(1:ncol,:,l) = max( 0.0_r8, qa(1:ncol,:,l) ) 
+            if ( apply_convproc_tend_to_ptend ) then
+               ! add dqdt onto ptend%q and set ptend%lq
+               ptend%q(1:ncol,:,l) = ptend%q(1:ncol,:,l) + dqdt(1:ncol,:,l)
+               ptend%lq(l) = .true.
+            end if
 
-         if ( apply_convproc_tend_to_ptend ) then
-            ! add dqdt onto ptend%q and set ptend%lq
-            ptend%q(1:ncol,:,l) = ptend%q(1:ncol,:,l) + dqdt(1:ncol,:,l)
-            ptend%lq(l) = .true.
-         end if
+            if ((cnst_species_class(l) == cnst_spec_class_aerosol) .or. &
+                (cnst_species_class(l) == cnst_spec_class_gas    )) then
+               sflxic(1:ncol,l) = sflxic(1:ncol,l) + qsrflx(1:ncol,l,4) 
+               sflxec(1:ncol,l) = sflxec(1:ncol,l) + qsrflx(1:ncol,l,5) 
+            end if
 
-         if ((cnst_species_class(l) == cnst_spec_class_aerosol) .or. &
-             (cnst_species_class(l) == cnst_spec_class_gas    )) then
-            sflxic(1:ncol,l) = sflxic(1:ncol,l) + qsrflx(1:ncol,l,4) 
-            sflxec(1:ncol,l) = sflxec(1:ncol,l) + qsrflx(1:ncol,l,5) 
-         end if
+            if (cnst_species_class(l) == cnst_spec_class_aerosol) then
+               aerdepwetis(1:ncol,l) = aerdepwetis(1:ncol,l) &
+                  + qsrflx(1:ncol,l,4) + qsrflx(1:ncol,l,5) 
+            end if
 
-         if (cnst_species_class(l) == cnst_spec_class_aerosol) then
-            aerdepwetis(1:ncol,l) = aerdepwetis(1:ncol,l) &
-               + qsrflx(1:ncol,l,4) + qsrflx(1:ncol,l,5) 
-         end if
-
-      end do
+         end do
+      end if 
 
    end if ! (convproc_do_aer  .or. convproc_do_gas) then
 
@@ -424,7 +432,7 @@ end subroutine ma_convproc_intr
 
 subroutine ma_convproc_dp_intr(                &
      state, pbuf, dt,                          &
-     q, dqdt, dotend, nsrflx, qsrflx)
+     q, dqdt, dotend, nsrflx, qsrflx,  dcondt_resusp3d)
 !----------------------------------------------------------------------- 
 ! 
 ! Convective cloud processing (transport, activation/resuspension,
@@ -453,6 +461,7 @@ subroutine ma_convproc_dp_intr(                &
    logical,  intent(out)   :: dotend(pcnst)
    integer,  intent(in)    :: nsrflx
    real(r8), intent(inout) :: qsrflx(pcols,pcnst,nsrflx)
+   real(r8), intent(inout) :: dcondt_resusp3d(pcnst*2,pcols,pver)
 
    integer :: i
    integer :: itmpveca(pcols)
@@ -545,7 +554,7 @@ subroutine ma_convproc_dp_intr(                &
                      fracice,                                        &
                      dqdt,       dotend,     nsrflx,     qsrflx,     &
                      xx_mfup_max, xx_wcldbase, xx_kcldbase,          &
-                     lun,        itmpveca                            )
+                     lun,        itmpveca,  dcondt_resusp3d  )
 
    call outfld( 'DP_MFUP_MAX', xx_mfup_max, pcols, lchnk )
    call outfld( 'DP_WCLDBASE', xx_wcldbase, pcols, lchnk )
@@ -558,7 +567,7 @@ end subroutine ma_convproc_dp_intr
 !=========================================================================================
 subroutine ma_convproc_sh_intr(                 &
      state, pbuf, dt,                           &
-     q, dqdt, dotend, nsrflx, qsrflx)
+     q, dqdt, dotend, nsrflx, qsrflx, dcondt_resusp3d )
 !----------------------------------------------------------------------- 
 ! 
 ! Purpose: 
@@ -587,6 +596,7 @@ subroutine ma_convproc_sh_intr(                 &
    logical,  intent(out)   :: dotend(pcnst)
    integer,  intent(in)    :: nsrflx
    real(r8), intent(inout) :: qsrflx(pcols,pcnst,nsrflx)
+   real(r8), intent(inout) :: dcondt_resusp3d(pcnst*2,pcols,pver)
 
    integer :: i
    integer :: itmpveca(pcols)
@@ -638,8 +648,9 @@ subroutine ma_convproc_sh_intr(                 &
    call pbuf_get_field(pbuf, icwmrsh_idx,       icwmrsh)
    call pbuf_get_field(pbuf, sh_frac_idx,       sh_frac)
    call pbuf_get_field(pbuf, cmfmc_sh_idx,      cmfmcsh)
-   call pbuf_get_field(pbuf, sh_e_ed_ratio_idx, sh_e_ed_ratio)
-
+   if (sh_e_ed_ratio_idx .gt. 0) then
+     call pbuf_get_field(pbuf, sh_e_ed_ratio_idx, sh_e_ed_ratio)
+   end if
 
    fracice(:,:) = 0.0_r8
 
@@ -705,8 +716,11 @@ subroutine ma_convproc_sh_intr(                 &
          else
             tmpa = mu(i,k)/dpdry(i,k)
          end if
-         tmpb = sh_e_ed_ratio(i,k)
-         !        tmpb = -1.0  ! force ent only or det only
+         if (sh_e_ed_ratio_idx .gt. 0) then
+           tmpb = sh_e_ed_ratio(i,k)
+         else
+           tmpb = -1.0  ! force ent only or det only
+         end if
          if (tmpb < -1.0e-5_r8) then
             ! do ent only or det only
             if (tmpa >= 0.0_r8) then
@@ -770,7 +784,7 @@ subroutine ma_convproc_sh_intr(                 &
                      fracice,                                        &
                      dqdt,       dotend,     nsrflx,     qsrflx,     &
                      xx_mfup_max, xx_wcldbase, xx_kcldbase,          &
-                     lun,        itmpveca                            )
+                     lun,        itmpveca,  dcondt_resusp3d)
 
    call outfld( 'SH_MFUP_MAX', xx_mfup_max, pcols, lchnk )
    call outfld( 'SH_WCLDBASE', xx_wcldbase, pcols, lchnk )
@@ -791,7 +805,7 @@ subroutine ma_convproc_tend(                                           &
                      fracice,                                        &
                      dqdt,       doconvproc, nsrflx,     qsrflx,     &
                      xx_mfup_max, xx_wcldbase, xx_kcldbase,          &
-                     lun,        idiag_in                            )
+                     lun,        idiag_in,  dcondt_resusp3d )
 
 !----------------------------------------------------------------------- 
 ! 
@@ -896,7 +910,7 @@ subroutine ma_convproc_tend(                                           &
    real(r8), intent(out) :: xx_kcldbase(pcols)
    integer,  intent(in) :: lun               ! unit number for diagnostic output
    integer,  intent(in) :: idiag_in(pcols)   ! flag for diagnostic output
-
+   real(r8), intent(inout) :: dcondt_resusp3d(pcnst*2,pcols,pver)
 
 !--------------------------Local Variables------------------------------
 
@@ -915,6 +929,7 @@ subroutine ma_convproc_tend(                                           &
    integer :: kactcntb        ! Counter for activation diagnostic output
    integer :: kactfirst       ! Lowest layer with activation (= cloudbase)
    integer :: kbot            ! Cloud-flux bottom layer for current i (=mx(i))
+   integer :: kbot_prevap     ! Lowest layer for doing resuspension from evaporating precip ! REASTER 08/05/2015
    integer :: ktop            ! Cloud-flux top    layer for current i (=jt(i))
                               ! Layers between kbot,ktop have mass fluxes
                               !    but not all have cloud water, because the
@@ -1041,7 +1056,7 @@ subroutine ma_convproc_tend(                                           &
    nerrmax = 99
 
    ncnst_extd = pcnst_extd
-
+   dcondt_resusp3d(:,:,:) = 0._r8
 
    small = 1.e-36_r8
 ! mbsth is the threshold below which we treat the mass fluxes as zero (in mb/s)
@@ -1143,6 +1158,15 @@ i_loop_main_aa: &
 ! Zero out values at "top of cloudtop", "base of cloudbase"
       ktop = jt(i)
       kbot = mx(i)
+! REASTER 08/05/2015 BEGIN
+! usually the updraft ( & downdraft) start ( & end ) at kbot=pver, but sometimes kbot < pver
+! transport, activation, resuspension, and wet removal only occur between kbot >= k >= ktop
+! resuspension from evaporating precip can occur at k > kbot when kbot < pver
+! in the first version of this routine, the precp evap resusp tendencies for k > kbot were ignored, 
+!    but that is now fixed
+! this was a minor bug with quite minor affects on the aerosol, 
+!    because convective precip evap is (or used to be) much less than stratiform precip evap )
+      kbot_prevap = pver
       mu_i(:) = 0.0_r8
       md_i(:) = 0.0_r8
       do k = ktop+1, kbot
@@ -1730,7 +1754,9 @@ k_loop_main_cc: &
 ! make adjustments to dcondt for activated & unactivated aerosol species
 !    pairs to account any (or total) resuspension of convective-cloudborne aerosol
       call ma_resuspend_convproc( dcondt, dcondt_resusp,   &
-                                  const, dp_i, ktop, kbot, pcnst_extd )
+                                  const, dp_i, ktop, kbot_prevap, pcnst_extd )
+      dcondt_resusp3d(pcnst+1:pcnst_extd,icol,:) = dcondt_resusp(pcnst+1:pcnst_extd,:)
+      dcondt_resusp(pcnst+1:pcnst_extd,:) = 0._r8
       if ( idiag_in(icol)>0 ) then
          k = 26
          do m = 16, 23, 7
@@ -1749,7 +1775,7 @@ k_loop_main_cc: &
 ! calculate new column-tendency variables
       do m = 2, ncnst_extd
          if (doconvproc_extd(m)) then
-            do k = ktop, kbot
+            do k = ktop, kbot_prevap
                sumchng3(m)  = sumchng3(m)  + dcondt(m,k)*dp_i(k)
                sumresusp(m) = sumresusp(m) + dcondt_resusp(m,k)*dp_i(k)
                maxresusp(m) = max( maxresusp(m),   &
@@ -1868,7 +1894,7 @@ k_loop_main_cc: &
 !
       do m = 2, ncnst
          if (doconvproc(m)) then
-            do k = ktop, kbot
+            do k = ktop, kbot_prevap
                dqdt_i(k,m) = dcondt(m,k)
                dqdt(icol,k,m) = dqdt(icol,k,m) + dqdt_i(k,m)*xinv_ntsub
             end do
@@ -2014,7 +2040,7 @@ k_loop_main_cc: &
          ! update the q_i for the next interation of the jtsub loop
          do m = 2, ncnst
             if (doconvproc(m)) then
-               do k = ktop, kbot
+               do k = ktop, kbot_prevap
                   q_i(k,m) = max( (q_i(k,m) + dqdt_i(k,m)*dtsub), 0.0_r8 )
                end do
             end if
@@ -2115,6 +2141,9 @@ end subroutine ma_convproc_tend
       pr_flux = pr_flux_old + del_pr_flux_prod
 
       del_pr_flux_evap = min( pr_flux, tmpdp*max(0.0_r8, evapc(icol,k)) )
+
+      if (del_pr_flux_evap.ne.pr_flux) del_pr_flux_evap = 0._r8
+
       fdel_pr_flux_evap = del_pr_flux_evap / max(pr_flux, 1.0e-35_r8)
 
       do m = 2, pcnst_extd
@@ -2128,6 +2157,27 @@ end subroutine ma_convproc_tend
             dcondt(m,k) = dcondt(m,k) + dcondt_prevap(m,k)
          end if
       end do
+ 
+! *** Needs to be done more rebustly ***
+!     Dust
+      dcondt_prevap(27,k)=dcondt_prevap(27,k)+dcondt_prevap(19,k)+dcondt_prevap(23,k)
+      dcondt_prevap(19,k)=0._r8; dcondt_prevap(23,k)=0._r8
+!     ncl
+      dcondt_prevap(28,k)=dcondt_prevap(20,k)+dcondt_prevap(25,k)
+      dcondt_prevap(20,k)=0._r8; dcondt_prevap(25,k)=0._r8
+!     SO4
+      dcondt_prevap(29,k)=dcondt_prevap(29,k)+dcondt_prevap(15,k)+dcondt_prevap(22,k)
+      dcondt_prevap(15,k)=0._r8; dcondt_prevap(22,k)=0._r8
+!     pom
+      dcondt_prevap(16,k)=dcondt_prevap(31,k)+dcondt_prevap(16,k)
+      dcondt_prevap(31,k)=0._r8;
+!     BC
+      dcondt_prevap(18,k)=dcondt_prevap(32,k)+dcondt_prevap(18,k)
+      dcondt_prevap(32,k)=0._r8;
+!     soa
+      dcondt_prevap(17,k)=dcondt_prevap(24,k)+dcondt_prevap(17,k)
+      dcondt_prevap(24,k)=0._r8;
+! *** Needs to be done more rebustly ***
 
       pr_flux = max( 0.0_r8, pr_flux-del_pr_flux_evap )
 
@@ -2601,6 +2651,13 @@ end subroutine ma_convproc_tend
          tmpc = tmpc / specdens_amode(ll,n)
          tmpa = tmpa + tmpc
          tmpb = tmpb + tmpc * spechygro(ll,n)
+! modify the hygro of pom *** NEEDS to be more robust
+         if (((n.eq.1).and.(ll.eq.2)).or.((n.eq.4).and.(ll.eq.1))) then
+            tmpb = tmpb + tmpc * 0.2
+            tmpb = tmpb + tmpc * spechygro(1,1)
+         else
+            tmpb = tmpb + tmpc * spechygro(ll,n)
+         end if
       end do
       vaerosol(n) = tmpa * rhoair
       if (tmpa < 1.0e-35_r8) then
@@ -2748,7 +2805,7 @@ end subroutine ma_convproc_tend
 !=========================================================================================
    subroutine ma_resuspend_convproc(                           &
               dcondt,  dcondt_resusp,                          &
-              const,   dp_i,          ktop,  kbot,  pcnst_extd )
+              const,   dp_i,          ktop,  kbot_prevap,  pcnst_extd )
 !-----------------------------------------------------------------------
 !
 ! Purpose:
@@ -2800,7 +2857,7 @@ end subroutine ma_convproc_tend
    real(r8), intent(in)    :: const(pcnst_extd,pver)  ! TMRs before convection
 
    real(r8), intent(in)    :: dp_i(pver) ! pressure thickness of level (in mb)
-   integer,  intent(in)    :: ktop, kbot ! indices of top and bottom cloud levels
+   integer,  intent(in)    :: ktop, kbot_prevap ! indices of top and bottom cloud levels
 
 !-----------------------------------------------------------------------
 ! local variables
@@ -2826,7 +2883,7 @@ end subroutine ma_convproc_tend
          if ( (la <= 0) .or. (la > pcnst_extd) ) cycle
          if ( (lc <= 0) .or. (lc > pcnst_extd) ) cycle
 
-         do k = ktop, kbot
+         do k = ktop, kbot_prevap
             qdota = dcondt(la,k)
             qdotc = dcondt(lc,k)
             qdotac = qdota + qdotc
@@ -2844,11 +2901,17 @@ end subroutine ma_convproc_tend
 !           end if
 
 ! cam5 approach
-            dcondt(la,k) = qdotac
-            dcondt(lc,k) = 0.0_r8
+!!!! [shanyp 04/04/2019  - revert pending comment from shanyp
+!            dcondt(la,k) = qdotac
+!            dcondt(lc,k) = 0.0_r8
+!            dcondt(la,k) = qdota
+!            dcondt(lc,k) = qdotc
 
             dcondt_resusp(la,k) = (dcondt(la,k) - qdota)
             dcondt_resusp(lc,k) = (dcondt(lc,k) - qdotc)
+            dcondt_resusp(la,k) = dcondt(la,k)
+            dcondt_resusp(lc,k) = dcondt(lc,k)
+!!!! shanyp 04/04/2019]
          end do
 
       end do   ! "ll = -1, nspec_amode(n)"
