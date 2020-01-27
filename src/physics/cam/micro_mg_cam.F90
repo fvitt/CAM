@@ -94,6 +94,7 @@ use error_messages, only: handle_errmsg
 use ref_pres,       only: top_lev=>trop_cloud_top_lev
 
 use subcol_utils,   only: subcol_get_scheme
+use infnan,         only: nan, assignment(=)
 
 implicit none
 private
@@ -774,6 +775,10 @@ subroutine micro_mg_cam_init(pbuf2d)
    integer :: ierr
    character(128) :: errstring     ! return status (non-blank for error return)
 
+   real(r8) :: nanval
+
+   nanval=nan
+
    !-----------------------------------------------------------------------
 
    call phys_getopts(use_subcol_microp_out=use_subcol_microp, &
@@ -1238,6 +1243,7 @@ subroutine micro_mg_cam_init(pbuf2d)
       call pbuf_set_field(pbuf2d, evprain_st_idx, 0._r8)
       call pbuf_set_field(pbuf2d, evpsnow_st_idx, 0._r8)
       call pbuf_set_field(pbuf2d, prer_evap_idx,  0._r8)
+      call pbuf_set_field(pbuf2d, bergso_idx, nanval)
 
       if (qrain_idx > 0)   call pbuf_set_field(pbuf2d, qrain_idx, 0._r8)
       if (qsnow_idx > 0)   call pbuf_set_field(pbuf2d, qsnow_idx, 0._r8)
@@ -1426,7 +1432,6 @@ subroutine micro_mg_cam_tend_pack(state, ptend, dtime, pbuf, mgncol, mgcols, nle
    real(r8), target :: mnuccto(state%psetcols,pver)
    real(r8), target :: msacwio(state%psetcols,pver)
    real(r8), target :: psacwso(state%psetcols,pver)
-   real(r8), target :: bergso(state%psetcols,pver)
    real(r8), target :: bergo(state%psetcols,pver)
    real(r8), target :: melto(state%psetcols,pver)
    real(r8), target :: homoo(state%psetcols,pver)
@@ -1697,6 +1702,7 @@ subroutine micro_mg_cam_tend_pack(state, ptend, dtime, pbuf, mgncol, mgcols, nle
   real(r8), pointer :: frzdep(:,:)
 
    real(r8), pointer :: qme(:,:)
+   real(r8), pointer :: bergso(:,:)
 
    ! A local copy of state is used for diagnostic calculations
    type(physics_state) :: state_loc
@@ -2026,6 +2032,8 @@ subroutine micro_mg_cam_tend_pack(state, ptend, dtime, pbuf, mgncol, mgcols, nle
    call pbuf_get_field(pbuf, sadsnow_idx,     sadsnow,     col_type=col_type)
    call pbuf_get_field(pbuf, wsedl_idx,       wsedl,       col_type=col_type)
    call pbuf_get_field(pbuf, qme_idx,         qme,         col_type=col_type)
+   call pbuf_get_field(pbuf, bergso_idx,      bergso,      col_type=col_type)
+   bergso(:,:) = nan
    if (degrau_idx > 0)   call pbuf_get_field(pbuf, degrau_idx,   degrau,   col_type=col_type)
    if (icgrauwp_idx > 0) call pbuf_get_field(pbuf, icgrauwp_idx, icgrauwp, col_type=col_type)
    if (cldfgrau_idx > 0) call pbuf_get_field(pbuf, cldfgrau_idx, cldfgrau, col_type=col_type)
@@ -2643,6 +2651,8 @@ subroutine micro_mg_cam_tend_pack(state, ptend, dtime, pbuf, mgncol, mgcols, nle
    ! Net micro_mg_cam condensation rate
    qme(:ncol,:top_lev-1) = 0._r8
    qme(:ncol,top_lev:pver) = cmeliq(:ncol,top_lev:pver) + cmeiout(:ncol,top_lev:pver)
+
+   bergso(:ncol,:top_lev-1) = 0._r8
 
    ! For precip, accumulate only total precip in prec_pcw and snow_pcw variables.
    ! Other precip output variables are set to 0
