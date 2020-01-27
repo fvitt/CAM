@@ -522,8 +522,8 @@ contains
       real(r8), pointer :: mbar_blck(:,:)   ! mean molecular weight
      ! Temp fields for outfld
       real(r8)          :: r8tmp
-      real(r8), pointer :: tempm(:,:) ! Temp midpoint field for outfld
-      real(r8), pointer :: tempi(:,:) ! Temp interface field for outfld
+      real(r8), pointer :: tempm(:,:) => null() ! Temp midpoint field for outfld
+      real(r8), pointer :: tempi(:,:) => null() ! Temp interface field for outfld
       !!XXgoldyXX: v Why is this re different than the one in edyn_params?
       real(r8) :: re = 6.370e6_r8                      ! earth radius (m)
       !!XXgoldyXX: ^ Why is this re different than the one in edyn_params?
@@ -845,6 +845,10 @@ contains
             deallocate(tempi)
             nullify(tempi)
          end if
+         if (associated(tempm)) then
+            deallocate(tempm)
+            nullify(tempm)
+         end if
          deallocate(opmmrtm1_blck)
          nullify(opmmrtm1_blck)
          deallocate(phis)
@@ -887,8 +891,6 @@ contains
          nullify(mbar_blck)
          deallocate(pmid_blck)
          nullify(pmid_blck)
-         deallocate(tempm)
-         nullify(tempm)
 
       end if ionos_cpl
 
