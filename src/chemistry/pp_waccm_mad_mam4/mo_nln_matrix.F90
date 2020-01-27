@@ -1,3027 +1,2865 @@
       module mo_nln_matrix
       use shr_kind_mod, only : r8 => shr_kind_r8
-      use chem_mods, only: veclen
       private
       public :: nlnmat
       contains
-      subroutine nlnmat01( avec_len, mat, y, rxt )
+      subroutine nlnmat01( mat, y, rxt )
       use chem_mods, only : gas_pcnst, rxntot, nzcnt
       implicit none
 !----------------------------------------------
 ! ... dummy arguments
 !----------------------------------------------
-      integer, intent(in) :: avec_len
-      real(r8), intent(in) :: y(veclen,gas_pcnst)
-      real(r8), intent(in) :: rxt(veclen,rxntot)
-      real(r8), intent(inout) :: mat(veclen,nzcnt)
+      real(r8), intent(in) :: y(gas_pcnst)
+      real(r8), intent(in) :: rxt(rxntot)
+      real(r8), intent(inout) :: mat(nzcnt)
 !----------------------------------------------
 ! ... local variables
 !----------------------------------------------
-      integer :: k
 !----------------------------------------------
 ! ... complete matrix entries implicit species
 !----------------------------------------------
-      do k = 1,avec_len
-         mat(k,558) = rxt(k,491)*y(k,26)
-         mat(k,1081) = rxt(k,491)*y(k,4)
-         mat(k,1286) = (rxt(k,570)+rxt(k,575))*y(k,51)
-         mat(k,217) = (rxt(k,570)+rxt(k,575))*y(k,47)
-         mat(k,565) = -(4._r8*rxt(k,488)*y(k,4) + (rxt(k,489) + rxt(k,490) + rxt(k,491) &
-                      ) * y(k,26) + rxt(k,492)*y(k,97) + rxt(k,493)*y(k,60) + rxt(k,494) &
-                      *y(k,61) + rxt(k,496)*y(k,67) + rxt(k,497)*y(k,130) + rxt(k,545) &
-                      *y(k,75))
-         mat(k,1090) = -(rxt(k,489) + rxt(k,490) + rxt(k,491)) * y(k,4)
-         mat(k,725) = -rxt(k,492)*y(k,4)
-         mat(k,1544) = -rxt(k,493)*y(k,4)
-         mat(k,1461) = -rxt(k,494)*y(k,4)
-         mat(k,1600) = -rxt(k,496)*y(k,4)
-         mat(k,771) = -rxt(k,497)*y(k,4)
-         mat(k,362) = -rxt(k,545)*y(k,4)
-         mat(k,140) = rxt(k,495)*y(k,67)
-         mat(k,228) = rxt(k,505)*y(k,121)
-         mat(k,220) = rxt(k,500)*y(k,67)
-         mat(k,1600) = mat(k,1600) + rxt(k,495)*y(k,5) + rxt(k,500)*y(k,51)
-         mat(k,917) = rxt(k,487)*y(k,84)
-         mat(k,452) = rxt(k,487)*y(k,69)
-         mat(k,616) = rxt(k,505)*y(k,43)
-         mat(k,137) = -(rxt(k,495)*y(k,67))
-         mat(k,1582) = -rxt(k,495)*y(k,5)
-         mat(k,560) = rxt(k,494)*y(k,61)
-         mat(k,1448) = rxt(k,494)*y(k,4)
-         mat(k,587) = -(rxt(k,449)*y(k,85) + rxt(k,485)*y(k,84) + rxt(k,529)*y(k,62) &
-                      + rxt(k,530)*y(k,67) + rxt(k,531)*y(k,130))
-         mat(k,877) = -rxt(k,449)*y(k,16)
-         mat(k,453) = -rxt(k,485)*y(k,16)
-         mat(k,1174) = -rxt(k,529)*y(k,16)
-         mat(k,1601) = -rxt(k,530)*y(k,16)
-         mat(k,772) = -rxt(k,531)*y(k,16)
-         mat(k,306) = rxt(k,456)*y(k,26) + rxt(k,533)*y(k,60)
-         mat(k,79) = .300_r8*rxt(k,534)*y(k,130)
-         mat(k,1091) = rxt(k,456)*y(k,20)
-         mat(k,1545) = rxt(k,533)*y(k,20)
-         mat(k,772) = mat(k,772) + .300_r8*rxt(k,534)*y(k,21)
-         mat(k,305) = -(rxt(k,456)*y(k,26) + rxt(k,532)*y(k,97) + rxt(k,533)*y(k,60))
-         mat(k,1087) = -rxt(k,456)*y(k,20)
-         mat(k,722) = -rxt(k,532)*y(k,20)
-         mat(k,1538) = -rxt(k,533)*y(k,20)
-         mat(k,78) = .700_r8*rxt(k,534)*y(k,130)
-         mat(k,767) = .700_r8*rxt(k,534)*y(k,21)
-         mat(k,77) = -(rxt(k,534)*y(k,130))
-         mat(k,754) = -rxt(k,534)*y(k,21)
-         mat(k,304) = rxt(k,532)*y(k,97)
-         mat(k,715) = rxt(k,532)*y(k,20)
-         mat(k,1080) = 2.000_r8*rxt(k,458)*y(k,26)
-         mat(k,257) = (rxt(k,568)+rxt(k,573)+rxt(k,578))*y(k,47) + rxt(k,462)*y(k,85)
-         mat(k,1285) = (rxt(k,568)+rxt(k,573)+rxt(k,578))*y(k,27) + (rxt(k,563) &
-                       +rxt(k,569)+rxt(k,574))*y(k,52)
-         mat(k,234) = (rxt(k,563)+rxt(k,569)+rxt(k,574))*y(k,47)
-         mat(k,867) = rxt(k,462)*y(k,27)
-         mat(k,1079) = 2.000_r8*rxt(k,483)*y(k,26)
-         mat(k,1105) = -(rxt(k,115)*y(k,90) + rxt(k,127)*y(k,93) + rxt(k,285)*y(k,107) &
-                      + rxt(k,314)*y(k,124) + rxt(k,341)*y(k,131) + rxt(k,350) &
-                      *y(k,132) + rxt(k,456)*y(k,20) + (4._r8*rxt(k,457) &
-                      + 4._r8*rxt(k,458) + 4._r8*rxt(k,459) + 4._r8*rxt(k,483) &
-                      ) * y(k,26) + rxt(k,460)*y(k,97) + rxt(k,461)*y(k,60) + rxt(k,463) &
-                      *y(k,61) + rxt(k,466)*y(k,67) + (rxt(k,467) + rxt(k,468) &
-                      ) * y(k,130) + (rxt(k,489) + rxt(k,490) + rxt(k,491)) * y(k,4) &
-                      + rxt(k,546)*y(k,75))
-         mat(k,810) = -rxt(k,115)*y(k,26)
-         mat(k,653) = -rxt(k,127)*y(k,26)
-         mat(k,1644) = -rxt(k,285)*y(k,26)
-         mat(k,1385) = -rxt(k,314)*y(k,26)
-         mat(k,1676) = -rxt(k,341)*y(k,26)
-         mat(k,1711) = -rxt(k,350)*y(k,26)
-         mat(k,310) = -rxt(k,456)*y(k,26)
-         mat(k,733) = -rxt(k,460)*y(k,26)
-         mat(k,1558) = -rxt(k,461)*y(k,26)
-         mat(k,1475) = -rxt(k,463)*y(k,26)
-         mat(k,1615) = -rxt(k,466)*y(k,26)
-         mat(k,780) = -(rxt(k,467) + rxt(k,468)) * y(k,26)
-         mat(k,572) = -(rxt(k,489) + rxt(k,490) + rxt(k,491)) * y(k,26)
-         mat(k,367) = -rxt(k,546)*y(k,26)
-         mat(k,262) = rxt(k,464)*y(k,67)
-         mat(k,1311) = rxt(k,482)*y(k,121)
-         mat(k,238) = rxt(k,472)*y(k,67) + rxt(k,471)*y(k,85) + rxt(k,473)*y(k,130)
-         mat(k,1615) = mat(k,1615) + rxt(k,464)*y(k,27) + rxt(k,472)*y(k,52)
-         mat(k,932) = rxt(k,455)*y(k,85)
-         mat(k,67) = rxt(k,551)*y(k,75)
-         mat(k,367) = mat(k,367) + rxt(k,551)*y(k,70)
-         mat(k,891) = rxt(k,471)*y(k,52) + rxt(k,455)*y(k,69) + rxt(k,454)*y(k,97)
-         mat(k,733) = mat(k,733) + rxt(k,454)*y(k,85)
-         mat(k,624) = rxt(k,482)*y(k,47)
-         mat(k,780) = mat(k,780) + rxt(k,473)*y(k,52)
-         mat(k,259) = -(rxt(k,462)*y(k,85) + rxt(k,464)*y(k,67) + rxt(k,465)*y(k,130) &
-                      + (rxt(k,568) + rxt(k,573) + rxt(k,578)) * y(k,47))
-         mat(k,871) = -rxt(k,462)*y(k,27)
-         mat(k,1592) = -rxt(k,464)*y(k,27)
-         mat(k,765) = -rxt(k,465)*y(k,27)
-         mat(k,1290) = -(rxt(k,568) + rxt(k,573) + rxt(k,578)) * y(k,27)
-         mat(k,1085) = rxt(k,463)*y(k,61)
-         mat(k,1451) = rxt(k,463)*y(k,26)
-         mat(k,133) = -((rxt(k,536) + rxt(k,540)) * y(k,130))
-         mat(k,756) = -(rxt(k,536) + rxt(k,540)) * y(k,29)
-         mat(k,582) = rxt(k,529)*y(k,62) + rxt(k,530)*y(k,67) + rxt(k,485)*y(k,84) &
-                      + rxt(k,449)*y(k,85) + rxt(k,531)*y(k,130)
-         mat(k,1165) = rxt(k,529)*y(k,16)
-         mat(k,1581) = rxt(k,530)*y(k,16) + rxt(k,541)*y(k,71)
-         mat(k,70) = rxt(k,541)*y(k,67) + rxt(k,542)*y(k,130)
-         mat(k,449) = rxt(k,485)*y(k,16)
-         mat(k,868) = rxt(k,449)*y(k,16)
-         mat(k,756) = mat(k,756) + rxt(k,531)*y(k,16) + rxt(k,542)*y(k,71)
-         mat(k,27) = -(rxt(k,510)*y(k,121))
-         mat(k,606) = -rxt(k,510)*y(k,31)
-         mat(k,32) = -(rxt(k,511)*y(k,121))
-         mat(k,607) = -rxt(k,511)*y(k,32)
-         mat(k,58) = -(rxt(k,555)*y(k,62) + (rxt(k,556) + rxt(k,557)) * y(k,130))
-         mat(k,1164) = -rxt(k,555)*y(k,33)
-         mat(k,752) = -(rxt(k,556) + rxt(k,557)) * y(k,33)
-         mat(k,209) = -(rxt(k,507)*y(k,39) + rxt(k,508)*y(k,134) + rxt(k,509)*y(k,49))
-         mat(k,463) = -rxt(k,507)*y(k,37)
-         mat(k,1784) = -rxt(k,508)*y(k,37)
-         mat(k,1331) = -rxt(k,509)*y(k,37)
-         mat(k,28) = 2.000_r8*rxt(k,510)*y(k,121)
-         mat(k,33) = rxt(k,511)*y(k,121)
-         mat(k,609) = 2.000_r8*rxt(k,510)*y(k,31) + rxt(k,511)*y(k,32)
-         mat(k,1223) = -(rxt(k,104)*y(k,86) + rxt(k,116)*y(k,90) + rxt(k,128)*y(k,93) &
-                      + rxt(k,286)*y(k,107) + rxt(k,308)*y(k,118) + rxt(k,316) &
-                      *y(k,124) + rxt(k,330)*y(k,127) + rxt(k,343)*y(k,131) + (rxt(k,407) &
-                      + rxt(k,408) + rxt(k,409)) * y(k,97) + rxt(k,410)*y(k,68) &
-                      + rxt(k,413)*y(k,69))
-         mat(k,679) = -rxt(k,104)*y(k,38)
-         mat(k,813) = -rxt(k,116)*y(k,38)
-         mat(k,655) = -rxt(k,128)*y(k,38)
-         mat(k,1647) = -rxt(k,286)*y(k,38)
-         mat(k,1149) = -rxt(k,308)*y(k,38)
-         mat(k,1388) = -rxt(k,316)*y(k,38)
-         mat(k,424) = -rxt(k,330)*y(k,38)
-         mat(k,1679) = -rxt(k,343)*y(k,38)
-         mat(k,736) = -(rxt(k,407) + rxt(k,408) + rxt(k,409)) * y(k,38)
-         mat(k,1270) = -rxt(k,410)*y(k,38)
-         mat(k,935) = -rxt(k,413)*y(k,38)
-         mat(k,596) = rxt(k,531)*y(k,130)
-         mat(k,136) = rxt(k,540)*y(k,130)
-         mat(k,214) = rxt(k,507)*y(k,39)
-         mat(k,474) = rxt(k,507)*y(k,37) + rxt(k,405)*y(k,67) + rxt(k,451)*y(k,85) &
-                      + rxt(k,388)*y(k,121) + rxt(k,414)*y(k,130) + rxt(k,353) &
-                      *y(k,132)
-         mat(k,231) = rxt(k,505)*y(k,121)
-         mat(k,1314) = rxt(k,482)*y(k,121)
-         mat(k,298) = rxt(k,437)*y(k,130)
-         mat(k,1618) = rxt(k,405)*y(k,39) + rxt(k,417)*y(k,130)
-         mat(k,75) = rxt(k,542)*y(k,130)
-         mat(k,173) = rxt(k,547)*y(k,130)
-         mat(k,368) = rxt(k,552)*y(k,130)
-         mat(k,894) = rxt(k,451)*y(k,39)
-         mat(k,679) = mat(k,679) + rxt(k,194)*y(k,99) + rxt(k,146)*y(k,101) &
-                      + rxt(k,176)*y(k,103)
-         mat(k,397) = rxt(k,198)*y(k,99) + rxt(k,163)*y(k,101) + rxt(k,181)*y(k,103)
-         mat(k,381) = rxt(k,186)*y(k,99) + rxt(k,180)*y(k,101) + rxt(k,168)*y(k,103)
-         mat(k,813) = mat(k,813) + rxt(k,185)*y(k,99) + (rxt(k,169)+rxt(k,257)) &
-                      *y(k,101) + (rxt(k,167)+rxt(k,264))*y(k,103)
-         mat(k,349) = rxt(k,193)*y(k,99) + (rxt(k,246)+rxt(k,270))*y(k,101) + ( &
-                      + rxt(k,175)+rxt(k,258))*y(k,103)
-         mat(k,528) = rxt(k,195)*y(k,99) + (rxt(k,157)+rxt(k,259))*y(k,101) + ( &
-                      + rxt(k,177)+rxt(k,260))*y(k,103)
-         mat(k,655) = mat(k,655) + rxt(k,190)*y(k,99) + rxt(k,224)*y(k,101) &
-                      + rxt(k,173)*y(k,103)
-         mat(k,853) = rxt(k,137)*y(k,95) + rxt(k,381)*y(k,98) + rxt(k,382)*y(k,99) &
-                      + rxt(k,140)*y(k,101) + rxt(k,143)*y(k,103) + rxt(k,380) &
-                      *y(k,104)
-         mat(k,87) = rxt(k,137)*y(k,94)
-         mat(k,322) = rxt(k,188)*y(k,99) + rxt(k,202)*y(k,101) + rxt(k,171)*y(k,103)
-         mat(k,155) = rxt(k,381)*y(k,94)
-         mat(k,1756) = rxt(k,194)*y(k,86) + rxt(k,198)*y(k,87) + rxt(k,186)*y(k,88) &
-                      + rxt(k,185)*y(k,90) + rxt(k,193)*y(k,91) + rxt(k,195)*y(k,92) &
-                      + rxt(k,190)*y(k,93) + rxt(k,382)*y(k,94) + rxt(k,188)*y(k,96) &
-                      + rxt(k,200)*y(k,107) + rxt(k,196)*y(k,108) + rxt(k,199) &
-                      *y(k,110) + rxt(k,192)*y(k,111) + rxt(k,197)*y(k,112) &
-                      + rxt(k,189)*y(k,124)
-         mat(k,1520) = rxt(k,146)*y(k,86) + rxt(k,163)*y(k,87) + rxt(k,180)*y(k,88) + ( &
-                      + rxt(k,169)+rxt(k,257))*y(k,90) + (rxt(k,246)+rxt(k,270)) &
-                      *y(k,91) + (rxt(k,157)+rxt(k,259))*y(k,92) + rxt(k,224)*y(k,93) &
-                      + rxt(k,140)*y(k,94) + rxt(k,202)*y(k,96) + rxt(k,165)*y(k,107) &
-                      + rxt(k,161)*y(k,108) + rxt(k,164)*y(k,110) + (rxt(k,235) &
-                       +rxt(k,261))*y(k,111) + rxt(k,162)*y(k,112) + rxt(k,213) &
-                      *y(k,124)
-         mat(k,1064) = rxt(k,176)*y(k,86) + rxt(k,181)*y(k,87) + rxt(k,168)*y(k,88) + ( &
-                      + rxt(k,167)+rxt(k,264))*y(k,90) + (rxt(k,175)+rxt(k,258)) &
-                      *y(k,91) + (rxt(k,177)+rxt(k,260))*y(k,92) + rxt(k,173)*y(k,93) &
-                      + rxt(k,143)*y(k,94) + rxt(k,171)*y(k,96) + rxt(k,183)*y(k,107) &
-                      + rxt(k,178)*y(k,108) + rxt(k,182)*y(k,110) + (rxt(k,174) &
-                       +rxt(k,262))*y(k,111) + rxt(k,179)*y(k,112) + rxt(k,172) &
-                      *y(k,124)
-         mat(k,184) = rxt(k,380)*y(k,94)
-         mat(k,1647) = mat(k,1647) + rxt(k,200)*y(k,99) + rxt(k,165)*y(k,101) &
-                      + rxt(k,183)*y(k,103)
-         mat(k,410) = rxt(k,196)*y(k,99) + rxt(k,161)*y(k,101) + rxt(k,178)*y(k,103)
-         mat(k,508) = rxt(k,199)*y(k,99) + rxt(k,164)*y(k,101) + rxt(k,182)*y(k,103)
-         mat(k,548) = rxt(k,192)*y(k,99) + (rxt(k,235)+rxt(k,261))*y(k,101) + ( &
-                      + rxt(k,174)+rxt(k,262))*y(k,103)
-         mat(k,440) = rxt(k,197)*y(k,99) + rxt(k,162)*y(k,101) + rxt(k,179)*y(k,103)
-         mat(k,626) = rxt(k,388)*y(k,39) + rxt(k,505)*y(k,43) + rxt(k,482)*y(k,47)
-         mat(k,1388) = mat(k,1388) + rxt(k,189)*y(k,99) + rxt(k,213)*y(k,101) &
-                      + rxt(k,172)*y(k,103)
-         mat(k,783) = rxt(k,531)*y(k,16) + rxt(k,540)*y(k,29) + rxt(k,414)*y(k,39) &
-                      + rxt(k,437)*y(k,54) + rxt(k,417)*y(k,67) + rxt(k,542)*y(k,71) &
-                      + rxt(k,547)*y(k,74) + rxt(k,552)*y(k,75)
-         mat(k,1714) = rxt(k,353)*y(k,39)
-      end do
+         mat(558) = rxt(491)*y(26)
+         mat(1081) = rxt(491)*y(4)
+         mat(1286) = (rxt(570)+rxt(575))*y(51)
+         mat(217) = (rxt(570)+rxt(575))*y(47)
+         mat(565) = -(4._r8*rxt(488)*y(4) + (rxt(489) + rxt(490) + rxt(491)) * y(26) &
+                      + rxt(492)*y(97) + rxt(493)*y(60) + rxt(494)*y(61) + rxt(496) &
+                      *y(67) + rxt(497)*y(130) + rxt(545)*y(75))
+         mat(1090) = -(rxt(489) + rxt(490) + rxt(491)) * y(4)
+         mat(725) = -rxt(492)*y(4)
+         mat(1544) = -rxt(493)*y(4)
+         mat(1461) = -rxt(494)*y(4)
+         mat(1600) = -rxt(496)*y(4)
+         mat(771) = -rxt(497)*y(4)
+         mat(362) = -rxt(545)*y(4)
+         mat(140) = rxt(495)*y(67)
+         mat(228) = rxt(505)*y(121)
+         mat(220) = rxt(500)*y(67)
+         mat(1600) = mat(1600) + rxt(495)*y(5) + rxt(500)*y(51)
+         mat(917) = rxt(487)*y(84)
+         mat(452) = rxt(487)*y(69)
+         mat(616) = rxt(505)*y(43)
+         mat(137) = -(rxt(495)*y(67))
+         mat(1582) = -rxt(495)*y(5)
+         mat(560) = rxt(494)*y(61)
+         mat(1448) = rxt(494)*y(4)
+         mat(587) = -(rxt(449)*y(85) + rxt(485)*y(84) + rxt(529)*y(62) + rxt(530) &
+                      *y(67) + rxt(531)*y(130))
+         mat(877) = -rxt(449)*y(16)
+         mat(453) = -rxt(485)*y(16)
+         mat(1174) = -rxt(529)*y(16)
+         mat(1601) = -rxt(530)*y(16)
+         mat(772) = -rxt(531)*y(16)
+         mat(306) = rxt(456)*y(26) + rxt(533)*y(60)
+         mat(79) = .300_r8*rxt(534)*y(130)
+         mat(1091) = rxt(456)*y(20)
+         mat(1545) = rxt(533)*y(20)
+         mat(772) = mat(772) + .300_r8*rxt(534)*y(21)
+         mat(305) = -(rxt(456)*y(26) + rxt(532)*y(97) + rxt(533)*y(60))
+         mat(1087) = -rxt(456)*y(20)
+         mat(722) = -rxt(532)*y(20)
+         mat(1538) = -rxt(533)*y(20)
+         mat(78) = .700_r8*rxt(534)*y(130)
+         mat(767) = .700_r8*rxt(534)*y(21)
+         mat(77) = -(rxt(534)*y(130))
+         mat(754) = -rxt(534)*y(21)
+         mat(304) = rxt(532)*y(97)
+         mat(715) = rxt(532)*y(20)
+         mat(1080) = 2.000_r8*rxt(458)*y(26)
+         mat(257) = (rxt(568)+rxt(573)+rxt(578))*y(47) + rxt(462)*y(85)
+         mat(1285) = (rxt(568)+rxt(573)+rxt(578))*y(27) + (rxt(563)+rxt(569)+rxt(574)) &
+                      *y(52)
+         mat(234) = (rxt(563)+rxt(569)+rxt(574))*y(47)
+         mat(867) = rxt(462)*y(27)
+         mat(1079) = 2.000_r8*rxt(483)*y(26)
+         mat(1105) = -(rxt(115)*y(90) + rxt(127)*y(93) + rxt(285)*y(107) + rxt(314) &
+                      *y(124) + rxt(341)*y(131) + rxt(350)*y(132) + rxt(456)*y(20) &
+                      + (4._r8*rxt(457) + 4._r8*rxt(458) + 4._r8*rxt(459) &
+                      + 4._r8*rxt(483)) * y(26) + rxt(460)*y(97) + rxt(461)*y(60) &
+                      + rxt(463)*y(61) + rxt(466)*y(67) + (rxt(467) + rxt(468) &
+                      ) * y(130) + (rxt(489) + rxt(490) + rxt(491)) * y(4) + rxt(546) &
+                      *y(75))
+         mat(810) = -rxt(115)*y(26)
+         mat(653) = -rxt(127)*y(26)
+         mat(1644) = -rxt(285)*y(26)
+         mat(1385) = -rxt(314)*y(26)
+         mat(1676) = -rxt(341)*y(26)
+         mat(1711) = -rxt(350)*y(26)
+         mat(310) = -rxt(456)*y(26)
+         mat(733) = -rxt(460)*y(26)
+         mat(1558) = -rxt(461)*y(26)
+         mat(1475) = -rxt(463)*y(26)
+         mat(1615) = -rxt(466)*y(26)
+         mat(780) = -(rxt(467) + rxt(468)) * y(26)
+         mat(572) = -(rxt(489) + rxt(490) + rxt(491)) * y(26)
+         mat(367) = -rxt(546)*y(26)
+         mat(262) = rxt(464)*y(67)
+         mat(1311) = rxt(482)*y(121)
+         mat(238) = rxt(472)*y(67) + rxt(471)*y(85) + rxt(473)*y(130)
+         mat(1615) = mat(1615) + rxt(464)*y(27) + rxt(472)*y(52)
+         mat(932) = rxt(455)*y(85)
+         mat(67) = rxt(551)*y(75)
+         mat(367) = mat(367) + rxt(551)*y(70)
+         mat(891) = rxt(471)*y(52) + rxt(455)*y(69) + rxt(454)*y(97)
+         mat(733) = mat(733) + rxt(454)*y(85)
+         mat(624) = rxt(482)*y(47)
+         mat(780) = mat(780) + rxt(473)*y(52)
+         mat(259) = -(rxt(462)*y(85) + rxt(464)*y(67) + rxt(465)*y(130) + (rxt(568) &
+                      + rxt(573) + rxt(578)) * y(47))
+         mat(871) = -rxt(462)*y(27)
+         mat(1592) = -rxt(464)*y(27)
+         mat(765) = -rxt(465)*y(27)
+         mat(1290) = -(rxt(568) + rxt(573) + rxt(578)) * y(27)
+         mat(1085) = rxt(463)*y(61)
+         mat(1451) = rxt(463)*y(26)
+         mat(133) = -((rxt(536) + rxt(540)) * y(130))
+         mat(756) = -(rxt(536) + rxt(540)) * y(29)
+         mat(582) = rxt(529)*y(62) + rxt(530)*y(67) + rxt(485)*y(84) + rxt(449)*y(85) &
+                      + rxt(531)*y(130)
+         mat(1165) = rxt(529)*y(16)
+         mat(1581) = rxt(530)*y(16) + rxt(541)*y(71)
+         mat(70) = rxt(541)*y(67) + rxt(542)*y(130)
+         mat(449) = rxt(485)*y(16)
+         mat(868) = rxt(449)*y(16)
+         mat(756) = mat(756) + rxt(531)*y(16) + rxt(542)*y(71)
+         mat(27) = -(rxt(510)*y(121))
+         mat(606) = -rxt(510)*y(31)
+         mat(32) = -(rxt(511)*y(121))
+         mat(607) = -rxt(511)*y(32)
+         mat(58) = -(rxt(555)*y(62) + (rxt(556) + rxt(557)) * y(130))
+         mat(1164) = -rxt(555)*y(33)
+         mat(752) = -(rxt(556) + rxt(557)) * y(33)
+         mat(209) = -(rxt(507)*y(39) + rxt(508)*y(134) + rxt(509)*y(49))
+         mat(463) = -rxt(507)*y(37)
+         mat(1784) = -rxt(508)*y(37)
+         mat(1331) = -rxt(509)*y(37)
+         mat(28) = 2.000_r8*rxt(510)*y(121)
+         mat(33) = rxt(511)*y(121)
+         mat(609) = 2.000_r8*rxt(510)*y(31) + rxt(511)*y(32)
+         mat(1223) = -(rxt(104)*y(86) + rxt(116)*y(90) + rxt(128)*y(93) + rxt(286) &
+                      *y(107) + rxt(308)*y(118) + rxt(316)*y(124) + rxt(330)*y(127) &
+                      + rxt(343)*y(131) + (rxt(407) + rxt(408) + rxt(409)) * y(97) &
+                      + rxt(410)*y(68) + rxt(413)*y(69))
+         mat(679) = -rxt(104)*y(38)
+         mat(813) = -rxt(116)*y(38)
+         mat(655) = -rxt(128)*y(38)
+         mat(1647) = -rxt(286)*y(38)
+         mat(1149) = -rxt(308)*y(38)
+         mat(1388) = -rxt(316)*y(38)
+         mat(424) = -rxt(330)*y(38)
+         mat(1679) = -rxt(343)*y(38)
+         mat(736) = -(rxt(407) + rxt(408) + rxt(409)) * y(38)
+         mat(1270) = -rxt(410)*y(38)
+         mat(935) = -rxt(413)*y(38)
+         mat(596) = rxt(531)*y(130)
+         mat(136) = rxt(540)*y(130)
+         mat(214) = rxt(507)*y(39)
+         mat(474) = rxt(507)*y(37) + rxt(405)*y(67) + rxt(451)*y(85) + rxt(388)*y(121) &
+                      + rxt(414)*y(130) + rxt(353)*y(132)
+         mat(231) = rxt(505)*y(121)
+         mat(1314) = rxt(482)*y(121)
+         mat(298) = rxt(437)*y(130)
+         mat(1618) = rxt(405)*y(39) + rxt(417)*y(130)
+         mat(75) = rxt(542)*y(130)
+         mat(173) = rxt(547)*y(130)
+         mat(368) = rxt(552)*y(130)
+         mat(894) = rxt(451)*y(39)
+         mat(679) = mat(679) + rxt(194)*y(99) + rxt(146)*y(101) + rxt(176)*y(103)
+         mat(397) = rxt(198)*y(99) + rxt(163)*y(101) + rxt(181)*y(103)
+         mat(381) = rxt(186)*y(99) + rxt(180)*y(101) + rxt(168)*y(103)
+         mat(813) = mat(813) + rxt(185)*y(99) + (rxt(169)+rxt(257))*y(101) + (rxt(167) &
+                       +rxt(264))*y(103)
+         mat(349) = rxt(193)*y(99) + (rxt(246)+rxt(270))*y(101) + (rxt(175)+rxt(258)) &
+                      *y(103)
+         mat(528) = rxt(195)*y(99) + (rxt(157)+rxt(259))*y(101) + (rxt(177)+rxt(260)) &
+                      *y(103)
+         mat(655) = mat(655) + rxt(190)*y(99) + rxt(224)*y(101) + rxt(173)*y(103)
+         mat(853) = rxt(137)*y(95) + rxt(381)*y(98) + rxt(382)*y(99) + rxt(140)*y(101) &
+                      + rxt(143)*y(103) + rxt(380)*y(104)
+         mat(87) = rxt(137)*y(94)
+         mat(322) = rxt(188)*y(99) + rxt(202)*y(101) + rxt(171)*y(103)
+         mat(155) = rxt(381)*y(94)
+         mat(1756) = rxt(194)*y(86) + rxt(198)*y(87) + rxt(186)*y(88) + rxt(185)*y(90) &
+                      + rxt(193)*y(91) + rxt(195)*y(92) + rxt(190)*y(93) + rxt(382) &
+                      *y(94) + rxt(188)*y(96) + rxt(200)*y(107) + rxt(196)*y(108) &
+                      + rxt(199)*y(110) + rxt(192)*y(111) + rxt(197)*y(112) + rxt(189) &
+                      *y(124)
+         mat(1520) = rxt(146)*y(86) + rxt(163)*y(87) + rxt(180)*y(88) + (rxt(169) &
+                       +rxt(257))*y(90) + (rxt(246)+rxt(270))*y(91) + (rxt(157) &
+                       +rxt(259))*y(92) + rxt(224)*y(93) + rxt(140)*y(94) + rxt(202) &
+                      *y(96) + rxt(165)*y(107) + rxt(161)*y(108) + rxt(164)*y(110) + ( &
+                      + rxt(235)+rxt(261))*y(111) + rxt(162)*y(112) + rxt(213)*y(124)
+         mat(1064) = rxt(176)*y(86) + rxt(181)*y(87) + rxt(168)*y(88) + (rxt(167) &
+                       +rxt(264))*y(90) + (rxt(175)+rxt(258))*y(91) + (rxt(177) &
+                       +rxt(260))*y(92) + rxt(173)*y(93) + rxt(143)*y(94) + rxt(171) &
+                      *y(96) + rxt(183)*y(107) + rxt(178)*y(108) + rxt(182)*y(110) + ( &
+                      + rxt(174)+rxt(262))*y(111) + rxt(179)*y(112) + rxt(172)*y(124)
+         mat(184) = rxt(380)*y(94)
+         mat(1647) = mat(1647) + rxt(200)*y(99) + rxt(165)*y(101) + rxt(183)*y(103)
+         mat(410) = rxt(196)*y(99) + rxt(161)*y(101) + rxt(178)*y(103)
+         mat(508) = rxt(199)*y(99) + rxt(164)*y(101) + rxt(182)*y(103)
+         mat(548) = rxt(192)*y(99) + (rxt(235)+rxt(261))*y(101) + (rxt(174)+rxt(262)) &
+                      *y(103)
+         mat(440) = rxt(197)*y(99) + rxt(162)*y(101) + rxt(179)*y(103)
+         mat(626) = rxt(388)*y(39) + rxt(505)*y(43) + rxt(482)*y(47)
+         mat(1388) = mat(1388) + rxt(189)*y(99) + rxt(213)*y(101) + rxt(172)*y(103)
+         mat(783) = rxt(531)*y(16) + rxt(540)*y(29) + rxt(414)*y(39) + rxt(437)*y(54) &
+                      + rxt(417)*y(67) + rxt(542)*y(71) + rxt(547)*y(74) + rxt(552) &
+                      *y(75)
+         mat(1714) = rxt(353)*y(39)
+         mat(465) = -((rxt(352) + rxt(353)) * y(132) + rxt(388)*y(121) + rxt(405) &
+                      *y(67) + rxt(414)*y(130) + rxt(451)*y(85) + rxt(507)*y(37))
+         mat(1697) = -(rxt(352) + rxt(353)) * y(39)
+         mat(615) = -rxt(388)*y(39)
+         mat(1599) = -rxt(405)*y(39)
+         mat(770) = -rxt(414)*y(39)
+         mat(875) = -rxt(451)*y(39)
+         mat(211) = -rxt(507)*y(39)
+         mat(1205) = rxt(407)*y(97)
+         mat(724) = rxt(407)*y(38)
+         mat(145) = -(rxt(406)*y(67) + rxt(415)*y(130) + rxt(452)*y(85))
+         mat(1583) = -rxt(406)*y(41)
+         mat(757) = -rxt(415)*y(41)
+         mat(869) = -rxt(452)*y(41)
+         mat(717) = 2.000_r8*rxt(421)*y(97)
+         mat(757) = mat(757) + 2.000_r8*rxt(420)*y(130)
       end subroutine nlnmat01
-      subroutine nlnmat02( avec_len, mat, y, rxt )
+      subroutine nlnmat02( mat, y, rxt )
       use chem_mods, only : gas_pcnst, rxntot, nzcnt
       implicit none
 !----------------------------------------------
 ! ... dummy arguments
 !----------------------------------------------
-      integer, intent(in) :: avec_len
-      real(r8), intent(in) :: y(veclen,gas_pcnst)
-      real(r8), intent(in) :: rxt(veclen,rxntot)
-      real(r8), intent(inout) :: mat(veclen,nzcnt)
+      real(r8), intent(in) :: y(gas_pcnst)
+      real(r8), intent(in) :: rxt(rxntot)
+      real(r8), intent(inout) :: mat(nzcnt)
 !----------------------------------------------
 ! ... local variables
 !----------------------------------------------
-      integer :: k
 !----------------------------------------------
 ! ... complete matrix entries implicit species
 !----------------------------------------------
-      do k = 1,avec_len
-         mat(k,465) = -((rxt(k,352) + rxt(k,353)) * y(k,132) + rxt(k,388)*y(k,121) &
-                      + rxt(k,405)*y(k,67) + rxt(k,414)*y(k,130) + rxt(k,451)*y(k,85) &
-                      + rxt(k,507)*y(k,37))
-         mat(k,1697) = -(rxt(k,352) + rxt(k,353)) * y(k,39)
-         mat(k,615) = -rxt(k,388)*y(k,39)
-         mat(k,1599) = -rxt(k,405)*y(k,39)
-         mat(k,770) = -rxt(k,414)*y(k,39)
-         mat(k,875) = -rxt(k,451)*y(k,39)
-         mat(k,211) = -rxt(k,507)*y(k,39)
-         mat(k,1205) = rxt(k,407)*y(k,97)
-         mat(k,724) = rxt(k,407)*y(k,38)
-         mat(k,145) = -(rxt(k,406)*y(k,67) + rxt(k,415)*y(k,130) + rxt(k,452)*y(k,85))
-         mat(k,1583) = -rxt(k,406)*y(k,41)
-         mat(k,757) = -rxt(k,415)*y(k,41)
-         mat(k,869) = -rxt(k,452)*y(k,41)
-         mat(k,717) = 2.000_r8*rxt(k,421)*y(k,97)
-         mat(k,757) = mat(k,757) + 2.000_r8*rxt(k,420)*y(k,130)
-         mat(k,45) = rxt(k,554)*y(k,134)
-         mat(k,1771) = rxt(k,554)*y(k,77)
-         mat(k,226) = -(rxt(k,498)*y(k,67) + rxt(k,499)*y(k,130) + (rxt(k,504) &
-                      + rxt(k,505)) * y(k,121))
-         mat(k,1588) = -rxt(k,498)*y(k,43)
-         mat(k,762) = -rxt(k,499)*y(k,43)
-         mat(k,610) = -(rxt(k,504) + rxt(k,505)) * y(k,43)
-         mat(k,583) = rxt(k,485)*y(k,84)
-         mat(k,450) = rxt(k,485)*y(k,16) + rxt(k,486)*y(k,97)
-         mat(k,720) = rxt(k,486)*y(k,84)
-         mat(k,1316) = -(rxt(k,105)*y(k,87) + rxt(k,107)*y(k,86) + rxt(k,129)*y(k,93) &
-                      + (rxt(k,275) + rxt(k,297)) * y(k,109) + rxt(k,288)*y(k,107) &
-                      + rxt(k,317)*y(k,124) + rxt(k,344)*y(k,131) + rxt(k,355) &
-                      *y(k,132) + rxt(k,469)*y(k,67) + rxt(k,470)*y(k,130) + (rxt(k,481) &
-                      + rxt(k,482)) * y(k,121) + (rxt(k,563) + rxt(k,569) + rxt(k,574) &
-                      ) * y(k,52) + (rxt(k,568) + rxt(k,573) + rxt(k,578)) * y(k,27) &
-                      + (rxt(k,570) + rxt(k,575)) * y(k,51))
-         mat(k,399) = -rxt(k,105)*y(k,47)
-         mat(k,681) = -rxt(k,107)*y(k,47)
-         mat(k,657) = -rxt(k,129)*y(k,47)
-         mat(k,705) = -(rxt(k,275) + rxt(k,297)) * y(k,47)
-         mat(k,1649) = -rxt(k,288)*y(k,47)
-         mat(k,1390) = -rxt(k,317)*y(k,47)
-         mat(k,1681) = -rxt(k,344)*y(k,47)
-         mat(k,1716) = -rxt(k,355)*y(k,47)
-         mat(k,1620) = -rxt(k,469)*y(k,47)
-         mat(k,785) = -rxt(k,470)*y(k,47)
-         mat(k,628) = -(rxt(k,481) + rxt(k,482)) * y(k,47)
-         mat(k,239) = -(rxt(k,563) + rxt(k,569) + rxt(k,574)) * y(k,47)
-         mat(k,264) = -(rxt(k,568) + rxt(k,573) + rxt(k,578)) * y(k,47)
-         mat(k,223) = -(rxt(k,570) + rxt(k,575)) * y(k,47)
-         mat(k,598) = rxt(k,449)*y(k,85)
-         mat(k,1110) = rxt(k,468)*y(k,130)
-         mat(k,1225) = rxt(k,104)*y(k,86)
-         mat(k,476) = rxt(k,451)*y(k,85)
-         mat(k,149) = rxt(k,452)*y(k,85)
-         mat(k,1355) = rxt(k,108)*y(k,86) + rxt(k,298)*y(k,112)
-         mat(k,239) = mat(k,239) + rxt(k,471)*y(k,85)
-         mat(k,896) = rxt(k,449)*y(k,16) + rxt(k,451)*y(k,39) + rxt(k,452)*y(k,41) &
-                      + rxt(k,471)*y(k,52) + rxt(k,453)*y(k,97)
-         mat(k,681) = mat(k,681) + rxt(k,104)*y(k,38) + rxt(k,108)*y(k,49)
-         mat(k,383) = rxt(k,186)*y(k,99) + (rxt(k,180)+2.000_r8*rxt(k,266))*y(k,101) + ( &
-                      + rxt(k,168)+2.000_r8*rxt(k,267))*y(k,103) + rxt(k,239)*y(k,114) &
-                      + rxt(k,221)*y(k,115) + rxt(k,204)*y(k,118) + rxt(k,256) &
-                      *y(k,125)
-         mat(k,738) = rxt(k,453)*y(k,85)
-         mat(k,1758) = rxt(k,186)*y(k,88) + rxt(k,197)*y(k,112)
-         mat(k,1522) = (rxt(k,180)+2.000_r8*rxt(k,266))*y(k,88) + rxt(k,162)*y(k,112)
-         mat(k,1066) = (rxt(k,168)+2.000_r8*rxt(k,267))*y(k,88) + rxt(k,179)*y(k,112)
-         mat(k,442) = rxt(k,298)*y(k,49) + rxt(k,197)*y(k,99) + rxt(k,162)*y(k,101) &
-                      + rxt(k,179)*y(k,103) + rxt(k,250)*y(k,114) + rxt(k,232) &
-                      *y(k,115) + rxt(k,215)*y(k,118) + rxt(k,156)*y(k,125)
-         mat(k,982) = rxt(k,239)*y(k,88) + rxt(k,250)*y(k,112)
-         mat(k,1024) = rxt(k,221)*y(k,88) + rxt(k,232)*y(k,112)
-         mat(k,1151) = rxt(k,204)*y(k,88) + rxt(k,215)*y(k,112)
-         mat(k,1434) = rxt(k,256)*y(k,88) + rxt(k,156)*y(k,112)
-         mat(k,785) = mat(k,785) + rxt(k,468)*y(k,26)
-         mat(k,208) = rxt(k,507)*y(k,39) + rxt(k,509)*y(k,49) + rxt(k,508)*y(k,134)
-         mat(k,462) = rxt(k,507)*y(k,37)
-         mat(k,1329) = rxt(k,509)*y(k,37)
-         mat(k,1772) = rxt(k,508)*y(k,37)
-         mat(k,1356) = -(rxt(k,108)*y(k,86) + rxt(k,123)*y(k,90) + rxt(k,289)*y(k,107) &
-                      + rxt(k,294)*y(k,111) + rxt(k,298)*y(k,112) + rxt(k,299) &
-                      *y(k,109) + rxt(k,318)*y(k,124) + rxt(k,356)*y(k,132) + rxt(k,446) &
-                      *y(k,130) + rxt(k,509)*y(k,37))
-         mat(k,682) = -rxt(k,108)*y(k,49)
-         mat(k,816) = -rxt(k,123)*y(k,49)
-         mat(k,1650) = -rxt(k,289)*y(k,49)
-         mat(k,550) = -rxt(k,294)*y(k,49)
-         mat(k,443) = -rxt(k,298)*y(k,49)
-         mat(k,706) = -rxt(k,299)*y(k,49)
-         mat(k,1391) = -rxt(k,318)*y(k,49)
-         mat(k,1717) = -rxt(k,356)*y(k,49)
-         mat(k,786) = -rxt(k,446)*y(k,49)
-         mat(k,215) = -rxt(k,509)*y(k,49)
-         mat(k,599) = rxt(k,529)*y(k,62)
-         mat(k,265) = (rxt(k,568)+rxt(k,573)+rxt(k,578))*y(k,47)
-         mat(k,63) = rxt(k,555)*y(k,62)
-         mat(k,1317) = (rxt(k,568)+rxt(k,573)+rxt(k,578))*y(k,27) + rxt(k,297) &
-                      *y(k,109)
-         mat(k,285) = rxt(k,141)*y(k,101) + rxt(k,144)*y(k,103) + rxt(k,292)*y(k,110) &
-                      + rxt(k,296)*y(k,111)
-         mat(k,1481) = rxt(k,445)*y(k,130)
-         mat(k,1191) = rxt(k,529)*y(k,16) + rxt(k,555)*y(k,33)
-         mat(k,1759) = rxt(k,187)*y(k,109) + 2.000_r8*rxt(k,184)*y(k,113)
-         mat(k,51) = rxt(k,139)*y(k,134)
-         mat(k,1523) = rxt(k,141)*y(k,56) + (rxt(k,191)+rxt(k,263))*y(k,109) + ( &
-                      + 2.000_r8*rxt(k,145)+2.000_r8*rxt(k,268))*y(k,113)
-         mat(k,56) = rxt(k,142)*y(k,134)
-         mat(k,1067) = rxt(k,144)*y(k,56) + (rxt(k,170)+rxt(k,265))*y(k,109) + ( &
-                      + 2.000_r8*rxt(k,166)+2.000_r8*rxt(k,269))*y(k,113)
-         mat(k,706) = mat(k,706) + rxt(k,297)*y(k,47) + rxt(k,187)*y(k,99) + ( &
-                      + rxt(k,191)+rxt(k,263))*y(k,101) + (rxt(k,170)+rxt(k,265)) &
-                      *y(k,103)
-         mat(k,510) = rxt(k,292)*y(k,56)
-         mat(k,550) = mat(k,550) + rxt(k,296)*y(k,56)
-         mat(k,492) = 2.000_r8*rxt(k,184)*y(k,99) + (2.000_r8*rxt(k,145) &
-                       +2.000_r8*rxt(k,268))*y(k,101) + (2.000_r8*rxt(k,166) &
-                       +2.000_r8*rxt(k,269))*y(k,103) + rxt(k,237)*y(k,114) &
-                      + rxt(k,219)*y(k,115) + rxt(k,201)*y(k,118) + rxt(k,254) &
-                      *y(k,125)
-         mat(k,983) = rxt(k,237)*y(k,113)
-         mat(k,1025) = rxt(k,219)*y(k,113)
-         mat(k,1152) = rxt(k,201)*y(k,113)
-         mat(k,1435) = rxt(k,254)*y(k,113)
-         mat(k,786) = mat(k,786) + rxt(k,445)*y(k,61)
-         mat(k,1817) = rxt(k,139)*y(k,100) + rxt(k,142)*y(k,102)
-         mat(k,101) = -(rxt(k,422)*y(k,130))
-         mat(k,755) = -rxt(k,422)*y(k,50)
-         mat(k,1447) = rxt(k,443)*y(k,97)
-         mat(k,716) = rxt(k,443)*y(k,61)
-         mat(k,218) = -(rxt(k,500)*y(k,67) + (rxt(k,570) + rxt(k,575)) * y(k,47))
-         mat(k,1587) = -rxt(k,500)*y(k,51)
-         mat(k,1288) = -(rxt(k,570) + rxt(k,575)) * y(k,51)
-         mat(k,561) = rxt(k,492)*y(k,97)
-         mat(k,719) = rxt(k,492)*y(k,4)
-         mat(k,235) = -(rxt(k,471)*y(k,85) + rxt(k,472)*y(k,67) + rxt(k,473)*y(k,130) &
-                      + (rxt(k,563) + rxt(k,569) + rxt(k,574)) * y(k,47))
-         mat(k,870) = -rxt(k,471)*y(k,52)
-         mat(k,1589) = -rxt(k,472)*y(k,52)
-         mat(k,763) = -rxt(k,473)*y(k,52)
-         mat(k,1289) = -(rxt(k,563) + rxt(k,569) + rxt(k,574)) * y(k,52)
-         mat(k,1083) = rxt(k,460)*y(k,97)
-         mat(k,258) = rxt(k,465)*y(k,130)
-         mat(k,721) = rxt(k,460)*y(k,26)
-         mat(k,763) = mat(k,763) + rxt(k,465)*y(k,27)
-         mat(k,176) = -(rxt(k,339)*y(k,130))
-         mat(k,759) = -rxt(k,339)*y(k,53)
-         mat(k,1287) = rxt(k,288)*y(k,107)
-         mat(k,1330) = rxt(k,289)*y(k,107)
-         mat(k,1535) = rxt(k,348)*y(k,130)
-         mat(k,1633) = rxt(k,288)*y(k,47) + rxt(k,289)*y(k,49)
-         mat(k,90) = rxt(k,304)*y(k,134)
-         mat(k,759) = mat(k,759) + rxt(k,348)*y(k,60)
-         mat(k,1781) = rxt(k,304)*y(k,116)
-         mat(k,293) = -(rxt(k,425)*y(k,60) + (rxt(k,426) + rxt(k,427) + rxt(k,428) &
-                      ) * y(k,61) + rxt(k,429)*y(k,68) + rxt(k,437)*y(k,130) + rxt(k,588) &
-                      *y(k,125))
-         mat(k,1537) = -rxt(k,425)*y(k,54)
-         mat(k,1453) = -(rxt(k,426) + rxt(k,427) + rxt(k,428)) * y(k,54)
-         mat(k,1247) = -rxt(k,429)*y(k,54)
-         mat(k,766) = -rxt(k,437)*y(k,54)
-         mat(k,1404) = -rxt(k,588)*y(k,54)
-         mat(k,1594) = rxt(k,423)*y(k,105) + rxt(k,585)*y(k,120)
-         mat(k,1247) = mat(k,1247) + rxt(k,586)*y(k,120)
-         mat(k,839) = 1.100_r8*rxt(k,581)*y(k,106) + .200_r8*rxt(k,579)*y(k,114)
-         mat(k,129) = rxt(k,423)*y(k,67)
-         mat(k,161) = 1.100_r8*rxt(k,581)*y(k,94)
-         mat(k,953) = .200_r8*rxt(k,579)*y(k,94)
-         mat(k,123) = rxt(k,585)*y(k,67) + rxt(k,586)*y(k,68)
-         mat(k,279) = -(rxt(k,141)*y(k,101) + rxt(k,144)*y(k,103) + rxt(k,292) &
-                      *y(k,110) + rxt(k,296)*y(k,111))
-         mat(k,1494) = -rxt(k,141)*y(k,56)
-         mat(k,1038) = -rxt(k,144)*y(k,56)
-         mat(k,498) = -rxt(k,292)*y(k,56)
-         mat(k,538) = -rxt(k,296)*y(k,56)
-         mat(k,1452) = rxt(k,444)*y(k,62)
-         mat(k,1167) = rxt(k,444)*y(k,61)
-         mat(k,1569) = -((rxt(k,110) + rxt(k,111)) * y(k,89) + (rxt(k,121) + rxt(k,122) &
-                      ) * y(k,92) + rxt(k,135)*y(k,132) + (rxt(k,271) + rxt(k,278) &
-                      ) * y(k,127) + rxt(k,279)*y(k,90) + rxt(k,348)*y(k,130) &
-                      + rxt(k,425)*y(k,54) + rxt(k,434)*y(k,62) + rxt(k,438)*y(k,97) &
-                      + rxt(k,439)*y(k,69) + rxt(k,440)*y(k,67) + rxt(k,461)*y(k,26) &
-                      + rxt(k,493)*y(k,4) + rxt(k,533)*y(k,20) + rxt(k,590)*y(k,125))
-         mat(k,274) = -(rxt(k,110) + rxt(k,111)) * y(k,60)
-         mat(k,533) = -(rxt(k,121) + rxt(k,122)) * y(k,60)
-         mat(k,1722) = -rxt(k,135)*y(k,60)
-         mat(k,428) = -(rxt(k,271) + rxt(k,278)) * y(k,60)
-         mat(k,821) = -rxt(k,279)*y(k,60)
-         mat(k,790) = -rxt(k,348)*y(k,60)
-         mat(k,302) = -rxt(k,425)*y(k,60)
-         mat(k,1196) = -rxt(k,434)*y(k,60)
-         mat(k,743) = -rxt(k,438)*y(k,60)
-         mat(k,943) = -rxt(k,439)*y(k,60)
-         mat(k,1626) = -rxt(k,440)*y(k,60)
-         mat(k,1116) = -rxt(k,461)*y(k,60)
-         mat(k,579) = -rxt(k,493)*y(k,60)
-         mat(k,314) = -rxt(k,533)*y(k,60)
-         mat(k,1440) = -rxt(k,590)*y(k,60)
-         mat(k,1231) = rxt(k,286)*y(k,107) + rxt(k,308)*y(k,118)
-         mat(k,302) = mat(k,302) + 2.000_r8*rxt(k,427)*y(k,61) + rxt(k,429)*y(k,68) &
-                      + rxt(k,437)*y(k,130)
-         mat(k,1486) = 2.000_r8*rxt(k,427)*y(k,54) + rxt(k,430)*y(k,67) + rxt(k,548) &
-                      *y(k,75) + rxt(k,290)*y(k,107)
-         mat(k,1626) = mat(k,1626) + rxt(k,430)*y(k,61)
-         mat(k,1278) = rxt(k,429)*y(k,54) + rxt(k,424)*y(k,105)
-         mat(k,371) = rxt(k,548)*y(k,61)
-         mat(k,686) = rxt(k,247)*y(k,114) + rxt(k,229)*y(k,115) + rxt(k,211)*y(k,118)
-         mat(k,402) = rxt(k,251)*y(k,114) + rxt(k,233)*y(k,115) + rxt(k,216)*y(k,118)
-         mat(k,386) = rxt(k,239)*y(k,114) + rxt(k,221)*y(k,115) + rxt(k,204)*y(k,118)
-         mat(k,821) = mat(k,821) + rxt(k,238)*y(k,114) + rxt(k,220)*y(k,115) &
-                      + rxt(k,203)*y(k,118)
-         mat(k,353) = rxt(k,245)*y(k,114) + rxt(k,228)*y(k,115) + rxt(k,210)*y(k,118)
-         mat(k,533) = mat(k,533) + rxt(k,248)*y(k,114) + rxt(k,230)*y(k,115) &
-                      + rxt(k,212)*y(k,118)
-         mat(k,662) = rxt(k,243)*y(k,114) + rxt(k,226)*y(k,115) + rxt(k,208)*y(k,118)
-         mat(k,861) = rxt(k,302)*y(k,115) + rxt(k,303)*y(k,116) + rxt(k,305)*y(k,117) &
-                      + rxt(k,307)*y(k,118) + rxt(k,383)*y(k,119)
-         mat(k,326) = rxt(k,241)*y(k,114) + rxt(k,223)*y(k,115) + rxt(k,206)*y(k,118)
-         mat(k,132) = rxt(k,424)*y(k,68)
-         mat(k,1655) = rxt(k,286)*y(k,38) + rxt(k,290)*y(k,61) + rxt(k,253)*y(k,114) &
-                      + rxt(k,236)*y(k,115) + rxt(k,218)*y(k,118)
-         mat(k,415) = rxt(k,249)*y(k,114) + rxt(k,231)*y(k,115) + rxt(k,214)*y(k,118)
-         mat(k,710) = rxt(k,240)*y(k,114) + rxt(k,222)*y(k,115) + rxt(k,205)*y(k,118)
-         mat(k,514) = rxt(k,252)*y(k,114) + rxt(k,234)*y(k,115) + rxt(k,217)*y(k,118)
-         mat(k,554) = rxt(k,244)*y(k,114) + rxt(k,227)*y(k,115) + rxt(k,209)*y(k,118)
-         mat(k,446) = rxt(k,250)*y(k,114) + rxt(k,232)*y(k,115) + rxt(k,215)*y(k,118)
-         mat(k,495) = rxt(k,237)*y(k,114) + rxt(k,219)*y(k,115) + rxt(k,201)*y(k,118)
-         mat(k,988) = rxt(k,247)*y(k,86) + rxt(k,251)*y(k,87) + rxt(k,239)*y(k,88) &
-                      + rxt(k,238)*y(k,90) + rxt(k,245)*y(k,91) + rxt(k,248)*y(k,92) &
-                      + rxt(k,243)*y(k,93) + rxt(k,241)*y(k,96) + rxt(k,253)*y(k,107) &
-                      + rxt(k,249)*y(k,108) + rxt(k,240)*y(k,109) + rxt(k,252) &
-                      *y(k,110) + rxt(k,244)*y(k,111) + rxt(k,250)*y(k,112) &
-                      + rxt(k,237)*y(k,113) + rxt(k,242)*y(k,124)
-         mat(k,1030) = rxt(k,229)*y(k,86) + rxt(k,233)*y(k,87) + rxt(k,221)*y(k,88) &
-                      + rxt(k,220)*y(k,90) + rxt(k,228)*y(k,91) + rxt(k,230)*y(k,92) &
-                      + rxt(k,226)*y(k,93) + rxt(k,302)*y(k,94) + rxt(k,223)*y(k,96) &
-                      + rxt(k,236)*y(k,107) + rxt(k,231)*y(k,108) + rxt(k,222) &
-                      *y(k,109) + rxt(k,234)*y(k,110) + rxt(k,227)*y(k,111) &
-                      + rxt(k,232)*y(k,112) + rxt(k,219)*y(k,113) + rxt(k,225) &
-                      *y(k,124)
-         mat(k,92) = rxt(k,303)*y(k,94)
-         mat(k,119) = rxt(k,305)*y(k,94)
-         mat(k,1157) = rxt(k,308)*y(k,38) + rxt(k,211)*y(k,86) + rxt(k,216)*y(k,87) &
-                      + rxt(k,204)*y(k,88) + rxt(k,203)*y(k,90) + rxt(k,210)*y(k,91) &
-                      + rxt(k,212)*y(k,92) + rxt(k,208)*y(k,93) + rxt(k,307)*y(k,94) &
-                      + rxt(k,206)*y(k,96) + rxt(k,218)*y(k,107) + rxt(k,214)*y(k,108) &
-                      + rxt(k,205)*y(k,109) + rxt(k,217)*y(k,110) + rxt(k,209) &
-                      *y(k,111) + rxt(k,215)*y(k,112) + rxt(k,201)*y(k,113) &
-                      + rxt(k,207)*y(k,124)
-         mat(k,113) = rxt(k,383)*y(k,94)
-         mat(k,1396) = rxt(k,242)*y(k,114) + rxt(k,225)*y(k,115) + rxt(k,207)*y(k,118)
-         mat(k,790) = mat(k,790) + rxt(k,437)*y(k,54)
-      end do
+         mat(45) = rxt(554)*y(134)
+         mat(1771) = rxt(554)*y(77)
+         mat(226) = -(rxt(498)*y(67) + rxt(499)*y(130) + (rxt(504) + rxt(505) &
+                      ) * y(121))
+         mat(1588) = -rxt(498)*y(43)
+         mat(762) = -rxt(499)*y(43)
+         mat(610) = -(rxt(504) + rxt(505)) * y(43)
+         mat(583) = rxt(485)*y(84)
+         mat(450) = rxt(485)*y(16) + rxt(486)*y(97)
+         mat(720) = rxt(486)*y(84)
+         mat(1316) = -(rxt(105)*y(87) + rxt(107)*y(86) + rxt(129)*y(93) + (rxt(275) &
+                      + rxt(297)) * y(109) + rxt(288)*y(107) + rxt(317)*y(124) + rxt(344) &
+                      *y(131) + rxt(355)*y(132) + rxt(469)*y(67) + rxt(470)*y(130) &
+                      + (rxt(481) + rxt(482)) * y(121) + (rxt(563) + rxt(569) + rxt(574) &
+                      ) * y(52) + (rxt(568) + rxt(573) + rxt(578)) * y(27) + (rxt(570) &
+                      + rxt(575)) * y(51))
+         mat(399) = -rxt(105)*y(47)
+         mat(681) = -rxt(107)*y(47)
+         mat(657) = -rxt(129)*y(47)
+         mat(705) = -(rxt(275) + rxt(297)) * y(47)
+         mat(1649) = -rxt(288)*y(47)
+         mat(1390) = -rxt(317)*y(47)
+         mat(1681) = -rxt(344)*y(47)
+         mat(1716) = -rxt(355)*y(47)
+         mat(1620) = -rxt(469)*y(47)
+         mat(785) = -rxt(470)*y(47)
+         mat(628) = -(rxt(481) + rxt(482)) * y(47)
+         mat(239) = -(rxt(563) + rxt(569) + rxt(574)) * y(47)
+         mat(264) = -(rxt(568) + rxt(573) + rxt(578)) * y(47)
+         mat(223) = -(rxt(570) + rxt(575)) * y(47)
+         mat(598) = rxt(449)*y(85)
+         mat(1110) = rxt(468)*y(130)
+         mat(1225) = rxt(104)*y(86)
+         mat(476) = rxt(451)*y(85)
+         mat(149) = rxt(452)*y(85)
+         mat(1355) = rxt(108)*y(86) + rxt(298)*y(112)
+         mat(239) = mat(239) + rxt(471)*y(85)
+         mat(896) = rxt(449)*y(16) + rxt(451)*y(39) + rxt(452)*y(41) + rxt(471)*y(52) &
+                      + rxt(453)*y(97)
+         mat(681) = mat(681) + rxt(104)*y(38) + rxt(108)*y(49)
+         mat(383) = rxt(186)*y(99) + (rxt(180)+2.000_r8*rxt(266))*y(101) + (rxt(168) &
+                       +2.000_r8*rxt(267))*y(103) + rxt(239)*y(114) + rxt(221)*y(115) &
+                      + rxt(204)*y(118) + rxt(256)*y(125)
+         mat(738) = rxt(453)*y(85)
+         mat(1758) = rxt(186)*y(88) + rxt(197)*y(112)
+         mat(1522) = (rxt(180)+2.000_r8*rxt(266))*y(88) + rxt(162)*y(112)
+         mat(1066) = (rxt(168)+2.000_r8*rxt(267))*y(88) + rxt(179)*y(112)
+         mat(442) = rxt(298)*y(49) + rxt(197)*y(99) + rxt(162)*y(101) + rxt(179) &
+                      *y(103) + rxt(250)*y(114) + rxt(232)*y(115) + rxt(215)*y(118) &
+                      + rxt(156)*y(125)
+         mat(982) = rxt(239)*y(88) + rxt(250)*y(112)
+         mat(1024) = rxt(221)*y(88) + rxt(232)*y(112)
+         mat(1151) = rxt(204)*y(88) + rxt(215)*y(112)
+         mat(1434) = rxt(256)*y(88) + rxt(156)*y(112)
+         mat(785) = mat(785) + rxt(468)*y(26)
+         mat(208) = rxt(507)*y(39) + rxt(509)*y(49) + rxt(508)*y(134)
+         mat(462) = rxt(507)*y(37)
+         mat(1329) = rxt(509)*y(37)
+         mat(1772) = rxt(508)*y(37)
+         mat(1356) = -(rxt(108)*y(86) + rxt(123)*y(90) + rxt(289)*y(107) + rxt(294) &
+                      *y(111) + rxt(298)*y(112) + rxt(299)*y(109) + rxt(318)*y(124) &
+                      + rxt(356)*y(132) + rxt(446)*y(130) + rxt(509)*y(37))
+         mat(682) = -rxt(108)*y(49)
+         mat(816) = -rxt(123)*y(49)
+         mat(1650) = -rxt(289)*y(49)
+         mat(550) = -rxt(294)*y(49)
+         mat(443) = -rxt(298)*y(49)
+         mat(706) = -rxt(299)*y(49)
+         mat(1391) = -rxt(318)*y(49)
+         mat(1717) = -rxt(356)*y(49)
+         mat(786) = -rxt(446)*y(49)
+         mat(215) = -rxt(509)*y(49)
+         mat(599) = rxt(529)*y(62)
+         mat(265) = (rxt(568)+rxt(573)+rxt(578))*y(47)
+         mat(63) = rxt(555)*y(62)
+         mat(1317) = (rxt(568)+rxt(573)+rxt(578))*y(27) + rxt(297)*y(109)
+         mat(285) = rxt(141)*y(101) + rxt(144)*y(103) + rxt(292)*y(110) + rxt(296) &
+                      *y(111)
+         mat(1481) = rxt(445)*y(130)
+         mat(1191) = rxt(529)*y(16) + rxt(555)*y(33)
+         mat(1759) = rxt(187)*y(109) + 2.000_r8*rxt(184)*y(113)
+         mat(51) = rxt(139)*y(134)
+         mat(1523) = rxt(141)*y(56) + (rxt(191)+rxt(263))*y(109) + (2.000_r8*rxt(145) &
+                       +2.000_r8*rxt(268))*y(113)
+         mat(56) = rxt(142)*y(134)
+         mat(1067) = rxt(144)*y(56) + (rxt(170)+rxt(265))*y(109) + (2.000_r8*rxt(166) &
+                       +2.000_r8*rxt(269))*y(113)
+         mat(706) = mat(706) + rxt(297)*y(47) + rxt(187)*y(99) + (rxt(191)+rxt(263)) &
+                      *y(101) + (rxt(170)+rxt(265))*y(103)
+         mat(510) = rxt(292)*y(56)
+         mat(550) = mat(550) + rxt(296)*y(56)
+         mat(492) = 2.000_r8*rxt(184)*y(99) + (2.000_r8*rxt(145)+2.000_r8*rxt(268)) &
+                      *y(101) + (2.000_r8*rxt(166)+2.000_r8*rxt(269))*y(103) &
+                      + rxt(237)*y(114) + rxt(219)*y(115) + rxt(201)*y(118) + rxt(254) &
+                      *y(125)
+         mat(983) = rxt(237)*y(113)
+         mat(1025) = rxt(219)*y(113)
+         mat(1152) = rxt(201)*y(113)
+         mat(1435) = rxt(254)*y(113)
+         mat(786) = mat(786) + rxt(445)*y(61)
+         mat(1817) = rxt(139)*y(100) + rxt(142)*y(102)
+         mat(101) = -(rxt(422)*y(130))
+         mat(755) = -rxt(422)*y(50)
+         mat(1447) = rxt(443)*y(97)
+         mat(716) = rxt(443)*y(61)
+         mat(218) = -(rxt(500)*y(67) + (rxt(570) + rxt(575)) * y(47))
+         mat(1587) = -rxt(500)*y(51)
+         mat(1288) = -(rxt(570) + rxt(575)) * y(51)
+         mat(561) = rxt(492)*y(97)
+         mat(719) = rxt(492)*y(4)
+         mat(235) = -(rxt(471)*y(85) + rxt(472)*y(67) + rxt(473)*y(130) + (rxt(563) &
+                      + rxt(569) + rxt(574)) * y(47))
+         mat(870) = -rxt(471)*y(52)
+         mat(1589) = -rxt(472)*y(52)
+         mat(763) = -rxt(473)*y(52)
+         mat(1289) = -(rxt(563) + rxt(569) + rxt(574)) * y(52)
+         mat(1083) = rxt(460)*y(97)
+         mat(258) = rxt(465)*y(130)
+         mat(721) = rxt(460)*y(26)
+         mat(763) = mat(763) + rxt(465)*y(27)
+         mat(176) = -(rxt(339)*y(130))
+         mat(759) = -rxt(339)*y(53)
+         mat(1287) = rxt(288)*y(107)
+         mat(1330) = rxt(289)*y(107)
+         mat(1535) = rxt(348)*y(130)
+         mat(1633) = rxt(288)*y(47) + rxt(289)*y(49)
+         mat(90) = rxt(304)*y(134)
+         mat(759) = mat(759) + rxt(348)*y(60)
+         mat(1781) = rxt(304)*y(116)
+         mat(293) = -(rxt(425)*y(60) + (rxt(426) + rxt(427) + rxt(428)) * y(61) &
+                      + rxt(429)*y(68) + rxt(437)*y(130) + rxt(588)*y(125))
+         mat(1537) = -rxt(425)*y(54)
+         mat(1453) = -(rxt(426) + rxt(427) + rxt(428)) * y(54)
+         mat(1247) = -rxt(429)*y(54)
+         mat(766) = -rxt(437)*y(54)
+         mat(1404) = -rxt(588)*y(54)
+         mat(1594) = rxt(423)*y(105) + rxt(585)*y(120)
+         mat(1247) = mat(1247) + rxt(586)*y(120)
+         mat(839) = 1.100_r8*rxt(581)*y(106) + .200_r8*rxt(579)*y(114)
+         mat(129) = rxt(423)*y(67)
+         mat(161) = 1.100_r8*rxt(581)*y(94)
+         mat(953) = .200_r8*rxt(579)*y(94)
+         mat(123) = rxt(585)*y(67) + rxt(586)*y(68)
+         mat(279) = -(rxt(141)*y(101) + rxt(144)*y(103) + rxt(292)*y(110) + rxt(296) &
+                      *y(111))
+         mat(1494) = -rxt(141)*y(56)
+         mat(1038) = -rxt(144)*y(56)
+         mat(498) = -rxt(292)*y(56)
+         mat(538) = -rxt(296)*y(56)
+         mat(1452) = rxt(444)*y(62)
+         mat(1167) = rxt(444)*y(61)
+         mat(1569) = -((rxt(110) + rxt(111)) * y(89) + (rxt(121) + rxt(122)) * y(92) &
+                      + rxt(135)*y(132) + (rxt(271) + rxt(278)) * y(127) + rxt(279) &
+                      *y(90) + rxt(348)*y(130) + rxt(425)*y(54) + rxt(434)*y(62) &
+                      + rxt(438)*y(97) + rxt(439)*y(69) + rxt(440)*y(67) + rxt(461) &
+                      *y(26) + rxt(493)*y(4) + rxt(533)*y(20) + rxt(590)*y(125))
+         mat(274) = -(rxt(110) + rxt(111)) * y(60)
+         mat(533) = -(rxt(121) + rxt(122)) * y(60)
+         mat(1722) = -rxt(135)*y(60)
+         mat(428) = -(rxt(271) + rxt(278)) * y(60)
+         mat(821) = -rxt(279)*y(60)
+         mat(790) = -rxt(348)*y(60)
+         mat(302) = -rxt(425)*y(60)
+         mat(1196) = -rxt(434)*y(60)
+         mat(743) = -rxt(438)*y(60)
+         mat(943) = -rxt(439)*y(60)
+         mat(1626) = -rxt(440)*y(60)
+         mat(1116) = -rxt(461)*y(60)
+         mat(579) = -rxt(493)*y(60)
+         mat(314) = -rxt(533)*y(60)
+         mat(1440) = -rxt(590)*y(60)
+         mat(1231) = rxt(286)*y(107) + rxt(308)*y(118)
+         mat(302) = mat(302) + 2.000_r8*rxt(427)*y(61) + rxt(429)*y(68) + rxt(437) &
+                      *y(130)
+         mat(1486) = 2.000_r8*rxt(427)*y(54) + rxt(430)*y(67) + rxt(548)*y(75) &
+                      + rxt(290)*y(107)
+         mat(1626) = mat(1626) + rxt(430)*y(61)
+         mat(1278) = rxt(429)*y(54) + rxt(424)*y(105)
+         mat(371) = rxt(548)*y(61)
+         mat(686) = rxt(247)*y(114) + rxt(229)*y(115) + rxt(211)*y(118)
+         mat(402) = rxt(251)*y(114) + rxt(233)*y(115) + rxt(216)*y(118)
+         mat(386) = rxt(239)*y(114) + rxt(221)*y(115) + rxt(204)*y(118)
+         mat(821) = mat(821) + rxt(238)*y(114) + rxt(220)*y(115) + rxt(203)*y(118)
+         mat(353) = rxt(245)*y(114) + rxt(228)*y(115) + rxt(210)*y(118)
+         mat(533) = mat(533) + rxt(248)*y(114) + rxt(230)*y(115) + rxt(212)*y(118)
+         mat(662) = rxt(243)*y(114) + rxt(226)*y(115) + rxt(208)*y(118)
+         mat(861) = rxt(302)*y(115) + rxt(303)*y(116) + rxt(305)*y(117) + rxt(307) &
+                      *y(118) + rxt(383)*y(119)
+         mat(326) = rxt(241)*y(114) + rxt(223)*y(115) + rxt(206)*y(118)
+         mat(132) = rxt(424)*y(68)
+         mat(1655) = rxt(286)*y(38) + rxt(290)*y(61) + rxt(253)*y(114) + rxt(236) &
+                      *y(115) + rxt(218)*y(118)
+         mat(415) = rxt(249)*y(114) + rxt(231)*y(115) + rxt(214)*y(118)
+         mat(710) = rxt(240)*y(114) + rxt(222)*y(115) + rxt(205)*y(118)
+         mat(514) = rxt(252)*y(114) + rxt(234)*y(115) + rxt(217)*y(118)
+         mat(554) = rxt(244)*y(114) + rxt(227)*y(115) + rxt(209)*y(118)
+         mat(446) = rxt(250)*y(114) + rxt(232)*y(115) + rxt(215)*y(118)
+         mat(495) = rxt(237)*y(114) + rxt(219)*y(115) + rxt(201)*y(118)
+         mat(988) = rxt(247)*y(86) + rxt(251)*y(87) + rxt(239)*y(88) + rxt(238)*y(90) &
+                      + rxt(245)*y(91) + rxt(248)*y(92) + rxt(243)*y(93) + rxt(241) &
+                      *y(96) + rxt(253)*y(107) + rxt(249)*y(108) + rxt(240)*y(109) &
+                      + rxt(252)*y(110) + rxt(244)*y(111) + rxt(250)*y(112) + rxt(237) &
+                      *y(113) + rxt(242)*y(124)
+         mat(1030) = rxt(229)*y(86) + rxt(233)*y(87) + rxt(221)*y(88) + rxt(220)*y(90) &
+                      + rxt(228)*y(91) + rxt(230)*y(92) + rxt(226)*y(93) + rxt(302) &
+                      *y(94) + rxt(223)*y(96) + rxt(236)*y(107) + rxt(231)*y(108) &
+                      + rxt(222)*y(109) + rxt(234)*y(110) + rxt(227)*y(111) + rxt(232) &
+                      *y(112) + rxt(219)*y(113) + rxt(225)*y(124)
+         mat(92) = rxt(303)*y(94)
+         mat(119) = rxt(305)*y(94)
+         mat(1157) = rxt(308)*y(38) + rxt(211)*y(86) + rxt(216)*y(87) + rxt(204)*y(88) &
+                      + rxt(203)*y(90) + rxt(210)*y(91) + rxt(212)*y(92) + rxt(208) &
+                      *y(93) + rxt(307)*y(94) + rxt(206)*y(96) + rxt(218)*y(107) &
+                      + rxt(214)*y(108) + rxt(205)*y(109) + rxt(217)*y(110) + rxt(209) &
+                      *y(111) + rxt(215)*y(112) + rxt(201)*y(113) + rxt(207)*y(124)
+         mat(113) = rxt(383)*y(94)
+         mat(1396) = rxt(242)*y(114) + rxt(225)*y(115) + rxt(207)*y(118)
+         mat(790) = mat(790) + rxt(437)*y(54)
       end subroutine nlnmat02
-      subroutine nlnmat03( avec_len, mat, y, rxt )
+      subroutine nlnmat03( mat, y, rxt )
       use chem_mods, only : gas_pcnst, rxntot, nzcnt
       implicit none
 !----------------------------------------------
 ! ... dummy arguments
 !----------------------------------------------
-      integer, intent(in) :: avec_len
-      real(r8), intent(in) :: y(veclen,gas_pcnst)
-      real(r8), intent(in) :: rxt(veclen,rxntot)
-      real(r8), intent(inout) :: mat(veclen,nzcnt)
+      real(r8), intent(in) :: y(gas_pcnst)
+      real(r8), intent(in) :: rxt(rxntot)
+      real(r8), intent(inout) :: mat(nzcnt)
 !----------------------------------------------
 ! ... local variables
 !----------------------------------------------
-      integer :: k
 !----------------------------------------------
 ! ... complete matrix entries implicit species
 !----------------------------------------------
-      do k = 1,avec_len
-         mat(k,1484) = -(rxt(k,109)*y(k,86) + (rxt(k,119) + rxt(k,120)) * y(k,92) &
-                      + (rxt(k,276) + rxt(k,277)) * y(k,127) + rxt(k,280)*y(k,90) &
-                      + rxt(k,290)*y(k,107) + rxt(k,319)*y(k,124) + rxt(k,345) &
-                      *y(k,131) + rxt(k,358)*y(k,132) + (rxt(k,426) + rxt(k,427) &
-                      + rxt(k,428)) * y(k,54) + (rxt(k,430) + rxt(k,432)) * y(k,67) &
-                      + rxt(k,431)*y(k,69) + rxt(k,443)*y(k,97) + rxt(k,444)*y(k,62) &
-                      + rxt(k,445)*y(k,130) + rxt(k,463)*y(k,26) + rxt(k,494)*y(k,4) &
-                      + rxt(k,548)*y(k,75))
-         mat(k,684) = -rxt(k,109)*y(k,61)
-         mat(k,531) = -(rxt(k,119) + rxt(k,120)) * y(k,61)
-         mat(k,427) = -(rxt(k,276) + rxt(k,277)) * y(k,61)
-         mat(k,819) = -rxt(k,280)*y(k,61)
-         mat(k,1653) = -rxt(k,290)*y(k,61)
-         mat(k,1394) = -rxt(k,319)*y(k,61)
-         mat(k,1685) = -rxt(k,345)*y(k,61)
-         mat(k,1720) = -rxt(k,358)*y(k,61)
-         mat(k,301) = -(rxt(k,426) + rxt(k,427) + rxt(k,428)) * y(k,61)
-         mat(k,1624) = -(rxt(k,430) + rxt(k,432)) * y(k,61)
-         mat(k,941) = -rxt(k,431)*y(k,61)
-         mat(k,742) = -rxt(k,443)*y(k,61)
-         mat(k,1194) = -rxt(k,444)*y(k,61)
-         mat(k,789) = -rxt(k,445)*y(k,61)
-         mat(k,1114) = -rxt(k,463)*y(k,61)
-         mat(k,578) = -rxt(k,494)*y(k,61)
-         mat(k,370) = -rxt(k,548)*y(k,61)
-         mat(k,578) = mat(k,578) + rxt(k,493)*y(k,60)
-         mat(k,313) = rxt(k,533)*y(k,60)
-         mat(k,1114) = mat(k,1114) + rxt(k,461)*y(k,60)
-         mat(k,106) = rxt(k,422)*y(k,130)
-         mat(k,178) = rxt(k,339)*y(k,130)
-         mat(k,1567) = rxt(k,493)*y(k,4) + rxt(k,533)*y(k,20) + rxt(k,461)*y(k,26) &
-                      + 2.000_r8*rxt(k,434)*y(k,62) + rxt(k,440)*y(k,67) + rxt(k,439) &
-                      *y(k,69) + rxt(k,111)*y(k,89) + rxt(k,438)*y(k,97) + rxt(k,135) &
-                      *y(k,132)
-         mat(k,1194) = mat(k,1194) + 2.000_r8*rxt(k,434)*y(k,60) + rxt(k,435)*y(k,67) &
-                      + rxt(k,433)*y(k,97) + rxt(k,436)*y(k,130)
-         mat(k,1624) = mat(k,1624) + rxt(k,440)*y(k,60) + rxt(k,435)*y(k,62)
-         mat(k,941) = mat(k,941) + rxt(k,439)*y(k,60)
-         mat(k,900) = rxt(k,284)*y(k,107)
-         mat(k,273) = rxt(k,111)*y(k,60)
-         mat(k,742) = mat(k,742) + rxt(k,438)*y(k,60) + rxt(k,433)*y(k,62)
-         mat(k,1762) = rxt(k,200)*y(k,107) + rxt(k,196)*y(k,108)
-         mat(k,1526) = rxt(k,165)*y(k,107) + rxt(k,161)*y(k,108)
-         mat(k,1070) = rxt(k,183)*y(k,107) + rxt(k,178)*y(k,108)
-         mat(k,1653) = mat(k,1653) + rxt(k,284)*y(k,85) + rxt(k,200)*y(k,99) &
-                      + rxt(k,165)*y(k,101) + rxt(k,183)*y(k,103) + rxt(k,253) &
-                      *y(k,114) + rxt(k,236)*y(k,115) + rxt(k,218)*y(k,118) &
-                      + rxt(k,160)*y(k,125)
-         mat(k,413) = rxt(k,196)*y(k,99) + rxt(k,161)*y(k,101) + rxt(k,178)*y(k,103) &
-                      + rxt(k,249)*y(k,114) + rxt(k,231)*y(k,115) + rxt(k,214) &
-                      *y(k,118) + rxt(k,155)*y(k,125)
-         mat(k,986) = rxt(k,253)*y(k,107) + rxt(k,249)*y(k,108)
-         mat(k,1028) = rxt(k,236)*y(k,107) + rxt(k,231)*y(k,108)
-         mat(k,1155) = rxt(k,218)*y(k,107) + rxt(k,214)*y(k,108) + rxt(k,310)*y(k,130)
-         mat(k,1438) = rxt(k,160)*y(k,107) + rxt(k,155)*y(k,108)
-         mat(k,789) = mat(k,789) + rxt(k,422)*y(k,50) + rxt(k,339)*y(k,53) &
-                      + rxt(k,436)*y(k,62) + rxt(k,310)*y(k,118)
-         mat(k,1720) = mat(k,1720) + rxt(k,135)*y(k,60)
-         mat(k,1187) = -(rxt(k,433)*y(k,97) + rxt(k,434)*y(k,60) + rxt(k,435)*y(k,67) &
-                      + rxt(k,436)*y(k,130) + rxt(k,444)*y(k,61) + rxt(k,529)*y(k,16) &
-                      + rxt(k,555)*y(k,33))
-         mat(k,735) = -rxt(k,433)*y(k,62)
-         mat(k,1560) = -rxt(k,434)*y(k,62)
-         mat(k,1617) = -rxt(k,435)*y(k,62)
-         mat(k,782) = -rxt(k,436)*y(k,62)
-         mat(k,1477) = -rxt(k,444)*y(k,62)
-         mat(k,595) = -rxt(k,529)*y(k,62)
-         mat(k,62) = -rxt(k,555)*y(k,62)
-         mat(k,141) = rxt(k,495)*y(k,67)
-         mat(k,1107) = rxt(k,285)*y(k,107)
-         mat(k,263) = rxt(k,464)*y(k,67) + rxt(k,462)*y(k,85) + rxt(k,465)*y(k,130)
-         mat(k,213) = rxt(k,509)*y(k,49)
-         mat(k,1352) = rxt(k,509)*y(k,37) + rxt(k,446)*y(k,130)
-         mat(k,1477) = mat(k,1477) + rxt(k,432)*y(k,67) + rxt(k,431)*y(k,69)
-         mat(k,1617) = mat(k,1617) + rxt(k,495)*y(k,5) + rxt(k,464)*y(k,27) &
-                      + rxt(k,432)*y(k,61)
-         mat(k,934) = rxt(k,431)*y(k,61)
-         mat(k,893) = rxt(k,462)*y(k,27)
-         mat(k,735) = mat(k,735) + rxt(k,309)*y(k,118)
-         mat(k,1755) = rxt(k,199)*y(k,110) + rxt(k,192)*y(k,111) + rxt(k,197)*y(k,112)
-         mat(k,1519) = rxt(k,164)*y(k,110) + (rxt(k,235)+rxt(k,261))*y(k,111) &
-                      + rxt(k,162)*y(k,112)
-         mat(k,1063) = rxt(k,182)*y(k,110) + (rxt(k,174)+rxt(k,262))*y(k,111) &
-                      + rxt(k,179)*y(k,112)
-         mat(k,1646) = rxt(k,285)*y(k,26)
-         mat(k,702) = rxt(k,240)*y(k,114) + rxt(k,222)*y(k,115) + rxt(k,205)*y(k,118) &
-                      + rxt(k,147)*y(k,125)
-         mat(k,507) = rxt(k,199)*y(k,99) + rxt(k,164)*y(k,101) + rxt(k,182)*y(k,103) &
-                      + rxt(k,252)*y(k,114) + rxt(k,234)*y(k,115) + rxt(k,217) &
-                      *y(k,118) + rxt(k,159)*y(k,125)
-         mat(k,547) = rxt(k,192)*y(k,99) + (rxt(k,235)+rxt(k,261))*y(k,101) + ( &
-                      + rxt(k,174)+rxt(k,262))*y(k,103) + rxt(k,244)*y(k,114) &
-                      + rxt(k,227)*y(k,115) + rxt(k,209)*y(k,118) + rxt(k,151) &
-                      *y(k,125)
-         mat(k,439) = rxt(k,197)*y(k,99) + rxt(k,162)*y(k,101) + rxt(k,179)*y(k,103) &
-                      + rxt(k,250)*y(k,114) + rxt(k,232)*y(k,115) + rxt(k,215) &
-                      *y(k,118) + rxt(k,156)*y(k,125)
-         mat(k,490) = rxt(k,237)*y(k,114) + rxt(k,219)*y(k,115) + rxt(k,201)*y(k,118) &
-                      + rxt(k,254)*y(k,125)
-         mat(k,979) = rxt(k,240)*y(k,109) + rxt(k,252)*y(k,110) + rxt(k,244)*y(k,111) &
-                      + rxt(k,250)*y(k,112) + rxt(k,237)*y(k,113)
-         mat(k,1021) = rxt(k,222)*y(k,109) + rxt(k,234)*y(k,110) + rxt(k,227)*y(k,111) &
-                      + rxt(k,232)*y(k,112) + rxt(k,219)*y(k,113)
-         mat(k,1148) = rxt(k,309)*y(k,97) + rxt(k,205)*y(k,109) + rxt(k,217)*y(k,110) &
-                      + rxt(k,209)*y(k,111) + rxt(k,215)*y(k,112) + rxt(k,201) &
-                      *y(k,113)
-         mat(k,1431) = rxt(k,147)*y(k,109) + rxt(k,159)*y(k,110) + rxt(k,151)*y(k,111) &
-                      + rxt(k,156)*y(k,112) + rxt(k,254)*y(k,113)
-         mat(k,782) = mat(k,782) + rxt(k,465)*y(k,27) + rxt(k,446)*y(k,49)
-         mat(k,1627) = -(rxt(k,112)*y(k,89) + rxt(k,124)*y(k,90) + rxt(k,130)*y(k,93) &
-                      + rxt(k,300)*y(k,109) + (rxt(k,323) + rxt(k,324)) * y(k,124) &
-                      + (rxt(k,332) + rxt(k,333)) * y(k,127) + rxt(k,335)*y(k,128) &
-                      + rxt(k,337)*y(k,129) + rxt(k,346)*y(k,131) + rxt(k,359) &
-                      *y(k,132) + rxt(k,402)*y(k,69) + 4._r8*rxt(k,403)*y(k,67) &
-                      + rxt(k,404)*y(k,68) + rxt(k,405)*y(k,39) + rxt(k,406)*y(k,41) &
-                      + rxt(k,411)*y(k,97) + rxt(k,417)*y(k,130) + (rxt(k,430) &
-                      + rxt(k,432)) * y(k,61) + rxt(k,435)*y(k,62) + rxt(k,440) &
-                      *y(k,60) + rxt(k,464)*y(k,27) + rxt(k,466)*y(k,26) + rxt(k,469) &
-                      *y(k,47) + rxt(k,472)*y(k,52) + rxt(k,495)*y(k,5) + rxt(k,496) &
-                      *y(k,4) + rxt(k,498)*y(k,43) + rxt(k,500)*y(k,51) + rxt(k,530) &
-                      *y(k,16) + rxt(k,541)*y(k,71) + (rxt(k,583) + rxt(k,584) &
-                      ) * y(k,106) + rxt(k,585)*y(k,120))
-         mat(k,275) = -rxt(k,112)*y(k,67)
-         mat(k,822) = -rxt(k,124)*y(k,67)
-         mat(k,663) = -rxt(k,130)*y(k,67)
-         mat(k,711) = -rxt(k,300)*y(k,67)
-         mat(k,1397) = -(rxt(k,323) + rxt(k,324)) * y(k,67)
-         mat(k,429) = -(rxt(k,332) + rxt(k,333)) * y(k,67)
-         mat(k,100) = -rxt(k,335)*y(k,67)
-         mat(k,339) = -rxt(k,337)*y(k,67)
-         mat(k,1688) = -rxt(k,346)*y(k,67)
-         mat(k,1723) = -rxt(k,359)*y(k,67)
-         mat(k,944) = -rxt(k,402)*y(k,67)
-         mat(k,1279) = -rxt(k,404)*y(k,67)
-         mat(k,480) = -rxt(k,405)*y(k,67)
-         mat(k,150) = -rxt(k,406)*y(k,67)
-         mat(k,744) = -rxt(k,411)*y(k,67)
-         mat(k,791) = -rxt(k,417)*y(k,67)
-         mat(k,1487) = -(rxt(k,430) + rxt(k,432)) * y(k,67)
-         mat(k,1197) = -rxt(k,435)*y(k,67)
-         mat(k,1570) = -rxt(k,440)*y(k,67)
-         mat(k,267) = -rxt(k,464)*y(k,67)
-         mat(k,1117) = -rxt(k,466)*y(k,67)
-         mat(k,1323) = -rxt(k,469)*y(k,67)
-         mat(k,240) = -rxt(k,472)*y(k,67)
-         mat(k,144) = -rxt(k,495)*y(k,67)
-         mat(k,580) = -rxt(k,496)*y(k,67)
-         mat(k,232) = -rxt(k,498)*y(k,67)
-         mat(k,224) = -rxt(k,500)*y(k,67)
-         mat(k,602) = -rxt(k,530)*y(k,67)
-         mat(k,76) = -rxt(k,541)*y(k,67)
-         mat(k,168) = -(rxt(k,583) + rxt(k,584)) * y(k,67)
-         mat(k,127) = -rxt(k,585)*y(k,67)
-         mat(k,1232) = rxt(k,409)*y(k,97)
-         mat(k,303) = rxt(k,425)*y(k,60) + rxt(k,426)*y(k,61) + rxt(k,429)*y(k,68) &
-                      + rxt(k,588)*y(k,125)
-         mat(k,1570) = mat(k,1570) + rxt(k,425)*y(k,54) + rxt(k,271)*y(k,127)
-         mat(k,1487) = mat(k,1487) + rxt(k,426)*y(k,54) + rxt(k,358)*y(k,132)
-         mat(k,1279) = mat(k,1279) + rxt(k,429)*y(k,54) + rxt(k,543)*y(k,74) &
-                      + rxt(k,549)*y(k,75) + rxt(k,587)*y(k,120) + (rxt(k,391) &
-                       +rxt(k,392))*y(k,121) + rxt(k,593)*y(k,133)
-         mat(k,944) = mat(k,944) + rxt(k,362)*y(k,132)
-         mat(k,175) = rxt(k,543)*y(k,68)
-         mat(k,372) = rxt(k,549)*y(k,68)
-         mat(k,903) = rxt(k,113)*y(k,90) + rxt(k,349)*y(k,132)
-         mat(k,822) = mat(k,822) + rxt(k,113)*y(k,85) + rxt(k,185)*y(k,99) + ( &
-                      + rxt(k,169)+rxt(k,257))*y(k,101) + (rxt(k,167)+rxt(k,264)) &
-                      *y(k,103) + rxt(k,238)*y(k,114) + rxt(k,220)*y(k,115) &
-                      + rxt(k,203)*y(k,118) + rxt(k,255)*y(k,125)
-         mat(k,354) = rxt(k,193)*y(k,99) + (rxt(k,246)+rxt(k,270))*y(k,101) + ( &
-                      + rxt(k,175)+rxt(k,258))*y(k,103) + rxt(k,245)*y(k,114) &
-                      + rxt(k,228)*y(k,115) + rxt(k,210)*y(k,118) + rxt(k,152) &
-                      *y(k,125)
-         mat(k,534) = rxt(k,195)*y(k,99) + (rxt(k,157)+rxt(k,259))*y(k,101) + ( &
-                      + rxt(k,177)+rxt(k,260))*y(k,103) + rxt(k,248)*y(k,114) &
-                      + rxt(k,230)*y(k,115) + rxt(k,212)*y(k,118) + rxt(k,154) &
-                      *y(k,125)
-         mat(k,862) = rxt(k,579)*y(k,114) + 1.150_r8*rxt(k,580)*y(k,125)
-         mat(k,744) = mat(k,744) + rxt(k,409)*y(k,38)
-         mat(k,1765) = rxt(k,185)*y(k,90) + rxt(k,193)*y(k,91) + rxt(k,195)*y(k,92)
-         mat(k,1529) = (rxt(k,169)+rxt(k,257))*y(k,90) + (rxt(k,246)+rxt(k,270)) &
-                      *y(k,91) + (rxt(k,157)+rxt(k,259))*y(k,92)
-         mat(k,1073) = (rxt(k,167)+rxt(k,264))*y(k,90) + (rxt(k,175)+rxt(k,258)) &
-                      *y(k,91) + (rxt(k,177)+rxt(k,260))*y(k,92)
-         mat(k,989) = rxt(k,238)*y(k,90) + rxt(k,245)*y(k,91) + rxt(k,248)*y(k,92) &
-                      + rxt(k,579)*y(k,94)
-         mat(k,1031) = rxt(k,220)*y(k,90) + rxt(k,228)*y(k,91) + rxt(k,230)*y(k,92)
-         mat(k,1158) = rxt(k,203)*y(k,90) + rxt(k,210)*y(k,91) + rxt(k,212)*y(k,92)
-         mat(k,127) = mat(k,127) + rxt(k,587)*y(k,68)
-         mat(k,634) = (rxt(k,391)+rxt(k,392))*y(k,68)
-         mat(k,1441) = rxt(k,588)*y(k,54) + rxt(k,255)*y(k,90) + rxt(k,152)*y(k,91) &
-                      + rxt(k,154)*y(k,92) + 1.150_r8*rxt(k,580)*y(k,94)
-         mat(k,429) = mat(k,429) + rxt(k,271)*y(k,60)
-         mat(k,791) = mat(k,791) + 2.000_r8*rxt(k,419)*y(k,130)
-         mat(k,1723) = mat(k,1723) + rxt(k,358)*y(k,61) + rxt(k,362)*y(k,69) &
-                      + rxt(k,349)*y(k,85)
-         mat(k,207) = rxt(k,593)*y(k,68)
-         mat(k,1271) = -(rxt(k,125)*y(k,90) + (rxt(k,132) + rxt(k,134)) * y(k,94) &
-                      + rxt(k,321)*y(k,124) + rxt(k,361)*y(k,132) + rxt(k,363) &
-                      *y(k,125) + rxt(k,391)*y(k,121) + rxt(k,396)*y(k,122) + rxt(k,404) &
-                      *y(k,67) + rxt(k,410)*y(k,38) + rxt(k,424)*y(k,105) + rxt(k,429) &
-                      *y(k,54) + rxt(k,543)*y(k,74) + rxt(k,549)*y(k,75) + rxt(k,582) &
-                      *y(k,106) + (rxt(k,586) + rxt(k,587)) * y(k,120) + rxt(k,593) &
-                      *y(k,133))
-         mat(k,814) = -rxt(k,125)*y(k,68)
-         mat(k,854) = -(rxt(k,132) + rxt(k,134)) * y(k,68)
-         mat(k,1389) = -rxt(k,321)*y(k,68)
-         mat(k,1715) = -rxt(k,361)*y(k,68)
-         mat(k,1433) = -rxt(k,363)*y(k,68)
-         mat(k,627) = -rxt(k,391)*y(k,68)
-         mat(k,246) = -rxt(k,396)*y(k,68)
-         mat(k,1619) = -rxt(k,404)*y(k,68)
-         mat(k,1224) = -rxt(k,410)*y(k,68)
-         mat(k,131) = -rxt(k,424)*y(k,68)
-         mat(k,299) = -rxt(k,429)*y(k,68)
-         mat(k,174) = -rxt(k,543)*y(k,68)
-         mat(k,369) = -rxt(k,549)*y(k,68)
-         mat(k,165) = -rxt(k,582)*y(k,68)
-         mat(k,125) = -(rxt(k,586) + rxt(k,587)) * y(k,68)
-         mat(k,205) = -rxt(k,593)*y(k,68)
-         mat(k,575) = 2.000_r8*rxt(k,488)*y(k,4) + (rxt(k,490)+rxt(k,491))*y(k,26) &
-                      + rxt(k,496)*y(k,67) + rxt(k,492)*y(k,97)
-         mat(k,312) = rxt(k,532)*y(k,97)
-         mat(k,1109) = (rxt(k,490)+rxt(k,491))*y(k,4) + (2.000_r8*rxt(k,457) &
-                       +2.000_r8*rxt(k,458))*y(k,26) + rxt(k,466)*y(k,67) + rxt(k,115) &
-                      *y(k,90) + rxt(k,127)*y(k,93) + rxt(k,460)*y(k,97) + rxt(k,314) &
-                      *y(k,124) + rxt(k,468)*y(k,130) + rxt(k,350)*y(k,132)
-         mat(k,1224) = mat(k,1224) + rxt(k,413)*y(k,69) + rxt(k,407)*y(k,97) &
-                      + rxt(k,330)*y(k,127)
-         mat(k,105) = rxt(k,422)*y(k,130)
-         mat(k,299) = mat(k,299) + rxt(k,428)*y(k,61)
-         mat(k,1562) = rxt(k,439)*y(k,69) + rxt(k,590)*y(k,125) + rxt(k,278)*y(k,127)
-         mat(k,1479) = rxt(k,428)*y(k,54) + rxt(k,430)*y(k,67) + rxt(k,431)*y(k,69) &
-                      + rxt(k,319)*y(k,124) + rxt(k,276)*y(k,127)
-         mat(k,1189) = rxt(k,435)*y(k,67) + rxt(k,433)*y(k,97)
-         mat(k,1619) = mat(k,1619) + rxt(k,496)*y(k,4) + rxt(k,466)*y(k,26) &
-                      + rxt(k,430)*y(k,61) + rxt(k,435)*y(k,62) + 2.000_r8*rxt(k,403) &
-                      *y(k,67) + 2.000_r8*rxt(k,402)*y(k,69) + rxt(k,112)*y(k,89) &
-                      + rxt(k,130)*y(k,93) + rxt(k,411)*y(k,97) + rxt(k,300)*y(k,109) &
-                      + rxt(k,395)*y(k,122) + rxt(k,324)*y(k,124) + ( &
-                      + 2.000_r8*rxt(k,332)+rxt(k,333))*y(k,127) + rxt(k,335)*y(k,128) &
-                      + rxt(k,417)*y(k,130) + rxt(k,359)*y(k,132)
-         mat(k,1271) = mat(k,1271) + 2.000_r8*rxt(k,396)*y(k,122)
-         mat(k,936) = rxt(k,413)*y(k,38) + rxt(k,439)*y(k,60) + rxt(k,431)*y(k,61) &
-                      + 2.000_r8*rxt(k,402)*y(k,67) + rxt(k,544)*y(k,74) + rxt(k,550) &
-                      *y(k,75) + rxt(k,487)*y(k,84) + rxt(k,455)*y(k,85) + rxt(k,131) &
-                      *y(k,93) + rxt(k,133)*y(k,94) + 2.000_r8*rxt(k,412)*y(k,97) &
-                      + rxt(k,291)*y(k,107) + 2.000_r8*rxt(k,301)*y(k,109) &
-                      + 2.000_r8*rxt(k,393)*y(k,121) + rxt(k,322)*y(k,124) &
-                      + 3.000_r8*rxt(k,331)*y(k,127) + rxt(k,418)*y(k,130)
-         mat(k,174) = mat(k,174) + rxt(k,544)*y(k,69)
-         mat(k,369) = mat(k,369) + rxt(k,550)*y(k,69)
-         mat(k,459) = rxt(k,487)*y(k,69) + rxt(k,486)*y(k,97)
-         mat(k,895) = rxt(k,455)*y(k,69) + rxt(k,126)*y(k,93) + rxt(k,453)*y(k,97) &
-                      + rxt(k,313)*y(k,124)
-         mat(k,680) = rxt(k,153)*y(k,125)
-         mat(k,398) = rxt(k,158)*y(k,125)
-         mat(k,382) = rxt(k,256)*y(k,125)
-         mat(k,272) = rxt(k,112)*y(k,67)
-         mat(k,814) = mat(k,814) + rxt(k,115)*y(k,26) + rxt(k,255)*y(k,125)
-         mat(k,350) = rxt(k,152)*y(k,125)
-         mat(k,529) = rxt(k,154)*y(k,125)
-         mat(k,656) = rxt(k,127)*y(k,26) + rxt(k,130)*y(k,67) + rxt(k,131)*y(k,69) &
-                      + rxt(k,126)*y(k,85) + rxt(k,190)*y(k,99) + rxt(k,224)*y(k,101) &
-                      + rxt(k,173)*y(k,103) + rxt(k,243)*y(k,114) + rxt(k,226) &
-                      *y(k,115) + rxt(k,208)*y(k,118) + 2.000_r8*rxt(k,150)*y(k,125)
-         mat(k,854) = mat(k,854) + rxt(k,133)*y(k,69) + rxt(k,325)*y(k,126) &
-                      + 2.000_r8*rxt(k,379)*y(k,129)
-         mat(k,323) = rxt(k,148)*y(k,125)
-         mat(k,737) = rxt(k,492)*y(k,4) + rxt(k,532)*y(k,20) + rxt(k,460)*y(k,26) &
-                      + rxt(k,407)*y(k,38) + rxt(k,433)*y(k,62) + rxt(k,411)*y(k,67) &
-                      + 2.000_r8*rxt(k,412)*y(k,69) + rxt(k,486)*y(k,84) + rxt(k,453) &
-                      *y(k,85) + 2.000_r8*rxt(k,421)*y(k,97) + rxt(k,416)*y(k,130)
-         mat(k,1757) = rxt(k,190)*y(k,93) + rxt(k,189)*y(k,124)
-         mat(k,1521) = rxt(k,224)*y(k,93) + rxt(k,213)*y(k,124)
-         mat(k,1065) = rxt(k,173)*y(k,93) + rxt(k,172)*y(k,124)
-         mat(k,1648) = rxt(k,291)*y(k,69) + rxt(k,160)*y(k,125)
-         mat(k,411) = rxt(k,155)*y(k,125)
-         mat(k,704) = rxt(k,300)*y(k,67) + 2.000_r8*rxt(k,301)*y(k,69) + rxt(k,147) &
-                      *y(k,125)
-         mat(k,509) = rxt(k,159)*y(k,125)
-         mat(k,549) = rxt(k,151)*y(k,125)
-         mat(k,441) = rxt(k,156)*y(k,125)
-         mat(k,491) = rxt(k,254)*y(k,125)
-         mat(k,981) = rxt(k,243)*y(k,93) + rxt(k,242)*y(k,124)
-         mat(k,1023) = rxt(k,226)*y(k,93) + rxt(k,225)*y(k,124)
-         mat(k,1150) = rxt(k,208)*y(k,93) + rxt(k,207)*y(k,124)
-         mat(k,627) = mat(k,627) + 2.000_r8*rxt(k,393)*y(k,69)
-         mat(k,246) = mat(k,246) + rxt(k,395)*y(k,67) + 2.000_r8*rxt(k,396)*y(k,68) &
-                      + 2.000_r8*rxt(k,320)*y(k,124) + 2.000_r8*rxt(k,338)*y(k,129)
-         mat(k,1389) = mat(k,1389) + rxt(k,314)*y(k,26) + rxt(k,319)*y(k,61) &
-                      + rxt(k,324)*y(k,67) + rxt(k,322)*y(k,69) + rxt(k,313)*y(k,85) &
-                      + rxt(k,189)*y(k,99) + rxt(k,213)*y(k,101) + rxt(k,172)*y(k,103) &
-                      + rxt(k,242)*y(k,114) + rxt(k,225)*y(k,115) + rxt(k,207) &
-                      *y(k,118) + 2.000_r8*rxt(k,320)*y(k,122)
-         mat(k,1433) = mat(k,1433) + rxt(k,590)*y(k,60) + rxt(k,153)*y(k,86) &
-                      + rxt(k,158)*y(k,87) + rxt(k,256)*y(k,88) + rxt(k,255)*y(k,90) &
-                      + rxt(k,152)*y(k,91) + rxt(k,154)*y(k,92) + 2.000_r8*rxt(k,150) &
-                      *y(k,93) + rxt(k,148)*y(k,96) + rxt(k,160)*y(k,107) + rxt(k,155) &
-                      *y(k,108) + rxt(k,147)*y(k,109) + rxt(k,159)*y(k,110) &
-                      + rxt(k,151)*y(k,111) + rxt(k,156)*y(k,112) + rxt(k,254) &
-                      *y(k,113)
-         mat(k,194) = rxt(k,325)*y(k,94) + (rxt(k,326)+rxt(k,327))*y(k,134)
-         mat(k,425) = rxt(k,330)*y(k,38) + rxt(k,278)*y(k,60) + rxt(k,276)*y(k,61) + ( &
-                      + 2.000_r8*rxt(k,332)+rxt(k,333))*y(k,67) + 3.000_r8*rxt(k,331) &
-                      *y(k,69)
-         mat(k,98) = rxt(k,335)*y(k,67)
-         mat(k,336) = 2.000_r8*rxt(k,379)*y(k,94) + 2.000_r8*rxt(k,338)*y(k,122) &
-                      + rxt(k,336)*y(k,134)
-         mat(k,784) = rxt(k,468)*y(k,26) + rxt(k,422)*y(k,50) + rxt(k,417)*y(k,67) &
-                      + rxt(k,418)*y(k,69) + rxt(k,416)*y(k,97)
-         mat(k,1715) = mat(k,1715) + rxt(k,350)*y(k,26) + rxt(k,359)*y(k,67)
-         mat(k,1815) = (rxt(k,326)+rxt(k,327))*y(k,126) + rxt(k,336)*y(k,129)
-      end do
+         mat(1484) = -(rxt(109)*y(86) + (rxt(119) + rxt(120)) * y(92) + (rxt(276) &
+                      + rxt(277)) * y(127) + rxt(280)*y(90) + rxt(290)*y(107) + rxt(319) &
+                      *y(124) + rxt(345)*y(131) + rxt(358)*y(132) + (rxt(426) + rxt(427) &
+                      + rxt(428)) * y(54) + (rxt(430) + rxt(432)) * y(67) + rxt(431) &
+                      *y(69) + rxt(443)*y(97) + rxt(444)*y(62) + rxt(445)*y(130) &
+                      + rxt(463)*y(26) + rxt(494)*y(4) + rxt(548)*y(75))
+         mat(684) = -rxt(109)*y(61)
+         mat(531) = -(rxt(119) + rxt(120)) * y(61)
+         mat(427) = -(rxt(276) + rxt(277)) * y(61)
+         mat(819) = -rxt(280)*y(61)
+         mat(1653) = -rxt(290)*y(61)
+         mat(1394) = -rxt(319)*y(61)
+         mat(1685) = -rxt(345)*y(61)
+         mat(1720) = -rxt(358)*y(61)
+         mat(301) = -(rxt(426) + rxt(427) + rxt(428)) * y(61)
+         mat(1624) = -(rxt(430) + rxt(432)) * y(61)
+         mat(941) = -rxt(431)*y(61)
+         mat(742) = -rxt(443)*y(61)
+         mat(1194) = -rxt(444)*y(61)
+         mat(789) = -rxt(445)*y(61)
+         mat(1114) = -rxt(463)*y(61)
+         mat(578) = -rxt(494)*y(61)
+         mat(370) = -rxt(548)*y(61)
+         mat(578) = mat(578) + rxt(493)*y(60)
+         mat(313) = rxt(533)*y(60)
+         mat(1114) = mat(1114) + rxt(461)*y(60)
+         mat(106) = rxt(422)*y(130)
+         mat(178) = rxt(339)*y(130)
+         mat(1567) = rxt(493)*y(4) + rxt(533)*y(20) + rxt(461)*y(26) &
+                      + 2.000_r8*rxt(434)*y(62) + rxt(440)*y(67) + rxt(439)*y(69) &
+                      + rxt(111)*y(89) + rxt(438)*y(97) + rxt(135)*y(132)
+         mat(1194) = mat(1194) + 2.000_r8*rxt(434)*y(60) + rxt(435)*y(67) + rxt(433) &
+                      *y(97) + rxt(436)*y(130)
+         mat(1624) = mat(1624) + rxt(440)*y(60) + rxt(435)*y(62)
+         mat(941) = mat(941) + rxt(439)*y(60)
+         mat(900) = rxt(284)*y(107)
+         mat(273) = rxt(111)*y(60)
+         mat(742) = mat(742) + rxt(438)*y(60) + rxt(433)*y(62)
+         mat(1762) = rxt(200)*y(107) + rxt(196)*y(108)
+         mat(1526) = rxt(165)*y(107) + rxt(161)*y(108)
+         mat(1070) = rxt(183)*y(107) + rxt(178)*y(108)
+         mat(1653) = mat(1653) + rxt(284)*y(85) + rxt(200)*y(99) + rxt(165)*y(101) &
+                      + rxt(183)*y(103) + rxt(253)*y(114) + rxt(236)*y(115) + rxt(218) &
+                      *y(118) + rxt(160)*y(125)
+         mat(413) = rxt(196)*y(99) + rxt(161)*y(101) + rxt(178)*y(103) + rxt(249) &
+                      *y(114) + rxt(231)*y(115) + rxt(214)*y(118) + rxt(155)*y(125)
+         mat(986) = rxt(253)*y(107) + rxt(249)*y(108)
+         mat(1028) = rxt(236)*y(107) + rxt(231)*y(108)
+         mat(1155) = rxt(218)*y(107) + rxt(214)*y(108) + rxt(310)*y(130)
+         mat(1438) = rxt(160)*y(107) + rxt(155)*y(108)
+         mat(789) = mat(789) + rxt(422)*y(50) + rxt(339)*y(53) + rxt(436)*y(62) &
+                      + rxt(310)*y(118)
+         mat(1720) = mat(1720) + rxt(135)*y(60)
+         mat(1187) = -(rxt(433)*y(97) + rxt(434)*y(60) + rxt(435)*y(67) + rxt(436) &
+                      *y(130) + rxt(444)*y(61) + rxt(529)*y(16) + rxt(555)*y(33))
+         mat(735) = -rxt(433)*y(62)
+         mat(1560) = -rxt(434)*y(62)
+         mat(1617) = -rxt(435)*y(62)
+         mat(782) = -rxt(436)*y(62)
+         mat(1477) = -rxt(444)*y(62)
+         mat(595) = -rxt(529)*y(62)
+         mat(62) = -rxt(555)*y(62)
+         mat(141) = rxt(495)*y(67)
+         mat(1107) = rxt(285)*y(107)
+         mat(263) = rxt(464)*y(67) + rxt(462)*y(85) + rxt(465)*y(130)
+         mat(213) = rxt(509)*y(49)
+         mat(1352) = rxt(509)*y(37) + rxt(446)*y(130)
+         mat(1477) = mat(1477) + rxt(432)*y(67) + rxt(431)*y(69)
+         mat(1617) = mat(1617) + rxt(495)*y(5) + rxt(464)*y(27) + rxt(432)*y(61)
+         mat(934) = rxt(431)*y(61)
+         mat(893) = rxt(462)*y(27)
+         mat(735) = mat(735) + rxt(309)*y(118)
+         mat(1755) = rxt(199)*y(110) + rxt(192)*y(111) + rxt(197)*y(112)
+         mat(1519) = rxt(164)*y(110) + (rxt(235)+rxt(261))*y(111) + rxt(162)*y(112)
+         mat(1063) = rxt(182)*y(110) + (rxt(174)+rxt(262))*y(111) + rxt(179)*y(112)
+         mat(1646) = rxt(285)*y(26)
+         mat(702) = rxt(240)*y(114) + rxt(222)*y(115) + rxt(205)*y(118) + rxt(147) &
+                      *y(125)
+         mat(507) = rxt(199)*y(99) + rxt(164)*y(101) + rxt(182)*y(103) + rxt(252) &
+                      *y(114) + rxt(234)*y(115) + rxt(217)*y(118) + rxt(159)*y(125)
+         mat(547) = rxt(192)*y(99) + (rxt(235)+rxt(261))*y(101) + (rxt(174)+rxt(262)) &
+                      *y(103) + rxt(244)*y(114) + rxt(227)*y(115) + rxt(209)*y(118) &
+                      + rxt(151)*y(125)
+         mat(439) = rxt(197)*y(99) + rxt(162)*y(101) + rxt(179)*y(103) + rxt(250) &
+                      *y(114) + rxt(232)*y(115) + rxt(215)*y(118) + rxt(156)*y(125)
+         mat(490) = rxt(237)*y(114) + rxt(219)*y(115) + rxt(201)*y(118) + rxt(254) &
+                      *y(125)
+         mat(979) = rxt(240)*y(109) + rxt(252)*y(110) + rxt(244)*y(111) + rxt(250) &
+                      *y(112) + rxt(237)*y(113)
+         mat(1021) = rxt(222)*y(109) + rxt(234)*y(110) + rxt(227)*y(111) + rxt(232) &
+                      *y(112) + rxt(219)*y(113)
+         mat(1148) = rxt(309)*y(97) + rxt(205)*y(109) + rxt(217)*y(110) + rxt(209) &
+                      *y(111) + rxt(215)*y(112) + rxt(201)*y(113)
+         mat(1431) = rxt(147)*y(109) + rxt(159)*y(110) + rxt(151)*y(111) + rxt(156) &
+                      *y(112) + rxt(254)*y(113)
+         mat(782) = mat(782) + rxt(465)*y(27) + rxt(446)*y(49)
+         mat(1627) = -(rxt(112)*y(89) + rxt(124)*y(90) + rxt(130)*y(93) + rxt(300) &
+                      *y(109) + (rxt(323) + rxt(324)) * y(124) + (rxt(332) + rxt(333) &
+                      ) * y(127) + rxt(335)*y(128) + rxt(337)*y(129) + rxt(346)*y(131) &
+                      + rxt(359)*y(132) + rxt(402)*y(69) + 4._r8*rxt(403)*y(67) &
+                      + rxt(404)*y(68) + rxt(405)*y(39) + rxt(406)*y(41) + rxt(411) &
+                      *y(97) + rxt(417)*y(130) + (rxt(430) + rxt(432)) * y(61) + rxt(435) &
+                      *y(62) + rxt(440)*y(60) + rxt(464)*y(27) + rxt(466)*y(26) &
+                      + rxt(469)*y(47) + rxt(472)*y(52) + rxt(495)*y(5) + rxt(496) &
+                      *y(4) + rxt(498)*y(43) + rxt(500)*y(51) + rxt(530)*y(16) + rxt(541) &
+                      *y(71) + (rxt(583) + rxt(584)) * y(106) + rxt(585)*y(120))
+         mat(275) = -rxt(112)*y(67)
+         mat(822) = -rxt(124)*y(67)
+         mat(663) = -rxt(130)*y(67)
+         mat(711) = -rxt(300)*y(67)
+         mat(1397) = -(rxt(323) + rxt(324)) * y(67)
+         mat(429) = -(rxt(332) + rxt(333)) * y(67)
+         mat(100) = -rxt(335)*y(67)
+         mat(339) = -rxt(337)*y(67)
+         mat(1688) = -rxt(346)*y(67)
+         mat(1723) = -rxt(359)*y(67)
+         mat(944) = -rxt(402)*y(67)
+         mat(1279) = -rxt(404)*y(67)
+         mat(480) = -rxt(405)*y(67)
+         mat(150) = -rxt(406)*y(67)
+         mat(744) = -rxt(411)*y(67)
+         mat(791) = -rxt(417)*y(67)
+         mat(1487) = -(rxt(430) + rxt(432)) * y(67)
+         mat(1197) = -rxt(435)*y(67)
+         mat(1570) = -rxt(440)*y(67)
+         mat(267) = -rxt(464)*y(67)
+         mat(1117) = -rxt(466)*y(67)
+         mat(1323) = -rxt(469)*y(67)
+         mat(240) = -rxt(472)*y(67)
+         mat(144) = -rxt(495)*y(67)
+         mat(580) = -rxt(496)*y(67)
+         mat(232) = -rxt(498)*y(67)
+         mat(224) = -rxt(500)*y(67)
+         mat(602) = -rxt(530)*y(67)
+         mat(76) = -rxt(541)*y(67)
+         mat(168) = -(rxt(583) + rxt(584)) * y(67)
+         mat(127) = -rxt(585)*y(67)
+         mat(1232) = rxt(409)*y(97)
+         mat(303) = rxt(425)*y(60) + rxt(426)*y(61) + rxt(429)*y(68) + rxt(588)*y(125)
+         mat(1570) = mat(1570) + rxt(425)*y(54) + rxt(271)*y(127)
+         mat(1487) = mat(1487) + rxt(426)*y(54) + rxt(358)*y(132)
+         mat(1279) = mat(1279) + rxt(429)*y(54) + rxt(543)*y(74) + rxt(549)*y(75) &
+                      + rxt(587)*y(120) + (rxt(391)+rxt(392))*y(121) + rxt(593)*y(133)
+         mat(944) = mat(944) + rxt(362)*y(132)
+         mat(175) = rxt(543)*y(68)
+         mat(372) = rxt(549)*y(68)
+         mat(903) = rxt(113)*y(90) + rxt(349)*y(132)
+         mat(822) = mat(822) + rxt(113)*y(85) + rxt(185)*y(99) + (rxt(169)+rxt(257)) &
+                      *y(101) + (rxt(167)+rxt(264))*y(103) + rxt(238)*y(114) &
+                      + rxt(220)*y(115) + rxt(203)*y(118) + rxt(255)*y(125)
+         mat(354) = rxt(193)*y(99) + (rxt(246)+rxt(270))*y(101) + (rxt(175)+rxt(258)) &
+                      *y(103) + rxt(245)*y(114) + rxt(228)*y(115) + rxt(210)*y(118) &
+                      + rxt(152)*y(125)
+         mat(534) = rxt(195)*y(99) + (rxt(157)+rxt(259))*y(101) + (rxt(177)+rxt(260)) &
+                      *y(103) + rxt(248)*y(114) + rxt(230)*y(115) + rxt(212)*y(118) &
+                      + rxt(154)*y(125)
+         mat(862) = rxt(579)*y(114) + 1.150_r8*rxt(580)*y(125)
+         mat(744) = mat(744) + rxt(409)*y(38)
+         mat(1765) = rxt(185)*y(90) + rxt(193)*y(91) + rxt(195)*y(92)
+         mat(1529) = (rxt(169)+rxt(257))*y(90) + (rxt(246)+rxt(270))*y(91) + (rxt(157) &
+                       +rxt(259))*y(92)
+         mat(1073) = (rxt(167)+rxt(264))*y(90) + (rxt(175)+rxt(258))*y(91) + (rxt(177) &
+                       +rxt(260))*y(92)
+         mat(989) = rxt(238)*y(90) + rxt(245)*y(91) + rxt(248)*y(92) + rxt(579)*y(94)
+         mat(1031) = rxt(220)*y(90) + rxt(228)*y(91) + rxt(230)*y(92)
+         mat(1158) = rxt(203)*y(90) + rxt(210)*y(91) + rxt(212)*y(92)
+         mat(127) = mat(127) + rxt(587)*y(68)
+         mat(634) = (rxt(391)+rxt(392))*y(68)
+         mat(1441) = rxt(588)*y(54) + rxt(255)*y(90) + rxt(152)*y(91) + rxt(154)*y(92) &
+                      + 1.150_r8*rxt(580)*y(94)
+         mat(429) = mat(429) + rxt(271)*y(60)
+         mat(791) = mat(791) + 2.000_r8*rxt(419)*y(130)
+         mat(1723) = mat(1723) + rxt(358)*y(61) + rxt(362)*y(69) + rxt(349)*y(85)
+         mat(207) = rxt(593)*y(68)
+         mat(1271) = -(rxt(125)*y(90) + (rxt(132) + rxt(134)) * y(94) + rxt(321) &
+                      *y(124) + rxt(361)*y(132) + rxt(363)*y(125) + rxt(391)*y(121) &
+                      + rxt(396)*y(122) + rxt(404)*y(67) + rxt(410)*y(38) + rxt(424) &
+                      *y(105) + rxt(429)*y(54) + rxt(543)*y(74) + rxt(549)*y(75) &
+                      + rxt(582)*y(106) + (rxt(586) + rxt(587)) * y(120) + rxt(593) &
+                      *y(133))
+         mat(814) = -rxt(125)*y(68)
+         mat(854) = -(rxt(132) + rxt(134)) * y(68)
+         mat(1389) = -rxt(321)*y(68)
+         mat(1715) = -rxt(361)*y(68)
+         mat(1433) = -rxt(363)*y(68)
+         mat(627) = -rxt(391)*y(68)
+         mat(246) = -rxt(396)*y(68)
+         mat(1619) = -rxt(404)*y(68)
+         mat(1224) = -rxt(410)*y(68)
+         mat(131) = -rxt(424)*y(68)
+         mat(299) = -rxt(429)*y(68)
+         mat(174) = -rxt(543)*y(68)
+         mat(369) = -rxt(549)*y(68)
+         mat(165) = -rxt(582)*y(68)
+         mat(125) = -(rxt(586) + rxt(587)) * y(68)
+         mat(205) = -rxt(593)*y(68)
+         mat(575) = 2.000_r8*rxt(488)*y(4) + (rxt(490)+rxt(491))*y(26) + rxt(496) &
+                      *y(67) + rxt(492)*y(97)
+         mat(312) = rxt(532)*y(97)
+         mat(1109) = (rxt(490)+rxt(491))*y(4) + (2.000_r8*rxt(457)+2.000_r8*rxt(458)) &
+                      *y(26) + rxt(466)*y(67) + rxt(115)*y(90) + rxt(127)*y(93) &
+                      + rxt(460)*y(97) + rxt(314)*y(124) + rxt(468)*y(130) + rxt(350) &
+                      *y(132)
+         mat(1224) = mat(1224) + rxt(413)*y(69) + rxt(407)*y(97) + rxt(330)*y(127)
+         mat(105) = rxt(422)*y(130)
+         mat(299) = mat(299) + rxt(428)*y(61)
+         mat(1562) = rxt(439)*y(69) + rxt(590)*y(125) + rxt(278)*y(127)
+         mat(1479) = rxt(428)*y(54) + rxt(430)*y(67) + rxt(431)*y(69) + rxt(319) &
+                      *y(124) + rxt(276)*y(127)
+         mat(1189) = rxt(435)*y(67) + rxt(433)*y(97)
+         mat(1619) = mat(1619) + rxt(496)*y(4) + rxt(466)*y(26) + rxt(430)*y(61) &
+                      + rxt(435)*y(62) + 2.000_r8*rxt(403)*y(67) + 2.000_r8*rxt(402) &
+                      *y(69) + rxt(112)*y(89) + rxt(130)*y(93) + rxt(411)*y(97) &
+                      + rxt(300)*y(109) + rxt(395)*y(122) + rxt(324)*y(124) + ( &
+                      + 2.000_r8*rxt(332)+rxt(333))*y(127) + rxt(335)*y(128) &
+                      + rxt(417)*y(130) + rxt(359)*y(132)
+         mat(1271) = mat(1271) + 2.000_r8*rxt(396)*y(122)
+         mat(936) = rxt(413)*y(38) + rxt(439)*y(60) + rxt(431)*y(61) &
+                      + 2.000_r8*rxt(402)*y(67) + rxt(544)*y(74) + rxt(550)*y(75) &
+                      + rxt(487)*y(84) + rxt(455)*y(85) + rxt(131)*y(93) + rxt(133) &
+                      *y(94) + 2.000_r8*rxt(412)*y(97) + rxt(291)*y(107) &
+                      + 2.000_r8*rxt(301)*y(109) + 2.000_r8*rxt(393)*y(121) + rxt(322) &
+                      *y(124) + 3.000_r8*rxt(331)*y(127) + rxt(418)*y(130)
+         mat(174) = mat(174) + rxt(544)*y(69)
+         mat(369) = mat(369) + rxt(550)*y(69)
+         mat(459) = rxt(487)*y(69) + rxt(486)*y(97)
+         mat(895) = rxt(455)*y(69) + rxt(126)*y(93) + rxt(453)*y(97) + rxt(313)*y(124)
+         mat(680) = rxt(153)*y(125)
+         mat(398) = rxt(158)*y(125)
+         mat(382) = rxt(256)*y(125)
+         mat(272) = rxt(112)*y(67)
+         mat(814) = mat(814) + rxt(115)*y(26) + rxt(255)*y(125)
+         mat(350) = rxt(152)*y(125)
+         mat(529) = rxt(154)*y(125)
+         mat(656) = rxt(127)*y(26) + rxt(130)*y(67) + rxt(131)*y(69) + rxt(126)*y(85) &
+                      + rxt(190)*y(99) + rxt(224)*y(101) + rxt(173)*y(103) + rxt(243) &
+                      *y(114) + rxt(226)*y(115) + rxt(208)*y(118) + 2.000_r8*rxt(150) &
+                      *y(125)
+         mat(854) = mat(854) + rxt(133)*y(69) + rxt(325)*y(126) + 2.000_r8*rxt(379) &
+                      *y(129)
+         mat(323) = rxt(148)*y(125)
+         mat(737) = rxt(492)*y(4) + rxt(532)*y(20) + rxt(460)*y(26) + rxt(407)*y(38) &
+                      + rxt(433)*y(62) + rxt(411)*y(67) + 2.000_r8*rxt(412)*y(69) &
+                      + rxt(486)*y(84) + rxt(453)*y(85) + 2.000_r8*rxt(421)*y(97) &
+                      + rxt(416)*y(130)
+         mat(1757) = rxt(190)*y(93) + rxt(189)*y(124)
+         mat(1521) = rxt(224)*y(93) + rxt(213)*y(124)
+         mat(1065) = rxt(173)*y(93) + rxt(172)*y(124)
+         mat(1648) = rxt(291)*y(69) + rxt(160)*y(125)
+         mat(411) = rxt(155)*y(125)
+         mat(704) = rxt(300)*y(67) + 2.000_r8*rxt(301)*y(69) + rxt(147)*y(125)
+         mat(509) = rxt(159)*y(125)
+         mat(549) = rxt(151)*y(125)
+         mat(441) = rxt(156)*y(125)
+         mat(491) = rxt(254)*y(125)
+         mat(981) = rxt(243)*y(93) + rxt(242)*y(124)
+         mat(1023) = rxt(226)*y(93) + rxt(225)*y(124)
+         mat(1150) = rxt(208)*y(93) + rxt(207)*y(124)
+         mat(627) = mat(627) + 2.000_r8*rxt(393)*y(69)
+         mat(246) = mat(246) + rxt(395)*y(67) + 2.000_r8*rxt(396)*y(68) &
+                      + 2.000_r8*rxt(320)*y(124) + 2.000_r8*rxt(338)*y(129)
+         mat(1389) = mat(1389) + rxt(314)*y(26) + rxt(319)*y(61) + rxt(324)*y(67) &
+                      + rxt(322)*y(69) + rxt(313)*y(85) + rxt(189)*y(99) + rxt(213) &
+                      *y(101) + rxt(172)*y(103) + rxt(242)*y(114) + rxt(225)*y(115) &
+                      + rxt(207)*y(118) + 2.000_r8*rxt(320)*y(122)
+         mat(1433) = mat(1433) + rxt(590)*y(60) + rxt(153)*y(86) + rxt(158)*y(87) &
+                      + rxt(256)*y(88) + rxt(255)*y(90) + rxt(152)*y(91) + rxt(154) &
+                      *y(92) + 2.000_r8*rxt(150)*y(93) + rxt(148)*y(96) + rxt(160) &
+                      *y(107) + rxt(155)*y(108) + rxt(147)*y(109) + rxt(159)*y(110) &
+                      + rxt(151)*y(111) + rxt(156)*y(112) + rxt(254)*y(113)
+         mat(194) = rxt(325)*y(94) + (rxt(326)+rxt(327))*y(134)
+         mat(425) = rxt(330)*y(38) + rxt(278)*y(60) + rxt(276)*y(61) + ( &
+                      + 2.000_r8*rxt(332)+rxt(333))*y(67) + 3.000_r8*rxt(331)*y(69)
+         mat(98) = rxt(335)*y(67)
+         mat(336) = 2.000_r8*rxt(379)*y(94) + 2.000_r8*rxt(338)*y(122) + rxt(336) &
+                      *y(134)
+         mat(784) = rxt(468)*y(26) + rxt(422)*y(50) + rxt(417)*y(67) + rxt(418)*y(69) &
+                      + rxt(416)*y(97)
+         mat(1715) = mat(1715) + rxt(350)*y(26) + rxt(359)*y(67)
+         mat(1815) = (rxt(326)+rxt(327))*y(126) + rxt(336)*y(129)
       end subroutine nlnmat03
-      subroutine nlnmat04( avec_len, mat, y, rxt )
+      subroutine nlnmat04( mat, y, rxt )
       use chem_mods, only : gas_pcnst, rxntot, nzcnt
       implicit none
 !----------------------------------------------
 ! ... dummy arguments
 !----------------------------------------------
-      integer, intent(in) :: avec_len
-      real(r8), intent(in) :: y(veclen,gas_pcnst)
-      real(r8), intent(in) :: rxt(veclen,rxntot)
-      real(r8), intent(inout) :: mat(veclen,nzcnt)
+      real(r8), intent(in) :: y(gas_pcnst)
+      real(r8), intent(in) :: rxt(rxntot)
+      real(r8), intent(inout) :: mat(nzcnt)
 !----------------------------------------------
 ! ... local variables
 !----------------------------------------------
-      integer :: k
 !----------------------------------------------
 ! ... complete matrix entries implicit species
 !----------------------------------------------
-      do k = 1,avec_len
-         mat(k,928) = -(rxt(k,131)*y(k,93) + rxt(k,133)*y(k,94) + rxt(k,291)*y(k,107) &
-                      + rxt(k,301)*y(k,109) + rxt(k,322)*y(k,124) + rxt(k,331) &
-                      *y(k,127) + rxt(k,347)*y(k,131) + rxt(k,362)*y(k,132) + rxt(k,393) &
-                      *y(k,121) + rxt(k,402)*y(k,67) + rxt(k,412)*y(k,97) + rxt(k,413) &
-                      *y(k,38) + rxt(k,418)*y(k,130) + rxt(k,431)*y(k,61) + rxt(k,439) &
-                      *y(k,60) + rxt(k,455)*y(k,85) + rxt(k,487)*y(k,84) + rxt(k,544) &
-                      *y(k,74) + rxt(k,550)*y(k,75))
-         mat(k,649) = -rxt(k,131)*y(k,69)
-         mat(k,846) = -rxt(k,133)*y(k,69)
-         mat(k,1640) = -rxt(k,291)*y(k,69)
-         mat(k,697) = -rxt(k,301)*y(k,69)
-         mat(k,1381) = -rxt(k,322)*y(k,69)
-         mat(k,423) = -rxt(k,331)*y(k,69)
-         mat(k,1672) = -rxt(k,347)*y(k,69)
-         mat(k,1707) = -rxt(k,362)*y(k,69)
-         mat(k,623) = -rxt(k,393)*y(k,69)
-         mat(k,1611) = -rxt(k,402)*y(k,69)
-         mat(k,732) = -rxt(k,412)*y(k,69)
-         mat(k,1216) = -rxt(k,413)*y(k,69)
-         mat(k,778) = -rxt(k,418)*y(k,69)
-         mat(k,1471) = -rxt(k,431)*y(k,69)
-         mat(k,1554) = -rxt(k,439)*y(k,69)
-         mat(k,887) = -rxt(k,455)*y(k,69)
-         mat(k,457) = -rxt(k,487)*y(k,69)
-         mat(k,172) = -rxt(k,544)*y(k,69)
-         mat(k,366) = -rxt(k,550)*y(k,69)
-         mat(k,1471) = mat(k,1471) + rxt(k,277)*y(k,127)
-         mat(k,1611) = mat(k,1611) + rxt(k,404)*y(k,68) + rxt(k,323)*y(k,124) &
-                      + rxt(k,337)*y(k,129)
-         mat(k,1263) = rxt(k,404)*y(k,67)
-         mat(k,245) = rxt(k,360)*y(k,132)
-         mat(k,1381) = mat(k,1381) + rxt(k,323)*y(k,67)
-         mat(k,423) = mat(k,423) + rxt(k,277)*y(k,61)
-         mat(k,334) = rxt(k,337)*y(k,67)
-         mat(k,1707) = mat(k,1707) + rxt(k,360)*y(k,122)
-         mat(k,64) = -(rxt(k,551)*y(k,75))
-         mat(k,357) = -rxt(k,551)*y(k,70)
-         mat(k,559) = rxt(k,489)*y(k,26)
-         mat(k,1082) = rxt(k,489)*y(k,4) + 2.000_r8*rxt(k,459)*y(k,26)
-         mat(k,69) = -(rxt(k,541)*y(k,67) + rxt(k,542)*y(k,130))
-         mat(k,1577) = -rxt(k,541)*y(k,71)
-         mat(k,753) = -rxt(k,542)*y(k,71)
-         mat(k,169) = -(rxt(k,543)*y(k,68) + rxt(k,544)*y(k,69) + rxt(k,547)*y(k,130))
-         mat(k,1243) = -rxt(k,543)*y(k,74)
-         mat(k,910) = -rxt(k,544)*y(k,74)
-         mat(k,758) = -rxt(k,547)*y(k,74)
-         mat(k,360) = -(rxt(k,545)*y(k,4) + rxt(k,546)*y(k,26) + rxt(k,548)*y(k,61) &
-                      + rxt(k,549)*y(k,68) + rxt(k,550)*y(k,69) + rxt(k,551)*y(k,70) &
-                      + rxt(k,552)*y(k,130))
-         mat(k,563) = -rxt(k,545)*y(k,75)
-         mat(k,1088) = -rxt(k,546)*y(k,75)
-         mat(k,1454) = -rxt(k,548)*y(k,75)
-         mat(k,1249) = -rxt(k,549)*y(k,75)
-         mat(k,914) = -rxt(k,550)*y(k,75)
-         mat(k,66) = -rxt(k,551)*y(k,75)
-         mat(k,768) = -rxt(k,552)*y(k,75)
-         mat(k,1596) = rxt(k,541)*y(k,71)
-         mat(k,1249) = mat(k,1249) + rxt(k,543)*y(k,74)
-         mat(k,914) = mat(k,914) + rxt(k,544)*y(k,74)
-         mat(k,73) = rxt(k,541)*y(k,67)
-         mat(k,170) = rxt(k,543)*y(k,68) + rxt(k,544)*y(k,69) + rxt(k,547)*y(k,130)
-         mat(k,768) = mat(k,768) + rxt(k,547)*y(k,74)
-         mat(k,251) = -(rxt(k,553)*y(k,130))
-         mat(k,764) = -rxt(k,553)*y(k,76)
-         mat(k,562) = rxt(k,545)*y(k,75)
-         mat(k,1084) = rxt(k,546)*y(k,75)
-         mat(k,59) = rxt(k,555)*y(k,62) + (rxt(k,556)+.500_r8*rxt(k,557))*y(k,130)
-         mat(k,1450) = rxt(k,548)*y(k,75)
-         mat(k,1166) = rxt(k,555)*y(k,33)
-         mat(k,1246) = rxt(k,549)*y(k,75)
-         mat(k,912) = rxt(k,550)*y(k,75)
-         mat(k,65) = rxt(k,551)*y(k,75)
-         mat(k,72) = rxt(k,542)*y(k,130)
-         mat(k,359) = rxt(k,545)*y(k,4) + rxt(k,546)*y(k,26) + rxt(k,548)*y(k,61) &
-                      + rxt(k,549)*y(k,68) + rxt(k,550)*y(k,69) + rxt(k,551)*y(k,70) &
-                      + rxt(k,552)*y(k,130)
-         mat(k,764) = mat(k,764) + (rxt(k,556)+.500_r8*rxt(k,557))*y(k,33) &
-                      + rxt(k,542)*y(k,71) + rxt(k,552)*y(k,75)
-         mat(k,46) = -(rxt(k,554)*y(k,134))
-         mat(k,1773) = -rxt(k,554)*y(k,77)
-         mat(k,250) = rxt(k,553)*y(k,130)
-         mat(k,751) = rxt(k,553)*y(k,76)
-         mat(k,451) = -(rxt(k,485)*y(k,16) + rxt(k,486)*y(k,97) + rxt(k,487)*y(k,69))
-         mat(k,584) = -rxt(k,485)*y(k,84)
-         mat(k,723) = -rxt(k,486)*y(k,84)
-         mat(k,916) = -rxt(k,487)*y(k,84)
-         mat(k,564) = 4.000_r8*rxt(k,488)*y(k,4) + (rxt(k,489)+rxt(k,490))*y(k,26) &
-                      + rxt(k,493)*y(k,60) + rxt(k,496)*y(k,67) + rxt(k,545)*y(k,75) &
-                      + rxt(k,497)*y(k,130)
-         mat(k,1089) = (rxt(k,489)+rxt(k,490))*y(k,4)
-         mat(k,227) = rxt(k,498)*y(k,67) + rxt(k,504)*y(k,121) + rxt(k,499)*y(k,130)
-         mat(k,1541) = rxt(k,493)*y(k,4)
-         mat(k,1598) = rxt(k,496)*y(k,4) + rxt(k,498)*y(k,43)
-         mat(k,361) = rxt(k,545)*y(k,4)
-         mat(k,614) = rxt(k,504)*y(k,43)
-         mat(k,769) = rxt(k,497)*y(k,4) + rxt(k,499)*y(k,43)
-         mat(k,886) = -((rxt(k,113) + rxt(k,114)) * y(k,90) + rxt(k,126)*y(k,93) &
-                      + rxt(k,284)*y(k,107) + rxt(k,313)*y(k,124) + rxt(k,340) &
-                      *y(k,131) + rxt(k,349)*y(k,132) + rxt(k,449)*y(k,16) + rxt(k,451) &
-                      *y(k,39) + rxt(k,452)*y(k,41) + (rxt(k,453) + rxt(k,454) &
-                      ) * y(k,97) + rxt(k,455)*y(k,69) + rxt(k,462)*y(k,27) + rxt(k,471) &
-                      *y(k,52))
-         mat(k,805) = -(rxt(k,113) + rxt(k,114)) * y(k,85)
-         mat(k,648) = -rxt(k,126)*y(k,85)
-         mat(k,1639) = -rxt(k,284)*y(k,85)
-         mat(k,1380) = -rxt(k,313)*y(k,85)
-         mat(k,1671) = -rxt(k,340)*y(k,85)
-         mat(k,1706) = -rxt(k,349)*y(k,85)
-         mat(k,592) = -rxt(k,449)*y(k,85)
-         mat(k,471) = -rxt(k,451)*y(k,85)
-         mat(k,148) = -rxt(k,452)*y(k,85)
-         mat(k,731) = -(rxt(k,453) + rxt(k,454)) * y(k,85)
-         mat(k,927) = -rxt(k,455)*y(k,85)
-         mat(k,261) = -rxt(k,462)*y(k,85)
-         mat(k,237) = -rxt(k,471)*y(k,85)
-         mat(k,570) = rxt(k,490)*y(k,26)
-         mat(k,309) = rxt(k,456)*y(k,26)
-         mat(k,1100) = rxt(k,490)*y(k,4) + rxt(k,456)*y(k,20) + (4.000_r8*rxt(k,457) &
-                       +2.000_r8*rxt(k,459))*y(k,26) + rxt(k,461)*y(k,60) + rxt(k,466) &
-                      *y(k,67) + rxt(k,546)*y(k,75) + rxt(k,467)*y(k,130)
-         mat(k,35) = rxt(k,511)*y(k,121)
-         mat(k,1306) = rxt(k,469)*y(k,67) + rxt(k,481)*y(k,121) + rxt(k,470)*y(k,130)
-         mat(k,1553) = rxt(k,461)*y(k,26) + rxt(k,110)*y(k,89)
-         mat(k,1470) = rxt(k,109)*y(k,86)
-         mat(k,1610) = rxt(k,466)*y(k,26) + rxt(k,469)*y(k,47)
-         mat(k,365) = rxt(k,546)*y(k,26)
-         mat(k,674) = rxt(k,109)*y(k,61) + rxt(k,194)*y(k,99) + rxt(k,146)*y(k,101) &
-                      + rxt(k,176)*y(k,103) + rxt(k,247)*y(k,114) + rxt(k,229) &
-                      *y(k,115) + rxt(k,211)*y(k,118) + rxt(k,153)*y(k,125)
-         mat(k,392) = rxt(k,198)*y(k,99) + rxt(k,163)*y(k,101) + rxt(k,181)*y(k,103) &
-                      + rxt(k,251)*y(k,114) + rxt(k,233)*y(k,115) + rxt(k,216) &
-                      *y(k,118) + rxt(k,158)*y(k,125)
-         mat(k,376) = rxt(k,186)*y(k,99) + rxt(k,180)*y(k,101) + rxt(k,168)*y(k,103) &
-                      + rxt(k,239)*y(k,114) + rxt(k,221)*y(k,115) + rxt(k,204) &
-                      *y(k,118) + rxt(k,256)*y(k,125)
-         mat(k,271) = rxt(k,110)*y(k,60)
-         mat(k,1748) = rxt(k,194)*y(k,86) + rxt(k,198)*y(k,87) + rxt(k,186)*y(k,88)
-         mat(k,1512) = rxt(k,146)*y(k,86) + rxt(k,163)*y(k,87) + rxt(k,180)*y(k,88)
-         mat(k,1056) = rxt(k,176)*y(k,86) + rxt(k,181)*y(k,87) + rxt(k,168)*y(k,88)
-         mat(k,972) = rxt(k,247)*y(k,86) + rxt(k,251)*y(k,87) + rxt(k,239)*y(k,88)
-         mat(k,1014) = rxt(k,229)*y(k,86) + rxt(k,233)*y(k,87) + rxt(k,221)*y(k,88)
-         mat(k,1141) = rxt(k,211)*y(k,86) + rxt(k,216)*y(k,87) + rxt(k,204)*y(k,88)
-         mat(k,622) = rxt(k,511)*y(k,32) + rxt(k,481)*y(k,47)
-         mat(k,1424) = rxt(k,153)*y(k,86) + rxt(k,158)*y(k,87) + rxt(k,256)*y(k,88)
-         mat(k,777) = rxt(k,467)*y(k,26) + rxt(k,470)*y(k,47)
-         mat(k,671) = -(rxt(k,104)*y(k,38) + rxt(k,106)*y(k,134) + rxt(k,107)*y(k,47) &
-                      + rxt(k,108)*y(k,49) + rxt(k,109)*y(k,61) + rxt(k,146)*y(k,101) &
-                      + rxt(k,153)*y(k,125) + rxt(k,176)*y(k,103) + rxt(k,194)*y(k,99) &
-                      + rxt(k,211)*y(k,118) + rxt(k,229)*y(k,115) + rxt(k,247) &
-                      *y(k,114))
-         mat(k,1209) = -rxt(k,104)*y(k,86)
-         mat(k,1800) = -rxt(k,106)*y(k,86)
-         mat(k,1300) = -rxt(k,107)*y(k,86)
-         mat(k,1339) = -rxt(k,108)*y(k,86)
-         mat(k,1464) = -rxt(k,109)*y(k,86)
-         mat(k,1506) = -rxt(k,146)*y(k,86)
-         mat(k,1418) = -rxt(k,153)*y(k,86)
-         mat(k,1050) = -rxt(k,176)*y(k,86)
-         mat(k,1742) = -rxt(k,194)*y(k,86)
-         mat(k,1135) = -rxt(k,211)*y(k,86)
-         mat(k,1008) = -rxt(k,229)*y(k,86)
-         mat(k,966) = -rxt(k,247)*y(k,86)
-         mat(k,1094) = rxt(k,115)*y(k,90) + rxt(k,285)*y(k,107) + rxt(k,350)*y(k,132)
-         mat(k,1300) = mat(k,1300) + rxt(k,129)*y(k,93) + rxt(k,288)*y(k,107) &
-                      + rxt(k,297)*y(k,109) + rxt(k,317)*y(k,124) + rxt(k,344) &
-                      *y(k,131) + rxt(k,355)*y(k,132)
-         mat(k,1547) = rxt(k,111)*y(k,89)
-         mat(k,1604) = rxt(k,112)*y(k,89)
-         mat(k,880) = rxt(k,113)*y(k,90) + rxt(k,126)*y(k,93) + rxt(k,284)*y(k,107) &
-                      + rxt(k,313)*y(k,124) + rxt(k,340)*y(k,131) + rxt(k,349) &
-                      *y(k,132)
-         mat(k,270) = rxt(k,111)*y(k,60) + rxt(k,112)*y(k,67)
-         mat(k,800) = rxt(k,115)*y(k,26) + rxt(k,113)*y(k,85)
-         mat(k,642) = rxt(k,129)*y(k,47) + rxt(k,126)*y(k,85)
-         mat(k,1635) = rxt(k,285)*y(k,26) + rxt(k,288)*y(k,47) + rxt(k,284)*y(k,85)
-         mat(k,693) = rxt(k,297)*y(k,47)
-         mat(k,1374) = rxt(k,317)*y(k,47) + rxt(k,313)*y(k,85)
-         mat(k,1665) = rxt(k,344)*y(k,47) + rxt(k,340)*y(k,85)
-         mat(k,1700) = rxt(k,350)*y(k,26) + rxt(k,355)*y(k,47) + rxt(k,349)*y(k,85)
-         mat(k,390) = -(rxt(k,105)*y(k,47) + rxt(k,158)*y(k,125) + rxt(k,163)*y(k,101) &
-                      + rxt(k,181)*y(k,103) + rxt(k,198)*y(k,99) + rxt(k,216)*y(k,118) &
-                      + rxt(k,233)*y(k,115) + rxt(k,251)*y(k,114))
-         mat(k,1292) = -rxt(k,105)*y(k,87)
-         mat(k,1409) = -rxt(k,158)*y(k,87)
-         mat(k,1498) = -rxt(k,163)*y(k,87)
-         mat(k,1042) = -rxt(k,181)*y(k,87)
-         mat(k,1734) = -rxt(k,198)*y(k,87)
-         mat(k,1127) = -rxt(k,216)*y(k,87)
-         mat(k,1000) = -rxt(k,233)*y(k,87)
-         mat(k,957) = -rxt(k,251)*y(k,87)
-         mat(k,670) = rxt(k,106)*y(k,134)
-         mat(k,1790) = rxt(k,106)*y(k,86)
-         mat(k,374) = -((rxt(k,168) + rxt(k,267)) * y(k,103) + (rxt(k,180) + rxt(k,266) &
-                      ) * y(k,101) + rxt(k,186)*y(k,99) + rxt(k,204)*y(k,118) &
-                      + rxt(k,221)*y(k,115) + rxt(k,239)*y(k,114) + rxt(k,256) &
-                      *y(k,125))
-         mat(k,1041) = -(rxt(k,168) + rxt(k,267)) * y(k,88)
-         mat(k,1497) = -(rxt(k,180) + rxt(k,266)) * y(k,88)
-         mat(k,1733) = -rxt(k,186)*y(k,88)
-         mat(k,1126) = -rxt(k,204)*y(k,88)
-         mat(k,999) = -rxt(k,221)*y(k,88)
-         mat(k,956) = -rxt(k,239)*y(k,88)
-         mat(k,1408) = -rxt(k,256)*y(k,88)
-         mat(k,1291) = rxt(k,107)*y(k,86) + rxt(k,105)*y(k,87)
-         mat(k,669) = rxt(k,107)*y(k,47)
-         mat(k,389) = rxt(k,105)*y(k,47)
-      end do
+         mat(928) = -(rxt(131)*y(93) + rxt(133)*y(94) + rxt(291)*y(107) + rxt(301) &
+                      *y(109) + rxt(322)*y(124) + rxt(331)*y(127) + rxt(347)*y(131) &
+                      + rxt(362)*y(132) + rxt(393)*y(121) + rxt(402)*y(67) + rxt(412) &
+                      *y(97) + rxt(413)*y(38) + rxt(418)*y(130) + rxt(431)*y(61) &
+                      + rxt(439)*y(60) + rxt(455)*y(85) + rxt(487)*y(84) + rxt(544) &
+                      *y(74) + rxt(550)*y(75))
+         mat(649) = -rxt(131)*y(69)
+         mat(846) = -rxt(133)*y(69)
+         mat(1640) = -rxt(291)*y(69)
+         mat(697) = -rxt(301)*y(69)
+         mat(1381) = -rxt(322)*y(69)
+         mat(423) = -rxt(331)*y(69)
+         mat(1672) = -rxt(347)*y(69)
+         mat(1707) = -rxt(362)*y(69)
+         mat(623) = -rxt(393)*y(69)
+         mat(1611) = -rxt(402)*y(69)
+         mat(732) = -rxt(412)*y(69)
+         mat(1216) = -rxt(413)*y(69)
+         mat(778) = -rxt(418)*y(69)
+         mat(1471) = -rxt(431)*y(69)
+         mat(1554) = -rxt(439)*y(69)
+         mat(887) = -rxt(455)*y(69)
+         mat(457) = -rxt(487)*y(69)
+         mat(172) = -rxt(544)*y(69)
+         mat(366) = -rxt(550)*y(69)
+         mat(1471) = mat(1471) + rxt(277)*y(127)
+         mat(1611) = mat(1611) + rxt(404)*y(68) + rxt(323)*y(124) + rxt(337)*y(129)
+         mat(1263) = rxt(404)*y(67)
+         mat(245) = rxt(360)*y(132)
+         mat(1381) = mat(1381) + rxt(323)*y(67)
+         mat(423) = mat(423) + rxt(277)*y(61)
+         mat(334) = rxt(337)*y(67)
+         mat(1707) = mat(1707) + rxt(360)*y(122)
+         mat(64) = -(rxt(551)*y(75))
+         mat(357) = -rxt(551)*y(70)
+         mat(559) = rxt(489)*y(26)
+         mat(1082) = rxt(489)*y(4) + 2.000_r8*rxt(459)*y(26)
+         mat(69) = -(rxt(541)*y(67) + rxt(542)*y(130))
+         mat(1577) = -rxt(541)*y(71)
+         mat(753) = -rxt(542)*y(71)
+         mat(169) = -(rxt(543)*y(68) + rxt(544)*y(69) + rxt(547)*y(130))
+         mat(1243) = -rxt(543)*y(74)
+         mat(910) = -rxt(544)*y(74)
+         mat(758) = -rxt(547)*y(74)
+         mat(360) = -(rxt(545)*y(4) + rxt(546)*y(26) + rxt(548)*y(61) + rxt(549)*y(68) &
+                      + rxt(550)*y(69) + rxt(551)*y(70) + rxt(552)*y(130))
+         mat(563) = -rxt(545)*y(75)
+         mat(1088) = -rxt(546)*y(75)
+         mat(1454) = -rxt(548)*y(75)
+         mat(1249) = -rxt(549)*y(75)
+         mat(914) = -rxt(550)*y(75)
+         mat(66) = -rxt(551)*y(75)
+         mat(768) = -rxt(552)*y(75)
+         mat(1596) = rxt(541)*y(71)
+         mat(1249) = mat(1249) + rxt(543)*y(74)
+         mat(914) = mat(914) + rxt(544)*y(74)
+         mat(73) = rxt(541)*y(67)
+         mat(170) = rxt(543)*y(68) + rxt(544)*y(69) + rxt(547)*y(130)
+         mat(768) = mat(768) + rxt(547)*y(74)
+         mat(251) = -(rxt(553)*y(130))
+         mat(764) = -rxt(553)*y(76)
+         mat(562) = rxt(545)*y(75)
+         mat(1084) = rxt(546)*y(75)
+         mat(59) = rxt(555)*y(62) + (rxt(556)+.500_r8*rxt(557))*y(130)
+         mat(1450) = rxt(548)*y(75)
+         mat(1166) = rxt(555)*y(33)
+         mat(1246) = rxt(549)*y(75)
+         mat(912) = rxt(550)*y(75)
+         mat(65) = rxt(551)*y(75)
+         mat(72) = rxt(542)*y(130)
+         mat(359) = rxt(545)*y(4) + rxt(546)*y(26) + rxt(548)*y(61) + rxt(549)*y(68) &
+                      + rxt(550)*y(69) + rxt(551)*y(70) + rxt(552)*y(130)
+         mat(764) = mat(764) + (rxt(556)+.500_r8*rxt(557))*y(33) + rxt(542)*y(71) &
+                      + rxt(552)*y(75)
+         mat(46) = -(rxt(554)*y(134))
+         mat(1773) = -rxt(554)*y(77)
+         mat(250) = rxt(553)*y(130)
+         mat(751) = rxt(553)*y(76)
+         mat(451) = -(rxt(485)*y(16) + rxt(486)*y(97) + rxt(487)*y(69))
+         mat(584) = -rxt(485)*y(84)
+         mat(723) = -rxt(486)*y(84)
+         mat(916) = -rxt(487)*y(84)
+         mat(564) = 4.000_r8*rxt(488)*y(4) + (rxt(489)+rxt(490))*y(26) + rxt(493) &
+                      *y(60) + rxt(496)*y(67) + rxt(545)*y(75) + rxt(497)*y(130)
+         mat(1089) = (rxt(489)+rxt(490))*y(4)
+         mat(227) = rxt(498)*y(67) + rxt(504)*y(121) + rxt(499)*y(130)
+         mat(1541) = rxt(493)*y(4)
+         mat(1598) = rxt(496)*y(4) + rxt(498)*y(43)
+         mat(361) = rxt(545)*y(4)
+         mat(614) = rxt(504)*y(43)
+         mat(769) = rxt(497)*y(4) + rxt(499)*y(43)
+         mat(886) = -((rxt(113) + rxt(114)) * y(90) + rxt(126)*y(93) + rxt(284)*y(107) &
+                      + rxt(313)*y(124) + rxt(340)*y(131) + rxt(349)*y(132) + rxt(449) &
+                      *y(16) + rxt(451)*y(39) + rxt(452)*y(41) + (rxt(453) + rxt(454) &
+                      ) * y(97) + rxt(455)*y(69) + rxt(462)*y(27) + rxt(471)*y(52))
+         mat(805) = -(rxt(113) + rxt(114)) * y(85)
+         mat(648) = -rxt(126)*y(85)
+         mat(1639) = -rxt(284)*y(85)
+         mat(1380) = -rxt(313)*y(85)
+         mat(1671) = -rxt(340)*y(85)
+         mat(1706) = -rxt(349)*y(85)
+         mat(592) = -rxt(449)*y(85)
+         mat(471) = -rxt(451)*y(85)
+         mat(148) = -rxt(452)*y(85)
+         mat(731) = -(rxt(453) + rxt(454)) * y(85)
+         mat(927) = -rxt(455)*y(85)
+         mat(261) = -rxt(462)*y(85)
+         mat(237) = -rxt(471)*y(85)
+         mat(570) = rxt(490)*y(26)
+         mat(309) = rxt(456)*y(26)
+         mat(1100) = rxt(490)*y(4) + rxt(456)*y(20) + (4.000_r8*rxt(457) &
+                       +2.000_r8*rxt(459))*y(26) + rxt(461)*y(60) + rxt(466)*y(67) &
+                      + rxt(546)*y(75) + rxt(467)*y(130)
+         mat(35) = rxt(511)*y(121)
+         mat(1306) = rxt(469)*y(67) + rxt(481)*y(121) + rxt(470)*y(130)
+         mat(1553) = rxt(461)*y(26) + rxt(110)*y(89)
+         mat(1470) = rxt(109)*y(86)
+         mat(1610) = rxt(466)*y(26) + rxt(469)*y(47)
+         mat(365) = rxt(546)*y(26)
+         mat(674) = rxt(109)*y(61) + rxt(194)*y(99) + rxt(146)*y(101) + rxt(176) &
+                      *y(103) + rxt(247)*y(114) + rxt(229)*y(115) + rxt(211)*y(118) &
+                      + rxt(153)*y(125)
+         mat(392) = rxt(198)*y(99) + rxt(163)*y(101) + rxt(181)*y(103) + rxt(251) &
+                      *y(114) + rxt(233)*y(115) + rxt(216)*y(118) + rxt(158)*y(125)
+         mat(376) = rxt(186)*y(99) + rxt(180)*y(101) + rxt(168)*y(103) + rxt(239) &
+                      *y(114) + rxt(221)*y(115) + rxt(204)*y(118) + rxt(256)*y(125)
+         mat(271) = rxt(110)*y(60)
+         mat(1748) = rxt(194)*y(86) + rxt(198)*y(87) + rxt(186)*y(88)
+         mat(1512) = rxt(146)*y(86) + rxt(163)*y(87) + rxt(180)*y(88)
+         mat(1056) = rxt(176)*y(86) + rxt(181)*y(87) + rxt(168)*y(88)
+         mat(972) = rxt(247)*y(86) + rxt(251)*y(87) + rxt(239)*y(88)
+         mat(1014) = rxt(229)*y(86) + rxt(233)*y(87) + rxt(221)*y(88)
+         mat(1141) = rxt(211)*y(86) + rxt(216)*y(87) + rxt(204)*y(88)
+         mat(622) = rxt(511)*y(32) + rxt(481)*y(47)
+         mat(1424) = rxt(153)*y(86) + rxt(158)*y(87) + rxt(256)*y(88)
+         mat(777) = rxt(467)*y(26) + rxt(470)*y(47)
+         mat(671) = -(rxt(104)*y(38) + rxt(106)*y(134) + rxt(107)*y(47) + rxt(108) &
+                      *y(49) + rxt(109)*y(61) + rxt(146)*y(101) + rxt(153)*y(125) &
+                      + rxt(176)*y(103) + rxt(194)*y(99) + rxt(211)*y(118) + rxt(229) &
+                      *y(115) + rxt(247)*y(114))
+         mat(1209) = -rxt(104)*y(86)
+         mat(1800) = -rxt(106)*y(86)
+         mat(1300) = -rxt(107)*y(86)
+         mat(1339) = -rxt(108)*y(86)
+         mat(1464) = -rxt(109)*y(86)
+         mat(1506) = -rxt(146)*y(86)
+         mat(1418) = -rxt(153)*y(86)
+         mat(1050) = -rxt(176)*y(86)
+         mat(1742) = -rxt(194)*y(86)
+         mat(1135) = -rxt(211)*y(86)
+         mat(1008) = -rxt(229)*y(86)
+         mat(966) = -rxt(247)*y(86)
+         mat(1094) = rxt(115)*y(90) + rxt(285)*y(107) + rxt(350)*y(132)
+         mat(1300) = mat(1300) + rxt(129)*y(93) + rxt(288)*y(107) + rxt(297)*y(109) &
+                      + rxt(317)*y(124) + rxt(344)*y(131) + rxt(355)*y(132)
+         mat(1547) = rxt(111)*y(89)
+         mat(1604) = rxt(112)*y(89)
+         mat(880) = rxt(113)*y(90) + rxt(126)*y(93) + rxt(284)*y(107) + rxt(313) &
+                      *y(124) + rxt(340)*y(131) + rxt(349)*y(132)
+         mat(270) = rxt(111)*y(60) + rxt(112)*y(67)
+         mat(800) = rxt(115)*y(26) + rxt(113)*y(85)
+         mat(642) = rxt(129)*y(47) + rxt(126)*y(85)
+         mat(1635) = rxt(285)*y(26) + rxt(288)*y(47) + rxt(284)*y(85)
+         mat(693) = rxt(297)*y(47)
+         mat(1374) = rxt(317)*y(47) + rxt(313)*y(85)
+         mat(1665) = rxt(344)*y(47) + rxt(340)*y(85)
+         mat(1700) = rxt(350)*y(26) + rxt(355)*y(47) + rxt(349)*y(85)
+         mat(390) = -(rxt(105)*y(47) + rxt(158)*y(125) + rxt(163)*y(101) + rxt(181) &
+                      *y(103) + rxt(198)*y(99) + rxt(216)*y(118) + rxt(233)*y(115) &
+                      + rxt(251)*y(114))
+         mat(1292) = -rxt(105)*y(87)
+         mat(1409) = -rxt(158)*y(87)
+         mat(1498) = -rxt(163)*y(87)
+         mat(1042) = -rxt(181)*y(87)
+         mat(1734) = -rxt(198)*y(87)
+         mat(1127) = -rxt(216)*y(87)
+         mat(1000) = -rxt(233)*y(87)
+         mat(957) = -rxt(251)*y(87)
+         mat(670) = rxt(106)*y(134)
+         mat(1790) = rxt(106)*y(86)
+         mat(374) = -((rxt(168) + rxt(267)) * y(103) + (rxt(180) + rxt(266)) * y(101) &
+                      + rxt(186)*y(99) + rxt(204)*y(118) + rxt(221)*y(115) + rxt(239) &
+                      *y(114) + rxt(256)*y(125))
+         mat(1041) = -(rxt(168) + rxt(267)) * y(88)
+         mat(1497) = -(rxt(180) + rxt(266)) * y(88)
+         mat(1733) = -rxt(186)*y(88)
+         mat(1126) = -rxt(204)*y(88)
+         mat(999) = -rxt(221)*y(88)
+         mat(956) = -rxt(239)*y(88)
+         mat(1408) = -rxt(256)*y(88)
+         mat(1291) = rxt(107)*y(86) + rxt(105)*y(87)
+         mat(669) = rxt(107)*y(47)
+         mat(389) = rxt(105)*y(47)
+         mat(269) = -((rxt(110) + rxt(111)) * y(60) + rxt(112)*y(67))
+         mat(1536) = -(rxt(110) + rxt(111)) * y(89)
+         mat(1593) = -rxt(112)*y(89)
+         mat(1086) = rxt(127)*y(93) + rxt(314)*y(124) + rxt(341)*y(131)
+         mat(872) = rxt(114)*y(90)
+         mat(796) = rxt(114)*y(85)
+         mat(639) = rxt(127)*y(26)
+         mat(1370) = rxt(314)*y(26)
+         mat(1662) = rxt(341)*y(26)
       end subroutine nlnmat04
-      subroutine nlnmat05( avec_len, mat, y, rxt )
+      subroutine nlnmat05( mat, y, rxt )
       use chem_mods, only : gas_pcnst, rxntot, nzcnt
       implicit none
 !----------------------------------------------
 ! ... dummy arguments
 !----------------------------------------------
-      integer, intent(in) :: avec_len
-      real(r8), intent(in) :: y(veclen,gas_pcnst)
-      real(r8), intent(in) :: rxt(veclen,rxntot)
-      real(r8), intent(inout) :: mat(veclen,nzcnt)
+      real(r8), intent(in) :: y(gas_pcnst)
+      real(r8), intent(in) :: rxt(rxntot)
+      real(r8), intent(inout) :: mat(nzcnt)
 !----------------------------------------------
 ! ... local variables
 !----------------------------------------------
-      integer :: k
 !----------------------------------------------
 ! ... complete matrix entries implicit species
 !----------------------------------------------
-      do k = 1,avec_len
-         mat(k,269) = -((rxt(k,110) + rxt(k,111)) * y(k,60) + rxt(k,112)*y(k,67))
-         mat(k,1536) = -(rxt(k,110) + rxt(k,111)) * y(k,89)
-         mat(k,1593) = -rxt(k,112)*y(k,89)
-         mat(k,1086) = rxt(k,127)*y(k,93) + rxt(k,314)*y(k,124) + rxt(k,341)*y(k,131)
-         mat(k,872) = rxt(k,114)*y(k,90)
-         mat(k,796) = rxt(k,114)*y(k,85)
-         mat(k,639) = rxt(k,127)*y(k,26)
-         mat(k,1370) = rxt(k,314)*y(k,26)
-         mat(k,1662) = rxt(k,341)*y(k,26)
-         mat(k,803) = -((rxt(k,113) + rxt(k,114)) * y(k,85) + rxt(k,115)*y(k,26) &
-                      + rxt(k,116)*y(k,38) + rxt(k,118)*y(k,134) + rxt(k,123)*y(k,49) &
-                      + rxt(k,124)*y(k,67) + rxt(k,125)*y(k,68) + (rxt(k,167) &
-                      + rxt(k,264)) * y(k,103) + (rxt(k,169) + rxt(k,257)) * y(k,101) &
-                      + rxt(k,185)*y(k,99) + rxt(k,203)*y(k,118) + rxt(k,220)*y(k,115) &
-                      + rxt(k,238)*y(k,114) + rxt(k,255)*y(k,125) + rxt(k,279)*y(k,60) &
-                      + rxt(k,280)*y(k,61))
-         mat(k,884) = -(rxt(k,113) + rxt(k,114)) * y(k,90)
-         mat(k,1098) = -rxt(k,115)*y(k,90)
-         mat(k,1213) = -rxt(k,116)*y(k,90)
-         mat(k,1804) = -rxt(k,118)*y(k,90)
-         mat(k,1343) = -rxt(k,123)*y(k,90)
-         mat(k,1608) = -rxt(k,124)*y(k,90)
-         mat(k,1260) = -rxt(k,125)*y(k,90)
-         mat(k,1054) = -(rxt(k,167) + rxt(k,264)) * y(k,90)
-         mat(k,1510) = -(rxt(k,169) + rxt(k,257)) * y(k,90)
-         mat(k,1746) = -rxt(k,185)*y(k,90)
-         mat(k,1139) = -rxt(k,203)*y(k,90)
-         mat(k,1012) = -rxt(k,220)*y(k,90)
-         mat(k,970) = -rxt(k,238)*y(k,90)
-         mat(k,1422) = -rxt(k,255)*y(k,90)
-         mat(k,1551) = -rxt(k,279)*y(k,90)
-         mat(k,1468) = -rxt(k,280)*y(k,90)
-         mat(k,1213) = mat(k,1213) + rxt(k,128)*y(k,93)
-         mat(k,1608) = mat(k,1608) + rxt(k,130)*y(k,93)
-         mat(k,646) = rxt(k,128)*y(k,38) + rxt(k,130)*y(k,67)
-         mat(k,343) = -(rxt(k,152)*y(k,125) + (rxt(k,175) + rxt(k,258)) * y(k,103) &
-                      + rxt(k,193)*y(k,99) + rxt(k,210)*y(k,118) + rxt(k,228)*y(k,115) &
-                      + rxt(k,245)*y(k,114) + (rxt(k,246) + rxt(k,270)) * y(k,101))
-         mat(k,1407) = -rxt(k,152)*y(k,91)
-         mat(k,1040) = -(rxt(k,175) + rxt(k,258)) * y(k,91)
-         mat(k,1732) = -rxt(k,193)*y(k,91)
-         mat(k,1125) = -rxt(k,210)*y(k,91)
-         mat(k,998) = -rxt(k,228)*y(k,91)
-         mat(k,955) = -rxt(k,245)*y(k,91)
-         mat(k,1496) = -(rxt(k,246) + rxt(k,270)) * y(k,91)
-         mat(k,518) = rxt(k,117)*y(k,134)
-         mat(k,1788) = rxt(k,117)*y(k,92)
-         mat(k,520) = -(rxt(k,117)*y(k,134) + (rxt(k,119) + rxt(k,120)) * y(k,61) &
-                      + (rxt(k,121) + rxt(k,122)) * y(k,60) + rxt(k,154)*y(k,125) &
-                      + (rxt(k,157) + rxt(k,259)) * y(k,101) + (rxt(k,177) + rxt(k,260) &
-                      ) * y(k,103) + rxt(k,195)*y(k,99) + rxt(k,212)*y(k,118) &
-                      + rxt(k,230)*y(k,115) + rxt(k,248)*y(k,114))
-         mat(k,1795) = -rxt(k,117)*y(k,92)
-         mat(k,1459) = -(rxt(k,119) + rxt(k,120)) * y(k,92)
-         mat(k,1542) = -(rxt(k,121) + rxt(k,122)) * y(k,92)
-         mat(k,1414) = -rxt(k,154)*y(k,92)
-         mat(k,1503) = -(rxt(k,157) + rxt(k,259)) * y(k,92)
-         mat(k,1047) = -(rxt(k,177) + rxt(k,260)) * y(k,92)
-         mat(k,1739) = -rxt(k,195)*y(k,92)
-         mat(k,1132) = -rxt(k,212)*y(k,92)
-         mat(k,1005) = -rxt(k,230)*y(k,92)
-         mat(k,962) = -rxt(k,248)*y(k,92)
-         mat(k,798) = rxt(k,118)*y(k,134)
-         mat(k,1795) = mat(k,1795) + rxt(k,118)*y(k,90)
-         mat(k,641) = -(rxt(k,126)*y(k,85) + rxt(k,127)*y(k,26) + rxt(k,128)*y(k,38) &
-                      + rxt(k,129)*y(k,47) + rxt(k,130)*y(k,67) + rxt(k,131)*y(k,69) &
-                      + rxt(k,150)*y(k,125) + rxt(k,173)*y(k,103) + rxt(k,190)*y(k,99) &
-                      + rxt(k,208)*y(k,118) + rxt(k,224)*y(k,101) + rxt(k,226) &
-                      *y(k,115) + rxt(k,243)*y(k,114))
-         mat(k,879) = -rxt(k,126)*y(k,93)
-         mat(k,1093) = -rxt(k,127)*y(k,93)
-         mat(k,1208) = -rxt(k,128)*y(k,93)
-         mat(k,1299) = -rxt(k,129)*y(k,93)
-         mat(k,1603) = -rxt(k,130)*y(k,93)
-         mat(k,920) = -rxt(k,131)*y(k,93)
-         mat(k,1417) = -rxt(k,150)*y(k,93)
-         mat(k,1049) = -rxt(k,173)*y(k,93)
-         mat(k,1741) = -rxt(k,190)*y(k,93)
-         mat(k,1134) = -rxt(k,208)*y(k,93)
-         mat(k,1505) = -rxt(k,224)*y(k,93)
-         mat(k,1007) = -rxt(k,226)*y(k,93)
-         mat(k,965) = -rxt(k,243)*y(k,93)
-         mat(k,844) = -((rxt(k,132) + rxt(k,134)) * y(k,68) + rxt(k,133)*y(k,69) &
-                      + rxt(k,137)*y(k,95) + rxt(k,140)*y(k,101) + rxt(k,143)*y(k,103) &
-                      + rxt(k,302)*y(k,115) + rxt(k,303)*y(k,116) + rxt(k,305) &
-                      *y(k,117) + rxt(k,307)*y(k,118) + rxt(k,325)*y(k,126) + rxt(k,379) &
-                      *y(k,129) + rxt(k,380)*y(k,104) + rxt(k,381)*y(k,98) + rxt(k,382) &
-                      *y(k,99) + rxt(k,383)*y(k,119) + rxt(k,579)*y(k,114) + rxt(k,580) &
-                      *y(k,125) + rxt(k,581)*y(k,106))
-         mat(k,1261) = -(rxt(k,132) + rxt(k,134)) * y(k,94)
-         mat(k,926) = -rxt(k,133)*y(k,94)
-         mat(k,86) = -rxt(k,137)*y(k,94)
-         mat(k,1511) = -rxt(k,140)*y(k,94)
-         mat(k,1055) = -rxt(k,143)*y(k,94)
-         mat(k,1013) = -rxt(k,302)*y(k,94)
-         mat(k,91) = -rxt(k,303)*y(k,94)
-         mat(k,116) = -rxt(k,305)*y(k,94)
-         mat(k,1140) = -rxt(k,307)*y(k,94)
-         mat(k,192) = -rxt(k,325)*y(k,94)
-         mat(k,333) = -rxt(k,379)*y(k,94)
-         mat(k,183) = -rxt(k,380)*y(k,94)
-         mat(k,154) = -rxt(k,381)*y(k,94)
-         mat(k,1747) = -rxt(k,382)*y(k,94)
-         mat(k,110) = -rxt(k,383)*y(k,94)
-         mat(k,971) = -rxt(k,579)*y(k,94)
-         mat(k,1423) = -rxt(k,580)*y(k,94)
-         mat(k,163) = -rxt(k,581)*y(k,94)
-         mat(k,1214) = rxt(k,104)*y(k,86) + rxt(k,316)*y(k,124) + rxt(k,343)*y(k,131)
-         mat(k,470) = rxt(k,352)*y(k,132)
-         mat(k,1552) = rxt(k,135)*y(k,132)
-         mat(k,1609) = rxt(k,323)*y(k,124) + rxt(k,332)*y(k,127) + rxt(k,346)*y(k,131) &
-                      + rxt(k,359)*y(k,132)
-         mat(k,926) = mat(k,926) + rxt(k,331)*y(k,127)
-         mat(k,673) = rxt(k,104)*y(k,38)
-         mat(k,244) = rxt(k,320)*y(k,124) + rxt(k,360)*y(k,132)
-         mat(k,1379) = rxt(k,316)*y(k,38) + rxt(k,323)*y(k,67) + rxt(k,320)*y(k,122)
-         mat(k,422) = rxt(k,332)*y(k,67) + rxt(k,331)*y(k,69)
-         mat(k,1670) = rxt(k,343)*y(k,38) + rxt(k,346)*y(k,67)
-         mat(k,1705) = rxt(k,352)*y(k,39) + rxt(k,135)*y(k,60) + rxt(k,359)*y(k,67) &
-                      + rxt(k,360)*y(k,122)
-         mat(k,83) = -(rxt(k,137)*y(k,94) + rxt(k,138)*y(k,134))
-         mat(k,828) = -rxt(k,137)*y(k,95)
-         mat(k,1776) = -rxt(k,138)*y(k,95)
-         mat(k,187) = rxt(k,326)*y(k,134)
-         mat(k,1776) = mat(k,1776) + rxt(k,326)*y(k,126)
-         mat(k,316) = -(rxt(k,148)*y(k,125) + rxt(k,171)*y(k,103) + rxt(k,188)*y(k,99) &
-                      + rxt(k,202)*y(k,101) + rxt(k,206)*y(k,118) + rxt(k,223) &
-                      *y(k,115) + rxt(k,241)*y(k,114))
-         mat(k,1405) = -rxt(k,148)*y(k,96)
-         mat(k,1039) = -rxt(k,171)*y(k,96)
-         mat(k,1731) = -rxt(k,188)*y(k,96)
-         mat(k,1495) = -rxt(k,202)*y(k,96)
-         mat(k,1124) = -rxt(k,206)*y(k,96)
-         mat(k,997) = -rxt(k,223)*y(k,96)
-         mat(k,954) = -rxt(k,241)*y(k,96)
-         mat(k,728) = -(rxt(k,309)*y(k,118) + (rxt(k,407) + rxt(k,408) + rxt(k,409) &
-                      ) * y(k,38) + rxt(k,411)*y(k,67) + rxt(k,412)*y(k,69) + rxt(k,416) &
-                      *y(k,130) + 4._r8*rxt(k,421)*y(k,97) + rxt(k,433)*y(k,62) &
-                      + rxt(k,438)*y(k,60) + rxt(k,443)*y(k,61) + (rxt(k,453) &
-                      + rxt(k,454)) * y(k,85) + rxt(k,460)*y(k,26) + rxt(k,486) &
-                      *y(k,84) + rxt(k,492)*y(k,4) + rxt(k,532)*y(k,20))
-         mat(k,1137) = -rxt(k,309)*y(k,97)
-         mat(k,1211) = -(rxt(k,407) + rxt(k,408) + rxt(k,409)) * y(k,97)
-         mat(k,1606) = -rxt(k,411)*y(k,97)
-         mat(k,923) = -rxt(k,412)*y(k,97)
-         mat(k,774) = -rxt(k,416)*y(k,97)
-         mat(k,1177) = -rxt(k,433)*y(k,97)
-         mat(k,1549) = -rxt(k,438)*y(k,97)
-         mat(k,1466) = -rxt(k,443)*y(k,97)
-         mat(k,882) = -(rxt(k,453) + rxt(k,454)) * y(k,97)
-         mat(k,1096) = -rxt(k,460)*y(k,97)
-         mat(k,455) = -rxt(k,486)*y(k,97)
-         mat(k,568) = -rxt(k,492)*y(k,97)
-         mat(k,307) = -rxt(k,532)*y(k,97)
-         mat(k,568) = mat(k,568) + rxt(k,497)*y(k,130)
-         mat(k,589) = rxt(k,529)*y(k,62) + rxt(k,530)*y(k,67) + rxt(k,485)*y(k,84) &
-                      + rxt(k,449)*y(k,85)
-         mat(k,307) = mat(k,307) + rxt(k,456)*y(k,26) + rxt(k,533)*y(k,60)
-         mat(k,1096) = mat(k,1096) + rxt(k,456)*y(k,20) + rxt(k,467)*y(k,130)
-         mat(k,134) = rxt(k,536)*y(k,130)
-         mat(k,60) = .500_r8*rxt(k,557)*y(k,130)
-         mat(k,1211) = mat(k,1211) + rxt(k,410)*y(k,68) + rxt(k,316)*y(k,124)
-         mat(k,146) = rxt(k,406)*y(k,67) + rxt(k,452)*y(k,85) + rxt(k,415)*y(k,130)
-         mat(k,1302) = rxt(k,129)*y(k,93) + rxt(k,317)*y(k,124)
-         mat(k,1341) = rxt(k,318)*y(k,124)
-         mat(k,1549) = mat(k,1549) + rxt(k,533)*y(k,20)
-         mat(k,1177) = mat(k,1177) + rxt(k,529)*y(k,16) + rxt(k,436)*y(k,130)
-         mat(k,1606) = mat(k,1606) + rxt(k,530)*y(k,16) + rxt(k,406)*y(k,41) &
-                      + rxt(k,346)*y(k,131)
-         mat(k,1258) = rxt(k,410)*y(k,38)
-         mat(k,923) = mat(k,923) + rxt(k,418)*y(k,130)
-         mat(k,253) = rxt(k,553)*y(k,130)
-         mat(k,455) = mat(k,455) + rxt(k,485)*y(k,16)
-         mat(k,882) = mat(k,882) + rxt(k,449)*y(k,16) + rxt(k,452)*y(k,41)
-         mat(k,644) = rxt(k,129)*y(k,47)
-         mat(k,1376) = rxt(k,316)*y(k,38) + rxt(k,317)*y(k,47) + rxt(k,318)*y(k,49)
-         mat(k,774) = mat(k,774) + rxt(k,497)*y(k,4) + rxt(k,467)*y(k,26) + rxt(k,536) &
-                      *y(k,29) + .500_r8*rxt(k,557)*y(k,33) + rxt(k,415)*y(k,41) &
-                      + rxt(k,436)*y(k,62) + rxt(k,418)*y(k,69) + rxt(k,553)*y(k,76)
-         mat(k,1667) = rxt(k,346)*y(k,67)
-         mat(k,152) = -(rxt(k,373)*y(k,134) + rxt(k,381)*y(k,94))
-         mat(k,1780) = -rxt(k,373)*y(k,98)
-         mat(k,833) = -rxt(k,381)*y(k,98)
-         mat(k,84) = rxt(k,138)*y(k,134)
-         mat(k,181) = rxt(k,371)*y(k,134)
-         mat(k,1780) = mat(k,1780) + rxt(k,138)*y(k,95) + rxt(k,371)*y(k,104)
-         mat(k,1769) = -(rxt(k,184)*y(k,113) + rxt(k,185)*y(k,90) + rxt(k,186)*y(k,88) &
-                      + rxt(k,187)*y(k,109) + rxt(k,188)*y(k,96) + rxt(k,189)*y(k,124) &
-                      + rxt(k,190)*y(k,93) + rxt(k,192)*y(k,111) + rxt(k,193)*y(k,91) &
-                      + rxt(k,194)*y(k,86) + rxt(k,195)*y(k,92) + rxt(k,196)*y(k,108) &
-                      + rxt(k,197)*y(k,112) + rxt(k,198)*y(k,87) + rxt(k,199)*y(k,110) &
-                      + rxt(k,200)*y(k,107) + rxt(k,375)*y(k,134) + rxt(k,382)*y(k,94))
-         mat(k,496) = -rxt(k,184)*y(k,99)
-         mat(k,826) = -rxt(k,185)*y(k,99)
-         mat(k,387) = -rxt(k,186)*y(k,99)
-         mat(k,713) = -rxt(k,187)*y(k,99)
-         mat(k,327) = -rxt(k,188)*y(k,99)
-         mat(k,1401) = -rxt(k,189)*y(k,99)
-         mat(k,667) = -rxt(k,190)*y(k,99)
-         mat(k,556) = -rxt(k,192)*y(k,99)
-         mat(k,355) = -rxt(k,193)*y(k,99)
-         mat(k,688) = -rxt(k,194)*y(k,99)
-         mat(k,536) = -rxt(k,195)*y(k,99)
-         mat(k,417) = -rxt(k,196)*y(k,99)
-         mat(k,447) = -rxt(k,197)*y(k,99)
-         mat(k,403) = -rxt(k,198)*y(k,99)
-         mat(k,516) = -rxt(k,199)*y(k,99)
-         mat(k,1660) = -rxt(k,200)*y(k,99)
-         mat(k,1827) = -rxt(k,375)*y(k,99)
-         mat(k,865) = -rxt(k,382)*y(k,99)
-         mat(k,156) = rxt(k,373)*y(k,134)
-         mat(k,93) = rxt(k,304)*y(k,134)
-         mat(k,1827) = mat(k,1827) + rxt(k,373)*y(k,98) + rxt(k,304)*y(k,116)
-      end do
+         mat(803) = -((rxt(113) + rxt(114)) * y(85) + rxt(115)*y(26) + rxt(116)*y(38) &
+                      + rxt(118)*y(134) + rxt(123)*y(49) + rxt(124)*y(67) + rxt(125) &
+                      *y(68) + (rxt(167) + rxt(264)) * y(103) + (rxt(169) + rxt(257) &
+                      ) * y(101) + rxt(185)*y(99) + rxt(203)*y(118) + rxt(220)*y(115) &
+                      + rxt(238)*y(114) + rxt(255)*y(125) + rxt(279)*y(60) + rxt(280) &
+                      *y(61))
+         mat(884) = -(rxt(113) + rxt(114)) * y(90)
+         mat(1098) = -rxt(115)*y(90)
+         mat(1213) = -rxt(116)*y(90)
+         mat(1804) = -rxt(118)*y(90)
+         mat(1343) = -rxt(123)*y(90)
+         mat(1608) = -rxt(124)*y(90)
+         mat(1260) = -rxt(125)*y(90)
+         mat(1054) = -(rxt(167) + rxt(264)) * y(90)
+         mat(1510) = -(rxt(169) + rxt(257)) * y(90)
+         mat(1746) = -rxt(185)*y(90)
+         mat(1139) = -rxt(203)*y(90)
+         mat(1012) = -rxt(220)*y(90)
+         mat(970) = -rxt(238)*y(90)
+         mat(1422) = -rxt(255)*y(90)
+         mat(1551) = -rxt(279)*y(90)
+         mat(1468) = -rxt(280)*y(90)
+         mat(1213) = mat(1213) + rxt(128)*y(93)
+         mat(1608) = mat(1608) + rxt(130)*y(93)
+         mat(646) = rxt(128)*y(38) + rxt(130)*y(67)
+         mat(343) = -(rxt(152)*y(125) + (rxt(175) + rxt(258)) * y(103) + rxt(193) &
+                      *y(99) + rxt(210)*y(118) + rxt(228)*y(115) + rxt(245)*y(114) &
+                      + (rxt(246) + rxt(270)) * y(101))
+         mat(1407) = -rxt(152)*y(91)
+         mat(1040) = -(rxt(175) + rxt(258)) * y(91)
+         mat(1732) = -rxt(193)*y(91)
+         mat(1125) = -rxt(210)*y(91)
+         mat(998) = -rxt(228)*y(91)
+         mat(955) = -rxt(245)*y(91)
+         mat(1496) = -(rxt(246) + rxt(270)) * y(91)
+         mat(518) = rxt(117)*y(134)
+         mat(1788) = rxt(117)*y(92)
+         mat(520) = -(rxt(117)*y(134) + (rxt(119) + rxt(120)) * y(61) + (rxt(121) &
+                      + rxt(122)) * y(60) + rxt(154)*y(125) + (rxt(157) + rxt(259) &
+                      ) * y(101) + (rxt(177) + rxt(260)) * y(103) + rxt(195)*y(99) &
+                      + rxt(212)*y(118) + rxt(230)*y(115) + rxt(248)*y(114))
+         mat(1795) = -rxt(117)*y(92)
+         mat(1459) = -(rxt(119) + rxt(120)) * y(92)
+         mat(1542) = -(rxt(121) + rxt(122)) * y(92)
+         mat(1414) = -rxt(154)*y(92)
+         mat(1503) = -(rxt(157) + rxt(259)) * y(92)
+         mat(1047) = -(rxt(177) + rxt(260)) * y(92)
+         mat(1739) = -rxt(195)*y(92)
+         mat(1132) = -rxt(212)*y(92)
+         mat(1005) = -rxt(230)*y(92)
+         mat(962) = -rxt(248)*y(92)
+         mat(798) = rxt(118)*y(134)
+         mat(1795) = mat(1795) + rxt(118)*y(90)
+         mat(641) = -(rxt(126)*y(85) + rxt(127)*y(26) + rxt(128)*y(38) + rxt(129) &
+                      *y(47) + rxt(130)*y(67) + rxt(131)*y(69) + rxt(150)*y(125) &
+                      + rxt(173)*y(103) + rxt(190)*y(99) + rxt(208)*y(118) + rxt(224) &
+                      *y(101) + rxt(226)*y(115) + rxt(243)*y(114))
+         mat(879) = -rxt(126)*y(93)
+         mat(1093) = -rxt(127)*y(93)
+         mat(1208) = -rxt(128)*y(93)
+         mat(1299) = -rxt(129)*y(93)
+         mat(1603) = -rxt(130)*y(93)
+         mat(920) = -rxt(131)*y(93)
+         mat(1417) = -rxt(150)*y(93)
+         mat(1049) = -rxt(173)*y(93)
+         mat(1741) = -rxt(190)*y(93)
+         mat(1134) = -rxt(208)*y(93)
+         mat(1505) = -rxt(224)*y(93)
+         mat(1007) = -rxt(226)*y(93)
+         mat(965) = -rxt(243)*y(93)
+         mat(844) = -((rxt(132) + rxt(134)) * y(68) + rxt(133)*y(69) + rxt(137)*y(95) &
+                      + rxt(140)*y(101) + rxt(143)*y(103) + rxt(302)*y(115) + rxt(303) &
+                      *y(116) + rxt(305)*y(117) + rxt(307)*y(118) + rxt(325)*y(126) &
+                      + rxt(379)*y(129) + rxt(380)*y(104) + rxt(381)*y(98) + rxt(382) &
+                      *y(99) + rxt(383)*y(119) + rxt(579)*y(114) + rxt(580)*y(125) &
+                      + rxt(581)*y(106))
+         mat(1261) = -(rxt(132) + rxt(134)) * y(94)
+         mat(926) = -rxt(133)*y(94)
+         mat(86) = -rxt(137)*y(94)
+         mat(1511) = -rxt(140)*y(94)
+         mat(1055) = -rxt(143)*y(94)
+         mat(1013) = -rxt(302)*y(94)
+         mat(91) = -rxt(303)*y(94)
+         mat(116) = -rxt(305)*y(94)
+         mat(1140) = -rxt(307)*y(94)
+         mat(192) = -rxt(325)*y(94)
+         mat(333) = -rxt(379)*y(94)
+         mat(183) = -rxt(380)*y(94)
+         mat(154) = -rxt(381)*y(94)
+         mat(1747) = -rxt(382)*y(94)
+         mat(110) = -rxt(383)*y(94)
+         mat(971) = -rxt(579)*y(94)
+         mat(1423) = -rxt(580)*y(94)
+         mat(163) = -rxt(581)*y(94)
+         mat(1214) = rxt(104)*y(86) + rxt(316)*y(124) + rxt(343)*y(131)
+         mat(470) = rxt(352)*y(132)
+         mat(1552) = rxt(135)*y(132)
+         mat(1609) = rxt(323)*y(124) + rxt(332)*y(127) + rxt(346)*y(131) + rxt(359) &
+                      *y(132)
+         mat(926) = mat(926) + rxt(331)*y(127)
+         mat(673) = rxt(104)*y(38)
+         mat(244) = rxt(320)*y(124) + rxt(360)*y(132)
+         mat(1379) = rxt(316)*y(38) + rxt(323)*y(67) + rxt(320)*y(122)
+         mat(422) = rxt(332)*y(67) + rxt(331)*y(69)
+         mat(1670) = rxt(343)*y(38) + rxt(346)*y(67)
+         mat(1705) = rxt(352)*y(39) + rxt(135)*y(60) + rxt(359)*y(67) + rxt(360) &
+                      *y(122)
+         mat(83) = -(rxt(137)*y(94) + rxt(138)*y(134))
+         mat(828) = -rxt(137)*y(95)
+         mat(1776) = -rxt(138)*y(95)
+         mat(187) = rxt(326)*y(134)
+         mat(1776) = mat(1776) + rxt(326)*y(126)
+         mat(316) = -(rxt(148)*y(125) + rxt(171)*y(103) + rxt(188)*y(99) + rxt(202) &
+                      *y(101) + rxt(206)*y(118) + rxt(223)*y(115) + rxt(241)*y(114))
+         mat(1405) = -rxt(148)*y(96)
+         mat(1039) = -rxt(171)*y(96)
+         mat(1731) = -rxt(188)*y(96)
+         mat(1495) = -rxt(202)*y(96)
+         mat(1124) = -rxt(206)*y(96)
+         mat(997) = -rxt(223)*y(96)
+         mat(954) = -rxt(241)*y(96)
+         mat(728) = -(rxt(309)*y(118) + (rxt(407) + rxt(408) + rxt(409)) * y(38) &
+                      + rxt(411)*y(67) + rxt(412)*y(69) + rxt(416)*y(130) &
+                      + 4._r8*rxt(421)*y(97) + rxt(433)*y(62) + rxt(438)*y(60) + rxt(443) &
+                      *y(61) + (rxt(453) + rxt(454)) * y(85) + rxt(460)*y(26) + rxt(486) &
+                      *y(84) + rxt(492)*y(4) + rxt(532)*y(20))
+         mat(1137) = -rxt(309)*y(97)
+         mat(1211) = -(rxt(407) + rxt(408) + rxt(409)) * y(97)
+         mat(1606) = -rxt(411)*y(97)
+         mat(923) = -rxt(412)*y(97)
+         mat(774) = -rxt(416)*y(97)
+         mat(1177) = -rxt(433)*y(97)
+         mat(1549) = -rxt(438)*y(97)
+         mat(1466) = -rxt(443)*y(97)
+         mat(882) = -(rxt(453) + rxt(454)) * y(97)
+         mat(1096) = -rxt(460)*y(97)
+         mat(455) = -rxt(486)*y(97)
+         mat(568) = -rxt(492)*y(97)
+         mat(307) = -rxt(532)*y(97)
+         mat(568) = mat(568) + rxt(497)*y(130)
+         mat(589) = rxt(529)*y(62) + rxt(530)*y(67) + rxt(485)*y(84) + rxt(449)*y(85)
+         mat(307) = mat(307) + rxt(456)*y(26) + rxt(533)*y(60)
+         mat(1096) = mat(1096) + rxt(456)*y(20) + rxt(467)*y(130)
+         mat(134) = rxt(536)*y(130)
+         mat(60) = .500_r8*rxt(557)*y(130)
+         mat(1211) = mat(1211) + rxt(410)*y(68) + rxt(316)*y(124)
+         mat(146) = rxt(406)*y(67) + rxt(452)*y(85) + rxt(415)*y(130)
+         mat(1302) = rxt(129)*y(93) + rxt(317)*y(124)
+         mat(1341) = rxt(318)*y(124)
+         mat(1549) = mat(1549) + rxt(533)*y(20)
+         mat(1177) = mat(1177) + rxt(529)*y(16) + rxt(436)*y(130)
+         mat(1606) = mat(1606) + rxt(530)*y(16) + rxt(406)*y(41) + rxt(346)*y(131)
+         mat(1258) = rxt(410)*y(38)
+         mat(923) = mat(923) + rxt(418)*y(130)
+         mat(253) = rxt(553)*y(130)
+         mat(455) = mat(455) + rxt(485)*y(16)
+         mat(882) = mat(882) + rxt(449)*y(16) + rxt(452)*y(41)
+         mat(644) = rxt(129)*y(47)
+         mat(1376) = rxt(316)*y(38) + rxt(317)*y(47) + rxt(318)*y(49)
+         mat(774) = mat(774) + rxt(497)*y(4) + rxt(467)*y(26) + rxt(536)*y(29) &
+                      + .500_r8*rxt(557)*y(33) + rxt(415)*y(41) + rxt(436)*y(62) &
+                      + rxt(418)*y(69) + rxt(553)*y(76)
+         mat(1667) = rxt(346)*y(67)
+         mat(152) = -(rxt(373)*y(134) + rxt(381)*y(94))
+         mat(1780) = -rxt(373)*y(98)
+         mat(833) = -rxt(381)*y(98)
+         mat(84) = rxt(138)*y(134)
+         mat(181) = rxt(371)*y(134)
+         mat(1780) = mat(1780) + rxt(138)*y(95) + rxt(371)*y(104)
+         mat(1769) = -(rxt(184)*y(113) + rxt(185)*y(90) + rxt(186)*y(88) + rxt(187) &
+                      *y(109) + rxt(188)*y(96) + rxt(189)*y(124) + rxt(190)*y(93) &
+                      + rxt(192)*y(111) + rxt(193)*y(91) + rxt(194)*y(86) + rxt(195) &
+                      *y(92) + rxt(196)*y(108) + rxt(197)*y(112) + rxt(198)*y(87) &
+                      + rxt(199)*y(110) + rxt(200)*y(107) + rxt(375)*y(134) + rxt(382) &
+                      *y(94))
+         mat(496) = -rxt(184)*y(99)
+         mat(826) = -rxt(185)*y(99)
+         mat(387) = -rxt(186)*y(99)
+         mat(713) = -rxt(187)*y(99)
+         mat(327) = -rxt(188)*y(99)
+         mat(1401) = -rxt(189)*y(99)
+         mat(667) = -rxt(190)*y(99)
+         mat(556) = -rxt(192)*y(99)
+         mat(355) = -rxt(193)*y(99)
+         mat(688) = -rxt(194)*y(99)
+         mat(536) = -rxt(195)*y(99)
+         mat(417) = -rxt(196)*y(99)
+         mat(447) = -rxt(197)*y(99)
+         mat(403) = -rxt(198)*y(99)
+         mat(516) = -rxt(199)*y(99)
+         mat(1660) = -rxt(200)*y(99)
+         mat(1827) = -rxt(375)*y(99)
+         mat(865) = -rxt(382)*y(99)
+         mat(156) = rxt(373)*y(134)
+         mat(93) = rxt(304)*y(134)
+         mat(1827) = mat(1827) + rxt(373)*y(98) + rxt(304)*y(116)
+         mat(50) = -(rxt(139)*y(134))
+         mat(1774) = -rxt(139)*y(100)
+         mat(277) = rxt(141)*y(101)
+         mat(1493) = rxt(141)*y(56)
+         mat(1527) = -(rxt(140)*y(94) + rxt(141)*y(56) + (rxt(145) + rxt(268) &
+                      ) * y(113) + rxt(146)*y(86) + (rxt(157) + rxt(259)) * y(92) &
+                      + rxt(161)*y(108) + rxt(162)*y(112) + rxt(163)*y(87) + rxt(164) &
+                      *y(110) + rxt(165)*y(107) + (rxt(169) + rxt(257)) * y(90) &
+                      + (rxt(180) + rxt(266)) * y(88) + (rxt(191) + rxt(263)) * y(109) &
+                      + rxt(202)*y(96) + rxt(213)*y(124) + rxt(224)*y(93) + (rxt(235) &
+                      + rxt(261)) * y(111) + (rxt(246) + rxt(270)) * y(91) + rxt(377) &
+                      *y(134))
+         mat(860) = -rxt(140)*y(101)
+         mat(287) = -rxt(141)*y(101)
+         mat(494) = -(rxt(145) + rxt(268)) * y(101)
+         mat(685) = -rxt(146)*y(101)
+         mat(532) = -(rxt(157) + rxt(259)) * y(101)
+         mat(414) = -rxt(161)*y(101)
+         mat(445) = -rxt(162)*y(101)
+         mat(401) = -rxt(163)*y(101)
+         mat(513) = -rxt(164)*y(101)
+         mat(1654) = -rxt(165)*y(101)
+         mat(820) = -(rxt(169) + rxt(257)) * y(101)
+         mat(385) = -(rxt(180) + rxt(266)) * y(101)
+         mat(709) = -(rxt(191) + rxt(263)) * y(101)
+         mat(325) = -rxt(202)*y(101)
+         mat(1395) = -rxt(213)*y(101)
+         mat(661) = -rxt(224)*y(101)
+         mat(553) = -(rxt(235) + rxt(261)) * y(101)
+         mat(352) = -(rxt(246) + rxt(270)) * y(101)
+         mat(1821) = -rxt(377)*y(101)
+         mat(1763) = rxt(375)*y(134)
+         mat(52) = rxt(139)*y(134)
+         mat(1821) = mat(1821) + rxt(375)*y(99) + rxt(139)*y(100)
       end subroutine nlnmat05
-      subroutine nlnmat06( avec_len, mat, y, rxt )
+      subroutine nlnmat06( mat, y, rxt )
       use chem_mods, only : gas_pcnst, rxntot, nzcnt
       implicit none
 !----------------------------------------------
 ! ... dummy arguments
 !----------------------------------------------
-      integer, intent(in) :: avec_len
-      real(r8), intent(in) :: y(veclen,gas_pcnst)
-      real(r8), intent(in) :: rxt(veclen,rxntot)
-      real(r8), intent(inout) :: mat(veclen,nzcnt)
+      real(r8), intent(in) :: y(gas_pcnst)
+      real(r8), intent(in) :: rxt(rxntot)
+      real(r8), intent(inout) :: mat(nzcnt)
 !----------------------------------------------
 ! ... local variables
 !----------------------------------------------
-      integer :: k
 !----------------------------------------------
 ! ... complete matrix entries implicit species
 !----------------------------------------------
-      do k = 1,avec_len
-         mat(k,50) = -(rxt(k,139)*y(k,134))
-         mat(k,1774) = -rxt(k,139)*y(k,100)
-         mat(k,277) = rxt(k,141)*y(k,101)
-         mat(k,1493) = rxt(k,141)*y(k,56)
-         mat(k,1527) = -(rxt(k,140)*y(k,94) + rxt(k,141)*y(k,56) + (rxt(k,145) &
-                      + rxt(k,268)) * y(k,113) + rxt(k,146)*y(k,86) + (rxt(k,157) &
-                      + rxt(k,259)) * y(k,92) + rxt(k,161)*y(k,108) + rxt(k,162) &
-                      *y(k,112) + rxt(k,163)*y(k,87) + rxt(k,164)*y(k,110) + rxt(k,165) &
-                      *y(k,107) + (rxt(k,169) + rxt(k,257)) * y(k,90) + (rxt(k,180) &
-                      + rxt(k,266)) * y(k,88) + (rxt(k,191) + rxt(k,263)) * y(k,109) &
-                      + rxt(k,202)*y(k,96) + rxt(k,213)*y(k,124) + rxt(k,224)*y(k,93) &
-                      + (rxt(k,235) + rxt(k,261)) * y(k,111) + (rxt(k,246) + rxt(k,270) &
-                      ) * y(k,91) + rxt(k,377)*y(k,134))
-         mat(k,860) = -rxt(k,140)*y(k,101)
-         mat(k,287) = -rxt(k,141)*y(k,101)
-         mat(k,494) = -(rxt(k,145) + rxt(k,268)) * y(k,101)
-         mat(k,685) = -rxt(k,146)*y(k,101)
-         mat(k,532) = -(rxt(k,157) + rxt(k,259)) * y(k,101)
-         mat(k,414) = -rxt(k,161)*y(k,101)
-         mat(k,445) = -rxt(k,162)*y(k,101)
-         mat(k,401) = -rxt(k,163)*y(k,101)
-         mat(k,513) = -rxt(k,164)*y(k,101)
-         mat(k,1654) = -rxt(k,165)*y(k,101)
-         mat(k,820) = -(rxt(k,169) + rxt(k,257)) * y(k,101)
-         mat(k,385) = -(rxt(k,180) + rxt(k,266)) * y(k,101)
-         mat(k,709) = -(rxt(k,191) + rxt(k,263)) * y(k,101)
-         mat(k,325) = -rxt(k,202)*y(k,101)
-         mat(k,1395) = -rxt(k,213)*y(k,101)
-         mat(k,661) = -rxt(k,224)*y(k,101)
-         mat(k,553) = -(rxt(k,235) + rxt(k,261)) * y(k,101)
-         mat(k,352) = -(rxt(k,246) + rxt(k,270)) * y(k,101)
-         mat(k,1821) = -rxt(k,377)*y(k,101)
-         mat(k,1763) = rxt(k,375)*y(k,134)
-         mat(k,52) = rxt(k,139)*y(k,134)
-         mat(k,1821) = mat(k,1821) + rxt(k,375)*y(k,99) + rxt(k,139)*y(k,100)
-         mat(k,54) = -(rxt(k,142)*y(k,134))
-         mat(k,1775) = -rxt(k,142)*y(k,102)
-         mat(k,278) = rxt(k,144)*y(k,103)
-         mat(k,1037) = rxt(k,144)*y(k,56)
-         mat(k,1060) = -(rxt(k,143)*y(k,94) + rxt(k,144)*y(k,56) + (rxt(k,166) &
-                      + rxt(k,269)) * y(k,113) + (rxt(k,167) + rxt(k,264)) * y(k,90) &
-                      + (rxt(k,168) + rxt(k,267)) * y(k,88) + (rxt(k,170) + rxt(k,265) &
-                      ) * y(k,109) + rxt(k,171)*y(k,96) + rxt(k,172)*y(k,124) &
-                      + rxt(k,173)*y(k,93) + (rxt(k,174) + rxt(k,262)) * y(k,111) &
-                      + (rxt(k,175) + rxt(k,258)) * y(k,91) + rxt(k,176)*y(k,86) &
-                      + (rxt(k,177) + rxt(k,260)) * y(k,92) + rxt(k,178)*y(k,108) &
-                      + rxt(k,179)*y(k,112) + rxt(k,181)*y(k,87) + rxt(k,182)*y(k,110) &
-                      + rxt(k,183)*y(k,107))
-         mat(k,849) = -rxt(k,143)*y(k,103)
-         mat(k,283) = -rxt(k,144)*y(k,103)
-         mat(k,488) = -(rxt(k,166) + rxt(k,269)) * y(k,103)
-         mat(k,809) = -(rxt(k,167) + rxt(k,264)) * y(k,103)
-         mat(k,379) = -(rxt(k,168) + rxt(k,267)) * y(k,103)
-         mat(k,700) = -(rxt(k,170) + rxt(k,265)) * y(k,103)
-         mat(k,320) = -rxt(k,171)*y(k,103)
-         mat(k,1384) = -rxt(k,172)*y(k,103)
-         mat(k,652) = -rxt(k,173)*y(k,103)
-         mat(k,545) = -(rxt(k,174) + rxt(k,262)) * y(k,103)
-         mat(k,347) = -(rxt(k,175) + rxt(k,258)) * y(k,103)
-         mat(k,677) = -rxt(k,176)*y(k,103)
-         mat(k,526) = -(rxt(k,177) + rxt(k,260)) * y(k,103)
-         mat(k,408) = -rxt(k,178)*y(k,103)
-         mat(k,437) = -rxt(k,179)*y(k,103)
-         mat(k,395) = -rxt(k,181)*y(k,103)
-         mat(k,505) = -rxt(k,182)*y(k,103)
-         mat(k,1643) = -rxt(k,183)*y(k,103)
-         mat(k,1516) = rxt(k,377)*y(k,134)
-         mat(k,55) = rxt(k,142)*y(k,134)
-         mat(k,1810) = rxt(k,377)*y(k,101) + rxt(k,142)*y(k,102)
-         mat(k,182) = -(rxt(k,371)*y(k,134) + rxt(k,380)*y(k,94))
-         mat(k,1782) = -rxt(k,371)*y(k,104)
-         mat(k,836) = -rxt(k,380)*y(k,104)
-         mat(k,1203) = rxt(k,308)*y(k,118)
-         mat(k,718) = rxt(k,309)*y(k,118)
-         mat(k,1123) = rxt(k,308)*y(k,38) + rxt(k,309)*y(k,97) + rxt(k,310)*y(k,130)
-         mat(k,189) = rxt(k,327)*y(k,134)
-         mat(k,760) = rxt(k,310)*y(k,118)
-         mat(k,1782) = mat(k,1782) + rxt(k,327)*y(k,126)
-         mat(k,128) = -(rxt(k,423)*y(k,67) + rxt(k,424)*y(k,68))
-         mat(k,1580) = -rxt(k,423)*y(k,105)
-         mat(k,1241) = -rxt(k,424)*y(k,105)
-         mat(k,1580) = mat(k,1580) + rxt(k,583)*y(k,106)
-         mat(k,832) = .900_r8*rxt(k,581)*y(k,106) + .800_r8*rxt(k,579)*y(k,114)
-         mat(k,158) = rxt(k,583)*y(k,67) + .900_r8*rxt(k,581)*y(k,94)
-         mat(k,952) = .800_r8*rxt(k,579)*y(k,94)
-         mat(k,159) = -(rxt(k,581)*y(k,94) + rxt(k,582)*y(k,68) + (rxt(k,583) &
-                      + rxt(k,584)) * y(k,67))
-         mat(k,834) = -rxt(k,581)*y(k,106)
-         mat(k,1242) = -rxt(k,582)*y(k,106)
-         mat(k,1584) = -(rxt(k,583) + rxt(k,584)) * y(k,106)
-         mat(k,1657) = -(rxt(k,160)*y(k,125) + rxt(k,165)*y(k,101) + rxt(k,183) &
-                      *y(k,103) + rxt(k,200)*y(k,99) + rxt(k,218)*y(k,118) + rxt(k,236) &
-                      *y(k,115) + rxt(k,253)*y(k,114) + rxt(k,284)*y(k,85) + rxt(k,285) &
-                      *y(k,26) + rxt(k,286)*y(k,38) + rxt(k,287)*y(k,134) + rxt(k,288) &
-                      *y(k,47) + rxt(k,289)*y(k,49) + rxt(k,290)*y(k,61) + rxt(k,291) &
-                      *y(k,69))
-         mat(k,1442) = -rxt(k,160)*y(k,107)
-         mat(k,1530) = -rxt(k,165)*y(k,107)
-         mat(k,1074) = -rxt(k,183)*y(k,107)
-         mat(k,1766) = -rxt(k,200)*y(k,107)
-         mat(k,1159) = -rxt(k,218)*y(k,107)
-         mat(k,1032) = -rxt(k,236)*y(k,107)
-         mat(k,990) = -rxt(k,253)*y(k,107)
-         mat(k,904) = -rxt(k,284)*y(k,107)
-         mat(k,1118) = -rxt(k,285)*y(k,107)
-         mat(k,1233) = -rxt(k,286)*y(k,107)
-         mat(k,1824) = -rxt(k,287)*y(k,107)
-         mat(k,1324) = -rxt(k,288)*y(k,107)
-         mat(k,1363) = -rxt(k,289)*y(k,107)
-         mat(k,1488) = -rxt(k,290)*y(k,107)
-         mat(k,945) = -rxt(k,291)*y(k,107)
-         mat(k,1571) = rxt(k,110)*y(k,89) + rxt(k,279)*y(k,90) + rxt(k,122)*y(k,92) &
-                      + rxt(k,278)*y(k,127)
-         mat(k,1488) = mat(k,1488) + rxt(k,109)*y(k,86) + rxt(k,319)*y(k,124) &
-                      + rxt(k,277)*y(k,127) + rxt(k,345)*y(k,131) + rxt(k,358) &
-                      *y(k,132)
-         mat(k,1628) = rxt(k,300)*y(k,109)
-         mat(k,945) = mat(k,945) + rxt(k,301)*y(k,109)
-         mat(k,687) = rxt(k,109)*y(k,61)
-         mat(k,276) = rxt(k,110)*y(k,60)
-         mat(k,823) = rxt(k,279)*y(k,60)
-         mat(k,535) = rxt(k,122)*y(k,60)
-         mat(k,712) = rxt(k,300)*y(k,67) + rxt(k,301)*y(k,69)
-         mat(k,1398) = rxt(k,319)*y(k,61)
-         mat(k,430) = rxt(k,278)*y(k,60) + rxt(k,277)*y(k,61)
-         mat(k,1689) = rxt(k,345)*y(k,61)
-         mat(k,1724) = rxt(k,358)*y(k,61)
-         mat(k,405) = -(rxt(k,155)*y(k,125) + rxt(k,161)*y(k,101) + rxt(k,178) &
-                      *y(k,103) + rxt(k,196)*y(k,99) + rxt(k,214)*y(k,118) + rxt(k,231) &
-                      *y(k,115) + rxt(k,249)*y(k,114))
-         mat(k,1410) = -rxt(k,155)*y(k,108)
-         mat(k,1499) = -rxt(k,161)*y(k,108)
-         mat(k,1043) = -rxt(k,178)*y(k,108)
-         mat(k,1735) = -rxt(k,196)*y(k,108)
-         mat(k,1128) = -rxt(k,214)*y(k,108)
-         mat(k,1001) = -rxt(k,231)*y(k,108)
-         mat(k,958) = -rxt(k,249)*y(k,108)
-         mat(k,1539) = rxt(k,121)*y(k,92)
-         mat(k,519) = rxt(k,121)*y(k,60)
-         mat(k,1634) = rxt(k,287)*y(k,134)
-         mat(k,1791) = rxt(k,287)*y(k,107)
-         mat(k,694) = -(rxt(k,147)*y(k,125) + (rxt(k,170) + rxt(k,265)) * y(k,103) &
-                      + rxt(k,187)*y(k,99) + (rxt(k,191) + rxt(k,263)) * y(k,101) &
-                      + rxt(k,205)*y(k,118) + rxt(k,222)*y(k,115) + rxt(k,240) &
-                      *y(k,114) + (rxt(k,275) + rxt(k,297)) * y(k,47) + rxt(k,295) &
-                      *y(k,134) + rxt(k,299)*y(k,49) + rxt(k,300)*y(k,67) + rxt(k,301) &
-                      *y(k,69))
-         mat(k,1419) = -rxt(k,147)*y(k,109)
-         mat(k,1051) = -(rxt(k,170) + rxt(k,265)) * y(k,109)
-         mat(k,1743) = -rxt(k,187)*y(k,109)
-         mat(k,1507) = -(rxt(k,191) + rxt(k,263)) * y(k,109)
-         mat(k,1136) = -rxt(k,205)*y(k,109)
-         mat(k,1009) = -rxt(k,222)*y(k,109)
-         mat(k,967) = -rxt(k,240)*y(k,109)
-         mat(k,1301) = -(rxt(k,275) + rxt(k,297)) * y(k,109)
-         mat(k,1801) = -rxt(k,295)*y(k,109)
-         mat(k,1340) = -rxt(k,299)*y(k,109)
-         mat(k,1605) = -rxt(k,300)*y(k,109)
-         mat(k,922) = -rxt(k,301)*y(k,109)
-         mat(k,1340) = mat(k,1340) + rxt(k,108)*y(k,86) + rxt(k,123)*y(k,90) &
-                      + rxt(k,289)*y(k,107) + rxt(k,318)*y(k,124) + rxt(k,356) &
-                      *y(k,132)
-         mat(k,1548) = rxt(k,271)*y(k,127)
-         mat(k,1465) = rxt(k,280)*y(k,90) + rxt(k,119)*y(k,92) + rxt(k,290)*y(k,107) &
-                      + rxt(k,276)*y(k,127)
-         mat(k,922) = mat(k,922) + rxt(k,291)*y(k,107)
-         mat(k,672) = rxt(k,108)*y(k,49)
-         mat(k,801) = rxt(k,123)*y(k,49) + rxt(k,280)*y(k,61)
-         mat(k,522) = rxt(k,119)*y(k,61)
-         mat(k,1636) = rxt(k,289)*y(k,49) + rxt(k,290)*y(k,61) + rxt(k,291)*y(k,69)
-         mat(k,1375) = rxt(k,318)*y(k,49)
-         mat(k,420) = rxt(k,271)*y(k,60) + rxt(k,276)*y(k,61)
-         mat(k,1701) = rxt(k,356)*y(k,49)
-         mat(k,500) = -(rxt(k,159)*y(k,125) + rxt(k,164)*y(k,101) + rxt(k,182) &
-                      *y(k,103) + rxt(k,199)*y(k,99) + rxt(k,217)*y(k,118) + rxt(k,234) &
-                      *y(k,115) + rxt(k,252)*y(k,114) + rxt(k,292)*y(k,56))
-         mat(k,1413) = -rxt(k,159)*y(k,110)
-         mat(k,1502) = -rxt(k,164)*y(k,110)
-         mat(k,1046) = -rxt(k,182)*y(k,110)
-         mat(k,1738) = -rxt(k,199)*y(k,110)
-         mat(k,1131) = -rxt(k,217)*y(k,110)
-         mat(k,1004) = -rxt(k,234)*y(k,110)
-         mat(k,961) = -rxt(k,252)*y(k,110)
-         mat(k,281) = -rxt(k,292)*y(k,110)
-         mat(k,540) = rxt(k,293)*y(k,134)
-         mat(k,1794) = rxt(k,293)*y(k,111)
-         mat(k,541) = -(rxt(k,151)*y(k,125) + (rxt(k,174) + rxt(k,262)) * y(k,103) &
-                      + rxt(k,192)*y(k,99) + rxt(k,209)*y(k,118) + rxt(k,227)*y(k,115) &
-                      + (rxt(k,235) + rxt(k,261)) * y(k,101) + rxt(k,244)*y(k,114) &
-                      + rxt(k,293)*y(k,134) + rxt(k,294)*y(k,49) + rxt(k,296)*y(k,56))
-         mat(k,1415) = -rxt(k,151)*y(k,111)
-         mat(k,1048) = -(rxt(k,174) + rxt(k,262)) * y(k,111)
-         mat(k,1740) = -rxt(k,192)*y(k,111)
-         mat(k,1133) = -rxt(k,209)*y(k,111)
-         mat(k,1006) = -rxt(k,227)*y(k,111)
-         mat(k,1504) = -(rxt(k,235) + rxt(k,261)) * y(k,111)
-         mat(k,963) = -rxt(k,244)*y(k,111)
-         mat(k,1796) = -rxt(k,293)*y(k,111)
-         mat(k,1336) = -rxt(k,294)*y(k,111)
-         mat(k,282) = -rxt(k,296)*y(k,111)
-         mat(k,1460) = rxt(k,120)*y(k,92)
-         mat(k,521) = rxt(k,120)*y(k,61)
-         mat(k,692) = rxt(k,295)*y(k,134)
-         mat(k,1796) = mat(k,1796) + rxt(k,295)*y(k,109)
-      end do
+         mat(54) = -(rxt(142)*y(134))
+         mat(1775) = -rxt(142)*y(102)
+         mat(278) = rxt(144)*y(103)
+         mat(1037) = rxt(144)*y(56)
+         mat(1060) = -(rxt(143)*y(94) + rxt(144)*y(56) + (rxt(166) + rxt(269) &
+                      ) * y(113) + (rxt(167) + rxt(264)) * y(90) + (rxt(168) + rxt(267) &
+                      ) * y(88) + (rxt(170) + rxt(265)) * y(109) + rxt(171)*y(96) &
+                      + rxt(172)*y(124) + rxt(173)*y(93) + (rxt(174) + rxt(262) &
+                      ) * y(111) + (rxt(175) + rxt(258)) * y(91) + rxt(176)*y(86) &
+                      + (rxt(177) + rxt(260)) * y(92) + rxt(178)*y(108) + rxt(179) &
+                      *y(112) + rxt(181)*y(87) + rxt(182)*y(110) + rxt(183)*y(107))
+         mat(849) = -rxt(143)*y(103)
+         mat(283) = -rxt(144)*y(103)
+         mat(488) = -(rxt(166) + rxt(269)) * y(103)
+         mat(809) = -(rxt(167) + rxt(264)) * y(103)
+         mat(379) = -(rxt(168) + rxt(267)) * y(103)
+         mat(700) = -(rxt(170) + rxt(265)) * y(103)
+         mat(320) = -rxt(171)*y(103)
+         mat(1384) = -rxt(172)*y(103)
+         mat(652) = -rxt(173)*y(103)
+         mat(545) = -(rxt(174) + rxt(262)) * y(103)
+         mat(347) = -(rxt(175) + rxt(258)) * y(103)
+         mat(677) = -rxt(176)*y(103)
+         mat(526) = -(rxt(177) + rxt(260)) * y(103)
+         mat(408) = -rxt(178)*y(103)
+         mat(437) = -rxt(179)*y(103)
+         mat(395) = -rxt(181)*y(103)
+         mat(505) = -rxt(182)*y(103)
+         mat(1643) = -rxt(183)*y(103)
+         mat(1516) = rxt(377)*y(134)
+         mat(55) = rxt(142)*y(134)
+         mat(1810) = rxt(377)*y(101) + rxt(142)*y(102)
+         mat(182) = -(rxt(371)*y(134) + rxt(380)*y(94))
+         mat(1782) = -rxt(371)*y(104)
+         mat(836) = -rxt(380)*y(104)
+         mat(1203) = rxt(308)*y(118)
+         mat(718) = rxt(309)*y(118)
+         mat(1123) = rxt(308)*y(38) + rxt(309)*y(97) + rxt(310)*y(130)
+         mat(189) = rxt(327)*y(134)
+         mat(760) = rxt(310)*y(118)
+         mat(1782) = mat(1782) + rxt(327)*y(126)
+         mat(128) = -(rxt(423)*y(67) + rxt(424)*y(68))
+         mat(1580) = -rxt(423)*y(105)
+         mat(1241) = -rxt(424)*y(105)
+         mat(1580) = mat(1580) + rxt(583)*y(106)
+         mat(832) = .900_r8*rxt(581)*y(106) + .800_r8*rxt(579)*y(114)
+         mat(158) = rxt(583)*y(67) + .900_r8*rxt(581)*y(94)
+         mat(952) = .800_r8*rxt(579)*y(94)
+         mat(159) = -(rxt(581)*y(94) + rxt(582)*y(68) + (rxt(583) + rxt(584)) * y(67))
+         mat(834) = -rxt(581)*y(106)
+         mat(1242) = -rxt(582)*y(106)
+         mat(1584) = -(rxt(583) + rxt(584)) * y(106)
+         mat(1657) = -(rxt(160)*y(125) + rxt(165)*y(101) + rxt(183)*y(103) + rxt(200) &
+                      *y(99) + rxt(218)*y(118) + rxt(236)*y(115) + rxt(253)*y(114) &
+                      + rxt(284)*y(85) + rxt(285)*y(26) + rxt(286)*y(38) + rxt(287) &
+                      *y(134) + rxt(288)*y(47) + rxt(289)*y(49) + rxt(290)*y(61) &
+                      + rxt(291)*y(69))
+         mat(1442) = -rxt(160)*y(107)
+         mat(1530) = -rxt(165)*y(107)
+         mat(1074) = -rxt(183)*y(107)
+         mat(1766) = -rxt(200)*y(107)
+         mat(1159) = -rxt(218)*y(107)
+         mat(1032) = -rxt(236)*y(107)
+         mat(990) = -rxt(253)*y(107)
+         mat(904) = -rxt(284)*y(107)
+         mat(1118) = -rxt(285)*y(107)
+         mat(1233) = -rxt(286)*y(107)
+         mat(1824) = -rxt(287)*y(107)
+         mat(1324) = -rxt(288)*y(107)
+         mat(1363) = -rxt(289)*y(107)
+         mat(1488) = -rxt(290)*y(107)
+         mat(945) = -rxt(291)*y(107)
+         mat(1571) = rxt(110)*y(89) + rxt(279)*y(90) + rxt(122)*y(92) + rxt(278) &
+                      *y(127)
+         mat(1488) = mat(1488) + rxt(109)*y(86) + rxt(319)*y(124) + rxt(277)*y(127) &
+                      + rxt(345)*y(131) + rxt(358)*y(132)
+         mat(1628) = rxt(300)*y(109)
+         mat(945) = mat(945) + rxt(301)*y(109)
+         mat(687) = rxt(109)*y(61)
+         mat(276) = rxt(110)*y(60)
+         mat(823) = rxt(279)*y(60)
+         mat(535) = rxt(122)*y(60)
+         mat(712) = rxt(300)*y(67) + rxt(301)*y(69)
+         mat(1398) = rxt(319)*y(61)
+         mat(430) = rxt(278)*y(60) + rxt(277)*y(61)
+         mat(1689) = rxt(345)*y(61)
+         mat(1724) = rxt(358)*y(61)
+         mat(405) = -(rxt(155)*y(125) + rxt(161)*y(101) + rxt(178)*y(103) + rxt(196) &
+                      *y(99) + rxt(214)*y(118) + rxt(231)*y(115) + rxt(249)*y(114))
+         mat(1410) = -rxt(155)*y(108)
+         mat(1499) = -rxt(161)*y(108)
+         mat(1043) = -rxt(178)*y(108)
+         mat(1735) = -rxt(196)*y(108)
+         mat(1128) = -rxt(214)*y(108)
+         mat(1001) = -rxt(231)*y(108)
+         mat(958) = -rxt(249)*y(108)
+         mat(1539) = rxt(121)*y(92)
+         mat(519) = rxt(121)*y(60)
+         mat(1634) = rxt(287)*y(134)
+         mat(1791) = rxt(287)*y(107)
+         mat(694) = -(rxt(147)*y(125) + (rxt(170) + rxt(265)) * y(103) + rxt(187) &
+                      *y(99) + (rxt(191) + rxt(263)) * y(101) + rxt(205)*y(118) &
+                      + rxt(222)*y(115) + rxt(240)*y(114) + (rxt(275) + rxt(297) &
+                      ) * y(47) + rxt(295)*y(134) + rxt(299)*y(49) + rxt(300)*y(67) &
+                      + rxt(301)*y(69))
+         mat(1419) = -rxt(147)*y(109)
+         mat(1051) = -(rxt(170) + rxt(265)) * y(109)
+         mat(1743) = -rxt(187)*y(109)
+         mat(1507) = -(rxt(191) + rxt(263)) * y(109)
+         mat(1136) = -rxt(205)*y(109)
+         mat(1009) = -rxt(222)*y(109)
+         mat(967) = -rxt(240)*y(109)
+         mat(1301) = -(rxt(275) + rxt(297)) * y(109)
+         mat(1801) = -rxt(295)*y(109)
+         mat(1340) = -rxt(299)*y(109)
+         mat(1605) = -rxt(300)*y(109)
+         mat(922) = -rxt(301)*y(109)
+         mat(1340) = mat(1340) + rxt(108)*y(86) + rxt(123)*y(90) + rxt(289)*y(107) &
+                      + rxt(318)*y(124) + rxt(356)*y(132)
+         mat(1548) = rxt(271)*y(127)
+         mat(1465) = rxt(280)*y(90) + rxt(119)*y(92) + rxt(290)*y(107) + rxt(276) &
+                      *y(127)
+         mat(922) = mat(922) + rxt(291)*y(107)
+         mat(672) = rxt(108)*y(49)
+         mat(801) = rxt(123)*y(49) + rxt(280)*y(61)
+         mat(522) = rxt(119)*y(61)
+         mat(1636) = rxt(289)*y(49) + rxt(290)*y(61) + rxt(291)*y(69)
+         mat(1375) = rxt(318)*y(49)
+         mat(420) = rxt(271)*y(60) + rxt(276)*y(61)
+         mat(1701) = rxt(356)*y(49)
+         mat(500) = -(rxt(159)*y(125) + rxt(164)*y(101) + rxt(182)*y(103) + rxt(199) &
+                      *y(99) + rxt(217)*y(118) + rxt(234)*y(115) + rxt(252)*y(114) &
+                      + rxt(292)*y(56))
+         mat(1413) = -rxt(159)*y(110)
+         mat(1502) = -rxt(164)*y(110)
+         mat(1046) = -rxt(182)*y(110)
+         mat(1738) = -rxt(199)*y(110)
+         mat(1131) = -rxt(217)*y(110)
+         mat(1004) = -rxt(234)*y(110)
+         mat(961) = -rxt(252)*y(110)
+         mat(281) = -rxt(292)*y(110)
+         mat(540) = rxt(293)*y(134)
+         mat(1794) = rxt(293)*y(111)
+         mat(541) = -(rxt(151)*y(125) + (rxt(174) + rxt(262)) * y(103) + rxt(192) &
+                      *y(99) + rxt(209)*y(118) + rxt(227)*y(115) + (rxt(235) + rxt(261) &
+                      ) * y(101) + rxt(244)*y(114) + rxt(293)*y(134) + rxt(294)*y(49) &
+                      + rxt(296)*y(56))
+         mat(1415) = -rxt(151)*y(111)
+         mat(1048) = -(rxt(174) + rxt(262)) * y(111)
+         mat(1740) = -rxt(192)*y(111)
+         mat(1133) = -rxt(209)*y(111)
+         mat(1006) = -rxt(227)*y(111)
+         mat(1504) = -(rxt(235) + rxt(261)) * y(111)
+         mat(963) = -rxt(244)*y(111)
+         mat(1796) = -rxt(293)*y(111)
+         mat(1336) = -rxt(294)*y(111)
+         mat(282) = -rxt(296)*y(111)
+         mat(1460) = rxt(120)*y(92)
+         mat(521) = rxt(120)*y(61)
+         mat(692) = rxt(295)*y(134)
+         mat(1796) = mat(1796) + rxt(295)*y(109)
+         mat(433) = -(rxt(156)*y(125) + rxt(162)*y(101) + rxt(179)*y(103) + rxt(197) &
+                      *y(99) + rxt(215)*y(118) + rxt(232)*y(115) + rxt(250)*y(114) &
+                      + rxt(298)*y(49))
+         mat(1411) = -rxt(156)*y(112)
+         mat(1500) = -rxt(162)*y(112)
+         mat(1044) = -rxt(179)*y(112)
+         mat(1736) = -rxt(197)*y(112)
+         mat(1129) = -rxt(215)*y(112)
+         mat(1002) = -rxt(232)*y(112)
+         mat(959) = -rxt(250)*y(112)
+         mat(1333) = -rxt(298)*y(112)
+         mat(1293) = rxt(275)*y(109)
+         mat(690) = rxt(275)*y(47)
+         mat(484) = -((rxt(145) + rxt(268)) * y(101) + (rxt(166) + rxt(269)) * y(103) &
+                      + rxt(184)*y(99) + rxt(201)*y(118) + rxt(219)*y(115) + rxt(237) &
+                      *y(114) + rxt(254)*y(125))
+         mat(1501) = -(rxt(145) + rxt(268)) * y(113)
+         mat(1045) = -(rxt(166) + rxt(269)) * y(113)
+         mat(1737) = -rxt(184)*y(113)
+         mat(1130) = -rxt(201)*y(113)
+         mat(1003) = -rxt(219)*y(113)
+         mat(960) = -rxt(237)*y(113)
+         mat(1412) = -rxt(254)*y(113)
+         mat(1335) = rxt(299)*y(109) + rxt(294)*y(111) + rxt(298)*y(112)
+         mat(280) = rxt(292)*y(110) + rxt(296)*y(111)
+         mat(691) = rxt(299)*y(49)
+         mat(499) = rxt(292)*y(56)
+         mat(539) = rxt(294)*y(49) + rxt(296)*y(56)
+         mat(434) = rxt(298)*y(49)
+         mat(974) = -(rxt(237)*y(113) + rxt(238)*y(90) + rxt(239)*y(88) + rxt(240) &
+                      *y(109) + rxt(241)*y(96) + rxt(242)*y(124) + rxt(243)*y(93) &
+                      + rxt(244)*y(111) + rxt(245)*y(91) + rxt(247)*y(86) + rxt(248) &
+                      *y(92) + rxt(249)*y(108) + rxt(250)*y(112) + rxt(251)*y(87) &
+                      + rxt(252)*y(110) + rxt(253)*y(107) + rxt(364)*y(134) + rxt(579) &
+                      *y(94))
+         mat(486) = -rxt(237)*y(114)
+         mat(807) = -rxt(238)*y(114)
+         mat(377) = -rxt(239)*y(114)
+         mat(698) = -rxt(240)*y(114)
+         mat(318) = -rxt(241)*y(114)
+         mat(1382) = -rxt(242)*y(114)
+         mat(650) = -rxt(243)*y(114)
+         mat(543) = -rxt(244)*y(114)
+         mat(345) = -rxt(245)*y(114)
+         mat(675) = -rxt(247)*y(114)
+         mat(524) = -rxt(248)*y(114)
+         mat(406) = -rxt(249)*y(114)
+         mat(435) = -rxt(250)*y(114)
+         mat(393) = -rxt(251)*y(114)
+         mat(503) = -rxt(252)*y(114)
+         mat(1641) = -rxt(253)*y(114)
+         mat(1808) = -rxt(364)*y(114)
+         mat(847) = -rxt(579)*y(114)
+         mat(297) = rxt(588)*y(125)
+         mat(1555) = rxt(590)*y(125)
+         mat(1612) = rxt(583)*y(106)
+         mat(1264) = rxt(587)*y(120)
+         mat(164) = rxt(583)*y(67)
+         mat(124) = rxt(587)*y(68)
+         mat(1426) = rxt(588)*y(54) + rxt(590)*y(60)
       end subroutine nlnmat06
-      subroutine nlnmat07( avec_len, mat, y, rxt )
+      subroutine nlnmat07( mat, y, rxt )
       use chem_mods, only : gas_pcnst, rxntot, nzcnt
       implicit none
 !----------------------------------------------
 ! ... dummy arguments
 !----------------------------------------------
-      integer, intent(in) :: avec_len
-      real(r8), intent(in) :: y(veclen,gas_pcnst)
-      real(r8), intent(in) :: rxt(veclen,rxntot)
-      real(r8), intent(inout) :: mat(veclen,nzcnt)
+      real(r8), intent(in) :: y(gas_pcnst)
+      real(r8), intent(in) :: rxt(rxntot)
+      real(r8), intent(inout) :: mat(nzcnt)
 !----------------------------------------------
 ! ... local variables
 !----------------------------------------------
-      integer :: k
 !----------------------------------------------
 ! ... complete matrix entries implicit species
 !----------------------------------------------
-      do k = 1,avec_len
-         mat(k,433) = -(rxt(k,156)*y(k,125) + rxt(k,162)*y(k,101) + rxt(k,179) &
-                      *y(k,103) + rxt(k,197)*y(k,99) + rxt(k,215)*y(k,118) + rxt(k,232) &
-                      *y(k,115) + rxt(k,250)*y(k,114) + rxt(k,298)*y(k,49))
-         mat(k,1411) = -rxt(k,156)*y(k,112)
-         mat(k,1500) = -rxt(k,162)*y(k,112)
-         mat(k,1044) = -rxt(k,179)*y(k,112)
-         mat(k,1736) = -rxt(k,197)*y(k,112)
-         mat(k,1129) = -rxt(k,215)*y(k,112)
-         mat(k,1002) = -rxt(k,232)*y(k,112)
-         mat(k,959) = -rxt(k,250)*y(k,112)
-         mat(k,1333) = -rxt(k,298)*y(k,112)
-         mat(k,1293) = rxt(k,275)*y(k,109)
-         mat(k,690) = rxt(k,275)*y(k,47)
-         mat(k,484) = -((rxt(k,145) + rxt(k,268)) * y(k,101) + (rxt(k,166) + rxt(k,269) &
-                      ) * y(k,103) + rxt(k,184)*y(k,99) + rxt(k,201)*y(k,118) &
-                      + rxt(k,219)*y(k,115) + rxt(k,237)*y(k,114) + rxt(k,254) &
-                      *y(k,125))
-         mat(k,1501) = -(rxt(k,145) + rxt(k,268)) * y(k,113)
-         mat(k,1045) = -(rxt(k,166) + rxt(k,269)) * y(k,113)
-         mat(k,1737) = -rxt(k,184)*y(k,113)
-         mat(k,1130) = -rxt(k,201)*y(k,113)
-         mat(k,1003) = -rxt(k,219)*y(k,113)
-         mat(k,960) = -rxt(k,237)*y(k,113)
-         mat(k,1412) = -rxt(k,254)*y(k,113)
-         mat(k,1335) = rxt(k,299)*y(k,109) + rxt(k,294)*y(k,111) + rxt(k,298)*y(k,112)
-         mat(k,280) = rxt(k,292)*y(k,110) + rxt(k,296)*y(k,111)
-         mat(k,691) = rxt(k,299)*y(k,49)
-         mat(k,499) = rxt(k,292)*y(k,56)
-         mat(k,539) = rxt(k,294)*y(k,49) + rxt(k,296)*y(k,56)
-         mat(k,434) = rxt(k,298)*y(k,49)
-         mat(k,974) = -(rxt(k,237)*y(k,113) + rxt(k,238)*y(k,90) + rxt(k,239)*y(k,88) &
-                      + rxt(k,240)*y(k,109) + rxt(k,241)*y(k,96) + rxt(k,242)*y(k,124) &
-                      + rxt(k,243)*y(k,93) + rxt(k,244)*y(k,111) + rxt(k,245)*y(k,91) &
-                      + rxt(k,247)*y(k,86) + rxt(k,248)*y(k,92) + rxt(k,249)*y(k,108) &
-                      + rxt(k,250)*y(k,112) + rxt(k,251)*y(k,87) + rxt(k,252)*y(k,110) &
-                      + rxt(k,253)*y(k,107) + rxt(k,364)*y(k,134) + rxt(k,579)*y(k,94))
-         mat(k,486) = -rxt(k,237)*y(k,114)
-         mat(k,807) = -rxt(k,238)*y(k,114)
-         mat(k,377) = -rxt(k,239)*y(k,114)
-         mat(k,698) = -rxt(k,240)*y(k,114)
-         mat(k,318) = -rxt(k,241)*y(k,114)
-         mat(k,1382) = -rxt(k,242)*y(k,114)
-         mat(k,650) = -rxt(k,243)*y(k,114)
-         mat(k,543) = -rxt(k,244)*y(k,114)
-         mat(k,345) = -rxt(k,245)*y(k,114)
-         mat(k,675) = -rxt(k,247)*y(k,114)
-         mat(k,524) = -rxt(k,248)*y(k,114)
-         mat(k,406) = -rxt(k,249)*y(k,114)
-         mat(k,435) = -rxt(k,250)*y(k,114)
-         mat(k,393) = -rxt(k,251)*y(k,114)
-         mat(k,503) = -rxt(k,252)*y(k,114)
-         mat(k,1641) = -rxt(k,253)*y(k,114)
-         mat(k,1808) = -rxt(k,364)*y(k,114)
-         mat(k,847) = -rxt(k,579)*y(k,114)
-         mat(k,297) = rxt(k,588)*y(k,125)
-         mat(k,1555) = rxt(k,590)*y(k,125)
-         mat(k,1612) = rxt(k,583)*y(k,106)
-         mat(k,1264) = rxt(k,587)*y(k,120)
-         mat(k,164) = rxt(k,583)*y(k,67)
-         mat(k,124) = rxt(k,587)*y(k,68)
-         mat(k,1426) = rxt(k,588)*y(k,54) + rxt(k,590)*y(k,60)
-         mat(k,1017) = -(rxt(k,219)*y(k,113) + rxt(k,220)*y(k,90) + rxt(k,221)*y(k,88) &
-                      + rxt(k,222)*y(k,109) + rxt(k,223)*y(k,96) + rxt(k,225)*y(k,124) &
-                      + rxt(k,226)*y(k,93) + rxt(k,227)*y(k,111) + rxt(k,228)*y(k,91) &
-                      + rxt(k,229)*y(k,86) + rxt(k,230)*y(k,92) + rxt(k,231)*y(k,108) &
-                      + rxt(k,232)*y(k,112) + rxt(k,233)*y(k,87) + rxt(k,234)*y(k,110) &
-                      + rxt(k,236)*y(k,107) + rxt(k,302)*y(k,94) + rxt(k,366)*y(k,134))
-         mat(k,487) = -rxt(k,219)*y(k,115)
-         mat(k,808) = -rxt(k,220)*y(k,115)
-         mat(k,378) = -rxt(k,221)*y(k,115)
-         mat(k,699) = -rxt(k,222)*y(k,115)
-         mat(k,319) = -rxt(k,223)*y(k,115)
-         mat(k,1383) = -rxt(k,225)*y(k,115)
-         mat(k,651) = -rxt(k,226)*y(k,115)
-         mat(k,544) = -rxt(k,227)*y(k,115)
-         mat(k,346) = -rxt(k,228)*y(k,115)
-         mat(k,676) = -rxt(k,229)*y(k,115)
-         mat(k,525) = -rxt(k,230)*y(k,115)
-         mat(k,407) = -rxt(k,231)*y(k,115)
-         mat(k,436) = -rxt(k,232)*y(k,115)
-         mat(k,394) = -rxt(k,233)*y(k,115)
-         mat(k,504) = -rxt(k,234)*y(k,115)
-         mat(k,1642) = -rxt(k,236)*y(k,115)
-         mat(k,848) = -rxt(k,302)*y(k,115)
-         mat(k,1809) = -rxt(k,366)*y(k,115)
-         mat(k,1144) = rxt(k,365)*y(k,134)
-         mat(k,1809) = mat(k,1809) + rxt(k,365)*y(k,118)
-         mat(k,89) = -(rxt(k,303)*y(k,94) + rxt(k,304)*y(k,134))
-         mat(k,829) = -rxt(k,303)*y(k,116)
-         mat(k,1777) = -rxt(k,304)*y(k,116)
-         mat(k,995) = rxt(k,366)*y(k,134)
-         mat(k,1777) = mat(k,1777) + rxt(k,366)*y(k,115)
-         mat(k,115) = -(rxt(k,305)*y(k,94) + rxt(k,306)*y(k,134))
-         mat(k,831) = -rxt(k,305)*y(k,117)
-         mat(k,1779) = -rxt(k,306)*y(k,117)
-         mat(k,1147) = -(rxt(k,201)*y(k,113) + rxt(k,203)*y(k,90) + rxt(k,204)*y(k,88) &
-                      + rxt(k,205)*y(k,109) + rxt(k,206)*y(k,96) + rxt(k,207)*y(k,124) &
-                      + rxt(k,208)*y(k,93) + rxt(k,209)*y(k,111) + rxt(k,210)*y(k,91) &
-                      + rxt(k,211)*y(k,86) + rxt(k,212)*y(k,92) + rxt(k,214)*y(k,108) &
-                      + rxt(k,215)*y(k,112) + rxt(k,216)*y(k,87) + rxt(k,217)*y(k,110) &
-                      + rxt(k,218)*y(k,107) + rxt(k,307)*y(k,94) + rxt(k,308)*y(k,38) &
-                      + rxt(k,309)*y(k,97) + rxt(k,310)*y(k,130) + rxt(k,365)*y(k,134))
-         mat(k,489) = -rxt(k,201)*y(k,118)
-         mat(k,811) = -rxt(k,203)*y(k,118)
-         mat(k,380) = -rxt(k,204)*y(k,118)
-         mat(k,701) = -rxt(k,205)*y(k,118)
-         mat(k,321) = -rxt(k,206)*y(k,118)
-         mat(k,1386) = -rxt(k,207)*y(k,118)
-         mat(k,654) = -rxt(k,208)*y(k,118)
-         mat(k,546) = -rxt(k,209)*y(k,118)
-         mat(k,348) = -rxt(k,210)*y(k,118)
-         mat(k,678) = -rxt(k,211)*y(k,118)
-         mat(k,527) = -rxt(k,212)*y(k,118)
-         mat(k,409) = -rxt(k,214)*y(k,118)
-         mat(k,438) = -rxt(k,215)*y(k,118)
-         mat(k,396) = -rxt(k,216)*y(k,118)
-         mat(k,506) = -rxt(k,217)*y(k,118)
-         mat(k,1645) = -rxt(k,218)*y(k,118)
-         mat(k,851) = -rxt(k,307)*y(k,118)
-         mat(k,1221) = -rxt(k,308)*y(k,118)
-         mat(k,734) = -rxt(k,309)*y(k,118)
-         mat(k,781) = -rxt(k,310)*y(k,118)
-         mat(k,1812) = -rxt(k,365)*y(k,118)
-         mat(k,978) = rxt(k,364)*y(k,134)
-         mat(k,118) = rxt(k,306)*y(k,134)
-         mat(k,112) = rxt(k,312)*y(k,134)
-         mat(k,1812) = mat(k,1812) + rxt(k,364)*y(k,114) + rxt(k,306)*y(k,117) &
-                      + rxt(k,312)*y(k,119)
-         mat(k,108) = -(rxt(k,312)*y(k,134) + rxt(k,383)*y(k,94))
-         mat(k,1778) = -rxt(k,312)*y(k,119)
-         mat(k,830) = -rxt(k,383)*y(k,119)
-         mat(k,121) = -(rxt(k,585)*y(k,67) + (rxt(k,586) + rxt(k,587)) * y(k,68))
-         mat(k,1579) = -rxt(k,585)*y(k,120)
-         mat(k,1240) = -(rxt(k,586) + rxt(k,587)) * y(k,120)
-         mat(k,618) = -(rxt(k,388)*y(k,39) + rxt(k,389)*y(k,134) + (rxt(k,391) &
-                      + rxt(k,392)) * y(k,68) + rxt(k,393)*y(k,69) + (rxt(k,481) &
-                      + rxt(k,482)) * y(k,47) + (rxt(k,504) + rxt(k,505)) * y(k,43) &
-                      + rxt(k,510)*y(k,31) + rxt(k,511)*y(k,32))
-         mat(k,467) = -rxt(k,388)*y(k,121)
-         mat(k,1799) = -rxt(k,389)*y(k,121)
-         mat(k,1254) = -(rxt(k,391) + rxt(k,392)) * y(k,121)
-         mat(k,919) = -rxt(k,393)*y(k,121)
-         mat(k,1298) = -(rxt(k,481) + rxt(k,482)) * y(k,121)
-         mat(k,229) = -(rxt(k,504) + rxt(k,505)) * y(k,121)
-         mat(k,29) = -rxt(k,510)*y(k,121)
-         mat(k,34) = -rxt(k,511)*y(k,121)
-         mat(k,1254) = mat(k,1254) + rxt(k,424)*y(k,105)
-         mat(k,841) = .850_r8*rxt(k,580)*y(k,125)
-         mat(k,130) = rxt(k,424)*y(k,68)
-         mat(k,1416) = .850_r8*rxt(k,580)*y(k,94)
-         mat(k,242) = -(rxt(k,320)*y(k,124) + rxt(k,338)*y(k,129) + rxt(k,360) &
-                      *y(k,132) + rxt(k,395)*y(k,67) + rxt(k,396)*y(k,68))
-         mat(k,1369) = -rxt(k,320)*y(k,122)
-         mat(k,330) = -rxt(k,338)*y(k,122)
-         mat(k,1694) = -rxt(k,360)*y(k,122)
-         mat(k,1590) = -rxt(k,395)*y(k,122)
-         mat(k,1245) = -rxt(k,396)*y(k,122)
-         mat(k,1590) = mat(k,1590) + rxt(k,399)*y(k,123)
-         mat(k,1245) = mat(k,1245) + rxt(k,400)*y(k,123)
-         mat(k,911) = rxt(k,401)*y(k,123)
-         mat(k,43) = rxt(k,399)*y(k,67) + rxt(k,400)*y(k,68) + rxt(k,401)*y(k,69)
-         mat(k,42) = -(rxt(k,399)*y(k,67) + rxt(k,400)*y(k,68) + rxt(k,401)*y(k,69))
-         mat(k,1576) = -rxt(k,399)*y(k,123)
-         mat(k,1238) = -rxt(k,400)*y(k,123)
-         mat(k,909) = -rxt(k,401)*y(k,123)
-         mat(k,1238) = mat(k,1238) + rxt(k,391)*y(k,121)
-         mat(k,608) = rxt(k,391)*y(k,68)
-         mat(k,1392) = -(rxt(k,149)*y(k,125) + rxt(k,172)*y(k,103) + rxt(k,189) &
-                      *y(k,99) + rxt(k,207)*y(k,118) + rxt(k,213)*y(k,101) + rxt(k,225) &
-                      *y(k,115) + rxt(k,242)*y(k,114) + rxt(k,313)*y(k,85) + rxt(k,314) &
-                      *y(k,26) + rxt(k,316)*y(k,38) + rxt(k,317)*y(k,47) + rxt(k,318) &
-                      *y(k,49) + rxt(k,319)*y(k,61) + rxt(k,320)*y(k,122) + rxt(k,321) &
-                      *y(k,68) + rxt(k,322)*y(k,69) + (rxt(k,323) + rxt(k,324) &
-                      ) * y(k,67))
-         mat(k,1436) = -rxt(k,149)*y(k,124)
-         mat(k,1068) = -rxt(k,172)*y(k,124)
-         mat(k,1760) = -rxt(k,189)*y(k,124)
-         mat(k,1153) = -rxt(k,207)*y(k,124)
-         mat(k,1524) = -rxt(k,213)*y(k,124)
-         mat(k,1026) = -rxt(k,225)*y(k,124)
-         mat(k,984) = -rxt(k,242)*y(k,124)
-         mat(k,898) = -rxt(k,313)*y(k,124)
-         mat(k,1112) = -rxt(k,314)*y(k,124)
-         mat(k,1227) = -rxt(k,316)*y(k,124)
-         mat(k,1318) = -rxt(k,317)*y(k,124)
-         mat(k,1357) = -rxt(k,318)*y(k,124)
-         mat(k,1482) = -rxt(k,319)*y(k,124)
-         mat(k,247) = -rxt(k,320)*y(k,124)
-         mat(k,1274) = -rxt(k,321)*y(k,124)
-         mat(k,939) = -rxt(k,322)*y(k,124)
-         mat(k,1622) = -(rxt(k,323) + rxt(k,324)) * y(k,124)
-         mat(k,1622) = mat(k,1622) + rxt(k,124)*y(k,90) + rxt(k,333)*y(k,127)
-         mat(k,1274) = mat(k,1274) + (rxt(k,132)+rxt(k,134))*y(k,94)
-         mat(k,817) = rxt(k,124)*y(k,67)
-         mat(k,857) = (rxt(k,132)+rxt(k,134))*y(k,68)
-         mat(k,426) = rxt(k,333)*y(k,67)
-         mat(k,1437) = -(rxt(k,147)*y(k,109) + rxt(k,148)*y(k,96) + rxt(k,149) &
-                      *y(k,124) + rxt(k,150)*y(k,93) + rxt(k,151)*y(k,111) + rxt(k,152) &
-                      *y(k,91) + rxt(k,153)*y(k,86) + rxt(k,154)*y(k,92) + rxt(k,155) &
-                      *y(k,108) + rxt(k,156)*y(k,112) + rxt(k,158)*y(k,87) + rxt(k,159) &
-                      *y(k,110) + rxt(k,160)*y(k,107) + rxt(k,254)*y(k,113) + rxt(k,255) &
-                      *y(k,90) + rxt(k,256)*y(k,88) + rxt(k,328)*y(k,134) + rxt(k,363) &
-                      *y(k,68) + rxt(k,580)*y(k,94) + rxt(k,588)*y(k,54) + rxt(k,590) &
-                      *y(k,60))
-         mat(k,707) = -rxt(k,147)*y(k,125)
-         mat(k,324) = -rxt(k,148)*y(k,125)
-         mat(k,1393) = -rxt(k,149)*y(k,125)
-         mat(k,659) = -rxt(k,150)*y(k,125)
-         mat(k,551) = -rxt(k,151)*y(k,125)
-         mat(k,351) = -rxt(k,152)*y(k,125)
-         mat(k,683) = -rxt(k,153)*y(k,125)
-         mat(k,530) = -rxt(k,154)*y(k,125)
-         mat(k,412) = -rxt(k,155)*y(k,125)
-         mat(k,444) = -rxt(k,156)*y(k,125)
-         mat(k,400) = -rxt(k,158)*y(k,125)
-         mat(k,511) = -rxt(k,159)*y(k,125)
-         mat(k,1652) = -rxt(k,160)*y(k,125)
-         mat(k,493) = -rxt(k,254)*y(k,125)
-         mat(k,818) = -rxt(k,255)*y(k,125)
-         mat(k,384) = -rxt(k,256)*y(k,125)
-         mat(k,1819) = -rxt(k,328)*y(k,125)
-         mat(k,1275) = -rxt(k,363)*y(k,125)
-         mat(k,858) = -rxt(k,580)*y(k,125)
-         mat(k,300) = -rxt(k,588)*y(k,125)
-         mat(k,1566) = -rxt(k,590)*y(k,125)
-         mat(k,1623) = rxt(k,337)*y(k,129)
-         mat(k,1275) = mat(k,1275) + rxt(k,582)*y(k,106) + rxt(k,586)*y(k,120) &
-                      + rxt(k,593)*y(k,133)
-         mat(k,166) = rxt(k,582)*y(k,68)
-         mat(k,126) = rxt(k,586)*y(k,68)
-         mat(k,248) = rxt(k,338)*y(k,129)
-         mat(k,1393) = mat(k,1393) + 2.000_r8*rxt(k,149)*y(k,125)
-         mat(k,1437) = mat(k,1437) + 2.000_r8*rxt(k,149)*y(k,124)
-         mat(k,338) = rxt(k,337)*y(k,67) + rxt(k,338)*y(k,122)
-         mat(k,206) = rxt(k,593)*y(k,68)
-      end do
+         mat(1017) = -(rxt(219)*y(113) + rxt(220)*y(90) + rxt(221)*y(88) + rxt(222) &
+                      *y(109) + rxt(223)*y(96) + rxt(225)*y(124) + rxt(226)*y(93) &
+                      + rxt(227)*y(111) + rxt(228)*y(91) + rxt(229)*y(86) + rxt(230) &
+                      *y(92) + rxt(231)*y(108) + rxt(232)*y(112) + rxt(233)*y(87) &
+                      + rxt(234)*y(110) + rxt(236)*y(107) + rxt(302)*y(94) + rxt(366) &
+                      *y(134))
+         mat(487) = -rxt(219)*y(115)
+         mat(808) = -rxt(220)*y(115)
+         mat(378) = -rxt(221)*y(115)
+         mat(699) = -rxt(222)*y(115)
+         mat(319) = -rxt(223)*y(115)
+         mat(1383) = -rxt(225)*y(115)
+         mat(651) = -rxt(226)*y(115)
+         mat(544) = -rxt(227)*y(115)
+         mat(346) = -rxt(228)*y(115)
+         mat(676) = -rxt(229)*y(115)
+         mat(525) = -rxt(230)*y(115)
+         mat(407) = -rxt(231)*y(115)
+         mat(436) = -rxt(232)*y(115)
+         mat(394) = -rxt(233)*y(115)
+         mat(504) = -rxt(234)*y(115)
+         mat(1642) = -rxt(236)*y(115)
+         mat(848) = -rxt(302)*y(115)
+         mat(1809) = -rxt(366)*y(115)
+         mat(1144) = rxt(365)*y(134)
+         mat(1809) = mat(1809) + rxt(365)*y(118)
+         mat(89) = -(rxt(303)*y(94) + rxt(304)*y(134))
+         mat(829) = -rxt(303)*y(116)
+         mat(1777) = -rxt(304)*y(116)
+         mat(995) = rxt(366)*y(134)
+         mat(1777) = mat(1777) + rxt(366)*y(115)
+         mat(115) = -(rxt(305)*y(94) + rxt(306)*y(134))
+         mat(831) = -rxt(305)*y(117)
+         mat(1779) = -rxt(306)*y(117)
+         mat(1147) = -(rxt(201)*y(113) + rxt(203)*y(90) + rxt(204)*y(88) + rxt(205) &
+                      *y(109) + rxt(206)*y(96) + rxt(207)*y(124) + rxt(208)*y(93) &
+                      + rxt(209)*y(111) + rxt(210)*y(91) + rxt(211)*y(86) + rxt(212) &
+                      *y(92) + rxt(214)*y(108) + rxt(215)*y(112) + rxt(216)*y(87) &
+                      + rxt(217)*y(110) + rxt(218)*y(107) + rxt(307)*y(94) + rxt(308) &
+                      *y(38) + rxt(309)*y(97) + rxt(310)*y(130) + rxt(365)*y(134))
+         mat(489) = -rxt(201)*y(118)
+         mat(811) = -rxt(203)*y(118)
+         mat(380) = -rxt(204)*y(118)
+         mat(701) = -rxt(205)*y(118)
+         mat(321) = -rxt(206)*y(118)
+         mat(1386) = -rxt(207)*y(118)
+         mat(654) = -rxt(208)*y(118)
+         mat(546) = -rxt(209)*y(118)
+         mat(348) = -rxt(210)*y(118)
+         mat(678) = -rxt(211)*y(118)
+         mat(527) = -rxt(212)*y(118)
+         mat(409) = -rxt(214)*y(118)
+         mat(438) = -rxt(215)*y(118)
+         mat(396) = -rxt(216)*y(118)
+         mat(506) = -rxt(217)*y(118)
+         mat(1645) = -rxt(218)*y(118)
+         mat(851) = -rxt(307)*y(118)
+         mat(1221) = -rxt(308)*y(118)
+         mat(734) = -rxt(309)*y(118)
+         mat(781) = -rxt(310)*y(118)
+         mat(1812) = -rxt(365)*y(118)
+         mat(978) = rxt(364)*y(134)
+         mat(118) = rxt(306)*y(134)
+         mat(112) = rxt(312)*y(134)
+         mat(1812) = mat(1812) + rxt(364)*y(114) + rxt(306)*y(117) + rxt(312)*y(119)
+         mat(108) = -(rxt(312)*y(134) + rxt(383)*y(94))
+         mat(1778) = -rxt(312)*y(119)
+         mat(830) = -rxt(383)*y(119)
+         mat(121) = -(rxt(585)*y(67) + (rxt(586) + rxt(587)) * y(68))
+         mat(1579) = -rxt(585)*y(120)
+         mat(1240) = -(rxt(586) + rxt(587)) * y(120)
+         mat(618) = -(rxt(388)*y(39) + rxt(389)*y(134) + (rxt(391) + rxt(392)) * y(68) &
+                      + rxt(393)*y(69) + (rxt(481) + rxt(482)) * y(47) + (rxt(504) &
+                      + rxt(505)) * y(43) + rxt(510)*y(31) + rxt(511)*y(32))
+         mat(467) = -rxt(388)*y(121)
+         mat(1799) = -rxt(389)*y(121)
+         mat(1254) = -(rxt(391) + rxt(392)) * y(121)
+         mat(919) = -rxt(393)*y(121)
+         mat(1298) = -(rxt(481) + rxt(482)) * y(121)
+         mat(229) = -(rxt(504) + rxt(505)) * y(121)
+         mat(29) = -rxt(510)*y(121)
+         mat(34) = -rxt(511)*y(121)
+         mat(1254) = mat(1254) + rxt(424)*y(105)
+         mat(841) = .850_r8*rxt(580)*y(125)
+         mat(130) = rxt(424)*y(68)
+         mat(1416) = .850_r8*rxt(580)*y(94)
+         mat(242) = -(rxt(320)*y(124) + rxt(338)*y(129) + rxt(360)*y(132) + rxt(395) &
+                      *y(67) + rxt(396)*y(68))
+         mat(1369) = -rxt(320)*y(122)
+         mat(330) = -rxt(338)*y(122)
+         mat(1694) = -rxt(360)*y(122)
+         mat(1590) = -rxt(395)*y(122)
+         mat(1245) = -rxt(396)*y(122)
+         mat(1590) = mat(1590) + rxt(399)*y(123)
+         mat(1245) = mat(1245) + rxt(400)*y(123)
+         mat(911) = rxt(401)*y(123)
+         mat(43) = rxt(399)*y(67) + rxt(400)*y(68) + rxt(401)*y(69)
+         mat(42) = -(rxt(399)*y(67) + rxt(400)*y(68) + rxt(401)*y(69))
+         mat(1576) = -rxt(399)*y(123)
+         mat(1238) = -rxt(400)*y(123)
+         mat(909) = -rxt(401)*y(123)
+         mat(1238) = mat(1238) + rxt(391)*y(121)
+         mat(608) = rxt(391)*y(68)
+         mat(1392) = -(rxt(149)*y(125) + rxt(172)*y(103) + rxt(189)*y(99) + rxt(207) &
+                      *y(118) + rxt(213)*y(101) + rxt(225)*y(115) + rxt(242)*y(114) &
+                      + rxt(313)*y(85) + rxt(314)*y(26) + rxt(316)*y(38) + rxt(317) &
+                      *y(47) + rxt(318)*y(49) + rxt(319)*y(61) + rxt(320)*y(122) &
+                      + rxt(321)*y(68) + rxt(322)*y(69) + (rxt(323) + rxt(324) &
+                      ) * y(67))
+         mat(1436) = -rxt(149)*y(124)
+         mat(1068) = -rxt(172)*y(124)
+         mat(1760) = -rxt(189)*y(124)
+         mat(1153) = -rxt(207)*y(124)
+         mat(1524) = -rxt(213)*y(124)
+         mat(1026) = -rxt(225)*y(124)
+         mat(984) = -rxt(242)*y(124)
+         mat(898) = -rxt(313)*y(124)
+         mat(1112) = -rxt(314)*y(124)
+         mat(1227) = -rxt(316)*y(124)
+         mat(1318) = -rxt(317)*y(124)
+         mat(1357) = -rxt(318)*y(124)
+         mat(1482) = -rxt(319)*y(124)
+         mat(247) = -rxt(320)*y(124)
+         mat(1274) = -rxt(321)*y(124)
+         mat(939) = -rxt(322)*y(124)
+         mat(1622) = -(rxt(323) + rxt(324)) * y(124)
+         mat(1622) = mat(1622) + rxt(124)*y(90) + rxt(333)*y(127)
+         mat(1274) = mat(1274) + (rxt(132)+rxt(134))*y(94)
+         mat(817) = rxt(124)*y(67)
+         mat(857) = (rxt(132)+rxt(134))*y(68)
+         mat(426) = rxt(333)*y(67)
+         mat(1437) = -(rxt(147)*y(109) + rxt(148)*y(96) + rxt(149)*y(124) + rxt(150) &
+                      *y(93) + rxt(151)*y(111) + rxt(152)*y(91) + rxt(153)*y(86) &
+                      + rxt(154)*y(92) + rxt(155)*y(108) + rxt(156)*y(112) + rxt(158) &
+                      *y(87) + rxt(159)*y(110) + rxt(160)*y(107) + rxt(254)*y(113) &
+                      + rxt(255)*y(90) + rxt(256)*y(88) + rxt(328)*y(134) + rxt(363) &
+                      *y(68) + rxt(580)*y(94) + rxt(588)*y(54) + rxt(590)*y(60))
+         mat(707) = -rxt(147)*y(125)
+         mat(324) = -rxt(148)*y(125)
+         mat(1393) = -rxt(149)*y(125)
+         mat(659) = -rxt(150)*y(125)
+         mat(551) = -rxt(151)*y(125)
+         mat(351) = -rxt(152)*y(125)
+         mat(683) = -rxt(153)*y(125)
+         mat(530) = -rxt(154)*y(125)
+         mat(412) = -rxt(155)*y(125)
+         mat(444) = -rxt(156)*y(125)
+         mat(400) = -rxt(158)*y(125)
+         mat(511) = -rxt(159)*y(125)
+         mat(1652) = -rxt(160)*y(125)
+         mat(493) = -rxt(254)*y(125)
+         mat(818) = -rxt(255)*y(125)
+         mat(384) = -rxt(256)*y(125)
+         mat(1819) = -rxt(328)*y(125)
+         mat(1275) = -rxt(363)*y(125)
+         mat(858) = -rxt(580)*y(125)
+         mat(300) = -rxt(588)*y(125)
+         mat(1566) = -rxt(590)*y(125)
+         mat(1623) = rxt(337)*y(129)
+         mat(1275) = mat(1275) + rxt(582)*y(106) + rxt(586)*y(120) + rxt(593)*y(133)
+         mat(166) = rxt(582)*y(68)
+         mat(126) = rxt(586)*y(68)
+         mat(248) = rxt(338)*y(129)
+         mat(1393) = mat(1393) + 2.000_r8*rxt(149)*y(125)
+         mat(1437) = mat(1437) + 2.000_r8*rxt(149)*y(124)
+         mat(338) = rxt(337)*y(67) + rxt(338)*y(122)
+         mat(206) = rxt(593)*y(68)
+         mat(190) = -(rxt(325)*y(94) + (rxt(326) + rxt(327)) * y(134))
+         mat(837) = -rxt(325)*y(126)
+         mat(1783) = -(rxt(326) + rxt(327)) * y(126)
+         mat(1403) = rxt(328)*y(134)
+         mat(329) = rxt(336)*y(134)
+         mat(1783) = mat(1783) + rxt(328)*y(125) + rxt(336)*y(129)
+         mat(419) = -((rxt(271) + rxt(278)) * y(60) + (rxt(276) + rxt(277)) * y(61) &
+                      + rxt(330)*y(38) + rxt(331)*y(69) + (rxt(332) + rxt(333) &
+                      ) * y(67))
+         mat(1540) = -(rxt(271) + rxt(278)) * y(127)
+         mat(1455) = -(rxt(276) + rxt(277)) * y(127)
+         mat(1204) = -rxt(330)*y(127)
+         mat(915) = -rxt(331)*y(127)
+         mat(1597) = -(rxt(332) + rxt(333)) * y(127)
+         mat(1597) = mat(1597) + rxt(335)*y(128)
+         mat(1250) = rxt(125)*y(90) + rxt(361)*y(132)
+         mat(915) = mat(915) + rxt(131)*y(93) + rxt(322)*y(124) + rxt(347)*y(131) &
+                      + rxt(362)*y(132)
+         mat(797) = rxt(125)*y(68)
+         mat(640) = rxt(131)*y(69)
+         mat(1372) = rxt(322)*y(69)
+         mat(96) = rxt(335)*y(67)
+         mat(1664) = rxt(347)*y(69)
+         mat(1696) = rxt(361)*y(68) + rxt(362)*y(69)
+         mat(95) = -(rxt(335)*y(67))
+         mat(1578) = -rxt(335)*y(128)
+         mat(1239) = rxt(321)*y(124)
+         mat(1368) = rxt(321)*y(68)
+         mat(331) = -(rxt(336)*y(134) + rxt(337)*y(67) + rxt(338)*y(122) + rxt(379) &
+                      *y(94))
+         mat(1787) = -rxt(336)*y(129)
+         mat(1595) = -rxt(337)*y(129)
+         mat(243) = -rxt(338)*y(129)
+         mat(840) = -rxt(379)*y(129)
+         mat(1248) = rxt(363)*y(125)
+         mat(1406) = rxt(363)*y(68)
       end subroutine nlnmat07
-      subroutine nlnmat08( avec_len, mat, y, rxt )
+      subroutine nlnmat08( mat, y, rxt )
       use chem_mods, only : gas_pcnst, rxntot, nzcnt
       implicit none
 !----------------------------------------------
 ! ... dummy arguments
 !----------------------------------------------
-      integer, intent(in) :: avec_len
-      real(r8), intent(in) :: y(veclen,gas_pcnst)
-      real(r8), intent(in) :: rxt(veclen,rxntot)
-      real(r8), intent(inout) :: mat(veclen,nzcnt)
+      real(r8), intent(in) :: y(gas_pcnst)
+      real(r8), intent(in) :: rxt(rxntot)
+      real(r8), intent(inout) :: mat(nzcnt)
 !----------------------------------------------
 ! ... local variables
 !----------------------------------------------
-      integer :: k
 !----------------------------------------------
 ! ... complete matrix entries implicit species
 !----------------------------------------------
-      do k = 1,avec_len
-         mat(k,190) = -(rxt(k,325)*y(k,94) + (rxt(k,326) + rxt(k,327)) * y(k,134))
-         mat(k,837) = -rxt(k,325)*y(k,126)
-         mat(k,1783) = -(rxt(k,326) + rxt(k,327)) * y(k,126)
-         mat(k,1403) = rxt(k,328)*y(k,134)
-         mat(k,329) = rxt(k,336)*y(k,134)
-         mat(k,1783) = mat(k,1783) + rxt(k,328)*y(k,125) + rxt(k,336)*y(k,129)
-         mat(k,419) = -((rxt(k,271) + rxt(k,278)) * y(k,60) + (rxt(k,276) + rxt(k,277) &
-                      ) * y(k,61) + rxt(k,330)*y(k,38) + rxt(k,331)*y(k,69) + (rxt(k,332) &
-                      + rxt(k,333)) * y(k,67))
-         mat(k,1540) = -(rxt(k,271) + rxt(k,278)) * y(k,127)
-         mat(k,1455) = -(rxt(k,276) + rxt(k,277)) * y(k,127)
-         mat(k,1204) = -rxt(k,330)*y(k,127)
-         mat(k,915) = -rxt(k,331)*y(k,127)
-         mat(k,1597) = -(rxt(k,332) + rxt(k,333)) * y(k,127)
-         mat(k,1597) = mat(k,1597) + rxt(k,335)*y(k,128)
-         mat(k,1250) = rxt(k,125)*y(k,90) + rxt(k,361)*y(k,132)
-         mat(k,915) = mat(k,915) + rxt(k,131)*y(k,93) + rxt(k,322)*y(k,124) &
-                      + rxt(k,347)*y(k,131) + rxt(k,362)*y(k,132)
-         mat(k,797) = rxt(k,125)*y(k,68)
-         mat(k,640) = rxt(k,131)*y(k,69)
-         mat(k,1372) = rxt(k,322)*y(k,69)
-         mat(k,96) = rxt(k,335)*y(k,67)
-         mat(k,1664) = rxt(k,347)*y(k,69)
-         mat(k,1696) = rxt(k,361)*y(k,68) + rxt(k,362)*y(k,69)
-         mat(k,95) = -(rxt(k,335)*y(k,67))
-         mat(k,1578) = -rxt(k,335)*y(k,128)
-         mat(k,1239) = rxt(k,321)*y(k,124)
-         mat(k,1368) = rxt(k,321)*y(k,68)
-         mat(k,331) = -(rxt(k,336)*y(k,134) + rxt(k,337)*y(k,67) + rxt(k,338)*y(k,122) &
-                      + rxt(k,379)*y(k,94))
-         mat(k,1787) = -rxt(k,336)*y(k,129)
-         mat(k,1595) = -rxt(k,337)*y(k,129)
-         mat(k,243) = -rxt(k,338)*y(k,129)
-         mat(k,840) = -rxt(k,379)*y(k,129)
-         mat(k,1248) = rxt(k,363)*y(k,125)
-         mat(k,1406) = rxt(k,363)*y(k,68)
-         mat(k,775) = -(rxt(k,310)*y(k,118) + rxt(k,339)*y(k,53) + rxt(k,348)*y(k,60) &
-                      + rxt(k,414)*y(k,39) + rxt(k,415)*y(k,41) + rxt(k,416)*y(k,97) &
-                      + rxt(k,417)*y(k,67) + rxt(k,418)*y(k,69) + (4._r8*rxt(k,419) &
-                      + 4._r8*rxt(k,420)) * y(k,130) + rxt(k,422)*y(k,50) + rxt(k,436) &
-                      *y(k,62) + rxt(k,437)*y(k,54) + rxt(k,445)*y(k,61) + rxt(k,446) &
-                      *y(k,49) + rxt(k,465)*y(k,27) + (rxt(k,467) + rxt(k,468) &
-                      ) * y(k,26) + rxt(k,470)*y(k,47) + rxt(k,473)*y(k,52) + rxt(k,497) &
-                      *y(k,4) + rxt(k,499)*y(k,43) + rxt(k,531)*y(k,16) + rxt(k,534) &
-                      *y(k,21) + (rxt(k,536) + rxt(k,540)) * y(k,29) + rxt(k,542) &
-                      *y(k,71) + rxt(k,547)*y(k,74) + rxt(k,552)*y(k,75) + rxt(k,553) &
-                      *y(k,76) + (rxt(k,556) + rxt(k,557)) * y(k,33))
-         mat(k,1138) = -rxt(k,310)*y(k,130)
-         mat(k,177) = -rxt(k,339)*y(k,130)
-         mat(k,1550) = -rxt(k,348)*y(k,130)
-         mat(k,469) = -rxt(k,414)*y(k,130)
-         mat(k,147) = -rxt(k,415)*y(k,130)
-         mat(k,729) = -rxt(k,416)*y(k,130)
-         mat(k,1607) = -rxt(k,417)*y(k,130)
-         mat(k,924) = -rxt(k,418)*y(k,130)
-         mat(k,103) = -rxt(k,422)*y(k,130)
-         mat(k,1178) = -rxt(k,436)*y(k,130)
-         mat(k,295) = -rxt(k,437)*y(k,130)
-         mat(k,1467) = -rxt(k,445)*y(k,130)
-         mat(k,1342) = -rxt(k,446)*y(k,130)
-         mat(k,260) = -rxt(k,465)*y(k,130)
-         mat(k,1097) = -(rxt(k,467) + rxt(k,468)) * y(k,130)
-         mat(k,1303) = -rxt(k,470)*y(k,130)
-         mat(k,236) = -rxt(k,473)*y(k,130)
-         mat(k,569) = -rxt(k,497)*y(k,130)
-         mat(k,230) = -rxt(k,499)*y(k,130)
-         mat(k,590) = -rxt(k,531)*y(k,130)
-         mat(k,80) = -rxt(k,534)*y(k,130)
-         mat(k,135) = -(rxt(k,536) + rxt(k,540)) * y(k,130)
-         mat(k,74) = -rxt(k,542)*y(k,130)
-         mat(k,171) = -rxt(k,547)*y(k,130)
-         mat(k,364) = -rxt(k,552)*y(k,130)
-         mat(k,254) = -rxt(k,553)*y(k,130)
-         mat(k,61) = -(rxt(k,556) + rxt(k,557)) * y(k,130)
-         mat(k,590) = mat(k,590) + rxt(k,530)*y(k,67)
-         mat(k,80) = mat(k,80) + .300_r8*rxt(k,534)*y(k,130)
-         mat(k,1097) = mat(k,1097) + rxt(k,341)*y(k,131)
-         mat(k,212) = rxt(k,508)*y(k,134)
-         mat(k,1212) = rxt(k,413)*y(k,69) + rxt(k,128)*y(k,93) + 2.000_r8*rxt(k,408) &
-                      *y(k,97)
-         mat(k,469) = mat(k,469) + rxt(k,405)*y(k,67) + rxt(k,388)*y(k,121)
-         mat(k,147) = mat(k,147) + rxt(k,406)*y(k,67)
-         mat(k,230) = mat(k,230) + rxt(k,498)*y(k,67) + rxt(k,504)*y(k,121)
-         mat(k,1303) = mat(k,1303) + rxt(k,469)*y(k,67) + rxt(k,481)*y(k,121) &
-                      + rxt(k,355)*y(k,132)
-         mat(k,1342) = mat(k,1342) + rxt(k,123)*y(k,90) + rxt(k,356)*y(k,132)
-         mat(k,221) = rxt(k,500)*y(k,67)
-         mat(k,236) = mat(k,236) + rxt(k,472)*y(k,67)
-         mat(k,1550) = mat(k,1550) + rxt(k,438)*y(k,97)
-         mat(k,1467) = mat(k,1467) + rxt(k,345)*y(k,131)
-         mat(k,1178) = mat(k,1178) + rxt(k,433)*y(k,97)
-         mat(k,1607) = mat(k,1607) + rxt(k,530)*y(k,16) + rxt(k,405)*y(k,39) &
-                      + rxt(k,406)*y(k,41) + rxt(k,498)*y(k,43) + rxt(k,469)*y(k,47) &
-                      + rxt(k,500)*y(k,51) + rxt(k,472)*y(k,52) + rxt(k,411)*y(k,97)
-         mat(k,924) = mat(k,924) + rxt(k,413)*y(k,38) + rxt(k,412)*y(k,97) &
-                      + rxt(k,347)*y(k,131)
-         mat(k,883) = rxt(k,454)*y(k,97) + rxt(k,340)*y(k,131)
-         mat(k,802) = rxt(k,123)*y(k,49)
-         mat(k,645) = rxt(k,128)*y(k,38)
-         mat(k,843) = rxt(k,137)*y(k,95)
-         mat(k,85) = rxt(k,137)*y(k,94) + rxt(k,138)*y(k,134)
-         mat(k,317) = rxt(k,188)*y(k,99) + rxt(k,202)*y(k,101) + rxt(k,171)*y(k,103) &
-                      + rxt(k,241)*y(k,114) + rxt(k,223)*y(k,115) + rxt(k,206) &
-                      *y(k,118) + rxt(k,148)*y(k,125)
-         mat(k,729) = mat(k,729) + 2.000_r8*rxt(k,408)*y(k,38) + rxt(k,438)*y(k,60) &
-                      + rxt(k,433)*y(k,62) + rxt(k,411)*y(k,67) + rxt(k,412)*y(k,69) &
-                      + rxt(k,454)*y(k,85)
-         mat(k,1745) = rxt(k,188)*y(k,96)
-         mat(k,1509) = rxt(k,202)*y(k,96)
-         mat(k,1053) = rxt(k,171)*y(k,96)
-         mat(k,969) = rxt(k,241)*y(k,96)
-         mat(k,1011) = rxt(k,223)*y(k,96)
-         mat(k,1138) = mat(k,1138) + rxt(k,206)*y(k,96)
-         mat(k,620) = rxt(k,388)*y(k,39) + rxt(k,504)*y(k,43) + rxt(k,481)*y(k,47) &
-                      + 2.000_r8*rxt(k,389)*y(k,134)
-         mat(k,1421) = rxt(k,148)*y(k,96)
-         mat(k,191) = rxt(k,327)*y(k,134)
-         mat(k,775) = mat(k,775) + .300_r8*rxt(k,534)*y(k,21)
-         mat(k,1668) = rxt(k,341)*y(k,26) + rxt(k,345)*y(k,61) + rxt(k,347)*y(k,69) &
-                      + rxt(k,340)*y(k,85)
-         mat(k,1703) = rxt(k,355)*y(k,47) + rxt(k,356)*y(k,49) + rxt(k,354)*y(k,134)
-         mat(k,1803) = rxt(k,508)*y(k,37) + rxt(k,138)*y(k,95) + 2.000_r8*rxt(k,389) &
-                      *y(k,121) + rxt(k,327)*y(k,126) + rxt(k,354)*y(k,132)
-         mat(k,1690) = -(rxt(k,340)*y(k,85) + rxt(k,341)*y(k,26) + rxt(k,343)*y(k,38) &
-                      + rxt(k,344)*y(k,47) + rxt(k,345)*y(k,61) + rxt(k,346)*y(k,67) &
-                      + rxt(k,347)*y(k,69))
-         mat(k,905) = -rxt(k,340)*y(k,131)
-         mat(k,1119) = -rxt(k,341)*y(k,131)
-         mat(k,1234) = -rxt(k,343)*y(k,131)
-         mat(k,1325) = -rxt(k,344)*y(k,131)
-         mat(k,1489) = -rxt(k,345)*y(k,131)
-         mat(k,1629) = -rxt(k,346)*y(k,131)
-         mat(k,946) = -rxt(k,347)*y(k,131)
-         mat(k,1234) = mat(k,1234) + rxt(k,116)*y(k,90) + rxt(k,286)*y(k,107) &
-                      + rxt(k,330)*y(k,127)
-         mat(k,481) = rxt(k,353)*y(k,132)
-         mat(k,824) = rxt(k,116)*y(k,38)
-         mat(k,1658) = rxt(k,286)*y(k,38)
-         mat(k,431) = rxt(k,330)*y(k,38)
-         mat(k,1725) = rxt(k,353)*y(k,39) + rxt(k,354)*y(k,134)
-         mat(k,1825) = rxt(k,354)*y(k,132)
-         mat(k,1726) = -(rxt(k,135)*y(k,60) + rxt(k,349)*y(k,85) + rxt(k,350)*y(k,26) &
-                      + (rxt(k,352) + rxt(k,353)) * y(k,39) + rxt(k,354)*y(k,134) &
-                      + rxt(k,355)*y(k,47) + rxt(k,356)*y(k,49) + rxt(k,358)*y(k,61) &
-                      + rxt(k,359)*y(k,67) + rxt(k,360)*y(k,122) + rxt(k,361)*y(k,68) &
-                      + rxt(k,362)*y(k,69))
-         mat(k,1573) = -rxt(k,135)*y(k,132)
-         mat(k,906) = -rxt(k,349)*y(k,132)
-         mat(k,1120) = -rxt(k,350)*y(k,132)
-         mat(k,482) = -(rxt(k,352) + rxt(k,353)) * y(k,132)
-         mat(k,1826) = -rxt(k,354)*y(k,132)
-         mat(k,1326) = -rxt(k,355)*y(k,132)
-         mat(k,1365) = -rxt(k,356)*y(k,132)
-         mat(k,1490) = -rxt(k,358)*y(k,132)
-         mat(k,1630) = -rxt(k,359)*y(k,132)
-         mat(k,249) = -rxt(k,360)*y(k,132)
-         mat(k,1282) = -rxt(k,361)*y(k,132)
-         mat(k,947) = -rxt(k,362)*y(k,132)
-         mat(k,1630) = mat(k,1630) + rxt(k,324)*y(k,124)
-         mat(k,947) = mat(k,947) + rxt(k,133)*y(k,94)
-         mat(k,864) = rxt(k,133)*y(k,69)
-         mat(k,1400) = rxt(k,324)*y(k,67)
-         mat(k,199) = -(rxt(k,593)*y(k,68))
-         mat(k,1244) = -rxt(k,593)*y(k,133)
-         mat(k,1586) = rxt(k,584)*y(k,106) + rxt(k,585)*y(k,120)
-         mat(k,160) = rxt(k,584)*y(k,67)
-         mat(k,122) = rxt(k,585)*y(k,67)
-         mat(k,1828) = -(rxt(k,106)*y(k,86) + rxt(k,117)*y(k,92) + rxt(k,118)*y(k,90) &
-                      + rxt(k,138)*y(k,95) + rxt(k,139)*y(k,100) + rxt(k,142)*y(k,102) &
-                      + rxt(k,287)*y(k,107) + rxt(k,293)*y(k,111) + rxt(k,295) &
-                      *y(k,109) + rxt(k,304)*y(k,116) + rxt(k,306)*y(k,117) + rxt(k,312) &
-                      *y(k,119) + (rxt(k,326) + rxt(k,327)) * y(k,126) + rxt(k,328) &
-                      *y(k,125) + rxt(k,336)*y(k,129) + rxt(k,354)*y(k,132) + rxt(k,364) &
-                      *y(k,114) + rxt(k,365)*y(k,118) + rxt(k,366)*y(k,115) + rxt(k,371) &
-                      *y(k,104) + rxt(k,373)*y(k,98) + rxt(k,375)*y(k,99) + rxt(k,377) &
-                      *y(k,101) + rxt(k,389)*y(k,121) + rxt(k,508)*y(k,37) + rxt(k,554) &
-                      *y(k,77))
-         mat(k,689) = -rxt(k,106)*y(k,134)
-         mat(k,537) = -rxt(k,117)*y(k,134)
-         mat(k,827) = -rxt(k,118)*y(k,134)
-         mat(k,88) = -rxt(k,138)*y(k,134)
-         mat(k,53) = -rxt(k,139)*y(k,134)
-         mat(k,57) = -rxt(k,142)*y(k,134)
-         mat(k,1661) = -rxt(k,287)*y(k,134)
-         mat(k,557) = -rxt(k,293)*y(k,134)
-         mat(k,714) = -rxt(k,295)*y(k,134)
-         mat(k,94) = -rxt(k,304)*y(k,134)
-         mat(k,120) = -rxt(k,306)*y(k,134)
-         mat(k,114) = -rxt(k,312)*y(k,134)
-         mat(k,197) = -(rxt(k,326) + rxt(k,327)) * y(k,134)
-         mat(k,1446) = -rxt(k,328)*y(k,134)
-         mat(k,342) = -rxt(k,336)*y(k,134)
-         mat(k,1728) = -rxt(k,354)*y(k,134)
-         mat(k,994) = -rxt(k,364)*y(k,134)
-         mat(k,1163) = -rxt(k,365)*y(k,134)
-         mat(k,1036) = -rxt(k,366)*y(k,134)
-         mat(k,186) = -rxt(k,371)*y(k,134)
-         mat(k,157) = -rxt(k,373)*y(k,134)
-         mat(k,1770) = -rxt(k,375)*y(k,134)
-         mat(k,1534) = -rxt(k,377)*y(k,134)
-         mat(k,638) = -rxt(k,389)*y(k,134)
-         mat(k,216) = -rxt(k,508)*y(k,134)
-         mat(k,49) = -rxt(k,554)*y(k,134)
-         mat(k,605) = rxt(k,531)*y(k,130)
-         mat(k,82) = rxt(k,534)*y(k,130)
-         mat(k,1237) = rxt(k,409)*y(k,97) + rxt(k,343)*y(k,131)
-         mat(k,483) = rxt(k,414)*y(k,130) + rxt(k,352)*y(k,132)
-         mat(k,151) = rxt(k,415)*y(k,130)
-         mat(k,233) = rxt(k,499)*y(k,130)
-         mat(k,1328) = (rxt(k,570)+rxt(k,575))*y(k,51) + (rxt(k,563)+rxt(k,569) &
-                       +rxt(k,574))*y(k,52) + rxt(k,105)*y(k,87) + rxt(k,470)*y(k,130) &
-                      + rxt(k,344)*y(k,131)
-         mat(k,1367) = rxt(k,294)*y(k,111) + rxt(k,446)*y(k,130)
-         mat(k,107) = rxt(k,422)*y(k,130)
-         mat(k,225) = (rxt(k,570)+rxt(k,575))*y(k,47)
-         mat(k,241) = (rxt(k,563)+rxt(k,569)+rxt(k,574))*y(k,47) + rxt(k,473)*y(k,130)
-         mat(k,180) = rxt(k,339)*y(k,130)
-         mat(k,290) = rxt(k,292)*y(k,110)
-         mat(k,1575) = rxt(k,122)*y(k,92)
-         mat(k,1492) = rxt(k,119)*y(k,92)
-         mat(k,689) = mat(k,689) + 3.000_r8*rxt(k,194)*y(k,99) + 4.000_r8*rxt(k,146) &
-                      *y(k,101) + 5.000_r8*rxt(k,176)*y(k,103) + 2.000_r8*rxt(k,229) &
-                      *y(k,115) + rxt(k,211)*y(k,118)
-         mat(k,404) = rxt(k,105)*y(k,47) + 4.000_r8*rxt(k,198)*y(k,99) &
-                      + 5.000_r8*rxt(k,163)*y(k,101) + 6.000_r8*rxt(k,181)*y(k,103) &
-                      + rxt(k,251)*y(k,114) + 3.000_r8*rxt(k,233)*y(k,115) &
-                      + 2.000_r8*rxt(k,216)*y(k,118) + rxt(k,158)*y(k,125)
-         mat(k,388) = 3.000_r8*rxt(k,186)*y(k,99) + (4.000_r8*rxt(k,180) &
-                       +4.000_r8*rxt(k,266))*y(k,101) + (5.000_r8*rxt(k,168) &
-                       +5.000_r8*rxt(k,267))*y(k,103) + 2.000_r8*rxt(k,221)*y(k,115) &
-                      + rxt(k,204)*y(k,118)
-         mat(k,827) = mat(k,827) + 3.000_r8*rxt(k,185)*y(k,99) + (4.000_r8*rxt(k,169) &
-                       +4.000_r8*rxt(k,257))*y(k,101) + (5.000_r8*rxt(k,167) &
-                       +5.000_r8*rxt(k,264))*y(k,103) + 2.000_r8*rxt(k,220)*y(k,115) &
-                      + rxt(k,203)*y(k,118)
-         mat(k,356) = 5.000_r8*rxt(k,193)*y(k,99) + (6.000_r8*rxt(k,246) &
-                       +6.000_r8*rxt(k,270))*y(k,101) + (7.000_r8*rxt(k,175) &
-                       +7.000_r8*rxt(k,258))*y(k,103) + 2.000_r8*rxt(k,245)*y(k,114) &
-                      + 4.000_r8*rxt(k,228)*y(k,115) + 3.000_r8*rxt(k,210)*y(k,118) &
-                      + 2.000_r8*rxt(k,152)*y(k,125)
-         mat(k,537) = mat(k,537) + rxt(k,122)*y(k,60) + rxt(k,119)*y(k,61) &
-                      + 4.000_r8*rxt(k,195)*y(k,99) + (5.000_r8*rxt(k,157) &
-                       +5.000_r8*rxt(k,259))*y(k,101) + (6.000_r8*rxt(k,177) &
-                       +6.000_r8*rxt(k,260))*y(k,103) + rxt(k,248)*y(k,114) &
-                      + 3.000_r8*rxt(k,230)*y(k,115) + 2.000_r8*rxt(k,212)*y(k,118) &
-                      + rxt(k,154)*y(k,125)
-         mat(k,668) = 3.000_r8*rxt(k,190)*y(k,99) + 4.000_r8*rxt(k,224)*y(k,101) &
-                      + 5.000_r8*rxt(k,173)*y(k,103) + 2.000_r8*rxt(k,226)*y(k,115) &
-                      + rxt(k,208)*y(k,118)
-         mat(k,866) = rxt(k,137)*y(k,95) + 2.000_r8*rxt(k,381)*y(k,98) &
-                      + 3.000_r8*rxt(k,382)*y(k,99) + 4.000_r8*rxt(k,140)*y(k,101) &
-                      + 5.000_r8*rxt(k,143)*y(k,103) + rxt(k,380)*y(k,104) &
-                      + 2.000_r8*rxt(k,302)*y(k,115) + 3.000_r8*rxt(k,303)*y(k,116) &
-                      + rxt(k,307)*y(k,118) + rxt(k,325)*y(k,126)
-         mat(k,88) = mat(k,88) + rxt(k,137)*y(k,94)
-         mat(k,328) = 3.000_r8*rxt(k,188)*y(k,99) + 4.000_r8*rxt(k,202)*y(k,101) &
-                      + 5.000_r8*rxt(k,171)*y(k,103) + 2.000_r8*rxt(k,223)*y(k,115) &
-                      + rxt(k,206)*y(k,118)
-         mat(k,748) = rxt(k,409)*y(k,38) + rxt(k,416)*y(k,130)
-         mat(k,157) = mat(k,157) + 2.000_r8*rxt(k,381)*y(k,94)
-         mat(k,1770) = mat(k,1770) + 3.000_r8*rxt(k,194)*y(k,86) + 4.000_r8*rxt(k,198) &
-                      *y(k,87) + 3.000_r8*rxt(k,186)*y(k,88) + 3.000_r8*rxt(k,185) &
-                      *y(k,90) + 5.000_r8*rxt(k,193)*y(k,91) + 4.000_r8*rxt(k,195) &
-                      *y(k,92) + 3.000_r8*rxt(k,190)*y(k,93) + 3.000_r8*rxt(k,382) &
-                      *y(k,94) + 3.000_r8*rxt(k,188)*y(k,96) + 3.000_r8*rxt(k,200) &
-                      *y(k,107) + 4.000_r8*rxt(k,196)*y(k,108) + 3.000_r8*rxt(k,187) &
-                      *y(k,109) + 5.000_r8*rxt(k,199)*y(k,110) + 4.000_r8*rxt(k,192) &
-                      *y(k,111) + 3.000_r8*rxt(k,197)*y(k,112) + 3.000_r8*rxt(k,184) &
-                      *y(k,113) + 3.000_r8*rxt(k,189)*y(k,124)
-         mat(k,1534) = mat(k,1534) + 4.000_r8*rxt(k,146)*y(k,86) + 5.000_r8*rxt(k,163) &
-                      *y(k,87) + (4.000_r8*rxt(k,180)+4.000_r8*rxt(k,266))*y(k,88) + ( &
-                      + 4.000_r8*rxt(k,169)+4.000_r8*rxt(k,257))*y(k,90) + ( &
-                      + 6.000_r8*rxt(k,246)+6.000_r8*rxt(k,270))*y(k,91) + ( &
-                      + 5.000_r8*rxt(k,157)+5.000_r8*rxt(k,259))*y(k,92) &
-                      + 4.000_r8*rxt(k,224)*y(k,93) + 4.000_r8*rxt(k,140)*y(k,94) &
-                      + 4.000_r8*rxt(k,202)*y(k,96) + 4.000_r8*rxt(k,165)*y(k,107) &
-                      + 5.000_r8*rxt(k,161)*y(k,108) + (4.000_r8*rxt(k,191) &
-                       +4.000_r8*rxt(k,263))*y(k,109) + 6.000_r8*rxt(k,164)*y(k,110) + ( &
-                      + 5.000_r8*rxt(k,235)+5.000_r8*rxt(k,261))*y(k,111) &
-                      + 4.000_r8*rxt(k,162)*y(k,112) + (4.000_r8*rxt(k,145) &
-                       +4.000_r8*rxt(k,268))*y(k,113) + 4.000_r8*rxt(k,213)*y(k,124)
-         mat(k,1078) = 5.000_r8*rxt(k,176)*y(k,86) + 6.000_r8*rxt(k,181)*y(k,87) + ( &
-                      + 5.000_r8*rxt(k,168)+5.000_r8*rxt(k,267))*y(k,88) + ( &
-                      + 5.000_r8*rxt(k,167)+5.000_r8*rxt(k,264))*y(k,90) + ( &
-                      + 7.000_r8*rxt(k,175)+7.000_r8*rxt(k,258))*y(k,91) + ( &
-                      + 6.000_r8*rxt(k,177)+6.000_r8*rxt(k,260))*y(k,92) &
-                      + 5.000_r8*rxt(k,173)*y(k,93) + 5.000_r8*rxt(k,143)*y(k,94) &
-                      + 5.000_r8*rxt(k,171)*y(k,96) + 5.000_r8*rxt(k,183)*y(k,107) &
-                      + 6.000_r8*rxt(k,178)*y(k,108) + (5.000_r8*rxt(k,170) &
-                       +5.000_r8*rxt(k,265))*y(k,109) + 7.000_r8*rxt(k,182)*y(k,110) + ( &
-                      + 6.000_r8*rxt(k,174)+6.000_r8*rxt(k,262))*y(k,111) &
-                      + 5.000_r8*rxt(k,179)*y(k,112) + (5.000_r8*rxt(k,166) &
-                       +5.000_r8*rxt(k,269))*y(k,113) + 5.000_r8*rxt(k,172)*y(k,124)
-         mat(k,186) = mat(k,186) + rxt(k,380)*y(k,94)
-         mat(k,1661) = mat(k,1661) + 3.000_r8*rxt(k,200)*y(k,99) + 4.000_r8*rxt(k,165) &
-                      *y(k,101) + 5.000_r8*rxt(k,183)*y(k,103) + 2.000_r8*rxt(k,236) &
-                      *y(k,115) + rxt(k,218)*y(k,118)
-         mat(k,418) = 4.000_r8*rxt(k,196)*y(k,99) + 5.000_r8*rxt(k,161)*y(k,101) &
-                      + 6.000_r8*rxt(k,178)*y(k,103) + rxt(k,249)*y(k,114) &
-                      + 3.000_r8*rxt(k,231)*y(k,115) + 2.000_r8*rxt(k,214)*y(k,118) &
-                      + rxt(k,155)*y(k,125)
-         mat(k,714) = mat(k,714) + 3.000_r8*rxt(k,187)*y(k,99) + (4.000_r8*rxt(k,191) &
-                       +4.000_r8*rxt(k,263))*y(k,101) + (5.000_r8*rxt(k,170) &
-                       +5.000_r8*rxt(k,265))*y(k,103) + 2.000_r8*rxt(k,222)*y(k,115) &
-                      + rxt(k,205)*y(k,118)
-         mat(k,517) = rxt(k,292)*y(k,56) + 5.000_r8*rxt(k,199)*y(k,99) &
-                      + 6.000_r8*rxt(k,164)*y(k,101) + 7.000_r8*rxt(k,182)*y(k,103) &
-                      + 2.000_r8*rxt(k,252)*y(k,114) + 4.000_r8*rxt(k,234)*y(k,115) &
-                      + 3.000_r8*rxt(k,217)*y(k,118) + 2.000_r8*rxt(k,159)*y(k,125)
-         mat(k,557) = mat(k,557) + rxt(k,294)*y(k,49) + 4.000_r8*rxt(k,192)*y(k,99) + ( &
-                      + 5.000_r8*rxt(k,235)+5.000_r8*rxt(k,261))*y(k,101) + ( &
-                      + 6.000_r8*rxt(k,174)+6.000_r8*rxt(k,262))*y(k,103) + rxt(k,244) &
-                      *y(k,114) + 3.000_r8*rxt(k,227)*y(k,115) + 2.000_r8*rxt(k,209) &
-                      *y(k,118) + rxt(k,151)*y(k,125)
-         mat(k,448) = 3.000_r8*rxt(k,197)*y(k,99) + 4.000_r8*rxt(k,162)*y(k,101) &
-                      + 5.000_r8*rxt(k,179)*y(k,103) + 2.000_r8*rxt(k,232)*y(k,115) &
-                      + rxt(k,215)*y(k,118)
-         mat(k,497) = 3.000_r8*rxt(k,184)*y(k,99) + (4.000_r8*rxt(k,145) &
-                       +4.000_r8*rxt(k,268))*y(k,101) + (5.000_r8*rxt(k,166) &
-                       +5.000_r8*rxt(k,269))*y(k,103) + 2.000_r8*rxt(k,219)*y(k,115) &
-                      + rxt(k,201)*y(k,118)
-         mat(k,994) = mat(k,994) + rxt(k,251)*y(k,87) + 2.000_r8*rxt(k,245)*y(k,91) &
-                      + rxt(k,248)*y(k,92) + rxt(k,249)*y(k,108) + 2.000_r8*rxt(k,252) &
-                      *y(k,110) + rxt(k,244)*y(k,111)
-         mat(k,1036) = mat(k,1036) + 2.000_r8*rxt(k,229)*y(k,86) + 3.000_r8*rxt(k,233) &
-                      *y(k,87) + 2.000_r8*rxt(k,221)*y(k,88) + 2.000_r8*rxt(k,220) &
-                      *y(k,90) + 4.000_r8*rxt(k,228)*y(k,91) + 3.000_r8*rxt(k,230) &
-                      *y(k,92) + 2.000_r8*rxt(k,226)*y(k,93) + 2.000_r8*rxt(k,302) &
-                      *y(k,94) + 2.000_r8*rxt(k,223)*y(k,96) + 2.000_r8*rxt(k,236) &
-                      *y(k,107) + 3.000_r8*rxt(k,231)*y(k,108) + 2.000_r8*rxt(k,222) &
-                      *y(k,109) + 4.000_r8*rxt(k,234)*y(k,110) + 3.000_r8*rxt(k,227) &
-                      *y(k,111) + 2.000_r8*rxt(k,232)*y(k,112) + 2.000_r8*rxt(k,219) &
-                      *y(k,113) + 2.000_r8*rxt(k,225)*y(k,124)
-         mat(k,94) = mat(k,94) + 3.000_r8*rxt(k,303)*y(k,94)
-         mat(k,1163) = mat(k,1163) + rxt(k,211)*y(k,86) + 2.000_r8*rxt(k,216)*y(k,87) &
-                      + rxt(k,204)*y(k,88) + rxt(k,203)*y(k,90) + 3.000_r8*rxt(k,210) &
-                      *y(k,91) + 2.000_r8*rxt(k,212)*y(k,92) + rxt(k,208)*y(k,93) &
-                      + rxt(k,307)*y(k,94) + rxt(k,206)*y(k,96) + rxt(k,218)*y(k,107) &
-                      + 2.000_r8*rxt(k,214)*y(k,108) + rxt(k,205)*y(k,109) &
-                      + 3.000_r8*rxt(k,217)*y(k,110) + 2.000_r8*rxt(k,209)*y(k,111) &
-                      + rxt(k,215)*y(k,112) + rxt(k,201)*y(k,113) + rxt(k,207) &
-                      *y(k,124)
-         mat(k,1402) = 3.000_r8*rxt(k,189)*y(k,99) + 4.000_r8*rxt(k,213)*y(k,101) &
-                      + 5.000_r8*rxt(k,172)*y(k,103) + 2.000_r8*rxt(k,225)*y(k,115) &
-                      + rxt(k,207)*y(k,118)
-         mat(k,1446) = mat(k,1446) + rxt(k,158)*y(k,87) + 2.000_r8*rxt(k,152)*y(k,91) &
-                      + rxt(k,154)*y(k,92) + rxt(k,155)*y(k,108) + 2.000_r8*rxt(k,159) &
-                      *y(k,110) + rxt(k,151)*y(k,111)
-         mat(k,197) = mat(k,197) + rxt(k,325)*y(k,94)
-         mat(k,795) = rxt(k,531)*y(k,16) + rxt(k,534)*y(k,21) + rxt(k,414)*y(k,39) &
-                      + rxt(k,415)*y(k,41) + rxt(k,499)*y(k,43) + rxt(k,470)*y(k,47) &
-                      + rxt(k,446)*y(k,49) + rxt(k,422)*y(k,50) + rxt(k,473)*y(k,52) &
-                      + rxt(k,339)*y(k,53) + rxt(k,416)*y(k,97) + 2.000_r8*rxt(k,419) &
-                      *y(k,130)
-         mat(k,1693) = rxt(k,343)*y(k,38) + rxt(k,344)*y(k,47)
-         mat(k,1728) = mat(k,1728) + rxt(k,352)*y(k,39)
-      end do
+         mat(775) = -(rxt(310)*y(118) + rxt(339)*y(53) + rxt(348)*y(60) + rxt(414) &
+                      *y(39) + rxt(415)*y(41) + rxt(416)*y(97) + rxt(417)*y(67) &
+                      + rxt(418)*y(69) + (4._r8*rxt(419) + 4._r8*rxt(420)) * y(130) &
+                      + rxt(422)*y(50) + rxt(436)*y(62) + rxt(437)*y(54) + rxt(445) &
+                      *y(61) + rxt(446)*y(49) + rxt(465)*y(27) + (rxt(467) + rxt(468) &
+                      ) * y(26) + rxt(470)*y(47) + rxt(473)*y(52) + rxt(497)*y(4) &
+                      + rxt(499)*y(43) + rxt(531)*y(16) + rxt(534)*y(21) + (rxt(536) &
+                      + rxt(540)) * y(29) + rxt(542)*y(71) + rxt(547)*y(74) + rxt(552) &
+                      *y(75) + rxt(553)*y(76) + (rxt(556) + rxt(557)) * y(33))
+         mat(1138) = -rxt(310)*y(130)
+         mat(177) = -rxt(339)*y(130)
+         mat(1550) = -rxt(348)*y(130)
+         mat(469) = -rxt(414)*y(130)
+         mat(147) = -rxt(415)*y(130)
+         mat(729) = -rxt(416)*y(130)
+         mat(1607) = -rxt(417)*y(130)
+         mat(924) = -rxt(418)*y(130)
+         mat(103) = -rxt(422)*y(130)
+         mat(1178) = -rxt(436)*y(130)
+         mat(295) = -rxt(437)*y(130)
+         mat(1467) = -rxt(445)*y(130)
+         mat(1342) = -rxt(446)*y(130)
+         mat(260) = -rxt(465)*y(130)
+         mat(1097) = -(rxt(467) + rxt(468)) * y(130)
+         mat(1303) = -rxt(470)*y(130)
+         mat(236) = -rxt(473)*y(130)
+         mat(569) = -rxt(497)*y(130)
+         mat(230) = -rxt(499)*y(130)
+         mat(590) = -rxt(531)*y(130)
+         mat(80) = -rxt(534)*y(130)
+         mat(135) = -(rxt(536) + rxt(540)) * y(130)
+         mat(74) = -rxt(542)*y(130)
+         mat(171) = -rxt(547)*y(130)
+         mat(364) = -rxt(552)*y(130)
+         mat(254) = -rxt(553)*y(130)
+         mat(61) = -(rxt(556) + rxt(557)) * y(130)
+         mat(590) = mat(590) + rxt(530)*y(67)
+         mat(80) = mat(80) + .300_r8*rxt(534)*y(130)
+         mat(1097) = mat(1097) + rxt(341)*y(131)
+         mat(212) = rxt(508)*y(134)
+         mat(1212) = rxt(413)*y(69) + rxt(128)*y(93) + 2.000_r8*rxt(408)*y(97)
+         mat(469) = mat(469) + rxt(405)*y(67) + rxt(388)*y(121)
+         mat(147) = mat(147) + rxt(406)*y(67)
+         mat(230) = mat(230) + rxt(498)*y(67) + rxt(504)*y(121)
+         mat(1303) = mat(1303) + rxt(469)*y(67) + rxt(481)*y(121) + rxt(355)*y(132)
+         mat(1342) = mat(1342) + rxt(123)*y(90) + rxt(356)*y(132)
+         mat(221) = rxt(500)*y(67)
+         mat(236) = mat(236) + rxt(472)*y(67)
+         mat(1550) = mat(1550) + rxt(438)*y(97)
+         mat(1467) = mat(1467) + rxt(345)*y(131)
+         mat(1178) = mat(1178) + rxt(433)*y(97)
+         mat(1607) = mat(1607) + rxt(530)*y(16) + rxt(405)*y(39) + rxt(406)*y(41) &
+                      + rxt(498)*y(43) + rxt(469)*y(47) + rxt(500)*y(51) + rxt(472) &
+                      *y(52) + rxt(411)*y(97)
+         mat(924) = mat(924) + rxt(413)*y(38) + rxt(412)*y(97) + rxt(347)*y(131)
+         mat(883) = rxt(454)*y(97) + rxt(340)*y(131)
+         mat(802) = rxt(123)*y(49)
+         mat(645) = rxt(128)*y(38)
+         mat(843) = rxt(137)*y(95)
+         mat(85) = rxt(137)*y(94) + rxt(138)*y(134)
+         mat(317) = rxt(188)*y(99) + rxt(202)*y(101) + rxt(171)*y(103) + rxt(241) &
+                      *y(114) + rxt(223)*y(115) + rxt(206)*y(118) + rxt(148)*y(125)
+         mat(729) = mat(729) + 2.000_r8*rxt(408)*y(38) + rxt(438)*y(60) + rxt(433) &
+                      *y(62) + rxt(411)*y(67) + rxt(412)*y(69) + rxt(454)*y(85)
+         mat(1745) = rxt(188)*y(96)
+         mat(1509) = rxt(202)*y(96)
+         mat(1053) = rxt(171)*y(96)
+         mat(969) = rxt(241)*y(96)
+         mat(1011) = rxt(223)*y(96)
+         mat(1138) = mat(1138) + rxt(206)*y(96)
+         mat(620) = rxt(388)*y(39) + rxt(504)*y(43) + rxt(481)*y(47) &
+                      + 2.000_r8*rxt(389)*y(134)
+         mat(1421) = rxt(148)*y(96)
+         mat(191) = rxt(327)*y(134)
+         mat(775) = mat(775) + .300_r8*rxt(534)*y(21)
+         mat(1668) = rxt(341)*y(26) + rxt(345)*y(61) + rxt(347)*y(69) + rxt(340)*y(85)
+         mat(1703) = rxt(355)*y(47) + rxt(356)*y(49) + rxt(354)*y(134)
+         mat(1803) = rxt(508)*y(37) + rxt(138)*y(95) + 2.000_r8*rxt(389)*y(121) &
+                      + rxt(327)*y(126) + rxt(354)*y(132)
+         mat(1690) = -(rxt(340)*y(85) + rxt(341)*y(26) + rxt(343)*y(38) + rxt(344) &
+                      *y(47) + rxt(345)*y(61) + rxt(346)*y(67) + rxt(347)*y(69))
+         mat(905) = -rxt(340)*y(131)
+         mat(1119) = -rxt(341)*y(131)
+         mat(1234) = -rxt(343)*y(131)
+         mat(1325) = -rxt(344)*y(131)
+         mat(1489) = -rxt(345)*y(131)
+         mat(1629) = -rxt(346)*y(131)
+         mat(946) = -rxt(347)*y(131)
+         mat(1234) = mat(1234) + rxt(116)*y(90) + rxt(286)*y(107) + rxt(330)*y(127)
+         mat(481) = rxt(353)*y(132)
+         mat(824) = rxt(116)*y(38)
+         mat(1658) = rxt(286)*y(38)
+         mat(431) = rxt(330)*y(38)
+         mat(1725) = rxt(353)*y(39) + rxt(354)*y(134)
+         mat(1825) = rxt(354)*y(132)
+         mat(1726) = -(rxt(135)*y(60) + rxt(349)*y(85) + rxt(350)*y(26) + (rxt(352) &
+                      + rxt(353)) * y(39) + rxt(354)*y(134) + rxt(355)*y(47) + rxt(356) &
+                      *y(49) + rxt(358)*y(61) + rxt(359)*y(67) + rxt(360)*y(122) &
+                      + rxt(361)*y(68) + rxt(362)*y(69))
+         mat(1573) = -rxt(135)*y(132)
+         mat(906) = -rxt(349)*y(132)
+         mat(1120) = -rxt(350)*y(132)
+         mat(482) = -(rxt(352) + rxt(353)) * y(132)
+         mat(1826) = -rxt(354)*y(132)
+         mat(1326) = -rxt(355)*y(132)
+         mat(1365) = -rxt(356)*y(132)
+         mat(1490) = -rxt(358)*y(132)
+         mat(1630) = -rxt(359)*y(132)
+         mat(249) = -rxt(360)*y(132)
+         mat(1282) = -rxt(361)*y(132)
+         mat(947) = -rxt(362)*y(132)
+         mat(1630) = mat(1630) + rxt(324)*y(124)
+         mat(947) = mat(947) + rxt(133)*y(94)
+         mat(864) = rxt(133)*y(69)
+         mat(1400) = rxt(324)*y(67)
+         mat(199) = -(rxt(593)*y(68))
+         mat(1244) = -rxt(593)*y(133)
+         mat(1586) = rxt(584)*y(106) + rxt(585)*y(120)
+         mat(160) = rxt(584)*y(67)
+         mat(122) = rxt(585)*y(67)
+         mat(1828) = -(rxt(106)*y(86) + rxt(117)*y(92) + rxt(118)*y(90) + rxt(138) &
+                      *y(95) + rxt(139)*y(100) + rxt(142)*y(102) + rxt(287)*y(107) &
+                      + rxt(293)*y(111) + rxt(295)*y(109) + rxt(304)*y(116) + rxt(306) &
+                      *y(117) + rxt(312)*y(119) + (rxt(326) + rxt(327)) * y(126) &
+                      + rxt(328)*y(125) + rxt(336)*y(129) + rxt(354)*y(132) + rxt(364) &
+                      *y(114) + rxt(365)*y(118) + rxt(366)*y(115) + rxt(371)*y(104) &
+                      + rxt(373)*y(98) + rxt(375)*y(99) + rxt(377)*y(101) + rxt(389) &
+                      *y(121) + rxt(508)*y(37) + rxt(554)*y(77))
+         mat(689) = -rxt(106)*y(134)
+         mat(537) = -rxt(117)*y(134)
+         mat(827) = -rxt(118)*y(134)
+         mat(88) = -rxt(138)*y(134)
+         mat(53) = -rxt(139)*y(134)
+         mat(57) = -rxt(142)*y(134)
+         mat(1661) = -rxt(287)*y(134)
+         mat(557) = -rxt(293)*y(134)
+         mat(714) = -rxt(295)*y(134)
+         mat(94) = -rxt(304)*y(134)
+         mat(120) = -rxt(306)*y(134)
+         mat(114) = -rxt(312)*y(134)
+         mat(197) = -(rxt(326) + rxt(327)) * y(134)
+         mat(1446) = -rxt(328)*y(134)
+         mat(342) = -rxt(336)*y(134)
+         mat(1728) = -rxt(354)*y(134)
+         mat(994) = -rxt(364)*y(134)
+         mat(1163) = -rxt(365)*y(134)
+         mat(1036) = -rxt(366)*y(134)
+         mat(186) = -rxt(371)*y(134)
+         mat(157) = -rxt(373)*y(134)
+         mat(1770) = -rxt(375)*y(134)
+         mat(1534) = -rxt(377)*y(134)
+         mat(638) = -rxt(389)*y(134)
+         mat(216) = -rxt(508)*y(134)
+         mat(49) = -rxt(554)*y(134)
+         mat(605) = rxt(531)*y(130)
+         mat(82) = rxt(534)*y(130)
+         mat(1237) = rxt(409)*y(97) + rxt(343)*y(131)
+         mat(483) = rxt(414)*y(130) + rxt(352)*y(132)
+         mat(151) = rxt(415)*y(130)
+         mat(233) = rxt(499)*y(130)
+         mat(1328) = (rxt(570)+rxt(575))*y(51) + (rxt(563)+rxt(569)+rxt(574))*y(52) &
+                      + rxt(105)*y(87) + rxt(470)*y(130) + rxt(344)*y(131)
+         mat(1367) = rxt(294)*y(111) + rxt(446)*y(130)
+         mat(107) = rxt(422)*y(130)
+         mat(225) = (rxt(570)+rxt(575))*y(47)
+         mat(241) = (rxt(563)+rxt(569)+rxt(574))*y(47) + rxt(473)*y(130)
+         mat(180) = rxt(339)*y(130)
+         mat(290) = rxt(292)*y(110)
+         mat(1575) = rxt(122)*y(92)
+         mat(1492) = rxt(119)*y(92)
+         mat(689) = mat(689) + 3.000_r8*rxt(194)*y(99) + 4.000_r8*rxt(146)*y(101) &
+                      + 5.000_r8*rxt(176)*y(103) + 2.000_r8*rxt(229)*y(115) + rxt(211) &
+                      *y(118)
+         mat(404) = rxt(105)*y(47) + 4.000_r8*rxt(198)*y(99) + 5.000_r8*rxt(163) &
+                      *y(101) + 6.000_r8*rxt(181)*y(103) + rxt(251)*y(114) &
+                      + 3.000_r8*rxt(233)*y(115) + 2.000_r8*rxt(216)*y(118) + rxt(158) &
+                      *y(125)
+         mat(388) = 3.000_r8*rxt(186)*y(99) + (4.000_r8*rxt(180)+4.000_r8*rxt(266)) &
+                      *y(101) + (5.000_r8*rxt(168)+5.000_r8*rxt(267))*y(103) &
+                      + 2.000_r8*rxt(221)*y(115) + rxt(204)*y(118)
+         mat(827) = mat(827) + 3.000_r8*rxt(185)*y(99) + (4.000_r8*rxt(169) &
+                       +4.000_r8*rxt(257))*y(101) + (5.000_r8*rxt(167) &
+                       +5.000_r8*rxt(264))*y(103) + 2.000_r8*rxt(220)*y(115) &
+                      + rxt(203)*y(118)
+         mat(356) = 5.000_r8*rxt(193)*y(99) + (6.000_r8*rxt(246)+6.000_r8*rxt(270)) &
+                      *y(101) + (7.000_r8*rxt(175)+7.000_r8*rxt(258))*y(103) &
+                      + 2.000_r8*rxt(245)*y(114) + 4.000_r8*rxt(228)*y(115) &
+                      + 3.000_r8*rxt(210)*y(118) + 2.000_r8*rxt(152)*y(125)
+         mat(537) = mat(537) + rxt(122)*y(60) + rxt(119)*y(61) + 4.000_r8*rxt(195) &
+                      *y(99) + (5.000_r8*rxt(157)+5.000_r8*rxt(259))*y(101) + ( &
+                      + 6.000_r8*rxt(177)+6.000_r8*rxt(260))*y(103) + rxt(248)*y(114) &
+                      + 3.000_r8*rxt(230)*y(115) + 2.000_r8*rxt(212)*y(118) + rxt(154) &
+                      *y(125)
+         mat(668) = 3.000_r8*rxt(190)*y(99) + 4.000_r8*rxt(224)*y(101) &
+                      + 5.000_r8*rxt(173)*y(103) + 2.000_r8*rxt(226)*y(115) + rxt(208) &
+                      *y(118)
+         mat(866) = rxt(137)*y(95) + 2.000_r8*rxt(381)*y(98) + 3.000_r8*rxt(382)*y(99) &
+                      + 4.000_r8*rxt(140)*y(101) + 5.000_r8*rxt(143)*y(103) + rxt(380) &
+                      *y(104) + 2.000_r8*rxt(302)*y(115) + 3.000_r8*rxt(303)*y(116) &
+                      + rxt(307)*y(118) + rxt(325)*y(126)
+         mat(88) = mat(88) + rxt(137)*y(94)
+         mat(328) = 3.000_r8*rxt(188)*y(99) + 4.000_r8*rxt(202)*y(101) &
+                      + 5.000_r8*rxt(171)*y(103) + 2.000_r8*rxt(223)*y(115) + rxt(206) &
+                      *y(118)
+         mat(748) = rxt(409)*y(38) + rxt(416)*y(130)
+         mat(157) = mat(157) + 2.000_r8*rxt(381)*y(94)
+         mat(1770) = mat(1770) + 3.000_r8*rxt(194)*y(86) + 4.000_r8*rxt(198)*y(87) &
+                      + 3.000_r8*rxt(186)*y(88) + 3.000_r8*rxt(185)*y(90) &
+                      + 5.000_r8*rxt(193)*y(91) + 4.000_r8*rxt(195)*y(92) &
+                      + 3.000_r8*rxt(190)*y(93) + 3.000_r8*rxt(382)*y(94) &
+                      + 3.000_r8*rxt(188)*y(96) + 3.000_r8*rxt(200)*y(107) &
+                      + 4.000_r8*rxt(196)*y(108) + 3.000_r8*rxt(187)*y(109) &
+                      + 5.000_r8*rxt(199)*y(110) + 4.000_r8*rxt(192)*y(111) &
+                      + 3.000_r8*rxt(197)*y(112) + 3.000_r8*rxt(184)*y(113) &
+                      + 3.000_r8*rxt(189)*y(124)
+         mat(1534) = mat(1534) + 4.000_r8*rxt(146)*y(86) + 5.000_r8*rxt(163)*y(87) + ( &
+                      + 4.000_r8*rxt(180)+4.000_r8*rxt(266))*y(88) + ( &
+                      + 4.000_r8*rxt(169)+4.000_r8*rxt(257))*y(90) + ( &
+                      + 6.000_r8*rxt(246)+6.000_r8*rxt(270))*y(91) + ( &
+                      + 5.000_r8*rxt(157)+5.000_r8*rxt(259))*y(92) + 4.000_r8*rxt(224) &
+                      *y(93) + 4.000_r8*rxt(140)*y(94) + 4.000_r8*rxt(202)*y(96) &
+                      + 4.000_r8*rxt(165)*y(107) + 5.000_r8*rxt(161)*y(108) + ( &
+                      + 4.000_r8*rxt(191)+4.000_r8*rxt(263))*y(109) &
+                      + 6.000_r8*rxt(164)*y(110) + (5.000_r8*rxt(235) &
+                       +5.000_r8*rxt(261))*y(111) + 4.000_r8*rxt(162)*y(112) + ( &
+                      + 4.000_r8*rxt(145)+4.000_r8*rxt(268))*y(113) &
+                      + 4.000_r8*rxt(213)*y(124)
+         mat(1078) = 5.000_r8*rxt(176)*y(86) + 6.000_r8*rxt(181)*y(87) + ( &
+                      + 5.000_r8*rxt(168)+5.000_r8*rxt(267))*y(88) + ( &
+                      + 5.000_r8*rxt(167)+5.000_r8*rxt(264))*y(90) + ( &
+                      + 7.000_r8*rxt(175)+7.000_r8*rxt(258))*y(91) + ( &
+                      + 6.000_r8*rxt(177)+6.000_r8*rxt(260))*y(92) + 5.000_r8*rxt(173) &
+                      *y(93) + 5.000_r8*rxt(143)*y(94) + 5.000_r8*rxt(171)*y(96) &
+                      + 5.000_r8*rxt(183)*y(107) + 6.000_r8*rxt(178)*y(108) + ( &
+                      + 5.000_r8*rxt(170)+5.000_r8*rxt(265))*y(109) &
+                      + 7.000_r8*rxt(182)*y(110) + (6.000_r8*rxt(174) &
+                       +6.000_r8*rxt(262))*y(111) + 5.000_r8*rxt(179)*y(112) + ( &
+                      + 5.000_r8*rxt(166)+5.000_r8*rxt(269))*y(113) &
+                      + 5.000_r8*rxt(172)*y(124)
+         mat(186) = mat(186) + rxt(380)*y(94)
+         mat(1661) = mat(1661) + 3.000_r8*rxt(200)*y(99) + 4.000_r8*rxt(165)*y(101) &
+                      + 5.000_r8*rxt(183)*y(103) + 2.000_r8*rxt(236)*y(115) + rxt(218) &
+                      *y(118)
+         mat(418) = 4.000_r8*rxt(196)*y(99) + 5.000_r8*rxt(161)*y(101) &
+                      + 6.000_r8*rxt(178)*y(103) + rxt(249)*y(114) + 3.000_r8*rxt(231) &
+                      *y(115) + 2.000_r8*rxt(214)*y(118) + rxt(155)*y(125)
+         mat(714) = mat(714) + 3.000_r8*rxt(187)*y(99) + (4.000_r8*rxt(191) &
+                       +4.000_r8*rxt(263))*y(101) + (5.000_r8*rxt(170) &
+                       +5.000_r8*rxt(265))*y(103) + 2.000_r8*rxt(222)*y(115) &
+                      + rxt(205)*y(118)
+         mat(517) = rxt(292)*y(56) + 5.000_r8*rxt(199)*y(99) + 6.000_r8*rxt(164) &
+                      *y(101) + 7.000_r8*rxt(182)*y(103) + 2.000_r8*rxt(252)*y(114) &
+                      + 4.000_r8*rxt(234)*y(115) + 3.000_r8*rxt(217)*y(118) &
+                      + 2.000_r8*rxt(159)*y(125)
+         mat(557) = mat(557) + rxt(294)*y(49) + 4.000_r8*rxt(192)*y(99) + ( &
+                      + 5.000_r8*rxt(235)+5.000_r8*rxt(261))*y(101) + ( &
+                      + 6.000_r8*rxt(174)+6.000_r8*rxt(262))*y(103) + rxt(244)*y(114) &
+                      + 3.000_r8*rxt(227)*y(115) + 2.000_r8*rxt(209)*y(118) + rxt(151) &
+                      *y(125)
+         mat(448) = 3.000_r8*rxt(197)*y(99) + 4.000_r8*rxt(162)*y(101) &
+                      + 5.000_r8*rxt(179)*y(103) + 2.000_r8*rxt(232)*y(115) + rxt(215) &
+                      *y(118)
+         mat(497) = 3.000_r8*rxt(184)*y(99) + (4.000_r8*rxt(145)+4.000_r8*rxt(268)) &
+                      *y(101) + (5.000_r8*rxt(166)+5.000_r8*rxt(269))*y(103) &
+                      + 2.000_r8*rxt(219)*y(115) + rxt(201)*y(118)
+         mat(994) = mat(994) + rxt(251)*y(87) + 2.000_r8*rxt(245)*y(91) + rxt(248) &
+                      *y(92) + rxt(249)*y(108) + 2.000_r8*rxt(252)*y(110) + rxt(244) &
+                      *y(111)
+         mat(1036) = mat(1036) + 2.000_r8*rxt(229)*y(86) + 3.000_r8*rxt(233)*y(87) &
+                      + 2.000_r8*rxt(221)*y(88) + 2.000_r8*rxt(220)*y(90) &
+                      + 4.000_r8*rxt(228)*y(91) + 3.000_r8*rxt(230)*y(92) &
+                      + 2.000_r8*rxt(226)*y(93) + 2.000_r8*rxt(302)*y(94) &
+                      + 2.000_r8*rxt(223)*y(96) + 2.000_r8*rxt(236)*y(107) &
+                      + 3.000_r8*rxt(231)*y(108) + 2.000_r8*rxt(222)*y(109) &
+                      + 4.000_r8*rxt(234)*y(110) + 3.000_r8*rxt(227)*y(111) &
+                      + 2.000_r8*rxt(232)*y(112) + 2.000_r8*rxt(219)*y(113) &
+                      + 2.000_r8*rxt(225)*y(124)
+         mat(94) = mat(94) + 3.000_r8*rxt(303)*y(94)
+         mat(1163) = mat(1163) + rxt(211)*y(86) + 2.000_r8*rxt(216)*y(87) + rxt(204) &
+                      *y(88) + rxt(203)*y(90) + 3.000_r8*rxt(210)*y(91) &
+                      + 2.000_r8*rxt(212)*y(92) + rxt(208)*y(93) + rxt(307)*y(94) &
+                      + rxt(206)*y(96) + rxt(218)*y(107) + 2.000_r8*rxt(214)*y(108) &
+                      + rxt(205)*y(109) + 3.000_r8*rxt(217)*y(110) + 2.000_r8*rxt(209) &
+                      *y(111) + rxt(215)*y(112) + rxt(201)*y(113) + rxt(207)*y(124)
+         mat(1402) = 3.000_r8*rxt(189)*y(99) + 4.000_r8*rxt(213)*y(101) &
+                      + 5.000_r8*rxt(172)*y(103) + 2.000_r8*rxt(225)*y(115) + rxt(207) &
+                      *y(118)
+         mat(1446) = mat(1446) + rxt(158)*y(87) + 2.000_r8*rxt(152)*y(91) + rxt(154) &
+                      *y(92) + rxt(155)*y(108) + 2.000_r8*rxt(159)*y(110) + rxt(151) &
+                      *y(111)
+         mat(197) = mat(197) + rxt(325)*y(94)
+         mat(795) = rxt(531)*y(16) + rxt(534)*y(21) + rxt(414)*y(39) + rxt(415)*y(41) &
+                      + rxt(499)*y(43) + rxt(470)*y(47) + rxt(446)*y(49) + rxt(422) &
+                      *y(50) + rxt(473)*y(52) + rxt(339)*y(53) + rxt(416)*y(97) &
+                      + 2.000_r8*rxt(419)*y(130)
+         mat(1693) = rxt(343)*y(38) + rxt(344)*y(47)
+         mat(1728) = mat(1728) + rxt(352)*y(39)
       end subroutine nlnmat08
-      subroutine nlnmat_finit( avec_len, mat, lmat, dti )
+      subroutine nlnmat_finit( mat, lmat, dti )
       use chem_mods, only : gas_pcnst, rxntot, nzcnt
       implicit none
 !----------------------------------------------
 ! ... dummy arguments
 !----------------------------------------------
-      integer, intent(in) :: avec_len
-      real(r8), intent(in) :: dti(veclen)
-      real(r8), intent(in) :: lmat(veclen,nzcnt)
-      real(r8), intent(inout) :: mat(veclen,nzcnt)
+      real(r8), intent(in) :: dti
+      real(r8), intent(in) :: lmat(nzcnt)
+      real(r8), intent(inout) :: mat(nzcnt)
 !----------------------------------------------
 ! ... local variables
 !----------------------------------------------
-      integer :: k
 !----------------------------------------------
 ! ... complete matrix entries implicit species
 !----------------------------------------------
-      do k = 1,avec_len
-         mat(k, 1) = lmat(k, 1)
-         mat(k, 2) = lmat(k, 2)
-         mat(k, 3) = lmat(k, 3)
-         mat(k, 4) = lmat(k, 4)
-         mat(k, 5) = lmat(k, 5)
-         mat(k, 6) = lmat(k, 6)
-         mat(k, 7) = lmat(k, 7)
-         mat(k, 8) = lmat(k, 8)
-         mat(k, 9) = lmat(k, 9)
-         mat(k, 10) = lmat(k, 10)
-         mat(k, 11) = lmat(k, 11)
-         mat(k, 12) = lmat(k, 12)
-         mat(k, 13) = lmat(k, 13)
-         mat(k, 14) = lmat(k, 14)
-         mat(k, 15) = lmat(k, 15)
-         mat(k, 16) = lmat(k, 16)
-         mat(k, 17) = lmat(k, 17)
-         mat(k, 18) = lmat(k, 18)
-         mat(k, 19) = lmat(k, 19)
-         mat(k, 20) = lmat(k, 20)
-         mat(k, 21) = lmat(k, 21)
-         mat(k, 22) = lmat(k, 22)
-         mat(k, 23) = lmat(k, 23)
-         mat(k, 24) = lmat(k, 24)
-         mat(k, 25) = lmat(k, 25)
-         mat(k, 26) = lmat(k, 26)
-         mat(k, 27) = mat(k, 27) + lmat(k, 27)
-         mat(k, 28) = mat(k, 28) + lmat(k, 28)
-         mat(k, 30) = lmat(k, 30)
-         mat(k, 31) = lmat(k, 31)
-         mat(k, 32) = mat(k, 32) + lmat(k, 32)
-         mat(k, 33) = mat(k, 33) + lmat(k, 33)
-         mat(k, 35) = mat(k, 35) + lmat(k, 35)
-         mat(k, 36) = lmat(k, 36)
-         mat(k, 37) = lmat(k, 37)
-         mat(k, 38) = lmat(k, 38)
-         mat(k, 39) = lmat(k, 39)
-         mat(k, 40) = lmat(k, 40)
-         mat(k, 41) = lmat(k, 41)
-         mat(k, 42) = mat(k, 42) + lmat(k, 42)
-         mat(k, 43) = mat(k, 43) + lmat(k, 43)
-         mat(k, 44) = lmat(k, 44)
-         mat(k, 46) = mat(k, 46) + lmat(k, 46)
-         mat(k, 47) = lmat(k, 47)
-         mat(k, 48) = lmat(k, 48)
-         mat(k, 50) = mat(k, 50) + lmat(k, 50)
-         mat(k, 54) = mat(k, 54) + lmat(k, 54)
-         mat(k, 58) = mat(k, 58) + lmat(k, 58)
-         mat(k, 64) = mat(k, 64) + lmat(k, 64)
-         mat(k, 67) = mat(k, 67) + lmat(k, 67)
-         mat(k, 68) = lmat(k, 68)
-         mat(k, 69) = mat(k, 69) + lmat(k, 69)
-         mat(k, 70) = mat(k, 70) + lmat(k, 70)
-         mat(k, 71) = lmat(k, 71)
-         mat(k, 77) = mat(k, 77) + lmat(k, 77)
-         mat(k, 79) = mat(k, 79) + lmat(k, 79)
-         mat(k, 80) = mat(k, 80) + lmat(k, 80)
-         mat(k, 81) = lmat(k, 81)
-         mat(k, 83) = mat(k, 83) + lmat(k, 83)
-         mat(k, 89) = mat(k, 89) + lmat(k, 89)
-         mat(k, 95) = mat(k, 95) + lmat(k, 95)
-         mat(k, 97) = lmat(k, 97)
-         mat(k, 98) = mat(k, 98) + lmat(k, 98)
-         mat(k, 99) = lmat(k, 99)
-         mat(k, 101) = mat(k, 101) + lmat(k, 101)
-         mat(k, 102) = lmat(k, 102)
-         mat(k, 103) = mat(k, 103) + lmat(k, 103)
-         mat(k, 104) = lmat(k, 104)
-         mat(k, 106) = mat(k, 106) + lmat(k, 106)
-         mat(k, 108) = mat(k, 108) + lmat(k, 108)
-         mat(k, 109) = lmat(k, 109)
-         mat(k, 111) = lmat(k, 111)
-         mat(k, 115) = mat(k, 115) + lmat(k, 115)
-         mat(k, 117) = lmat(k, 117)
-         mat(k, 121) = mat(k, 121) + lmat(k, 121)
-         mat(k, 128) = mat(k, 128) + lmat(k, 128)
-         mat(k, 133) = mat(k, 133) + lmat(k, 133)
-         mat(k, 137) = mat(k, 137) + lmat(k, 137)
-         mat(k, 138) = lmat(k, 138)
-         mat(k, 139) = lmat(k, 139)
-         mat(k, 140) = mat(k, 140) + lmat(k, 140)
-         mat(k, 141) = mat(k, 141) + lmat(k, 141)
-         mat(k, 142) = lmat(k, 142)
-         mat(k, 143) = lmat(k, 143)
-         mat(k, 145) = mat(k, 145) + lmat(k, 145)
-         mat(k, 147) = mat(k, 147) + lmat(k, 147)
-         mat(k, 152) = mat(k, 152) + lmat(k, 152)
-         mat(k, 153) = lmat(k, 153)
-         mat(k, 157) = mat(k, 157) + lmat(k, 157)
-         mat(k, 159) = mat(k, 159) + lmat(k, 159)
-         mat(k, 169) = mat(k, 169) + lmat(k, 169)
-         mat(k, 176) = mat(k, 176) + lmat(k, 176)
-         mat(k, 177) = mat(k, 177) + lmat(k, 177)
-         mat(k, 179) = lmat(k, 179)
-         mat(k, 182) = mat(k, 182) + lmat(k, 182)
-         mat(k, 190) = mat(k, 190) + lmat(k, 190)
-         mat(k, 195) = lmat(k, 195)
-         mat(k, 197) = mat(k, 197) + lmat(k, 197)
-         mat(k, 198) = lmat(k, 198)
-         mat(k, 199) = mat(k, 199) + lmat(k, 199)
-         mat(k, 200) = lmat(k, 200)
-         mat(k, 203) = lmat(k, 203)
-         mat(k, 206) = mat(k, 206) + lmat(k, 206)
-         mat(k, 208) = mat(k, 208) + lmat(k, 208)
-         mat(k, 209) = mat(k, 209) + lmat(k, 209)
-         mat(k, 210) = lmat(k, 210)
-         mat(k, 218) = mat(k, 218) + lmat(k, 218)
-         mat(k, 219) = lmat(k, 219)
-         mat(k, 221) = mat(k, 221) + lmat(k, 221)
-         mat(k, 226) = mat(k, 226) + lmat(k, 226)
-         mat(k, 227) = mat(k, 227) + lmat(k, 227)
-         mat(k, 231) = mat(k, 231) + lmat(k, 231)
-         mat(k, 235) = mat(k, 235) + lmat(k, 235)
-         mat(k, 236) = mat(k, 236) + lmat(k, 236)
-         mat(k, 237) = mat(k, 237) + lmat(k, 237)
-         mat(k, 242) = mat(k, 242) + lmat(k, 242)
-         mat(k, 246) = mat(k, 246) + lmat(k, 246)
-         mat(k, 251) = mat(k, 251) + lmat(k, 251)
-         mat(k, 252) = lmat(k, 252)
-         mat(k, 255) = lmat(k, 255)
-         mat(k, 258) = mat(k, 258) + lmat(k, 258)
-         mat(k, 259) = mat(k, 259) + lmat(k, 259)
-         mat(k, 261) = mat(k, 261) + lmat(k, 261)
-         mat(k, 262) = mat(k, 262) + lmat(k, 262)
-         mat(k, 263) = mat(k, 263) + lmat(k, 263)
-         mat(k, 265) = mat(k, 265) + lmat(k, 265)
-         mat(k, 266) = lmat(k, 266)
-         mat(k, 269) = mat(k, 269) + lmat(k, 269)
-         mat(k, 279) = mat(k, 279) + lmat(k, 279)
-         mat(k, 284) = lmat(k, 284)
-         mat(k, 285) = mat(k, 285) + lmat(k, 285)
-         mat(k, 286) = lmat(k, 286)
-         mat(k, 288) = lmat(k, 288)
-         mat(k, 289) = lmat(k, 289)
-         mat(k, 291) = lmat(k, 291)
-         mat(k, 293) = mat(k, 293) + lmat(k, 293)
-         mat(k, 296) = lmat(k, 296)
-         mat(k, 305) = mat(k, 305) + lmat(k, 305)
-         mat(k, 316) = mat(k, 316) + lmat(k, 316)
-         mat(k, 331) = mat(k, 331) + lmat(k, 331)
-         mat(k, 343) = mat(k, 343) + lmat(k, 343)
-         mat(k, 344) = lmat(k, 344)
-         mat(k, 356) = mat(k, 356) + lmat(k, 356)
-         mat(k, 358) = lmat(k, 358)
-         mat(k, 360) = mat(k, 360) + lmat(k, 360)
-         mat(k, 372) = mat(k, 372) + lmat(k, 372)
-         mat(k, 374) = mat(k, 374) + lmat(k, 374)
-         mat(k, 375) = lmat(k, 375)
-         mat(k, 383) = mat(k, 383) + lmat(k, 383)
-         mat(k, 390) = mat(k, 390) + lmat(k, 390)
-         mat(k, 391) = lmat(k, 391)
-         mat(k, 404) = mat(k, 404) + lmat(k, 404)
-         mat(k, 405) = mat(k, 405) + lmat(k, 405)
-         mat(k, 416) = lmat(k, 416)
-         mat(k, 418) = mat(k, 418) + lmat(k, 418)
-         mat(k, 419) = mat(k, 419) + lmat(k, 419)
-         mat(k, 421) = lmat(k, 421)
-         mat(k, 422) = mat(k, 422) + lmat(k, 422)
-         mat(k, 423) = mat(k, 423) + lmat(k, 423)
-         mat(k, 425) = mat(k, 425) + lmat(k, 425)
-         mat(k, 432) = lmat(k, 432)
-         mat(k, 433) = mat(k, 433) + lmat(k, 433)
-         mat(k, 451) = mat(k, 451) + lmat(k, 451)
-         mat(k, 465) = mat(k, 465) + lmat(k, 465)
-         mat(k, 484) = mat(k, 484) + lmat(k, 484)
-         mat(k, 485) = lmat(k, 485)
-         mat(k, 492) = mat(k, 492) + lmat(k, 492)
-         mat(k, 500) = mat(k, 500) + lmat(k, 500)
-         mat(k, 501) = lmat(k, 501)
-         mat(k, 517) = mat(k, 517) + lmat(k, 517)
-         mat(k, 520) = mat(k, 520) + lmat(k, 520)
-         mat(k, 523) = lmat(k, 523)
-         mat(k, 537) = mat(k, 537) + lmat(k, 537)
-         mat(k, 541) = mat(k, 541) + lmat(k, 541)
-         mat(k, 542) = lmat(k, 542)
-         mat(k, 557) = mat(k, 557) + lmat(k, 557)
-         mat(k, 564) = mat(k, 564) + lmat(k, 564)
-         mat(k, 565) = mat(k, 565) + lmat(k, 565)
-         mat(k, 580) = mat(k, 580) + lmat(k, 580)
-         mat(k, 582) = mat(k, 582) + lmat(k, 582)
-         mat(k, 585) = lmat(k, 585)
-         mat(k, 587) = mat(k, 587) + lmat(k, 587)
-         mat(k, 596) = mat(k, 596) + lmat(k, 596)
-         mat(k, 606) = mat(k, 606) + lmat(k, 606)
-         mat(k, 607) = mat(k, 607) + lmat(k, 607)
-         mat(k, 609) = mat(k, 609) + lmat(k, 609)
-         mat(k, 612) = lmat(k, 612)
-         mat(k, 614) = mat(k, 614) + lmat(k, 614)
-         mat(k, 615) = mat(k, 615) + lmat(k, 615)
-         mat(k, 617) = lmat(k, 617)
-         mat(k, 618) = mat(k, 618) + lmat(k, 618)
-         mat(k, 619) = lmat(k, 619)
-         mat(k, 620) = mat(k, 620) + lmat(k, 620)
-         mat(k, 622) = mat(k, 622) + lmat(k, 622)
-         mat(k, 626) = mat(k, 626) + lmat(k, 626)
-         mat(k, 627) = mat(k, 627) + lmat(k, 627)
-         mat(k, 633) = lmat(k, 633)
-         mat(k, 634) = mat(k, 634) + lmat(k, 634)
-         mat(k, 641) = mat(k, 641) + lmat(k, 641)
-         mat(k, 658) = lmat(k, 658)
-         mat(k, 671) = mat(k, 671) + lmat(k, 671)
-         mat(k, 694) = mat(k, 694) + lmat(k, 694)
-         mat(k, 695) = lmat(k, 695)
-         mat(k, 702) = mat(k, 702) + lmat(k, 702)
-         mat(k, 717) = mat(k, 717) + lmat(k, 717)
-         mat(k, 728) = mat(k, 728) + lmat(k, 728)
-         mat(k, 749) = lmat(k, 749)
-         mat(k, 750) = lmat(k, 750)
-         mat(k, 767) = mat(k, 767) + lmat(k, 767)
-         mat(k, 769) = mat(k, 769) + lmat(k, 769)
-         mat(k, 774) = mat(k, 774) + lmat(k, 774)
-         mat(k, 775) = mat(k, 775) + lmat(k, 775)
-         mat(k, 777) = mat(k, 777) + lmat(k, 777)
-         mat(k, 795) = mat(k, 795) + lmat(k, 795)
-         mat(k, 803) = mat(k, 803) + lmat(k, 803)
-         mat(k, 825) = lmat(k, 825)
-         mat(k, 844) = mat(k, 844) + lmat(k, 844)
-         mat(k, 868) = mat(k, 868) + lmat(k, 868)
-         mat(k, 873) = lmat(k, 873)
-         mat(k, 874) = lmat(k, 874)
-         mat(k, 882) = mat(k, 882) + lmat(k, 882)
-         mat(k, 886) = mat(k, 886) + lmat(k, 886)
-         mat(k, 896) = mat(k, 896) + lmat(k, 896)
-         mat(k, 911) = mat(k, 911) + lmat(k, 911)
-         mat(k, 919) = mat(k, 919) + lmat(k, 919)
-         mat(k, 928) = mat(k, 928) + lmat(k, 928)
-         mat(k, 936) = mat(k, 936) + lmat(k, 936)
-         mat(k, 944) = mat(k, 944) + lmat(k, 944)
-         mat(k, 950) = lmat(k, 950)
-         mat(k, 951) = lmat(k, 951)
-         mat(k, 974) = mat(k, 974) + lmat(k, 974)
-         mat(k,1017) = mat(k,1017) + lmat(k,1017)
-         mat(k,1060) = mat(k,1060) + lmat(k,1060)
-         mat(k,1071) = lmat(k,1071)
-         mat(k,1078) = mat(k,1078) + lmat(k,1078)
-         mat(k,1100) = mat(k,1100) + lmat(k,1100)
-         mat(k,1105) = mat(k,1105) + lmat(k,1105)
-         mat(k,1117) = mat(k,1117) + lmat(k,1117)
-         mat(k,1147) = mat(k,1147) + lmat(k,1147)
-         mat(k,1187) = mat(k,1187) + lmat(k,1187)
-         mat(k,1189) = mat(k,1189) + lmat(k,1189)
-         mat(k,1191) = mat(k,1191) + lmat(k,1191)
-         mat(k,1194) = mat(k,1194) + lmat(k,1194)
-         mat(k,1196) = mat(k,1196) + lmat(k,1196)
-         mat(k,1197) = mat(k,1197) + lmat(k,1197)
-         mat(k,1223) = mat(k,1223) + lmat(k,1223)
-         mat(k,1244) = mat(k,1244) + lmat(k,1244)
-         mat(k,1254) = mat(k,1254) + lmat(k,1254)
-         mat(k,1261) = mat(k,1261) + lmat(k,1261)
-         mat(k,1271) = mat(k,1271) + lmat(k,1271)
-         mat(k,1275) = mat(k,1275) + lmat(k,1275)
-         mat(k,1279) = mat(k,1279) + lmat(k,1279)
-         mat(k,1306) = mat(k,1306) + lmat(k,1306)
-         mat(k,1314) = mat(k,1314) + lmat(k,1314)
-         mat(k,1316) = mat(k,1316) + lmat(k,1316)
-         mat(k,1342) = mat(k,1342) + lmat(k,1342)
-         mat(k,1356) = mat(k,1356) + lmat(k,1356)
-         mat(k,1359) = lmat(k,1359)
-         mat(k,1373) = lmat(k,1373)
-         mat(k,1379) = mat(k,1379) + lmat(k,1379)
-         mat(k,1389) = mat(k,1389) + lmat(k,1389)
-         mat(k,1392) = mat(k,1392) + lmat(k,1392)
-         mat(k,1426) = mat(k,1426) + lmat(k,1426)
-         mat(k,1437) = mat(k,1437) + lmat(k,1437)
-         mat(k,1440) = mat(k,1440) + lmat(k,1440)
-         mat(k,1467) = mat(k,1467) + lmat(k,1467)
-         mat(k,1481) = mat(k,1481) + lmat(k,1481)
-         mat(k,1484) = mat(k,1484) + lmat(k,1484)
-         mat(k,1486) = mat(k,1486) + lmat(k,1486)
-         mat(k,1487) = mat(k,1487) + lmat(k,1487)
-         mat(k,1527) = mat(k,1527) + lmat(k,1527)
-         mat(k,1533) = lmat(k,1533)
-         mat(k,1534) = mat(k,1534) + lmat(k,1534)
-         mat(k,1537) = mat(k,1537) + lmat(k,1537)
-         mat(k,1552) = mat(k,1552) + lmat(k,1552)
-         mat(k,1555) = mat(k,1555) + lmat(k,1555)
-         mat(k,1569) = mat(k,1569) + lmat(k,1569)
-         mat(k,1570) = mat(k,1570) + lmat(k,1570)
-         mat(k,1586) = mat(k,1586) + lmat(k,1586)
-         mat(k,1609) = mat(k,1609) + lmat(k,1609)
-         mat(k,1627) = mat(k,1627) + lmat(k,1627)
-         mat(k,1638) = lmat(k,1638)
-         mat(k,1653) = mat(k,1653) + lmat(k,1653)
-         mat(k,1657) = mat(k,1657) + lmat(k,1657)
-         mat(k,1663) = lmat(k,1663)
-         mat(k,1668) = mat(k,1668) + lmat(k,1668)
-         mat(k,1670) = mat(k,1670) + lmat(k,1670)
-         mat(k,1690) = mat(k,1690) + lmat(k,1690)
-         mat(k,1704) = lmat(k,1704)
-         mat(k,1705) = mat(k,1705) + lmat(k,1705)
-         mat(k,1723) = mat(k,1723) + lmat(k,1723)
-         mat(k,1726) = mat(k,1726) + lmat(k,1726)
-         mat(k,1729) = lmat(k,1729)
-         mat(k,1769) = mat(k,1769) + lmat(k,1769)
-         mat(k,1770) = mat(k,1770) + lmat(k,1770)
-         mat(k,1793) = lmat(k,1793)
-         mat(k,1799) = mat(k,1799) + lmat(k,1799)
-         mat(k,1803) = mat(k,1803) + lmat(k,1803)
-         mat(k,1814) = lmat(k,1814)
-         mat(k,1823) = lmat(k,1823)
-         mat(k,1828) = mat(k,1828) + lmat(k,1828)
-         mat(k, 162) = 0._r8
-         mat(k, 167) = 0._r8
-         mat(k, 185) = 0._r8
-         mat(k, 188) = 0._r8
-         mat(k, 193) = 0._r8
-         mat(k, 196) = 0._r8
-         mat(k, 201) = 0._r8
-         mat(k, 202) = 0._r8
-         mat(k, 204) = 0._r8
-         mat(k, 222) = 0._r8
-         mat(k, 256) = 0._r8
-         mat(k, 268) = 0._r8
-         mat(k, 292) = 0._r8
-         mat(k, 294) = 0._r8
-         mat(k, 308) = 0._r8
-         mat(k, 311) = 0._r8
-         mat(k, 315) = 0._r8
-         mat(k, 332) = 0._r8
-         mat(k, 335) = 0._r8
-         mat(k, 337) = 0._r8
-         mat(k, 340) = 0._r8
-         mat(k, 341) = 0._r8
-         mat(k, 363) = 0._r8
-         mat(k, 373) = 0._r8
-         mat(k, 454) = 0._r8
-         mat(k, 456) = 0._r8
-         mat(k, 458) = 0._r8
-         mat(k, 460) = 0._r8
-         mat(k, 461) = 0._r8
-         mat(k, 464) = 0._r8
-         mat(k, 466) = 0._r8
-         mat(k, 468) = 0._r8
-         mat(k, 472) = 0._r8
-         mat(k, 473) = 0._r8
-         mat(k, 475) = 0._r8
-         mat(k, 477) = 0._r8
-         mat(k, 478) = 0._r8
-         mat(k, 479) = 0._r8
-         mat(k, 502) = 0._r8
-         mat(k, 512) = 0._r8
-         mat(k, 515) = 0._r8
-         mat(k, 552) = 0._r8
-         mat(k, 555) = 0._r8
-         mat(k, 566) = 0._r8
-         mat(k, 567) = 0._r8
-         mat(k, 571) = 0._r8
-         mat(k, 573) = 0._r8
-         mat(k, 574) = 0._r8
-         mat(k, 576) = 0._r8
-         mat(k, 577) = 0._r8
-         mat(k, 581) = 0._r8
-         mat(k, 586) = 0._r8
-         mat(k, 588) = 0._r8
-         mat(k, 591) = 0._r8
-         mat(k, 593) = 0._r8
-         mat(k, 594) = 0._r8
-         mat(k, 597) = 0._r8
-         mat(k, 600) = 0._r8
-         mat(k, 601) = 0._r8
-         mat(k, 603) = 0._r8
-         mat(k, 604) = 0._r8
-         mat(k, 611) = 0._r8
-         mat(k, 613) = 0._r8
-         mat(k, 621) = 0._r8
-         mat(k, 625) = 0._r8
-         mat(k, 629) = 0._r8
-         mat(k, 630) = 0._r8
-         mat(k, 631) = 0._r8
-         mat(k, 632) = 0._r8
-         mat(k, 635) = 0._r8
-         mat(k, 636) = 0._r8
-         mat(k, 637) = 0._r8
-         mat(k, 643) = 0._r8
-         mat(k, 647) = 0._r8
-         mat(k, 660) = 0._r8
-         mat(k, 664) = 0._r8
-         mat(k, 665) = 0._r8
-         mat(k, 666) = 0._r8
-         mat(k, 696) = 0._r8
-         mat(k, 703) = 0._r8
-         mat(k, 708) = 0._r8
-         mat(k, 726) = 0._r8
-         mat(k, 727) = 0._r8
-         mat(k, 730) = 0._r8
-         mat(k, 739) = 0._r8
-         mat(k, 740) = 0._r8
-         mat(k, 741) = 0._r8
-         mat(k, 745) = 0._r8
-         mat(k, 746) = 0._r8
-         mat(k, 747) = 0._r8
-         mat(k, 761) = 0._r8
-         mat(k, 773) = 0._r8
-         mat(k, 776) = 0._r8
-         mat(k, 779) = 0._r8
-         mat(k, 787) = 0._r8
-         mat(k, 788) = 0._r8
-         mat(k, 792) = 0._r8
-         mat(k, 793) = 0._r8
-         mat(k, 794) = 0._r8
-         mat(k, 799) = 0._r8
-         mat(k, 804) = 0._r8
-         mat(k, 806) = 0._r8
-         mat(k, 812) = 0._r8
-         mat(k, 815) = 0._r8
-         mat(k, 835) = 0._r8
-         mat(k, 838) = 0._r8
-         mat(k, 842) = 0._r8
-         mat(k, 845) = 0._r8
-         mat(k, 850) = 0._r8
-         mat(k, 852) = 0._r8
-         mat(k, 855) = 0._r8
-         mat(k, 856) = 0._r8
-         mat(k, 859) = 0._r8
-         mat(k, 863) = 0._r8
-         mat(k, 876) = 0._r8
-         mat(k, 878) = 0._r8
-         mat(k, 881) = 0._r8
-         mat(k, 885) = 0._r8
-         mat(k, 888) = 0._r8
-         mat(k, 889) = 0._r8
-         mat(k, 890) = 0._r8
-         mat(k, 892) = 0._r8
-         mat(k, 897) = 0._r8
-         mat(k, 899) = 0._r8
-         mat(k, 901) = 0._r8
-         mat(k, 902) = 0._r8
-         mat(k, 907) = 0._r8
-         mat(k, 908) = 0._r8
-         mat(k, 913) = 0._r8
-         mat(k, 918) = 0._r8
-         mat(k, 921) = 0._r8
-         mat(k, 925) = 0._r8
-         mat(k, 929) = 0._r8
-         mat(k, 930) = 0._r8
-         mat(k, 931) = 0._r8
-         mat(k, 933) = 0._r8
-         mat(k, 937) = 0._r8
-         mat(k, 938) = 0._r8
-         mat(k, 940) = 0._r8
-         mat(k, 942) = 0._r8
-         mat(k, 948) = 0._r8
-         mat(k, 949) = 0._r8
-         mat(k, 964) = 0._r8
-         mat(k, 968) = 0._r8
-         mat(k, 973) = 0._r8
-         mat(k, 975) = 0._r8
-         mat(k, 976) = 0._r8
-         mat(k, 977) = 0._r8
-         mat(k, 980) = 0._r8
-         mat(k, 985) = 0._r8
-         mat(k, 987) = 0._r8
-         mat(k, 991) = 0._r8
-         mat(k, 992) = 0._r8
-         mat(k, 993) = 0._r8
-         mat(k, 996) = 0._r8
-         mat(k,1010) = 0._r8
-         mat(k,1015) = 0._r8
-         mat(k,1016) = 0._r8
-         mat(k,1018) = 0._r8
-         mat(k,1019) = 0._r8
-         mat(k,1020) = 0._r8
-         mat(k,1022) = 0._r8
-         mat(k,1027) = 0._r8
-         mat(k,1029) = 0._r8
-         mat(k,1033) = 0._r8
-         mat(k,1034) = 0._r8
-         mat(k,1035) = 0._r8
-         mat(k,1052) = 0._r8
-         mat(k,1057) = 0._r8
-         mat(k,1058) = 0._r8
-         mat(k,1059) = 0._r8
-         mat(k,1061) = 0._r8
-         mat(k,1062) = 0._r8
-         mat(k,1069) = 0._r8
-         mat(k,1072) = 0._r8
-         mat(k,1075) = 0._r8
-         mat(k,1076) = 0._r8
-         mat(k,1077) = 0._r8
-         mat(k,1092) = 0._r8
-         mat(k,1095) = 0._r8
-         mat(k,1099) = 0._r8
-         mat(k,1101) = 0._r8
-         mat(k,1102) = 0._r8
-         mat(k,1103) = 0._r8
-         mat(k,1104) = 0._r8
-         mat(k,1106) = 0._r8
-         mat(k,1108) = 0._r8
-         mat(k,1111) = 0._r8
-         mat(k,1113) = 0._r8
-         mat(k,1115) = 0._r8
-         mat(k,1121) = 0._r8
-         mat(k,1122) = 0._r8
-         mat(k,1142) = 0._r8
-         mat(k,1143) = 0._r8
-         mat(k,1145) = 0._r8
-         mat(k,1146) = 0._r8
-         mat(k,1154) = 0._r8
-         mat(k,1156) = 0._r8
-         mat(k,1160) = 0._r8
-         mat(k,1161) = 0._r8
-         mat(k,1162) = 0._r8
-         mat(k,1168) = 0._r8
-         mat(k,1169) = 0._r8
-         mat(k,1170) = 0._r8
-         mat(k,1171) = 0._r8
-         mat(k,1172) = 0._r8
-         mat(k,1173) = 0._r8
-         mat(k,1175) = 0._r8
-         mat(k,1176) = 0._r8
-         mat(k,1179) = 0._r8
-         mat(k,1180) = 0._r8
-         mat(k,1181) = 0._r8
-         mat(k,1182) = 0._r8
-         mat(k,1183) = 0._r8
-         mat(k,1184) = 0._r8
-         mat(k,1185) = 0._r8
-         mat(k,1186) = 0._r8
-         mat(k,1188) = 0._r8
-         mat(k,1190) = 0._r8
-         mat(k,1192) = 0._r8
-         mat(k,1193) = 0._r8
-         mat(k,1195) = 0._r8
-         mat(k,1198) = 0._r8
-         mat(k,1199) = 0._r8
-         mat(k,1200) = 0._r8
-         mat(k,1201) = 0._r8
-         mat(k,1202) = 0._r8
-         mat(k,1206) = 0._r8
-         mat(k,1207) = 0._r8
-         mat(k,1210) = 0._r8
-         mat(k,1215) = 0._r8
-         mat(k,1217) = 0._r8
-         mat(k,1218) = 0._r8
-         mat(k,1219) = 0._r8
-         mat(k,1220) = 0._r8
-         mat(k,1222) = 0._r8
-         mat(k,1226) = 0._r8
-         mat(k,1228) = 0._r8
-         mat(k,1229) = 0._r8
-         mat(k,1230) = 0._r8
-         mat(k,1235) = 0._r8
-         mat(k,1236) = 0._r8
-         mat(k,1251) = 0._r8
-         mat(k,1252) = 0._r8
-         mat(k,1253) = 0._r8
-         mat(k,1255) = 0._r8
-         mat(k,1256) = 0._r8
-         mat(k,1257) = 0._r8
-         mat(k,1259) = 0._r8
-         mat(k,1262) = 0._r8
-         mat(k,1265) = 0._r8
-         mat(k,1266) = 0._r8
-         mat(k,1267) = 0._r8
-         mat(k,1268) = 0._r8
-         mat(k,1269) = 0._r8
-         mat(k,1272) = 0._r8
-         mat(k,1273) = 0._r8
-         mat(k,1276) = 0._r8
-         mat(k,1277) = 0._r8
-         mat(k,1280) = 0._r8
-         mat(k,1281) = 0._r8
-         mat(k,1283) = 0._r8
-         mat(k,1284) = 0._r8
-         mat(k,1294) = 0._r8
-         mat(k,1295) = 0._r8
-         mat(k,1296) = 0._r8
-         mat(k,1297) = 0._r8
-         mat(k,1304) = 0._r8
-         mat(k,1305) = 0._r8
-         mat(k,1307) = 0._r8
-         mat(k,1308) = 0._r8
-         mat(k,1309) = 0._r8
-         mat(k,1310) = 0._r8
-         mat(k,1312) = 0._r8
-         mat(k,1313) = 0._r8
-         mat(k,1315) = 0._r8
-         mat(k,1319) = 0._r8
-         mat(k,1320) = 0._r8
-         mat(k,1321) = 0._r8
-         mat(k,1322) = 0._r8
-         mat(k,1327) = 0._r8
-         mat(k,1332) = 0._r8
-         mat(k,1334) = 0._r8
-         mat(k,1337) = 0._r8
-         mat(k,1338) = 0._r8
-         mat(k,1344) = 0._r8
-         mat(k,1345) = 0._r8
-         mat(k,1346) = 0._r8
-         mat(k,1347) = 0._r8
-         mat(k,1348) = 0._r8
-         mat(k,1349) = 0._r8
-         mat(k,1350) = 0._r8
-         mat(k,1351) = 0._r8
-         mat(k,1353) = 0._r8
-         mat(k,1354) = 0._r8
-         mat(k,1358) = 0._r8
-         mat(k,1360) = 0._r8
-         mat(k,1361) = 0._r8
-         mat(k,1362) = 0._r8
-         mat(k,1364) = 0._r8
-         mat(k,1366) = 0._r8
-         mat(k,1371) = 0._r8
-         mat(k,1377) = 0._r8
-         mat(k,1378) = 0._r8
-         mat(k,1387) = 0._r8
-         mat(k,1399) = 0._r8
-         mat(k,1420) = 0._r8
-         mat(k,1425) = 0._r8
-         mat(k,1427) = 0._r8
-         mat(k,1428) = 0._r8
-         mat(k,1429) = 0._r8
-         mat(k,1430) = 0._r8
-         mat(k,1432) = 0._r8
-         mat(k,1439) = 0._r8
-         mat(k,1443) = 0._r8
-         mat(k,1444) = 0._r8
-         mat(k,1445) = 0._r8
-         mat(k,1449) = 0._r8
-         mat(k,1456) = 0._r8
-         mat(k,1457) = 0._r8
-         mat(k,1458) = 0._r8
-         mat(k,1462) = 0._r8
-         mat(k,1463) = 0._r8
-         mat(k,1469) = 0._r8
-         mat(k,1472) = 0._r8
-         mat(k,1473) = 0._r8
-         mat(k,1474) = 0._r8
-         mat(k,1476) = 0._r8
-         mat(k,1478) = 0._r8
-         mat(k,1480) = 0._r8
-         mat(k,1483) = 0._r8
-         mat(k,1485) = 0._r8
-         mat(k,1491) = 0._r8
-         mat(k,1508) = 0._r8
-         mat(k,1513) = 0._r8
-         mat(k,1514) = 0._r8
-         mat(k,1515) = 0._r8
-         mat(k,1517) = 0._r8
-         mat(k,1518) = 0._r8
-         mat(k,1525) = 0._r8
-         mat(k,1528) = 0._r8
-         mat(k,1531) = 0._r8
-         mat(k,1532) = 0._r8
-         mat(k,1543) = 0._r8
-         mat(k,1546) = 0._r8
-         mat(k,1556) = 0._r8
-         mat(k,1557) = 0._r8
-         mat(k,1559) = 0._r8
-         mat(k,1561) = 0._r8
-         mat(k,1563) = 0._r8
-         mat(k,1564) = 0._r8
-         mat(k,1565) = 0._r8
-         mat(k,1568) = 0._r8
-         mat(k,1572) = 0._r8
-         mat(k,1574) = 0._r8
-         mat(k,1585) = 0._r8
-         mat(k,1591) = 0._r8
-         mat(k,1602) = 0._r8
-         mat(k,1613) = 0._r8
-         mat(k,1614) = 0._r8
-         mat(k,1616) = 0._r8
-         mat(k,1621) = 0._r8
-         mat(k,1625) = 0._r8
-         mat(k,1631) = 0._r8
-         mat(k,1632) = 0._r8
-         mat(k,1637) = 0._r8
-         mat(k,1651) = 0._r8
-         mat(k,1656) = 0._r8
-         mat(k,1659) = 0._r8
-         mat(k,1666) = 0._r8
-         mat(k,1669) = 0._r8
-         mat(k,1673) = 0._r8
-         mat(k,1674) = 0._r8
-         mat(k,1675) = 0._r8
-         mat(k,1677) = 0._r8
-         mat(k,1678) = 0._r8
-         mat(k,1680) = 0._r8
-         mat(k,1682) = 0._r8
-         mat(k,1683) = 0._r8
-         mat(k,1684) = 0._r8
-         mat(k,1686) = 0._r8
-         mat(k,1687) = 0._r8
-         mat(k,1691) = 0._r8
-         mat(k,1692) = 0._r8
-         mat(k,1695) = 0._r8
-         mat(k,1698) = 0._r8
-         mat(k,1699) = 0._r8
-         mat(k,1702) = 0._r8
-         mat(k,1708) = 0._r8
-         mat(k,1709) = 0._r8
-         mat(k,1710) = 0._r8
-         mat(k,1712) = 0._r8
-         mat(k,1713) = 0._r8
-         mat(k,1718) = 0._r8
-         mat(k,1719) = 0._r8
-         mat(k,1721) = 0._r8
-         mat(k,1727) = 0._r8
-         mat(k,1730) = 0._r8
-         mat(k,1744) = 0._r8
-         mat(k,1749) = 0._r8
-         mat(k,1750) = 0._r8
-         mat(k,1751) = 0._r8
-         mat(k,1752) = 0._r8
-         mat(k,1753) = 0._r8
-         mat(k,1754) = 0._r8
-         mat(k,1761) = 0._r8
-         mat(k,1764) = 0._r8
-         mat(k,1767) = 0._r8
-         mat(k,1768) = 0._r8
-         mat(k,1785) = 0._r8
-         mat(k,1786) = 0._r8
-         mat(k,1789) = 0._r8
-         mat(k,1792) = 0._r8
-         mat(k,1797) = 0._r8
-         mat(k,1798) = 0._r8
-         mat(k,1802) = 0._r8
-         mat(k,1805) = 0._r8
-         mat(k,1806) = 0._r8
-         mat(k,1807) = 0._r8
-         mat(k,1811) = 0._r8
-         mat(k,1813) = 0._r8
-         mat(k,1816) = 0._r8
-         mat(k,1818) = 0._r8
-         mat(k,1820) = 0._r8
-         mat(k,1822) = 0._r8
-         mat(k, 1) = mat(k, 1) - dti(k)
-         mat(k, 2) = mat(k, 2) - dti(k)
-         mat(k, 3) = mat(k, 3) - dti(k)
-         mat(k, 4) = mat(k, 4) - dti(k)
-         mat(k, 5) = mat(k, 5) - dti(k)
-         mat(k, 6) = mat(k, 6) - dti(k)
-         mat(k, 7) = mat(k, 7) - dti(k)
-         mat(k, 8) = mat(k, 8) - dti(k)
-         mat(k, 9) = mat(k, 9) - dti(k)
-         mat(k, 10) = mat(k, 10) - dti(k)
-         mat(k, 11) = mat(k, 11) - dti(k)
-         mat(k, 12) = mat(k, 12) - dti(k)
-         mat(k, 13) = mat(k, 13) - dti(k)
-         mat(k, 14) = mat(k, 14) - dti(k)
-         mat(k, 15) = mat(k, 15) - dti(k)
-         mat(k, 16) = mat(k, 16) - dti(k)
-         mat(k, 17) = mat(k, 17) - dti(k)
-         mat(k, 18) = mat(k, 18) - dti(k)
-         mat(k, 19) = mat(k, 19) - dti(k)
-         mat(k, 20) = mat(k, 20) - dti(k)
-         mat(k, 21) = mat(k, 21) - dti(k)
-         mat(k, 24) = mat(k, 24) - dti(k)
-         mat(k, 27) = mat(k, 27) - dti(k)
-         mat(k, 30) = mat(k, 30) - dti(k)
-         mat(k, 32) = mat(k, 32) - dti(k)
-         mat(k, 36) = mat(k, 36) - dti(k)
-         mat(k, 39) = mat(k, 39) - dti(k)
-         mat(k, 42) = mat(k, 42) - dti(k)
-         mat(k, 46) = mat(k, 46) - dti(k)
-         mat(k, 50) = mat(k, 50) - dti(k)
-         mat(k, 54) = mat(k, 54) - dti(k)
-         mat(k, 58) = mat(k, 58) - dti(k)
-         mat(k, 64) = mat(k, 64) - dti(k)
-         mat(k, 69) = mat(k, 69) - dti(k)
-         mat(k, 77) = mat(k, 77) - dti(k)
-         mat(k, 83) = mat(k, 83) - dti(k)
-         mat(k, 89) = mat(k, 89) - dti(k)
-         mat(k, 95) = mat(k, 95) - dti(k)
-         mat(k, 101) = mat(k, 101) - dti(k)
-         mat(k, 108) = mat(k, 108) - dti(k)
-         mat(k, 115) = mat(k, 115) - dti(k)
-         mat(k, 121) = mat(k, 121) - dti(k)
-         mat(k, 128) = mat(k, 128) - dti(k)
-         mat(k, 133) = mat(k, 133) - dti(k)
-         mat(k, 137) = mat(k, 137) - dti(k)
-         mat(k, 145) = mat(k, 145) - dti(k)
-         mat(k, 152) = mat(k, 152) - dti(k)
-         mat(k, 159) = mat(k, 159) - dti(k)
-         mat(k, 169) = mat(k, 169) - dti(k)
-         mat(k, 176) = mat(k, 176) - dti(k)
-         mat(k, 182) = mat(k, 182) - dti(k)
-         mat(k, 190) = mat(k, 190) - dti(k)
-         mat(k, 199) = mat(k, 199) - dti(k)
-         mat(k, 209) = mat(k, 209) - dti(k)
-         mat(k, 218) = mat(k, 218) - dti(k)
-         mat(k, 226) = mat(k, 226) - dti(k)
-         mat(k, 235) = mat(k, 235) - dti(k)
-         mat(k, 242) = mat(k, 242) - dti(k)
-         mat(k, 251) = mat(k, 251) - dti(k)
-         mat(k, 259) = mat(k, 259) - dti(k)
-         mat(k, 269) = mat(k, 269) - dti(k)
-         mat(k, 279) = mat(k, 279) - dti(k)
-         mat(k, 293) = mat(k, 293) - dti(k)
-         mat(k, 305) = mat(k, 305) - dti(k)
-         mat(k, 316) = mat(k, 316) - dti(k)
-         mat(k, 331) = mat(k, 331) - dti(k)
-         mat(k, 343) = mat(k, 343) - dti(k)
-         mat(k, 360) = mat(k, 360) - dti(k)
-         mat(k, 374) = mat(k, 374) - dti(k)
-         mat(k, 390) = mat(k, 390) - dti(k)
-         mat(k, 405) = mat(k, 405) - dti(k)
-         mat(k, 419) = mat(k, 419) - dti(k)
-         mat(k, 433) = mat(k, 433) - dti(k)
-         mat(k, 451) = mat(k, 451) - dti(k)
-         mat(k, 465) = mat(k, 465) - dti(k)
-         mat(k, 484) = mat(k, 484) - dti(k)
-         mat(k, 500) = mat(k, 500) - dti(k)
-         mat(k, 520) = mat(k, 520) - dti(k)
-         mat(k, 541) = mat(k, 541) - dti(k)
-         mat(k, 565) = mat(k, 565) - dti(k)
-         mat(k, 587) = mat(k, 587) - dti(k)
-         mat(k, 618) = mat(k, 618) - dti(k)
-         mat(k, 641) = mat(k, 641) - dti(k)
-         mat(k, 671) = mat(k, 671) - dti(k)
-         mat(k, 694) = mat(k, 694) - dti(k)
-         mat(k, 728) = mat(k, 728) - dti(k)
-         mat(k, 775) = mat(k, 775) - dti(k)
-         mat(k, 803) = mat(k, 803) - dti(k)
-         mat(k, 844) = mat(k, 844) - dti(k)
-         mat(k, 886) = mat(k, 886) - dti(k)
-         mat(k, 928) = mat(k, 928) - dti(k)
-         mat(k, 974) = mat(k, 974) - dti(k)
-         mat(k,1017) = mat(k,1017) - dti(k)
-         mat(k,1060) = mat(k,1060) - dti(k)
-         mat(k,1105) = mat(k,1105) - dti(k)
-         mat(k,1147) = mat(k,1147) - dti(k)
-         mat(k,1187) = mat(k,1187) - dti(k)
-         mat(k,1223) = mat(k,1223) - dti(k)
-         mat(k,1271) = mat(k,1271) - dti(k)
-         mat(k,1316) = mat(k,1316) - dti(k)
-         mat(k,1356) = mat(k,1356) - dti(k)
-         mat(k,1392) = mat(k,1392) - dti(k)
-         mat(k,1437) = mat(k,1437) - dti(k)
-         mat(k,1484) = mat(k,1484) - dti(k)
-         mat(k,1527) = mat(k,1527) - dti(k)
-         mat(k,1569) = mat(k,1569) - dti(k)
-         mat(k,1627) = mat(k,1627) - dti(k)
-         mat(k,1657) = mat(k,1657) - dti(k)
-         mat(k,1690) = mat(k,1690) - dti(k)
-         mat(k,1726) = mat(k,1726) - dti(k)
-         mat(k,1769) = mat(k,1769) - dti(k)
-         mat(k,1828) = mat(k,1828) - dti(k)
-      end do
+         mat( 1) = lmat( 1)
+         mat( 2) = lmat( 2)
+         mat( 3) = lmat( 3)
+         mat( 4) = lmat( 4)
+         mat( 5) = lmat( 5)
+         mat( 6) = lmat( 6)
+         mat( 7) = lmat( 7)
+         mat( 8) = lmat( 8)
+         mat( 9) = lmat( 9)
+         mat( 10) = lmat( 10)
+         mat( 11) = lmat( 11)
+         mat( 12) = lmat( 12)
+         mat( 13) = lmat( 13)
+         mat( 14) = lmat( 14)
+         mat( 15) = lmat( 15)
+         mat( 16) = lmat( 16)
+         mat( 17) = lmat( 17)
+         mat( 18) = lmat( 18)
+         mat( 19) = lmat( 19)
+         mat( 20) = lmat( 20)
+         mat( 21) = lmat( 21)
+         mat( 22) = lmat( 22)
+         mat( 23) = lmat( 23)
+         mat( 24) = lmat( 24)
+         mat( 25) = lmat( 25)
+         mat( 26) = lmat( 26)
+         mat( 27) = mat( 27) + lmat( 27)
+         mat( 28) = mat( 28) + lmat( 28)
+         mat( 30) = lmat( 30)
+         mat( 31) = lmat( 31)
+         mat( 32) = mat( 32) + lmat( 32)
+         mat( 33) = mat( 33) + lmat( 33)
+         mat( 35) = mat( 35) + lmat( 35)
+         mat( 36) = lmat( 36)
+         mat( 37) = lmat( 37)
+         mat( 38) = lmat( 38)
+         mat( 39) = lmat( 39)
+         mat( 40) = lmat( 40)
+         mat( 41) = lmat( 41)
+         mat( 42) = mat( 42) + lmat( 42)
+         mat( 43) = mat( 43) + lmat( 43)
+         mat( 44) = lmat( 44)
+         mat( 46) = mat( 46) + lmat( 46)
+         mat( 47) = lmat( 47)
+         mat( 48) = lmat( 48)
+         mat( 50) = mat( 50) + lmat( 50)
+         mat( 54) = mat( 54) + lmat( 54)
+         mat( 58) = mat( 58) + lmat( 58)
+         mat( 64) = mat( 64) + lmat( 64)
+         mat( 67) = mat( 67) + lmat( 67)
+         mat( 68) = lmat( 68)
+         mat( 69) = mat( 69) + lmat( 69)
+         mat( 70) = mat( 70) + lmat( 70)
+         mat( 71) = lmat( 71)
+         mat( 77) = mat( 77) + lmat( 77)
+         mat( 79) = mat( 79) + lmat( 79)
+         mat( 80) = mat( 80) + lmat( 80)
+         mat( 81) = lmat( 81)
+         mat( 83) = mat( 83) + lmat( 83)
+         mat( 89) = mat( 89) + lmat( 89)
+         mat( 95) = mat( 95) + lmat( 95)
+         mat( 97) = lmat( 97)
+         mat( 98) = mat( 98) + lmat( 98)
+         mat( 99) = lmat( 99)
+         mat( 101) = mat( 101) + lmat( 101)
+         mat( 102) = lmat( 102)
+         mat( 103) = mat( 103) + lmat( 103)
+         mat( 104) = lmat( 104)
+         mat( 106) = mat( 106) + lmat( 106)
+         mat( 108) = mat( 108) + lmat( 108)
+         mat( 109) = lmat( 109)
+         mat( 111) = lmat( 111)
+         mat( 115) = mat( 115) + lmat( 115)
+         mat( 117) = lmat( 117)
+         mat( 121) = mat( 121) + lmat( 121)
+         mat( 128) = mat( 128) + lmat( 128)
+         mat( 133) = mat( 133) + lmat( 133)
+         mat( 137) = mat( 137) + lmat( 137)
+         mat( 138) = lmat( 138)
+         mat( 139) = lmat( 139)
+         mat( 140) = mat( 140) + lmat( 140)
+         mat( 141) = mat( 141) + lmat( 141)
+         mat( 142) = lmat( 142)
+         mat( 143) = lmat( 143)
+         mat( 145) = mat( 145) + lmat( 145)
+         mat( 147) = mat( 147) + lmat( 147)
+         mat( 152) = mat( 152) + lmat( 152)
+         mat( 153) = lmat( 153)
+         mat( 157) = mat( 157) + lmat( 157)
+         mat( 159) = mat( 159) + lmat( 159)
+         mat( 169) = mat( 169) + lmat( 169)
+         mat( 176) = mat( 176) + lmat( 176)
+         mat( 177) = mat( 177) + lmat( 177)
+         mat( 179) = lmat( 179)
+         mat( 182) = mat( 182) + lmat( 182)
+         mat( 190) = mat( 190) + lmat( 190)
+         mat( 195) = lmat( 195)
+         mat( 197) = mat( 197) + lmat( 197)
+         mat( 198) = lmat( 198)
+         mat( 199) = mat( 199) + lmat( 199)
+         mat( 200) = lmat( 200)
+         mat( 203) = lmat( 203)
+         mat( 206) = mat( 206) + lmat( 206)
+         mat( 208) = mat( 208) + lmat( 208)
+         mat( 209) = mat( 209) + lmat( 209)
+         mat( 210) = lmat( 210)
+         mat( 218) = mat( 218) + lmat( 218)
+         mat( 219) = lmat( 219)
+         mat( 221) = mat( 221) + lmat( 221)
+         mat( 226) = mat( 226) + lmat( 226)
+         mat( 227) = mat( 227) + lmat( 227)
+         mat( 231) = mat( 231) + lmat( 231)
+         mat( 235) = mat( 235) + lmat( 235)
+         mat( 236) = mat( 236) + lmat( 236)
+         mat( 237) = mat( 237) + lmat( 237)
+         mat( 242) = mat( 242) + lmat( 242)
+         mat( 246) = mat( 246) + lmat( 246)
+         mat( 251) = mat( 251) + lmat( 251)
+         mat( 252) = lmat( 252)
+         mat( 255) = lmat( 255)
+         mat( 258) = mat( 258) + lmat( 258)
+         mat( 259) = mat( 259) + lmat( 259)
+         mat( 261) = mat( 261) + lmat( 261)
+         mat( 262) = mat( 262) + lmat( 262)
+         mat( 263) = mat( 263) + lmat( 263)
+         mat( 265) = mat( 265) + lmat( 265)
+         mat( 266) = lmat( 266)
+         mat( 269) = mat( 269) + lmat( 269)
+         mat( 279) = mat( 279) + lmat( 279)
+         mat( 284) = lmat( 284)
+         mat( 285) = mat( 285) + lmat( 285)
+         mat( 286) = lmat( 286)
+         mat( 288) = lmat( 288)
+         mat( 289) = lmat( 289)
+         mat( 291) = lmat( 291)
+         mat( 293) = mat( 293) + lmat( 293)
+         mat( 296) = lmat( 296)
+         mat( 305) = mat( 305) + lmat( 305)
+         mat( 316) = mat( 316) + lmat( 316)
+         mat( 331) = mat( 331) + lmat( 331)
+         mat( 343) = mat( 343) + lmat( 343)
+         mat( 344) = lmat( 344)
+         mat( 356) = mat( 356) + lmat( 356)
+         mat( 358) = lmat( 358)
+         mat( 360) = mat( 360) + lmat( 360)
+         mat( 372) = mat( 372) + lmat( 372)
+         mat( 374) = mat( 374) + lmat( 374)
+         mat( 375) = lmat( 375)
+         mat( 383) = mat( 383) + lmat( 383)
+         mat( 390) = mat( 390) + lmat( 390)
+         mat( 391) = lmat( 391)
+         mat( 404) = mat( 404) + lmat( 404)
+         mat( 405) = mat( 405) + lmat( 405)
+         mat( 416) = lmat( 416)
+         mat( 418) = mat( 418) + lmat( 418)
+         mat( 419) = mat( 419) + lmat( 419)
+         mat( 421) = lmat( 421)
+         mat( 422) = mat( 422) + lmat( 422)
+         mat( 423) = mat( 423) + lmat( 423)
+         mat( 425) = mat( 425) + lmat( 425)
+         mat( 432) = lmat( 432)
+         mat( 433) = mat( 433) + lmat( 433)
+         mat( 451) = mat( 451) + lmat( 451)
+         mat( 465) = mat( 465) + lmat( 465)
+         mat( 484) = mat( 484) + lmat( 484)
+         mat( 485) = lmat( 485)
+         mat( 492) = mat( 492) + lmat( 492)
+         mat( 500) = mat( 500) + lmat( 500)
+         mat( 501) = lmat( 501)
+         mat( 517) = mat( 517) + lmat( 517)
+         mat( 520) = mat( 520) + lmat( 520)
+         mat( 523) = lmat( 523)
+         mat( 537) = mat( 537) + lmat( 537)
+         mat( 541) = mat( 541) + lmat( 541)
+         mat( 542) = lmat( 542)
+         mat( 557) = mat( 557) + lmat( 557)
+         mat( 564) = mat( 564) + lmat( 564)
+         mat( 565) = mat( 565) + lmat( 565)
+         mat( 580) = mat( 580) + lmat( 580)
+         mat( 582) = mat( 582) + lmat( 582)
+         mat( 585) = lmat( 585)
+         mat( 587) = mat( 587) + lmat( 587)
+         mat( 596) = mat( 596) + lmat( 596)
+         mat( 606) = mat( 606) + lmat( 606)
+         mat( 607) = mat( 607) + lmat( 607)
+         mat( 609) = mat( 609) + lmat( 609)
+         mat( 612) = lmat( 612)
+         mat( 614) = mat( 614) + lmat( 614)
+         mat( 615) = mat( 615) + lmat( 615)
+         mat( 617) = lmat( 617)
+         mat( 618) = mat( 618) + lmat( 618)
+         mat( 619) = lmat( 619)
+         mat( 620) = mat( 620) + lmat( 620)
+         mat( 622) = mat( 622) + lmat( 622)
+         mat( 626) = mat( 626) + lmat( 626)
+         mat( 627) = mat( 627) + lmat( 627)
+         mat( 633) = lmat( 633)
+         mat( 634) = mat( 634) + lmat( 634)
+         mat( 641) = mat( 641) + lmat( 641)
+         mat( 658) = lmat( 658)
+         mat( 671) = mat( 671) + lmat( 671)
+         mat( 694) = mat( 694) + lmat( 694)
+         mat( 695) = lmat( 695)
+         mat( 702) = mat( 702) + lmat( 702)
+         mat( 717) = mat( 717) + lmat( 717)
+         mat( 728) = mat( 728) + lmat( 728)
+         mat( 749) = lmat( 749)
+         mat( 750) = lmat( 750)
+         mat( 767) = mat( 767) + lmat( 767)
+         mat( 769) = mat( 769) + lmat( 769)
+         mat( 774) = mat( 774) + lmat( 774)
+         mat( 775) = mat( 775) + lmat( 775)
+         mat( 777) = mat( 777) + lmat( 777)
+         mat( 795) = mat( 795) + lmat( 795)
+         mat( 803) = mat( 803) + lmat( 803)
+         mat( 825) = lmat( 825)
+         mat( 844) = mat( 844) + lmat( 844)
+         mat( 868) = mat( 868) + lmat( 868)
+         mat( 873) = lmat( 873)
+         mat( 874) = lmat( 874)
+         mat( 882) = mat( 882) + lmat( 882)
+         mat( 886) = mat( 886) + lmat( 886)
+         mat( 896) = mat( 896) + lmat( 896)
+         mat( 911) = mat( 911) + lmat( 911)
+         mat( 919) = mat( 919) + lmat( 919)
+         mat( 928) = mat( 928) + lmat( 928)
+         mat( 936) = mat( 936) + lmat( 936)
+         mat( 944) = mat( 944) + lmat( 944)
+         mat( 950) = lmat( 950)
+         mat( 951) = lmat( 951)
+         mat( 974) = mat( 974) + lmat( 974)
+         mat(1017) = mat(1017) + lmat(1017)
+         mat(1060) = mat(1060) + lmat(1060)
+         mat(1071) = lmat(1071)
+         mat(1078) = mat(1078) + lmat(1078)
+         mat(1100) = mat(1100) + lmat(1100)
+         mat(1105) = mat(1105) + lmat(1105)
+         mat(1117) = mat(1117) + lmat(1117)
+         mat(1147) = mat(1147) + lmat(1147)
+         mat(1187) = mat(1187) + lmat(1187)
+         mat(1189) = mat(1189) + lmat(1189)
+         mat(1191) = mat(1191) + lmat(1191)
+         mat(1194) = mat(1194) + lmat(1194)
+         mat(1196) = mat(1196) + lmat(1196)
+         mat(1197) = mat(1197) + lmat(1197)
+         mat(1223) = mat(1223) + lmat(1223)
+         mat(1244) = mat(1244) + lmat(1244)
+         mat(1254) = mat(1254) + lmat(1254)
+         mat(1261) = mat(1261) + lmat(1261)
+         mat(1271) = mat(1271) + lmat(1271)
+         mat(1275) = mat(1275) + lmat(1275)
+         mat(1279) = mat(1279) + lmat(1279)
+         mat(1306) = mat(1306) + lmat(1306)
+         mat(1314) = mat(1314) + lmat(1314)
+         mat(1316) = mat(1316) + lmat(1316)
+         mat(1342) = mat(1342) + lmat(1342)
+         mat(1356) = mat(1356) + lmat(1356)
+         mat(1359) = lmat(1359)
+         mat(1373) = lmat(1373)
+         mat(1379) = mat(1379) + lmat(1379)
+         mat(1389) = mat(1389) + lmat(1389)
+         mat(1392) = mat(1392) + lmat(1392)
+         mat(1426) = mat(1426) + lmat(1426)
+         mat(1437) = mat(1437) + lmat(1437)
+         mat(1440) = mat(1440) + lmat(1440)
+         mat(1467) = mat(1467) + lmat(1467)
+         mat(1481) = mat(1481) + lmat(1481)
+         mat(1484) = mat(1484) + lmat(1484)
+         mat(1486) = mat(1486) + lmat(1486)
+         mat(1487) = mat(1487) + lmat(1487)
+         mat(1527) = mat(1527) + lmat(1527)
+         mat(1533) = lmat(1533)
+         mat(1534) = mat(1534) + lmat(1534)
+         mat(1537) = mat(1537) + lmat(1537)
+         mat(1552) = mat(1552) + lmat(1552)
+         mat(1555) = mat(1555) + lmat(1555)
+         mat(1569) = mat(1569) + lmat(1569)
+         mat(1570) = mat(1570) + lmat(1570)
+         mat(1586) = mat(1586) + lmat(1586)
+         mat(1609) = mat(1609) + lmat(1609)
+         mat(1627) = mat(1627) + lmat(1627)
+         mat(1638) = lmat(1638)
+         mat(1653) = mat(1653) + lmat(1653)
+         mat(1657) = mat(1657) + lmat(1657)
+         mat(1663) = lmat(1663)
+         mat(1668) = mat(1668) + lmat(1668)
+         mat(1670) = mat(1670) + lmat(1670)
+         mat(1690) = mat(1690) + lmat(1690)
+         mat(1704) = lmat(1704)
+         mat(1705) = mat(1705) + lmat(1705)
+         mat(1723) = mat(1723) + lmat(1723)
+         mat(1726) = mat(1726) + lmat(1726)
+         mat(1729) = lmat(1729)
+         mat(1769) = mat(1769) + lmat(1769)
+         mat(1770) = mat(1770) + lmat(1770)
+         mat(1793) = lmat(1793)
+         mat(1799) = mat(1799) + lmat(1799)
+         mat(1803) = mat(1803) + lmat(1803)
+         mat(1814) = lmat(1814)
+         mat(1823) = lmat(1823)
+         mat(1828) = mat(1828) + lmat(1828)
+         mat( 162) = 0._r8
+         mat( 167) = 0._r8
+         mat( 185) = 0._r8
+         mat( 188) = 0._r8
+         mat( 193) = 0._r8
+         mat( 196) = 0._r8
+         mat( 201) = 0._r8
+         mat( 202) = 0._r8
+         mat( 204) = 0._r8
+         mat( 222) = 0._r8
+         mat( 256) = 0._r8
+         mat( 268) = 0._r8
+         mat( 292) = 0._r8
+         mat( 294) = 0._r8
+         mat( 308) = 0._r8
+         mat( 311) = 0._r8
+         mat( 315) = 0._r8
+         mat( 332) = 0._r8
+         mat( 335) = 0._r8
+         mat( 337) = 0._r8
+         mat( 340) = 0._r8
+         mat( 341) = 0._r8
+         mat( 363) = 0._r8
+         mat( 373) = 0._r8
+         mat( 454) = 0._r8
+         mat( 456) = 0._r8
+         mat( 458) = 0._r8
+         mat( 460) = 0._r8
+         mat( 461) = 0._r8
+         mat( 464) = 0._r8
+         mat( 466) = 0._r8
+         mat( 468) = 0._r8
+         mat( 472) = 0._r8
+         mat( 473) = 0._r8
+         mat( 475) = 0._r8
+         mat( 477) = 0._r8
+         mat( 478) = 0._r8
+         mat( 479) = 0._r8
+         mat( 502) = 0._r8
+         mat( 512) = 0._r8
+         mat( 515) = 0._r8
+         mat( 552) = 0._r8
+         mat( 555) = 0._r8
+         mat( 566) = 0._r8
+         mat( 567) = 0._r8
+         mat( 571) = 0._r8
+         mat( 573) = 0._r8
+         mat( 574) = 0._r8
+         mat( 576) = 0._r8
+         mat( 577) = 0._r8
+         mat( 581) = 0._r8
+         mat( 586) = 0._r8
+         mat( 588) = 0._r8
+         mat( 591) = 0._r8
+         mat( 593) = 0._r8
+         mat( 594) = 0._r8
+         mat( 597) = 0._r8
+         mat( 600) = 0._r8
+         mat( 601) = 0._r8
+         mat( 603) = 0._r8
+         mat( 604) = 0._r8
+         mat( 611) = 0._r8
+         mat( 613) = 0._r8
+         mat( 621) = 0._r8
+         mat( 625) = 0._r8
+         mat( 629) = 0._r8
+         mat( 630) = 0._r8
+         mat( 631) = 0._r8
+         mat( 632) = 0._r8
+         mat( 635) = 0._r8
+         mat( 636) = 0._r8
+         mat( 637) = 0._r8
+         mat( 643) = 0._r8
+         mat( 647) = 0._r8
+         mat( 660) = 0._r8
+         mat( 664) = 0._r8
+         mat( 665) = 0._r8
+         mat( 666) = 0._r8
+         mat( 696) = 0._r8
+         mat( 703) = 0._r8
+         mat( 708) = 0._r8
+         mat( 726) = 0._r8
+         mat( 727) = 0._r8
+         mat( 730) = 0._r8
+         mat( 739) = 0._r8
+         mat( 740) = 0._r8
+         mat( 741) = 0._r8
+         mat( 745) = 0._r8
+         mat( 746) = 0._r8
+         mat( 747) = 0._r8
+         mat( 761) = 0._r8
+         mat( 773) = 0._r8
+         mat( 776) = 0._r8
+         mat( 779) = 0._r8
+         mat( 787) = 0._r8
+         mat( 788) = 0._r8
+         mat( 792) = 0._r8
+         mat( 793) = 0._r8
+         mat( 794) = 0._r8
+         mat( 799) = 0._r8
+         mat( 804) = 0._r8
+         mat( 806) = 0._r8
+         mat( 812) = 0._r8
+         mat( 815) = 0._r8
+         mat( 835) = 0._r8
+         mat( 838) = 0._r8
+         mat( 842) = 0._r8
+         mat( 845) = 0._r8
+         mat( 850) = 0._r8
+         mat( 852) = 0._r8
+         mat( 855) = 0._r8
+         mat( 856) = 0._r8
+         mat( 859) = 0._r8
+         mat( 863) = 0._r8
+         mat( 876) = 0._r8
+         mat( 878) = 0._r8
+         mat( 881) = 0._r8
+         mat( 885) = 0._r8
+         mat( 888) = 0._r8
+         mat( 889) = 0._r8
+         mat( 890) = 0._r8
+         mat( 892) = 0._r8
+         mat( 897) = 0._r8
+         mat( 899) = 0._r8
+         mat( 901) = 0._r8
+         mat( 902) = 0._r8
+         mat( 907) = 0._r8
+         mat( 908) = 0._r8
+         mat( 913) = 0._r8
+         mat( 918) = 0._r8
+         mat( 921) = 0._r8
+         mat( 925) = 0._r8
+         mat( 929) = 0._r8
+         mat( 930) = 0._r8
+         mat( 931) = 0._r8
+         mat( 933) = 0._r8
+         mat( 937) = 0._r8
+         mat( 938) = 0._r8
+         mat( 940) = 0._r8
+         mat( 942) = 0._r8
+         mat( 948) = 0._r8
+         mat( 949) = 0._r8
+         mat( 964) = 0._r8
+         mat( 968) = 0._r8
+         mat( 973) = 0._r8
+         mat( 975) = 0._r8
+         mat( 976) = 0._r8
+         mat( 977) = 0._r8
+         mat( 980) = 0._r8
+         mat( 985) = 0._r8
+         mat( 987) = 0._r8
+         mat( 991) = 0._r8
+         mat( 992) = 0._r8
+         mat( 993) = 0._r8
+         mat( 996) = 0._r8
+         mat(1010) = 0._r8
+         mat(1015) = 0._r8
+         mat(1016) = 0._r8
+         mat(1018) = 0._r8
+         mat(1019) = 0._r8
+         mat(1020) = 0._r8
+         mat(1022) = 0._r8
+         mat(1027) = 0._r8
+         mat(1029) = 0._r8
+         mat(1033) = 0._r8
+         mat(1034) = 0._r8
+         mat(1035) = 0._r8
+         mat(1052) = 0._r8
+         mat(1057) = 0._r8
+         mat(1058) = 0._r8
+         mat(1059) = 0._r8
+         mat(1061) = 0._r8
+         mat(1062) = 0._r8
+         mat(1069) = 0._r8
+         mat(1072) = 0._r8
+         mat(1075) = 0._r8
+         mat(1076) = 0._r8
+         mat(1077) = 0._r8
+         mat(1092) = 0._r8
+         mat(1095) = 0._r8
+         mat(1099) = 0._r8
+         mat(1101) = 0._r8
+         mat(1102) = 0._r8
+         mat(1103) = 0._r8
+         mat(1104) = 0._r8
+         mat(1106) = 0._r8
+         mat(1108) = 0._r8
+         mat(1111) = 0._r8
+         mat(1113) = 0._r8
+         mat(1115) = 0._r8
+         mat(1121) = 0._r8
+         mat(1122) = 0._r8
+         mat(1142) = 0._r8
+         mat(1143) = 0._r8
+         mat(1145) = 0._r8
+         mat(1146) = 0._r8
+         mat(1154) = 0._r8
+         mat(1156) = 0._r8
+         mat(1160) = 0._r8
+         mat(1161) = 0._r8
+         mat(1162) = 0._r8
+         mat(1168) = 0._r8
+         mat(1169) = 0._r8
+         mat(1170) = 0._r8
+         mat(1171) = 0._r8
+         mat(1172) = 0._r8
+         mat(1173) = 0._r8
+         mat(1175) = 0._r8
+         mat(1176) = 0._r8
+         mat(1179) = 0._r8
+         mat(1180) = 0._r8
+         mat(1181) = 0._r8
+         mat(1182) = 0._r8
+         mat(1183) = 0._r8
+         mat(1184) = 0._r8
+         mat(1185) = 0._r8
+         mat(1186) = 0._r8
+         mat(1188) = 0._r8
+         mat(1190) = 0._r8
+         mat(1192) = 0._r8
+         mat(1193) = 0._r8
+         mat(1195) = 0._r8
+         mat(1198) = 0._r8
+         mat(1199) = 0._r8
+         mat(1200) = 0._r8
+         mat(1201) = 0._r8
+         mat(1202) = 0._r8
+         mat(1206) = 0._r8
+         mat(1207) = 0._r8
+         mat(1210) = 0._r8
+         mat(1215) = 0._r8
+         mat(1217) = 0._r8
+         mat(1218) = 0._r8
+         mat(1219) = 0._r8
+         mat(1220) = 0._r8
+         mat(1222) = 0._r8
+         mat(1226) = 0._r8
+         mat(1228) = 0._r8
+         mat(1229) = 0._r8
+         mat(1230) = 0._r8
+         mat(1235) = 0._r8
+         mat(1236) = 0._r8
+         mat(1251) = 0._r8
+         mat(1252) = 0._r8
+         mat(1253) = 0._r8
+         mat(1255) = 0._r8
+         mat(1256) = 0._r8
+         mat(1257) = 0._r8
+         mat(1259) = 0._r8
+         mat(1262) = 0._r8
+         mat(1265) = 0._r8
+         mat(1266) = 0._r8
+         mat(1267) = 0._r8
+         mat(1268) = 0._r8
+         mat(1269) = 0._r8
+         mat(1272) = 0._r8
+         mat(1273) = 0._r8
+         mat(1276) = 0._r8
+         mat(1277) = 0._r8
+         mat(1280) = 0._r8
+         mat(1281) = 0._r8
+         mat(1283) = 0._r8
+         mat(1284) = 0._r8
+         mat(1294) = 0._r8
+         mat(1295) = 0._r8
+         mat(1296) = 0._r8
+         mat(1297) = 0._r8
+         mat(1304) = 0._r8
+         mat(1305) = 0._r8
+         mat(1307) = 0._r8
+         mat(1308) = 0._r8
+         mat(1309) = 0._r8
+         mat(1310) = 0._r8
+         mat(1312) = 0._r8
+         mat(1313) = 0._r8
+         mat(1315) = 0._r8
+         mat(1319) = 0._r8
+         mat(1320) = 0._r8
+         mat(1321) = 0._r8
+         mat(1322) = 0._r8
+         mat(1327) = 0._r8
+         mat(1332) = 0._r8
+         mat(1334) = 0._r8
+         mat(1337) = 0._r8
+         mat(1338) = 0._r8
+         mat(1344) = 0._r8
+         mat(1345) = 0._r8
+         mat(1346) = 0._r8
+         mat(1347) = 0._r8
+         mat(1348) = 0._r8
+         mat(1349) = 0._r8
+         mat(1350) = 0._r8
+         mat(1351) = 0._r8
+         mat(1353) = 0._r8
+         mat(1354) = 0._r8
+         mat(1358) = 0._r8
+         mat(1360) = 0._r8
+         mat(1361) = 0._r8
+         mat(1362) = 0._r8
+         mat(1364) = 0._r8
+         mat(1366) = 0._r8
+         mat(1371) = 0._r8
+         mat(1377) = 0._r8
+         mat(1378) = 0._r8
+         mat(1387) = 0._r8
+         mat(1399) = 0._r8
+         mat(1420) = 0._r8
+         mat(1425) = 0._r8
+         mat(1427) = 0._r8
+         mat(1428) = 0._r8
+         mat(1429) = 0._r8
+         mat(1430) = 0._r8
+         mat(1432) = 0._r8
+         mat(1439) = 0._r8
+         mat(1443) = 0._r8
+         mat(1444) = 0._r8
+         mat(1445) = 0._r8
+         mat(1449) = 0._r8
+         mat(1456) = 0._r8
+         mat(1457) = 0._r8
+         mat(1458) = 0._r8
+         mat(1462) = 0._r8
+         mat(1463) = 0._r8
+         mat(1469) = 0._r8
+         mat(1472) = 0._r8
+         mat(1473) = 0._r8
+         mat(1474) = 0._r8
+         mat(1476) = 0._r8
+         mat(1478) = 0._r8
+         mat(1480) = 0._r8
+         mat(1483) = 0._r8
+         mat(1485) = 0._r8
+         mat(1491) = 0._r8
+         mat(1508) = 0._r8
+         mat(1513) = 0._r8
+         mat(1514) = 0._r8
+         mat(1515) = 0._r8
+         mat(1517) = 0._r8
+         mat(1518) = 0._r8
+         mat(1525) = 0._r8
+         mat(1528) = 0._r8
+         mat(1531) = 0._r8
+         mat(1532) = 0._r8
+         mat(1543) = 0._r8
+         mat(1546) = 0._r8
+         mat(1556) = 0._r8
+         mat(1557) = 0._r8
+         mat(1559) = 0._r8
+         mat(1561) = 0._r8
+         mat(1563) = 0._r8
+         mat(1564) = 0._r8
+         mat(1565) = 0._r8
+         mat(1568) = 0._r8
+         mat(1572) = 0._r8
+         mat(1574) = 0._r8
+         mat(1585) = 0._r8
+         mat(1591) = 0._r8
+         mat(1602) = 0._r8
+         mat(1613) = 0._r8
+         mat(1614) = 0._r8
+         mat(1616) = 0._r8
+         mat(1621) = 0._r8
+         mat(1625) = 0._r8
+         mat(1631) = 0._r8
+         mat(1632) = 0._r8
+         mat(1637) = 0._r8
+         mat(1651) = 0._r8
+         mat(1656) = 0._r8
+         mat(1659) = 0._r8
+         mat(1666) = 0._r8
+         mat(1669) = 0._r8
+         mat(1673) = 0._r8
+         mat(1674) = 0._r8
+         mat(1675) = 0._r8
+         mat(1677) = 0._r8
+         mat(1678) = 0._r8
+         mat(1680) = 0._r8
+         mat(1682) = 0._r8
+         mat(1683) = 0._r8
+         mat(1684) = 0._r8
+         mat(1686) = 0._r8
+         mat(1687) = 0._r8
+         mat(1691) = 0._r8
+         mat(1692) = 0._r8
+         mat(1695) = 0._r8
+         mat(1698) = 0._r8
+         mat(1699) = 0._r8
+         mat(1702) = 0._r8
+         mat(1708) = 0._r8
+         mat(1709) = 0._r8
+         mat(1710) = 0._r8
+         mat(1712) = 0._r8
+         mat(1713) = 0._r8
+         mat(1718) = 0._r8
+         mat(1719) = 0._r8
+         mat(1721) = 0._r8
+         mat(1727) = 0._r8
+         mat(1730) = 0._r8
+         mat(1744) = 0._r8
+         mat(1749) = 0._r8
+         mat(1750) = 0._r8
+         mat(1751) = 0._r8
+         mat(1752) = 0._r8
+         mat(1753) = 0._r8
+         mat(1754) = 0._r8
+         mat(1761) = 0._r8
+         mat(1764) = 0._r8
+         mat(1767) = 0._r8
+         mat(1768) = 0._r8
+         mat(1785) = 0._r8
+         mat(1786) = 0._r8
+         mat(1789) = 0._r8
+         mat(1792) = 0._r8
+         mat(1797) = 0._r8
+         mat(1798) = 0._r8
+         mat(1802) = 0._r8
+         mat(1805) = 0._r8
+         mat(1806) = 0._r8
+         mat(1807) = 0._r8
+         mat(1811) = 0._r8
+         mat(1813) = 0._r8
+         mat(1816) = 0._r8
+         mat(1818) = 0._r8
+         mat(1820) = 0._r8
+         mat(1822) = 0._r8
+         mat( 1) = mat( 1) - dti
+         mat( 2) = mat( 2) - dti
+         mat( 3) = mat( 3) - dti
+         mat( 4) = mat( 4) - dti
+         mat( 5) = mat( 5) - dti
+         mat( 6) = mat( 6) - dti
+         mat( 7) = mat( 7) - dti
+         mat( 8) = mat( 8) - dti
+         mat( 9) = mat( 9) - dti
+         mat( 10) = mat( 10) - dti
+         mat( 11) = mat( 11) - dti
+         mat( 12) = mat( 12) - dti
+         mat( 13) = mat( 13) - dti
+         mat( 14) = mat( 14) - dti
+         mat( 15) = mat( 15) - dti
+         mat( 16) = mat( 16) - dti
+         mat( 17) = mat( 17) - dti
+         mat( 18) = mat( 18) - dti
+         mat( 19) = mat( 19) - dti
+         mat( 20) = mat( 20) - dti
+         mat( 21) = mat( 21) - dti
+         mat( 24) = mat( 24) - dti
+         mat( 27) = mat( 27) - dti
+         mat( 30) = mat( 30) - dti
+         mat( 32) = mat( 32) - dti
+         mat( 36) = mat( 36) - dti
+         mat( 39) = mat( 39) - dti
+         mat( 42) = mat( 42) - dti
+         mat( 46) = mat( 46) - dti
+         mat( 50) = mat( 50) - dti
+         mat( 54) = mat( 54) - dti
+         mat( 58) = mat( 58) - dti
+         mat( 64) = mat( 64) - dti
+         mat( 69) = mat( 69) - dti
+         mat( 77) = mat( 77) - dti
+         mat( 83) = mat( 83) - dti
+         mat( 89) = mat( 89) - dti
+         mat( 95) = mat( 95) - dti
+         mat( 101) = mat( 101) - dti
+         mat( 108) = mat( 108) - dti
+         mat( 115) = mat( 115) - dti
+         mat( 121) = mat( 121) - dti
+         mat( 128) = mat( 128) - dti
+         mat( 133) = mat( 133) - dti
+         mat( 137) = mat( 137) - dti
+         mat( 145) = mat( 145) - dti
+         mat( 152) = mat( 152) - dti
+         mat( 159) = mat( 159) - dti
+         mat( 169) = mat( 169) - dti
+         mat( 176) = mat( 176) - dti
+         mat( 182) = mat( 182) - dti
+         mat( 190) = mat( 190) - dti
+         mat( 199) = mat( 199) - dti
+         mat( 209) = mat( 209) - dti
+         mat( 218) = mat( 218) - dti
+         mat( 226) = mat( 226) - dti
+         mat( 235) = mat( 235) - dti
+         mat( 242) = mat( 242) - dti
+         mat( 251) = mat( 251) - dti
+         mat( 259) = mat( 259) - dti
+         mat( 269) = mat( 269) - dti
+         mat( 279) = mat( 279) - dti
+         mat( 293) = mat( 293) - dti
+         mat( 305) = mat( 305) - dti
+         mat( 316) = mat( 316) - dti
+         mat( 331) = mat( 331) - dti
+         mat( 343) = mat( 343) - dti
+         mat( 360) = mat( 360) - dti
+         mat( 374) = mat( 374) - dti
+         mat( 390) = mat( 390) - dti
+         mat( 405) = mat( 405) - dti
+         mat( 419) = mat( 419) - dti
+         mat( 433) = mat( 433) - dti
+         mat( 451) = mat( 451) - dti
+         mat( 465) = mat( 465) - dti
+         mat( 484) = mat( 484) - dti
+         mat( 500) = mat( 500) - dti
+         mat( 520) = mat( 520) - dti
+         mat( 541) = mat( 541) - dti
+         mat( 565) = mat( 565) - dti
+         mat( 587) = mat( 587) - dti
+         mat( 618) = mat( 618) - dti
+         mat( 641) = mat( 641) - dti
+         mat( 671) = mat( 671) - dti
+         mat( 694) = mat( 694) - dti
+         mat( 728) = mat( 728) - dti
+         mat( 775) = mat( 775) - dti
+         mat( 803) = mat( 803) - dti
+         mat( 844) = mat( 844) - dti
+         mat( 886) = mat( 886) - dti
+         mat( 928) = mat( 928) - dti
+         mat( 974) = mat( 974) - dti
+         mat(1017) = mat(1017) - dti
+         mat(1060) = mat(1060) - dti
+         mat(1105) = mat(1105) - dti
+         mat(1147) = mat(1147) - dti
+         mat(1187) = mat(1187) - dti
+         mat(1223) = mat(1223) - dti
+         mat(1271) = mat(1271) - dti
+         mat(1316) = mat(1316) - dti
+         mat(1356) = mat(1356) - dti
+         mat(1392) = mat(1392) - dti
+         mat(1437) = mat(1437) - dti
+         mat(1484) = mat(1484) - dti
+         mat(1527) = mat(1527) - dti
+         mat(1569) = mat(1569) - dti
+         mat(1627) = mat(1627) - dti
+         mat(1657) = mat(1657) - dti
+         mat(1690) = mat(1690) - dti
+         mat(1726) = mat(1726) - dti
+         mat(1769) = mat(1769) - dti
+         mat(1828) = mat(1828) - dti
       end subroutine nlnmat_finit
-      subroutine nlnmat( avec_len, mat, y, rxt, lmat, dti )
+      subroutine nlnmat( mat, y, rxt, lmat, dti )
       use chem_mods, only : gas_pcnst, rxntot, nzcnt
       implicit none
 !----------------------------------------------
 ! ... dummy arguments
 !----------------------------------------------
-      integer, intent(in) :: avec_len
-      real(r8), intent(in) :: dti(veclen)
-      real(r8), intent(in) :: lmat(veclen,nzcnt)
-      real(r8), intent(in) :: y(veclen,gas_pcnst)
-      real(r8), intent(in) :: rxt(veclen,rxntot)
-      real(r8), intent(inout) :: mat(veclen,nzcnt)
-      call nlnmat01( avec_len, mat, y, rxt )
-      call nlnmat02( avec_len, mat, y, rxt )
-      call nlnmat03( avec_len, mat, y, rxt )
-      call nlnmat04( avec_len, mat, y, rxt )
-      call nlnmat05( avec_len, mat, y, rxt )
-      call nlnmat06( avec_len, mat, y, rxt )
-      call nlnmat07( avec_len, mat, y, rxt )
-      call nlnmat08( avec_len, mat, y, rxt )
-      call nlnmat_finit( avec_len, mat, lmat, dti )
+      real(r8), intent(in) :: dti
+      real(r8), intent(in) :: lmat(nzcnt)
+      real(r8), intent(in) :: y(gas_pcnst)
+      real(r8), intent(in) :: rxt(rxntot)
+      real(r8), intent(inout) :: mat(nzcnt)
+      call nlnmat01( mat, y, rxt )
+      call nlnmat02( mat, y, rxt )
+      call nlnmat03( mat, y, rxt )
+      call nlnmat04( mat, y, rxt )
+      call nlnmat05( mat, y, rxt )
+      call nlnmat06( mat, y, rxt )
+      call nlnmat07( mat, y, rxt )
+      call nlnmat08( mat, y, rxt )
+      call nlnmat_finit( mat, lmat, dti )
       end subroutine nlnmat
       end module mo_nln_matrix

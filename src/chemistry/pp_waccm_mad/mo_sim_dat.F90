@@ -28,8 +28,8 @@
 !--------------------------------------------------------------
       integer :: ios
 
-      is_scalar = .false.
-      is_vector = .true.
+      is_scalar = .true.
+      is_vector = .false.
 
       clscnt(:) = (/     22,     0,     0,    88,     0 /)
 

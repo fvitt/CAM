@@ -976,10 +976,9 @@
       SIMULATION PARAMETERS
 
       Version Options
-        machine = nec
+        machine = intel
         model   = cam
-        model_architecture = VECTOR
-        vector_length = 32
+        model_architecture = SCALAR
         architecture = hybrid
         namemod = on
       End Version Options
