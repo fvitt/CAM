@@ -719,7 +719,7 @@ subroutine ma_convproc_sh_intr(                 &
          if (sh_e_ed_ratio_idx .gt. 0) then
            tmpb = sh_e_ed_ratio(i,k)
          else
-           tmpb = -1.0  ! force ent only or det only
+           tmpb = -1.0_r8  ! force ent only or det only
          end if
          if (tmpb < -1.0e-5_r8) then
             ! do ent only or det only
@@ -2653,7 +2653,7 @@ end subroutine ma_convproc_tend
          tmpb = tmpb + tmpc * spechygro(ll,n)
 ! modify the hygro of pom *** NEEDS to be more robust
          if (((n.eq.1).and.(ll.eq.2)).or.((n.eq.4).and.(ll.eq.1))) then
-            tmpb = tmpb + tmpc * 0.2
+            tmpb = tmpb + tmpc * 0.2_r8
             tmpb = tmpb + tmpc * spechygro(1,1)
          else
             tmpb = tmpb + tmpc * spechygro(ll,n)
