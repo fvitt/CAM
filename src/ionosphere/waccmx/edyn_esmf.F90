@@ -25,7 +25,7 @@ module edyn_esmf
    use ESMF,           only: ESMF_GridComp, ESMF_TERMORDER_SRCSEQ
    use ESMF,           only: ESMF_EXTRAPMETHOD_NEAREST_IDAVG
    use ESMF,           only: ESMF_UNMAPPEDACTION_IGNORE
-   use edyn_mpi,       only: ntask, ntaski, ntaskj, tasks, lon0, lon1, lat0
+   use edyn_mpi,       only: mytid, ntask, ntaski, ntaskj, tasks, lon0, lon1, lat0
    use edyn_mpi,       only: lat1, nmagtaski, nmagtaskj, mlon0, mlon1
    use edyn_mpi,       only: mlat0,mlat1
    use getapex,        only: gdlatdeg, gdlondeg
@@ -57,14 +57,13 @@ module edyn_esmf
    public :: edyn_esmf_get_1dfield
    public :: edyn_esmf_get_2dfield ! Retrieve a pointer to 2D ESMF field data
    public :: edyn_esmf_get_3dfield ! Retrieve a pointer to 3D ESMF field data
+   public :: edyn_esmf_get_2dphysfield
    public :: edyn_esmf_set3d_geo   ! Set ESMF field with 3D geo data
    public :: edyn_esmf_set2d_geo   ! Set ESMF field with 2D geo data
    public :: edyn_esmf_set3d_mag   ! Set ESMF field with 3D mag field data
    public :: edyn_esmf_set2d_mag   ! Set ESMF field with 2D mag field data
    public :: edyn_esmf_set3d_phys  ! Set ESMF field with 3D physics field data
    public :: edyn_esmf_set2d_phys  ! Set ESMF field with 2D physics field data
-   public :: edyn_esmf_update_step ! .true. iff this is an update step
-   public :: edyn_esmf_update_flag ! Set value of edyn_esmf_update_step
    public :: edyn_esmf_update_phys_mesh
 
    public :: phys_3dfld, phys_2dfld
@@ -109,15 +108,12 @@ module edyn_esmf
         routehandle_phys2geo_2d, & ! for 2d phys to geo
         routehandle_geo2mag_2d     ! for 2d geo to mag
 
-   !
-   real(r8), allocatable :: unitv(:)
-   !
-
-   logical, protected :: edyn_esmf_update_step = .true.
    logical, parameter :: debug = .false.
 #endif
    integer, parameter :: pdim1s = 1
 
+   integer, allocatable :: petmap(:,:,:)
+   logical :: initialized=.false.
 contains
 
 #ifdef WACCMX_EDYN_ESMF
@@ -139,135 +135,6 @@ contains
          call endrun(trim(errmsg))
       end if
    end subroutine edyn_esmf_chkerr
-
-   subroutine edyn_create_physmesh(mesh_out)
-      use ESMF,         only: ESMF_DistGridCreate, ESMF_DistGrid
-      use ESMF,         only: ESMF_FILEFORMAT_ESMFMESH, ESMF_MeshCreate, ESMF_MeshGet
-      use phys_control, only: phys_getopts
-      use phys_grid,    only: get_ncols_p, get_gcol_p, get_rlon_all_p, get_rlat_all_p
-      use ppgrid,       only: pcols, begchunk, endchunk
-      use shr_const_mod,only: shr_const_pi
-
-      !
-      ! Args:
-      type(ESMF_Mesh), intent(out) :: mesh_out
-
-      integer                       :: rc
-      integer                       :: ncols
-      integer                       :: lsize
-      integer                       :: chnk, col, dindex
-      integer,          allocatable :: decomp(:)
-      character(len=256)            :: grid_file
-      type(ESMF_DistGrid)           :: dist_grid
-      character(len=*), parameter   :: subname = 'edyn_create_physmesh'
-
-
-      integer                 :: spatialDim
-      integer                 :: numOwnedElements
-      real(r8), pointer       :: ownedElemCoords(:)
-      real(r8), pointer       :: lat(:), latMesh(:)
-      real(r8), pointer       :: lon(:), lonMesh(:)
-      real(r8)                :: lats(pcols)                       ! array of chunk latitudes
-      real(r8)                :: lons(pcols)                       ! array of chunk longitude
-      integer :: i, c, n
-      real(r8)        , parameter :: radtodeg = 180.0_r8/shr_const_pi
-      character(len=80)       :: tempc1,tempc2
-      character(len=300)      :: errstr
-
-      ! Find the physics grid file
-      call phys_getopts(physics_grid_out=grid_file)
-      ! Compute the local decomp
-      lsize = 0
-      do chnk = begchunk, endchunk
-         lsize = lsize + get_ncols_p(chnk)
-      end do
-      allocate(decomp(lsize))
-      dindex = 0
-      do chnk = begchunk, endchunk
-         ncols = get_ncols_p(chnk)
-         do col = 1, ncols
-            dindex = dindex + 1
-            decomp(dindex) = get_gcol_p(chnk, col)
-         end do
-      end do
-
-      ! Create a DistGrid based on the physics decomp
-      dist_grid = ESMF_DistGridCreate(arbSeqIndexList=decomp, rc=rc)
-      call edyn_esmf_chkerr(subname, 'ESMF_DistGridCreate', rc)
-      ! Create an ESMF_mesh for the physics decomposition
-      mesh_out = ESMF_MeshCreate(trim(grid_file), ESMF_FILEFORMAT_ESMFMESH, &
-           elementDistgrid=dist_grid, rc=rc)
-      call edyn_esmf_chkerr(subname, 'ESMF_MeshCreateFromFile', rc)
-
-      ! Check that the mesh coordinates are consistent with the model physics column coordinates
-
-      ! obtain mesh lats and lons
-      call ESMF_MeshGet(mesh_out, spatialDim=spatialDim, numOwnedElements=numOwnedElements, rc=rc)
-      call edyn_esmf_chkerr(subname, 'ESMF_MeshGet', rc)
-
-      if (numOwnedElements /= lsize) then
-         write(tempc1,'(i10)') numOwnedElements
-         write(tempc2,'(i10)') lsize
-         call endrun(trim(subname)//": ERROR numOwnedElements "// &
-                     trim(tempc1) //" not equal to local size "// trim(tempc2))
-      end if
-
-      allocate(ownedElemCoords(spatialDim*numOwnedElements))
-      allocate(lonMesh(lsize), latMesh(lsize))
-      call ESMF_MeshGet(mesh_out, ownedElemCoords=ownedElemCoords)
-
-      do n = 1,lsize
-         lonMesh(n) = ownedElemCoords(2*n-1)
-         latMesh(n) = ownedElemCoords(2*n)
-      end do
-
-      ! obtain internally generated cam lats and lons
-      allocate(lon(lsize)); lon(:) = 0._r8
-      allocate(lat(lsize)); lat(:) = 0._r8
-      n=0
-      do c = begchunk, endchunk
-         ncols = get_ncols_p(c)
-         ! latitudes and longitudes returned in radians
-         call get_rlat_all_p(c, ncols, lats)
-         call get_rlon_all_p(c, ncols, lons)
-         do i=1,ncols
-            n = n+1
-            lat(n) = lats(i)*radtodeg
-            lon(n) = lons(i)*radtodeg
-         end do
-      end do
-
-      errstr = ''
-      ! error check differences between internally generated lons and those read in
-      do n = 1,lsize
-         if (abs(lonMesh(n) - lon(n)) > 0.000001_r8) then
-            if ( (abs(lonMesh(n)-lon(n)) > 360.000001_r8) .or. (abs(lonMesh(n)-lon(n)) < 359.99999_r8) ) then
-               write(errstr,100) n,lon(n),lonMesh(n), abs(lonMesh(n)-lon(n))
-               write(*,*) trim(errstr)
-            endif
-         end if
-         if (abs(latMesh(n) - lat(n)) > 0.000001_r8) then ! 1.e-12_r8
-            if (.not.( (abs(lat(n))>88.0_r8) .and. (abs(latMesh(n))>88.0_r8) )) then
-               write(errstr,101) n,lat(n),latMesh(n), abs(latMesh(n)-lat(n))
-               write(*,*) trim(errstr)
-            endif
-         end if
-      end do
-
-      if ( len_trim(errstr) > 0 ) then
-         call endrun(subname//': physics mesh coords do not match model coords')
-      end if
-
-      ! deallocate memory
-      deallocate(ownedElemCoords)
-      deallocate(lon, lonMesh)
-      deallocate(lat, latMesh)
-      deallocate(decomp)
-
-100   format('edyn_create_physmesh: coord mismatch... n, lon(n), lonmesh(n), diff_lon = ',i6,2(f21.13,3x),d21.5)
-101   format('edyn_create_physmesh: coord mismatch... n, lat(n), latmesh(n), diff_lat = ',i6,2(f21.13,3x),d21.5)
-
-   end subroutine edyn_create_physmesh
 
    !-----------------------------------------------------------------------
    !-----------------------------------------------------------------------
@@ -300,31 +167,28 @@ contains
       integer(ESMF_KIND_I4), pointer :: factorIndexList(:,:)
       real(ESMF_KIND_R8),    pointer :: factorList(:)
       integer                        :: smm_srctermproc,  smm_pipelinedep
+
 #endif
       character(len=*), parameter :: subname = 'edyn_esmf_update'
 
-      if (.not.geomag_year_updated .and. allocated(alonm)) then
+      if (.not.geomag_year_updated .and. initialized) then
          return
       end if
-      !
-      ! Get apex coordinates.
-      !
-      call get_apex()     ! get apex coordinates (allocates alonm)
-      call magfield()     ! calculate magnetic field parameters
 
 #ifdef WACCMX_EDYN_ESMF
 
+      if (mytid<ntask) then
+         !
+         ! Get apex coordinates.
+         !
+         call get_apex()     ! get apex coordinates (allocates alonm)
+         call magfield()     ! calculate magnetic field parameters
+
+      endif
+
       smm_srctermproc = 0
       smm_pipelinedep = 16
-      !
-      ! Set unit vector (this routine called once per run unless crossing
-      !   year boundary):
-      ! Handle year boundary by checking if field is allocated
-      !
-      if (.not.allocated(unitv)) then
-         allocate(unitv(nlon))
-      end if
-      unitv(:) = 1._r8
+
       !
       ! Make geographic grid for phys2geo and geo2phys regridding:
       !
@@ -339,10 +203,6 @@ contains
       !
       call create_mag_grid(mag_src_grid, 'src')
       call create_mag2phys_grid(mag2phys_grid)
-      !
-      ! Make grid for mag2phys, phys2mag, geo2phys, and phys2geo regridding:
-      !
-      call edyn_create_physmesh(phys_mesh)
       !
       ! Create empty fields on geographic grid or phyiscs mesh that
       !   will be transformed to the magnetic grid and passed as input
@@ -418,6 +278,7 @@ contains
          write(iulog,"(a,': lat bnd_destgeo=',2i4)") subname,                 &
               lbnd_destgeo(2),ubnd_destgeo(2)
       end if
+
       !
       ! Save route handles for grid transformations in both directions
       ! phys2mag and mag2phys. FieldRegridStore needs to be called only
@@ -542,8 +403,9 @@ contains
            pipelineDepth=smm_pipelinedep, rc=rc)
       call edyn_esmf_chkerr(subname, 'ESMF_FieldRegridStore for 3D mag2geo', rc)
 
-      edyn_esmf_update_step = .true.
+      initialized=.true.
 #endif
+      
    end subroutine edyn_esmf_update
 
 #ifdef WACCMX_EDYN_ESMF
@@ -610,7 +472,7 @@ contains
       !
       grid_out = ESMF_GridCreate1PeriDim(                  &
            countsPerDEDim1=nmlons_task, coordDep1=(/1,2/), &
-           countsPerDEDim2=nmlats_task, coordDep2=(/1,2/), &
+           countsPerDEDim2=nmlats_task, coordDep2=(/1,2/), petmap=petmap, &
            indexflag=ESMF_INDEX_GLOBAL,rc=rc)
       call edyn_esmf_chkerr(subname, 'ESMF_GridCreate1PeriDim', rc)
       !
@@ -618,38 +480,40 @@ contains
       !
       call ESMF_GridAddCoord(grid_out,staggerloc=ESMF_STAGGERLOC_CENTER,rc=rc)
       call edyn_esmf_chkerr(subname, 'ESMF_GridAddCoord', rc)
-      !
-      ! Get pointer and set mag grid longitude coordinates:
-      !
-      call ESMF_GridGetCoord(grid_out, coordDim=1, localDE=0,                 &
-           computationalLBound=lbnd, computationalUBound=ubnd,                &
-           farrayPtr=coordX, staggerloc=ESMF_STAGGERLOC_CENTER, rc=rc)
-      call edyn_esmf_chkerr(subname, 'ESMF_GridGetCoord for longitude coords', rc)
+      if (mytid<ntask) then
+         !
+         ! Get pointer and set mag grid longitude coordinates:
+         !
+         call ESMF_GridGetCoord(grid_out, coordDim=1, localDE=0,                 &
+              computationalLBound=lbnd, computationalUBound=ubnd,                &
+              farrayPtr=coordX, staggerloc=ESMF_STAGGERLOC_CENTER, rc=rc)
+         call edyn_esmf_chkerr(subname, 'ESMF_GridGetCoord for longitude coords', rc)
 
-      do j = lbnd(2), ubnd(2)
-         do i = lbnd(1), ubnd(1)
-            coordX(i,j) = gdlondeg(i,j)
+         do j = lbnd(2), ubnd(2)
+            do i = lbnd(1), ubnd(1)
+               coordX(i,j) = gdlondeg(i,j)
+            end do
          end do
-      end do
-      !
-      ! Get pointer and set mag grid latitude coordinates:
-      !
-      call ESMF_GridGetCoord(grid_out, coordDim=2, localDE=0,  &
-           computationalLBound=lbnd, computationalUBound=ubnd, &
-           farrayPtr=coordY, staggerloc=ESMF_STAGGERLOC_CENTER, rc=rc)
-      call edyn_esmf_chkerr(subname, 'ESMF_GridGetCoord for latitude coords', rc)
+         !
+         ! Get pointer and set mag grid latitude coordinates:
+         !
+         call ESMF_GridGetCoord(grid_out, coordDim=2, localDE=0,  &
+              computationalLBound=lbnd, computationalUBound=ubnd, &
+              farrayPtr=coordY, staggerloc=ESMF_STAGGERLOC_CENTER, rc=rc)
+         call edyn_esmf_chkerr(subname, 'ESMF_GridGetCoord for latitude coords', rc)
 
-      do j = lbnd(2), ubnd(2)
-         do i = lbnd(1), ubnd(1)
-            coordY(i,j) = gdlatdeg(i,j)
+         do j = lbnd(2), ubnd(2)
+            do i = lbnd(1), ubnd(1)
+               coordY(i,j) = gdlatdeg(i,j)
+            end do
          end do
-      end do
 
-      if (debug .and. masterproc) then
-         write(iulog,"(3a,2i4,a,2i4,a,2i4,a,2i4)") 'Created ESMF ',srcdes,    &
-              ' mag grid:  lbnd, ubnd_lon=', lbnd(1), ubnd(1),                &
-              ' mlon0,1=', mlon0, mlon1, ' lbnd, ubnd_lat=',                  &
-              lbnd(2), ubnd(2), ' mlat0,1=', mlat0, mlat1
+         if (debug .and. masterproc) then
+            write(iulog,"(3a,2i4,a,2i4,a,2i4,a,2i4)") 'Created ESMF ',srcdes,    &
+                 ' mag grid:  lbnd, ubnd_lon=', lbnd(1), ubnd(1),                &
+                 ' mlon0,1=', mlon0, mlon1, ' lbnd, ubnd_lat=',                  &
+                 lbnd(2), ubnd(2), ' mlat0,1=', mlat0, mlat1
+         end if
       end if
 
    end subroutine create_mag_grid
@@ -711,7 +575,7 @@ contains
      !
      grid_out = ESMF_GridCreate1PeriDim(                  &
           countsPerDEDim1=nmlons_task, coordDep1=(/1,2/), &
-          countsPerDEDim2=nmlats_task, coordDep2=(/1,2/), &
+          countsPerDEDim2=nmlats_task, coordDep2=(/1,2/), petmap=petmap, &
           indexflag=ESMF_INDEX_GLOBAL,rc=rc)
      call edyn_esmf_chkerr(subname, 'ESMF_GridCreate1PeriDim', rc)
      !
@@ -719,40 +583,41 @@ contains
      !
      call ESMF_GridAddCoord(grid_out,staggerloc=ESMF_STAGGERLOC_CORNER,rc=rc)
      call edyn_esmf_chkerr(subname, 'ESMF_GridAddCoord', rc)
-     !
-     ! Get pointer and set mag grid longitude coordinates:
-     !
-     call ESMF_GridGetCoord(grid_out, coordDim=1, localDE=0,                 &
-          computationalLBound=lbnd, computationalUBound=ubnd,                &
-          farrayPtr=coordX, staggerloc=ESMF_STAGGERLOC_CORNER, rc=rc)
-     call edyn_esmf_chkerr(subname, 'ESMF_GridGetCoord for longitude coords', rc)
+     if (mytid<ntask) then
+        !
+        ! Get pointer and set mag grid longitude coordinates:
+        !
+        call ESMF_GridGetCoord(grid_out, coordDim=1, localDE=0,                 &
+             computationalLBound=lbnd, computationalUBound=ubnd,                &
+             farrayPtr=coordX, staggerloc=ESMF_STAGGERLOC_CORNER, rc=rc)
+        call edyn_esmf_chkerr(subname, 'ESMF_GridGetCoord for longitude coords', rc)
 
-     do j = lbnd(2), ubnd(2)
-        do i = lbnd(1), ubnd(1)
-           coordX(i,j) = gdlondeg_corners(i,j)
+        do j = lbnd(2), ubnd(2)
+           do i = lbnd(1), ubnd(1)
+              coordX(i,j) = gdlondeg_corners(i,j)
+           end do
         end do
-     end do
-     !
-     ! Get pointer and set mag grid latitude coordinates:
-     !
-     call ESMF_GridGetCoord(grid_out, coordDim=2, localDE=0,  &
-          computationalLBound=lbnd, computationalUBound=ubnd, &
-          farrayPtr=coordY, staggerloc=ESMF_STAGGERLOC_CORNER, rc=rc)
-     call edyn_esmf_chkerr(subname, 'ESMF_GridGetCoord for latitude coords', rc)
+        !
+        ! Get pointer and set mag grid latitude coordinates:
+        !
+        call ESMF_GridGetCoord(grid_out, coordDim=2, localDE=0,  &
+             computationalLBound=lbnd, computationalUBound=ubnd, &
+             farrayPtr=coordY, staggerloc=ESMF_STAGGERLOC_CORNER, rc=rc)
+        call edyn_esmf_chkerr(subname, 'ESMF_GridGetCoord for latitude coords', rc)
 
-     do j = lbnd(2), ubnd(2)
-        do i = lbnd(1), ubnd(1)
-           coordY(i,j) = gdlatdeg_corners(i,j)
+        do j = lbnd(2), ubnd(2)
+           do i = lbnd(1), ubnd(1)
+              coordY(i,j) = gdlatdeg_corners(i,j)
+           end do
         end do
-     end do
 
-     if (debug .and. masterproc) then
-        write(iulog,"(a,2i4,a,2i4,a,2i4,a,2i4)") &
-             'Created ESMF mag grid: lbnd,ubnd_lon=', lbnd(1), ubnd(1), &
-             ' mlon0,1=', mlon0, mlon1, ' lbnd, ubnd_lat=',&
-             lbnd(2), ubnd(2), ' mlat0,1=', mlat0, mlat1
-     end if
-
+        if (debug .and. masterproc) then
+           write(iulog,"(a,2i4,a,2i4,a,2i4,a,2i4)") &
+                'Created ESMF mag grid: lbnd,ubnd_lon=', lbnd(1), ubnd(1), &
+                ' mlon0,1=', mlon0, mlon1, ' lbnd, ubnd_lat=',&
+                lbnd(2), ubnd(2), ' mlat0,1=', mlat0, mlat1
+        end if
+     endif
    end subroutine create_mag2phys_grid
 
    !-----------------------------------------------------------------------
@@ -769,6 +634,7 @@ contains
       integer                       :: nlats_task(ntaskj) ! # lats per task
       real(ESMF_KIND_R8), pointer   :: coordX(:), coordY(:)
       character(len=*),   parameter :: subname = 'create_geo_grid'
+
       !
       ! nlons_task(ntaski) = number of geo lons per task.
       !
@@ -790,11 +656,10 @@ contains
          end do loop1
       end do
       !
-      !
       ! Create 2d geographic source grid (with poles)
       grid_out = ESMF_GridCreate1PeriDim(                       &
            countsPerDEDim1=nlons_task, coordDep1=(/1/),         &
-           countsPerDEDim2=nlats_task, coordDep2=(/2/),         &
+           countsPerDEDim2=nlats_task, coordDep2=(/2/), petmap=petmap, &
            indexflag=ESMF_INDEX_GLOBAL,minIndex=(/1,1/), rc=rc)
       call edyn_esmf_chkerr(subname, 'ESMF_GridCreate1PeriDim', rc)
       !
@@ -805,39 +670,41 @@ contains
       !
       ! Get pointer and set geo grid longitude coordinates:
       !
-      call ESMF_GridGetCoord(grid_out, coordDim=1, localDE=0,                 &
-           computationalLBound=lbnd, computationalUBound=ubnd,                &
-           farrayPtr=coordX, staggerloc=ESMF_STAGGERLOC_CENTER, rc=rc)
-      call edyn_esmf_chkerr(subname, 'ESMF_GridGetCoord for longitude coords', rc)
-      !
-      ! Note glon was shifted to +/-180 by sub set_geogrid (edyn_init.F90)
-      !
-      lbnd_lon = lbnd(1)
-      ubnd_lon = ubnd(1)
-      do i = lbnd_lon, ubnd_lon
-         coordX(i) = glon(i)          ! 1 -> 72
-      end do
-      !
-      ! Get pointer and set geo grid latitude coordinates, including poles:
-      !
-      call ESMF_GridGetCoord(grid_out, coordDim=2, localDE=0,                 &
-           computationalLBound=lbnd, computationalUBound=ubnd,                &
-           farrayPtr=coordY, staggerloc=ESMF_STAGGERLOC_CENTER, rc=rc)
-      call edyn_esmf_chkerr(subname, 'ESMF_GridGetCoord for latitude coords', rc)
+      if (mytid<ntask) then
+         call ESMF_GridGetCoord(grid_out, coordDim=1, localDE=0,                 &
+              computationalLBound=lbnd, computationalUBound=ubnd,                &
+              farrayPtr=coordX, staggerloc=ESMF_STAGGERLOC_CENTER, rc=rc)
+         call edyn_esmf_chkerr(subname, 'ESMF_GridGetCoord for longitude coords', rc)
+         !
+         ! Note glon was shifted to +/-180 by sub set_geogrid (edyn_init.F90)
+         !
+         lbnd_lon = lbnd(1)
+         ubnd_lon = ubnd(1)
+         do i = lbnd_lon, ubnd_lon
+            coordX(i) = glon(i)          ! 1 -> 72
+         end do
+         !
+         ! Get pointer and set geo grid latitude coordinates, including poles:
+         !
+         call ESMF_GridGetCoord(grid_out, coordDim=2, localDE=0,                 &
+              computationalLBound=lbnd, computationalUBound=ubnd,                &
+              farrayPtr=coordY, staggerloc=ESMF_STAGGERLOC_CENTER, rc=rc)
+         call edyn_esmf_chkerr(subname, 'ESMF_GridGetCoord for latitude coords', rc)
 
-      lbnd_lat = lbnd(1)
-      ubnd_lat = ubnd(1)
-      do i = lbnd_lat, ubnd_lat
-         coordY(i) = glat(i)
-      end do
+         lbnd_lat = lbnd(1)
+         ubnd_lat = ubnd(1)
+         do i = lbnd_lat, ubnd_lat
+            coordY(i) = glat(i)
+         end do
 
-      if (debug .and. masterproc) then
-         write(iulog,"(2a,2i4,a,2i4,a,2i4,a,2i4)") 'Created ESMF geo_grid:',  &
-              ' lbnd,ubnd_lon=', lbnd_lon, ubnd_lon, ' lon0,1=', lon0, lon1,  &
-              ' lbnd,ubnd_lat=', lbnd_lat, ubnd_lat, ' lat0,1=', lat0, lat1
-         write(iulog,"('coordX for geo grid = ',/,(8f10.4))") coordX
-         write(iulog,"('coordY for geo grid = ',/,(8f10.4))") coordY
-      end if
+         if (debug .and. masterproc) then
+            write(iulog,"(2a,2i4,a,2i4,a,2i4,a,2i4)") 'Created ESMF geo_grid:',  &
+                 ' lbnd,ubnd_lon=', lbnd_lon, ubnd_lon, ' lon0,1=', lon0, lon1,  &
+                 ' lbnd,ubnd_lat=', lbnd_lat, ubnd_lat, ' lat0,1=', lat0, lat1
+            write(iulog,"('coordX for geo grid = ',/,(8f10.4))") coordX
+            write(iulog,"('coordY for geo grid = ',/,(8f10.4))") coordY
+         end if
+      endif
 
    end subroutine create_geo_grid
 
@@ -855,7 +722,8 @@ contains
       integer                       :: nlons_task(ntaski) ! # lons per task
       integer                       :: nlats_task(ntaskj) ! # lats per task
       real(ESMF_KIND_R8), pointer   :: coordX(:), coordY(:)
-      character(len=*),   parameter :: subname = 'create_geo_grid'
+      character(len=*),   parameter :: subname = 'create_geo2phys_grid'
+      
       !
       ! nlons_task(ntaski) = number of geo lons per task.
       !
@@ -881,7 +749,7 @@ contains
       ! Create 2d geographic source grid (with poles)
       grid_out = ESMF_GridCreate1PeriDim(                       &
            countsPerDEDim1=nlons_task, coordDep1=(/1/),         &
-           countsPerDEDim2=nlats_task, coordDep2=(/2/),         &
+           countsPerDEDim2=nlats_task, coordDep2=(/2/), petmap=petmap, &
            indexflag=ESMF_INDEX_GLOBAL,minIndex=(/1,1/), rc=rc)
       call edyn_esmf_chkerr(subname, 'ESMF_GridCreate1PeriDim', rc)
       !
@@ -889,41 +757,43 @@ contains
       !
       call ESMF_GridAddCoord(grid_out, staggerloc=ESMF_STAGGERLOC_CORNER, rc=rc)
       call edyn_esmf_chkerr(subname, 'ESMF_GridAddCoord', rc)
-      !
-      ! Get pointer and set geo grid longitude coordinates:
-      !
-      call ESMF_GridGetCoord(grid_out, coordDim=1, localDE=0,                 &
-           computationalLBound=lbnd, computationalUBound=ubnd,                &
-           farrayPtr=coordX, staggerloc=ESMF_STAGGERLOC_CORNER, rc=rc)
-      call edyn_esmf_chkerr(subname, 'ESMF_GridGetCoord for longitude coords', rc)
-      !
-      ! Note glon was shifted to +/-180 by sub set_geogrid (edyn_init.F90)
-      !
-      lbnd_lon = lbnd(1)
-      ubnd_lon = ubnd(1)
-      do i = lbnd_lon, ubnd_lon
-         coordX(i) = glon_corner(i)
-      end do
-      !
-      ! Get pointer and set geo grid latitude coordinates, including poles:
-      !
-      call ESMF_GridGetCoord(grid_out, coordDim=2, localDE=0,                 &
-           computationalLBound=lbnd, computationalUBound=ubnd,                &
-           farrayPtr=coordY, staggerloc=ESMF_STAGGERLOC_CORNER, rc=rc)
-      call edyn_esmf_chkerr(subname, 'ESMF_GridGetCoord for latitude coords', rc)
+      if (mytid<ntask) then
+         !
+         ! Get pointer and set geo grid longitude coordinates:
+         !
+         call ESMF_GridGetCoord(grid_out, coordDim=1, localDE=0,                 &
+              computationalLBound=lbnd, computationalUBound=ubnd,                &
+              farrayPtr=coordX, staggerloc=ESMF_STAGGERLOC_CORNER, rc=rc)
+         call edyn_esmf_chkerr(subname, 'ESMF_GridGetCoord for longitude coords', rc)
+         !
+         ! Note glon was shifted to +/-180 by sub set_geogrid (edyn_init.F90)
+         !
+         lbnd_lon = lbnd(1)
+         ubnd_lon = ubnd(1)
+         do i = lbnd_lon, ubnd_lon
+            coordX(i) = glon_corner(i)
+         end do
+         !
+         ! Get pointer and set geo grid latitude coordinates, including poles:
+         !
+         call ESMF_GridGetCoord(grid_out, coordDim=2, localDE=0,                 &
+              computationalLBound=lbnd, computationalUBound=ubnd,                &
+              farrayPtr=coordY, staggerloc=ESMF_STAGGERLOC_CORNER, rc=rc)
+         call edyn_esmf_chkerr(subname, 'ESMF_GridGetCoord for latitude coords', rc)
 
-      lbnd_lat = lbnd(1)
-      ubnd_lat = ubnd(1)
-      do i = lbnd_lat, ubnd_lat
-         coordY(i) = glat_corner(i)
-      end do
+         lbnd_lat = lbnd(1)
+         ubnd_lat = ubnd(1)
+         do i = lbnd_lat, ubnd_lat
+            coordY(i) = glat_corner(i)
+         end do
 
-      if (debug .and. masterproc) then
-         write(iulog,"(2a,2i4,a,2i4,a,2i4,a,2i4)") 'Created ESMF geo2phys_grid:',  &
-              ' lbnd,ubnd_lon=', lbnd_lon, ubnd_lon, ' lon0,1=', lon0, lon1,  &
-              ' lbnd,ubnd_lat=', lbnd_lat, ubnd_lat, ' lat0,1=', lat0, lat1
-         write(iulog,"('coordX for geo2phys grid = ',/,(8f10.4))") coordX
-         write(iulog,"('coordY for geo2phys grid = ',/,(8f10.4))") coordY
+         if (debug .and. masterproc) then
+            write(iulog,"(2a,2i4,a,2i4,a,2i4,a,2i4)") 'Created ESMF geo2phys_grid:',  &
+                 ' lbnd,ubnd_lon=', lbnd_lon, ubnd_lon, ' lon0,1=', lon0, lon1,  &
+                 ' lbnd,ubnd_lat=', lbnd_lat, ubnd_lat, ' lat0,1=', lat0, lat1
+            write(iulog,"('coordX for geo2phys grid = ',/,(8f10.4))") coordX
+            write(iulog,"('coordY for geo2phys grid = ',/,(8f10.4))") coordY
+         end if
       end if
    end subroutine create_geo2phys_grid
    !-----------------------------------------------------------------------
@@ -1117,21 +987,22 @@ contains
       ! fptr is esmf      pointer (i,j,k) to 3d field, set by this subroutine
       real(ESMF_KIND_R8), pointer     :: fptr(:,:,:)
       character(len=*),   parameter   :: subname = 'edyn_esmf_set3d_geo'
+      if (mytid<ntask) then
+         !
+         ! Get and set pointer to the field:
+         call ESMF_FieldGet(field, localDe=0, farrayPtr=fptr,        &
+              computationalLBound=lbnd, computationalUBound=ubnd, rc=rc)
+         call edyn_esmf_chkerr(subname, 'ESMF_FieldGet field', rc)
 
-      !
-      ! Get and set pointer to the field:
-      call ESMF_FieldGet(field, localDe=0, farrayPtr=fptr,        &
-           computationalLBound=lbnd, computationalUBound=ubnd, rc=rc)
-      call edyn_esmf_chkerr(subname, 'ESMF_FieldGet field', rc)
-
-      fptr = nan
-      do k = lbnd(3),ubnd(3)
-         do j = lbnd(2),ubnd(2)
-            do i = lbnd(1),ubnd(1)
-               fptr(i,j,k) = fdata(i,j,k)
+         fptr = nan
+         do k = lbnd(3),ubnd(3)
+            do j = lbnd(2),ubnd(2)
+               do i = lbnd(1),ubnd(1)
+                  fptr(i,j,k) = fdata(i,j,k)
+               end do
             end do
          end do
-      end do
+      endif
 
    end subroutine edyn_esmf_set3d_geo
    !-----------------------------------------------------------------------
@@ -1152,21 +1023,22 @@ contains
      real(ESMF_KIND_R8), pointer   :: fptr(:,:)
      integer                       :: lbnd(2), ubnd(2)
      character(len=*),   parameter :: subname = 'edyn_esmf_set2d_geo'
-     !
-     ! Get pointer to the field:
-     call ESMF_FieldGet(field, localDe=0, farrayPtr=fptr,                    &
-          computationalLBound=lbnd, computationalUBound=ubnd, rc=rc)
-     call edyn_esmf_chkerr(subname, 'ESMF_FieldGet', rc)
-     !
-     fptr(:,:) = nan
-     !
-     ! Set interior latitudes (excluding poles):
-     do j = lbnd(2), ubnd(2)
-        do i = lbnd(1), ubnd(1)
-           fptr(i,j) = fdata(i,j)
+     if (mytid<ntask) then
+        !
+        ! Get pointer to the field:
+        call ESMF_FieldGet(field, localDe=0, farrayPtr=fptr,                    &
+             computationalLBound=lbnd, computationalUBound=ubnd, rc=rc)
+        call edyn_esmf_chkerr(subname, 'ESMF_FieldGet', rc)
+        !
+        fptr(:,:) = nan
+        !
+        ! Set interior latitudes (excluding poles):
+        do j = lbnd(2), ubnd(2)
+           do i = lbnd(1), ubnd(1)
+              fptr(i,j) = fdata(i,j)
+           end do
         end do
-     end do
-
+     endif
    end subroutine edyn_esmf_set2d_geo
 
    !-----------------------------------------------------------------------
@@ -1190,22 +1062,25 @@ contains
      ! fptr is esmf      pointer (i,j,k) to 3d field, set by this subroutine
      real(ESMF_KIND_R8), pointer   :: fptr(:,:,:)
      character(len=*),   parameter :: subname = 'edyn_esmf_set3d_mag'
+     if (mytid<ntask) then
 
-     call ESMF_FieldGet(field, localDe=0, farrayPtr=fptr,              &
-          computationalLBound=lbnd, computationalUBound=ubnd, rc=rc)
-     call edyn_esmf_chkerr(subname, 'ESMF_FieldGet', rc)
-     !
-     fptr(:,:,:) = nan
-     !
-     ! Set ESMF pointer:
-     !
-     do k = lbnd(3), ubnd(3)
-        do j = lbnd(2), ubnd(2)
-           do i = lbnd(1), ubnd(1)
-              fptr(i,j,k) = fdata(i,j,k)
+        call ESMF_FieldGet(field, localDe=0, farrayPtr=fptr,              &
+             computationalLBound=lbnd, computationalUBound=ubnd, rc=rc)
+        call edyn_esmf_chkerr(subname, 'ESMF_FieldGet', rc)
+        !
+        fptr(:,:,:) = nan
+        !
+        ! Set ESMF pointer:
+        !
+        do k = lbnd(3), ubnd(3)
+           do j = lbnd(2), ubnd(2)
+              do i = lbnd(1), ubnd(1)
+                 fptr(i,j,k) = fdata(i,j,k)
+              end do
            end do
         end do
-     end do
+     endif
+
    end subroutine edyn_esmf_set3d_mag
    !-----------------------------------------------------------------------
 
@@ -1229,22 +1104,25 @@ contains
      ! fptr is esmf      pointer (i,j,k) to 2d field, set by this subroutine
      real(ESMF_KIND_R8), pointer   :: fptr(:,:)
      character(len=*),   parameter :: subname = 'edyn_esmf_set2d_mag'
-     !
-     call ESMF_FieldGet(field, localDe=0, farrayPtr=fptr,             &
-          computationalLBound=lbnd, computationalUBound=ubnd, rc=rc)
-     call edyn_esmf_chkerr(subname, 'ESMF_FieldGet', rc)
-     !
-     fptr(:,:) = nan
-     !
-     ! Set ESMF pointer:
-     !
-     do j = lbnd(2), ubnd(2)      ! lat
-        do i = lbnd(1), ubnd(1)    ! lon
-           fptr(i,j) = fdata(i,j)
-        end do   ! mlon
-     end do     ! mlat
-     !
-  end subroutine edyn_esmf_set2d_mag
+     if (mytid<ntask) then
+        !
+        call ESMF_FieldGet(field, localDe=0, farrayPtr=fptr,             &
+             computationalLBound=lbnd, computationalUBound=ubnd, rc=rc)
+        call edyn_esmf_chkerr(subname, 'ESMF_FieldGet', rc)
+        !
+        fptr(:,:) = nan
+        !
+        ! Set ESMF pointer:
+        !
+        do j = lbnd(2), ubnd(2)
+           do i = lbnd(1), ubnd(1)
+              fptr(i,j) = fdata(i,j)
+           end do
+        end do
+        !
+     endif
+
+   end subroutine edyn_esmf_set2d_mag
   !-----------------------------------------------------------------------
   subroutine edyn_esmf_set3d_phys(field, fdata, ilev0, ilev1, icol0, icol1)
     !
@@ -1332,14 +1210,39 @@ contains
     integer                     :: rc, lbnd(3), ubnd(3)
     character(len=*), parameter :: subname = 'edyn_esmf_get_3dfield'
 
-    call ESMF_FieldGet(field, localDe=0, farrayPtr=fptr,                   &
-         computationalLBound=lbnd, computationalUBound=ubnd, rc=rc)
-    call edyn_esmf_chkerr(subname, 'ESMF_FieldGet', rc)
+    if (mytid<ntask) then
+       call ESMF_FieldGet(field, localDe=0, farrayPtr=fptr,                   &
+            computationalLBound=lbnd, computationalUBound=ubnd, rc=rc)
+       call edyn_esmf_chkerr(subname, 'ESMF_FieldGet', rc)
 
-    data(:,:,:) = fptr(:,:,:)
+       data(:,:,:) = fptr(:,:,:)
+    endif
+
   end subroutine edyn_esmf_get_3dfield
   !-----------------------------------------------------------------------
   subroutine edyn_esmf_get_2dfield(field, data, i0,i1,j0,j1 )
+    !
+    ! Get pointer to 2d esmf field (i,j):
+    !
+    ! Args:
+    integer,           intent(in)  :: i0,i1,j0,j1
+    type(ESMF_field),  intent(in)  :: field
+    real(r8),          intent(out) :: data(i0:i1,j0:j1)
+    !
+    ! Local:
+    real(r8), pointer :: fptr(:,:)
+    integer :: rc
+    character(len=*),   parameter :: subname = 'edyn_esmf_get_2dfield'
+    if (mytid<ntask) then
+
+       call ESMF_FieldGet(field, localDe=0, farrayPtr=fptr, rc=rc)
+       call edyn_esmf_chkerr(subname, 'ESMF_FieldGet', rc)
+
+       data(:,:) = fptr(:,:)
+    endif
+  end subroutine edyn_esmf_get_2dfield
+  !-----------------------------------------------------------------------
+  subroutine edyn_esmf_get_2dphysfield(field, data, i0,i1,j0,j1 )
     !
     ! Get pointer to 2d esmf field (i,j):
     !
@@ -1358,7 +1261,7 @@ contains
 
     data(:,:) = fptr(:,:)
 
-  end subroutine edyn_esmf_get_2dfield
+  end subroutine edyn_esmf_get_2dphysfield
   !-----------------------------------------------------------------------
   subroutine edyn_esmf_get_1dfield(field, data, i0,i1 )
     !
@@ -1539,12 +1442,6 @@ contains
      end if
    end subroutine edyn_esmf_regrid_mag2geo
 
-   !-----------------------------------------------------------------------
-
-   subroutine edyn_esmf_update_flag( flag )
-     logical, intent(in) :: flag
-     edyn_esmf_update_step=flag
-   end subroutine edyn_esmf_update_flag
 
    !-----------------------------------------------------------------------
 
@@ -1554,12 +1451,26 @@ contains
       ! Dummy argument
       type(ESMF_Mesh), intent(in) :: new_phys_mesh
 
+      integer :: petcnt, i,j
+
       ! Ignore return code here as all we need is an attempt to reclaim memory
       if (ESMF_MeshIsCreated(phys_mesh)) then
          call ESMF_MeshDestroy(phys_mesh)
       end if
 
       phys_mesh = new_phys_mesh
+
+      if (.not. allocated(petmap)) then
+         allocate(petmap(ntaski,ntaskj,1))
+      endif
+      
+      petcnt = 0
+      do j = 1,ntaskj
+         do i = 1,ntaski
+            petmap(i,j,1) = petcnt
+            petcnt = petcnt+1
+         end do
+      end do
 
    end subroutine edyn_esmf_update_phys_mesh
 

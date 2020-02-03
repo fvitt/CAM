@@ -68,8 +68,8 @@ module edyn_mpi
         nlon_geo,        & ! size of geo lon dimension
         nlat_geo,        & ! size of geo lat dimension
         nlev_geo,        & !
-        lon0, lon1,      & ! first and last lons for each task
-        lat0, lat1,      & ! first and last lats for each task
+        lon0=1, lon1=0,      & ! first and last lons for each task
+        lat0=1, lat1=0,      & ! first and last lats for each task
         lev0, lev1,      & ! first and last levs for each task (not distributed)
         ntaski,          & ! number of tasks in lon dimension
         ntaskj,          & ! number of tasks in lat dimension
@@ -85,9 +85,9 @@ module edyn_mpi
         nmagtaskj,   & ! number of tasks in mag lat dimension
         magtidi,     & ! i coord for current task in task table
         magtidj,     & ! j coord for current task in task table
-        mlat0,mlat1, & ! first and last mag lats for each task
-        mlon0,mlon1, & ! first and last mag lons for each task
-        omlon1,      & ! last mag lons for each task to remove periodic point from outputs
+        mlat0=1,mlat1=0, & ! first and last mag lats for each task
+        mlon0=1,mlon1=0, & ! first and last mag lons for each task
+        omlon1=0,      & ! last mag lons for each task to remove periodic point from outputs
         mlev0,mlev1, & ! first and last mag levs (not distributed)
         mxmaglon,    & ! max number of mag subdomain lon points among all tasks
         mxmaglat       ! max number of mag subdomain lat points among all tasks
@@ -105,20 +105,20 @@ module edyn_mpi
       integer :: mytid       ! task id
       !
       ! Geographic subdomains in task structure:
-      integer :: mytidi      ! task coord in longitude dimension of task table
-      integer :: mytidj      ! task coord in latitude  dimension of task table
-      integer :: nlats       ! number of latitudes  calculated by this task
-      integer :: nlons       ! number of longitudes calculated by this task
-      integer :: lat0, lat1  ! first and last latitude  indices
-      integer :: lon0, lon1  ! first and last longitude indices
+      integer :: mytidi = -1      ! task coord in longitude dimension of task table
+      integer :: mytidj = -1      ! task coord in latitude  dimension of task table
+      integer :: nlats = 0       ! number of latitudes  calculated by this task
+      integer :: nlons = 0       ! number of longitudes calculated by this task
+      integer :: lat0 = 1, lat1 = 0  ! first and last latitude  indices
+      integer :: lon0 = 1, lon1 = 0  ! first and last longitude indices
       !
       ! Magnetic subdomains in task structure:
-      integer :: magtidi     ! task coord in mag longitude dimension of task table
-      integer :: magtidj     ! task coord in mag latitude  dimension of task table
-      integer :: nmaglats    ! number of mag latitudes  calculated by this task
-      integer :: nmaglons    ! number of mag longitudes calculated by this task
-      integer :: mlat0,mlat1 ! first and last latitude  indices
-      integer :: mlon0,mlon1 ! first and last longitude indices
+      integer :: magtidi = -1     ! task coord in mag longitude dimension of task table
+      integer :: magtidj = -1     ! task coord in mag latitude  dimension of task table
+      integer :: nmaglats = 0    ! number of mag latitudes  calculated by this task
+      integer :: nmaglons = 0    ! number of mag longitudes calculated by this task
+      integer :: mlat0 = 1,mlat1 = 0 ! first and last latitude  indices
+      integer :: mlon0 = 1,mlon1 = 0 ! first and last longitude indices
    end type task
    !
    ! type(task) :: tasks(ntask) will be made available to all tasks
@@ -153,29 +153,34 @@ module edyn_mpi
 
 contains
    !-----------------------------------------------------------------------
-   subroutine mp_init(mpi_comm, nlon_geo_in, nlat_geo_in, nlev_geo_in)
+   subroutine mp_init(mpi_comm, ionos_npes, nlon_geo_in, nlat_geo_in, nlev_geo_in)
       !
       ! Initialize MPI, and allocate task table.
       !
-      integer, intent(in) :: mpi_comm
+      integer, intent(in) :: mpi_comm 
+      integer, intent(in) :: ionos_npes
       integer, intent(in) :: nlon_geo_in
       integer, intent(in) :: nlat_geo_in
       integer, intent(in) :: nlev_geo_in
 
-      integer :: ier
+      integer :: ierr
+      integer :: color, npes
 
-      mpi_comm_edyn = mpi_comm
       nlon_geo = nlon_geo_in
       nlat_geo = nlat_geo_in
       nlev_geo = nlev_geo_in
+      ntask = ionos_npes
 
-      call mpi_comm_size(mpi_comm_edyn, ntask,ier)
-      call mpi_comm_rank(mpi_comm_edyn, mytid,ier)
+      call mpi_comm_size(mpi_comm, npes, ierr)
+      call mpi_comm_rank(mpi_comm, mytid, ierr)
+      color = mytid/ionos_npes
+      call mpi_comm_split(mpi_comm, color, mytid, mpi_comm_edyn, ierr)
+
       !
       ! Allocate array of task structures:
       !
-      allocate(tasks(0:ntask-1), stat=ier)
-      if (ier /= 0) then
+      allocate(tasks(0:npes-1), stat=ierr)
+      if (ierr /= 0) then
          write(iulog,"('>>> mp_init: error allocating tasks(',i3,')')") ntask
          call endrun('edyn_mpi mp_init')
       endif
@@ -195,6 +200,7 @@ contains
       !
       ! Local:
       integer :: i, j, n, irank, ier, tidrow, nj, ni
+
       !
       ! Define all task structures with current task values
       ! (redundant for alltoall):
@@ -217,6 +223,8 @@ contains
       itask_table_geo(:,:) = MPI_PROC_NULL
 
       irank = 0
+      mytidi = -1
+      mytidj = -1
       do j =  0, ntaskj-1
          do i = 0, ntaski-1
             itask_table_geo(i,j) = irank
@@ -280,19 +288,22 @@ contains
       !
       ! All tasks must have at least 4 longitudes:
       !
-      do n=0,ntask-1
+      if (mytid < ntask) then
+         do n=0,ntask-1
 
-         if (debug) then
-            write(iulog,"('mp_distribute_geo: n=',i3,' tasks(n)%nlons=',i3,' tasks(n)%nlats=',i3)") &
-                 n,tasks(n)%nlons,tasks(n)%nlats
-         endif
+            if (debug) then
+               write(iulog,"('mp_distribute_geo: n=',i3,' tasks(n)%nlons=',i3,' tasks(n)%nlats=',i3)") &
+                    n,tasks(n)%nlons,tasks(n)%nlats
+            endif
 
-         if (tasks(n)%nlons < 4) then
-            write(iulog,"('>>> mp_distribute_geo: each task must carry at least 4 longitudes. task=',i4,' nlons=',i4)") &
-                 n,tasks(n)%nlons
-            call endrun('edyn_mpi: nlons per task')
-         endif
-      enddo
+            if (tasks(n)%nlons < 4) then
+               write(iulog,"('>>> mp_distribute_geo: each task must carry at least 4 longitudes. task=',i4,' nlons=',i4)") &
+                    n,tasks(n)%nlons
+               call endrun('edyn_mpi: nlons per task')
+            endif
+         enddo
+      endif
+   
       !
       ! Create sub-communicators for each task row (used by mp_geopole_3d):
       !
@@ -323,7 +334,6 @@ contains
       character(len=*), parameter :: subname = 'mp_distribute_mag'
       !
       ! Number of tasks in mag lon,lat same as geo grid:
-      ! Also true for WACCM processor distribution.
       !
       nmagtaski = ntaski
       nmagtaskj = ntaskj
@@ -333,109 +343,110 @@ contains
       nmlath = nmlath_in
       nmlonp1 = nmlonp1_in
       nmlev = nmlev_in
+      if (mytid<ntask) then
+         !
+         ! Vertical dimension is not distributed:
+         mlev0 = 1
+         mlev1 = nmlev
+         !
+         ! Allocate and set 2d table of tasks:
+         allocate(itask_table_mag(-1:nmagtaski,-1:nmagtaskj),stat=ier)
+         if (ier /= 0) then
+            write(errmsg, "(a,2(a,i0))") subname,                                &
+                 '>>> Error allocating itable: nmagtaski = ', nmagtaski,         &
+                 ', j = ', nmagtaskj
+            if (masterproc) then
+               write(iulog, errmsg)
+            end if
+            call endrun(errmsg)
+         endif
+         itask_table_mag(:,:) = MPI_PROC_NULL
+         irank = 0
+         do j = 0, nmagtaskj-1
+            do i = 0, nmagtaski-1
+               itask_table_mag(i,j) = irank
+               if (mytid == irank) then
+                  magtidi = i
+                  magtidj = j
+               endif
+               irank = irank + 1
+            end do
+            !
+            ! Tasks are periodic in longitude:
+            !
+            itask_table_mag(-1,j) = itask_table_mag(nmagtaski-1,j)
+            itask_table_mag(nmagtaski,j) = itask_table_mag(0,j)
+         end do
 
-      !
-      ! Vertical dimension is not distributed:
-      mlev0 = 1
-      mlev1 = nmlev
-      !
-      ! Allocate and set 2d table of tasks:
-      allocate(itask_table_mag(-1:nmagtaski,-1:nmagtaskj),stat=ier)
-      if (ier /= 0) then
-         write(errmsg, "(a,2(a,i0))") subname,                                &
-              '>>> Error allocating itable: nmagtaski = ', nmagtaski,         &
-              ', j = ', nmagtaskj
-         if (masterproc) then
-            write(iulog, errmsg)
+         if (debug .and. masterproc) then
+            !
+            ! Print table to stdout:
+            write(iulog,"(/,a,/a,i3,a,i2,a,i2,' Mag Task Table:')") subname,     &
+                 'ntask=',ntask,' nmagtaski=',nmagtaski,' nmagtaskj=',nmagtaskj
+            do j = -1, nmagtaskj
+               write(iulog,"('j = ',i3,', itask_table_mag(:,j) = ',100i3)")      &
+                    j, itask_table_mag(:,j)
+            end do
          end if
-         call endrun(errmsg)
-      endif
-      itask_table_mag(:,:) = MPI_PROC_NULL
-      irank = 0
-      do j = 0, nmagtaskj-1
-         do i = 0, nmagtaski-1
-            itask_table_mag(i,j) = irank
-            if (mytid == irank) then
-               magtidi = i
-               magtidj = j
-            endif
-            irank = irank + 1
+         !
+         ! Calculate start and end indices in mag lon,lat dimensions for each task:
+         !
+         call distribute_1d(1, nmlonp1, nmagtaski, magtidi, mlon0, mlon1)
+         call distribute_1d(1, nmlat,   nmagtaskj, magtidj, mlat0, mlat1)
+
+         omlon1 = mlon1
+         if (omlon1 == nmlonp1) then
+            omlon1 = omlon1-1
+         end if
+
+         nj = mlat1 - mlat0 + 1 ! number of mag latitudes for this task
+         ni = mlon1 - mlon0 + 1 ! number of mag longitudes for this task
+         ncells = nj * ni       ! total number of grid cells for this task
+
+         if (debug .and. masterproc) then
+            !
+            ! Report my stats to stdout:
+            write(iulog,"(/,a,i3,a,2i3,a,2i3,a,i2,2a,2i3,a,i2,a,i4)")            &
+                 'mytid = ',mytid, ', magtidi,j = ', magtidi, magtidj,           &
+                 ', mlat0,1 = ', mlat0, mlat1, ' (', nj, ')',                    &
+                 ', mlon0,1 = ', mlon0, mlon1, ' (', ni, ') ncells = ', ncells
+         end if
+         !
+         ! Define all task structures with current task values
+         ! (redundant for alltoall):
+         !
+         do n=0,ntask-1
+            tasks(n)%magtidi = magtidi
+            tasks(n)%magtidj = magtidj
+            tasks(n)%nmaglats  = nj
+            tasks(n)%nmaglons  = ni
+            tasks(n)%mlat0   = mlat0
+            tasks(n)%mlat1   = mlat1
+            tasks(n)%mlon0   = mlon0
+            tasks(n)%mlon1   = mlon1
+         enddo
+         !
+         ! All tasks must have at least 4 longitudes:
+         do n = 0, ntask-1
+            if (tasks(n)%nmaglons < 4) then
+               write(errmsg, "(3a,i0,', nmaglons = ',i4)") '>>> ', subname,      &
+                    ': each task must carry at least 4 longitudes. task = ',     &
+                    n, tasks(n)%nmaglons
+               call endrun('edyn_mpi: nmaglons per task')
+            end if
          end do
          !
-         ! Tasks are periodic in longitude:
+         ! Create subgroup communicators for each task column:
+         ! These communicators will be used by sub mp_mag_jslot (mpi.F).
          !
-         itask_table_mag(-1,j) = itask_table_mag(nmagtaski-1,j)
-         itask_table_mag(nmagtaski,j) = itask_table_mag(0,j)
-      end do
+         call mpi_comm_split(mpi_comm_edyn, mod(mytid,nmagtaski), mytid,         &
+              cols_comm, ier)
+         call MPI_Comm_rank(cols_comm,tidcol,ier)
 
-      if (debug .and. masterproc) then
-         !
-         ! Print table to stdout:
-         write(iulog,"(/,a,/a,i3,a,i2,a,i2,' Mag Task Table:')") subname,     &
-              'ntask=',ntask,' nmagtaski=',nmagtaski,' nmagtaskj=',nmagtaskj
-         do j = -1, nmagtaskj
-            write(iulog,"('j = ',i3,', itask_table_mag(:,j) = ',100i3)")      &
-                 j, itask_table_mag(:,j)
-         end do
-      end if
-      !
-      ! Calculate start and end indices in mag lon,lat dimensions for each task:
-      !
-      call distribute_1d(1, nmlonp1, nmagtaski, magtidi, mlon0, mlon1)
-      call distribute_1d(1, nmlat,   nmagtaskj, magtidj, mlat0, mlat1)
-
-      omlon1 = mlon1
-      if (omlon1 == nmlonp1) then
-         omlon1 = omlon1-1
-      end if
-
-      nj = mlat1 - mlat0 + 1 ! number of mag latitudes for this task
-      ni = mlon1 - mlon0 + 1 ! number of mag longitudes for this task
-      ncells = nj * ni       ! total number of grid cells for this task
-
-      if (debug .and. masterproc) then
-         !
-         ! Report my stats to stdout:
-         write(iulog,"(/,a,i3,a,2i3,a,2i3,a,i2,2a,2i3,a,i2,a,i4)")            &
-              'mytid = ',mytid, ', magtidi,j = ', magtidi, magtidj,           &
-              ', mlat0,1 = ', mlat0, mlat1, ' (', nj, ')',                    &
-              ', mlon0,1 = ', mlon0, mlon1, ' (', ni, ') ncells = ', ncells
-      end if
-      !
-      ! Define all task structures with current task values
-      ! (redundant for alltoall):
-      !
-      do n=0,ntask-1
-         tasks(n)%magtidi = magtidi
-         tasks(n)%magtidj = magtidj
-         tasks(n)%nmaglats  = nj
-         tasks(n)%nmaglons  = ni
-         tasks(n)%mlat0   = mlat0
-         tasks(n)%mlat1   = mlat1
-         tasks(n)%mlon0   = mlon0
-         tasks(n)%mlon1   = mlon1
-      enddo
-      !
-      ! All tasks must have at least 4 longitudes:
-      do n = 0, ntask-1
-         if (tasks(n)%nmaglons < 4) then
-            write(errmsg, "(3a,i0,', nmaglons = ',i4)") '>>> ', subname,      &
-                 ': each task must carry at least 4 longitudes. task = ',     &
-                 n, tasks(n)%nmaglons
-            call endrun('edyn_mpi: nmaglons per task')
+         if (debug .and. masterproc) then
+            write(iulog,"(2a,i3,' mod(mytid,nmagtaski)=',i3,' tidcol=',i3)")     &
+                 subname, ': nmagtaski = ', nmagtaski, mod(mytid,nmagtaski), tidcol
          end if
-      end do
-      !
-      ! Create subgroup communicators for each task column:
-      ! These communicators will be used by sub mp_mag_jslot (mpi.F).
-      !
-      call mpi_comm_split(mpi_comm_edyn, mod(mytid,nmagtaski), mytid,         &
-           cols_comm, ier)
-      call MPI_Comm_rank(cols_comm,tidcol,ier)
-
-      if (debug .and. masterproc) then
-         write(iulog,"(2a,i3,' mod(mytid,nmagtaski)=',i3,' tidcol=',i3)")     &
-              subname, ': nmagtaski = ', nmagtaski, mod(mytid,nmagtaski), tidcol
       end if
 
    end subroutine mp_distribute_mag
@@ -460,9 +471,10 @@ contains
       if (iremain > myrank) iend = iend+1
    end subroutine distribute_1d
    !-----------------------------------------------------------------------
-   subroutine mp_exchange_tasks(iprint, gmlat)
+   subroutine mp_exchange_tasks(mpi_comm, iprint, gmlat)
       !
       ! Args:
+      integer,  intent(in) :: mpi_comm 
       integer,  intent(in) :: iprint
       real(r8), intent(in) :: gmlat(:)
       !
@@ -476,19 +488,23 @@ contains
       integer, allocatable :: &
            itasks_send(:,:), & ! send buffer
            itasks_recv(:,:)    ! send buffer
+      integer :: npes
+      
+      call mpi_comm_size(mpi_comm, npes, ier)
+      
       !
       ! Pack tasks(mytid) into itasks_send:
-      allocate(itasks_send(len_task_type,0:ntask-1),stat=ier)
+      allocate(itasks_send(len_task_type,0:npes-1),stat=ier)
       if (ier /= 0) then
          write(iulog,"(i4,i4)") '>>> Error allocating itasks_send: len_task_type=',&
-              len_task_type,' ntask=',ntask
+              len_task_type,' npes=',npes
       endif
-      allocate(itasks_recv(len_task_type,0:ntask-1),stat=ier)
+      allocate(itasks_recv(len_task_type,0:npes-1),stat=ier)
       if (ier /= 0) then
          write(iulog,"(i4,i4)") '>>> Error allocating itasks_recv: len_task_type=',&
-              len_task_type,' ntask=',ntask
+              len_task_type,' npes=',npes
       endif
-      do n=0,ntask-1
+      do n=0,npes-1
          itasks_send(1,n) = tasks(mytid)%mytid
 
          itasks_send(2,n) = tasks(mytid)%mytidi
@@ -513,13 +529,13 @@ contains
       ! Send itasks_send and receive itasks_recv:
       call mpi_alltoall(itasks_send,len_task_type,MPI_INTEGER,&
            itasks_recv,len_task_type,MPI_INTEGER,&
-           mpi_comm_edyn,ier)
+           mpi_comm,ier)
       if (ier /= 0) &
            call handle_mpi_err(ier,'edyn_mpi: mpi_alltoall to send/recv itasks')
       !
       ! Unpack itasks_recv into tasks(n)
       !
-      do n=0,ntask-1
+      do n=0,npes-1
          tasks(n)%mytid  = itasks_recv(1,n)
 
          tasks(n)%mytidi = itasks_recv(2,n)
@@ -576,13 +592,13 @@ contains
       !
       ! mxlon / mxlat is the maximum number of lons / lats owned by any task:
       mxlon = -9999
-      do n= 0, ntask-1
+      do n= 0, npes-1
          if (tasks(n)%nlons > mxlon) then
             mxlon = tasks(n)%nlons
          end if
       end do
       mxlat = -9999
-      do n = 0, ntask-1
+      do n = 0, npes-1
          if (tasks(n)%nlats > mxlat) then
             mxlat = tasks(n)%nlats
          end if
@@ -590,13 +606,13 @@ contains
       !
       ! mxmaglon / mxmaglat is max number of mag lons / lats owned by any task:
       mxmaglon = -9999
-      do n = 0, ntask-1
+      do n = 0, npes-1
          if (tasks(n)%nmaglons > mxmaglon) then
             mxmaglon = tasks(n)%nmaglons
          end if
       end do
       mxmaglat = -9999
-      do n = 0, ntask-1
+      do n = 0, npes-1
          if (tasks(n)%nmaglats > mxmaglat) then
             mxmaglat = tasks(n)%nmaglats
          end if

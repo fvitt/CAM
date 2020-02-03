@@ -86,7 +86,7 @@ contains
     use solar_wind_data,  only: byimf=>solar_wind_byimf
     use solar_wind_data,  only: swvel=>solar_wind_swvel
     use solar_wind_data,  only: swden=>solar_wind_swden
-    use edyn_mpi,         only: mlat0, mlat1, mlon0, mlon1, omlon1
+    use edyn_mpi,         only: mlat0, mlat1, mlon0, mlon1, omlon1, ntask, mytid
     use edyn_maggrid,     only: nmlonp1, nmlat
     use regridder,  only: regrid_mag2phys_2d
 
@@ -126,29 +126,29 @@ contains
 
     ! update kp -- phys timestep init happens later ...
     call solar_parms_advance()
-
-    !
-    ! Get sun's longitude at latitudes (geographic):
-    !
-    call sunloc(iday, secs, sunlon) ! sunlon is returned
-    !
-    ! Get high-latitude convection from empirical model (heelis or weimer).
-    ! High-latitude potential phihm (edyn_solve) is defined for edynamo.
-    !
-    if (trim(highlat_potential_model) == 'heelis') then
-       call heelis_model(sunlon) ! heelis.F90
-    elseif (trim(highlat_potential_model) == 'weimer') then
+    if ( mytid<ntask ) then
        !
-       call weimer05(byimf, bzimf, swvel, swden, sunlon)
-       if (debug .and. masterproc) then
-          write(iulog, "(a,2f8.2,a,2f8.2)")                                   &
-               'dpie_coupling call weimer05: byimf,bzimf=',                   &
-               byimf, bzimf, ' swvel,swden=', swvel, swden
+       ! Get sun's longitude at latitudes (geographic):
+       !
+       call sunloc(iday, secs, sunlon) ! sunlon is returned
+       !
+       ! Get high-latitude convection from empirical model (heelis or weimer).
+       ! High-latitude potential phihm (edyn_solve) is defined for edynamo.
+       !
+       if (trim(highlat_potential_model) == 'heelis') then
+          call heelis_model(sunlon) ! heelis.F90
+       elseif (trim(highlat_potential_model) == 'weimer') then
+          !
+          call weimer05(byimf, bzimf, swvel, swden, sunlon)
+          if (debug .and. masterproc) then
+             write(iulog, "(a,2f8.2,a,2f8.2)")                                   &
+                  'dpie_coupling call weimer05: byimf,bzimf=',                   &
+                  byimf, bzimf, ' swvel,swden=', swvel, swden
+          end if
+       else
+          call endrun('d_pie_epotent: Unknown highlat_potential_model')
        end if
-    else
-       call endrun('d_pie_epotent: Unknown highlat_potential_model')
-    end if
-
+    endif
     if (present(efx_phys)) then
        ! the presence of efx_phys indicate the user wishes to use prescribed potential
        if (.not. present(kev_phys)) then
@@ -185,10 +185,12 @@ contains
        call outfld_phys1d( 'amie_efxg', efx_phys )
        call outfld_phys1d( 'amie_kevg', kev_phys )
     end if
+    if ( mytid<ntask ) then
 
-    call calc_pfrac(sunlon, pfrac) ! returns pfrac for dynamo (edyn_solve)
+       call calc_pfrac(sunlon, pfrac) ! returns pfrac for dynamo (edyn_solve)
 
-    crit_out(:) = crit(:)*rtd ! degrees
+       crit_out(:) = crit(:)*rtd ! degrees
+    endif
   end subroutine d_pie_epotent
 
   !-----------------------------------------------------------------------
@@ -212,7 +214,7 @@ contains
      use edyn_mpi,      only: mp_geo_halos, mp_pole_halos
      ! Mag grid distribution info
      use edyn_mpi,      only: mlon0, mlon1, mlat0, mlat1, mlev0, mlev1
-     use edyn_mpi,      only: lon0, lon1, lat0, lat1, lev0, lev1
+     use edyn_mpi,      only: lon0, lon1, lat0, lat1, lev0, lev1, ntask, mytid
      use oplus,         only: oplus_xport
      use ref_pres,      only: pref_mid
      use regridder,  only: regrid_phys2geo_3d, regrid_phys2mag_3d, regrid_geo2phys_3d
@@ -552,14 +554,16 @@ contains
        call regrid_phys2mag_3d( sigma_hall, hal_mag, plev, cols, cole )
        call regrid_phys2mag_3d( zgi, zpot_mag, plev, cols, cole )
 
-       zpot_mag_in(:,:,mlev0:mlev1) = zpot_mag(:,:,mlev1:mlev0:-1) * 100._r8 ! m -> cm
-       ped_mag_in(:,:,mlev0:mlev1) = ped_mag(:,:,mlev1:mlev0:-1)
-       hal_mag_in(:,:,mlev0:mlev1) = hal_mag(:,:,mlev1:mlev0:-1)
+       if (mytid<ntask) then
+          zpot_mag_in(:,:,mlev0:mlev1) = zpot_mag(:,:,mlev1:mlev0:-1) * 100._r8 ! m -> cm
+          ped_mag_in(:,:,mlev0:mlev1) = ped_mag(:,:,mlev1:mlev0:-1)
+          hal_mag_in(:,:,mlev0:mlev1) = hal_mag(:,:,mlev1:mlev0:-1)
 
-       call  dynamo( zpot_mag_in, ped_mag_in, hal_mag_in, adotv1_mag, adotv2_mag, adota1_mag, &
-                     adota2_mag, a1dta2_mag, be3_mag, sini_mag,  &
-                     zpot_in, ui_in, vi_in, wi_in, &
-                     lon0,lon1, lat0,lat1, lev0,lev1, do_integrals )
+          call  dynamo( zpot_mag_in, ped_mag_in, hal_mag_in, adotv1_mag, adotv2_mag, adota1_mag, &
+               adota2_mag, a1dta2_mag, be3_mag, sini_mag,  &
+               zpot_in, ui_in, vi_in, wi_in, &
+               lon0,lon1, lat0,lat1, lev0,lev1, do_integrals )
+       endif
 
        call t_stopf ('dpie_ionos_dynamo')
 
@@ -620,102 +624,101 @@ contains
        call outfld_geo('MBAR_geo',mbar_geo)
 
        call t_startf('dpie_halo')
+       if (mytid<ntask) then
 
-       do k = 1, nlev
-          kk = nlev-k+1
-          do j = lat0, lat1
-             do i = lon0, lon1
-                halo_tn(kk,i,j)   = tn_geo(i,j,k)
-                halo_te(kk,i,j)   = te_geo(i,j,k)
-                halo_ti(kk,i,j)   = ti_geo(i,j,k)
-                halo_om(kk,i,j)   = -omega_geo(i,j,k) / pmid_geo(i,j,k) ! Pa/s -> 1/s
-                halo_o2(kk,i,j)   = o2_geo(i,j,k)
-                halo_o1(kk,i,j)   = o_geo(i,j,k)
-                halo_n2(kk,i,j)   = n2_geo(i,j,k)
-                halo_mbar(kk,i,j) = mbar_geo(i,j,k)
-                op_in(kk,i,j)     = op_geo(i,j,k) / 1.e6_r8  ! m^3 -> cm^3
-                optm1_in(kk,i,j)  = optm1_geo(i,j,k) / 1.e6_r8  ! m^3 -> cm^3
+          do k = 1, nlev
+             kk = nlev-k+1
+             do j = lat0, lat1
+                do i = lon0, lon1
+                   halo_tn(kk,i,j)   = tn_geo(i,j,k)
+                   halo_te(kk,i,j)   = te_geo(i,j,k)
+                   halo_ti(kk,i,j)   = ti_geo(i,j,k)
+                   halo_om(kk,i,j)   = -omega_geo(i,j,k) / pmid_geo(i,j,k) ! Pa/s -> 1/s
+                   halo_o2(kk,i,j)   = o2_geo(i,j,k)
+                   halo_o1(kk,i,j)   = o_geo(i,j,k)
+                   halo_n2(kk,i,j)   = n2_geo(i,j,k)
+                   halo_mbar(kk,i,j) = mbar_geo(i,j,k)
+                   op_in(kk,i,j)     = op_geo(i,j,k) / 1.e6_r8  ! m^3 -> cm^3
+                   optm1_in(kk,i,j)  = optm1_geo(i,j,k) / 1.e6_r8  ! m^3 -> cm^3
+                end do
              end do
           end do
-       end do
-       !
-       ! Define halo points on inputs:
-       ! WACCM has global longitude values at the poles (j=1,j=nlev)
-       ! (they are constant for most, except the winds.)
-       !
-       ! Set two halo points in lat,lon:
-       !
-       nfields = 10
-       allocate(ptrs(nfields), polesign(nfields))
-       ptrs(1)%ptr => halo_tn ; ptrs(2)%ptr => halo_te ; ptrs(3)%ptr => halo_ti
-       ptrs(4)%ptr => halo_un ; ptrs(5)%ptr => halo_vn ; ptrs(6)%ptr => halo_om
-       ptrs(7)%ptr => halo_o2 ; ptrs(8)%ptr => halo_o1 ; ptrs(9)%ptr => halo_n2
-       ptrs(10)%ptr => halo_mbar
+          !
+          ! Define halo points on inputs:
+          ! WACCM has global longitude values at the poles (j=1,j=nlev)
+          ! (they are constant for most, except the winds.)
+          !
+          ! Set two halo points in lat,lon:
+          !
+          nfields = 10
+          allocate(ptrs(nfields), polesign(nfields))
+          ptrs(1)%ptr => halo_tn ; ptrs(2)%ptr => halo_te ; ptrs(3)%ptr => halo_ti
+          ptrs(4)%ptr => halo_un ; ptrs(5)%ptr => halo_vn ; ptrs(6)%ptr => halo_om
+          ptrs(7)%ptr => halo_o2 ; ptrs(8)%ptr => halo_o1 ; ptrs(9)%ptr => halo_n2
+          ptrs(10)%ptr => halo_mbar
 
-       polesign = 1._r8
-       polesign(4:5) = -1._r8 ! un,vn
+          polesign = 1._r8
+          polesign(4:5) = -1._r8 ! un,vn
 
-       call mp_geo_halos(ptrs,1,nlev,lon0,lon1,lat0,lat1,nfields)
-       !
-       ! Set latitude halo points over the poles (this does not change the poles).
-       ! (the 2nd halo over the poles will not actually be used (assuming lat loops
-       !  are lat=2,plat-1), because jp1,jm1 will be the pole itself, and jp2,jm2
-       !  will be the first halo over the pole)
-       !
-       call mp_pole_halos(ptrs,1,nlev,lon0,lon1,lat0,lat1,nfields,polesign)
-       deallocate(ptrs,polesign)
-       call t_stopf('dpie_halo')
+          call mp_geo_halos(ptrs,1,nlev,lon0,lon1,lat0,lat1,nfields)
+          !
+          ! Set latitude halo points over the poles (this does not change the poles).
+          ! (the 2nd halo over the poles will not actually be used (assuming lat loops
+          !  are lat=2,plat-1), because jp1,jm1 will be the pole itself, and jp2,jm2
+          !  will be the first halo over the pole)
+          !
+          call mp_pole_halos(ptrs,1,nlev,lon0,lon1,lat0,lat1,nfields,polesign)
+          deallocate(ptrs,polesign)
+          call t_stopf('dpie_halo')
 
-       call outfld_geokij( 'OPtm1i',optm1_in, lev0,lev1, lon0,lon1, lat0,lat1 )
+          call outfld_geokij( 'OPtm1i',optm1_in, lev0,lev1, lon0,lon1, lat0,lat1 )
 
-       call t_startf('dpie_oplus_xport')
-       do isplit = 1, nspltop
+          call t_startf('dpie_oplus_xport')
+          do isplit = 1, nspltop
 
-          if (isplit > 1) then
-             op_in = op_out
-             optm1_in = optm1_out
+             if (isplit > 1) then
+                op_in = op_out
+                optm1_in = optm1_out
+             end if
+
+             call oplus_xport(halo_tn, halo_te, halo_ti, halo_un, halo_vn, halo_om, &
+                  zpot_in, halo_o2, halo_o1, halo_n2, op_in, optm1_in, &
+                  halo_mbar, ui_in, vi_in, wi_in, pmid_inv, &
+                  op_out, optm1_out, &
+                  lon0, lon1, lat0, lat1, nspltop, isplit)
+
+          end do ! isplit=1,nspltop
+          call t_stopf ('dpie_oplus_xport')
+          if (debug.and.masterproc) then
+             write(iulog,"('dpie_coupling after subcycling oplus_xport: nstep=',i8,' nspltop=',i3)") &
+                  nstep,nspltop
+             write(iulog,"('  op_out   min,max (cm^3)=',2es12.4)") minval(op_out)   ,maxval(op_out)
+             write(iulog,"(' optm1_out min,max (cm^3)=',2es12.4)") minval(optm1_out),maxval(optm1_out)
           end if
 
-          call oplus_xport(halo_tn, halo_te, halo_ti, halo_un, halo_vn, halo_om, &
-               zpot_in, halo_o2, halo_o1, halo_n2, op_in, optm1_in, &
-               halo_mbar, ui_in, vi_in, wi_in, pmid_inv, &
-               op_out, optm1_out, &
-               lon0, lon1, lat0, lat1, nspltop, isplit)
-
-       end do ! isplit=1,nspltop
-       call t_stopf ('dpie_oplus_xport')
-
-       if (debug.and.masterproc) then
-          write(iulog,"('dpie_coupling after subcycling oplus_xport: nstep=',i8,' nspltop=',i3)") &
-               nstep,nspltop
-          write(iulog,"('  op_out   min,max (cm^3)=',2es12.4)") minval(op_out)   ,maxval(op_out)
-          write(iulog,"(' optm1_out min,max (cm^3)=',2es12.4)") minval(optm1_out),maxval(optm1_out)
-       end if
-    end if ! ionos_oplus_xport
-    !
-    if (ionos_oplus_xport) then
-       call outfld_geokij( 'OPLUS', op_out, lev0,lev1, lon0,lon1, lat0,lat1 )
-       call outfld_geokij( 'OPtm1o',optm1_out, lev0,lev1, lon0,lon1, lat0,lat1 )
-       !
-       ! Pass new O+ for current and previous time step back to physics (convert from cm^3 to m^3 and back to mmr).
-       !
-       do k=1,nlev
-          kk = nlev-k+1
-          do j = lat0,lat1
-             do i = lon0,lon1
-                op_geo(i,j,k) = op_out(kk,i,j)*1.e6_r8 * rmassOp / mbar_geo(i,j,k) * &
-                               (kboltz * tn_geo(i,j,k)) / pmid_geo(i,j,k)
-                optm1_geo(i,j,k) = optm1_out(kk,i,j)*1.e6_r8 * rmassOp / mbar_geo(i,j,k) * &
-                                  (kboltz * tn_geo(i,j,k)) / pmid_geo(i,j,k)
-                ui_geo(i,j,k) = ui_in(kk,i,j)/100._r8 ! cm/s -> m/s
-                vi_geo(i,j,k) = vi_in(kk,i,j)/100._r8 ! cm/s -> m/s
-                wi_geo(i,j,k) = wi_in(kk,i,j)/100._r8 ! cm/s -> m/s
+          call outfld_geokij( 'OPLUS', op_out, lev0,lev1, lon0,lon1, lat0,lat1 )
+          call outfld_geokij( 'OPtm1o',optm1_out, lev0,lev1, lon0,lon1, lat0,lat1 )
+          !
+          ! Pass new O+ for current and previous time step back to physics (convert from cm^3 to m^3 and back to mmr).
+          !
+          do k=1,nlev
+             kk = nlev-k+1
+             do j = lat0,lat1
+                do i = lon0,lon1
+                   op_geo(i,j,k) = op_out(kk,i,j)*1.e6_r8 * rmassOp / mbar_geo(i,j,k) * &
+                        (kboltz * tn_geo(i,j,k)) / pmid_geo(i,j,k)
+                   optm1_geo(i,j,k) = optm1_out(kk,i,j)*1.e6_r8 * rmassOp / mbar_geo(i,j,k) * &
+                        (kboltz * tn_geo(i,j,k)) / pmid_geo(i,j,k)
+                   ui_geo(i,j,k) = ui_in(kk,i,j)/100._r8 ! cm/s -> m/s
+                   vi_geo(i,j,k) = vi_in(kk,i,j)/100._r8 ! cm/s -> m/s
+                   wi_geo(i,j,k) = wi_in(kk,i,j)/100._r8 ! cm/s -> m/s
+                end do
              end do
           end do
-       end do
 
-       call outfld_geo('Op_geo2',op_geo)
-       
+          call outfld_geo('Op_geo2',op_geo)
+       endif
+
        call regrid_geo2phys_3d( op_geo, opmmr, plev, cols, cole )
        call regrid_geo2phys_3d( optm1_geo, opmmrtm1, plev, cols, cole )
        call regrid_geo2phys_3d( ui_geo, ui, plev, cols, cole )

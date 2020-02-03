@@ -87,7 +87,7 @@ module edyn_geogrid
 contains
 
    !-----------------------------------------------------------------------
-   subroutine set_geogrid(nlon_g, nlat_g, nlev_in, npes_in, atm_mpicom, pres_mid_in, pres_edge_in, min_lat_pe_in)
+   subroutine set_geogrid(nlon_g, nlat_g, nlev_in, npes_in, iam, pres_mid_in, pres_edge_in, min_lat_pe_in)
       use shr_const_mod,  only: pi => shr_const_pi
       use edyn_params,    only: kbotdyn, pbotdyn
       use edyn_mpi,       only: mp_distribute_geo
@@ -99,7 +99,7 @@ contains
       integer,            intent(in) :: nlat_g        ! Global num latitudes
       integer,            intent(in) :: nlev_in       ! Num levels
       integer,            intent(in) :: npes_in
-      integer,            intent(in) :: atm_mpicom
+      integer,            intent(in) :: iam
       real(r8),           intent(in) :: pres_mid_in(:)
       real(r8),           intent(in) :: pres_edge_in(:)
       integer,  optional, intent(in) :: min_lat_pe_in ! Min # lats / PE
@@ -109,11 +109,9 @@ contains
       integer                        :: lon_beg, lon_end, lat_beg, lat_end
       integer                        :: lons_per_task, lats_per_task
       integer                        :: lons_overflow, lats_overflow
-      integer                        :: ntasks_lat, ntasks_lon, ntasks_atm
+      integer                        :: ntasks_lat, ntasks_lon
       integer                        :: task_cnt, i,j
       integer                        :: minlats_per_pe
-      integer                        :: geogrid_mpicom
-      integer                        :: iam, color
       integer                        :: ierr
       real(r8)                       :: phi
       real(r8)                       :: delta ! Coordinate spacing
@@ -212,13 +210,6 @@ contains
       ! Setup a decomposition for the geogrid
       !
       ! First, try using a 1-D latitude decomposition
-      call MPI_comm_size(atm_mpicom, ntasks_atm, ierr)
-      if (npes > ntasks_atm) then
-         call endrun('set_geogrid: npes too large for ntasks_atm')
-      else if (npes <= 0) then
-         npes = ntasks_atm ! Use all tasks by default
-      end if
-      call MPI_comm_rank(atm_mpicom, iam, ierr)
 
       do ntasks_lon = 1,nlon_g
          ntasks_lat = npes/ntasks_lon
@@ -235,16 +226,6 @@ contains
          call endrun('set_geogrid: ntasks_lat*ntasks_lon/=npes')
       endif
 
-      ! Create the geogrid communicator
-      color = iam / (ntasks_lat * ntasks_lon)
-      call MPI_comm_split(atm_mpicom, color, iam, geogrid_mpicom, ierr)
-      ! A quick sanity check
-      call MPI_comm_size(geogrid_mpicom, ntasks_atm, ierr)
-      color = ntasks_lat * ntasks_lon
-      if ((iam < color) .and. (ntasks_atm /= color)) then
-         call endrun('set_geogrid: Incorrect size for geogrid_mpicom')
-      end if
-
       ! Now, figure the starting and ending coordinates
       lons_per_task = nlon / ntasks_lon
       lons_overflow = MOD(nlon, ntasks_lon)
@@ -255,27 +236,28 @@ contains
       lat_beg = 1
       lat_end = 0
       task_cnt= 0
-      jloop: do j = 0,ntasks_lat-1
-         lat_beg = lat_end + 1
-         lat_end = lat_beg + lats_per_task - 1
-         if (j<lats_overflow) then
-            lat_end = lat_end + 1
-         end if
-         lon_end = 0
-         do i = 0,ntasks_lon-1
-            lon_beg = lon_end + 1
-            lon_end = lon_beg + lons_per_task - 1
-            if (i<lons_overflow) then
-               lon_end = lon_end + 1
+      if (iam<npes) then
+         jloop: do j = 0,ntasks_lat-1
+            lat_beg = lat_end + 1
+            lat_end = lat_beg + lats_per_task - 1
+            if (j<lats_overflow) then
+               lat_end = lat_end + 1
             end if
-            task_cnt = task_cnt+1
-            if (task_cnt>iam) exit jloop
-         end do
-      enddo jloop
+            lon_end = 0
+            do i = 0,ntasks_lon-1
+               lon_beg = lon_end + 1
+               lon_end = lon_beg + lons_per_task - 1
+               if (i<lons_overflow) then
+                  lon_end = lon_end + 1
+               end if
+               task_cnt = task_cnt+1
+               if (task_cnt>iam) exit jloop
+            end do
+         enddo jloop
+      endif
 
       call mp_distribute_geo(lon_beg, lon_end, lat_beg, lat_end, 1, nlev, ntasks_lon, ntasks_lat)
-      !!XXgoldyXX: Do we need the geogrid_mpicom for anything?
-      call MPI_comm_free(geogrid_mpicom, ierr)
+
       !
       ! Set horizontal geographic grid in radians (for apex code):
       !

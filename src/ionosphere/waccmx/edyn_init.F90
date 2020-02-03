@@ -14,9 +14,8 @@ module edyn_init
 
 contains
 !-----------------------------------------------------------------------
-   subroutine edynamo_init(mpicomm, nlon_in, nlat_in, nlev_in,                 &
-        lonndx0, lonndx1, latndx0, latndx1, levndx0, levndx1,  ntaski, ntaskj, &
-        pres_in, pres_edge_in)
+  subroutine edynamo_init(mpicomm)
+    
       !
       ! One-time initialization, called from ionosphere_init
       ! before dyn_init and phys_init
@@ -32,12 +31,6 @@ contains
 !
       ! Args:
       integer, intent(in) :: mpicomm
-      integer, intent(in) :: nlon_in, nlat_in, nlev_in
-      integer, intent(in) :: lonndx0, lonndx1
-      integer, intent(in) :: latndx0, latndx1
-      integer, intent(in) :: levndx0, levndx1
-      integer, intent(in) :: ntaski, ntaskj
-      real(r8),intent(in) :: pres_in(:), pres_edge_in(:)
 
       if (masterproc) then
          write(iulog,"('Enter edynamo_init:')")
@@ -48,7 +41,7 @@ contains
       call mp_distribute_mag(nmlonp1, nmlat, nmlath, nmlev)
 
       call register_grids()
-      call mp_exchange_tasks(0, gmlat) ! single arg is iprint
+      call mp_exchange_tasks(mpicomm, 0, gmlat) ! single arg is iprint
 
 #ifdef WACCMX_EDYN_ESMF
       call alloc_edyn()      ! allocate dynamo arrays
@@ -259,7 +252,7 @@ contains
 
       use cam_grid_support, only: horiz_coord_t, horiz_coord_create, iMap
       use cam_grid_support, only: cam_grid_register
-      use edyn_mpi,         only: mlat0, mlat1, mlon0, omlon1
+      use edyn_mpi,         only: mlat0, mlat1, mlon0, omlon1, ntask, mytid
       use edyn_mpi,         only:  lat0,  lat1,  lon0,   lon1
       use edyn_maggrid,     only: gmlat, gmlon, nmlat, nmlon
       use edyn_geogrid,     only:  glat,  glon,  nlat,  nlon
@@ -267,11 +260,43 @@ contains
       integer, parameter :: mag_decomp = 111 ! Must be unique within CAM
       integer, parameter :: geo_decomp = 112 ! Must be unique within CAM
 
-      type(horiz_coord_t), pointer :: lat_coord
-      type(horiz_coord_t), pointer :: lon_coord
-      integer(iMap),       pointer :: grid_map(:,:)
-      integer(iMap),       pointer :: coord_map(:)
+      type(horiz_coord_t), pointer :: lat_coord => null()
+      type(horiz_coord_t), pointer :: lon_coord => null()
+      integer(iMap),       pointer :: grid_map(:,:) => null()
+      integer(iMap),       pointer :: coord_map(:) => null()
       integer                      :: i, j, ind
+
+      character(len=300) :: dbgstr
+      
+      if (mytid>=ntask) then
+
+         if (mlon0/=1) then
+            call endrun('register_grids: mlon0 needs to be 1 on inactive PEs')
+         end if
+         if (omlon1/=0) then
+            call endrun('register_grids: omlon1 needs to be 0 on inactive PEs')
+         end if
+         if (mlat0/=1) then
+            call endrun('register_grids: mlat0 needs to be 1 on inactive PEs')
+         end if
+         if (mlat1/=0) then
+            call endrun('register_grids: mlat1 needs to be 0 on inactive PEs')
+         end if
+
+         if (lon0/=1) then
+            call endrun('register_grids: lon0 needs to be 1 on inactive PEs')
+         end if
+         if (lon1/=0) then
+            call endrun('register_grids: lon1 needs to be 0 on inactive PEs')
+         end if
+         if (lat0/=1) then
+            call endrun('register_grids: lat0 needs to be 1 on inactive PEs')
+         end if
+         if (lat1/=0) then
+            call endrun('register_grids: lat1 needs to be 0 on inactive PEs')
+         end if
+
+      endif
 
       allocate(grid_map(4, ((omlon1 - mlon0 + 1) * (mlat1 - mlat0 + 1))))
       ind = 0

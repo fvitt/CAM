@@ -83,10 +83,8 @@ module ionosphere_interface
    logical           :: ionos_epotential_amie = .false.
    integer           :: indxAMIEefxg=-1, indxAMIEkevg=-1
 
-   integer           :: dynamo_nlon, dynamo_nlat ! dynamo grid
-   integer           :: ionos_dynamo_npes        ! # dynamo processes
    integer           :: oplus_nlon, oplus_nlat   ! Oplus grid
-   integer           :: oplus_npes               ! # Oplus processes
+   integer           :: ionos_npes = -1
 
 contains
 
@@ -113,13 +111,10 @@ contains
       namelist /ionosphere_nl/ ionos_epotential_model, ionos_epotential_amie, wei05_coefs_file
       namelist /ionosphere_nl/ amienh_file, amiesh_file, wei05_coefs_file
       namelist /ionosphere_nl/ epot_crit_colats
-      namelist /ionosphere_nl/ ionos_dynamo_grid, ionos_dynamo_npes
-      namelist /ionosphere_nl/ oplus_grid, oplus_npes
+      namelist /ionosphere_nl/ ionos_dynamo_grid, ionos_npes
+      namelist /ionosphere_nl/ oplus_grid
 
-      ionos_dynamo_grid = 0
-      ionos_dynamo_npes = 0
       oplus_grid = 0
-      oplus_npes = 0
 
       ! Read namelist
       if (masterproc) then
@@ -151,24 +146,19 @@ contains
       call mpi_bcast(oplus_enforce_floor, 1, mpi_logical, masterprocid, mpicom, ierr)
       call mpi_bcast(oplus_ring_polar_filter,1, mpi_logical, masterprocid, mpicom, ierr)
       call mpi_bcast(epot_crit_colats,    2, mpi_real8,   masterprocid, mpicom, ierr)
-      call mpi_bcast(ionos_dynamo_grid,   2, mpi_integer, masterprocid, mpicom, ierr)
-      call mpi_bcast(ionos_dynamo_npes,   1, mpi_integer, masterprocid, mpicom, ierr)
+      call mpi_bcast(ionos_npes,          1, mpi_integer, masterprocid, mpicom, ierr)
       call mpi_bcast(oplus_grid,          2, mpi_integer, masterprocid, mpicom, ierr)
-      call mpi_bcast(oplus_npes,          1, mpi_integer, masterprocid, mpicom, ierr)
 
       ! Extract grid settings
-      dynamo_nlon = ionos_dynamo_grid(1)
-      dynamo_nlat = ionos_dynamo_grid(1)
       oplus_nlon = oplus_grid(1)
       oplus_nlat = oplus_grid(2)
 
       ! Set npes in case of default settings
       call mpi_comm_size(mpicom, total_pes, ierr)
-      if (ionos_dynamo_npes == 0) then
-         ionos_dynamo_npes = total_pes
-      end if
-      if (oplus_npes == 0) then
-         oplus_npes = total_pes
+      if (ionos_npes<1) then
+         ionos_npes = total_pes
+      else if (ionos_npes>total_pes) then
+         call endrun('ionosphere_readnl: ionos_npes > total_pes')
       end if
 
       ! log the user settings
@@ -180,12 +170,8 @@ contains
          write(iulog,*) 'ionosphere_readnl: ionos_epotential_model = ', trim(ionos_epotential_model)
          write(iulog,*) 'ionosphere_readnl: ionos_epotential_amie  = ', ionos_epotential_amie
          write(iulog,'(a,2(g12.4))') &
-              ' ionosphere_readnl: epot_crit_colats       = ', epot_crit_colats
-         if (ionos_edyn_active) then
-            write(iulog,'(a,i0)') 'ionosphere_readnl: dynamo_nlon = ',dynamo_nlon
-            write(iulog,'(a,i0)') 'ionosphere_readnl: dynamo_nlat = ',dynamo_nlat
-            write(iulog,'(a,i0)') 'ionosphere_readnl: ionos_dynamo_npes = ',ionos_dynamo_npes
-         end if
+                        'ionosphere_readnl: epot_crit_colats       = ', epot_crit_colats
+         write(iulog,'(a,i0)') 'ionosphere_readnl: ionos_npes = ',ionos_npes
          write(iulog,*) 'ionosphere_readnl: oplus_adiff_limiter    = ', oplus_adiff_limiter
          write(iulog,*) 'ionosphere_readnl: oplus_shapiro_const    = ', oplus_shapiro_const
          write(iulog,*) 'ionosphere_readnl: oplus_enforce_floor    = ', oplus_enforce_floor
@@ -193,7 +179,6 @@ contains
          if (ionos_xport_active) then
             write(iulog,'(a,i0)') 'ionosphere_readnl: oplus_nlon = ',oplus_nlon
             write(iulog,'(a,i0)') 'ionosphere_readnl: oplus_nlat = ',oplus_nlat
-            write(iulog,'(a,i0)') 'ionosphere_readnl: oplus_npes = ',oplus_npes
          end if
       end if
       epot_active = .true.
@@ -203,7 +188,7 @@ contains
    !---------------------------------------------------------------------------
    !---------------------------------------------------------------------------
    subroutine ionosphere_init()
-      use spmd_utils,      only: mpicom
+      use spmd_utils,      only: mpicom, iam
       use physics_buffer,  only: pbuf_add_field, dtype_r8
       use cam_control_mod, only: initial_run
       use cam_history,     only: addfld, add_default, horiz_only
@@ -215,10 +200,7 @@ contains
       use ref_pres,        only: pref_edge ! target ailev(pverp) interface levels
       use amie_module,     only: init_amie
       use wei05sc,         only: weimer05_init
-      ! Geo grid distribution info
-      use edyn_mpi,        only: lon0, lon1, lat0, lat1, lev0, lev1
-      use edyn_mpi,        only: ntaski, ntaskj
-
+      
       ! local variables:
       integer :: sIndx
       character(len=*), parameter :: subname = 'ionosphere_init'
@@ -318,17 +300,16 @@ contains
          call d_pie_init(ionos_edyn_active, ionos_oplus_xport,                &
               ionos_xport_nsplit, epot_crit_colats)
 
-         call mp_init(mpicom, oplus_nlon, oplus_nlat, pver) ! set ntask,mytid
+         call mp_init(mpicom, ionos_npes, oplus_nlon, oplus_nlat, pver) ! set ntask,mytid
          ! set global geographic grid (sets coordinate distribution)
          ! lon0, lon1, etc. are set here
-         call set_geogrid(oplus_nlon, oplus_nlat, pver, oplus_npes, mpicom,   &
+         call set_geogrid(oplus_nlon, oplus_nlat, pver, ionos_npes, iam,   &
               pref_mid, pref_edge)
 
-         call edynamo_init(mpicom, dynamo_nlon, dynamo_nlat, pver,            &
-              lon0, lon1, lat0, lat1, lev0, lev1, ntaski, ntaskj,             &
-              pref_mid, pref_edge)
+         call edynamo_init(mpicom)
 
          call ionosphere_alloc()
+
          call oplus_init(oplus_adiff_limiter, oplus_shapiro_const,            &
               oplus_enforce_floor, oplus_ring_polar_filter)
 
@@ -337,6 +318,7 @@ contains
          call add_default ('OpTM1&IC',0, 'I')
 
       end if op_transport
+
       ! This has to be after edynamo_init (where maggrid is initialized)
       call mo_apex_init1()
 

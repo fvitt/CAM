@@ -4285,25 +4285,12 @@ Oplus transport grid size, entered as num_longitudes, num_latitudes.
 Default: set by build-namelist
 </entry>
 
-<!--
-<entry id="oplus_npes" type="integer"
+<entry id="ionos_npes" type="integer"
        category="waccmx" group="ionosphere_nl" valid_values="" >
-Number of MPI processes on which to run the Oplus transport scheme.
+Number of MPI processes on which to run the WACCM-X ionosphere
+electro-dynamo and O+ ion transport modules.
 Default: 0 (use all atmosphere tasks)
 </entry>
-
-<entry id="ionos_dynamo_grid" type="integer(2)"
-       category="waccmx" group="ionosphere_nl" valid_values="" >
-Ionosphere dynamo grid size, entered as num_longitudes, num_latitudes.
-Default: set by build-namelist
-</entry>
-
-<entry id="ionos_dynamo_npes" type="integer"
-       category="waccmx" group="ionosphere_nl" valid_values="" >
-Number of MPI processes on which to run the ionosphere dynamo.
-Default: 0 (use all atmosphere tasks)
-</entry>
-  -->
 
 <entry id="ionos_xport_active" type="logical"  category="waccmx"
        group="ionosphere_nl" valid_values="">

@@ -7,7 +7,7 @@ module regridder
 
   use edyn_esmf, only: edyn_esmf_set3d_phys, edyn_esmf_regrid_phys2mag
   use edyn_esmf, only: edyn_esmf_regrid_phys2geo, edyn_esmf_get_3dfield
-  use edyn_esmf, only: edyn_esmf_set2d_phys, edyn_esmf_get_2dfield, edyn_esmf_set3d_geo
+  use edyn_esmf, only: edyn_esmf_set2d_phys, edyn_esmf_get_2dfield, edyn_esmf_get_2dphysfield, edyn_esmf_set3d_geo
   use edyn_esmf, only: edyn_esmf_regrid_geo2mag, edyn_esmf_regrid_geo2phys
   use edyn_esmf, only: edyn_esmf_set2d_geo, edyn_esmf_set3d_mag, edyn_esmf_regrid_mag2geo
   use edyn_esmf, only: phys_3dfld, phys_2dfld
@@ -91,7 +91,7 @@ contains
 
     call edyn_esmf_set3d_geo( geo2phys_3dfld, geofld, lon0, lon1, lat0, lat1, lev0, lev1 )
     call edyn_esmf_regrid_geo2phys(geo2phys_3dfld, phys_3dfld, 3)
-    call edyn_esmf_get_2dfield(phys_3dfld, physfld, 1, plev, cols, cole  )
+    call edyn_esmf_get_2dphysfield(phys_3dfld, physfld, 1, plev, cols, cole  )
 
   end subroutine regrid_geo2phys_3d
 
