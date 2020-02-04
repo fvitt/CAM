@@ -432,7 +432,10 @@ contains
                write(errmsg, "(3a,i0,', nmaglons = ',i4)") '>>> ', subname,      &
                     ': each task must carry at least 4 longitudes. task = ',     &
                     n, tasks(n)%nmaglons
-               call endrun('edyn_mpi: nmaglons per task')
+               if (masterproc) then
+                  write(iulog, errmsg)
+               end if
+               call endrun(errmsg)
             end if
          end do
          !
