@@ -8,7 +8,7 @@ module dpie_coupling
   use cam_history,         only: addfld, horiz_only
   use cam_history_support, only: fillvalue
   use cam_abortutils,      only: endrun
-  use spmd_utils,          only: masterproc
+  use spmd_utils,          only: masterproc, mpi_logical, mpicom, masterprocid
   use edyn_mpi,            only: array_ptr_type
   use perf_mod,            only: t_startf, t_stopf
   use amie_module,         only: getamie
@@ -108,7 +108,7 @@ contains
     real(r8)             :: sunlon
 
     integer              :: iprint,amie_ibkg
-    integer              :: j, iamie
+    integer              :: j, iamie, ierr
     !
     ! AMIE fields (extra dimension added for longitude switch)
     !
@@ -154,30 +154,38 @@ contains
        if (.not. present(kev_phys)) then
           call endrun('d_pie_epotent: kevg must be present if efx_phys is present')
        end if
-       iprint = 0
-       amie_ibkg = 0
-       iamie = 1
-       if (masterproc) then
-          write(iulog,"('Calling getamie >>> iamie = ', i2)") iamie
-       end if
 
-       call getamie(iyear, imo, iday, tod, sunlon, amie_ibkg, iprint, iamie, &
-                    amie_phihm, amie_efxm, amie_kevm, crad)
+       if ( mytid<ntask ) then
 
-       if (masterproc) then
-          write(iulog,"('After Calling getamie >>> iamie = ', i2)") iamie
-       end if
-       amie_period = iamie == 1
-       
-       do j = mlat0, mlat1
-          call outfld('amie_phihm',amie_phihm(mlon0:omlon1,j),omlon1-mlon0+1,j)
-          call outfld('amie_efxm', amie_efxm(mlon0:omlon1,j), omlon1-mlon0+1,j)
-          call outfld('amie_kevm', amie_kevm(mlon0:omlon1,j), omlon1-mlon0+1,j)
-       end do
 
-       if (amie_period) then
-          phihm = amie_phihm
-       end if
+          iprint = 0
+          amie_ibkg = 0
+          iamie = 1
+          if (masterproc) then
+             write(iulog,"('Calling getamie >>> iamie = ', i2)") iamie
+          end if
+
+          call getamie(iyear, imo, iday, tod, sunlon, amie_ibkg, iprint, iamie, &
+               amie_phihm, amie_efxm, amie_kevm, crad)
+
+          if (masterproc) then
+             write(iulog,"('After Calling getamie >>> iamie = ', i2)") iamie
+          end if
+          amie_period = iamie == 1
+
+          do j = mlat0, mlat1
+             call outfld('amie_phihm',amie_phihm(mlon0:omlon1,j),omlon1-mlon0+1,j)
+             call outfld('amie_efxm', amie_efxm(mlon0:omlon1,j), omlon1-mlon0+1,j)
+             call outfld('amie_kevm', amie_kevm(mlon0:omlon1,j), omlon1-mlon0+1,j)
+          end do
+
+          if (amie_period) then
+             phihm = amie_phihm
+          end if
+
+       endif
+
+       call mpi_bcast(amie_period, 1, mpi_logical, masterprocid, mpicom, ierr)
 
        call regrid_mag2phys_2d(amie_kevm(mlon0:mlon1,mlat0:mlat1), kev_phys, cols, cole)
        call regrid_mag2phys_2d(amie_efxm(mlon0:mlon1,mlat0:mlat1), efx_phys, cols, cole)
