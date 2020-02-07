@@ -235,27 +235,33 @@ subroutine microp_aero_init(pbuf2d)
       call rad_cnst_get_info(0, mode_coarse_dst_idx, nspec=nspec)
       do n = 1, nspec
          call rad_cnst_get_info(0, mode_coarse_dst_idx, n, spec_type=str32)
-         select case (trim(str32))
-         case ('dust')
+         if (trim(str32)=='dust') then
+            if (coarse_dust_idx>0) then
+               call endrun('microp_aero_init: more then one coarse dust species found')
+            end if
             coarse_dust_idx = n
-         end select
+         end if
       end do
       call rad_cnst_get_info(0, mode_coarse_slt_idx, nspec=nspec)
       do n = 1, nspec
          call rad_cnst_get_info(0, mode_coarse_slt_idx, n, spec_type=str32)
-         select case (trim(str32))
-         case ('seasalt')
+         if (trim(str32)=='seasalt') then
+            if (coarse_nacl_idx>0) then
+               call endrun('microp_aero_init: more then one coarse seasalt species found')
+            end if
             coarse_nacl_idx = n
-         end select
+         end if
       end do
       if (mode_coarse_idx>0) then
          call rad_cnst_get_info(0, mode_coarse_idx, nspec=nspec)
          do n = 1, nspec
             call rad_cnst_get_info(0, mode_coarse_idx, n, spec_type=str32)
-            select case (trim(str32))
-            case ('sulfate')
+            if (trim(str32)=='sulfate') then
+               if (coarse_so4_idx>0) then
+                  call endrun('microp_aero_init: more then one coarse sulfate species found')
+               end if
                coarse_so4_idx = n
-            end select
+            end if
          end do
       endif
 

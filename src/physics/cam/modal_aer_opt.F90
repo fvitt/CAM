@@ -572,6 +572,8 @@ subroutine modal_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
 
    real(r8) :: scath2o, absh2o, sumscat, sumabs, sumhygro
    real(r8) :: aodc                        ! aod of component
+   ! MOSAIC (dsj)
+   real(r8) :: tmpf                        ! adjustment factor for mosaic dust and seasalt
 
    ! total species AOD
    real(r8) :: dustaod(pcols), so4aod(pcols), bcaod(pcols), &
@@ -750,6 +752,16 @@ subroutine modal_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
                   end do
 
                   if (trim(spectype) == 'dust') then
+                     ! MOSAIC (dsj)
+#if ( defined MOSAIC_SPECIES )
+                     do i = 1, ncol
+                        burdendust(i) = burdendust(i) + specmmr(i,k)*mass(i,k)
+                        dustvol(i)    = dustvol(i)+vol(i)
+                        scatdust(i)   = scatdust(i)+vol(i)*specrefr
+                        absdust(i)    = absdust(i)-vol(i)*specrefi
+                        hygrodust(i)  = hygrodust(i)+vol(i)*hygro_aer
+                     end do
+#else
                      do i = 1, ncol
                         burdendust(i) = burdendust(i) + specmmr(i,k)*mass(i,k)
                         dustvol(i)    = vol(i)
@@ -757,6 +769,7 @@ subroutine modal_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
                         absdust(i)    = -vol(i)*specrefi
                         hygrodust(i)  = vol(i)*hygro_aer
                      end do
+#endif
                   end if
 
                   if (trim(spectype) == 'sulfate') then
@@ -792,12 +805,22 @@ subroutine modal_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
                      end do
                   end if
                   if (trim(spectype) == 'seasalt') then
+                     ! MOSAIC (dsj)
+#if ( defined MOSAIC_SPECIES )
+                     do i = 1, ncol
+                        burdenseasalt(i) = burdenseasalt(i) + specmmr(i,k)*mass(i,k)
+                        scatseasalt(i)   = scatseasalt(i)+vol(i)*specrefr
+                        absseasalt(i)    = absseasalt(i)-vol(i)*specrefi
+                        hygroseasalt(i)  = hygroseasalt(i)+ vol(i)*hygro_aer
+                     end do
+#else
                      do i = 1, ncol
                         burdenseasalt(i) = burdenseasalt(i) + specmmr(i,k)*mass(i,k)
                         scatseasalt(i)   = vol(i)*specrefr
                         absseasalt(i)    = -vol(i)*specrefi
                         hygroseasalt(i)  = vol(i)*hygro_aer
                       end do
+#endif
                   end if
 
                end if

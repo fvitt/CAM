@@ -1072,11 +1072,15 @@ if ($aer_model eq 'mam' ) {
   my @mode_spec_src;
   my %modal_groups;
   my %modal_species = ( 'so4'=>'sulfate',
+                        'no3'=>'nitrate',
                         'nh4'=>'ammonium',
                         'pom'=>'p-organic',
                         'soa'=>'s-organic',
                         'bc' =>'black-c',
                         'dst'=>'dust',
+                        'ca'=>'calcium',
+                        'co3'=>'carbonate',
+                        'cl'=>'chloride',
                         'ncl'=>'seasalt' );
 
   if ($aero_modes eq '3mode' ) {
@@ -1117,9 +1121,9 @@ if ($aer_model eq 'mam' ) {
     @mode_num      = qw(num_a1 num_a2 num_a3 num_a4);
     @mode_num_cw   = qw(num_c1 num_c2 num_c3 num_c4);
 
-    %modal_groups = ( 'accum'  => [qw(so4 pom soa bc dst ncl)],
-                      'aitken' => [qw(so4 soa ncl dst)],
-                      'coarse' => [qw(dst ncl so4)],
+    %modal_groups = ( 'accum'  => [qw(so4 pom soa bc dst ncl cl no3 ca co3 nh4)],
+                      'aitken' => [qw(so4 soa ncl dst cl co3 no3 ca nh4)],
+                      'coarse' => [qw(dst ncl so4 ca co3 cl no3 nh4)],
                       'primary_carbon' => [qw(pom bc)] );
 
     @mode_num_src  = qw(A A A A);
@@ -2836,6 +2840,11 @@ if ($waccmx) {
   add_default($nl,'ionos_xport_nsplit');
   add_default($nl,'steady_state_ion_elec_temp', 'val'=>'.false.');
   add_default($nl,'oplus_ring_polar_filter');
+}
+
+# Modal mosaic runtime option
+if ($aer_model eq 'mam' ) {
+  add_default($nl, 'modal_mosaic_nitrates');
 }
 
 # Chemistry options

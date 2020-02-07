@@ -36,6 +36,18 @@
       integer, public, protected :: ntot_amode = 0
       integer, public, protected :: nSeaSalt=0, nDust=0
       integer, public, protected :: nSO4=0, nNH4=0
+#if ( defined MOSAIC_SPECIES )
+      ! when mosaic_aqchem_optaa <= 0, aqueous chem calcs do not affect hclg, cl_ax, no3_ax, and co3_ax species
+
+      integer, public :: mosaic_gaex_prodloss3d = 1
+      integer, public :: mosaic_gaex_prodloss3d_ga(pcnst)
+      integer, public :: mosaic_aqch_prodloss3d = 1
+      integer, public :: mosaic_aqch_prodloss3d_ga(pcnst)
+      integer, public :: mosaic_aqch_prodloss3d_cw(pcnst)
+      integer, public, parameter :: mosaic_aqchem_optaa = 1
+#else
+      integer, public, parameter :: mosaic_aqchem_optaa = -1
+#endif
 
       !
       ! definitions for aerosol chemical components
@@ -92,6 +104,13 @@
            lptr_nacl_a_amode(:),    lptr_nacl_cw_amode(:),&
            lptr_dust_a_amode(:),    lptr_dust_cw_amode(:)
 
+#if ( defined MOSAIC_SPECIES )
+      integer, public, protected, allocatable ::  &
+           lptr_ca_a_amode(:), lptr_ca_cw_amode(:),&  
+           lptr_cl_a_amode(:), lptr_cl_cw_amode(:),& 
+           lptr_co3_a_amode(:), lptr_co3_cw_amode(:)
+#endif
+
       integer, public, protected :: &
            modeptr_accum,  modeptr_aitken,                               &
            modeptr_ufine,  modeptr_coarse,                               &
@@ -105,6 +124,12 @@
            lptr2_pom_a_amode(:,:),  lptr2_pom_cw_amode(:,:), &
            lptr2_soa_a_amode(:,:),  lptr2_soa_cw_amode(:,:), &
            lptr2_soa_g_amode(:)
+
+      integer, public, protected :: &  ! pointers to unspeciated condensing gases
+          lptr_h2so4_g_amode,            lptr_hno3_g_amode, &
+          lptr_hcl_g_amode,              lptr_nh3_g_amode
+
+
 
       real(r8), public, protected :: specmw_so4_amode
 
@@ -202,8 +227,13 @@
          lptr_nh4_a_amode(ntot_amode), lptr_nh4_cw_amode(ntot_amode), &
          lptr_nacl_a_amode(ntot_amode), lptr_nacl_cw_amode(ntot_amode), &
          lptr_dust_a_amode(ntot_amode), lptr_dust_cw_amode(ntot_amode), &
-         lptr_no3_a_amode(ntot_amode), lptr_no3_cw_amode(ntot_amode) &
-    )
+         lptr_no3_a_amode(ntot_amode), lptr_no3_cw_amode(ntot_amode) )
+#if ( defined MOSAIC_SPECIES )
+    allocate( &
+         lptr_ca_a_amode(ntot_amode), lptr_ca_cw_amode(ntot_amode), &
+         lptr_cl_a_amode(ntot_amode), lptr_cl_cw_amode(ntot_amode), &
+         lptr_co3_a_amode(ntot_amode),lptr_co3_cw_amode(ntot_amode) )
+#endif
 
     allocate( &
          aodvislongname(ntot_amode ), &
@@ -407,6 +437,9 @@
        !--------------------------------------------------------------
        ! ... local variables
        !--------------------------------------------------------------
+
+
+       integer, parameter :: init_val=-999888777
        integer :: l, m, i, lchnk
        integer :: m_idx, s_idx, ndx
 
@@ -448,12 +481,25 @@
           alnv2nhi_amode(m) = log( voltonumbhi_amode(m) )
 
        end do
-       lptr2_soa_g_amode(:) = -1
        soa_ndx = 0
+       lptr2_soa_g_amode(:) = init_val
+       lptr_h2so4_g_amode  = init_val
+       lptr_hno3_g_amode   = init_val
+       lptr_hcl_g_amode    = init_val
+       lptr_nh3_g_amode    = init_val
+
        do i = 1, pcnst
           if (cnst_name(i)(:4) == 'SOAG') then
              soa_ndx = soa_ndx+1
              lptr2_soa_g_amode(soa_ndx) = i
+          else if (cnst_name(i) == 'H2SO4') then
+             lptr_h2so4_g_amode = i
+          else if (cnst_name(i) == 'HNO3') then
+             lptr_hno3_g_amode = i
+          else if (cnst_name(i) == 'HCL') then
+             lptr_hcl_g_amode = i
+          else if (cnst_name(i) == 'NH3') then
+             lptr_nh3_g_amode = i
           endif
        enddo
        if (.not.any(lptr2_soa_g_amode>0)) call endrun('modal_aero_data_init: lptr2_soa_g_amode is not set properly')
@@ -492,11 +538,17 @@
                 call rad_cnst_get_info(0, m, l, spec_type=spec_type )
                 select case( spec_type )
                 case('sulfate')
+#if ( defined MOSAIC_SPECIES )
+                   specmw_amode(l,m) = 96._r8
+#else
                    if (ntot_amode==7) then
                       specmw_amode(l,m) = 96._r8
                    else
                       specmw_amode(l,m) = 115._r8
                    endif
+#endif
+                case('nitrate')
+                   specmw_amode(l,m) = 62._r8
                 case('ammonium')
                    specmw_amode(l,m) = 18._r8
                 case('p-organic','s-organic','black-c')
@@ -505,9 +557,16 @@
                    specmw_amode(l,m) = 58.5_r8
                 case('dust')
                    specmw_amode(l,m) = 135._r8
+                case('calcium')
+                   specmw_amode(l,m) = 40._r8
+                case('carbonate')
+                   specmw_amode(l,m) = 60._r8
+                case('chloride')
+                   specmw_amode(l,m) = 35.5_r8
                 case default
                    call endrun('modal_aero_data_init: species type not recognized: '//trim(spec_type))
                 end select
+
              endif
  
              if(masterproc) then
@@ -908,7 +967,14 @@
           lptr_nacl_cw_amode(m)  = init_val
           lptr_dust_a_amode(m)   = init_val
           lptr_dust_cw_amode(m)  = init_val
-
+#if ( defined MOSAIC_SPECIES )
+          lptr_ca_a_amode(m)     = init_val 
+          lptr_ca_cw_amode(m)    = init_val 
+          lptr_cl_a_amode(m)     = init_val
+          lptr_cl_cw_amode(m)    = init_val
+          lptr_co3_a_amode(m)    = init_val
+          lptr_co3_cw_amode(m)   = init_val
+#endif
           pom_ndx = 0
           soa_ndx = 0
           bc_ndx = 0
@@ -942,6 +1008,17 @@
              case('no3')
                 lptr_no3_a_amode(m)  = lmassa
                 lptr_no3_cw_amode(m) = lmassc
+#if ( defined MOSAIC_SPECIES )
+             case('co3')
+                lptr_co3_a_amode(m)  = lmassa
+                lptr_co3_cw_amode(m) = lmassc
+             case('ca_')
+                lptr_ca_a_amode(m)  = lmassa
+                lptr_ca_cw_amode(m) = lmassc
+             case('cl_')
+                lptr_cl_a_amode(m)  = lmassa
+                lptr_cl_cw_amode(m) = lmassc
+#endif
              case('dst')
                 lptr_dust_a_amode(m)  = lmassa
                 lptr_dust_cw_amode(m) = lmassc
@@ -1000,6 +1077,8 @@
           call initaermodes_setspecptrs_write2( m,                    &
                lptr_so4_a_amode(m), lptr_so4_cw_amode(m),  'so4' )
        end do
+       l = lptr_h2so4_g_amode
+       if (l>0) write(iulog,'(3x,a,2x,i12,2x,a,20x,a)') '-', l, cnst_name(l), 'lptr_h2so4_g_amode'
 
        write(iulog,9000) 'msa        '
        do m = 1, ntot_amode
@@ -1012,12 +1091,16 @@
           call initaermodes_setspecptrs_write2( m,                    &
                lptr_nh4_a_amode(m), lptr_nh4_cw_amode(m),  'nh4' )
        end do
+       l = lptr_nh3_g_amode
+       if (l>0) write(iulog,'(3x,a,2x,i12,2x,a,20x,a)') '-', l, cnst_name(l), 'lptr_nh3_g_amode'
 
        write(iulog,9000) 'nitrate    '
        do m = 1, ntot_amode
           call initaermodes_setspecptrs_write2( m,                    &
                lptr_no3_a_amode(m), lptr_no3_cw_amode(m),  'no3' )
        end do
+       l = lptr_hno3_g_amode
+       if (l>0) write(iulog,'(3x,a,2x,i12,2x,a,20x,a)') '-', l, cnst_name(l), 'lptr_hno3_g_amode'
 
        write(iulog,9000) 'p-organic  '
        do m = 1, ntot_amode
@@ -1038,7 +1121,7 @@
        end do
        do i = 1, nsoa
           l = lptr2_soa_g_amode(i)
-          write(iulog,'(i4,2x,i12,2x,a,20x,a,i2.2,a)') i, l, cnst_name(l), 'lptr2_soa', i, '_g'
+          if (l>0) write(iulog,'(i4,2x,i12,2x,a,20x,a,i2.2,a)') i, l, cnst_name(l), 'lptr2_soa', i, '_g'
        end do
 
        write(iulog,9000) 'black-c    '    
@@ -1061,6 +1144,27 @@
           call initaermodes_setspecptrs_write2( m,                    &
                lptr_dust_a_amode(m), lptr_dust_cw_amode(m),  'dust' )
        end do
+#if ( defined MOSAIC_SPECIES )
+       write(iulog,9000) 'calcium    '
+       do m = 1, ntot_amode
+          call initaermodes_setspecptrs_write2( m,                    &
+               lptr_ca_a_amode(m), lptr_ca_cw_amode(m),  'ca' )
+       end do
+
+       write(iulog,9000) 'chloride   '
+       do m = 1, ntot_amode
+          call initaermodes_setspecptrs_write2( m,                    &
+               lptr_cl_a_amode(m), lptr_cl_cw_amode(m),  'cl' )
+       end do
+       l = lptr_hcl_g_amode
+       if (l>0) write(iulog,'(3x,a,2x,i12,2x,a,20x,a)') '-', l, cnst_name(l), 'lptr_hcl_g_amode'
+
+       write(iulog,9000) 'carbonate  '
+       do m = 1, ntot_amode
+          call initaermodes_setspecptrs_write2( m,                    &
+               lptr_co3_a_amode(m), lptr_co3_cw_amode(m),  'co3' )
+       end do
+#endif
 
 9000   format( a )
 9230   format(                                                         &

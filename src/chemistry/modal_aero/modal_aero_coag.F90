@@ -20,6 +20,7 @@
 
 ! !PUBLIC MEMBER FUNCTIONS:
   public modal_aero_coag_sub, modal_aero_coag_init
+  public getcoags_wrapper_f
 
 ! !PUBLIC DATA MEMBERS:
   integer, parameter :: pcnstxx = gas_pcnst

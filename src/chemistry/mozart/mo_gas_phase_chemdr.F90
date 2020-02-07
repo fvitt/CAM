@@ -352,7 +352,7 @@ contains
     integer,        intent(in)    :: latmapback(pcols)
     integer,        intent(in)    :: troplev(pcols)                 ! trop/strat separation vertical index
     integer,        intent(in)    :: troplevchem(pcols)             ! trop/strat chemistry separation vertical index
-    real(r8),       intent(inout) :: qtend(pcols,pver,pcnst)        ! species tendencies (kg/kg/s)
+    real(r8),       intent(out)   :: qtend(pcols,pver,pcnst)        ! species tendencies (kg/kg/s)
     real(r8),       intent(inout) :: cflx(pcols,pcnst)              ! constituent surface flux (kg/m^2/s)
     real(r8),       intent(out)   :: drydepflx(pcols,pcnst)         ! dry deposition flux (kg/m^2/s)
     real(r8),       intent(in)    :: wetdepflx(pcols,pcnst)         ! wet deposition flux (kg/m^2/s)
@@ -1082,7 +1082,7 @@ contains
     do m = 1,pcnst
        n = map2chm(m)
        if( n > 0 ) then
-          qtend(:ncol,:,m) = qtend(:ncol,:,m) + mmr_tend(:ncol,:,n) 
+          qtend(:ncol,:,m) = mmr_tend(:ncol,:,n) 
        end if
     end do
 

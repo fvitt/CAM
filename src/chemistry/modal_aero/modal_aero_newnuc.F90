@@ -21,13 +21,22 @@ module modal_aero_newnuc
 
 ! !PUBLIC MEMBER FUNCTIONS:
   public modal_aero_newnuc_sub, modal_aero_newnuc_init
+  public mer07_veh02_nuc_mosaic_1box
 
 ! !PUBLIC DATA MEMBERS:
   integer, parameter  :: pcnstxx = gas_pcnst
   integer  :: l_h2so4_sv, l_nh3_sv, lnumait_sv, lnh4ait_sv, lso4ait_sv
 
+! !PUBLIC DATA MEMBERS:
+  integer, public :: newnuc_h2so4_conc_flagaa = 1
+
 ! min h2so4 vapor for nuc calcs = 4.0e-16 mol/mol-air ~= 1.0e4 molecules/cm3, 
-  real(r8), parameter :: qh2so4_cutoff = 4.0e-16_r8
+  real(r8), public, parameter :: qh2so4_cutoff = 4.0e-16_r8
+
+! adjustment factors
+  real(r8), public :: adjust_factor_dnaitdt = 1.0_r8  ! applied to final dnait/dt
+  real(r8), public :: adjust_factor_bin_tern_ratenucl = 1.0_r8  ! applied to binary/ternary nucleation rate
+  real(r8), public :: adjust_factor_pbl_ratenucl = 1.0_r8  ! applied to boundary layer nucleation rate
 
   real(r8) :: dens_so4a_host
   real(r8) :: mw_nh4a_host, mw_so4a_host
@@ -254,7 +263,14 @@ main_i:	do i = 1, ncol
 !   qh2so4_cur = current qh2so4, after aeruptk
 	qh2so4_cur = q(i,k,l_h2so4)
 !   skip if h2so4 vapor < qh2so4_cutoff
-	if (qh2so4_cur <= qh2so4_cutoff) cycle main_i
+
+!   05-jul-2013 - maybe should only skip here if qh2so4_cur << cutoff
+!      because may have qh2so4_avg >> qh2so4_cur
+	if (newnuc_h2so4_conc_flagaa < 10) then
+	    if (qh2so4_cur <= qh2so4_cutoff) cycle main_i
+	else
+	    if (qh2so4_cur <= qh2so4_cutoff*1.0e-10_r8) cycle main_i
+	end if
 
 	tmpa = max( 0.0_r8, del_h2so4_gasprod(i,k) )
 	tmp_q3 = qh2so4_cur
@@ -292,6 +308,13 @@ main_i:	do i = 1, ncol
 	   tmpc = tmpa/tmpb
 	   qh2so4_avg = (tmp_q3 - tmpc)*((exp(tmpb)-1.0_r8)/tmpb) + tmpc
 	end if
+
+        if (newnuc_h2so4_conc_flagaa == 11) then
+            qh2so4_avg = qh2so4_cur
+        else if (newnuc_h2so4_conc_flagaa == 12) then
+            qh2so4_avg = qh2so4_cur + 0.5_r8*max( 0.0_r8, -del_h2so4_aeruptk(i,k) )
+        end if
+
 	if (qh2so4_avg <= qh2so4_cutoff) cycle main_i
 
 
@@ -433,9 +456,8 @@ main_i:	do i = 1, ncol
 
 ! *** apply adjustment factor to avoid unrealistically high
 !     aitken number concentrations in mid and upper troposphere
-!	adjust_factor = 0.5
-!	dndt_ait = dndt_ait * adjust_factor
-!	dmdt_ait = dmdt_ait * adjust_factor
+        dndt_ait = dndt_ait * adjust_factor_dnaitdt
+        dmdt_ait = dmdt_ait * adjust_factor_dnaitdt
 
 !   set tendencies
 	pdel_fac = pdel(i,k)/gravit
@@ -573,8 +595,9 @@ main_i:	do i = 1, ncol
            mw_so4a_host,   &
            nsize, maxd_asize, dplom_sect, dphim_sect,   &
            isize_nuc, qnuma_del, qso4a_del, qnh4a_del,   &
-           qh2so4_del, qnh3_del, dens_nh4so4a, ldiagaa )
-!          qh2so4_del, qnh3_del, dens_nh4so4a )
+           qh2so4_del, qnh3_del, dens_nh4so4a, ldiagaa,   &
+           dnclusterdt )
+
           use mo_constants, only: rgas, &               ! Gas constant (J/K/kmol)
                                   avogad => avogadro    ! Avogadro's number (1/kmol)
           use physconst,    only: mw_so4a => mwso4, &   ! Molecular weight of sulfate
@@ -657,6 +680,8 @@ main_i:	do i = 1, ncol
         real(r8), intent(out) :: qnh3_del         ! change to gas nh3 mixing ratio (mol/mol-air)
                                                   ! aerosol changes are > 0; gas changes are < 0
         real(r8), intent(out) :: dens_nh4so4a     ! dry-density of the new nh4-so4 aerosol mass (kg/m3)
+        real(r8), intent(out), optional :: &
+                                 dnclusterdt      ! cluster nucleation rate (#/m3/s)
 
 ! subr arguments (out) passed via common block  
 !    these are used to duplicate the outputs of yang zhang's original test driver
@@ -748,6 +773,7 @@ main_i:	do i = 1, ncol
         qnh4a_del = 0.0_r8
         qh2so4_del = 0.0_r8
         qnh3_del = 0.0_r8
+        if ( present ( dnclusterdt ) ) dnclusterdt = 0.0_r8
 !       if (qh2so4_avg .le. qh2so4_cutoff) return   ! this no longer needed
 !       if (qh2so4_cur .le. qh2so4_cutoff) return   ! this no longer needed
 
@@ -802,6 +828,8 @@ main_i:	do i = 1, ncol
 
         end if
 
+        rateloge  = rateloge &
+                  + log( max( 1.0e-38_r8, adjust_factor_bin_tern_ratenucl ) )
 
 ! do boundary layer nuc
         if ((newnuc_method_flagaa == 11) .or.   &
@@ -816,12 +844,14 @@ main_i:	do i = 1, ncol
         end if
 
 
-! if nucleation rate is less than 1e-6 #/m3/s ~= 0.1 #/cm3/day,
+! if nucleation rate is less than 1e-6 #/cm3/s ~= 0.1 #/cm3/day,
 ! exit with new particle formation = 0
         if (rateloge  .le. -13.82_r8) return
 !       if (ratenuclt .le. 1.0e-6) return
+
         ratenuclt = exp( rateloge )
-        ratenuclt_bb = ratenuclt*1.0e6_r8
+        ratenuclt_bb = ratenuclt*1.0e6_r8  ! ratenuclt_bb is #/m3/s; ratenuclt is #/cm3/s
+        if ( present ( dnclusterdt ) ) dnclusterdt = ratenuclt_bb
 
 
 ! wet/dry volume ratio - use simple kohler approx for ammsulf/ammbisulf
@@ -1184,7 +1214,8 @@ main_i:	do i = 1, ncol
         else
            return
         end if
-        tmp_rateloge = log( tmp_ratenucl )
+        tmp_ratenucl = tmp_ratenucl * adjust_factor_pbl_ratenucl
+        tmp_rateloge = log( max( 1.0e-38_r8, tmp_ratenucl ) )
 
 ! exit if pbl nuc rate is lower than (incoming) ternary/binary rate
         if (tmp_rateloge <= rateloge) return
@@ -1413,7 +1444,7 @@ main_i:	do i = 1, ncol
 
 !----------------------------------------------------------------------
 !----------------------------------------------------------------------
-subroutine modal_aero_newnuc_init
+subroutine modal_aero_newnuc_init( mosaic ) 
 
 !-----------------------------------------------------------------------
 !
@@ -1440,6 +1471,7 @@ implicit none
 
 !-----------------------------------------------------------------------
 ! arguments
+   logical, intent(in) :: mosaic
 
 !-----------------------------------------------------------------------
 ! local
@@ -1534,6 +1566,8 @@ implicit none
 !
 !   create history file column-tendency fields
 !
+        if ( mosaic ) return
+
 	dotend(:) = .false.
 	dotend(lnumait) = .true.
 	dotend(lso4ait) = .true.

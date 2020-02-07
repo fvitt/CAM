@@ -126,9 +126,10 @@ contains
 
     type(physics_state), intent(in):: phys_state(begchunk:endchunk)
     type(physics_buffer_desc), pointer :: pbuf2d(:,:)
+    integer :: ioffset
 
    ! for prescribed aerosols
-    call aero_model_init(pbuf2d)
+    call aero_model_init( ioffset, pbuf2d )
 
   end subroutine chem_init
 

@@ -323,6 +323,13 @@
 <mam_ncl  rad="rrtmg">atm/cam/physprops/ssam_rrtmg_c100508.nc</mam_ncl>
 <mam_dst  rad="rrtmg">atm/cam/physprops/dust_aeronet_rrtmg_c141106.nc</mam_dst>
 <mam_nh4  rad="rrtmg">atm/cam/physprops/sulfate_rrtmg_c080918.nc</mam_nh4>
+<mam_co3  rad="rrtmg">atm/cam/physprops/dust_aeronet_rrtmg_c141106.nc</mam_co3>
+<mam_ca   rad="rrtmg">atm/cam/physprops/dust_aeronet_rrtmg_c141106.nc</mam_ca>
+<mam_cl   rad="rrtmg">atm/cam/physprops/ssam_rrtmg_c100508.nc</mam_cl>
+<mam_no3  rad="rrtmg">atm/cam/physprops/sulfate_rrtmg_c080918.nc</mam_no3>
+<mam_pom  rad="rrtmg">atm/cam/physprops/ocpho_rrtmg_c101112.nc</mam_pom>
+<mam_bc   rad="rrtmg">atm/cam/physprops/bcpho_rrtmg_c100508.nc</mam_bc>
+<mam_nh4  rad="rrtmg">atm/cam/physprops/sulfate_rrtmg_c080918.nc</mam_nh4>
 
 <!-- Eruptive volcanic aerosols  -->
 <VOLC_MMR                        rad="camrt">atm/cam/physprops/volc_camRT_byradius_sigma1.6_c130724.nc</VOLC_MMR>
@@ -621,6 +628,12 @@
 <lght_no_prd_factor phys="cam6"                   offline_dyn="1">1.30D0</lght_no_prd_factor>
 <lght_no_prd_factor phys="cam6" hgrid="0.9x1.25"  offline_dyn="1">1.60D0</lght_no_prd_factor>
 <lght_no_prd_factor phys="cam6" hgrid="0.47x0.63" offline_dyn="1">0.32D0</lght_no_prd_factor>
+
+<!-- Modal mosaic option -->
+<modal_mosaic_nitrates>.false.</modal_mosaic_nitrates>
+<modal_mosaic_nitrates mosaic="1">.true.</modal_mosaic_nitrates>
+<chem_neu_wetdep_serial>.false.</chem_neu_wetdep_serial>
+<chem_neu_wetdep_serial mosaic="1">.true.</chem_neu_wetdep_serial>
 
 <!-- For MEGAN VOCs -->
 <megan_factors_file>atm/cam/chem/trop_mozart/emis/megan21_emis_factors_78pft_c20161108.nc</megan_factors_file>

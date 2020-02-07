@@ -122,7 +122,7 @@ contains
 
   !=============================================================================
   !=============================================================================
-  subroutine aero_model_init( pbuf2d )
+  subroutine aero_model_init( loffset, pbuf2d )
 
     use mo_chem_utls,  only: get_inv_ndx, get_spc_ndx
     use cam_history,   only: addfld, add_default, horiz_only
@@ -136,6 +136,7 @@ contains
     use mo_setsox,     only: has_sox
 
     ! args
+    integer, intent(in) :: loffset
     type(physics_buffer_desc), pointer :: pbuf2d(:,:)
 
     ! local vars
