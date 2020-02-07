@@ -3961,7 +3961,7 @@ subroutine ASTEM_dtmax_soa(dtchem, dtmax, phi_volatile_l,integrate,kg)
         endif
      enddo
      
-     if(sum_kg_phi .gt. 0.0)then
+     if(sum_kg_phi .gt. 0.0_r8)then
         h_gas_i(iv) = alpha_astem_soa/sum_kg_phi
         h_gas       = min(h_gas, h_gas_i(iv))
      endif
