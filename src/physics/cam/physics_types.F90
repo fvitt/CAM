@@ -103,7 +103,7 @@ module physics_types
      integer, dimension(:),allocatable           :: &
           latmapback, &! map from column to unique lat for that column
           lonmapback, &! map from column to unique lon for that column
-          cid        ! unique column id
+          cid          ! unique column id
      integer :: ulatcnt, &! number of unique lats in chunk
                 uloncnt   ! number of unique lons in chunk
 
@@ -1310,6 +1310,9 @@ end subroutine physics_ptend_copy
        state_out%te_cur(i) = state_in%te_cur(i)
        state_out%tw_ini(i) = state_in%tw_ini(i)
        state_out%tw_cur(i) = state_in%tw_cur(i)
+       state_out%lonmapback(i) = state_in%lonmapback(i)
+       state_out%latmapback(i) = state_in%latmapback(i)
+       state_out%cid(i) = state_in%cid(i)
     end do
 
     do k = 1, pver
