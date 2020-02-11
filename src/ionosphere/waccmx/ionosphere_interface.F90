@@ -349,10 +349,6 @@ contains
            'Geometric height', gridname='physgrid')
       call addfld ('Z3GMI',      (/ 'lev' /), 'I', 'm',                       &
            'Geometric height (Interfaces)', gridname='physgrid')
-      call addfld ('DPIE_OMEGA', (/ 'lev' /), 'I', 'Pa/s',                    &
-           'OMEGA input to DPIE coupling', gridname='physgrid')
-      call addfld ('DPIE_MBAR' , (/ 'lev' /), 'I', '1',                       &
-           'MBAR Mean Mass from dpie_coupling', gridname='physgrid')
 
    end subroutine ionosphere_init
 
@@ -716,7 +712,6 @@ contains
                tempi(ncol+1:, :) = 0.0_r8
                call outfld('Z3GMI', tempi, pcols, lchnk)
             end if
-            call outfld('DPIE_OMEGA', phys_state(lchnk)%omega, pcols, lchnk)
          end do ! do lchnk = begchunk, endchunk
 
          !---------------------------------------------------------------------
@@ -737,7 +732,6 @@ contains
                   mbar_blck(k, j) = 1.0_r8 / r8tmp
                   tempm(i, k) = mbar_blck(k, j)
                end do
-               call outfld('DPIE_MBAR', tempm, pcols, lchnk)
             end do
          end do
 

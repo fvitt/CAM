@@ -108,7 +108,6 @@ contains
       ! Geomagnetic fields are in waccm format, in CGS units):
       call addfld ('PED_MAG'   ,(/ 'lev' /), 'I', 'S/m  ','Pedersen Conductivity'            ,gridname='gmag_grid')
       call addfld ('HAL_MAG'   ,(/ 'lev' /), 'I', 'S/m  ','Hall Conductivity'                ,gridname='gmag_grid')
-      call addfld ('ZMAG'      ,(/ 'lev' /), 'I', 'cm   ','ZMAG: Geopotential'               ,gridname='gmag_grid')
       call addfld ('PHIM2D'    , horiz_only, 'I', 'VOLTS','PHIM2D: Electric Potential'       ,gridname='gmag_grid')
       call addfld ('ED1'       , horiz_only, 'I', 'V/m  ','ED1: Eastward Electric Field'     ,gridname='gmag_grid')
       call addfld ('ED2'       , horiz_only, 'I', 'V/m  ','ED2: Equatorward Electric Field'  ,gridname='gmag_grid')

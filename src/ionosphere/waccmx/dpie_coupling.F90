@@ -51,7 +51,22 @@ contains
     end if
 
     ! Dynamo inputs (called from dpie_coupling. Fields are in waccm format, in CGS units):
+    call addfld ('DPIE_OMEGA',(/ 'lev' /), 'I', 'Pa/s    ','OMEGA input to DPIE coupling', gridname='physgrid')
+    call addfld ('DPIE_MBAR' ,(/ 'lev' /), 'I', '        ','MBAR Mean Mass from dpie_coupling', gridname='physgrid')
     call addfld ('DPIE_TN   ',(/ 'lev' /), 'I', 'deg K   ','DPIE_TN'   , gridname='physgrid')
+    call addfld ('DPIE_UN   ',(/ 'lev' /), 'I', 'cm/s    ','DPIE_UN'   , gridname='physgrid')
+    call addfld ('DPIE_VN   ',(/ 'lev' /), 'I', 'cm/s    ','DPIE_VN'   , gridname='physgrid')
+    call addfld ('DPIE_WN   ',(/ 'lev' /), 'I', 'cm/s    ','DPIE_WN'   , gridname='physgrid')
+    call addfld ('DPIE_OM   ',(/ 'lev' /), 'I', 's-1     ','DPIE_OM'   , gridname='physgrid')
+    call addfld ('DPIE_ZHT  ',(/ 'lev' /), 'I', 'cm      ','DPIE_ZHT (geometric height,simple)', gridname='physgrid')
+    call addfld ('DPIE_ZGI  ',(/ 'lev' /), 'I', 'cm      ','DPIE_ZGI (geopotential height on interfaces)', gridname='physgrid')
+    call addfld ('DPIE_BARM ',(/ 'lev' /), 'I', '        ','DPIE_BARM' , gridname='physgrid')
+    call addfld ('DPIE_O2   ',(/ 'lev' /), 'I', 'mmr     ','DPIE_O2'   , gridname='physgrid')
+    call addfld ('DPIE_O    ',(/ 'lev' /), 'I', 'mmr     ','DPIE_O'    , gridname='physgrid')
+    call addfld ('DPIE_N2   ',(/ 'lev' /), 'I', 'mmr     ','DPIE_N2'   , gridname='physgrid')
+    call addfld ('DPIE_TE   ',(/ 'lev' /), 'I', 'deg K   ','DPIE_TE'   , gridname='physgrid')
+    call addfld ('DPIE_TI   ',(/ 'lev' /), 'I', 'deg K   ','DPIE_TI'   , gridname='physgrid')
+
 
     call addfld ('DPIE_OPMMR' ,(/ 'lev' /), 'I', 'mmr'  ,'DPIE_OPMMR'  , gridname='physgrid')
     call addfld ('DPIE_O2P',(/ 'lev' /), 'I', 'm^-3','DPIE_O2P(dpie input)', gridname='physgrid')
@@ -403,6 +418,24 @@ contains
      end do ! k=1,nlev
 
      call outfld_phys('DPIE_TN',tn)
+     call outfld_phys('DPIE_UN',u* 100._r8)
+     call outfld_phys('DPIE_VN',v* 100._r8)
+     call outfld_phys('DPIE_WN',wn* 100._r8)
+     call outfld_phys('DPIE_ZHT',zht* 100._r8)
+     call outfld_phys('DPIE_ZGI',zgi* 100._r8)
+     call outfld_phys('DPIE_BARM',mbar)
+     call outfld_phys('DPIE_MBAR',mbar)
+     
+     call outfld_phys('DPIE_N2',n2mmr)
+     call outfld_phys('DPIE_O2',o2mmr)
+     call outfld_phys('DPIE_O',o1mmr)
+
+     call outfld_phys('DPIE_OMEGA',omega)
+     call outfld_phys('DPIE_OM',-omega/pmid)
+
+     call outfld_phys('DPIE_TE',te)
+     call outfld_phys('DPIE_TI',ti)
+     
      call outfld_phys('DPIE_O2P',o2p)
      call outfld_phys('DPIE_NOP',nop)
      call outfld_phys('DPIE_N2P',n2p)
@@ -620,8 +653,8 @@ contains
        call regrid_phys2geo_3d( mbar, mbar_geo, plev, cols, cole )
 
        call outfld_geo('TN_geo',tn_geo)
-       call outfld_geo('Te_geo',tn_geo)
-       call outfld_geo('Ti_geo',tn_geo)
+       call outfld_geo('Te_geo',te_geo)
+       call outfld_geo('Ti_geo',ti_geo)
 
        call outfld_geo('OMEGA_geo',omega_geo)
        call outfld_geo('O2_geo',o2_geo)
