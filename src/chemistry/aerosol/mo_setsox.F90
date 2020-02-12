@@ -281,7 +281,7 @@ contains
          cfact, &
          xph, xho2,         &
          xh2so4, xmsa, xso4_init, &
-         xca, xcl, xco3, xhcl, xna, &
+         xca, xcl, xco3, xhcl, xclc, xna, &
          hehno3, &            ! henry law const for hno3
          heh2o2, &            ! henry law const for h2o2
          heso2,  &            ! henry law const for so2
@@ -298,7 +298,6 @@ contains
     real(r8), pointer :: xnh4c(:,:)
     real(r8), pointer :: xno3c(:,:)
     real(r8), pointer :: xnac(:,:)
-    real(r8), pointer :: xclc(:,:)
     real(r8), pointer :: xcac(:,:)
     real(r8), pointer :: xco3c(:,:)
     type(cldaero_conc_t), pointer :: cldconc
@@ -340,13 +339,15 @@ contains
 
     if ( mosaic_scheme ) then
        xnac => cldconc%nac
-       xclc => cldconc%clc
        xcac => cldconc%cac
        xco3c => cldconc%co3c
        xna(:,:) = 0._r8
        xcl(:,:) = 0._r8
        xca(:,:) = 0._r8
        xco3(:,:) = 0._r8
+       xclc(:ncol,:) = cldconc%clc(:ncol,:)
+    else
+       xclc(:ncol,:) = 0._r8
     endif
 
     xso4(:,:) = 0._r8
@@ -824,7 +825,8 @@ contains
              !------------------------------------------------------------------------
              px = hehcl(i,k) * Ra * tz * xl
              hclg(i,k) = (xhcl(i,k)+xcl(i,k))/(1._r8+ px)
-
+          else
+             hclg(i,k) = 0._r8
           endif
 
           !------------------------------------------------------------------------
