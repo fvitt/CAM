@@ -171,6 +171,12 @@ contains
   subroutine aero_model_register()
     use modal_aero_data, only: modal_aero_data_reg
 
+    if (modal_mosaic_nitrates) then
+#ifndef MOSAIC_SPECIES
+       call endrun('modal_aero_data_reg: MOSAIC_SPECIES cpp var must be set to use MOSAIC schem')       
+#endif
+    end if
+    
     call modal_aero_data_reg()
 
   end subroutine aero_model_register
@@ -270,6 +276,8 @@ contains
        call modal_aero_newnuc_init(modal_mosaic_nitrates)
        call modal_aero_amicphys_init( loffset )
        call mosaic_cam_init()
+#else
+       call endrun(subrname//'modal_aero_data_reg: MOSAIC_SPECIES cpp var must be set to use MOSAIC schem')       
 #endif
     endif
 

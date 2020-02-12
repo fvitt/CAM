@@ -104,12 +104,10 @@
            lptr_nacl_a_amode(:),    lptr_nacl_cw_amode(:),&
            lptr_dust_a_amode(:),    lptr_dust_cw_amode(:)
 
-#if ( defined MOSAIC_SPECIES )
       integer, public, protected, allocatable ::  &
            lptr_ca_a_amode(:), lptr_ca_cw_amode(:),&  
            lptr_cl_a_amode(:), lptr_cl_cw_amode(:),& 
            lptr_co3_a_amode(:), lptr_co3_cw_amode(:)
-#endif
 
       integer, public, protected :: &
            modeptr_accum,  modeptr_aitken,                               &
@@ -228,12 +226,10 @@
          lptr_nacl_a_amode(ntot_amode), lptr_nacl_cw_amode(ntot_amode), &
          lptr_dust_a_amode(ntot_amode), lptr_dust_cw_amode(ntot_amode), &
          lptr_no3_a_amode(ntot_amode), lptr_no3_cw_amode(ntot_amode) )
-#if ( defined MOSAIC_SPECIES )
     allocate( &
          lptr_ca_a_amode(ntot_amode), lptr_ca_cw_amode(ntot_amode), &
          lptr_cl_a_amode(ntot_amode), lptr_cl_cw_amode(ntot_amode), &
          lptr_co3_a_amode(ntot_amode),lptr_co3_cw_amode(ntot_amode) )
-#endif
 
     allocate( &
          aodvislongname(ntot_amode ), &
@@ -538,15 +534,15 @@
                 call rad_cnst_get_info(0, m, l, spec_type=spec_type )
                 select case( spec_type )
                 case('sulfate')
-#if ( defined MOSAIC_SPECIES )
-                   specmw_amode(l,m) = 96._r8
-#else
-                   if (ntot_amode==7) then
+                   if (mosaic_aqchem_optaa == 1 ) then
                       specmw_amode(l,m) = 96._r8
                    else
-                      specmw_amode(l,m) = 115._r8
+                      if (ntot_amode==7) then
+                         specmw_amode(l,m) = 96._r8
+                      else
+                         specmw_amode(l,m) = 115._r8
+                      endif
                    endif
-#endif
                 case('nitrate')
                    specmw_amode(l,m) = 62._r8
                 case('ammonium')
@@ -967,14 +963,12 @@
           lptr_nacl_cw_amode(m)  = init_val
           lptr_dust_a_amode(m)   = init_val
           lptr_dust_cw_amode(m)  = init_val
-#if ( defined MOSAIC_SPECIES )
           lptr_ca_a_amode(m)     = init_val 
           lptr_ca_cw_amode(m)    = init_val 
           lptr_cl_a_amode(m)     = init_val
           lptr_cl_cw_amode(m)    = init_val
           lptr_co3_a_amode(m)    = init_val
           lptr_co3_cw_amode(m)   = init_val
-#endif
           pom_ndx = 0
           soa_ndx = 0
           bc_ndx = 0
@@ -1008,7 +1002,6 @@
              case('no3')
                 lptr_no3_a_amode(m)  = lmassa
                 lptr_no3_cw_amode(m) = lmassc
-#if ( defined MOSAIC_SPECIES )
              case('co3')
                 lptr_co3_a_amode(m)  = lmassa
                 lptr_co3_cw_amode(m) = lmassc
@@ -1018,7 +1011,6 @@
              case('cl_')
                 lptr_cl_a_amode(m)  = lmassa
                 lptr_cl_cw_amode(m) = lmassc
-#endif
              case('dst')
                 lptr_dust_a_amode(m)  = lmassa
                 lptr_dust_cw_amode(m) = lmassc

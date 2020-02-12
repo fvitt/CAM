@@ -62,11 +62,13 @@ contains
 !----------------------------------------------------------------------------------
   subroutine sox_cldaero_update( &
        ncol, lchnk, loffset, dtime, mbar, pdel, press, tfld, cldnum, cldfrc, cfact, xlwc, &
-       delso4_hprxn, xh2so4, xso4, xso4_init, nh3g, hno3g, xnh3, xhno3, xnh4c,  xno3c, xmsa, xso2, xh2o2, qcw, qin, &
-       aqso4, aqh2so4, aqso4_h2o2, aqso4_o3, aqso4_h2o2_3d, aqso4_o3_3d )
+       delso4_hprxn, xh2so4, xso4, xso4_init, nh3g, hno3g, xnh3, xhno3, xnh4c,  xno3c, xmsa, xso2, xh2o2, &
+       hclg, xhcl, xclc, &
+       qcw, qin, &
+       aqso4, aqh2so4, aqso4_h2o2, aqso4_o3, aqso4_h2o2_3d, aqso4_o3_3d)
     
     ! args 
-    
+
     integer,  intent(in) :: ncol
     integer,  intent(in) :: lchnk ! chunk id
     integer,  intent(in) :: loffset
@@ -96,6 +98,9 @@ contains
     real(r8), intent(in) :: xso2(:,:)
     real(r8), intent(in) :: xh2o2(:,:)
     real(r8), intent(in) :: xno3c(:,:)
+    real(r8), intent(in) :: hclg(:,:)
+    real(r8), intent(in) :: xhcl(:,:)
+    real(r8), intent(in) :: xclc(:,:)
 
     real(r8), intent(inout) :: qcw(:,:,:) ! cloud-borne aerosol (vmr)
     real(r8), intent(inout) :: qin(:,:,:) ! xported species ( vmr )

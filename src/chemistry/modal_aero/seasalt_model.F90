@@ -27,12 +27,10 @@ module seasalt_model
 
   real(r8):: emis_scale
 
-#if ( defined( MOSAIC_SPECIES ) )
   character(len=5), allocatable :: cl_names(:)
   character(len=6), allocatable :: so4_names(:)
   integer, allocatable :: cl_indices(:)
   integer, allocatable :: so4_indices(:)
-#endif
 
 contains
   
@@ -51,12 +49,11 @@ contains
     seasalt_nnum = nslt
     allocate(seasalt_names(2*nslt))
     allocate(seasalt_indices(2*nslt))
-#if ( defined( MOSAIC_SPECIES ) )
+
     allocate( cl_names(nslt) )
     allocate( cl_indices(nslt) )
     allocate( so4_names(nslt) )
     allocate( so4_indices(nslt) )
-#endif
 
     ndx=0
     do m = 1, ntot_amode
@@ -69,12 +66,10 @@ contains
              seasalt_names(nslt+ndx) = 'num_'//spec_name(5:)
              call cnst_get_ind(seasalt_names(     ndx), seasalt_indices(     ndx))
              call cnst_get_ind(seasalt_names(nslt+ndx), seasalt_indices(nslt+ndx))
-#if ( defined( MOSAIC_SPECIES ) )          
              cl_names(ndx) = 'cl_'//spec_name(5:)
              so4_names(ndx) = 'so4_'//spec_name(5:)
-             call cnst_get_ind(cl_names(ndx), cl_indices(ndx))
-             call cnst_get_ind(so4_names(ndx), so4_indices(ndx))
-#endif
+             call cnst_get_ind(cl_names(ndx), cl_indices(ndx), abort=.false. )
+             call cnst_get_ind(so4_names(ndx), so4_indices(ndx), abort=.false. )
           endif
        enddo
     enddo
@@ -109,13 +104,12 @@ contains
     real(r8) :: sst_sz_range_lo (nslt)
     real(r8) :: sst_sz_range_hi (nslt)
 
-#if ( defined( MOSAIC_SPECIES ) )
     integer :: icl,iso4
+    real(r8) :: flx(ncol)
     real(r8), parameter :: fracemit_so4 = 0.077_r8                           
     real(r8), parameter :: fracemit_cl  = 0.5822727_r8        
     real(r8), parameter :: fracemit_na  = 1.0_r8-fracemit_cl-fracemit_so4     
-#endif
-
+    
     if (nslt==4) then
        sst_sz_range_lo (:) = (/ 0.08e-6_r8, 0.02e-6_r8, 0.3e-6_r8,  1.0e-6_r8 /) ! accu, aitken, fine, coarse
        sst_sz_range_hi (:) = (/ 0.3e-6_r8,  0.08e-6_r8, 1.0e-6_r8, 10.0e-6_r8 /)
@@ -130,41 +124,30 @@ contains
        mm = seasalt_indices(ibin)
        mn = seasalt_indices(nslt+ibin)
 
-#if ( defined( MOSAIC_SPECIES ) )
        icl = cl_indices(ibin)
        iso4= so4_indices(ibin)
-#endif
+
        if (mn>0) then
           do i=1, nsections
              if (Dg(i).ge.sst_sz_range_lo(ibin) .and. Dg(i).lt.sst_sz_range_hi(ibin)) then
-                cflx(:ncol,mn)=cflx(:ncol,mn)+fi(:ncol,i)*ocnfrc(:ncol)*emis_scale !++ ag: scale sea-salt
+                cflx(:ncol,mn)=cflx(:ncol,mn)+fi(:ncol,i)*ocnfrc(:ncol)*emis_scale  !++ ag: scale sea-salt
              endif
           enddo
        endif
 
        cflx(:ncol,mm)=0.0_r8
-#if ( defined( MOSAIC_SPECIES ) )
-       cflx(:ncol,icl)=0.0_r8
-       cflx(:ncol,iso4)=0.0_r8
-#endif
-
        do i=1, nsections
           if (Dg(i).ge.sst_sz_range_lo(ibin) .and. Dg(i).lt.sst_sz_range_hi(ibin)) then
-
-             ! should use dry size, convert from number to mass flux (kg/m2/s)
-#if ( defined( MOSAIC_SPECIES ) )
-             cflx(:ncol,mm) = cflx(:ncol,mm)+fi(:ncol,i)*ocnfrc(:ncol)*emis_scale  &   !++ ag: scale sea-salt
-                            * 4._r8/3._r8*pi*rdry(i)**3*dns_aer_sst* fracemit_na
-             cflx(:ncol,icl) = cflx(:ncol,icl)+fi(:ncol,i)*ocnfrc(:ncol)*emis_scale  &   !++ ag: scale sea-salt
-                             * 4._r8/3._r8*pi*rdry(i)**3*dns_aer_sst* fracemit_cl
-             cflx(:ncol,iso4)= cflx(:ncol,iso4)+fi(:ncol,i)*ocnfrc(:ncol)*emis_scale &   !++ ag: scale sea-salt
-                             * 4._r8/3._r8*pi*rdry(i)**3*dns_aer_sst* fracemit_so4
-#else
-             cflx(:ncol,mm) = cflx(:ncol,mm)+fi(:ncol,i)*ocnfrc(:ncol)*emis_scale  &   !++ ag: scale sea-salt
-                            * 4._r8/3._r8*pi*rdry(i)**3*dns_aer_sst
-#endif
+             cflx(:ncol,mm)=cflx(:ncol,mm)+fi(:ncol,i)*ocnfrc(:ncol)*emis_scale  &   !++ ag: scale sea-salt
+                  *4._r8/3._r8*pi*rdry(i)**3*dns_aer_sst  ! should use dry size, convert from number to mass flux (kg/m2/s)
           endif
        enddo
+
+       if ( iso4>0 .and. icl>0 ) then
+          cflx(:ncol,iso4) = cflx(:ncol,mm) *fracemit_so4
+          cflx(:ncol,icl) = cflx(:ncol,mm) *fracemit_cl
+          cflx(:ncol,mm) = cflx(:ncol,mm) *fracemit_na
+      endif
 
     enddo
 

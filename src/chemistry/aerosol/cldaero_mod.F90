@@ -20,12 +20,10 @@ module cldaero_mod
      real(r8), pointer :: so4c(:,:)
      real(r8), pointer :: nh4c(:,:)
      real(r8), pointer :: no3c(:,:)
-#if ( defined MOSAIC_SPECIES )
      real(r8), pointer :: nac(:,:)
      real(r8), pointer :: clc(:,:)
      real(r8), pointer :: cac(:,:)
      real(r8), pointer :: co3c(:,:)
-#endif
      real(r8), pointer :: xlwc(:,:)
      real(r8) :: so4_fact
   end type cldaero_conc_t

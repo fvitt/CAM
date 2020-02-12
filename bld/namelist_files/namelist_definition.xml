@@ -5075,7 +5075,7 @@ Default: FALSE
 
 <entry id="modal_mosaic_nitrates" type="logical" category="cam_chem"
        group="aerosol_nl" valid_values="" >
-Turns on mosaic nitrates.
+Turns on MOSAIC nitrate aerosol scheme.
 Default: Set by build-namelist
 </entry>
 
