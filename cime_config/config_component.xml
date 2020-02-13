@@ -119,7 +119,7 @@
       <!-- Modifiers for CAM runs -->
       <value compset="_(CAM50|CAM60)%(CCTS|CFIRE)">-chem trop_strat_mam4_vbs</value>
       <value compset="CAM60%CVBSX">-chem trop_strat_mam4_vbsext</value>
-      <value compset="CAM60%CMOS">-chem trop_strat_mam4_mosaic</value>
+      <value compset="CAM60%CMOS">-chem trop_strat_mam4_mosaic -mosaic</value>
       <value compset="_CAM50%CLB">-clubb_sgs</value>
       <value compset="_(CAM40|CAM50|CAM60)%SCAM">-dyn eul -scam</value>
       <value compset="CAM%SPCAMS">-rad camrt -chem none -spcam_nx 32 -spcam_ny 1 -spcam_dx 4000 -spcam_dt 20 -phys spcam_sam1mom </value>
