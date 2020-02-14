@@ -48,6 +48,7 @@ module ion_electron_temp
   public :: ion_electron_temp_inidat   ! Get fields from initial condition file into physics buffer
   public :: ion_electron_temp_tend     ! Calculate tendencies for extended model ionosphere
   public :: ion_electron_temp_readnl
+  public :: ion_electron_temp_UNSET
 
   !------------------------------------------------------------------------
   ! PRIVATE: Rest of the data and interfaces are private to this module
@@ -58,7 +59,7 @@ module ion_electron_temp
   real(r8), parameter :: nightOPFlux = -2.0E8_r8 ! Nighttime O+ flux at upper boundary (
 
   real(r8), parameter :: rads2Degs   = 180._r8/pi ! radians to degrees
-
+  real(r8), parameter :: ion_electron_temp_UNSET = -999._r8
 
 ! private data
   real(r8) :: rMassOp ! O+ molecular weight kg/kmol
@@ -263,8 +264,13 @@ contains
           call infld( 'T',ncid_ini,dim1name, 'lev', dim2name, 1, pcols, 1, pver, begchunk, endchunk, &
                tE, found, gridname='physgrid')
        endif
-
-       call pbuf_set_field(pbuf2d, index_te, tE)
+       if (found) then
+          call pbuf_set_field(pbuf2d, index_te, tE)
+       else
+          if (masterproc) write(iulog,*) 'ion_electron_temp_inidat: Not able to read temperature from IC file.' &
+                                       //' Set TElec to ion_electron_temp_UNSET' 
+          call pbuf_set_field(pbuf2d, index_te, ion_electron_temp_UNSET)
+       endif
 
        deallocate(tE)
     endif
@@ -283,8 +289,13 @@ contains
           call infld( 'T',ncid_ini,dim1name, 'lev', dim2name, 1, pcols, 1, pver, begchunk, endchunk, &
                tI, found, gridname='physgrid')
        endif
-
-       call pbuf_set_field(pbuf2d, index_ti, tI)
+       if (found) then
+          call pbuf_set_field(pbuf2d, index_ti, tI)
+       else
+           if (masterproc) write(iulog,*) 'ion_electron_temp_inidat: Not able to read temperature from IC file.' &
+                                       //' Set TIon to ion_electron_temp_UNSET' 
+         call pbuf_set_field(pbuf2d, index_ti, ion_electron_temp_UNSET)
+       endif
 
        deallocate(tI)
     endif
