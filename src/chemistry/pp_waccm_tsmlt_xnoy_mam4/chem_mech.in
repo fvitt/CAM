@@ -6,6 +6,7 @@
 * Tag created on : 2019-01-09 14:55:22.514654-07
 * Comments for this tag follow:
 *     lke : 2019-01-09 : Tagged NOx mechanism for TSMLT/WACCM.
+* hacked by fvitt 14 Feb 2020 -- remve O3s and  TERP2OOH -> C10H18O3
 
       SPECIES
 
@@ -145,7 +146,6 @@
  O,
  O2,
  O3,
- O3S -> O3,
  OCLO -> OClO,
  OCS -> OCS,
  ONITR -> C4H7NO4,
@@ -184,7 +184,7 @@
  ST80_25 -> CO,
  SVOC -> C22H46,
  TEPOMUC -> C7H8O3,
- TERP2OOH -> C10H16O4,
+ TERP2OOH -> C10H18O3,
  TERPNIT -> C10H17NO4,
  TERPOOH -> C10H18O3,
  TERPROD1 -> C10H16O2,
@@ -371,7 +371,6 @@
  NHDEP
  NDEP
  XNDEP
- O3S
       End Explicit
 
       Implicit
