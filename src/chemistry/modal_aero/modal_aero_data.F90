@@ -1136,7 +1136,7 @@
           call initaermodes_setspecptrs_write2( m,                    &
                lptr_dust_a_amode(m), lptr_dust_cw_amode(m),  'dust' )
        end do
-#if ( defined MOSAIC_SPECIES )
+
        write(iulog,9000) 'calcium    '
        do m = 1, ntot_amode
           call initaermodes_setspecptrs_write2( m,                    &
@@ -1156,7 +1156,6 @@
           call initaermodes_setspecptrs_write2( m,                    &
                lptr_co3_a_amode(m), lptr_co3_cw_amode(m),  'co3' )
        end do
-#endif
 
 9000   format( a )
 9230   format(                                                         &

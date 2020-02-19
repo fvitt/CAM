@@ -103,7 +103,6 @@ module aero_model
   logical :: wetdep_lq(pcnst)
 
   logical :: modal_accum_coarse_exch = .false.
-  logical :: modal_mosaic_nitrates = .false.
 
   logical :: convproc_do_aer
 
@@ -130,7 +129,7 @@ contains
 
     namelist /aerosol_nl/ aer_wetdep_list, aer_drydep_list, sol_facti_cloud_borne, &
        sol_factb_interstitial, sol_factic_interstitial, modal_strat_sulfate, modal_accum_coarse_exch, seasalt_emis_scale
-    namelist /aerosol_nl/ modal_mosaic_nitrates
+
     !-----------------------------------------------------------------------------
 
     ! Read namelist
@@ -158,7 +157,6 @@ contains
     call mpibcast(modal_strat_sulfate,     1,                       mpilog,  0, mpicom)
     call mpibcast(seasalt_emis_scale, 1,                            mpir8,   0, mpicom)
     call mpibcast(modal_accum_coarse_exch, 1,                       mpilog,  0, mpicom)
-    call mpibcast(modal_mosaic_nitrates, 1,                         mpilog,  0, mpicom)
 #endif
 
     wetdep_list = aer_wetdep_list
@@ -171,12 +169,6 @@ contains
   subroutine aero_model_register()
     use modal_aero_data, only: modal_aero_data_reg
 
-    if (modal_mosaic_nitrates) then
-#ifndef MOSAIC_SPECIES
-       call endrun('modal_aero_data_reg: MOSAIC_SPECIES cpp var must be set to use MOSAIC schem')       
-#endif
-    end if
-    
     call modal_aero_data_reg()
 
   end subroutine aero_model_register
@@ -262,24 +254,21 @@ contains
     call modal_aero_data_init(pbuf2d)
     call modal_aero_bcscavcoef_init()
 
-    if (.not.modal_mosaic_nitrates) then
-       call modal_aero_rename_init( modal_accum_coarse_exch )
-       !   calcsize call must follow rename call
-       call modal_aero_calcsize_init( pbuf2d )
-       call modal_aero_gasaerexch_init
-       !   coag call must follow gasaerexch call
-       call modal_aero_coag_init
-       call modal_aero_newnuc_init(modal_mosaic_nitrates)
-    else
 #ifdef MOSAIC_SPECIES
-       call modal_aero_calcsize_init( pbuf2d )
-       call modal_aero_newnuc_init(modal_mosaic_nitrates)
-       call modal_aero_amicphys_init( loffset )
-       call mosaic_cam_init()
+    call modal_aero_calcsize_init( pbuf2d )
+    call modal_aero_newnuc_init(mosaic=.true.)
+    call modal_aero_amicphys_init( loffset )
+    call mosaic_cam_init()
 #else
-       call endrun(subrname//'modal_aero_data_reg: MOSAIC_SPECIES cpp var must be set to use MOSAIC schem')       
+    call modal_aero_rename_init( modal_accum_coarse_exch )
+    !   calcsize call must follow rename call
+    call modal_aero_calcsize_init( pbuf2d )
+    call modal_aero_gasaerexch_init
+    !   coag call must follow gasaerexch call
+    call modal_aero_coag_init
+    call modal_aero_newnuc_init(mosaic=.false.)
 #endif
-    endif
+    
 
     ! call modal_aero_deposition_init only if the user has not specified 
     ! prescribed aerosol deposition fluxes
@@ -1927,69 +1916,69 @@ contains
     call qqcw2vmr( lchnk, vmrcw, mbar, ncol, loffset, pbuf )
 
     if (.not. is_spcam_m2005) then  ! regular CAM
-       dvmrdt(:ncol,:,:) = vmr(:ncol,:,:)
-       dvmrcwdt(:ncol,:,:) = vmrcw(:ncol,:,:)
+      dvmrdt(:ncol,:,:) = vmr(:ncol,:,:)
+      dvmrcwdt(:ncol,:,:) = vmrcw(:ncol,:,:)
 
-       ! aqueous chemistry ...
+    ! aqueous chemistry ...
 
-       if( has_sox ) then
-          call setsox(   &
-               ncol,     &
-               lchnk,    &
-               loffset,  &
-               delt,     &
-               pmid,     &
-               pdel,     &
-               tfld,     &
-               mbar,     &
-               cwat,     &
-               cldfr,    &
-               cldnum,   &
-               airdens,  &
-               invariants, &
-               vmrcw,    &
-               vmr,      &
-               xphlwc,   &
-               aqso4,    &
-               aqh2so4,  &
-               aqso4_h2o2, &
-               aqso4_o3  &
-               )
+      if( has_sox ) then
+         call setsox(   &
+              ncol,     &
+              lchnk,    &
+              loffset,  &
+              delt,     &
+              pmid,     &
+              pdel,     &
+              tfld,     &
+              mbar,     &
+              cwat,     &
+              cldfr,    &
+              cldnum,   &
+              airdens,  &
+              invariants, &
+              vmrcw,    &
+              vmr,      &
+              xphlwc,   &
+              aqso4,    &
+              aqh2so4,  &
+              aqso4_h2o2, &
+              aqso4_o3  &
+              )
 
-       do n = 1, ntot_amode
-          l = lptr_so4_cw_amode(n)
-          if (l > 0) then
-             call outfld( trim(cnst_name_cw(l))//'AQSO4',   aqso4(:ncol,n),   ncol, lchnk)
-             call outfld( trim(cnst_name_cw(l))//'AQH2SO4', aqh2so4(:ncol,n), ncol, lchnk)
-          end if
-       end do
+         do n = 1, ntot_amode
+            l = lptr_so4_cw_amode(n)
+            if (l > 0) then
+               call outfld( trim(cnst_name_cw(l))//'AQSO4',   aqso4(:ncol,n),   ncol, lchnk)
+               call outfld( trim(cnst_name_cw(l))//'AQH2SO4', aqh2so4(:ncol,n), ncol, lchnk)
+            end if
+         end do
 
-       call outfld( 'AQSO4_H2O2', aqso4_h2o2(:ncol), ncol, lchnk)
-       call outfld( 'AQSO4_O3',   aqso4_o3(:ncol),   ncol, lchnk)
-       call outfld( 'XPH_LWC',    xphlwc(:ncol,:),   ncol, lchnk )
+         call outfld( 'AQSO4_H2O2', aqso4_h2o2(:ncol), ncol, lchnk)
+         call outfld( 'AQSO4_O3',   aqso4_o3(:ncol),   ncol, lchnk)
+         call outfld( 'XPH_LWC',    xphlwc(:ncol,:),   ncol, lchnk )
 
-    endif
+      endif
 
 !   Tendency due to aqueous chemistry 
-    if ( .not. modal_mosaic_nitrates ) then
-      ! when modal_aero_gasaerexch_sub is used, 
-      !    these arrays must hold the mixing ratio tendencies due to cloud chemistry (setsox)
-      ! when modal_aero_amicphys is used, 
-      !    these arrays must hold the mixing ratios before cloud chemistry (setsox)
-      dvmrdt = (vmr - dvmrdt) / delt
-      dvmrcwdt = (vmrcw - dvmrcwdt) / delt
-    endif
+#ifndef MOSAIC_SPECIES
+    ! when modal_aero_gasaerexch_sub is used, 
+    !    these arrays must hold the mixing ratio tendencies due to cloud chemistry (setsox)
+    ! when modal_aero_amicphys is used, 
+    !    these arrays must hold the mixing ratios before cloud chemistry (setsox)
+    dvmrdt = (vmr - dvmrdt) / delt
+    dvmrcwdt = (vmrcw - dvmrcwdt) / delt
+#endif
     do m = 1, gas_pcnst
 ! gases and interstitial aerosol species (this could be skipped for interstitial aerosol species)
       wrk(:) = 0._r8
       do k = 1,pver
-        if ( .not. modal_mosaic_nitrates ) then
+#ifndef MOSAIC_SPECIES
           wrk(:ncol) = wrk(:ncol) + dvmrdt(:ncol,k,m) * adv_mass(m)/mbar(:ncol,k)*pdel(:ncol,k)/gravit
-        else
+#else
           ! need to calculate tendencies due to cloud chemistry [ = (vmr-dvmrdt)/delt ]
           wrk(:ncol) = wrk(:ncol) + ((vmr(:ncol,k,m)-dvmrdt(:ncol,k,m))/delt) &
                                                       * adv_mass(m)/mbar(:ncol,k)*pdel(:ncol,k)/gravit
-        endif
+#endif
       end do
       name = 'AQ_'//trim(solsym(m))
       call outfld( name, wrk(:ncol), ncol, lchnk )
@@ -2055,80 +2044,76 @@ contains
        del_h2so4_aeruptk(:,:) = 0.0_r8
     endif
 
-    mosaic_nitrates: if (modal_mosaic_nitrates) then
 #ifdef MOSAIC_SPECIES
-       call t_startf ('modal_aero_amicphys')
+    call t_startf ('modal_aero_amicphys')
 
-       call modal_aero_amicphys_intr( &
-            1,                  1,                   &
-            1,                  1,                   &
-            lchnk,     ncol,    nstep,               &
-            loffset,   delt,                         &
-            tfld,      pmid,    pdel,                &
-            zm,        pblh,                         &
-            qh2o,      cldfr,                        &
-            vmr,                vmrcw,               &
-            vmr0,                                    &
-            dvmrdt,             dvmrcwdt,            &
-            dgnum,              dgnumwet,            &
-            wetdens                                  )
+    call modal_aero_amicphys_intr( &
+         1,                  1,                   &
+         1,                  1,                   &
+         lchnk,     ncol,    nstep,               &
+         loffset,   delt,                         &
+         tfld,      pmid,    pdel,                &
+         zm,        pblh,                         &
+         qh2o,      cldfr,                        &
+         vmr,                vmrcw,               &
+         vmr0,                                    &
+         dvmrdt,             dvmrcwdt,            &
+         dgnum,              dgnumwet,            &
+         wetdens                                  )
 
-       call t_stopf ('modal_aero_amicphys')
-#endif
+    call t_stopf ('modal_aero_amicphys')
+#else
+    call t_startf('modal_gas-aer_exchng')
+
+    if ( sulfeq_idx>0 ) then
+       call pbuf_get_field( pbuf, sulfeq_idx, sulfeq )
     else
+       nullify( sulfeq )
+    endif
 
-       call t_startf('modal_gas-aer_exchng')
+    call modal_aero_gasaerexch_sub(            &
+         lchnk,    ncol,     nstep,            &
+         loffset,            delt,             &
+         tfld,     pmid,     pdel,             &
+         qh2o,               troplev,          &
+         vmr,                vmrcw,            &
+         dvmrdt,             dvmrcwdt,         &
+         dgnum,              dgnumwet,         &
+         sulfeq     )
 
-       if ( sulfeq_idx>0 ) then
-          call pbuf_get_field( pbuf, sulfeq_idx, sulfeq )
-       else
-          nullify( sulfeq )
-       endif
+    if (ndx_h2so4 > 0) then
+       del_h2so4_aeruptk(1:ncol,:) = vmr(1:ncol,:,ndx_h2so4) - del_h2so4_aeruptk(1:ncol,:)
+    endif
 
-       call modal_aero_gasaerexch_sub(            &
-            lchnk,    ncol,     nstep,            &
-            loffset,            delt,             &
-            tfld,     pmid,     pdel,             &
-            qh2o,               troplev,          &
-            vmr,                vmrcw,            &
-            dvmrdt,             dvmrcwdt,         &
-            dgnum,              dgnumwet,         &
-            sulfeq     )
+    call t_stopf('modal_gas-aer_exchng')
 
-       if (ndx_h2so4 > 0) then
-          del_h2so4_aeruptk(1:ncol,:) = vmr(1:ncol,:,ndx_h2so4) - del_h2so4_aeruptk(1:ncol,:)
-       endif
+    call t_startf('modal_nucl')
 
-       call t_stopf('modal_gas-aer_exchng')
+    ! do aerosol nucleation (new particle formation)
+    call modal_aero_newnuc_sub(                             &
+         lchnk,    ncol,     nstep,            &
+         loffset,            delt,             &
+         tfld,     pmid,     pdel,             &
+         zm,       pblh,                       &
+         qh2o,     cldfr,                      &
+         vmr,                                  &
+         del_h2so4_gasprod,  del_h2so4_aeruptk )
 
-       call t_startf('modal_nucl')
+    call t_stopf('modal_nucl')
 
-       ! do aerosol nucleation (new particle formation)
-       call modal_aero_newnuc_sub(                             &
-            lchnk,    ncol,     nstep,            &
-            loffset,            delt,             &
-            tfld,     pmid,     pdel,             &
-            zm,       pblh,                       &
-            qh2o,     cldfr,                      &
-            vmr,                                  &
-            del_h2so4_gasprod,  del_h2so4_aeruptk )
+    call t_startf('modal_coag')
 
-       call t_stopf('modal_nucl')
+    ! do aerosol coagulation
+    call modal_aero_coag_sub(                               &
+         lchnk,    ncol,     nstep,            &
+         loffset,            delt,             &
+         tfld,     pmid,     pdel,             &
+         vmr,                                  &
+         dgnum,              dgnumwet,         &
+         wetdens                          )
 
-       call t_startf('modal_coag')
-
-       ! do aerosol coagulation
-       call modal_aero_coag_sub(                               &
-            lchnk,    ncol,     nstep,            &
-            loffset,            delt,             &
-            tfld,     pmid,     pdel,             &
-            vmr,                                  &
-            dgnum,              dgnumwet,         &
-            wetdens                          )
-
-       call t_stopf('modal_coag')
-
-    endif mosaic_nitrates
+    call t_stopf('modal_coag')
+#endif
 
     call vmr2qqcw( lchnk, vmrcw, mbar, ncol, loffset, pbuf )
 

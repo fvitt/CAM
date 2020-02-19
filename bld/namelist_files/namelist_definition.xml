@@ -5073,12 +5073,6 @@ aerosol property input files.
 Default: FALSE
 </entry>
 
-<entry id="modal_mosaic_nitrates" type="logical" category="cam_chem"
-       group="aerosol_nl" valid_values="" >
-Turns on MOSAIC nitrate aerosol scheme.
-Default: Set by build-namelist
-</entry>
-
 <entry id="modal_strat_sulfate" type="logical" category="cam_chem"
        group="aerosol_nl" valid_values="" >
 Turns on prognostic modal sulfate aerosols in the stratosphere.

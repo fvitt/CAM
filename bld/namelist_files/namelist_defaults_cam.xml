@@ -635,12 +635,6 @@
 <lght_no_prd_factor phys="cam6" hgrid="0.9x1.25"  offline_dyn="1">1.60D0</lght_no_prd_factor>
 <lght_no_prd_factor phys="cam6" hgrid="0.47x0.63" offline_dyn="1">0.32D0</lght_no_prd_factor>
 
-<!-- Modal mosaic option -->
-<modal_mosaic_nitrates>.false.</modal_mosaic_nitrates>
-<modal_mosaic_nitrates mosaic="1">.true.</modal_mosaic_nitrates>
-<chem_neu_wetdep_serial>.false.</chem_neu_wetdep_serial>
-<chem_neu_wetdep_serial mosaic="1">.true.</chem_neu_wetdep_serial>
-
 <!-- For MEGAN VOCs -->
 <megan_factors_file>atm/cam/chem/trop_mozart/emis/megan21_emis_factors_78pft_c20161108.nc</megan_factors_file>
 

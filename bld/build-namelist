@@ -2842,12 +2842,11 @@ if ($waccmx) {
   add_default($nl,'oplus_ring_polar_filter');
 }
 
-# Modal mosaic runtime option
-if ($aer_model eq 'mam' ) {
-  add_default($nl, 'modal_mosaic_nitrates');
-}
-
 # Chemistry options
+my $mosaic = $cfg->get('mosaic');
+if ($mosaic) {
+  add_default($nl,'chem_neu_wetdep_serial', 'val'=>'.true.');
+}
 
 # EPP namelist sanity checks
 
