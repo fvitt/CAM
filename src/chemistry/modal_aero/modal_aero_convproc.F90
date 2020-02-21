@@ -56,8 +56,8 @@ logical, parameter, public :: convproc_do_shallow = .false.
 !real, parameter, public    :: convproc_wup_max       = 4.0_r8
 ! NOTE: These are the defaults for Yenpeng's modifications.
 logical, parameter, public :: convproc_do_evaprain_atonce = .true.
-real, parameter, public    :: convproc_pom_spechygro = 0.2_r8
-real, parameter, public    :: convproc_wup_max       = 15.0_r8
+real(r8), parameter, public    :: convproc_pom_spechygro = 0.2_r8
+real(r8), parameter, public    :: convproc_wup_max       = 15.0_r8
 
 
 logical, parameter :: use_cwaer_for_activate_maxsat = .false.
