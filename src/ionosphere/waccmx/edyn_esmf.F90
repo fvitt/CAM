@@ -10,9 +10,8 @@ module edyn_esmf
    use ESMF,           only: ESMF_KIND_R8, ESMF_KIND_I4
    use ESMF,           only: ESMF_FieldGet, ESMF_GridWriteVTK
    use ESMF,           only: ESMF_STAGGERLOC_CENTER, ESMF_FieldRegridStore, ESMF_FieldRegrid
-   use ESMF,           only: ESMF_STAGGERLOC_CORNER, ESMF_StaggerLoc
+   use ESMF,           only: ESMF_StaggerLoc
    use ESMF,           only: ESMF_REGRIDMETHOD_BILINEAR, ESMF_POLEMETHOD_ALLAVG
-   use ESMF,           only: ESMF_REGRIDMETHOD_CONSERVE, ESMF_POLEMETHOD_NONE
    use ESMF,           only: ESMF_GridCreate1PeriDim, ESMF_INDEX_GLOBAL
    use ESMF,           only: ESMF_GridAddCoord, ESMF_GridGetCoord
    use ESMF,           only: ESMF_TYPEKIND_R8, ESMF_FieldCreate, ESMF_Array
@@ -24,12 +23,11 @@ module edyn_esmf
    use ESMF,           only: ESMF_UNMAPPEDACTION_IGNORE
    use ESMF,           only: ESMF_GridDestroy, ESMF_FieldDestroy, ESMF_RouteHandleDestroy
    use ESMF,           only: ESMF_Mesh, ESMF_MeshIsCreated, ESMF_MeshDestroy
-   use ESMF, only: ESMF_MESHLOC_ELEMENT
+   use ESMF,           only: ESMF_MESHLOC_ELEMENT
    use edyn_mpi,       only: mytid, ntask, ntaski, ntaskj, tasks, lon0, lon1, lat0
    use edyn_mpi,       only: lat1, nmagtaski, nmagtaskj, mlon0, mlon1
    use edyn_mpi,       only: mlat0,mlat1
    use getapex,        only: gdlatdeg, gdlondeg
-   use getapex,        only: gdlatdeg_corners, gdlondeg_corners
    ! dynamically allocated geo grid for Oplus transport model
    use edyn_geogrid,   only: nlon, nlev, glon, glat
    use edyn_maggrid,   only: gmlat, gmlon
@@ -66,9 +64,9 @@ module edyn_esmf
    public :: edyn_esmf_update_phys_mesh
 
    public :: phys_3dfld, phys_2dfld
-   public :: geo_3dfld, geo_2dfld, geo2phys_3dfld
+   public :: geo_3dfld, geo_2dfld
    public :: mag_des_3dfld, mag_des_2dfld
-   public :: mag_src_3dfld, mag2phys_2dfld
+   public :: mag_src_3dfld, mag_src_2dfld
 
    public :: edyn_esmf_chkerr
 
@@ -76,17 +74,15 @@ module edyn_esmf
         mag_src_grid, & ! source grid (will not have periodic pts)
         mag_des_grid, & ! destination grid (will have periodic pts)
         geo_grid        ! geographic grid for Oplus transport
-   type(ESMF_Grid) :: geo2phys_grid
-   type(ESMF_Grid) :: mag2phys_grid
 
    ! phys_mesh: Mesh representation of physics decomposition
    type(ESMF_Mesh), public, protected :: phys_mesh
 
    ! ESMF fields used for mapping between physics, oplus geographic, and geomagnetic grids
    type(ESMF_Field) :: phys_3dfld, phys_2dfld
-   type(ESMF_Field) :: geo_3dfld, geo_2dfld, geo2phys_3dfld
-   type(ESMF_Field) :: mag_des_3dfld, mag_des_2dfld, mag2phys_2dfld
-   type(ESMF_Field) :: mag_src_3dfld
+   type(ESMF_Field) :: geo_3dfld, geo_2dfld
+   type(ESMF_Field) :: mag_des_3dfld, mag_des_2dfld
+   type(ESMF_Field) :: mag_src_3dfld, mag_src_2dfld
 
 
    type(ESMF_RouteHandle) ::     & ! ESMF route handles for regridding
@@ -159,17 +155,15 @@ contains
      call edyn_esmf_chkerr(subname, 'ESMF_FieldDestroy mag_des_3dfld', rc)
      call ESMF_FieldDestroy(mag_des_2dfld, rc=rc )
      call edyn_esmf_chkerr(subname, 'ESMF_FieldDestroy mag_des_2dfld', rc)
-     call ESMF_FieldDestroy(mag2phys_2dfld, rc=rc )
-     call edyn_esmf_chkerr(subname, 'ESMF_FieldDestroy mag2phys_2dfld', rc)
      call ESMF_FieldDestroy(mag_src_3dfld, rc=rc )
+     call edyn_esmf_chkerr(subname, 'ESMF_FieldDestroy mag_src_3dfld', rc)
+     call ESMF_FieldDestroy(mag_src_2dfld, rc=rc )
      call edyn_esmf_chkerr(subname, 'ESMF_FieldDestroy mag_src_3dfld', rc)
 
      call ESMF_GridDestroy(mag_src_grid, rc=rc)
      call edyn_esmf_chkerr(subname, 'ESMF_GridDestroy mag_src_grid', rc)
      call ESMF_GridDestroy(mag_des_grid, rc=rc)
      call edyn_esmf_chkerr(subname, 'ESMF_GridDestroy mag_des_grid', rc)
-     call ESMF_GridDestroy(mag2phys_grid, rc=rc)
-     call edyn_esmf_chkerr(subname, 'ESMF_GridDestroy mag2phys_grid', rc)
 
    end subroutine edyn_esmf_destroy_mag_objs
 
@@ -193,19 +187,13 @@ contains
      call edyn_esmf_chkerr(subname, 'ESMF_FieldDestroy geo_3dfld', rc)
      call ESMF_FieldDestroy(geo_2dfld, rc=rc )
      call edyn_esmf_chkerr(subname, 'ESMF_FieldDestroy geo_2dfld', rc)
-     call ESMF_FieldDestroy(geo2phys_3dfld, rc=rc )
-     call edyn_esmf_chkerr(subname, 'ESMF_FieldDestroy geo2phys_3dfld', rc)
 
      call ESMF_GridDestroy(geo_grid, rc=rc)
      call edyn_esmf_chkerr(subname, 'ESMF_GridDestroy geo_grid', rc)
-     call ESMF_GridDestroy(geo2phys_grid, rc=rc)
-     call edyn_esmf_chkerr(subname, 'ESMF_GridDestroy geo2phys_grid', rc)
      call ESMF_MeshDestroy(phys_mesh, rc=rc)
      call edyn_esmf_chkerr(subname, 'ESMF_MeshDestroy phys_mesh', rc)
 
    end subroutine edyn_esmf_destroy_nonmag_objs
-   
-   
 #endif
 
    !-----------------------------------------------------------------------
@@ -261,7 +249,6 @@ contains
          ! Make geographic grid for phys2geo and geo2phys regridding:
          !
          call create_geo_grid(geo_grid)  ! geo (Oplus) grid
-         call create_geo2phys_grid(geo2phys_grid)  ! geo (Oplus) grid
       endif
       !
       ! Make magnetic grid for phys2mag regridding:
@@ -271,7 +258,6 @@ contains
       ! Make grid for mag2phys regridding:
       !
       call create_mag_grid(mag_src_grid, 'src')
-      call create_mag2phys_grid(mag2phys_grid)
       !
       ! Create empty fields on geographic grid or phyiscs mesh that
       !   will be transformed to the magnetic grid and passed as input
@@ -285,13 +271,12 @@ contains
 
          call edyn_esmf_create_geofield(geo_2dfld, geo_grid, 'GEO_2DFLD', 0)
          call edyn_esmf_create_geofield(geo_3dfld, geo_grid, 'GEO_3DFLD', nlev)
-         call edyn_esmf_create_geofield(geo2phys_3dfld, geo2phys_grid, 'GEO2PHYS_3DFLD', nlev)
       endif
 
       call edyn_esmf_create_magfield(mag_des_2dfld, mag_des_grid, 'MAG_DES_2DFLD', 0)
       call edyn_esmf_create_magfield(mag_des_3dfld, mag_des_grid, 'MAG_DES_3DFLD', nlev)
 
-      call edyn_esmf_create_magfield(mag2phys_2dfld, mag2phys_grid, 'MAG2PHYS_2DFLD', 0)
+      call edyn_esmf_create_magfield(mag_src_2dfld, mag_src_grid, 'MAG_SRC_2DFLD', 0)
       call edyn_esmf_create_magfield(mag_src_3dfld, mag_src_grid, 'MAG_SRC_3DFLD', nlev)
 
       if (debug .and. masterproc) then
@@ -400,9 +385,10 @@ contains
       !     staggerloc=ESMF_STAGGERLOC_CENTER, filename="geoDesGrid",rc=rc)
 
       ! Compute and store route handle for mag2phys 2d (amie) fields:
-      call ESMF_FieldRegridStore(srcField=mag2phys_2dfld, dstField=phys_2dfld,&
-           regridmethod=ESMF_REGRIDMETHOD_CONSERVE,                           &
-           polemethod=ESMF_POLEMETHOD_NONE,                                   &
+      call ESMF_FieldRegridStore(srcField=mag_src_2dfld, dstField=phys_2dfld,&
+           regridMethod=ESMF_REGRIDMETHOD_BILINEAR,                           &
+           polemethod=ESMF_POLEMETHOD_ALLAVG,                                 &
+           extrapMethod=ESMF_EXTRAPMETHOD_NEAREST_IDAVG,                      &
            routeHandle=routehandle_mag2phys_2d,                               &
            factorIndexList=factorIndexList,                                   &
            factorList=factorList, srcTermProcessing=smm_srctermproc,          &
@@ -424,9 +410,10 @@ contains
          !
          ! Compute and store route handle for geo2phys 3d fields:
          !
-         call ESMF_FieldRegridStore(srcField=geo2phys_3dfld, dstField=phys_3dfld,&
-              regridmethod=ESMF_REGRIDMETHOD_CONSERVE,                           &
-              polemethod=ESMF_POLEMETHOD_NONE,                                   &
+         call ESMF_FieldRegridStore(srcField=geo_3dfld, dstField=phys_3dfld,&
+              regridMethod=ESMF_REGRIDMETHOD_BILINEAR,                           &
+              polemethod=ESMF_POLEMETHOD_ALLAVG,                                 &
+              extrapMethod=ESMF_EXTRAPMETHOD_NEAREST_IDAVG,                      &
               routeHandle=routehandle_geo2phys, factorIndexList=factorIndexList, &
               factorList=factorList, srcTermProcessing=smm_srctermproc,          &
               pipelineDepth=smm_pipelinedep, rc=rc)
@@ -582,108 +569,6 @@ contains
    end subroutine create_mag_grid
 
    !-----------------------------------------------------------------------
-   subroutine create_mag2phys_grid(grid_out)
-     use edyn_params, only: rtd
-     use edyn_maggrid,only: dlonm, nmlat
-     !
-     ! Create ESMF geomagnetic grid, w/ lon,lat coordinates.
-     !
-     ! Args:
-     type(ESMF_Grid),  intent(out) :: grid_out
-     !
-     ! Local:
-     integer                     :: i,j,n,rc
-     real(ESMF_KIND_R8), pointer :: coordX(:,:),coordY(:,:)
-     integer                     :: lbnd(2),ubnd(2)
-     integer                     :: nmlons_task(ntaski) ! number of lons per task
-     integer                     :: nmlats_task(ntaskj) ! number of lats per task
-     character(len=*), parameter :: subname = 'create_mag2phys_grid'
-
-     !
-     ! nmlons_task(nmagtaski) = number of mag lons per task in lon dim
-     !
-     do i = 1, nmagtaski
-        loop: do n = 0, ntask - 1
-           if (tasks(n)%magtidi == i-1) then
-              nmlons_task(i) = tasks(n)%nmaglons
-              exit loop
-           end if
-        end do loop
-     end do
-     !
-     ! Exclude periodic points (1 point fewer for mpi tasks at east end)
-     ! for source grids (this overwrites above for eastern-most tasks):
-     !
-     do n = 0, ntask-1
-        if (tasks(n)%magtidi == nmagtaski-1) then ! east edge of proc matrix
-           nmlons_task(tasks(n)%magtidi+1) = tasks(n)%nmaglons-1
-        end if
-     end do
-
-     !
-     ! nmlats_task(nmagtaskj) = number of mag lats per task in lat dim
-     !
-     do j = 1, nmagtaskj
-        loop1: do n = 0, ntask-1
-           if (tasks(n)%magtidj == j-1) then
-              nmlats_task(j) = tasks(n)%nmaglats
-              exit loop1
-           end if
-        end do loop1
-     end do
-
-     !
-     ! Create curvilinear magnetic grid (both coords depend
-     ! on both dimensions, i.e., lon(i,j),lat(i,j)):
-     !
-     grid_out = ESMF_GridCreate1PeriDim(                  &
-          countsPerDEDim1=nmlons_task, coordDep1=(/1,2/), &
-          countsPerDEDim2=nmlats_task, coordDep2=(/1,2/), petmap=petmap, &
-          indexflag=ESMF_INDEX_GLOBAL,rc=rc)
-     call edyn_esmf_chkerr(subname, 'ESMF_GridCreate1PeriDim', rc)
-     !
-     ! Allocate coordinates:
-     !
-     call ESMF_GridAddCoord(grid_out,staggerloc=ESMF_STAGGERLOC_CORNER,rc=rc)
-     call edyn_esmf_chkerr(subname, 'ESMF_GridAddCoord', rc)
-     if (mytid<ntask) then
-        !
-        ! Get pointer and set mag grid longitude coordinates:
-        !
-        call ESMF_GridGetCoord(grid_out, coordDim=1, localDE=0,                 &
-             computationalLBound=lbnd, computationalUBound=ubnd,                &
-             farrayPtr=coordX, staggerloc=ESMF_STAGGERLOC_CORNER, rc=rc)
-        call edyn_esmf_chkerr(subname, 'ESMF_GridGetCoord for longitude coords', rc)
-
-        do j = lbnd(2), ubnd(2)
-           do i = lbnd(1), ubnd(1)
-              coordX(i,j) = gdlondeg_corners(i,j)
-           end do
-        end do
-        !
-        ! Get pointer and set mag grid latitude coordinates:
-        !
-        call ESMF_GridGetCoord(grid_out, coordDim=2, localDE=0,  &
-             computationalLBound=lbnd, computationalUBound=ubnd, &
-             farrayPtr=coordY, staggerloc=ESMF_STAGGERLOC_CORNER, rc=rc)
-        call edyn_esmf_chkerr(subname, 'ESMF_GridGetCoord for latitude coords', rc)
-
-        do j = lbnd(2), ubnd(2)
-           do i = lbnd(1), ubnd(1)
-              coordY(i,j) = gdlatdeg_corners(i,j)
-           end do
-        end do
-
-        if (debug .and. masterproc) then
-           write(iulog,"(a,2i4,a,2i4,a,2i4,a,2i4)") &
-                'Created ESMF mag grid: lbnd,ubnd_lon=', lbnd(1), ubnd(1), &
-                ' mlon0,1=', mlon0, mlon1, ' lbnd, ubnd_lat=',&
-                lbnd(2), ubnd(2), ' mlat0,1=', mlat0, mlat1
-        end if
-     endif
-   end subroutine create_mag2phys_grid
-
-   !-----------------------------------------------------------------------
    subroutine create_geo_grid(grid_out)
       !
       ! Args:
@@ -771,94 +656,6 @@ contains
 
    end subroutine create_geo_grid
 
-   !-----------------------------------------------------------------------
-   subroutine create_geo2phys_grid(grid_out)
-      use edyn_geogrid, only: glat_corner,glon_corner
-      !
-      ! Args:
-      type(ESMF_Grid),intent(out) :: grid_out
-      !
-      ! Local:
-      integer                       :: i, j, n, rc
-      integer                       :: lbnd_lat, ubnd_lat, lbnd_lon, ubnd_lon
-      integer                       :: lbnd(1), ubnd(1)
-      integer                       :: nlons_task(ntaski) ! # lons per task
-      integer                       :: nlats_task(ntaskj) ! # lats per task
-      real(ESMF_KIND_R8), pointer   :: coordX(:), coordY(:)
-      character(len=*),   parameter :: subname = 'create_geo2phys_grid'
-      
-      !
-      ! nlons_task(ntaski) = number of geo lons per task.
-      !
-      do i = 1, ntaski
-         loop: do n = 0, ntask-1
-            if (tasks(n)%mytidi == i-1) then
-               nlons_task(i) = tasks(n)%nlons
-               exit loop
-            end if
-         end do loop
-      end do
-      !
-      do j = 1, ntaskj
-         loop1: do n = 0, ntask-1
-            if (tasks(n)%mytidj == j-1) then
-               nlats_task(j) = tasks(n)%nlats
-               exit loop1
-            end if
-         end do loop1
-      end do
-      !
-      !
-      ! Create 2d geographic source grid (with poles)
-      grid_out = ESMF_GridCreate1PeriDim(                       &
-           countsPerDEDim1=nlons_task, coordDep1=(/1/),         &
-           countsPerDEDim2=nlats_task, coordDep2=(/2/), petmap=petmap, &
-           indexflag=ESMF_INDEX_GLOBAL,minIndex=(/1,1/), rc=rc)
-      call edyn_esmf_chkerr(subname, 'ESMF_GridCreate1PeriDim', rc)
-      !
-      ! Allocate coordinates:
-      !
-      call ESMF_GridAddCoord(grid_out, staggerloc=ESMF_STAGGERLOC_CORNER, rc=rc)
-      call edyn_esmf_chkerr(subname, 'ESMF_GridAddCoord', rc)
-      if (mytid<ntask) then
-         !
-         ! Get pointer and set geo grid longitude coordinates:
-         !
-         call ESMF_GridGetCoord(grid_out, coordDim=1, localDE=0,                 &
-              computationalLBound=lbnd, computationalUBound=ubnd,                &
-              farrayPtr=coordX, staggerloc=ESMF_STAGGERLOC_CORNER, rc=rc)
-         call edyn_esmf_chkerr(subname, 'ESMF_GridGetCoord for longitude coords', rc)
-         !
-         ! Note glon was shifted to +/-180 by sub set_geogrid (edyn_init.F90)
-         !
-         lbnd_lon = lbnd(1)
-         ubnd_lon = ubnd(1)
-         do i = lbnd_lon, ubnd_lon
-            coordX(i) = glon_corner(i)
-         end do
-         !
-         ! Get pointer and set geo grid latitude coordinates, including poles:
-         !
-         call ESMF_GridGetCoord(grid_out, coordDim=2, localDE=0,                 &
-              computationalLBound=lbnd, computationalUBound=ubnd,                &
-              farrayPtr=coordY, staggerloc=ESMF_STAGGERLOC_CORNER, rc=rc)
-         call edyn_esmf_chkerr(subname, 'ESMF_GridGetCoord for latitude coords', rc)
-
-         lbnd_lat = lbnd(1)
-         ubnd_lat = ubnd(1)
-         do i = lbnd_lat, ubnd_lat
-            coordY(i) = glat_corner(i)
-         end do
-
-         if (debug .and. masterproc) then
-            write(iulog,"(2a,2i4,a,2i4,a,2i4,a,2i4)") 'Created ESMF geo2phys_grid:',  &
-                 ' lbnd,ubnd_lon=', lbnd_lon, ubnd_lon, ' lon0,1=', lon0, lon1,  &
-                 ' lbnd,ubnd_lat=', lbnd_lat, ubnd_lat, ' lat0,1=', lat0, lat1
-            write(iulog,"('coordX for geo2phys grid = ',/,(8f10.4))") coordX
-            write(iulog,"('coordY for geo2phys grid = ',/,(8f10.4))") coordY
-         end if
-      end if
-   end subroutine create_geo2phys_grid
    !-----------------------------------------------------------------------
    subroutine edyn_esmf_create_physfield(field, mesh, name, nlev)
       !

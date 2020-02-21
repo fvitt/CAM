@@ -11,9 +11,9 @@ module regridder
   use edyn_esmf, only: edyn_esmf_regrid_geo2mag, edyn_esmf_regrid_geo2phys
   use edyn_esmf, only: edyn_esmf_set2d_geo, edyn_esmf_set3d_mag, edyn_esmf_regrid_mag2geo
   use edyn_esmf, only: phys_3dfld, phys_2dfld
-  use edyn_esmf, only: geo_3dfld, geo_2dfld, geo2phys_3dfld
+  use edyn_esmf, only: geo_3dfld, geo_2dfld
   use edyn_esmf, only: mag_des_3dfld, mag_des_2dfld
-  use edyn_esmf, only: mag_src_3dfld, mag2phys_2dfld
+  use edyn_esmf, only: mag_src_3dfld, mag_src_2dfld
   use edyn_esmf, only: edyn_esmf_set2d_mag, edyn_esmf_regrid_mag2phys, edyn_esmf_get_1dfield
   
   implicit none
@@ -25,8 +25,8 @@ contains
     real(r8), intent(in)  :: magfld(mlon0:mlon1,mlat0:mlat1)
     real(r8), intent(out) :: physfld(cols:cole)
 
-    call edyn_esmf_set2d_mag( mag2phys_2dfld, magfld, mlon0, mlon1, mlat0, mlat1 )
-    call edyn_esmf_regrid_mag2phys(mag2phys_2dfld, phys_2dfld, 2)
+    call edyn_esmf_set2d_mag( mag_src_2dfld, magfld, mlon0, mlon1, mlat0, mlat1 )
+    call edyn_esmf_regrid_mag2phys( mag_src_2dfld, phys_2dfld, 2)
     call edyn_esmf_get_1dfield(phys_2dfld, physfld, cols, cole  )
 
   end subroutine regrid_mag2phys_2d
@@ -89,8 +89,8 @@ contains
     real(r8), intent(out) :: physfld(1:plev,cols:cole)
 
 
-    call edyn_esmf_set3d_geo( geo2phys_3dfld, geofld, lon0, lon1, lat0, lat1, lev0, lev1 )
-    call edyn_esmf_regrid_geo2phys(geo2phys_3dfld, phys_3dfld, 3)
+    call edyn_esmf_set3d_geo( geo_3dfld, geofld, lon0, lon1, lat0, lat1, lev0, lev1 )
+    call edyn_esmf_regrid_geo2phys(geo_3dfld, phys_3dfld, 3)
     call edyn_esmf_get_2dphysfield(phys_3dfld, physfld, 1, plev, cols, cole  )
 
   end subroutine regrid_geo2phys_3d

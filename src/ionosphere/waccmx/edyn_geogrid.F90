@@ -27,10 +27,6 @@ module edyn_geogrid
     zlev,    & ! midpoint vertical coordinates
     zilev      ! interface vertical coordinates
 
-  real(r8), public, protected, allocatable , dimension(:) :: & ! grid cell corners
-    glat_corner,    & ! latitude coordinates (degrees)
-    glon_corner       ! longitude coordinates (degrees)
-
   real(r8), public, allocatable, protected :: cs(:)   ! cos(phi) (0:nlat+1)
   real(r8), public, allocatable            :: expz(:) ! exp(-zp)
   real(r8), public, allocatable            :: zp(:)   ! log pressure (as in tiegcm lev(nlev))
@@ -147,15 +143,12 @@ contains
       !
       allocate(glon(nlon))
       allocate(glat(nlat))
-      allocate(glon_corner(nlon))
-      allocate(glat_corner(nlatp1))
       !
       ! Create a finite-volume coordinate grid (in degrees)
       !
       delta = 360.0_r8 / real(nlon, r8)
       do lonind = 1, nlon
          glon(lonind) = -180.0_r8 + ((lonind - 1) * delta)
-         glon_corner(lonind) = glon(lonind) - 0.5_r8*delta
       end do
       delta = 180.0_r8 / real((nlat - 1), r8)
       ! Set the poles exactly (they might be checked later)
@@ -164,17 +157,10 @@ contains
       do latind = 2, nlat - 1
          glat(latind) = -90.0_r8 + ((latind - 1) * delta)
       end do
-      glat_corner(1) = -90.0_r8
-      glat_corner(nlatp1) = 90.0_r8
-      do latind = 2,nlat
-         glat_corner(latind) = glat(latind-1) + 0.5_r8*delta
-      end do
 
       if (masterproc.and.debug) then
         write(iulog,*) 'set_geogrid glon : ',glon(:)
         write(iulog,*) 'set_geogrid glat : ',glat(:)
-        write(iulog,*) 'set_geogrid glon_corner : ',glon_corner(:)
-        write(iulog,*) 'set_geogrid glat_corner : ',glat_corner(:)
       end if
 
       allocate(zlev(nlev))
