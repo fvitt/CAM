@@ -282,7 +282,7 @@ subroutine wetdepa_v2(                                  &
    sol_fact, ncol, scavcoef, is_strat_cloudborne, qqcw, &
    f_act_conv, icscavt, isscavt, bcscavt, bsscavt,      &
    convproc_do_aer, rcscavt, rsscavt,                   &
-   sol_facti_in, sol_factic_in, bergso_in )
+   sol_facti_in, sol_factic_in, bergso_in, convproc_do_evaprain_atonce_in )
 
    !----------------------------------------------------------------------- 
    !
@@ -347,9 +347,9 @@ subroutine wetdepa_v2(                                  &
    logical,  intent(in),  optional :: convproc_do_aer
    real(r8), intent(out), optional :: rcscavt(pcols,pver)     ! resuspension, convective
    real(r8), intent(out), optional :: rsscavt(pcols,pver)     ! resuspension, stratiform
-!!!! [shanyp 12/28/2019
    real(r8), intent(in), optional :: bergso_in(pcols,pver)
-!!!! shanyp 12/28/2019]
+   logical,  intent(in), optional :: convproc_do_evaprain_atonce_in
+
    ! local variables
 
    integer :: i, k
@@ -449,9 +449,14 @@ subroutine wetdepa_v2(                                  &
          !                 which evaporates within this layer
          fracev(i) = evaps(i,k)*pdog(i) &
                      /max(1.e-12_r8,precabs(i))
-!!!! [shanyp 09/08/2018 - revert pending comment from shanyp
-!         if (evaps(i,k)*pdog(i).ne.precabs(i)) fracev(i) = 0._r8
-!!!! shanyp 09/08/2018]
+                     
+         ! If resuspending aerosol only when all the rain has totally
+         ! evaporated then zero out any aerosol tendency for partial
+         ! evaporation.
+         if (present(convproc_do_evaprain_atonce_in)) then
+            if (convproc_do_evaprain_atonce_in .and. (evaps(i,k)*pdog(i).ne.precabs(i))) fracev(i) = 0._r8
+         end if
+
          ! trap to ensure reasonable ratio bounds
          fracev(i) = max(0._r8,min(1._r8,fracev(i)))
 
@@ -492,21 +497,19 @@ subroutine wetdepa_v2(                                  &
                conv_scav_bc(i) = 0._r8
 
                ! stratiform scavenging
-!!!! [shanyp 08/10/2018 - remove temperature check pending comment from shanyp
-!              if ((tin(i,k).lt.273.15).and.(tin(i,k).gt.233.15)) then
-               if (present(bergso_in)) then
-                 fracp(i) = (precs(i,k)-bergso_in(i,k))*deltat / &
-                          max( 1.e-12_r8, cwat(i,k) + precs(i,k)*deltat )
+               if (present(convproc_do_evaprain_atonce_in) .and.  present(bergso_in)) then
+                  if (convproc_do_evaprain_atonce_in) then
+                     fracp(i) = (precs(i,k)-bergso_in(i,k))*deltat / &
+                              max( 1.e-12_r8, cwat(i,k) + precs(i,k)*deltat )
+                  else
+                     fracp(i) = (precs(i,k))*deltat / &
+                              max( 1.e-12_r8, cwat(i,k) + precs(i,k)*deltat )
+                  end if
                else
                  fracp(i) = (precs(i,k))*deltat / &
                           max( 1.e-12_r8, cwat(i,k) + precs(i,k)*deltat )
                end if
-!              else
-!               fracp(i) = precs(i,k)*deltat / &
-!                          max( 1.e-12_r8, cwat(i,k) + precs(i,k)*deltat )
-!              end if
                fracp(i) = max( 0._r8, min(1._r8, fracp(i)) )
-!!!! shanyp 08/10/2018]
                st_scav_ic(i) = sol_facti *fracp(i)*tracer(i,k)*rdeltat
 
                st_scav_bc(i) = 0._r8

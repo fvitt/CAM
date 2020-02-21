@@ -43,12 +43,22 @@ public :: &
    ma_convproc_init,             &!
    ma_convproc_intr               !
 
-! These could all be made namelist options. These are the defaults for
-! CAM6.
+! These could all be made namelist options.
+! NOTE: These are the defaults for CAM6.
 logical, parameter, public :: convproc_do_gas = .false.
 logical, parameter, public :: deepconv_wetdep_history = .true.
-logical, parameter, public :: convproc_do_shallow = .false.
 logical, parameter, public :: convproc_do_deep = .true.
+! NOTE: Shallow convection processing does not currently work with CLUBB.
+logical, parameter, public :: convproc_do_shallow = .false.
+! NOTE: These are the defaults for the Eaton/Wang parameterization.
+!logical, parameter, public :: convproc_do_evaprain_atonce = .false.
+!real, parameter, public    :: convproc_pom_spechygro = -1._r8
+!real, parameter, public    :: convproc_wup_max       = 4.0_r8
+! NOTE: These are the defaults for Yenpeng's modifications.
+logical, parameter, public :: convproc_do_evaprain_atonce = .true.
+real, parameter, public    :: convproc_pom_spechygro = 0.2_r8
+real, parameter, public    :: convproc_wup_max       = 15.0_r8
+
 
 logical, parameter :: use_cwaer_for_activate_maxsat = .false.
 logical, parameter :: apply_convproc_tend_to_ptend = .true.
@@ -1377,7 +1387,7 @@ k_loop_main_bb: &
                else
                   wup(k) = 2.9897_r8*(zkm**0.5_r8)
                end if
-               wup(k) = max( 0.1_r8, min( 4.0_r8, wup(k) ) )
+               wup(k) = max( 0.1_r8, min(convproc_wup_max, wup(k) ) )
             end if
 
 ! compute lagrangian transport time (dt_u) and updraft fractional area (fa_u)
@@ -1755,8 +1765,14 @@ k_loop_main_cc: &
 !    pairs to account any (or total) resuspension of convective-cloudborne aerosol
       call ma_resuspend_convproc( dcondt, dcondt_resusp,   &
                                   const, dp_i, ktop, kbot_prevap, pcnst_extd )
-      dcondt_resusp3d(pcnst+1:pcnst_extd,icol,:) = dcondt_resusp(pcnst+1:pcnst_extd,:)
-      dcondt_resusp(pcnst+1:pcnst_extd,:) = 0._r8
+      
+      ! Do resuspension of aerosols from rain only when the rain has
+      ! totally evaporated. 
+      if (convproc_do_evaprain_atonce) then
+         dcondt_resusp3d(pcnst+1:pcnst_extd,icol,:) = dcondt_resusp(pcnst+1:pcnst_extd,:)
+         dcondt_resusp(pcnst+1:pcnst_extd,:) = 0._r8
+      end if
+      
       if ( idiag_in(icol)>0 ) then
          k = 26
          do m = 16, 23, 7
@@ -1827,11 +1843,16 @@ k_loop_main_cc: &
                end if
                ! sumchng3 = sumchng + sumresusp + sumprevap, 
                !    so tmpa (below) should be ~=0.0
-               tmpa = sumchng3(m) - (sumsrce(m) + sumresusp(m) + sumprevap(m))
-               tmpb = max( maxflux(m), maxsrce(m), maxresusp(m), maxprevap(m), small )
-               if (abs(tmpa) > relerr_cut*tmpb) then
-                  write(lun,9151) '4', m, cnst_name_extd(m), tmpb, tmpa, (tmpa/tmpb)
-                  itmpa = itmpa + 1000
+               ! NOTE: This check needs to be redone if the rain is being
+               ! evaporated all at once. Until then, skip this check for that case. 
+               if (.not. convproc_do_evaprain_atonce) then
+                  tmpa = sumchng3(m) - (sumsrce(m) + sumresusp(m) + sumprevap(m))
+                  tmpb = max( maxflux(m), maxsrce(m), maxresusp(m), maxprevap(m), small )
+
+                  if (abs(tmpa) > relerr_cut*tmpb) then
+                     write(lun,9151) '4', m, cnst_name_extd(m), tmpb, tmpa, (tmpa/tmpb)
+                     itmpa = itmpa + 1000
+                  end if
                end if
 
                if (itmpa > 0) merr = merr + 1
@@ -2142,7 +2163,10 @@ end subroutine ma_convproc_tend
 
       del_pr_flux_evap = min( pr_flux, tmpdp*max(0.0_r8, evapc(icol,k)) )
 
-      if (del_pr_flux_evap.ne.pr_flux) del_pr_flux_evap = 0._r8
+      ! Do resuspension of aerosols from rain only when the rain has
+      ! totally evaporated in one layer.
+      if (convproc_do_evaprain_atonce .and. &
+          (del_pr_flux_evap.ne.pr_flux)) del_pr_flux_evap = 0._r8
 
       fdel_pr_flux_evap = del_pr_flux_evap / max(pr_flux, 1.0e-35_r8)
 
@@ -2158,26 +2182,30 @@ end subroutine ma_convproc_tend
          end if
       end do
  
+      ! Do resuspension of aerosols from rain to coarse mode (large particle) rather
+      ! than to individual modes.
+      if (convproc_do_evaprain_atonce) then
 ! *** Needs to be done more rebustly ***
-!     Dust
-      dcondt_prevap(27,k)=dcondt_prevap(27,k)+dcondt_prevap(19,k)+dcondt_prevap(23,k)
-      dcondt_prevap(19,k)=0._r8; dcondt_prevap(23,k)=0._r8
-!     ncl
-      dcondt_prevap(28,k)=dcondt_prevap(20,k)+dcondt_prevap(25,k)
-      dcondt_prevap(20,k)=0._r8; dcondt_prevap(25,k)=0._r8
-!     SO4
-      dcondt_prevap(29,k)=dcondt_prevap(29,k)+dcondt_prevap(15,k)+dcondt_prevap(22,k)
-      dcondt_prevap(15,k)=0._r8; dcondt_prevap(22,k)=0._r8
-!     pom
-      dcondt_prevap(16,k)=dcondt_prevap(31,k)+dcondt_prevap(16,k)
-      dcondt_prevap(31,k)=0._r8;
-!     BC
-      dcondt_prevap(18,k)=dcondt_prevap(32,k)+dcondt_prevap(18,k)
-      dcondt_prevap(32,k)=0._r8;
-!     soa
-      dcondt_prevap(17,k)=dcondt_prevap(24,k)+dcondt_prevap(17,k)
-      dcondt_prevap(24,k)=0._r8;
+!       Dust
+        dcondt_prevap(27,k)=dcondt_prevap(27,k)+dcondt_prevap(19,k)+dcondt_prevap(23,k)
+        dcondt_prevap(19,k)=0._r8; dcondt_prevap(23,k)=0._r8
+!       ncl
+        dcondt_prevap(28,k)=dcondt_prevap(20,k)+dcondt_prevap(25,k)
+        dcondt_prevap(20,k)=0._r8; dcondt_prevap(25,k)=0._r8
+!       SO4
+        dcondt_prevap(29,k)=dcondt_prevap(29,k)+dcondt_prevap(15,k)+dcondt_prevap(22,k)
+        dcondt_prevap(15,k)=0._r8; dcondt_prevap(22,k)=0._r8
+!       pom
+        dcondt_prevap(16,k)=dcondt_prevap(31,k)+dcondt_prevap(16,k)
+        dcondt_prevap(31,k)=0._r8;
+!       BC
+        dcondt_prevap(18,k)=dcondt_prevap(32,k)+dcondt_prevap(18,k)
+        dcondt_prevap(32,k)=0._r8;
+!       soa
+        dcondt_prevap(17,k)=dcondt_prevap(24,k)+dcondt_prevap(17,k)
+        dcondt_prevap(24,k)=0._r8;
 ! *** Needs to be done more rebustly ***
+      end if
 
       pr_flux = max( 0.0_r8, pr_flux-del_pr_flux_evap )
 
@@ -2650,11 +2678,18 @@ end subroutine ma_convproc_tend
          tmpc = tmpc + max( conu(lmassptrcw_amode(ll,n)+pcnst), 0.0_r8 )
          tmpc = tmpc / specdens_amode(ll,n)
          tmpa = tmpa + tmpc
-         tmpb = tmpb + tmpc * spechygro(ll,n)
-! modify the hygro of pom *** NEEDS to be more robust
-         if (((n.eq.1).and.(ll.eq.2)).or.((n.eq.4).and.(ll.eq.1))) then
-            tmpb = tmpb + tmpc * 0.2_r8
-            tmpb = tmpb + tmpc * spechygro(1,1)
+!         tmpb = tmpb + tmpc * spechygro(ll,n)
+         
+         ! Change the hygroscopicity of POM based on the discussion with Prof.
+         ! Xiaohong Liu. Some observational studies found that the primary organic
+         ! material from biomass burning emission shows very high hygroscopicity.
+         ! Also, found that BC mass will be overestimated if all the aerosols in
+         ! the primary mode are free to be removed. Therefore, set the hygroscopicity
+         ! of POM here as 0.2 to enhance the wet scavenge of primary BC and POM.
+! *** NEEDS to be more robust not hard coded values to find POM
+         if ((convproc_pom_spechygro .ge. 0._r8) .and. &
+             (((n.eq.1).and.(ll.eq.2)).or.((n.eq.4).and.(ll.eq.1)))) then
+            tmpb = tmpb + tmpc * convproc_pom_spechygro
          else
             tmpb = tmpb + tmpc * spechygro(ll,n)
          end if
@@ -2901,17 +2936,19 @@ end subroutine ma_convproc_tend
 !           end if
 
 ! cam5 approach
-!!!! [shanyp 04/04/2019  - revert pending comment from shanyp
-!            dcondt(la,k) = qdotac
-!            dcondt(lc,k) = 0.0_r8
-!            dcondt(la,k) = qdota
-!            dcondt(lc,k) = qdotc
+            if (convproc_do_evaprain_atonce) then
+               dcondt(la,k) = qdota
+               dcondt(lc,k) = qdotc
+            
+               dcondt_resusp(la,k) = dcondt(la,k)
+               dcondt_resusp(lc,k) = dcondt(lc,k)
+            else
+               dcondt(la,k) = qdotac
+               dcondt(lc,k) = 0.0_r8
 
-            dcondt_resusp(la,k) = (dcondt(la,k) - qdota)
-            dcondt_resusp(lc,k) = (dcondt(lc,k) - qdotc)
-            dcondt_resusp(la,k) = dcondt(la,k)
-            dcondt_resusp(lc,k) = dcondt(lc,k)
-!!!! shanyp 04/04/2019]
+               dcondt_resusp(la,k) = (dcondt(la,k) - qdota)
+               dcondt_resusp(lc,k) = (dcondt(lc,k) - qdotc)
+            end if         
          end do
 
       end do   ! "ll = -1, nspec_amode(n)"

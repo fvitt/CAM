@@ -1378,6 +1378,7 @@ subroutine micro_mg_cam_tend_pack(state, ptend, dtime, pbuf, mgncol, mgcols, nle
    real(r8), pointer :: lambdac(:,:)      ! Size distribution slope parameter for radiation
    real(r8), pointer :: des(:,:)          ! Snow effective diameter (m)
    real(r8), pointer :: degrau(:,:)          ! Graupel effective diameter (m)
+   real(r8), pointer :: bergso(:,:)       ! Conversion of cloud water to snow from bergeron
 
    real(r8) :: rho(state%psetcols,pver)
    real(r8) :: cldmax(state%psetcols,pver)
@@ -1696,13 +1697,12 @@ subroutine micro_mg_cam_tend_pack(state, ptend, dtime, pbuf, mgncol, mgcols, nle
    real(r8), pointer :: CC_ni(:,:)        ! Grid-mean microphysical tendency
    real(r8), pointer :: CC_qlst(:,:)      ! In-liquid stratus microphysical tendency
 
-  ! variables for heterogeneous freezing
-  real(r8), pointer :: frzimm(:,:)
-  real(r8), pointer :: frzcnt(:,:)
-  real(r8), pointer :: frzdep(:,:)
+   ! variables for heterogeneous freezing
+   real(r8), pointer :: frzimm(:,:)
+   real(r8), pointer :: frzcnt(:,:)
+   real(r8), pointer :: frzdep(:,:)
 
    real(r8), pointer :: qme(:,:)
-   real(r8), pointer :: bergso(:,:)
 
    ! A local copy of state is used for diagnostic calculations
    type(physics_state) :: state_loc
