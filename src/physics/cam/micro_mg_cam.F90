@@ -608,6 +608,7 @@ subroutine micro_mg_cam_register
       call pbuf_register_subcol('PRAIN',       'micro_mg_cam_register', prain_idx)
       call pbuf_register_subcol('NEVAPR',      'micro_mg_cam_register', nevapr_idx)
       call pbuf_register_subcol('PRER_EVAP',   'micro_mg_cam_register', prer_evap_idx)
+      call pbuf_register_subcol('BERGSO',      'micro_mg_cam_register', bergso_idx)
 
       call pbuf_register_subcol('WSEDL',       'micro_mg_cam_register', wsedl_idx)
 

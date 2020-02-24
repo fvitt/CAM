@@ -282,7 +282,7 @@ subroutine wetdepa_v2(                                  &
    sol_fact, ncol, scavcoef, is_strat_cloudborne, qqcw, &
    f_act_conv, icscavt, isscavt, bcscavt, bsscavt,      &
    convproc_do_aer, rcscavt, rsscavt,                   &
-   sol_facti_in, sol_factic_in, bergso_in, convproc_do_evaprain_atonce_in )
+   sol_facti_in, sol_factic_in, convproc_do_evaprain_atonce_in, bergso )
 
    !----------------------------------------------------------------------- 
    !
@@ -347,8 +347,8 @@ subroutine wetdepa_v2(                                  &
    logical,  intent(in),  optional :: convproc_do_aer
    real(r8), intent(out), optional :: rcscavt(pcols,pver)     ! resuspension, convective
    real(r8), intent(out), optional :: rsscavt(pcols,pver)     ! resuspension, stratiform
-   real(r8), intent(in), optional :: bergso_in(pcols,pver)
    logical,  intent(in), optional :: convproc_do_evaprain_atonce_in
+   real(r8), pointer, optional :: bergso(:,:)
 
    ! local variables
 
@@ -396,8 +396,16 @@ subroutine wetdepa_v2(                                  &
    real(r8) :: sol_factic(pcols,pver) ! in cloud fraction of aerosol scavenged for convective clouds
 
    real(r8) :: rdeltat
+   logical  :: convproc_do_evaprain_atonce
+   
    ! ------------------------------------------------------------------------
 
+   if (present(convproc_do_evaprain_atonce_in)) then
+      convproc_do_evaprain_atonce = convproc_do_evaprain_atonce_in
+   else
+      convproc_do_evaprain_atonce = .false.
+   endif
+   
    omsm = 1._r8-2*epsilon(1._r8) ! used to prevent roundoff errors below zero
 
    ! default (if other sol_facts aren't in call, set all to required sol_fact)
@@ -453,8 +461,8 @@ subroutine wetdepa_v2(                                  &
          ! If resuspending aerosol only when all the rain has totally
          ! evaporated then zero out any aerosol tendency for partial
          ! evaporation.
-         if (present(convproc_do_evaprain_atonce_in)) then
-            if (convproc_do_evaprain_atonce_in .and. (evaps(i,k)*pdog(i).ne.precabs(i))) fracev(i) = 0._r8
+         if (convproc_do_evaprain_atonce .and. (evaps(i,k)*pdog(i).ne.precabs(i))) then
+            fracev(i) = 0._r8
          end if
 
          ! trap to ensure reasonable ratio bounds
@@ -497,17 +505,12 @@ subroutine wetdepa_v2(                                  &
                conv_scav_bc(i) = 0._r8
 
                ! stratiform scavenging
-               if (present(convproc_do_evaprain_atonce_in) .and.  present(bergso_in)) then
-                  if (convproc_do_evaprain_atonce_in) then
-                     fracp(i) = (precs(i,k)-bergso_in(i,k))*deltat / &
-                              max( 1.e-12_r8, cwat(i,k) + precs(i,k)*deltat )
-                  else
-                     fracp(i) = (precs(i,k))*deltat / &
-                              max( 1.e-12_r8, cwat(i,k) + precs(i,k)*deltat )
-                  end if
+               if (convproc_do_evaprain_atonce .and. associated(bergso)) then
+                  fracp(i) = (precs(i,k)-bergso(i,k))*deltat / &
+                       max( 1.e-12_r8, cwat(i,k) + precs(i,k)*deltat )
                else
-                 fracp(i) = (precs(i,k))*deltat / &
-                          max( 1.e-12_r8, cwat(i,k) + precs(i,k)*deltat )
+                  fracp(i) = (precs(i,k))*deltat / &
+                       max( 1.e-12_r8, cwat(i,k) + precs(i,k)*deltat )
                end if
                fracp(i) = max( 0._r8, min(1._r8, fracp(i)) )
                st_scav_ic(i) = sol_facti *fracp(i)*tracer(i,k)*rdeltat

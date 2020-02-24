@@ -230,7 +230,7 @@ contains
     nevapr_shcu_idx = pbuf_get_index('NEVAPR_SHCU') 
     nevapr_dpcu_idx = pbuf_get_index('NEVAPR_DPCU') 
     sulfeq_idx      = pbuf_get_index('MAMH2SO4EQ',errcode)
-    bergso_idx      = pbuf_get_index('BERGSO')
+    bergso_idx      = pbuf_get_index('BERGSO',errcode)
     
     call phys_getopts(history_aerosol_out = history_aerosol, &
                       history_chemistry_out=history_chemistry, &
@@ -1066,7 +1066,7 @@ contains
     type(wetdep_inputs_t) :: dep_inputs
 
     real(r8) :: dcondt_resusp3d(2*pcnst,pcols, pver)
-    real(r8), pointer :: bergso(:,:)
+    real(r8), pointer :: bergso(:,:)=>null()
 
     lchnk = state%lchnk
     ncol  = state%ncol
@@ -1096,7 +1096,7 @@ contains
     call pbuf_get_field(pbuf, dgnumwet_idx,       dgnumwet, start=(/1,1,1/), kount=(/pcols,pver,nmodes/) )
     call pbuf_get_field(pbuf, qaerwat_idx,        qaerwat,  start=(/1,1,1/), kount=(/pcols,pver,nmodes/) )
     call pbuf_get_field(pbuf, fracis_idx,         fracis, start=(/1,1,1/), kount=(/pcols, pver, pcnst/) )
-    call pbuf_get_field(pbuf, bergso_idx,     bergso )
+    if (bergso_idx>0) call pbuf_get_field(pbuf, bergso_idx, bergso )
 
     prec(:ncol)=0._r8
     do k=1,pver
@@ -1311,8 +1311,8 @@ contains
                      f_act_conv=f_act_conv, &
                      icscavt=icscavt, isscavt=isscavt, bcscavt=bcscavt, bsscavt=bsscavt, &
                      convproc_do_aer=convproc_do_aer, rcscavt=rcscavt, rsscavt=rsscavt,  &
-                     sol_facti_in=sol_facti, sol_factic_in=sol_factic, bergso_in=bergso, &
-                     convproc_do_evaprain_atonce_in=convproc_do_evaprain_atonce )
+                     sol_facti_in=sol_facti, sol_factic_in=sol_factic, &
+                     convproc_do_evaprain_atonce_in=convproc_do_evaprain_atonce, bergso=bergso )
 
                 do_hygro_sum_del = .false.
                 if ( lspec > 0 ) do_hygro_sum_del = .true. 
@@ -1538,8 +1538,8 @@ contains
                         is_strat_cloudborne=.true.,  &
                         icscavt=icscavt, isscavt=isscavt, bcscavt=bcscavt, bsscavt=bsscavt, &
                         convproc_do_aer=convproc_do_aer, rcscavt=rcscavt, rsscavt=rsscavt,  &
-                        sol_facti_in=sol_facti, sol_factic_in=sol_factic, bergso_in=bergso, &
-                        convproc_do_evaprain_atonce_in = convproc_do_evaprain_atonce )
+                        sol_facti_in=sol_facti, sol_factic_in=sol_factic, &
+                        convproc_do_evaprain_atonce_in=convproc_do_evaprain_atonce, bergso=bergso )
 
                    if(convproc_do_aer) then
                       ! save resuspension of cloudborne species
