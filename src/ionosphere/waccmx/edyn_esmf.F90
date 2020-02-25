@@ -158,7 +158,7 @@ contains
      call ESMF_FieldDestroy(mag_src_3dfld, rc=rc )
      call edyn_esmf_chkerr(subname, 'ESMF_FieldDestroy mag_src_3dfld', rc)
      call ESMF_FieldDestroy(mag_src_2dfld, rc=rc )
-     call edyn_esmf_chkerr(subname, 'ESMF_FieldDestroy mag_src_3dfld', rc)
+     call edyn_esmf_chkerr(subname, 'ESMF_FieldDestroy mag_src_2dfld', rc)
 
      call ESMF_GridDestroy(mag_src_grid, rc=rc)
      call edyn_esmf_chkerr(subname, 'ESMF_GridDestroy mag_src_grid', rc)
