@@ -2191,6 +2191,7 @@ end subroutine ma_convproc_tend
    real(r8) :: tmpa, tmpb, tmpc, tmpd
    real(r8) :: tmpdp                 ! delta-pressure (mb)
    real(r8) :: wd_flux(pcnst_extd)   ! tracer wet deposition flux at base of current layer [(kg/kg/s)*mb]
+   integer :: fm, cm, n1, n2
 !-----------------------------------------------------------------------
 
 
@@ -2233,26 +2234,28 @@ end subroutine ma_convproc_tend
       ! Do resuspension of aerosols from rain to coarse mode (large particle) rather
       ! than to individual modes.
       if (convproc_do_evaprain_atonce) then
-! *** Needs to be done more rebustly ***
-!       Dust
-        dcondt_prevap(27,k)=dcondt_prevap(27,k)+dcondt_prevap(19,k)+dcondt_prevap(23,k)
-        dcondt_prevap(19,k)=0._r8; dcondt_prevap(23,k)=0._r8
-!       ncl
-        dcondt_prevap(28,k)=dcondt_prevap(20,k)+dcondt_prevap(25,k)
-        dcondt_prevap(20,k)=0._r8; dcondt_prevap(25,k)=0._r8
-!       SO4
-        dcondt_prevap(29,k)=dcondt_prevap(29,k)+dcondt_prevap(15,k)+dcondt_prevap(22,k)
-        dcondt_prevap(15,k)=0._r8; dcondt_prevap(22,k)=0._r8
-!       pom
-        dcondt_prevap(16,k)=dcondt_prevap(31,k)+dcondt_prevap(16,k)
-        dcondt_prevap(31,k)=0._r8;
-!       BC
-        dcondt_prevap(18,k)=dcondt_prevap(32,k)+dcondt_prevap(18,k)
-        dcondt_prevap(32,k)=0._r8;
-!       soa
-        dcondt_prevap(17,k)=dcondt_prevap(24,k)+dcondt_prevap(17,k)
-        dcondt_prevap(24,k)=0._r8;
-! *** Needs to be done more rebustly ***
+        do m = 2,ntot_amode
+           if ( m==2 ) then
+              fm = 2 ! finer mode (aitken)
+              cm = 1 ! coarser mode (accum)
+           else if ( m==3 ) then
+              fm = 1 ! accum mode
+              cm = 3 ! coarse mode
+           else
+              fm = m-1  ! finer mode
+              cm = m    ! coarser mode
+           end if
+           
+           do l = 1,nspec_amode(m)
+              n1 = lmassptr_amode(l,fm) ! smaller mode
+              n2 = lmassptr_amode(l,cm) ! larger mode
+              if (n1>0 .and. n2>0) then
+                 ! accumulate to the larger mode
+                 dcondt_prevap(n2,k) = dcondt_prevap(n2,k) + dcondt_prevap(n1,k)
+                 dcondt_prevap(n1,k) = 0._r8
+              end if
+           end do
+        end do
       end if
 
       pr_flux = max( 0.0_r8, pr_flux-del_pr_flux_evap )
@@ -2626,6 +2629,8 @@ end subroutine ma_convproc_tend
       sigmag_amode, specdens_amode, spechygro, &
       voltonumblo_amode, voltonumbhi_amode
 
+   use rad_constituents,only: rad_cnst_get_info
+
    implicit none
 
 !-----------------------------------------------------------------------
@@ -2678,6 +2683,7 @@ end subroutine ma_convproc_tend
    real(r8) :: wdiab                 ! diabatic vertical velocity (cm/s)
    real(r8) :: wminf, wmaxf          ! limits for integration over updraft spectrum (cm/s)
 
+   character(len=32) :: spec_type
 
 !-----------------------------------------------------------------------
 
@@ -2726,7 +2732,6 @@ end subroutine ma_convproc_tend
          tmpc = tmpc + max( conu(lmassptrcw_amode(ll,n)+pcnst), 0.0_r8 )
          tmpc = tmpc / specdens_amode(ll,n)
          tmpa = tmpa + tmpc
-!         tmpb = tmpb + tmpc * spechygro(ll,n)
          
          ! Change the hygroscopicity of POM based on the discussion with Prof.
          ! Xiaohong Liu. Some observational studies found that the primary organic
@@ -2734,9 +2739,9 @@ end subroutine ma_convproc_tend
          ! Also, found that BC mass will be overestimated if all the aerosols in
          ! the primary mode are free to be removed. Therefore, set the hygroscopicity
          ! of POM here as 0.2 to enhance the wet scavenge of primary BC and POM.
-! *** NEEDS to be more robust not hard coded values to find POM
-         if ((convproc_pom_spechygro .ge. 0._r8) .and. &
-             (((n.eq.1).and.(ll.eq.2)).or.((n.eq.4).and.(ll.eq.1)))) then
+
+         call rad_cnst_get_info(0, n, ll, spec_type=spec_type)
+         if (spec_type=='p-organic') then
             tmpb = tmpb + tmpc * convproc_pom_spechygro
          else
             tmpb = tmpb + tmpc * spechygro(ll,n)
