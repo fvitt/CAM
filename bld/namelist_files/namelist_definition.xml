@@ -4360,6 +4360,48 @@ mass mixing ratio constituents.
 Default: .false.
 </entry>
 
+<entry id="convproc_do_gas" type="logical"  category="conv"
+       group="aerosol_convproc_opts" valid_values="" >
+Switch ???
+Default: .false.
+</entry>
+
+<entry id="deepconv_wetdep_history" type="logical"  category="conv"
+       group="aerosol_convproc_opts" valid_values="" >
+Switch ???
+Default: .true.
+</entry>
+
+<entry id="convproc_do_deep" type="logical"  category="conv"
+       group="aerosol_convproc_opts" valid_values="" >
+Switch ???
+Default: .true.
+</entry>
+
+<entry id="convproc_do_shallow" type="logical"  category="conv"
+       group="aerosol_convproc_opts" valid_values="" >
+Switch ???
+Default: .false.
+</entry>
+
+<entry id="convproc_do_evaprain_atonce" type="logical"  category="conv"
+       group="aerosol_convproc_opts" valid_values="" >
+Switch ???
+Default: .false.
+</entry>
+
+<entry id="convproc_pom_spechygro" type="real" category="conv"
+       group="aerosol_convproc_opts" valid_values="" >
+???
+Default: physprop value
+</entry>
+
+<entry id="convproc_wup_max" type="real" category="conv"
+       group="aerosol_convproc_opts" valid_values="" >
+???
+Default: 4.0
+</entry>
+
 <!-- Diagnostics -->
 
 <entry id="history_amwg" type="logical"  category="diagnostics"

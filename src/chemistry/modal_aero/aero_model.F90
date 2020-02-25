@@ -117,6 +117,7 @@ contains
     use namelist_utils,  only: find_group_name
     use units,           only: getunit, freeunit
     use mpishorthand
+    use modal_aero_convproc,   only: ma_convproc_readnl 
 
     character(len=*), intent(in) :: nlfile  ! filepath for file containing namelist input
 
@@ -163,6 +164,8 @@ contains
     wetdep_list = aer_wetdep_list
     drydep_list = aer_drydep_list
 
+    call ma_convproc_readnl(nlfile)
+    
   end subroutine aero_model_readnl
 
   !=============================================================================
