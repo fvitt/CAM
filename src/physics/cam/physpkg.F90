@@ -2376,7 +2376,9 @@ subroutine phys_timestep_init(phys_state, cam_in, cam_out, pbuf2d)
   ! Time interpolate for chemistry.
   call chem_timestep_init(phys_state, pbuf2d)
 
-  call waccmx_phys_ion_elec_temp_timestep_init(phys_state,pbuf2d)
+  if( waccmx_is('ionosphere') ) then
+     call waccmx_phys_ion_elec_temp_timestep_init(phys_state,pbuf2d)
+  endif
 
   ! Prescribed tracers
   call prescribed_ozone_adv(phys_state, pbuf2d)
