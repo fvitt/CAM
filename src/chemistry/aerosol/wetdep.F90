@@ -282,7 +282,7 @@ subroutine wetdepa_v2(                                  &
    sol_fact, ncol, scavcoef, is_strat_cloudborne, qqcw, &
    f_act_conv, icscavt, isscavt, bcscavt, bsscavt,      &
    convproc_do_aer, rcscavt, rsscavt,                   &
-   sol_facti_in, sol_factic_in, convproc_do_evaprain_atonce_in, bergso )
+   sol_facti_in, sol_factic_in, convproc_do_evaprain_atonce_in, bergso_in )
 
    !----------------------------------------------------------------------- 
    !
@@ -348,7 +348,7 @@ subroutine wetdepa_v2(                                  &
    real(r8), intent(out), optional :: rcscavt(pcols,pver)     ! resuspension, convective
    real(r8), intent(out), optional :: rsscavt(pcols,pver)     ! resuspension, stratiform
    logical,  intent(in), optional :: convproc_do_evaprain_atonce_in
-   real(r8), pointer, optional :: bergso(:,:)
+   real(r8), pointer, optional :: bergso_in(:,:)
 
    ! local variables
 
@@ -397,9 +397,14 @@ subroutine wetdepa_v2(                                  &
 
    real(r8) :: rdeltat
    logical  :: convproc_do_evaprain_atonce
-   
+   real(r8), pointer :: bergso(:,:)=>null()
+
    ! ------------------------------------------------------------------------
 
+   if (present(bergso_in)) then
+      bergso => bergso_in
+   end if
+   
    if (present(convproc_do_evaprain_atonce_in)) then
       convproc_do_evaprain_atonce = convproc_do_evaprain_atonce_in
    else

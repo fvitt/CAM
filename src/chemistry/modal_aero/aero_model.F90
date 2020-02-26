@@ -1315,7 +1315,7 @@ contains
                      icscavt=icscavt, isscavt=isscavt, bcscavt=bcscavt, bsscavt=bsscavt, &
                      convproc_do_aer=convproc_do_aer, rcscavt=rcscavt, rsscavt=rsscavt,  &
                      sol_facti_in=sol_facti, sol_factic_in=sol_factic, &
-                     convproc_do_evaprain_atonce_in=convproc_do_evaprain_atonce, bergso=bergso )
+                     convproc_do_evaprain_atonce_in=convproc_do_evaprain_atonce, bergso_in=bergso )
 
                 do_hygro_sum_del = .false.
                 if ( lspec > 0 ) do_hygro_sum_del = .true. 
@@ -1542,7 +1542,7 @@ contains
                         icscavt=icscavt, isscavt=isscavt, bcscavt=bcscavt, bsscavt=bsscavt, &
                         convproc_do_aer=convproc_do_aer, rcscavt=rcscavt, rsscavt=rsscavt,  &
                         sol_facti_in=sol_facti, sol_factic_in=sol_factic, &
-                        convproc_do_evaprain_atonce_in=convproc_do_evaprain_atonce, bergso=bergso )
+                        convproc_do_evaprain_atonce_in=convproc_do_evaprain_atonce, bergso_in=bergso )
 
                    if(convproc_do_aer) then
                       ! save resuspension of cloudborne species
