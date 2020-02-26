@@ -4390,17 +4390,18 @@ Default: .false.
 
 <entry id="convproc_do_evaprain_atonce" type="logical"  category="conv"
        group="aerosol_convproc_opts" valid_values="" >
-Switch to turn on / off convective transport and wet removal of aerosols
-at the same time so that the wet removal can happen on the aerosols
-activated by convection.
+Switch to control when aerosols are released by rain re-evaporation in  wet removal.
+If FALSE then aerosols are released back to its original mode from the rain as the rain evaporates.
+If TRUE then aerosols are released only when the rain totally evaporates and the aerosols are
+released back together in one mode.
 Default: .false.
 </entry>
 
 <entry id="convproc_pom_spechygro" type="real" category="conv"
        group="aerosol_convproc_opts" valid_values="" >
-Hygroscopicity of primary organic mater used in MAM convective
-cloud processing scheme.
-Default: physprop value
+Hygroscopicity of primary organic mater and primary black carbon used in MAM convective
+cloud processing scheme. Set to -1 to use the values defined in the physical properties file.
+Default: -1
 </entry>
 
 <entry id="convproc_wup_max" type="real" category="conv"
