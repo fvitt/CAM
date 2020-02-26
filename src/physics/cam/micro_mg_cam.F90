@@ -1378,7 +1378,7 @@ subroutine micro_mg_cam_tend_pack(state, ptend, dtime, pbuf, mgncol, mgcols, nle
    real(r8), pointer :: mu(:,:)           ! Size distribution shape parameter for radiation
    real(r8), pointer :: lambdac(:,:)      ! Size distribution slope parameter for radiation
    real(r8), pointer :: des(:,:)          ! Snow effective diameter (m)
-   real(r8), pointer :: degrau(:,:)          ! Graupel effective diameter (m)
+   real(r8), pointer :: degrau(:,:)       ! Graupel effective diameter (m)
    real(r8), pointer :: bergso(:,:)       ! Conversion of cloud water to snow from bergeron
 
    real(r8) :: rho(state%psetcols,pver)
