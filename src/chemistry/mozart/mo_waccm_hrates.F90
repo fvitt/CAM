@@ -123,9 +123,7 @@
       use physics_buffer,    only : physics_buffer_desc
       use phys_control,      only : waccmx_is
       use orbit,             only : zenith
-      use ion_electron_temp, only : ion_electron_temp_UNSET
-      use time_manager,      only : is_first_step
-      
+
 !-----------------------------------------------------------------------
 !        ... dummy arguments
 !-----------------------------------------------------------------------
@@ -203,12 +201,6 @@
       if ( ele_temp_ndx>0 .and. ion_temp_ndx>0 ) then
          call pbuf_get_field(pbuf, ele_temp_ndx, ele_temp_fld)
          call pbuf_get_field(pbuf, ion_temp_ndx, ion_temp_fld)
-         if ( is_first_step() &
-              .and. ele_temp_fld(1,1) == ion_electron_temp_UNSET &
-              .and. ion_temp_fld(1,1) == ion_electron_temp_UNSET ) then
-            ele_temp_fld(:ncol,:) = state%t(:ncol,:)
-            ion_temp_fld(:ncol,:) = state%t(:ncol,:)
-         endif
       else
          ele_temp_fld => state%t
          ion_temp_fld => state%t

@@ -2348,6 +2348,7 @@ subroutine phys_timestep_init(phys_state, cam_in, cam_out, pbuf2d)
   use epp_ionization,      only: epp_ionization_active
   use iop_forcing,         only: scam_use_iop_srf
   use nudging,             only: Nudge_Model, nudging_timestep_init
+  use waccmx_phys_intr,    only: waccmx_phys_ion_elec_temp_timestep_init
 
   implicit none
 
@@ -2374,6 +2375,8 @@ subroutine phys_timestep_init(phys_state, cam_in, cam_out, pbuf2d)
 
   ! Time interpolate for chemistry.
   call chem_timestep_init(phys_state, pbuf2d)
+
+  call waccmx_phys_ion_elec_temp_timestep_init(phys_state,pbuf2d)
 
   ! Prescribed tracers
   call prescribed_ozone_adv(phys_state, pbuf2d)
