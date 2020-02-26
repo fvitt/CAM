@@ -1,0 +1,17 @@
+&camexp
+ restart_option='nsteps'
+ restart_n=3
+ mfilt=1,1,1,1,1,1,1,1,1
+ ndens=1,1,1,1,1,1,1,1,1
+ nhtfrq=3,3,3,3,3,3,3,3,3
+ inithist='ENDOFRUN'
+ pbuf_global_allocate=.false.
+ convproc_do_aer = .true.
+ convproc_do_evaprain_atonce = .true.
+ convproc_pom_spechygro = 0.2D0
+ convproc_wup_max       = 15.0D0
+ history_aerosol=.true.
+ history_chemistry=.true.
+ fincl2 = 'bc_a1WET', 'bc_a4WET', 'dst_a1WET', 'dst_a2WET', 'dst_a3WET', 'ncl_a1WET', 'ncl_a2WET', 'ncl_a3WET',
+            'BERGSO','QRAIN','QSNOW'
+/

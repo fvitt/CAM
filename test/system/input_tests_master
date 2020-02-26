@@ -46,6 +46,7 @@ sm353 TSM.sh f1.9c4aqmozdh outfrq3s+2000_cam4_trop_chem 9s
 
 sm360 TSM.sh f1.9c5aqm volc+1850-2005_cam5 2d
 
+sm366 TSM.sh f10c6aqdm outfrq3s_convproc 9s
 sm367 TSM.sh f10c6aqdm outfrq3s_convmic 9s
 sm368 TSM.sh f10c6aqdm outfrq3s 9s
 sm369 TSM.sh f10c6aqdm outfrq3s_am 9s
@@ -155,6 +156,7 @@ er353 TER.sh f1.9c4aqmozdh outfrq3s+2000_cam4_trop_chem 4+5s
 
 er360 TER.sh f1.9c5aqm volc+1850-2005_cam5 1+1d
 
+er366 TER.sh f10c6aqdm outfrq3s_convproc 4+5s
 er367 TER.sh f10c6aqdm outfrq3s_convmic 4+5s
 er368 TER.sh f10c6aqdm outfrq3s 4+5s
 er369 TER.sh f10c6aqdm outfrq3s_am 4+5s
@@ -292,6 +294,7 @@ bl353 TBL.sh f1.9c4aqmozdh outfrq3s+2000_cam4_trop_chem 9s
 
 bl360 TBL.sh f1.9c5aqm volc+1850-2005_cam5 2d
 
+bl366 TBL.sh f10c6aqdm outfrq3s_convproc 9s
 bl367 TBL.sh f10c6aqdm outfrq3s_convmic 9s
 bl368 TBL.sh f10c6aqdm outfrq3s 9s
 bl369 TBL.sh f10c6aqdm outfrq3s_am 9s
