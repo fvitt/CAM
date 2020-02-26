@@ -60,17 +60,13 @@ sm380 TSM.sh f1.9c6aqcdh outfrq3s_cosp 9s
 sm381 TSM.sh f0.9c6aqccdm outfrq3s+hist_cam6 3s
 
 sm390 TSM.sh f1.9c4aqwmxdh outfrq3s+waccmx_ma_2000_cam4 9s
-sm391 TSM.sh f1.9c4aqwmxidh outfrq3s 9s
 sm392 TSM.sh f4c4aqwmxdm outfrq3s_newyear 9s
-sm393 TSM.sh f4c4aqwmxidm outfrq3s 9s
 sm394 TSM.sh f4c4aqwmxiedm outfrq3s_ionos 9s
 
 sm396 TSM.sh f4c4aqwmxiedm outfrq3s_euv 9s
 
 sm400 TSM.sh f4c6aqwmxdm outfrq3s 9s
-sm401 TSM.sh f4c6aqwmxidm outfrq3s 9s
 sm402 TSM.sh f4c6aqwmxiedm outfrq3s 9s
-sm403 TSM.sh f1.9c6aqwmxidh outfrq3s 9s
 
 sm426 TSM.sh f10c4aqwmxdm outfrq3s_newyear 9s
 
@@ -168,17 +164,13 @@ er376 TER.sh f10c6aqtsvbsxdm outfrq3s+hist_trop_strat_vbsext_cam6 4+5s
 er380 TER.sh f1.9c6aqcdh outfrq3s_cosp 4+5s
 
 er390 TER.sh f1.9c4aqwmxdh outfrq3s+waccmx_ma_2000_cam4 4+5s
-er391 TER.sh f1.9c4aqwmxidh outfrq3s 4+5s
 er392 TER.sh f4c4aqwmxdm outfrq3s_newyear 4+5s
-er393 TER.sh f4c4aqwmxidm outfrq3s 4+5s
 er394 TER.sh f4c4aqwmxiedm outfrq3s_ionos 4+5s
 
 er396 TER.sh f4c4aqwmxiedm outfrq3s_euv 4+5s
 
 er400 TER.sh f4c6aqwmxdm outfrq3s 4+5s
-er401 TER.sh f4c6aqwmxidm outfrq3s 4+5s
 er402 TER.sh f4c6aqwmxiedm outfrq3s 4+5s
-er403 TER.sh f1.9c6aqwmxidh outfrq3s 4+5s
 
 er426 TER.sh f10c4aqwmxdm outfrq3s_newyear 4+5s
 
@@ -234,7 +226,6 @@ br353 TBR.sh f1.9c4aqmozdh outfrq3s+2000_cam4_trop_chem 6+3s
 br380 TBR.sh f1.9c6aqcdh outfrq3s_cosp 6+3s
 
 br390 TBR.sh f1.9c4aqwmxdh outfrq3s+waccmx_ma_2000_cam4 6+3s
-br391 TBR.sh f1.9c4aqwmxidh outfrq3s 6+3s
 
 br469 TBR.sh f4c4aqprgspcdm outfrq3s 6+3s
 
@@ -306,17 +297,13 @@ bl380 TBL.sh f1.9c6aqcdh outfrq3s_cosp 9s
 bl381 TBL.sh f0.9c6aqccdm outfrq3s+hist_cam6 3s
 
 bl390 TBL.sh f1.9c4aqwmxdh outfrq3s+waccmx_ma_2000_cam4 9s
-bl391 TBL.sh f1.9c4aqwmxidh outfrq3s 9s
 bl392 TBL.sh f4c4aqwmxdm outfrq3s_newyear 9s
-bl393 TBL.sh f4c4aqwmxidm outfrq3s 9s
 bl394 TBL.sh f4c4aqwmxiedm outfrq3s_ionos 9s
 
 bl396 TBL.sh f4c4aqwmxiedm outfrq3s_euv 9s
 
 bl400 TBL.sh f4c6aqwmxdm outfrq3s 9s
-bl401 TBL.sh f4c6aqwmxidm outfrq3s 9s
 bl402 TBL.sh f4c6aqwmxiedm outfrq3s 9s
-bl403 TBL.sh f1.9c6aqwmxidh outfrq3s 9s
 
 bl426 TBL.sh f10c4aqwmxdm outfrq3s_newyear 9s
 
