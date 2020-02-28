@@ -334,7 +334,7 @@ contains
          call add_default ('WI&IC', 0, ' ')
       end if
       if ( ionos_epotential_amie ) then
-         call init_amie(amienh_file, amiesh_file)
+         call init_amie((/amienh_file/), (/amiesh_file/))
          call addfld ('amie_efx_phys', horiz_only, 'I', 'mW/m2',              &
               'AMIE energy flux')
          call addfld ('amie_kev_phys', horiz_only, 'I', 'keV',                &

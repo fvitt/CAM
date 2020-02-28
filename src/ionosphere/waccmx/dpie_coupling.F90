@@ -170,17 +170,17 @@ contains
           call endrun('d_pie_epotent: kevg must be present if efx_phys is present')
        end if
 
-       if ( mytid<ntask ) then
+!!$       if ( mytid<ntask ) then
 
 
-          iprint = 0
+          iprint = 1
           amie_ibkg = 0
           iamie = 1
           if (masterproc) then
              write(iulog,"('Calling getamie >>> iamie = ', i2)") iamie
           end if
 
-          call getamie(iyear, imo, iday, tod, sunlon, amie_ibkg, iprint, iamie, &
+          call getamie(iyear, imo, iday, tod, sunlon, iprint, iamie, &
                amie_phihm, amie_efxm, amie_kevm, crad)
 
           if (masterproc) then
@@ -198,7 +198,7 @@ contains
              phihm = amie_phihm
           end if
 
-       endif
+!!$       endif
 
        call mpi_bcast(amie_period, 1, mpi_logical, masterprocid, mpicom, ierr)
 
