@@ -324,6 +324,16 @@
     <lname>HIST_CAM60%WCTS%SDYN_CLM50%SP_CICE%PRES_DOCN%DOM_MOSART_SGLC_SWAV</lname>
   </compset>
 
+  <compset>
+    <alias>FWxnoxSD</alias>
+    <lname>HIST_CAM60%WCXNOX%SDYN_CLM50%SP_CICE%PRES_DOCN%DOM_MOSART_SGLC_SWAV</lname>
+  </compset>
+
+  <compset>
+    <alias>FWxnoySD</alias>
+    <lname>HIST_CAM60%WCXNOY%SDYN_CLM50%SP_CICE%PRES_DOCN%DOM_MOSART_SGLC_SWAV</lname>
+  </compset>
+
 
   <!-- ****************************** -->
   <!-- WACCM untested compsets -->
@@ -405,8 +415,10 @@
 	<value  compset="RCP[2468]_CAM\d+">2005-01-01</value>
  	<value  compset="_CAM.*%SDYN"                   >2005-01-01</value>
  	<value  compset="_CAM.*%SDYN" grid="a%0.47x0.63">2010-01-01</value>
-	<value  compset="_CAM60%WCCM*%SDYN">1980-01-01</value>
-	<value  compset="_CAM60%WCTS*%SDYN">1980-01-01</value>
+	<value  compset="_CAM60%WCCM%SDYN">1980-01-01</value>
+	<value  compset="_CAM60%WCTS%SDYN">1980-01-01</value>
+	<value  compset="_CAM60%WCXN.*%SDYN"                 >2005-01-01</value>
+	<value  compset="_CAM60%WCXN.*%SDYN" grid="a%1.9x2.5">1980-01-01</value>
  	<value  compset="_CAM40%WX.*%SDYN">2000-01-01</value>
 	<value  compset="HIST_CAM60_CLM50.*_CICE%PRES_DOCN%DOM_MOSART_CISM2%NOEVOLVE_SWAV"  grid="a%1.9x2.5">1950-01-01</value>
 	<value  compset="HIST_CAM60%WCCM_CLM50.*_CICE%PRES_DOCN%DOM_MOSART_CISM2%NOEVOLVE_SWAV" grid="a%1.9x2.5">1950-01-01</value>

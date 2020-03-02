@@ -8,7 +8,7 @@
       CAM
     ===============
    -->
-    <desc atm="CAM60[%1PCT][%4xCO2][%CCTS][%CFIRE][%CVBSX][%PORT][%RCO2][%SCAM][%SDYN][%WCCM][%WCMD][%WCSC][%WCTS]">CAM cam6 physics:</desc>
+    <desc atm="CAM60[%1PCT][%4xCO2][%CCTS][%CFIRE][%CVBSX][%PORT][%RCO2][%SCAM][%SDYN][%WCCM][%WCMD][%WCSC][%WCTS][%WCXNOX][%WCXNOY]">CAM cam6 physics:</desc>
     <desc atm="CAM50[%CCTS][%CLB][%PORT][%RCO2][%SCAM][%SDYN][%WCSC][%WCTS]"              >CAM cam5 physics:</desc>
     <desc atm="CAM40[%PORT][%RCO2][%SCAM][%SDYN][%TMOZ][%WXIE][%WXIED][%WCMD]"                   >CAM cam4 physics:</desc>
     <desc atm="CAM[%ADIAB][%DABIP04][%TJ16][%HS94][%KESSLER][%RCO2][%SPCAMS][%SPCAMCLBS][%SPCAMM][%SPCAMCLBM]">CAM simplified and non-versioned physics :</desc>
@@ -55,6 +55,8 @@
     <desc option="WXIED"        >WACCM-X enhanced ionosphere, transport, and electrodynamics with D-region ion chemistry:</desc>
     <desc option="WCSC"         >WACCM specified chemistry:</desc>
     <desc option="WCTS"         >WACCM with tropospheric, stratospheric, mesospheric, and lower thermospheric chemistry:</desc>
+    <desc option="WCXNOX"       >WACCM MA with tagged NOx chemistry:</desc>
+    <desc option="WCXNOY"       >WACCM TSMLT with tagged NOy chemistry:</desc>
 
   <!--
     ===============
@@ -141,6 +143,8 @@
       <value compset="_CAM40%WXIE(_|%)">-chem waccm_ma</value>
       <value compset="_CAM40%WXIED">-chem waccm_mad</value>
       <value compset="_CAM40%WCMD">-chem waccm_mad</value>
+      <value compset="_CAM60%WCXNOX">-chem waccm_ma_xnox_mam4</value>
+      <value compset="_CAM60%WCXNOY">-chem waccm_tsmlt_xnoy_mam4</value>
 
       <value compset="_CAM.*%SDYN">-offline_dyn</value>
       <value compset="_CAM\d0%SDYN_CLM">-nlev 56</value>
@@ -258,6 +262,9 @@
       <value compset="_CAM40%WCMD%SDYN"   >sd_waccm_ma_cam4</value>
       <value compset="_CAM60%CCTS%SDYN"   >sd_trop_strat_vbs_cam6</value>
       <value compset="_CAM60%SDYN_CLM50"  >sd_cam6</value>
+
+      <value compset="_CAM60%WCXNOX%SDYN" >sd_waccm_ma_taggedEPP</value>
+      <value compset="_CAM60%WCXNOY%SDYN" >sd_waccm_tsmlt_taggedEPP</value>
 
       <value compset="2000_CAM%DABIP04"  >dabi_p2004</value>
       <value compset="CAM%HS94"          >held_suarez_1994</value>

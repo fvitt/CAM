@@ -491,6 +491,26 @@
       <machine name="cheyenne" compiler="intel" category="waccm"/>
     </machines>
   </test>
+  <test compset="FWxnoySD" grid="f09_f09_mg17" name="SMS_D_Ln9" testmods="cam/outfrq9s">
+    <machines>
+      <machine name="cheyenne" compiler="intel" category="xnox"/>
+    </machines>
+  </test>
+  <test compset="FWxnoxSD" grid="f09_f09_mg17" name="SMS_D_Ln9" testmods="cam/outfrq9s">
+    <machines>
+      <machine name="cheyenne" compiler="intel" category="xnox"/>
+    </machines>
+  </test>
+  <test compset="FWxnoySD" grid="f09_f09_mg17" name="ERP_Ln9" testmods="cam/outfrq9s">
+    <machines>
+      <machine name="cheyenne" compiler="intel" category="xnox"/>
+    </machines>
+  </test>
+  <test compset="FWxnoxSD" grid="f09_f09_mg17" name="ERP_Ln9" testmods="cam/outfrq9s">
+    <machines>
+      <machine name="cheyenne" compiler="intel" category="xnox"/>
+    </machines>
+  </test>
   <test compset="FWSD" grid="f09_f09_mg17" name="ERP_Ln9" testmods="cam/outfrq9s_xnox">
     <machines>
       <machine name="cheyenne" compiler="intel" category="xnox"/>
