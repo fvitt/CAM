@@ -73,10 +73,12 @@ subroutine wetdep_init()
   use physics_buffer, only: pbuf_get_index
   use constituents,   only: cnst_get_ind
 
+  integer :: ierr
+
   cld_idx             = pbuf_get_index('CLD')    
   qme_idx             = pbuf_get_index('QME')    
   prain_idx           = pbuf_get_index('PRAIN')  
-  bergso_idx          = pbuf_get_index('BERGSO')  
+  bergso_idx          = pbuf_get_index('BERGSO', errcode=ierr )  
   nevapr_idx          = pbuf_get_index('NEVAPR') 
 
   icwmrdp_idx         = pbuf_get_index('ICWMRDP') 
