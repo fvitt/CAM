@@ -521,6 +521,7 @@ subroutine micro_mg_cam_register
    call pbuf_add_field('PRAIN',      'physpkg',dtype_r8,(/pcols,pver/), prain_idx)
    call pbuf_add_field('NEVAPR',     'physpkg',dtype_r8,(/pcols,pver/), nevapr_idx)
    call pbuf_add_field('PRER_EVAP',  'global', dtype_r8,(/pcols,pver/), prer_evap_idx)
+   call pbuf_add_field('BERGSO',     'physpkg',dtype_r8,(/pcols,pver/), bergso_idx)
 
    call pbuf_add_field('WSEDL',      'physpkg',dtype_r8,(/pcols,pver/), wsedl_idx)
 
@@ -703,8 +704,6 @@ subroutine micro_mg_cam_register
       call pbuf_add_field('QCSEVAP', 'physpkg', dtype_r8, (/pcols,pver/), qcsevap_idx)
       call pbuf_add_field('QISEVAP', 'physpkg', dtype_r8, (/pcols,pver/), qisevap_idx)
    end if
-
-   call pbuf_add_field('BERGSO',  'physpkg',dtype_r8,(/pcols,pver/), bergso_idx)
 
 end subroutine micro_mg_cam_register
 
@@ -2133,7 +2132,7 @@ subroutine micro_mg_cam_tend_pack(state, ptend, dtime, pbuf, mgncol, mgcols, nle
 
    call pbuf_get_field(pbuf, evprain_st_idx,  evprain_st_grid)
    call pbuf_get_field(pbuf, evpsnow_st_idx,  evpsnow_st_grid)
-      call pbuf_get_field(pbuf, am_evp_st_idx,   am_evp_st_grid)
+   call pbuf_get_field(pbuf, am_evp_st_idx,   am_evp_st_grid)
    
    !-------------------------------------------------------------------------------------
    ! Microphysics assumes 'liquid stratus frac = ice stratus frac

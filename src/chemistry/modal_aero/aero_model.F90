@@ -72,7 +72,6 @@ module aero_model
 
   integer :: nh3_ndx    = 0
   integer :: nh4_ndx    = 0
-  integer :: bergso_idx = 0
 
   ! variables for table lookup of aerosol impaction/interception scavenging rates
   integer, parameter :: nimptblgrow_mind=-7, nimptblgrow_maxd=12
@@ -233,7 +232,6 @@ contains
     nevapr_shcu_idx = pbuf_get_index('NEVAPR_SHCU') 
     nevapr_dpcu_idx = pbuf_get_index('NEVAPR_DPCU') 
     sulfeq_idx      = pbuf_get_index('MAMH2SO4EQ',errcode)
-    bergso_idx      = pbuf_get_index('BERGSO',errcode)
     
     call phys_getopts(history_aerosol_out = history_aerosol, &
                       history_chemistry_out=history_chemistry, &
@@ -1069,7 +1067,6 @@ contains
     type(wetdep_inputs_t) :: dep_inputs
 
     real(r8) :: dcondt_resusp3d(2*pcnst,pcols, pver)
-    real(r8), pointer :: bergso(:,:)=>null()
 
     lchnk = state%lchnk
     ncol  = state%ncol
@@ -1099,7 +1096,6 @@ contains
     call pbuf_get_field(pbuf, dgnumwet_idx,       dgnumwet, start=(/1,1,1/), kount=(/pcols,pver,nmodes/) )
     call pbuf_get_field(pbuf, qaerwat_idx,        qaerwat,  start=(/1,1,1/), kount=(/pcols,pver,nmodes/) )
     call pbuf_get_field(pbuf, fracis_idx,         fracis, start=(/1,1,1/), kount=(/pcols, pver, pcnst/) )
-    if (bergso_idx>0) call pbuf_get_field(pbuf, bergso_idx, bergso )
 
     prec(:ncol)=0._r8
     do k=1,pver
@@ -1315,7 +1311,7 @@ contains
                      icscavt=icscavt, isscavt=isscavt, bcscavt=bcscavt, bsscavt=bsscavt, &
                      convproc_do_aer=convproc_do_aer, rcscavt=rcscavt, rsscavt=rsscavt,  &
                      sol_facti_in=sol_facti, sol_factic_in=sol_factic, &
-                     convproc_do_evaprain_atonce_in=convproc_do_evaprain_atonce, bergso_in=bergso )
+                     convproc_do_evaprain_atonce_in=convproc_do_evaprain_atonce )
 
                 do_hygro_sum_del = .false.
                 if ( lspec > 0 ) do_hygro_sum_del = .true. 
@@ -1530,7 +1526,7 @@ contains
                    else
                       fldcw => qqcw_get_field(pbuf, mm,lchnk)
                    endif
-                   
+
                    call wetdepa_v2(state%pmid, state%q(:,:,1), state%pdel, &
                         dep_inputs%cldt, dep_inputs%cldcu, dep_inputs%cmfdqr, &
                         dep_inputs%evapc, dep_inputs%conicw, dep_inputs%prain, dep_inputs%qme, &
@@ -1542,7 +1538,8 @@ contains
                         icscavt=icscavt, isscavt=isscavt, bcscavt=bcscavt, bsscavt=bsscavt, &
                         convproc_do_aer=convproc_do_aer, rcscavt=rcscavt, rsscavt=rsscavt,  &
                         sol_facti_in=sol_facti, sol_factic_in=sol_factic, &
-                        convproc_do_evaprain_atonce_in=convproc_do_evaprain_atonce, bergso_in=bergso )
+                        convproc_do_evaprain_atonce_in=convproc_do_evaprain_atonce, &
+                        bergso_in=dep_inputs%bergso )
 
                    if(convproc_do_aer) then
                       ! save resuspension of cloudborne species
