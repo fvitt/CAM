@@ -1,4 +1,4 @@
-module mag2geo_mod
+module utils_mod
   use shr_kind_mod   ,only: r8 => shr_kind_r8
   use cam_logfile    ,only: iulog
   use cam_abortutils, only: endrun
@@ -13,7 +13,7 @@ module mag2geo_mod
 
 #ifdef WACCMX_EDYN_ESMF
 
-  public :: boxcar_ave, mag2geo, rpt_ncerr
+  public :: boxcar_ave
   public :: check_ncerr
   public :: check_alloc
 #endif
@@ -82,64 +82,8 @@ contains
        end do ! ig=1,nlong
     end do ! jg=1,nlatg
   end subroutine mag2geo
-!!$  !-----------------------------------------------------------------------
-!!$  subroutine mag2geo_2d(fmag,fgeo,ESMF_mag,ESMF_geo,fname)
-!!$    !
-!!$    ! Convert field on geomagnetic grid fmag to geographic grid in fgeo.
-!!$    !
-!!$    use edyn_esmf,only: edyn_esmf_set2d_mag,edyn_esmf_regrid,  &
-!!$                        edyn_esmf_get_2dfield
-!!$    !
-!!$    ! Args:
-!!$    real(r8),         intent(in)    :: fmag(mlon0:mlon1,mlat0:mlat1)
-!!$    real(r8),         intent(out)   :: fgeo(lon0:lon1,lat0:lat1)
-!!$    type(ESMF_Field), intent(inout) :: ESMF_mag, ESMF_geo
-!!$    character(len=*), intent(in)    :: fname
-!!$    !
-!!$    ! Local:
-!!$    integer :: j
-!!$    character (len=8) :: fnames(1)
-!!$    type(ESMF_Field) :: magfields(1)
-!!$    real(r8),pointer,dimension(:,:) :: fptr
-!!$
-!!$    fgeo = finit
-!!$    fnames(1) = fname
-!!$    magfields(1) = ESMF_mag
-!!$    !
-!!$    ! Put fmag into ESMF mag field on mag source grid:
-!!$    call edyn_esmf_set2d_mag(magfields,fnames,fmag,1, &
-!!$         mlon0,mlon1,mlat0,mlat1)
-!!$    !
-!!$    ! Regrid to geographic destination grid, defining ESMF_geo:
-!!$    call edyn_esmf_regrid(ESMF_mag,ESMF_geo,'mag2geo',2)
-!!$    !
-!!$    ! Put regridded geo field into pointer:
-!!$    call edyn_esmf_get_2dfield(ESMF_geo,fptr,fname)
-!!$    !      write(iulog,*) 'mag2geo: Max,min fptr = ',maxval(fptr),minval(fptr)
-!!$    !
-!!$    ! Transfer from pointer to output arg:
-!!$    do j=lat0,lat1
-!!$       fgeo(:,j) = fptr(:,j)
-!!$    end do
-!!$    !      write(iulog,*) 'mag2geo: max,min fmag = ',maxval(fmag),minval(fmag)
-!!$    !      write(iulog,*) 'mag2geo: max,min fgeo = ',maxval(fgeo),minval(fgeo)
-!!$  end subroutine mag2geo_2d
   !-----------------------------------------------------------------------
-  subroutine rpt_ncerr(istat,msg)
-    !
-    ! Handle a netcdf lib error:
-    !
-    integer,         intent(in) :: istat
-    character(len=*),intent(in) :: msg
-    !
-    write(iulog,"(/72('-'))")
-    write(iulog,"('>>> Error from netcdf library:')")
-    write(iulog,"(a)") trim(msg)
 
-    write(iulog,"('istat=',i5)") istat
-    write(iulog,"(72('-')/)")
-    return
-  end subroutine rpt_ncerr
   !-----------------------------------------------------------------------
   subroutine check_alloc(ierror, subname, varname, lonp1, latp1, ntimes, lw)
     use spmd_utils, only: masterproc
@@ -204,4 +148,4 @@ contains
 
 #endif
 
-end module mag2geo_mod
+end module utils_mod

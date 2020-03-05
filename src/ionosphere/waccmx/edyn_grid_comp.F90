@@ -31,8 +31,10 @@ module edyn_grid_comp
    ! Which run?
    integer             :: do_run
    ! Pointers for run1 output
-   real(r8), pointer   :: amie_efxg(:) => NULL()
-   real(r8), pointer   :: amie_kevg(:) => NULL()
+   real(r8), pointer   :: prescr_efx_phys(:) => NULL()
+   real(r8), pointer   :: prescr_kev_phys(:) => NULL()
+   logical             :: ionos_epotential_amie
+   logical             :: ionos_epotential_ltr
    ! Pointers for run2
    real(r8), pointer   :: omega_blck(:,:) => NULL()
    real(r8), pointer   :: pmid_blck(:,:) => NULL()
@@ -218,10 +220,11 @@ CONTAINS
       character(len=*), parameter         :: subname = 'edyn_gcomp_run'
 
       if (do_run == 1) then
-         if (associated(amie_efxg) .and. associated(amie_kevg)) then
+         if ( ionos_epotential_amie .or. ionos_epotential_ltr) then
             call d_pie_epotent(ionos_epotential_model, epot_crit_colats,      &
                  cols=col_start, cole=col_end,                                &
-                 efx_phys=amie_efxg, kev_phys=amie_kevg)
+                 efx_phys=prescr_efx_phys, kev_phys=prescr_kev_phys,          &
+                 amie_in=ionos_epotential_amie, ltr_in=ionos_epotential_ltr )
          else
             call d_pie_epotent(ionos_epotential_model, epot_crit_colats)
          end if
@@ -329,8 +332,8 @@ CONTAINS
 
    end subroutine edyn_grid_comp_init
 
-   subroutine edyn_grid_comp_run1(ionos_epotential_model_in,                  &
-        cols, cole, efx_phys, kev_phys)
+   subroutine edyn_grid_comp_run1(ionos_epotential_model_in,  &
+              cols, cole, efx_phys, kev_phys, amie_in, ltr_in)
 
       use ESMF,         only: ESMF_GridCompRun
       use edyn_esmf,    only: edyn_esmf_chkerr
@@ -341,6 +344,9 @@ CONTAINS
       integer,          optional, intent(in) :: cole
       real(r8),         optional, target, intent(out) :: efx_phys(:)
       real(r8),         optional, target, intent(out) :: kev_phys(:)
+      logical,          optional, intent(in) :: amie_in
+      logical,          optional, intent(in) :: ltr_in
+
       ! Local variables
       integer                                :: rc
       character(len=*), parameter            :: subname = 'edyn_grid_comp_run1'
@@ -348,14 +354,16 @@ CONTAINS
       do_run = 1
       if ( present(cols) .and. present(cole) .and. &
            present(efx_phys) .and. present(kev_phys) ) then
-         amie_efxg => efx_phys
-         amie_kevg => kev_phys
+         ionos_epotential_amie = amie_in
+         ionos_epotential_ltr = ltr_in
+         prescr_efx_phys => efx_phys
+         prescr_kev_phys => kev_phys
          col_start = cols
          col_end = cole
       else
          ! No else check assume no optional arguments are passed
-         nullify(amie_efxg)
-         nullify(amie_kevg)
+         nullify(prescr_efx_phys)
+         nullify(prescr_kev_phys)
       end if
       ionos_epotential_model = ionos_epotential_model_in
       call ESMF_GridCompRun(phys_comp, rc=rc)

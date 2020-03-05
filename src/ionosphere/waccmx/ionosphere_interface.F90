@@ -75,13 +75,17 @@ module ionosphere_interface
    real(r8) :: oplus_shapiro_const = 0.03_r8    ! shapiro constant for spatial smoother
    logical  :: oplus_enforce_floor = .true.     ! switch to apply Stan's  floor
 
+   integer, parameter :: max_num_files = 20
    character(len=256) :: wei05_coefs_file = 'NONE' !'wei05sc.nc'
-   character(len=256) :: amienh_file  = 'NONE'
-   character(len=256) :: amiesh_file  = 'NONE'
+   character(len=256) :: amienh_files(max_num_files) = 'NONE'
+   character(len=256) :: amiesh_files(max_num_files) = 'NONE'
+   character(len=256) :: ltr_files(max_num_files) = 'NONE'
+
 
    character(len=16) :: ionos_epotential_model = 'none'
    logical           :: ionos_epotential_amie = .false.
-   integer           :: indxAMIEefxg=-1, indxAMIEkevg=-1
+   logical           :: ionos_epotential_ltr = .false.
+   integer           :: indxefx=-1, indxkev=-1
 
    integer           :: oplus_nlon, oplus_nlat   ! Oplus grid
    integer           :: ionos_npes = -1
@@ -108,8 +112,8 @@ contains
 
       namelist /ionosphere_nl/ ionos_xport_active, ionos_edyn_active, ionos_oplus_xport, ionos_xport_nsplit
       namelist /ionosphere_nl/ oplus_adiff_limiter, oplus_shapiro_const, oplus_enforce_floor, oplus_ring_polar_filter
-      namelist /ionosphere_nl/ ionos_epotential_model, ionos_epotential_amie, wei05_coefs_file
-      namelist /ionosphere_nl/ amienh_file, amiesh_file, wei05_coefs_file
+      namelist /ionosphere_nl/ ionos_epotential_model, ionos_epotential_amie, ionos_epotential_ltr, wei05_coefs_file
+      namelist /ionosphere_nl/ amienh_files, amiesh_files, wei05_coefs_file, ltr_files
       namelist /ionosphere_nl/ epot_crit_colats
       namelist /ionosphere_nl/ ionos_dynamo_grid, ionos_npes
       namelist /ionosphere_nl/ oplus_grid
@@ -139,9 +143,11 @@ contains
       call mpi_bcast(oplus_adiff_limiter, 1, mpi_real8,   masterprocid, mpicom, ierr)
       call mpi_bcast(ionos_epotential_model, len(ionos_epotential_model), mpi_character, masterprocid, mpicom, ierr)
       call mpi_bcast(ionos_epotential_amie,1, mpi_logical, masterprocid, mpicom, ierr)
+      call mpi_bcast(ionos_epotential_ltr,1, mpi_logical, masterprocid, mpicom, ierr)
       call mpi_bcast(wei05_coefs_file, len(wei05_coefs_file), mpi_character, masterprocid, mpicom, ierr)
-      call mpi_bcast(amienh_file, len(amienh_file), mpi_character, masterprocid, mpicom, ierr)
-      call mpi_bcast(amiesh_file, len(amiesh_file), mpi_character, masterprocid, mpicom, ierr)
+      call mpi_bcast(amienh_files, max_num_files*len(amienh_files(1)), mpi_character, masterprocid, mpicom, ierr)
+      call mpi_bcast(amiesh_files, max_num_files*len(amiesh_files(1)), mpi_character, masterprocid, mpicom, ierr)
+      call mpi_bcast(ltr_files, max_num_files*len(ltr_files(1)), mpi_character, masterprocid, mpicom, ierr)
       call mpi_bcast(oplus_shapiro_const, 1, mpi_real8,   masterprocid, mpicom, ierr)
       call mpi_bcast(oplus_enforce_floor, 1, mpi_logical, masterprocid, mpicom, ierr)
       call mpi_bcast(oplus_ring_polar_filter,1, mpi_logical, masterprocid, mpicom, ierr)
@@ -169,6 +175,7 @@ contains
          write(iulog,*) 'ionosphere_readnl: ionos_xport_nsplit     = ', ionos_xport_nsplit
          write(iulog,*) 'ionosphere_readnl: ionos_epotential_model = ', trim(ionos_epotential_model)
          write(iulog,*) 'ionosphere_readnl: ionos_epotential_amie  = ', ionos_epotential_amie
+         write(iulog,*) 'ionosphere_readnl: ionos_epotential_ltr   = ', ionos_epotential_ltr
          write(iulog,'(a,2(g12.4))') &
                         'ionosphere_readnl: epot_crit_colats       = ', epot_crit_colats
          write(iulog,'(a,i0)') 'ionosphere_readnl: ionos_npes = ',ionos_npes
@@ -199,17 +206,16 @@ contains
       use ref_pres,        only: pref_mid  ! target alev(pver) midpoint levels
       use ref_pres,        only: pref_edge ! target ailev(pverp) interface levels
       use amie_module,     only: init_amie
+      use ltr_module,      only: init_ltr
       use wei05sc,         only: weimer05_init
       
       ! local variables:
       integer :: sIndx
       character(len=*), parameter :: subname = 'ionosphere_init'
 
-      if ( ionos_epotential_amie ) then
-         call pbuf_add_field('AMIE_efxg', 'global', dtype_r8, (/pcols/),      &
-              indxAMIEefxg)  ! Energy flux from AMIE
-         call pbuf_add_field('AMIE_kevg', 'global', dtype_r8, (/pcols/),      &
-              indxAMIEkevg)  ! Mean energy from AMIE
+      if ( ionos_epotential_amie .or. ionos_epotential_ltr) then
+         call pbuf_add_field('AUREFX', 'global', dtype_r8, (/pcols/), indxefx)  ! Prescribed Energy flux
+         call pbuf_add_field('AURKEV', 'global', dtype_r8, (/pcols/), indxkev)  ! Prescribed Mean energy
       end if
       if (initial_run) then
          ! Read initial conditions (O+) on physics grid
@@ -334,11 +340,14 @@ contains
          call add_default ('WI&IC', 0, ' ')
       end if
       if ( ionos_epotential_amie ) then
-         call init_amie((/amienh_file/), (/amiesh_file/))
-         call addfld ('amie_efx_phys', horiz_only, 'I', 'mW/m2',              &
-              'AMIE energy flux')
-         call addfld ('amie_kev_phys', horiz_only, 'I', 'keV',                &
-              'AMIE mean energy')
+         call init_amie(amienh_files,amiesh_files)
+         call addfld ('amie_efx_phys', horiz_only, 'I', 'mW/m2', 'AMIE energy flux')
+         call addfld ('amie_kev_phys', horiz_only, 'I', 'keV',   'AMIE mean energy')
+      end if
+      if ( ionos_epotential_ltr ) then
+         call init_ltr(ltr_files)
+         call addfld ('ltr_efx_phys', horiz_only, 'I', 'mW/m2', 'LTR energy flux')
+         call addfld ('ltr_kev_phys', horiz_only, 'I', 'keV',  'LTR mean energy')
       end if
       if ( trim(ionos_epotential_model) == 'weimer' ) then
          call weimer05_init(wei05_coefs_file)
@@ -367,12 +376,12 @@ contains
       integer :: i, j, lchnk,  blksize ! indices
       type(physics_buffer_desc), pointer :: pbuf_chnk(:)
 
-      real(r8), pointer :: pbuf_amie_efxg(:) ! Pointer to AMIE energy flux in pbuf
-      real(r8), pointer :: pbuf_amie_kevg(:) ! Pointer to AMIE mean energy in pbuf
+      real(r8), pointer :: pbuf_efx(:) ! Pointer to prescribed energy flux in pbuf
+      real(r8), pointer :: pbuf_kev(:) ! Pointer to prescribed mean energy in pbuf
 
       integer :: ncol
-      real(r8), pointer :: amie_efxg(:) ! energy flux from AMIE
-      real(r8), pointer :: amie_kevg(:) ! characteristic mean energy from AMIE
+      real(r8), pointer :: prescr_efx(:) ! prescribed energy flux
+      real(r8), pointer :: prescr_kev(:) ! prescribed characteristic mean energy
 
       if( write_inithist() .and. ionos_xport_active ) then
          do lchnk = begchunk, endchunk
@@ -380,20 +389,21 @@ contains
          end do
       end if
 
-      nullify(amie_efxg)
-      nullify(amie_kevg)
-      amie_active: if ( ionos_epotential_amie ) then
+      nullify(prescr_efx)
+      nullify(prescr_kev)
+      prescribed_epot: if ( ionos_epotential_amie .or. ionos_epotential_ltr ) then
          blksize = 0
          do lchnk = begchunk, endchunk
             blksize = blksize + get_ncols_p(lchnk)
          end do
 
-         allocate(amie_efxg(blksize))
-         allocate(amie_kevg(blksize))
+         allocate(prescr_efx(blksize))
+         allocate(prescr_kev(blksize))
 
          ! data assimilated potential
          call edyn_grid_comp_run1(ionos_epotential_model, &
-              cols=1, cole=blksize, efx_phys=amie_efxg, kev_phys=amie_kevg)
+              cols=1, cole=blksize, efx_phys=prescr_efx, kev_phys=prescr_kev, &
+              amie_in=ionos_epotential_amie, ltr_in=ionos_epotential_ltr )
 
          ! transform to pbuf for aurora...
 
@@ -401,22 +411,28 @@ contains
          chnk_loop1: do lchnk = begchunk, endchunk
             ncol = get_ncols_p(lchnk)
             pbuf_chnk => pbuf_get_chunk(pbuf2d, lchnk)
-            call pbuf_get_field(pbuf_chnk, indxAMIEefxg, pbuf_amie_efxg)
-            call pbuf_get_field(pbuf_chnk, indxAMIEkevg, pbuf_amie_kevg)
+            call pbuf_get_field(pbuf_chnk, indxefx, pbuf_efx)
+            call pbuf_get_field(pbuf_chnk, indxkev, pbuf_kev)
 
             do i = 1, ncol
                j = j + 1
-               pbuf_amie_efxg(i) = amie_efxg(j)
-               pbuf_amie_kevg(i) = amie_kevg(j)
+               pbuf_efx(i) = prescr_efx(j)
+               pbuf_kev(i) = prescr_kev(j)
             end do
 
-            call outfld('amie_efx_phys', pbuf_amie_efxg, pcols, lchnk)
-            call outfld('amie_kev_phys', pbuf_amie_kevg, pcols, lchnk)
+            if ( ionos_epotential_amie ) then
+               call outfld('amie_efx_phys', pbuf_efx, pcols, lchnk)
+               call outfld('amie_kev_phys', pbuf_kev, pcols, lchnk)
+            endif
+            if ( ionos_epotential_ltr) then
+               call outfld('ltr_efx_phys', pbuf_efx, pcols, lchnk )
+               call outfld('ltr_kev_phys', pbuf_kev, pcols, lchnk )
+            end if
          end do chnk_loop1
 
-         deallocate(amie_efxg, amie_kevg)
-         nullify(amie_efxg)
-         nullify(amie_kevg)
+         deallocate(prescr_efx, prescr_kev)
+         nullify(prescr_efx)
+         nullify(prescr_kev)
 
       else
 
@@ -424,7 +440,7 @@ contains
          !   aurora uses weimer derived potential
          call edyn_grid_comp_run1(ionos_epotential_model)
 
-      end if amie_active
+      end if prescribed_epot
 
    end subroutine ionosphere_run1
 

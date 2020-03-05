@@ -15,8 +15,7 @@ module amie_module
   use pio,            only: pio_inq_dimid, pio_inquire_dimension
   use pio,            only: pio_inquire, pio_inq_varid
   use pio,            only: file_desc_t, pio_noerr, pio_nowrite, pio_get_var
-  use mag2geo_mod,    only: boxcar_ave, mag2geo_2d, rpt_ncerr
-  use mag2geo_mod,    only: check_ncerr, check_alloc
+  use utils_mod,      only: check_ncerr, check_alloc, boxcar_ave
 #else
   use cam_abortutils, only: endrun
 #endif
@@ -269,7 +268,7 @@ contains
   !-----------------------------------------------------------------------
   subroutine rdamie_sh(amiesh)
     !
-    ! Read AMIE data for the northern hemisphere from amiesh
+    ! Read AMIE data for the southern hemisphere from amiesh
     !
     character(len=*), intent(in) :: amiesh
     ! Local:
