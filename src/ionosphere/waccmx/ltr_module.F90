@@ -434,10 +434,11 @@ contains
     rot = rot / 15._r8        !  convert from degree to hrs
 
     dmltm = 24._r8 / real(lonmx, kind=r8)
+
     do i = 1, lonp1
        xmlt = (real(i-1, kind=r8) * dmltm) - rot + 24._r8
        xmlt = MOD(xmlt, 24._r8)
-       m = int(xmlt/dmltm + 1.01_r8)
+       m = int(xmlt/dmltm + 1.001_r8)
        mp1 = m + 1
        if (mp1 > lonp1) mp1 = 2
        del = xmlt - (m-1)*dmltm
