@@ -182,9 +182,6 @@ contains
           call endrun('d_pie_epotent: kev_phys and efx_phys must be present')
        end if
 
-       prescr_efxm = -99999999999999999._r8
-       prescr_kevm = -99999999999999999._r8
-       
 !!$       if ( mytid<ntask ) then
 
        iprint = 1
@@ -209,7 +206,7 @@ contains
                prescr_phihm, prescr_efxm, prescr_kevm )
 
           if (masterproc) then
-             write(iulog,"('After Calling getamie >>> iltr = ', i2)") iltr
+             write(iulog,"('After Calling getltr >>> iltr = ', i2)") iltr
           end if
           prescribed_period = iltr == 1
        end if
