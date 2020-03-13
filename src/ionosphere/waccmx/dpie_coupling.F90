@@ -80,8 +80,8 @@ contains
     call addfld ('OpDens' ,(/ 'lev' /), 'I', 'cm^-3','O+ Number Density'                       , gridname='physgrid')
     call addfld ('EDens'  ,(/ 'lev' /), 'I', 'cm^-3','e Number Density (sum of O2+,NO+,N2+,O+)', gridname='physgrid')
 
-    call addfld ('prescr_efxg'  , horiz_only, 'I','mW/m2','Prescribed energy flux on geo grid'     ,gridname='physgrid')
-    call addfld ('prescr_kevg'  , horiz_only, 'I','keV  ','Prescribed mean energy on geo grid'     ,gridname='physgrid')
+    call addfld ('prescr_efxp'  , horiz_only, 'I','mW/m2','Prescribed energy flux on geo grid'     ,gridname='physgrid')
+    call addfld ('prescr_kevp'  , horiz_only, 'I','keV  ','Prescribed mean energy on geo grid'     ,gridname='physgrid')
 
     call addfld ('WACCM_UI'   ,(/ 'lev' /), 'I', 'm/s'  ,'WACCM_UI (dpie output)', gridname='physgrid')
     call addfld ('WACCM_VI'   ,(/ 'lev' /), 'I', 'm/s'  ,'WACCM_VI (dpie output)', gridname='physgrid')
@@ -182,8 +182,6 @@ contains
           call endrun('d_pie_epotent: kev_phys and efx_phys must be present')
        end if
 
-!!$       if ( mytid<ntask ) then
-
        iprint = 1
        if (amie_inputs) then
           if (masterproc) then
@@ -221,15 +219,13 @@ contains
           phihm = prescr_phihm
        end if
 
-!!$       endif
-
        call mpi_bcast(prescribed_period, 1, mpi_logical, masterprocid, mpicom, ierr)
 
        call regrid_mag2phys_2d(prescr_kevm(mlon0:mlon1,mlat0:mlat1), kev_phys, cols, cole)
        call regrid_mag2phys_2d(prescr_efxm(mlon0:mlon1,mlat0:mlat1), efx_phys, cols, cole)
 
-       call outfld_phys1d( 'prescr_efxg', efx_phys )
-       call outfld_phys1d( 'prescr_kevg', kev_phys )
+       call outfld_phys1d( 'prescr_efxp', efx_phys )
+       call outfld_phys1d( 'prescr_kevp', kev_phys )
 
     end if prescribed_inputs
 

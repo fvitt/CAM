@@ -16,6 +16,7 @@ module amie_module
   use pio,            only: pio_inquire, pio_inq_varid
   use pio,            only: file_desc_t, pio_noerr, pio_nowrite, pio_get_var
   use utils_mod,      only: check_ncerr, check_alloc, boxcar_ave
+  use edyn_mpi,       only: ntask, mytid
 #else
   use cam_abortutils, only: endrun
 #endif
@@ -696,8 +697,8 @@ contains
     offset = (/1,1,iset/)
     kount = (/lonp1,latp1,2/)
 
-    if (masterproc) write(iulog,*) 'call  update_3d_fields NH... '
     call update_3d_fields( ncid_nh, offset, kount, amie_pot_nh,amie_ekv_nh,amie_efx_nh )
+
     if (iboxcar == 0) then
        pot_nh_amie(:,:) = (f1*amie_pot_nh(:,:,2) + &
             f2*amie_pot_nh(:,:,1))
@@ -705,39 +706,27 @@ contains
             f2*amie_ekv_nh(:,:,1))
        efx_nh_amie(:,:) = (f1*amie_efx_nh(:,:,2) + &
             f2*amie_efx_nh(:,:,1))
-!     write(iulog,"('ekv_nh_amie min, max = ',2e12.4)")
-!     |       minval(ekv_nh_amie),maxval(ekv_nh_amie)
+       !     write(iulog,"('ekv_nh_amie min, max = ',2e12.4)")
+       !     |       minval(ekv_nh_amie),maxval(ekv_nh_amie)
     else
        call boxcar_ave(amie_pot_nh,pot_nh_amie,lonp1,latp1, &
             nn,iset,iboxcar)
-!     call fminmax(amie_pot_nh(:,:,iset),lonp1*latp1,fmin,fmax)
-!     write(iulog,"('AMIE pot max,min = ',2f8.0)")fmax,fmin
-!     call fminmax(pot_nh_amie(:,:),lonp1*latp1,fmin,fmax)
-!     write(iulog,"('boxcar_ave AMIE pot max,min= ',2f8.0)")fmax,fmin
        call boxcar_ave(amie_efx_nh,efx_nh_amie,lonp1,latp1, &
             nn,iset,iboxcar)
-!     call fminmax(amie_efx_nh(:,:,iset),lonp1*latp1,fmin,fmax)
-!     write(iulog,"('AMIE efx max,min = ',2f8.0)")fmax,fmin
-!     call fminmax(efx_nh_amie(:,:),lonp1*latp1,fmin,fmax)
-!     write(iulog,"('boxcar_ave AMIE efx max,min= ',2f8.0)")fmax,fmin
        call boxcar_ave(amie_ekv_nh,ekv_nh_amie,lonp1,latp1, &
             nn,iset,iboxcar)
-!     call fminmax(amie_ekv_nh(:,:,iset),lonp1*latp1,fmin,fmax)
-!     write(iulog,"('AMIE ekv max,min = ',2f8.0)")fmax,fmin
-!     call fminmax(ekv_nh_amie(:,:),lonp1*latp1,fmin,fmax)
-!     write(iulog,"('boxcar_ave AMIE ekv max,min= ',2f8.0)")fmax,fmin
     end if
-!
-!     The OLTMAX latitude also defines the co-latitude theta0, which in
-!     turn determines crit1(+2.5deg) and crit2(-12.5deg) which are used
-!     in TIE-GCM as the boundaries of the polar cap and the region of
-!     influence of the high-lat potential versus the low-lat dynamo potential
-!     Define this latitude to be between 70 and 77.5 degrees
-!
-!     if (cusplat_sh_amie > 65.0) then
-!     cusplat_sh_amie = 65.0
-!     cuspmlt_sh_amie = 11.
-!     endif
+    !
+    !     The OLTMAX latitude also defines the co-latitude theta0, which in
+    !     turn determines crit1(+2.5deg) and crit2(-12.5deg) which are used
+    !     in TIE-GCM as the boundaries of the polar cap and the region of
+    !     influence of the high-lat potential versus the low-lat dynamo potential
+    !     Define this latitude to be between 70 and 77.5 degrees
+    !
+    !     if (cusplat_sh_amie > 65.0) then
+    !     cusplat_sh_amie = 65.0
+    !     cuspmlt_sh_amie = 11.
+    !     endif
     if (cusplat_sh_amie > 75.0_r8) then
        cusplat_sh_amie = 75.0_r8
        cuspmlt_sh_amie = 11._r8
@@ -769,135 +758,138 @@ contains
     end if
     rot = rot / 15._r8        !  convert from degree to hrs
 
-    dmltm = 24._r8 / real(lonmx, kind=r8)
-    do i = 1, lonp1
-       xmlt = (real(i-1, kind=r8) * dmltm) - rot + 24._r8
-       xmlt = MOD(xmlt, 24._r8)
-       m = int(xmlt/dmltm + 1.01_r8)
-       mp1 = m + 1
-       if (mp1 > lonp1) mp1 = 2
-       del = xmlt - (m-1)*dmltm
-       !     Initialize arrays around equator
-       do j = latp1+1, ithmx
-          potm(i,j) = 0._r8
-          potm(i,jmxm+1-j) = 0._r8
-          ekvm(i,j) = (1._r8-del)*ekv_sh_amie(m,latp1) + &
-               del*ekv_sh_amie(mp1,latp1)
-          ekvm(i,jmxm+1-j) = (1._r8-del)*ekv_nh_amie(m,latp1) +  &
-               del*ekv_nh_amie(mp1,latp1)
-          efxm(i,j) = 0._r8
-          efxm(i,jmxm+1-j) = 0._r8
+    active_task: if ( mytid<ntask ) then
+
+       dmltm = 24._r8 / real(lonmx, kind=r8)
+       do i = 1, lonp1
+          xmlt = (real(i-1, kind=r8) * dmltm) - rot + 24._r8
+          xmlt = MOD(xmlt, 24._r8)
+          m = int(xmlt/dmltm + 1.01_r8)
+          mp1 = m + 1
+          if (mp1 > lonp1) mp1 = 2
+          del = xmlt - (m-1)*dmltm
+          !     Initialize arrays around equator
+          do j = latp1+1, ithmx
+             potm(i,j) = 0._r8
+             potm(i,jmxm+1-j) = 0._r8
+             ekvm(i,j) = (1._r8-del)*ekv_sh_amie(m,latp1) + &
+                  del*ekv_sh_amie(mp1,latp1)
+             ekvm(i,jmxm+1-j) = (1._r8-del)*ekv_nh_amie(m,latp1) +  &
+                  del*ekv_nh_amie(mp1,latp1)
+             efxm(i,j) = 0._r8
+             efxm(i,jmxm+1-j) = 0._r8
+          end do
+          !     Put in AMIE arrays from pole to latp1
+          do j = 1, latp1
+             potm(i,j) = (1._r8-del)*pot_sh_amie(m,j) + &
+                  del*pot_sh_amie(mp1,j)
+             potm(i,jmxm+1-j) = (1._r8-del)*pot_nh_amie(m,j) + &
+                  del*pot_nh_amie(mp1,j)
+             ekvm(i,j) = (1._r8-del)*ekv_sh_amie(m,j) + &
+                  del*ekv_sh_amie(mp1,j)
+             ekvm(i,jmxm+1-j) = (1._r8-del)*ekv_nh_amie(m,j) + &
+                  del*ekv_nh_amie(mp1,j)
+             efxm(i,j) = (1._r8-del)*efx_sh_amie(m,j) + &
+                  del*efx_sh_amie(mp1,j)
+             efxm(i,jmxm+1-j) = (1._r8-del)*efx_nh_amie(m,j) + &
+                  del*efx_nh_amie(mp1,j)
+          end do
+
        end do
-       !     Put in AMIE arrays from pole to latp1
-       do j = 1, latp1
-          potm(i,j) = (1._r8-del)*pot_sh_amie(m,j) + &
-               del*pot_sh_amie(mp1,j)
-          potm(i,jmxm+1-j) = (1._r8-del)*pot_nh_amie(m,j) + &
-               del*pot_nh_amie(mp1,j)
-          ekvm(i,j) = (1._r8-del)*ekv_sh_amie(m,j) + &
-               del*ekv_sh_amie(mp1,j)
-          ekvm(i,jmxm+1-j) = (1._r8-del)*ekv_nh_amie(m,j) + &
-               del*ekv_nh_amie(mp1,j)
-          efxm(i,j) = (1._r8-del)*efx_sh_amie(m,j) + &
-               del*efx_sh_amie(mp1,j)
-          efxm(i,jmxm+1-j) = (1._r8-del)*efx_nh_amie(m,j) + &
-               del*efx_nh_amie(mp1,j)
+
+       !     Set up coeffs to go between EPOTM(IMXMP,JMNH) and TIEPOT(IMAXM,JMAXMH)
+
+       !     ****     SET GRID SPACING DLATM, DLONM
+       !     DMLAT=lat spacing in degrees of AMIE apex grid
+       dmlat = 180._r8 / real(jmxm-1, kind=r8)
+       dlatm = dmlat * dtr
+       dlonm = 2._r8 * pi / real(lonmx, kind=r8)
+       dmltm = 24._r8 / real(lonmx, kind=r8)
+       !     ****
+       !     ****     SET ARRAY YLATM (LATITUDE VALUES FOR GEOMAGNETIC GRID
+       !     ****
+       alatm(1) = -pi / 2._r8
+       alat(1) = -90._r8
+       alatm(jmxm) = pi / 2._r8
+       alat(jmxm) = 90._r8
+       do i = 2, ithmx
+          alat(i) = alat(i-1)+dlatm/dtr
+          alat(jmxm+1-i) = alat(jmxm+2-i)-dlatm/dtr
+          alatm(i) = alatm(i-1)+dlatm
+          alatm(jmxm+1-i) = alatm(jmxm+2-i)-dlatm
+       end do
+       alon(1) = -pi/dtr
+       alonm(1) = -pi
+       do i = 2, lonp1
+          alon(i) = alon(i-1) + dlonm/dtr
+          alonm(i) = alonm(i-1) + dlonm
        end do
 
-    end do
+       !     ylatm and ylonm are arrays of latitudes and longitudes of the
+       !     distored magnetic grids in radian - from consdyn.h
+       !     Convert from apex magnetic grid to distorted magnetic grid
+       !
+       !     Allocate workspace for regrid routine rgrd2.f:
+       lw = nmlonp1+nmlat+2*nmlonp1
+       if (.not. allocated(w)) then
+          allocate(w(lw), stat=ier)
+          call check_alloc(ier, 'getamie', 'w', lw=lw)
+       end if
+       liw = nmlonp1 + nmlat
+       if (.not. allocated(iw)) then
+          allocate(iw(liw), stat=ier)
+          call check_alloc(ier, 'getamie', 'iw', lw=liw)
+       end if
+       intpol(:) = 1             ! linear (not cubic) interp in both dimensions
+       if (alatm(1) > ylatm(1)) then
+          alatm(1) = ylatm(1)
+       end if
+       if (alatm(jmxm) < ylatm(nmlat)) then
+          alatm(jmxm) = ylatm(nmlat)
+       end if
+       if (alonm(1) > ylonm(1)) then
+          alonm(1) = ylonm(1)
+       end if
+       if (alonm(lonp1) < ylonm(nmlonp1)) then
+          alonm(lonp1) = ylonm(nmlonp1)
+       end if
+       !     write(iulog,"('  AMIE: ylatm =',/,(6e12.4))") ylatm
+       !     write(iulog,"('  AMIE: ylonm =',/,(6e12.4))") ylonm
+       !     write(iulog,"('  AMIE: potm(1,:) =',/,(6e12.4))") potm(1,:)
+       !     ylatm from -pi/2 to pi/2, and ylonm from -pi to pi
+       call rgrd2(lonp1, jmxm, alonm, alatm, potm, nmlonp1, nmlat,  &
+            ylonm, ylatm, phihm, intpol, w, lw, iw, liw, ier)
+       call rgrd2(lonp1, jmxm, alonm, alatm, ekvm, nmlonp1, nmlat,  &
+            ylonm, ylatm, amie_kevm, intpol, w, lw, iw, liw, ier)
+       call rgrd2(lonp1, jmxm, alonm, alatm, efxm, nmlonp1, nmlat,  &
+            ylonm, ylatm, amie_efxm, intpol, w, lw, iw, liw, ier)
 
-    !     Set up coeffs to go between EPOTM(IMXMP,JMNH) and TIEPOT(IMAXM,JMAXMH)
-
-    !     ****     SET GRID SPACING DLATM, DLONM
-    !     DMLAT=lat spacing in degrees of AMIE apex grid
-    dmlat = 180._r8 / real(jmxm-1, kind=r8)
-    dlatm = dmlat * dtr
-    dlonm = 2._r8 * pi / real(lonmx, kind=r8)
-    dmltm = 24._r8 / real(lonmx, kind=r8)
-    !     ****
-    !     ****     SET ARRAY YLATM (LATITUDE VALUES FOR GEOMAGNETIC GRID
-    !     ****
-    alatm(1) = -pi / 2._r8
-    alat(1) = -90._r8
-    alatm(jmxm) = pi / 2._r8
-    alat(jmxm) = 90._r8
-    do i = 2, ithmx
-       alat(i) = alat(i-1)+dlatm/dtr
-       alat(jmxm+1-i) = alat(jmxm+2-i)-dlatm/dtr
-       alatm(i) = alatm(i-1)+dlatm
-       alatm(jmxm+1-i) = alatm(jmxm+2-i)-dlatm
-    end do
-    alon(1) = -pi/dtr
-    alonm(1) = -pi
-    do i = 2, lonp1
-       alon(i) = alon(i-1) + dlonm/dtr
-       alonm(i) = alonm(i-1) + dlonm
-    end do
-
-    !     ylatm and ylonm are arrays of latitudes and longitudes of the
-    !     distored magnetic grids in radian - from consdyn.h
-    !     Convert from apex magnetic grid to distorted magnetic grid
-    !
-    !     Allocate workspace for regrid routine rgrd2.f:
-    lw = nmlonp1+nmlat+2*nmlonp1
-    if (.not. allocated(w)) then
-       allocate(w(lw), stat=ier)
-       call check_alloc(ier, 'getamie', 'w', lw=lw)
-    end if
-    liw = nmlonp1 + nmlat
-    if (.not. allocated(iw)) then
-       allocate(iw(liw), stat=ier)
-       call check_alloc(ier, 'getamie', 'iw', lw=liw)
-    end if
-    intpol(:) = 1             ! linear (not cubic) interp in both dimensions
-    if (alatm(1) > ylatm(1)) then
-       alatm(1) = ylatm(1)
-    end if
-    if (alatm(jmxm) < ylatm(nmlat)) then
-       alatm(jmxm) = ylatm(nmlat)
-    end if
-    if (alonm(1) > ylonm(1)) then
-       alonm(1) = ylonm(1)
-    end if
-    if (alonm(lonp1) < ylonm(nmlonp1)) then
-       alonm(lonp1) = ylonm(nmlonp1)
-    end if
-    !     write(iulog,"('  AMIE: ylatm =',/,(6e12.4))") ylatm
-    !     write(iulog,"('  AMIE: ylonm =',/,(6e12.4))") ylonm
-    !     write(iulog,"('  AMIE: potm(1,:) =',/,(6e12.4))") potm(1,:)
-    !     ylatm from -pi/2 to pi/2, and ylonm from -pi to pi
-    call rgrd2(lonp1, jmxm, alonm, alatm, potm, nmlonp1, nmlat,  &
-         ylonm, ylatm, phihm, intpol, w, lw, iw, liw, ier)
-    call rgrd2(lonp1, jmxm, alonm, alatm, ekvm, nmlonp1, nmlat,  &
-         ylonm, ylatm, amie_kevm, intpol, w, lw, iw, liw, ier)
-    call rgrd2(lonp1, jmxm, alonm, alatm, efxm, nmlonp1, nmlat,  &
-         ylonm, ylatm, amie_efxm, intpol, w, lw, iw, liw, ier)
-
-    if (iprint > 0 .and. masterproc) then
-       write(iulog, *) subname, ': Max, min amie_efxm = ', &
-            maxval(amie_efxm), minval(amie_efxm)
-    end if
-    !     ****
-    !     ****     INSERT PERIODIC POINTS
-    !     ****
-    !     DO j = 1,nlat
-    !     ekvg(nlonp1,j) = ekvg(1,j)
-    !     efxg(nlonp1,j) = efxg(1,j)
-    !     potg(nlonp1,j) = potg(1,j)
-    !     ENDDO
-    !
-    if (iprint > 0 .and. masterproc) then
-       write(iulog, "(a,': AMIE data interpolated to date and time')") subname
-       write(iulog,"(a,': iyear,imo,iday,iutsec = ',3i6,i10)") subname,       &
-            iyear, imo, iday, iutsec
-       write(iulog,"(2a,i6,2F9.5,3I6,f10.4)")                                 &
-            subname, ': AMIE iset f1,f2,year,mon,day,ut = ', iset,            &
-            f1, f2, year(iset), month(iset), day(iset), amie_nh_ut(iset)
-       write(iulog,*) subname, ': max,min phihm= ', maxval(phihm), minval(phihm)
-       !     write(iulog,*)'getamie: max,min phihm,amie_efx,amie_kev = ',
-       !     |    maxval(phihm),minval(tiepot),maxval(amie_efx),
-       !     |    minval(amie_efx),maxval(amie_kev),minval(amie_kev)
-    end if
+       if (iprint > 0 .and. masterproc) then
+          write(iulog, *) subname, ': Max, min amie_efxm = ', &
+               maxval(amie_efxm), minval(amie_efxm)
+       end if
+       !     ****
+       !     ****     INSERT PERIODIC POINTS
+       !     ****
+       !     DO j = 1,nlat
+       !     ekvg(nlonp1,j) = ekvg(1,j)
+       !     efxg(nlonp1,j) = efxg(1,j)
+       !     potg(nlonp1,j) = potg(1,j)
+       !     ENDDO
+       !
+       if (iprint > 0 .and. masterproc) then
+          write(iulog, "(a,': AMIE data interpolated to date and time')") subname
+          write(iulog,"(a,': iyear,imo,iday,iutsec = ',3i6,i10)") subname,       &
+               iyear, imo, iday, iutsec
+          write(iulog,"(2a,i6,2F9.5,3I6,f10.4)")                                 &
+               subname, ': AMIE iset f1,f2,year,mon,day,ut = ', iset,            &
+               f1, f2, year(iset), month(iset), day(iset), amie_nh_ut(iset)
+          write(iulog,*) subname, ': max,min phihm= ', maxval(phihm), minval(phihm)
+          !     write(iulog,*)'getamie: max,min phihm,amie_efx,amie_kev = ',
+          !     |    maxval(phihm),minval(tiepot),maxval(amie_efx),
+          !     |    minval(amie_efx),maxval(amie_kev),minval(amie_kev)
+       end if
+    end if active_task
 #else
     call endrun('Cannot use AMIE without electro-dynamo active.')
 #endif

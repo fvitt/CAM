@@ -17,6 +17,7 @@ module ltr_module
   use pio,            only: pio_inquire, pio_inq_varid
   use pio,            only: file_desc_t, pio_noerr, pio_nowrite, pio_get_var
   use utils_mod,      only: check_ncerr, check_alloc
+  use edyn_mpi,       only: ntask, mytid
 #else
   use cam_abortutils, only: endrun
 #endif
@@ -433,114 +434,118 @@ contains
     end if
     rot = rot / 15._r8        !  convert from degree to hrs
 
-    dmltm = 24._r8 / real(lonmx, kind=r8)
+    active_task: if ( mytid<ntask ) then
 
-    do i = 1, lonp1
-       xmlt = (real(i-1, kind=r8) * dmltm) - rot + 24._r8
-       xmlt = MOD(xmlt, 24._r8)
-       m = int(xmlt/dmltm + 1.001_r8)
-       mp1 = m + 1
-       if (mp1 > lonp1) mp1 = 2
-       del = xmlt - (m-1)*dmltm
-       !     Put in LTR arrays from south pole to north pole
-       do j=1,jmxm
-          potm(i,j) = (1._r8-del)*pot_ltr(m,j) + &
-               del*pot_ltr(mp1,j)
-          ekvm(i,j) = (1._r8-del)*ekv_ltr(m,j) + &
-               del*ekv_ltr(mp1,j)
-          if (ekvm(i,j) == 0._r8) ekvm(i,j)=1._r8
-          efxm(i,j) = (1._r8-del)*efx_ltr(m,j) + &
-               del*efx_ltr(mp1,j)
+       dmltm = 24._r8 / real(lonmx, kind=r8)
+
+       do i = 1, lonp1
+          xmlt = (real(i-1, kind=r8) * dmltm) - rot + 24._r8
+          xmlt = MOD(xmlt, 24._r8)
+          m = int(xmlt/dmltm + 1.001_r8)
+          mp1 = m + 1
+          if (mp1 > lonp1) mp1 = 2
+          del = xmlt - (m-1)*dmltm
+          !     Put in LTR arrays from south pole to north pole
+          do j=1,jmxm
+             potm(i,j) = (1._r8-del)*pot_ltr(m,j) + &
+                  del*pot_ltr(mp1,j)
+             ekvm(i,j) = (1._r8-del)*ekv_ltr(m,j) + &
+                  del*ekv_ltr(mp1,j)
+             if (ekvm(i,j) == 0._r8) ekvm(i,j)=1._r8
+             efxm(i,j) = (1._r8-del)*efx_ltr(m,j) + &
+                  del*efx_ltr(mp1,j)
+          end do
+
+       end do
+       !write(iulog,*)'getltr: max,min potm= ', maxval(potm),minval(potm)
+
+       !     Set up coeffs to go between EPOTM(IMXMP,JMNH) and TIEPOT(IMAXM,JMAXMH)
+
+       !     ****     SET GRID SPACING DLATM, DLONG, DLONM
+       !     DMLAT=lat spacing in degrees of LTR apex grid
+       dmlat = 180._r8 / real(jmxm-1, kind=r8)
+       dlatm = dmlat * dtr
+       dlonm = 2._r8 * pi / real(lonmx, kind=r8)
+       dmltm = 24._r8 / real(lonmx, kind=r8)
+       !     ****
+       !     ****     SET ARRAY YLATM (LATITUDE VALUES FOR GEOMAGNETIC GRID
+       !     ****
+       alatm(1) = -pi / 2._r8
+       alat(1) = -90._r8
+       alatm(jmxm) = pi / 2._r8
+       alat(jmxm) = 90._r8
+       do i = 2, ithmx
+          alat(i) = alat(i-1)+dlatm/dtr
+          alat(jmxm+1-i) = alat(jmxm+2-i)-dlatm/dtr
+          alatm(i) = alatm(i-1)+dlatm
+          alatm(jmxm+1-i) = alatm(jmxm+2-i)-dlatm
+       end do
+       alon(1) = -pi/dtr
+       alonm(1) = -pi
+       do i = 2, lonp1
+          alon(i) = alon(i-1) + dlonm/dtr
+          alonm(i) = alonm(i-1) + dlonm
        end do
 
-    end do
-   !write(iulog,*)'getltr: max,min potm= ', maxval(potm),minval(potm)
+       !     ylatm and ylonm are arrays of latitudes and longitudes of the
+       !     distored magnetic grids in radian - from consdyn.h
+       !     Convert from apex magnetic grid to distorted magnetic grid
+       !
+       !     Allocate workspace for regrid routine rgrd2.f:
+       lw = nmlonp1+nmlat+2*nmlonp1
+       if (.not. allocated(w)) then
+          allocate(w(lw), stat=ier)
+          call check_alloc(ier, 'getltr', 'w', lw=lw)
+       end if
+       liw = nmlonp1 + nmlat
+       if (.not. allocated(iw)) then
+          allocate(iw(liw), stat=ier)
+          call check_alloc(ier, 'getltr', 'iw', lw=liw)
+       end if
+       intpol(:) = 1             ! linear (not cubic) interp in both dimensions
+       if (alatm(1) > ylatm(1)) then
+          alatm(1) = ylatm(1)
+       end if
+       if (alatm(jmxm) < ylatm(nmlat)) then
+          alatm(jmxm) = ylatm(nmlat)
+       end if
+       if (alonm(1) > ylonm(1)) then
+          alonm(1) = ylonm(1)
+       end if
+       if (alonm(lonp1) < ylonm(nmlonp1)) then
+          alonm(lonp1) = ylonm(nmlonp1)
+       end if
+       !     write(iulog,"('  LTR: ylatm =',/,(6e12.4))") ylatm
+       !     write(iulog,"('  LTR: ylonm =',/,(6e12.4))") ylonm
+       !     write(iulog,"('  LTR: potm(1,:) =',/,(6e12.4))") potm(1,:)
+       !     ylatm from -pi/2 to pi/2, and ylonm from -pi to pi
+       call rgrd2(lonp1, jmxm, alonm, alatm, potm, nmlonp1, nmlat,  &
+            ylonm, ylatm, phihm, intpol, w, lw, iw, liw, ier)
+       call rgrd2(lonp1, jmxm, alonm, alatm, ekvm, nmlonp1, nmlat,  &
+            ylonm, ylatm, ltr_kevm, intpol, w, lw, iw, liw, ier)
+       call rgrd2(lonp1, jmxm, alonm, alatm, efxm, nmlonp1, nmlat,  &
+            ylonm, ylatm, ltr_efxm, intpol, w, lw, iw, liw, ier)
 
-    !     Set up coeffs to go between EPOTM(IMXMP,JMNH) and TIEPOT(IMAXM,JMAXMH)
+       if (iprint > 0 .and. masterproc) then
+          write(iulog, *) subname, ': Max, min ltr_efxm = ', &
+               maxval(ltr_efxm), minval(ltr_efxm)
+       end if
 
-    !     ****     SET GRID SPACING DLATM, DLONG, DLONM
-    !     DMLAT=lat spacing in degrees of LTR apex grid
-    dmlat = 180._r8 / real(jmxm-1, kind=r8)
-    dlatm = dmlat * dtr
-    dlonm = 2._r8 * pi / real(lonmx, kind=r8)
-    dmltm = 24._r8 / real(lonmx, kind=r8)
-    !     ****
-    !     ****     SET ARRAY YLATM (LATITUDE VALUES FOR GEOMAGNETIC GRID
-    !     ****
-    alatm(1) = -pi / 2._r8
-    alat(1) = -90._r8
-    alatm(jmxm) = pi / 2._r8
-    alat(jmxm) = 90._r8
-    do i = 2, ithmx
-       alat(i) = alat(i-1)+dlatm/dtr
-       alat(jmxm+1-i) = alat(jmxm+2-i)-dlatm/dtr
-       alatm(i) = alatm(i-1)+dlatm
-       alatm(jmxm+1-i) = alatm(jmxm+2-i)-dlatm
-    end do
-    alon(1) = -pi/dtr
-    alonm(1) = -pi
-    do i = 2, lonp1
-       alon(i) = alon(i-1) + dlonm/dtr
-       alonm(i) = alonm(i-1) + dlonm
-    end do
+       !
+       if (iprint > 0 .and. masterproc) then
+          write(iulog, "('getltr: LTR data interpolated to date and time')")
+          write(iulog,"('getltr: iyear,imo,iday,iutsec = ',3i6,i10)")  &
+               iyear,imo,iday,iutsec
+          write(iulog,"('getltr: LTR iset f1,f2,year,mon,day,ut = ',  &
+               i6,2F9.5,3I6,f10.4)")  &
+               iset,f1,f2,year(iset),month(iset),day(iset),ltr_ut(iset)
+          write(iulog,*)'getltr: max,min phihm= ', maxval(phihm),minval(phihm)
+          !     write(iulog,*)'getltr: max,min phihm,ltr_efx,ltr_kev = ',
+          !     |    maxval(phihm),minval(tiepot),maxval(ltr_efx),
+          !     |    minval(ltr_efx),maxval(ltr_kev),minval(ltr_kev)
+       end if
 
-    !     ylatm and ylonm are arrays of latitudes and longitudes of the
-    !     distored magnetic grids in radian - from consdyn.h
-    !     Convert from apex magnetic grid to distorted magnetic grid
-    !
-    !     Allocate workspace for regrid routine rgrd2.f:
-    lw = nmlonp1+nmlat+2*nmlonp1
-    if (.not. allocated(w)) then
-       allocate(w(lw), stat=ier)
-       call check_alloc(ier, 'getltr', 'w', lw=lw)
-    end if
-    liw = nmlonp1 + nmlat
-    if (.not. allocated(iw)) then
-       allocate(iw(liw), stat=ier)
-       call check_alloc(ier, 'getltr', 'iw', lw=liw)
-    end if
-    intpol(:) = 1             ! linear (not cubic) interp in both dimensions
-    if (alatm(1) > ylatm(1)) then
-       alatm(1) = ylatm(1)
-    end if
-    if (alatm(jmxm) < ylatm(nmlat)) then
-       alatm(jmxm) = ylatm(nmlat)
-    end if
-    if (alonm(1) > ylonm(1)) then
-       alonm(1) = ylonm(1)
-    end if
-    if (alonm(lonp1) < ylonm(nmlonp1)) then
-       alonm(lonp1) = ylonm(nmlonp1)
-    end if
-    !     write(iulog,"('  LTR: ylatm =',/,(6e12.4))") ylatm
-    !     write(iulog,"('  LTR: ylonm =',/,(6e12.4))") ylonm
-    !     write(iulog,"('  LTR: potm(1,:) =',/,(6e12.4))") potm(1,:)
-    !     ylatm from -pi/2 to pi/2, and ylonm from -pi to pi
-    call rgrd2(lonp1, jmxm, alonm, alatm, potm, nmlonp1, nmlat,  &
-         ylonm, ylatm, phihm, intpol, w, lw, iw, liw, ier)
-    call rgrd2(lonp1, jmxm, alonm, alatm, ekvm, nmlonp1, nmlat,  &
-         ylonm, ylatm, ltr_kevm, intpol, w, lw, iw, liw, ier)
-    call rgrd2(lonp1, jmxm, alonm, alatm, efxm, nmlonp1, nmlat,  &
-         ylonm, ylatm, ltr_efxm, intpol, w, lw, iw, liw, ier)
-
-    if (iprint > 0 .and. masterproc) then
-       write(iulog, *) subname, ': Max, min ltr_efxm = ', &
-            maxval(ltr_efxm), minval(ltr_efxm)
-    end if
-
-    !
-    if (iprint > 0 .and. masterproc) then
-       write(iulog, "('getltr: LTR data interpolated to date and time')")
-       write(iulog,"('getltr: iyear,imo,iday,iutsec = ',3i6,i10)")  &
-            iyear,imo,iday,iutsec
-       write(iulog,"('getltr: LTR iset f1,f2,year,mon,day,ut = ',  &
-            i6,2F9.5,3I6,f10.4)")  &
-            iset,f1,f2,year(iset),month(iset),day(iset),ltr_ut(iset)
-       write(iulog,*)'getltr: max,min phihm= ', maxval(phihm),minval(phihm)
-       !     write(iulog,*)'getltr: max,min phihm,ltr_efx,ltr_kev = ',
-       !     |    maxval(phihm),minval(tiepot),maxval(ltr_efx),
-       !     |    minval(ltr_efx),maxval(ltr_kev),minval(ltr_kev)
-    end if
+    end if active_task
 #else
     call endrun('Cannot use LTR without electro-dynamo active.')
 #endif
