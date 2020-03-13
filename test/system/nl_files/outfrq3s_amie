@@ -7,5 +7,6 @@
  ionos_epotential_amie=.true.
  amienh_files = '$CSMDATA/atm/waccm/amie_data/oct27_31_2003_nh.nc'
  amiesh_files = '$CSMDATA/atm/waccm/amie_data/oct27_31_2003_sh.nc'
- fincl6 = 'prescr_phihm','prescr_efxm','prescr_kevm','prescr_efxg','prescr_kevg','amie_efx_phys','amie_kev_phys'
+ fincl6 = 'prescr_phihm','prescr_efxm','prescr_kevm','prescr_efxp','prescr_kevp','amie_efx_phys','amie_kev_phys'
+ ionos_npes = 12
 /

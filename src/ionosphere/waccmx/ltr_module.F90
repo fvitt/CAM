@@ -372,69 +372,69 @@ contains
     end do check_loop
 
     if (ltr_ut(1) > (model_ut+(iday-day(1))*24._r8)) then
-      iltr = 2
-      return
+       iltr = 2
+       return
     endif
 
     !
     !     get LTR data
-     pot_ltr(:,:) = 0._r8
-     ekv_ltr(:,:) = 0._r8
-     efx_ltr(:,:) = 0._r8
-     hpi_ltr = 0._r8
-     pcp_ltr = 0._r8
+    pot_ltr(:,:) = 0._r8
+    ekv_ltr(:,:) = 0._r8
+    efx_ltr(:,:) = 0._r8
+    hpi_ltr = 0._r8
+    pcp_ltr = 0._r8
 
     !     write(iulog,"('getltr: Interpolate LTR Data nn=',i3)")nn
-     iset = 0
-     iset1 = nn
-     do i=1,nn
-        if (ltr_ut(i) <= model_ut+(iday-day(i))*24._r8) iset = i
-     end do
-     if (iset == 0) iset = 1
-     if (iset == nn) iset = nn-1
-     iset1 = iset + 1
+    iset = 0
+    iset1 = nn
+    do i=1,nn
+       if (ltr_ut(i) <= model_ut+(iday-day(i))*24._r8) iset = i
+    end do
+    if (iset == 0) iset = 1
+    if (iset == nn) iset = nn-1
+    iset1 = iset + 1
 
     !denoma = ltr_ut(iset1) - ltr_ut(iset)
-     denoma = ltr_ut(iset1)+day(iset1)*24._r8 - (ltr_ut(iset)+day(iset)*24._r8)
+    denoma = ltr_ut(iset1)+day(iset1)*24._r8 - (ltr_ut(iset)+day(iset)*24._r8)
     !if (denoma > 1._r8) then
-     if (denoma > 0.1_r8) then
-          write(iulog, "('getltr: Finding a gap in the LTR Data set:',  &
-               'modelday, ltrday =',2I5)") iday,day(n)
-        iltr = 2
-        return
-     end if
-     if (denoma == 0._r8) then
-        f1 = 1._r8
-        f2 = 0._r8
-     else
-        f1 = (ltr_ut(iset1) - (model_ut+(iday- &
-               day(iset1))*24._r8))/denoma
-        f2 = (model_ut+(iday-day(iset))*24._r8 - &
-               ltr_ut(iset))/denoma
-     end if
-     if (masterproc) &
-     write(iulog,"('getltr: LTR Data model_day,model_ut,ltr_day,', &
-           'ltr_ut,denoma,f1,f2,iset,iset1 =',i2,f7.3,i3,f7.3,3f5.2,2i6)") &
-             iday,model_ut,day(iset),ltr_ut(iset),denoma,f1,f2,iset,iset1
-       !
-     hpi_ltr = (f1*ltr_hpi(iset1) + f2*ltr_hpi(iset))
-     pcp_ltr = (f1*ltr_pcp(iset1) + f2*ltr_pcp(iset))
-
-     offset = (/1,1,iset/)
-     kount = (/lonp1,latp1,2/)
-     call update_3d_fields( ncid, offset, kount, ltr_pot,ltr_ekv,ltr_efx )
-     pot_ltr(:,:) = (f1*ltr_pot(:,:,2) + f2*ltr_pot(:,:,1))
-     ekv_ltr(:,:) = (f1*ltr_ekv(:,:,2) + f2*ltr_ekv(:,:,1))
-     efx_ltr(:,:) = (f1*ltr_efx(:,:,2) + f2*ltr_efx(:,:,1))
-
-    !     mlongitude starts from 180 degree
-    rot = sunlon*rtd
-    if(rot < 0) then
-       rot = rot + 360._r8    !  0 to 360 degrees
+    if (denoma > 0.1_r8) then
+       write(iulog, "('getltr: Finding a gap in the LTR Data set:',  &
+            'modelday, ltrday =',2I5)") iday,day(n)
+       iltr = 2
+       return
     end if
-    rot = rot / 15._r8        !  convert from degree to hrs
+    if (denoma == 0._r8) then
+       f1 = 1._r8
+       f2 = 0._r8
+    else
+       f1 = (ltr_ut(iset1) - (model_ut+(iday- &
+            day(iset1))*24._r8))/denoma
+       f2 = (model_ut+(iday-day(iset))*24._r8 - &
+            ltr_ut(iset))/denoma
+    end if
+    if (masterproc) &
+         write(iulog,"('getltr: LTR Data model_day,model_ut,ltr_day,', &
+         'ltr_ut,denoma,f1,f2,iset,iset1 =',i2,f7.3,i3,f7.3,3f5.2,2i6)") &
+         iday,model_ut,day(iset),ltr_ut(iset),denoma,f1,f2,iset,iset1
+    !
+    hpi_ltr = (f1*ltr_hpi(iset1) + f2*ltr_hpi(iset))
+    pcp_ltr = (f1*ltr_pcp(iset1) + f2*ltr_pcp(iset))
+
+    offset = (/1,1,iset/)
+    kount = (/lonp1,latp1,2/)
+    call update_3d_fields( ncid, offset, kount, ltr_pot,ltr_ekv,ltr_efx )
+    pot_ltr(:,:) = (f1*ltr_pot(:,:,2) + f2*ltr_pot(:,:,1))
+    ekv_ltr(:,:) = (f1*ltr_ekv(:,:,2) + f2*ltr_ekv(:,:,1))
+    efx_ltr(:,:) = (f1*ltr_efx(:,:,2) + f2*ltr_efx(:,:,1))
 
     active_task: if ( mytid<ntask ) then
+
+       !     mlongitude starts from 180 degree
+       rot = sunlon*rtd
+       if(rot < 0) then
+          rot = rot + 360._r8    !  0 to 360 degrees
+       end if
+       rot = rot / 15._r8        !  convert from degree to hrs
 
        dmltm = 24._r8 / real(lonmx, kind=r8)
 

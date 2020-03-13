@@ -751,14 +751,14 @@ contains
     crad(1) = (90._r8-cusplat_sh_amie)*pi/180._r8
     crad(2) = (90._r8-cusplat_nh_amie)*pi/180._r8
 
-    !     mlongitude starts from 180 degree
-    rot = sunlon*rtd
-    if(rot < 0) then
-       rot = rot + 360._r8    !  0 to 360 degrees
-    end if
-    rot = rot / 15._r8        !  convert from degree to hrs
-
     active_task: if ( mytid<ntask ) then
+
+       !     mlongitude starts from 180 degree
+       rot = sunlon*rtd
+       if(rot < 0) then
+          rot = rot + 360._r8    !  0 to 360 degrees
+       end if
+       rot = rot / 15._r8        !  convert from degree to hrs
 
        dmltm = 24._r8 / real(lonmx, kind=r8)
        do i = 1, lonp1
