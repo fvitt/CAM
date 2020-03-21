@@ -123,9 +123,9 @@ contains
       call addfld ('ADOTV1_MAG',(/ 'lev' /), 'I', '     ','ADOTV1 on mag grid'               ,gridname='gmag_grid')
       call addfld ('ADOTV2_MAG',(/ 'lev' /), 'I', '     ','ADOTV2 on mag grid'               ,gridname='gmag_grid')
       !
-      call addfld ('amie_phihm' , horiz_only, 'I','VOLTS','AMIE Electric Potential-mag grid' ,gridname='gmag_grid')
-      call addfld ('amie_efxm'  , horiz_only, 'I','mW/m2','AMIE energy flux on mag grid'     ,gridname='gmag_grid')
-      call addfld ('amie_kevm'  , horiz_only, 'I','keV  ','AMIE mean energy on mag grid'     ,gridname='gmag_grid')
+      call addfld ('prescr_phihm' , horiz_only, 'I','VOLTS','Prescribed Electric Potential-mag grid' ,gridname='gmag_grid')
+      call addfld ('prescr_efxm'  , horiz_only, 'I','mW/m2','Prescribed energy flux on mag grid'     ,gridname='gmag_grid')
+      call addfld ('prescr_kevm'  , horiz_only, 'I','keV  ','Prescribed mean energy on mag grid'     ,gridname='gmag_grid')
 
       !
       ! Dynamo inputs from sub dynamo_input (edynamo.F90):
