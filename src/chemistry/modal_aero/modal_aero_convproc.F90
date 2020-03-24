@@ -2234,28 +2234,32 @@ end subroutine ma_convproc_tend
       ! Do resuspension of aerosols from rain to coarse mode (large particle) rather
       ! than to individual modes.
       if (convproc_do_evaprain_atonce) then
-        do m = 2,ntot_amode
-           if ( m==2 ) then
-              fm = 2 ! finer mode (aitken)
-              cm = 1 ! coarser mode (accum)
-           else if ( m==3 ) then
-              fm = 1 ! accum mode
-              cm = 3 ! coarse mode
-           else
-              fm = m-1  ! finer mode
-              cm = m    ! coarser mode
-           end if
-           
-           do l = 1,nspec_amode(m)
-              n1 = lmassptr_amode(l,fm) ! smaller mode
-              n2 = lmassptr_amode(l,cm) ! larger mode
-              if (n1>0 .and. n2>0) then
-                 ! accumulate to the larger mode
-                 dcondt_prevap(n2,k) = dcondt_prevap(n2,k) + dcondt_prevap(n1,k)
-                 dcondt_prevap(n1,k) = 0._r8
-              end if
-           end do
-        end do
+         if (ntot_amode<=4) then
+            do m = 2,ntot_amode
+               if ( m==2 ) then
+                  fm = 2 ! finer mode (aitken)
+                  cm = 1 ! coarser mode (accum)
+               else if ( m==3 ) then
+                  fm = 1 ! accum mode
+                  cm = 3 ! coarse mode
+               else
+                  fm = m-1  ! finer mode
+                  cm = m    ! coarser mode
+               end if
+
+               do l = 1,nspec_amode(m)
+                  n1 = lmassptr_amode(l,fm) ! smaller mode
+                  n2 = lmassptr_amode(l,cm) ! larger mode
+                  if (n1>0 .and. n2>0) then
+                     ! accumulate to the larger mode
+                     dcondt_prevap(n2,k) = dcondt_prevap(n2,k) + dcondt_prevap(n1,k)
+                     dcondt_prevap(n1,k) = 0._r8
+                  end if
+               end do
+            end do
+         else
+            call endrun('ma_precpevap_convproc: not able to do resuspension of aerosols from rain to coarse mode')
+         endif
       end if
 
       pr_flux = max( 0.0_r8, pr_flux-del_pr_flux_evap )
@@ -2741,7 +2745,7 @@ end subroutine ma_convproc_tend
          ! of POM here as 0.2 to enhance the wet scavenge of primary BC and POM.
 
          call rad_cnst_get_info(0, n, ll, spec_type=spec_type)
-         if (spec_type=='p-organic') then
+         if (spec_type=='p-organic' .and. convproc_pom_spechygro>0._r8) then
             tmpb = tmpb + tmpc * convproc_pom_spechygro
          else
             tmpb = tmpb + tmpc * spechygro(ll,n)
