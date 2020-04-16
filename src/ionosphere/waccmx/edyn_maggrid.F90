@@ -9,9 +9,9 @@ module edyn_maggrid
    ! Global geomagnetic grid:
    !
    integer, parameter ::       &
-        nmlat   = 97,          & ! number of mag latitudes
+        nmlat   = EDYN_NLAT,   & ! number of mag latitudes
         nmlath  = (nmlat+1)/2, & ! index of magnetic equator
-        nmlon   = 80,          & ! number of mag longitudes
+        nmlon   = EDYN_NLON,   & ! number of mag longitudes
         nmlonp1 = nmlon+1        ! number of longitudes plus periodic point
    !
    ! Mag grid coordinates:
