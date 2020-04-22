@@ -66,6 +66,7 @@ subroutine read_namelist(nlfilename, single_column, scmlat, scmlon)
    use modal_aer_opt,       only: modal_aer_opt_readnl
    use clubb_intr,          only: clubb_readnl
    use chemistry,           only: chem_readnl
+   use micm_mod,            only: micm_readnl
    use prescribed_volcaero, only: prescribed_volcaero_readnl
    use prescribed_strataero,only: prescribed_strataero_readnl
    use aerodep_flx,         only: aerodep_flx_readnl
@@ -160,6 +161,7 @@ subroutine read_namelist(nlfilename, single_column, scmlat, scmlon)
    call rad_data_readnl(nlfilename)
    call modal_aer_opt_readnl(nlfilename)
    call chem_readnl(nlfilename)
+   call micm_readnl(nlfilename)
    call prescribed_volcaero_readnl(nlfilename)
    call prescribed_strataero_readnl(nlfilename)
    call solar_data_readnl(nlfilename)

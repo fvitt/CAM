@@ -3962,6 +3962,22 @@ $nl->write($outfile, 'groups'=>\@comp_groups);
 if ($print>=1) { print "CAM writing dry deposition namelist to drv_flds_in $eol"; }
 delete @nl_group{@comp_groups};
 
+# MICM solver options
+#@comp_groups = qw(micm_solv_opts micm_solv_errCntrl);
+@comp_groups = qw(micm_solv_opts micm_solv_err_cntrl);
+$outfile = "$opts{'dir'}/solver_options_in";
+print "@comp_groups \n";
+$nl->write($outfile, 'groups'=>\@comp_groups);
+if ($print>=1) { print "CAM writing MICM solver namelist options to solver_options_in $eol"; }
+delete @nl_group{@comp_groups};
+
+# MICM photolysis options
+@comp_groups = qw(tuv_opts);
+$outfile = "$opts{'dir'}/photolysis_options_in";
+$nl->write($outfile, 'groups'=>\@comp_groups);
+if ($print>=1) { print "CAM writing MICM photolysis namelist options to photolysis_options_in $eol"; }
+delete @nl_group{@comp_groups};
+
 # Ocean component (dom, docn, or aquaplanet)
 if ($ocn_comp eq 'dom') {
     @comp_groups = qw(dom_inparm);

@@ -205,6 +205,16 @@ def buildnml(case, caseroot, compname):
         if os.path.isfile(file1):
             shutil.copy(file1,file2)
 
+        file1 = os.path.join(camconf, "photolysis_options_in")
+        file2 = os.path.join(rundir, "photolysis_options_in")
+        if os.path.isfile(file1):
+            shutil.copy(file1,file2)
+
+        file1 = os.path.join(camconf, "solver_options_in")
+        file2 = os.path.join(rundir, "solver_options_in")
+        if os.path.isfile(file1):
+            shutil.copy(file1,file2)
+
 ###############################################################################
 def _main_func():
 

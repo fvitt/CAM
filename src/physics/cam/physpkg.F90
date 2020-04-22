@@ -110,6 +110,7 @@ contains
 
     use cam_control_mod,    only: moist_physics
     use chemistry,          only: chem_register
+    use micm_mod,           only: micm_register
     use cloud_fraction,     only: cldfrc_register
     use rk_stratiform,      only: rk_stratiform_register
     use microp_driver,      only: microp_driver_register
@@ -258,6 +259,9 @@ contains
 
        ! register chemical constituents including aerosols ...
        call chem_register()
+
+       ! MICM chemistry
+       call micm_register()
 
        ! co2 constituents
        call co2_register()
@@ -706,6 +710,7 @@ contains
     use cam_control_mod,    only: initial_run
     use check_energy,       only: check_energy_init
     use chemistry,          only: chem_init
+    use micm_mod,           only: micm_initialize
     use prescribed_ozone,   only: prescribed_ozone_init
     use prescribed_ghg,     only: prescribed_ghg_init
     use prescribed_aero,    only: prescribed_aero_init
@@ -839,6 +844,8 @@ contains
 
     ! Prognostic chemistry.
     call chem_init(phys_state,pbuf2d)
+
+    call micm_initialize()
 
     ! Prescribed tracers
     call prescribed_ozone_init()
@@ -1253,6 +1260,7 @@ contains
     use physics_buffer, only: physics_buffer_desc, pbuf_set_field, pbuf_get_index, pbuf_get_field, pbuf_old_tim_idx
     use shr_kind_mod,       only: r8 => shr_kind_r8
     use chemistry,          only: chem_is_active, chem_timestep_tend, chem_emissions
+    use micm_mod,           only: micm_timestep_tend
     use cam_diagnostics,    only: diag_phys_tend_writeout
     use gw_drag,            only: gw_tend
     use vertical_diffusion, only: vertical_diffusion_tend
@@ -1473,6 +1481,7 @@ contains
        call chem_timestep_tend(state, ptend, cam_in, cam_out, ztodt, &
             pbuf,  fh2o=fh2o)
 
+       call micm_timestep_tend( cam_in, state, ptend, pbuf )
 
        if ( (trim(cam_take_snapshot_after) == "chem_timestep_tend") .and.     &
             (trim(cam_take_snapshot_before) == trim(cam_take_snapshot_after))) then
@@ -2679,6 +2688,7 @@ subroutine phys_timestep_init(phys_state, cam_in, cam_out, pbuf2d)
   use epp_ionization,      only: epp_ionization_active
   use iop_forcing,         only: scam_use_iop_srf
   use nudging,             only: Nudge_Model, nudging_timestep_init
+  use micm_mod,            only: micm_timestep_init
 
   implicit none
 
@@ -2705,6 +2715,8 @@ subroutine phys_timestep_init(phys_state, cam_in, cam_out, pbuf2d)
 
   ! Time interpolate for chemistry.
   call chem_timestep_init(phys_state, pbuf2d)
+
+  call micm_timestep_init()
 
   ! Prescribed tracers
   call prescribed_ozone_adv(phys_state, pbuf2d)

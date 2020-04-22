@@ -5668,6 +5668,38 @@ Full pathname of dataset for the neutral species absorption cross sections.
 Default: set by build-namelist.
 </entry>
 
+
+<entry id="absTol" type="real" category="MICM"
+       group="micm_solv_err_cntrl" valid_values="" >
+MICM chemistry solver absolute error tolerance
+Default: none
+</entry>
+<entry id="relTol" type="real" category="MICM"
+       group="micm_solv_err_cntrl" valid_values="" >
+MICM chemistry solver relative error tolerance
+Default: none
+</entry>
+
+<entry id="Solver_method" type="char*80" category="MICM"
+       group="micm_solv_opts" valid_values="Mozart,Rosenbrock" >
+MICM chemistry solver method
+Default: none
+</entry>
+
+
+
+<entry id="input_data_root" type="char*512" input_pathname="abs" category="MICM"
+       group="tuv_opts" valid_values="" >
+Root path of the TUV input data
+Default: none
+</entry>
+<entry id="wavelength_grid_file" type="char*64" input_pathname="rel" category="MICM"
+       group="tuv_opts" valid_values="" >
+Name of the TUV wavelength grid input data file.
+Default: none
+</entry>
+
+
 <entry id="tuv_xsect_file" type="char*256" input_pathname="abs" category="cam_chem"
        group="chem_inparm" valid_values="" >
 Full pathname of dataset for fast-tuv photolysis cross sections
