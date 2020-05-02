@@ -158,7 +158,7 @@ subroutine neu_wetdep_init
     call cnst_get_ind(gas_wetdep_list(m), mapping_to_mmr(m), abort=.false. )
     if ( debug .and. masterproc ) write(iulog, '(a,i4)') 'mapping_to_mmr ',mapping_to_mmr(m)
     if ( mapping_to_mmr(m) <= 0 ) then
-      if (masterproc) write(iulog,*),'problem with mapping_to_mmr of ',gas_wetdep_list(m)
+      if (masterproc) write(iulog,*) 'problem with mapping_to_mmr of ',gas_wetdep_list(m)
       call endrun('neu_wetdep_init: problem with mapping_to_mmr of '//trim(gas_wetdep_list(m)))
     end if
   end do
