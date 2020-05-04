@@ -1456,7 +1456,7 @@ if ($customize) {
 }
 
 # MICM hack -- chapman chemistry has 5 prognosted species
-$chem_nadv += 5;
+$chem_nadv += 8;
 
 if ($chem_pkg =~ '_mam3') {
     $chem_cppdefs = ' -DMODAL_AERO -DMODAL_AERO_3MODE ';
@@ -2855,6 +2855,7 @@ sub write_filepath
     print $fh "$camsrcdir/src/chemistry/utils\n";
 
     print $fh "$camsrcdir/src/chemistry/micm/host\n";
+    print $fh "$camsrcdir/src/chemistry/micm/chapman_kinetics\n";
     print $fh "$camsrcdir/src/chemistry/micm/external/src\n";
     print $fh "$camsrcdir/src/chemistry/micm/external/src/kinetics\n";
     print $fh "$camsrcdir/src/chemistry/micm/external/src/tuv/share\n";

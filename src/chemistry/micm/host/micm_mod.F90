@@ -98,6 +98,7 @@ contains
 
     character(len=16) :: name
     integer :: m
+    character(len=128) :: reaction_names(nkrxns+njrxns)
 
     do m = 1,nspecies
        name = trim(cnst_props(m)%get_name())//'_micm'
@@ -136,7 +137,7 @@ contains
 
     dtime = get_step_size()
 
-    call chemistry_driver_init(nspecies, nkrxns, njrxns, TimeStart=0._r8, TimeEnd=dtime, dt=dtime, &
+    call chemistry_driver_init(nspecies, nkrxns, njrxns, reaction_names, TimeStart=0._r8, TimeEnd=dtime, dt=dtime, &
          options_filepath='./solver_options_in', print_log_message=masterproc, errmsg=errmsg, errflg=errflg)
     if (errflg/=0) then
        call endrun('micm_initialize: '//trim(errmsg))
@@ -205,6 +206,10 @@ contains
     real(r8) :: vmr_out(state%ncol,pver,nspecies)
     real(r8) :: k_rateConsts(pcols,pver,nkrxns)
     real(r8) :: j_rateConsts(pcols,pver,njrxns)
+    real(r8) :: reaction_rates(njrxns+nkrxns)
+    real(r8) :: reaction_rate_constants(njrxns+nkrxns)
+    real(r8) :: sad(4)
+    real(r8) :: adiam(4)
     integer :: lchnk, ncol
     character(len=16) :: name
 
@@ -299,19 +304,23 @@ contains
 
    do k = 1,pver
       do i = 1,ncol
-         call k_rateConst_run(nkrxns, njrxns, k_rateConsts(i,k,:), airdens(i,k), relhum(i,k), h2o_vmr(i,k), state%t(i,k), errmsg, errflg)
+         call k_rateConst_run(nkrxns, njrxns, k_rateConsts(i,k,:), airdens(i,k), relhum(i,k), h2o_vmr(i,k), o2_vmr(i,k), &
+                              state%t(i,k), state%pmid(i,k),  sad, adiam,  errmsg, errflg)
          if (errflg/=0) then
             call endrun('micm_timestep_tend: '//trim(errmsg))
          end if
 
          vmr_out(i,k,:nspecies) = vmr(i,k,:nspecies)
-         call chemistry_driver_run(vmr_out(i,k,:nspecies), 0._r8, dtime, j_rateConsts(i,k,:), k_rateConsts(i,k,:), airdens(i,k), errmsg, errflg)
+         call chemistry_driver_run(vmr_out(i,k,:nspecies), 0._r8, dtime, j_rateConsts(i,k,:), k_rateConsts(i,k,:), airdens(i,k), &
+                                   reaction_rates, reaction_rate_constants, errmsg, errflg)
          if (errflg/=0) then
             call endrun('micm_timestep_tend: '//trim(errmsg))
          end if
          do m = 1,nspecies
             n = micm_cnst_map(m)
+
             ptend_loc%q(i,k,n) =  (vmr_out(i,k,m) - vmr(i,k,m)) * cnst_mw(n) / mbarv(i,k,lchnk) / dtime
+
          end do
 
       end do
@@ -340,20 +349,28 @@ contains
   subroutine initialize_chemistry_information
 
     ! Hack for Chapman chemistry ... should be dynamic (json reader??)
-    nspecies = 5
+    nspecies = 8
     allocate(cnst_props(nspecies))
 
-    call cnst_props(1)%set_name('N2')
-    call cnst_props(2)%set_name('O')
-    call cnst_props(3)%set_name('O1D')
-    call cnst_props(4)%set_name('O2')
-    call cnst_props(5)%set_name('O3')
+    call cnst_props(1)%set_name('Ar')
+    call cnst_props(2)%set_name('CO2')
+    call cnst_props(3)%set_name('H2O')
+    
+    call cnst_props(4)%set_name('N2')
+    call cnst_props(5)%set_name('O')
+    call cnst_props(6)%set_name('O1D')
+    call cnst_props(7)%set_name('O2')
+    call cnst_props(8)%set_name('O3')
 
-    call cnst_props(1)%set_wght(28._r8)
-    call cnst_props(2)%set_wght(16._r8)
-    call cnst_props(3)%set_wght(16._r8)
-    call cnst_props(4)%set_wght(32._r8)
-    call cnst_props(5)%set_wght(48._r8)
+    call cnst_props(1)%set_wght(40._r8)
+    call cnst_props(2)%set_wght(44._r8)
+    call cnst_props(3)%set_wght(18._r8)
+    
+    call cnst_props(4)%set_wght(28._r8)
+    call cnst_props(5)%set_wght(16._r8)
+    call cnst_props(6)%set_wght(16._r8)
+    call cnst_props(7)%set_wght(32._r8)
+    call cnst_props(8)%set_wght(48._r8)
 
     njrxns = 3
     allocate(jnames(njrxns))
