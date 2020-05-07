@@ -90,6 +90,7 @@ module ionosphere_interface
    integer           :: oplus_nlon, oplus_nlat   ! Oplus grid
    integer           :: ionos_npes = -1
 
+   logical :: state_debug_checks = .false.
 contains
 
    !---------------------------------------------------------------------------
@@ -208,10 +209,13 @@ contains
       use amie_module,     only: init_amie
       use ltr_module,      only: init_ltr
       use wei05sc,         only: weimer05_init
+      use phys_control,    only: phys_getopts
       
       ! local variables:
       integer :: sIndx
       character(len=*), parameter :: subname = 'ionosphere_init'
+
+      call phys_getopts(state_debug_checks_out=state_debug_checks)
 
       if ( ionos_epotential_amie .or. ionos_epotential_ltr) then
          call pbuf_add_field('AUREFX', 'global', dtype_r8, (/pcols/), indxefx)  ! Prescribed Energy flux
@@ -452,7 +456,8 @@ contains
       use physics_buffer, only: physics_buffer_desc
       use cam_history,    only: outfld, write_inithist, hist_fld_active
       ! Gridded component call
-      use edyn_grid_comp,  only: edyn_grid_comp_run2
+      use edyn_grid_comp, only: edyn_grid_comp_run2
+      use shr_assert_mod, only: shr_assert_in_domain
 
       ! - pull some fields from pbuf and dyn_in
       ! - invoke ionosphere/electro-dynamics coupling
@@ -769,6 +774,13 @@ contains
               rmassO2p, rmassNOp, rmassN2p, rmassOp, 1, blksize, pver)
 
          call t_stopf ('d_pie_coupling')
+
+         if (state_debug_checks) then
+            call shr_assert_in_domain(ui_blck, is_nan=.false., varname="ui_blck", msg="NaN found in ionosphere_run2")
+            call shr_assert_in_domain(vi_blck, is_nan=.false., varname="vi_blck", msg="NaN found in ionosphere_run2")
+            call shr_assert_in_domain(wi_blck, is_nan=.false., varname="wi_blck", msg="NaN found in ionosphere_run2")
+            call shr_assert_in_domain(opmmr_blck, is_nan=.false., varname="opmmr_blck", msg="NaN found in ionosphere_run2")
+         end if
 
          !
          !----------------------------------------
