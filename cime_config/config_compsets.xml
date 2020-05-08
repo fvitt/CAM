@@ -229,6 +229,15 @@
   </compset>
 
   <compset>
+    <alias>FCts1SD</alias>
+    <lname>HIST_CAM60%CTS1%SDYN_CLM50%SP_CICE%PRES_DOCN%DOM_MOSART_SGLC_SWAV</lname>
+  </compset>
+  <compset>
+    <alias>FCts2SD</alias>
+    <lname>HIST_CAM60%CTS2%SDYN_CLM50%SP_CICE%PRES_DOCN%DOM_MOSART_SGLC_SWAV</lname>
+  </compset>
+
+  <compset>
     <alias>FSD</alias>
     <lname>HIST_CAM60%SDYN_CLM50%SP_CICE%PRES_DOCN%DOM_MOSART_SGLC_SWAV</lname>
   </compset>
