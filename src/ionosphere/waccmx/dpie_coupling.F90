@@ -12,9 +12,10 @@ module dpie_coupling
   use edyn_mpi,            only: array_ptr_type
   use perf_mod,            only: t_startf, t_stopf
   use amie_module,         only: getamie
+  use ltr_module,          only: getltr
   use edyn_solve,          only: phihm
   use edyn_params,         only: dtr, rtd
-  use aurora_params,       only: amie_period ! turns on overwrite of energy fields in aurora phys
+  use aurora_params,       only: prescribed_period ! turns on overwrite of energy fields in aurora phys
 
   implicit none
 
@@ -79,8 +80,8 @@ contains
     call addfld ('OpDens' ,(/ 'lev' /), 'I', 'cm^-3','O+ Number Density'                       , gridname='physgrid')
     call addfld ('EDens'  ,(/ 'lev' /), 'I', 'cm^-3','e Number Density (sum of O2+,NO+,N2+,O+)', gridname='physgrid')
 
-    call addfld ('amie_efxg'  , horiz_only, 'I','mW/m2','AMIE energy flux on geo grid'     ,gridname='physgrid')
-    call addfld ('amie_kevg'  , horiz_only, 'I','keV  ','AMIE mean energy on geo grid'     ,gridname='physgrid')
+    call addfld ('prescr_efxp'  , horiz_only, 'I','mW/m2','Prescribed energy flux on geo grid'     ,gridname='physgrid')
+    call addfld ('prescr_kevp'  , horiz_only, 'I','keV  ','Prescribed mean energy on geo grid'     ,gridname='physgrid')
 
     call addfld ('WACCM_UI'   ,(/ 'lev' /), 'I', 'm/s'  ,'WACCM_UI (dpie output)', gridname='physgrid')
     call addfld ('WACCM_VI'   ,(/ 'lev' /), 'I', 'm/s'  ,'WACCM_VI (dpie output)', gridname='physgrid')
@@ -89,7 +90,7 @@ contains
   end subroutine d_pie_init
 
   !-----------------------------------------------------------------------
-  subroutine d_pie_epotent( highlat_potential_model, crit_out, cols, cole, efx_phys, kev_phys )
+  subroutine d_pie_epotent( highlat_potential_model, crit_out, cols, cole, efx_phys, kev_phys, amie_in, ltr_in )
     use edyn_solve,       only: pfrac    ! NH fraction of potential (nmlonp1,nmlat0)
     use time_manager,     only: get_curr_date
     use heelis,           only: heelis_model
@@ -109,26 +110,31 @@ contains
     !
     character(len=*),  intent(in)  :: highlat_potential_model
     real(r8),          intent(out) :: crit_out(2) ! critical colatitudes (degrees)
-    ! energy flux from AMIE
     integer, optional, intent(in)  :: cols, cole
+    logical, optional,intent(in) :: amie_in
+    logical, optional,intent(in) :: ltr_in
+
+    ! Prescribed energy flux
     real(r8), optional, intent(out) :: efx_phys(:)
-     ! characteristic mean energy from AMIE
+    ! Prescribed characteristic mean energy
     real(r8), optional, intent(out) :: kev_phys(:)
+
     !
     ! local vars
     !
+    logical :: amie_inputs, ltr_inputs
 
     real(r8)             :: secs               ! time of day in seconds
     integer              :: iyear,imo,iday,tod ! tod is time-of-day in seconds
     real(r8)             :: sunlon
 
-    integer              :: iprint,amie_ibkg
-    integer              :: j, iamie, ierr
+    integer              :: iprint
+    integer              :: j, iamie, iltr, ierr
     !
     ! AMIE fields (extra dimension added for longitude switch)
     !
-    real(r8) :: amie_efxm(nmlonp1,nmlat), amie_kevm(nmlonp1,nmlat)
-    real(r8) :: amie_phihm(nmlonp1,nmlat)
+    real(r8) :: prescr_efxm(nmlonp1,nmlat), prescr_kevm(nmlonp1,nmlat)
+    real(r8) :: prescr_phihm(nmlonp1,nmlat)
 
     call edyn_esmf_update()
 
@@ -164,50 +170,65 @@ contains
           call endrun('d_pie_epotent: Unknown highlat_potential_model')
        end if
     endif
-    if (present(efx_phys)) then
-       ! the presence of efx_phys indicate the user wishes to use prescribed potential
-       if (.not. present(kev_phys)) then
-          call endrun('d_pie_epotent: kevg must be present if efx_phys is present')
+
+    amie_inputs=.false.
+    ltr_inputs=.false.
+    if (present(amie_in)) amie_inputs=amie_in
+    if (present(ltr_in))   ltr_inputs= ltr_in
+    
+    prescribed_inputs: if (amie_inputs .or. ltr_inputs) then 
+
+       if (.not. (present(kev_phys).and.present(efx_phys)) ) then
+          call endrun('d_pie_epotent: kev_phys and efx_phys must be present')
        end if
 
-       if ( mytid<ntask ) then
-
-
-          iprint = 0
-          amie_ibkg = 0
-          iamie = 1
+       iprint = 1
+       if (amie_inputs) then
           if (masterproc) then
-             write(iulog,"('Calling getamie >>> iamie = ', i2)") iamie
+             write(iulog,*) 'Calling getamie >>> '
           end if
 
-          call getamie(iyear, imo, iday, tod, sunlon, amie_ibkg, iprint, iamie, &
-               amie_phihm, amie_efxm, amie_kevm, crad)
+          call getamie(iyear, imo, iday, tod, sunlon, iprint, iamie, &
+               prescr_phihm, prescr_efxm, prescr_kevm, crad)
 
           if (masterproc) then
              write(iulog,"('After Calling getamie >>> iamie = ', i2)") iamie
           end if
-          amie_period = iamie == 1
-
-          do j = mlat0, mlat1
-             call outfld('amie_phihm',amie_phihm(mlon0:omlon1,j),omlon1-mlon0+1,j)
-             call outfld('amie_efxm', amie_efxm(mlon0:omlon1,j), omlon1-mlon0+1,j)
-             call outfld('amie_kevm', amie_kevm(mlon0:omlon1,j), omlon1-mlon0+1,j)
-          end do
-
-          if (amie_period) then
-             phihm = amie_phihm
+          prescribed_period = iamie == 1
+       else
+          if (masterproc) then
+             write(iulog,*) 'Calling getltr >>> '
           end if
 
-       endif
+          call getltr(iyear, imo, iday, tod,sunlon, iprint, iltr, &
+               prescr_phihm, prescr_efxm, prescr_kevm )
 
-       call mpi_bcast(amie_period, 1, mpi_logical, masterprocid, mpicom, ierr)
+          if (masterproc) then
+             write(iulog,"('After Calling getltr >>> iltr = ', i2)") iltr
+          end if
+          prescribed_period = iltr == 1
+       end if
 
-       call regrid_mag2phys_2d(amie_kevm(mlon0:mlon1,mlat0:mlat1), kev_phys, cols, cole)
-       call regrid_mag2phys_2d(amie_efxm(mlon0:mlon1,mlat0:mlat1), efx_phys, cols, cole)
+       do j = mlat0, mlat1
+          call outfld('prescr_phihm',prescr_phihm(mlon0:omlon1,j),omlon1-mlon0+1,j)
+          call outfld('prescr_efxm', prescr_efxm(mlon0:omlon1,j), omlon1-mlon0+1,j)
+          call outfld('prescr_kevm', prescr_kevm(mlon0:omlon1,j), omlon1-mlon0+1,j)
+       end do
 
-       call outfld_phys1d( 'amie_efxg', efx_phys )
-       call outfld_phys1d( 'amie_kevg', kev_phys )
-    end if
+       if (prescribed_period) then
+          phihm = prescr_phihm
+       end if
+
+       call mpi_bcast(prescribed_period, 1, mpi_logical, masterprocid, mpicom, ierr)
+
+       call regrid_mag2phys_2d(prescr_kevm(mlon0:mlon1,mlat0:mlat1), kev_phys, cols, cole)
+       call regrid_mag2phys_2d(prescr_efxm(mlon0:mlon1,mlat0:mlat1), efx_phys, cols, cole)
+
+       call outfld_phys1d( 'prescr_efxp', efx_phys )
+       call outfld_phys1d( 'prescr_kevp', kev_phys )
+
+    end if prescribed_inputs
+
     if ( mytid<ntask ) then
 
        call calc_pfrac(sunlon, pfrac) ! returns pfrac for dynamo (edyn_solve)
@@ -831,7 +852,7 @@ contains
     real(r8) :: sinlat,coslat,aslonc,ofdc,cosofc,sinofc,crit1deg
 
     if (.not. crit_user_set) then
-       if (amie_period) then
+       if (prescribed_period) then
           crit(:) = amie_default_crit(:)*dtr
        else
           crit1deg = max(15._r8,0.5_r8*(theta0(1)+theta0(2))*rtd + 5._r8)

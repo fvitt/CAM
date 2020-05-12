@@ -63,7 +63,9 @@ sm390 TSM.sh f1.9c4aqwmxdh outfrq3s+waccmx_ma_2000_cam4 9s
 sm392 TSM.sh f4c4aqwmxdm outfrq3s_newyear 9s
 sm394 TSM.sh f4c4aqwmxiedm outfrq3s_ionos 9s
 
+sm395 TSM.sh f4c4aqwmxiedm outfrq3s_amie 9s
 sm396 TSM.sh f4c4aqwmxiedm outfrq3s_euv 9s
+sm397 TSM.sh f4c4aqwmxiedm outfrq3s_ltr+1950-2010_ccmi_refc1_waccmx_ma 9s
 
 sm400 TSM.sh f4c6aqwmxdm outfrq3s 9s
 sm402 TSM.sh f4c6aqwmxiedm outfrq3s 9s
@@ -80,6 +82,10 @@ sm473 TSM.sh f4c6aqwmtdm outfrq3s_sums 9s
 sm474 TSM.sh f1.9c6aqwmth outfrq3s_sums 9s
 
 sm501 TSM.sh h5c5aqdm outfrq3s_unstr_emis 9s
+
+sm531 TSM.sh h5c4aqwmxiedm outfrq3s_amie 9s
+
+sm561 TSM.sh h5c4aqwmxiedm outfrq3s_ltr 9s
 
 sm700 TSM.sh h5adicdm outfrq3s_bwic 9s
 sm701 TSM.sh h5addm outfrq3s 9s
@@ -167,7 +173,9 @@ er390 TER.sh f1.9c4aqwmxdh outfrq3s+waccmx_ma_2000_cam4 4+5s
 er392 TER.sh f4c4aqwmxdm outfrq3s_newyear 4+5s
 er394 TER.sh f4c4aqwmxiedm outfrq3s_ionos 4+5s
 
+er395 TER.sh f4c4aqwmxiedm outfrq3s_amie 4+5s
 er396 TER.sh f4c4aqwmxiedm outfrq3s_euv 4+5s
+er397 TER.sh f4c4aqwmxiedm outfrq3s_ltr+1950-2010_ccmi_refc1_waccmx_ma 4+5s
 
 er400 TER.sh f4c6aqwmxdm outfrq3s 4+5s
 er402 TER.sh f4c6aqwmxiedm outfrq3s 4+5s
@@ -184,6 +192,10 @@ er473 TER.sh f4c6aqwmtdm outfrq3s_sums 4+5s
 er474 TER.sh f1.9c6aqwmth outfrq3s_sums 4+5s
 
 er501 TER.sh h5c5aqdm outfrq3s_unstr_emis 4+5s
+
+er531 TER.sh h5c4aqwmxiedm outfrq3s_amie 4+5s
+
+er561 TER.sh h5c4aqwmxiedm outfrq3s_ltr 4+5s
 
 er700 TER.sh h5adicdm outfrq3s_bwic 4+5s
 er701 TER.sh h5addm outfrq3s 4+5s
@@ -300,7 +312,9 @@ bl390 TBL.sh f1.9c4aqwmxdh outfrq3s+waccmx_ma_2000_cam4 9s
 bl392 TBL.sh f4c4aqwmxdm outfrq3s_newyear 9s
 bl394 TBL.sh f4c4aqwmxiedm outfrq3s_ionos 9s
 
+bl395 TBL.sh f4c4aqwmxiedm outfrq3s_amie 9s
 bl396 TBL.sh f4c4aqwmxiedm outfrq3s_euv 9s
+bl397 TBL.sh f4c4aqwmxiedm outfrq3s_ltr+1950-2010_ccmi_refc1_waccmx_ma 9s
 
 bl400 TBL.sh f4c6aqwmxdm outfrq3s 9s
 bl402 TBL.sh f4c6aqwmxiedm outfrq3s 9s
@@ -317,6 +331,10 @@ bl473 TBL.sh f4c6aqwmtdm outfrq3s_sums 9s
 bl474 TBL.sh f1.9c6aqwmth outfrq3s_sums 9s
 
 bl501 TBL.sh h5c5aqdm outfrq3s_unstr_emis 9s
+
+bl531 TBL.sh h5c4aqwmxiedm outfrq3s_amie 9s
+
+bl561 TBL.sh h5c4aqwmxiedm outfrq3s_ltr 9s
 
 bl700 TBL.sh h5adicdm outfrq3s_bwic 9s
 bl701 TBL.sh h5addm outfrq3s 9s

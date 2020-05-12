@@ -1,0 +1,16 @@
+&camexp
+ start_ymd = 20100803
+ start_tod = 43200
+ restart_option='nsteps'
+ restart_n=3
+ mfilt=1,1,1,1,1,1,1,1,1
+ ndens=1,1,1,1,1,1,1,1,1
+ nhtfrq=3,3,3,3,3,3,3,3,3
+ inithist='ENDOFRUN'
+ pbuf_global_allocate=.false.
+ ltr_files = '$CSMDATA/atm/waccm/amie_data/REMIX_3-4_Aug_2010.nc'
+ ionos_epotential_ltr = .true.
+ fincl6 = 'prescr_phihm','prescr_efxm','prescr_kevm','prescr_efxp','prescr_kevp','ltr_efx_phys','ltr_kev_phys'
+ solar_irrad_data_file = '$CSMDATA/atm/cam/solar/spectral_irradiance_Lean_1950-2014_daily_GOME-Mg_Leap_c150623.nc'
+ ionos_npes = 12
+/
