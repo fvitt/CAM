@@ -29,7 +29,6 @@ module mo_neu_wetdep
   integer                     :: index_cldice,index_cldliq,nh3_ndx,co2_ndx,so2_ndx
   logical                     :: debug   = .false.
   integer                     :: hno3_ndx = 0
-  integer                     :: h2o2_ndx = 0
 !
 ! diagnostics
 !
@@ -243,7 +242,7 @@ subroutine neu_wetdep_tend(lchnk,ncol,mmr,pmid,pdel,zint,tfld,delt, &
   real(r8), parameter                       :: rearth = SHR_CONST_REARTH    ! radius earth (m)
   real(r8), parameter                       :: gravit = SHR_CONST_G         ! m/s^2
   real(r8), dimension(ncol)                 :: area, wk_out
-  real(r8), dimension(ncol,pver)            :: cldice,cldliq,cldfrc,totprec,totevap,delz,delp,p
+  real(r8), dimension(ncol,pver)            :: cldice,cldliq,cldfrc,totprec,totevap,delz,p
   real(r8), dimension(ncol,pver)            :: rls,evaprate,mass_in_layer,temp
   real(r8), dimension(ncol,pver,gas_wetdep_cnt) :: trc_mass,heff,dtwr
   real(r8), dimension(ncol,pver,gas_wetdep_cnt) :: wd_mmr
@@ -310,7 +309,6 @@ subroutine neu_wetdep_tend(lchnk,ncol,mmr,pmid,pdel,zint,tfld,delt, &
 !
       trc_mass(i,k,:) = mmr(i,kk,mapping_to_mmr(:)) * mass_in_layer(i,k)
 !
-      delp(i,k) = pdel(i,kk) * 0.01_r8          ! in hPa
       p   (i,k) = pmid(i,kk) * 0.01_r8          ! in hPa
 !
     end do
@@ -510,7 +508,7 @@ end subroutine neu_wetdep_tend
       real(r8),  intent(inout) :: qt_wash(lpar)
       real(r8),  intent(inout) :: qt_evap(lpar)
 !
-      integer I,J,L,N,LE, LM1
+      integer L,N,LE, LM1
       real(r8), dimension(LPAR) :: CFXX
       real(r8), dimension(LPAR) :: QTT, QTTNEW
 
@@ -520,7 +518,7 @@ end subroutine neu_wetdep_tend
       real(r8) MASSLOSS
       real(r8) DOR,DNEW,DEMP,COLEFFSNOW,RHOSNOW
       real(r8) WEMP,REMP,RRAIN,RWASH
-      real(r8) QTPRECIP,QTRAIN,QTCXA,QTAX,QTOC
+      real(r8) QTPRECIP,QTRAIN,QTCXA,QTAX
 
       real(r8) FAMA,RAMA,DAMA,FCA,RCA,DCA
       real(r8) FAX,RAX,DAX,FCXA,RCXA,DCXA,FCXB,RCXB,DCXB
@@ -534,9 +532,8 @@ end subroutine neu_wetdep_tend
       real(r8) QTTOPCA,QTTOPAA,QTTOPCAX,QTTOPAAX
 
       real(r8) AMPCT,AMCLPCT,CLNEWPCT,CLNEWAMPCT,CLOLDPCT,CLOLDAMPCT
-      real(r8) RAXLOC,RCXALOC,RCXBLOC,RCALOC,RAMALOC,RCXPCT
 
-      real(r8) QTNETLCXA,QTNETLCXB,QTNETLAX,QTNETL
+      real(r8) QTNETLCXA,QTNETLCXB,QTNETLAX
       real(r8) QTDISSTAR
       
 
@@ -579,7 +576,7 @@ end subroutine neu_wetdep_tend
       real(r8), parameter :: four = 4._r8
       real(r8), parameter :: adj_factor = one + 10._r8*epsilon( one )
 !
-      integer :: LWASHTYP,LICETYP
+      integer :: LICETYP
 !
       if ( debug .and. masterproc ) then
         write(iulog,'(a,50f8.2)')  'tckaqb     ',tckaqb
@@ -692,13 +689,6 @@ level_loop : &
          QTRAINCXB  = zero
          
          RAMPCT = zero
-         RCXPCT = zero
-
-         RCXALOC = zero
-         RCXBLOC = zero
-         RAXLOC  = zero
-         RAMALOC = zero
-         RCALOC  = zero
 
          RPRECIP       = zero
          DELTARIMEMASS = zero
@@ -1299,24 +1289,7 @@ is_freezing_a : &
              fax_wrk(l,2) = fax
            endif
 upper_level : &
-           if( L > 1 ) then
-             FAMA = max( FCXA + FCXB + FAX - CFR(LM1),zero )
-             if( FAX > zero ) then
-               RAXLOC = RAX/FAX
-             else
-               RAXLOC = zero
-             endif
-             if( FCXA > zero ) then
-               RCXALOC = RCXA/FCXA
-             else
-               RCXALOC = zero
-             endif
-             if( FCXB > zero ) then
-               RCXBLOC = RCXB/FCXB
-             else
-               RCXBLOC = zero
-             endif
-
+     if( L > 1 ) then
              if( CFR(LM1) >= CFMIN ) then
                CFXX(LM1) = CFR(LM1)
              else
@@ -1338,29 +1311,23 @@ upper_level : &
 !  Don't do for lowest level
 !-----------------------------------------------------------------------
              if( FAX > zero ) then
-               RAXLOC = RAX/FAX
                AMPCT = max( zero,min( one,(CFXX(L) + FAX - CFXX(LM1))/FAX ) )
                AMCLPCT = one - AMPCT
              else
-               RAXLOC  = zero
                AMPCT   = zero
                AMCLPCT = zero
              endif
              if( FCXB > zero ) then
-               RCXBLOC = RCXB/FCXB
                CLNEWPCT = max( zero,min( (CFXX(LM1) - FCXA)/FCXB,one ) )
                CLNEWAMPCT = one - CLNEWPCT
              else
-               RCXBLOC    = zero
                CLNEWPCT   = zero
                CLNEWAMPCT = zero
              endif
              if( FCXA > zero ) then
-               RCXALOC = RCXA/FCXA
                CLOLDPCT = max( zero,min( CFXX(LM1)/FCXA,one ) )
                CLOLDAMPCT = one - CLOLDPCT
              else
-               RCXALOC    = zero
                CLOLDPCT   = zero
                CLOLDAMPCT = zero
              endif
