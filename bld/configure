@@ -1977,8 +1977,8 @@ if ($waccmx) {
         my $mgrid;
         if (defined $opts{'mgrid'}) {
             $mgrid = $opts{'mgrid'};
-        } elsif ($hgrid == '0.47x0.63') {
-            $mgrid = '193x160';
+#        } elsif ($hgrid == '0.47x0.63') {
+#            $mgrid = '193x160';
         } else {
             $mgrid = '97x80';
         }
