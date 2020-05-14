@@ -1112,8 +1112,8 @@ contains
                       0.41_r8**(1._r8/(1._r8+(log10((2.0e-22_r8*exp_natom*m(:,k))/ &
                       (0.43_r8*(298._r8*tinv(:))**8._r8)))**2._r8))  
           call comp_exp( exp_fac, 360._r8*tinv, ncol )
-        rxt(:,k,usr_ISOPB1O2_NOn_ndx) = 2.7e-12_r8 * exp_fac(:)*aterm(:)/(aterm(:)+acorr*nyield)
-        rxt(:,k,usr_ISOPB1O2_NOa_ndx) = 2.7e-12_r8 * exp_fac(:)*acorr*nyield/(aterm(:)+acorr*nyield)
+          rxt(:,k,usr_ISOPB1O2_NOn_ndx) = 2.7e-12_r8 * exp_fac(:)*aterm(:)/(aterm(:)+acorr*nyield)
+          rxt(:,k,usr_ISOPB1O2_NOa_ndx) = 2.7e-12_r8 * exp_fac(:)*acorr*nyield/(aterm(:)+acorr*nyield)
        end if
 !-----------------------------------------------------------------
 !       ... ISOPB4O2_NOn Temp/Pressure Dependent Nitrate Yield
@@ -1131,8 +1131,8 @@ contains
                       0.41_r8**(1._r8/(1._r8+(log10((2.0e-22_r8*exp_natom*m(:,k))/ &
                       (0.43_r8*(298._r8*tinv(:))**8._r8)))**2._r8))  
           call comp_exp( exp_fac, 360._r8*tinv, ncol )
-        rxt(:,k,usr_ISOPB4O2_NOn_ndx) = 2.7e-12_r8 * exp_fac(:)*aterm(:)/(aterm(:)+acorr*nyield)
-        rxt(:,k,usr_ISOPB4O2_NOa_ndx) = 2.7e-12_r8 * exp_fac(:)*acorr*nyield/(aterm(:)+acorr*nyield)
+          rxt(:,k,usr_ISOPB4O2_NOn_ndx) = 2.7e-12_r8 * exp_fac(:)*aterm(:)/(aterm(:)+acorr*nyield)
+          rxt(:,k,usr_ISOPB4O2_NOa_ndx) = 2.7e-12_r8 * exp_fac(:)*acorr*nyield/(aterm(:)+acorr*nyield)
        end if
 !-----------------------------------------------------------------
 !       ... ISOPED1O2_NOn Temp/Pressure Dependent Nitrate Yield
@@ -1169,8 +1169,8 @@ contains
                       0.41_r8**(1._r8/(1._r8+(log10((2.0e-22_r8*exp_natom*m(:,k))/ &
                       (0.43_r8*(298._r8*tinv(:))**8._r8)))**2._r8))  
           call comp_exp( exp_fac, 360._r8*tinv, ncol )
-        rxt(:,k,usr_ISOPED4O2_NOn_ndx) = 2.7e-12_r8 * exp_fac(:)*aterm(:)/(aterm(:)+acorr*nyield)
-        rxt(:,k,usr_ISOPED4O2_NOa_ndx) = 2.7e-12_r8 * exp_fac(:)*acorr*nyield/(aterm(:)+acorr*nyield)
+          rxt(:,k,usr_ISOPED4O2_NOn_ndx) = 2.7e-12_r8 * exp_fac(:)*aterm(:)/(aterm(:)+acorr*nyield)
+          rxt(:,k,usr_ISOPED4O2_NOa_ndx) = 2.7e-12_r8 * exp_fac(:)*acorr*nyield/(aterm(:)+acorr*nyield)
        end if
 !-----------------------------------------------------------------
 !       ... ISOPZD1O2_NOn Temp/Pressure Dependent Nitrate Yield
@@ -1188,8 +1188,8 @@ contains
                       0.41_r8**(1._r8/(1._r8+(log10((2.0e-22_r8*exp_natom*m(:,k))/ &
                       (0.43_r8*(298._r8*tinv(:))**8._r8)))**2._r8))  
           call comp_exp( exp_fac, 360._r8*tinv, ncol )
-        rxt(:,k,usr_ISOPZD1O2_NOn_ndx) = 2.7e-12_r8 * exp_fac(:)*aterm(:)/(aterm(:)+acorr*nyield)
-        rxt(:,k,usr_ISOPZD1O2_NOa_ndx) = 2.7e-12_r8 * exp_fac(:)*acorr*nyield/(aterm(:)+acorr*nyield)
+          rxt(:,k,usr_ISOPZD1O2_NOn_ndx) = 2.7e-12_r8 * exp_fac(:)*aterm(:)/(aterm(:)+acorr*nyield)
+          rxt(:,k,usr_ISOPZD1O2_NOa_ndx) = 2.7e-12_r8 * exp_fac(:)*acorr*nyield/(aterm(:)+acorr*nyield)
        end if
 !-----------------------------------------------------------------
 !       ... ISOPZD4O2_NOn Temp/Pressure Dependent Nitrate Yield
@@ -1207,8 +1207,8 @@ contains
                       0.41_r8**(1._r8/(1._r8+(log10((2.0e-22_r8*exp_natom*m(:,k))/ &
                       (0.43_r8*(298._r8*tinv(:))**8._r8)))**2._r8))  
           call comp_exp( exp_fac, 360._r8*tinv, ncol )
-        rxt(:,k,usr_ISOPZD4O2_NOn_ndx) = 2.7e-12_r8 * exp_fac(:)*aterm(:)/(aterm(:)+acorr*nyield)
-        rxt(:,k,usr_ISOPZD4O2_NOa_ndx) = 2.7e-12_r8 * exp_fac(:)*acorr*nyield/(aterm(:)+acorr*nyield)
+          rxt(:,k,usr_ISOPZD4O2_NOn_ndx) = 2.7e-12_r8 * exp_fac(:)*aterm(:)/(aterm(:)+acorr*nyield)
+          rxt(:,k,usr_ISOPZD4O2_NOa_ndx) = 2.7e-12_r8 * exp_fac(:)*acorr*nyield/(aterm(:)+acorr*nyield)
        end if
 !-----------------------------------------------------------------
 !       ... ISOPNO3_NOn Temp/Pressure Dependent Nitrate Yield
@@ -1226,8 +1226,8 @@ contains
                       0.41_r8**(1._r8/(1._r8+(log10((2.0e-22_r8*exp_natom*m(:,k))/ &
                       (0.43_r8*(298._r8*tinv(:))**8._r8)))**2._r8))  
           call comp_exp( exp_fac, 360._r8*tinv, ncol )
-        rxt(:,k,usr_ISOPNO3_NOn_ndx) = 2.7e-12_r8 * exp_fac(:)*aterm(:)/(aterm(:)+acorr*nyield)
-        rxt(:,k,usr_ISOPNO3_NOa_ndx) = 2.7e-12_r8 * exp_fac(:)*acorr*nyield/(aterm(:)+acorr*nyield)
+          rxt(:,k,usr_ISOPNO3_NOn_ndx) = 2.7e-12_r8 * exp_fac(:)*aterm(:)/(aterm(:)+acorr*nyield)
+          rxt(:,k,usr_ISOPNO3_NOa_ndx) = 2.7e-12_r8 * exp_fac(:)*acorr*nyield/(aterm(:)+acorr*nyield)
        end if
 !-----------------------------------------------------------------
 !       ... MVKO2_NOn Temp/Pressure Dependent Nitrate Yield
@@ -1245,8 +1245,8 @@ contains
                       0.41_r8**(1._r8/(1._r8+(log10((2.0e-22_r8*exp_natom*m(:,k))/ &
                       (0.43_r8*(298._r8*tinv(:))**8._r8)))**2._r8))  
           call comp_exp( exp_fac, 360._r8*tinv, ncol )
-        rxt(:,k,usr_MVKO2_NOn_ndx) = 2.7e-12_r8 * exp_fac(:)*aterm(:)/(aterm(:)+acorr*nyield)
-        rxt(:,k,usr_MVKO2_NOa_ndx) = 2.7e-12_r8 * exp_fac(:)*acorr*nyield/(aterm(:)+acorr*nyield)
+          rxt(:,k,usr_MVKO2_NOn_ndx) = 2.7e-12_r8 * exp_fac(:)*aterm(:)/(aterm(:)+acorr*nyield)
+          rxt(:,k,usr_MVKO2_NOa_ndx) = 2.7e-12_r8 * exp_fac(:)*acorr*nyield/(aterm(:)+acorr*nyield)
        end if
 !-----------------------------------------------------------------
 !       ... MACRO2_NOn Temp/Pressure Dependent Nitrate Yield
@@ -1283,8 +1283,8 @@ contains
                       0.41_r8**(1._r8/(1._r8+(log10((2.0e-22_r8*exp_natom*m(:,k))/ &
                       (0.43_r8*(298._r8*tinv(:))**8._r8)))**2._r8))  
           call comp_exp( exp_fac, 360._r8*tinv, ncol )
-        rxt(:,k,usr_IEPOXOO_NOn_ndx) = 2.7e-12_r8 * exp_fac(:)*aterm(:)/(aterm(:)+acorr*nyield)
-        rxt(:,k,usr_IEPOXOO_NOa_ndx) = 2.7e-12_r8 * exp_fac(:)*acorr*nyield/(aterm(:)+acorr*nyield)
+          rxt(:,k,usr_IEPOXOO_NOn_ndx) = 2.7e-12_r8 * exp_fac(:)*aterm(:)/(aterm(:)+acorr*nyield)
+          rxt(:,k,usr_IEPOXOO_NOa_ndx) = 2.7e-12_r8 * exp_fac(:)*acorr*nyield/(aterm(:)+acorr*nyield)
        end if
 !-----------------------------------------------------------------
 !       ... ISOPN1DO2_NOn Temp/Pressure Dependent Nitrate Yield
@@ -1302,8 +1302,8 @@ contains
                       0.41_r8**(1._r8/(1._r8+(log10((2.0e-22_r8*exp_natom*m(:,k))/ &
                       (0.43_r8*(298._r8*tinv(:))**8._r8)))**2._r8))  
           call comp_exp( exp_fac, 360._r8*tinv, ncol )
-        rxt(:,k,usr_ISOPN1DO2_NOn_ndx) = 2.7e-12_r8 * exp_fac(:)*aterm(:)/(aterm(:)+acorr*nyield)
-        rxt(:,k,usr_ISOPN1DO2_NOa_ndx) = 2.7e-12_r8 * exp_fac(:)*acorr*nyield/(aterm(:)+acorr*nyield)
+          rxt(:,k,usr_ISOPN1DO2_NOn_ndx) = 2.7e-12_r8 * exp_fac(:)*aterm(:)/(aterm(:)+acorr*nyield)
+          rxt(:,k,usr_ISOPN1DO2_NOa_ndx) = 2.7e-12_r8 * exp_fac(:)*acorr*nyield/(aterm(:)+acorr*nyield)
        end if
 !-----------------------------------------------------------------
 !       ... ISOPN2BO2_NOn Temp/Pressure Dependent Nitrate Yield
@@ -1340,8 +1340,8 @@ contains
                       0.41_r8**(1._r8/(1._r8+(log10((2.0e-22_r8*exp_natom*m(:,k))/ &
                       (0.43_r8*(298._r8*tinv(:))**8._r8)))**2._r8))  
           call comp_exp( exp_fac, 360._r8*tinv, ncol )
-        rxt(:,k,usr_ISOPN3BO2_NOn_ndx) = 2.7e-12_r8 * exp_fac(:)*aterm(:)/(aterm(:)+acorr*nyield)
-        rxt(:,k,usr_ISOPN3BO2_NOa_ndx) = 2.7e-12_r8 * exp_fac(:)*acorr*nyield/(aterm(:)+acorr*nyield)
+          rxt(:,k,usr_ISOPN3BO2_NOn_ndx) = 2.7e-12_r8 * exp_fac(:)*aterm(:)/(aterm(:)+acorr*nyield)
+          rxt(:,k,usr_ISOPN3BO2_NOa_ndx) = 2.7e-12_r8 * exp_fac(:)*acorr*nyield/(aterm(:)+acorr*nyield)
        end if
 !-----------------------------------------------------------------
 !       ... ISOPN4DO2_NOn Temp/Pressure Dependent Nitrate Yield
@@ -1359,8 +1359,8 @@ contains
                       0.41_r8**(1._r8/(1._r8+(log10((2.0e-22_r8*exp_natom*m(:,k))/ &
                       (0.43_r8*(298._r8*tinv(:))**8._r8)))**2._r8))  
           call comp_exp( exp_fac, 360._r8*tinv, ncol )
-        rxt(:,k,usr_ISOPN4DO2_NOn_ndx) = 2.7e-12_r8 * exp_fac(:)*aterm(:)/(aterm(:)+acorr*nyield)
-        rxt(:,k,usr_ISOPN4DO2_NOa_ndx) = 2.7e-12_r8 * exp_fac(:)*acorr*nyield/(aterm(:)+acorr*nyield)
+          rxt(:,k,usr_ISOPN4DO2_NOn_ndx) = 2.7e-12_r8 * exp_fac(:)*aterm(:)/(aterm(:)+acorr*nyield)
+          rxt(:,k,usr_ISOPN4DO2_NOa_ndx) = 2.7e-12_r8 * exp_fac(:)*acorr*nyield/(aterm(:)+acorr*nyield)
        end if
 !-----------------------------------------------------------------
 !       ... ISOPNBNO3O2_NOn Temp/Pressure Dependent Nitrate Yield
@@ -1378,8 +1378,8 @@ contains
                       0.41_r8**(1._r8/(1._r8+(log10((2.0e-22_r8*exp_natom*m(:,k))/ &
                       (0.43_r8*(298._r8*tinv(:))**8._r8)))**2._r8))  
           call comp_exp( exp_fac, 360._r8*tinv, ncol )
-        rxt(:,k,usr_ISOPNBNO3O2_NOn_ndx) = 2.7e-12_r8 * exp_fac(:)*aterm(:)/(aterm(:)+acorr*nyield)
-        rxt(:,k,usr_ISOPNBNO3O2_NOa_ndx) = 2.7e-12_r8 * exp_fac(:)*acorr*nyield/(aterm(:)+acorr*nyield)
+          rxt(:,k,usr_ISOPNBNO3O2_NOn_ndx) = 2.7e-12_r8 * exp_fac(:)*aterm(:)/(aterm(:)+acorr*nyield)
+          rxt(:,k,usr_ISOPNBNO3O2_NOa_ndx) = 2.7e-12_r8 * exp_fac(:)*acorr*nyield/(aterm(:)+acorr*nyield)
        end if
 !-----------------------------------------------------------------
 !       ... ISOPNOOHBO2_NOn Temp/Pressure Dependent Nitrate Yield
@@ -1397,8 +1397,8 @@ contains
                       0.41_r8**(1._r8/(1._r8+(log10((2.0e-22_r8*exp_natom*m(:,k))/ &
                       (0.43_r8*(298._r8*tinv(:))**8._r8)))**2._r8))  
           call comp_exp( exp_fac, 360._r8*tinv, ncol )
-        rxt(:,k,usr_ISOPNOOHBO2_NOn_ndx) = 2.7e-12_r8 * exp_fac(:)*aterm(:)/(aterm(:)+acorr*nyield)
-        rxt(:,k,usr_ISOPNOOHBO2_NOa_ndx) = 2.7e-12_r8 * exp_fac(:)*acorr*nyield/(aterm(:)+acorr*nyield)
+          rxt(:,k,usr_ISOPNOOHBO2_NOn_ndx) = 2.7e-12_r8 * exp_fac(:)*aterm(:)/(aterm(:)+acorr*nyield)
+          rxt(:,k,usr_ISOPNOOHBO2_NOa_ndx) = 2.7e-12_r8 * exp_fac(:)*acorr*nyield/(aterm(:)+acorr*nyield)
        end if
 !-----------------------------------------------------------------
 !       ... ISOPNOOHDO2_NOn Temp/Pressure Dependent Nitrate Yield
@@ -1416,8 +1416,8 @@ contains
                       0.41_r8**(1._r8/(1._r8+(log10((2.0e-22_r8*exp_natom*m(:,k))/ &
                       (0.43_r8*(298._r8*tinv(:))**8._r8)))**2._r8))  
           call comp_exp( exp_fac, 360._r8*tinv, ncol )
-        rxt(:,k,usr_ISOPNOOHDO2_NOn_ndx) = 2.7e-12_r8 * exp_fac(:)*aterm(:)/(aterm(:)+acorr*nyield)
-        rxt(:,k,usr_ISOPNOOHDO2_NOa_ndx) = 2.7e-12_r8 * exp_fac(:)*acorr*nyield/(aterm(:)+acorr*nyield)
+          rxt(:,k,usr_ISOPNOOHDO2_NOn_ndx) = 2.7e-12_r8 * exp_fac(:)*aterm(:)/(aterm(:)+acorr*nyield)
+          rxt(:,k,usr_ISOPNOOHDO2_NOa_ndx) = 2.7e-12_r8 * exp_fac(:)*acorr*nyield/(aterm(:)+acorr*nyield)
        end if
 !-----------------------------------------------------------------
 !       ... NC4CHOO2_NOn Temp/Pressure Dependent Nitrate Yield
@@ -1435,8 +1435,8 @@ contains
                       0.41_r8**(1._r8/(1._r8+(log10((2.0e-22_r8*exp_natom*m(:,k))/ &
                       (0.43_r8*(298._r8*tinv(:))**8._r8)))**2._r8))  
           call comp_exp( exp_fac, 360._r8*tinv, ncol )
-        rxt(:,k,usr_NC4CHOO2_NOn_ndx) = 2.7e-12_r8 * exp_fac(:)*aterm(:)/(aterm(:)+acorr*nyield)
-        rxt(:,k,usr_NC4CHOO2_NOa_ndx) = 2.7e-12_r8 * exp_fac(:)*acorr*nyield/(aterm(:)+acorr*nyield)
+          rxt(:,k,usr_NC4CHOO2_NOn_ndx) = 2.7e-12_r8 * exp_fac(:)*aterm(:)/(aterm(:)+acorr*nyield)
+          rxt(:,k,usr_NC4CHOO2_NOa_ndx) = 2.7e-12_r8 * exp_fac(:)*acorr*nyield/(aterm(:)+acorr*nyield)
        end if
 !
 ! reduced hydrocarbon scheme
