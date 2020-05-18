@@ -453,8 +453,10 @@
        soa_ndx = 0
        do i = 1, pcnst
           if (cnst_name(i)(:4) == 'SOAG') then
-             soa_ndx = soa_ndx+1
-             lptr2_soa_g_amode(soa_ndx) = i
+             if (index(cnst_name(i),'_micm')<1) then
+                soa_ndx = soa_ndx+1
+                lptr2_soa_g_amode(soa_ndx) = i
+             endif
           endif
        enddo
        if (.not.any(lptr2_soa_g_amode>0)) call endrun('modal_aero_data_init: lptr2_soa_g_amode is not set properly')

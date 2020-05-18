@@ -5,6 +5,7 @@ module micm_mod
   use cam_abortutils,  only: endrun
   use const_props_mod, only: const_props_type
   use ppgrid,          only: pcols, pver
+  use json_loader,     only: json_loader_read
 
   implicit none
   private
@@ -16,7 +17,7 @@ module micm_mod
   public :: micm_timestep_init
 
   type(const_props_type), allocatable :: cnst_props(:)
-  character(len=8), allocatable :: jnames(:)
+  character(len=16), allocatable :: jnames(:)
   integer, allocatable :: micm_cnst_map(:)
 
   integer :: nspecies
@@ -36,6 +37,7 @@ module micm_mod
   real(r8) :: dtime
 
   character(len=16), allocatable :: knames(:)
+  character(len=24), allocatable :: photname(:)
   
 contains
 
@@ -99,6 +101,7 @@ contains
     character(len=16) :: name
     integer :: m
     character(len=128) :: reaction_names(nkrxns+njrxns)
+    character(len=3) :: str
 
     do m = 1,nspecies
        name = trim(cnst_props(m)%get_name())//'_micm'
@@ -107,15 +110,18 @@ contains
        call add_default( name, 10, ' ' )
     end do
 
+    allocate(photname(njrxns))
     do m = 1,njrxns
-       call addfld( trim(jnames(m))//'_micm', (/ 'lev' /), 'A', '1/sec', 'MICM '//trim(jnames(m)) )
-       call add_default( trim(jnames(m))//'_micm', 10, ' ' )
+       write(str,'(i2.2)') m
+       photname(m) = trim(jnames(m))//'_micm'//trim(str)
+       call addfld( photname(m), (/ 'lev' /), 'A', '1/sec', 'MICM '//trim(jnames(m)) )
+       call add_default( photname(m), 10, ' ' )
     end do
 
     allocate(knames(nkrxns))
 
     do m = 1, nkrxns
-       write(knames(m),fmt='(a,i2.2,a)') 'k',m,'_micm'
+       write(knames(m),fmt='(a1,i3.3,a5)') 'k',m,'_micm'
        call addfld( knames(m), (/ 'lev' /), 'A', '1/sec', 'MICM '//trim(knames(m)) )
        call add_default( knames(m), 10, ' ' )
     end do
@@ -226,7 +232,7 @@ contains
     real(r8) :: satv(pcols,pver)             ! wrk array for relative humidity
     real(r8) :: satq(pcols,pver)             ! wrk array for relative humidity
     real(r8) :: relhum(pcols,pver)           ! relative humidity (fraction)
-    real(r8), parameter ::  Pa_xfac = 10._r8 ! Pascals to dyne/cm^2
+    real(r8), parameter :: Pa_xfac = 10._r8  ! Pascals to dyne/cm^2
     real(r8) :: zen_angle(pcols), sza(pcols) ! solar zenith angle
     real(r8), parameter :: rad2deg = 180._r8/shr_const_pi ! radians to degrees conversion factor
     real(r8) :: rlats(pcols), rlons(pcols)
@@ -331,8 +337,7 @@ contains
    end do
 
    do m = 1,njrxns
-      name = trim(jnames(m))//'_micm'
-      call outfld( name, j_rateConsts(:ncol,:,m), ncol ,lchnk )
+      call outfld( photname(m), j_rateConsts(:ncol,:,m), ncol ,lchnk )
    end do
 
    do m = 1,nspecies
@@ -348,35 +353,21 @@ contains
 
   subroutine initialize_chemistry_information
 
-    ! Hack for Chapman chemistry ... should be dynamic (json reader??)
-    nspecies = 8
-    allocate(cnst_props(nspecies))
+    character(len=*), parameter :: jsonfile = '/glade/u/home/fvitt/camdev/micm_trop1/src/chemistry/micm/trop1_kinetics/mechanism.json'
+    integer :: i
 
-    call cnst_props(1)%set_name('Ar')
-    call cnst_props(2)%set_name('CO2')
-    call cnst_props(3)%set_name('H2O')
-    
-    call cnst_props(4)%set_name('N2')
-    call cnst_props(5)%set_name('O')
-    call cnst_props(6)%set_name('O1D')
-    call cnst_props(7)%set_name('O2')
-    call cnst_props(8)%set_name('O3')
+    call json_loader_read( jsonfile, cnst_props, nspecies, nkrxns, njrxns, jnames )
 
-    call cnst_props(1)%set_wght(40._r8)
-    call cnst_props(2)%set_wght(44._r8)
-    call cnst_props(3)%set_wght(18._r8)
-    
-    call cnst_props(4)%set_wght(28._r8)
-    call cnst_props(5)%set_wght(16._r8)
-    call cnst_props(6)%set_wght(16._r8)
-    call cnst_props(7)%set_wght(32._r8)
-    call cnst_props(8)%set_wght(48._r8)
-
-    njrxns = 3
-    allocate(jnames(njrxns))
-    jnames(:njrxns) = (/ 'jo2_b   ','jo3_a   ', 'jo3_b   ' /)
-
-    nkrxns = 4
+    if (masterproc) then
+       write(iulog,*) 'micm_mod: nspecies = ',nspecies 
+       do i=1,nspecies
+          write(iulog,'(a,f6.2)') 'micm_mod: '//trim(cnst_props(i)%get_name())//' wght: ',cnst_props(i)%get_wght()
+       enddo
+       write(iulog,*) 'micm_mod: njrxns = ',njrxns
+       do i=1,njrxns
+          write(iulog,'(a,i4)') 'micm_mod: '//trim(jnames(i)),i
+       enddo
+    endif
 
   end subroutine initialize_chemistry_information
 

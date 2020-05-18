@@ -1455,8 +1455,8 @@ if ($customize) {
     ($chem_nadv) = chem_number_adv($chem_src_dir);
 }
 
-# MICM hack -- chapman chemistry has 5 prognosted species
-$chem_nadv += 8;
+# MICM hack -- T1 chemistry has 148 prognosted species
+$chem_nadv += 148;
 
 if ($chem_pkg =~ '_mam3') {
     $chem_cppdefs = ' -DMODAL_AERO -DMODAL_AERO_3MODE ';
@@ -2855,7 +2855,8 @@ sub write_filepath
     print $fh "$camsrcdir/src/chemistry/utils\n";
 
     print $fh "$camsrcdir/src/chemistry/micm/host\n";
-    print $fh "$camsrcdir/src/chemistry/micm/chapman_kinetics\n";
+    print $fh "$camsrcdir/src/chemistry/micm/host/json_lib\n";
+    print $fh "$camsrcdir/src/chemistry/micm/trop1_kinetics\n";
     print $fh "$camsrcdir/src/chemistry/micm/external/src\n";
     print $fh "$camsrcdir/src/chemistry/micm/external/src/kinetics\n";
     print $fh "$camsrcdir/src/chemistry/micm/external/src/tuv/share\n";

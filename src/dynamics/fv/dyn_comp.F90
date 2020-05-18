@@ -2858,6 +2858,7 @@ subroutine read_inidat(dyn_in)
   integer                         :: mlon ! longitude dimension length from dataset
   integer                         :: mlat            ! latitude dimension length from dataset
   integer                         :: cnst_start
+  integer :: ix
   real(r8), parameter             :: deg2rad = pi/180._r8
 
   character(len=*), parameter     :: sub='read_inidat'
@@ -3004,12 +3005,20 @@ subroutine read_inidat(dyn_in)
 
   do m = cnst_start, pcnst
     readvar   = .false.
-    fieldname = cnst_name(m)
+    ix = index(cnst_name(m),'_micm')
+    if (ix>0) then
+      fieldname = cnst_name(m)(1:ix-1)
+    else
+      fieldname = cnst_name(m)
+    endif
+
+    if(masterproc)  write(iulog,'(a,2i4,a,2a)') 'FVDBG: read_inidat m,ix, cnst_name: ', m, ix,'  ', cnst_name(m), fieldname
+ 
     if (cnst_read_iv(m)) then
       call infld(fieldname, fh_ini, 'lon', 'lat', 'lev', ifirstxy, ilastxy, jfirstxy, jlastxy, &
            1, km, dyn_in%tracer(:,:,:,m), readvar, gridname='fv_centers')
     end if
-    call process_inidat(grid, dyn_in, 'CONSTS', m_cnst=m, fh_ini=fh_ini)
+    call process_inidat(grid, dyn_in, 'CONSTS', m_cnst=m, fh_ini=fh_ini, name_in=fieldname)
   end do
 
   ! Set u3s(:,1,:) to zero as it is used in interpolation routines
@@ -3112,7 +3121,7 @@ end subroutine set_phis
 
 !=========================================================================================
 
-subroutine process_inidat(grid, dyn_in, fieldname, m_cnst, fh_ini)
+subroutine process_inidat(grid, dyn_in, fieldname, m_cnst, fh_ini, name_in)
 
    ! Post-process input fields
    use commap,              only: clat, clon
@@ -3125,6 +3134,7 @@ subroutine process_inidat(grid, dyn_in, fieldname, m_cnst, fh_ini)
    character(len=*),              intent(in)    :: fieldname   ! field to be processed
    integer,             optional, intent(in)    :: m_cnst      ! constituent index
    type(file_desc_t),   optional, intent(inout) :: fh_ini
+   character(len=*),    optional, intent(in)    :: name_in   ! field to be processed
 
    ! Local variables
    integer :: i, j, k                     ! grid and constituent indices
@@ -3148,6 +3158,7 @@ subroutine process_inidat(grid, dyn_in, fieldname, m_cnst, fh_ini)
    character(len=3)   :: mixing_ratio
 
    character(len=*), parameter :: sub='process_inidat'
+   character(len=16) :: name_tmp
    !----------------------------------------------------------------------------
 
    psxy   => dyn_in%ps
@@ -3231,12 +3242,18 @@ subroutine process_inidat(grid, dyn_in, fieldname, m_cnst, fh_ini)
                         ' argument list')
          end if
 
+         if (present(name_in)) then
+            name_tmp=name_in
+         else 
+            name_tmp=cnst_name(m_cnst)
+         endif
+
          ! Check that all tracer units are in mass mixing ratios
-         ret = pio_inq_varid(fh_ini, cnst_name(m_cnst), varid)
+         ret = pio_inq_varid(fh_ini, name_tmp, varid)
          ret = pio_get_att (fh_ini, varid, 'units', trunits)
          if (trunits(1:5) .ne. 'KG/KG' .and. trunits(1:5) .ne. 'kg/kg') then
             call endrun(sub//': ERROR:  Units for tracer ' &
-                  //trim(cnst_name(m_cnst))//' must be in KG/KG')
+                  //trim(name_tmp)//' must be in KG/KG')
          end if
 
          ! Check for mixing_ratio attribute.  If present then use it to
