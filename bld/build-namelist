@@ -1641,6 +1641,20 @@ elsif ($carma eq 'tholin') {
   add_default($nl, 'carma_emis_total',  'val'=>'1e5');
   add_default($nl, 'carma_emis_file');
 }
+elsif ($carma eq 'trop_strat') {
+  add_default($nl, 'carma_do_emission', 'val'=>'.true.');
+  add_default($nl, 'carma_do_fixedinit','val'=>'.true.');
+  add_default($nl, 'carma_do_drydep',   'val'=>'.true.');
+  add_default($nl, 'carma_do_optics',   'val'=>'.true.');
+  add_default($nl, 'carma_do_vtran',    'val'=>'.true.');
+  add_default($nl, 'carma_do_wetdep',   'val'=>'.true.');
+  add_default($nl, 'carma_soilerosion_file');
+  add_default($nl, 'carma_fields',      'val'=>'Sl_soilw');
+  add_default($nl, 'carma_do_vdiff',    'val'=>'.true.');
+  add_default($nl, 'carma_do_WeibullK', 'val'=>'.false.');
+  add_default($nl, 'carma_seasalt_emis', 'val'=>'Gong');
+}
+
 
 # Stratospheric sulfur aerosols
 

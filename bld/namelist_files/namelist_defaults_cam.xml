@@ -392,6 +392,7 @@
 <carma_escale_file      carma="pmc_sulfate">atm/waccm/emis/smoke_grf_frentzke.nc</carma_escale_file>
 <carma_mice_file        carma="pmc_sulfate">atm/cam/physprops/mice_warren2008.nc</carma_mice_file>
 <carma_soilerosion_file carma="cirrus_dust">atm/cam/dst/soil_erosion_factor_1x1_c120907.nc</carma_soilerosion_file>
+<carma_soilerosion_file carma="trop_strat">atm/cam/dst/soil_erosion_factor_1x1_c120907.nc</carma_soilerosion_file>
 <carma_soilerosion_file carma="dust">atm/cam/dst/soil_erosion_factor_1x1_c120907.nc</carma_soilerosion_file>
 <carma_emis_file        carma="tholin">atm/waccm/emis/early_earth_haze.nc</carma_emis_file>
 
