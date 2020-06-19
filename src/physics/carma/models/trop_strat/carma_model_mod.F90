@@ -192,19 +192,24 @@ contains
     !call CARMAELEMENT_Create(carma, I_ELEM_PURSUL, I_GRP_PURSUL, "Sulfate", RHO_SULFATE, I_VOLATILE, I_H2SO4, rc, shortname="SULF")
     !if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddElement failed.')
 
-    call CARMAELEMENT_Create(carma, I_ELEM_CRMIX,  I_GRP_MIXAER, "Sulfate in mixed sulfate", RHO_SULFATE, I_INVOLATILE, I_H2SO4, rc, kappa=Kappa_SULF, shortname="CRMIX")
+    !call CARMAELEMENT_Create(carma, I_ELEM_CRMIX,  I_GRP_MIXAER, "Sulfate in mixed sulfate", RHO_SULFATE, I_INVOLATILE, I_H2SO4, rc, kappa=Kappa_SULF, shortname="CRMIX")
+    call CARMAELEMENT_Create(carma, I_ELEM_CRMIX,  I_GRP_MIXAER, "Sulfate in mixed sulfate", RHO_SULFATE, I_INVOLATILE, I_H2SO4, rc,  shortname="CRMIX")
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddElement failed.')
 
-    call CARMAELEMENT_Create(carma, I_ELEM_CROC,   I_GRP_MIXAER, "organic carbon", RHO_obc, I_COREMASS, I_OC, rc, kappa=Kappa_OC, shortname="CROC")
+    !call CARMAELEMENT_Create(carma, I_ELEM_CROC,   I_GRP_MIXAER, "organic carbon", RHO_obc, I_COREMASS, I_OC, rc, kappa=Kappa_OC, shortname="CROC")
+    call CARMAELEMENT_Create(carma, I_ELEM_CROC,   I_GRP_MIXAER, "organic carbon", RHO_obc, I_COREMASS, I_OC, rc, shortname="CROC")
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddElement failed.')
 
-    call CARMAELEMENT_Create(carma, I_ELEM_CRBC,   I_GRP_MIXAER, "black carbon", RHO_obc, I_COREMASS, I_BC, rc, kappa=Kappa_BC,  shortname="CRBC")
+    !call CARMAELEMENT_Create(carma, I_ELEM_CRBC,   I_GRP_MIXAER, "black carbon", RHO_obc, I_COREMASS, I_BC, rc, kappa=Kappa_BC,  shortname="CRBC")
+    call CARMAELEMENT_Create(carma, I_ELEM_CRBC,   I_GRP_MIXAER, "black carbon", RHO_obc, I_COREMASS, I_BC, rc, shortname="CRBC")
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddElement failed.')
 
-    call CARMAELEMENT_Create(carma, I_ELEM_CRDUST, I_GRP_MIXAER, "dust", RHO_DUST, I_COREMASS, I_DUST, rc,  kappa=Kappa_DUST, shortname="CRDUST")
+    !call CARMAELEMENT_Create(carma, I_ELEM_CRDUST, I_GRP_MIXAER, "dust", RHO_DUST, I_COREMASS, I_DUST, rc,  kappa=Kappa_DUST, shortname="CRDUST")
+    call CARMAELEMENT_Create(carma, I_ELEM_CRDUST, I_GRP_MIXAER, "dust", RHO_DUST, I_COREMASS, I_DUST, rc,  shortname="CRDUST")
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddElement failed.')
 
-    call CARMAELEMENT_Create(carma, I_ELEM_CRSALT, I_GRP_MIXAER, "SALT in mixed sulfate", RHO_SALT, I_COREMASS, I_SALT, rc,  kappa=Kappa_SALT, shortname="CRSALT")
+    !call CARMAELEMENT_Create(carma, I_ELEM_CRSALT, I_GRP_MIXAER, "SALT in mixed sulfate", RHO_SALT, I_COREMASS, I_SALT, rc,  kappa=Kappa_SALT, shortname="CRSALT")
+    call CARMAELEMENT_Create(carma, I_ELEM_CRSALT, I_GRP_MIXAER, "SALT in mixed sulfate", RHO_SALT, I_COREMASS, I_SALT, rc, shortname="CRSALT")
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddElement failed.')
 
     
