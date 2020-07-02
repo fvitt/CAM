@@ -100,6 +100,7 @@ integer :: mode_coarse_slt_idx = -1  ! index of coarse sea salt mode
 integer :: coarse_dust_idx = -1  ! index of dust in coarse mode
 integer :: coarse_nacl_idx = -1  ! index of nacl in coarse mode
 integer :: coarse_so4_idx = -1   ! index of sulfate in coarse mode
+integer :: mode_strat_coarse_idx  = -1  ! index of strat coarse mode
 
 logical  :: separate_dust = .false.
 real(r8) :: sigmag_aitken
@@ -286,6 +287,8 @@ subroutine nucleate_ice_cam_init(mincld_in, bulk_scale_in, pbuf2d)
             mode_coarse_dst_idx = m
          case ('coarse_seasalt')
             mode_coarse_slt_idx = m
+         case ('coarse_strat')!kzm
+            mode_strat_coarse_idx = m !kzm_
          end select
       end do
 
@@ -429,6 +432,8 @@ subroutine nucleate_ice_cam_calc( &
    real(r8), pointer :: cld_num_coarse(:,:) ! number m.r. of coarse mode
    real(r8), pointer :: cld_coarse_dust(:,:) ! mass m.r. of coarse dust
 
+   real(r8), pointer :: num_strcrs(:,:)  ! number m.r. of strat. coarse mode
+
    real(r8), pointer :: ast(:,:)
    real(r8) :: icecldf(pcols,pver)  ! ice cloud fraction
    real(r8), pointer :: qsatfac(:,:)      ! Subgrid cloud water saturation scaling factor.
@@ -460,8 +465,9 @@ subroutine nucleate_ice_cam_calc( &
    real(r8) :: dso4_num
    real(r8) :: so4_num_ac
    real(r8) :: so4_num_cr
+   real(r8) :: so4_num_st_cr
    real(r8) :: ramp
-   
+
    real(r8) :: subgrid(pcols,pver)
    real(r8) :: trop_pd(pcols,pver)
 
@@ -508,6 +514,9 @@ subroutine nucleate_ice_cam_calc( &
       call rad_cnst_get_mode_num(0, mode_accum_idx,  'a', state, pbuf, num_accum)
       call rad_cnst_get_mode_num(0, mode_aitken_idx, 'a', state, pbuf, num_aitken)
       call rad_cnst_get_mode_num(0, mode_coarse_dst_idx, 'a', state, pbuf, num_coarse)
+      if (mode_strat_coarse_idx > 0) then
+         call rad_cnst_get_mode_num(0, mode_strat_coarse_idx,  'a', state, pbuf, num_strcrs) !kzm
+      endif
 
       ! mode specie mass m.r.
       call rad_cnst_get_aer_mmr(0, mode_coarse_dst_idx, coarse_dust_idx, 'a', state, pbuf, coarse_dust)
@@ -770,7 +779,13 @@ subroutine nucleate_ice_cam_calc( &
               if ((k < troplev(i)) .and. (nucleate_ice_strat > 0._r8)) then
                  if (oso4_num > 0._r8) then
                     so4_num_ac = num_accum(i,k)*rho(i,k)*1.0e-6_r8
-                    dso4_num = max(0._r8, (nucleate_ice_strat * (so4_num_cr + so4_num_ac)) - oso4_num) * 1e6_r8 / rho(i,k)
+                    if (mode_strat_coarse_idx > 0) then
+                        so4_num_st_cr = num_strcrs(i,k)*rho(i,k)*1.0e-6_r8 !kzm add in stratosphere coarse
+                        dso4_num = max(0._r8, (nucleate_ice_strat * (so4_num_cr + so4_num_ac + so4_num_st_cr)) &
+                                   - oso4_num) * 1e6_r8 / rho(i,k)
+                    else
+                        dso4_num = max(0._r8, (nucleate_ice_strat * (so4_num_cr + so4_num_ac)) - oso4_num) * 1e6_r8 / rho(i,k)    
+                    endif
                     naai(i,k) = naai(i,k) + dso4_num
                     nihf(i,k) = nihf(i,k) + dso4_num
                  end if

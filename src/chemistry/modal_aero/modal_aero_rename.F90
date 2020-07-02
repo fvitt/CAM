@@ -20,6 +20,7 @@
   use modal_aero_data, only: alnsg_amode, voltonumblo_amode, voltonumbhi_amode, dgnum_amode, nspec_amode
   use modal_aero_data, only: specmw_amode, specdens_amode, lmassptr_amode, lmassptrcw_amode
   use modal_aero_data, only: numptr_amode, numptrcw_amode, modeptr_coarse, modeptr_accum
+  use modal_aero_data, only: modeptr_stracoar 
   use modal_aero_data, only: specmw_amode, specdens_amode, lmassptr_amode, lmassptrcw_amode, numptr_amode, numptrcw_amode
   use modal_aero_data, only: dgnumhi_amode, dgnumlo_amode, cnst_name_cw, modeptr_aitken
 
@@ -45,7 +46,11 @@
 ! integer, parameter, public :: ipair_select_renamexf(maxpair_renamexf) = (/ 2001, 1003 /)
 
   integer, parameter, public :: maxpair_renamexf = 3
-  integer, parameter, public :: ipair_select_renamexf(maxpair_renamexf) = (/ 2001, 1003, 3001 /)
+#if    ( defined MODAL_AERO_5MODE)
+  integer, parameter, public :: ipair_select_renamexf(maxpair_renamexf) = (/ 2001, 1005, 5001 /) 
+#elif  ( defined MODAL_AERO_4MODE)
+  integer, parameter, public :: ipair_select_renamexf(maxpair_renamexf) = (/ 2001, 1003, 3001 /) !original
+#endif
 ! ipair_select_renamexf defines the mode_from and mode_too for each renaming pair
 ! 2001 = aitken --> accum
 ! 1003 = accum  --> coarse
@@ -987,9 +992,11 @@ mainloop1_ipair:  do ipair = 1, npair_renamexf
 	mfrm = modefrm_renamexf(ipair)
 	mtoo = modetoo_renamexf(ipair)
 
-	flagaa_shrink = .false.
-	if ((mfrm==modeptr_coarse) .and. (mtoo==modeptr_accum)) &
-	    flagaa_shrink = .true.
+        flagaa_shrink = .false.
+        if ((mfrm==modeptr_coarse) .and. (mtoo==modeptr_accum)) &
+             flagaa_shrink = .true.
+        if ((mfrm==modeptr_stracoar) .and. (mtoo==modeptr_accum)) &
+             flagaa_shrink = .true.  
 
 !
 !   compute aerosol dry-volume for the "from mode" of each renaming pair
@@ -1405,58 +1412,71 @@ grow_shrink_conditional1: &
 !   define "from mode" and "to mode" for each tail-xfer pairing
 !	using the values in ipair_select_renamexf(:)
 !
-	npair_renamexf = 0
-	do ipair = 1, maxpair_renamexf
-	    itmpa = ipair_select_renamexf(ipair)
-	    if (itmpa == 0) then
-		exit
-	    else if (itmpa == 2001) then
-		mfrm = modeptr_aitken
-		mtoo = modeptr_accum
-		igrow_shrink_renamexf(ipair) = 1
-		ixferable_all_needed_renamexf(ipair) = 1
-                strat_only_renamexf(ipair) = .false.
-	    else if (itmpa == 1003) then
-		mfrm = modeptr_accum
-		mtoo = modeptr_coarse
-		igrow_shrink_renamexf(ipair) = 1
-		ixferable_all_needed_renamexf(ipair) = 0
-                strat_only_renamexf(ipair) = .true.
-	    else if (itmpa == 3001) then
-		mfrm = modeptr_coarse
-		mtoo = modeptr_accum
-		igrow_shrink_renamexf(ipair) = -1
-		ixferable_all_needed_renamexf(ipair) = 0
-                strat_only_renamexf(ipair) = .true.
-	    else
-		write(lunout,'(/2a,3(1x,i12))') &
-		    '*** subr. modal_aero_rename_acc_crs_init', &
-		    'bad ipair_select_renamexf', ipair, itmpa
-		call endrun( 'modal_aero_rename_acc_crs_init error' )
-	    end if
+        npair_renamexf = 0
+        do ipair = 1, maxpair_renamexf
+           itmpa = ipair_select_renamexf(ipair)
+           if (itmpa == 0) then
+              exit
+           else if (itmpa == 2001) then  !both mam4 and mam5
+              mfrm = modeptr_aitken
+              mtoo = modeptr_accum
+              igrow_shrink_renamexf(ipair) = 1
+              ixferable_all_needed_renamexf(ipair) = 1
+              strat_only_renamexf(ipair) = .false.
+           else if (itmpa == 1003) then !mam4
+              mfrm = modeptr_accum     !mam4
+              mtoo = modeptr_coarse    !mam4
+              igrow_shrink_renamexf(ipair) = 1 !mam4
+              ixferable_all_needed_renamexf(ipair) = 0 !mam4
+              strat_only_renamexf(ipair) = .true.  !mam4
+           else if (itmpa == 1005) then!
+              mfrm = modeptr_accum !
+              mtoo = modeptr_stracoar   !
+              igrow_shrink_renamexf(ipair) = 1 !
+              ixferable_all_needed_renamexf(ipair) = 0 !
+              strat_only_renamexf(ipair) = .true. !
+           else if (itmpa == 3001) then !
+              mfrm = modeptr_coarse
+              mtoo = modeptr_accum
+              igrow_shrink_renamexf(ipair) = -1
+              ixferable_all_needed_renamexf(ipair) = 0
+              strat_only_renamexf(ipair) = .true.
+           else if (itmpa == 5001) then !
+              !mfrm = modeptr_coarse    !
+              mfrm = modeptr_stracoar  !   
+              mtoo = modeptr_accum     !
+              igrow_shrink_renamexf(ipair) = -1 !
+              ixferable_all_needed_renamexf(ipair) = 0 
+              strat_only_renamexf(ipair) = .true. 
+           else
+              write(lunout,'(/2a,3(1x,i12))') &
+                   '*** subr. modal_aero_rename_acc_crs_init', &
+                   'bad ipair_select_renamexf', ipair, itmpa
+              call endrun( 'modal_aero_rename_acc_crs_init error' )
+           end if
 
-	    do i = 1, ipair-1
-		if (itmpa .eq. ipair_select_renamexf(i)) then
-		    write(lunout,'(/2a/10(1x,i12))') &
-			'*** subr. modal_aero_rename_acc_crs_init', &
-			'duplicates in ipair_select_renamexf', &
-			ipair_select_renamexf(1:ipair)
-		    call endrun( 'modal_aero_rename_acc_crs_init error' )
-		end if
-	    end do
+           do i = 1, ipair-1
+              if (itmpa .eq. ipair_select_renamexf(i)) then
+                 write(lunout,'(/2a/10(1x,i12))') &
+                      '*** subr. modal_aero_rename_acc_crs_init', &
+                      'duplicates in ipair_select_renamexf', &
+                      ipair_select_renamexf(1:ipair)
+                 call endrun( 'modal_aero_rename_acc_crs_init error' )
+              end if
+           end do
 
-	    if ( (mfrm .ge. 1) .and. (mfrm .le. ntot_amode) .and. &
-	         (mtoo .ge. 1) .and. (mtoo .le. ntot_amode) ) then
-		npair_renamexf = ipair
-		modefrm_renamexf(ipair) = mfrm
-		modetoo_renamexf(ipair) = mtoo
-	    else
-		write(lunout,'(/2a,3(1x,i12))') &
-		    '*** subr. modal_aero_rename_acc_crs_init', &
-		    'bad mfrm or mtoo', ipair, mfrm, mtoo
-		call endrun( 'modal_aero_rename_acc_crs_init error' )
-	    end if
-	end do ! ipair
+           if ( (mfrm .ge. 1) .and. (mfrm .le. ntot_amode) .and. &
+                (mtoo .ge. 1) .and. (mtoo .le. ntot_amode) ) then
+              npair_renamexf = ipair
+              modefrm_renamexf(ipair) = mfrm
+              modetoo_renamexf(ipair) = mtoo
+           else
+              write(lunout,'(/2a,3(1x,i12))') &
+                   '*** subr. modal_aero_rename_acc_crs_init', &
+                   'bad mfrm or mtoo', ipair, mfrm, mtoo
+              call endrun( 'modal_aero_rename_acc_crs_init error' )
+           end if
+        end do ! ipair
 
 	if (npair_renamexf .le. 0) then
 	    write(lunout,'(/a/a,3(1x,i12))') &
@@ -1631,31 +1651,40 @@ grow_shrink_conditional1: &
 !   dryvol_smallest is a very small volume mixing ratio (m3-AP/kmol-air)
 !   used for avoiding overflow.  it corresponds to dp = 1 nm
 !   and number = 1e-5 #/mg-air ~= 1e-5 #/cm3-air
-	    dryvol_smallest(mfrm) = 1.0e-25_r8
-	    v2nlorlx(mfrm) = voltonumblo_amode(mfrm)*frelax
-	    v2nhirlx(mfrm) = voltonumbhi_amode(mfrm)/frelax
+            dryvol_smallest(mfrm) = 1.0e-25_r8
+            v2nlorlx(mfrm) = voltonumblo_amode(mfrm)*frelax
+            v2nhirlx(mfrm) = voltonumbhi_amode(mfrm)/frelax
 
 	    factor_3alnsg2(ipair) = 3.0_r8 * (alnsg_amode(mfrm)**2)
 
-	    dp_cut(ipair) = sqrt(   &
-		dgnum_amode(mfrm)*exp(1.5_r8*(alnsg_amode(mfrm)**2)) *   &
-		dgnum_amode(mtoo)*exp(1.5_r8*(alnsg_amode(mtoo)**2)) )
+	    dp_cut(ipair) = sqrt( &
+                 dgnum_amode(mfrm)*exp(1.5_r8*(alnsg_amode(mfrm)**2)) *   &
+                 dgnum_amode(mtoo)*exp(1.5_r8*(alnsg_amode(mtoo)**2)) )
 	    dp_xferall_thresh(ipair) = dgnum_amode(mtoo)
 	    dp_xfernone_threshaa(ipair) = dgnum_amode(mfrm)
+	    if ((mfrm == modeptr_accum) .and. (mtoo == modeptr_coarse)) then  !
+               dp_cut(ipair)               = 4.4e-7_r8
+               dp_xfernone_threshaa(ipair) = 1.6e-7_r8
+               dp_xferall_thresh(ipair)    = 4.7e-7_r8
+            else if ((mfrm == modeptr_coarse) .and. (mtoo == modeptr_accum)) then
+               dp_cut(ipair)               = 4.4e-7_r8
+               dp_xfernone_threshaa(ipair) = 4.4e-7_r8
+               dp_xferall_thresh(ipair)    = 4.1e-7_r8
+            end if
 
-	    if ((mfrm == modeptr_accum) .and. (mtoo == modeptr_coarse)) then
-		dp_cut(ipair)               = 4.4e-7_r8 
-		dp_xfernone_threshaa(ipair) = 1.6e-7_r8 
-		dp_xferall_thresh(ipair)    = 4.7e-7_r8 
-	    else if ((mfrm == modeptr_coarse) .and. (mtoo == modeptr_accum)) then
-		dp_cut(ipair)               = 4.4e-7_r8
-		dp_xfernone_threshaa(ipair) = 4.4e-7_r8
-		dp_xferall_thresh(ipair)    = 4.1e-7_r8
+	    if ((mfrm == modeptr_accum) .and. (mtoo == modeptr_stracoar)) then   !
+               dp_cut(ipair)               = 4.4e-7_r8 
+               dp_xfernone_threshaa(ipair) = 1.6e-7_r8 
+               dp_xferall_thresh(ipair)    = 4.7e-7_r8 
+	    else if ((mfrm == modeptr_stracoar) .and. (mtoo == modeptr_accum)) then  !
+               dp_cut(ipair)               = 4.4e-7_r8
+               dp_xfernone_threshaa(ipair) = 4.4e-7_r8
+               dp_xferall_thresh(ipair)    = 4.1e-7_r8
 	    end if
 
 	    lndp_cut(ipair) = log( dp_cut(ipair) )
 	    dp_belowcut(ipair) = 0.99_r8*dp_cut(ipair)
-	end do
+         end do
 
 
 !

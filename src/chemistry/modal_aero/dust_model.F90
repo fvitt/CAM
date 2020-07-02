@@ -107,6 +107,9 @@ module dust_model
     elseif ( ntot_amode == 4 ) then
        dust_dmt_grd(:) = (/ 0.01e-6_r8, 0.1e-6_r8, 1.0e-6_r8, 10.0e-6_r8 /) ! Aitken dust
        dust_emis_sclfctr(:) = (/ 1.65E-05_r8, 0.011_r8, 0.989_r8 /) ! Aitken dust
+    elseif ( ntot_amode == 5 ) then
+       dust_dmt_grd(:) = (/ 0.01e-6_r8, 0.1e-6_r8, 1.0e-6_r8, 10.0e-6_r8/) ! Aitken dust
+       dust_emis_sclfctr(:) = (/ 1.65E-05_r8, 0.011_r8, 0.989_r8/) ! Aitken dust
     else if( ntot_amode == 7 ) then
        dust_dmt_grd(:) = (/ 0.1e-6_r8, 2.0e-6_r8, 10.0e-6_r8/)
        dust_emis_sclfctr(:) = (/ 0.13_r8, 0.87_r8 /)
@@ -160,7 +163,7 @@ module dust_model
 
     col_loop: do i =1,ncol
 
-       soil_erod(i) = soil_erodibility( i, lchnk )
+       soil_erod(i) = 1._r8 ! lli
 
        if( soil_erod(i) .lt. soil_erod_threshold ) soil_erod(i) = 0._r8
 
