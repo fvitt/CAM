@@ -46,15 +46,17 @@
 ! integer, parameter, public :: ipair_select_renamexf(maxpair_renamexf) = (/ 2001, 1003 /)
 
   integer, parameter, public :: maxpair_renamexf = 3
-#if    ( defined MODAL_AERO_5MODE)
+#ifdef MODAL_AERO_5MODE
   integer, parameter, public :: ipair_select_renamexf(maxpair_renamexf) = (/ 2001, 1005, 5001 /) 
-#elif  ( defined MODAL_AERO_4MODE)
+#else
   integer, parameter, public :: ipair_select_renamexf(maxpair_renamexf) = (/ 2001, 1003, 3001 /) !original
 #endif
 ! ipair_select_renamexf defines the mode_from and mode_too for each renaming pair
 ! 2001 = aitken --> accum
 ! 1003 = accum  --> coarse
 ! 3001 = coarse --> accum
+! 1005 = accum  --> stracoar
+! 5001 = stracoar --> accum
 
   integer, parameter, public :: method_optbb_renamexf = 2
 
@@ -1423,31 +1425,30 @@ grow_shrink_conditional1: &
               igrow_shrink_renamexf(ipair) = 1
               ixferable_all_needed_renamexf(ipair) = 1
               strat_only_renamexf(ipair) = .false.
-           else if (itmpa == 1003) then !mam4
-              mfrm = modeptr_accum     !mam4
-              mtoo = modeptr_coarse    !mam4
-              igrow_shrink_renamexf(ipair) = 1 !mam4
-              ixferable_all_needed_renamexf(ipair) = 0 !mam4
-              strat_only_renamexf(ipair) = .true.  !mam4
-           else if (itmpa == 1005) then!
-              mfrm = modeptr_accum !
-              mtoo = modeptr_stracoar   !
-              igrow_shrink_renamexf(ipair) = 1 !
-              ixferable_all_needed_renamexf(ipair) = 0 !
-              strat_only_renamexf(ipair) = .true. !
-           else if (itmpa == 3001) then !
+           else if (itmpa == 1003) then
+              mfrm = modeptr_accum
+              mtoo = modeptr_coarse
+              igrow_shrink_renamexf(ipair) = 1
+              ixferable_all_needed_renamexf(ipair) = 0
+              strat_only_renamexf(ipair) = .true.
+           else if (itmpa == 1005) then
+              mfrm = modeptr_accum
+              mtoo = modeptr_stracoar
+              igrow_shrink_renamexf(ipair) = 1
+              ixferable_all_needed_renamexf(ipair) = 0
+              strat_only_renamexf(ipair) = .true.
+           else if (itmpa == 3001) then
               mfrm = modeptr_coarse
               mtoo = modeptr_accum
               igrow_shrink_renamexf(ipair) = -1
               ixferable_all_needed_renamexf(ipair) = 0
               strat_only_renamexf(ipair) = .true.
-           else if (itmpa == 5001) then !
-              !mfrm = modeptr_coarse    !
-              mfrm = modeptr_stracoar  !   
-              mtoo = modeptr_accum     !
-              igrow_shrink_renamexf(ipair) = -1 !
-              ixferable_all_needed_renamexf(ipair) = 0 
-              strat_only_renamexf(ipair) = .true. 
+           else if (itmpa == 5001) then
+              mfrm = modeptr_stracoar
+              mtoo = modeptr_accum
+              igrow_shrink_renamexf(ipair) = -1
+              ixferable_all_needed_renamexf(ipair) = 0
+              strat_only_renamexf(ipair) = .true.
            else
               write(lunout,'(/2a,3(1x,i12))') &
                    '*** subr. modal_aero_rename_acc_crs_init', &
