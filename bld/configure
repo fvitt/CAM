@@ -2831,12 +2831,13 @@ sub write_filepath
     if ($chem_src_dir) {
         print $fh "$chem_src_dir\n";
     }
-    if ($chem =~ /_mam/) {
-        print $fh "$camsrcdir/src/chemistry/modal_aero\n";
-    } else {
-        print $fh "$camsrcdir/src/chemistry/bulk_aero\n";
-    }
-    print $fh "$camsrcdir/src/chemistry/aerosol\n";
+#    if ($chem =~ /_mam/) {
+#        print $fh "$camsrcdir/src/chemistry/modal_aero\n";
+#    } else {
+#        print $fh "$camsrcdir/src/chemistry/bulk_aero\n";
+#    }
+#    print $fh "$camsrcdir/src/chemistry/aerosol\n";
+    print $fh "$camsrcdir/src/chemistry/null_aero\n";
 
     if ($waccmx) {
         print $fh "$camsrcdir/src/physics/waccmx\n";
