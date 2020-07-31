@@ -107,8 +107,8 @@ contains
     !                 (K&G 2nd order method has CFL=4. tiny CFL improvement not worth 2nd order)
     !
 
-    if (dry_air_species_num > 0) &
-      call endrun('ERROR: SE dycore not ready for species dependent thermodynamics - ABORT')
+!    if (dry_air_species_num > 0) &
+!      call endrun('ERROR: SE dycore not ready for species dependent thermodynamics - ABORT')
 
     call omp_set_nested(.true.)
 
@@ -1293,7 +1293,7 @@ contains
          call gradient_sphere(Ephi(:,:),deriv,elem(ie)%Dinv,vtemp)
          density_inv(:,:) = R_dry(:,:,k)*T_v(:,:,k)/p_full(:,:,k)
 
-         if (dry_air_species_num==0) then        
+         if (dry_air_species_num==0) then
            exner(:,:)=(p_full(:,:,k)/hvcoord%ps0)**kappa(:,:,k,ie)
            theta_v(:,:)=T_v(:,:,k)/exner(:,:)
            call gradient_sphere(exner(:,:),deriv,elem(ie)%Dinv,grad_exner)
