@@ -1643,7 +1643,7 @@ elsif ($carma eq 'tholin') {
   add_default($nl, 'carma_emis_total',  'val'=>'1e5');
   add_default($nl, 'carma_emis_file');
 }
-elsif ($carma eq 'trop_strat') {
+elsif ($carma eq 'dst_sslt_bc_pom') {
   add_default($nl, 'carma_do_emission', 'val'=>'.true.');
   add_default($nl, 'carma_do_fixedinit','val'=>'.true.');
   add_default($nl, 'carma_do_drydep',   'val'=>'.true.');
@@ -1653,10 +1653,43 @@ elsif ($carma eq 'trop_strat') {
   add_default($nl, 'carma_soilerosion_file');
   add_default($nl, 'carma_fields',      'val'=>'Sl_soilw');
   add_default($nl, 'carma_do_vdiff',    'val'=>'.true.');
+  add_default($nl, 'carma_do_vtran',    'val'=>'.true.');
   add_default($nl, 'carma_do_WeibullK', 'val'=>'.false.');
   add_default($nl, 'carma_seasalt_emis', 'val'=>'Gong');
 }
+elsif ($carma eq 'trop_strat') {
+  add_default($nl, 'carma_do_emission', 'val'=>'.true.');
+  add_default($nl, 'carma_do_fixedinit','val'=>'.false.');
+  add_default($nl, 'carma_do_drydep',   'val'=>'.true.');
+  add_default($nl, 'carma_do_optics',   'val'=>'.true.');
+  add_default($nl, 'carma_do_vtran',    'val'=>'.true.');
+  add_default($nl, 'carma_do_wetdep',   'val'=>'.true.');
+  add_default($nl, 'carma_soilerosion_file');
+  add_default($nl, 'carma_fields',      'val'=>'Sl_soilw');
+  add_default($nl, 'carma_do_vdiff',    'val'=>'.true.');
+  add_default($nl, 'carma_do_WeibullK', 'val'=>'.false.');
+  add_default($nl, 'carma_seasalt_emis', 'val'=>'Gong');
+  add_default($nl, 'carma_do_coag',     'val'=>'.true.');
+  add_default($nl, 'carma_do_grow',     'val'=>'.true.');
+  add_default($nl, 'carma_do_substep',  'val'=>'.true.');
+  add_default($nl, 'carma_do_thermo',   'val'=>'.true.');
+  add_default($nl, 'carma_seasalt_emis', 'val'=>'Gong');
+  add_default($nl, 'carma_maxretries',  'val'=>'30');
+  add_default($nl, 'carma_maxsubsteps', 'val'=>'2');
+  add_default($nl, 'carma_dt_threshold','val'=>'2.0');
+}
 
+# missing so far
+#  add_default($nl, 'carma_do_hetchem',  'val'=>'.true.');
+#  add_default($nl, 'Chlorophy11_file',  'val'=>'/glade/u/home/pengfeiy/data/Chla_2006.nc');
+#  add_default($nl, 'DstEro_file',       'val'=>'/glade/u/home/pengfeiy/data/soil_factor_1.9x2.5.nc');
+#  add_default($nl, 'BC_GAINS_filename', 'val'=>'/glade/u/home/pengfeiy/data/CP_WEO11_S10P50_BC_2010.nc');
+#  add_default($nl, 'OC_GAINS_filename', 'val'=>'/glade/u/home/pengfeiy/data/CP_WEO11_S10P50_OC_2010.nc');
+#  add_default($nl, 'BC_ship_filename',  'val'=>'/glade/u/home/pengfeiy/data/IPCC_emissions_RCP60_BC_ships_2005_0.5x0.5_v1_01_03_2010.nc');
+#  add_default($nl, 'OC_ship_filename',  'val'=>'/glade/u/home/pengfeiy/data/IPCC_emissions_RCP60_OC_ships_2005_0.5x0.5_v1_01_03_2010.nc');
+#  add_default($nl, 'BC_GFEDv3_filename','val'=>'/glade/u/home/pengfeiy/data/GFEDv3_BC_2010.nc');
+#  add_default($nl, 'OC_GFEDv3_filename','val'=>'/glade/u/home/pengfeiy/data/GFEDv3_OC_2010.nc');
+#  add_default($nl, 'carma_seasalt_emis','val'=>'CMS');
 
 # Stratospheric sulfur aerosols
 

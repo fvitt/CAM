@@ -118,7 +118,7 @@ OPTIONS
                         [ none | bc_strat | cirrus | cirrus_dust | dust | meteor_impact |
                           meteor_smoke | mixed_sulfate | pmc | pmc_sulfate | sea_salt | sulfate | tholin |
                           test_detrain | test_growth | test_passive | test_radiative | test_swelling |
-                          test_tracers, test_tracers2 | trop_strat ].
+                          test_tracers, test_tracers2 | trop_strat | dst_sslt_bc_pom].
                         Default: none.
      -chem <name>       Build CAM with specified prognostic chemistry package
                         [ trop_mam3 | trop_mam4 | trop_mam7 | trop_mozart |
@@ -1532,6 +1532,9 @@ elsif ($carma_pkg eq 'test_tracers2') {
 }
 elsif ($carma_pkg eq 'trop_strat') {
     $carma_nadv = 100;
+}
+elsif ($carma_pkg eq 'dst_sslt_bc_pom') {
+    $carma_nadv = 48;
 }
 
 

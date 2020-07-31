@@ -78,10 +78,12 @@ module carma_model_mod
   integer, public, parameter      :: I_OC             = 2       !! OC composition
   integer, public, parameter      :: I_BC             = 3       !! BC composition
   integer, public, parameter      :: I_DUST           = 4       !! dust composition
-  integer, public, parameter      :: I_SALT           = 2       !! sea salt composition
+  integer, public, parameter      :: I_SALT           = 5       !! sea salt composition
 
+  !integer, public, parameter      :: I_GRP_PURSUL     = 1       !! sulfate aerosol
   integer, public, parameter      :: I_GRP_MIXAER     = 1       !! mixed aerosol
 
+  !integer, public, parameter      :: I_ELEM_PURSUL    = 1       !! sulfate aerosol
   integer, public, parameter      :: I_ELEM_CRMIX     = 1       !! aerosol
   integer, public, parameter      :: I_ELEM_CROC      = 2       !! organics aerosol
   integer, public, parameter      :: I_ELEM_CRBC      = 3       !! black carbon
@@ -120,9 +122,12 @@ module carma_model_mod
 
 
 
+
 ! NOTE: The WeibullK distribution is not currently supported, since the coefficients are not
 ! generated. This can be added later.
   real(r8), allocatable, dimension(:,:) :: Weibull_k            ! Weibull K(nlat,nlon
+  real(kind=f), public, parameter     :: rmin_PURSUL     = 3.43e-8_f  ! minimum radius (cm)
+  real(kind=f), public, parameter     :: vmrat_PURSUL    = 3.67_f     ! volume ratio    
   real(kind=f), public, parameter     :: rmin_MIXAER     = 5e-6_f     ! minimum radius (cm)
   real(kind=f), public, parameter     :: vmrat_MIXAER    = 2.2588_f    !2.4610_f        ! volume ratio
 ! sea-salt
@@ -139,6 +144,9 @@ contains
   !!  @version May-2009 
   !!  @author  Chuck Bardeen 
   subroutine CARMA_DefineModel(carma, rc)
+
+    use physics_buffer, only: pbuf_add_field, dtype_r8
+
     type(carma_type), intent(inout)    :: carma     !! the carma object
     integer, intent(out)               :: rc        !! return code, negative indicates failure
     
@@ -170,6 +178,20 @@ contains
     ! NOTE: For CAM, the optional do_wetdep and do_drydep flags should be
     ! defined. If wetdep is defined, then the optional solubility factor
     ! should also be defined.
+
+    !call CARMAGROUP_Create(carma, I_GRP_PURSUL, "sulfate", rmin_PURSUL, vmrat_PURSUL, I_SPHERE, 1._f, .false., &
+    !                       rc, irhswell=I_WTPCT_H2SO4, do_wetdep=.true., do_drydep=.true., solfac=0.3_f, &
+    !                       scavcoef=0.1_f, is_sulfate=.true., shortname="SULF", icoreshell=0, &
+    !                       refidx = refidx, refidxS = refidx, refidxC = refidx, do_mie=.true.,imiertn=I_MIERTN_TOON1981)
+    !if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddGroup failed.')
+
+    !call CARMAGROUP_Create(carma, I_GRP_PURSUL, "sulfate", rmin_PURSUL, vmrat_PURSUL, I_SPHERE, 1._f, .false., &
+    !                       rc, irhswell=I_WTPCT_H2SO4, do_wetdep=.true., do_drydep=.true., solfac=0.3_f, &
+    !                       scavcoef=0.1_f, is_sulfate=.true., shortname="SULF", &
+    !                       imiertn=I_MIERTN_TOON1981)
+    !if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddGroup failed.')
+
+
     !call CARMAGROUP_Create(carma, I_GRP_MIXAER, "mixed aerosol", rmin_MIXAER, vmrat_MIXAER, I_SPHERE, 1._f, .false., &
     !                       rc, do_wetdep=.true., do_drydep=.true., solfac=0.2_f, &
     !                       scavcoef=0.1_f, shortname="CRMIX", refidx=refidx, &
@@ -179,8 +201,7 @@ contains
 
     call CARMAGROUP_Create(carma, I_GRP_MIXAER, "mixed aerosol", rmin_MIXAER, vmrat_MIXAER, I_SPHERE, 1._f, .false., &
                            rc, do_wetdep=.true., do_drydep=.true., solfac=0.2_f, &
-                           scavcoef=0.1_f, shortname="CRMIX", refidx=refidx, &
-                           irhswell=I_MIX, imiertn=I_MIERTN_TOON1981)
+                           scavcoef=0.1_f, shortname="CRMIX", refidx=refidx, imiertn=I_MIERTN_TOON1981)
    !                       irhswell=I_MIX, irhswcomp=I_SWG_URBAN,imiertn=I_MIERTN_TOON1981)
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddGroup failed.')
 
@@ -192,7 +213,6 @@ contains
     !call CARMAELEMENT_Create(carma, I_ELEM_PURSUL, I_GRP_PURSUL, "Sulfate", RHO_SULFATE, I_VOLATILE, I_H2SO4, rc, shortname="SULF")
     !if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddElement failed.')
 
-    !call CARMAELEMENT_Create(carma, I_ELEM_CRMIX,  I_GRP_MIXAER, "Sulfate in mixed sulfate", RHO_SULFATE, I_INVOLATILE, I_H2SO4, rc, kappa=Kappa_SULF, shortname="CRMIX")
     call CARMAELEMENT_Create(carma, I_ELEM_CRMIX,  I_GRP_MIXAER, "Sulfate in mixed sulfate", RHO_SULFATE, I_INVOLATILE, I_H2SO4, rc,  shortname="CRMIX")
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddElement failed.')
 
@@ -229,20 +249,20 @@ contains
     
     ! Define the Processes
 
-!   call CARMA_AddGrowth(carma, I_ELEM_PURSUL, I_GAS_H2SO4, rc)
-!   if (rc < RC_OK) call endrun('CARMA_DefineModel::CARMA_AddGrowth failed.')
+    !call CARMA_AddGrowth(carma, I_ELEM_PURSUL, I_GAS_H2SO4, rc)
+    !if (rc < RC_OK) call endrun('CARMA_DefineModel::CARMA_AddGrowth failed.')
 
     call CARMA_AddGrowth(carma, I_ELEM_CRMIX, I_GAS_H2SO4, rc)
     if (rc < RC_OK) call endrun('CARMA_DefineModel::CARMA_AddGrowth failed.')
 
-!   call CARMA_AddNucleation(carma, I_ELEM_PURSUL, I_ELEM_PURSUL, I_HOMNUC, 0._f, rc, igas=I_GAS_H2SO4)
-!   if (rc < RC_OK) call endrun('CARMA_DefineModel::CARMA_AddNucleation failed.')
+    !call CARMA_AddNucleation(carma, I_ELEM_PURSUL, I_ELEM_PURSUL, I_HOMNUC, 0._f, rc, igas=I_GAS_H2SO4)
+    !if (rc < RC_OK) call endrun('CARMA_DefineModel::CARMA_AddNucleation failed.')
 
-!   call CARMA_AddCoagulation(carma, I_GRP_PURSUl, I_GRP_PURSUL, I_GRP_PURSUL, I_COLLEC_FUCHS, rc)
-!   if (rc < RC_OK) call endrun('CARMA_DefineModel::CARMA_AddCoagulation failed.')
+    !call CARMA_AddCoagulation(carma, I_GRP_PURSUl, I_GRP_PURSUL, I_GRP_PURSUL, I_COLLEC_FUCHS, rc)
+    !if (rc < RC_OK) call endrun('CARMA_DefineModel::CARMA_AddCoagulation failed.')
 
-!   call CARMA_AddCoagulation(carma, I_GRP_PURSUl, I_GRP_MIXAER, I_GRP_MIXAER, I_COLLEC_DATA, rc)
-!   if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddCoagulation failed.')
+    !call CARMA_AddCoagulation(carma, I_GRP_PURSUl, I_GRP_MIXAER, I_GRP_MIXAER, I_COLLEC_DATA, rc)
+    !if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddCoagulation failed.')
 
     call CARMA_AddCoagulation(carma, I_GRP_MIXAER, I_GRP_MIXAER, I_GRP_MIXAER, I_COLLEC_DATA, rc)
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddCoagulation failed.')
