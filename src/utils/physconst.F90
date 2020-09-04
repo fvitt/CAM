@@ -1321,9 +1321,9 @@ end subroutine physconst_init
        mbarv = mwdry
      else
        if (present(fact)) then
-         factor = fact(:,:,:)
+         factor(i0:i1,j0:j1,k0:k1) = fact(i0:i1,j0:j1,k0:k1)
        else
-         factor = 1.0_r8
+         factor(i0:i1,j0:j1,k0:k1) = 1.0_r8
        endif
 
        mbarv = 0.0_r8

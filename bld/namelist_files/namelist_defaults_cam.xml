@@ -2619,6 +2619,7 @@
 
 <se_hypervis_subcycle_sponge                                          > 1  </se_hypervis_subcycle_sponge>
 <se_hypervis_subcycle_sponge  waccmx="1"                              > 5  </se_hypervis_subcycle_sponge>
+<se_hypervis_subcycle_sponge  waccmx="1" hgrid="ne5np4"               > 1  </se_hypervis_subcycle_sponge>
 <se_hypervis_subcycle_sponge waccm_phys="1"                           > 1  </se_hypervis_subcycle_sponge>
 <se_hypervis_subcycle_sponge hgrid="ne120np4"                         > 4  </se_hypervis_subcycle_sponge>
 <se_hypervis_subcycle_sponge se_refined_mesh="1"                      > 4  </se_hypervis_subcycle_sponge>
@@ -2659,6 +2660,7 @@
 
 <se_molecular_diff               >  0.0 </se_molecular_diff>
 <se_molecular_diff waccmx="1"    >  1.0 </se_molecular_diff>
+<se_molecular_diff hgrid="ne5np4" waccmx="1"> 10.0 </se_molecular_diff>
 <se_molecular_diff waccm_phys="1">100.0 </se_molecular_diff>
 
 <se_qsplit > 1 </se_qsplit>
@@ -2672,6 +2674,7 @@
 <se_nsplit>                   2 </se_nsplit>
 <se_nsplit hgrid="ne16np4" >  1 </se_nsplit>
 
+<se_nsplit hgrid="ne5np4"   waccm_phys="1" waccnx="1" >  10 </se_nsplit>
 <se_nsplit hgrid="ne5np4"   waccm_phys="1"            >  3  </se_nsplit>
 <se_nsplit hgrid="ne16np4"  waccm_phys="1" waccnx="1" >  4  </se_nsplit>
 <se_nsplit hgrid="ne16np4"  waccm_phys="1"            >  3  </se_nsplit>
@@ -2684,6 +2687,7 @@
 
 <se_rsplit                                          > 3 </se_rsplit>
 <se_rsplit waccm_phys="1"                           > 4 </se_rsplit>
+<se_rsplit waccm_phys="1" hgrid="ne5np4"  waccnx="1"> 10</se_rsplit>
 <se_rsplit hgrid="ne0np4CONUS.ne30x8" waccm_phys="1"> 5 </se_rsplit>
 
 <se_fvm_supercycling>-1</se_fvm_supercycling>
