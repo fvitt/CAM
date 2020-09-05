@@ -2,9 +2,9 @@ module rad_constituents
 
 !------------------------------------------------------------------------------------------------
 !
-! Provide constituent distributions and properties to the radiation and 
+! Provide constituent distributions and properties to the radiation and
 ! cloud microphysics routines.
-! 
+!
 ! The logic to control which constituents are used in the climate calculations
 ! and which are used in diagnostic radiation calculations is contained in this module.
 !
@@ -47,7 +47,11 @@ public :: &
    rad_cnst_get_mode_num,       &! return mode number mixing ratio
    rad_cnst_get_mode_num_idx,   &! get constituent index of mode number m.r. (climate list only)
    rad_cnst_out,                &! output constituent diagnostics (mass per layer and column burden)
-   rad_cnst_get_call_list        ! return list of active climate/diagnostic calls to radiation
+   rad_cnst_get_call_list,      &! return list of active climate/diagnostic calls to radiation
+   rad_cnst_get_bin_props_by_idx, &
+   rad_cnst_get_bin_mmr_by_idx, &
+   rad_cnst_get_info_by_bin, &
+   rad_cnst_get_bin_props
 
 public :: rad_cnst_num_name
 
@@ -62,11 +66,15 @@ logical,            public :: oldcldoptics = .false.
 ! max number of strings in mode definitions
 integer, parameter :: n_mode_str = 120
 
+! max number of strings in bin definitions
+integer, parameter :: n_bin_str = 120
+
 ! max number of externally mixed entities in the climate/diag lists
 integer, parameter :: n_rad_cnst = N_RAD_CNST
 
 ! Namelist variables
 character(len=cs1), dimension(n_mode_str) :: mode_defs   = ' '
+character(len=cs1), dimension(n_bin_str) :: bin_defs   = ' '
 character(len=cs1) :: rad_climate(n_rad_cnst) = ' '
 character(len=cs1) :: rad_diag_1(n_rad_cnst) = ' '
 character(len=cs1) :: rad_diag_2(n_rad_cnst) = ' '
@@ -112,10 +120,33 @@ end type modes_t
 
 type(modes_t), target :: modes  ! mode definitions
 
+! type to provide access to the components of a bin
+type :: bin_component_t
+   integer :: nspec
+   ! For "source" variables below, value is:
+   ! 'N' if in pbuf (non-advected)
+   ! 'A' if in state (advected)
+   character(len=  1), pointer :: source_mmr_a(:)  ! source of interstitial mmr field
+   character(len= 32), pointer :: camname_mmr_a(:) ! name registered in pbuf or constituents for mmr species
+   character(len= 32), pointer :: type(:)          ! specie type (as used in MAM code)
+   character(len=cs1), pointer :: props(:)         ! file containing specie properties
+   integer, pointer            :: idx_mmr_a(:)     ! index in pbuf or constituents for mmr of interstitial species
+   integer, pointer :: idx_props(:) ! ID used to access physical properties of mode species from phys_prop module
+end type bin_component_t
+
+! type to provide access to all bins
+type :: bins_t
+   integer :: nbins
+   character(len= 32),    pointer :: names(:) ! names used to identify a mode in the climate/diag lists
+   type(bin_component_t), pointer :: comps(:) ! components which define the mode
+end type bins_t
+
+type(bins_t), target :: bins  ! mode definitions
+
 ! type to provide access to the data parsed from the rad_climate and rad_diag_* strings
 type :: rad_cnst_namelist_t
    integer :: ncnst
-   character(len=  1), pointer :: source(:)  ! 'A' for state (advected), 'N' for pbuf (non-advected), 
+   character(len=  1), pointer :: source(:)  ! 'A' for state (advected), 'N' for pbuf (non-advected),
                                              ! 'M' for mode, 'Z' for zero
    character(len= 64), pointer :: camname(:) ! name registered in pbuf or constituents
    character(len=cs1), pointer :: radname(:) ! radname is the name as identfied in radiation,
@@ -127,7 +158,7 @@ end type rad_cnst_namelist_t
 type(rad_cnst_namelist_t) :: namelist(0:N_DIAG) ! gas, bulk aerosol, and modal components used in
                                                 ! climate/diagnostic calculations
 
-logical :: active_calls(0:N_DIAG)     ! active_calls(i) is true if the i-th call to radiation is 
+logical :: active_calls(0:N_DIAG)     ! active_calls(i) is true if the i-th call to radiation is
                                       ! specified.  Note that the 0th call is for the climate
                                       ! calculation which is always made.
 
@@ -182,9 +213,21 @@ end type modelist_t
 
 type(modelist_t), target :: ma_list(0:N_DIAG) ! list of aerosol modes used in climate/diagnostic calcs
 
+! storage for modal aerosol components in the climate/diagnostic lists
+
+type :: binlist_t
+   integer          :: nbins               ! number of bins
+   character(len=2) :: list_id             ! set to "  " for climate list, or two character integer
+                                           ! (include leading zero) to identify diagnostic list
+   integer,   pointer :: idx(:)            ! index of the bin in the bin definition object
+   character(len=cs1), pointer :: physprop_files(:) ! physprop filename
+   integer,   pointer :: idx_props(:)      ! index of the bin properties in the physprop object
+end type binlist_t
+
+type(binlist_t), target :: sa_list(0:N_DIAG) ! list of aerosol bins used in climate/diagnostic calcs
 
 ! values for constituents with requested value of zero
-real(r8), allocatable, target :: zero_cols(:,:) 
+real(r8), allocatable, target :: zero_cols(:,:)
 
 ! define generic interface routines
 interface rad_cnst_get_info
@@ -216,6 +259,9 @@ character(len=9), parameter :: spec_type_names(num_spec_types) = (/ &
    'sulfate  ', 'ammonium ', 'nitrate  ', 'p-organic', &
    's-organic', 'black-c  ', 'seasalt  ', 'dust     '/)
 
+integer, parameter :: num_bin_types  = 3
+character(len=9), parameter :: bin_type_names(num_bin_types) = (/ &
+   'particle ', 'shell    ', 'core     ' /)
 
 !==============================================================================
 contains
@@ -238,6 +284,7 @@ subroutine rad_cnst_readnl(nlfile)
    character(len=*), parameter :: subname = 'rad_cnst_readnl'
 
    namelist /rad_cnst_nl/ mode_defs,     &
+                          bin_defs,      &
                           rad_climate,   &
                           rad_diag_1,    &
                           rad_diag_2,    &
@@ -276,6 +323,7 @@ subroutine rad_cnst_readnl(nlfile)
 #ifdef SPMD
    ! Broadcast namelist variables
    call mpibcast (mode_defs,     len(mode_defs(1))*n_mode_str,     mpichar, 0, mpicom)
+   call mpibcast (bin_defs,      len(bin_defs(1))*n_bin_str,       mpichar, 0, mpicom)
    call mpibcast (rad_climate,   len(rad_climate(1))*n_rad_cnst,   mpichar, 0, mpicom)
    call mpibcast (rad_diag_1,    len(rad_diag_1(1))*n_rad_cnst,    mpichar, 0, mpicom)
    call mpibcast (rad_diag_2,    len(rad_diag_2(1))*n_rad_cnst,    mpichar, 0, mpicom)
@@ -298,7 +346,10 @@ subroutine rad_cnst_readnl(nlfile)
 
    ! Mode definition stings
    call parse_mode_defs(mode_defs, modes)
-   
+
+   ! Bin definition stings
+   call parse_bin_defs(bin_defs, bins)
+
    ! Lists of externally mixed entities for climate and diagnostic calculations
    do i = 0,N_DIAG
       select case (i)
@@ -330,7 +381,7 @@ subroutine rad_cnst_readnl(nlfile)
    ! were there any constituents specified for the nth diagnostic call?
    ! if so, radiation will make a call with those consituents
    active_calls(:) = (namelist(:)%ncnst > 0)
-   	
+
    ! Initialize the gas and aerosol lists with the information from the
    ! namelist.  This is done here so that this information is available via
    ! the query functions at the time when the register methods are called.
@@ -346,6 +397,7 @@ subroutine rad_cnst_readnl(nlfile)
          aerosollist(i)%list_id = suffix
          gaslist(i)%list_id     = suffix
          ma_list(i)%list_id     = suffix
+         sa_list(i)%list_id     = suffix
       end if
    end do
 
@@ -368,22 +420,31 @@ subroutine rad_cnst_readnl(nlfile)
       deallocate(ctype)
    end do
 
+   ! Add physprop files for the species from the mode definitions.
+   do i = 1, modes%nmodes
+      allocate(ctype(modes%comps(i)%nspec))
+      ctype = 'A'
+      call physprop_accum_unique_files(modes%comps(i)%props, ctype)
+      deallocate(ctype)
+   end do
+
    ! Initialize the gas, bulk aerosol, and modal aerosol lists.  This step splits the
    ! input climate/diagnostic lists into the corresponding gas, bulk and modal aerosol
    ! lists.
    if (masterproc) write(iulog,*) nl//subname//': Radiation constituent lists:'
    do i = 0, N_DIAG
       if (active_calls(i)) then
-         call list_init1(namelist(i), gaslist(i), aerosollist(i), ma_list(i))
+         call list_init1(namelist(i), gaslist(i), aerosollist(i), ma_list(i), sa_list(i))
 
          if (masterproc .and. verbose) then
-            call print_lists(gaslist(i), aerosollist(i), ma_list(i))
+            call print_lists(gaslist(i), aerosollist(i), ma_list(i), sa_list(i))
          end if
 
       end if
    end do
 
    if (masterproc .and. verbose) call print_modes(modes)
+   if (masterproc .and. verbose) call print_bins(bins)
 
 end subroutine rad_cnst_readnl
 
@@ -417,10 +478,13 @@ subroutine rad_cnst_init()
    ! Finish initializing the mode definitions.
    call init_mode_comps(modes)
 
+   ! Finish initializing the bin definitions.
+   call init_bin_comps(bins)
+
    ! Finish initializing the gas, bulk aerosol, and mode lists.
    do i = 0, N_DIAG
       if (active_calls(i)) then
-         call list_init2(gaslist(i), aerosollist(i), ma_list(i))
+         call list_init2(gaslist(i), aerosollist(i), ma_list(i), sa_list(i))
       end if
    end do
 
@@ -469,13 +533,13 @@ subroutine rad_cnst_get_gas(list_idx, gasname, state, pbuf, mmr)
       write(iulog,*) subname//': list_idx =', list_idx
       call endrun(subname//': list_idx out of bounds')
    endif
-      
+
    lchnk = state%lchnk
 
-   ! Get index of gas in internal arrays.  rad_gas_index will abort if the 
+   ! Get index of gas in internal arrays.  rad_gas_index will abort if the
    ! specified gasname is not recognized by the radiative transfer code.
    igas = rad_gas_index(trim(gasname))
- 
+
    ! Get data source
    source = list%gas(igas)%source
    idx    = list%gas(igas)%idx
@@ -515,10 +579,10 @@ function rad_cnst_num_name(list_idx, spc_name_in, num_name_out, mode_out, spec_o
   character(len= 32) :: spec_name
 
   found = .false.
-  
+
   m_list => ma_list(list_idx)
   nmodes = m_list%nmodes
-  
+
   do n = 1,nmodes
      mm = m_list%idx(n)
      nspecs = modes%comps(mm)%nspec
@@ -545,7 +609,7 @@ end function
 !================================================================================================
 
 subroutine rad_cnst_get_info(list_idx, gasnames, aernames, &
-                             use_data_o3, ngas, naero, nmodes)
+                             use_data_o3, ngas, naero, nmodes, nbins)
 
    ! Return info about gas and aerosol lists
 
@@ -557,11 +621,13 @@ subroutine rad_cnst_get_info(list_idx, gasnames, aernames, &
    integer,           optional, intent(out) :: naero
    integer,           optional, intent(out) :: ngas
    integer,           optional, intent(out) :: nmodes
+   integer,           optional, intent(out) :: nbins
 
    ! Local variables
    type(gaslist_t),  pointer :: g_list ! local pointer to gas list of interest
    type(aerlist_t),  pointer :: a_list ! local pointer to aerosol list of interest
    type(modelist_t), pointer :: m_list ! local pointer to mode list of interest
+   type(binlist_t),  pointer :: s_list ! local pointer to bin list of interest
 
    integer          :: i
    integer          :: arrlen  ! length of assumed shape array
@@ -575,6 +641,7 @@ subroutine rad_cnst_get_info(list_idx, gasnames, aernames, &
    g_list => gaslist(list_idx)
    a_list => aerosollist(list_idx)
    m_list => ma_list(list_idx)
+   s_list => sa_list(list_idx)
 
    ! number of bulk aerosols in list
    if (present(naero)) then
@@ -584,6 +651,11 @@ subroutine rad_cnst_get_info(list_idx, gasnames, aernames, &
    ! number of aerosol modes in list
    if (present(nmodes)) then
       nmodes = m_list%nmodes
+   endif
+
+   ! number of aerosol bins in list
+   if (present(nbins)) then
+      nbins = s_list%nbins
    endif
 
    ! number of gases in list
@@ -628,7 +700,7 @@ subroutine rad_cnst_get_info(list_idx, gasnames, aernames, &
 
       ! get index of O3 in gas list
       igas = rad_gas_index('O3')
- 
+
       ! Get data source
       source = g_list%gas(igas)%source
 
@@ -695,6 +767,46 @@ subroutine rad_cnst_get_info_by_mode(list_idx, m_idx, &
    endif
 
 end subroutine rad_cnst_get_info_by_mode
+
+!================================================================================================
+
+subroutine rad_cnst_get_info_by_bin(list_idx, m_idx, &
+   nspec)
+
+   ! Return info about modal aerosol lists
+
+   ! Arguments
+   integer,                     intent(in)  :: list_idx    ! index of the climate or a diagnostic list
+   integer,                     intent(in)  :: m_idx       ! index of bin in the specified list
+   integer,           optional, intent(out) :: nspec       ! number of species in the mode
+
+   ! Local variables
+   type(binlist_t), pointer :: s_list ! local pointer to mode list of interest
+
+   integer          :: nbins
+   integer          :: mm
+
+   character(len=*), parameter :: subname = 'rad_cnst_get_info_by_bin'
+   !-----------------------------------------------------------------------------
+
+   s_list => sa_list(list_idx)
+
+   ! check for valid mode index
+   nbins = s_list%nbins
+   if (m_idx < 1 .or. m_idx > nbins) then
+      write(iulog,*) subname//': ERROR - invalid bin index: ', m_idx
+      call endrun(subname//': ERROR - invalid bin index')
+   end if
+
+   ! get index into the mode definition object
+   mm = s_list%idx(m_idx)
+
+   ! number of species in the mode
+   if (present(nspec)) then
+      nspec = bins%comps(mm)%nspec
+   endif
+
+end subroutine rad_cnst_get_info_by_bin
 
 !================================================================================================
 
@@ -1053,7 +1165,7 @@ subroutine init_mode_comps(modes)
                                                    modes%comps(m)%camname_mmr_c(ispec), routine)
 
          ! get physprop ID
-         modes%comps(m)%idx_props(ispec) = physprop_get_id(modes%comps(m)%props(ispec)) 
+         modes%comps(m)%idx_props(ispec) = physprop_get_id(modes%comps(m)%props(ispec))
          if (modes%comps(m)%idx_props(ispec) == -1) then
             call endrun(routine//' : ERROR idx not found for '//trim(modes%comps(m)%props(ispec)))
          end if
@@ -1063,6 +1175,51 @@ subroutine init_mode_comps(modes)
    end do
 
 end subroutine init_mode_comps
+
+!================================================================================================
+
+subroutine init_bin_comps(bins)
+
+   ! Initialize the mode definitions by looking up the relevent indices in the
+   ! constituent and pbuf arrays, and getting the physprop IDs
+
+   ! Arguments
+   type(bins_t), intent(inout) :: bins
+
+   ! Local variables
+   integer :: m, ispec, nspec
+
+   character(len=*), parameter :: routine = 'init_bins'
+   !-----------------------------------------------------------------------------
+
+   do m = 1, bins%nbins
+
+      ! allocate memory for species
+      nspec = bins%comps(m)%nspec
+      allocate( &
+         bins%comps(m)%idx_mmr_a(nspec), &
+!         bins%comps(m)%idx_mmr_c(nspec), &
+         bins%comps(m)%idx_props(nspec)  )
+
+      do ispec = 1, nspec
+
+         ! indices for species mixing ratio components
+         bins%comps(m)%idx_mmr_a(ispec) = get_cam_idx(bins%comps(m)%source_mmr_a(ispec), &
+                                                   bins%comps(m)%camname_mmr_a(ispec), routine)
+!         bins%comps(m)%idx_mmr_c(ispec) = get_cam_idx(bins%comps(m)%source_mmr_c(ispec), &
+!                                                   bins%comps(m)%camname_mmr_c(ispec), routine)
+
+         ! get physprop ID
+         bins%comps(m)%idx_props(ispec) = physprop_get_id(bins%comps(m)%props(ispec))
+         if (bins%comps(m)%idx_props(ispec) == -1) then
+            call endrun(routine//' : ERROR idx not found for '//trim(bins%comps(m)%props(ispec)))
+         end if
+
+      end do
+
+   end do
+
+end subroutine init_bin_comps
 
 !================================================================================================
 
@@ -1078,7 +1235,7 @@ integer function get_cam_idx(source, name, routine)
    integer :: idx
    integer :: errcode
    !-----------------------------------------------------------------------------
-   
+
    if (source(1:1) == 'N') then
 
       idx = pbuf_get_index(trim(name),errcode)
@@ -1102,16 +1259,16 @@ integer function get_cam_idx(source, name, routine)
       call endrun(routine//' ERROR: invalid source for specie '//trim(name))
 
    end if
-  
+
    get_cam_idx = idx
 
 end function get_cam_idx
 
 !================================================================================================
 
-subroutine list_init1(namelist, gaslist, aerlist, ma_list)
+subroutine list_init1(namelist, gaslist, aerlist, ma_list, sa_list)
 
-   ! Initialize the gas and bulk and modal aerosol lists with the 
+   ! Initialize the gas and bulk and modal aerosol lists with the
    ! entities specified in the climate or diagnostic lists.
 
    ! This first phase initialization just sets the information that
@@ -1122,11 +1279,11 @@ subroutine list_init1(namelist, gaslist, aerlist, ma_list)
    type(gaslist_t),        intent(inout) :: gaslist
    type(aerlist_t),        intent(inout) :: aerlist
    type(modelist_t),       intent(inout) :: ma_list
-
+   type(binlist_t),        intent(inout) :: sa_list
 
    ! Local variables
-   integer :: ii, m, naero, nmodes
-   integer :: igas, ba_idx, ma_idx
+   integer :: ii, m, naero, nmodes, nbins
+   integer :: igas, ba_idx, ma_idx, sa_idx
    integer :: istat
    character(len=*), parameter :: routine = 'list_init1'
    !-----------------------------------------------------------------------------
@@ -1137,12 +1294,15 @@ subroutine list_init1(namelist, gaslist, aerlist, ma_list)
    ! Determine the number of bulk aerosols and aerosol modes in the list
    naero = 0
    nmodes = 0
+   nbins = 0
    do ii = 1, namelist%ncnst
       if (trim(namelist%type(ii)) == 'A') naero  = naero + 1
       if (trim(namelist%type(ii)) == 'M') nmodes = nmodes + 1
+      if (trim(namelist%type(ii)) == 'B') nbins = nbins + 1
    end do
    aerlist%numaerosols = naero
    ma_list%nmodes      = nmodes
+   sa_list%nbins       = nbins
 
    ! allocate storage for the aerosol, gas, and mode lists
    allocate( &
@@ -1151,6 +1311,9 @@ subroutine list_init1(namelist, gaslist, aerlist, ma_list)
       ma_list%idx(ma_list%nmodes),           &
       ma_list%physprop_files(ma_list%nmodes), &
       ma_list%idx_props(ma_list%nmodes),     &
+      sa_list%idx(sa_list%nbins),           &
+      sa_list%physprop_files(sa_list%nbins), &
+      sa_list%idx_props(sa_list%nbins),     &
       stat=istat)
    if (istat /= 0) call endrun(routine//': allocate ERROR; aero and gas list components')
 
@@ -1165,6 +1328,7 @@ subroutine list_init1(namelist, gaslist, aerlist, ma_list)
    ! Loop over the radiatively active components specified in the namelist
    ba_idx = 0
    ma_idx = 0
+   sa_idx = 0
    do ii = 1, namelist%ncnst
 
       if (masterproc .and. verbose) &
@@ -1173,13 +1337,14 @@ subroutine list_init1(namelist, gaslist, aerlist, ma_list)
 
       ! Check that the source specifier is legal.
       if (namelist%source(ii) /= 'A' .and. namelist%source(ii) /= 'M' .and. &
-          namelist%source(ii) /= 'N' .and. namelist%source(ii) /= 'Z' ) then
-         call endrun(routine//": source must either be A, M, N or Z:"//&
+          namelist%source(ii) /= 'N' .and. namelist%source(ii) /= 'Z' .and. &
+          namelist%source(ii) /= 'B' ) then
+         call endrun(routine//": source must either be A, B, M, N or Z:"//&
                      " illegal specifier in namelist input: "//namelist%source(ii))
       end if
 
       ! Add component to appropriate list (gas, modal or bulk aerosol)
-      if (namelist%type(ii) == 'A') then 
+      if (namelist%type(ii) == 'A') then
 
          ! Add to bulk aerosol list
          ba_idx = ba_idx + 1
@@ -1188,7 +1353,7 @@ subroutine list_init1(namelist, gaslist, aerlist, ma_list)
          aerlist%aer(ba_idx)%camname       = namelist%camname(ii)
          aerlist%aer(ba_idx)%physprop_file = namelist%radname(ii)
 
-      else if (namelist%type(ii) == 'M') then 
+      else if (namelist%type(ii) == 'M') then
 
          ! Add to modal aerosol list
          ma_idx = ma_idx + 1
@@ -1208,7 +1373,27 @@ subroutine list_init1(namelist, gaslist, aerlist, ma_list)
          ! Also save the name of the physprop file
          ma_list%physprop_files(ma_idx) = namelist%radname(ii)
 
-      else 
+      else if (namelist%type(ii) == 'B') then
+
+         ! Add to modal aerosol list
+         sa_idx = sa_idx + 1
+
+         ! Look through the bin definitions for the name of the specified bin.  The
+         ! index into the modes object all the information relevent to the mode definition.
+         sa_list%idx(sa_idx) = -1
+         do m = 1, bins%nbins
+            if (trim(namelist%camname(ii)) == trim(bins%names(m))) then
+               sa_list%idx(sa_idx) = m
+               exit
+            end if
+         end do
+         if (sa_list%idx(sa_idx) == -1) &
+            call endrun(routine//' ERROR cannot find bin name '//trim(namelist%camname(ii)))
+
+         ! Also save the name of the physprop file
+         sa_list%physprop_files(sa_idx) = namelist%radname(ii)
+
+      else
 
          ! Add to gas list
 
@@ -1234,7 +1419,7 @@ end subroutine list_init1
 
 !================================================================================================
 
-subroutine list_init2(gaslist, aerlist, ma_list)
+subroutine list_init2(gaslist, aerlist, ma_list, sa_list)
 
    ! Final initialization phase gets the component indices in the constituent array
    ! and the physics buffer, and indices into physprop module.
@@ -1242,6 +1427,7 @@ subroutine list_init2(gaslist, aerlist, ma_list)
    type(gaslist_t),        intent(inout) :: gaslist
    type(aerlist_t),        intent(inout) :: aerlist
    type(modelist_t),       intent(inout) :: ma_list
+   type(binlist_t),        intent(inout) :: sa_list
 
    ! Local variables
    integer :: i
@@ -1272,6 +1458,14 @@ subroutine list_init2(gaslist, aerlist, ma_list)
 
       ! get the physprop_id from the phys_prop module
       ma_list%idx_props(i) = physprop_get_id(ma_list%physprop_files(i))
+
+   end do
+
+   ! Loop over bins
+   do i = 1, sa_list%nbins
+
+      ! get the physprop_id from the phys_prop module
+      sa_list%idx_props(i) = physprop_get_id(sa_list%physprop_files(i))
 
    end do
 
@@ -1387,7 +1581,7 @@ end subroutine rad_aer_diag_init
 subroutine parse_mode_defs(nl_in, modes)
 
    ! Parse the mode definition specifiers.  The specifiers are of the form:
-   ! 
+   !
    ! 'mode_name:mode_type:=',
    !  'source_num_a:camname_num_a:source_num_c:camname_num_c:num_mr:+',
    !  'source_mmr_a:camname_mmr_a:source_mmr_c:camname_mmr_c:spec_type:prop_file[:+]'[,]
@@ -1421,7 +1615,7 @@ subroutine parse_mode_defs(nl_in, modes)
    !              associated field for the prop_file.  There can only be one entry
    !              with the num_mr type in a mode definition.
    ! prop_file -- For aerosol species this is a filename, which is
-   !              identified by a ".nc" suffix.  The file contains optical and 
+   !              identified by a ".nc" suffix.  The file contains optical and
    !              other physical properties of the aerosol.
    !
    ! A mode definition must contain only 1 string for the number mixing ratio components
@@ -1447,7 +1641,7 @@ subroutine parse_mode_defs(nl_in, modes)
    character(len=32) :: tmp_name_c
    character(len=32) :: tmp_type
    !-------------------------------------------------------------------------
-  
+
    ! Determine number of modes defined by counting number of strings that are
    ! terminated by ':='
    ! (algorithm stops counting at first blank element).
@@ -1457,7 +1651,7 @@ subroutine parse_mode_defs(nl_in, modes)
 
       if (len_trim(nl_in(m)) == 0) exit
       nstr = nstr + 1
-      
+
       ! There are no fields in the input strings in which a blank character is allowed.
       ! To simplify the parsing go through the input strings and remove blanks.
       tmpstr = adjustl(nl_in(m))
@@ -1488,7 +1682,7 @@ subroutine parse_mode_defs(nl_in, modes)
       write(iulog,*) routine//': ERROR: cannot allocate storage for modes.  nmodes=', nmodes
       call endrun(routine//': ERROR allocating storage for modes')
    end if
-   
+
 
    mcur = 1              ! index of current string being processed
 
@@ -1511,7 +1705,7 @@ subroutine parse_mode_defs(nl_in, modes)
          nspec = nspec + 1
          mcur = mcur + 1
       end do
-      
+
       ! a mode must have at least one specie
       if (nspec == 0) call parse_error('mode must have at least one specie', nl_in(mbeg))
 
@@ -1548,7 +1742,7 @@ subroutine parse_mode_defs(nl_in, modes)
       ! return to first string in mode definition
       mcur = mbeg
       tmpstr = nl_in(mcur)
-      
+
       ! mode name
       ipos = index(tmpstr, ':')
       if (ipos < 2) call parse_error('mode name not found', tmpstr)
@@ -1692,7 +1886,7 @@ subroutine parse_mode_defs(nl_in, modes)
 
       character(len=*), intent(in) :: str
       integer,          intent(in) :: ib, ie
-   
+
       integer :: i
 
       do i = 1, num_spec_types
@@ -1709,7 +1903,7 @@ subroutine parse_mode_defs(nl_in, modes)
 
       character(len=*), intent(in) :: str
       integer,          intent(in) :: ib, ie  ! begin, end character of mode type substring
-   
+
       integer :: i
 
       do i = 1, num_mode_types
@@ -1726,6 +1920,271 @@ end subroutine parse_mode_defs
 
 !================================================================================================
 
+subroutine parse_bin_defs(nl_in, bins)
+
+   ! Parse the mode definition specifiers.  The specifiers are of the form:
+   !
+   ! 'bin_name:=',
+   !  'source_mmr:camname_mmr:spec_type:prop_file[:+]'[,]
+   !  ['source_mmr:camname_mmr:spec_type:prop_file][:+][']
+   !
+   ! where the ':' separated fields are:
+   ! bin_name -- name of the bin.
+   ! =         -- this line terminator identifies the initial string in a
+   !              mode definition
+   ! +         -- this line terminator indicates that the mode definition is
+   !              continued in the next string
+   ! source_mmr  -- Source of interstitial specie mass mixing ratio,  'A', 'N' or 'Z'
+   ! camname_mmr -- the name of the interstitial specie.  This name must be
+   !                  registered in the constituent arrays when source=A or in the
+   !                  physics buffer when source=N
+   ! spec_type -- species type.  Valid values are particle, shell, and core.
+   ! prop_file -- For aerosol species this is a filename, which is
+   !              identified by a ".nc" suffix.  The file contains optical and
+   !              other physical properties of the aerosol.
+   !
+   ! A bin definition must contain at least 1 string for the species and can contain
+   ! a maximum of 1 particle type.
+
+
+   character(len=*), intent(inout) :: nl_in(:)    ! namelist input (blanks are removed on output)
+   type(bins_t),    intent(inout) :: bins       ! structure containing parsed input
+
+   ! Local variables
+   logical :: particle_mr_found
+   integer :: i, m
+   integer :: istat
+   integer :: nbins, nstr, istr
+   integer :: mbeg, mcur
+   integer :: nspec, ispec
+   integer :: strlen, ibeg, iend, ipos
+   logical :: part_mr_found
+   character(len=*), parameter :: routine = 'parse_bin_defs'
+   character(len=len(nl_in(1))) :: tmpstr
+   character(len=1)  :: tmp_src
+   character(len=32) :: tmp_name
+   character(len=32) :: tmp_type
+   !-------------------------------------------------------------------------
+
+   ! Determine number of bins defined by counting number of strings that are
+   ! terminated by ':='
+   ! (algorithm stops counting at first blank element).
+   nbins = 0
+   nstr = 0
+   do m = 1, n_bin_str
+
+      if (len_trim(nl_in(m)) == 0) exit
+      nstr = nstr + 1
+
+      ! There are no fields in the input strings in which a blank character is allowed.
+      ! To simplify the parsing go through the input strings and remove blanks.
+      tmpstr = adjustl(nl_in(m))
+      nl_in(m) = tmpstr
+      do
+         strlen = len_trim(nl_in(m))
+         ipos = index(nl_in(m), ' ')
+         if (ipos == 0 .or. ipos > strlen) exit
+         tmpstr = nl_in(m)(:ipos-1) // nl_in(m)(ipos+1:strlen)
+         nl_in(m) = tmpstr
+      end do
+      ! count strings with ':=' terminator
+      if (nl_in(m)(strlen-1:strlen) == ':=') nbins = nbins + 1
+
+   end do
+   bins%nbins = nbins
+
+   ! return if no bins defined
+   if (nbins == 0) return
+
+   ! allocate components that depend on nmodes
+   allocate( &
+      bins%names(nbins),  &
+      bins%comps(nbins),  &
+      stat=istat )
+   if (istat > 0) then
+      write(iulog,*) routine//': ERROR: cannot allocate storage for bins.  nbins=', nbins
+      call endrun(routine//': ERROR allocating storage for bins')
+   end if
+
+
+   mcur = 1              ! index of current string being processed
+
+   ! loop over bins
+   do m = 1, nbins
+
+      mbeg = mcur  ! remember the first string of a bin
+
+      ! check that first string in bin definition is ':=' terminated
+      iend = len_trim(nl_in(mcur))
+      if (nl_in(mcur)(iend-1:iend) /= ':=') call parse_error('= not found', nl_in(mcur))
+
+      ! count species in bin definition.  definition will contain 1 string with
+      ! with a ':+' terminator for each specie
+      !
+      !MOTE: Bins don't have number element, so all are species
+      nspec = 1
+      mcur = mcur + 1
+      do
+         iend = len_trim(nl_in(mcur))
+         if (nl_in(mcur)(iend-1:iend) /= ':+') exit
+         nspec = nspec + 1
+         mcur = mcur + 1
+      end do
+
+      ! a bin must have at least one specie
+      if (nspec == 0) call parse_error('bin must have at least one specie', nl_in(mbeg))
+
+      ! allocate components that depend on number of species
+      allocate( &
+         bins%comps(m)%source_mmr_a(nspec),  &
+         bins%comps(m)%camname_mmr_a(nspec), &
+         bins%comps(m)%type(nspec),          &
+         bins%comps(m)%props(nspec),         &
+         stat=istat)
+
+      if (istat > 0) then
+         write(iulog,*) routine//': ERROR: cannot allocate storage for species.  nspec=', nspec
+         call endrun(routine//': ERROR allocating storage for species')
+      end if
+
+      ! initialize components
+      bins%comps(m)%nspec         = nspec
+      do ispec = 1, nspec
+         bins%comps(m)%source_mmr_a(ispec)  = ' '
+         bins%comps(m)%camname_mmr_a(ispec) = ' '
+         bins%comps(m)%type(ispec)          = ' '
+         bins%comps(m)%props(ispec)         = ' '
+      end do
+
+      ! return to first string in mode definition
+      mcur = mbeg
+      tmpstr = nl_in(mcur)
+
+      ! bin name
+      ipos = index(tmpstr, ':')
+      if (ipos < 2) call parse_error('bin name not found', tmpstr)
+      bins%names(m)  = tmpstr(:ipos-1)
+      tmpstr         = tmpstr(ipos+1:)
+
+      ! bin name must be followed by '='
+      if (tmpstr(1:1) /= '=') call parse_error('= not found', tmpstr)
+
+      ! move to next string
+      mcur = mcur + 1
+      tmpstr = nl_in(mcur)
+
+      ! process bin component strings
+      particle_mr_found = .false.   ! keep track of whether particle mixing ratio component is found
+      ispec = 0                ! keep track of the number of species found
+      do
+
+         ! source of interstitial component
+         ipos = index(tmpstr, ':')
+         if (ipos < 2) call parse_error('expect to find source field first', tmpstr)
+         ! check for valid source
+         if (tmpstr(:ipos-1) /= 'A' .and. tmpstr(:ipos-1) /= 'N' .and. tmpstr(:ipos-1) /= 'Z') &
+            call parse_error('source must be A, N or Z', tmpstr)
+         tmp_src = tmpstr(:ipos-1)
+         tmpstr    = tmpstr(ipos+1:)
+
+         ! name of interstitial component
+         ipos = index(tmpstr, ':')
+         if (ipos == 0) call parse_error('next separator not found', tmpstr)
+         tmp_name   = tmpstr(:ipos-1)
+         tmpstr     = tmpstr(ipos+1:)
+
+         ! component type
+         ipos = scan(tmpstr, ': ')
+         if (ipos == 0) call parse_error('next separator not found', tmpstr)
+
+         if (tmpstr(:ipos-1) == 'particle') then
+
+            ! there can only be one number mixing ratio component
+            if (particle_mr_found) call parse_error('more than 1 particle component', nl_in(mcur))
+
+            particle_mr_found = .true.
+         end if
+
+         ! check for valid specie type
+         call check_bin_type(tmpstr, 1, ipos-1)
+         tmp_type = tmpstr(:ipos-1)
+         tmpstr   = tmpstr(ipos+1:)
+
+         ! get the properties file
+         ipos = scan(tmpstr, ': ')
+         if (ipos == 0) call parse_error('next separator not found', tmpstr)
+         ! check for valid filename -- must have .nc extension
+         if (tmpstr(ipos-3:ipos-1) /= '.nc') &
+            call parse_error('filename not valid', tmpstr)
+
+         ispec = ispec + 1
+         bins%comps(m)%source_mmr_a(ispec)  = tmp_src
+         bins%comps(m)%camname_mmr_a(ispec) = tmp_name
+         bins%comps(m)%type(ispec)           = tmp_type
+         bins%comps(m)%props(ispec)          = tmpstr(:ipos-1)
+         tmpstr                              = tmpstr(ipos+1:)
+
+         ! check if there are more components.  either the current character is
+         ! a ' ' which means this string is the final mode component, or the character
+         ! is a '+' which means there are more components
+         if (tmpstr(1:1) == ' ') exit
+
+         if (tmpstr(1:1) /= '+') &
+               call parse_error('+ field not found', tmpstr)
+
+         ! continue to next component...
+         mcur = mcur + 1
+         tmpstr = nl_in(mcur)
+      end do
+
+      ! check that the right number of species were found
+      if (ispec /= nspec) call parse_error('component parsing got wrong number of species', nl_in(mbeg))
+
+      ! continue to next bin...
+      mcur = mcur + 1
+      tmpstr = nl_in(mcur)
+   end do
+
+   !------------------------------------------------------------------------------------------------
+   contains
+   !------------------------------------------------------------------------------------------------
+
+   ! internal subroutines used for error checking and reporting
+
+   subroutine parse_error(msg, str)
+
+      character(len=*), intent(in) :: msg
+      character(len=*), intent(in) :: str
+
+      write(iulog,*) routine//': ERROR: '//msg
+      write(iulog,*) ' input string: '//trim(str)
+      call endrun(routine//': ERROR: '//msg)
+
+   end subroutine parse_error
+
+   !------------------------------------------------------------------------------------------------
+
+   subroutine check_bin_type(str, ib, ie)
+
+      character(len=*), intent(in) :: str
+      integer,          intent(in) :: ib, ie
+
+      integer :: i
+
+      do i = 1, num_bin_types
+         if (str(ib:ie) == trim(bin_type_names(i))) return
+      end do
+
+      call parse_error('bin type not valid', str(ib:ie))
+
+   end subroutine check_bin_type
+
+   !------------------------------------------------------------------------------------------------
+
+end subroutine parse_bin_defs
+
+!================================================================================================
+
 subroutine parse_rad_specifier(specifier, namelist_data)
 
 !-----------------------------------------------------------------------------
@@ -1738,7 +2197,7 @@ subroutine parse_rad_specifier(specifier, namelist_data)
 ! radname -- For gases this is a name that identifies the constituent to the
 !            radiative transfer codes.  These names are contained in the
 !            radconstants module.  For aerosols this is a filename, which is
-!            identified by a ".nc" suffix.  The file contains optical and 
+!            identified by a ".nc" suffix.  The file contains optical and
 !            other physical properties of the aerosol.
 !
 ! This code also identifies whether the constituent is a gas or an aerosol
@@ -1758,11 +2217,11 @@ subroutine parse_rad_specifier(specifier, namelist_data)
     character(len=cs1) :: radname(n_rad_cnst)
     character(len=1)   :: type(n_rad_cnst)
     !-------------------------------------------------------------------------
-  
+
     number = 0
 
     parse_loop: do i = 1, n_rad_cnst
-      if ( len_trim(specifier(i)) == 0 ) then 
+      if ( len_trim(specifier(i)) == 0 ) then
          exit parse_loop
       endif
 
@@ -1783,20 +2242,22 @@ subroutine parse_rad_specifier(specifier, namelist_data)
 
       ! locate the ':' separating camname from radname
       j = scan(tmpstr, ':')
- 
+
       camname(i) = tmpstr(:j-1)
       radname(i) = tmpstr(j+1:)
 
       ! determine the type of constituent
-      if (source(i) == 'M') then 
+      if (source(i) == 'M') then
          type(i) = 'M'
+      else if (source(i) == 'B') then
+         type(i) = 'B'
       else if(index(radname(i),".nc") .gt. 0) then
          type(i) = 'A'
       else
          type(i) = 'G'
       end if
 
-      number = number+1    
+      number = number+1
     end do parse_loop
 
     namelist_data%ncnst = number
@@ -1875,7 +2336,7 @@ end subroutine rad_cnst_get_aer_mmr_by_idx
 subroutine rad_cnst_get_mam_mmr_by_idx(list_idx, mode_idx, spec_idx, phase, state, pbuf, mmr)
 
    ! Return pointer to mass mixing ratio for the modal aerosol specie from the specified
-   ! climate or diagnostic list.  
+   ! climate or diagnostic list.
 
    ! Arguments
    integer,                     intent(in) :: list_idx    ! index of the climate or a diagnostic list
@@ -1944,12 +2405,85 @@ end subroutine rad_cnst_get_mam_mmr_by_idx
 
 !================================================================================================
 
+subroutine rad_cnst_get_bin_mmr_by_idx(list_idx, bin_idx, spec_idx, phase, state, pbuf, mmr)
+
+   ! Return pointer to mass mixing ratio for the modal aerosol specie from the specified
+   ! climate or diagnostic list.
+
+   ! Arguments
+   integer,                     intent(in) :: list_idx    ! index of the climate or a diagnostic list
+   integer,                     intent(in) :: bin_idx    ! mode index
+   integer,                     intent(in) :: spec_idx    ! index of specie in the mode
+   character(len=1),            intent(in) :: phase       ! 'a' for interstitial, 'c' for cloud borne
+   type(physics_state), target, intent(in) :: state
+   type(physics_buffer_desc),   pointer    :: pbuf(:)
+   real(r8),                    pointer    :: mmr(:,:)
+
+   ! Local variables
+   integer :: s_idx
+   integer :: idx
+   integer :: lchnk
+   character(len=1) :: source
+   type(binlist_t), pointer :: slist
+   character(len=*), parameter :: subname = 'rad_cnst_get_bin_mmr_by_idx'
+   !-----------------------------------------------------------------------------
+
+   if (list_idx >= 0 .and. list_idx <= N_DIAG) then
+      slist => sa_list(list_idx)
+   else
+      write(iulog,*) subname//': list_idx =', list_idx
+      call endrun(subname//': list_idx out of bounds')
+   endif
+
+   ! Check for valid mode index
+   if (bin_idx < 1  .or.  bin_idx > slist%nbins) then
+      write(iulog,*) subname//': bin_idx= ', bin_idx, '  nbins= ', slist%nbins
+      call endrun(subname//': bin list index out of range')
+   end if
+
+   ! Get the index for the corresponding mode in the mode definition object
+   s_idx = slist%idx(bin_idx)
+
+   ! Check for valid specie index
+   if (spec_idx < 1  .or.  spec_idx > bins%comps(s_idx)%nspec) then
+      write(iulog,*) subname//': spec_idx= ', spec_idx, '  nspec= ', bins%comps(s_idx)%nspec
+      call endrun(subname//': specie list index out of range')
+   end if
+
+   ! Get data source
+   if (phase == 'a') then
+      source = bins%comps(s_idx)%source_mmr_a(spec_idx)
+      idx    = bins%comps(s_idx)%idx_mmr_a(spec_idx)
+! Bins are not cloudborne at this point.
+!   else if (phase == 'c') then
+!      source = bins%comps(s_idx)%source_c(spec_idx)
+!      idx    = bins%comps(s_idx)%idx_mmr_c(spec_idx)
+   else
+      write(iulog,*) subname//': phase= ', phase
+      call endrun(subname//': unrecognized phase; must be "a" or "c"')
+   end if
+
+   lchnk = state%lchnk
+
+   select case( source )
+   case ('A')
+      mmr => state%q(:,:,idx)
+   case ('N')
+      call pbuf_get_field(pbuf, idx, mmr)
+   case ('Z')
+      mmr => zero_cols
+   end select
+
+end subroutine rad_cnst_get_bin_mmr_by_idx
+
+!================================================================================================
+
 subroutine rad_cnst_get_mam_mmr_idx(mode_idx, spec_idx, idx)
 
    ! Return constituent index of mam specie mass mixing ratio for aerosol modes in
    ! the climate list.
 
-   ! This is a special routine to allow direct access to information in the 
+   ! This is a special routine to allow direct access to information in the
    ! constituent array inside physics parameterizations that have been passed,
    ! and are operating over the entire constituent array.  The interstitial phase
    ! is assumed since that's what is contained in the constituent array.
@@ -1993,7 +2527,7 @@ end subroutine rad_cnst_get_mam_mmr_idx
 subroutine rad_cnst_get_mode_num(list_idx, mode_idx, phase, state, pbuf, num)
 
    ! Return pointer to number mixing ratio for the aerosol mode from the specified
-   ! climate or diagnostic list.  
+   ! climate or diagnostic list.
 
    ! Arguments
    integer,                     intent(in) :: list_idx    ! index of the climate or a diagnostic list
@@ -2060,7 +2594,7 @@ subroutine rad_cnst_get_mode_num_idx(mode_idx, cnst_idx)
    ! Return constituent index of mode number mixing ratio for the aerosol mode in
    ! the climate list.
 
-   ! This is a special routine to allow direct access to information in the 
+   ! This is a special routine to allow direct access to information in the
    ! constituent array inside physics parameterizations that have been passed,
    ! and are operating over the entire constituent array.  The interstitial phase
    ! is assumed since that's what is contained in the constituent array.
@@ -2115,7 +2649,7 @@ integer function rad_cnst_get_aer_idx(list_idx, aer_name)
    type(aerlist_t), pointer :: aerlist
    character(len=*), parameter :: subname = "rad_cnst_get_aer_idx"
    !-------------------------------------------------------------------------
-   
+
    if (list_idx >= 0 .and. list_idx <= N_DIAG) then
       aerlist => aerosollist(list_idx)
    else
@@ -2133,7 +2667,7 @@ integer function rad_cnst_get_aer_idx(list_idx, aer_name)
    end do
 
    if (aer_idx == -1) call endrun(subname//": ERROR - name not found")
-  
+
    rad_cnst_get_aer_idx = aer_idx
 
 end function rad_cnst_get_aer_idx
@@ -2159,30 +2693,30 @@ subroutine rad_cnst_get_aer_props_by_idx(list_idx, &
    integer,                     intent(in)  :: list_idx ! index of the climate or a diagnostic list
    integer,                     intent(in)  :: aer_idx  ! index of the aerosol
    character(len=ot_length), optional, intent(out) :: opticstype
-   real(r8),          optional, pointer     :: sw_hygro_ext(:,:) 
-   real(r8),          optional, pointer     :: sw_hygro_ssa(:,:) 
-   real(r8),          optional, pointer     :: sw_hygro_asm(:,:) 
-   real(r8),          optional, pointer     :: lw_hygro_ext(:,:)         
+   real(r8),          optional, pointer     :: sw_hygro_ext(:,:)
+   real(r8),          optional, pointer     :: sw_hygro_ssa(:,:)
+   real(r8),          optional, pointer     :: sw_hygro_asm(:,:)
+   real(r8),          optional, pointer     :: lw_hygro_ext(:,:)
    real(r8),          optional, pointer     :: sw_nonhygro_ext(:)
    real(r8),          optional, pointer     :: sw_nonhygro_ssa(:)
    real(r8),          optional, pointer     :: sw_nonhygro_asm(:)
    real(r8),          optional, pointer     :: sw_nonhygro_scat(:)
    real(r8),          optional, pointer     :: sw_nonhygro_ascat(:)
-   real(r8),          optional, pointer     :: lw_ext(:)         
+   real(r8),          optional, pointer     :: lw_ext(:)
    complex(r8),       optional, pointer     :: refindex_aer_sw(:)
    complex(r8),       optional, pointer     :: refindex_aer_lw(:)
-   character(len=20), optional, intent(out) :: aername           
+   character(len=20), optional, intent(out) :: aername
    real(r8),          optional, intent(out) :: density_aer
    real(r8),          optional, intent(out) :: hygro_aer
-   real(r8),          optional, intent(out) :: dryrad_aer        
-   real(r8),          optional, intent(out) :: dispersion_aer    
-   real(r8),          optional, intent(out) :: num_to_mass_aer   
+   real(r8),          optional, intent(out) :: dryrad_aer
+   real(r8),          optional, intent(out) :: dispersion_aer
+   real(r8),          optional, intent(out) :: num_to_mass_aer
 
-   real(r8),          optional, pointer     :: r_sw_ext(:,:)         
-   real(r8),          optional, pointer     :: r_sw_scat(:,:)         
-   real(r8),          optional, pointer     :: r_sw_ascat(:,:)         
-   real(r8),          optional, pointer     :: r_lw_abs(:,:)         
-   real(r8),          optional, pointer     :: mu(:)         
+   real(r8),          optional, pointer     :: r_sw_ext(:,:)
+   real(r8),          optional, pointer     :: r_sw_scat(:,:)
+   real(r8),          optional, pointer     :: r_sw_ascat(:,:)
+   real(r8),          optional, pointer     :: r_lw_abs(:,:)
+   real(r8),          optional, pointer     :: mu(:)
 
    ! Local variables
    integer :: id
@@ -2258,31 +2792,31 @@ subroutine rad_cnst_get_mam_props_by_idx(list_idx, &
    integer,                     intent(in)  :: mode_idx  ! mode index
    integer,                     intent(in)  :: spec_idx  ! index of specie in the mode
    character(len=ot_length), optional, intent(out) :: opticstype
-   real(r8),          optional, pointer     :: sw_hygro_ext(:,:) 
-   real(r8),          optional, pointer     :: sw_hygro_ssa(:,:) 
-   real(r8),          optional, pointer     :: sw_hygro_asm(:,:) 
-   real(r8),          optional, pointer     :: lw_hygro_ext(:,:)         
+   real(r8),          optional, pointer     :: sw_hygro_ext(:,:)
+   real(r8),          optional, pointer     :: sw_hygro_ssa(:,:)
+   real(r8),          optional, pointer     :: sw_hygro_asm(:,:)
+   real(r8),          optional, pointer     :: lw_hygro_ext(:,:)
    real(r8),          optional, pointer     :: sw_nonhygro_ext(:)
    real(r8),          optional, pointer     :: sw_nonhygro_ssa(:)
    real(r8),          optional, pointer     :: sw_nonhygro_asm(:)
    real(r8),          optional, pointer     :: sw_nonhygro_scat(:)
    real(r8),          optional, pointer     :: sw_nonhygro_ascat(:)
-   real(r8),          optional, pointer     :: lw_ext(:)         
+   real(r8),          optional, pointer     :: lw_ext(:)
    complex(r8),       optional, pointer     :: refindex_aer_sw(:)
    complex(r8),       optional, pointer     :: refindex_aer_lw(:)
 
-   real(r8),          optional, pointer     :: r_sw_ext(:,:)         
-   real(r8),          optional, pointer     :: r_sw_scat(:,:)         
-   real(r8),          optional, pointer     :: r_sw_ascat(:,:)         
-   real(r8),          optional, pointer     :: r_lw_abs(:,:)         
-   real(r8),          optional, pointer     :: mu(:)         
+   real(r8),          optional, pointer     :: r_sw_ext(:,:)
+   real(r8),          optional, pointer     :: r_sw_scat(:,:)
+   real(r8),          optional, pointer     :: r_sw_ascat(:,:)
+   real(r8),          optional, pointer     :: r_lw_abs(:,:)
+   real(r8),          optional, pointer     :: mu(:)
 
-   character(len=20), optional, intent(out) :: aername           
+   character(len=20), optional, intent(out) :: aername
    real(r8),          optional, intent(out) :: density_aer
    real(r8),          optional, intent(out) :: hygro_aer
-   real(r8),          optional, intent(out) :: dryrad_aer        
-   real(r8),          optional, intent(out) :: dispersion_aer    
-   real(r8),          optional, intent(out) :: num_to_mass_aer   
+   real(r8),          optional, intent(out) :: dryrad_aer
+   real(r8),          optional, intent(out) :: dispersion_aer
+   real(r8),          optional, intent(out) :: num_to_mass_aer
    character(len=32), optional, intent(out) :: spectype
 
    ! Local variables
@@ -2348,6 +2882,119 @@ subroutine rad_cnst_get_mam_props_by_idx(list_idx, &
    if (present(spectype)) spectype = modes%comps(m_idx)%type(spec_idx)
 
 end subroutine rad_cnst_get_mam_props_by_idx
+
+!================================================================================================
+
+subroutine rad_cnst_get_bin_props_by_idx(list_idx, &
+   bin_idx, spec_idx,  opticstype, &
+   sw_hygro_ext, sw_hygro_ssa, sw_hygro_asm, lw_hygro_ext, &
+   sw_nonhygro_ext, sw_nonhygro_ssa, sw_nonhygro_asm, &
+   sw_nonhygro_scat, sw_nonhygro_ascat, lw_ext, &
+   refindex_aer_sw, refindex_aer_lw, &
+   r_sw_ext, r_sw_scat, r_sw_ascat, r_lw_abs, mu, &
+   aername, density_aer, hygro_aer, dryrad_aer, dispersion_aer, &
+   num_to_mass_aer, spectype)
+
+   ! Return requested properties for the aerosol from the specified
+   ! climate or diagnostic list.
+
+   use phys_prop, only: physprop_get
+
+   ! Arguments
+   integer,                     intent(in)  :: list_idx  ! index of the climate or a diagnostic list
+   integer,                     intent(in)  :: bin_idx  ! mode index
+   integer,                     intent(in)  :: spec_idx  ! index of specie in the mode
+   character(len=ot_length), optional, intent(out) :: opticstype
+   real(r8),          optional, pointer     :: sw_hygro_ext(:,:)
+   real(r8),          optional, pointer     :: sw_hygro_ssa(:,:)
+   real(r8),          optional, pointer     :: sw_hygro_asm(:,:)
+   real(r8),          optional, pointer     :: lw_hygro_ext(:,:)
+   real(r8),          optional, pointer     :: sw_nonhygro_ext(:)
+   real(r8),          optional, pointer     :: sw_nonhygro_ssa(:)
+   real(r8),          optional, pointer     :: sw_nonhygro_asm(:)
+   real(r8),          optional, pointer     :: sw_nonhygro_scat(:)
+   real(r8),          optional, pointer     :: sw_nonhygro_ascat(:)
+   real(r8),          optional, pointer     :: lw_ext(:)
+   complex(r8),       optional, pointer     :: refindex_aer_sw(:)
+   complex(r8),       optional, pointer     :: refindex_aer_lw(:)
+
+   real(r8),          optional, pointer     :: r_sw_ext(:,:)
+   real(r8),          optional, pointer     :: r_sw_scat(:,:)
+   real(r8),          optional, pointer     :: r_sw_ascat(:,:)
+   real(r8),          optional, pointer     :: r_lw_abs(:,:)
+   real(r8),          optional, pointer     :: mu(:)
+
+   character(len=20), optional, intent(out) :: aername
+   real(r8),          optional, intent(out) :: density_aer
+   real(r8),          optional, intent(out) :: hygro_aer
+   real(r8),          optional, intent(out) :: dryrad_aer
+   real(r8),          optional, intent(out) :: dispersion_aer
+   real(r8),          optional, intent(out) :: num_to_mass_aer
+   character(len=32), optional, intent(out) :: spectype
+
+   ! Local variables
+   integer :: m_idx, id
+   type(binlist_t), pointer :: slist
+   character(len=*), parameter :: subname = 'rad_cnst_get_bin_props_by_idx'
+   !------------------------------------------------------------------------------------
+
+   if (list_idx >= 0 .and. list_idx <= N_DIAG) then
+      slist => sa_list(list_idx)
+   else
+      write(iulog,*) subname//': list_idx = ', list_idx
+      call endrun(subname//': list_idx out of range')
+   endif
+
+   ! Check for valid mode index
+   if (bin_idx < 1  .or.  bin_idx > slist%nbins) then
+      write(iulog,*) subname//': bin_idx= ', bin_idx, '  nbins= ', slist%nbins
+      call endrun(subname//': bin list index out of range')
+   end if
+
+   ! Get the index for the corresponding mode in the mode definition object
+   m_idx = slist%idx(bin_idx)
+
+   ! Check for valid specie index
+   if (spec_idx < 1  .or.  spec_idx > bins%comps(m_idx)%nspec) then
+      write(iulog,*) subname//': spec_idx= ', spec_idx, '  nspec= ', bins%comps(m_idx)%nspec
+      call endrun(subname//': specie list index out of range')
+   end if
+
+   id = bins%comps(m_idx)%idx_props(spec_idx)
+
+   if (present(opticstype))        call physprop_get(id, opticstype=opticstype)
+
+   if (present(sw_hygro_ext))      call physprop_get(id, sw_hygro_ext=sw_hygro_ext)
+   if (present(sw_hygro_ssa))      call physprop_get(id, sw_hygro_ssa=sw_hygro_ssa)
+   if (present(sw_hygro_asm))      call physprop_get(id, sw_hygro_asm=sw_hygro_asm)
+   if (present(lw_hygro_ext))      call physprop_get(id, lw_hygro_abs=lw_hygro_ext)
+
+   if (present(sw_nonhygro_ext))   call physprop_get(id, sw_nonhygro_ext=sw_nonhygro_ext)
+   if (present(sw_nonhygro_ssa))   call physprop_get(id, sw_nonhygro_ssa=sw_nonhygro_ssa)
+   if (present(sw_nonhygro_asm))   call physprop_get(id, sw_nonhygro_asm=sw_nonhygro_asm)
+   if (present(sw_nonhygro_scat))  call physprop_get(id, sw_nonhygro_scat=sw_nonhygro_scat)
+   if (present(sw_nonhygro_ascat)) call physprop_get(id, sw_nonhygro_ascat=sw_nonhygro_ascat)
+   if (present(lw_ext))            call physprop_get(id, lw_abs=lw_ext)
+
+   if (present(refindex_aer_sw))   call physprop_get(id, refindex_aer_sw=refindex_aer_sw)
+   if (present(refindex_aer_lw))   call physprop_get(id, refindex_aer_lw=refindex_aer_lw)
+
+   if (present(r_lw_abs))          call physprop_get(id, r_lw_abs=r_lw_abs)
+   if (present(r_sw_ext))          call physprop_get(id, r_sw_ext=r_sw_ext)
+   if (present(r_sw_scat))         call physprop_get(id, r_sw_scat=r_sw_scat)
+   if (present(r_sw_ascat))        call physprop_get(id, r_sw_ascat=r_sw_ascat)
+   if (present(mu))                call physprop_get(id, mu=mu)
+
+   if (present(aername))           call physprop_get(id, aername=aername)
+   if (present(density_aer))       call physprop_get(id, density_aer=density_aer)
+   if (present(hygro_aer))         call physprop_get(id, hygro_aer=hygro_aer)
+   if (present(dryrad_aer))        call physprop_get(id, dryrad_aer=dryrad_aer)
+   if (present(dispersion_aer))    call physprop_get(id, dispersion_aer=dispersion_aer)
+   if (present(num_to_mass_aer))   call physprop_get(id, num_to_mass_aer=num_to_mass_aer)
+
+   if (present(spectype)) spectype = bins%comps(m_idx)%type(spec_idx)
+
+end subroutine rad_cnst_get_bin_props_by_idx
 
 !================================================================================================
 
@@ -2430,6 +3077,61 @@ end subroutine rad_cnst_get_mode_props
 
 !================================================================================================
 
+subroutine rad_cnst_get_bin_props(list_idx, bin_idx, &
+   extpsw, abspsw, asmpsw, absplw, corefrac, &
+   nfrac)
+
+   ! Return requested properties for the bin from the specified
+   ! climate or diagnostic list.
+
+   use phys_prop, only: physprop_get
+
+   ! Arguments
+   integer,             intent(in)  :: list_idx  ! index of the climate or a diagnostic list
+   integer,             intent(in)  :: bin_idx  ! mode index
+
+   real(r8),  optional, pointer     :: extpsw(:,:)
+   real(r8),  optional, pointer     :: abspsw(:,:)
+   real(r8),  optional, pointer     :: asmpsw(:,:)
+   real(r8),  optional, pointer     :: absplw(:,:)
+   real(r8),  optional, pointer     :: corefrac(:)
+   integer,   optional, intent(out) :: nfrac
+
+   ! Local variables
+   integer :: id
+   type(binlist_t), pointer :: slist
+   character(len=*), parameter :: subname = 'rad_cnst_get_bin_props'
+   !------------------------------------------------------------------------------------
+
+   if (list_idx >= 0 .and. list_idx <= N_DIAG) then
+      slist => sa_list(list_idx)
+   else
+      write(iulog,*) subname//': list_idx = ', list_idx
+      call endrun(subname//': list_idx out of range')
+   endif
+
+   ! Check for valid mode index
+   if (bin_idx < 1  .or.  bin_idx > slist%nbins) then
+      write(iulog,*) subname//': bin_idx= ', bin_idx, '  nbins= ', slist%nbins
+      call endrun(subname//': bin list index out of range')
+   end if
+
+   ! Get the physprop index for the requested bin
+   id = slist%idx_props(bin_idx)
+
+   if (present(extpsw))      call physprop_get(id, extpsw2=extpsw)
+   if (present(abspsw))      call physprop_get(id, abspsw2=abspsw)
+   if (present(asmpsw))      call physprop_get(id, asmpsw2=asmpsw)
+   if (present(absplw))      call physprop_get(id, absplw2=absplw)
+
+   if (present(corefrac))   call physprop_get(id, corefrac=corefrac)
+
+   if (present(nfrac))       call physprop_get(id, nfrac=nfrac)
+
+end subroutine rad_cnst_get_bin_props
+
+!================================================================================================
+
 subroutine print_modes(modes)
 
    type(modes_t), intent(inout) :: modes
@@ -2459,7 +3161,33 @@ end subroutine print_modes
 
 !================================================================================================
 
-subroutine print_lists(gas_list, aer_list, ma_list)
+subroutine print_bins(bins)
+
+   type(bins_t), intent(inout) :: bins
+
+   integer :: i, m
+   !---------------------------------------------------------------------------------------------
+
+   write(iulog,*)' Bin Definitions'
+
+   do m = 1, bins%nbins
+
+      write(iulog,*) nl//' name=',trim(bins%names(m))
+
+      do i = 1, bins%comps(m)%nspec
+
+         write(iulog,*) ' src_a=',trim(bins%comps(m)%source_mmr_a(i)), '  mmr_a=',trim(bins%comps(m)%camname_mmr_a(i)), &
+                       '  type=',trim(bins%comps(m)%type(i))
+         write(iulog,*) '     prop file=', trim(bins%comps(m)%props(i))
+      end do
+
+   end do
+
+end subroutine print_bins
+
+!================================================================================================
+
+subroutine print_lists(gas_list, aer_list, ma_list, sa_list)
 
    ! Print summary of gas, bulk and modal aerosol lists.  This is just the information
    ! read from the namelist.
@@ -2469,6 +3197,7 @@ subroutine print_lists(gas_list, aer_list, ma_list)
    type(aerlist_t),  intent(in) :: aer_list
    type(gaslist_t),  intent(in) :: gas_list
    type(modelist_t), intent(in) :: ma_list
+   type(binlist_t),  intent(in) :: sa_list
 
    integer :: i, id
 
@@ -2508,6 +3237,17 @@ subroutine print_lists(gas_list, aer_list, ma_list)
    do i = 1, ma_list%nmodes
       id = ma_list%idx(i)
       write(iulog,*) '  '//trim(modes%names(id))
+   enddo
+
+   if (len_trim(sa_list%list_id) == 0) then
+      write(iulog,*) nl//' bin aerosol list for climate calculations'
+   else
+      write(iulog,*) nl//' bin aerosol list for diag'//sa_list%list_id//' calculations'
+   end if
+
+   do i = 1, sa_list%nbins
+      id = sa_list%idx(i)
+      write(iulog,*) '  '//trim(bins%names(id))
    enddo
 
 end subroutine print_lists
