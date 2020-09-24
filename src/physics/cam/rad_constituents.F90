@@ -67,7 +67,7 @@ logical,            public :: oldcldoptics = .false.
 integer, parameter :: n_mode_str = 120
 
 ! max number of strings in bin definitions
-integer, parameter :: n_bin_str = 120
+integer, parameter :: n_bin_str = 200
 
 ! max number of externally mixed entities in the climate/diag lists
 integer, parameter :: n_rad_cnst = N_RAD_CNST

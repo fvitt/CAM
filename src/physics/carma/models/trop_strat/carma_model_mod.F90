@@ -18,6 +18,8 @@
 !!
 !! @version April-2020
 !! @author  Simone Tilmes, Lin Su, Pengfei Yu, Chuck Bardeen 
+!!  changes to pervious version: rename PURSULF to PRSULF to be easier read in in CAM
+
 module carma_model_mod
 
   use carma_precision_mod
@@ -54,11 +56,12 @@ module carma_model_mod
   public CARMA_InitializeModel
   public CARMA_InitializeParticle
   public CARMA_WetDeposition
+  public CARMA_BCOCRead
   public CARMA_SaltFlux
 
   ! Declare public constants
-  integer, public, parameter      :: NGROUP   = 1               !! Number of particle groups
-  integer, public, parameter      :: NELEM    = 5               !! Number of particle elements
+  integer, public, parameter      :: NGROUP   = 2               !! Number of particle groups
+  integer, public, parameter      :: NELEM    = 6               !! Number of particle elements
   integer, public, parameter      :: NBIN     = 20              !! Number of particle bins
   integer, public, parameter      :: NSOLUTE  = 0               !! Number of particle solutes
   integer, public, parameter      :: NGAS     = 2               !! Number of gases
@@ -80,15 +83,16 @@ module carma_model_mod
   integer, public, parameter      :: I_DUST           = 4       !! dust composition
   integer, public, parameter      :: I_SALT           = 5       !! sea salt composition
 
-  !integer, public, parameter      :: I_GRP_PURSUL     = 1       !! sulfate aerosol
-  integer, public, parameter      :: I_GRP_MIXAER     = 1       !! mixed aerosol
+  integer, public, parameter      :: I_GRP_PURSUL     = 1       !! sulfate aerosol
+  integer, public, parameter      :: I_GRP_MIXAER     = 2       !! mixed aerosol
 
-  !integer, public, parameter      :: I_ELEM_PURSUL    = 1       !! sulfate aerosol
-  integer, public, parameter      :: I_ELEM_CRMIX     = 1       !! aerosol
-  integer, public, parameter      :: I_ELEM_CROC      = 2       !! organics aerosol
-  integer, public, parameter      :: I_ELEM_CRBC      = 3       !! black carbon
-  integer, public, parameter      :: I_ELEM_CRDUST    = 4       !! dust aerosol
-  integer, public, parameter      :: I_ELEM_CRSALT    = 5       !! sea salt aerosol
+  integer, public, parameter      :: I_ELEM_PRSUL     = 1       !! sulfate aerosol;  nameing needs to only have 2 charaters  before the element name to work with 
+                                                                !! partsof the code reading different elements
+  integer, public, parameter      :: I_ELEM_CRMIX     = 2       !! aerosol
+  integer, public, parameter      :: I_ELEM_CROC      = 3       !! organics aerosol
+  integer, public, parameter      :: I_ELEM_CRBC      = 4       !! black carbon
+  integer, public, parameter      :: I_ELEM_CRDUST    = 5       !! dust aerosol
+  integer, public, parameter      :: I_ELEM_CRSALT    = 6       !! sea salt aerosol
 
   integer, public, parameter      :: I_GAS_H2O        = 1              !! water vapor
   integer, public, parameter      :: I_GAS_H2SO4      = 2              !! sulphuric acid  
@@ -103,6 +107,12 @@ module carma_model_mod
   real(kind=f), public, parameter         :: RHO_DUST = 2.65_f                  !! dry density of dust particles (g/cm^3) -Lin Su
   real(kind=f), public, parameter         :: RHO_SALT = 2.65_f                  !! dry density of sea salt particles (g/cm)
   real(kind=f), public, parameter         :: RHO_SULFATE  = 1.923_f     !! dry density of sulfate particles (g/cm3)
+
+ ! see CARMA_SmokeEmissionRead
+! real(kind=f), allocatable, dimension(:,:)     ::   Chla                                       ! Chlorophy11 data (mg/m3)
+  real(r8), allocatable, dimension(:,:,:)       ::   BCnew                              ! #/cm2/s 
+  real(r8), allocatable, dimension(:,:,:)       ::   OCnew
+
 
   ! for sea salt flux calculation
   real(r8), parameter             :: uth_salt = 4._r8                !! threshold wind velocity  
@@ -126,13 +136,13 @@ module carma_model_mod
 ! NOTE: The WeibullK distribution is not currently supported, since the coefficients are not
 ! generated. This can be added later.
   real(r8), allocatable, dimension(:,:) :: Weibull_k            ! Weibull K(nlat,nlon
-  real(kind=f), public, parameter     :: rmin_PURSUL     = 3.43e-8_f  ! minimum radius (cm)
-  real(kind=f), public, parameter     :: vmrat_PURSUL    = 3.67_f     ! volume ratio    
+  real(kind=f), public, parameter     :: rmin_PRSUL     = 3.43e-8_f  ! minimum radius (cm)
+  real(kind=f), public, parameter     :: vmrat_PRSUL    = 3.67_f     ! volume ratio    
   real(kind=f), public, parameter     :: rmin_MIXAER     = 5e-6_f     ! minimum radius (cm)
   real(kind=f), public, parameter     :: vmrat_MIXAER    = 2.2588_f    !2.4610_f        ! volume ratio
-! sea-salt
-!  real(kind=f), parameter            :: rmin_MIXAER     = 1e-6_f    ! minimum radius (cm)
-! real(kind=f), parameter            :: vmrat_MIXAER    = 4.32_f    ! volume ratio
+
+! Physics buffer index for sulfate surface area density
+  integer                         :: ipbuf4sad, ipbuf4reff, ipbuf4crso4
 
 
 contains
@@ -153,11 +163,9 @@ contains
     ! Local variables
     integer                            :: LUNOPRT              ! logical unit number for output
     logical                            :: do_print             ! do print output?
-!   real(kind=f), parameter            :: RHO_DUST = 2.65_f    ! dry density of dust particles (g/cm^3) -Lin Su 
-!   real(kind=f), parameter            :: RHO_SALT = 2.65_f    ! dry density of sea salt particles (g/cm)
-!dust    real(kind=f), parameter            :: rmin     = 1.19e-5_f ! minimum radius (cm)
-!dust    real(kind=f), parameter            :: vmrat    = 2.371_f   ! volume ratio
     complex(kind=f)                    :: refidx(NWAVE)        ! refractice indices
+    complex(kind=f)                    :: refidxS(NWAVE)                ! refractice indices for Shell
+    complex(kind=f)                    :: refidxC(NWAVE)                ! refractice indices for Core
     
     ! Default return code.
     rc = RC_OK    
@@ -179,17 +187,17 @@ contains
     ! defined. If wetdep is defined, then the optional solubility factor
     ! should also be defined.
 
-    !call CARMAGROUP_Create(carma, I_GRP_PURSUL, "sulfate", rmin_PURSUL, vmrat_PURSUL, I_SPHERE, 1._f, .false., &
+    !call CARMAGROUP_Create(carma, I_GRP_PURSUL, "sulfate", rmin_PRSUL, vmrat_PRSUL, I_SPHERE, 1._f, .false., &
     !                       rc, irhswell=I_WTPCT_H2SO4, do_wetdep=.true., do_drydep=.true., solfac=0.3_f, &
-    !                       scavcoef=0.1_f, is_sulfate=.true., shortname="SULF", icoreshell=0, &
+    !                       scavcoef=0.1_f, is_sulfate=.true., shortname="PRSULF", icoreshell=0, &
     !                       refidx = refidx, refidxS = refidx, refidxC = refidx, do_mie=.true.,imiertn=I_MIERTN_TOON1981)
     !if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddGroup failed.')
 
-    !call CARMAGROUP_Create(carma, I_GRP_PURSUL, "sulfate", rmin_PURSUL, vmrat_PURSUL, I_SPHERE, 1._f, .false., &
-    !                       rc, irhswell=I_WTPCT_H2SO4, do_wetdep=.true., do_drydep=.true., solfac=0.3_f, &
-    !                       scavcoef=0.1_f, is_sulfate=.true., shortname="SULF", &
-    !                       imiertn=I_MIERTN_TOON1981)
-    !if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddGroup failed.')
+    call CARMAGROUP_Create(carma, I_GRP_PURSUL, "sulfate", rmin_PRSUL, vmrat_PRSUL, I_SPHERE, 1._f, .false., &
+                           rc, irhswell=I_WTPCT_H2SO4, do_wetdep=.true., do_drydep=.true., solfac=0.3_f, &
+                           scavcoef=0.1_f, is_sulfate=.true., shortname="PRSULF", &
+                           imiertn=I_MIERTN_TOON1981)
+    if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddGroup failed.')
 
 
     !call CARMAGROUP_Create(carma, I_GRP_MIXAER, "mixed aerosol", rmin_MIXAER, vmrat_MIXAER, I_SPHERE, 1._f, .false., &
@@ -210,8 +218,8 @@ contains
     !
     ! NOTE: For CAM, the optional shortname needs to be provided for the group. These names
     ! should be 6 characters or less and without spaces.
-    !call CARMAELEMENT_Create(carma, I_ELEM_PURSUL, I_GRP_PURSUL, "Sulfate", RHO_SULFATE, I_VOLATILE, I_H2SO4, rc, shortname="SULF")
-    !if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddElement failed.')
+    call CARMAELEMENT_Create(carma, I_ELEM_PRSUL, I_GRP_PURSUL, "Sulfate", RHO_SULFATE, I_VOLATILE, I_H2SO4, rc, shortname="PRSULF")
+    if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddElement failed.')
 
     call CARMAELEMENT_Create(carma, I_ELEM_CRMIX,  I_GRP_MIXAER, "Sulfate in mixed sulfate", RHO_SULFATE, I_INVOLATILE, I_H2SO4, rc,  shortname="CRMIX")
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddElement failed.')
@@ -238,36 +246,40 @@ contains
 
 
     ! Define the Gases
+    !call CARMAGAS_Create(carma, I_GAS_H2O, "Water Vapor", WTMOL_H2O, I_VAPRTN_H2O_MURPHY2005, I_GCOMP_H2O, &
+    !                     rc, shortname = "Q", ds_threshold=-0.2_f)
     call CARMAGAS_Create(carma, I_GAS_H2O, "Water Vapor", WTMOL_H2O, I_VAPRTN_H2O_MURPHY2005, I_GCOMP_H2O, &
-                         rc, shortname = "Q", ds_threshold=-0.2_f)
+                         rc, shortname = "Q")
     if (rc < RC_OK) call endrun('CARMA_DefineModel::CARMAGAS_Create failed.')
 
+    !call CARMAGAS_Create(carma, I_GAS_H2SO4, "Sulfuric Acid", WTMOL_H2SO4, I_VAPRTN_H2SO4_AYERS1980, &
+    !                     I_GCOMP_H2SO4, rc, shortname = "H2SO4", ds_threshold=-0.2_f)
     call CARMAGAS_Create(carma, I_GAS_H2SO4, "Sulfuric Acid", WTMOL_H2SO4, I_VAPRTN_H2SO4_AYERS1980, &
-                         I_GCOMP_H2SO4, rc, shortname = "H2SO4", ds_threshold=-0.2_f)
+                         I_GCOMP_H2SO4, rc, shortname = "H2SO4")
     if (rc < RC_OK) call endrun('CARMA_DefineModel::CARMAGAS_Create failed.')
 
     
     ! Define the Processes
 
-    !call CARMA_AddGrowth(carma, I_ELEM_PURSUL, I_GAS_H2SO4, rc)
-    !if (rc < RC_OK) call endrun('CARMA_DefineModel::CARMA_AddGrowth failed.')
+    call CARMA_AddGrowth(carma, I_ELEM_PRSUL, I_GAS_H2SO4, rc)
+    if (rc < RC_OK) call endrun('CARMA_DefineModel::CARMA_AddGrowth failed.')
 
     call CARMA_AddGrowth(carma, I_ELEM_CRMIX, I_GAS_H2SO4, rc)
     if (rc < RC_OK) call endrun('CARMA_DefineModel::CARMA_AddGrowth failed.')
 
-    !call CARMA_AddNucleation(carma, I_ELEM_PURSUL, I_ELEM_PURSUL, I_HOMNUC, 0._f, rc, igas=I_GAS_H2SO4)
-    !if (rc < RC_OK) call endrun('CARMA_DefineModel::CARMA_AddNucleation failed.')
+    call CARMA_AddNucleation(carma, I_ELEM_PRSUL, I_ELEM_PRSUL, I_HOMNUC, 0._f, rc, igas=I_GAS_H2SO4)
+    if (rc < RC_OK) call endrun('CARMA_DefineModel::CARMA_AddNucleation failed.')
 
-    !call CARMA_AddCoagulation(carma, I_GRP_PURSUl, I_GRP_PURSUL, I_GRP_PURSUL, I_COLLEC_FUCHS, rc)
-    !if (rc < RC_OK) call endrun('CARMA_DefineModel::CARMA_AddCoagulation failed.')
+    call CARMA_AddCoagulation(carma, I_GRP_PURSUl, I_GRP_PURSUL, I_GRP_PURSUL, I_COLLEC_FUCHS, rc)
+    if (rc < RC_OK) call endrun('CARMA_DefineModel::CARMA_AddCoagulation failed.')
 
-    !call CARMA_AddCoagulation(carma, I_GRP_PURSUl, I_GRP_MIXAER, I_GRP_MIXAER, I_COLLEC_DATA, rc)
-    !if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddCoagulation failed.')
+    call CARMA_AddCoagulation(carma, I_GRP_PURSUl, I_GRP_MIXAER, I_GRP_MIXAER, I_COLLEC_DATA, rc)
+    if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddCoagulation failed.')
 
     call CARMA_AddCoagulation(carma, I_GRP_MIXAER, I_GRP_MIXAER, I_GRP_MIXAER, I_COLLEC_DATA, rc)
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddCoagulation failed.')
 
-!   call pbuf_add_field('SADSULF', 'global', dtype_r8, (/pcols, pver/), ipbuf4sad)
+    call pbuf_add_field('SADSULF', 'global', dtype_r8, (/pcols, pver/), ipbuf4sad)
 
     
     return
@@ -315,6 +327,7 @@ contains
   !!  @author  Chuck Bardeen 
   subroutine CARMA_DiagnoseBins(carma, cstate, state, pbuf, icol, dt, rc, rliq, prec_str, snow_str)
     use time_manager,     only: is_first_step
+    use constituents,     only: cnst_get_ind
 
     implicit none
 
@@ -349,6 +362,7 @@ contains
   subroutine CARMA_DiagnoseBulk(carma, cstate, cam_out, state, pbuf, ptend, icol, dt, rc, rliq, prec_str, snow_str, &
     prec_sed, snow_sed, tnd_qsnow, tnd_nsnow, re_ice)
     use camsrfexch,       only: cam_out_t
+    use physics_buffer, only: pbuf_get_field
 
     implicit none
     
@@ -369,13 +383,67 @@ contains
     real(r8), intent(inout), optional    :: tnd_qsnow(pcols,pver) !! snow mass tendency (kg/kg/s)
     real(r8), intent(inout), optional    :: tnd_nsnow(pcols,pver) !! snow number tendency (#/kg/s)
     real(r8), intent(out), optional      :: re_ice(pcols,pver)    !! ice effective radius (m)
+
+   ! Local variables
+    real(r8)                             :: numberDensity(cstate%f_NZ)
+    real(r8)                             :: ad(cstate%f_NZ)       !! aerosol wet surface area density (cm2/cm3)
+    real(r8)                             :: ad1(cstate%f_NZ)      !! aerosol wet surface area density (cm2/cm3)
+    real(r8)                             :: ad2(cstate%f_NZ)      !! aerosol wet surface area density (cm2/cm3)
+    real(r8)                             :: reff(cstate%f_NZ)     !! wet effective radius (m)
+    real(r8)                             :: md(cstate%f_NZ)       !! bin integrated mass mixing ratio (kg/kg)
+    real(r8)                             :: mmr(cstate%f_NZ)      !! mass mixing ratio per bin (kg/kg)
+    real(r8)                             :: r_wet(cstate%f_NZ)    !! Sulfate aerosol bin wet radius (cm)
+    real(r8), pointer, dimension(:,:)    :: sadsulf_ptr           !! Sulfate surface area density pointer
+    real(r8), pointer, dimension(:,:)    :: reffsulf_ptr          !! Sulfate effective radius pointer
+    real(r8), pointer, dimension(:,:)    :: mmrsulf_ptr           !! Sulfate mass mixing ratio pointer
+    integer                              :: ibin, igroup
+   
     
     ! Default return code.
     rc = RC_OK
     
-    ! By default, do nothing. If diagnosed groups exist, this needs to be replaced by
-    ! code to determine the bulk mass from the CARMA state.
-    
+    call CARMAELEMENT_Get(carma, I_ELEM_PRSUL, rc, igroup=igroup)
+    if (rc < 0) call endrun('CARMA_DiagnoseBulk::CARMAELEMENT_Get failed.')
+
+    ad1(:)  = 0.0_r8     ! wet aerosol surface area density (cm2/cm3)
+    ad2(:)  = 0.0_r8     ! wet aerosol surface area density (cm2/cm3)
+    md(:)  = 0.0_r8      ! bin integrated mass mixing ratio (kg/kg)
+    reff(:)  = 0.0_r8    ! effective radius (m)
+
+    do ibin = 1, NBIN
+      call CARMASTATE_GetBin(cstate, I_ELEM_PRSUL, ibin, mmr(:), rc, &
+                             numberDensity=numberDensity, r_wet=r_wet)
+      if (rc < 0) call endrun('CARMA_DiagnoseBulk::CARMASTATE_GetBin failed.')
+
+      ! Calculate the total densities.
+      !
+      ! NOTE: Calculate AD in cm2/cm3.
+      if (numberDensity(1) /= CAM_FILL) then
+        ad1(:)  = ad1(:)  + numberDensity(:) * (r_wet(:)**2)
+        reff(:) = reff(:) + numberDensity(:) * (r_wet(:)**3)
+        md(:)  = md(:)  + mmr(:)  ! bin integrated mass mixing ratio (kg/kg)
+      end if
+    end do
+
+    do ibin = 1, NBIN
+      call CARMASTATE_GetBin(cstate, I_ELEM_CRMIX, ibin, mmr(:), rc, &
+                             numberDensity=numberDensity, r_wet=r_wet)
+      if (rc < 0) call endrun('CARMA_DiagnoseBulk::CARMASTATE_GetBin failed.')
+
+      ! Calculate the total densities.
+      !
+      ! NOTE: Calculate AD in cm2/cm3.
+      if (numberDensity(1) /= CAM_FILL) then
+        ad2(:)  = ad2(:)  + numberDensity(:) * (r_wet(:)**2)
+      end if
+    end do
+
+    reff(:) = reff(:) / ad1(:) ! wet effective radius in cm
+    reff(:) = reff(:) / 100.0_r8 ! cm -> m
+
+    call pbuf_get_field(pbuf, ipbuf4sad, sadsulf_ptr)
+    sadsulf_ptr(icol, :cstate%f_NZ) = ad(:cstate%f_NZ)    ! stratospheric aerosol wet surface area density (cm2/cm3)
+
     return
   end subroutine CARMA_DiagnoseBulk
 
@@ -391,6 +459,8 @@ contains
     use ppgrid,        only: pcols, pver
     use physics_types, only: physics_state
     use phys_grid,     only: get_lon_all_p, get_lat_all_p
+    use time_manager,  only: get_curr_date, get_perp_date, get_curr_calday, &
+                             is_perpetual
     use camsrfexch,    only: cam_in_t
     use cam_history,   only: outfld
     
@@ -409,15 +479,24 @@ contains
     
     integer      :: ilat(pcols)             ! latitude index 
     integer      :: ilon(pcols)             ! longitude index
+    real(r8)     :: clat(pcols)             ! latitude
     integer      :: lchnk                   ! chunk identifier
     integer      :: ncol                    ! number of columns in chunk
     integer      :: icol                    ! column index
+    real(r8)     :: calday                  ! current calendar day
+    integer      :: yr                      ! year
+    integer      :: mon                     ! month
+    integer      :: day                     ! day of month
+    integer      :: ncsec                   ! time of day (seconds)
+    integer      :: doy                     ! day of year
+    real(r8)     :: smoke(pcols)            ! smoke emission flux (molecues/cm2/s)
     integer      :: igroup                  ! the index of the carma aerosol group
     character(len=32) :: shortname          ! the shortname of the group
-    
-    ! -------- local variables added for dust model ------------
+
+
+
+    ! -------- local variables added for dust and sea-salt model ------------
     real(r8), parameter :: ch = 0.5e-9_r8                     ! dimensional factor & tuning number,
-                                                              ! as it's model resolution dependent (kgs^2/m^5)!!!
     real(r8)            :: r(NBIN)                            ! bin center (cm)
     real(r8)            :: uth                                ! threshold wind velocity (m/s)
     real(r8)            :: uv10                               ! 10 m wind speed (m/s)
@@ -427,13 +506,40 @@ contains
     integer             :: idustbin                           ! ibin to use for dust production, smallest silt bin for clay
     real(r8)            :: soilfact(pcols)                    ! soil erosion factor (for debug)
 
-    ! ------------ local variables added for organics model ----------------------
+! ------------ local variables added for organics model ----------------------
     real(r8)     :: dr(carma%f_NBIN)
     real(r8)     :: rmass(carma%f_NBIN)
-    real(r8)     :: SaltFlux(pcols)             ! sea salt flux to calculate marine POA
+    real(r8)     :: aeronet(carma%f_NBIN)               ! AERONET DATA, Sep.20, 2002, Jaru Reserve, Brazil (refer to MATICHUK et al., 2008)
+    real(r8)     :: SaltFlux(pcols)                     ! sea salt flux to calculate marine POA
+    real(r8)     :: fraction                            ! fraction of BC dV/dlnr in each bin (100%)
+    real(r8)     :: rm(carma%f_NBIN)                    ! bin mass
+    integer      :: ibin_local
+    integer            :: LUNOPRT                             ! logical unit number for output
+    logical                            :: do_print             ! do print output?
+
+
+!   currently not used 
+!   real(r8)     :: MPOAFlux(pcols)             ! marine POA flux
+!   real(r8)     :: Fsub(pcols)                 ! marine Chlorophy11-dependent mass contribution of sub-micron organics
+!   real(r8)     :: sub_micron(pcols)                   ! total sub-micron sea spray particles
+!   real(r8)     :: PBAPFlux(pcols)                             ! Primary biological aerosol particles
+!   real(r8)     :: spor_mon_N(12) = (/0.5_r8,0.5_r8,0.5_r8,1.5_r8,1.5_r8,1.5_r8,1.5_r8,1.5_r8,1.5_r8,0.5_r8,0.5_r8,0.5_r8/)
+!   real(r8)     :: spor_mon_S(12) = (/1.5_r8,1.5_r8,1.5_r8,0.5_r8,0.5_r8,0.5_r8,0.5_r8,0.5_r8,0.5_r8,1.5_r8,1.5_r8,1.5_r8/)
+!   real(r8)     :: Spbin                                               ! fraction of emission for each bin
+!   real(r8)     :: Rrh(pcols)                                  ! RH effect for spore emission
+!   real(r8)     :: sporemass                   ! spore mass per particle
 
     ! Default return code.
     rc = RC_OK
+ 
+    ! Determine the day of year.
+    calday = get_curr_calday()
+    if ( is_perpetual() ) then
+      call get_perp_date(yr, mon, day, ncsec)
+    else
+      call get_curr_date(yr, mon, day, ncsec)
+    end if
+    doy = floor(calday)
 
     ! Determine the latitude and longitude of each column.
     lchnk = state%lchnk
@@ -441,6 +547,7 @@ contains
 
     call get_lat_all_p(lchnk, ncol, ilat)
     call get_lon_all_p(lchnk, ncol, ilon)
+    !call get_rlat_all_p(lchnk, ncol, clat)
 
     ! Add any surface flux here.
     surfaceFlux(:ncol) = 0.0_r8
@@ -450,14 +557,71 @@ contains
     ! NOTE: Do not set tendency to be the surface flux. Surface source is put in to
     ! the bottom layer by vertical diffusion. See vertical_solver module, line 355.            
     tendency(:ncol, :pver) = 0.0_r8
-        
+
+
+     ! Add Emission (surfaceFlux) here.
+
+    !!*******************************************************************************************************
+
+    !! add an element, first element is total number with emission from both OC and BC;
+    !! second element is BC mass
+    !! by Pengfei Yu
+    !! Feb.22 2012
+    !!*******************************************************************************************************
+
+
     call CARMAELEMENT_GET(carma, ielem, rc, igroup=igroup, shortname=shortname)
     if (RC < RC_ERROR) return
     
     call CARMAGROUP_GET(carma, igroup, rc, shortname=shortname, r=r)
     if (RC < RC_ERROR) return
+
+     !!*******************************************************************************************************
+
+    aeronet = (/  0.001274,0.010654,0.036561,0.069929,0.106963,0.103837,&
+                  0.043374,0.013394,0.006464,0.005745,0.006914,0.007261,&
+                  0.007336,0.008939,0.011202,0.013975,0.016692,0.016751,&
+                  0.012351,0.006856,0.003082,0.001135  /)                                       ! um3/um2/[um/um]
+
+    r(:)       =  carma%f_group(igroup)%f_r(:)
+    dr(:)      =  carma%f_group(igroup)%f_dr(:)
+
+    if (masterproc) then
+      call CARMA_Get(carma, rc, do_print=do_print, LUNOPRT=LUNOPRT)
+
+    ! if (do_print) then
+    !   write(carma%f_LUNOPRT,*) 'AERONET', aeronet
+    !   write(carma%f_LUNOPRT,*) 'dr', dr
+    !   write(carma%f_LUNOPRT,*) 'r', r
+    ! end if
+    end if
+
+    rm(:) = 0._r8
+    do ibin_local = 1, carma%f_NBIN
+       rm(ibin_local) = aeronet(ibin_local)*dr(ibin_local)/r(ibin_local)*RHO_obc*1.e-15         ! kg
+    enddo
+
+
+    fraction = rm(ibin)/sum(rm(:))
+
+    !!*******************************************************************************************************
+
     
-    if (ielem == I_ELEM_CRDUST) then
+    if (ielem == I_ELEM_CROC) then
+       do icol = 1, ncol
+          smoke(icol) = OCnew(ilat(icol), ilon(icol), mon)*1.8_r8
+       enddo
+!  st  scip Fsub PBAFlux etcfor now 
+       surfaceFlux(:ncol) = smoke(:ncol)*fraction*1.9934e-22_r8    
+     
+    elseif (ielem == I_ELEM_CRBC) then
+        do icol = 1, ncol
+          smoke(icol) = BCnew(ilat(icol), ilon(icol), mon)
+       enddo
+       surfaceFlux(:ncol) = smoke(:ncol)*fraction*1.9934e-22_r8
+
+    elseif (ielem == I_ELEM_CRDUST) then
+
     ! st if (shortname .eq. "CRDUST") then  ! done by Pengfei
     
       ! Is this clay or silt?
@@ -512,10 +676,10 @@ contains
 !st  not used currently  but done by Pengfei
        ! get [Chl-a] data
   !!   do icol = 1, ncol
-  !!       if (Chla(lat(icol), lon(icol)) .lt. 0._r8) then
+  !!       if (Chla(ilat(icol), ilon(icol)) .lt. 0._r8) then
   !!          Fsub(icol) = 0._r8
   !!       else
-  !!          Fsub(icol) = Chla(lat(icol), lon(icol)) * 0.63_r8 + 0.1_r8
+  !!          Fsub(icol) = Chla(ilat(icol), ilon(icol)) * 0.63_r8 + 0.1_r8
   !!       endif
   !!       Fsub(icol) = min(Fsub(icol), 1._r8)
   !!   enddo
@@ -529,6 +693,45 @@ contains
   !!        surfaceFlux(:ncol) = (SaltFlux(:ncol) - SaltFlux(:ncol)*Fsub(:ncol)*0.03_r8)/1.0983_r8
   !!   endif
        surfaceFlux(:ncol) = SaltFlux(:ncol)
+
+  !  elseif (ielem == I_ELEM_CRMIX) then
+!
+!       ! OC & BC
+!       do icol = 1, ncol
+!          smoke(icol) = OCnew(ilat(icol), ilon(icol), mon)*1.8_r8 + BCnew(ilat(icol), ilon(icol), mon)
+!       enddo
+!      ! seasalt 
+!      call CARMA_SaltFlux(carma, ibin, state, r, dr, rmass, cam_in, SaltFlux, rc)
+!
+!      ! dust
+!       if (r(ibin) >= rClay) then
+!        sp         = 0.9_r8 / nSilt
+!        idustbin   = ibin
+!       else
+!        sp         = 0.1_r8 / nClay
+!        idustbin   = nClay + 1
+!       end if
+!      ! Process each column.
+!      do icol = 1,ncol
+!        ! need to use dust element (e.g. density) to calculate surface wind
+!        ! otherwise the winds would be different   
+!        call CARMA_SurfaceWind(carma, state, icol, ilat(icol), ilon(icol), I_ELEM_CRDUST, igroup, idustbin, cam_in, uv10, wwd, uth, rc)
+!        ! Is the wind above the threshold for dust production?
+!        if (uv10 > uth) then
+!            surfaceFlux(icol) = ch * soil_factor(ilat(icol), ilon(icol)) * sp * &
+!                                wwd  * (uv10 - uth)
+!        endif
+!        ! Scale the clay bins based upon the smallest silt bin.   
+!        surfaceFlux(icol) = clay_mf(ibin) * surfaceFlux(icol)
+!      end do
+!
+!      ! dust+poa+bc+marinPOA+seasalt+seasalt_sulfate
+      ! marinePOA + sea alt + marineSulfate = SaltFlux
+      !surfaceFlux(:ncol) = surfaceFlux(:ncol) + smoke(:ncol)*fraction*1.9934e-22_r8 + SaltFlux(:ncol) + PBAPFlux(:ncol)
+!     surfaceFlux(:ncol) = surfaceFlux(:ncol) + smoke(:ncol)*fraction*1.9934e-22_r8 + SaltFlux(:ncol) 
+
+    else      
+
     end if        
     
     return
@@ -553,7 +756,7 @@ contains
 
     ! -------- local variables ----------
     integer            :: ibin                                ! CARMA bin index
-    real(r8)           :: r(carma%f_NBIN)                     ! bin center (cm)
+    real(r8)           :: r(NBIN)                     ! bin center (cm)
     integer            :: count_Silt                          ! count number for Silt
     integer            :: igroup                              ! the index of the carma aerosol group
     integer            :: ielem                               ! the index of the carma aerosol element
@@ -1418,5 +1621,677 @@ contains
     end if
 
   end subroutine WeibullWind
+
+  !! Read BC data from three components:
+  !! 1. GAINS anthropogenic; 2. Ship Emission; 3. GFEDv3; 4. Aircraft
+  !! GAINS unit: kt/year; 2D; lon:-180-180
+  !! Ship Emission unit: kg/m2/s; 3D (month,lat,lon); lon:0-360
+  !! GFEDv3 unit: g/m2/month; 3D (month,lat,lon); lon:-180-180
+  !!
+  !! @author  Pengfei Yu
+  !! @version May-2013
+  subroutine CARMA_BCOCRead(carma, rc)
+    use pmgrid,        only: plat, plon
+    use ioFileMod,     only: getfil
+    use cam_pio_utils, only: cam_pio_openfile
+    use interpolate_data,  only : lininterp_init, lininterp, interp_type, lininterp_finish
+    use pio,              only : file_desc_t, var_desc_t, &
+                               pio_seterrorhandling, pio_internal_error, pio_bcast_error, &
+                               pio_char, pio_noerr, &
+                               pio_inq_dimid, pio_inq_varid, &
+                               pio_def_dim, pio_def_var, &
+                               pio_put_att, pio_put_var, &
+                               pio_get_var, pio_get_att, pio_nowrite, pio_inq_dimlen, &
+                               pio_inq_vardimid, pio_inq_dimlen, pio_closefile, &
+                               pio_inquire_variable
+    implicit none
+
+    type(carma_type), intent(in)              :: carma                 !! the carma object
+    integer, intent(out)                      :: rc                    !! return code, negative indicates failure
+
+    ! local variables
+    integer                                   :: f_nlon, f_nlat, f_ntime
+    integer                                   :: fid_lon, fid_lat, fid_time
+    real(r8), allocatable, dimension(:,:)     :: BC_f2d, BC2d, OC_f2d, OC2d
+    real(r8), allocatable, dimension(:,:,:)   :: BC_f3d, BC3d, OC_f3d, OC3d
+!
+    character(len=256)                        :: BC_GAINS_file
+    character(len=256)                        :: OC_GAINS_file
+    character(len=256)                        :: BC_GFEDv3_file
+    character(len=256)                        :: OC_GFEDv3_file
+    character(len=256)                        :: BC_ship_file
+    character(len=256)                        :: OC_ship_file
+!    
+    real(r8), allocatable, dimension(:,:,:)       :: BC_anthro_GAINS
+    real(r8), allocatable, dimension(:,:,:)       :: OC_anthro_GAINS
+    real(r8), allocatable, dimension(:,:,:)       :: BC_GFEDv3
+    real(r8), allocatable, dimension(:,:,:)       :: OC_GFEDv3
+    real(r8), allocatable, dimension(:,:,:)       :: BC_ship_GAINS
+    real(r8), allocatable, dimension(:,:,:)       :: OC_ship_GAINS
+!        
+    real(r8), allocatable, dimension(:)       :: BC_lat, OC_lat       ! latitude dimension
+    real(r8), allocatable, dimension(:)       :: BC_lon, OC_lon       ! latitude dimension
+    type (interp_type)                        :: wgt1, wgt2
+    real(r8)                                  :: lat(plat), lon(plon)
+    integer                                   :: i, itime
+    real(r8)                                                              :: rearth, gridarea
+    integer                                                                       :: nmonth
+    real(r8)                                                              :: tempor(plon,plat)
+    real(r8), allocatable, dimension(:,:,:)       :: tempor3d
+    real(r8), allocatable, dimension(:,:)         :: tempor2d
+    real(r8), allocatable, dimension(:)           :: tempor1d
+    integer                                                                       :: mid_idx
+    real(r8), allocatable, dimension(:,:)         :: BC_dom_f2d, OC_dom_f2d
+    real(r8), allocatable, dimension(:,:)         :: BC_awb_f2d, OC_awb_f2d
+    real(r8), allocatable, dimension(:,:,:)       :: BC_dom_f3d, OC_dom_f3d
+    real(r8), allocatable, dimension(:,:,:)       :: BC_awb_f3d, OC_awb_f3d
+    real(r8), allocatable, dimension(:,:)         :: BC2d_dom, OC2d_dom
+    real(r8), allocatable, dimension(:)           :: facH, facL
+    integer                                                                       :: ind_15N, ind_45N, ierr
+    type(file_desc_t) :: fid
+    type(var_desc_t) :: idvar, idlat, idlon, idvar_dom, idvar_awb
+
+    rc = RC_OK
+
+! get model lat and lon
+    do i = 1, plat
+       lat(i) = 180._r8/(plat-1)*(i-1)-90._r8
+    end do
+    do i = 1, plon
+       lon(i) = 360._r8/plon*(i-1)
+    end do
+
+!
+    nmonth = 12
+
+! allocate BCnew and OCnew, unit is #/cm2/s
+    allocate(BCnew(plat, plon, nmonth))
+    allocate(OCnew(plat, plon, nmonth))
+
+! monthly fraction of domestic emission
+    allocate(facH(nmonth))
+    allocate(facL(nmonth))
+    facH = (/0.18_r8,0.14_r8,0.13_r8,0.08_r8,0.04_r8,0.02_r8,0.01_r8,&
+                0.02_r8,0.03_r8,0.07_r8,0.11_r8,0.17_r8/)
+    facL = (/0.17_r8,0.14_r8,0.11_r8,0.06_r8,0.04_r8,0.04_r8,0.04_r8,&
+                0.04_r8,0.04_r8,0.06_r8,0.10_r8,0.15_r8/)
+
+! find index for 15N and 45N
+    do i = 1, plat
+       if (lat(i) .gt. 15._r8) then
+          ind_15N = i
+          exit
+       endif
+    end do
+!
+    do i = 1, plat
+       if (lat(i) .gt. 45._r8) then
+          ind_45N = i
+          exit
+       endif
+    end do
+
+! Part 1a: BC anthropogenic from GAINS
+! -------------------------------------------------
+        ! Open the netcdf file (read only)
+        call getfil(BC_GAINS_filename, BC_GAINS_file, 0)
+        call cam_pio_openfile( fid, BC_GAINS_file, PIO_NOWRITE)
+
+        ! Get file dimensions
+        ierr = pio_inq_dimid(fid, 'time', fid_time)
+        ierr = pio_inq_dimid(fid, 'lon', fid_lon)
+        ierr = pio_inq_dimid(fid, 'lat', fid_lat)
+        ierr = pio_inq_dimlen(fid, fid_time,f_ntime)
+        ierr = pio_inq_dimlen(fid, fid_lon, f_nlon)
+        ierr = pio_inq_dimlen(fid, fid_lat, f_nlat)
+        
+       !  write(carma%f_LUNOPRT,*) ''
+       !  write(carma%f_LUNOPRT,*) 'f_lon = ', f_nlon
+       !  write(carma%f_LUNOPRT,*) 'f_lat = ', f_nlat 
+       !  write(carma%f_LUNOPRT,*) 'f_ntime = ', f_ntime
+       !  write(carma%f_LUNOPRT,*) ''  
+
+    allocate(BC_lat(f_nlat))
+    allocate(BC_lon(f_nlon))
+    allocate(BC_f3d(f_nlon, f_nlat, f_ntime))
+    allocate(BC_f2d(f_nlon, f_nlat))
+    allocate(BC_dom_f2d(f_nlon, f_nlat))
+    allocate(BC_dom_f3d(f_nlon, f_nlat, f_ntime))
+    allocate(BC_awb_f3d(f_nlon, f_nlat, f_ntime))
+    allocate(BC2d (plon, plat))
+    allocate(BC2d_dom (plon, plat))
+    allocate(BC_anthro_GAINS(nmonth, plat, plon))
+
+    ! Read in the tables.
+    ierr = pio_inq_varid(fid, 'emis_all', idvar)
+    ierr = pio_get_var(fid, idvar, BC_f3d )
+    ierr = pio_inq_varid(fid, 'emis_dom', idvar_dom)
+    ierr = pio_get_var(fid, idvar, BC_dom_f3d )
+    ierr = pio_inq_varid(fid, 'emis_awb', idvar_awb)
+    ierr = pio_get_var(fid, idvar, BC_awb_f3d )
+    ierr = pio_inq_varid(fid, 'lat', idlat)
+    ierr = pio_get_var(fid, idlat, BC_lat )
+    ierr = pio_inq_varid(fid, 'lon ', idlon)
+    ierr = pio_get_var(fid, idlon, BC_lon )
+
+    ! Close the file.
+    call pio_closefile(fid)
+    ! get emission excluding domestic and agriculture waste buring
+    BC_f2d = BC_f3d(:,:,1) - BC_dom_f3d(:,:,1) - BC_awb_f3d(:,:,1)
+    BC_dom_f2d = BC_dom_f3d(:,:,1)
+
+    ! make sure file longitude range from 0-360  
+    if (BC_lon(1) < -160._r8) then
+       allocate(tempor2d(f_nlon, f_nlat))
+       allocate(tempor1d(f_nlon))
+       mid_idx = floor(f_nlon/2._r8)
+       ! emission excluding dom
+       tempor2d(1:mid_idx,:f_nlat) = BC_f2d(mid_idx+1:f_nlon,:f_nlat)
+       tempor1d(1:mid_idx) = BC_lon(mid_idx+1:f_nlon)
+       tempor2d(mid_idx+1:f_nlon,:f_nlat) = BC_f2d(1:mid_idx,:f_nlat)
+       tempor1d(mid_idx+1:f_nlon) = BC_lon(1:mid_idx)+360._r8
+       BC_f2d = tempor2d
+       ! dom emission
+       tempor2d(1:mid_idx,:f_nlat) = BC_dom_f2d(mid_idx+1:f_nlon,:f_nlat)
+       tempor2d(mid_idx+1:f_nlon,:f_nlat) = BC_dom_f2d(1:mid_idx,:f_nlat)
+       BC_dom_f2d = tempor2d
+       !
+       BC_lon = tempor1d
+       deallocate(tempor2d)
+       deallocate(tempor1d)
+    else
+       BC_lon = BC_lon
+    endif
+
+    ! Convert kt/year ----> #/cm2/s
+    rearth = 6.371e6_r8 ! m
+    do i = 1, f_nlat
+       gridarea = 2.0_r8*3.14159_r8*rearth/f_nlat * &
+                          2.0_r8*3.14159_r8*rearth/f_nlon*cos(BC_lat(i)/180._r8*3.14159_r8)
+       !                          
+       BC_f2d(:f_nlon,i) = BC_f2d(:f_nlon,i)/365._r8/86400._r8*1.e9_r8/ &       ! g/s
+                                        12._r8*6.02e23_r8/gridarea*1.e-4_r8                     ! #/cm2/s
+       !                                        
+       BC_dom_f2d(:f_nlon,i) = BC_dom_f2d(:f_nlon,i)/365._r8/86400._r8*1.e9_r8/ &       ! g/s
+                                        12._r8*6.02e23_r8/gridarea*1.e-4_r8                     ! #/cm2/s                                       
+    end do
+
+    call lininterp_init(BC_lat, f_nlat, lat, plat, 1, wgt1)
+    call lininterp_init(BC_lon, f_nlon, lon, plon, 1, wgt2)
+    call lininterp(BC_f2d, f_nlon, f_nlat, BC2d, plon, plat, wgt2, wgt1)
+    call lininterp_finish(wgt1)
+    call lininterp_finish(wgt2)
+
+    call lininterp_init(BC_lat, f_nlat, lat, plat, 1, wgt1)
+    call lininterp_init(BC_lon, f_nlon, lon, plon, 1, wgt2)
+    call lininterp(BC_dom_f2d, f_nlon, f_nlat, BC2d_dom, plon, plat, wgt2, wgt1)
+    call lininterp_finish(wgt1)
+    call lininterp_finish(wgt2)
+
+            ! To implement Monthly data for dom emssion
+        ! methods from Stohl et al., 2013
+        ! facH works for high latitudes: 45-90N
+        ! facL works for low latitudes: 15-45N
+        ! below 15N, no seasonal variation
+        !
+        do itime = 1, nmonth
+           ! 45N-90N
+           BC2d(:plon, ind_45N:plat) = BC2d(:plon, ind_45N:plat) + &
+                                                                BC2d_dom(:plon, ind_45N:plat)*facH(itime)*12._r8
+           ! 15N-45N                                                    
+           BC2d(:plon, ind_15N:ind_45N-1) = BC2d(:plon, ind_15N:ind_45N-1) + &
+                                                                BC2d_dom(:plon, ind_15N:ind_45N-1)*facL(itime)*12._r8
+           ! 90S-15N                                                    
+           BC2d(:plon, 1:ind_15N-1) = BC2d(:plon, 1:ind_15N-1) + &
+                                                                BC2d_dom(:plon, 1:ind_15N-1)
+                                                                                                                                                                        
+       BC_anthro_GAINS(itime, :plat, :plon) = transpose(BC2d(:plon, :plat))                                                                     
+    end do
+
+    deallocate(BC_lat)
+    deallocate(BC_lon)
+    deallocate(BC_f2d)
+    deallocate(BC_f3d)
+    deallocate(BC_dom_f2d)
+    deallocate(BC_dom_f3d)
+    deallocate(BC_awb_f3d)
+    deallocate(BC2d)
+    deallocate(BC2d_dom)
+
+! Part 1b: OC anthropogenic from GAINS
+! -------------------------------------------------
+        ! Open the netcdf file (read only)
+        call getfil(OC_GAINS_filename, OC_GAINS_file, 0)
+        call cam_pio_openfile(fid, trim(OC_GAINS_file), PIO_NOWRITE)
+        
+        ! Get file dimensions
+        ierr = pio_inq_dimid(fid, 'time', fid_time)
+        ierr = pio_inq_dimid(fid, 'lon', fid_lon)
+        ierr = pio_inq_dimid(fid, 'lat', fid_lat)
+        ierr = pio_inq_dimlen(fid, fid_time,f_ntime)
+        ierr = pio_inq_dimlen(fid, fid_lon, f_nlon)
+        ierr = pio_inq_dimlen(fid, fid_lat, f_nlat)
+
+    allocate(OC_lat(f_nlat))
+    allocate(OC_lon(f_nlon))
+    allocate(OC_f2d(f_nlon, f_nlat))
+    allocate(OC_f3d(f_nlon, f_nlat, f_ntime))
+    allocate(OC_dom_f2d(f_nlon, f_nlat))
+    allocate(OC_dom_f3d(f_nlon, f_nlat, f_ntime))
+    allocate(OC_awb_f3d(f_nlon, f_nlat, f_ntime))
+    allocate(OC2d (plon, plat))
+    allocate(OC2d_dom (plon, plat))
+    allocate(OC_anthro_GAINS(nmonth, plat, plon))
+
+    ! Read in the tables.
+    ierr = pio_inq_varid(fid, 'emis_all', idvar)
+    ierr = pio_get_var(fid, idvar, OC_f3d )
+    ierr = pio_inq_varid(fid, 'emis_dom', idvar_dom)
+    ierr = pio_get_var(fid, idvar, OC_dom_f3d )
+    ierr = pio_inq_varid(fid, 'emis_awb', idvar_awb)
+    ierr = pio_get_var(fid, idvar, OC_awb_f3d )
+    ierr = pio_inq_varid(fid, 'lat', idlat)
+    ierr = pio_get_var(fid, idlat, OC_lat )
+    ierr = pio_inq_varid(fid, 'lon ', idlon)
+    ierr = pio_get_var(fid, idlon, OC_lon )
+
+    ! Close the file.
+    call pio_closefile(fid)
+
+    ! get emission excluding domestic and agriculture waste burning
+    OC_f2d(:,:) = OC_f3d(:,:,1) - OC_dom_f3d(:,:,1) - OC_awb_f3d(:,:,1)
+    OC_dom_f2d = OC_dom_f3d(:,:,1)
+
+    ! make sure file longitude range from -180-180 to 0-360  
+    if (OC_lon(1) < -160._r8) then
+       allocate(tempor2d(f_nlon, f_nlat))
+       allocate(tempor1d(f_nlon))
+       mid_idx = floor(f_nlon/2._r8)
+       ! emission excluding dom
+       tempor2d(1:mid_idx,:f_nlat) = OC_f2d(mid_idx+1:f_nlon,:f_nlat)
+       tempor1d(1:mid_idx) = OC_lon(mid_idx+1:f_nlon)
+       tempor2d(mid_idx+1:f_nlon,:f_nlat) = OC_f2d(1:mid_idx,:f_nlat)
+       tempor1d(mid_idx+1:f_nlon) = OC_lon(1:mid_idx)+360._r8
+       OC_f2d = tempor2d
+       ! dom emission
+       tempor2d(1:mid_idx,:f_nlat) = OC_dom_f2d(mid_idx+1:f_nlon,:f_nlat)
+       tempor2d(mid_idx+1:f_nlon,:f_nlat) = OC_dom_f2d(1:mid_idx,:f_nlat)
+       OC_dom_f2d = tempor2d
+       !
+       OC_lon = tempor1d
+       deallocate(tempor2d)
+       deallocate(tempor1d)
+    else
+       OC_lon = OC_lon
+    endif
+
+    ! Convert kt/year ----> #/cm2/s
+    rearth = 6.371e6_r8 ! m
+    do i = 1, f_nlat
+       gridarea = 2.0_r8*3.14159_r8*rearth/f_nlat * &
+                          2.0_r8*3.14159_r8*rearth/f_nlon*cos(OC_lat(i)/180._r8*3.14159_r8)
+       !                          
+       OC_f2d(:f_nlon,i) = OC_f2d(:f_nlon,i)/365._r8/86400._r8*1.e9_r8/ &       ! g/s
+                                        12._r8*6.02e23_r8/gridarea*1.e-4_r8                     ! #/cm2/s
+       !                                        
+       OC_dom_f2d(:f_nlon,i) = OC_dom_f2d(:f_nlon,i)/365._r8/86400._r8*1.e9_r8/ &       ! g/s
+                                        12._r8*6.02e23_r8/gridarea*1.e-4_r8                     ! #/cm2/s                                       
+    end do
+
+    call lininterp_init(OC_lat, f_nlat, lat, plat, 1, wgt1)
+    call lininterp_init(OC_lon, f_nlon, lon, plon, 1, wgt2)
+    call lininterp(OC_f2d, f_nlon, f_nlat, OC2d, plon, plat, wgt2, wgt1)
+    call lininterp_finish(wgt1)
+    call lininterp_finish(wgt2)
+
+    call lininterp_init(OC_lat, f_nlat, lat, plat, 1, wgt1)
+    call lininterp_init(OC_lon, f_nlon, lon, plon, 1, wgt2)
+    call lininterp(OC_dom_f2d, f_nlon, f_nlat, OC2d_dom, plon, plat, wgt2, wgt1)
+    call lininterp_finish(wgt1)
+    call lininterp_finish(wgt2)
+
+        ! To implement Monthly data for dom emssion
+        ! methods from Stohl et al., 2013
+        ! facH works for high latitudes: 45-90N
+        ! facL works for low latitudes: 15-45N
+        ! below 15N, no seasonal variation
+        !
+        do itime = 1, nmonth
+           ! 45N-90N
+           OC2d(:plon, ind_45N:plat) = OC2d(:plon, ind_45N:plat) + &
+                                                                OC2d_dom(:plon, ind_45N:plat)*facH(itime)*12._r8
+           ! 15N-45N                                                    
+           OC2d(:plon, ind_15N:ind_45N-1) = OC2d(:plon, ind_15N:ind_45N-1) + &
+                                                                OC2d_dom(:plon, ind_15N:ind_45N-1)*facL(itime)*12._r8
+           ! 90S-15N                                                    
+           OC2d(:plon, 1:ind_15N-1) = OC2d(:plon, 1:ind_15N-1) + &
+                                                                OC2d_dom(:plon, 1:ind_15N-1)
+                                                                                                                                                                                                                                        
+       OC_anthro_GAINS(itime, :plat, :plon) = transpose(OC2d(:plon, :plat))                                                                     
+    end do
+ 
+    deallocate(OC_lat)
+    deallocate(OC_lon)
+    deallocate(OC_f2d)
+    deallocate(OC_f3d)
+    deallocate(OC_dom_f2d)
+    deallocate(OC_dom_f3d)
+    deallocate(OC_awb_f3d)
+    deallocate(OC2d)
+    deallocate(OC2d_dom)
+
+! Part 2a: BC ship 
+! -------------------------------------------------
+        ! Open the netcdf file (read only)
+        call getfil(BC_ship_filename, BC_ship_file, 0)
+        call cam_pio_openfile(fid, trim(BC_ship_file), PIO_NOWRITE)
+        !call wrap_open(BC_ship_file, 0, fid)
+        
+        ! Get file dimensions
+        ierr = pio_inq_dimid(fid, 'lon', fid_lon)
+        ierr = pio_inq_dimid(fid, 'lat', fid_lat)
+        ierr = pio_inq_dimlen(fid, fid_lon, f_nlon)
+        ierr = pio_inq_dimlen(fid, fid_lat, f_nlat)     
+
+    allocate(BC_lat(f_nlat))
+    allocate(BC_lon(f_nlon))
+    allocate(BC_f3d(f_nlon, f_nlat, nmonth))
+    allocate(BC3d (plon, plat, nmonth))
+    allocate(BC_ship_GAINS(nmonth, plat, plon))
+ 
+   ! Read in the tables.
+    ierr = pio_inq_varid(fid, 'emiss_shp', idvar)
+    ierr = pio_get_var(fid, idvar, BC_f3d )
+    ierr = pio_inq_varid(fid, 'lat', idlat)
+    ierr = pio_get_var(fid, idlat, BC_lat )
+    ierr = pio_inq_varid(fid, 'lon ', idlon)
+    ierr = pio_get_var(fid, idlon, BC_lon )
+
+    ! Close the file.
+    call pio_closefile(fid)
+
+    ! make sure file longitude range from -180-180 to 0-360
+    if (BC_lon(1) < -160._r8) then
+       allocate(tempor3d(f_nlon, f_nlat, nmonth))
+       allocate(tempor1d(f_nlon))
+       mid_idx = floor(f_nlon/2._r8)
+       tempor3d(1:mid_idx,:f_nlat,:nmonth) = BC_f3d(mid_idx+1:f_nlon,:f_nlat,:nmonth)
+       tempor1d(1:mid_idx) = BC_lon(mid_idx+1:f_nlon)
+       tempor3d(mid_idx+1:f_nlon,:f_nlat,:nmonth) = BC_f3d(1:mid_idx,:f_nlat,:nmonth)
+       tempor1d(mid_idx+1:f_nlon) = BC_lon(1:mid_idx)+360._r8
+       BC_f3d = tempor3d
+       BC_lon = tempor1d
+       deallocate(tempor3d)
+       deallocate(tempor1d)
+    else
+       BC_lon = BC_lon
+    endif
+
+    ! convert unit from kg/m2/s to #/cm2/s
+    BC_f3d = BC_f3d*1.e3_r8/1.e4_r8/12._r8*6.02e23_r8
+
+    call lininterp_init(BC_lat, f_nlat, lat, plat, 1, wgt1)
+    call lininterp_init(BC_lon, f_nlon, lon, plon, 1, wgt2)
+    do itime = 1, nmonth
+       call lininterp(BC_f3d(:,:,itime), f_nlon, f_nlat, tempor(:,:), plon, plat, wgt2, wgt1)
+       BC3d(:,:,itime) = tempor(:,:)
+    end do
+    call lininterp_finish(wgt1)
+    call lininterp_finish(wgt2)
+
+    do itime = 1, nmonth
+       BC_ship_GAINS(itime, :plat, :plon) = transpose(BC3d(:plon, :plat, itime))
+    end do
+
+    deallocate(BC_lat)
+    deallocate(BC_lon)
+    deallocate(BC_f3d)
+    deallocate(BC3d)
+
+! Part 2b: OC Ship
+! -------------------------------------------------
+        ! Open the netcdf file (read only)
+        call getfil(OC_ship_filename, OC_ship_file, 0)
+        call cam_pio_openfile(fid, trim(OC_ship_file), PIO_NOWRITE)
+        
+        ! Get file dimensions
+        ierr = pio_inq_dimid(fid, 'lon', fid_lon)
+        ierr = pio_inq_dimid(fid, 'lat', fid_lat)
+        ierr = pio_inq_dimlen(fid, fid_lon, f_nlon)
+        ierr = pio_inq_dimlen(fid, fid_lat, f_nlat)     
+
+    allocate(OC_lat(f_nlat))
+    allocate(OC_lon(f_nlon))
+    allocate(OC_f3d(f_nlon, f_nlat, nmonth))
+    allocate(OC3d (plon, plat, nmonth))
+    allocate(OC_ship_GAINS(nmonth, plat, plon))
+
+    ! Read in the tables.
+    ierr = pio_inq_varid(fid, 'emiss_shp', idvar)
+    ierr = pio_get_var(fid, idvar, OC_f3d )
+    ierr = pio_inq_varid(fid, 'lat', idlat)
+    ierr = pio_get_var(fid, idlat, OC_lat )
+    ierr = pio_inq_varid(fid, 'lon ', idlon)
+    ierr = pio_get_var(fid, idlon, OC_lon )
+
+    ! Close the file.
+    call pio_closefile(fid)
+
+    ! make sure file longitude range from -180-180 to 0-360
+    if (OC_lon(1) < -160._r8) then
+       allocate(tempor3d(f_nlon, f_nlat, nmonth))
+       allocate(tempor1d(f_nlon))
+       mid_idx = floor(f_nlon/2._r8)
+       tempor3d(1:mid_idx,:f_nlat,:nmonth) = OC_f3d(mid_idx+1:f_nlon,:f_nlat,:nmonth)
+       tempor1d(1:mid_idx) = OC_lon(mid_idx+1:f_nlon)
+       tempor3d(mid_idx+1:f_nlon,:f_nlat,:nmonth) = OC_f3d(1:mid_idx,:f_nlat,:nmonth)
+       tempor1d(mid_idx+1:f_nlon) = OC_lon(1:mid_idx)+360._r8
+       OC_f3d = tempor3d
+       OC_lon = tempor1d
+       deallocate(tempor3d)
+       deallocate(tempor1d)
+    else
+       OC_lon = OC_lon
+    endif
+
+    ! convert unit from kg/m2/s to #/cm2/s
+    OC_f3d = OC_f3d*1.e3_r8/1.e4_r8/12._r8*6.02e23_r8
+
+    call lininterp_init(OC_lat, f_nlat, lat, plat, 1, wgt1)
+    call lininterp_init(OC_lon, f_nlon, lon, plon, 1, wgt2)
+    do itime = 1, nmonth
+       call lininterp(OC_f3d(:,:,itime), f_nlon, f_nlat, tempor(:,:), plon, plat, wgt2, wgt1)
+       OC3d(:,:,itime) = tempor(:,:)
+    end do
+    call lininterp_finish(wgt1)
+    call lininterp_finish(wgt2)
+
+    do itime = 1, nmonth
+       OC_ship_GAINS(itime, :plat, :plon) = transpose(OC3d(:plon, :plat, itime))
+    end do
+
+    deallocate(OC_lat)
+    deallocate(OC_lon)
+    deallocate(OC_f3d)
+    deallocate(OC3d)
+
+! Part 3a: BC GFEDv3 
+! -------------------------------------------------
+        ! Open the netcdf file (read only)
+        call getfil(BC_GFEDv3_filename, BC_GFEDv3_file, 0)
+        call cam_pio_openfile(fid, trim(BC_GFEDv3_file), PIO_NOWRITE)
+
+        ! Get file dimensions
+        ierr = pio_inq_dimid(fid, 'lon', fid_lon)
+        ierr = pio_inq_dimid(fid, 'lat', fid_lat)
+        ierr = pio_inq_dimlen(fid, fid_lon, f_nlon)
+        ierr = pio_inq_dimlen(fid, fid_lat, f_nlat)
+
+    allocate(BC_lat(f_nlat))
+    allocate(BC_lon(f_nlon))
+    allocate(BC_f3d(f_nlon, f_nlat, nmonth))
+    allocate(tempor3d(f_nlon, f_nlat, nmonth))
+    allocate(BC3d (plon, plat, nmonth))
+    allocate(BC_GFEDv3(nmonth, plat, plon))
+
+    ! Read in the tables.
+    BC_f3d = 0._r8
+    ierr = pio_inq_varid(fid, 'emis', idvar)
+    ierr = pio_get_var(fid, idvar, tempor3d )
+    !call wrap_inq_varid(fid, 'emis', idvar)            
+    !call wrap_get_var_realx(fid, idvar,  tempor3d)
+    BC_f3d = BC_f3d + tempor3d
+    ! excluding non-real values
+    where (BC_f3d(:,:,:) .ge. 1.e10_r8)
+        BC_f3d(:,:,:) = 1.e-30_r8
+    end where
+
+    ierr = pio_inq_varid(fid, 'lat', idlat)
+    ierr = pio_get_var(fid, idlat, BC_lat )
+    ierr = pio_inq_varid(fid, 'lon ', idlon)
+    ierr = pio_get_var(fid, idlon, BC_lon )
+
+    ! Close the file.
+    call pio_closefile(fid)
+
+    ! make sure file longitude range from -180-180 to 0-360
+    if (BC_lon(1) < -160._r8) then
+       allocate(tempor1d(f_nlon))
+       mid_idx = floor(f_nlon/2._r8)
+       tempor3d(1:mid_idx,:f_nlat,:nmonth) = BC_f3d(mid_idx+1:f_nlon,:f_nlat,:nmonth)
+       tempor1d(1:mid_idx) = BC_lon(mid_idx+1:f_nlon)
+       tempor3d(mid_idx+1:f_nlon,:f_nlat,:nmonth) = BC_f3d(1:mid_idx,:f_nlat,:nmonth)
+       tempor1d(mid_idx+1:f_nlon) = BC_lon(1:mid_idx)+360._r8
+       BC_f3d = tempor3d
+       BC_lon = tempor1d
+       deallocate(tempor1d)
+    else
+       BC_lon = BC_lon
+    endif
+
+    ! convert unit from g/m2/month to #/cm2/s
+    BC_f3d = BC_f3d/1.e4_r8/30._r8/86400._r8/12._r8*6.02e23_r8
+
+    call lininterp_init(BC_lat, f_nlat, lat, plat, 1, wgt1)
+    call lininterp_init(BC_lon, f_nlon, lon, plon, 1, wgt2)
+    do itime = 1, nmonth
+       call lininterp(BC_f3d(:,:,itime), f_nlon, f_nlat, tempor(:,:), plon, plat, wgt2, wgt1)
+       BC3d(:,:,itime) = tempor(:,:)
+    end do
+    call lininterp_finish(wgt1)
+    call lininterp_finish(wgt2)
+
+    do itime = 1, nmonth
+       BC_GFEDv3(itime, :plat, :plon) = transpose(BC3d(:plon, :plat, itime))
+    end do
+
+    deallocate(BC_lat)
+    deallocate(BC_lon)
+    deallocate(BC_f3d)
+    deallocate(BC3d)
+    deallocate(tempor3d)
+
+! Part 3b: OC GFEDv3 
+! -------------------------------------------------
+        ! Open the netcdf file (read only)
+        call getfil(OC_GFEDv3_filename, OC_GFEDv3_file, 0)
+        call cam_pio_openfile(fid, trim(OC_GFEDv3_file), PIO_NOWRITE)
+        
+        ! Get file dimensions
+        ierr = pio_inq_dimid(fid, 'lon', fid_lon)
+        ierr = pio_inq_dimid(fid, 'lat', fid_lat)
+        ierr = pio_inq_dimlen(fid, fid_lon, f_nlon)
+        ierr = pio_inq_dimlen(fid, fid_lat, f_nlat)
+
+        ! write(carma%f_LUNOPRT,*) ''
+        ! write(carma%f_LUNOPRT,*) 'f_lon = ', f_nlon
+        ! write(carma%f_LUNOPRT,*) 'f_lat = ', f_nlat 
+        ! write(carma%f_LUNOPRT,*) ''  
+
+    allocate(OC_lat(f_nlat))
+    allocate(OC_lon(f_nlon))
+    allocate(OC_f3d(f_nlon, f_nlat, nmonth))
+    allocate(tempor3d(f_nlon, f_nlat, nmonth))
+    allocate(OC3d (plon, plat, nmonth))
+    allocate(OC_GFEDv3(nmonth, plat, plon))
+
+    ! Read in the tables.
+     OC_f3d = 0._r8
+    ierr = pio_inq_varid(fid, 'emis', idvar)
+    ierr = pio_get_var(fid, idvar, tempor3d )
+    !call wrap_inq_varid(fid, 'emis', idvar)            
+    !call wrap_get_var_realx(fid, idvar,  tempor3d)
+    OC_f3d = OC_f3d + tempor3d
+    ! excluding non-real values
+    where (OC_f3d(:,:,:) .ge. 1.e10_r8)
+        OC_f3d(:,:,:) = 1.e-30_r8
+    end where
+
+    ierr = pio_inq_varid(fid, 'lat', idlat)
+    ierr = pio_get_var(fid, idlat, OC_lat )
+    ierr = pio_inq_varid(fid, 'lon ', idlon)
+    ierr = pio_get_var(fid, idlon, OC_lon )
+
+    ! Close the file.
+    call pio_closefile(fid) 
+
+    ! make sure file longitude range from -180-180 to 0-360
+    if (OC_lon(1) < -160._r8) then
+       allocate(tempor1d(f_nlon))
+       mid_idx = floor(f_nlon/2._r8)
+       tempor3d(1:mid_idx,:f_nlat,:nmonth) = OC_f3d(mid_idx+1:f_nlon,:f_nlat,:nmonth)
+       tempor1d(1:mid_idx) = OC_lon(mid_idx+1:f_nlon)
+       tempor3d(mid_idx+1:f_nlon,:f_nlat,:nmonth) = OC_f3d(1:mid_idx,:f_nlat,:nmonth)
+       tempor1d(mid_idx+1:f_nlon) = OC_lon(1:mid_idx)+360._r8
+       OC_f3d = tempor3d
+       OC_lon = tempor1d
+       deallocate(tempor1d)
+    else
+       OC_lon = OC_lon
+    endif
+
+    ! convert unit from g/m2/month to #/cm2/s
+    OC_f3d = OC_f3d/1.e4_r8/30._r8/86400._r8/12._r8*6.02e23_r8
+
+    call lininterp_init(OC_lat, f_nlat, lat, plat, 1, wgt1)
+    call lininterp_init(OC_lon, f_nlon, lon, plon, 1, wgt2)
+    do itime = 1, nmonth
+       call lininterp(OC_f3d(:,:,itime), f_nlon, f_nlat, tempor(:,:), plon, plat, wgt2, wgt1)
+       OC3d(:,:,itime) = tempor(:,:)
+    end do
+    call lininterp_finish(wgt1)
+    call lininterp_finish(wgt2)
+
+    do itime = 1, nmonth
+       OC_GFEDv3(itime, :plat, :plon) = transpose(OC3d(:plon, :plat, itime))
+    end do
+
+    deallocate(OC_lat)
+    deallocate(OC_lon)
+    deallocate(OC_f3d)
+    deallocate(OC3d)
+    deallocate(tempor3d)
+
+! Sum
+    do itime = 1, nmonth
+       BCnew(:plat, :plon, itime) = BC_anthro_GAINS(itime, :plat, :plon) +  &
+             BC_ship_GAINS(itime, :plat, :plon) +  BC_GFEDv3(itime, :plat, :plon)
+!             
+       OCnew(:plat, :plon, itime) = OC_anthro_GAINS(itime, :plat, :plon) +  &
+             OC_ship_GAINS(itime, :plat, :plon) +  OC_GFEDv3(itime, :plat, :plon)
+    end do
+!
+    deallocate(BC_anthro_GAINS)
+    deallocate(OC_anthro_GAINS)
+    deallocate(BC_ship_GAINS)
+    deallocate(OC_ship_GAINS)
+    deallocate(BC_GFEDv3)
+    deallocate(OC_GFEDv3)
+    deallocate(facH)
+    deallocate(facL)
+!               
+    return
+  end subroutine CARMA_BCOCRead
+
   
 end module
