@@ -117,6 +117,7 @@ contains
     use units,           only: getunit, freeunit
     use mpishorthand
     use modal_aero_convproc,   only: ma_convproc_readnl 
+    use dust_model,      only: dust_readnl
 
     character(len=*), intent(in) :: nlfile  ! filepath for file containing namelist input
 
@@ -164,6 +165,7 @@ contains
     drydep_list = aer_drydep_list
 
     call ma_convproc_readnl(nlfile)
+    call dust_readnl(nlfile)
     
   end subroutine aero_model_readnl
 
@@ -190,7 +192,8 @@ contains
     use seasalt_model,   only: seasalt_init, seasalt_names, seasalt_active,seasalt_nbin
     use drydep_mod,      only: inidrydep
     use wetdep,          only: wetdep_init
-    
+    use mo_setsox,       only: sox_inti
+
     use modal_aero_calcsize,   only: modal_aero_calcsize_init
     use modal_aero_coag,       only: modal_aero_coag_init
     use modal_aero_deposition, only: modal_aero_deposition_init
@@ -222,6 +225,9 @@ contains
     character(len=32) :: spec_type
     character(len=32) :: mode_type
     integer :: nspec
+
+    ! aqueous chem initialization
+    call sox_inti()
 
     dgnum_idx       = pbuf_get_index('DGNUM')
     dgnumwet_idx    = pbuf_get_index('DGNUMWET')

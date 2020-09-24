@@ -11,7 +11,7 @@ module carma_intr
 
   use carma_precision_mod
   use carma_enums_mod
-  use carma_constants_mod
+  use carma_constants_mod, only : GRAV, REARTH, WTMOL_AIR, WTMOL_H2O, R_AIR, CP, RKAPPA
   use carma_types_mod
   use carma_flags_mod
   use carma_model_mod

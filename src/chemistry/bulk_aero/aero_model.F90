@@ -65,6 +65,7 @@ contains
     use namelist_utils,  only: find_group_name
     use units,           only: getunit, freeunit
     use mpishorthand
+    use dust_model,      only: dust_readnl
 
     character(len=*), intent(in) :: nlfile  ! filepath for file containing namelist input
 
@@ -110,6 +111,8 @@ contains
     wetdep_list = aer_wetdep_list
     drydep_list = aer_drydep_list
 
+    call dust_readnl(nlfile)
+
   end subroutine aero_model_readnl
 
   !=============================================================================
@@ -134,6 +137,7 @@ contains
     use drydep_mod,    only: inidrydep
     use wetdep,        only: wetdep_init
     use mo_setsox,     only: has_sox
+    use mo_setsox,     only: sox_inti
 
     ! args
     type(physics_buffer_desc), pointer :: pbuf2d(:,:)
@@ -145,6 +149,9 @@ contains
     logical  :: history_aerosol ! Output MAM or SECT aerosol tendencies
     logical  :: history_dust    ! Output dust
     
+    ! aqueous chem initialization
+    call sox_inti()
+
     call phys_getopts( history_aerosol_out = history_aerosol,&
                        history_dust_out    = history_dust   )
 

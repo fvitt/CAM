@@ -348,7 +348,6 @@ end function chem_is
     use tracer_cnst,      only: tracer_cnst_defaultopts, tracer_cnst_setopts
     use tracer_srcs,      only: tracer_srcs_defaultopts, tracer_srcs_setopts
     use aero_model,       only: aero_model_readnl
-    use dust_model,       only: dust_readnl
     use gas_wetdep_opts,  only: gas_wetdep_readnl
     use upper_bc,         only: ubc_defaultopts, ubc_setopts
     use mo_drydep,        only: drydep_srf_file
@@ -668,7 +667,6 @@ end function chem_is
         tgcm_ubc_fixed_tod_in = tgcm_ubc_fixed_tod )
 
    call aero_model_readnl(nlfile)
-   call dust_readnl(nlfile)     
 !
    call gas_wetdep_readnl(nlfile)
    call gcr_ionization_readnl(nlfile)
@@ -767,7 +765,6 @@ end function chem_is_active
     use mo_chem_utls,          only : get_spc_ndx
     use cam_abortutils,        only : endrun
     use aero_model,            only : aero_model_init
-    use mo_setsox,             only : sox_inti
     use constituents,          only : sflxnam
     use noy_ubc,             only : noy_ubc_init
     use fire_emissions,      only : fire_emissions_init
@@ -800,9 +797,6 @@ end function chem_is_active
                        history_budget_out = history_budget , &
                        history_budget_histfile_num_out = history_budget_histfile_num, &
                        history_cesm_forcing_out = history_cesm_forcing )
-
-    ! aqueous chem initialization
-    call sox_inti()
 
     ! Initialize aerosols
     call aero_model_init( pbuf2d )
