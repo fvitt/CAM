@@ -4043,8 +4043,49 @@ Specifies the name of the sea salt emission parameterization.
 Default: Gong
 </entry>
 
+<!-- CARMA model - aerosol -->
+<entry id="BC_GAINS_filename" type="char*256" category="carma_model"
+       group="carma_model_nl" valid_values="" >
+BC GAINS file.
+Default: set by build-namelist.
+</entry>
 
-=======
+<entry id="OC_GAINS_filename" type="char*256" category="carma_model"
+       group="carma_model_nl" valid_values="" >
+OC GAINS file.
+Default: set by build-namelist.
+</entry>
+
+<entry id="BC_ship_filename" type="char*256" category="carma_model"
+       group="carma_model_nl" valid_values="" >
+BC ship file.
+Default: set by build-namelist.
+</entry>
+
+<entry id="OC_ship_filename" type="char*256" category="carma_model"
+       group="carma_model_nl" valid_values="" >
+OC ship file.
+Default: set by build-namelist.
+</entry>
+
+<entry id="BC_GFEDv3_filename" type="char*256" category="carma_model"
+       group="carma_model_nl" valid_values="" >
+BC GFEDv3 file.
+Default: set by build-namelist.
+</entry>
+
+<entry id="OC_GFEDv3_filename" type="char*256" category="carma_model"
+       group="carma_model_nl" valid_values="" >
+OC GFEDv3 file.
+Default: set by build-namelist.
+</entry>
+
+<entry id="Chlorophy11_file" type="char*256" category="carma_model"
+       group="carma_model_nl" valid_values="" >
+Dust erosion factor file.
+Default: set by build-namelist.
+</entry>
+
 <!-- Ozone: Data (original CAM version) -->
 
 <entry id="bndtvo" type="char*256" input_pathname="abs" category="o3_data_cam"
@@ -4679,6 +4720,13 @@ Default: FALSE
 <entry id="mode_defs" type="char*256(120)"  category="radiation"
        group="rad_cnst_nl" valid_values="" >
 Definitions for the aerosol modes that may be used in the rad_climate and
+rad_diag_* variables.
+Default: set by build-namelist
+</entry>
+
+<entry id="bin_defs" type="char*256(120)"  category="radiation"
+       group="rad_cnst_nl" valid_values="" >
+Definitions for the aerosol bins that may be used in the rad_climate and
 rad_diag_* variables.
 Default: set by build-namelist
 </entry>
