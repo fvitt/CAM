@@ -67,7 +67,7 @@ logical,            public :: oldcldoptics = .false.
 integer, parameter :: n_mode_str = 120
 
 ! max number of strings in bin definitions
-integer, parameter :: n_bin_str = 200
+integer, parameter :: n_bin_str = 640
 
 ! max number of externally mixed entities in the climate/diag lists
 integer, parameter :: n_rad_cnst = N_RAD_CNST
@@ -126,8 +126,14 @@ type :: bin_component_t
    ! For "source" variables below, value is:
    ! 'N' if in pbuf (non-advected)
    ! 'A' if in state (advected)
+   character(len=  1) :: source_num_a  ! source of interstitial number conc field
+   character(len= 32) :: camname_num_a ! name registered in pbuf or constituents for number mixing ratio of interstitial species
+   character(len=  1) :: source_num_c  ! source of cloud borne number conc field
+   character(len= 32) :: camname_num_c ! name registered in pbuf or constituents for number mixing ratio of cloud borne species
    character(len=  1), pointer :: source_mmr_a(:)  ! source of interstitial mmr field
    character(len= 32), pointer :: camname_mmr_a(:) ! name registered in pbuf or constituents for mmr species
+   character(len=  1), pointer :: source_mmr_c(:)  ! source of cloud borne specie mmr fields
+   character(len= 32), pointer :: camname_mmr_c(:) ! name registered in pbuf or constituents for mmr of cloud borne components
    character(len= 32), pointer :: type(:)          ! specie type (as used in MAM code)
    character(len=cs1), pointer :: props(:)         ! file containing specie properties
    integer, pointer            :: idx_mmr_a(:)     ! index in pbuf or constituents for mmr of interstitial species
@@ -259,9 +265,9 @@ character(len=9), parameter :: spec_type_names(num_spec_types) = (/ &
    'sulfate  ', 'ammonium ', 'nitrate  ', 'p-organic', &
    's-organic', 'black-c  ', 'seasalt  ', 'dust     '/)
 
-integer, parameter :: num_bin_types  = 3
-character(len=9), parameter :: bin_type_names(num_bin_types) = (/ &
-   'particle ', 'shell    ', 'core     ' /)
+integer, parameter :: num_bin_types  = 4
+character(len=8), parameter :: bin_type_names(num_bin_types) = &
+     (/ 'particle', 'shell   ', 'core    ', 'num     ' /)
 
 !==============================================================================
 contains
@@ -770,8 +776,7 @@ end subroutine rad_cnst_get_info_by_mode
 
 !================================================================================================
 
-subroutine rad_cnst_get_info_by_bin(list_idx, m_idx, &
-   nspec)
+subroutine rad_cnst_get_info_by_bin(list_idx, m_idx, nspec)
 
    ! Return info about modal aerosol lists
 
@@ -1922,11 +1927,12 @@ end subroutine parse_mode_defs
 
 subroutine parse_bin_defs(nl_in, bins)
 
-   ! Parse the mode definition specifiers.  The specifiers are of the form:
+   ! Parse the bin definition specifiers.  The specifiers are of the form:
    !
    ! 'bin_name:=',
-   !  'source_mmr:camname_mmr:spec_type:prop_file[:+]'[,]
-   !  ['source_mmr:camname_mmr:spec_type:prop_file][:+][']
+   !  'source_num_a:camname_num_a:source_num_c:camname_num_c:num_mr:+',
+   !  'source_mmr_a:camname_mmr_a:source_mmr_c:camname_mmr_c:spec_type:prop_file[:+]'[,]
+   !  ['source_mmr_a:camname_mmr_a:source_mmr_c:camname_mmr_c:spec_type:prop_file][:+][']
    !
    ! where the ':' separated fields are:
    ! bin_name -- name of the bin.
@@ -1934,8 +1940,20 @@ subroutine parse_bin_defs(nl_in, bins)
    !              mode definition
    ! +         -- this line terminator indicates that the mode definition is
    !              continued in the next string
-   ! source_mmr  -- Source of interstitial specie mass mixing ratio,  'A', 'N' or 'Z'
-   ! camname_mmr -- the name of the interstitial specie.  This name must be
+   ! source_num_a  -- Source of interstitial number mixing ratio,  'A', 'N', or 'Z'
+   ! camname_num_a -- the name of the interstitial number component.  This name must be
+   !                  registered in the constituent arrays when source=A or in the
+   !                  physics buffer when source=N
+   ! source_num_c  -- Source of cloud borne number mixing ratio,  'A', 'N', or 'Z'
+   ! camname_num_c -- the name of the cloud borne number component.  This name must be
+   !                  registered in the constituent arrays when source=A or in the
+   !                  physics buffer when source=N
+   ! source_mmr_a  -- Source of interstitial specie mass mixing ratio,  'A', 'N' or 'Z'
+   ! camname_mmr_a -- the name of the interstitial specie.  This name must be
+   !                  registered in the constituent arrays when source=A or in the
+   !                  physics buffer when source=N
+   ! source_mmr_c  -- Source of cloud borne specie mass mixing ratio,  'A', 'N' or 'Z'
+   ! camname_mmr_c -- the name of the cloud borne specie.  This name must be
    !                  registered in the constituent arrays when source=A or in the
    !                  physics buffer when source=N
    ! spec_type -- species type.  Valid values are particle, shell, and core.
@@ -1951,8 +1969,9 @@ subroutine parse_bin_defs(nl_in, bins)
    type(bins_t),    intent(inout) :: bins       ! structure containing parsed input
 
    ! Local variables
+   logical :: num_mr_found
    logical :: particle_mr_found
-   integer :: i, m
+   integer :: m
    integer :: istat
    integer :: nbins, nstr, istr
    integer :: mbeg, mcur
@@ -1961,8 +1980,10 @@ subroutine parse_bin_defs(nl_in, bins)
    logical :: part_mr_found
    character(len=*), parameter :: routine = 'parse_bin_defs'
    character(len=len(nl_in(1))) :: tmpstr
-   character(len=1)  :: tmp_src
-   character(len=32) :: tmp_name
+   character(len=1)  :: tmp_src_a
+   character(len=32) :: tmp_name_a
+   character(len=1)  :: tmp_src_c
+   character(len=32) :: tmp_name_c
    character(len=32) :: tmp_type
    !-------------------------------------------------------------------------
 
@@ -2006,11 +2027,10 @@ subroutine parse_bin_defs(nl_in, bins)
       call endrun(routine//': ERROR allocating storage for bins')
    end if
 
-
    mcur = 1              ! index of current string being processed
 
    ! loop over bins
-   do m = 1, nbins
+   bins_loop: do m = 1, nbins
 
       mbeg = mcur  ! remember the first string of a bin
 
@@ -2022,7 +2042,7 @@ subroutine parse_bin_defs(nl_in, bins)
       ! with a ':+' terminator for each specie
       !
       !MOTE: Bins don't have number element, so all are species
-      nspec = 1
+      nspec = 0
       mcur = mcur + 1
       do
          iend = len_trim(nl_in(mcur))
@@ -2038,6 +2058,8 @@ subroutine parse_bin_defs(nl_in, bins)
       allocate( &
          bins%comps(m)%source_mmr_a(nspec),  &
          bins%comps(m)%camname_mmr_a(nspec), &
+         bins%comps(m)%source_mmr_c(nspec),  &
+         bins%comps(m)%camname_mmr_c(nspec), &
          bins%comps(m)%type(nspec),          &
          bins%comps(m)%props(nspec),         &
          stat=istat)
@@ -2049,9 +2071,15 @@ subroutine parse_bin_defs(nl_in, bins)
 
       ! initialize components
       bins%comps(m)%nspec         = nspec
+      bins%comps(m)%source_num_a  = ' '
+      bins%comps(m)%camname_num_a = ' '
+      bins%comps(m)%source_num_c  = ' '
+      bins%comps(m)%camname_num_c = ' '
       do ispec = 1, nspec
          bins%comps(m)%source_mmr_a(ispec)  = ' '
          bins%comps(m)%camname_mmr_a(ispec) = ' '
+         bins%comps(m)%source_mmr_c(ispec)  = ' '
+         bins%comps(m)%camname_mmr_c(ispec) = ' '
          bins%comps(m)%type(ispec)          = ' '
          bins%comps(m)%props(ispec)         = ' '
       end do
@@ -2075,8 +2103,9 @@ subroutine parse_bin_defs(nl_in, bins)
 
       ! process bin component strings
       particle_mr_found = .false.   ! keep track of whether particle mixing ratio component is found
+      num_mr_found = .false.        ! keep track of whether number mixing ratio component is found
       ispec = 0                ! keep track of the number of species found
-      do
+      comps_loop: do
 
          ! source of interstitial component
          ipos = index(tmpstr, ':')
@@ -2084,58 +2113,98 @@ subroutine parse_bin_defs(nl_in, bins)
          ! check for valid source
          if (tmpstr(:ipos-1) /= 'A' .and. tmpstr(:ipos-1) /= 'N' .and. tmpstr(:ipos-1) /= 'Z') &
             call parse_error('source must be A, N or Z', tmpstr)
-         tmp_src = tmpstr(:ipos-1)
+         tmp_src_a = tmpstr(:ipos-1)
          tmpstr    = tmpstr(ipos+1:)
 
          ! name of interstitial component
          ipos = index(tmpstr, ':')
          if (ipos == 0) call parse_error('next separator not found', tmpstr)
-         tmp_name   = tmpstr(:ipos-1)
+         tmp_name_a = tmpstr(:ipos-1)
+         tmpstr     = tmpstr(ipos+1:)
+
+         ! source of cloud borne component
+         ipos = index(tmpstr, ':')
+         if (ipos < 2) call parse_error('expect to find a source field', tmpstr)
+         ! check for valid source
+         if (tmpstr(:ipos-1) /= 'A' .and. tmpstr(:ipos-1) /= 'N' .and. tmpstr(:ipos-1) /= 'Z') &
+            call parse_error('source must be A, N or Z', tmpstr)
+         tmp_src_c = tmpstr(:ipos-1)
+         tmpstr    = tmpstr(ipos+1:)
+
+         ! name of cloud borne component
+         ipos = index(tmpstr, ':')
+         if (ipos == 0) call parse_error('next separator not found', tmpstr)
+         tmp_name_c = tmpstr(:ipos-1)
          tmpstr     = tmpstr(ipos+1:)
 
          ! component type
          ipos = scan(tmpstr, ': ')
          if (ipos == 0) call parse_error('next separator not found', tmpstr)
 
-         if (tmpstr(:ipos-1) == 'particle') then
+         if (tmpstr(:ipos-1) == 'num') then
 
             ! there can only be one number mixing ratio component
-            if (particle_mr_found) call parse_error('more than 1 particle component', nl_in(mcur))
+            if (num_mr_found) call parse_error('more than 1 number component', nl_in(mcur))
 
-            particle_mr_found = .true.
-         end if
+            num_mr_found = .true.
+            bins%comps(m)%source_num_a  = tmp_src_a
+            bins%comps(m)%camname_num_a = tmp_name_a
+            bins%comps(m)%source_num_c  = tmp_src_c
+            bins%comps(m)%camname_num_c = tmp_name_c
+            tmpstr                      = tmpstr(ipos+1:)
 
-         ! check for valid specie type
-         call check_bin_type(tmpstr, 1, ipos-1)
-         tmp_type = tmpstr(:ipos-1)
-         tmpstr   = tmpstr(ipos+1:)
+         else
 
-         ! get the properties file
-         ipos = scan(tmpstr, ': ')
-         if (ipos == 0) call parse_error('next separator not found', tmpstr)
-         ! check for valid filename -- must have .nc extension
-         if (tmpstr(ipos-3:ipos-1) /= '.nc') &
-            call parse_error('filename not valid', tmpstr)
+            ! check for valid specie type
+            call check_bin_type(tmpstr, 1, ipos-1)
+            tmp_type = tmpstr(:ipos-1)
+            tmpstr   = tmpstr(ipos+1:)
 
-         ispec = ispec + 1
-         bins%comps(m)%source_mmr_a(ispec)  = tmp_src
-         bins%comps(m)%camname_mmr_a(ispec) = tmp_name
-         bins%comps(m)%type(ispec)           = tmp_type
-         bins%comps(m)%props(ispec)          = tmpstr(:ipos-1)
-         tmpstr                              = tmpstr(ipos+1:)
+            ! get the properties file
+            ipos = scan(tmpstr, ': ')
+            if (ipos == 0) call parse_error('next separator not found', tmpstr)
+
+            ispec = ispec + 1
+
+            if (tmp_type == 'particle') then
+               ! there can only be one number mixing ratio component
+               if (particle_mr_found) call parse_error('more than 1 particle component', nl_in(mcur))
+
+               particle_mr_found = .true.
+            endif
+
+            ! check for valid filename -- must have .nc extension
+            if (tmpstr(ipos-3:ipos-1) /= '.nc') then
+               if (tmp_type /= 'particle') then
+                  call parse_error('filename not valid', tmpstr)
+               endif
+            else 
+               bins%comps(m)%props(ispec) = tmpstr(:ipos-1)
+               tmpstr = tmpstr(ipos+1:)
+            endif
+
+            bins%comps(m)%source_mmr_a(ispec)  = tmp_src_a
+            bins%comps(m)%camname_mmr_a(ispec) = tmp_name_a
+            bins%comps(m)%source_mmr_c(ispec)  = tmp_src_c
+            bins%comps(m)%camname_mmr_c(ispec) = tmp_name_c
+            bins%comps(m)%type(ispec)          = tmp_type
+
+         endif
 
          ! check if there are more components.  either the current character is
          ! a ' ' which means this string is the final mode component, or the character
          ! is a '+' which means there are more components
-         if (tmpstr(1:1) == ' ') exit
-
+         if (tmpstr(1:1) == ' ') then
+            exit comps_loop
+         endif
+         
          if (tmpstr(1:1) /= '+') &
                call parse_error('+ field not found', tmpstr)
 
          ! continue to next component...
          mcur = mcur + 1
          tmpstr = nl_in(mcur)
-      end do
+      end do comps_loop
 
       ! check that the right number of species were found
       if (ispec /= nspec) call parse_error('component parsing got wrong number of species', nl_in(mbeg))
@@ -2143,7 +2212,7 @@ subroutine parse_bin_defs(nl_in, bins)
       ! continue to next bin...
       mcur = mcur + 1
       tmpstr = nl_in(mcur)
-   end do
+   end do bins_loop
 
    !------------------------------------------------------------------------------------------------
    contains

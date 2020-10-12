@@ -4724,7 +4724,7 @@ rad_diag_* variables.
 Default: set by build-namelist
 </entry>
 
-<entry id="bin_defs" type="char*256(120)"  category="radiation"
+<entry id="bin_defs" type="char*256(640)"  category="radiation"
        group="rad_cnst_nl" valid_values="" >
 Definitions for the aerosol bins that may be used in the rad_climate and
 rad_diag_* variables.
