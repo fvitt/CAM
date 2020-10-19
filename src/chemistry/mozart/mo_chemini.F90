@@ -52,7 +52,6 @@ contains
     use mo_photo,          only : photo_inti
     use mo_lightning,      only : lightning_inti
     use mo_drydep,         only : drydep_inti
-    use seq_drydep_mod,    only : DD_XLND, drydep_method
     use mo_imp_sol,        only : imp_slv_inti
     use mo_exp_sol,        only : exp_sol_inti
     use spmd_utils,        only : iam
@@ -63,7 +62,7 @@ contains
     use mo_setext,         only : setext_inti
     use mo_setinv,         only : setinv_inti
     use mo_gas_phase_chemdr,only: gas_phase_chemdr_inti
-    
+
     use tracer_cnst,       only : tracer_cnst_init
     use tracer_srcs,       only : tracer_srcs_init
     use mo_chem_utls,      only : get_spc_ndx
@@ -78,7 +77,7 @@ contains
     use mo_waccm_hrates,   only : init_hrates
     use mo_aurora,         only : aurora_inti
     use clybry_fam,        only : clybry_fam_init
-    use mo_neu_wetdep,     only : neu_wetdep_init 
+    use mo_neu_wetdep,     only : neu_wetdep_init
     use physics_buffer,    only : physics_buffer_desc
     use cam_abortutils,    only : endrun
 
@@ -176,11 +175,7 @@ contains
     !-----------------------------------------------------------------------
     !	... initialize the dry deposition module
     !-----------------------------------------------------------------------
-    if ( drydep_method == DD_XLND ) then
-       call drydep_inti(depvel_lnd_file)
-    else
-       call endrun('chemini: drydep_method must equal DD_XLND')
-    endif
+    call drydep_inti(depvel_lnd_file)
 
     if (masterproc) write(iulog,*) 'chemini: after drydep_inti on node ',iam
 

@@ -343,13 +343,13 @@ subroutine neu_wetdep_tend(lchnk,ncol,mmr,pmid,pdel,zint,tfld,delt, &
 !
       l    = mapping_to_heff(m)
       id   = 6*(l - 1)
-      e298 = dheff(id+1)
-      dhr  = dheff(id+2)
+      e298 = dheff(1,l)
+      dhr  = dheff(2,l)
       heff(:,k,m) = e298*exp( dhr*wrk(:) )
       test_flag = -99
-      if( dheff(id+3) /= 0._r8 .and. dheff(id+5) == 0._r8 ) then
-        e298 = dheff(id+3)
-        dhr  = dheff(id+4)
+      if( dheff(3,l) /= 0._r8 .and. dheff(5,l) == 0._r8 ) then
+        e298 = dheff(3,l)
+        dhr  = dheff(4,l)
         dk1s(:) = e298*exp( dhr*wrk(:) )
         where( heff(:,k,m) /= 0._r8 )
           heff(:,k,m) = heff(:,k,m)*(1._r8 + dk1s(:)*ph_inv)
@@ -363,13 +363,13 @@ subroutine neu_wetdep_tend(lchnk,ncol,mmr,pmid,pdel,zint,tfld,delt, &
          write(iulog, '(a,i4)') 'heff for m=',m
       endif
 !
-      if( dheff(id+5) /= 0._r8 ) then
+      if( dheff(5,l) /= 0._r8 ) then
         if( nh3_ndx > 0 .or. co2_ndx > 0 .or. so2_ndx > 0 ) then
-          e298 = dheff(id+3)
-          dhr  = dheff(id+4)
+          e298 = dheff(3,l)
+          dhr  = dheff(4,l)
           dk1s(:) = e298*exp( dhr*wrk(:) )
-          e298 = dheff(id+5)
-          dhr  = dheff(id+6)
+          e298 = dheff(5,l)
+          dhr  = dheff(6,l)
           dk2s(:) = e298*exp( dhr*wrk(:) )
           if( m == co2_ndx .or. m == so2_ndx ) then
              heff(:,k,m) = heff(:,k,m)*(1._r8 + dk1s(:)*ph_inv*(1._r8 + dk2s(:)*ph_inv))

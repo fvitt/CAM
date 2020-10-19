@@ -2647,21 +2647,21 @@ Default: .false.
 
 <entry id="micro_mg_evap_scl_ifs" type="logical" category="microphys"
        group="micro_mg_nl" valid_values="" >
-Apply 0.3 scaling factor to evaporation of precipitation as done in the 
+Apply 0.3 scaling factor to evaporation of precipitation as done in the
 IFS model (https://www.ecmwf.int/en/forecasts/documentation-and-support)
 Default: .false.
 </entry>
 
 <entry id="micro_mg_evap_rhthrsh_ifs" type="logical" category="microphys"
        group="micro_mg_nl" valid_values="" >
-Do not evaporate precipitation until RH<90% as done in the                                                        
+Do not evaporate precipitation until RH<90% as done in the
 IFS model (https://www.ecmwf.int/en/forecasts/documentation-and-support)
 Default: .false.
 </entry>
 
 <entry id="micro_mg_rainfreeze_ifs" type="logical" category="microphys"
        group="micro_mg_nl" valid_values="" >
-Freeze rain at 0C as done in the                                                        
+Freeze rain at 0C as done in the
 IFS model (https://www.ecmwf.int/en/forecasts/documentation-and-support)
 Default: .false.
 </entry>
@@ -6580,6 +6580,13 @@ Default: set by build-namelist.
 <entry id="drydep_list" type="char*16(1000)" category="dry_deposition"
        group="drydep_inparm" valid_values="" >
 List of species that undergo dry deposition.
+Default: set by build-namelist.
+</entry>
+
+<entry id="dep_data_file" type="char*500" input_pathname="abs" category="dry_deposition"
+       group="drydep_inparm" valid_values="" >
+Full pathname of file containing gas phase deposition data including effective
+Henry's law coefficients.
 Default: set by build-namelist.
 </entry>
 

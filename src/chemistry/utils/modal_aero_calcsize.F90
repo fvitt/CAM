@@ -171,7 +171,7 @@ subroutine modal_aero_calcsize_init(pbuf2d)
          if (history_aerosol) then
             call add_default(fieldname, 1, ' ')
          end if
-         if ( masterproc ) write(*,'(2a)') 'calcsize addfld - ', fieldname
+         if ( masterproc ) write(iulog,'(2a)') 'calcsize addfld - ', fieldname
 
          fieldname = trim(tmpnamea) // '_sfcsiz2'
          long_name = trim(tmpnamea) // ' calcsize number-adjust column sink'
@@ -1013,7 +1013,7 @@ subroutine modal_aero_calcsize_sub(state, ptend, deltat, pbuf, do_adjust_in, &
                                     lstoo = lspecfrmc_renamexf(iq,ipair)
                                  end if
                               end if
-                              write( 6, '(a,3i3,2i4)' ) 'calcsize j,iq,jac, lsfrm,lstoo',   &
+                              write( iulog, '(a,3i3,2i4)' ) 'calcsize j,iq,jac, lsfrm,lstoo',   &
                                  j,iq,jac, lsfrm,lstoo
                            end do
                         end do
