@@ -203,9 +203,9 @@ contains
             exit
          endif
       end do
-      if (masterproc .and. debug) then
+      if (masterproc) then
          write(iulog,'(a,3i6)') 'set_geogrid: npes,nlon_g,nlat_g: ',npes,nlon_g,nlat_g
-         write(iulog,'(a,2i6)') 'set_geogrid: ntasks_lon,ntasks_lat: ',ntasks_lon,ntasks_lat
+         write(iulog,'(a,2i6)') 'set_geogrid: ntasks_lon,ntasks_lat (oplus and edyn grids): ',ntasks_lon,ntasks_lat
       endif
 
       if (ntasks_lat*ntasks_lon/=npes) then
