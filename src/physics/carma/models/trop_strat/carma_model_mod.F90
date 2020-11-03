@@ -17,7 +17,7 @@
 !!   - WeibullWind()
 !!
 !! @version April-2020
-!! @author  Simone Tilmes, Lin Su, Pengfei Yu, Chuck Bardeen 
+!! @author  Simone Tilmes, Lin Su, Pengfei Yu, Chuck Bardeen
 !!  changes to pervious version: rename PURSULF to PRSULF to be easier read in in CAM
 
 module carma_model_mod
@@ -86,7 +86,7 @@ module carma_model_mod
   integer, public, parameter      :: I_GRP_PURSUL     = 1       !! sulfate aerosol
   integer, public, parameter      :: I_GRP_MIXAER     = 2       !! mixed aerosol
 
-  integer, public, parameter      :: I_ELEM_PRSUL     = 1       !! sulfate aerosol;  nameing needs to only have 2 charaters  before the element name to work with 
+  integer, public, parameter      :: I_ELEM_PRSUL     = 1       !! sulfate aerosol;  nameing needs to only have 2 charaters  before the element name to work with
                                                                 !! partsof the code reading different elements
   integer, public, parameter      :: I_ELEM_CRMIX     = 2       !! aerosol
   integer, public, parameter      :: I_ELEM_CROC      = 3       !! organics aerosol
@@ -95,7 +95,7 @@ module carma_model_mod
   integer, public, parameter      :: I_ELEM_CRSALT    = 6       !! sea salt aerosol
 
   integer, public, parameter      :: I_GAS_H2O        = 1              !! water vapor
-  integer, public, parameter      :: I_GAS_H2SO4      = 2              !! sulphuric acid  
+  integer, public, parameter      :: I_GAS_H2SO4      = 2              !! sulphuric acid
 
   real(kind=f), public, parameter         :: Kappa_OC = 0.5_f      !! hygroscopicity of OC
   real(kind=f), public, parameter         :: Kappa_BC = 0.1_f
@@ -110,12 +110,12 @@ module carma_model_mod
 
  ! see CARMA_SmokeEmissionRead
 ! real(kind=f), allocatable, dimension(:,:)     ::   Chla                                       ! Chlorophy11 data (mg/m3)
-  real(r8), allocatable, dimension(:,:,:)       ::   BCnew                              ! #/cm2/s 
+  real(r8), allocatable, dimension(:,:,:)       ::   BCnew                              ! #/cm2/s
   real(r8), allocatable, dimension(:,:,:)       ::   OCnew
 
 
   ! for sea salt flux calculation
-  real(r8), parameter             :: uth_salt = 4._r8                !! threshold wind velocity  
+  real(r8), parameter             :: uth_salt = 4._r8                !! threshold wind velocity
 
 
   ! for dust calculation
@@ -123,58 +123,61 @@ module carma_model_mod
 
   integer                         :: nClay                  !! Number of clay bins (r < 1 um)
   integer                         :: nSilt                  !! Number of silt bins
-  real(kind=f)                    :: clay_mf(NBIN)          !! clay mass fraction (fraction)  
-  real(kind=f)                    :: kappa(NBIN)            !! Kappa for Aerosols   
-  real(kind=f)                    :: hygro(NBIN)            !! Hygroscopicity for Aerosols  
-  real(kind=f), allocatable, dimension(:,:) :: soil_factor  !! Soil Erosion Factor (fraction) 
+  real(kind=f)                    :: clay_mf(NBIN)          !! clay mass fraction (fraction)
+  real(kind=f)                    :: kappa(NBIN)            !! Kappa for Aerosols
+  real(kind=f)                    :: hygro(NBIN)            !! Hygroscopicity for Aerosols
+  real(kind=f), allocatable, dimension(:,:) :: soil_factor  !! Soil Erosion Factor (fraction)
   real(kind=f), public, parameter :: WTMOL_H2SO4    = 98.078479_f    !! molecular weight of sulphuric acid
-  real(kind=f), allocatable, dimension(:,:,:)   :: PCT_LeafArea                 !! Soil Erosion Factor (fraction) 
-
-
-
+  real(kind=f), allocatable, dimension(:,:,:)   :: PCT_LeafArea                 !! Soil Erosion Factor (fraction)
 
 ! NOTE: The WeibullK distribution is not currently supported, since the coefficients are not
 ! generated. This can be added later.
   real(r8), allocatable, dimension(:,:) :: Weibull_k            ! Weibull K(nlat,nlon
   real(kind=f), public, parameter     :: rmin_PRSUL     = 3.43e-8_f  ! minimum radius (cm)
-  real(kind=f), public, parameter     :: vmrat_PRSUL    = 3.67_f     ! volume ratio    
+  real(kind=f), public, parameter     :: vmrat_PRSUL    = 3.67_f     ! volume ratio
   real(kind=f), public, parameter     :: rmin_MIXAER     = 5e-6_f     ! minimum radius (cm)
   real(kind=f), public, parameter     :: vmrat_MIXAER    = 2.2588_f    !2.4610_f        ! volume ratio
 
 ! Physics buffer index for sulfate surface area density
-  integer                         :: ipbuf4sad, ipbuf4reff, ipbuf4crso4
-
+  integer                         :: ipbuf4totsad,ipbuf4wtp
+  integer                         :: ipbuf4sad(NGROUP), ipbuf4reff(NGROUP), ipbuf4numng(NGROUP)
+  integer                         :: ipbuf4elem1mr(NBIN,NGROUP)
+  integer                         :: ipbuf4binng(NBIN,NGROUP),ipbuf4kappa(NBIN,NGROUP)
 
 contains
-
 
   !! Defines all the CARMA components (groups, elements, solutes and gases) and process
   !! (coagulation, growth, nucleation) that will be part of the microphysical model.
   !!
-  !!  @version May-2009 
-  !!  @author  Chuck Bardeen 
+  !!  @version May-2009
+  !!  @author  Chuck Bardeen
   subroutine CARMA_DefineModel(carma, rc)
 
     use physics_buffer, only: pbuf_add_field, dtype_r8
 
     type(carma_type), intent(inout)    :: carma     !! the carma object
     integer, intent(out)               :: rc        !! return code, negative indicates failure
-    
+
+
     ! Local variables
     integer                            :: LUNOPRT              ! logical unit number for output
+    character(len=2)                   :: outputname,outputbin
     logical                            :: do_print             ! do print output?
     complex(kind=f)                    :: refidx(NWAVE)        ! refractice indices
     complex(kind=f)                    :: refidxS(NWAVE)                ! refractice indices for Shell
     complex(kind=f)                    :: refidxC(NWAVE)                ! refractice indices for Core
-    
+
+    integer                            :: igroup,ibin
+    character(len=8)                   :: sname                ! short (CAM) name
+
     ! Default return code.
-    rc = RC_OK    
-    
+    rc = RC_OK
+
     ! Report model specific namelist configuration parameters.
     if (masterproc) then
       call CARMA_Get(carma, rc, do_print=do_print, LUNOPRT=LUNOPRT)
       if (rc < 0) call endrun("CARMA_DefineModel: CARMA_Get failed.")
-    
+
       if (do_print) write(LUNOPRT,*) ''
       if (do_print) write(LUNOPRT,*) 'CARMA ', trim(carma_model), ' specific settings :'
       if (do_print) write(LUNOPRT,*) '  carma_soilerosion_file = ', carma_soilerosion_file
@@ -189,7 +192,7 @@ contains
 
     !call CARMAGROUP_Create(carma, I_GRP_PURSUL, "sulfate", rmin_PRSUL, vmrat_PRSUL, I_SPHERE, 1._f, .false., &
     !                       rc, irhswell=I_WTPCT_H2SO4, do_wetdep=.true., do_drydep=.true., solfac=0.3_f, &
-    !                       scavcoef=0.1_f, is_sulfate=.true., shortname="PRSULF", icoreshell=0, &
+    !                       scavcoef=0.1_f, is_sulfate=.true., shortname="SULF", icoreshell=0, &
     !                       refidx = refidx, refidxS = refidx, refidxC = refidx, do_mie=.true.,imiertn=I_MIERTN_TOON1981)
     !if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddGroup failed.')
 
@@ -213,12 +216,12 @@ contains
    !                       irhswell=I_MIX, irhswcomp=I_SWG_URBAN,imiertn=I_MIERTN_TOON1981)
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddGroup failed.')
 
-    
+
     ! Define the Elements
     !
     ! NOTE: For CAM, the optional shortname needs to be provided for the group. These names
     ! should be 6 characters or less and without spaces.
-    call CARMAELEMENT_Create(carma, I_ELEM_PRSUL, I_GRP_PURSUL, "Sulfate", RHO_SULFATE, I_VOLATILE, I_H2SO4, rc, shortname="PRSULF")
+    call CARMAELEMENT_Create(carma, I_ELEM_PRSUL, I_GRP_PURSUL, "Sulfate", RHO_SULFATE, I_VOLATILE, I_H2SO4, rc, shortname="SULF")
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddElement failed.')
 
     call CARMAELEMENT_Create(carma, I_ELEM_CRMIX,  I_GRP_MIXAER, "Sulfate in mixed sulfate", RHO_SULFATE, I_INVOLATILE, I_H2SO4, rc,  shortname="CRMIX")
@@ -240,9 +243,9 @@ contains
     call CARMAELEMENT_Create(carma, I_ELEM_CRSALT, I_GRP_MIXAER, "SALT in mixed sulfate", RHO_SALT, I_COREMASS, I_SALT, rc, shortname="CRSALT")
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddElement failed.')
 
-    
+
     ! Define the Solutes
-    
+
 
 
     ! Define the Gases
@@ -258,7 +261,7 @@ contains
                          I_GCOMP_H2SO4, rc, shortname = "H2SO4")
     if (rc < RC_OK) call endrun('CARMA_DefineModel::CARMAGAS_Create failed.')
 
-    
+
     ! Define the Processes
 
     call CARMA_AddGrowth(carma, I_ELEM_PRSUL, I_GAS_H2SO4, rc)
@@ -279,9 +282,43 @@ contains
     call CARMA_AddCoagulation(carma, I_GRP_MIXAER, I_GRP_MIXAER, I_GRP_MIXAER, I_COLLEC_DATA, rc)
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddCoagulation failed.')
 
-    call pbuf_add_field('SADSULF', 'global', dtype_r8, (/pcols, pver/), ipbuf4sad)
 
-    
+    !----------------- add pbuf ------------------
+    do igroup = 1, NGROUP
+
+      call CARMAGROUP_Get(carma, igroup, rc, shortname=sname)
+      if (rc < 0) call endrun('carma_register::CARMAGROUP_Get failed.')
+
+      ! surface area density. SADCRMIX
+      call pbuf_add_field('SAD'//trim(sname), 'global', dtype_r8, (/pcols, pver/), ipbuf4sad(igroup))
+      !write(*,*) "'SAD'//trim(sname)",'SAD'//trim(sname)
+
+      ! effective radius. ERCRMIX
+      call pbuf_add_field('ER'//trim(sname), 'global', dtype_r8, (/pcols, pver/), ipbuf4reff(igroup))
+      !write(*,*) "'ER'//trim(sname)",'ER'//trim(sname)
+
+      ! number density #/g  NBCRMIX
+      call pbuf_add_field('NB'//trim(sname), 'global', dtype_r8, (/pcols, pver/), ipbuf4numng(igroup))
+      !write(*,*) "'NB'//trim(sname)",'NB'//trim(sname)
+
+      ! sulfate mass and number density for each bin
+      ! e.g. CRSULF01 first element mass mixing ratio; NBCRMIX01 #/g
+      do ibin=1,NBIN
+       write (outputbin, "(I2.2)") ibin
+       write (outputname,"(A2)"),trim(sname)
+       call pbuf_add_field(outputname//"SULF"//outputbin,'global', dtype_r8, (/pcols, pver/), ipbuf4elem1mr(ibin,igroup))
+       call pbuf_add_field("NB"//trim(sname)//outputbin,'global', dtype_r8, (/pcols, pver/), ipbuf4binng(ibin,igroup))
+       !write(*,*) outputname//"SULF"//outputbin,"   ", "NB"//trim(sname)//outputbin
+       call pbuf_add_field(trim(sname)//outputbin//"_kappa",'global', dtype_r8, (/pcols, pver/), ipbuf4kappa(ibin,igroup))
+       write(*,*) trim(sname)//outputbin//"_kappa"
+      end do
+    end do
+
+    ! total surface area density.
+    call pbuf_add_field('TOTSAD', 'global', dtype_r8, (/pcols, pver/), ipbuf4totsad)
+    call pbuf_add_field('WTP','global', dtype_r8, (/pcols, pver/), ipbuf4wtp)
+    !---------------------------------------------
+
     return
   end subroutine CARMA_DefineModel
 
@@ -289,8 +326,8 @@ contains
   !! Defines all the CARMA components (groups, elements, solutes and gases) and process
   !! (coagulation, growth, nucleation) that will be part of the microphysical model.
   !!
-  !!  @version May-2009 
-  !!  @author  Chuck Bardeen 
+  !!  @version May-2009
+  !!  @author  Chuck Bardeen
   !!
   !!  @see CARMASTATE_SetDetrain
   subroutine CARMA_Detrain(carma, cstate, cam_in, dlf, state, icol, dt, rc, rliq, prec_str, snow_str, &
@@ -309,22 +346,22 @@ contains
     real(r8), intent(in)                 :: dt               !! time step (s)
     integer, intent(out)                 :: rc               !! return code, negative indicates failure
     real(r8), intent(inout), optional    :: rliq(pcols)      !! vertical integral of liquid not yet in q(ixcldliq)
-    real(r8), intent(inout), optional    :: prec_str(pcols)  !! [Total] sfc flux of precip from stratiform (m/s) 
+    real(r8), intent(inout), optional    :: prec_str(pcols)  !! [Total] sfc flux of precip from stratiform (m/s)
     real(r8), intent(inout), optional    :: snow_str(pcols)  !! [Total] sfc flux of snow from stratiform (m/s)
     real(r8), intent(out), optional      :: tnd_qsnow(pcols,pver) !! snow mass tendency (kg/kg/s)
     real(r8), intent(out), optional      :: tnd_nsnow(pcols,pver) !! snow number tendency (#/kg/s)
 
     ! Default return code.
     rc = RC_OK
-    
+
     return
   end subroutine CARMA_Detrain
 
 
   !! For diagnostic groups, sets up up the CARMA bins based upon the CAM state.
   !!
-  !!  @version July-2009 
-  !!  @author  Chuck Bardeen 
+  !!  @version July-2009
+  !!  @author  Chuck Bardeen
   subroutine CARMA_DiagnoseBins(carma, cstate, state, pbuf, icol, dt, rc, rliq, prec_str, snow_str)
     use time_manager,     only: is_first_step
     use constituents,     only: cnst_get_ind
@@ -339,33 +376,34 @@ contains
     real(r8), intent(in)                  :: dt           !! time step
     integer, intent(out)                  :: rc           !! return code, negative indicates failure
     real(r8), intent(in), optional        :: rliq(pcols)      !! vertical integral of liquid not yet in q(ixcldliq)
-    real(r8), intent(inout), optional     :: prec_str(pcols)  !! [Total] sfc flux of precip from stratiform (m/s) 
+    real(r8), intent(inout), optional     :: prec_str(pcols)  !! [Total] sfc flux of precip from stratiform (m/s)
     real(r8), intent(inout), optional     :: snow_str(pcols)  !! [Total] sfc flux of snow from stratiform (m/s)
-    
+
     real(r8)                             :: mmr(pver) !! elements mass mixing ratio
     integer                              :: ibin      !! bin index
-    
+
     ! Default return code.
     rc = RC_OK
-    
+
     ! By default, do nothing. If diagnosed groups exist, this needs to be replaced by
     ! code to determine the mass in each bin from the CAM state.
-    
+
     return
   end subroutine CARMA_DiagnoseBins
 
 
   !! For diagnostic groups, determines the tendencies on the CAM state from the CARMA bins.
   !!
-  !!  @version July-2009 
-  !!  @author  Chuck Bardeen 
+  !!  @version July-2009
+  !!  @author  Chuck Bardeen
   subroutine CARMA_DiagnoseBulk(carma, cstate, cam_out, state, pbuf, ptend, icol, dt, rc, rliq, prec_str, snow_str, &
     prec_sed, snow_sed, tnd_qsnow, tnd_nsnow, re_ice)
     use camsrfexch,       only: cam_out_t
     use physics_buffer, only: pbuf_get_field
+    use cam_history,  only: addfld, add_default
 
     implicit none
-    
+
     type(carma_type), intent(in)         :: carma     !! the carma object
     type(carmastate_type), intent(inout) :: cstate    !! the carma state object
     type(cam_out_t),      intent(inout)  :: cam_out   !! cam output to surface models
@@ -376,7 +414,7 @@ contains
     real(r8), intent(in)                 :: dt        !! time step
     integer, intent(out)                 :: rc        !! return code, negative indicates failure
     real(r8), intent(inout), optional    :: rliq(pcols)      !! vertical integral of liquid not yet in q(ixcldliq)
-    real(r8), intent(inout), optional    :: prec_str(pcols)  !! [Total] sfc flux of precip from stratiform (m/s) 
+    real(r8), intent(inout), optional    :: prec_str(pcols)  !! [Total] sfc flux of precip from stratiform (m/s)
     real(r8), intent(inout), optional    :: snow_str(pcols)  !! [Total] sfc flux of snow from stratiform (m/s)
     real(r8), intent(inout), optional    :: prec_sed(pcols)       !! total precip from cloud sedimentation (m/s)
     real(r8), intent(inout), optional    :: snow_sed(pcols)       !! snow from cloud ice sedimentation (m/s)
@@ -386,63 +424,125 @@ contains
 
    ! Local variables
     real(r8)                             :: numberDensity(cstate%f_NZ)
+    real(r8)                             :: totad(cstate%f_NZ)
     real(r8)                             :: ad(cstate%f_NZ)       !! aerosol wet surface area density (cm2/cm3)
-    real(r8)                             :: ad1(cstate%f_NZ)      !! aerosol wet surface area density (cm2/cm3)
-    real(r8)                             :: ad2(cstate%f_NZ)      !! aerosol wet surface area density (cm2/cm3)
     real(r8)                             :: reff(cstate%f_NZ)     !! wet effective radius (m)
-    real(r8)                             :: md(cstate%f_NZ)       !! bin integrated mass mixing ratio (kg/kg)
     real(r8)                             :: mmr(cstate%f_NZ)      !! mass mixing ratio per bin (kg/kg)
+    real(r8)                             :: mmr_gas(cstate%f_NZ)  !! gas mass mixing ratio (kg/kg)
+    real(r8)                             :: numng(cstate%f_NZ)    !! total number density (#/g)
     real(r8)                             :: r_wet(cstate%f_NZ)    !! Sulfate aerosol bin wet radius (cm)
-    real(r8), pointer, dimension(:,:)    :: sadsulf_ptr           !! Sulfate surface area density pointer
-    real(r8), pointer, dimension(:,:)    :: reffsulf_ptr          !! Sulfate effective radius pointer
-    real(r8), pointer, dimension(:,:)    :: mmrsulf_ptr           !! Sulfate mass mixing ratio pointer
-    integer                              :: ibin, igroup
-   
-    
+    real(r8)                             :: elem1mr(cstate%f_NZ)  !! First element mass mixing ratio (kg/kg)
+    real(r8)                             :: binng(cstate%f_NZ)    !! number density per bin (#/g)
+    real(r8)                             :: rhoa_wet(cstate%f_NZ) !! wet air density (kg/m3)
+    real(r8)                             :: wtpct(cstate%f_NZ)    !! sulfate weight percent
+
+    integer                              :: ibin, igroup, igas
+    integer                              :: icorelem(NELEM),ielem,ncore,ienconc,icore
+    character(len=1024)                  :: outputname
+    character(len=8)                     :: sname                ! short (CAM) name
+
+    real(r8), pointer, dimension(:,:)    :: totsad_ptr            !! Total surface area density pointer
+    real(r8), pointer, dimension(:,:)    :: wtp_ptr		  !! weight percent pointer
+    real(r8), pointer, dimension(:,:,:)  :: sad_ptr               !! Surface area density pointer
+    real(r8), pointer, dimension(:,:,:)  :: reff_ptr              !! Effective radius pointer
+    real(r8), pointer, dimension(:,:,:)  :: numng_ptr             !! Each group number density pointer
+    real(r8), pointer, dimension(:,:,:,:)  :: binng_ptr           !! Each bin number density pointer
+    real(r8), pointer, dimension(:,:,:,:)  :: elem1mr_ptr         !! First element mmr pointer
+    real(r8), pointer, dimension(:,:,:,:)  :: kappa_ptr		  !! kappa pointer
+
     ! Default return code.
     rc = RC_OK
-    
-    call CARMAELEMENT_Get(carma, I_ELEM_PRSUL, rc, igroup=igroup)
-    if (rc < 0) call endrun('CARMA_DiagnoseBulk::CARMAELEMENT_Get failed.')
 
-    ad1(:)  = 0.0_r8     ! wet aerosol surface area density (cm2/cm3)
-    ad2(:)  = 0.0_r8     ! wet aerosol surface area density (cm2/cm3)
-    md(:)  = 0.0_r8      ! bin integrated mass mixing ratio (kg/kg)
-    reff(:)  = 0.0_r8    ! effective radius (m)
+    ! Get the air density
+    call CARMASTATE_GetState(cstate, rc, rhoa_wet=rhoa_wet)
 
-    do ibin = 1, NBIN
-      call CARMASTATE_GetBin(cstate, I_ELEM_PRSUL, ibin, mmr(:), rc, &
+    totad(:) = 0.0_r8   ! total aerosol surface area density (cm2/cm3)
+
+    ! calculated SAD, RE, and number density (#/g) for each group
+    do igroup = 1, NGROUP
+
+      ad(:)  = 0.0_r8     ! wet aerosol surface area density (cm2/cm3)
+      reff(:)  = 0.0_r8    ! effective radius (m)
+      numng(:) = 0.0_r8    ! number density (#/g)
+
+      call CARMAGROUP_Get(carma, igroup, rc, ienconc=ienconc)
+      do ibin = 1, NBIN
+        call CARMASTATE_GetBin(cstate, ienconc, ibin, mmr(:), rc, &
                              numberDensity=numberDensity, r_wet=r_wet)
-      if (rc < 0) call endrun('CARMA_DiagnoseBulk::CARMASTATE_GetBin failed.')
+        if (rc < 0) call endrun('CARMA_DiagnoseBulk::CARMASTATE_GetBin failed.')
 
-      ! Calculate the total densities.
-      !
-      ! NOTE: Calculate AD in cm2/cm3.
-      if (numberDensity(1) /= CAM_FILL) then
-        ad1(:)  = ad1(:)  + numberDensity(:) * (r_wet(:)**2)
-        reff(:) = reff(:) + numberDensity(:) * (r_wet(:)**3)
-        md(:)  = md(:)  + mmr(:)  ! bin integrated mass mixing ratio (kg/kg)
+        ! Calculate the total densities.
+        ! NOTE: Calculate AD in cm2/cm3.
+        if (numberDensity(1) /= CAM_FILL) then
+          ad(:)  = ad(:)  + numberDensity(:) * (r_wet(:)**2)
+          reff(:) = reff(:) + numberDensity(:) * (r_wet(:)**3)
+        end if
+      end do
+
+      reff(:) = reff(:) / ad(:) ! wet effective radius in cm
+      reff(:) = reff(:) / 100.0_r8 ! cm -> m
+
+      ad(:) = ad(:) * 4.0_r8 * PI ! surface area density in cm2/cm3
+
+      ! airdensity from carma state
+      ! convert the number density from #/cm3 to #/g
+      ! number Density #/cm3; rhoa_wet kg/m3
+      numng(:) = numberDensity(:)/(rhoa_wet(:)/1.e3)     !#/g
+
+      call pbuf_get_field(pbuf, ipbuf4sad(igroup), sad_ptr)     ! surface area density cm2/cm3
+      call pbuf_get_field(pbuf, ipbuf4reff(igroup), reff_ptr)   ! effective radius m
+      call pbuf_get_field(pbuf, ipbuf4numng(igroup), numng_ptr) ! number density #/kg
+
+      ! put variables in physics buffer
+      sad_ptr(icol, :cstate%f_NZ,igroup)  = ad(:cstate%f_NZ)
+      reff_ptr(icol, :cstate%f_NZ,igroup) = reff(:cstate%f_NZ)
+      numng_ptr(icol, :cstate%f_NZ,igroup)= numng(:cstate%f_NZ)
+
+      totad(:) = totad(:)+ad(:)
+
+    end do
+
+    call pbuf_get_field(pbuf, ipbuf4totsad, totsad_ptr)     ! surface area density
+    totsad_ptr(icol, :cstate%f_NZ)  = totad(:cstate%f_NZ)
+
+    do igas = 1,NGAS
+      if(igas .eq. I_GAS_H2SO4)then ! only output the sulfate weight percent
+        call CARMASTATE_GetGas(cstate, igas, mmr_gas(:), rc, wtpct=wtpct)
+        call pbuf_get_field(pbuf, ipbuf4wtp, wtp_ptr)
+        wtp_ptr(icol, :cstate%f_NZ)  = wtpct(:cstate%f_NZ)
       end if
     end do
 
-    do ibin = 1, NBIN
-      call CARMASTATE_GetBin(cstate, I_ELEM_CRMIX, ibin, mmr(:), rc, &
-                             numberDensity=numberDensity, r_wet=r_wet)
-      if (rc < 0) call endrun('CARMA_DiagnoseBulk::CARMASTATE_GetBin failed.')
+    ! add new CRSULF element that is only the sulfur part from CRMIX:
+    ! calculate CRSULF mass mixing ratio : CRMIX minus CROC+CRBC+CRBC+CRDUST+CRSALT (+SUM(CRSOA*)
 
-      ! Calculate the total densities.
-      !
-      ! NOTE: Calculate AD in cm2/cm3.
-      if (numberDensity(1) /= CAM_FILL) then
-        ad2(:)  = ad2(:)  + numberDensity(:) * (r_wet(:)**2)
-      end if
-    end do
+    do igroup = 1, NGROUP
+      call CARMAGROUP_Get(carma, igroup, rc, shortname=sname,ienconc=ienconc,ncore=ncore,icorelem=icorelem)
+      do ibin = 1, NBIN
 
-    reff(:) = reff(:) / ad1(:) ! wet effective radius in cm
-    reff(:) = reff(:) / 100.0_r8 ! cm -> m
+        elem1mr(:) = 0._r8
+        binng(:) = 0._r8
 
-    call pbuf_get_field(pbuf, ipbuf4sad, sadsulf_ptr)
-    sadsulf_ptr(icol, :cstate%f_NZ) = ad(:cstate%f_NZ)    ! stratospheric aerosol wet surface area density (cm2/cm3)
+        call CARMASTATE_GetBin(cstate, ienconc, ibin, mmr(:), rc, numberDensity=numberDensity)
+        elem1mr(:) = mmr(:)
+        binng(:) = numberDensity(:)/(rhoa_wet(:)/1.e3)     !#/g
+        if (ncore .ne. 0)then
+          do icore = 1,ncore
+            call CARMASTATE_GetBin(cstate, icorelem(icore), ibin, mmr(:), rc)
+            elem1mr(:) = elem1mr(:) - mmr(:)
+          end do
+        end if
+
+        call pbuf_get_field(pbuf, ipbuf4elem1mr(ibin,igroup), elem1mr_ptr)
+        call pbuf_get_field(pbuf, ipbuf4binng(ibin,igroup), binng_ptr)
+	call pbuf_get_field(pbuf, ipbuf4kappa(ibin,igroup), kappa_ptr)
+
+        elem1mr_ptr(icol, :cstate%f_NZ,ibin,igroup) = elem1mr(:cstate%f_NZ)
+        binng_ptr(icol, :cstate%f_NZ,ibin,igroup) = binng(:cstate%f_NZ)
+	kappa_ptr(icol, :cstate%f_NZ,ibin,igroup) = 1._f
+
+      end do !NBIN
+    end do !NGROUP
 
     return
   end subroutine CARMA_DiagnoseBulk
@@ -463,9 +563,9 @@ contains
                              is_perpetual
     use camsrfexch,    only: cam_in_t
     use cam_history,   only: outfld
-    
+
     implicit none
-    
+
     type(carma_type), intent(in)       :: carma                 !! the carma object
     integer, intent(in)                :: ielem                 !! element index
     integer, intent(in)                :: ibin                  !! bin index
@@ -476,8 +576,8 @@ contains
     real(r8), intent(out)              :: tendency(pcols, pver) !! constituent tendency (kg/kg/s)
     real(r8), intent(out)              :: surfaceFlux(pcols)    !! constituent surface flux (kg/m^2/s)
     integer, intent(out)               :: rc                    !! return code, negative indicates failure
-    
-    integer      :: ilat(pcols)             ! latitude index 
+
+    integer      :: ilat(pcols)             ! latitude index
     integer      :: ilon(pcols)             ! longitude index
     real(r8)     :: clat(pcols)             ! latitude
     integer      :: lchnk                   ! chunk identifier
@@ -501,7 +601,7 @@ contains
     real(r8)            :: uth                                ! threshold wind velocity (m/s)
     real(r8)            :: uv10                               ! 10 m wind speed (m/s)
     real(r8)            :: cd10                               ! 10-m drag coefficient ()
-    real(r8)            :: wwd                                ! raw wind speed (m/s) 
+    real(r8)            :: wwd                                ! raw wind speed (m/s)
     real(r8)            :: sp                                 ! mass fraction for soil factor
     integer             :: idustbin                           ! ibin to use for dust production, smallest silt bin for clay
     real(r8)            :: soilfact(pcols)                    ! soil erosion factor (for debug)
@@ -518,7 +618,7 @@ contains
     logical                            :: do_print             ! do print output?
 
 
-!   currently not used 
+!   currently not used
 !   real(r8)     :: MPOAFlux(pcols)             ! marine POA flux
 !   real(r8)     :: Fsub(pcols)                 ! marine Chlorophy11-dependent mass contribution of sub-micron organics
 !   real(r8)     :: sub_micron(pcols)                   ! total sub-micron sea spray particles
@@ -531,7 +631,7 @@ contains
 
     ! Default return code.
     rc = RC_OK
- 
+
     ! Determine the day of year.
     calday = get_curr_calday()
     if ( is_perpetual() ) then
@@ -551,11 +651,11 @@ contains
 
     ! Add any surface flux here.
     surfaceFlux(:ncol) = 0.0_r8
-    
+
     ! For emissions into the atmosphere, put the emission here.
     !
     ! NOTE: Do not set tendency to be the surface flux. Surface source is put in to
-    ! the bottom layer by vertical diffusion. See vertical_solver module, line 355.            
+    ! the bottom layer by vertical diffusion. See vertical_solver module, line 355.
     tendency(:ncol, :pver) = 0.0_r8
 
 
@@ -572,7 +672,7 @@ contains
 
     call CARMAELEMENT_GET(carma, ielem, rc, igroup=igroup, shortname=shortname)
     if (RC < RC_ERROR) return
-    
+
     call CARMAGROUP_GET(carma, igroup, rc, shortname=shortname, r=r)
     if (RC < RC_ERROR) return
 
@@ -606,14 +706,14 @@ contains
 
     !!*******************************************************************************************************
 
-    
+
     if (ielem == I_ELEM_CROC) then
        do icol = 1, ncol
           smoke(icol) = OCnew(ilat(icol), ilon(icol), mon)*1.8_r8
        enddo
-!  st  scip Fsub PBAFlux etcfor now 
-       surfaceFlux(:ncol) = smoke(:ncol)*fraction*1.9934e-22_r8    
-     
+!  st  scip Fsub PBAFlux etcfor now
+       surfaceFlux(:ncol) = smoke(:ncol)*fraction*1.9934e-22_r8
+
     elseif (ielem == I_ELEM_CRBC) then
         do icol = 1, ncol
           smoke(icol) = BCnew(ilat(icol), ilon(icol), mon)
@@ -623,7 +723,7 @@ contains
     elseif (ielem == I_ELEM_CRDUST) then
 
     ! st if (shortname .eq. "CRDUST") then  ! done by Pengfei
-    
+
       ! Is this clay or silt?
       !
       ! NOTE: It is assumed that 90% of the mass will be silt and 10% will
@@ -637,23 +737,23 @@ contains
         idustbin   = ibin
       else
         sp         = 0.1_r8 / nClay
-        idustbin   = nClay + 1 
+        idustbin   = nClay + 1
       end if
 
       ! Process each column.
       do icol = 1,ncol
-      
-        call CARMA_SurfaceWind(carma, state, icol, ilat(icol), ilon(icol), ielem, igroup, idustbin, cam_in, uv10, wwd, uth, rc) 
+
+        call CARMA_SurfaceWind(carma, state, icol, ilat(icol), ilon(icol), ielem, igroup, idustbin, cam_in, uv10, wwd, uth, rc)
 
         ! Is the wind above the threshold for dust production?
         if (uv10 > uth) then
           surfaceFlux(icol) = ch * soil_factor(ilat(icol), ilon(icol)) * sp * &
-                              wwd * (uv10 - uth)           
+                              wwd * (uv10 - uth)
         endif
-        
-        ! Scale the clay bins based upon the smallest silt bin.   
+
+        ! Scale the clay bins based upon the smallest silt bin.
         surfaceFlux(icol) = clay_mf(ibin) * surfaceFlux(icol)
-        
+
         ! Save off the soil erosion factor so it can be output.
         soilfact(icol) = soil_factor(ilat(icol), ilon(icol))
       end do
@@ -700,7 +800,7 @@ contains
 !       do icol = 1, ncol
 !          smoke(icol) = OCnew(ilat(icol), ilon(icol), mon)*1.8_r8 + BCnew(ilat(icol), ilon(icol), mon)
 !       enddo
-!      ! seasalt 
+!      ! seasalt
 !      call CARMA_SaltFlux(carma, ibin, state, r, dr, rmass, cam_in, SaltFlux, rc)
 !
 !      ! dust
@@ -714,26 +814,26 @@ contains
 !      ! Process each column.
 !      do icol = 1,ncol
 !        ! need to use dust element (e.g. density) to calculate surface wind
-!        ! otherwise the winds would be different   
+!        ! otherwise the winds would be different
 !        call CARMA_SurfaceWind(carma, state, icol, ilat(icol), ilon(icol), I_ELEM_CRDUST, igroup, idustbin, cam_in, uv10, wwd, uth, rc)
 !        ! Is the wind above the threshold for dust production?
 !        if (uv10 > uth) then
 !            surfaceFlux(icol) = ch * soil_factor(ilat(icol), ilon(icol)) * sp * &
 !                                wwd  * (uv10 - uth)
 !        endif
-!        ! Scale the clay bins based upon the smallest silt bin.   
+!        ! Scale the clay bins based upon the smallest silt bin.
 !        surfaceFlux(icol) = clay_mf(ibin) * surfaceFlux(icol)
 !      end do
 !
 !      ! dust+poa+bc+marinPOA+seasalt+seasalt_sulfate
       ! marinePOA + sea alt + marineSulfate = SaltFlux
       !surfaceFlux(:ncol) = surfaceFlux(:ncol) + smoke(:ncol)*fraction*1.9934e-22_r8 + SaltFlux(:ncol) + PBAPFlux(:ncol)
-!     surfaceFlux(:ncol) = surfaceFlux(:ncol) + smoke(:ncol)*fraction*1.9934e-22_r8 + SaltFlux(:ncol) 
+!     surfaceFlux(:ncol) = surfaceFlux(:ncol) + smoke(:ncol)*fraction*1.9934e-22_r8 + SaltFlux(:ncol)
 
-    else      
+    else
 
-    end if        
-    
+    end if
+
     return
   end subroutine CARMA_EmitParticle
 
@@ -763,8 +863,8 @@ contains
     character(len=32)  :: shortname                           ! the shortname of the element
     integer            :: LUNOPRT                             ! logical unit number for output
     logical            :: do_print                            ! do print output?
-    
-        
+
+
     ! Default return code.
     rc = RC_OK
 
@@ -773,15 +873,15 @@ contains
     !
     ! TBD: This should use the radii rather than being hard coded.
     ! nClay = 8
-    ! nSilt = NBIN - nClay   
-    do ielem = 1, NELEM    
+    ! nSilt = NBIN - nClay
+    do ielem = 1, NELEM
        ! To get particle radius
        call CARMAELEMENT_GET(carma, ielem, rc, igroup=igroup, shortname=shortname)
        if (RC < RC_ERROR) return
-       
+
        call CARMAGROUP_GET(carma, igroup, rc, r=r)
        if (RC < RC_ERROR) return
-       
+
        if (shortname .eq. "CRDUST") then
           count_Silt = 0
           do ibin = 1, NBIN
@@ -789,27 +889,27 @@ contains
                 count_Silt = count_Silt + 1
              else
              end if
-          end do       
+          end do
           nSilt = count_Silt
-          nClay = NBIN - nSilt     
-       end if       
+          nClay = NBIN - nSilt
+       end if
     end do
-    
+
     ! Read in the soil factors.
     call CARMA_ReadSoilErosionFactor(carma, rc)
     if (RC < RC_ERROR) return
-    
+
     ! To determine Clay Mass Fraction
-    do ielem = 1, NELEM    
+    do ielem = 1, NELEM
        ! To get particle radius
        call CARMAELEMENT_GET(carma, ielem, rc, igroup=igroup, shortname=shortname)
        if (RC < RC_ERROR) return
 
        if (shortname .eq. "CRDUST") then
-          call CARMA_ClayMassFraction(carma, igroup, rc) 
-       end if       
+          call CARMA_ClayMassFraction(carma, igroup, rc)
+       end if
     end do
-    
+
     if (masterproc) then
       call CARMA_Get(carma, rc, do_print=do_print, LUNOPRT=LUNOPRT)
       if (rc < 0) call endrun("CARMA_InitializeModel: CARMA_Get failed.")
@@ -817,15 +917,15 @@ contains
       if (do_print) then
         write(carma%f_LUNOPRT,*) 'Initializing CARMA dust model ...'
         write(carma%f_LUNOPRT,*) 'nClay = ', nClay, ' nSilt = ', nSilt
-        write(carma%f_LUNOPRT,*) 'clay_mf = ', clay_mf    
+        write(carma%f_LUNOPRT,*) 'clay_mf = ', clay_mf
         write(carma%f_LUNOPRT,*) 'soil_factor = ', soil_factor
-        
+
         write(carma%f_LUNOPRT,*) 'CARMA dust initialization complete'
       end if
     end if
-    
+
     call addfld('CRSLERFC', horiz_only, 'A', 'fraction', 'CARMA soil erosion factor')
-    
+
     return
   end subroutine CARMA_InitializeModel
 
@@ -863,18 +963,18 @@ contains
 
     return
   end subroutine CARMA_InitializeParticle
-  
+
 
   !!  Called after wet deposition has been performed. Allows the specific model to add
   !!  wet deposition of CARMA aerosols to the aerosols being communicated to the surface.
   !!
-  !!  @version July-2011 
-  !!  @author  Chuck Bardeen 
+  !!  @version July-2011
+  !!  @author  Chuck Bardeen
   subroutine CARMA_WetDeposition(carma, ielem, ibin, sflx, cam_out, state, rc)
     use camsrfexch,       only: cam_out_t
 
     implicit none
-    
+
     type(carma_type), intent(in)         :: carma       !! the carma object
     integer, intent(in)                  :: ielem       !! element index
     integer, intent(in)                  :: ibin        !! bin index
@@ -882,17 +982,17 @@ contains
     type(cam_out_t), intent(inout)       :: cam_out     !! cam output to surface models
     type(physics_state), intent(in)      :: state       !! physics state variables
     integer, intent(out)                 :: rc          !! return code, negative indicates failure
-    
+
     integer    :: icol
- 
+
     ! Default return code.
     rc = RC_OK
-    
+
     return
-  end subroutine CARMA_WetDeposition 
+  end subroutine CARMA_WetDeposition
 
 
-  !! Calculates the emissions for CARMA sea salt aerosol particles. 
+  !! Calculates the emissions for CARMA sea salt aerosol particles.
   !!
   !! @author  Tianyi Fan, Chuck Bardeen, Pengfei Yu
   !! @version Dec-2010
@@ -914,12 +1014,12 @@ contains
     type(physics_state), intent(in)    :: state                 !! physics state
     real(r8), intent(in)               :: r(NBIN)               !! bin center (cm)
     real(r8), intent(in)               :: dr(NBIN)              !! bin width (cm)
-    real(r8), intent(in)               :: rmass(NBIN)           !! bin mass (g)    
+    real(r8), intent(in)               :: rmass(NBIN)           !! bin mass (g)
     type(cam_in_t), intent(in)         :: cam_in                !! surface inputs
     real(r8), intent(out)              :: SaltFlux(pcols)       !! constituent surface flux (kg/m^2/s)
     integer, intent(out)               :: rc                    !! return code, negative indicates failure
 
-    integer      :: ilat(pcols)              ! latitude index 
+    integer      :: ilat(pcols)              ! latitude index
     integer      :: ilon(pcols)              ! longitude index
     integer      :: lchnk                   ! chunk identifier
     integer      :: ncol                    ! number of columns in chunk
@@ -927,14 +1027,14 @@ contains
 
 
     ! -------- local variables added for sea salt model ------------
-    real(r8)            :: rdrycm, rdry                       ! dry radius [cm], [um]     
+    real(r8)            :: rdrycm, rdry                       ! dry radius [cm], [um]
     real(r8)            :: r80cm, r80                         ! wet radius at relatige humidity of 80% [cm]
     real(r8)            :: ncflx                              ! dF/dr [#/m2/s/um]
     real(r8)            :: Monahan, Clarke, Smith             ! dF/dr [#/m2/s/um]
     real(r8)            :: A_para, B_para, sita_para          ! A, B, and sita parameters in Gong
     real(r8)            :: B_mona                             ! the parameter used in Monahan
     real(r8)            :: W_Caff                             ! Correction factor in Caffrey
-    real(r8)            :: u14, ustar_smith, cd_smith         ! 14m wind velocity, friction velocity, and drag coefficient as desired by Andreas source function              
+    real(r8)            :: u14, ustar_smith, cd_smith         ! 14m wind velocity, friction velocity, and drag coefficient as desired by Andreas source function
     real(r8)            :: wcap                               ! whitecap coverage
     real(r8)            :: fref                               ! correction factor suggested by Hoppe2005
     real(r8), parameter :: xkar = 0.4_r8                      ! Von Karman constant
@@ -974,7 +1074,7 @@ contains
     real(r8), parameter :: d02 = 2.279e9_r8
     real(r8), parameter :: d03 =-5.800e8_r8
 
-    real(r8)            :: rpdry                              ! dry radius 
+    real(r8)            :: rpdry                              ! dry radius
     real(r8)            :: Ak1                                ! Coefficient Ak in Martensson's source function
     real(r8)            :: Ak2
     real(r8)            :: Ak3
@@ -1024,7 +1124,7 @@ contains
 
     ! ---------------------------------------------
     ! coefficient in Smith's Source funcion
-    ! --------------------------------------------- 
+    ! ---------------------------------------------
     real(r8), parameter ::  f1 = 3.1_r8
     real(r8), parameter ::  f2 = 3.3_r8
     real(r8), parameter ::  r1 = 2.1_r8
@@ -1032,8 +1132,8 @@ contains
     real(r8), parameter ::  delta = 10._r8
 
     ! --------------------------------------------------------------------
-    ! ---- constants in calculating the particle wet radius [Gerber, 1985]   
-    ! --------------------------------------------------------------------        
+    ! ---- constants in calculating the particle wet radius [Gerber, 1985]
+    ! --------------------------------------------------------------------
     real(r8), parameter :: c1   = 0.7674_r8        ! .
     real(r8), parameter :: c2   = 3.079_r8         ! .
     real(r8), parameter :: c3   = 2.573e-11_r8     ! .
@@ -1066,13 +1166,13 @@ contains
       end if
 
       !**********************************
-      ! wet sea salt radius at RH = 80%  
-      !**********************************    
+      ! wet sea salt radius at RH = 80%
+      !**********************************
       r80cm   = (c1 *  (r(ibin)) ** c2 / (c3 * r(ibin) ** c4 - log10(0.8_r8)) + (r(ibin))**3) ** (1._r8/3._r8) ! [cm]
-      rdrycm  = r(ibin)  ! [cm]   
+      rdrycm  = r(ibin)  ! [cm]
       r80     = r80cm *1.e4_r8    ! [um]
       rdry    = rdrycm*1.e4_r8  ! [um]
-     
+
        do icol = 1,ncol
 
         ! Only generate sea salt over the ocean.
@@ -1080,10 +1180,10 @@ contains
 
           !**********************************
           !    WIND for seasalt production
-          !**********************************    
+          !**********************************
           call CARMA_SurfaceWind_salt(carma, state, icol, ilat(icol), ilon(icol), cam_in, u10in, rc)
 
-          ! Add any surface flux here.       
+          ! Add any surface flux here.
           ncflx       = 0.0_r8
           Monahan     = 0.0_r8
           Clarke      = 0.0_r8
@@ -1122,7 +1222,7 @@ contains
           if (carma_seasalt_emis .eq. 'CONST') then
             ncflx = 1.e-5_r8
           end if
-     
+
          !-------Gong source function------
           if (carma_seasalt_emis == "Gong") then
             sita_para = 30
@@ -1135,29 +1235,29 @@ contains
           !------Martensson source function-----
           if (carma_seasalt_emis == "Martensson") then
             if (rdry .le. 0.0725_r8) then
-              ncflx = (Ak1(rdry*1.0e-6_r8)* (25._r8+273._r8) + Bk1(rdry*1.0e-6_r8)) * wcap      ! dF/dlogr [#/s/m2]                                     
-              ncflx = ncflx / (2.30258509_r8 * rdry)                                            ! dF/dr    [#/s/m2/um]        
+              ncflx = (Ak1(rdry*1.0e-6_r8)* (25._r8+273._r8) + Bk1(rdry*1.0e-6_r8)) * wcap      ! dF/dlogr [#/s/m2]
+              ncflx = ncflx / (2.30258509_r8 * rdry)                                            ! dF/dr    [#/s/m2/um]
             elseif (rdry .gt. 0.0725_r8 .and. rdry .le. 0.2095_r8) then
               ncflx = (Ak2(rdry*1.0e-6_r8)* (25._r8+273._r8) + Bk2(rdry*1.0e-6_r8)) * wcap      ! dF/dlogr [#/s/m2]
-              ncflx = ncflx / (2.30258509_r8 * rdry)                                            ! dF/dr    [#/s/m2/um]                                
+              ncflx = ncflx / (2.30258509_r8 * rdry)                                            ! dF/dr    [#/s/m2/um]
             elseif (rdry .gt. 0.2095_r8 .and. rdry .le. 1.4_r8) then
               ncflx = (Ak3(rdry*1.0e-6_r8)* (25._r8+273._r8) + Bk3(rdry*1.0e-6_r8)) * wcap      ! dF/dlogr [#/s/m2]
-              ncflx = ncflx / (2.30258509_r8 * rdry)                                            ! dF/dr    [#/s/m2/um] 
+              ncflx = ncflx / (2.30258509_r8 * rdry)                                            ! dF/dr    [#/s/m2/um]
             else
               ncflx = 0._r8
             end if
           end if
 
-          !-------Clarke source function------- 
+          !-------Clarke source function-------
           if (carma_seasalt_emis == "Clarke")then
             if (rdry .lt. 0.066_r8) then
-             ncflx = A1(rdry) * 1.e4_r8 * wcap                              ! dF/dlogr [#/s/m2] 
+             ncflx = A1(rdry) * 1.e4_r8 * wcap                              ! dF/dlogr [#/s/m2]
               ncflx = ncflx / (2.30258509_r8 * rdry)                        ! dF/dr    [#/s/m2/um]
             elseif (rdry .ge. 0.066_r8 .and. rdry .lt. 0.6_r8) then
-              ncflx = A2(rdry) * 1.e4_r8 * wcap                             ! dF/dlogr [#/s/m2] 
+              ncflx = A2(rdry) * 1.e4_r8 * wcap                             ! dF/dlogr [#/s/m2]
               ncflx = ncflx / (2.30258509_r8 * rdry)                        ! dF/dr    [#/s/m2/um]
             elseif (rdry .ge. 0.6_r8 .and. rdry .lt. 4.0_r8) then
-              ncflx = A3(rdry) * 1.e4_r8 * wcap                             ! dF/dlogr [#/s/m2] 
+              ncflx = A3(rdry) * 1.e4_r8 * wcap                             ! dF/dlogr [#/s/m2]
               ncflx= ncflx / (2.30258509_r8 * rdry)                         ! dF/dr    [#/s/m2/um]
             else
               ncflx = 0._r8
@@ -1167,7 +1267,7 @@ contains
           !-----------Caffrey source function------------
           if (carma_seasalt_emis == "Caffrey") then
 
-            !Monahan        
+            !Monahan
             B_mona = (0.38_r8 - log10(r80)) / 0.65_r8
             Monahan = 1.373_r8 * (u10in**3.41_r8) * r80**(-3._r8) * (1._r8 + 0.057 *r80**1.05_r8)  * 10._r8 ** (1.19_r8 * exp(-1. * B_mona**2)) ! dF/dr
 
@@ -1175,7 +1275,7 @@ contains
             u14 = u10in * (1._r8 + cd_smith**0.5_r8 / xkar * log(14._r8 / 10._r8))  ! 14 meter wind
             A1A92 = 10._r8 ** (0.0676_r8 * u14 + 2.430_r8)
             A2A92 = 10._r8 ** (0.9590_r8 * u14**0.5_r8 - 1.476_r8)
-            Smith = A1A92*exp(-f1 *(log(r80/r1))**2) + A2A92*exp(-f2 * (log(r80/r2))**2)     ! dF/dr   [#/m2/s/um]                    
+            Smith = A1A92*exp(-f1 *(log(r80/r1))**2) + A2A92*exp(-f2 * (log(r80/r2))**2)     ! dF/dr   [#/m2/s/um]
 
             !Caffrey based on Monahan and Smith
             W_Caff = 1.136_r8 **(-1._r8 * rdry ** (-0.855_r8))*(1._r8 + 0.2_r8/rdry)
@@ -1204,19 +1304,19 @@ contains
           !--------CMS (Clarke, Monahan, and Smith source function)-------
           if (carma_seasalt_emis == "CMS") then
 
-            !Clarke  
+            !Clarke
             if (rdry .lt. 0.066_r8) then
-              Clarke = A1(rdry) * 1.e4_r8 * wcap                     ! dF/dlogr [#/s/m2] 
+              Clarke = A1(rdry) * 1.e4_r8 * wcap                     ! dF/dlogr [#/s/m2]
               Clarke = Clarke / (2.30258509_r8 * rdry)               ! dF/dr    [#/s/m2/um]
             elseif ((rdry .ge. 0.066_r8) .and. (rdry .lt. 0.6_r8)) then
-              Clarke = A2(rdry) * 1.e4_r8 * wcap                     ! dF/dlogr [#/s/m2] 
+              Clarke = A2(rdry) * 1.e4_r8 * wcap                     ! dF/dlogr [#/s/m2]
               Clarke = Clarke / (2.30258509_r8 * rdry)               ! dF/dr    [#/s/m2/um]
             elseif ((rdry .ge. 0.6_r8) .and. (rdry .lt. 4.0_r8)) then
-              Clarke = A3(rdry) * 1.e4_r8 * wcap                      ! dF/dlogr [#/s/m2] 
+              Clarke = A3(rdry) * 1.e4_r8 * wcap                      ! dF/dlogr [#/s/m2]
               Clarke= Clarke / (2.30258509_r8 * rdry)                 ! dF/dr    [#/s/m2/um]
             end if
 
-          !Monahan   
+          !Monahan
             B_Mona = (0.38_r8 - log10(r80)) / 0.65_r8
             Monahan = 1.373_r8 * u10in ** 3.41_r8 * r80 ** (-3._r8) * (1._r8 + 0.057_r8 * r80**1.05_r8) * 10._r8 ** (1.19_r8 * exp(- B_Mona **2))
 
@@ -1224,7 +1324,7 @@ contains
             u14 = u10in * (1._r8 + cd_smith**0.5_r8 / xkar*log(14._r8 / 10._r8))  ! 14 meter wind
             A1A92 = 10._r8 ** (0.0676_r8 * u14 + 2.430_r8)
             A2A92 = 10._r8 ** (0.9590_r8 * u14**0.5_r8 - 1.476_r8)
-            Smith = A1A92*exp(-f1 *(log(r80 / r1))**2) + A2A92*exp(-f2 * (log(r80 / r2))**2)     ! dF/dr   [#/m2/s/um]                    
+            Smith = A1A92*exp(-f1 *(log(r80 / r1))**2) + A2A92*exp(-f2 * (log(r80 / r2))**2)     ! dF/dr   [#/m2/s/um]
 
             !%%%%%%%%%%%%%%%%%%%%%%%%%
             !     CMS1 or CMS2
@@ -1249,14 +1349,14 @@ contains
 
             !%%%%%%%%%%%%%%%%%%%%%%%%%
             ! Apply Hoppel correction
-            !%%%%%%%%%%%%%%%%%%%%%%%%%       
+            !%%%%%%%%%%%%%%%%%%%%%%%%%
             ncflx = ncflx * fref
           end if
-    
-          ! convert ncflx [#/m^2/s/um] to surfaceFlx [kg/m^2/s]              
+
+          ! convert ncflx [#/m^2/s/um] to surfaceFlx [kg/m^2/s]
           ! SaltFlux(icol) = ncflx * dr(ibin) * rmass(ibin) * 10._r8      ! *1e4[um/cm] * 1.e-3[kg/g]
                   SaltFlux(icol) = ncflx * dr(ibin) * rmass(ibin) * 10._r8
-                        
+
 !          if (do_print) write(LUNOPRT, *) "ibin = ", ibin, ", igroup = ", igroup
 !          if (do_print) write(LUNOPRT, *) "dr = ", dr(ibin), ", rmass = ", rmass(ibin)
 !          if (do_print) write(LUNOPRT, *) "ncflx = " , ncflx, ", SaltFlux = ", SaltFlux(icol)
@@ -1268,8 +1368,8 @@ contains
 
     return
   end subroutine CARMA_SaltFlux
- 
-  
+
+
   !! Calculate the sea surface wind with a Weibull distribution.
   !!
   !! @author  Tianyi Fan
@@ -1285,20 +1385,20 @@ contains
     type(carma_type), intent(in)        :: carma                 !! the carma object
     type(physics_state), intent(in)     :: state                 !! physics state
     integer, intent(in)                 :: icol                  !! column index
-    integer, intent(in)                 :: ilat                  !! latitude index 
+    integer, intent(in)                 :: ilat                  !! latitude index
     integer, intent(in)                 :: ilon                  !! longitude index
     type(cam_in_t), intent(in)          :: cam_in                !! surface inputs
     real(r8), intent(out)               :: u10in                 !! the 10m wind speed put into the source function
     integer, intent(out)                :: rc                    !! return code, negative indicates failure
 
     ! local variables
-    real(r8) :: uWB341              ! the nth mean wind with integration using Weibull Distribution(integrate from threshold wind velocity)      
+    real(r8) :: uWB341              ! the nth mean wind with integration using Weibull Distribution(integrate from threshold wind velocity)
 
     rc = RC_OK
 
     uWB341 = 0._r8
 
-    ! calc. the Weibull wind distribution         
+    ! calc. the Weibull wind distribution
     u10in = cam_in%u10(icol)
 
     ! Use Weibull with prescribed coefficients?
@@ -1327,49 +1427,49 @@ contains
   !!  NOTE: Should any mass go to bins smaller than the smallest one used by
   !!  Tegen and Lacis?
   !!
-  !!  @version July-2012 
-  !!  @author  Lin Su, Pengfei Yu, Chuck Bardeen 
+  !!  @version July-2012
+  !!  @author  Lin Su, Pengfei Yu, Chuck Bardeen
   subroutine CARMA_ClayMassFraction(carma, igroup, rc)
     implicit none
-    
+
     type(carma_type), intent(in)         :: carma       !! the carma object
     integer, intent(in)                  :: igroup      !! the carma group index
     integer, intent(inout)               :: rc          !! return code, negative indicates failure
 
     ! Bins and mass fraction from Tegen and Lacis.
-    integer, parameter  :: NBIN_TEGEN = 4    
+    integer, parameter  :: NBIN_TEGEN = 4
     real(r8)            :: tl_rmin(NBIN_TEGEN) = (/ 1.e-5_r8,  1.8e-5_r8, 3.e-5_r8, 6.e-5_r8 /)
     real(r8)            :: tl_rmax(NBIN_TEGEN) = (/ 1.8e-5_r8, 3.e-5_r8,  6.e-5_r8, 1.e-4_r8 /)
     real(r8)            :: tl_mf(NBIN_TEGEN)   = (/ 0.009_r8,  0.081_r8,  0.234_r8, 0.676_r8 /)
 
     ! Local Variables
-    integer, parameter  :: IBELOW = 1    
-    integer, parameter  :: IABOVE = 6    
+    integer, parameter  :: IBELOW = 1
+    integer, parameter  :: IABOVE = 6
     integer             :: tl_count(NBIN_TEGEN+2)  ! count number in Tegen and Lacis ranges
     integer             :: ind_up(NBIN_TEGEN+2)
     integer             :: ind_low(NBIN_TEGEN+2)
     integer             :: j                    ! local index number
     integer             :: ibin                 ! carma bin index
     real(r8)            :: r(carma%f_NBIN)      ! CARMA bin center (cm)
-     
+
     ! Default return code.
     rc = RC_OK
-    
+
     ! Interpolate from Tegen and Lacis.
     call CARMAGROUP_GET(carma, igroup, rc, r=r)
     if (RC < RC_ERROR) return
-    
+
     ! Figure out how many of the CARMA bins are in each of the Tegen and Lacis
     ! ranges.
     tl_count(:) = 0
-    
+
     do ibin = 1, NBIN
-    
+
       ! Smaller than the range.
       if (r(ibin) < tl_rmin(1)) then
         tl_count(IBELOW) = tl_count(IBELOW) + 1
       end if
-      
+
       ! In the range
       do j = 1, NBIN_TEGEN
         if (r(ibin) < tl_rmax(j) .and. r(ibin) >= tl_rmin(j)) then
@@ -1380,7 +1480,7 @@ contains
       ! Bigger than the range.
       if (r(ibin) >= tl_rmax(NBIN_TEGEN)) then
         tl_count(IABOVE) = tl_count(IABOVE) + 1
-      end if       
+      end if
     end do
 
     ! Determine where the boundaries are between the TEGEN bins and
@@ -1389,30 +1489,30 @@ contains
     ind_low(:)  = 0
     ind_up (IBELOW)  = tl_count(IBELOW)
     ind_low(IBELOW)  = min(1, tl_count(IBELOW))
-    
+
     do j = 1, 5
       ind_up (j+1) = ind_up(j) + tl_count(j+1)
       ind_low(j+1) = ind_up(j) + min(tl_count(j+1), 1)
     end do
-    
+
     ! No mass to bins smaller than the smallest size.
     clay_mf(:) = 0._r8
-    
+
     ! NOTE: This won't work right if the dust bins are coarser than
     ! the Tegen and Lacis bins. In this case mass fraction would need
-    ! to be combined from the Tegen & Lacis bins into a CARMA bin. 
+    ! to be combined from the Tegen & Lacis bins into a CARMA bin.
     do j = 1, NBIN_TEGEN
       if (tl_count(j+1) > 0) then
         clay_mf(ind_low(j+1):ind_up(j+1)) = tl_mf(j) / tl_count(j+1)
       end if
-    end do 
-                                       
+    end do
+
     clay_mf(ind_low(IABOVE):) = 1._r8
 
     return
   end subroutine CARMA_ClayMassFraction
 
-                                              
+
   !! Calculate the sea surface wind with a Weibull distribution.
   !!
   !! NOTE: This should be combined with a similar routine in the sea salt
@@ -1425,14 +1525,14 @@ contains
     use ppgrid,           only: pcols, pver
     use physics_types,    only: physics_state
     use camsrfexch,       only: cam_in_t
- 
+
     implicit none
 
     ! in and out field
     type(carma_type), intent(in)        :: carma                 !! the carma object
-    type(physics_state), intent(in)     :: state                 !! physics state   
+    type(physics_state), intent(in)     :: state                 !! physics state
     integer, intent(in)                 :: icol                  !! column index
-    integer, intent(in)                 :: ilat                  !! latitude index 
+    integer, intent(in)                 :: ilat                  !! latitude index
     integer, intent(in)                 :: ilon                  !! longitude index
     integer, intent(in)                 :: ielem                 !! element index
     integer, intent(in)                 :: igroup                !! group index
@@ -1446,12 +1546,12 @@ contains
     real(r8), parameter                 :: vk = 0.4_r8           ! von Karman constant
     real(r8)                            :: r(NBIN)               ! CARMA bin center (cm)
     real(r8)                            :: rhop(NBIN)            ! CARMA partile element density (g/cm3)
-    real(r8)                            :: uthfact               !     
+    real(r8)                            :: uthfact               !
     integer                             :: iepart                ! element in group containing the particle concentration
     real(r8), parameter                 :: rhoa = 1.25e-3_r8     ! Air density at surface
-    
+
     rc = RC_OK
-    
+
     ! Get the 10 meter wind speed
     uv10 = cam_in%u10(icol)
 
@@ -1459,11 +1559,11 @@ contains
     ! note that in cgs units --> m/s
     call CARMAGROUP_GET(carma, igroup, rc, r=r)
     if (RC < RC_ERROR) return
-    
+
     ! Define particle # concentration element index for current group
     call CARMAELEMENT_Get(carma, ielem, rc, rho=rhop)
     if (RC < RC_ERROR) return
-        
+
     if (cam_in%soilw(icol) > 0._r8 .AND. cam_in%soilw(icol) < 0.5_r8) then
        uthfact = 1.2_r8 + 0.2_r8*log10(cam_in%soilw(icol))
        if (r(ibin) > 2.825e-5_r8) then  ! r(4) = 2.825e-5 cm
@@ -1477,7 +1577,7 @@ contains
        endif
     else
        uth = uv10
-    endif    
+    endif
 
     ! Use Weibull with Lansing's estimate for shape.
     call WeibullWind(uv10, uth, 2._r8, wwd)
@@ -1502,8 +1602,8 @@ contains
     use pmgrid,        only: plat, plon
     use ioFileMod,     only: getfil
     use wrap_nf
-    use interpolate_data,  only : lininterp_init, lininterp, interp_type, lininterp_finish    
-    
+    use interpolate_data,  only : lininterp_init, lininterp, interp_type, lininterp_finish
+
     implicit none
 
     type(carma_type), intent(in)              :: carma                 !! the carma object
@@ -1525,19 +1625,19 @@ contains
     ! Open the netcdf file (read only)
     call getfil(carma_soilerosion_file, ero_file, 0)
     call wrap_open(ero_file, 0, fid)
-  
+
     ! Get file dimensions
     call wrap_inq_dimid(fid, 'plon', fid_lon)
     call wrap_inq_dimid(fid, 'plat', fid_lat)
     call wrap_inq_dimlen(fid, fid_lon, f_nlon)
     call wrap_inq_dimlen(fid, fid_lat, f_nlat)
-  
+
     allocate(ero_lat(f_nlat))
     allocate(ero_lon(f_nlon))
     allocate(ero_factor (f_nlon, f_nlat))
     allocate(ero_factor1(plon, plat))
     allocate(soil_factor(plat, plon))
-    
+
     ! Read in the tables.
     call wrap_inq_varid(fid, 'new_source', idvar)
     i = nf90_get_var (fid, idvar, ero_factor)
@@ -1549,34 +1649,34 @@ contains
     call wrap_get_var_realx(fid, idlat,  ero_lat)
     call wrap_inq_varid(fid, 'plon', idlon)
     call wrap_get_var_realx(fid, idlon,  ero_lon)
-            
+
     ! Close the file.
     call wrap_close(fid)
-    
+
     ! NOTE: Is there a better way to get all of the dimensions
     ! needed for the model grid? Seems like it shouldn't be hard
     ! coded here.
     do i = 1, plat
        lat(i) = 180._r8 / (plat-1) * (i-1) - 90._r8
     end do
-    
+
     do i = 1, plon
        lon(i) = 360._r8 / plon * (i-1)
     end do
-    
+
     call lininterp_init(ero_lat, f_nlat, lat, plat, 1, wgt1)
     call lininterp_init(ero_lon, f_nlon, lon, plon, 1, wgt2)
     call lininterp(ero_factor, f_nlon, f_nlat, ero_factor1, plon, plat, wgt2, wgt1)
     call lininterp_finish(wgt1)
     call lininterp_finish(wgt2)
-    
+
     soil_factor(:plat, :plon) = transpose(ero_factor1(:plon, :plat))
-    
+
     deallocate(ero_lat)
     deallocate(ero_lon)
     deallocate(ero_factor)
     deallocate(ero_factor1)
-    
+
     return
   end subroutine CARMA_ReadSoilErosionFactor
 
@@ -1584,7 +1684,7 @@ contains
   !! Calculate the nth mean of u using Weibull wind distribution
   !! considering the threshold wind velocity. This algorithm
   !! integrates from uth to infinite (u^n P(u)du )
-  !!  
+  !!
   !! @author  Tianyi Fan
   !! @version August-2010
    subroutine WeibullWind(u, uth, n, uwb, wbk)
@@ -1593,30 +1693,30 @@ contains
          igamma => shr_spfn_igamma
 
     implicit none
-  
+
     real(r8), intent(in)  :: u      ! mean wind speed
     real(r8), intent(in)  :: uth    ! threshold velocity
     real(r8), intent(in)  :: n      ! the rank of u in the integration
     real(r8), intent(out) :: uwb    ! the Weibull distribution
     real(r8), intent(in), optional ::  wbk    ! the shape parameter
-  
+
     ! local variable
     real(r8)  :: k                  ! the shape parameter in Weibull distribution
     real(r8)  :: c                  ! the scale parameter in Weibull distribution
-  
+
     if (present(wbk)) then
       k = wbk
     else
       k = 0.94*u**0.5_r8            ! follow Grini and Zender, 2004JGR
  !    k = 2.5_r8                   ! Lansing's estimate
-    end if 
-  
+    end if
+
     ! If u is 0, then k can be 0, which makes a lot of this undefined.
     ! Just return 0. in this case.
     if (u == 0._r8) then
       uwb = 0._r8
-    else 
-      c   = u * (gamma(1._r8 + 1._r8 / k))**(-1._r8)  
+    else
+      c   = u * (gamma(1._r8 + 1._r8 / k))**(-1._r8)
       uwb = c**n * igamma(n / k + 1._r8, (uth / c)**k)
     end if
 
@@ -1661,14 +1761,14 @@ contains
     character(len=256)                        :: OC_GFEDv3_file
     character(len=256)                        :: BC_ship_file
     character(len=256)                        :: OC_ship_file
-!    
+!
     real(r8), allocatable, dimension(:,:,:)       :: BC_anthro_GAINS
     real(r8), allocatable, dimension(:,:,:)       :: OC_anthro_GAINS
     real(r8), allocatable, dimension(:,:,:)       :: BC_GFEDv3
     real(r8), allocatable, dimension(:,:,:)       :: OC_GFEDv3
     real(r8), allocatable, dimension(:,:,:)       :: BC_ship_GAINS
     real(r8), allocatable, dimension(:,:,:)       :: OC_ship_GAINS
-!        
+!
     real(r8), allocatable, dimension(:)       :: BC_lat, OC_lat       ! latitude dimension
     real(r8), allocatable, dimension(:)       :: BC_lon, OC_lon       ! latitude dimension
     type (interp_type)                        :: wgt1, wgt2
@@ -1744,12 +1844,12 @@ contains
         ierr = pio_inq_dimlen(fid, fid_time,f_ntime)
         ierr = pio_inq_dimlen(fid, fid_lon, f_nlon)
         ierr = pio_inq_dimlen(fid, fid_lat, f_nlat)
-        
+
        !  write(carma%f_LUNOPRT,*) ''
        !  write(carma%f_LUNOPRT,*) 'f_lon = ', f_nlon
-       !  write(carma%f_LUNOPRT,*) 'f_lat = ', f_nlat 
+       !  write(carma%f_LUNOPRT,*) 'f_lat = ', f_nlat
        !  write(carma%f_LUNOPRT,*) 'f_ntime = ', f_ntime
-       !  write(carma%f_LUNOPRT,*) ''  
+       !  write(carma%f_LUNOPRT,*) ''
 
     allocate(BC_lat(f_nlat))
     allocate(BC_lon(f_nlon))
@@ -1780,7 +1880,7 @@ contains
     BC_f2d = BC_f3d(:,:,1) - BC_dom_f3d(:,:,1) - BC_awb_f3d(:,:,1)
     BC_dom_f2d = BC_dom_f3d(:,:,1)
 
-    ! make sure file longitude range from 0-360  
+    ! make sure file longitude range from 0-360
     if (BC_lon(1) < -160._r8) then
        allocate(tempor2d(f_nlon, f_nlat))
        allocate(tempor1d(f_nlon))
@@ -1808,12 +1908,12 @@ contains
     do i = 1, f_nlat
        gridarea = 2.0_r8*3.14159_r8*rearth/f_nlat * &
                           2.0_r8*3.14159_r8*rearth/f_nlon*cos(BC_lat(i)/180._r8*3.14159_r8)
-       !                          
+       !
        BC_f2d(:f_nlon,i) = BC_f2d(:f_nlon,i)/365._r8/86400._r8*1.e9_r8/ &       ! g/s
                                         12._r8*6.02e23_r8/gridarea*1.e-4_r8                     ! #/cm2/s
-       !                                        
+       !
        BC_dom_f2d(:f_nlon,i) = BC_dom_f2d(:f_nlon,i)/365._r8/86400._r8*1.e9_r8/ &       ! g/s
-                                        12._r8*6.02e23_r8/gridarea*1.e-4_r8                     ! #/cm2/s                                       
+                                        12._r8*6.02e23_r8/gridarea*1.e-4_r8                     ! #/cm2/s
     end do
 
     call lininterp_init(BC_lat, f_nlat, lat, plat, 1, wgt1)
@@ -1838,14 +1938,14 @@ contains
            ! 45N-90N
            BC2d(:plon, ind_45N:plat) = BC2d(:plon, ind_45N:plat) + &
                                                                 BC2d_dom(:plon, ind_45N:plat)*facH(itime)*12._r8
-           ! 15N-45N                                                    
+           ! 15N-45N
            BC2d(:plon, ind_15N:ind_45N-1) = BC2d(:plon, ind_15N:ind_45N-1) + &
                                                                 BC2d_dom(:plon, ind_15N:ind_45N-1)*facL(itime)*12._r8
-           ! 90S-15N                                                    
+           ! 90S-15N
            BC2d(:plon, 1:ind_15N-1) = BC2d(:plon, 1:ind_15N-1) + &
                                                                 BC2d_dom(:plon, 1:ind_15N-1)
-                                                                                                                                                                        
-       BC_anthro_GAINS(itime, :plat, :plon) = transpose(BC2d(:plon, :plat))                                                                     
+
+       BC_anthro_GAINS(itime, :plat, :plon) = transpose(BC2d(:plon, :plat))
     end do
 
     deallocate(BC_lat)
@@ -1863,7 +1963,7 @@ contains
         ! Open the netcdf file (read only)
         call getfil(OC_GAINS_filename, OC_GAINS_file, 0)
         call cam_pio_openfile(fid, trim(OC_GAINS_file), PIO_NOWRITE)
-        
+
         ! Get file dimensions
         ierr = pio_inq_dimid(fid, 'time', fid_time)
         ierr = pio_inq_dimid(fid, 'lon', fid_lon)
@@ -1902,7 +2002,7 @@ contains
     OC_f2d(:,:) = OC_f3d(:,:,1) - OC_dom_f3d(:,:,1) - OC_awb_f3d(:,:,1)
     OC_dom_f2d = OC_dom_f3d(:,:,1)
 
-    ! make sure file longitude range from -180-180 to 0-360  
+    ! make sure file longitude range from -180-180 to 0-360
     if (OC_lon(1) < -160._r8) then
        allocate(tempor2d(f_nlon, f_nlat))
        allocate(tempor1d(f_nlon))
@@ -1930,12 +2030,12 @@ contains
     do i = 1, f_nlat
        gridarea = 2.0_r8*3.14159_r8*rearth/f_nlat * &
                           2.0_r8*3.14159_r8*rearth/f_nlon*cos(OC_lat(i)/180._r8*3.14159_r8)
-       !                          
+       !
        OC_f2d(:f_nlon,i) = OC_f2d(:f_nlon,i)/365._r8/86400._r8*1.e9_r8/ &       ! g/s
                                         12._r8*6.02e23_r8/gridarea*1.e-4_r8                     ! #/cm2/s
-       !                                        
+       !
        OC_dom_f2d(:f_nlon,i) = OC_dom_f2d(:f_nlon,i)/365._r8/86400._r8*1.e9_r8/ &       ! g/s
-                                        12._r8*6.02e23_r8/gridarea*1.e-4_r8                     ! #/cm2/s                                       
+                                        12._r8*6.02e23_r8/gridarea*1.e-4_r8                     ! #/cm2/s
     end do
 
     call lininterp_init(OC_lat, f_nlat, lat, plat, 1, wgt1)
@@ -1960,16 +2060,16 @@ contains
            ! 45N-90N
            OC2d(:plon, ind_45N:plat) = OC2d(:plon, ind_45N:plat) + &
                                                                 OC2d_dom(:plon, ind_45N:plat)*facH(itime)*12._r8
-           ! 15N-45N                                                    
+           ! 15N-45N
            OC2d(:plon, ind_15N:ind_45N-1) = OC2d(:plon, ind_15N:ind_45N-1) + &
                                                                 OC2d_dom(:plon, ind_15N:ind_45N-1)*facL(itime)*12._r8
-           ! 90S-15N                                                    
+           ! 90S-15N
            OC2d(:plon, 1:ind_15N-1) = OC2d(:plon, 1:ind_15N-1) + &
                                                                 OC2d_dom(:plon, 1:ind_15N-1)
-                                                                                                                                                                                                                                        
-       OC_anthro_GAINS(itime, :plat, :plon) = transpose(OC2d(:plon, :plat))                                                                     
+
+       OC_anthro_GAINS(itime, :plat, :plon) = transpose(OC2d(:plon, :plat))
     end do
- 
+
     deallocate(OC_lat)
     deallocate(OC_lon)
     deallocate(OC_f2d)
@@ -1980,25 +2080,25 @@ contains
     deallocate(OC2d)
     deallocate(OC2d_dom)
 
-! Part 2a: BC ship 
+! Part 2a: BC ship
 ! -------------------------------------------------
         ! Open the netcdf file (read only)
         call getfil(BC_ship_filename, BC_ship_file, 0)
         call cam_pio_openfile(fid, trim(BC_ship_file), PIO_NOWRITE)
         !call wrap_open(BC_ship_file, 0, fid)
-        
+
         ! Get file dimensions
         ierr = pio_inq_dimid(fid, 'lon', fid_lon)
         ierr = pio_inq_dimid(fid, 'lat', fid_lat)
         ierr = pio_inq_dimlen(fid, fid_lon, f_nlon)
-        ierr = pio_inq_dimlen(fid, fid_lat, f_nlat)     
+        ierr = pio_inq_dimlen(fid, fid_lat, f_nlat)
 
     allocate(BC_lat(f_nlat))
     allocate(BC_lon(f_nlon))
     allocate(BC_f3d(f_nlon, f_nlat, nmonth))
     allocate(BC3d (plon, plat, nmonth))
     allocate(BC_ship_GAINS(nmonth, plat, plon))
- 
+
    ! Read in the tables.
     ierr = pio_inq_varid(fid, 'emiss_shp', idvar)
     ierr = pio_get_var(fid, idvar, BC_f3d )
@@ -2053,12 +2153,12 @@ contains
         ! Open the netcdf file (read only)
         call getfil(OC_ship_filename, OC_ship_file, 0)
         call cam_pio_openfile(fid, trim(OC_ship_file), PIO_NOWRITE)
-        
+
         ! Get file dimensions
         ierr = pio_inq_dimid(fid, 'lon', fid_lon)
         ierr = pio_inq_dimid(fid, 'lat', fid_lat)
         ierr = pio_inq_dimlen(fid, fid_lon, f_nlon)
-        ierr = pio_inq_dimlen(fid, fid_lat, f_nlat)     
+        ierr = pio_inq_dimlen(fid, fid_lat, f_nlat)
 
     allocate(OC_lat(f_nlat))
     allocate(OC_lon(f_nlon))
@@ -2115,7 +2215,7 @@ contains
     deallocate(OC_f3d)
     deallocate(OC3d)
 
-! Part 3a: BC GFEDv3 
+! Part 3a: BC GFEDv3
 ! -------------------------------------------------
         ! Open the netcdf file (read only)
         call getfil(BC_GFEDv3_filename, BC_GFEDv3_file, 0)
@@ -2138,7 +2238,7 @@ contains
     BC_f3d = 0._r8
     ierr = pio_inq_varid(fid, 'emis', idvar)
     ierr = pio_get_var(fid, idvar, tempor3d )
-    !call wrap_inq_varid(fid, 'emis', idvar)            
+    !call wrap_inq_varid(fid, 'emis', idvar)
     !call wrap_get_var_realx(fid, idvar,  tempor3d)
     BC_f3d = BC_f3d + tempor3d
     ! excluding non-real values
@@ -2191,12 +2291,12 @@ contains
     deallocate(BC3d)
     deallocate(tempor3d)
 
-! Part 3b: OC GFEDv3 
+! Part 3b: OC GFEDv3
 ! -------------------------------------------------
         ! Open the netcdf file (read only)
         call getfil(OC_GFEDv3_filename, OC_GFEDv3_file, 0)
         call cam_pio_openfile(fid, trim(OC_GFEDv3_file), PIO_NOWRITE)
-        
+
         ! Get file dimensions
         ierr = pio_inq_dimid(fid, 'lon', fid_lon)
         ierr = pio_inq_dimid(fid, 'lat', fid_lat)
@@ -2205,8 +2305,8 @@ contains
 
         ! write(carma%f_LUNOPRT,*) ''
         ! write(carma%f_LUNOPRT,*) 'f_lon = ', f_nlon
-        ! write(carma%f_LUNOPRT,*) 'f_lat = ', f_nlat 
-        ! write(carma%f_LUNOPRT,*) ''  
+        ! write(carma%f_LUNOPRT,*) 'f_lat = ', f_nlat
+        ! write(carma%f_LUNOPRT,*) ''
 
     allocate(OC_lat(f_nlat))
     allocate(OC_lon(f_nlon))
@@ -2219,7 +2319,7 @@ contains
      OC_f3d = 0._r8
     ierr = pio_inq_varid(fid, 'emis', idvar)
     ierr = pio_get_var(fid, idvar, tempor3d )
-    !call wrap_inq_varid(fid, 'emis', idvar)            
+    !call wrap_inq_varid(fid, 'emis', idvar)
     !call wrap_get_var_realx(fid, idvar,  tempor3d)
     OC_f3d = OC_f3d + tempor3d
     ! excluding non-real values
@@ -2233,7 +2333,7 @@ contains
     ierr = pio_get_var(fid, idlon, OC_lon )
 
     ! Close the file.
-    call pio_closefile(fid) 
+    call pio_closefile(fid)
 
     ! make sure file longitude range from -180-180 to 0-360
     if (OC_lon(1) < -160._r8) then
@@ -2276,7 +2376,7 @@ contains
     do itime = 1, nmonth
        BCnew(:plat, :plon, itime) = BC_anthro_GAINS(itime, :plat, :plon) +  &
              BC_ship_GAINS(itime, :plat, :plon) +  BC_GFEDv3(itime, :plat, :plon)
-!             
+!
        OCnew(:plat, :plon, itime) = OC_anthro_GAINS(itime, :plat, :plon) +  &
              OC_ship_GAINS(itime, :plat, :plon) +  OC_GFEDv3(itime, :plat, :plon)
     end do
@@ -2289,9 +2389,9 @@ contains
     deallocate(OC_GFEDv3)
     deallocate(facH)
     deallocate(facL)
-!               
+!
     return
   end subroutine CARMA_BCOCRead
 
-  
+
 end module
