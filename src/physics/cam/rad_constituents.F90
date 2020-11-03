@@ -130,11 +130,18 @@ type :: bin_component_t
    character(len= 32) :: camname_num_a ! name registered in pbuf or constituents for number mixing ratio of interstitial species
    character(len=  1) :: source_num_c  ! source of cloud borne number conc field
    character(len= 32) :: camname_num_c ! name registered in pbuf or constituents for number mixing ratio of cloud borne species
+
+   character(len=  1) :: source_mass_a  ! source of interstitial number conc field
+   character(len= 32) :: camname_mass_a ! name registered in pbuf or constituents for number mixing ratio of interstitial species
+   character(len=  1) :: source_mass_c  ! source of cloud borne number conc field
+   character(len= 32) :: camname_mass_c ! name registered in pbuf or constituents for number mixing ratio of cloud borne species
+
    character(len=  1), pointer :: source_mmr_a(:)  ! source of interstitial mmr field
    character(len= 32), pointer :: camname_mmr_a(:) ! name registered in pbuf or constituents for mmr species
    character(len=  1), pointer :: source_mmr_c(:)  ! source of cloud borne specie mmr fields
    character(len= 32), pointer :: camname_mmr_c(:) ! name registered in pbuf or constituents for mmr of cloud borne components
-   character(len= 32), pointer :: type(:)          ! specie type (as used in MAM code)
+   character(len= 32), pointer :: type(:)          ! species type
+   character(len= 32), pointer :: morph(:)         ! species morphology
    character(len=cs1), pointer :: props(:)         ! file containing specie properties
    integer, pointer            :: idx_mmr_a(:)     ! index in pbuf or constituents for mmr of interstitial species
    integer, pointer :: idx_props(:) ! ID used to access physical properties of mode species from phys_prop module
@@ -265,9 +272,9 @@ character(len=9), parameter :: spec_type_names(num_spec_types) = (/ &
    'sulfate  ', 'ammonium ', 'nitrate  ', 'p-organic', &
    's-organic', 'black-c  ', 'seasalt  ', 'dust     '/)
 
-integer, parameter :: num_bin_types  = 4
-character(len=8), parameter :: bin_type_names(num_bin_types) = &
-     (/ 'particle', 'shell   ', 'core    ', 'num     ' /)
+integer, parameter :: num_bin_morphs  = 2
+character(len=8), parameter :: bin_morph_names(num_bin_morphs) = &
+     (/ 'shell   ', 'core    ' /)
 
 !==============================================================================
 contains
@@ -1688,7 +1695,6 @@ subroutine parse_mode_defs(nl_in, modes)
       call endrun(routine//': ERROR allocating storage for modes')
    end if
 
-
    mcur = 1              ! index of current string being processed
 
    ! loop over modes
@@ -1969,7 +1975,7 @@ subroutine parse_bin_defs(nl_in, bins)
    type(bins_t),    intent(inout) :: bins       ! structure containing parsed input
 
    ! Local variables
-   logical :: num_mr_found
+   logical :: num_mr_found, mass_mr_found
    logical :: particle_mr_found
    integer :: m
    integer :: istat
@@ -1985,6 +1991,7 @@ subroutine parse_bin_defs(nl_in, bins)
    character(len=1)  :: tmp_src_c
    character(len=32) :: tmp_name_c
    character(len=32) :: tmp_type
+   character(len=32) :: tmp_morph
    !-------------------------------------------------------------------------
 
    ! Determine number of bins defined by counting number of strings that are
@@ -2040,8 +2047,6 @@ subroutine parse_bin_defs(nl_in, bins)
 
       ! count species in bin definition.  definition will contain 1 string with
       ! with a ':+' terminator for each specie
-      !
-      !MOTE: Bins don't have number element, so all are species
       nspec = 0
       mcur = mcur + 1
       do
@@ -2061,6 +2066,7 @@ subroutine parse_bin_defs(nl_in, bins)
          bins%comps(m)%source_mmr_c(nspec),  &
          bins%comps(m)%camname_mmr_c(nspec), &
          bins%comps(m)%type(nspec),          &
+         bins%comps(m)%morph(nspec),          &
          bins%comps(m)%props(nspec),         &
          stat=istat)
 
@@ -2075,6 +2081,10 @@ subroutine parse_bin_defs(nl_in, bins)
       bins%comps(m)%camname_num_a = ' '
       bins%comps(m)%source_num_c  = ' '
       bins%comps(m)%camname_num_c = ' '
+      bins%comps(m)%source_mass_a  = ' '
+      bins%comps(m)%camname_mass_a = ' '
+      bins%comps(m)%source_mass_c  = ' '
+      bins%comps(m)%camname_mass_c = ' '
       do ispec = 1, nspec
          bins%comps(m)%source_mmr_a(ispec)  = ' '
          bins%comps(m)%camname_mmr_a(ispec) = ' '
@@ -2104,6 +2114,7 @@ subroutine parse_bin_defs(nl_in, bins)
       ! process bin component strings
       particle_mr_found = .false.   ! keep track of whether particle mixing ratio component is found
       num_mr_found = .false.        ! keep track of whether number mixing ratio component is found
+      mass_mr_found = .false.        ! keep track of whether number mixing ratio component is found
       ispec = 0                ! keep track of the number of species found
       comps_loop: do
 
@@ -2153,41 +2164,52 @@ subroutine parse_bin_defs(nl_in, bins)
             bins%comps(m)%camname_num_c = tmp_name_c
             tmpstr                      = tmpstr(ipos+1:)
 
+         else if (tmpstr(:ipos-1) == 'mmr') then
+
+            ! there can only be one number mixing ratio component
+            if (mass_mr_found) call parse_error('more than 1 mass mixing ratio component', nl_in(mcur))
+
+            mass_mr_found = .true.
+            bins%comps(m)%source_mass_a  = tmp_src_a
+            bins%comps(m)%camname_mass_a = tmp_name_a
+            bins%comps(m)%source_mass_c  = tmp_src_c
+            bins%comps(m)%camname_mass_c = tmp_name_c
+            tmpstr                       = tmpstr(ipos+1:)
+
          else
 
-            ! check for valid specie type
+            ! check for valid species type
             call check_bin_type(tmpstr, 1, ipos-1)
             tmp_type = tmpstr(:ipos-1)
+            tmpstr   = tmpstr(ipos+1:)
+
+            ipos = index(tmpstr, ':')
+            if (ipos == 0) call parse_error('next separator not found', tmpstr)
+
+            ! check for valid species type
+            call check_bin_morph(tmpstr, 1, ipos-1)
+            tmp_morph = tmpstr(:ipos-1)
             tmpstr   = tmpstr(ipos+1:)
 
             ! get the properties file
             ipos = scan(tmpstr, ': ')
             if (ipos == 0) call parse_error('next separator not found', tmpstr)
 
+             ! check for valid filename -- must have .nc extension
+            if (tmpstr(ipos-3:ipos-1) /= '.nc') &
+               call parse_error('filename not valid', tmpstr)
+
             ispec = ispec + 1
-
-            if (tmp_type == 'particle') then
-               ! there can only be one number mixing ratio component
-               if (particle_mr_found) call parse_error('more than 1 particle component', nl_in(mcur))
-
-               particle_mr_found = .true.
-            endif
-
-            ! check for valid filename -- must have .nc extension
-            if (tmpstr(ipos-3:ipos-1) /= '.nc') then
-               if (tmp_type /= 'particle') then
-                  call parse_error('filename not valid', tmpstr)
-               endif
-            else 
-               bins%comps(m)%props(ispec) = tmpstr(:ipos-1)
-               tmpstr = tmpstr(ipos+1:)
-            endif
 
             bins%comps(m)%source_mmr_a(ispec)  = tmp_src_a
             bins%comps(m)%camname_mmr_a(ispec) = tmp_name_a
             bins%comps(m)%source_mmr_c(ispec)  = tmp_src_c
             bins%comps(m)%camname_mmr_c(ispec) = tmp_name_c
             bins%comps(m)%type(ispec)          = tmp_type
+            bins%comps(m)%morph(ispec)         = tmp_morph
+
+            bins%comps(m)%props(ispec)         = tmpstr(:ipos-1)
+            tmpstr                             = tmpstr(ipos+1:)
 
          endif
 
@@ -2197,7 +2219,7 @@ subroutine parse_bin_defs(nl_in, bins)
          if (tmpstr(1:1) == ' ') then
             exit comps_loop
          endif
-         
+
          if (tmpstr(1:1) /= '+') &
                call parse_error('+ field not found', tmpstr)
 
@@ -2206,8 +2228,15 @@ subroutine parse_bin_defs(nl_in, bins)
          tmpstr = nl_in(mcur)
       end do comps_loop
 
-      ! check that the right number of species were found
-      if (ispec /= nspec) call parse_error('component parsing got wrong number of species', nl_in(mbeg))
+
+      ! check that a number component was found
+      if (.not. num_mr_found) call parse_error('number component not found', nl_in(mbeg))
+
+!!$      ! check that the right number of species were found
+!!$      if (ispec /= nspec) then
+!!$         write(*,*) 'ispec, nspec = ',ispec, nspec
+!!$         call parse_error('component parsing got wrong number of species', nl_in(mbeg))
+!!$      endif
 
       ! continue to next bin...
       mcur = mcur + 1
@@ -2233,18 +2262,34 @@ subroutine parse_bin_defs(nl_in, bins)
 
    !------------------------------------------------------------------------------------------------
 
-   subroutine check_bin_type(str, ib, ie)
+   subroutine check_bin_morph(str, ib, ie)
 
       character(len=*), intent(in) :: str
       integer,          intent(in) :: ib, ie
 
       integer :: i
 
-      do i = 1, num_bin_types
-         if (str(ib:ie) == trim(bin_type_names(i))) return
+      do i = 1, num_bin_morphs
+         if (str(ib:ie) == trim(bin_morph_names(i))) return
       end do
 
-      call parse_error('bin type not valid', str(ib:ie))
+      call parse_error('bin morph not valid', str(ib:ie))
+
+   end subroutine check_bin_morph
+
+   !------------------------------------------------------------------------------------------------
+   subroutine check_bin_type(str, ib, ie)
+
+      character(len=*), intent(in) :: str
+      integer,          intent(in) :: ib, ie  ! begin, end character of mode type substring
+
+      integer :: i
+
+      do i = 1, num_spec_types
+         if (str(ib:ie) == trim(spec_type_names(i))) return
+      end do
+
+      call parse_error('bin species type not valid', str(ib:ie))
 
    end subroutine check_bin_type
 
@@ -2962,7 +3007,7 @@ subroutine rad_cnst_get_bin_props_by_idx(list_idx, &
    refindex_aer_sw, refindex_aer_lw, &
    r_sw_ext, r_sw_scat, r_sw_ascat, r_lw_abs, mu, &
    aername, density_aer, hygro_aer, dryrad_aer, dispersion_aer, &
-   num_to_mass_aer, spectype)
+   num_to_mass_aer, spectype, specmorph)
 
    ! Return requested properties for the aerosol from the specified
    ! climate or diagnostic list.
@@ -3000,6 +3045,7 @@ subroutine rad_cnst_get_bin_props_by_idx(list_idx, &
    real(r8),          optional, intent(out) :: dispersion_aer
    real(r8),          optional, intent(out) :: num_to_mass_aer
    character(len=32), optional, intent(out) :: spectype
+   character(len=32), optional, intent(out) :: specmorph
 
    ! Local variables
    integer :: m_idx, id
@@ -3062,6 +3108,7 @@ subroutine rad_cnst_get_bin_props_by_idx(list_idx, &
    if (present(num_to_mass_aer))   call physprop_get(id, num_to_mass_aer=num_to_mass_aer)
 
    if (present(spectype)) spectype = bins%comps(m_idx)%type(spec_idx)
+   if (present(specmorph)) specmorph = bins%comps(m_idx)%morph(spec_idx)
 
 end subroutine rad_cnst_get_bin_props_by_idx
 
@@ -3147,8 +3194,10 @@ end subroutine rad_cnst_get_mode_props
 !================================================================================================
 
 subroutine rad_cnst_get_bin_props(list_idx, bin_idx, &
-   extpsw, abspsw, asmpsw, absplw, corefrac, &
-   nfrac)
+   extpsw, abspsw, asmpsw, absplw, corefrac, nfrac, &
+   wgtpct, nwtp, bcdust, nbcdust, kap, nkap, relh, nrelh, &
+   sw_hygro_ext_wtp, sw_hygro_ssa_wtp, sw_hygro_asm_wtp, lw_hygro_ext_wtp, &
+   sw_hygro_coreshell_ext, sw_hygro_coreshell_ssa, sw_hygro_coreshell_asm, lw_hygro_coreshell_ext )
 
    ! Return requested properties for the bin from the specified
    ! climate or diagnostic list.
@@ -3165,6 +3214,23 @@ subroutine rad_cnst_get_bin_props(list_idx, bin_idx, &
    real(r8),  optional, pointer     :: absplw(:,:)
    real(r8),  optional, pointer     :: corefrac(:)
    integer,   optional, intent(out) :: nfrac
+
+   real(r8),          optional, pointer     :: sw_hygro_ext_wtp(:,:)
+   real(r8),          optional, pointer     :: sw_hygro_ssa_wtp(:,:)
+   real(r8),          optional, pointer     :: sw_hygro_asm_wtp(:,:)
+   real(r8),          optional, pointer     :: lw_hygro_ext_wtp(:,:)
+   real(r8),          optional, pointer     :: sw_hygro_coreshell_ext(:,:,:,:,:) 	! Pengfei Yu Mar.30
+   real(r8),          optional, pointer     :: sw_hygro_coreshell_ssa(:,:,:,:,:)
+   real(r8),          optional, pointer     :: sw_hygro_coreshell_asm(:,:,:,:,:)
+   real(r8),          optional, pointer     :: lw_hygro_coreshell_ext(:,:,:,:,:)
+   real(r8),  optional, pointer     :: wgtpct(:)
+   real(r8),  optional, pointer     :: bcdust(:)
+   real(r8),  optional, pointer     :: kap(:)
+   real(r8),  optional, pointer     :: relh(:)
+   integer,   optional, intent(out) :: nwtp
+   integer,   optional, intent(out) :: nbcdust
+   integer,   optional, intent(out) :: nkap
+   integer,   optional, intent(out) :: nrelh
 
    ! Local variables
    integer :: id
@@ -3196,6 +3262,23 @@ subroutine rad_cnst_get_bin_props(list_idx, bin_idx, &
    if (present(corefrac))   call physprop_get(id, corefrac=corefrac)
 
    if (present(nfrac))       call physprop_get(id, nfrac=nfrac)
+
+   if (present(sw_hygro_ext_wtp))       call physprop_get(id, sw_hygro_ext_wtp=sw_hygro_ext_wtp)
+   if (present(sw_hygro_ssa_wtp))       call physprop_get(id, sw_hygro_ssa_wtp=sw_hygro_ssa_wtp)
+   if (present(sw_hygro_asm_wtp))       call physprop_get(id, sw_hygro_asm_wtp=sw_hygro_asm_wtp)
+   if (present(lw_hygro_ext_wtp))       call physprop_get(id, lw_hygro_abs_wtp=lw_hygro_ext_wtp)
+   if (present(sw_hygro_coreshell_ext)) call physprop_get(id, sw_hygro_coreshell_ext=sw_hygro_coreshell_ext)
+   if (present(sw_hygro_coreshell_ssa)) call physprop_get(id, sw_hygro_coreshell_ssa=sw_hygro_coreshell_ssa)
+   if (present(sw_hygro_coreshell_asm)) call physprop_get(id, sw_hygro_coreshell_asm=sw_hygro_coreshell_asm)
+   if (present(lw_hygro_coreshell_ext)) call physprop_get(id, lw_hygro_coreshell_abs=lw_hygro_coreshell_ext)
+   if (present(wgtpct))                 call physprop_get(id, wgtpct=wgtpct)
+   if (present(bcdust))                 call physprop_get(id, bcdust=bcdust)
+   if (present(kap))                    call physprop_get(id, kap=kap)
+   if (present(relh))                   call physprop_get(id, relh=relh)
+   if (present(nwtp))                   call physprop_get(id, nwtp=nwtp)
+   if (present(nbcdust))                call physprop_get(id, nbcdust=nbcdust)
+   if (present(nkap))                   call physprop_get(id, nkap=nkap)
+   if (present(nrelh))                  call physprop_get(id, nrelh=nrelh)
 
 end subroutine rad_cnst_get_bin_props
 
