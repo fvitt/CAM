@@ -5,7 +5,7 @@
 !! a CARMA model wishes to have its own namelist, then this file needs to be copied
 !! from physics/cam to physics/model/<model_name> and the code needed to read in the
 !! namelist values added there. This file will take the place of the one in
-!! physics/cam. 
+!! physics/cam.
 !!
 !! It needs to be in its own file to resolve some circular dependencies.
 !!
@@ -18,7 +18,7 @@ module carma_model_flags_mod
 
   ! Flags for integration with CAM Microphysics
   public carma_model_readnl                   ! read the carma model namelist
-  
+
 
   ! Namelist flags
   !
@@ -26,20 +26,16 @@ module carma_model_flags_mod
   ! and default them to an inital value.
 
   ! name of the dust erosion factor file
-  logical, public            :: carma_do_WeibullK   = .false.  ! if .true. then use calculated Weibull K, [Monahan, 2006]
-  character(len=32), public  :: carma_seasalt_emis  = 'Gong'   ! the source function scheme, either "Gong", "Martensson",
-                                                               ! "Clarke",  "Caffrey", "CMS", "CONST", or "NONE" 
-  character(len=256), public     ::  carma_soilerosion_file  = 'soil_erosion_factor_1x1_c120907.nc'
-  !character(len=256), public :: BC_GAINS_filename   = '/glade/work/pengfeiy/data/ETP_base_CLE_V5_BC_2010.nc'   ! name of the new BC emission file
-  !character(len=256), public :: OC_GAINS_filename   = '/glade/work/pengfeiy/data/ETP_base_CLE_V5_OC_2010.nc'
-  character(len=256), public :: BC_GAINS_filename   = '/glade/work/pengfeiy/data/CP_WEO11_S10P50_BC_2010.nc'   ! name of the new BC emission file
-  character(len=256), public :: OC_GAINS_filename   = '/glade/work/pengfeiy/data/CP_WEO11_S10P50_OC_2010.nc'
-  !character(len=256), public :: BC_ship_filename    = '/glade/work/pengfeiy/data/IPCC_emissions_RCP60_BC_ships_2005_0.5x0.5_v1_01_03_2010.nc'
-  !character(len=256), public :: OC_ship_filename    = '/glade/work/pengfeiy/data/IPCC_emissions_RCP60_OC_ships_2005_0.5x0.5_v1_01_03_2010.nc'
-  character(len=256), public :: BC_ship_filename    = '/glade/work/pengfeiy/data/IPCC_BC_ships_2010_0.5x0.5.nc'
-  character(len=256), public :: OC_ship_filename    = '/glade/work/pengfeiy/data/IPCC_OC_ships_2010_0.5x0.5.nc'
-  character(len=256), public :: BC_GFEDv3_filename  = '/glade/work/pengfeiy/data/GFEDv3_BC_2010.nc'
-  character(len=256), public :: OC_GFEDv3_filename  = '/glade/work/pengfeiy/data/GFEDv3_OC_2010.nc'
+  logical, public, protected :: carma_do_WeibullK   = .false.  ! if .true. then use calculated Weibull K, [Monahan, 2006]
+  character(len=32), public, protected  :: carma_seasalt_emis  = 'Gong'   ! the source function scheme, either "Gong", "Martensson",
+                                                                          ! "Clarke",  "Caffrey", "CMS", "CONST", or "NONE"
+  character(len=256), public, protected :: carma_soilerosion_file  = 'NONE'
+  character(len=256), public, protected :: BC_GAINS_filename   = 'NONE'
+  character(len=256), public, protected :: OC_GAINS_filename   = 'NONE'
+  character(len=256), public, protected :: BC_ship_filename    = 'NONE'
+  character(len=256), public, protected :: OC_ship_filename    = 'NONE'
+  character(len=256), public, protected :: BC_GFEDv3_filename  = 'NONE'
+  character(len=256), public, protected :: OC_GFEDv3_filename  = 'NONE'
 
 contains
 
@@ -49,22 +45,22 @@ contains
   !! @author  Chuck Bardeen
   !! @version Mar-2011
   subroutine carma_model_readnl(nlfile)
-  
+
     ! Read carma namelist group.
-  
+
     use cam_abortutils,  only: endrun
     use namelist_utils,  only: find_group_name
     use units,           only: getunit, freeunit
     use mpishorthand
-  
+
     ! args
-  
+
     character(len=*), intent(in) :: nlfile  ! filepath for file containing namelist input
-  
+
     ! local vars
-  
+
     integer :: unitn, ierr
-  
+
     ! read namelist for CARMA
     namelist /carma_model_nl/ &
       carma_do_WeibullK, &
@@ -75,8 +71,8 @@ contains
       BC_ship_filename, &
       OC_ship_filename, &
       BC_GFEDv3_filename, &
-      OC_GFEDv3_filename 
-  
+      OC_GFEDv3_filename
+
     if (masterproc) then
        unitn = getunit()
        open( unitn, file=trim(nlfile), status='old' )
@@ -90,7 +86,7 @@ contains
        close(unitn)
        call freeunit(unitn)
     end if
-  
+
 #ifdef SPMD
     call mpibcast(carma_soilerosion_file,      len(carma_soilerosion_file),       mpichar, 0, mpicom)
     call mpibcast(carma_do_WeibullK,   1,                       mpilog,  0, mpicom)
@@ -102,7 +98,7 @@ contains
     call mpibcast(BC_GFEDv3_filename, len(BC_GFEDv3_filename), mpichar, 0, mpicom)
     call mpibcast(OC_GFEDv3_filename, len(OC_GFEDv3_filename), mpichar, 0, mpicom)
 #endif
-  
+
   end subroutine carma_model_readnl
 
 end module carma_model_flags_mod
