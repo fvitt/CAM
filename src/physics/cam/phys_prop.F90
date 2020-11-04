@@ -134,9 +134,6 @@ type (physprop_type), pointer :: physprop(:)
 ! the properties.  Searching the uniquefilenames array provides the index into the physprop
 ! array.
 
-!st
-integer, parameter :: maxuniquefiles = 150
-!st
 character(len=256), allocatable :: uniquefilenames(:)
 
 !================================================================================================

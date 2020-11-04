@@ -433,11 +433,11 @@ subroutine rad_cnst_readnl(nlfile)
       deallocate(ctype)
    end do
 
-   ! Add physprop files for the species from the mode definitions.
-   do i = 1, modes%nmodes
-      allocate(ctype(modes%comps(i)%nspec))
+   ! Add physprop files for the species from the bin definitions.
+   do i = 1, bins%nbins
+      allocate(ctype(bins%comps(i)%nspec))
       ctype = 'A'
-      call physprop_accum_unique_files(modes%comps(i)%props, ctype)
+      call physprop_accum_unique_files(bins%comps(i)%props, ctype)
       deallocate(ctype)
    end do
 
@@ -2051,8 +2051,8 @@ subroutine parse_bin_defs(nl_in, bins)
       mcur = mcur + 1
       do
          iend = len_trim(nl_in(mcur))
-         if (nl_in(mcur)(iend-1:iend) /= ':+') exit
-         nspec = nspec + 1
+         if (nl_in(mcur)(iend-1:iend) /=    ':+') exit
+         if (nl_in(mcur)(iend-4:iend) /= 'mmr:+') nspec = nspec + 1
          mcur = mcur + 1
       end do
 
@@ -2232,11 +2232,11 @@ subroutine parse_bin_defs(nl_in, bins)
       ! check that a number component was found
       if (.not. num_mr_found) call parse_error('number component not found', nl_in(mbeg))
 
-!!$      ! check that the right number of species were found
-!!$      if (ispec /= nspec) then
-!!$         write(*,*) 'ispec, nspec = ',ispec, nspec
-!!$         call parse_error('component parsing got wrong number of species', nl_in(mbeg))
-!!$      endif
+      ! check that the right number of species were found
+      if (ispec /= nspec) then
+         write(*,*) 'ispec, nspec = ',ispec, nspec
+         call parse_error('component parsing got wrong number of species', nl_in(mbeg))
+      endif
 
       ! continue to next bin...
       mcur = mcur + 1
