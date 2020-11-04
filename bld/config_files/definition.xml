@@ -84,15 +84,15 @@ PBL package: uw (University of Washington), hb (Holtslag and Boville), hbr
  (Holtslag, Boville, and Rasch), clubb_sgs, spcam_sam1om, spcam_m2005, none.
 </entry>
 <entry id="rad" valid_values="rrtmg,camrt,none" value="">
-Radiative transfer calculation: 
+Radiative transfer calculation:
 camrt (CAM3 and CAM4 RT package), rrtmg (RRTMG package from AER).
 </entry>
 <entry id="carma" valid_values="none,bc_strat,cirrus,cirrus_dust,dust,meteor_impact,meteor_smoke,mixed_sulfate,pmc,pmc_sulfate,sea_salt,sulfate,tholin,test_detrain,test_growth,test_passive,test_radiative,test_swelling,test_tracers,test_tracers2,trop_strat,dst_sslt_bc_pom" value="none">
-CARMA sectional microphysics: 
+CARMA sectional microphysics:
 none (disabled), bc_strat (Stratospheric Black Carbon), cirrus (Cirrus Clouds),
-cirrus_dust (Cirrus Clouds with dust), dust (Dust), meteor_impact (Meteor Impact), 
+cirrus_dust (Cirrus Clouds with dust), dust (Dust), meteor_impact (Meteor Impact),
 meteor_smoke (Meteor Smoke), mixed_sulfate (Meteor Smoke and Sulfate), pmc (Polar Mesospheric Clouds), pmc_sulfate (PMC and Sulfate), sea_salt (Sea Salt),
-sulfate (Sulfate Aerosols), tholin (early earth haze), test_detrain (Detrainment), test_growth (Particle Growth), test_passive (Passive Dust), 
+sulfate (Sulfate Aerosols), tholin (early earth haze), test_detrain (Detrainment), test_growth (Particle Growth), test_passive (Passive Dust),
 test_radiative (Radiatively Active Dust), test_swelling (Sea Salt), test_tracers (Asian Monsoon), test_tracers2 (Guam), trop_strat (Trop Strat Aerosols),
 dst_sslt_bc_pom (trop aerosol test).
 </entry>
@@ -180,7 +180,7 @@ Total number of advected test tracers.
 <entry id="age_of_air_trcs" valid_values="0,1" value="0">
 Switch on (off) age of air tracers: 0=off, 1=on.
 </entry>
-<entry id="max_n_rad_cnst" value="30">
+<entry id="max_n_rad_cnst" value="80">
 Maximum number of constituents that are radiatively active or in any one
 diagnostic list.
 </entry>
@@ -312,7 +312,7 @@ SPCAM number of grid points in z
 <entry id="spcam_dx" value="1">
 SPCAM horizontal grid spacing, m
 </entry>
-<entry id="spcam_dt" value="1"> 
+<entry id="spcam_dt" value="1">
 SPCAM time step, s
 </entry>
 

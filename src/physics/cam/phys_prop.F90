@@ -27,7 +27,7 @@ save
 
 integer, parameter, public :: ot_length = 32
 public :: &
-   physprop_accum_unique_files,  &! Make a list of the unique set of files that contain properties
+   physprop_accum_unique_files,  &! Make a list of the unique set of files that contain propertiesg
                                   ! This is an initialization step that must be done before calling physprop_init
    physprop_init,                &! Initialization -- read the input datasets
    physprop_get_id,              &! Return ID used to access the property data from the input files
@@ -1566,14 +1566,18 @@ subroutine hygroscopic_coreshell_optics_init(phys_prop, nc_id)
    character(len=*), parameter :: sub = 'hygroscopic_coreshell_optics_init'
    !------------------------------------------------------------------------------------
 
+   if (masterproc) then
+     write(iulog,*) 'hygroscopic_coreshell_optics_init: Read file '//trim(phys_prop%sourcefile)
+   endif
+
    ierr = pio_inq_dimid(nc_id, 'lw_band', lw_band_id)
    ierr = pio_inq_dimlen(nc_id, lw_band_id, nbnd)
-   if (nbnd .ne. nlwbands) call endrun(phys_prop%sourcefile// &
+   if (nbnd .ne. nlwbands) call endrun(trim(phys_prop%sourcefile)// &
         ' has the wrong number of lwbands')
 
    ierr = pio_inq_dimid(nc_id, 'sw_band', sw_band_id)
    ierr = pio_inq_dimlen(nc_id, sw_band_id, swbands)
-   if(swbands .ne. nswbands) call endrun(phys_prop%sourcefile// &
+   if(swbands .ne. nswbands) call endrun(trim(phys_prop%sourcefile)// &
         ' has the wrong number of sw bands')
 
 
@@ -1595,7 +1599,7 @@ subroutine hygroscopic_coreshell_optics_init(phys_prop, nc_id)
                                              phys_prop%nfrac,phys_prop%nbcdust,phys_prop%nkap))
    allocate(phys_prop%sw_hygro_coreshell_asm(phys_prop%nrelh,nswbands, &
                                              phys_prop%nfrac,phys_prop%nbcdust,phys_prop%nkap))
-   allocate(phys_prop%lw_hygro_coreshell_abs(phys_prop%nrelh,nswbands, &
+   allocate(phys_prop%lw_hygro_coreshell_abs(phys_prop%nrelh,nlwbands, &
                                              phys_prop%nfrac,phys_prop%nbcdust,phys_prop%nkap))
    allocate(phys_prop%corefrac(phys_prop%nfrac))
    allocate(phys_prop%bcdust(phys_prop%nbcdust))
