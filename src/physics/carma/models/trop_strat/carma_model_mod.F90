@@ -310,7 +310,7 @@ contains
        call pbuf_add_field("NB"//trim(sname)//outputbin,'global', dtype_r8, (/pcols, pver/), ipbuf4binng(ibin,igroup))
        !write(*,*) outputname//"SULF"//outputbin,"   ", "NB"//trim(sname)//outputbin
        call pbuf_add_field(trim(sname)//outputbin//"_kappa",'global', dtype_r8, (/pcols, pver/), ipbuf4kappa(ibin,igroup))
-       write(*,*) trim(sname)//outputbin//"_kappa"
+       !write(*,*) trim(sname)//outputbin//"_kappa"
       end do
     end do
 

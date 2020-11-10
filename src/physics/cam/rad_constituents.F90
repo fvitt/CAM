@@ -783,7 +783,7 @@ end subroutine rad_cnst_get_info_by_mode
 
 !================================================================================================
 
-subroutine rad_cnst_get_info_by_bin(list_idx, m_idx, nspec)
+subroutine rad_cnst_get_info_by_bin(list_idx, m_idx, nspec, bin_name)
 
    ! Return info about modal aerosol lists
 
@@ -791,6 +791,7 @@ subroutine rad_cnst_get_info_by_bin(list_idx, m_idx, nspec)
    integer,                     intent(in)  :: list_idx    ! index of the climate or a diagnostic list
    integer,                     intent(in)  :: m_idx       ! index of bin in the specified list
    integer,           optional, intent(out) :: nspec       ! number of species in the mode
+   character(len=*),  optional, intent(out) :: bin_name
 
    ! Local variables
    type(binlist_t), pointer :: s_list ! local pointer to mode list of interest
@@ -817,6 +818,9 @@ subroutine rad_cnst_get_info_by_bin(list_idx, m_idx, nspec)
    if (present(nspec)) then
       nspec = bins%comps(mm)%nspec
    endif
+   if (present(bin_name)) then
+      bin_name = bins%names(m_idx)
+   end if
 
 end subroutine rad_cnst_get_info_by_bin
 
@@ -3193,7 +3197,7 @@ end subroutine rad_cnst_get_mode_props
 
 !================================================================================================
 
-subroutine rad_cnst_get_bin_props(list_idx, bin_idx, &
+subroutine rad_cnst_get_bin_props(list_idx, bin_idx, opticstype, &
    extpsw, abspsw, asmpsw, absplw, corefrac, nfrac, &
    wgtpct, nwtp, bcdust, nbcdust, kap, nkap, relh, nrelh, &
    sw_hygro_ext_wtp, sw_hygro_ssa_wtp, sw_hygro_asm_wtp, lw_hygro_ext_wtp, &
@@ -3207,6 +3211,8 @@ subroutine rad_cnst_get_bin_props(list_idx, bin_idx, &
    ! Arguments
    integer,             intent(in)  :: list_idx  ! index of the climate or a diagnostic list
    integer,             intent(in)  :: bin_idx  ! mode index
+
+   character(len=ot_length), optional, intent(out) :: opticstype
 
    real(r8),  optional, pointer     :: extpsw(:,:)
    real(r8),  optional, pointer     :: abspsw(:,:)
@@ -3254,13 +3260,12 @@ subroutine rad_cnst_get_bin_props(list_idx, bin_idx, &
    ! Get the physprop index for the requested bin
    id = slist%idx_props(bin_idx)
 
+   if (present(opticstype))  call physprop_get(id, opticstype=opticstype)
    if (present(extpsw))      call physprop_get(id, extpsw2=extpsw)
    if (present(abspsw))      call physprop_get(id, abspsw2=abspsw)
    if (present(asmpsw))      call physprop_get(id, asmpsw2=asmpsw)
    if (present(absplw))      call physprop_get(id, absplw2=absplw)
-
-   if (present(corefrac))   call physprop_get(id, corefrac=corefrac)
-
+   if (present(corefrac))    call physprop_get(id, corefrac=corefrac)
    if (present(nfrac))       call physprop_get(id, nfrac=nfrac)
 
    if (present(sw_hygro_ext_wtp))       call physprop_get(id, sw_hygro_ext_wtp=sw_hygro_ext_wtp)

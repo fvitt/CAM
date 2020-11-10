@@ -26,12 +26,13 @@ use constituents,      only: pcnst
 use spmd_utils,        only: masterproc
 use physconst,         only: rhoh2o, rga, rair
 use radconstants,      only: nswbands, nlwbands, idx_sw_diag, idx_uv_diag, idx_nir_diag
+use radconstants,      only: ot_length
 use rad_constituents,  only: n_diag, rad_cnst_get_call_list, rad_cnst_get_info, rad_cnst_get_info_by_bin, &
                              rad_cnst_get_bin_mmr_by_idx, rad_cnst_get_bin_props_by_idx, &
                              rad_cnst_get_bin_props
 use physics_types,     only: physics_state
+use physics_buffer, only : pbuf_get_index,physics_buffer_desc, pbuf_get_field, pbuf_old_tim_idx
 
-use physics_buffer, only : pbuf_get_index,physics_buffer_desc, pbuf_get_field
 use pio,               only: file_desc_t, var_desc_t, pio_inq_dimlen, pio_inq_dimid, pio_inq_varid, &
                              pio_get_var, pio_nowrite, pio_closefile
 use cam_pio_utils,     only: cam_pio_openfile
@@ -40,7 +41,9 @@ use cam_history_support, only: fillvalue
 use cam_logfile,       only: iulog
 use perf_mod,          only: t_startf, t_stopf
 use cam_abortutils,    only: endrun
+use wv_saturation,    only: qsat
 
+use table_interp_mod, only: table_interp
 implicit none
 private
 save
@@ -54,7 +57,6 @@ character(shr_kind_cl)      :: modal_optics_file = unset_str   ! full pathname f
 
 ! Dimension sizes in coefficient arrays used to parameterize aerosol radiative properties
 ! in terms of refractive index and wet radius
-integer, parameter :: nfrac = 15
 
 character(len=4) :: diag(0:n_diag) = (/'    ','_d1 ','_d2 ','_d3 ','_d4 ','_d5 ', &
                                        '_d6 ','_d7 ','_d8 ','_d9 ','_d10'/)
@@ -74,7 +76,7 @@ subroutine coreshell_aer_opt_init()
    integer  :: i, m
 
    logical :: call_list(0:n_diag)
-   integer :: ilist, nbins, m_prefr, m_prefi, m_nfrac
+   integer :: ilist, nbins, m_prefr, m_prefi
    character(len=8) :: fldname
    character(len=128) :: lngname
 
@@ -86,19 +88,6 @@ subroutine coreshell_aer_opt_init()
    ! parameterize aerosol radiative properties are consistent between this
    ! module and the mode physprop files.
    call rad_cnst_get_call_list(call_list)
-   do ilist = 0, n_diag
-      if (call_list(ilist)) then
-         call rad_cnst_get_info(ilist, nbins=nbins)
-         do m = 1, nbins
-            call rad_cnst_get_bin_props(ilist, m, nfrac=m_nfrac)
-            if (m_nfrac /= nfrac) then
-               write(iulog,*) routine//': ERROR - file and module values do not match:'
-               write(iulog,*) '   nfrac:', nfrac, m_nfrac
-               call endrun(routine//': ERROR - file and module values do not match')
-            end if
-         end do
-      end if
-   end do
 
    call rad_cnst_get_info(0, nbins=nbins)
 
@@ -140,7 +129,6 @@ subroutine coreshell_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
                          tauxar, wa, ga, fa)
 
    use tropopause,      only : tropopause_find
-   use interpolate_data, only: lininterp_init, lininterp, interp_type
 
    ! calculates aerosol sw radiative properties
 
@@ -185,7 +173,6 @@ subroutine coreshell_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
 
    integer  :: itab(pcols), jtab(pcols)
    real(r8) :: ttab(pcols), utab(pcols)
-   real(r8) :: cext(pcols,nfrac), cabs(pcols,nfrac), casm(pcols,nfrac)
    real(r8) :: pext(pcols)     ! parameterized specific extinction (m2/kg)
    real(r8) :: specpext(pcols) ! specific extinction (m2/kg)
    real(r8) :: dopaer(pcols)   ! aerosol optical depth in layer
@@ -198,6 +185,9 @@ subroutine coreshell_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
    real(r8) :: particlerfi(pcols)   ! imaginary refractive index of aerosol particle
    real(r8) :: particlehygro(pcols) ! hygroscopicity of aerosol particle
    real(r8) :: particlevol(pcols)   ! volume of aerosol particle
+
+   real(r8) :: coredustmmr(pcols)
+   real(r8) :: corebcmmr(pcols)
 
    real(r8) :: coremmr(pcols)   ! mmr of aerosol core
    real(r8) :: corerfr(pcols)   ! real refractive index of aerosol core
@@ -212,7 +202,9 @@ subroutine coreshell_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
    real(r8) :: shellvol(pcols)   ! volume of aerosol shell
 
    real(r8) :: totalmmr(pcols)   ! total mmr of the aerosol
+   real(r8) :: bcdustmmr(pcols)  ! total mmr of dust + bc aerosol
    real(r8) :: corefrac(pcols)   ! mass fraction that is core
+   real(r8) :: bcdust(pcols)     ! mass fraction of bc vs (bc + dust)
    real(r8) :: dryvol(pcols)     ! dry volume
 
    ! Diagnostics
@@ -238,9 +230,35 @@ subroutine coreshell_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
    real(r8) :: aodnir(pcols)              ! extinction optical depth in nir
    real(r8) :: aodnirst(pcols)            ! stratospheric extinction optical depth in nir
 
+   real(r8) :: sate(pcols,pver)     ! saturation vapor pressure
+   real(r8) :: satq(pcols,pver)     ! saturation specific humidity
+   real(r8) :: rh(pcols,pver)
+
+   real(r8), pointer, dimension(:,:) :: crkappa   ! kappa
+   real(r8), pointer, dimension(:,:) :: wgtpct  ! weight percent
+   integer      :: bin
+   real(r8), pointer :: h_ext_coreshell(:,:,:,:,:)
+   real(r8), pointer :: h_ssa_coreshell(:,:,:,:,:)
+   real(r8), pointer :: h_asm_coreshell(:,:,:,:,:)
+   real(r8), pointer :: h_ext_wtp(:,:) ! specific extinction
+   real(r8), pointer :: h_ssa_wtp(:,:) ! specific absorption
+   real(r8), pointer :: h_asm_wtp(:,:) ! asymmetry factor
+   real(r8), pointer, dimension(:,:)   :: cldn
+
+   real(r8), pointer :: tbl_wgtpct(:)
+   real(r8), pointer :: tbl_bcdust(:)
+   real(r8), pointer :: tbl_kap(:)
+   real(r8), pointer :: tbl_relh(:)
+   integer :: nwtp
+   integer :: nbcdust
+   integer :: nkap
+   integer :: nrelh
+
+   character(len=ot_length) :: opticstype
+   character(len=32) :: bin_name
+   character(len=32) :: specmorph
+
    character(len=32) :: outname
-   type (interp_type) :: interp_wgts
-   integer            :: nfrac
 
    ! debug output
    integer, parameter :: nerrmax_dopaer=1000
@@ -287,311 +305,366 @@ subroutine coreshell_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
 
    call tropopause_find(state, troplev)
 
+!st
+   ! calculate relative humidity for table lookup into rh grid
+   call qsat(state%t, state%pmid, sate, satq)
+
+   rh(1:ncol,1:pver) = state%q(1:ncol,1:pver,1) / satq(1:ncol,1:pver)
+   !There is a  different way to diagnose sub-grid rh for clear-sky only that makes physically
+   ! more sense but is not used in MAM. This needs to be tested if it makes any differente
+   ! Associate pointers with physics buffer fields
+   ! itim = pbuf_old_tim_idx()
+   ! call pbuf_get_field(pbuf, pbuf_get_index('CLD'), cldn, (/1,1,itim/),(/pcols,pver,1/))
+   ! rh(1:ncol,1:pver) = (state%q(1:ncol,1:pver,1)-cldn(1:ncol,1:pver)*qsat(1:ncol,1:pver)) / qsat(1:ncol,1:pver)
+   rh(1:ncol,1:pver) = max(1.e-20_r8,rh(1:ncol,1:pver))
+
 
    ! loop over all aerosol bins
    call rad_cnst_get_info(list_idx, nbins=nbins)
    do m = 1, nbins
 
-     ! get bin properties
-     call rad_cnst_get_bin_props(list_idx, m, &
-        corefrac=tbl_corefrac, nfrac=nfrac, &
-        extpsw=extpsw, abspsw=abspsw, asmpsw=asmpsw)
-
      ! get bin info
-     call rad_cnst_get_info_by_bin(list_idx, m, nspec=nspec)
+     call rad_cnst_get_info_by_bin(list_idx, m, nspec=nspec, bin_name=bin_name)
 
-      do isw = 1, nswbands
-         savaervis = (isw .eq. idx_sw_diag)
-         savaeruv  = (isw .eq. idx_uv_diag)
-         savaernir = (isw .eq. idx_nir_diag)
+     ! get optics type
+     call rad_cnst_get_bin_props(list_idx, m, opticstype=opticstype)
 
-         do k = 1, pver
+     select case (trim(opticstype))
+     case('sectional')
+     ! get bin properties
+        call rad_cnst_get_bin_props(list_idx, m, &
+          corefrac=tbl_corefrac, &
+          extpsw=extpsw, abspsw=abspsw, asmpsw=asmpsw)
+     case('hygroscopic_coreshell')
+     ! get optical properties for hygroscopic aerosols
+         call rad_cnst_get_bin_props(list_idx, m, &
+           corefrac=tbl_corefrac, &
+           kap=tbl_kap, nkap=nkap, bcdust=tbl_bcdust, nbcdust=nbcdust, &
+           relh=tbl_relh, nrelh=nrelh, &
+           sw_hygro_coreshell_ext=h_ext_coreshell, &
+           sw_hygro_coreshell_ssa=h_ssa_coreshell, sw_hygro_coreshell_asm=h_asm_coreshell)
+        ! get kappa
+        ! need to read in bin_name
+         call pbuf_get_field(pbuf, pbuf_get_index(trim(bin_name)//"_kappa"),crkappa)
+     case('hygroscopic_wtp')
+      ! get optical properties for hygroscopic aerosols
+         call rad_cnst_get_bin_props(list_idx, m, wgtpct=tbl_wgtpct,nwtp=nwtp, &
+           sw_hygro_ext_wtp=h_ext_wtp, sw_hygro_ssa_wtp=h_ssa_wtp, sw_hygro_asm_wtp=h_asm_wtp)
+       ! determine weight precent of H2SO4/H2O solution
+         call pbuf_get_field(pbuf, pbuf_get_index('WTP'),wgtpct)
+     case('zero')
+          ! zero aerosols types have no optical effect, so do nothing.
+     case default
+          call endrun('aer_rad_props_sw: unsupported opticstype: '//trim(opticstype))
+     end select
 
-            ! Determine the fraction of the particle that is core.
-            coremmr(:ncol)       = 0._r8
-            corerfr(:ncol)       = 0._r8
-            corerfi(:ncol)       = 0._r8
-            corehygro(:ncol)     = 0._r8
-            corevol(:ncol)       = 0._r8
+     do isw = 1, nswbands
+        savaervis = (isw .eq. idx_sw_diag)
+        savaeruv  = (isw .eq. idx_uv_diag)
+        savaernir = (isw .eq. idx_nir_diag)
 
-            shellmmr(:ncol)      = 0._r8
-            shellrfr(:ncol)      = 0._r8
-            shellrfi(:ncol)      = 0._r8
-            shellhygro(:ncol)    = 0._r8
-            shellvol(:ncol)      = 0._r8
+        do k = 1, pver
 
-            particlemmr(:ncol)   = 0._r8
-            particlerfr(:ncol)   = 0._r8
-            particlerfi(:ncol)   = 0._r8
-            particlehygro(:ncol) = 0._r8
-            particlevol(:ncol)   = 0._r8
+           ! Determine the fraction of the particle that is core.
+           coremmr(:ncol)       = 0._r8
+           corerfr(:ncol)       = 0._r8
+           corerfi(:ncol)       = 0._r8
+           corehygro(:ncol)     = 0._r8
+           corevol(:ncol)       = 0._r8
 
-            corefrac(:ncol)      = 0._r8
+           coredustmmr(:ncol)       = 0._r8
+           corebcmmr(:ncol)       = 0._r8
 
-            ! aerosol species loop
-            do l = 1, nspec
-               call rad_cnst_get_bin_mmr_by_idx(list_idx, m, l, 'a', state, pbuf, specmmr)
+           shellmmr(:ncol)      = 0._r8
+           shellrfr(:ncol)      = 0._r8
+           shellrfi(:ncol)      = 0._r8
+           shellhygro(:ncol)    = 0._r8
+           shellvol(:ncol)      = 0._r8
 
-               ! NOTE: In the future could get more properties like refractive
-               ! index and kappa to allow calculation of core and shell properties
-               ! from multiple components.
-               call rad_cnst_get_bin_props_by_idx(list_idx, m, l, density_aer=specdens, &
-                                           refindex_aer_sw=specrefindex, spectype=spectype, &
-                                           hygro_aer=hygro_aer)
+           ! particlemmr(:ncol)   = 0._r8
+           ! particlerfr(:ncol)   = 0._r8
+           ! particlerfi(:ncol)   = 0._r8
+           ! particlehygro(:ncol) = 0._r8
+           ! particlevol(:ncol)   = 0._r8
 
-               vol(:ncol)      = specmmr(:ncol,k) / specdens
-               dryvol(:ncol)   = dryvol(:ncol) + vol(:ncol)
-               crefin(:ncol)   = crefin(:ncol) + vol(:ncol) * specrefindex(isw)
+           corefrac(:ncol)      = 0._r8
 
-               if (trim(spectype) == 'core') then
-                  coremmr(:ncol)    = coremmr(:ncol) + specmmr(:ncol,k)
-                  corevol(:ncol)    = corevol(:ncol) + vol(:ncol)
-                  corerfr(:ncol)    = corerfr(:ncol) + vol(:ncol) * real(specrefindex(isw))
-                  corerfi(:ncol)    = corerfi(:ncol) + vol(:ncol) * aimag(specrefindex(isw))
-                  corehygro(:ncol)  = corehygro(:ncol) + vol(:ncol) * hygro_aer
-               else if (trim(spectype) == 'shell') then
-                  shellmmr(:ncol)    = shellmmr(:ncol) + specmmr(:ncol,k)
-                  shellvol(:ncol)    = shellvol(:ncol) + vol(:ncol)
-                  shellrfr(:ncol)    = shellrfr(:ncol) + vol(:ncol) * real(specrefindex(isw))
-                  shellrfi(:ncol)    = shellrfi(:ncol) + vol(:ncol) * aimag(specrefindex(isw))
-                  shellhygro(:ncol)  = shellhygro(:ncol) + vol(:ncol) * hygro_aer
-               else if (trim(spectype) == 'particle') then
-                  particlemmr(:ncol)    = specmmr(:ncol,k)
-                  particlevol(:ncol)    = vol(:ncol)
-                  particlerfr(:ncol)    = vol(:ncol) * real(specrefindex(isw))
-                  particlerfi(:ncol)    = vol(:ncol) * aimag(specrefindex(isw))
-                  particlehygro(:ncol)  = vol(:ncol) * hygro_aer
-               else
-                  call endrun("coreshell_aer_opt: Unknown spectype "//trim(spectype))
-               end if
-            end do ! species loop
+           ! aerosol species loop
+           do l = 1, nspec
+              call rad_cnst_get_bin_mmr_by_idx(list_idx, m, l, 'a', state, pbuf, specmmr)
 
-            ! If one of the species is a particle, then it represents the mass of the
-            ! whole particle, put includes mass that should be part of the shell. So
-            ! subtract the mass of the explicit core and shell to determine the
-            ! additional contribution.
-            !
-            ! NOTE: This is consistent with the way that CARMA defined the concentration
-            ! element in the group.
-            do i = 1, ncol
-              if (particlemmr(i) .gt. (shellmmr(i) + coremmr(i))) then
-                shellmmr(i)    = shellmmr(i) + (particlemmr(i) - coremmr(i) - shellmmr(i))
-                shellvol(i)    = shellvol(i) + (particlevol(i) - corevol(i) - shellvol(i))
-                shellrfr(i)    = shellrfr(i) + (particlerfr(i) - corerfr(i) - shellrfr(i))
-                shellrfi(i)    = shellrfi(i) + (particlerfi(i) - corerfi(i) - shellrfi(i))
-                shellhygro(i)  = shellhygro(i) + (particlehygro(i) - corehygro(i) - shellhygro(i))
+              ! NOTE: In the future could get more properties like refractive
+              ! index and kappa to allow calculation of core and shell properties
+              ! from multiple components.
+              call rad_cnst_get_bin_props_by_idx(list_idx, m, l, density_aer=specdens, &
+                   refindex_aer_sw=specrefindex, spectype=spectype, &
+                   specmorph=specmorph, hygro_aer=hygro_aer)
+
+              vol(:ncol)      = specmmr(:ncol,k) / specdens
+              dryvol(:ncol)   = dryvol(:ncol) + vol(:ncol)
+              crefin(:ncol)   = crefin(:ncol) + vol(:ncol) * specrefindex(isw)
+
+              if (trim(specmorph) == 'core') then
+                 if (trim(spectype) == 'dust') then
+                    coredustmmr(:ncol)    = coredustmmr(:ncol) + specmmr(:ncol,k)
+                 end if
+                 if (trim(spectype) == 'bc') then
+                    corebcmmr(:ncol)    = corebcmmr(:ncol) + specmmr(:ncol,k)
+                 end if
+                 coremmr(:ncol)    = coremmr(:ncol) + specmmr(:ncol,k)
+                 corevol(:ncol)    = corevol(:ncol) + vol(:ncol)
+                 corerfr(:ncol)    = corerfr(:ncol) + vol(:ncol) * real(specrefindex(isw))
+                 corerfi(:ncol)    = corerfi(:ncol) + vol(:ncol) * aimag(specrefindex(isw))
+                 corehygro(:ncol)  = corehygro(:ncol) + vol(:ncol) * hygro_aer
+              else if (trim(specmorph) == 'shell') then
+                 shellmmr(:ncol)    = shellmmr(:ncol) + specmmr(:ncol,k)
+                 shellvol(:ncol)    = shellvol(:ncol) + vol(:ncol)
+                 shellrfr(:ncol)    = shellrfr(:ncol) + vol(:ncol) * real(specrefindex(isw))
+                 shellrfi(:ncol)    = shellrfi(:ncol) + vol(:ncol) * aimag(specrefindex(isw))
+                 shellhygro(:ncol)  = shellhygro(:ncol) + vol(:ncol) * hygro_aer
+!               else if (trim(specmorph) == 'particle') then
+!                  particlemmr(:ncol)    = specmmr(:ncol,k)
+!                  particlevol(:ncol)    = vol(:ncol)
+!                  particlerfr(:ncol)    = vol(:ncol) * real(specrefindex(isw))
+!                  particlerfi(:ncol)    = vol(:ncol) * aimag(specrefindex(isw))
+!                  particlehygro(:ncol)  = vol(:ncol) * hygro_aer
+              else
+                 call endrun("coreshell_aer_opt: Unknown spectype "//trim(spectype))
               end if
-            end do
 
-            ! If the particles were to swell, then water would need to be added to
-            ! the shell and the volume and refractive index adjusted accordingly.
+           end do ! species loop
+           ! particlemmr(:ncol)    = shellmmr(:ncol) + coremmr(:ncol)
+           ! particlevol(:ncol)    = shellvol(:ncol) + corevol(:ncol)
+           ! particlerfr(:ncol)    = shellrfr(:ncol) + corerfr(:ncol)
+           ! particlerfi(:ncol)    = shellrfi(:ncol) + corerfi(:ncol)
+           ! particlehygro(:ncol)  = shellhygro(:ncol) + corehygro(:ncol)
 
-            ! Determine the core/shell ratio (by mass).
-            totalmmr(:ncol) = (coremmr(:ncol) + shellmmr(:ncol))
-            do i = 1, ncol
-               if (totalmmr(i) .gt. 0._r8) then
-                  corefrac(i) = coremmr(i) / (totalmmr(i))
-               end if
-               corefrac(i) = max(0._r8, min(1.0_r8, corefrac(i)))
-            end do
 
-            ! call t_startf('binterp')
+           ! If one of the species is a particle, then it represents the mass of the
+           ! whole particle, put includes mass that should be part of the shell. So
+           ! subtract the mass of the explicit core and shell to determine the
+           ! additional contribution.
+           !
+           ! NOTE: This is consistent with the way that CARMA defined the concentration
+           ! element in the group.
+           ! Not used currently
+           ! do i = 1, ncol
+           !   if (particlemmr(i) .gt. (shellmmr(i) + coremmr(i))) then
+           !     shellmmr(i)    = shellmmr(i) + (particlemmr(i) - coremmr(i) - shellmmr(i))
+           !     shellvol(i)    = shellvol(i) + (particlevol(i) - corevol(i) - shellvol(i))
+           !     shellrfr(i)    = shellrfr(i) + (particlerfr(i) - corerfr(i) - shellrfr(i))
+           !     shellrfi(i)    = shellrfi(i) + (particlerfi(i) - corerfi(i) - shellrfi(i))
+           !     shellhygro(i)  = shellhygro(i) + (particlehygro(i) - corehygro(i) - shellhygro(i))
+           !   end if
+           ! end do
 
-            ! interpolate coefficients linear in core fraction
-            !
-            ! NOTE: Initially using a table without a shell refractive
-            ! index, assuming that the shell refractive index has only
-            ! one component and is fixed.
-            !
-            ! NOTE: A more general solution where the shell refractive
-            ! index can vary would need to also have dimensions including
-            ! the shell refractive indices and a more complex
-            ! interpolation to handle CARMA GROWCORE.
-!            itab(:ncol) = 0
-!            call binterp(extpsw(:,:,:,isw), ncol, ncoef, prefr, prefi, &
-!                         refr, refi, refrtabsw(:,isw), refitabsw(:,isw), &
-!                         itab, jtab, ttab, utab, cext)
-!            call binterp(abspsw(:,:,:,isw), ncol, ncoef, prefr, prefi, &
-!                         refr, refi, refrtabsw(:,isw), refitabsw(:,isw), &
-!                         itab, jtab, ttab, utab, cabs)
-!            call binterp(asmpsw(:,:,:,isw), ncol, ncoef, prefr, prefi, &
-!                         refr, refi, refrtabsw(:,isw), refitabsw(:,isw), &
-!                         itab, jtab, ttab, utab, casm)
+           ! If the particles were to swell, then water would need to be added to
+           ! the shell and the volume and refractive index adjusted accordingly.
 
-            ! call t_stopf('binterp')
+           ! Determine the core/shell ratio (by mass).
+           totalmmr(:ncol) = (coremmr(:ncol) + shellmmr(:ncol))
+           do i = 1, ncol
+              if (totalmmr(i) .gt. 0._r8) then
+                 corefrac(i) = coremmr(i) / (totalmmr(i))
+              end if
+              corefrac(i) = max(0._r8, min(1.0_r8, corefrac(i)))
+           end do
+           ! Determine the bc/dust ratio (by mass).
+           bcdustmmr(:ncol) = (corebcmmr(:ncol) + coredustmmr(:ncol))
+           do i = 1, ncol
+              if (bcdustmmr(i) .gt. 0._r8) then
+                 bcdust(i) = corebcmmr(i) / (bcdustmmr(i))
+              end if
+              bcdust(i) = max(0._r8, min(1.0_r8, bcdust(i)))
+           end do
 
-            ! Now interplate in the core/shell dimension. This could be
-            ! combined in the step above as a 3D interpolation.
-! 					  call lininterp_init(tbl_corefrac, nfrac, corefrac, ncol, 1, interp_wgts)
-!					  call lininterp(extpsw(:,isw), nfrac, pext, ncol, interp_wgts)
-!					  call lininterp(abspsw(:,isw), nfrac, pabs, ncol, interp_wgts)
-!					  call lininterp(asmpsw(:,isw), nfrac, pasm, ncol, interp_wgts)
-! CGB  - The above routines crashed occasionally with no message, so replace.
-            do i = 1, ncol
-               call interpopt(nfrac, tbl_corefrac, extpsw(:,isw), corefrac(i), pext(i))
-               call interpopt(nfrac, tbl_corefrac, abspsw(:,isw), corefrac(i), pabs(i))
-               call interpopt(nfrac, tbl_corefrac, asmpsw(:,isw), corefrac(i), pasm(i))
+           ! Now interplate in the core/shell dimension.
+           do i = 1, ncol
 
-               pabs(i) = max(0._r8,pabs(i))
-               pabs(i) = min(pext(i),pabs(i))
+              select case (trim(opticstype))
+              case('sectional')
+                 pext(i) = table_interp( tbl_corefrac, extpsw(:,isw), corefrac(i) )
+                 pabs(i) = table_interp( tbl_corefrac, abspsw(:,isw), corefrac(i) )
+                 pasm(i) = table_interp( tbl_corefrac, asmpsw(:,isw), corefrac(i) )
+              case('hygroscopic_coreshell')
+                 pext(i) = table_interp( tbl_relh, tbl_corefrac, tbl_bcdust, tbl_kap, &
+                                         h_ext_coreshell(:,isw,:,:,:), &
+                                         rh(i,k), corefrac(i), bcdust(i), crkappa(i,k) )
+                 pabs(i) = table_interp( tbl_relh, tbl_corefrac, tbl_bcdust, tbl_kap, &
+                                         h_ssa_coreshell(:,isw,:,:,:), &
+                                         rh(i,k), corefrac(i), bcdust(i), crkappa(i,k) )
+                 pasm(i) = table_interp( tbl_relh, tbl_corefrac, tbl_bcdust, tbl_kap, &
+                                         h_asm_coreshell(:,isw,:,:,:), &
+                                         rh(i,k), corefrac(i), bcdust(i), crkappa(i,k) )
+              case('hygroscopic_wtp')
+                 pext(i) = table_interp( tbl_wgtpct, h_ext_wtp(:,isw), wgtpct(i,k) )
+                 pabs(i) = table_interp( tbl_wgtpct, h_ssa_wtp(:,isw), wgtpct(i,k) )
+                 pasm(i) = table_interp( tbl_wgtpct, h_asm_wtp(:,isw), wgtpct(i,k) )
+              case default
+                 call endrun('aer_rad_props_sw: unsupported opticstype: '//trim(opticstype))
+              end select
 
-               palb(i) = 1._r8-pabs(i)/max(pext(i),1.e-40_r8)
-               palb(i) = 1._r8-pabs(i)/max(pext(i),1.e-40_r8)
 
-               dopaer(i) = pext(i) * totalmmr(i) * mass(i,k)
-            end do
+              pabs(i) = max(0._r8,pabs(i))
+              pabs(i) = min(pext(i),pabs(i))
 
-            if (savaeruv) then
-               do i = 1, ncol
+              palb(i) = 1._r8-pabs(i)/max(pext(i),1.e-40_r8)
+              palb(i) = 1._r8-pabs(i)/max(pext(i),1.e-40_r8)
+
+              dopaer(i) = pext(i) * totalmmr(i) * mass(i,k)
+           end do
+
+           if (savaeruv) then
+              do i = 1, ncol
                  extinctuv(i,k) = extinctuv(i,k) + dopaer(i)*air_density(i,k)/mass(i,k)
                  aoduv(i) = aoduv(i) + dopaer(i)
-                  if (k.le.troplev(i)) then
+                 if (k.le.troplev(i)) then
                     aoduvst(i) = aoduvst(i) + dopaer(i)
-                  end if
-               end do
-            end if
+                 end if
+              end do
+           end if
 
-            if (savaernir) then
-               do i = 1, ncol
-                  extinctnir(i,k) = extinctnir(i,k) + dopaer(i)*air_density(i,k)/mass(i,k)
-                  aodnir(i) = aodnir(i) + dopaer(i)
-                  if (k.le.troplev(i)) then
+           if (savaernir) then
+              do i = 1, ncol
+                 extinctnir(i,k) = extinctnir(i,k) + dopaer(i)*air_density(i,k)/mass(i,k)
+                 aodnir(i) = aodnir(i) + dopaer(i)
+                 if (k.le.troplev(i)) then
                     aodnirst(i) = aodnirst(i) + dopaer(i)
-                  end if
-               end do
-            endif
+                 end if
+              end do
+           endif
 
-            ! Save aerosol optical depth at longest visible wavelength
-            ! sum over layers
-            if (savaervis) then
-               ! aerosol extinction (/m)
-               do i = 1, ncol
-                  extinct(i,k) = extinct(i,k) + dopaer(i)*air_density(i,k)/mass(i,k)
-                  absorb(i,k)  = absorb(i,k) + pabs(i)*air_density(i,k)
-                  aodvis(i)    = aodvis(i) + dopaer(i)
-                  aodabs(i)    = aodabs(i) + pabs(i)*mass(i,k)
-                  aodbin(i)    = aodbin(i) + dopaer(i)
-                  ssavis(i)    = ssavis(i) + dopaer(i)*palb(i)
-                  if (k.le.troplev(i)) then
+           ! Save aerosol optical depth at longest visible wavelength
+           ! sum over layers
+           if (savaervis) then
+              ! aerosol extinction (/m)
+              do i = 1, ncol
+                 extinct(i,k) = extinct(i,k) + dopaer(i)*air_density(i,k)/mass(i,k)
+                 absorb(i,k)  = absorb(i,k) + pabs(i)*air_density(i,k)
+                 aodvis(i)    = aodvis(i) + dopaer(i)
+                 aodabs(i)    = aodabs(i) + pabs(i)*mass(i,k)
+                 aodbin(i)    = aodbin(i) + dopaer(i)
+                 ssavis(i)    = ssavis(i) + dopaer(i)*palb(i)
+                 if (k.le.troplev(i)) then
                     aodvisst(i) = aodvisst(i) + dopaer(i)
-                  end if
-               end do
-            endif
+                 end if
+              end do
+           endif
 
-            do i = 1, ncol
+           do i = 1, ncol
 
-               if ((dopaer(i) <= -1.e-10_r8) .or. (dopaer(i) >= 300._r8)) then
+              if ((dopaer(i) <= -1.e-10_r8) .or. (dopaer(i) >= 300._r8)) then
 
-                  if (dopaer(i) <= -1.e-10_r8) then
-                     write(iulog,*) "ERROR: Negative aerosol optical depth &
-                          &in this layer."
-                  else
-                     write(iulog,*) "WARNING: Aerosol optical depth is &
-                          &unreasonably high in this layer."
-                  end if
+                 if (dopaer(i) <= -1.e-10_r8) then
+                    write(iulog,*) "ERROR: Negative aerosol optical depth &
+                         &in this layer."
+                 else
+                    write(iulog,*) "WARNING: Aerosol optical depth is &
+                         &unreasonably high in this layer."
+                 end if
 
-                  write(iulog,*) 'dopaer(', i, ',', k, ',', m, ',', lchnk, ')=', dopaer(i)
-                  ! write(iulog,*) 'itab,jtab,ttab,utab=',itab(i),jtab(i),ttab(i),utab(i)
-                  write(iulog,*) 'k=', k, ' pext=', pext(i), ' specext=', specpext(i)
-!                  write(iulog,*) 'wetvol=', wetvol(i), ' dryvol=', dryvol(i), ' watervol=', watervol(i)
-                  ! write(iulog,*) 'cext=',(cext(i,l),l=1,ncoef)
-                  ! write(iulog,*) 'crefin=',crefin(i)
-                  write(iulog,*) 'nspec=', nspec
-                  ! write(iulog,*) 'cheb=', (cheb(nc,m,i,k),nc=2,ncoef)
-                  do l = 1, nspec
-                     call rad_cnst_get_bin_mmr_by_idx(list_idx, m, l, 'a', state, pbuf, specmmr)
-                     call rad_cnst_get_bin_props_by_idx(list_idx, m, l, density_aer=specdens, &
-                                                 refindex_aer_sw=specrefindex)
-                     volf = specmmr(i,k)/specdens
-                     write(iulog,*) 'l=', l, 'vol(l)=', volf
-                     write(iulog,*) 'isw=', isw, 'specrefindex(isw)=', specrefindex(isw)
-                     write(iulog,*) 'specdens=', specdens
-                  end do
+                 write(iulog,*) 'dopaer(', i, ',', k, ',', m, ',', lchnk, ')=', dopaer(i)
+                 ! write(iulog,*) 'itab,jtab,ttab,utab=',itab(i),jtab(i),ttab(i),utab(i)
+                 write(iulog,*) 'k=', k, ' pext=', pext(i), ' specext=', specpext(i)
+                 !write(iulog,*) 'wetvol=', wetvol(i), ' dryvol=', dryvol(i), ' watervol=', watervol(i)
+                 ! write(iulog,*) 'cext=',(cext(i,l),l=1,ncoef)
+                 ! write(iulog,*) 'crefin=',crefin(i)
+                 write(iulog,*) 'nspec=', nspec
+                 ! write(iulog,*) 'cheb=', (cheb(nc,m,i,k),nc=2,ncoef)
+                 do l = 1, nspec
+                    call rad_cnst_get_bin_mmr_by_idx(list_idx, m, l, 'a', state, pbuf, specmmr)
+                    call rad_cnst_get_bin_props_by_idx(list_idx, m, l, density_aer=specdens, &
+                         refindex_aer_sw=specrefindex)
+                    volf = specmmr(i,k)/specdens
+                    write(iulog,*) 'l=', l, 'vol(l)=', volf
+                    write(iulog,*) 'isw=', isw, 'specrefindex(isw)=', specrefindex(isw)
+                    write(iulog,*) 'specdens=', specdens
+                 end do
 
-                  nerr_dopaer = nerr_dopaer + 1
-!                  if (nerr_dopaer >= nerrmax_dopaer) then
-                  if (dopaer(i) < -1.e-10_r8) then
-                     write(iulog,*) '*** halting in '//subname//' after nerr_dopaer =', nerr_dopaer
-                     call endrun('exit from '//subname)
-                  end if
+                 nerr_dopaer = nerr_dopaer + 1
+                 ! if (nerr_dopaer >= nerrmax_dopaer) then
+                 if (dopaer(i) < -1.e-10_r8) then
+                    write(iulog,*) '*** halting in '//subname//' after nerr_dopaer =', nerr_dopaer
+                    call endrun('exit from '//subname)
+                 end if
 
-               end if
-            end do
+              end if
+           end do
 
-            do i=1,ncol
-               tauxar(i,k,isw) = tauxar(i,k,isw) + dopaer(i)
-               wa(i,k,isw)     = wa(i,k,isw)     + dopaer(i)*palb(i)
-               ga(i,k,isw)     = ga(i,k,isw)     + dopaer(i)*palb(i)*pasm(i)
-               fa(i,k,isw)     = fa(i,k,isw)     + dopaer(i)*palb(i)*pasm(i)*pasm(i)
-            end do
+           do i=1,ncol
+              tauxar(i,k,isw) = tauxar(i,k,isw) + dopaer(i)
+              wa(i,k,isw)     = wa(i,k,isw)     + dopaer(i)*palb(i)
+              ga(i,k,isw)     = ga(i,k,isw)     + dopaer(i)*palb(i)*pasm(i)
+              fa(i,k,isw)     = fa(i,k,isw)     + dopaer(i)*palb(i)*pasm(i)*pasm(i)
+           end do
 
-         end do ! pver
-      end do ! sw bands
+        end do ! pver
+     end do ! sw bands
 
-      ! bin diagnostics
-      ! The diagnostics are currently only output for the climate list.  Code mods will
-      ! be necessary to provide output for the rad_diag lists.
-      if (list_idx == 0) then
-         do i = 1, nnite
-!            burden(idxnite(i))  = fillvalue
-!            aodbin(idxnite(i)) = fillvalue
-         end do
+     ! bin diagnostics
+     ! The diagnostics are currently only output for the climate list.  Code mods will
+     ! be necessary to provide output for the rad_diag lists.
+     if (list_idx == 0) then
+        ! do i = 1, nnite
+        !    burden(idxnite(i))  = fillvalue
+        !    aodbin(idxnite(i)) = fillvalue
+        ! end do
 
-         write(outname,'(a,i2.2)') 'BURDEN', m
-         call outfld(trim(outname), burden, pcols, lchnk)
+        write(outname,'(a,i2.2)') 'BURDEN', m
+        call outfld(trim(outname), burden, pcols, lchnk)
 
-         write(outname,'(a,i2.2)') 'AODBIN', m
-         call outfld(trim(outname), aodbin, pcols, lchnk)
-      end if
+        write(outname,'(a,i2.2)') 'AODBIN', m
+        call outfld(trim(outname), aodbin, pcols, lchnk)
+     end if
 
-   end do ! nbins
+  end do ! nbins
 
-   ! Output visible band diagnostics for quantities summed over the bins
-   ! These fields are put out for diagnostic lists as well as the climate list.
-   do i = 1, nnite
-!      extinct(idxnite(i),:) = fillvalue
-!      absorb(idxnite(i),:)  = fillvalue
-!      aodvis(idxnite(i))    = fillvalue
-!      aodabs(idxnite(i))    = fillvalue
-!      aodvisst(idxnite(i))  = fillvalue
-   end do
+  ! Output visible band diagnostics for quantities summed over the bins
+  ! These fields are put out for diagnostic lists as well as the climate list.
+  ! do i = 1, nnite
+  !    extinct(idxnite(i),:) = fillvalue
+  !    absorb(idxnite(i),:)  = fillvalue
+  !    aodvis(idxnite(i))    = fillvalue
+  !    aodabs(idxnite(i))    = fillvalue
+  !    aodvisst(idxnite(i))  = fillvalue
+  ! end do
 
-   call outfld('EXTINCT'//diag(list_idx),  extinct, pcols, lchnk)
-   call outfld('ABSORB'//diag(list_idx),   absorb,  pcols, lchnk)
-   call outfld('AODVIS'//diag(list_idx),   aodvis,  pcols, lchnk)
-   call outfld('AODABS'//diag(list_idx),   aodabs,  pcols, lchnk)
-   call outfld('AODVISst'//diag(list_idx), aodvisst,pcols, lchnk)
+  call outfld('EXTINCT'//diag(list_idx),  extinct, pcols, lchnk)
+  call outfld('ABSORB'//diag(list_idx),   absorb,  pcols, lchnk)
+  call outfld('AODVIS'//diag(list_idx),   aodvis,  pcols, lchnk)
+  call outfld('AODABS'//diag(list_idx),   aodabs,  pcols, lchnk)
+  call outfld('AODVISst'//diag(list_idx), aodvisst,pcols, lchnk)
 
-   ! These diagnostics are output only for climate list
-   if (list_idx == 0) then
-      do i = 1, ncol
-         if (aodvis(i) > 1.e-10_r8) then
-            ssavis(i) = ssavis(i)/aodvis(i)
-         else
-            ssavis(i) = 0.925_r8
-         endif
-      end do
+  ! These diagnostics are output only for climate list
+  if (list_idx == 0) then
+     do i = 1, ncol
+        if (aodvis(i) > 1.e-10_r8) then
+           ssavis(i) = ssavis(i)/aodvis(i)
+        else
+           ssavis(i) = 0.925_r8
+        endif
+     end do
 
-      do i = 1, nnite
-!         ssavis(idxnite(i))     = fillvalue
-!         aoduv(idxnite(i))      = fillvalue
-!         aodnir(idxnite(i))     = fillvalue
-!         aoduvst(idxnite(i))    = fillvalue
-!         aodnirst(idxnite(i))   = fillvalue
-!         extinctuv(idxnite(i),:)  = fillvalue
-!         extinctnir(idxnite(i),:) = fillvalue
-       end do
+     ! do i = 1, nnite
+     !    ssavis(idxnite(i))     = fillvalue
+     !    aoduv(idxnite(i))      = fillvalue
+     !    aodnir(idxnite(i))     = fillvalue
+     !    aoduvst(idxnite(i))    = fillvalue
+     !    aodnirst(idxnite(i))   = fillvalue
+     !    extinctuv(idxnite(i),:)  = fillvalue
+     !    extinctnir(idxnite(i),:) = fillvalue
+     !  end do
 
-      call outfld('SSAVIS',        ssavis,        pcols, lchnk)
+     call outfld('SSAVIS',        ssavis,        pcols, lchnk)
 
-      call outfld('EXTINCTUV',     extinctuv,     pcols, lchnk)
-      call outfld('EXTINCTNIR',    extinctnir,    pcols, lchnk)
-      call outfld('AODUV',         aoduv,         pcols, lchnk)
-      call outfld('AODNIR',        aodnir,        pcols, lchnk)
-      call outfld('AODUVst',       aoduvst,       pcols, lchnk)
-      call outfld('AODNIRst',      aodnirst,      pcols, lchnk)
+     call outfld('EXTINCTUV',     extinctuv,     pcols, lchnk)
+     call outfld('EXTINCTNIR',    extinctnir,    pcols, lchnk)
+     call outfld('AODUV',         aoduv,         pcols, lchnk)
+     call outfld('AODNIR',        aodnir,        pcols, lchnk)
+     call outfld('AODUVst',       aoduvst,       pcols, lchnk)
+     call outfld('AODNIRst',      aodnirst,      pcols, lchnk)
 
-   end if
+  end if
 
 end subroutine coreshell_aero_sw
 
@@ -599,7 +672,6 @@ end subroutine coreshell_aero_sw
 
 subroutine coreshell_aero_lw(list_idx, state, pbuf, tauxar)
 
-   use interpolate_data, only: lininterp_init, lininterp, interp_type
 
    ! calculates aerosol lw radiative properties
 
@@ -616,7 +688,7 @@ subroutine coreshell_aero_lw(list_idx, state, pbuf, tauxar)
    integer :: ncol                     ! number of active columns in the chunk
    integer :: nbins
    integer :: nspec
-   character*32         :: spectype            ! species type
+   character(len=32)    :: spectype            ! species type
    real(r8)             :: hygro_aer           !
 
    real(r8) :: mass(pcols,pver) ! layer mass
@@ -630,6 +702,9 @@ subroutine coreshell_aero_lw(list_idx, state, pbuf, tauxar)
    real(r8) :: particlerfi(pcols)   ! imaginary refractive index of aerosol particle
    real(r8) :: particlehygro(pcols) ! hygroscopicity of aerosol particle
    real(r8) :: particlevol(pcols)   ! volume of aerosol particle
+
+   real(r8) :: coredustmmr(pcols)   !
+   real(r8) :: corebcmmr(pcols)   !
 
    real(r8) :: coremmr(pcols)   ! mmr of aerosol core
    real(r8) :: corerfr(pcols)   ! real refractive index of aerosol core
@@ -645,30 +720,45 @@ subroutine coreshell_aero_lw(list_idx, state, pbuf, tauxar)
 
    real(r8) :: totalmmr(pcols)   ! total mmr of the aerosol
    real(r8) :: corefrac(pcols)   ! mass fraction that is core
+   real(r8) :: bcdustmmr(pcols)  ! total mmr of dust + bc aerosol
+   real(r8) :: bcdust(pcols)     ! mass fraction of bc vs (bc + dust)
 
    real(r8) :: vol(pcols)       ! volume concentration of aerosol specie (m3/kg)
    real(r8) :: dryvol(pcols)    ! volume concentration of aerosol mode (m3/kg)
-!   real(r8) :: wetvol(pcols)    ! volume concentration of wet mode (m3/kg)
-!   real(r8) :: watervol(pcols)  ! volume concentration of water in each mode (m3/kg)
    real(r8) :: refr(pcols)      ! real part of refractive index
    real(r8) :: refi(pcols)      ! imaginary part of refractive index
    complex(r8) :: crefin(pcols) ! complex refractive index
    real(r8), pointer :: tbl_corefrac(:) ! table of imag refractive indices for aerosols
-   real(r8), pointer :: absplw(:,:) ! specific absorption
+   real(r8), pointer :: tbl_kap(:) ! table of kappa of bins
+   real(r8), pointer :: tbl_rh(:) ! table of rh of bins
+   real(r8), pointer :: tbl_bcdust(:) ! table of bc-dust ration of bins
+   real(r8), pointer :: tbl_wgtpct(:)
 
-!   integer  :: itab(pcols), jtab(pcols)
-!   real(r8) :: ttab(pcols), utab(pcols)
-!   real(r8) :: cabs(pcols,ncoef)
+   real(r8), pointer :: absplw(:,:) ! specific absorption
+   real(r8), pointer :: lw_hygro_coreshell_abs(:,:,:,:,:) ! specific absorption
+   real(r8), pointer :: lw_hygro_abs_wtp(:,:) ! specific absorption
+
    real(r8) :: pabs(pcols)      ! parameterized specific absorption (m2/kg)
    real(r8) :: dopaer(pcols)    ! aerosol optical depth in layer
+
+! for table lookup into rh grid
+   real(r8) :: sate(pcols,pver)     ! saturation vapor pressure
+   real(r8) :: satq(pcols,pver)     ! saturation specific humidity
+   real(r8) :: rh(pcols,pver)
+   integer :: nrelh, nbcdust, nkap
+   integer :: nwtp
+
+   real(r8), pointer, dimension(:,:) :: crkappa   ! kappa
+   real(r8), pointer, dimension(:,:) :: wgtpct  ! weight percent
+   real(r8), pointer, dimension(:,:) :: cldn
+
+   character(len=ot_length) :: opticstype
+   character(len=32) :: bin_name
+   character(len=32) :: specmorph
 
    integer, parameter :: nerrmax_dopaer=1000
    integer  :: nerr_dopaer = 0
    real(r8) :: volf             ! volume fraction of insoluble aerosol
-
-   type (interp_type) :: interp_wgts
-   integer            :: nfrac
-
 
    character(len=*), parameter :: subname = 'modal_aero_lw'
    !----------------------------------------------------------------------------
@@ -677,24 +767,59 @@ subroutine coreshell_aero_lw(list_idx, state, pbuf, tauxar)
    ncol  = state%ncol
 
    ! initialize output variables
-! The output needs to be appended, since modal aerosols could have already been applied.
-!   tauxar(:ncol,:,:) = 0._r8
 
    ! dry mass in each cell
    mass(:ncol,:) = state%pdeldry(:ncol,:)*rga
+
+   ! calculate relative humidity for table lookup into rh grid
+   call qsat(state%t, state%pmid, sate, satq)
+
+   rh(1:ncol,1:pver) = state%q(1:ncol,1:pver,1) / satq(1:ncol,1:pver)
+   !There is a  different way to diagnose sub-grid rh for clear-sky only that makes physically
+   ! more sense but is not used in MAM. This needs to be tested if it makes any difference
+   ! Associate pointers with physics buffer fields
+   ! itim = pbuf_old_tim_idx()
+   ! call pbuf_get_field(pbuf, pbuf_get_index('CLD'), cldn, (/1,1,itim/),(/pcols,pver,1/))
+   ! rh(1:ncol,1:pver) = (state%q(1:ncol,1:pver,1)-cldn(1:ncol,1:pver)*qsat(1:ncol,1:pver)) / qsat(1:ncol,1:pver)
+   rh(1:ncol,1:pver) = max(1.e-20_r8,rh(1:ncol,1:pver))
 
    ! loop over all aerosol modes
    call rad_cnst_get_info(list_idx, nbins=nbins)
 
    do m = 1, nbins
 
-      ! get mode properties
-      call rad_cnst_get_bin_props(list_idx, m, &
-        corefrac=tbl_corefrac, nfrac=nfrac, &
-        absplw=absplw)
+      ! get bin info
+      call rad_cnst_get_info_by_bin(list_idx, m, nspec=nspec, bin_name=bin_name)
+      ! get optics type
+      call rad_cnst_get_bin_props(list_idx, m, opticstype=opticstype)
 
-      ! get mode info
-      call rad_cnst_get_info_by_bin(list_idx, m, nspec=nspec)
+      select case (trim(opticstype))
+      case('sectional')
+         ! get bin properties
+         call rad_cnst_get_bin_props(list_idx, m, &
+              corefrac=tbl_corefrac, &
+              absplw=absplw)
+      case('hygroscopic_coreshell')
+         ! get optical properties for hygroscopic aerosols
+         call rad_cnst_get_bin_props(list_idx, m, &
+              corefrac=tbl_corefrac, &
+              kap=tbl_kap, nkap=nkap, bcdust=tbl_bcdust, nbcdust=nbcdust, &
+              relh=tbl_rh, nrelh=nrelh, &
+              lw_hygro_coreshell_ext=lw_hygro_coreshell_abs)
+         ! get kappa
+         ! need to read in bin_name
+         call pbuf_get_field(pbuf, pbuf_get_index(trim(bin_name)//"_kappa"),crkappa)
+      case('hygroscopic_wtp')
+         ! get optical properties for hygroscopic aerosols
+         call rad_cnst_get_bin_props(list_idx, m, &
+              wgtpct=tbl_wgtpct,nwtp=nwtp, &
+              lw_hygro_ext_wtp=lw_hygro_abs_wtp)
+         ! determine weight precent of H2SO4/H2O solution
+         call pbuf_get_field(pbuf, pbuf_get_index('WTP'),wgtpct)
+      case default
+         call endrun('aer_rad_props_lw: unsupported opticstype: '//trim(opticstype))
+      end select
+
 
       do ilw = 1, nlwbands
 
@@ -711,17 +836,21 @@ subroutine coreshell_aero_lw(list_idx, state, pbuf, tauxar)
             corehygro(:ncol)     = 0._r8
             corevol(:ncol)       = 0._r8
 
+            coredustmmr(:ncol)   = 0._r8
+            corebcmmr(:ncol)     = 0._r8
+
             shellmmr(:ncol)      = 0._r8
             shellrfr(:ncol)      = 0._r8
             shellrfi(:ncol)      = 0._r8
             shellhygro(:ncol)    = 0._r8
             shellvol(:ncol)      = 0._r8
 
-            particlemmr(:ncol)   = 0._r8
-            particlerfr(:ncol)   = 0._r8
-            particlerfi(:ncol)   = 0._r8
-            particlehygro(:ncol) = 0._r8
-            particlevol(:ncol)   = 0._r8
+            ! not used currently
+            ! particlemmr(:ncol)   = 0._r8
+            ! particlerfr(:ncol)   = 0._r8
+            ! particlerfi(:ncol)   = 0._r8
+            ! particlehygro(:ncol) = 0._r8
+            ! particlevol(:ncol)   = 0._r8
 
             corefrac(:ncol)      = 0._r8
 
@@ -740,7 +869,13 @@ subroutine coreshell_aero_lw(list_idx, state, pbuf, tauxar)
                dryvol(:ncol)   = dryvol(:ncol) + vol(:ncol)
                crefin(:ncol)   = crefin(:ncol) + vol(:ncol) * specrefindex(ilw)
 
-               if (trim(spectype) == 'core') then
+               if (trim(specmorph) == 'core') then
+                  if (trim(spectype) == 'dust') then
+                     coredustmmr(:ncol)    = coredustmmr(:ncol) + specmmr(:ncol,k)
+                  end if
+                  if (trim(spectype) == 'bc') then
+                     corebcmmr(:ncol)    = corebcmmr(:ncol) + specmmr(:ncol,k)
+                  end if
                   coremmr(:ncol)    = coremmr(:ncol) + specmmr(:ncol,k)
                   corevol(:ncol)    = corevol(:ncol) + vol(:ncol)
                   corerfr(:ncol)    = corerfr(:ncol) + vol(:ncol) * real(specrefindex(ilw))
@@ -748,7 +883,7 @@ subroutine coreshell_aero_lw(list_idx, state, pbuf, tauxar)
                   corehygro(:ncol)  = corehygro(:ncol) + vol(:ncol) * hygro_aer
                end if
 
-               if (trim(spectype) == 'shell') then
+               if (trim(specmorph) == 'shell') then
                   shellmmr(:ncol)    = shellmmr(:ncol) + specmmr(:ncol,k)
                   shellvol(:ncol)    = shellvol(:ncol) + vol(:ncol)
                   shellrfr(:ncol)    = shellrfr(:ncol) + vol(:ncol) * real(specrefindex(ilw))
@@ -756,14 +891,20 @@ subroutine coreshell_aero_lw(list_idx, state, pbuf, tauxar)
                   shellhygro(:ncol)  = shellhygro(:ncol) + vol(:ncol) * hygro_aer
                end if
 
-               if (trim(spectype) == 'particle') then
-                  particlemmr(:ncol)    = specmmr(:ncol,k)
-                  particlevol(:ncol)    = vol(:ncol)
-                  particlerfr(:ncol)    = vol(:ncol) * real(specrefindex(ilw))
-                  particlerfi(:ncol)    = vol(:ncol) * aimag(specrefindex(ilw))
-                  particlehygro(:ncol)  = vol(:ncol) * hygro_aer
-               end if
+               !if (trim(specmorph) == 'particle') then
+               !   particlemmr(:ncol)    = specmmr(:ncol,k)
+               !   particlevol(:ncol)    = vol(:ncol)
+               !   particlerfr(:ncol)    = vol(:ncol) * real(specrefindex(ilw))
+               !   particlerfi(:ncol)    = vol(:ncol) * aimag(specrefindex(ilw))
+               !   particlehygro(:ncol)  = vol(:ncol) * hygro_aer
+               !end if
             end do
+            ! particlemmr(:ncol)    = shellmmr(:ncol) + coremmr(:ncol)
+            ! particlevol(:ncol)    = shellvol(:ncol) + corevol(:ncol)
+            ! particlerfr(:ncol)    = shellrfr(:ncol) + corerfr(:ncol)
+            ! particlerfi(:ncol)    = shellrfi(:ncol) + corerfi(:ncol)
+            ! particlehygro(:ncol)  = shellhygro(:ncol) + corehygro(:ncol)
+
 
             ! If one of the species is a particle, then it represents the mass of the
             ! whole particle, put includes mass that should be part of the shell. So
@@ -772,15 +913,15 @@ subroutine coreshell_aero_lw(list_idx, state, pbuf, tauxar)
             !
             ! NOTE: This is consistent with the way that CARMA defined the concentration
             ! element in the group.
-            do i = 1, ncol
-              if (particlemmr(i) .gt. (shellmmr(i) + coremmr(i))) then
-                shellmmr(i)    = shellmmr(i) + (particlemmr(i) - coremmr(i) - shellmmr(i))
-                shellvol(i)    = shellvol(i) + (particlevol(i) - corevol(i) - shellvol(i))
-                shellrfr(i)    = shellrfr(i) + (particlerfr(i) - corerfr(i) - shellrfr(i))
-                shellrfi(i)    = shellrfi(i) + (particlerfi(i) - corerfi(i) - shellrfi(i))
-                shellhygro(i)  = shellhygro(i) + (particlehygro(i) - corehygro(i) - shellhygro(i))
-              end if
-            end do
+            !do i = 1, ncol
+            !  if (particlemmr(i) .gt. (shellmmr(i) + coremmr(i))) then
+            !    shellmmr(i)    = shellmmr(i) + (particlemmr(i) - coremmr(i) - shellmmr(i))
+            !    shellvol(i)    = shellvol(i) + (particlevol(i) - corevol(i) - shellvol(i))
+            !    shellrfr(i)    = shellrfr(i) + (particlerfr(i) - corerfr(i) - shellrfr(i))
+            !    shellrfi(i)    = shellrfi(i) + (particlerfi(i) - corerfi(i) - shellrfi(i))
+            !    shellhygro(i)  = shellhygro(i) + (particlehygro(i) - corehygro(i) - shellhygro(i))
+            !  end if
+            !end do
 
             ! If the particles were to swell, then water would need to be added to
             ! the shell and the volume and refractive index adjusted accordingly.
@@ -793,14 +934,31 @@ subroutine coreshell_aero_lw(list_idx, state, pbuf, tauxar)
                end if
                corefrac(i) = max(0._r8, min(1.0_r8, corefrac(i)))
             end do
+            ! Determine the bc/dust ratio (by mass).
+            bcdustmmr(:ncol) = (corebcmmr(:ncol) + coredustmmr(:ncol))
+            do i = 1, ncol
+               if (bcdustmmr(i) .gt. 0._r8) then
+                  bcdust(i) = corebcmmr(i) / (bcdustmmr(i))
+               end if
+               bcdust(i) = max(0._r8, min(1.0_r8, bcdust(i)))
+            end do
+
 
             ! interpolate coefficients linear in refractive index
-            ! first call calcs itab,jtab,ttab,utab
-!					  call lininterp_init(tbl_corefrac, nfrac, corefrac, ncol, 1, interp_wgts)
-!					  call lininterp(absplw(:,ilw), nfrac, pabs, ncol, interp_wgts)
-! CGB  - The above routines crashed occasionally with no message, so replace.
+
             do i = 1, ncol
-              call interpopt(nfrac, tbl_corefrac, absplw(:,ilw), corefrac(i), pabs(i))
+               select case (trim(opticstype))
+               case('sectional')
+                  pabs(i) = table_interp( tbl_corefrac, absplw(:,ilw), corefrac(i) )
+               case('hygroscopic_coreshell')
+                  pabs(i) = table_interp( tbl_rh, tbl_corefrac,  tbl_bcdust, tbl_kap, &
+                                          lw_hygro_coreshell_abs(:,ilw,:,:,:), &
+                                          rh(i,k), corefrac(i), bcdust(i), crkappa(i,k) )
+               case('hygroscopic_wtp')
+                  pabs(i) =  table_interp( tbl_wgtpct, lw_hygro_abs_wtp(:,ilw), wgtpct(i,k) )
+               case default
+                  call endrun('aer_rad_props_lw: unsupported opticstype: '//trim(opticstype))
+               end select
             end do
 
             ! parameterized optical properties
@@ -857,115 +1015,5 @@ subroutine coreshell_aero_lw(list_idx, state, pbuf, tauxar)
    end do ! m = 1, nmodes
 
 end subroutine coreshell_aero_lw
-
-
-
-!===============================================================================
-
-      subroutine binterp(table,ncol,km,im,jm,x,y,xtab,ytab,ix,jy,t,u,out)
-
-!     bilinear interpolation of table
-!
-      implicit none
-      integer im,jm,km,ncol
-      real(r8) table(km,im,jm),xtab(im),ytab(jm),out(pcols,km)
-      integer i,ix(pcols),ip1,j,jy(pcols),jp1,k,ic
-      real(r8) x(pcols),dx,t(pcols),y(pcols),dy,u(pcols), &
-             tu(pcols),tuc(pcols),tcu(pcols),tcuc(pcols)
-
-      if(ix(1).gt.0)go to 30
-      if(im.gt.1)then
-        do ic=1,ncol
-          do i=1,im
-            if(x(ic).lt.xtab(i))go to 10
-          enddo
-   10     ix(ic)=max0(i-1,1)
-          ip1=min(ix(ic)+1,im)
-          dx=(xtab(ip1)-xtab(ix(ic)))
-          if(abs(dx).gt.1.e-20_r8)then
-             t(ic)=(x(ic)-xtab(ix(ic)))/dx
-          else
-             t(ic)=0._r8
-          endif
-        end do
-      else
-        ix(:ncol)=1
-        t(:ncol)=0._r8
-      endif
-      if(jm.gt.1)then
-        do ic=1,ncol
-          do j=1,jm
-            if(y(ic).lt.ytab(j))go to 20
-          enddo
-   20     jy(ic)=max0(j-1,1)
-          jp1=min(jy(ic)+1,jm)
-          dy=(ytab(jp1)-ytab(jy(ic)))
-          if(abs(dy).gt.1.e-20_r8)then
-             u(ic)=(y(ic)-ytab(jy(ic)))/dy
-             if(u(ic).lt.0._r8.or.u(ic).gt.1._r8)then
-                write(iulog,*) 'u,y,jy,ytab,dy=',u(ic),y(ic),jy(ic),ytab(jy(ic)),dy
-             endif
-          else
-            u(ic)=0._r8
-          endif
-        end do
-      else
-        jy(:ncol)=1
-        u(:ncol)=0._r8
-      endif
-   30 continue
-      do ic=1,ncol
-         tu(ic)=t(ic)*u(ic)
-         tuc(ic)=t(ic)-tu(ic)
-         tcuc(ic)=1._r8-tuc(ic)-u(ic)
-         tcu(ic)=u(ic)-tu(ic)
-         jp1=min(jy(ic)+1,jm)
-         ip1=min(ix(ic)+1,im)
-         do k=1,km
-            out(ic,k)=tcuc(ic)*table(k,ix(ic),jy(ic))+tuc(ic)*table(k,ip1,jy(ic))   &
-               +tu(ic)*table(k,ip1,jp1)+tcu(ic)*table(k,ix(ic),jp1)
-         end do
-      enddo
-      return
-      end subroutine binterp
-
-
-      ! Given an input x with nx elements and function fx, then interpolate
-      ! the function to y resulting in fy.
-      !
-      ! It is assumed that x is monotonically increasing and that
-      ! min(x) <= y <= max(y).
-      !
-      ! This routine could be made much more flexible, but is just quick and simple
-      ! for now and is replacing the routines in interp_data, since lininterp_init
-      ! causes the routine to crash occasionally with no message.
-      subroutine interpopt(nx, x, fx, y, fy)
-        integer, intent(in)   :: nx
-        real(r8), intent(in)  :: x(nx)
-        real(r8), intent(in)  :: fx(nx)
-        real(r8), intent(in)  :: y
-        real(r8), intent(out) :: fy
-
-        integer               :: i
-
-        if (nx .le. 1) call endrun("interpopt: nx must be greater than 1")
-        if (x(1) .ge. x(nx)) call endrun("interpopt: x must be increasing")
-
-        do i = 2, nx
-          if (x(i) .le. x(i-1)) call endrun("interpopt: x must be monotonically increasing")
-        end do
-
-        if ((y .lt. x(1)) .or. (y .gt. x(nx))) call endrun("interpopt: extrapolation is not allowed")
-
-        do i = 1, nx
-          if (y .le. x(i)) exit
-        end do
-
-        if (y .eq. x(i)) then
-          fy = fx(i)
-        else
-          fy = fx(i-1) + (y - x(i-1)) * (fx(i) - fx(i-1)) / (x(i) - x(i-1))
-        end if
-      end subroutine interpopt
 
 end module coreshell_aer_opt
