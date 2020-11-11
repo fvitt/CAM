@@ -192,7 +192,7 @@ contains
 
     !call CARMAGROUP_Create(carma, I_GRP_PURSUL, "sulfate", rmin_PRSUL, vmrat_PRSUL, I_SPHERE, 1._f, .false., &
     !                       rc, irhswell=I_WTPCT_H2SO4, do_wetdep=.true., do_drydep=.true., solfac=0.3_f, &
-    !                       scavcoef=0.1_f, is_sulfate=.true., shortname="SULF", icoreshell=0, &
+    !                       scavcoef=0.1_f, is_sulfate=.true., shortname="PRSULF", icoreshell=0, &
     !                       refidx = refidx, refidxS = refidx, refidxC = refidx, do_mie=.true.,imiertn=I_MIERTN_TOON1981)
     !if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddGroup failed.')
 
@@ -315,7 +315,7 @@ contains
     end do
 
     ! total surface area density.
-    call pbuf_add_field('TOTSAD', 'global', dtype_r8, (/pcols, pver/), ipbuf4totsad)
+    call pbuf_add_field('SADSULF', 'global', dtype_r8, (/pcols, pver/), ipbuf4totsad)
     call pbuf_add_field('WTP','global', dtype_r8, (/pcols, pver/), ipbuf4wtp)
     !---------------------------------------------
 
@@ -433,6 +433,7 @@ contains
     real(r8)                             :: r_wet(cstate%f_NZ)    !! Sulfate aerosol bin wet radius (cm)
     real(r8)                             :: elem1mr(cstate%f_NZ)  !! First element mass mixing ratio (kg/kg)
     real(r8)                             :: binng(cstate%f_NZ)    !! number density per bin (#/g)
+    real(r8)                             :: kappa(cstate%f_NZ)    !! number density per bin (#/g)
     real(r8)                             :: rhoa_wet(cstate%f_NZ) !! wet air density (kg/m3)
     real(r8)                             :: wtpct(cstate%f_NZ)    !! sulfate weight percent
 
@@ -522,6 +523,7 @@ contains
 
         elem1mr(:) = 0._r8
         binng(:) = 0._r8
+        kappa(:) = 0.5_r8
 
         call CARMASTATE_GetBin(cstate, ienconc, ibin, mmr(:), rc, numberDensity=numberDensity)
         elem1mr(:) = mmr(:)
@@ -539,7 +541,7 @@ contains
 
         elem1mr_ptr(icol, :cstate%f_NZ,ibin,igroup) = elem1mr(:cstate%f_NZ)
         binng_ptr(icol, :cstate%f_NZ,ibin,igroup) = binng(:cstate%f_NZ)
-	kappa_ptr(icol, :cstate%f_NZ,ibin,igroup) = 1._f
+	kappa_ptr(icol, :cstate%f_NZ,ibin,igroup) = kappa(:cstate%f_NZ)
 
       end do !NBIN
     end do !NGROUP
