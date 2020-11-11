@@ -267,6 +267,18 @@ subroutine coreshell_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
    character(len=*), parameter :: subname = 'coreshell_aero_sw'
    !----------------------------------------------------------------------------
 
+   nullify(h_ext_coreshell)
+   nullify(h_ssa_coreshell)
+   nullify(h_asm_coreshell)
+   nullify(h_ext_wtp)
+   nullify(h_ssa_wtp)
+   nullify(h_asm_wtp)
+
+   nullify(tbl_wgtpct)
+   nullify(tbl_bcdust)
+   nullify(tbl_kap)
+   nullify(tbl_relh)
+
    lchnk = state%lchnk
    ncol  = state%ncol
 
@@ -337,26 +349,45 @@ subroutine coreshell_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
           extpsw=extpsw, abspsw=abspsw, asmpsw=asmpsw)
      case('hygroscopic_coreshell')
      ! get optical properties for hygroscopic aerosols
-         call rad_cnst_get_bin_props(list_idx, m, &
-           corefrac=tbl_corefrac, &
-           kap=tbl_kap, nkap=nkap, bcdust=tbl_bcdust, nbcdust=nbcdust, &
-           relh=tbl_relh, nrelh=nrelh, &
-           sw_hygro_coreshell_ext=h_ext_coreshell, &
-           sw_hygro_coreshell_ssa=h_ssa_coreshell, sw_hygro_coreshell_asm=h_asm_coreshell)
+        call rad_cnst_get_bin_props(list_idx, m, &
+             corefrac=tbl_corefrac, &
+             kap=tbl_kap, nkap=nkap, bcdust=tbl_bcdust, nbcdust=nbcdust, &
+             relh=tbl_relh, nrelh=nrelh, &
+             sw_hygro_coreshell_ext=h_ext_coreshell, &
+             sw_hygro_coreshell_ssa=h_ssa_coreshell, sw_hygro_coreshell_asm=h_asm_coreshell)
         ! get kappa
         ! need to read in bin_name
-         call pbuf_get_field(pbuf, pbuf_get_index(trim(bin_name)//"_kappa"),crkappa)
+        call pbuf_get_field(pbuf, pbuf_get_index(trim(bin_name)//"_kappa"),crkappa)
+        where ( crkappa < minval(tbl_kap) )
+           crkappa = minval(tbl_kap)
+        end where
+        where ( crkappa > maxval(tbl_kap) )
+           crkappa = maxval(tbl_kap)
+        end where
      case('hygroscopic_wtp')
       ! get optical properties for hygroscopic aerosols
          call rad_cnst_get_bin_props(list_idx, m, wgtpct=tbl_wgtpct,nwtp=nwtp, &
            sw_hygro_ext_wtp=h_ext_wtp, sw_hygro_ssa_wtp=h_ssa_wtp, sw_hygro_asm_wtp=h_asm_wtp)
        ! determine weight precent of H2SO4/H2O solution
          call pbuf_get_field(pbuf, pbuf_get_index('WTP'),wgtpct)
+         where ( wgtpct < minval(tbl_wgtpct) )
+            wgtpct = minval(tbl_wgtpct)
+         end where
+         where ( wgtpct > maxval(tbl_wgtpct) )
+            wgtpct = maxval(tbl_wgtpct)
+         end where
      case('zero')
           ! zero aerosols types have no optical effect, so do nothing.
      case default
           call endrun('aer_rad_props_sw: unsupported opticstype: '//trim(opticstype))
      end select
+
+     where ( rh < minval(tbl_relh) )
+        rh = minval(tbl_relh)
+     end where
+     where ( rh > maxval(tbl_relh) )
+        rh = maxval(tbl_relh)
+     end where
 
      do isw = 1, nswbands
         savaervis = (isw .eq. idx_sw_diag)
@@ -477,6 +508,24 @@ subroutine coreshell_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
               end if
               bcdust(i) = max(0._r8, min(1.0_r8, bcdust(i)))
            end do
+
+           if (associated(tbl_corefrac)) then
+              where ( corefrac < minval(tbl_corefrac) )
+                 corefrac = minval(tbl_corefrac)
+              end where
+              where ( corefrac > maxval(tbl_corefrac) )
+                 corefrac = maxval(tbl_corefrac)
+              end where
+           endif
+
+           if (associated(tbl_bcdust)) then
+              where ( bcdust < minval(tbl_bcdust) )
+                 bcdust = minval(tbl_bcdust)
+              end where
+              where ( bcdust > maxval(tbl_bcdust) )
+                 bcdust = maxval(tbl_bcdust)
+              end where
+           endif
 
            ! Now interplate in the core/shell dimension.
            do i = 1, ncol
@@ -763,6 +812,19 @@ subroutine coreshell_aero_lw(list_idx, state, pbuf, tauxar)
    character(len=*), parameter :: subname = 'modal_aero_lw'
    !----------------------------------------------------------------------------
 
+   nullify(tbl_corefrac)
+   nullify(tbl_kap)
+   nullify(tbl_rh)
+   nullify(tbl_bcdust)
+   nullify(tbl_wgtpct)
+   nullify(absplw)
+   nullify(lw_hygro_coreshell_abs)
+   nullify(lw_hygro_abs_wtp)
+
+   nullify(crkappa)
+   nullify(wgtpct)
+   nullify(cldn)
+
    lchnk = state%lchnk
    ncol  = state%ncol
 
@@ -809,6 +871,12 @@ subroutine coreshell_aero_lw(list_idx, state, pbuf, tauxar)
          ! get kappa
          ! need to read in bin_name
          call pbuf_get_field(pbuf, pbuf_get_index(trim(bin_name)//"_kappa"),crkappa)
+         where ( crkappa < minval(tbl_kap) )
+            crkappa = minval(tbl_kap)
+         end where
+         where ( crkappa > maxval(tbl_kap) )
+            crkappa = maxval(tbl_kap)
+         end where
       case('hygroscopic_wtp')
          ! get optical properties for hygroscopic aerosols
          call rad_cnst_get_bin_props(list_idx, m, &
@@ -816,10 +884,22 @@ subroutine coreshell_aero_lw(list_idx, state, pbuf, tauxar)
               lw_hygro_ext_wtp=lw_hygro_abs_wtp)
          ! determine weight precent of H2SO4/H2O solution
          call pbuf_get_field(pbuf, pbuf_get_index('WTP'),wgtpct)
+         where ( wgtpct < minval(tbl_wgtpct) )
+            wgtpct = minval(tbl_wgtpct)
+         end where
+         where ( wgtpct > maxval(tbl_wgtpct) )
+            wgtpct = maxval(tbl_wgtpct)
+         end where
       case default
          call endrun('aer_rad_props_lw: unsupported opticstype: '//trim(opticstype))
       end select
 
+      where ( rh < minval(tbl_rh) )
+         rh = minval(tbl_rh)
+      end where
+      where ( rh > maxval(tbl_rh) )
+         rh = maxval(tbl_rh)
+      end where
 
       do ilw = 1, nlwbands
 
@@ -943,6 +1023,23 @@ subroutine coreshell_aero_lw(list_idx, state, pbuf, tauxar)
                bcdust(i) = max(0._r8, min(1.0_r8, bcdust(i)))
             end do
 
+            if (associated(tbl_corefrac)) then
+               where ( corefrac < minval(tbl_corefrac) )
+                  corefrac = minval(tbl_corefrac)
+               end where
+               where ( corefrac > maxval(tbl_corefrac) )
+                  corefrac = maxval(tbl_corefrac)
+               end where
+            endif
+
+            if (associated(tbl_bcdust)) then
+               where ( bcdust < minval(tbl_bcdust) )
+                  bcdust = minval(tbl_bcdust)
+               end where
+               where ( bcdust > maxval(tbl_bcdust) )
+                  bcdust = maxval(tbl_bcdust)
+               end where
+            endif
 
             ! interpolate coefficients linear in refractive index
 
