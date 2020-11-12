@@ -444,12 +444,12 @@ contains
 
     real(r8), pointer, dimension(:,:)    :: totsad_ptr            !! Total surface area density pointer
     real(r8), pointer, dimension(:,:)    :: wtp_ptr		  !! weight percent pointer
-    real(r8), pointer, dimension(:,:,:)  :: sad_ptr               !! Surface area density pointer
-    real(r8), pointer, dimension(:,:,:)  :: reff_ptr              !! Effective radius pointer
-    real(r8), pointer, dimension(:,:,:)  :: numng_ptr             !! Each group number density pointer
-    real(r8), pointer, dimension(:,:,:,:)  :: binng_ptr           !! Each bin number density pointer
-    real(r8), pointer, dimension(:,:,:,:)  :: elem1mr_ptr         !! First element mmr pointer
-    real(r8), pointer, dimension(:,:,:,:)  :: kappa_ptr		  !! kappa pointer
+    real(r8), pointer, dimension(:,:)    :: sad_ptr               !! Surface area density pointer
+    real(r8), pointer, dimension(:,:)    :: reff_ptr              !! Effective radius pointer
+    real(r8), pointer, dimension(:,:)    :: numng_ptr             !! Each group number density pointer
+    real(r8), pointer, dimension(:,:)    :: binng_ptr             !! Each bin number density pointer
+    real(r8), pointer, dimension(:,:)    :: elem1mr_ptr           !! First element mmr pointer
+    real(r8), pointer, dimension(:,:)    :: kappa_ptr		  !! kappa pointer
 
     ! Default return code.
     rc = RC_OK
@@ -495,9 +495,9 @@ contains
       call pbuf_get_field(pbuf, ipbuf4numng(igroup), numng_ptr) ! number density #/kg
 
       ! put variables in physics buffer
-      sad_ptr(icol, :cstate%f_NZ,igroup)  = ad(:cstate%f_NZ)
-      reff_ptr(icol, :cstate%f_NZ,igroup) = reff(:cstate%f_NZ)
-      numng_ptr(icol, :cstate%f_NZ,igroup)= numng(:cstate%f_NZ)
+      sad_ptr(icol, :cstate%f_NZ)  = ad(:cstate%f_NZ)
+      reff_ptr(icol, :cstate%f_NZ) = reff(:cstate%f_NZ)
+      numng_ptr(icol, :cstate%f_NZ)= numng(:cstate%f_NZ)
 
       totad(:) = totad(:)+ad(:)
 
@@ -539,9 +539,9 @@ contains
         call pbuf_get_field(pbuf, ipbuf4binng(ibin,igroup), binng_ptr)
 	call pbuf_get_field(pbuf, ipbuf4kappa(ibin,igroup), kappa_ptr)
 
-        elem1mr_ptr(icol, :cstate%f_NZ,ibin,igroup) = elem1mr(:cstate%f_NZ)
-        binng_ptr(icol, :cstate%f_NZ,ibin,igroup) = binng(:cstate%f_NZ)
-	kappa_ptr(icol, :cstate%f_NZ,ibin,igroup) = kappa(:cstate%f_NZ)
+        elem1mr_ptr(icol, :cstate%f_NZ) = elem1mr(:cstate%f_NZ)
+        binng_ptr(icol, :cstate%f_NZ) = binng(:cstate%f_NZ)
+	kappa_ptr(icol, :cstate%f_NZ) = kappa(:cstate%f_NZ)
 
       end do !NBIN
     end do !NGROUP
