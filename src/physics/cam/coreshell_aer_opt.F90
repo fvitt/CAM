@@ -439,7 +439,7 @@ subroutine coreshell_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
                  if (trim(spectype) == 'dust') then
                     coredustmmr(:ncol)    = coredustmmr(:ncol) + specmmr(:ncol,k)
                  end if
-                 if (trim(spectype) == 'bc') then
+                 if (trim(spectype) == 'black-c') then
                     corebcmmr(:ncol)    = corebcmmr(:ncol) + specmmr(:ncol,k)
                  end if
                  coremmr(:ncol)    = coremmr(:ncol) + specmmr(:ncol,k)
@@ -631,7 +631,7 @@ subroutine coreshell_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
                  end do
 
                  nerr_dopaer = nerr_dopaer + 1
-                 ! if (nerr_dopaer >= nerrmax_dopaer) then
+                 !if (nerr_dopaer >= nerrmax_dopaer) then
                  if (dopaer(i) < -1.e-10_r8) then
                     write(iulog,*) '*** halting in '//subname//' after nerr_dopaer =', nerr_dopaer
                     call endrun('exit from '//subname)

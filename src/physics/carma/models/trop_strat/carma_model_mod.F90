@@ -139,7 +139,7 @@ module carma_model_mod
   real(kind=f), public, parameter     :: vmrat_MIXAER    = 2.2588_f    !2.4610_f        ! volume ratio
 
 ! Physics buffer index for sulfate surface area density
-  integer                         :: ipbuf4totsad,ipbuf4wtp
+  integer                         :: ipbuf4sadsulf,ipbuf4wtp
   integer                         :: ipbuf4sad(NGROUP), ipbuf4reff(NGROUP), ipbuf4numng(NGROUP)
   integer                         :: ipbuf4elem1mr(NBIN,NGROUP)
   integer                         :: ipbuf4binng(NBIN,NGROUP),ipbuf4kappa(NBIN,NGROUP)
@@ -167,7 +167,7 @@ contains
     complex(kind=f)                    :: refidxS(NWAVE)                ! refractice indices for Shell
     complex(kind=f)                    :: refidxC(NWAVE)                ! refractice indices for Core
 
-    integer                            :: igroup,ibin
+    integer                            :: igroup,ibin,ncore
     character(len=8)                   :: sname                ! short (CAM) name
 
     ! Default return code.
@@ -288,6 +288,7 @@ contains
 
       call CARMAGROUP_Get(carma, igroup, rc, shortname=sname)
       if (rc < 0) call endrun('carma_register::CARMAGROUP_Get failed.')
+      !write(*,*) "igroup",igroup,"sname",sname,"ncore",ncore
 
       ! surface area density. SADCRMIX
       call pbuf_add_field('SAD'//trim(sname), 'global', dtype_r8, (/pcols, pver/), ipbuf4sad(igroup))
@@ -306,16 +307,19 @@ contains
       do ibin=1,NBIN
        write (outputbin, "(I2.2)") ibin
        write (outputname,"(A2)"),trim(sname)
-       call pbuf_add_field(outputname//"SULF"//outputbin,'global', dtype_r8, (/pcols, pver/), ipbuf4elem1mr(ibin,igroup))
+       if (trim(sname)//outputbin .ne. outputname//"SULF"//outputbin) then
+	!write(*,*) "sname//outputbin",trim(sname)//outputbin
+        call pbuf_add_field(outputname//"SULF"//outputbin,'global', dtype_r8, (/pcols, pver/), ipbuf4elem1mr(ibin,igroup))
+        !write(*,*) outputname//"SULF"//outputbin,"   ", trim(sname)//outputbin
+       end if
        call pbuf_add_field("NB"//trim(sname)//outputbin,'global', dtype_r8, (/pcols, pver/), ipbuf4binng(ibin,igroup))
-       !write(*,*) outputname//"SULF"//outputbin,"   ", "NB"//trim(sname)//outputbin
        call pbuf_add_field(trim(sname)//outputbin//"_kappa",'global', dtype_r8, (/pcols, pver/), ipbuf4kappa(ibin,igroup))
        !write(*,*) trim(sname)//outputbin//"_kappa"
       end do
     end do
 
     ! total surface area density.
-    call pbuf_add_field('SADSULF', 'global', dtype_r8, (/pcols, pver/), ipbuf4totsad)
+    call pbuf_add_field('SADSULF', 'global', dtype_r8, (/pcols, pver/), ipbuf4sadsulf)
     call pbuf_add_field('WTP','global', dtype_r8, (/pcols, pver/), ipbuf4wtp)
     !---------------------------------------------
 
@@ -428,6 +432,10 @@ contains
     real(r8)                             :: ad(cstate%f_NZ)       !! aerosol wet surface area density (cm2/cm3)
     real(r8)                             :: reff(cstate%f_NZ)     !! wet effective radius (m)
     real(r8)                             :: mmr(cstate%f_NZ)      !! mass mixing ratio per bin (kg/kg)
+    real(r8)                             :: mmr_total(cstate%f_NZ)      !! mass mixing ratio of a group (kg/kg)
+    real(r8)                             :: coremmr(cstate%f_NZ)  !! mmr of all the core
+    real(r8)                             :: mmr_nodustsalt(cstate%f_NZ)      !! mass mixing ratio of mixed particle without dust and salt (kg/kg)
+    real(r8)                             :: mmr_fraction(cstate%f_NZ) !! ratio between mmr_nodustsalt and mmr
     real(r8)                             :: mmr_gas(cstate%f_NZ)  !! gas mass mixing ratio (kg/kg)
     real(r8)                             :: numng(cstate%f_NZ)    !! total number density (#/g)
     real(r8)                             :: r_wet(cstate%f_NZ)    !! Sulfate aerosol bin wet radius (cm)
@@ -437,12 +445,12 @@ contains
     real(r8)                             :: rhoa_wet(cstate%f_NZ) !! wet air density (kg/m3)
     real(r8)                             :: wtpct(cstate%f_NZ)    !! sulfate weight percent
 
-    integer                              :: ibin, igroup, igas
+    integer                              :: ibin, igroup, igas, icomposition,iz
     integer                              :: icorelem(NELEM),ielem,ncore,ienconc,icore
     character(len=1024)                  :: outputname
     character(len=8)                     :: sname                ! short (CAM) name
 
-    real(r8), pointer, dimension(:,:)    :: totsad_ptr            !! Total surface area density pointer
+    real(r8), pointer, dimension(:,:)    :: sadsulf_ptr            !! Total surface area density pointer
     real(r8), pointer, dimension(:,:)    :: wtp_ptr		  !! weight percent pointer
     real(r8), pointer, dimension(:,:)    :: sad_ptr               !! Surface area density pointer
     real(r8), pointer, dimension(:,:)    :: reff_ptr              !! Effective radius pointer
@@ -458,6 +466,7 @@ contains
     call CARMASTATE_GetState(cstate, rc, rhoa_wet=rhoa_wet)
 
     totad(:) = 0.0_r8   ! total aerosol surface area density (cm2/cm3)
+    mmr_fraction(:) = 1._r8
 
     ! calculated SAD, RE, and number density (#/g) for each group
     do igroup = 1, NGROUP
@@ -466,11 +475,28 @@ contains
       reff(:)  = 0.0_r8    ! effective radius (m)
       numng(:) = 0.0_r8    ! number density (#/g)
 
-      call CARMAGROUP_Get(carma, igroup, rc, ienconc=ienconc)
+      call CARMAGROUP_Get(carma, igroup, rc, ienconc=ienconc,ncore=ncore,icorelem=icorelem)
       do ibin = 1, NBIN
-        call CARMASTATE_GetBin(cstate, ienconc, ibin, mmr(:), rc, &
+        call CARMASTATE_GetBin(cstate, ienconc, ibin, mmr_total(:), rc, &
                              numberDensity=numberDensity, r_wet=r_wet)
         if (rc < 0) call endrun('CARMA_DiagnoseBulk::CARMASTATE_GetBin failed.')
+
+	mmr_nodustsalt(:) = mmr_total(:)
+	if (ncore .ne. 0)then
+          do icore = 1,ncore
+            call CARMASTATE_GetBin(cstate, icorelem(icore), ibin, mmr(:), rc)
+	    call CARMAELEMENT_Get(carma, icorelem(icore), rc, icomposition=icomposition)
+	    !write(*,*) "icorelem(icore)",icorelem(icore),"icomposition",icomposition
+            if(icomposition .eq. I_SALT .or. icomposition .eq. I_DUST)then
+              mmr_nodustsalt(:) = mmr_nodustsalt(:) - mmr(:)
+	    end if
+          end do
+        end if
+
+	mmr_fraction(:) = mmr_nodustsalt(:)/mmr_total(:)
+	mmr_fraction(:) = max(mmr_fraction(:),0.0_f)
+	mmr_fraction(:) = min(mmr_fraction(:),1.0_f)
+	!write(*,*) "igroup",igroup,"mmr_fraction",mmr_fraction(:),"mmr_nodustsalt(:)",mmr_nodustsalt(:),"mmr(:)",mmr_total(:)
 
         ! Calculate the total densities.
         ! NOTE: Calculate AD in cm2/cm3.
@@ -484,6 +510,7 @@ contains
       reff(:) = reff(:) / 100.0_r8 ! cm -> m
 
       ad(:) = ad(:) * 4.0_r8 * PI ! surface area density in cm2/cm3
+      ad(:) = ad(:) * mmr_fraction(:)
 
       ! airdensity from carma state
       ! convert the number density from #/cm3 to #/g
@@ -499,12 +526,13 @@ contains
       reff_ptr(icol, :cstate%f_NZ) = reff(:cstate%f_NZ)
       numng_ptr(icol, :cstate%f_NZ)= numng(:cstate%f_NZ)
 
+      !calculate the surface area density including all the sulfate+BC+OC, no salt, no dust
       totad(:) = totad(:)+ad(:)
 
     end do
 
-    call pbuf_get_field(pbuf, ipbuf4totsad, totsad_ptr)     ! surface area density
-    totsad_ptr(icol, :cstate%f_NZ)  = totad(:cstate%f_NZ)
+    call pbuf_get_field(pbuf, ipbuf4sadsulf, sadsulf_ptr)     ! surface area density
+    sadsulf_ptr(icol, :cstate%f_NZ)  = totad(:cstate%f_NZ)
 
     do igas = 1,NGAS
       if(igas .eq. I_GAS_H2SO4)then ! only output the sulfate weight percent
@@ -519,27 +547,36 @@ contains
 
     do igroup = 1, NGROUP
       call CARMAGROUP_Get(carma, igroup, rc, shortname=sname,ienconc=ienconc,ncore=ncore,icorelem=icorelem)
+      !write(*,*) "igroup",igroup,"ncore",ncore,"ienconc",ienconc,"icorelem",icorelem
       do ibin = 1, NBIN
 
         elem1mr(:) = 0._r8
         binng(:) = 0._r8
         kappa(:) = 0.5_r8
+	coremmr(:) = 0._r8
 
-        call CARMASTATE_GetBin(cstate, ienconc, ibin, mmr(:), rc, numberDensity=numberDensity)
-        elem1mr(:) = mmr(:)
+        call CARMASTATE_GetBin(cstate, ienconc, ibin, mmr_total(:), rc, numberDensity=numberDensity)
         binng(:) = numberDensity(:)/(rhoa_wet(:)/1.e3)     !#/g
-        if (ncore .ne. 0)then
+
+        if (ncore .ne. 0) then
           do icore = 1,ncore
             call CARMASTATE_GetBin(cstate, icorelem(icore), ibin, mmr(:), rc)
-            elem1mr(:) = elem1mr(:) - mmr(:)
+            coremmr(:) = coremmr(:) + mmr(:)
           end do
-        end if
 
-        call pbuf_get_field(pbuf, ipbuf4elem1mr(ibin,igroup), elem1mr_ptr)
+          if (any(coremmr(:) .gt. mmr_total(:))) then
+            where(coremmr(:) .gt. mmr_total(:)) mmr_total = coremmr
+	  end if
+	  call CARMASTATE_SetBin(cstate, ienconc, ibin, mmr_total(:), rc)
+	  elem1mr(:) = mmr_total(:)-coremmr(:)
+
+          call pbuf_get_field(pbuf, ipbuf4elem1mr(ibin,igroup), elem1mr_ptr)
+	  elem1mr_ptr(icol, :cstate%f_NZ) = elem1mr(:cstate%f_NZ)
+	end if
+
         call pbuf_get_field(pbuf, ipbuf4binng(ibin,igroup), binng_ptr)
 	call pbuf_get_field(pbuf, ipbuf4kappa(ibin,igroup), kappa_ptr)
 
-        elem1mr_ptr(icol, :cstate%f_NZ) = elem1mr(:cstate%f_NZ)
         binng_ptr(icol, :cstate%f_NZ) = binng(:cstate%f_NZ)
 	kappa_ptr(icol, :cstate%f_NZ) = kappa(:cstate%f_NZ)
 
