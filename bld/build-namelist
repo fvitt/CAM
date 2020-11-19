@@ -1695,9 +1695,9 @@ elsif ($carma eq 'trop_strat') {
 
 # turn on stratospheric aerosol forcings in CAM6 configurations
 my $chem_has_ocs = chem_has_species($cfg, 'OCS');
-if ($phys =~ /cam6/) {
+if ($phys =~ /cam6/ and $carma eq 'none' and $chem =~ /_mam/) {
   # turn on volc forcings in cam6 -- prognostic or prescribed
-  if ( $chem_has_ocs ) {
+  if ( $chem_has_ocs) {
       # turn on prognostic stratospheric aerosols
       add_default($nl, 'modal_strat_sulfate','val'=>'.true.');
   } else {
@@ -3094,7 +3094,9 @@ if ($cfg->get('microphys') =~ /^mg/) {
 
 # Ice nucleation options
 if (!$simple_phys) {
-    add_default($nl, 'use_hetfrz_classnuc');
+    if ($chem =~ /_mam/) {
+        add_default($nl, 'use_hetfrz_classnuc');
+    }
     add_default($nl, 'use_preexisting_ice');
     if ($chem =~ /_mam7/) {
         if ($nl->get_value('use_preexisting_ice') =~ m/$TRUE/io) {

@@ -287,7 +287,7 @@ subroutine microp_aero_init(pbuf2d)
          if (trim(aername(iaer)) == 'DUST4') idxdst4 = iaer
       end do
 
-!      call ndrop_bam_init()
+      call ndrop_bam_init()
 
    end if
 
@@ -301,11 +301,9 @@ subroutine microp_aero_init(pbuf2d)
    end if
 
    call nucleate_ice_cam_init(mincld, bulk_scale, pbuf2d)
-   if (clim_modal_aero) then
-      call hetfrz_classnuc_cam_init(mincld)
-   endif
+   call hetfrz_classnuc_cam_init(mincld)
 
- end subroutine microp_aero_init
+end subroutine microp_aero_init
 
 !=========================================================================================
 
@@ -467,7 +465,7 @@ subroutine microp_aero_run ( &
    rndst(1:ncol,1:pver,4) = rn_dst4
 
    ! save copy of cloud borne aerosols for use in heterogeneous freezing
-   if (use_hetfrz_classnuc.and.clim_modal_aero) then
+   if (use_hetfrz_classnuc) then
       call hetfrz_classnuc_cam_save_cbaero(state1, pbuf)
    end if
 
@@ -618,8 +616,7 @@ subroutine microp_aero_run ( &
       npccn(:ncol,:) = nctend_mixnuc(:ncol,:)
 
    else
-      return
-      
+
       ! for bulk aerosol
 
       ! no tendencies returned from ndrop_bam_run, so just init ptend here
