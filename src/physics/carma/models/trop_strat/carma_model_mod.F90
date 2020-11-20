@@ -556,9 +556,8 @@ contains
 	coremmr(:) = 0._r8
 
         call CARMASTATE_GetBin(cstate, ienconc, ibin, mmr_total(:), rc, numberDensity=numberDensity)
-        binng(:) = numberDensity(:)/(rhoa_wet(:)/1.e3)     !#/g
 
-        if (ncore .ne. 0) then
+        if (ncore .ne. 0)then
           do icore = 1,ncore
             call CARMASTATE_GetBin(cstate, icorelem(icore), ibin, mmr(:), rc)
             coremmr(:) = coremmr(:) + mmr(:)
@@ -566,13 +565,15 @@ contains
 
           if (any(coremmr(:) .gt. mmr_total(:))) then
             where(coremmr(:) .gt. mmr_total(:)) mmr_total = coremmr
-	  end if
-	  call CARMASTATE_SetBin(cstate, ienconc, ibin, mmr_total(:), rc)
+	    call CARMASTATE_SetBin(cstate, ienconc, ibin, mmr_total(:), rc)
+            call CARMASTATE_GetBin(cstate, ienconc, ibin, mmr_total(:), rc, numberDensity=numberDensity)
+          end if
 	  elem1mr(:) = mmr_total(:)-coremmr(:)
 
           call pbuf_get_field(pbuf, ipbuf4elem1mr(ibin,igroup), elem1mr_ptr)
 	  elem1mr_ptr(icol, :cstate%f_NZ) = elem1mr(:cstate%f_NZ)
 	end if
+        binng(:) = numberDensity(:)/(rhoa_wet(:)/1.e3)     !#/g
 
         call pbuf_get_field(pbuf, ipbuf4binng(ibin,igroup), binng_ptr)
 	call pbuf_get_field(pbuf, ipbuf4kappa(ibin,igroup), kappa_ptr)

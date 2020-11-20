@@ -2,7 +2,8 @@
 <namelist_defaults>
 
  <start_ymd>10101</start_ymd>
- <ncdata hgrid="10x15" nlev="32">atm/cam/inic/fv/carma_camchem_10x15_test_c201117.nc</ncdata>
+ <ncdata hgrid="10x15" nlev="32"  >atm/cam/inic/fv/carma_camchem_10x15_test_c201117.nc</ncdata>
+ <ncdata hgrid="1.9x2.5" nlev="32">atm/cam/inic/fv/FCARMA2000climo_f19_spinup01.cam.i.0002-01-01-00000_c201119.nc</ncdata>
 
  <carma_do_coag>.true.</carma_do_coag>
  <carma_do_drydep>.true.</carma_do_drydep>
@@ -22,12 +23,12 @@
  <carma_maxsubsteps>2</carma_maxsubsteps>
  <carma_model>'trop_strat'</carma_model>
 
- <BC_GAINS_filename>'/terminator-data1/fvitt/inputdata/pengfeiy/data/ETP_base_CLE_V5_BC_2010.nc'</BC_GAINS_filename>
- <OC_GAINS_filename>'/terminator-data1/fvitt/inputdata/pengfeiy/data/ETP_base_CLE_V5_OC_2010.nc'</OC_GAINS_filename>
- <BC_ship_filename>'/terminator-data1/fvitt/inputdata/pengfeiy/data/IPCC_BC_ships_2010_0.5x0.5.nc'</BC_ship_filename>
- <OC_ship_filename>'/terminator-data1/fvitt/inputdata/pengfeiy/data/IPCC_OC_ships_2010_0.5x0.5.nc'</OC_ship_filename>
- <BC_GFEDv3_filename>'/terminator-data1/fvitt/inputdata/pengfeiy/data/GFEDv3_BC_2010.nc'</BC_GFEDv3_filename>
- <OC_GFEDv3_filename>'/terminator-data1/fvitt/inputdata/pengfeiy/data/GFEDv3_OC_2010.nc'</OC_GFEDv3_filename>
+ <BC_GAINS_filename>atm/cam/chem/carma/data/ETP_base_CLE_V5_BC_2010.nc</BC_GAINS_filename>
+ <OC_GAINS_filename>atm/cam/chem/carma/data/ETP_base_CLE_V5_OC_2010.nc</OC_GAINS_filename>
+ <BC_ship_filename>atm/cam/chem/carma/data/IPCC_BC_ships_2010_0.5x0.5.nc</BC_ship_filename>
+ <OC_ship_filename>atm/cam/chem/carma/data/IPCC_OC_ships_2010_0.5x0.5.nc</OC_ship_filename>
+ <BC_GFEDv3_filename>atm/cam/chem/carma/data/GFEDv3_BC_2010.nc</BC_GFEDv3_filename>
+ <OC_GFEDv3_filename>atm/cam/chem/carma/data/GFEDv3_OC_2010.nc</OC_GFEDv3_filename>
 
  <bin_defs>
    'CRMIX01:=', 'N:NBCRMIX01:N:NBCLDMIX01:num:+',
@@ -213,46 +214,47 @@
  </bin_defs>
 
  <rad_climate>
-    'A:Q:H2O', 'N:O2:O2', 'N:CO2:CO2', 'A:O3:O3', 'A:N2O:N2O', 'A:CH4:CH4','N:CFC11:CFC11', 'N:CFC12:CFC12',
-    'B:CRMIX01:$INPUTDATA_ROOT/pengfeiy/rrtmg/aerosol_cld_CRMIX01_rrtmg.nc',
-    'B:CRMIX02:$INPUTDATA_ROOT/pengfeiy/rrtmg/aerosol_cld_CRMIX02_rrtmg.nc',
-    'B:CRMIX03:$INPUTDATA_ROOT/pengfeiy/rrtmg/aerosol_cld_CRMIX03_rrtmg.nc',
-    'B:CRMIX04:$INPUTDATA_ROOT/pengfeiy/rrtmg/aerosol_cld_CRMIX04_rrtmg.nc',
-    'B:CRMIX05:$INPUTDATA_ROOT/pengfeiy/rrtmg/aerosol_cld_CRMIX05_rrtmg.nc',
-    'B:CRMIX06:$INPUTDATA_ROOT/pengfeiy/rrtmg/aerosol_cld_CRMIX06_rrtmg.nc',
-    'B:CRMIX07:$INPUTDATA_ROOT/pengfeiy/rrtmg/aerosol_cld_CRMIX07_rrtmg.nc',
-    'B:CRMIX08:$INPUTDATA_ROOT/pengfeiy/rrtmg/aerosol_cld_CRMIX08_rrtmg.nc',
-    'B:CRMIX09:$INPUTDATA_ROOT/pengfeiy/rrtmg/aerosol_cld_CRMIX09_rrtmg.nc',
-    'B:CRMIX10:$INPUTDATA_ROOT/pengfeiy/rrtmg/aerosol_cld_CRMIX10_rrtmg.nc',
-    'B:CRMIX11:/terminator-data1/fvitt/inputdata/pengfeiy/rrtmg/aerosol_cld_CRMIX11_rrtmg.nc',
-    'B:CRMIX12:/terminator-data1/fvitt/inputdata/pengfeiy/rrtmg/aerosol_cld_CRMIX12_rrtmg.nc',
-    'B:CRMIX13:/terminator-data1/fvitt/inputdata/pengfeiy/rrtmg/aerosol_cld_CRMIX13_rrtmg.nc',
-    'B:CRMIX14:/terminator-data1/fvitt/inputdata/pengfeiy/rrtmg/aerosol_cld_CRMIX14_rrtmg.nc',
-    'B:CRMIX15:/terminator-data1/fvitt/inputdata/pengfeiy/rrtmg/aerosol_cld_CRMIX15_rrtmg.nc',
-    'B:CRMIX16:/terminator-data1/fvitt/inputdata/pengfeiy/rrtmg/aerosol_cld_CRMIX16_rrtmg.nc',
-    'B:CRMIX17:/terminator-data1/fvitt/inputdata/pengfeiy/rrtmg/aerosol_cld_CRMIX17_rrtmg.nc',
-    'B:CRMIX18:/terminator-data1/fvitt/inputdata/pengfeiy/rrtmg/aerosol_cld_CRMIX18_rrtmg.nc',
-    'B:CRMIX19:/terminator-data1/fvitt/inputdata/pengfeiy/rrtmg/aerosol_cld_CRMIX19_rrtmg.nc',
-    'B:CRMIX20:/terminator-data1/fvitt/inputdata/pengfeiy/rrtmg/aerosol_cld_CRMIX20_rrtmg.nc',
-    'B:PRSULF01:/terminator-data1/fvitt/inputdata/pengfeiy/rrtmg/aerosol_cld_SULF01_rrtmg.nc',
-    'B:PRSULF02:/terminator-data1/fvitt/inputdata/pengfeiy/rrtmg/aerosol_cld_SULF02_rrtmg.nc',
-    'B:PRSULF03:/terminator-data1/fvitt/inputdata/pengfeiy/rrtmg/aerosol_cld_SULF03_rrtmg.nc',
-    'B:PRSULF04:/terminator-data1/fvitt/inputdata/pengfeiy/rrtmg/aerosol_cld_SULF04_rrtmg.nc',
-    'B:PRSULF05:/terminator-data1/fvitt/inputdata/pengfeiy/rrtmg/aerosol_cld_SULF05_rrtmg.nc',
-    'B:PRSULF06:/terminator-data1/fvitt/inputdata/pengfeiy/rrtmg/aerosol_cld_SULF06_rrtmg.nc',
-    'B:PRSULF07:/terminator-data1/fvitt/inputdata/pengfeiy/rrtmg/aerosol_cld_SULF07_rrtmg.nc',
-    'B:PRSULF08:/terminator-data1/fvitt/inputdata/pengfeiy/rrtmg/aerosol_cld_SULF08_rrtmg.nc',
-    'B:PRSULF09:/terminator-data1/fvitt/inputdata/pengfeiy/rrtmg/aerosol_cld_SULF09_rrtmg.nc',
-    'B:PRSULF10:/terminator-data1/fvitt/inputdata/pengfeiy/rrtmg/aerosol_cld_SULF10_rrtmg.nc',
-    'B:PRSULF11:/terminator-data1/fvitt/inputdata/pengfeiy/rrtmg/aerosol_cld_SULF11_rrtmg.nc',
-    'B:PRSULF12:/terminator-data1/fvitt/inputdata/pengfeiy/rrtmg/aerosol_cld_SULF12_rrtmg.nc',
-    'B:PRSULF13:/terminator-data1/fvitt/inputdata/pengfeiy/rrtmg/aerosol_cld_SULF13_rrtmg.nc',
-    'B:PRSULF14:/terminator-data1/fvitt/inputdata/pengfeiy/rrtmg/aerosol_cld_SULF14_rrtmg.nc',
-    'B:PRSULF15:/terminator-data1/fvitt/inputdata/pengfeiy/rrtmg/aerosol_cld_SULF15_rrtmg.nc',
-    'B:PRSULF16:/terminator-data1/fvitt/inputdata/pengfeiy/rrtmg/aerosol_cld_SULF16_rrtmg.nc',
-    'B:PRSULF17:/terminator-data1/fvitt/inputdata/pengfeiy/rrtmg/aerosol_cld_SULF17_rrtmg.nc',
-    'B:PRSULF18:/terminator-data1/fvitt/inputdata/pengfeiy/rrtmg/aerosol_cld_SULF18_rrtmg.nc',
-    'B:PRSULF19:/terminator-data1/fvitt/inputdata/pengfeiy/rrtmg/aerosol_cld_SULF19_rrtmg.nc',
-    'B:PRSULF20:/terminator-data1/fvitt/inputdata/pengfeiy/rrtmg/aerosol_cld_SULF20_rrtmg.nc'
+    'A:Q:H2O', 'N:O2:O2', 'A:CO2:CO2', 'A:O3:O3', 'A:N2O:N2O', 'A:CH4:CH4','N:CFC11:CFC11', 'N:CFC12:CFC12',
+    'B:CRMIX01:$INPUTDATA_ROOT/atm/cam/chem/carma/rrtmg/aerosol_cld_CRMIX01_rrtmg.nc',
+    'B:CRMIX02:$INPUTDATA_ROOT/atm/cam/chem/carma/rrtmg/aerosol_cld_CRMIX02_rrtmg.nc',
+    'B:CRMIX03:$INPUTDATA_ROOT/atm/cam/chem/carma/rrtmg/aerosol_cld_CRMIX03_rrtmg.nc',
+    'B:CRMIX04:$INPUTDATA_ROOT/atm/cam/chem/carma/rrtmg/aerosol_cld_CRMIX04_rrtmg.nc',
+    'B:CRMIX05:$INPUTDATA_ROOT/atm/cam/chem/carma/rrtmg/aerosol_cld_CRMIX05_rrtmg.nc',
+    'B:CRMIX06:$INPUTDATA_ROOT/atm/cam/chem/carma/rrtmg/aerosol_cld_CRMIX06_rrtmg.nc',
+    'B:CRMIX07:$INPUTDATA_ROOT/atm/cam/chem/carma/rrtmg/aerosol_cld_CRMIX07_rrtmg.nc',
+    'B:CRMIX08:$INPUTDATA_ROOT/atm/cam/chem/carma/rrtmg/aerosol_cld_CRMIX08_rrtmg.nc',
+    'B:CRMIX09:$INPUTDATA_ROOT/atm/cam/chem/carma/rrtmg/aerosol_cld_CRMIX09_rrtmg.nc',
+    'B:CRMIX10:$INPUTDATA_ROOT/atm/cam/chem/carma/rrtmg/aerosol_cld_CRMIX10_rrtmg.nc',
+    'B:CRMIX11:$INPUTDATA_ROOT/atm/cam/chem/carma/rrtmg/aerosol_cld_CRMIX11_rrtmg.nc',
+    'B:CRMIX12:$INPUTDATA_ROOT/atm/cam/chem/carma/rrtmg/aerosol_cld_CRMIX12_rrtmg.nc',
+    'B:CRMIX13:$INPUTDATA_ROOT/atm/cam/chem/carma/rrtmg/aerosol_cld_CRMIX13_rrtmg.nc',
+    'B:CRMIX14:$INPUTDATA_ROOT/atm/cam/chem/carma/rrtmg/aerosol_cld_CRMIX14_rrtmg.nc',
+    'B:CRMIX15:$INPUTDATA_ROOT/atm/cam/chem/carma/rrtmg/aerosol_cld_CRMIX15_rrtmg.nc',
+    'B:CRMIX16:$INPUTDATA_ROOT/atm/cam/chem/carma/rrtmg/aerosol_cld_CRMIX16_rrtmg.nc',
+    'B:CRMIX17:$INPUTDATA_ROOT/atm/cam/chem/carma/rrtmg/aerosol_cld_CRMIX17_rrtmg.nc',
+    'B:CRMIX18:$INPUTDATA_ROOT/atm/cam/chem/carma/rrtmg/aerosol_cld_CRMIX18_rrtmg.nc',
+    'B:CRMIX19:$INPUTDATA_ROOT/atm/cam/chem/carma/rrtmg/aerosol_cld_CRMIX19_rrtmg.nc',
+    'B:CRMIX20:$INPUTDATA_ROOT/atm/cam/chem/carma/rrtmg/aerosol_cld_CRMIX20_rrtmg.nc',
+    'B:PRSULF01:$INPUTDATA_ROOT/atm/cam/chem/carma/rrtmg/aerosol_cld_SULF01_rrtmg.nc',
+    'B:PRSULF02:$INPUTDATA_ROOT/atm/cam/chem/carma/rrtmg/aerosol_cld_SULF02_rrtmg.nc',
+    'B:PRSULF03:$INPUTDATA_ROOT/atm/cam/chem/carma/rrtmg/aerosol_cld_SULF03_rrtmg.nc',
+    'B:PRSULF04:$INPUTDATA_ROOT/atm/cam/chem/carma/rrtmg/aerosol_cld_SULF04_rrtmg.nc',
+    'B:PRSULF05:$INPUTDATA_ROOT/atm/cam/chem/carma/rrtmg/aerosol_cld_SULF05_rrtmg.nc',
+    'B:PRSULF06:$INPUTDATA_ROOT/atm/cam/chem/carma/rrtmg/aerosol_cld_SULF06_rrtmg.nc',
+    'B:PRSULF07:$INPUTDATA_ROOT/atm/cam/chem/carma/rrtmg/aerosol_cld_SULF07_rrtmg.nc',
+    'B:PRSULF08:$INPUTDATA_ROOT/atm/cam/chem/carma/rrtmg/aerosol_cld_SULF08_rrtmg.nc',
+    'B:PRSULF09:$INPUTDATA_ROOT/atm/cam/chem/carma/rrtmg/aerosol_cld_SULF09_rrtmg.nc',
+    'B:PRSULF10:$INPUTDATA_ROOT/atm/cam/chem/carma/rrtmg/aerosol_cld_SULF10_rrtmg.nc',
+    'B:PRSULF11:$INPUTDATA_ROOT/atm/cam/chem/carma/rrtmg/aerosol_cld_SULF11_rrtmg.nc',
+    'B:PRSULF12:$INPUTDATA_ROOT/atm/cam/chem/carma/rrtmg/aerosol_cld_SULF12_rrtmg.nc',
+    'B:PRSULF13:$INPUTDATA_ROOT/atm/cam/chem/carma/rrtmg/aerosol_cld_SULF13_rrtmg.nc',
+    'B:PRSULF14:$INPUTDATA_ROOT/atm/cam/chem/carma/rrtmg/aerosol_cld_SULF14_rrtmg.nc',
+    'B:PRSULF15:$INPUTDATA_ROOT/atm/cam/chem/carma/rrtmg/aerosol_cld_SULF15_rrtmg.nc',
+    'B:PRSULF16:$INPUTDATA_ROOT/atm/cam/chem/carma/rrtmg/aerosol_cld_SULF16_rrtmg.nc',
+    'B:PRSULF17:$INPUTDATA_ROOT/atm/cam/chem/carma/rrtmg/aerosol_cld_SULF17_rrtmg.nc',
+    'B:PRSULF18:$INPUTDATA_ROOT/atm/cam/chem/carma/rrtmg/aerosol_cld_SULF18_rrtmg.nc',
+    'B:PRSULF19:$INPUTDATA_ROOT/atm/cam/chem/carma/rrtmg/aerosol_cld_SULF19_rrtmg.nc',
+    'B:PRSULF20:$INPUTDATA_ROOT/atm/cam/chem/carma/rrtmg/aerosol_cld_SULF20_rrtmg.nc'
  </rad_climate>
+
 </namelist_defaults>
