@@ -132,7 +132,7 @@ module carma_model_mod
 
 ! NOTE: The WeibullK distribution is not currently supported, since the coefficients are not
 ! generated. This can be added later.
-  real(r8), allocatable, dimension(:,:) :: Weibull_k            ! Weibull K(nlat,nlon
+!  real(r8), allocatable, dimension(:,:) :: Weibull_k            ! Weibull K(nlat,nlon
   real(kind=f), public, parameter     :: rmin_PRSUL     = 3.43e-8_f  ! minimum radius (cm)
   real(kind=f), public, parameter     :: vmrat_PRSUL    = 3.67_f     ! volume ratio
   real(kind=f), public, parameter     :: rmin_MIXAER     = 5e-6_f     ! minimum radius (cm)
@@ -306,7 +306,7 @@ contains
       ! e.g. CRSULF01 first element mass mixing ratio; NBCRMIX01 #/g
       do ibin=1,NBIN
        write (outputbin, "(I2.2)") ibin
-       write (outputname,"(A2)"),trim(sname)
+       write (outputname,"(A2)") trim(sname)
        if (trim(sname)//outputbin .ne. outputname//"SULF"//outputbin) then
 	!write(*,*) "sname//outputbin",trim(sname)//outputbin
         call pbuf_add_field(outputname//"SULF"//outputbin,'global', dtype_r8, (/pcols, pver/), ipbuf4elem1mr(ibin,igroup))
@@ -654,8 +654,8 @@ contains
     real(r8)     :: fraction                            ! fraction of BC dV/dlnr in each bin (100%)
     real(r8)     :: rm(carma%f_NBIN)                    ! bin mass
     integer      :: ibin_local
-    integer            :: LUNOPRT                             ! logical unit number for output
-    logical                            :: do_print             ! do print output?
+    integer      :: LUNOPRT                             ! logical unit number for output
+    logical      :: do_print                            ! do print output?
 
 
 !   currently not used
@@ -718,10 +718,11 @@ contains
 
      !!*******************************************************************************************************
 
-    aeronet = (/  0.001274,0.010654,0.036561,0.069929,0.106963,0.103837,&
+    aeronet(1:carma%f_NBIN) = &
+              (/  0.001274,0.010654,0.036561,0.069929,0.106963,0.103837,&
                   0.043374,0.013394,0.006464,0.005745,0.006914,0.007261,&
                   0.007336,0.008939,0.011202,0.013975,0.016692,0.016751,&
-                  0.012351,0.006856,0.003082,0.001135  /)                                       ! um3/um2/[um/um]
+                  0.012351,0.006856 /) !,0.003082,0.001135  /)                                       ! um3/um2/[um/um]
 
     r(:)       =  carma%f_group(igroup)%f_r(:)
     dr(:)      =  carma%f_group(igroup)%f_dr(:)
@@ -1441,12 +1442,12 @@ contains
     ! calc. the Weibull wind distribution
     u10in = cam_in%u10(icol)
 
-    ! Use Weibull with prescribed coefficients?
-    if (carma_do_WeibullK) then
-      call WeibullWind(u10in, uth_salt, 3.41_r8, uWB341, Weibull_k(ilat, ilon))
-    else
+!    ! Use Weibull with prescribed coefficients?
+!    if (carma_do_WeibullK) then
+!      call WeibullWind(u10in, uth_salt, 3.41_r8, uWB341, Weibull_k(ilat, ilon))
+!    else
       call WeibullWind(u10in, uth_salt, 3.41_r8, uWB341)
-    end if
+!    end if
 
     u10in = uWB341 ** (1._r8 / 3.41_r8)
 
