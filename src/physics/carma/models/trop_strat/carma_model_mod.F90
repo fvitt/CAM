@@ -573,7 +573,7 @@ contains
           call pbuf_get_field(pbuf, ipbuf4elem1mr(ibin,igroup), elem1mr_ptr)
 	  elem1mr_ptr(icol, :cstate%f_NZ) = elem1mr(:cstate%f_NZ)
 	end if
-        binng(:) = numberDensity(:)/(rhoa_wet(:)/1.e3)     !#/g
+        binng(:) = numberDensity(:)/(rhoa_wet(:)/1.e3_r8)     !#/g
 
         call pbuf_get_field(pbuf, ipbuf4binng(ibin,igroup), binng_ptr)
 	call pbuf_get_field(pbuf, ipbuf4kappa(ibin,igroup), kappa_ptr)
@@ -713,19 +713,16 @@ contains
     call CARMAELEMENT_GET(carma, ielem, rc, igroup=igroup, shortname=shortname)
     if (RC < RC_ERROR) return
 
-    call CARMAGROUP_GET(carma, igroup, rc, shortname=shortname, r=r)
+    call CARMAGROUP_GET(carma, igroup, rc, shortname=shortname, r=r, dr=dr, rmass=rmass)
     if (RC < RC_ERROR) return
 
      !!*******************************************************************************************************
 
     aeronet(1:carma%f_NBIN) = &
-              (/  0.001274,0.010654,0.036561,0.069929,0.106963,0.103837,&
-                  0.043374,0.013394,0.006464,0.005745,0.006914,0.007261,&
-                  0.007336,0.008939,0.011202,0.013975,0.016692,0.016751,&
-                  0.012351,0.006856 /) !,0.003082,0.001135  /)                                       ! um3/um2/[um/um]
-
-    r(:)       =  carma%f_group(igroup)%f_r(:)
-    dr(:)      =  carma%f_group(igroup)%f_dr(:)
+              (/  0.001274_r8,0.010654_r8,0.036561_r8,0.069929_r8,0.106963_r8,0.103837_r8,&
+                  0.043374_r8,0.013394_r8,0.006464_r8,0.005745_r8,0.006914_r8,0.007261_r8,&
+                  0.007336_r8,0.008939_r8,0.011202_r8,0.013975_r8,0.016692_r8,0.016751_r8,&
+                  0.012351_r8,0.006856_r8 /) !,0.003082,0.001135  /)                                       ! um3/um2/[um/um]
 
     if (masterproc) then
       call CARMA_Get(carma, rc, do_print=do_print, LUNOPRT=LUNOPRT)
@@ -739,7 +736,7 @@ contains
 
     rm(:) = 0._r8
     do ibin_local = 1, carma%f_NBIN
-       rm(ibin_local) = aeronet(ibin_local)*dr(ibin_local)/r(ibin_local)*RHO_obc*1.e-15         ! kg
+       rm(ibin_local) = aeronet(ibin_local)*dr(ibin_local)/r(ibin_local)*RHO_obc*1.e-15_r8         ! kg
     enddo
 
 
@@ -1115,21 +1112,7 @@ contains
     real(r8), parameter :: d02 = 2.279e9_r8
     real(r8), parameter :: d03 =-5.800e8_r8
 
-    real(r8)            :: rpdry                              ! dry radius
-    real(r8)            :: Ak1                                ! Coefficient Ak in Martensson's source function
-    real(r8)            :: Ak2
-    real(r8)            :: Ak3
-    real(r8)            :: Bk1                                ! Coefficient Bk in Martensson's source function
-    real(r8)            :: Bk2
-    real(r8)            :: Bk3
-    Ak1(rpdry)= c41*(2._r8*rpdry)**4 + c31*(2._r8*rpdry) ** 3 + c21*(2._r8*rpdry)**2 + c11*(2._r8*rpdry)+ c01
-    Ak2(rpdry)= c42*(2._r8*rpdry)**4 + c32*(2._r8*rpdry) ** 3 + c22*(2._r8*rpdry)**2 + c12*(2._r8*rpdry)+ c02
-    Ak3(rpdry)= c43*(2._r8*rpdry)**4 + c33*(2._r8*rpdry) ** 3 + c23*(2._r8*rpdry)**2 + c13*(2._r8*rpdry)+ c03
-    Bk1(rpdry)= d41*(2._r8*rpdry)**4 + d31*(2._r8*rpdry) ** 3 + d21*(2._r8*rpdry)**2 + d11*(2._r8*rpdry)+ d01
-    Bk2(rpdry)= d42*(2._r8*rpdry)**4 + d32*(2._r8*rpdry) ** 3 + d22*(2._r8*rpdry)**2 + d12*(2._r8*rpdry)+ d02
-    Bk3(rpdry)= d43*(2._r8*rpdry)**4 + d33*(2._r8*rpdry) ** 3 + d23*(2._r8*rpdry)**2 + d13*(2._r8*rpdry)+ d03
-
-   ! ------------------------------------------------------------
+    ! ------------------------------------------------------------
     ! ----  Clarke Source Function. Coefficients for Ai    -------
     ! ------------------------------------------------------------
     real(r8), parameter :: beta01 =-5.001e3_r8
@@ -1150,12 +1133,6 @@ contains
     real(r8), parameter :: beta33 = 1.218e2_r8
     real(r8), parameter :: beta43 =-1.213e1_r8
     real(r8), parameter :: beta53 = 4.514e-1_r8
-    real(r8)            :: A1                                ! Coefficient Ak in Clarkes's source function
-    real(r8)            :: A2
-    real(r8)            :: A3
-    A1(rpdry) = beta01 + beta11*(2._r8*rpdry) + beta21*(2._r8*rpdry)**2 + beta31*(2._r8*rpdry)**3 + beta41*(2._r8*rpdry)**4 + beta51*(2._r8*rpdry)**5
-    A2(rpdry) = beta02 + beta12*(2._r8*rpdry) + beta22*(2._r8*rpdry)**2 + beta32*(2._r8*rpdry)**3 + beta42*(2._r8*rpdry)**4 + beta52*(2._r8*rpdry)**5
-    A3(rpdry) = beta03 + beta13*(2._r8*rpdry) + beta23*(2._r8*rpdry)**2 + beta33*(2._r8*rpdry)**3 + beta43*(2._r8*rpdry)**4 + beta53*(2._r8*rpdry)**5
 
     ! ---------------------------------------------
     ! coefficient A1, A2 in Andreas's Source funcion
@@ -1193,31 +1170,31 @@ contains
     ! Add any surface flux here.
     SaltFlux(:ncol) = 0.0_r8
 
-   ! Are we configured for one of the known emission schemes?
-      if(carma_seasalt_emis .ne. "Gong"       .and. &
-         carma_seasalt_emis .ne. "Martensson" .and. &
-         carma_seasalt_emis .ne. "Clarke"     .and. &
-         carma_seasalt_emis .ne. "Andreas"    .and. &
-         carma_seasalt_emis .ne. "Caffrey"    .and. &
-         carma_seasalt_emis .ne. "CMS"        .and. &
-         carma_seasalt_emis .ne. "NONE"       .and. &
-         carma_seasalt_emis .ne. "CONST"        ) then
+    ! Are we configured for one of the known emission schemes?
+    if( carma_seasalt_emis .ne. "Gong"       .and. &
+        carma_seasalt_emis .ne. "Martensson" .and. &
+        carma_seasalt_emis .ne. "Clarke"     .and. &
+        carma_seasalt_emis .ne. "Andreas"    .and. &
+        carma_seasalt_emis .ne. "Caffrey"    .and. &
+        carma_seasalt_emis .ne. "CMS"        .and. &
+        carma_seasalt_emis .ne. "NONE"       .and. &
+        carma_seasalt_emis .ne. "CONST"        ) then
 
-        call endrun('carma_EmitParticle:: Invalid sea salt emission scheme.')
-      end if
+       call endrun('carma_EmitParticle:: Invalid sea salt emission scheme.')
+    end if
 
-      !**********************************
-      ! wet sea salt radius at RH = 80%
-      !**********************************
-      r80cm   = (c1 *  (r(ibin)) ** c2 / (c3 * r(ibin) ** c4 - log10(0.8_r8)) + (r(ibin))**3) ** (1._r8/3._r8) ! [cm]
-      rdrycm  = r(ibin)  ! [cm]
-      r80     = r80cm *1.e4_r8    ! [um]
-      rdry    = rdrycm*1.e4_r8  ! [um]
+    !**********************************
+    ! wet sea salt radius at RH = 80%
+    !**********************************
+    r80cm   = (c1 *  (r(ibin)) ** c2 / (c3 * r(ibin) ** c4 - log10(0.8_r8)) + (r(ibin))**3) ** (1._r8/3._r8) ! [cm]
+    rdrycm  = r(ibin)  ! [cm]
+    r80     = r80cm *1.e4_r8    ! [um]
+    rdry    = rdrycm*1.e4_r8  ! [um]
 
-       do icol = 1,ncol
+    do icol = 1,ncol
 
-        ! Only generate sea salt over the ocean.
-        if (cam_in%ocnfrac(icol) > 0._r8) then
+       ! Only generate sea salt over the ocean.
+       if (cam_in%ocnfrac(icol) > 0._r8) then
 
           !**********************************
           !    WIND for seasalt production
@@ -1240,9 +1217,9 @@ contains
           !        Smith drag coefficients and etc
           !****************************************
           if (u10in .le. 10._r8) then
-            cd_smith = 1.14e-3_r8
+             cd_smith = 1.14e-3_r8
           else
-            cd_smith = (0.49_r8 + 0.065_r8 * u10in) * 1.e-3_r8
+             cd_smith = (0.49_r8 + 0.065_r8 * u10in) * 1.e-3_r8
           end if
 
           ustar_smith = cd_smith **0.5_r8 * u10in
@@ -1250,164 +1227,215 @@ contains
           ! We don't have vg yet, since that is calculated by CARMA. That will require
           ! a different interface for the emissions, storing vg in the physics buffer,
           ! and/or doing some duplicate calculations for vg assuming 80% RH.
-!          fref = (delta/state%zm(icol, pver))**(vg(icol, ibin, igelem(i))/(xkar*ustar_smith))
+          !          fref = (delta/state%zm(icol, pver))**(vg(icol, ibin, igelem(i))/(xkar*ustar_smith))
           fref = 1.0_r8
 
           !**********************************
           !        Source Functions
           !**********************************
           if (carma_seasalt_emis .eq. 'NONE') then
-            ncflx = 0._r8
+             ncflx = 0._r8
           end if
 
           if (carma_seasalt_emis .eq. 'CONST') then
-            ncflx = 1.e-5_r8
+             ncflx = 1.e-5_r8
           end if
 
-         !-------Gong source function------
+          !-------Gong source function------
           if (carma_seasalt_emis == "Gong") then
-            sita_para = 30
-            A_para = - 4.7_r8 * (1+ sita_para * r80) ** (- 0.017_r8 * r80** (-1.44_r8))
-            B_para = (0.433_r8 - log10(r80)) / 0.433_r8
-            ncflx = 1.373_r8* u10in ** 3.41_r8 * r80 ** A_para * (1._r8 + 0.057_r8 * r80**3.45_r8) * 10._r8 ** (1.607_r8 * exp(- B_para **2))
-!            if (do_print) write(LUNOPRT, *) "Gong: ncflx = ", ncflx, ", u10n = ", u10in
+             sita_para = 30
+             A_para = - 4.7_r8 * (1+ sita_para * r80) ** (- 0.017_r8 * r80** (-1.44_r8))
+             B_para = (0.433_r8 - log10(r80)) / 0.433_r8
+             ncflx = 1.373_r8* u10in ** 3.41_r8 * r80 ** A_para * (1._r8 + 0.057_r8 * r80**3.45_r8) * 10._r8 ** (1.607_r8 * exp(- B_para **2))
+             !            if (do_print) write(LUNOPRT, *) "Gong: ncflx = ", ncflx, ", u10n = ", u10in
           end if
 
           !------Martensson source function-----
           if (carma_seasalt_emis == "Martensson") then
-            if (rdry .le. 0.0725_r8) then
-              ncflx = (Ak1(rdry*1.0e-6_r8)* (25._r8+273._r8) + Bk1(rdry*1.0e-6_r8)) * wcap      ! dF/dlogr [#/s/m2]
-              ncflx = ncflx / (2.30258509_r8 * rdry)                                            ! dF/dr    [#/s/m2/um]
-            elseif (rdry .gt. 0.0725_r8 .and. rdry .le. 0.2095_r8) then
-              ncflx = (Ak2(rdry*1.0e-6_r8)* (25._r8+273._r8) + Bk2(rdry*1.0e-6_r8)) * wcap      ! dF/dlogr [#/s/m2]
-              ncflx = ncflx / (2.30258509_r8 * rdry)                                            ! dF/dr    [#/s/m2/um]
-            elseif (rdry .gt. 0.2095_r8 .and. rdry .le. 1.4_r8) then
-              ncflx = (Ak3(rdry*1.0e-6_r8)* (25._r8+273._r8) + Bk3(rdry*1.0e-6_r8)) * wcap      ! dF/dlogr [#/s/m2]
-              ncflx = ncflx / (2.30258509_r8 * rdry)                                            ! dF/dr    [#/s/m2/um]
-            else
-              ncflx = 0._r8
-            end if
+             if (rdry .le. 0.0725_r8) then
+                ncflx = (Ak1(rdry*1.0e-6_r8)* (25._r8+273._r8) + Bk1(rdry*1.0e-6_r8)) * wcap      ! dF/dlogr [#/s/m2]
+                ncflx = ncflx / (2.30258509_r8 * rdry)                                            ! dF/dr    [#/s/m2/um]
+             elseif (rdry .gt. 0.0725_r8 .and. rdry .le. 0.2095_r8) then
+                ncflx = (Ak2(rdry*1.0e-6_r8)* (25._r8+273._r8) + Bk2(rdry*1.0e-6_r8)) * wcap      ! dF/dlogr [#/s/m2]
+                ncflx = ncflx / (2.30258509_r8 * rdry)                                            ! dF/dr    [#/s/m2/um]
+             elseif (rdry .gt. 0.2095_r8 .and. rdry .le. 1.4_r8) then
+                ncflx = (Ak3(rdry*1.0e-6_r8)* (25._r8+273._r8) + Bk3(rdry*1.0e-6_r8)) * wcap      ! dF/dlogr [#/s/m2]
+                ncflx = ncflx / (2.30258509_r8 * rdry)                                            ! dF/dr    [#/s/m2/um]
+             else
+                ncflx = 0._r8
+             end if
           end if
 
           !-------Clarke source function-------
           if (carma_seasalt_emis == "Clarke")then
-            if (rdry .lt. 0.066_r8) then
-             ncflx = A1(rdry) * 1.e4_r8 * wcap                              ! dF/dlogr [#/s/m2]
-              ncflx = ncflx / (2.30258509_r8 * rdry)                        ! dF/dr    [#/s/m2/um]
-            elseif (rdry .ge. 0.066_r8 .and. rdry .lt. 0.6_r8) then
-              ncflx = A2(rdry) * 1.e4_r8 * wcap                             ! dF/dlogr [#/s/m2]
-              ncflx = ncflx / (2.30258509_r8 * rdry)                        ! dF/dr    [#/s/m2/um]
-            elseif (rdry .ge. 0.6_r8 .and. rdry .lt. 4.0_r8) then
-              ncflx = A3(rdry) * 1.e4_r8 * wcap                             ! dF/dlogr [#/s/m2]
-              ncflx= ncflx / (2.30258509_r8 * rdry)                         ! dF/dr    [#/s/m2/um]
-            else
-              ncflx = 0._r8
-            end if
+             if (rdry .lt. 0.066_r8) then
+                ncflx = A1(rdry) * 1.e4_r8 * wcap                              ! dF/dlogr [#/s/m2]
+                ncflx = ncflx / (2.30258509_r8 * rdry)                        ! dF/dr    [#/s/m2/um]
+             elseif (rdry .ge. 0.066_r8 .and. rdry .lt. 0.6_r8) then
+                ncflx = A2(rdry) * 1.e4_r8 * wcap                             ! dF/dlogr [#/s/m2]
+                ncflx = ncflx / (2.30258509_r8 * rdry)                        ! dF/dr    [#/s/m2/um]
+             elseif (rdry .ge. 0.6_r8 .and. rdry .lt. 4.0_r8) then
+                ncflx = A3(rdry) * 1.e4_r8 * wcap                             ! dF/dlogr [#/s/m2]
+                ncflx= ncflx / (2.30258509_r8 * rdry)                         ! dF/dr    [#/s/m2/um]
+             else
+                ncflx = 0._r8
+             end if
           end if
 
           !-----------Caffrey source function------------
           if (carma_seasalt_emis == "Caffrey") then
 
-            !Monahan
-            B_mona = (0.38_r8 - log10(r80)) / 0.65_r8
-            Monahan = 1.373_r8 * (u10in**3.41_r8) * r80**(-3._r8) * (1._r8 + 0.057 *r80**1.05_r8)  * 10._r8 ** (1.19_r8 * exp(-1. * B_mona**2)) ! dF/dr
+             !Monahan
+             B_mona = (0.38_r8 - log10(r80)) / 0.65_r8
+             Monahan = 1.373_r8 * (u10in**3.41_r8) * r80**(-3._r8) * (1._r8 + 0.057 *r80**1.05_r8)  * 10._r8 ** (1.19_r8 * exp(-1. * B_mona**2)) ! dF/dr
 
-            !Smith
-            u14 = u10in * (1._r8 + cd_smith**0.5_r8 / xkar * log(14._r8 / 10._r8))  ! 14 meter wind
-            A1A92 = 10._r8 ** (0.0676_r8 * u14 + 2.430_r8)
-            A2A92 = 10._r8 ** (0.9590_r8 * u14**0.5_r8 - 1.476_r8)
-            Smith = A1A92*exp(-f1 *(log(r80/r1))**2) + A2A92*exp(-f2 * (log(r80/r2))**2)     ! dF/dr   [#/m2/s/um]
+             !Smith
+             u14 = u10in * (1._r8 + cd_smith**0.5_r8 / xkar * log(14._r8 / 10._r8))  ! 14 meter wind
+             A1A92 = 10._r8 ** (0.0676_r8 * u14 + 2.430_r8)
+             A2A92 = 10._r8 ** (0.9590_r8 * u14**0.5_r8 - 1.476_r8)
+             Smith = A1A92*exp(-f1 *(log(r80/r1))**2) + A2A92*exp(-f2 * (log(r80/r2))**2)     ! dF/dr   [#/m2/s/um]
 
-            !Caffrey based on Monahan and Smith
-            W_Caff = 1.136_r8 **(-1._r8 * rdry ** (-0.855_r8))*(1._r8 + 0.2_r8/rdry)
-            if (rdry .lt. 0.15_r8) then
-              ncflx = Monahan
-            else
-              if (u10in .le. 9._r8) then
+             !Caffrey based on Monahan and Smith
+             W_Caff = 1.136_r8 **(-1._r8 * rdry ** (-0.855_r8))*(1._r8 + 0.2_r8/rdry)
+             if (rdry .lt. 0.15_r8) then
                 ncflx = Monahan
-              else
-                if(Monahan .ge. Smith) then
-                  ncflx = Monahan
+             else
+                if (u10in .le. 9._r8) then
+                   ncflx = Monahan
                 else
-                  ncflx = Smith
+                   if(Monahan .ge. Smith) then
+                      ncflx = Monahan
+                   else
+                      ncflx = Smith
+                   end if
                 end if
-              end if
-            end if
+             end if
 
-            ncflx = ncflx * W_Caff
+             ncflx = ncflx * W_Caff
 
-            !%%%%%%%%%%%%%%%%%%%%%%%%%
-            ! Apply Hoppel correction
-            !%%%%%%%%%%%%%%%%%%%%%%%%%
-            ncflx = ncflx * fref
+             !%%%%%%%%%%%%%%%%%%%%%%%%%
+             ! Apply Hoppel correction
+             !%%%%%%%%%%%%%%%%%%%%%%%%%
+             ncflx = ncflx * fref
           end if
 
           !--------CMS (Clarke, Monahan, and Smith source function)-------
           if (carma_seasalt_emis == "CMS") then
 
-            !Clarke
-            if (rdry .lt. 0.066_r8) then
-              Clarke = A1(rdry) * 1.e4_r8 * wcap                     ! dF/dlogr [#/s/m2]
-              Clarke = Clarke / (2.30258509_r8 * rdry)               ! dF/dr    [#/s/m2/um]
-            elseif ((rdry .ge. 0.066_r8) .and. (rdry .lt. 0.6_r8)) then
-              Clarke = A2(rdry) * 1.e4_r8 * wcap                     ! dF/dlogr [#/s/m2]
-              Clarke = Clarke / (2.30258509_r8 * rdry)               ! dF/dr    [#/s/m2/um]
-            elseif ((rdry .ge. 0.6_r8) .and. (rdry .lt. 4.0_r8)) then
-              Clarke = A3(rdry) * 1.e4_r8 * wcap                      ! dF/dlogr [#/s/m2]
-              Clarke= Clarke / (2.30258509_r8 * rdry)                 ! dF/dr    [#/s/m2/um]
-            end if
+             !Clarke
+             if (rdry .lt. 0.066_r8) then
+                Clarke = A1(rdry) * 1.e4_r8 * wcap                     ! dF/dlogr [#/s/m2]
+                Clarke = Clarke / (2.30258509_r8 * rdry)               ! dF/dr    [#/s/m2/um]
+             elseif ((rdry .ge. 0.066_r8) .and. (rdry .lt. 0.6_r8)) then
+                Clarke = A2(rdry) * 1.e4_r8 * wcap                     ! dF/dlogr [#/s/m2]
+                Clarke = Clarke / (2.30258509_r8 * rdry)               ! dF/dr    [#/s/m2/um]
+             elseif ((rdry .ge. 0.6_r8) .and. (rdry .lt. 4.0_r8)) then
+                Clarke = A3(rdry) * 1.e4_r8 * wcap                      ! dF/dlogr [#/s/m2]
+                Clarke= Clarke / (2.30258509_r8 * rdry)                 ! dF/dr    [#/s/m2/um]
+             end if
 
-          !Monahan
-            B_Mona = (0.38_r8 - log10(r80)) / 0.65_r8
-            Monahan = 1.373_r8 * u10in ** 3.41_r8 * r80 ** (-3._r8) * (1._r8 + 0.057_r8 * r80**1.05_r8) * 10._r8 ** (1.19_r8 * exp(- B_Mona **2))
+             !Monahan
+             B_Mona = (0.38_r8 - log10(r80)) / 0.65_r8
+             Monahan = 1.373_r8 * u10in ** 3.41_r8 * r80 ** (-3._r8) * (1._r8 + 0.057_r8 * r80**1.05_r8) * 10._r8 ** (1.19_r8 * exp(- B_Mona **2))
 
-            !Smith
-            u14 = u10in * (1._r8 + cd_smith**0.5_r8 / xkar*log(14._r8 / 10._r8))  ! 14 meter wind
-            A1A92 = 10._r8 ** (0.0676_r8 * u14 + 2.430_r8)
-            A2A92 = 10._r8 ** (0.9590_r8 * u14**0.5_r8 - 1.476_r8)
-            Smith = A1A92*exp(-f1 *(log(r80 / r1))**2) + A2A92*exp(-f2 * (log(r80 / r2))**2)     ! dF/dr   [#/m2/s/um]
+             !Smith
+             u14 = u10in * (1._r8 + cd_smith**0.5_r8 / xkar*log(14._r8 / 10._r8))  ! 14 meter wind
+             A1A92 = 10._r8 ** (0.0676_r8 * u14 + 2.430_r8)
+             A2A92 = 10._r8 ** (0.9590_r8 * u14**0.5_r8 - 1.476_r8)
+             Smith = A1A92*exp(-f1 *(log(r80 / r1))**2) + A2A92*exp(-f2 * (log(r80 / r2))**2)     ! dF/dr   [#/m2/s/um]
 
-            !%%%%%%%%%%%%%%%%%%%%%%%%%
-            !     CMS1 or CMS2
-            !%%%%%%%%%%%%%%%%%%%%%%%%%
-  !          if (rdry .lt. 0.1_r8) then   ! originally cut at 0.1 um
-            ! ***CMS1*****
-            if (rdry .lt. 1._r8) then    ! cut at 1.0 um
-            ! ***CMS2*****
-  !          if (rdry .lt. 2._r8) then    ! cut at 2.0 um
-              ncflx = Clarke
-            else
-              if (u10in .lt. 9._r8) then
-                ncflx = Monahan
-              else
-                if (Monahan .gt. Smith) then
-                  ncflx = Monahan
+             !%%%%%%%%%%%%%%%%%%%%%%%%%
+             !     CMS1 or CMS2
+             !%%%%%%%%%%%%%%%%%%%%%%%%%
+             !          if (rdry .lt. 0.1_r8) then   ! originally cut at 0.1 um
+             ! ***CMS1*****
+             if (rdry .lt. 1._r8) then    ! cut at 1.0 um
+                ! ***CMS2*****
+                !          if (rdry .lt. 2._r8) then    ! cut at 2.0 um
+                ncflx = Clarke
+             else
+                if (u10in .lt. 9._r8) then
+                   ncflx = Monahan
                 else
-                  ncflx = Smith
+                   if (Monahan .gt. Smith) then
+                      ncflx = Monahan
+                   else
+                      ncflx = Smith
+                   end if
                 end if
-              end if
-            end if
+             end if
 
-            !%%%%%%%%%%%%%%%%%%%%%%%%%
-            ! Apply Hoppel correction
-            !%%%%%%%%%%%%%%%%%%%%%%%%%
-            ncflx = ncflx * fref
+             !%%%%%%%%%%%%%%%%%%%%%%%%%
+             ! Apply Hoppel correction
+             !%%%%%%%%%%%%%%%%%%%%%%%%%
+             ncflx = ncflx * fref
           end if
 
           ! convert ncflx [#/m^2/s/um] to surfaceFlx [kg/m^2/s]
-          ! SaltFlux(icol) = ncflx * dr(ibin) * rmass(ibin) * 10._r8      ! *1e4[um/cm] * 1.e-3[kg/g]
-                  SaltFlux(icol) = ncflx * dr(ibin) * rmass(ibin) * 10._r8
+          SaltFlux(icol) = ncflx * dr(ibin) * rmass(ibin) * 10._r8      ! *1e4[um/cm] * 1.e-3[kg/g]
 
-!          if (do_print) write(LUNOPRT, *) "ibin = ", ibin, ", igroup = ", igroup
-!          if (do_print) write(LUNOPRT, *) "dr = ", dr(ibin), ", rmass = ", rmass(ibin)
-!          if (do_print) write(LUNOPRT, *) "ncflx = " , ncflx, ", SaltFlux = ", SaltFlux(icol)
+          !          if (do_print) write(LUNOPRT, *) "ibin = ", ibin, ", igroup = ", igroup
+          !          if (do_print) write(LUNOPRT, *) "dr = ", dr(ibin), ", rmass = ", rmass(ibin)
+          !          if (do_print) write(LUNOPRT, *) "ncflx = " , ncflx, ", SaltFlux = ", SaltFlux(icol)
 
           ! weighted by the ocean fraction
           SaltFlux(icol) = SaltFlux(icol) * cam_in%ocnfrac(icol)
-        end if
-      end do
+       end if
+    end do
 
-    return
+  contains
+
+    ! Coefficient Ak in Martensson's source functions
+    pure real(r8) function Ak1(rpdry)
+      real(r8),intent(in) :: rpdry
+      Ak1 = c41*(2._r8*rpdry)**4 + c31*(2._r8*rpdry) ** 3 + c21*(2._r8*rpdry)**2 + c11*(2._r8*rpdry)+ c01
+    end function Ak1
+
+    pure real(r8) function Ak2(rpdry)
+      real(r8),intent(in) :: rpdry
+      Ak2 = c42*(2._r8*rpdry)**4 + c32*(2._r8*rpdry) ** 3 + c22*(2._r8*rpdry)**2 + c12*(2._r8*rpdry)+ c02
+    end function Ak2
+
+    pure real(r8) function Ak3(rpdry)
+      real(r8),intent(in) :: rpdry
+      Ak3 = c43*(2._r8*rpdry)**4 + c33*(2._r8*rpdry) ** 3 + c23*(2._r8*rpdry)**2 + c13*(2._r8*rpdry)+ c03
+    end function Ak3
+
+    ! Coefficient Bk in Martensson's source functions
+    pure real(r8) function Bk1(rpdry)
+      real(r8),intent(in) :: rpdry
+      Bk1= d41*(2._r8*rpdry)**4 + d31*(2._r8*rpdry) ** 3 + d21*(2._r8*rpdry)**2 + d11*(2._r8*rpdry)+ d01
+    end function Bk1
+
+    pure real(r8) function Bk2(rpdry)
+      real(r8),intent(in) :: rpdry
+      Bk2 = d42*(2._r8*rpdry)**4 + d32*(2._r8*rpdry) ** 3 + d22*(2._r8*rpdry)**2 + d12*(2._r8*rpdry)+ d02
+    end function Bk2
+
+    pure real(r8) function Bk3(rpdry)
+      real(r8),intent(in) :: rpdry
+      Bk3 = d43*(2._r8*rpdry)**4 + d33*(2._r8*rpdry) ** 3 + d23*(2._r8*rpdry)**2 + d13*(2._r8*rpdry)+ d03
+    end function Bk3
+
+    ! Coefficient Ak in Clarkes's source function
+    pure real(r8) function A1(rpdry)
+      real(r8),intent(in) :: rpdry
+      A1 = beta01 + beta11*(2._r8*rpdry) + beta21*(2._r8*rpdry)**2 + beta31*(2._r8*rpdry)**3 &
+           + beta41*(2._r8*rpdry)**4 + beta51*(2._r8*rpdry)**5
+    end function A1
+
+    pure real(r8) function A2(rpdry)
+      real(r8),intent(in) :: rpdry
+      A2 = beta02 + beta12*(2._r8*rpdry) + beta22*(2._r8*rpdry)**2 + beta32*(2._r8*rpdry)**3 &
+           + beta42*(2._r8*rpdry)**4 + beta52*(2._r8*rpdry)**5
+    end function A2
+
+    pure real(r8) function A3(rpdry)
+      real(r8),intent(in) :: rpdry
+      A3 = beta03 + beta13*(2._r8*rpdry) + beta23*(2._r8*rpdry)**2 + beta33*(2._r8*rpdry)**3 &
+           + beta43*(2._r8*rpdry)**4 + beta53*(2._r8*rpdry)**5
+    end function A3
+
   end subroutine CARMA_SaltFlux
 
 
