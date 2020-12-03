@@ -856,9 +856,9 @@ contains
                                                      glob_nretry / glob_nstep
         else
           if (do_print) write(LUNOPRT,2) glob_max_nsubstep, &
-                                                     0., &
+                                                     0._r8, &
                                                      glob_max_nretry, &
-                                                     0.
+                                                     0._r8
         end if
       end if
     end if
@@ -1678,9 +1678,9 @@ contains
                                                      step_nretry / step_nstep
         else
           if (do_print) write(LUNOPRT,1) step_max_nsubstep, &
-                                                     0., &
+                                                     0._r8, &
                                                      step_max_nretry, &
-                                                     0.
+                                                     0._r8
         end if
       end if
     end if
