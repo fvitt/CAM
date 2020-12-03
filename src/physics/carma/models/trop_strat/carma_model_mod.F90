@@ -964,6 +964,9 @@ contains
 
     call addfld('CRSLERFC', horiz_only, 'A', 'fraction', 'CARMA soil erosion factor')
 
+    ! Added by Pengfei Yu to read smoke emission data
+    call CARMA_BCOCread(carma,rc)
+
     return
   end subroutine CARMA_InitializeModel
 
