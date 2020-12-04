@@ -803,6 +803,15 @@ contains
 
       ! Communicate the settings to the other MPI tasks.
        call mpi_bcast(carma_t_ref,    pver,  MPI_REAL8, 0, mpicom, ier)
+
+      if (carma%f_igash2so4 /= 0) then
+         call mpi_bcast(carma_h2so4_ref, pver,  MPI_REAL8, 0, mpicom, ier)
+      endif
+
+      if (carma%f_igash2o /= 0) then
+         call mpi_bcast(carma_h2o_ref, pver,  MPI_REAL8, 0, mpicom, ier)
+      end if
+
 #endif
     end if
 
