@@ -139,10 +139,10 @@ module carma_model_mod
   real(kind=f), public, parameter     :: vmrat_MIXAER    = 2.2588_f    !2.4610_f        ! volume ratio
 
 ! Physics buffer index for sulfate surface area density
-  integer                         :: ipbuf4sadsulf,ipbuf4wtp
-  integer                         :: ipbuf4sad(NGROUP), ipbuf4reff(NGROUP), ipbuf4numng(NGROUP)
-  integer                         :: ipbuf4elem1mr(NBIN,NGROUP)
-  integer                         :: ipbuf4binng(NBIN,NGROUP),ipbuf4kappa(NBIN,NGROUP)
+  integer                         :: ipbuf4sadsulf = -1,ipbuf4wtp = -1
+  integer                         :: ipbuf4sad(NGROUP) = -1, ipbuf4reff(NGROUP) = -1, ipbuf4numng(NGROUP) = -1
+  integer                         :: ipbuf4elem1mr(NBIN,NGROUP) = -1
+  integer                         :: ipbuf4binng(NBIN,NGROUP) = -1,ipbuf4kappa(NBIN,NGROUP) = -1
 
 contains
 
@@ -698,7 +698,7 @@ contains
     ! the bottom layer by vertical diffusion. See vertical_solver module, line 355.
     tendency(:ncol, :pver) = 0.0_r8
 
-
+return
      ! Add Emission (surfaceFlux) here.
 
     !!*******************************************************************************************************
@@ -881,9 +881,10 @@ contains
   !!
   !! @author  Chuck Bardeen
   !! @version May-2009
-  subroutine CARMA_InitializeModel(carma, lq_carma, rc)
+  subroutine CARMA_InitializeModel(carma, lq_carma, pbuf2d, rc)
     use cam_history,  only: addfld, add_default, horiz_only
     use constituents, only: pcnst
+    use physics_buffer, only: physics_buffer_desc, pbuf_set_field
 
     implicit none
 
@@ -891,6 +892,7 @@ contains
     logical, intent(inout)             :: lq_carma(pcnst)       !! flags to indicate whether the constituent
                                                                 !! could have a CARMA tendency
     integer, intent(out)               :: rc                    !! return code, negative indicates failure
+    type(physics_buffer_desc), pointer :: pbuf2d(:,:)
 
     ! -------- local variables ----------
     integer            :: ibin                                ! CARMA bin index
@@ -966,6 +968,24 @@ contains
 
     ! Added by Pengfei Yu to read smoke emission data
     call CARMA_BCOCread(carma,rc)
+
+    ! Initialize physics buffer fields
+    do igroup = 1, NGROUP
+       call pbuf_set_field(pbuf2d, ipbuf4sad(igroup), 0.0_r8 )
+       call pbuf_set_field(pbuf2d, ipbuf4reff(igroup), 0.0_r8 )
+       call pbuf_set_field(pbuf2d, ipbuf4numng(igroup), 0.0_r8 )
+       do ibin=1,NBIN
+          print*,'FVDBG CARMA_InitializeModel ipbuf4elem1mr(ibin,igroup): ',ipbuf4elem1mr(ibin,igroup)
+          if (ipbuf4elem1mr(ibin,igroup)>0) then
+            call pbuf_set_field(pbuf2d, ipbuf4elem1mr(ibin,igroup), 0.0_r8 )
+          endif
+          call pbuf_set_field(pbuf2d, ipbuf4kappa(ibin,igroup), 0.0_r8 )
+          call pbuf_set_field(pbuf2d, ipbuf4kappa(ibin,igroup), 0.0_r8 )
+       end do
+    end do
+
+    call pbuf_set_field(pbuf2d, ipbuf4sadsulf, 0.0_r8 )
+    call pbuf_set_field(pbuf2d, ipbuf4wtp, 0.0_r8 )
 
     return
   end subroutine CARMA_InitializeModel

@@ -134,10 +134,10 @@ module carma_intr
 
 
   ! Physics Buffer Indicies
-  integer                        :: ipbuf4gas(NGAS)               ! physics buffer index for a carma gas
-  integer                        :: ipbuf4t                       ! physics buffer index for a carma temperature
-  integer                        :: ipbuf4sati(NGAS)              ! physics buffer index for a carma saturation over ice
-  integer                        :: ipbuf4satl(NGAS)              ! physics buffer index for a carma saturation over liquid
+  integer                        :: ipbuf4gas(NGAS)=-1            ! physics buffer index for a carma gas
+  integer                        :: ipbuf4t=-1                    ! physics buffer index for a carma temperature
+  integer                        :: ipbuf4sati(NGAS)=-1           ! physics buffer index for a carma saturation over ice
+  integer                        :: ipbuf4satl(NGAS)=-1           ! physics buffer index for a carma saturation over liquid
 
   ! Globals used for a reference atmosphere.
   real(kind=f)                   :: carma_t_ref(pver)             ! midpoint temperature (Pa)
@@ -469,10 +469,10 @@ contains
     do ielem = 1, NELEM
       do ibin = 1, NBIN
         call CARMAELEMENT_Get(carma,  ielem, rc, igroup=igroup)
-        if (rc < 0) call endrun('carma_init::CARMAELEMENT_Get failed.')
+        if (rc < 0) call endrun('carma_implements_cnst::CARMAELEMENT_Get failed.')
 
         call CARMAGROUP_Get(carma, igroup, rc, cnsttype=cnsttype, maxbin=maxbin)
-        if (rc < 0) call endrun('carma_init::CARMAGROUP_Get failed.')
+        if (rc < 0) call endrun('carma_implements_cnst::CARMAGROUP_Get failed.')
 
         if (cnsttype == I_CNSTTYPE_PROGNOSTIC) then
 
@@ -508,14 +508,17 @@ contains
   !!
   !! @author  Chuck Bardeen
   !! @version May 2009
-  subroutine carma_init
+  subroutine carma_init(pbuf2d)
     use cam_history,  only: addfld, add_default, horiz_only
     use ioFileMod,    only : getfil
     use wrap_nf
     use time_manager, only: is_first_step
     use phys_control, only: phys_getopts
+    use physics_buffer, only: physics_buffer_desc, pbuf_set_field
 
     implicit none
+
+    type(physics_buffer_desc), pointer :: pbuf2d(:,:)
 
     integer           :: iz           ! vertical index
     integer           :: ielem        ! element index
@@ -815,9 +818,16 @@ contains
 #endif
     end if
 
+    ! initialize physics buffer fields
+    do igas = 1, NGAS
+       call pbuf_set_field(pbuf2d, ipbuf4gas(igas), 0.0_r8)
+       call pbuf_set_field(pbuf2d, ipbuf4sati(igas), 0.0_r8)
+       call pbuf_set_field(pbuf2d, ipbuf4satl(igas), 0.0_r8)
+    end do
+    call pbuf_set_field(pbuf2d, ipbuf4t, 0.0_r8)
 
     ! Do a model specific initialization.
-    call CARMA_InitializeModel(carma, lq_carma, rc)
+    call CARMA_InitializeModel(carma, lq_carma, pbuf2d, rc)
     if (rc < 0) call endrun('carma_init::CARMA_InitializeModel failed.')
 
     return

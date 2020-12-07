@@ -832,7 +832,7 @@ contains
     call aer_rad_props_init()
 
     ! initialize carma
-    call carma_init()
+    call carma_init(pbuf2d)
 
     ! solar irradiance data modules
     call solar_data_init()
@@ -905,7 +905,7 @@ contains
     call qbo_init
 
     call lunar_tides_init()
-    
+
     call iondrag_init(pref_mid)
     ! Geomagnetic module -- after iondrag_init
     if (epp_ionization_active) then
