@@ -541,28 +541,30 @@ subroutine coreshell_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
                  pext(i) = table_interp( tbl_relh, tbl_corefrac, tbl_bcdust, tbl_kap, &
                                          h_ext_coreshell(:,isw,:,:,:), &
                                          relh(i,k), corefrac(i), bcdust(i), crkappa(i,k) )
-                 pabs(i) = table_interp( tbl_relh, tbl_corefrac, tbl_bcdust, tbl_kap, &
+                 pabs(i) = (1._r8 - table_interp( tbl_relh, tbl_corefrac, tbl_bcdust, tbl_kap, &
                                          h_ssa_coreshell(:,isw,:,:,:), &
-                                         relh(i,k), corefrac(i), bcdust(i), crkappa(i,k) )
+                                         relh(i,k), corefrac(i), bcdust(i), crkappa(i,k) ) ) * pext(i)
                  pasm(i) = table_interp( tbl_relh, tbl_corefrac, tbl_bcdust, tbl_kap, &
                                          h_asm_coreshell(:,isw,:,:,:), &
                                          relh(i,k), corefrac(i), bcdust(i), crkappa(i,k) )
               case('hygroscopic_wtp')
                  pext(i) = table_interp( tbl_wgtpct, h_ext_wtp(:,isw), wgtpct(i,k) )
-                 pabs(i) = table_interp( tbl_wgtpct, h_ssa_wtp(:,isw), wgtpct(i,k) )
+                 pabs(i) = (1._r8 - table_interp( tbl_wgtpct, h_ssa_wtp(:,isw), wgtpct(i,k) ) ) * pext(i)
                  pasm(i) = table_interp( tbl_wgtpct, h_asm_wtp(:,isw), wgtpct(i,k) )
               case default
                  call endrun('aer_rad_props_sw: unsupported opticstype: '//trim(opticstype))
               end select
 
-
+              specpext(i) = pext(i)
+              pext(i) = pext(i)*totalmmr(i)
+              pabs(i) = pabs(i)*totalmmr(i)
               pabs(i) = max(0._r8,pabs(i))
               pabs(i) = min(pext(i),pabs(i))
 
               palb(i) = 1._r8-pabs(i)/max(pext(i),1.e-40_r8)
               palb(i) = 1._r8-pabs(i)/max(pext(i),1.e-40_r8)
 
-              dopaer(i) = pext(i) * totalmmr(i) * mass(i,k)
+              dopaer(i) = pext(i)*mass(i,k)
            end do
 
            if (savaeruv) then
@@ -1066,7 +1068,7 @@ subroutine coreshell_aero_lw(list_idx, state, pbuf, tauxar)
 
             ! parameterized optical properties
             do i = 1, ncol
-!               pabs(i)   = pabs(i)*wetvol(i)*rhoh2o
+               pabs(i)   = pabs(i)*totalmmr(i)
                pabs(i)   = max(0._r8,pabs(i))
                dopaer(i) = pabs(i)*totalmmr(i)*mass(i,k)
             end do
