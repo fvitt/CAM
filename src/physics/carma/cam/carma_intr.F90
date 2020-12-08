@@ -36,7 +36,7 @@ module carma_intr
   use chem_surfvals,  only: chem_surfvals_get
   use cam_abortutils, only: endrun
   use physics_buffer, only: physics_buffer_desc, pbuf_add_field, pbuf_old_tim_idx, &
-                            pbuf_get_index, pbuf_get_field, dtype_r8
+                            pbuf_get_index, pbuf_get_field, dtype_r8, pbuf_set_field
 
 
 #if ( defined SPMD )
@@ -514,7 +514,6 @@ contains
     use wrap_nf
     use time_manager, only: is_first_step
     use phys_control, only: phys_getopts
-    use physics_buffer, only: physics_buffer_desc, pbuf_set_field
 
     implicit none
 
@@ -818,13 +817,15 @@ contains
 #endif
     end if
 
-    ! initialize physics buffer fields
-    do igas = 1, NGAS
-       call pbuf_set_field(pbuf2d, ipbuf4gas(igas), 0.0_r8)
-       call pbuf_set_field(pbuf2d, ipbuf4sati(igas), 0.0_r8)
-       call pbuf_set_field(pbuf2d, ipbuf4satl(igas), 0.0_r8)
-    end do
-    call pbuf_set_field(pbuf2d, ipbuf4t, 0.0_r8)
+    if (is_first_step()) then
+       ! initialize physics buffer fields
+       do igas = 1, NGAS
+          call pbuf_set_field(pbuf2d, ipbuf4gas(igas), 0.0_r8)
+          call pbuf_set_field(pbuf2d, ipbuf4sati(igas), 0.0_r8)
+          call pbuf_set_field(pbuf2d, ipbuf4satl(igas), 0.0_r8)
+       end do
+       call pbuf_set_field(pbuf2d, ipbuf4t, 0.0_r8)
+    endif
 
     ! Do a model specific initialization.
     call CARMA_InitializeModel(carma, lq_carma, pbuf2d, rc)

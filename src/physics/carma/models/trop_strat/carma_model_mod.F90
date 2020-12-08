@@ -41,7 +41,8 @@ module carma_model_mod
   use cam_abortutils, only: endrun
   use physics_types,  only: physics_state, physics_ptend
   use ppgrid,         only: pcols, pver
-  use physics_buffer, only: physics_buffer_desc
+  use physics_buffer, only: physics_buffer_desc, pbuf_set_field
+  use time_manager,   only: is_first_step
 
   implicit none
 
@@ -305,18 +306,18 @@ contains
       ! sulfate mass and number density for each bin
       ! e.g. CRSULF01 first element mass mixing ratio; NBCRMIX01 #/g
       do ibin=1,NBIN
-       write (outputbin, "(I2.2)") ibin
-       write (outputname,"(A2)") trim(sname)
-       if (trim(sname)//outputbin .ne. outputname//"SULF"//outputbin) then
-	!write(*,*) "sname//outputbin",trim(sname)//outputbin
-        call pbuf_add_field(outputname//"SULF"//outputbin,'global', dtype_r8, (/pcols, pver/), ipbuf4elem1mr(ibin,igroup))
-        !write(*,*) outputname//"SULF"//outputbin,"   ", trim(sname)//outputbin
-       end if
-       call pbuf_add_field("NB"//trim(sname)//outputbin,'global', dtype_r8, (/pcols, pver/), ipbuf4binng(ibin,igroup))
-       call pbuf_add_field(trim(sname)//outputbin//"_kappa",'global', dtype_r8, (/pcols, pver/), ipbuf4kappa(ibin,igroup))
-       !write(*,*) trim(sname)//outputbin//"_kappa"
+         write (outputbin, "(I2.2)") ibin
+         write (outputname,"(A2)") trim(sname)
+         if (trim(sname)//outputbin .ne. outputname//"SULF"//outputbin) then
+            !write(*,*) "sname//outputbin",trim(sname)//outputbin
+            call pbuf_add_field(outputname//"SULF"//outputbin,'global', dtype_r8, (/pcols, pver/), ipbuf4elem1mr(ibin,igroup))
+            !write(*,*) outputname//"SULF"//outputbin,"   ", trim(sname)//outputbin
+         end if
+         call pbuf_add_field("NB"//trim(sname)//outputbin,'global', dtype_r8, (/pcols, pver/), ipbuf4binng(ibin,igroup))
+         call pbuf_add_field(trim(sname)//outputbin//"_kappa",'global', dtype_r8, (/pcols, pver/), ipbuf4kappa(ibin,igroup))
+         !write(*,*) trim(sname)//outputbin//"_kappa"
       end do
-    end do
+   end do
 
     ! total surface area density.
     call pbuf_add_field('SADSULF', 'global', dtype_r8, (/pcols, pver/), ipbuf4sadsulf)
@@ -367,7 +368,6 @@ contains
   !!  @version July-2009
   !!  @author  Chuck Bardeen
   subroutine CARMA_DiagnoseBins(carma, cstate, state, pbuf, icol, dt, rc, rliq, prec_str, snow_str)
-    use time_manager,     only: is_first_step
     use constituents,     only: cnst_get_ind
 
     implicit none
@@ -884,15 +884,14 @@ return
   subroutine CARMA_InitializeModel(carma, lq_carma, pbuf2d, rc)
     use cam_history,  only: addfld, add_default, horiz_only
     use constituents, only: pcnst
-    use physics_buffer, only: physics_buffer_desc, pbuf_set_field
 
     implicit none
 
     type(carma_type), intent(in)       :: carma                 !! the carma object
     logical, intent(inout)             :: lq_carma(pcnst)       !! flags to indicate whether the constituent
                                                                 !! could have a CARMA tendency
-    integer, intent(out)               :: rc                    !! return code, negative indicates failure
     type(physics_buffer_desc), pointer :: pbuf2d(:,:)
+    integer, intent(out)               :: rc                    !! return code, negative indicates failure
 
     ! -------- local variables ----------
     integer            :: ibin                                ! CARMA bin index
@@ -969,24 +968,25 @@ return
     ! Added by Pengfei Yu to read smoke emission data
     call CARMA_BCOCread(carma,rc)
 
-    ! Initialize physics buffer fields
-    do igroup = 1, NGROUP
-       call pbuf_set_field(pbuf2d, ipbuf4sad(igroup), 0.0_r8 )
-       call pbuf_set_field(pbuf2d, ipbuf4reff(igroup), 0.0_r8 )
-       call pbuf_set_field(pbuf2d, ipbuf4numng(igroup), 0.0_r8 )
-       do ibin=1,NBIN
-          print*,'FVDBG CARMA_InitializeModel ipbuf4elem1mr(ibin,igroup): ',ipbuf4elem1mr(ibin,igroup)
-          if (ipbuf4elem1mr(ibin,igroup)>0) then
-            call pbuf_set_field(pbuf2d, ipbuf4elem1mr(ibin,igroup), 0.0_r8 )
-          endif
-          call pbuf_set_field(pbuf2d, ipbuf4kappa(ibin,igroup), 0.0_r8 )
-          call pbuf_set_field(pbuf2d, ipbuf4kappa(ibin,igroup), 0.0_r8 )
+    if (is_first_step()) then
+       ! Initialize physics buffer fields
+       do igroup = 1, NGROUP
+          call pbuf_set_field(pbuf2d, ipbuf4sad(igroup), 0.0_r8 )
+          call pbuf_set_field(pbuf2d, ipbuf4reff(igroup), 0.0_r8 )
+          call pbuf_set_field(pbuf2d, ipbuf4numng(igroup), 0.0_r8 )
+          do ibin=1,NBIN
+             if (ipbuf4elem1mr(ibin,igroup)>0) then
+                call pbuf_set_field(pbuf2d, ipbuf4elem1mr(ibin,igroup), 0.0_r8 )
+             endif
+             call pbuf_set_field(pbuf2d, ipbuf4binng(ibin,igroup), 0.0_r8 )
+             call pbuf_set_field(pbuf2d, ipbuf4kappa(ibin,igroup), 0.0_r8 )
+          end do
        end do
-    end do
 
-    call pbuf_set_field(pbuf2d, ipbuf4sadsulf, 0.0_r8 )
-    call pbuf_set_field(pbuf2d, ipbuf4wtp, 0.0_r8 )
-
+       call pbuf_set_field(pbuf2d, ipbuf4sadsulf, 0.0_r8 )
+       call pbuf_set_field(pbuf2d, ipbuf4wtp, 0.0_r8 )
+    endif
+ 
     return
   end subroutine CARMA_InitializeModel
 

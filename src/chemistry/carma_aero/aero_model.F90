@@ -110,6 +110,8 @@ contains
     real(r8), intent(inout) :: sad_total(:,:)
     real(r8), intent(out)   :: reff_trop(:,:)
 
+    reff_trop(:,:)=0._r8
+
   end subroutine aero_model_surfarea
 
   !-------------------------------------------------------------------------

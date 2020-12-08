@@ -232,7 +232,7 @@ subroutine coreshell_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
 
    real(r8) :: sate(pcols,pver)     ! saturation vapor pressure
    real(r8) :: satq(pcols,pver)     ! saturation specific humidity
-   real(r8) :: rh(pcols,pver)
+   real(r8) :: relh(pcols,pver)
 
    real(r8), pointer, dimension(:,:) :: crkappa   ! kappa
    real(r8), pointer, dimension(:,:) :: wgtpct  ! weight percent
@@ -285,12 +285,12 @@ subroutine coreshell_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
 ! CGB - NOTE: this needs to add to the accumulated optical depth and
 ! not overwrite it.
    ! initialize output variables
-!   tauxar(:ncol,:,:) = 0._r8
-!   wa(:ncol,:,:)     = 0._r8
-!   ga(:ncol,:,:)     = 0._r8
-!   fa(:ncol,:,:)     = 0._r8
+   tauxar(:ncol,:,:) = 0._r8
+   wa(:ncol,:,:)     = 0._r8
+   ga(:ncol,:,:)     = 0._r8
+   fa(:ncol,:,:)     = 0._r8
 
-   ! zero'th layer does not contain aerosol
+! zero'th layer does not contain aerosol
 !   tauxar(1:ncol,0,:)  = 0._r8
 !   wa(1:ncol,0,:)      = 0.925_r8
 !   ga(1:ncol,0,:)      = 0.850_r8
@@ -305,6 +305,7 @@ subroutine coreshell_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
    aodvis(1:ncol)        = 0.0_r8
    aodvisst(1:ncol)      = 0.0_r8
    aodabs(1:ncol)        = 0.0_r8
+   aodbin(1:ncol)        = 0.0_r8
    ssavis(1:ncol)        = 0.0_r8
 
    ! diags for other bands
@@ -321,14 +322,14 @@ subroutine coreshell_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
    ! calculate relative humidity for table lookup into rh grid
    call qsat(state%t, state%pmid, sate, satq)
 
-   rh(1:ncol,1:pver) = state%q(1:ncol,1:pver,1) / satq(1:ncol,1:pver)
+   relh(1:ncol,1:pver) = state%q(1:ncol,1:pver,1) / satq(1:ncol,1:pver)
    !There is a  different way to diagnose sub-grid rh for clear-sky only that makes physically
    ! more sense but is not used in MAM. This needs to be tested if it makes any differente
    ! Associate pointers with physics buffer fields
    ! itim = pbuf_old_tim_idx()
    ! call pbuf_get_field(pbuf, pbuf_get_index('CLD'), cldn, (/1,1,itim/),(/pcols,pver,1/))
    ! rh(1:ncol,1:pver) = (state%q(1:ncol,1:pver,1)-cldn(1:ncol,1:pver)*qsat(1:ncol,1:pver)) / qsat(1:ncol,1:pver)
-   rh(1:ncol,1:pver) = max(1.e-20_r8,rh(1:ncol,1:pver))
+   relh(1:ncol,1:pver) = max(1.e-20_r8,relh(1:ncol,1:pver))
 
 
    ! loop over all aerosol bins
@@ -358,11 +359,17 @@ subroutine coreshell_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
         ! get kappa
         ! need to read in bin_name
         call pbuf_get_field(pbuf, pbuf_get_index(trim(bin_name)//"_kappa"),crkappa)
-        where ( crkappa < minval(tbl_kap) )
-           crkappa = minval(tbl_kap)
+        where ( crkappa(:ncol,:) < minval(tbl_kap) )
+           crkappa(:ncol,:) = minval(tbl_kap)
         end where
-        where ( crkappa > maxval(tbl_kap) )
-           crkappa = maxval(tbl_kap)
+        where ( crkappa(:ncol,:) > maxval(tbl_kap) )
+           crkappa(:ncol,:) = maxval(tbl_kap)
+        end where
+        where ( relh(:ncol,:) < minval(tbl_relh) )
+           relh(:ncol,:) = minval(tbl_relh)
+        end where
+        where ( relh(:ncol,:) > maxval(tbl_relh) )
+           relh(:ncol,:) = maxval(tbl_relh)
         end where
      case('hygroscopic_wtp')
       ! get optical properties for hygroscopic aerosols
@@ -370,24 +377,17 @@ subroutine coreshell_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
            sw_hygro_ext_wtp=h_ext_wtp, sw_hygro_ssa_wtp=h_ssa_wtp, sw_hygro_asm_wtp=h_asm_wtp)
        ! determine weight precent of H2SO4/H2O solution
          call pbuf_get_field(pbuf, pbuf_get_index('WTP'),wgtpct)
-         where ( wgtpct < minval(tbl_wgtpct) )
-            wgtpct = minval(tbl_wgtpct)
+         where ( wgtpct(:ncol,:) < minval(tbl_wgtpct) )
+            wgtpct(:ncol,:) = minval(tbl_wgtpct)
          end where
-         where ( wgtpct > maxval(tbl_wgtpct) )
-            wgtpct = maxval(tbl_wgtpct)
+         where ( wgtpct(:ncol,:) > maxval(tbl_wgtpct) )
+            wgtpct(:ncol,:) = maxval(tbl_wgtpct)
          end where
      case('zero')
           ! zero aerosols types have no optical effect, so do nothing.
      case default
           call endrun('aer_rad_props_sw: unsupported opticstype: '//trim(opticstype))
      end select
-
-     where ( rh < minval(tbl_relh) )
-        rh = minval(tbl_relh)
-     end where
-     where ( rh > maxval(tbl_relh) )
-        rh = maxval(tbl_relh)
-     end where
 
      do isw = 1, nswbands
         savaervis = (isw .eq. idx_sw_diag)
@@ -419,6 +419,8 @@ subroutine coreshell_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
            ! particlevol(:ncol)   = 0._r8
 
            corefrac(:ncol)      = 0._r8
+           dryvol(:ncol) = 0._r8
+           crefin(:ncol) = 0._r8
 
            ! aerosol species loop
            do l = 1, nspec
@@ -510,20 +512,20 @@ subroutine coreshell_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
            end do
 
            if (associated(tbl_corefrac)) then
-              where ( corefrac < minval(tbl_corefrac) )
-                 corefrac = minval(tbl_corefrac)
+              where ( corefrac(:ncol) < minval(tbl_corefrac) )
+                 corefrac(:ncol) = minval(tbl_corefrac)
               end where
-              where ( corefrac > maxval(tbl_corefrac) )
-                 corefrac = maxval(tbl_corefrac)
+              where ( corefrac(:ncol) > maxval(tbl_corefrac) )
+                 corefrac(:ncol) = maxval(tbl_corefrac)
               end where
            endif
 
            if (associated(tbl_bcdust)) then
-              where ( bcdust < minval(tbl_bcdust) )
-                 bcdust = minval(tbl_bcdust)
+              where ( bcdust(:ncol) < minval(tbl_bcdust) )
+                 bcdust(:ncol) = minval(tbl_bcdust)
               end where
-              where ( bcdust > maxval(tbl_bcdust) )
-                 bcdust = maxval(tbl_bcdust)
+              where ( bcdust(:ncol) > maxval(tbl_bcdust) )
+                 bcdust(:ncol) = maxval(tbl_bcdust)
               end where
            endif
 
@@ -538,13 +540,13 @@ subroutine coreshell_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
               case('hygroscopic_coreshell')
                  pext(i) = table_interp( tbl_relh, tbl_corefrac, tbl_bcdust, tbl_kap, &
                                          h_ext_coreshell(:,isw,:,:,:), &
-                                         rh(i,k), corefrac(i), bcdust(i), crkappa(i,k) )
+                                         relh(i,k), corefrac(i), bcdust(i), crkappa(i,k) )
                  pabs(i) = table_interp( tbl_relh, tbl_corefrac, tbl_bcdust, tbl_kap, &
                                          h_ssa_coreshell(:,isw,:,:,:), &
-                                         rh(i,k), corefrac(i), bcdust(i), crkappa(i,k) )
+                                         relh(i,k), corefrac(i), bcdust(i), crkappa(i,k) )
                  pasm(i) = table_interp( tbl_relh, tbl_corefrac, tbl_bcdust, tbl_kap, &
                                          h_asm_coreshell(:,isw,:,:,:), &
-                                         rh(i,k), corefrac(i), bcdust(i), crkappa(i,k) )
+                                         relh(i,k), corefrac(i), bcdust(i), crkappa(i,k) )
               case('hygroscopic_wtp')
                  pext(i) = table_interp( tbl_wgtpct, h_ext_wtp(:,isw), wgtpct(i,k) )
                  pabs(i) = table_interp( tbl_wgtpct, h_ssa_wtp(:,isw), wgtpct(i,k) )
@@ -779,7 +781,7 @@ subroutine coreshell_aero_lw(list_idx, state, pbuf, tauxar)
    complex(r8) :: crefin(pcols) ! complex refractive index
    real(r8), pointer :: tbl_corefrac(:) ! table of imag refractive indices for aerosols
    real(r8), pointer :: tbl_kap(:) ! table of kappa of bins
-   real(r8), pointer :: tbl_rh(:) ! table of rh of bins
+   real(r8), pointer :: tbl_relh(:) ! table of relh of bins
    real(r8), pointer :: tbl_bcdust(:) ! table of bc-dust ration of bins
    real(r8), pointer :: tbl_wgtpct(:)
 
@@ -790,10 +792,10 @@ subroutine coreshell_aero_lw(list_idx, state, pbuf, tauxar)
    real(r8) :: pabs(pcols)      ! parameterized specific absorption (m2/kg)
    real(r8) :: dopaer(pcols)    ! aerosol optical depth in layer
 
-! for table lookup into rh grid
+! for table lookup into relh grid
    real(r8) :: sate(pcols,pver)     ! saturation vapor pressure
    real(r8) :: satq(pcols,pver)     ! saturation specific humidity
-   real(r8) :: rh(pcols,pver)
+   real(r8) :: relh(pcols,pver)
    integer :: nrelh, nbcdust, nkap
    integer :: nwtp
 
@@ -814,7 +816,7 @@ subroutine coreshell_aero_lw(list_idx, state, pbuf, tauxar)
 
    nullify(tbl_corefrac)
    nullify(tbl_kap)
-   nullify(tbl_rh)
+   nullify(tbl_relh)
    nullify(tbl_bcdust)
    nullify(tbl_wgtpct)
    nullify(absplw)
@@ -828,6 +830,8 @@ subroutine coreshell_aero_lw(list_idx, state, pbuf, tauxar)
    lchnk = state%lchnk
    ncol  = state%ncol
 
+   tauxar = 0._r8
+
    ! initialize output variables
 
    ! dry mass in each cell
@@ -836,14 +840,14 @@ subroutine coreshell_aero_lw(list_idx, state, pbuf, tauxar)
    ! calculate relative humidity for table lookup into rh grid
    call qsat(state%t, state%pmid, sate, satq)
 
-   rh(1:ncol,1:pver) = state%q(1:ncol,1:pver,1) / satq(1:ncol,1:pver)
+   relh(1:ncol,1:pver) = state%q(1:ncol,1:pver,1) / satq(1:ncol,1:pver)
    !There is a  different way to diagnose sub-grid rh for clear-sky only that makes physically
    ! more sense but is not used in MAM. This needs to be tested if it makes any difference
    ! Associate pointers with physics buffer fields
    ! itim = pbuf_old_tim_idx()
    ! call pbuf_get_field(pbuf, pbuf_get_index('CLD'), cldn, (/1,1,itim/),(/pcols,pver,1/))
    ! rh(1:ncol,1:pver) = (state%q(1:ncol,1:pver,1)-cldn(1:ncol,1:pver)*qsat(1:ncol,1:pver)) / qsat(1:ncol,1:pver)
-   rh(1:ncol,1:pver) = max(1.e-20_r8,rh(1:ncol,1:pver))
+   relh(1:ncol,1:pver) = max(1.e-20_r8,relh(1:ncol,1:pver))
 
    ! loop over all aerosol modes
    call rad_cnst_get_info(list_idx, nbins=nbins)
@@ -866,16 +870,22 @@ subroutine coreshell_aero_lw(list_idx, state, pbuf, tauxar)
          call rad_cnst_get_bin_props(list_idx, m, &
               corefrac=tbl_corefrac, &
               kap=tbl_kap, nkap=nkap, bcdust=tbl_bcdust, nbcdust=nbcdust, &
-              relh=tbl_rh, nrelh=nrelh, &
+              relh=tbl_relh, nrelh=nrelh, &
               lw_hygro_coreshell_ext=lw_hygro_coreshell_abs)
          ! get kappa
          ! need to read in bin_name
          call pbuf_get_field(pbuf, pbuf_get_index(trim(bin_name)//"_kappa"),crkappa)
-         where ( crkappa < minval(tbl_kap) )
-            crkappa = minval(tbl_kap)
+         where ( crkappa(:ncol,:) < minval(tbl_kap) )
+            crkappa(:ncol,:) = minval(tbl_kap)
          end where
-         where ( crkappa > maxval(tbl_kap) )
-            crkappa = maxval(tbl_kap)
+         where ( crkappa(:ncol,:) > maxval(tbl_kap) )
+            crkappa(:ncol,:) = maxval(tbl_kap)
+         end where
+         where ( relh(:ncol,:) < minval(tbl_relh) )
+            relh(:ncol,:) = minval(tbl_relh)
+         end where
+         where ( relh(:ncol,:) > maxval(tbl_relh) )
+            relh(:ncol,:) = maxval(tbl_relh)
          end where
       case('hygroscopic_wtp')
          ! get optical properties for hygroscopic aerosols
@@ -884,22 +894,15 @@ subroutine coreshell_aero_lw(list_idx, state, pbuf, tauxar)
               lw_hygro_ext_wtp=lw_hygro_abs_wtp)
          ! determine weight precent of H2SO4/H2O solution
          call pbuf_get_field(pbuf, pbuf_get_index('WTP'),wgtpct)
-         where ( wgtpct < minval(tbl_wgtpct) )
-            wgtpct = minval(tbl_wgtpct)
+         where ( wgtpct(:ncol,:) < minval(tbl_wgtpct) )
+            wgtpct(:ncol,:) = minval(tbl_wgtpct)
          end where
-         where ( wgtpct > maxval(tbl_wgtpct) )
-            wgtpct = maxval(tbl_wgtpct)
+         where ( wgtpct(:ncol,:) > maxval(tbl_wgtpct) )
+            wgtpct(:ncol,:) = maxval(tbl_wgtpct)
          end where
       case default
          call endrun('aer_rad_props_lw: unsupported opticstype: '//trim(opticstype))
       end select
-
-      where ( rh < minval(tbl_rh) )
-         rh = minval(tbl_rh)
-      end where
-      where ( rh > maxval(tbl_rh) )
-         rh = maxval(tbl_rh)
-      end where
 
       do ilw = 1, nlwbands
 
@@ -932,7 +935,10 @@ subroutine coreshell_aero_lw(list_idx, state, pbuf, tauxar)
             ! particlehygro(:ncol) = 0._r8
             ! particlevol(:ncol)   = 0._r8
 
-            corefrac(:ncol)      = 0._r8
+            corefrac(:ncol) = 0._r8
+            dryvol(:ncol) = 0._r8
+            crefin(:ncol) = 0._r8
+            bcdust(:ncol) = 0._r8
 
             ! aerosol species loop
             do l = 1, nspec
@@ -1024,20 +1030,20 @@ subroutine coreshell_aero_lw(list_idx, state, pbuf, tauxar)
             end do
 
             if (associated(tbl_corefrac)) then
-               where ( corefrac < minval(tbl_corefrac) )
-                  corefrac = minval(tbl_corefrac)
+               where ( corefrac(:ncol) < minval(tbl_corefrac) )
+                  corefrac(:ncol) = minval(tbl_corefrac)
                end where
-               where ( corefrac > maxval(tbl_corefrac) )
-                  corefrac = maxval(tbl_corefrac)
+               where ( corefrac(:ncol) > maxval(tbl_corefrac) )
+                  corefrac(:ncol) = maxval(tbl_corefrac)
                end where
             endif
 
             if (associated(tbl_bcdust)) then
-               where ( bcdust < minval(tbl_bcdust) )
-                  bcdust = minval(tbl_bcdust)
+               where ( bcdust(:ncol) < minval(tbl_bcdust) )
+                  bcdust(:ncol) = minval(tbl_bcdust)
                end where
-               where ( bcdust > maxval(tbl_bcdust) )
-                  bcdust = maxval(tbl_bcdust)
+               where ( bcdust(:ncol) > maxval(tbl_bcdust) )
+                  bcdust(:ncol) = maxval(tbl_bcdust)
                end where
             endif
 
@@ -1048,9 +1054,9 @@ subroutine coreshell_aero_lw(list_idx, state, pbuf, tauxar)
                case('sectional')
                   pabs(i) = table_interp( tbl_corefrac, absplw(:,ilw), corefrac(i) )
                case('hygroscopic_coreshell')
-                  pabs(i) = table_interp( tbl_rh, tbl_corefrac,  tbl_bcdust, tbl_kap, &
+                  pabs(i) = table_interp( tbl_relh, tbl_corefrac,  tbl_bcdust, tbl_kap, &
                                           lw_hygro_coreshell_abs(:,ilw,:,:,:), &
-                                          rh(i,k), corefrac(i), bcdust(i), crkappa(i,k) )
+                                          relh(i,k), corefrac(i), bcdust(i), crkappa(i,k) )
                case('hygroscopic_wtp')
                   pabs(i) =  table_interp( tbl_wgtpct, lw_hygro_abs_wtp(:,ilw), wgtpct(i,k) )
                case default

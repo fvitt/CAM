@@ -500,13 +500,15 @@ contains
   !!
   !! @author  Chuck Bardeen
   !! @version May-2009
-  subroutine CARMA_InitializeModel(carma, lq_carma, rc)
+  subroutine CARMA_InitializeModel(carma, lq_carma, pbuf2d, rc)
     use constituents, only : pcnst
+
     implicit none
     
     type(carma_type), intent(inout)    :: carma                 !! the carma object
     logical, intent(inout)             :: lq_carma(pcnst)       !! flags to indicate whether the constituent
                                                                 !! could have a CARMA tendency
+    type(physics_buffer_desc), pointer :: pbuf2d(:,:)
     integer, intent(out)               :: rc                    !! return code, negative indicates failure
 
     ! Default return code.
