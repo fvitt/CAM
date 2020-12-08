@@ -51,6 +51,7 @@ public :: &
    rad_cnst_get_bin_props_by_idx, &
    rad_cnst_get_bin_mmr_by_idx, &
    rad_cnst_get_info_by_bin, &
+   rad_cnst_get_info_by_bin_spec, &
    rad_cnst_get_bin_props
 
 public :: rad_cnst_num_name
@@ -785,7 +786,7 @@ end subroutine rad_cnst_get_info_by_mode
 
 subroutine rad_cnst_get_info_by_bin(list_idx, m_idx, nspec, bin_name)
 
-   ! Return info about modal aerosol lists
+   ! Return info about CARMA aerosol lists
 
    ! Arguments
    integer,                     intent(in)  :: list_idx    ! index of the climate or a diagnostic list
@@ -825,7 +826,63 @@ subroutine rad_cnst_get_info_by_bin(list_idx, m_idx, nspec, bin_name)
 end subroutine rad_cnst_get_info_by_bin
 
 !================================================================================================
+subroutine rad_cnst_get_info_by_bin_spec(list_idx, m_idx, s_idx, &
+   spec_type, spec_morph, spec_name, spec_name_cw)
 
+   ! Return info about CARMA aerosol lists
+
+   ! Arguments
+   integer,                     intent(in)  :: list_idx    ! index of the climate or a diagnostic list
+   integer,                     intent(in)  :: m_idx       ! index of bin in the specified list
+   integer,                     intent(in)  :: s_idx       ! index of species in the specified mode
+   character(len=32), optional, intent(out) :: spec_type   ! type of species
+   character(len=32), optional, intent(out) :: spec_morph  ! type of species
+   character(len=32), optional, intent(out) :: spec_name   ! name of interstitial species
+   character(len=32), optional, intent(out) :: spec_name_cw ! name of cloud borne species
+
+   ! Local variables
+   type(binlist_t), pointer :: s_list ! local pointer to mode list of interest
+   integer          :: nbins,  nspec
+   integer          :: mm
+
+   character(len=*), parameter :: subname = 'rad_cnst_get_info_by_bin_spec'
+   !-----------------------------------------------------------------------------
+
+   s_list => sa_list(list_idx)
+
+   ! check for valid mode index
+   nbins = s_list%nbins
+   if (m_idx < 1 .or. m_idx > nbins) then
+      write(iulog,*) subname//': ERROR - invalid bin index: ', m_idx
+      call endrun(subname//': ERROR - invalid bin index')
+   end if
+
+   ! get index into the mode definition object
+   mm = s_list%idx(m_idx)
+
+   ! check for valid species index
+   nspec = bins%comps(mm)%nspec
+   if (s_idx < 1 .or. s_idx > nspec) then
+      write(iulog,*) subname//': ERROR - invalid specie index: ', s_idx
+      call endrun(subname//': ERROR - invalid specie index')
+   end if
+
+   if (present(spec_type)) then
+      spec_type = bins%comps(mm)%type(s_idx)
+   endif
+   if (present(spec_morph)) then
+      spec_morph = bins%comps(mm)%morph(s_idx)
+   endif
+   if (present(spec_name)) then
+      spec_name = bins%comps(mm)%camname_mmr_a(s_idx)
+   endif
+   if (present(spec_name_cw)) then
+      spec_name_cw = bins%comps(mm)%camname_mmr_c(s_idx)
+   endif
+
+end subroutine rad_cnst_get_info_by_bin_spec
+
+!================================================================================================
 subroutine rad_cnst_get_info_by_mode_spec(list_idx, m_idx, s_idx, &
    spec_type, spec_name, spec_name_cw)
 
