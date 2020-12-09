@@ -37,11 +37,7 @@ module carma_intr
   use cam_abortutils, only: endrun
   use physics_buffer, only: physics_buffer_desc, pbuf_add_field, pbuf_old_tim_idx, &
                             pbuf_get_index, pbuf_get_field, dtype_r8, pbuf_set_field
-
-
-#if ( defined SPMD )
-  use mpishorthand
-#endif
+  use pio,            only: var_desc_t
 
   implicit none
 
@@ -64,7 +60,9 @@ module carma_intr
   ! Other Microphysics
   public carma_emission_tend            ! calculate tendency from emission source function
   public carma_wetdep_tend              ! calculate tendency from wet deposition
-
+  public :: carma_restart_init
+  public :: carma_restart_write
+  public :: carma_restart_read
 
   ! Private data
 
@@ -140,10 +138,13 @@ module carma_intr
   integer                        :: ipbuf4satl(NGAS)=-1           ! physics buffer index for a carma saturation over liquid
 
   ! Globals used for a reference atmosphere.
-  real(kind=f)                   :: carma_t_ref(pver)             ! midpoint temperature (Pa)
-  real(kind=f)                   :: carma_h2o_ref(pver)           ! h2o mmmr (kg/kg)
-  real(kind=f)                   :: carma_h2so4_ref(pver)         ! h2so4 mmr (kg/kg)
+  real(kind=f)     :: carma_t_ref(pver) = -huge(1._f)        ! midpoint temperature (Pa)
+  real(kind=f)     :: carma_h2o_ref(pver) = -huge(1._f)      ! h2o mmmr (kg/kg)
+  real(kind=f)     :: carma_h2so4_ref(pver) = -huge(1._f)    ! h2so4 mmr (kg/kg)
 
+  type(var_desc_t) :: t_ref_desc
+  type(var_desc_t) :: h2o_ref_desc
+  type(var_desc_t) :: h2so4_ref_desc
 
   ! Globals used for total statistics
   real(kind=f)          :: glob_max_nsubstep = 0._f
@@ -297,7 +298,6 @@ contains
       write(LUNOPRT,*) '  carma_maxretries    = ', carma_maxretries
       write(LUNOPRT,*) '  carma_vf_const      = ', carma_vf_const
       write(LUNOPRT,*) '  cldfrc_incloud      = ', CLDFRC_INCLOUD
-      write(LUNOPRT,*) '  carma_reftfile      = ', trim(carma_reftfile)
       write(LUNOPRT,*) '  carma_rad_feedback  = ', carma_rad_feedback
       write(LUNOPRT,*) ''
     endif
@@ -712,109 +712,6 @@ contains
         if (carma%f_igash2o /= 0)    call carma_getH2O(carma_h2o_ref)
         if (carma%f_igash2So4 /= 0)  call carma_getH2SO4(carma_h2so4_ref)
       end if
-
-      if (masterproc) then
-        call CARMA_Get(carma, rc, do_print=do_print, LUNOPRT=LUNOPRT)
-        if (rc < 0) call endrun('carma_init::CARMA_Get failed.')
-
-        if (do_print) write(LUNOPRT,*) ""
-        if (do_print) write(LUNOPRT,*) "CARMA initializing to fixed reference state."
-        if (do_print) write(LUNOPRT,*) ""
-
-        ! For temperature, get the average temperature from reference temperature file
-        ! if it exists or from the initial condition file if the reference temperature file
-        ! doesn't exist.
-        !
-        ! NOTE: The reference temperature file will only be created for an inital run. It
-        ! must already exist for a restart run.
-
-        ! Does reference temperature file already exist?
-        call getfil(carma_reftfile, locfn, iflag=1)
-
-        inquire(file=locfn, exist=lexist)
-
-        ! Read the reference temperature from the file.
-        if (lexist) then
-
-          ! Open the netcdf file.
-          call wrap_open(trim(locfn), NF90_NOWRITE, ncid)
-
-          ! Inquire about dimensions
-          call wrap_inq_dimid(ncid, 'lev', dimid_lev)
-          call wrap_inq_dimlen(ncid, dimid_lev, nlev)
-
-          ! Does the number of levels match?
-          if (nlev /= pver) then
-            call endrun("carma_init::ERROR - Incompatible number of levels &
-                 &in the CARMA reference temperature file ... " // trim(locfn))
-          end if
-
-          ! Get variable ID for reference temperature
-          call wrap_inq_varid(ncid, 'T', vid_T)
-
-          ! Read in the temperature data.
-          call wrap_get_var_realx(ncid, vid_T, carma_T_ref)
-
-          if (carma%f_igash2o /= 0) then
-            ! Get variable ID for reference temperature
-            call wrap_inq_varid(ncid, 'Q', vid_T)
-
-            ! Read in the temperature data.
-            call wrap_get_var_realx(ncid, vid_T, carma_h2o_ref)
-          end if
-
-          if (carma%f_igash2so4 /= 0) then
-            ! Get variable ID for reference temperature
-            call wrap_inq_varid(ncid, 'H2SO4', vid_T)
-
-            ! Read in the temperature data.
-            call wrap_get_var_realx(ncid, vid_T, carma_h2so4_ref)
-          end if
-
-          ! Close the file
-          call wrap_close(ncid)
-
-        ! Is this an initial or restart run?
-        else if (is_first_step()) then
-
-          if (do_print) write(LUNOPRT,*) ""
-          if (do_print) write(LUNOPRT,*) 'Creating CARMA reference temperature file ... ', trim(locfn)
-
-          ! Save the average into a file to be used for restarts.
-          call CARMA_CreateRefTFile(carma, locfn, pref_mid(:) / 100._r8, &
-               carma_t_ref(:), rc, refh2o=carma_h2o_ref(:), refh2so4=carma_h2so4_ref(:))
-        else
-
-          ! The file must already exist for a restart run.
-          call endrun("carma_init::ERROR - Can't find the CARMA reference temperature file ... " // trim(carma_reftfile))
-
-        end if
-
-        ! Write out the values that are being used.
-        if (do_print) write(LUNOPRT,*) ""
-        if (do_print) write(LUNOPRT,1) "Level","Int P (Pa)","Mid P (Pa)","Mid T (K)"
-
-        do iz = 1, pver
-          if (do_print) write(LUNOPRT,2) iz, pref_edge(iz), pref_mid(iz), carma_t_ref(iz)
-        end do
-        if (do_print) write(LUNOPRT,2) iz, pref_edge(iz), 0.0_r8, 0.0_r8
-        if (do_print) write(LUNOPRT,*) ""
-      end if
-
-#ifdef SPMD
-
-      ! Communicate the settings to the other MPI tasks.
-       call mpi_bcast(carma_t_ref,    pver,  MPI_REAL8, 0, mpicom, ier)
-
-      if (carma%f_igash2so4 /= 0) then
-         call mpi_bcast(carma_h2so4_ref, pver,  MPI_REAL8, 0, mpicom, ier)
-      endif
-
-      if (carma%f_igash2o /= 0) then
-         call mpi_bcast(carma_h2o_ref, pver,  MPI_REAL8, 0, mpicom, ier)
-      end if
-
-#endif
     end if
 
     if (is_first_step()) then
@@ -1044,7 +941,6 @@ contains
     integer               :: ienconc
     logical               :: grp_do_drydep                          ! is dry depostion enabled for group?
     logical               :: do_drydep                              ! is dry depostion enabled?
-    logical               :: do_fixedinit                           ! do initialization from reference atm?
     logical               :: do_detrain                             ! do convective detrainment?
     integer               :: iwvl
     real(r8), parameter   :: zzocen = 0.0001_r8                     ! Ocean aerodynamic roughness length [m]
@@ -1114,10 +1010,10 @@ contains
     ! If initializing CARMASTATE from a reference state, do it before entering the main
     ! loop.
     !
-    call CARMA_Get(carma, rc, do_fixedinit=do_fixedinit, do_drydep=do_drydep)
+    call CARMA_Get(carma, rc, do_drydep=do_drydep)
     if (rc < 0) call endrun('carma_timestep_tend::CARMA_Get failed.')
 
-    if (do_fixedinit) then
+    if (carma_do_fixedinit) then
 
       ! The latitude and longitude are arbitrary, but the dimensions need to be correct.
       xc = 255._r8
@@ -1615,6 +1511,9 @@ contains
 
 
   subroutine carma_accumulate_stats()
+#if ( defined SPMD )
+    use mpishorthand
+#endif
     implicit none
 
     integer               :: istat
@@ -2454,7 +2353,6 @@ contains
             ! End the defintion phase of the netcdf file.
             call wrap_enddef(fid)
 
-
             ! Write out the dimensions.
             call wrap_put_var_realx(fid, rhvar, mie_rh(:nrh))
             call wrap_put_var_realx(fid, lwvar, wave(:nlwbands) * 1e-2_f)
@@ -2584,93 +2482,6 @@ write(carma%f_LUNOPRT,*) "CARMA mie calc:  done  ", Qext, Qsca, asym
     return
   end subroutine CARMA_CreateOpticsFile
 
-
-  !! This routine creates a file containing a reference temperature profile
-  !! for use with fixed initialization.
-  subroutine CARMA_CreateRefTFile(carma, filepath, lev, reft, rc, refh2o, refh2so4)
-    use wrap_nf
-
-    implicit none
-
-    type(carma_type), intent(inout)     :: carma          !! the carma object
-    character(len=*), intent(in)        :: filepath       !! the file path
-    real(kind=f), intent(in)            :: lev(pver)      !! pressure levels
-    real(kind=f), intent(in)            :: reft(pver)     !! reference temperature
-    integer, intent(out)                :: rc             !! return code, negative indicates failure
-    real(kind=f), optional, intent(in)  :: refh2o(pver)   !! reference water vapor
-    real(kind=f), optional, intent(in)  :: refh2so4(pver) !! reference sulfuric acid
-
-    ! Local variables
-    integer                             :: fid
-    integer                             :: levdim
-    integer                             :: levvar, tvar, h2ovar, h2so4var
-    integer                             :: dimids(2)
-
-
-    ! Assume success.
-    rc = 0
-
-    ! Create the file.
-    call wrap_create(filepath, NF90_CLOBBER, fid)
-
-
-    ! Define the dimensions: lev
-    call wrap_def_dim(fid, 'lev',  pver,  levdim)
-
-    dimids(1) = levdim
-    call wrap_def_var(fid, 'lev',  NF90_DOUBLE, 1, dimids(1:1), levvar)
-
-    call wrap_put_att_text(fid, levvar, 'units', 'level')
-    call wrap_put_att_text(fid, levvar, 'long_name', 'hybrid level at midpoints (1000*(A+B))')
-    call wrap_put_att_text(fid, levvar, 'positive', 'down')
-    call wrap_put_att_text(fid, levvar, 'standard_name', 'atmosphere_hybrid_sigma_pressure_coordinate')
-    call wrap_put_att_text(fid, levvar, 'formula_terms', 'a: hyam b: hybm p0: P0 ps: PS')
-
-    ! Define the variables: T
-    call wrap_def_var(fid, 'T', NF90_DOUBLE, 1, dimids(1:1), tvar)
-
-    call wrap_put_att_text(fid, tvar, 'units', 'K')
-    call wrap_put_att_text(fid, tvar, 'long_name', 'Temperature')
-
-    if ((carma%f_igash2o /= 0) .and. present(refh2o)) then
-      call wrap_def_var(fid, 'Q', NF90_DOUBLE, 1, dimids(1:1), h2ovar)
-
-      call wrap_put_att_text(fid, h2ovar, 'units', 'kg/kg')
-      call wrap_put_att_text(fid, h2ovar, 'long_name', 'Specific Humidity')
-    end if
-
-    if ((carma%f_igash2so4 /= 0) .and. present(refh2so4)) then
-      call wrap_def_var(fid, 'H2SO4', NF90_DOUBLE, 1, dimids(1:1), h2so4var)
-
-      call wrap_put_att_text(fid, h2so4var, 'units', 'kg/kg')
-      call wrap_put_att_text(fid, h2so4var, 'long_name', 'H2SO4')
-    end if
-
-    ! End the defintion phase of the netcdf file.
-    call wrap_enddef(fid)
-
-
-    ! Write out the dimensions.
-    call wrap_put_var_realx(fid, levvar, lev)
-
-    ! Write out the variables.
-    call wrap_put_var_realx(fid, tvar, reft)
-
-    if ((carma%f_igash2o /= 0) .and. present(refh2o)) then
-      call wrap_put_var_realx(fid, h2ovar, refh2o(:))
-    end if
-
-    if ((carma%f_igash2so4 /= 0) .and. present(refh2so4)) then
-      call wrap_put_var_realx(fid, h2so4var, refh2so4(:))
-    end if
-
-    ! Close the file.
-    call wrap_close(fid)
-
-    return
-  end subroutine CARMA_CreateRefTFile
-
-
   !! Calculate the aerodynamic resistance for dry deposition.
   !!
   !! This is based upon Seinfeld and Pandis (1998) page 963, and
@@ -2740,4 +2551,87 @@ write(carma%f_LUNOPRT,*) "CARMA mie calc:  done  ", Qext, Qsca, asym
 
     return
   end subroutine CARMA_calcram
+
+  !---------------------------------------------------------------------------
+  ! define fields for reference profiles in cam restart file
+  !---------------------------------------------------------------------------
+  subroutine CARMA_restart_init( File )
+    use cam_pio_utils, only: cam_pio_def_dim
+    use pio, only: file_desc_t, pio_def_var, pio_double
+
+    ! arguments
+    type(file_desc_t),intent(inout) :: File     ! pio File pointer
+
+    ! local variables
+    integer :: levid, ierr
+
+    if (carma_do_fixedinit) then
+       call cam_pio_def_dim(File, 'lev',  pver,  levid, existOK=.true.)
+       ierr = pio_def_var(File, 'CARMA_REF_T', pio_double, (/ levid /), t_ref_desc)
+       ierr = pio_def_var(File, 'CARMA_REF_H2O', pio_double, (/ levid /), h2o_ref_desc)
+       ierr = pio_def_var(File, 'CARMA_REF_H2SO4', pio_double, (/ levid /), h2so4_ref_desc)
+    endif
+
+  end subroutine CARMA_restart_init
+
+  !---------------------------------------------------------------------------
+  ! write reference profiles to restart file
+  !---------------------------------------------------------------------------
+  subroutine CARMA_restart_write(File)
+    use pio, only: file_desc_t, pio_put_var
+
+    ! arguments
+    type(file_desc_t), intent(inout) :: File
+
+    ! local variables
+    integer ::ierr
+
+    if (carma_do_fixedinit) then
+       ierr = pio_put_var(File, t_ref_desc, carma_t_ref)
+       if (carma%f_igash2o /= 0) then
+          ierr = pio_put_var(File, h2o_ref_desc, carma_h2o_ref)
+       endif
+       if (carma%f_igash2So4 /= 0) then
+          ierr = pio_put_var(File, h2so4_ref_desc, carma_h2so4_ref)
+       endif
+    endif
+
+  end subroutine CARMA_restart_write
+
+  !---------------------------------------------------------------------------
+  ! read reference profiles from restart file
+  !---------------------------------------------------------------------------
+  subroutine CARMA_restart_read(File)
+    use pio, only: file_desc_t, pio_inq_varid, pio_get_var
+
+    ! arguments
+    type(file_desc_t),intent(inout) :: File     ! pio File pointer
+
+    ! local variables
+    integer :: ierr, varid
+    character(len=*), parameter :: subname = 'CARMA_restart_read: '
+
+    if (carma_do_fixedinit) then
+       ierr = pio_inq_varid(File, 'CARMA_REF_T', varid)
+       if (varid>0) then
+          ierr = pio_get_var(File, varid, carma_t_ref)
+       else
+          call endrun(subname//'restart file must include CARMA_REF_T')
+       endif
+       ierr = pio_inq_varid(File, 'CARMA_REF_H2O', varid)
+       if (varid>0) then
+          ierr = pio_get_var(File, varid, carma_h2o_ref)
+       else if (carma%f_igash2o /= 0) then
+          call endrun(subname//'restart file must include CARMA_REF_H2O')
+       endif
+       ierr = pio_inq_varid(File, 'CARMA_REF_H2SO4', varid)
+       if (varid>0) then
+          ierr = pio_get_var(File, varid, carma_h2so4_ref)
+       else if (carma%f_igash2So4 /= 0) then
+          call endrun(subname//'restart file must include CARMA_REF_H2SO4')
+       endif
+    endif
+
+  end subroutine CARMA_restart_read
+
 end module carma_intr

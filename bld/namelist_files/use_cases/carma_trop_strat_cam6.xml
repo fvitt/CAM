@@ -5,8 +5,6 @@
  <ncdata hgrid="10x15" nlev="32"  >atm/cam/inic/fv/f2000_carma_model_f10_spinup01.cam.i.0002-01-01-00000.nc</ncdata>
  <ncdata hgrid="1.9x2.5" nlev="32">atm/cam/inic/fv/FCARMA2000climo_f19_spinup01.cam.i.0002-01-01-00000_c201119.nc</ncdata>
 
- <carma_reftfile>camrun.cam.r.carma_reft.nc</carma_reftfile>
-
  <carma_do_coag>.true.</carma_do_coag>
  <carma_do_drydep>.true.</carma_do_drydep>
  <carma_do_emission>.true.</carma_do_emission>

@@ -3839,14 +3839,6 @@ first guess when condensational growth requires substepping.
 Default: 1
 </entry>
 
-<entry id="carma_reftfile" type="char*256" category="carma"
-       group="carma_nl" valid_values="" >
-Specifies the name of the reference temperature file that will be
-used (and created if necessary)  for initialization of CARMA to a
-fixed temperature profile.
-Default: carma_reft.nc
-</entry>
-
 <entry id="carma_cstick" type="real" category="carma"
        group="carma_nl" valid_values="" >
 Accommodation coefficient for coagulation.
