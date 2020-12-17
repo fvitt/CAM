@@ -274,15 +274,14 @@ contains
     call CARMA_AddNucleation(carma, I_ELEM_PRSUL, I_ELEM_PRSUL, I_HOMNUC, 0._f, rc, igas=I_GAS_H2SO4)
     if (rc < RC_OK) call endrun('CARMA_DefineModel::CARMA_AddNucleation failed.')
 
-    call CARMA_AddCoagulation(carma, I_GRP_PURSUl, I_GRP_PURSUL, I_GRP_PURSUL, I_COLLEC_FUCHS, rc)
+    call CARMA_AddCoagulation(carma, I_GRP_PURSUL, I_GRP_PURSUL, I_GRP_PURSUL, I_COLLEC_FUCHS, rc)
     if (rc < RC_OK) call endrun('CARMA_DefineModel::CARMA_AddCoagulation failed.')
 
-    call CARMA_AddCoagulation(carma, I_GRP_PURSUl, I_GRP_MIXAER, I_GRP_MIXAER, I_COLLEC_DATA, rc)
+    call CARMA_AddCoagulation(carma, I_GRP_PURSUL, I_GRP_MIXAER, I_GRP_MIXAER, I_COLLEC_DATA, rc)
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddCoagulation failed.')
 
     call CARMA_AddCoagulation(carma, I_GRP_MIXAER, I_GRP_MIXAER, I_GRP_MIXAER, I_COLLEC_DATA, rc)
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddCoagulation failed.')
-
 
     !----------------- add pbuf ------------------
     do igroup = 1, NGROUP
@@ -698,7 +697,6 @@ contains
     ! the bottom layer by vertical diffusion. See vertical_solver module, line 355.
     tendency(:ncol, :pver) = 0.0_r8
 
-return
      ! Add Emission (surfaceFlux) here.
 
     !!*******************************************************************************************************
@@ -986,7 +984,7 @@ return
        call pbuf_set_field(pbuf2d, ipbuf4sadsulf, 0.0_r8 )
        call pbuf_set_field(pbuf2d, ipbuf4wtp, 0.0_r8 )
     endif
- 
+
     return
   end subroutine CARMA_InitializeModel
 
@@ -1899,6 +1897,8 @@ return
 ! allocate BCnew and OCnew, unit is #/cm2/s
     allocate(BCnew(plat, plon, nmonth))
     allocate(OCnew(plat, plon, nmonth))
+    BCnew = 0._r8
+    OCnew = 0._r8
 
 ! monthly fraction of domestic emission
     allocate(facH(nmonth))
@@ -1923,25 +1923,25 @@ return
        endif
     end do
 
-! Part 1a: BC anthropogenic from GAINS
-! -------------------------------------------------
-        ! Open the netcdf file (read only)
-        call getfil(BC_GAINS_filename, BC_GAINS_file, 0)
-        call cam_pio_openfile( fid, BC_GAINS_file, PIO_NOWRITE)
+    ! Part 1a: BC anthropogenic from GAINS
+    ! -------------------------------------------------
+    ! Open the netcdf file (read only)
+    call getfil(BC_GAINS_filename, BC_GAINS_file, 0)
+    call cam_pio_openfile( fid, BC_GAINS_file, PIO_NOWRITE)
 
-        ! Get file dimensions
-        ierr = pio_inq_dimid(fid, 'time', fid_time)
-        ierr = pio_inq_dimid(fid, 'lon', fid_lon)
-        ierr = pio_inq_dimid(fid, 'lat', fid_lat)
-        ierr = pio_inq_dimlen(fid, fid_time,f_ntime)
-        ierr = pio_inq_dimlen(fid, fid_lon, f_nlon)
-        ierr = pio_inq_dimlen(fid, fid_lat, f_nlat)
+    ! Get file dimensions
+    ierr = pio_inq_dimid(fid, 'time', fid_time)
+    ierr = pio_inq_dimid(fid, 'lon', fid_lon)
+    ierr = pio_inq_dimid(fid, 'lat', fid_lat)
+    ierr = pio_inq_dimlen(fid, fid_time,f_ntime)
+    ierr = pio_inq_dimlen(fid, fid_lon, f_nlon)
+    ierr = pio_inq_dimlen(fid, fid_lat, f_nlat)
 
-       !  write(carma%f_LUNOPRT,*) ''
-       !  write(carma%f_LUNOPRT,*) 'f_lon = ', f_nlon
-       !  write(carma%f_LUNOPRT,*) 'f_lat = ', f_nlat
-       !  write(carma%f_LUNOPRT,*) 'f_ntime = ', f_ntime
-       !  write(carma%f_LUNOPRT,*) ''
+    !  write(carma%f_LUNOPRT,*) ''
+    !  write(carma%f_LUNOPRT,*) 'f_lon = ', f_nlon
+    !  write(carma%f_LUNOPRT,*) 'f_lat = ', f_nlat
+    !  write(carma%f_LUNOPRT,*) 'f_ntime = ', f_ntime
+    !  write(carma%f_LUNOPRT,*) ''
 
     allocate(BC_lat(f_nlat))
     allocate(BC_lon(f_nlon))
@@ -2020,22 +2020,22 @@ return
     call lininterp_finish(wgt1)
     call lininterp_finish(wgt2)
 
-            ! To implement Monthly data for dom emssion
-        ! methods from Stohl et al., 2013
-        ! facH works for high latitudes: 45-90N
-        ! facL works for low latitudes: 15-45N
-        ! below 15N, no seasonal variation
-        !
-        do itime = 1, nmonth
-           ! 45N-90N
-           BC2d(:plon, ind_45N:plat) = BC2d(:plon, ind_45N:plat) + &
-                                                                BC2d_dom(:plon, ind_45N:plat)*facH(itime)*12._r8
-           ! 15N-45N
-           BC2d(:plon, ind_15N:ind_45N-1) = BC2d(:plon, ind_15N:ind_45N-1) + &
-                                                                BC2d_dom(:plon, ind_15N:ind_45N-1)*facL(itime)*12._r8
-           ! 90S-15N
-           BC2d(:plon, 1:ind_15N-1) = BC2d(:plon, 1:ind_15N-1) + &
-                                                                BC2d_dom(:plon, 1:ind_15N-1)
+    ! To implement Monthly data for dom emssion
+    ! methods from Stohl et al., 2013
+    ! facH works for high latitudes: 45-90N
+    ! facL works for low latitudes: 15-45N
+    ! below 15N, no seasonal variation
+    !
+    do itime = 1, nmonth
+       ! 45N-90N
+       BC2d(:plon, ind_45N:plat) = BC2d(:plon, ind_45N:plat) + &
+                                   BC2d_dom(:plon, ind_45N:plat)*facH(itime)*12._r8
+       ! 15N-45N
+       BC2d(:plon, ind_15N:ind_45N-1) = BC2d(:plon, ind_15N:ind_45N-1) + &
+                                        BC2d_dom(:plon, ind_15N:ind_45N-1)*facL(itime)*12._r8
+       ! 90S-15N
+       BC2d(:plon, 1:ind_15N-1) = BC2d(:plon, 1:ind_15N-1) + &
+                                  BC2d_dom(:plon, 1:ind_15N-1)
 
        BC_anthro_GAINS(itime, :plat, :plon) = transpose(BC2d(:plon, :plat))
     end do
@@ -2050,19 +2050,19 @@ return
     deallocate(BC2d)
     deallocate(BC2d_dom)
 
-! Part 1b: OC anthropogenic from GAINS
-! -------------------------------------------------
-        ! Open the netcdf file (read only)
-        call getfil(OC_GAINS_filename, OC_GAINS_file, 0)
-        call cam_pio_openfile(fid, trim(OC_GAINS_file), PIO_NOWRITE)
+    ! Part 1b: OC anthropogenic from GAINS
+    ! -------------------------------------------------
+    ! Open the netcdf file (read only)
+    call getfil(OC_GAINS_filename, OC_GAINS_file, 0)
+    call cam_pio_openfile(fid, trim(OC_GAINS_file), PIO_NOWRITE)
 
-        ! Get file dimensions
-        ierr = pio_inq_dimid(fid, 'time', fid_time)
-        ierr = pio_inq_dimid(fid, 'lon', fid_lon)
-        ierr = pio_inq_dimid(fid, 'lat', fid_lat)
-        ierr = pio_inq_dimlen(fid, fid_time,f_ntime)
-        ierr = pio_inq_dimlen(fid, fid_lon, f_nlon)
-        ierr = pio_inq_dimlen(fid, fid_lat, f_nlat)
+    ! Get file dimensions
+    ierr = pio_inq_dimid(fid, 'time', fid_time)
+    ierr = pio_inq_dimid(fid, 'lon', fid_lon)
+    ierr = pio_inq_dimid(fid, 'lat', fid_lat)
+    ierr = pio_inq_dimlen(fid, fid_time,f_ntime)
+    ierr = pio_inq_dimlen(fid, fid_lon, f_nlon)
+    ierr = pio_inq_dimlen(fid, fid_lat, f_nlat)
 
     allocate(OC_lat(f_nlat))
     allocate(OC_lon(f_nlon))
@@ -2121,13 +2121,13 @@ return
     rearth = 6.371e6_r8 ! m
     do i = 1, f_nlat
        gridarea = 2.0_r8*3.14159_r8*rearth/f_nlat * &
-                          2.0_r8*3.14159_r8*rearth/f_nlon*cos(OC_lat(i)/180._r8*3.14159_r8)
+                  2.0_r8*3.14159_r8*rearth/f_nlon*cos(OC_lat(i)/180._r8*3.14159_r8)
        !
        OC_f2d(:f_nlon,i) = OC_f2d(:f_nlon,i)/365._r8/86400._r8*1.e9_r8/ &       ! g/s
-                                        12._r8*6.02e23_r8/gridarea*1.e-4_r8                     ! #/cm2/s
+                           12._r8*6.02e23_r8/gridarea*1.e-4_r8                     ! #/cm2/s
        !
        OC_dom_f2d(:f_nlon,i) = OC_dom_f2d(:f_nlon,i)/365._r8/86400._r8*1.e9_r8/ &       ! g/s
-                                        12._r8*6.02e23_r8/gridarea*1.e-4_r8                     ! #/cm2/s
+                               12._r8*6.02e23_r8/gridarea*1.e-4_r8                     ! #/cm2/s
     end do
 
     call lininterp_init(OC_lat, f_nlat, lat, plat, 1, wgt1)
@@ -2142,22 +2142,22 @@ return
     call lininterp_finish(wgt1)
     call lininterp_finish(wgt2)
 
-        ! To implement Monthly data for dom emssion
-        ! methods from Stohl et al., 2013
-        ! facH works for high latitudes: 45-90N
-        ! facL works for low latitudes: 15-45N
-        ! below 15N, no seasonal variation
-        !
-        do itime = 1, nmonth
-           ! 45N-90N
-           OC2d(:plon, ind_45N:plat) = OC2d(:plon, ind_45N:plat) + &
-                                                                OC2d_dom(:plon, ind_45N:plat)*facH(itime)*12._r8
-           ! 15N-45N
-           OC2d(:plon, ind_15N:ind_45N-1) = OC2d(:plon, ind_15N:ind_45N-1) + &
-                                                                OC2d_dom(:plon, ind_15N:ind_45N-1)*facL(itime)*12._r8
-           ! 90S-15N
-           OC2d(:plon, 1:ind_15N-1) = OC2d(:plon, 1:ind_15N-1) + &
-                                                                OC2d_dom(:plon, 1:ind_15N-1)
+    ! To implement Monthly data for dom emssion
+    ! methods from Stohl et al., 2013
+    ! facH works for high latitudes: 45-90N
+    ! facL works for low latitudes: 15-45N
+    ! below 15N, no seasonal variation
+    !
+    do itime = 1, nmonth
+       ! 45N-90N
+       OC2d(:plon, ind_45N:plat) = OC2d(:plon, ind_45N:plat) + &
+                                   OC2d_dom(:plon, ind_45N:plat)*facH(itime)*12._r8
+       ! 15N-45N
+       OC2d(:plon, ind_15N:ind_45N-1) = OC2d(:plon, ind_15N:ind_45N-1) + &
+                                        OC2d_dom(:plon, ind_15N:ind_45N-1)*facL(itime)*12._r8
+       ! 90S-15N
+       OC2d(:plon, 1:ind_15N-1) = OC2d(:plon, 1:ind_15N-1) + &
+                                  OC2d_dom(:plon, 1:ind_15N-1)
 
        OC_anthro_GAINS(itime, :plat, :plon) = transpose(OC2d(:plon, :plat))
     end do
@@ -2172,18 +2172,18 @@ return
     deallocate(OC2d)
     deallocate(OC2d_dom)
 
-! Part 2a: BC ship
-! -------------------------------------------------
-        ! Open the netcdf file (read only)
-        call getfil(BC_ship_filename, BC_ship_file, 0)
-        call cam_pio_openfile(fid, trim(BC_ship_file), PIO_NOWRITE)
-        !call wrap_open(BC_ship_file, 0, fid)
+    ! Part 2a: BC ship
+    ! -------------------------------------------------
+    ! Open the netcdf file (read only)
+    call getfil(BC_ship_filename, BC_ship_file, 0)
+    call cam_pio_openfile(fid, trim(BC_ship_file), PIO_NOWRITE)
+    !call wrap_open(BC_ship_file, 0, fid)
 
-        ! Get file dimensions
-        ierr = pio_inq_dimid(fid, 'lon', fid_lon)
-        ierr = pio_inq_dimid(fid, 'lat', fid_lat)
-        ierr = pio_inq_dimlen(fid, fid_lon, f_nlon)
-        ierr = pio_inq_dimlen(fid, fid_lat, f_nlat)
+    ! Get file dimensions
+    ierr = pio_inq_dimid(fid, 'lon', fid_lon)
+    ierr = pio_inq_dimid(fid, 'lat', fid_lat)
+    ierr = pio_inq_dimlen(fid, fid_lon, f_nlon)
+    ierr = pio_inq_dimlen(fid, fid_lat, f_nlat)
 
     allocate(BC_lat(f_nlat))
     allocate(BC_lon(f_nlon))
@@ -2240,17 +2240,17 @@ return
     deallocate(BC_f3d)
     deallocate(BC3d)
 
-! Part 2b: OC Ship
-! -------------------------------------------------
-        ! Open the netcdf file (read only)
-        call getfil(OC_ship_filename, OC_ship_file, 0)
-        call cam_pio_openfile(fid, trim(OC_ship_file), PIO_NOWRITE)
+    ! Part 2b: OC Ship
+    ! -------------------------------------------------
+    ! Open the netcdf file (read only)
+    call getfil(OC_ship_filename, OC_ship_file, 0)
+    call cam_pio_openfile(fid, trim(OC_ship_file), PIO_NOWRITE)
 
-        ! Get file dimensions
-        ierr = pio_inq_dimid(fid, 'lon', fid_lon)
-        ierr = pio_inq_dimid(fid, 'lat', fid_lat)
-        ierr = pio_inq_dimlen(fid, fid_lon, f_nlon)
-        ierr = pio_inq_dimlen(fid, fid_lat, f_nlat)
+    ! Get file dimensions
+    ierr = pio_inq_dimid(fid, 'lon', fid_lon)
+    ierr = pio_inq_dimid(fid, 'lat', fid_lat)
+    ierr = pio_inq_dimlen(fid, fid_lon, f_nlon)
+    ierr = pio_inq_dimlen(fid, fid_lat, f_nlat)
 
     allocate(OC_lat(f_nlat))
     allocate(OC_lon(f_nlon))
@@ -2307,17 +2307,17 @@ return
     deallocate(OC_f3d)
     deallocate(OC3d)
 
-! Part 3a: BC GFEDv3
-! -------------------------------------------------
-        ! Open the netcdf file (read only)
-        call getfil(BC_GFEDv3_filename, BC_GFEDv3_file, 0)
-        call cam_pio_openfile(fid, trim(BC_GFEDv3_file), PIO_NOWRITE)
+    ! Part 3a: BC GFEDv3
+    ! -------------------------------------------------
+    ! Open the netcdf file (read only)
+    call getfil(BC_GFEDv3_filename, BC_GFEDv3_file, 0)
+    call cam_pio_openfile(fid, trim(BC_GFEDv3_file), PIO_NOWRITE)
 
-        ! Get file dimensions
-        ierr = pio_inq_dimid(fid, 'lon', fid_lon)
-        ierr = pio_inq_dimid(fid, 'lat', fid_lat)
-        ierr = pio_inq_dimlen(fid, fid_lon, f_nlon)
-        ierr = pio_inq_dimlen(fid, fid_lat, f_nlat)
+    ! Get file dimensions
+    ierr = pio_inq_dimid(fid, 'lon', fid_lon)
+    ierr = pio_inq_dimid(fid, 'lat', fid_lat)
+    ierr = pio_inq_dimlen(fid, fid_lon, f_nlon)
+    ierr = pio_inq_dimlen(fid, fid_lat, f_nlat)
 
     allocate(BC_lat(f_nlat))
     allocate(BC_lon(f_nlon))
@@ -2383,22 +2383,22 @@ return
     deallocate(BC3d)
     deallocate(tempor3d)
 
-! Part 3b: OC GFEDv3
-! -------------------------------------------------
-        ! Open the netcdf file (read only)
-        call getfil(OC_GFEDv3_filename, OC_GFEDv3_file, 0)
-        call cam_pio_openfile(fid, trim(OC_GFEDv3_file), PIO_NOWRITE)
+    ! Part 3b: OC GFEDv3
+    ! -------------------------------------------------
+    ! Open the netcdf file (read only)
+    call getfil(OC_GFEDv3_filename, OC_GFEDv3_file, 0)
+    call cam_pio_openfile(fid, trim(OC_GFEDv3_file), PIO_NOWRITE)
 
-        ! Get file dimensions
-        ierr = pio_inq_dimid(fid, 'lon', fid_lon)
-        ierr = pio_inq_dimid(fid, 'lat', fid_lat)
-        ierr = pio_inq_dimlen(fid, fid_lon, f_nlon)
-        ierr = pio_inq_dimlen(fid, fid_lat, f_nlat)
+    ! Get file dimensions
+    ierr = pio_inq_dimid(fid, 'lon', fid_lon)
+    ierr = pio_inq_dimid(fid, 'lat', fid_lat)
+    ierr = pio_inq_dimlen(fid, fid_lon, f_nlon)
+    ierr = pio_inq_dimlen(fid, fid_lat, f_nlat)
 
-        ! write(carma%f_LUNOPRT,*) ''
-        ! write(carma%f_LUNOPRT,*) 'f_lon = ', f_nlon
-        ! write(carma%f_LUNOPRT,*) 'f_lat = ', f_nlat
-        ! write(carma%f_LUNOPRT,*) ''
+    ! write(carma%f_LUNOPRT,*) ''
+    ! write(carma%f_LUNOPRT,*) 'f_lon = ', f_nlon
+    ! write(carma%f_LUNOPRT,*) 'f_lat = ', f_nlat
+    ! write(carma%f_LUNOPRT,*) ''
 
     allocate(OC_lat(f_nlat))
     allocate(OC_lon(f_nlon))
