@@ -40,6 +40,26 @@ contains
   !=============================================================================
   subroutine aero_model_register()
 
+    use rad_constituents,only: rad_cnst_get_info, rad_cnst_get_info_by_bin, rad_cnst_get_info_by_bin_spec
+    use physics_buffer,  only: pbuf_add_field, dtype_r8
+
+    integer :: m, l
+    character(len=32) :: spec_name
+    character(len=32) :: bin_name
+
+    integer :: idx, nspec, nbins
+    call rad_cnst_get_info( 0, nbins=nbins)
+
+    ! add pbuf fields for interstitial (cloud borne) aerosols in CARMA
+    do m = 1, nbins
+       call rad_cnst_get_info_by_bin(0, m, nspec=nspec, bin_name=bin_name)
+       call pbuf_add_field('CLDNB'//trim(bin_name),'global',dtype_r8,(/pcols,pver/), idx)
+       do l = 1, nspec
+          call rad_cnst_get_info_by_bin_spec(0, m, l, spec_name=spec_name)
+          call pbuf_add_field('CLD'//trim(spec_name),'global',dtype_r8,(/pcols,pver/),idx)
+       enddo
+    enddo
+
   end subroutine aero_model_register
 
   !=============================================================================

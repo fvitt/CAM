@@ -52,7 +52,10 @@ public :: &
    rad_cnst_get_bin_mmr_by_idx, &
    rad_cnst_get_info_by_bin, &
    rad_cnst_get_info_by_bin_spec, &
-   rad_cnst_get_bin_props
+   rad_cnst_get_bin_props, &
+   rad_cnst_get_bin_num, &
+   rad_cnst_get_bin_num_idx, &
+   rad_cnst_get_carma_mmr_idx
 
 public :: rad_cnst_num_name
 
@@ -144,7 +147,10 @@ type :: bin_component_t
    character(len= 32), pointer :: type(:)          ! species type
    character(len= 32), pointer :: morph(:)         ! species morphology
    character(len=cs1), pointer :: props(:)         ! file containing specie properties
-   integer, pointer            :: idx_mmr_a(:)     ! index in pbuf or constituents for mmr of interstitial species
+
+   integer          :: idx_num_a    ! index in pbuf or constituents for number mixing ratio of interstitial species
+   integer          :: idx_num_c    ! index in pbuf for number mixing ratio of interstitial species
+   integer, pointer :: idx_mmr_a(:) ! index in pbuf or constituents for mmr of interstitial species
    integer, pointer :: idx_props(:) ! ID used to access physical properties of mode species from phys_prop module
 end type bin_component_t
 
@@ -784,15 +790,18 @@ end subroutine rad_cnst_get_info_by_mode
 
 !================================================================================================
 
-subroutine rad_cnst_get_info_by_bin(list_idx, m_idx, nspec, bin_name)
+subroutine rad_cnst_get_info_by_bin(list_idx, m_idx, &
+   bin_name, num_name, num_name_cw, nspec)
 
    ! Return info about CARMA aerosol lists
 
    ! Arguments
    integer,                     intent(in)  :: list_idx    ! index of the climate or a diagnostic list
    integer,                     intent(in)  :: m_idx       ! index of bin in the specified list
-   integer,           optional, intent(out) :: nspec       ! number of species in the mode
    character(len=*),  optional, intent(out) :: bin_name
+   character(len=32), optional, intent(out) :: num_name    ! name of interstitial number mixing ratio
+   character(len=32), optional, intent(out) :: num_name_cw ! name of cloud borne number mixing ratio
+   integer,           optional, intent(out) :: nspec       ! number of species in the mode
 
    ! Local variables
    type(binlist_t), pointer :: s_list ! local pointer to mode list of interest
@@ -819,9 +828,22 @@ subroutine rad_cnst_get_info_by_bin(list_idx, m_idx, nspec, bin_name)
    if (present(nspec)) then
       nspec = bins%comps(mm)%nspec
    endif
+
+   ! bin name
    if (present(bin_name)) then
       bin_name = bins%names(m_idx)
    end if
+
+   ! name of interstitial number mixing ratio
+   if (present(num_name)) then
+      num_name = bins%comps(mm)%camname_num_a
+   endif
+
+   ! name of cloud borne number mixing ratio
+   if (present(num_name_cw)) then
+      num_name_cw = bins%comps(mm)%camname_num_c
+   endif
+
 
 end subroutine rad_cnst_get_info_by_bin
 
@@ -1213,7 +1235,7 @@ subroutine init_mode_comps(modes)
    ! Local variables
    integer :: m, ispec, nspec
 
-   character(len=*), parameter :: routine = 'init_modes'
+   character(len=*), parameter :: routine = 'init_mode_comps'
    !-----------------------------------------------------------------------------
 
    do m = 1, modes%nmodes
@@ -1262,10 +1284,14 @@ subroutine init_bin_comps(bins)
    ! Local variables
    integer :: m, ispec, nspec
 
-   character(len=*), parameter :: routine = 'init_bins'
+   character(len=*), parameter :: routine = 'init_bin_comps'
    !-----------------------------------------------------------------------------
 
    do m = 1, bins%nbins
+
+      ! indices for number mixing ratio components
+      bins%comps(m)%idx_num_a = get_cam_idx(bins%comps(m)%source_num_a, bins%comps(m)%camname_num_a, routine)
+      bins%comps(m)%idx_num_c = get_cam_idx(bins%comps(m)%source_num_c, bins%comps(m)%camname_num_c, routine)
 
       ! allocate memory for species
       nspec = bins%comps(m)%nspec
@@ -2699,6 +2725,52 @@ end subroutine rad_cnst_get_mam_mmr_idx
 
 !================================================================================================
 
+subroutine rad_cnst_get_carma_mmr_idx(bin_idx, spec_idx, idx)
+
+   ! Return constituent index of camra species mass mixing ratio for aerosol bins in
+   ! the climate list.
+
+   ! This is a special routine to allow direct access to information in the
+   ! constituent array inside physics parameterizations that have been passed,
+   ! and are operating over the entire constituent array.  The interstitial phase
+   ! is assumed since that's what is contained in the constituent array.
+
+   ! Arguments
+   integer, intent(in)  :: bin_idx     ! bin index
+   integer, intent(in)  :: spec_idx    ! index of specie in the bin
+   integer, intent(out) :: idx         ! index of specie in the constituent array
+
+   ! Local variables
+   integer :: b_idx
+   type(binlist_t), pointer :: slist
+   character(len=*), parameter :: subname = 'rad_cnst_get_carma_mmr_idx'
+   !-----------------------------------------------------------------------------
+
+   ! assume climate list (i.e., species are in the constituent array)
+   slist => sa_list(0)
+
+   ! Check for valid bin index
+   if (bin_idx < 1  .or.  bin_idx > slist%nbins) then
+      write(iulog,*) subname//': bin_idx= ', bin_idx, '  nbins= ', slist%nbins
+      call endrun(subname//': bin list index out of range')
+   end if
+
+   ! Get the index for the corresponding bin in the bin definition object
+   b_idx = slist%idx(bin_idx)
+
+   ! Check for valid specie index
+   if (spec_idx < 1  .or.  spec_idx > bins%comps(b_idx)%nspec) then
+      write(iulog,*) subname//': spec_idx= ', spec_idx, '  nspec= ', bins%comps(b_idx)%nspec
+      call endrun(subname//': specie list index out of range')
+   end if
+
+   ! Assume data source is interstitial since that's what's in the constituent array
+   idx = bins%comps(b_idx)%idx_mmr_a(spec_idx)
+
+end subroutine rad_cnst_get_carma_mmr_idx
+
+!================================================================================================
+
 subroutine rad_cnst_get_mode_num(list_idx, mode_idx, phase, state, pbuf, num)
 
    ! Return pointer to number mixing ratio for the aerosol mode from the specified
@@ -2764,6 +2836,71 @@ end subroutine rad_cnst_get_mode_num
 
 !================================================================================================
 
+subroutine rad_cnst_get_bin_num(list_idx, bin_idx, phase, state, pbuf, num)
+
+   ! Return pointer to number mixing ratio for the aerosol bin from the specified
+   ! climate or diagnostic list.
+
+   ! Arguments
+   integer,                     intent(in) :: list_idx    ! index of the climate or a diagnostic list
+   integer,                     intent(in) :: bin_idx     ! bin index
+   character(len=1),            intent(in) :: phase       ! 'a' for interstitial, 'c' for cloud borne
+   type(physics_state), target, intent(in) :: state
+   type(physics_buffer_desc),   pointer    :: pbuf(:)
+   real(r8),                    pointer    :: num(:,:)
+
+   ! Local variables
+   integer :: m_idx
+   integer :: idx
+   integer :: lchnk
+   character(len=1) :: source
+   type(binlist_t), pointer :: slist
+   character(len=*), parameter :: subname = 'rad_cnst_get_bin_num'
+   !-----------------------------------------------------------------------------
+
+   if (list_idx >= 0 .and. list_idx <= N_DIAG) then
+      slist => sa_list(list_idx)
+   else
+      write(iulog,*) subname//': list_idx =', list_idx
+      call endrun(subname//': list_idx out of bounds')
+   endif
+
+   ! Check for valid bin index
+   if (bin_idx < 1  .or.  bin_idx > slist%nbins) then
+      write(iulog,*) subname//': bin_idx= ', bin_idx, '  nbins= ', slist%nbins
+      call endrun(subname//': bin list index out of range')
+   end if
+
+   ! Get the index for the corresponding bin in the bin definition object
+   m_idx = slist%idx(bin_idx)
+
+   ! Get data source
+   if (phase == 'a') then
+      source = bins%comps(m_idx)%source_num_a
+      idx    = bins%comps(m_idx)%idx_num_a
+   else if (phase == 'c') then
+      source = bins%comps(m_idx)%source_num_c
+      idx    = bins%comps(m_idx)%idx_num_c
+   else
+      write(iulog,*) subname//': phase= ', phase
+      call endrun(subname//': unrecognized phase; must be "a" or "c"')
+   end if
+
+   lchnk = state%lchnk
+
+   select case( source )
+   case ('A')
+      num => state%q(:,:,idx)
+   case ('N')
+      call pbuf_get_field(pbuf, idx, num)
+   case ('Z')
+      num => zero_cols
+   end select
+
+end subroutine rad_cnst_get_bin_num
+
+!================================================================================================
+
 subroutine rad_cnst_get_mode_num_idx(mode_idx, cnst_idx)
 
    ! Return constituent index of mode number mixing ratio for the aerosol mode in
@@ -2808,6 +2945,53 @@ subroutine rad_cnst_get_mode_num_idx(mode_idx, cnst_idx)
    cnst_idx = modes%comps(m_idx)%idx_num_a
 
 end subroutine rad_cnst_get_mode_num_idx
+
+!================================================================================================
+
+subroutine rad_cnst_get_bin_num_idx(bin_idx, cnst_idx)
+
+   ! Return constituent index of bin number mixing ratio for the aerosol bin in
+   ! the climate list.
+
+   ! This is a special routine to allow direct access to information in the
+   ! constituent array inside physics parameterizations that have been passed,
+   ! and are operating over the entire constituent array.  The interstitial phase
+   ! is assumed since that's what is contained in the constituent array.
+
+   ! Arguments
+   integer,  intent(in)  :: bin_idx    ! bin index
+   integer,  intent(out) :: cnst_idx    ! constituent index
+
+   ! Local variables
+   integer :: b_idx
+   character(len=1) :: source
+   type(binlist_t), pointer :: slist
+   character(len=*), parameter :: subname = 'rad_cnst_get_bin_num_idx'
+   !-----------------------------------------------------------------------------
+
+   ! assume climate list
+   slist => sa_list(0)
+
+   ! Check for valid bin index
+   if (bin_idx < 1  .or.  bin_idx > slist%nbins) then
+      write(iulog,*) subname//': bin_idx= ', bin_idx, '  nbins= ', slist%nbins
+      call endrun(subname//': bin list index out of range')
+   end if
+
+   ! Get the index for the corresponding bin in the bin definition object
+   b_idx = slist%idx(bin_idx)
+
+   ! Check that source is 'A' which means the index is for the constituent array
+   source = bins%comps(b_idx)%source_num_a
+   if (source /= 'A') then
+      write(iulog,*) subname//': source= ', source
+      call endrun(subname//': requested bin number index not in constituent array')
+   end if
+
+   ! Return index in constituent array
+   cnst_idx = bins%comps(b_idx)%idx_num_a
+
+end subroutine rad_cnst_get_bin_num_idx
 
 !================================================================================================
 
