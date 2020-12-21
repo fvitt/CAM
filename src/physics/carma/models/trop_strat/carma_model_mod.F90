@@ -145,6 +145,8 @@ module carma_model_mod
   integer                         :: ipbuf4elem1mr(NBIN,NGROUP) = -1
   integer                         :: ipbuf4binng(NBIN,NGROUP) = -1,ipbuf4kappa(NBIN,NGROUP) = -1
 
+  real(kind=f)                    :: aeronet_fraction(NBIN)  !! fraction of BC dV/dlnr in each bin (100%)
+
 contains
 
   !! Defines all the CARMA components (groups, elements, solutes and gases) and process
@@ -650,12 +652,13 @@ contains
     real(r8)     :: rmass(carma%f_NBIN)
     real(r8)     :: aeronet(carma%f_NBIN)               ! AERONET DATA, Sep.20, 2002, Jaru Reserve, Brazil (refer to MATICHUK et al., 2008)
     real(r8)     :: SaltFlux(pcols)                     ! sea salt flux to calculate marine POA
-    real(r8)     :: fraction                            ! fraction of BC dV/dlnr in each bin (100%)
     real(r8)     :: rm(carma%f_NBIN)                    ! bin mass
     integer      :: ibin_local
     integer      :: LUNOPRT                             ! logical unit number for output
     logical      :: do_print                            ! do print output?
 
+    real(r8),parameter :: parameter1 = 1.8_r8           ! Need better names and doc
+    real(r8),parameter :: parameter2 = 1.9934e-22_r8    ! ????
 
 !   currently not used
 !   real(r8)     :: MPOAFlux(pcols)             ! marine POA flux
@@ -716,45 +719,31 @@ contains
 
      !!*******************************************************************************************************
 
-    aeronet(1:carma%f_NBIN) = &
-              (/  0.001274_r8,0.010654_r8,0.036561_r8,0.069929_r8,0.106963_r8,0.103837_r8,&
-                  0.043374_r8,0.013394_r8,0.006464_r8,0.005745_r8,0.006914_r8,0.007261_r8,&
-                  0.007336_r8,0.008939_r8,0.011202_r8,0.013975_r8,0.016692_r8,0.016751_r8,&
-                  0.012351_r8,0.006856_r8 /) !,0.003082,0.001135  /)                                       ! um3/um2/[um/um]
-
-    if (masterproc) then
-      call CARMA_Get(carma, rc, do_print=do_print, LUNOPRT=LUNOPRT)
-
+    !if (masterproc) then
+    !  call CARMA_Get(carma, rc, do_print=do_print, LUNOPRT=LUNOPRT)
+    !
     ! if (do_print) then
     !   write(carma%f_LUNOPRT,*) 'AERONET', aeronet
     !   write(carma%f_LUNOPRT,*) 'dr', dr
     !   write(carma%f_LUNOPRT,*) 'r', r
     ! end if
-    end if
-
-    rm(:) = 0._r8
-    do ibin_local = 1, carma%f_NBIN
-       rm(ibin_local) = aeronet(ibin_local)*dr(ibin_local)/r(ibin_local)*RHO_obc*1.e-15_r8         ! kg
-    enddo
-
-
-    fraction = rm(ibin)/sum(rm(:))
+    !end if
 
     !!*******************************************************************************************************
 
 
     if (ielem == I_ELEM_CROC) then
        do icol = 1, ncol
-          smoke(icol) = OCnew(ilat(icol), ilon(icol), mon)*1.8_r8
+          smoke(icol) = OCnew(ilat(icol), ilon(icol), mon)*parameter1
        enddo
 !  st  scip Fsub PBAFlux etcfor now
-       surfaceFlux(:ncol) = smoke(:ncol)*fraction*1.9934e-22_r8
+       surfaceFlux(:ncol) = smoke(:ncol)*aeronet_fraction(ibin)*parameter2
 
     elseif (ielem == I_ELEM_CRBC) then
         do icol = 1, ncol
           smoke(icol) = BCnew(ilat(icol), ilon(icol), mon)
        enddo
-       surfaceFlux(:ncol) = smoke(:ncol)*fraction*1.9934e-22_r8
+       surfaceFlux(:ncol) = smoke(:ncol)*aeronet_fraction(ibin)*parameter2
 
     elseif (ielem == I_ELEM_CRDUST) then
 
@@ -893,14 +882,25 @@ contains
 
     ! -------- local variables ----------
     integer            :: ibin                                ! CARMA bin index
-    real(r8)           :: r(NBIN)                     ! bin center (cm)
+    real(r8)           :: r(NBIN),dr(NBIN),rm(NBIN)           ! bin center (cm)
     integer            :: count_Silt                          ! count number for Silt
+    integer            :: ncore
     integer            :: igroup                              ! the index of the carma aerosol group
     integer            :: ielem                               ! the index of the carma aerosol element
     character(len=32)  :: shortname                           ! the shortname of the element
     integer            :: LUNOPRT                             ! logical unit number for output
     logical            :: do_print                            ! do print output?
 
+    integer :: idata,isizebin,ibin_local
+    integer,parameter :: aeronet_dim1 = 22
+    integer,parameter :: aeronet_dim2 = 4
+    real(r8),dimension(aeronet_dim1,aeronet_dim2) :: sizedist_aeronet
+    real(r8),dimension(aeronet_dim1) :: sizedist_avg
+    real(r8),dimension(NBIN) :: sizedist_carmabin
+
+    real(r8),parameter :: size_aeronet(aeronet_dim1) = (/0.050000_r8,0.065604_r8,0.086077_r8,0.112939_r8,0.148184_r8, &
+         0.194429_r8,0.255105_r8,0.334716_r8,0.439173_r8,0.576227_r8,0.756052_r8,0.991996_r8,1.301571_r8,1.707757_r8, &
+         2.240702_r8,2.939966_r8,3.857452_r8,5.061260_r8,6.640745_r8,8.713145_r8,11.432287_r8,15.000000_r8/)*1.e-4_r8 !um to cm
 
     ! Default return code.
     rc = RC_OK
@@ -984,6 +984,62 @@ contains
        call pbuf_set_field(pbuf2d, ipbuf4sadsulf, 0.0_r8 )
        call pbuf_set_field(pbuf2d, ipbuf4wtp, 0.0_r8 )
     endif
+
+    sizedist_aeronet(:aeronet_dim1,1) = (/0.000585_r8,0.006080_r8,0.025113_r8,0.052255_r8,0.079131_r8,0.081938_r8, &
+         0.035791_r8,0.010982_r8,0.005904_r8,0.007106_r8,0.011088_r8,0.012340_r8,0.010812_r8,0.010423_r8, &
+         0.011892_r8,0.016529_r8,0.023967_r8,0.026854_r8,0.017901_r8,0.007226_r8,0.002161_r8,0.000544_r8/)
+    sizedist_aeronet(:aeronet_dim1,2) = (/0.000541_r8,0.006524_r8,0.026103_r8,0.050825_r8,0.077730_r8,0.080545_r8, &
+         0.035400_r8,0.011143_r8,0.005753_r8,0.006095_r8,0.008730_r8,0.010794_r8,0.011517_r8,0.012051_r8, &
+         0.012362_r8,0.014710_r8,0.019738_r8,0.022156_r8,0.014892_r8,0.005976_r8,0.001891_r8,0.000573_r8/)
+    sizedist_aeronet(:aeronet_dim1,3) = (/0.000747_r8,0.009291_r8,0.043556_r8,0.099216_r8,0.142377_r8,0.108606_r8, &
+         0.043723_r8,0.016385_r8,0.008318_r8,0.005597_r8,0.004431_r8,0.004131_r8,0.004980_r8,0.007484_r8, &
+         0.011795_r8,0.017235_r8,0.022404_r8,0.025216_r8,0.022521_r8,0.013752_r8,0.005051_r8,0.001057_r8/)
+    sizedist_aeronet(:aeronet_dim1,4) = (/0.000979_r8,0.007724_r8,0.034451_r8,0.090410_r8,0.135893_r8,0.103115_r8, &
+         0.046047_r8,0.018989_r8,0.009149_r8,0.005034_r8,0.003199_r8,0.002680_r8,0.003249_r8,0.005105_r8, &
+         0.008370_r8,0.012542_r8,0.016973_r8,0.021107_r8,0.022077_r8,0.015639_r8,0.006001_r8,0.001115_r8/)
+
+    sizedist_avg(:) = 0._r8
+    do idata = 1,aeronet_dim2
+       sizedist_avg(:) = sizedist_avg(:) + sizedist_aeronet(:,idata)
+    end do
+    sizedist_avg(:) = sizedist_avg(:)*0.25_r8
+
+    do igroup = 1,NGROUP
+      call CARMAGROUP_GET(carma, igroup, rc, r=r, dr=dr,ncore=ncore)
+      if(ncore .gt. 0)then
+        if (RC < RC_ERROR) return
+
+        !interpolate into carma bin
+        sizedist_carmabin = 0._r8
+
+        do ibin_local = 1,carma%f_NBIN
+          if(r(ibin_local) .lt. size_aeronet(1)) then
+            sizedist_carmabin(ibin_local) = sizedist_avg(1)
+          end if
+          if(r(ibin_local) .ge. size_aeronet(aeronet_dim1)) then
+            sizedist_carmabin(ibin_local) = sizedist_avg(aeronet_dim1)
+          end if
+          do isizebin= 1,aeronet_dim1-1
+            if( r(ibin_local) .ge. size_aeronet(isizebin) .and.  r(ibin_local) .lt. size_aeronet(isizebin+1))then
+              sizedist_carmabin(ibin_local) = sizedist_avg(isizebin)*(size_aeronet(isizebin+1)-r(ibin_local))/&
+                  (size_aeronet(isizebin+1)-size_aeronet(isizebin))&
+                  +sizedist_avg(isizebin+1)*(r(ibin_local)-size_aeronet(isizebin))&
+                  /(size_aeronet(isizebin+1)-size_aeronet(isizebin))
+            end if
+          end do
+        end do
+
+        rm(:) = 0._r8
+        do ibin_local = 1, carma%f_NBIN
+          rm(ibin_local) = sizedist_carmabin(ibin_local)*dr(ibin_local)/r(ibin_local)*RHO_obc*1.e-15_r8         ! kg
+        enddo
+
+        do ibin_local = 1, carma%f_NBIN
+          aeronet_fraction(ibin_local) = rm(ibin_local)/sum(rm(:))
+        end do
+
+      end if
+    end do
 
     return
   end subroutine CARMA_InitializeModel
