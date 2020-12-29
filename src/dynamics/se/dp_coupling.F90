@@ -486,7 +486,8 @@ subroutine p_d_coupling(phys_state, phys_tend, dyn_in, tl_f, tl_qdp)
             end do
           end do
         end do
-       call thermodynamic_consistency(phys_state(lchnk), phys_tend(lchnk), ncols, pver, lchnk)
+       call thermodynamic_consistency( &
+            phys_state(lchnk), phys_tend(lchnk), ncols, pver,lchnk)
    end do
 
 
@@ -737,7 +738,7 @@ subroutine derived_phys_dry(phys_state, phys_tend, pbuf2d)
    ! Finally compute energy and water column integrals of the physics input state.
 
    use constituents,  only: qmin
-   use physconst,     only: cpair, cpairv, gravit, zvir, cappa, rairv, physconst_update
+   use physconst,     only: cpair, cpairv, gravit, zvir, cappav, rairv, physconst_update
    use shr_const_mod, only: shr_const_rwv
    use phys_control,  only: waccmx_is
    use geopotential,  only: geopotential_t
@@ -852,8 +853,6 @@ subroutine derived_phys_dry(phys_state, phys_tend, pbuf2d)
       do k = 1, nlev
          do i = 1, ncol
             phys_state(lchnk)%rpdel(i,k)  = 1._r8/phys_state(lchnk)%pdel(i,k)
-            phys_state(lchnk)%exner (i,k) = (phys_state(lchnk)%pint(i,pver+1) &
-                                            / phys_state(lchnk)%pmid(i,k))**cappa
          end do
       end do
 
@@ -916,6 +915,14 @@ subroutine derived_phys_dry(phys_state, phys_tend, pbuf2d)
         zvirv(:,:) = zvir
       endif
 
+      do k = 1, nlev
+         do i = 1, ncol
+            phys_state(lchnk)%exner (i,k) = (phys_state(lchnk)%pint(i,pver+1) &
+                                            / phys_state(lchnk)%pmid(i,k))**cappav(i,k,lchnk)
+         end do
+      end do
+
+
       ! Compute initial geopotential heights - based on full pressure
       call geopotential_t (phys_state(lchnk)%lnpint, phys_state(lchnk)%lnpmid  , phys_state(lchnk)%pint  , &
          phys_state(lchnk)%pmid  , phys_state(lchnk)%pdel    , phys_state(lchnk)%rpdel , &
@@ -925,18 +932,8 @@ subroutine derived_phys_dry(phys_state, phys_tend, pbuf2d)
       ! Compute initial dry static energy, include surface geopotential
       do k = 1, pver
          do i = 1, ncol
-#if FIX_TOTE
-            ! general formula:  E = CV_air T + phis + gravit*zi )
-            ! hydrostatic case: integrate zi term by parts, use CP=CV+R to get:
-            ! E = CP_air T + phis   (Holton Section 8.3)
-            ! to use this, update geopotential.F90, and other not-yet-found physics routines:
-            ! (check boundary layer code, others which have gravit and zi() or zm()
-            phys_state(lchnk)%s(i,k) = cpair*phys_state(lchnk)%t(i,k) &
-               + phys_state(lchnk)%phis(i)
-#else
-            phys_state(lchnk)%s(i,k) = cpairv(i,k,lchnk)*phys_state(lchnk)%t(i,k) &
-                                     + gravit*phys_state(lchnk)%zm(i,k) + phys_state(lchnk)%phis(i)
-#endif
+             phys_state(lchnk)%s(i,k) = cpairv(i,k,lchnk)*phys_state(lchnk)%t(i,k) &
+                                      + gravit*phys_state(lchnk)%zm(i,k) + phys_state(lchnk)%phis(i)
          end do
       end do
 
