@@ -2293,35 +2293,38 @@ if ($chem eq 'trop_mam3') {
 }
 
 # CMIP6 emissions
-if ($chem =~ /_mam4/ and $phys =~ /cam6/) {
-    my %species;
+if ($phys =~ /cam6/) {
+    my %species = ('dms_ot_srf_file'     => 'DMS',
+                   'dms_bb_srf_file'     => 'DMS',
+                   'so2_ag_sh_file'      => 'SO2',
+                   'so2_an_srf_file'     => 'SO2',
+                   'so2_bb_srf_file'     => 'SO2' );
 
-    # Surface emission datasets:
-    %species = ('dms_ot_srf_file'     => 'DMS',
-                'dms_bb_srf_file'     => 'DMS',
-                'so2_ag_sh_file'      => 'SO2',
-                'so2_an_srf_file'     => 'SO2',
-                'so2_bb_srf_file'     => 'SO2',
-                'so4_a1_an_srf_file'  => 'so4_a1',
-                'so4_a1_bb_srf_file'  => 'so4_a1',
-                'so4_a2_an_srf_file'  => 'so4_a2',
-                'num_a1_sh_srf_file'  => 'num_a1',
-                'num_a1_bb_srf_file'  => 'num_a1',
-                'num_a2_an_srf_file'  => 'num_a2',
-                'bc_a4_an_srf_file'   => 'bc_a4',
-                'bc_a4_bb_srf_file'   => 'bc_a4',
-                'num_a4_bc_srf_file'  => 'num_a4',
-                'num_a4_oc_srf_file'  => 'num_a4',
-                'num_a4_bb_srf_file'  => 'num_a4',
-                'num_pom_bb_srf_file' => 'num_a4' );
-    if ($chem =~ /_vbsext/) {
-      %species = (%species,
-                'pom_a4_an_srf_file'  => 'pomff1_a4',
-                'pom_a4_bb_srf_file'  => 'pombb1_a4' );
-    } else {
-      %species = (%species,
-                'pom_a4_an_srf_file'  => 'pom_a4',
-                'pom_a4_bb_srf_file'  => 'pom_a4' );
+    if ($chem =~ /_mam4/) {
+
+        # Surface emission datasets:
+        %species = (%species,
+                    'so4_a1_an_srf_file'  => 'so4_a1',
+                    'so4_a1_bb_srf_file'  => 'so4_a1',
+                    'so4_a2_an_srf_file'  => 'so4_a2',
+                    'num_a1_sh_srf_file'  => 'num_a1',
+                    'num_a1_bb_srf_file'  => 'num_a1',
+                    'num_a2_an_srf_file'  => 'num_a2',
+                    'bc_a4_an_srf_file'   => 'bc_a4',
+                    'bc_a4_bb_srf_file'   => 'bc_a4',
+                    'num_a4_bc_srf_file'  => 'num_a4',
+                    'num_a4_oc_srf_file'  => 'num_a4',
+                    'num_a4_bb_srf_file'  => 'num_a4',
+                    'num_pom_bb_srf_file' => 'num_a4' );
+        if ($chem =~ /_vbsext/) {
+            %species = (%species,
+                        'pom_a4_an_srf_file'  => 'pomff1_a4',
+                        'pom_a4_bb_srf_file'  => 'pombb1_a4' );
+        } else {
+            %species = (%species,
+                        'pom_a4_an_srf_file'  => 'pom_a4',
+                        'pom_a4_bb_srf_file'  => 'pom_a4' );
+        }
     }
 
     # for mechanism missing full tropospheric chemistry
@@ -2452,22 +2455,27 @@ if ($chem =~ /_mam4/ and $phys =~ /cam6/) {
     }
 
     # Vertical emission datasets:
-    %species = ('so2_cv_ext_file'    => 'SO2',
-                'so4_a1_an_ext_file' => 'so4_a1',
-                'so4_a1_cv_ext_file' => 'so4_a1',
-                'so4_a2_cv_ext_file' => 'so4_a2',
-                'num_a1_an_ext_file' => 'num_a1',
-                'num_a1_cv_ext_file' => 'num_a1',
-                'num_a2_cv_ext_file' => 'num_a2',
+    %species = ('so2_cv_ext_file'    => 'SO2');
+    if ($chem =~ /_mam4/) {
+            %species = (%species,
+                        'so4_a1_an_ext_file' => 'so4_a1',
+                        'so4_a1_cv_ext_file' => 'so4_a1',
+                        'so4_a2_cv_ext_file' => 'so4_a2',
+                        'num_a1_an_ext_file' => 'num_a1',
+                        'num_a1_cv_ext_file' => 'num_a1',
+                        'num_a2_cv_ext_file' => 'num_a2',
         );
-
+    }
     # air craft emissions
     if ($chem !~ /trop_mam/ and $chem !~ /waccm_sc/) {
         %species = (%species,
-                    'bc_a4_ar_ext_file'  => 'bc_a4',
-                    'num_a4_ar_ext_file' => 'num_a4',
                     'no2_ar_ext_file'    => 'NO2',
                     'so2_ar_ext_file'    => 'SO2' );
+        if ($chem =~ /_mam4/) {
+            %species = (%species,
+                        'bc_a4_ar_ext_file'  => 'bc_a4',
+                        'num_a4_ar_ext_file' => 'num_a4' );
+        }
     }
 
     # for transient cases include volcanic emissions
@@ -2516,7 +2524,7 @@ if ($chem =~ /_mam4/ and $phys =~ /cam6/) {
     }
 
     # MEGAN emissions
-    if ($chem =~ /trop_strat_mam4_vbsext/ or $chem =~ /waccm_tsmlt/) {
+    if ($chem =~ /trop_strat_mam4_vbsext/ or $chem =~ /trop_strat_noaero/ or $chem =~ /waccm_tsmlt/) {
         my $val = "'ISOP = isoprene',"
                 . "'MTERP = pinene_a + carene_3 + thujene_a + 2met_styrene + cymene_p + cymene_o + terpinolene + bornene "
                 . "+ fenchene_a + ocimene_al + pinene_b + sabinene + camphene + limonene + phellandrene_a + terpinene_g "
