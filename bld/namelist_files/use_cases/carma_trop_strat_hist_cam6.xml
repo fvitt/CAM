@@ -7,4 +7,14 @@
 
  <lght_no_prd_factor hgrid="1.9x2.5">4.5D0</lght_no_prd_factor>
 
+
+<!-- External forcing -->
+<ext_frc_type>INTERP_MISSING_MONTHS</ext_frc_type>
+
+<!-- Surface emissions -->
+<srf_emis_type>INTERP_MISSING_MONTHS</srf_emis_type>
+
+<!-- Lower Boundary -->
+<flbc_type>SERIAL</flbc_type>
+
 </namelist_defaults>
