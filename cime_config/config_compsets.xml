@@ -214,6 +214,10 @@
     <alias>FCARMAHIST</alias>
     <lname>HIST_CAM60%CARMATS_CLM50%SP_CICE%PRES_DOCN%DOM_MOSART_CISM2%NOEVOLVE_SWAV</lname>
   </compset>
+  <compset>
+    <alias>FCARMAnudged</alias>
+    <lname>HIST_CAM60%CARMATS%NUDG_CLM50%SP_CICE%PRES_DOCN%DOM_MOSART_SGLC_SWAV</lname>
+  </compset>
 
   <compset>
     <alias>FC2010climo</alias>
