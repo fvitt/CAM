@@ -4551,7 +4551,13 @@ Default: .true.
 <entry id="history_carma" type="logical"  category="diagnostics"
        group="phys_ctl_nl" valid_values="" >
 Switch for diagnostics specific to the current CARMA model.
-Default: .true.
+Default: .false.
+</entry>
+
+<entry id="history_carma_srf_flx" type="logical"  category="diagnostics"
+       group="phys_ctl_nl" valid_values="" >
+Switch for diagnostics specific to the current CARMA model.
+Default: .false.
 </entry>
 
 <entry id="history_clubb" type="logical"  category="diagnostics"

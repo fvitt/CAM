@@ -1734,7 +1734,8 @@ if (defined $nl->get_value('prescribed_strataero_3modes')) {
 
 # determine if prescribed stratospheric aerosol data is needed
 if ( ($het_chem) || ($nl->get_value('prescribed_strataero_feedback') =~ /$TRUE/io ) ){
-    if ( ($carma ne 'sulfate') && !($nl->get_value('modal_strat_sulfate') =~ /$TRUE/io) ) { # if no prognostic stratospheric aerosols
+    if ( ($carma ne 'sulfate') && ($carma ne 'trop_strat') &&
+         !($nl->get_value('modal_strat_sulfate') =~ /$TRUE/io) ) { # if no prognostic stratospheric aerosols
 
         unless (defined $nl->get_value('prescribed_strataero_type')) {
             add_default($nl, 'prescribed_strataero_type','val'=>'CYCLICAL');
@@ -2477,8 +2478,8 @@ if ($phys =~ /cam6/) {
     }
 
     # for transient cases include volcanic emissions
-    if ( ($nl->get_value('modal_strat_sulfate') =~ /$TRUE/io) and
-         (defined $nl->get_value('ext_frc_type')) ) {
+    if ( (($nl->get_value('modal_strat_sulfate') =~ /$TRUE/io) or ($carma eq 'trop_strat'))
+         and (defined $nl->get_value('ext_frc_type')) ) {
       if ( $nl->get_value('ext_frc_type') !~ /CYCLICAL/ ) {
         my $hgrid = $cfg->get('hgrid');
         if ($hgrid =~ /1.9x2.5/) {

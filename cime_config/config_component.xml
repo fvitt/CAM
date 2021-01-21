@@ -134,7 +134,7 @@
 
       <!-- Match against "%WC" to set defaults for all WACCM cases. -->
       <!-- Later settings of "-chem" take precedence over earlier ones. -->
-      <value compset="_(CAM50|CAM60)%(WC|CC|CV|CF)">-age_of_air_trcs</value>
+      <value compset="_(CAM50|CAM60)%(WC|CC|CV|CF|CARMA)">-age_of_air_trcs</value>
       <value compset="_CAM40%WCCM">-chem waccm_ma</value>
       <value compset="_(CAM50|CAM60)%WCCM">-chem waccm_ma_mam4</value>
       <value compset="_(CAM50|CAM60)%WCMD">-chem waccm_mad_mam4</value>

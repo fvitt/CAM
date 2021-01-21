@@ -1,12 +1,13 @@
 <?xml version="1.0"?>
 <namelist_defaults>
 
- <start_ymd>10101</start_ymd>
  <ncdata hgrid="10x15" nlev="32"  >atm/cam/inic/fv/f2000_carma_model_f10_spinup01.cam.i.0002-01-01-00000.nc</ncdata>
  <ncdata hgrid="1.9x2.5" nlev="32">atm/cam/inic/fv/FCARMA2000climo_f19_spinup01.cam.i.0002-01-01-00000_c201119.nc</ncdata>
 
  <lght_no_prd_factor hgrid="1.9x2.5">4.5D0</lght_no_prd_factor>
 
+<!-- Solar data -->
+<solar_irrad_data_file>atm/cam/solar/SolarForcingCMIP6_18491230-23000102_c20200615.nc</solar_irrad_data_file>
 
 <!-- External forcing -->
 <ext_frc_type>INTERP_MISSING_MONTHS</ext_frc_type>
@@ -16,6 +17,38 @@
 
 <!-- Lower Boundary -->
 <flbc_type>SERIAL</flbc_type>
+<flbc_file>atm/waccm/lb/LBC_17500116-20150116_CMIP6_0p5degLat_c180905.nc</flbc_file>
+
+<!-- WACCM GW Settings -->
+<use_gw_front>.true.</use_gw_front>
+<use_gw_convect_dp>.true.</use_gw_convect_dp>
+<tau_0_ubc>.false.</tau_0_ubc>
+<gw_qbo_hdepth_scaling>0.25D0</gw_qbo_hdepth_scaling>
+
+<!-- History specifiers -->
+<history_chemistry>.false.</history_chemistry>
+<history_chemspecies_srf>.false.</history_chemspecies_srf>
+<history_clubb>.false.</history_clubb>
+<history_scwaccm_forcing>.false.</history_scwaccm_forcing>
+<history_cesm_forcing>.false.</history_cesm_forcing>
+<history_carma_srf_flx>.true.</history_carma_srf_flx>
+
+<fincl1>
+         'EXTINCT', 'EXTINCTUV', 'EXTINCTNIR','ABSORB', 'AODVIS', 'AODABS','SAD_STRAT','SAD_SULFC','SAD_LNAT','SAD_ICE',
+         'O3','CO','OH','NO2','SSAVIS','AODNIR','AODVISst','AODNIRst','AODUVst',,'TMSO2','TMH2SO4','TMOCS',
+         'TMCRMIX01','TMCRMIX02','TMCRMIX03','TMCRMIX04','TMCRMIX05','TMCRMIX06','TMCRMIX07','TMCRMIX08','TMCRMIX09','TMCRMIX10',
+         'TMCRMIX11','TMCRMIX12','TMCRMIX13','TMCRMIX14','TMCRMIX15','TMCRMIX16','TMCRMIX17','TMCRMIX18','TMCRMIX19','TMCRMIX20',
+         'TMPRSULF01','TMPRSULF02','TMPRSULF03','TMPRSULF04','TMPRSULF05','TMPRSULF06','TMPRSULF07','TMPRSULF08','TMPRSULF09','TMPRSULF10',
+         'TMPRSULF11','TMPRSULF12','TMPRSULF13','TMPRSULF14','TMPRSULF15','TMPRSULF16','TMPRSULF17','TMPRSULF18','TMPRSULF19','TMPRSULF20',
+         'TMCROC01','TMCROC02','TMCROC03','TMCROC04','TMCROC05','TMCROC06','TMCROC07','TMCROC08','TMCROC09','TMCROC10',
+         'TMCROC11','TMCROC12','TMCROC13','TMCROC14','TMCROC15','TMCROC16','TMCROC17','TMCROC18','TMCROC19','TMCROC20',
+         'TMCRBC01','TMCRBC02','TMCRBC03','TMCRBC04','TMCRBC05','TMCRBC06','TMCRBC07','TMCRBC08','TMCRBC09','TMCRBC10',
+         'TMCRBC11','TMCRBC12','TMCRBC13','TMCRBC14','TMCRBC15','TMCRBC16','TMCRBC17','TMCRBC18','TMCRBC19','TMCRBC20',
+         'TMCRDUST01','TMCRDUST02','TMCRDUST03','TMCRDUST04','TMCRDUST05','TMCRDUST06','TMCRDUST07','TMCRDUST08','TMCRDUST09','TMCRDUST10',
+         'TMCRDUST11','TMCRDUST12','TMCRDUST13','TMCRDUST14','TMCRDUST15','TMCRDUST16','TMCRDUST17','TMCRDUST18','TMCRDUST19','TMCRDUST20',
+         'TMCRSALT01','TMCRSALT02','TMCRSALT03','TMCRSALT04','TMCRSALT05','TMCRSALT06','TMCRSALT07','TMCRSALT08','TMCRSALT09','TMCRSALT10',
+         'TMCRSALT11','TMCRSALT12','TMCRSALT13','TMCRSALT14','TMCRSALT15','TMCRSALT16','TMCRSALT17','TMCRSALT18','TMCRSALT19','TMCRSALT20'
+</fincl1>
 
 <!-- nudging -->
 
@@ -34,7 +67,7 @@
 <Nudge_TimeScale_Opt>0</Nudge_TimeScale_Opt>
 <Nudge_Times_Per_Day>4</Nudge_Times_Per_Day>
 <Nudge_Times_Per_Day hgrid="ne0np4CONUS.ne30x8">8</Nudge_Times_Per_Day>
-<Model_Times_Per_Day>24</Model_Times_Per_Day>
+<Model_Times_Per_Day>8</Model_Times_Per_Day>
 <Model_Times_Per_Day hgrid="ne0np4CONUS.ne30x8">384</Model_Times_Per_Day>
 <Nudge_Uprof>1</Nudge_Uprof>
 <Nudge_Ucoef>0.06</Nudge_Ucoef>

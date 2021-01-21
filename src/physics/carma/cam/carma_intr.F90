@@ -541,6 +541,7 @@ contains
     integer                    :: LUNOPRT              ! logical unit number for output
     logical                    :: do_print             ! do print output?
     logical                    :: history_carma
+    logical                    :: history_carma_srf_flx
 
 
 1   format(a6,4x,a11,4x,a11,4x,a11)
@@ -549,7 +550,7 @@ contains
     ! Initialize the return code.
     rc = 0
 
-    call phys_getopts(history_carma_out=history_carma)
+    call phys_getopts(history_carma_out=history_carma, history_carma_srf_flx_out=history_carma_srf_flx)
 
     ! Set names of constituent sources and declare them as history variables; howver,
     ! only prognostic variables have.
@@ -593,9 +594,17 @@ contains
             call addfld(trim(etndname(ielem, ibin))//'SW',   horiz_only,  'A', 'kg/m2/s',  &
                  trim(cnst_name(icnst)) // ' wet deposition flux at surface')
 
+            if (history_carma_srf_flx) then
+               call add_default(trim(etndname(ielem, ibin))//'SF', 1, ' ')
+               call add_default(trim(etndname(ielem, ibin))//'SW', 1, ' ')
+            end if
+
             if (do_drydep) then
-              call addfld(trim(etndname(ielem, ibin))//'DD', horiz_only,  'A', 'kg/m2/s ', &
-                   trim(cnst_name(icnst)) // ' dry deposition')
+               call addfld(trim(etndname(ielem, ibin))//'DD', horiz_only,  'A', 'kg/m2/s ', &
+                    trim(cnst_name(icnst)) // ' dry deposition')
+               if (history_carma_srf_flx) then
+                  call add_default(trim(etndname(ielem, ibin))//'DD', 1, ' ')
+               end if
             end if
 
             if (carma_do_pheat) then
