@@ -149,8 +149,12 @@ type :: bin_component_t
    character(len=cs1), pointer :: props(:)         ! file containing specie properties
 
    integer          :: idx_num_a    ! index in pbuf or constituents for number mixing ratio of interstitial species
-   integer          :: idx_num_c    ! index in pbuf for number mixing ratio of interstitial species
+   integer          :: idx_num_c    ! index in pbuf for number mixing ratio of cloud-borne species
+   integer          :: idx_mass_a   ! index in pbuf or constituents for mass mixing ratio of interstitial species
+   integer          :: idx_mass_c   ! index in pbuf for mass mixing ratio of cloud-borne species
+
    integer, pointer :: idx_mmr_a(:) ! index in pbuf or constituents for mmr of interstitial species
+   integer, pointer :: idx_mmr_c(:) ! index in pbuf or constituents for mmr of cloud-borne species
    integer, pointer :: idx_props(:) ! ID used to access physical properties of mode species from phys_prop module
 end type bin_component_t
 
@@ -791,7 +795,7 @@ end subroutine rad_cnst_get_info_by_mode
 !================================================================================================
 
 subroutine rad_cnst_get_info_by_bin(list_idx, m_idx, &
-   bin_name, num_name, num_name_cw, nspec)
+   bin_name, num_name, num_name_cw, mmr_name, mmr_name_cw, nspec)
 
    ! Return info about CARMA aerosol lists
 
@@ -801,6 +805,8 @@ subroutine rad_cnst_get_info_by_bin(list_idx, m_idx, &
    character(len=*),  optional, intent(out) :: bin_name
    character(len=32), optional, intent(out) :: num_name    ! name of interstitial number mixing ratio
    character(len=32), optional, intent(out) :: num_name_cw ! name of cloud borne number mixing ratio
+   character(len=32), optional, intent(out) :: mmr_name    ! name of interstitial mass mixing ratio
+   character(len=32), optional, intent(out) :: mmr_name_cw ! name of cloud borne mass mixing ratio
    integer,           optional, intent(out) :: nspec       ! number of species in the mode
 
    ! Local variables
@@ -844,6 +850,15 @@ subroutine rad_cnst_get_info_by_bin(list_idx, m_idx, &
       num_name_cw = bins%comps(mm)%camname_num_c
    endif
 
+   ! name of interstitial mass mixing ratio
+   if (present(mmr_name)) then
+      mmr_name = bins%comps(mm)%camname_mass_a
+   endif
+
+   ! name of cloud borne mass mixing ratio
+   if (present(mmr_name_cw)) then
+      mmr_name_cw = bins%comps(mm)%camname_mass_c
+   endif
 
 end subroutine rad_cnst_get_info_by_bin
 
@@ -1292,12 +1307,18 @@ subroutine init_bin_comps(bins)
       ! indices for number mixing ratio components
       bins%comps(m)%idx_num_a = get_cam_idx(bins%comps(m)%source_num_a, bins%comps(m)%camname_num_a, routine)
       bins%comps(m)%idx_num_c = get_cam_idx(bins%comps(m)%source_num_c, bins%comps(m)%camname_num_c, routine)
+      if ( bins%comps(m)%source_mass_a /= 'NOTSET' .and. bins%comps(m)%camname_mass_a /= 'NOTSET' ) then
+         bins%comps(m)%idx_mass_a = get_cam_idx(bins%comps(m)%source_mass_a, bins%comps(m)%camname_mass_a, routine)
+      endif
+      if ( bins%comps(m)%source_mass_c /= 'NOTSET' .and. bins%comps(m)%camname_mass_c /= 'NOTSET' ) then
+         bins%comps(m)%idx_mass_c = get_cam_idx(bins%comps(m)%source_mass_c, bins%comps(m)%camname_mass_c, routine)
+      endif
 
       ! allocate memory for species
       nspec = bins%comps(m)%nspec
       allocate( &
          bins%comps(m)%idx_mmr_a(nspec), &
-!         bins%comps(m)%idx_mmr_c(nspec), &
+         bins%comps(m)%idx_mmr_c(nspec), &
          bins%comps(m)%idx_props(nspec)  )
 
       do ispec = 1, nspec
@@ -1305,8 +1326,8 @@ subroutine init_bin_comps(bins)
          ! indices for species mixing ratio components
          bins%comps(m)%idx_mmr_a(ispec) = get_cam_idx(bins%comps(m)%source_mmr_a(ispec), &
                                                    bins%comps(m)%camname_mmr_a(ispec), routine)
-!         bins%comps(m)%idx_mmr_c(ispec) = get_cam_idx(bins%comps(m)%source_mmr_c(ispec), &
-!                                                   bins%comps(m)%camname_mmr_c(ispec), routine)
+         bins%comps(m)%idx_mmr_c(ispec) = get_cam_idx(bins%comps(m)%source_mmr_c(ispec), &
+                                                   bins%comps(m)%camname_mmr_c(ispec), routine)
 
          ! get physprop ID
          bins%comps(m)%idx_props(ispec) = physprop_get_id(bins%comps(m)%props(ispec))
@@ -2168,10 +2189,10 @@ subroutine parse_bin_defs(nl_in, bins)
       bins%comps(m)%camname_num_a = ' '
       bins%comps(m)%source_num_c  = ' '
       bins%comps(m)%camname_num_c = ' '
-      bins%comps(m)%source_mass_a  = ' '
-      bins%comps(m)%camname_mass_a = ' '
-      bins%comps(m)%source_mass_c  = ' '
-      bins%comps(m)%camname_mass_c = ' '
+      bins%comps(m)%source_mass_a  = 'NOTSET'
+      bins%comps(m)%camname_mass_a = 'NOTSET'
+      bins%comps(m)%source_mass_c  = 'NOTSET'
+      bins%comps(m)%camname_mass_c = 'NOTSET'
       do ispec = 1, nspec
          bins%comps(m)%source_mmr_a(ispec)  = ' '
          bins%comps(m)%camname_mmr_a(ispec) = ' '
@@ -2655,10 +2676,9 @@ subroutine rad_cnst_get_bin_mmr_by_idx(list_idx, bin_idx, spec_idx, phase, state
    if (phase == 'a') then
       source = bins%comps(s_idx)%source_mmr_a(spec_idx)
       idx    = bins%comps(s_idx)%idx_mmr_a(spec_idx)
-! Bins are not cloudborne at this point.
-!   else if (phase == 'c') then
-!      source = bins%comps(s_idx)%source_c(spec_idx)
-!      idx    = bins%comps(s_idx)%idx_mmr_c(spec_idx)
+   else if (phase == 'c') then
+      source = bins%comps(s_idx)%source_mmr_c(spec_idx)
+      idx    = bins%comps(s_idx)%idx_mmr_c(spec_idx)
    else
       write(iulog,*) subname//': phase= ', phase
       call endrun(subname//': unrecognized phase; must be "a" or "c"')
@@ -2768,6 +2788,71 @@ subroutine rad_cnst_get_carma_mmr_idx(bin_idx, spec_idx, idx)
    idx = bins%comps(b_idx)%idx_mmr_a(spec_idx)
 
 end subroutine rad_cnst_get_carma_mmr_idx
+
+!================================================================================================
+
+subroutine rad_cnst_get_bin_mmr(list_idx, bin_idx, phase, state, pbuf, mmr)
+
+   ! Return pointer to mass mixing ratio for the aerosol bin from the specified
+   ! climate or diagnostic list.
+
+   ! Arguments
+   integer,                     intent(in) :: list_idx    ! index of the climate or a diagnostic list
+   integer,                     intent(in) :: bin_idx     ! bin index
+   character(len=1),            intent(in) :: phase       ! 'a' for interstitial, 'c' for cloud borne
+   type(physics_state), target, intent(in) :: state
+   type(physics_buffer_desc),   pointer    :: pbuf(:)
+   real(r8),                    pointer    :: mmr(:,:)
+
+   ! Local variables
+   integer :: m_idx
+   integer :: idx
+   integer :: lchnk
+   character(len=1) :: source
+   type(binlist_t), pointer :: slist
+   character(len=*), parameter :: subname = 'rad_cnst_get_bin_mmr'
+   !-----------------------------------------------------------------------------
+
+   if (list_idx >= 0 .and. list_idx <= N_DIAG) then
+      slist => sa_list(list_idx)
+   else
+      write(iulog,*) subname//': list_idx =', list_idx
+      call endrun(subname//': list_idx out of bounds')
+   endif
+
+   ! Check for valid bin index
+   if (bin_idx < 1  .or.  bin_idx > slist%nbins) then
+      write(iulog,*) subname//': bin_idx= ', bin_idx, '  nbins= ', slist%nbins
+      call endrun(subname//': bin list index out of range')
+   end if
+
+   ! Get the index for the corresponding bin in the bin definition object
+   m_idx = slist%idx(bin_idx)
+
+   ! Get data source
+   if (phase == 'a') then
+      source = bins%comps(m_idx)%source_mass_a
+      idx    = bins%comps(m_idx)%idx_mass_a
+   else if (phase == 'c') then
+      source = bins%comps(m_idx)%source_mass_c
+      idx    = bins%comps(m_idx)%idx_mass_c
+   else
+      write(iulog,*) subname//': phase= ', phase
+      call endrun(subname//': unrecognized phase; must be "a" or "c"')
+   end if
+
+   lchnk = state%lchnk
+
+   select case( source )
+   case ('A')
+      mmr => state%q(:,:,idx)
+   case ('N')
+      call pbuf_get_field(pbuf, idx, mmr)
+   case ('Z')
+      mmr => zero_cols
+   end select
+
+end subroutine rad_cnst_get_bin_mmr
 
 !================================================================================================
 
