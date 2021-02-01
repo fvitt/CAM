@@ -125,8 +125,6 @@ module carma_model_mod
   integer                         :: nClay                  !! Number of clay bins (r < 1 um)
   integer                         :: nSilt                  !! Number of silt bins
   real(kind=f)                    :: clay_mf(NBIN)          !! clay mass fraction (fraction)
-  real(kind=f)                    :: kappa(NBIN)            !! Kappa for Aerosols
-  real(kind=f)                    :: hygro(NBIN)            !! Hygroscopicity for Aerosols
   real(kind=f), allocatable, dimension(:,:) :: soil_factor  !! Soil Erosion Factor (fraction)
   real(kind=f), public, parameter :: WTMOL_H2SO4    = 98.078479_f    !! molecular weight of sulphuric acid
   real(kind=f), allocatable, dimension(:,:,:)   :: PCT_LeafArea                 !! Soil Erosion Factor (fraction)
@@ -553,10 +551,9 @@ contains
 
         elem1mr(:) = 0._r8
         binnkg(:) = 0._r8
-        kappa(:) = 0.5_r8
 	coremmr(:) = 0._r8
 
-        call CARMASTATE_GetBin(cstate, ienconc, ibin, mmr_total(:), rc, numberDensity=numberDensity)
+        call CARMASTATE_GetBin(cstate, ienconc, ibin, mmr_total(:), rc, numberDensity=numberDensity, kappa=kappa)
 
         if (ncore .ne. 0)then
           do icore = 1,ncore
