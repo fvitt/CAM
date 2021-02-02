@@ -84,16 +84,16 @@ module carma_model_mod
   integer, public, parameter      :: I_DUST           = 4       !! dust composition
   integer, public, parameter      :: I_SALT           = 5       !! sea salt composition
 
-  integer, public, parameter      :: I_GRP_PURSUL     = 1       !! sulfate aerosol
-  integer, public, parameter      :: I_GRP_MIXAER     = 2       !! mixed aerosol
+  integer, public, parameter      :: I_GRP_PRSUL     = 1       !! sulfate aerosol
+  integer, public, parameter      :: I_GRP_MXAER     = 2       !! mixed aerosol
 
   integer, public, parameter      :: I_ELEM_PRSUL     = 1       !! sulfate aerosol;  nameing needs to only have 2 charaters  before the element name to work with
                                                                 !! partsof the code reading different elements
-  integer, public, parameter      :: I_ELEM_CRMIX     = 2       !! aerosol
-  integer, public, parameter      :: I_ELEM_CROC      = 3       !! organics aerosol
-  integer, public, parameter      :: I_ELEM_CRBC      = 4       !! black carbon
-  integer, public, parameter      :: I_ELEM_CRDUST    = 5       !! dust aerosol
-  integer, public, parameter      :: I_ELEM_CRSALT    = 6       !! sea salt aerosol
+  integer, public, parameter      :: I_ELEM_MXAER     = 2       !! aerosol
+  integer, public, parameter      :: I_ELEM_MXOC      = 3       !! organics aerosol
+  integer, public, parameter      :: I_ELEM_MXBC      = 4       !! black carbon
+  integer, public, parameter      :: I_ELEM_MXDUST    = 5       !! dust aerosol
+  integer, public, parameter      :: I_ELEM_MXSALT    = 6       !! sea salt aerosol
 
   integer, public, parameter      :: I_GAS_H2O        = 1              !! water vapor
   integer, public, parameter      :: I_GAS_H2SO4      = 2              !! sulphuric acid
@@ -134,15 +134,15 @@ module carma_model_mod
 !  real(r8), allocatable, dimension(:,:) :: Weibull_k            ! Weibull K(nlat,nlon
   real(kind=f), public, parameter     :: rmin_PRSUL     = 3.43e-8_f  ! minimum radius (cm)
   real(kind=f), public, parameter     :: vmrat_PRSUL    = 3.67_f     ! volume ratio
-  real(kind=f), public, parameter     :: rmin_MIXAER     = 5e-6_f     ! minimum radius (cm)
-  real(kind=f), public, parameter     :: vmrat_MIXAER    = 2.2588_f    !2.4610_f        ! volume ratio
+  real(kind=f), public, parameter     :: rmin_MXAER     = 5e-6_f     ! minimum radius (cm)
+  real(kind=f), public, parameter     :: vmrat_MXAER    = 2.2588_f    !2.4610_f        ! volume ratio
 
 ! Physics buffer index for sulfate surface area density
   integer                         :: ipbuf4sadsulf = -1,ipbuf4wtp = -1
   integer                         :: ipbuf4sad(NGROUP) = -1, ipbuf4reff(NGROUP) = -1, ipbuf4numnkg(NGROUP) = -1
   integer                         :: ipbuf4elem1mr(NBIN,NGROUP) = -1
   integer                         :: ipbuf4binnkg(NBIN,NGROUP) = -1,ipbuf4kappa(NBIN,NGROUP) = -1
-
+  integer                         :: ipbuf4wetr(NBIN,NGROUP) = -1, ipbuf4dryr(NBIN,NGROUP) = -1
   real(kind=f)                    :: aeronet_fraction(NBIN)  !! fraction of BC dV/dlnr in each bin (100%)
 
 contains
@@ -197,9 +197,9 @@ contains
     !                       refidx = refidx, refidxS = refidx, refidxC = refidx, do_mie=.true.,imiertn=I_MIERTN_TOON1981)
     !if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddGroup failed.')
 
-    call CARMAGROUP_Create(carma, I_GRP_PURSUL, "sulfate", rmin_PRSUL, vmrat_PRSUL, I_SPHERE, 1._f, .false., &
+    call CARMAGROUP_Create(carma, I_GRP_PRSUL, "sulfate", rmin_PRSUL, vmrat_PRSUL, I_SPHERE, 1._f, .false., &
                            rc, irhswell=I_WTPCT_H2SO4, do_wetdep=.true., do_drydep=.true., solfac=0.3_f, &
-                           scavcoef=0.1_f, is_sulfate=.true., shortname="PRSULF", &
+                           scavcoef=0.1_f, is_sulfate=.true., shortname="PRSUL", &
                            imiertn=I_MIERTN_TOON1981)
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddGroup failed.')
 
@@ -211,9 +211,9 @@ contains
     !                       irhswell=I_MIX, irhswcomp=I_SWG_URBAN, icoreshell=1,imiertn=I_MIERTN_TOON1981)
     !if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddGroup failed.')
 
-    call CARMAGROUP_Create(carma, I_GRP_MIXAER, "mixed aerosol", rmin_MIXAER, vmrat_MIXAER, I_SPHERE, 1._f, .false., &
+    call CARMAGROUP_Create(carma, I_GRP_MXAER, "mixed aerosol", rmin_MXAER, vmrat_MXAER, I_SPHERE, 1._f, .false., &
                            rc, do_wetdep=.true., do_drydep=.true., solfac=0.2_f, &
-                           scavcoef=0.1_f, shortname="CRMIX", refidx=refidx, imiertn=I_MIERTN_TOON1981)
+                           scavcoef=0.1_f, shortname="MXAER", refidx=refidx, imiertn=I_MIERTN_TOON1981)
    !                       irhswell=I_MIX, irhswcomp=I_SWG_URBAN,imiertn=I_MIERTN_TOON1981)
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddGroup failed.')
 
@@ -222,26 +222,26 @@ contains
     !
     ! NOTE: For CAM, the optional shortname needs to be provided for the group. These names
     ! should be 6 characters or less and without spaces.
-    call CARMAELEMENT_Create(carma, I_ELEM_PRSUL, I_GRP_PURSUL, "Sulfate", RHO_SULFATE, I_VOLATILE, I_H2SO4, rc, shortname="PRSULF")
+    call CARMAELEMENT_Create(carma, I_ELEM_PRSUL, I_GRP_PRSUL, "Sulfate", RHO_SULFATE, I_VOLATILE, I_H2SO4, rc, shortname="PRSUL")
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddElement failed.')
 
-    call CARMAELEMENT_Create(carma, I_ELEM_CRMIX,  I_GRP_MIXAER, "Sulfate in mixed sulfate", RHO_SULFATE, I_INVOLATILE, I_H2SO4, rc,  shortname="CRMIX")
+    call CARMAELEMENT_Create(carma, I_ELEM_MXAER,  I_GRP_MXAER, "Sulfate in mixed sulfate", RHO_SULFATE, I_INVOLATILE, I_H2SO4, rc,  shortname="MXAER")
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddElement failed.')
 
     !call CARMAELEMENT_Create(carma, I_ELEM_CROC,   I_GRP_MIXAER, "organic carbon", RHO_obc, I_COREMASS, I_OC, rc, kappa=Kappa_OC, shortname="CROC")
-    call CARMAELEMENT_Create(carma, I_ELEM_CROC,   I_GRP_MIXAER, "organic carbon", RHO_obc, I_COREMASS, I_OC, rc, shortname="CROC")
+    call CARMAELEMENT_Create(carma, I_ELEM_MXOC,   I_GRP_MXAER, "organic carbon", RHO_obc, I_COREMASS, I_OC, rc, shortname="MXOC")
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddElement failed.')
 
     !call CARMAELEMENT_Create(carma, I_ELEM_CRBC,   I_GRP_MIXAER, "black carbon", RHO_obc, I_COREMASS, I_BC, rc, kappa=Kappa_BC,  shortname="CRBC")
-    call CARMAELEMENT_Create(carma, I_ELEM_CRBC,   I_GRP_MIXAER, "black carbon", RHO_obc, I_COREMASS, I_BC, rc, shortname="CRBC")
+    call CARMAELEMENT_Create(carma, I_ELEM_MXBC,   I_GRP_MXAER, "black carbon", RHO_obc, I_COREMASS, I_BC, rc, shortname="MXBC")
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddElement failed.')
 
     !call CARMAELEMENT_Create(carma, I_ELEM_CRDUST, I_GRP_MIXAER, "dust", RHO_DUST, I_COREMASS, I_DUST, rc,  kappa=Kappa_DUST, shortname="CRDUST")
-    call CARMAELEMENT_Create(carma, I_ELEM_CRDUST, I_GRP_MIXAER, "dust", RHO_DUST, I_COREMASS, I_DUST, rc,  shortname="CRDUST")
+    call CARMAELEMENT_Create(carma, I_ELEM_MXDUST, I_GRP_MXAER, "dust", RHO_DUST, I_COREMASS, I_DUST, rc,  shortname="MXDUST")
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddElement failed.')
 
     !call CARMAELEMENT_Create(carma, I_ELEM_CRSALT, I_GRP_MIXAER, "SALT in mixed sulfate", RHO_SALT, I_COREMASS, I_SALT, rc,  kappa=Kappa_SALT, shortname="CRSALT")
-    call CARMAELEMENT_Create(carma, I_ELEM_CRSALT, I_GRP_MIXAER, "SALT in mixed sulfate", RHO_SALT, I_COREMASS, I_SALT, rc, shortname="CRSALT")
+    call CARMAELEMENT_Create(carma, I_ELEM_MXSALT, I_GRP_MXAER, "SALT in mixed sulfate", RHO_SALT, I_COREMASS, I_SALT, rc, shortname="MXSALT")
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddElement failed.')
 
 
@@ -268,19 +268,19 @@ contains
     call CARMA_AddGrowth(carma, I_ELEM_PRSUL, I_GAS_H2SO4, rc)
     if (rc < RC_OK) call endrun('CARMA_DefineModel::CARMA_AddGrowth failed.')
 
-    call CARMA_AddGrowth(carma, I_ELEM_CRMIX, I_GAS_H2SO4, rc)
+    call CARMA_AddGrowth(carma, I_ELEM_MXAER, I_GAS_H2SO4, rc)
     if (rc < RC_OK) call endrun('CARMA_DefineModel::CARMA_AddGrowth failed.')
 
     call CARMA_AddNucleation(carma, I_ELEM_PRSUL, I_ELEM_PRSUL, I_HOMNUC, 0._f, rc, igas=I_GAS_H2SO4)
     if (rc < RC_OK) call endrun('CARMA_DefineModel::CARMA_AddNucleation failed.')
 
-    call CARMA_AddCoagulation(carma, I_GRP_PURSUL, I_GRP_PURSUL, I_GRP_PURSUL, I_COLLEC_FUCHS, rc)
+    call CARMA_AddCoagulation(carma, I_GRP_PRSUL, I_GRP_PRSUL, I_GRP_PRSUL, I_COLLEC_FUCHS, rc)
     if (rc < RC_OK) call endrun('CARMA_DefineModel::CARMA_AddCoagulation failed.')
 
-    call CARMA_AddCoagulation(carma, I_GRP_PURSUL, I_GRP_MIXAER, I_GRP_MIXAER, I_COLLEC_DATA, rc)
+    call CARMA_AddCoagulation(carma, I_GRP_PRSUL, I_GRP_MXAER, I_GRP_MXAER, I_COLLEC_DATA, rc)
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddCoagulation failed.')
 
-    call CARMA_AddCoagulation(carma, I_GRP_MIXAER, I_GRP_MIXAER, I_GRP_MIXAER, I_COLLEC_DATA, rc)
+    call CARMA_AddCoagulation(carma, I_GRP_MXAER, I_GRP_MXAER, I_GRP_MXAER, I_COLLEC_DATA, rc)
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddCoagulation failed.')
 
     !----------------- add pbuf ------------------
@@ -290,20 +290,20 @@ contains
       if (rc < 0) call endrun('carma_register::CARMAGROUP_Get failed.')
       !write(*,*) "igroup",igroup,"sname",sname,"ncore",ncore
 
-      ! surface area density. SADCRMIX
+      ! surface area density. SADMXAER
       call pbuf_add_field('SAD'//trim(sname), 'global', dtype_r8, (/pcols, pver/), ipbuf4sad(igroup))
       !write(*,*) "'SAD'//trim(sname)",'SAD'//trim(sname)
 
-      ! effective radius. ERCRMIX
+      ! effective radius. ERMIXAER
       call pbuf_add_field('ER'//trim(sname), 'global', dtype_r8, (/pcols, pver/), ipbuf4reff(igroup))
       !write(*,*) "'ER'//trim(sname)",'ER'//trim(sname)
 
-      ! number density #/kg  NBCRMIX
+      ! number density #/kg  NBMXAER
       call pbuf_add_field('NB'//trim(sname), 'global', dtype_r8, (/pcols, pver/), ipbuf4numnkg(igroup))
       !write(*,*) "'NB'//trim(sname)",'NB'//trim(sname)
 
       ! sulfate mass and number density for each bin
-      ! e.g. CRSULF01 first element mass mixing ratio; NBCRMIX01 #/kg
+      ! e.g. CRSULF01 first element mass mixing ratio; NBMXAER01 #/kg
       do ibin=1,NBIN
          write (outputbin, "(I2.2)") ibin
          write (outputname,"(A2)") trim(sname)
@@ -315,6 +315,9 @@ contains
          call pbuf_add_field("NB"//trim(sname)//outputbin,'global', dtype_r8, (/pcols, pver/), ipbuf4binnkg(ibin,igroup))
          call pbuf_add_field(trim(sname)//outputbin//"_kappa",'global', dtype_r8, (/pcols, pver/), ipbuf4kappa(ibin,igroup))
          !write(*,*) trim(sname)//outputbin//"_kappa"
+         call pbuf_add_field(trim(sname)//outputbin//"_wetr",'global', dtype_r8, (/pcols, pver/), ipbuf4wetr(ibin,igroup))
+         call pbuf_add_field(trim(sname)//outputbin//"_dryr",'global', dtype_r8, (/pcols, pver/), ipbuf4dryr(ibin,igroup))
+
       end do
    end do
 
@@ -440,9 +443,11 @@ contains
     real(r8)                             :: r_wet(cstate%f_NZ)    !! Sulfate aerosol bin wet radius (cm)
     real(r8)                             :: elem1mr(cstate%f_NZ)  !! First element mass mixing ratio (kg/kg)
     real(r8)                             :: binnkg(cstate%f_NZ)   !! number density per bin (#/kg)
-    real(r8)                             :: kappa(cstate%f_NZ)    !! ???
+    real(r8)                             :: kappa(cstate%f_NZ)    !! hygroscopicity parameter (Petters & Kreidenweis, ACP, 2007)
     real(r8)                             :: rhoa_wet(cstate%f_NZ) !! wet air density (kg/m3)
     real(r8)                             :: wtpct(cstate%f_NZ)    !! sulfate weight percent
+    real(r8)                             :: rmass(NBIN)           !! dry mass
+    real(r8)                             :: rhop_dry(cstate%f_NZ) !! dry particle density [g/cm3]
 
     integer                              :: ibin, igroup, igas, icomposition,iz
     integer                              :: icorelem(NELEM),ielem,ncore,ienconc,icore
@@ -457,6 +462,8 @@ contains
     real(r8), pointer, dimension(:,:)    :: binnkg_ptr            !! Each bin number density pointer
     real(r8), pointer, dimension(:,:)    :: elem1mr_ptr           !! First element mmr pointer
     real(r8), pointer, dimension(:,:)    :: kappa_ptr		  !! kappa pointer
+    real(r8), pointer, dimension(:,:)    :: wetr_ptr           !! wet radius pointer
+    real(r8), pointer, dimension(:,:)    :: dryr_ptr             !! dry radius
 
     ! Default return code.
     rc = RC_OK
@@ -474,7 +481,7 @@ contains
       reff(:)  = 0.0_r8    ! effective radius (m)
       numnkg(:) = 0.0_r8    ! number density (#/kg)
 
-      call CARMAGROUP_Get(carma, igroup, rc, ienconc=ienconc,ncore=ncore,icorelem=icorelem)
+      call CARMAGROUP_Get(carma, igroup, rc, ienconc=ienconc,ncore=ncore,icorelem=icorelem, rmass=rmass)
       do ibin = 1, NBIN
         call CARMASTATE_GetBin(cstate, ienconc, ibin, mmr_total(:), rc, &
                              numberDensity=numberDensity, r_wet=r_wet)
@@ -541,8 +548,8 @@ contains
       end if
     end do
 
-    ! add new CRSULF element that is only the sulfur part from CRMIX:
-    ! calculate CRSULF mass mixing ratio : CRMIX minus CROC+CRBC+CRBC+CRDUST+CRSALT (+SUM(CRSOA*)
+    ! add new CRSULF element that is only the sulfur part from MIXAER:
+    ! calculate CRSULF mass mixing ratio : MXAER minus CROC+CRBC+CRBC+CRDUST+CRSALT (+SUM(CRSOA*)
 
     do igroup = 1, NGROUP
       call CARMAGROUP_Get(carma, igroup, rc, shortname=sname,ienconc=ienconc,ncore=ncore,icorelem=icorelem)
@@ -553,7 +560,7 @@ contains
         binnkg(:) = 0._r8
 	coremmr(:) = 0._r8
 
-        call CARMASTATE_GetBin(cstate, ienconc, ibin, mmr_total(:), rc, numberDensity=numberDensity, kappa=kappa)
+        call CARMASTATE_GetBin(cstate, ienconc, ibin, mmr_total(:), rc, numberDensity=numberDensity, kappa=kappa, r_wet=r_wet,rhop_dry=rhop_dry)
 
         if (ncore .ne. 0)then
           do icore = 1,ncore
@@ -564,12 +571,16 @@ contains
           if (any(coremmr(:) .gt. mmr_total(:))) then
             where(coremmr(:) .gt. mmr_total(:)) mmr_total = coremmr
 	    call CARMASTATE_SetBin(cstate, ienconc, ibin, mmr_total(:), rc)
-            call CARMASTATE_GetBin(cstate, ienconc, ibin, mmr_total(:), rc, numberDensity=numberDensity)
+            call CARMASTATE_GetBin(cstate, ienconc, ibin, mmr_total(:), rc, numberDensity=numberDensity, r_wet=r_wet,rhop_dry=rhop_dry)
           end if
 	  elem1mr(:) = mmr_total(:)-coremmr(:)
 
           call pbuf_get_field(pbuf, ipbuf4elem1mr(ibin,igroup), elem1mr_ptr)
 	  elem1mr_ptr(icol, :cstate%f_NZ) = elem1mr(:cstate%f_NZ)
+	else
+	  elem1mr(:) = mmr_total(:)
+	  call pbuf_get_field(pbuf, ipbuf4elem1mr(ibin,igroup), elem1mr_ptr)
+          elem1mr_ptr(icol, :cstate%f_NZ) = elem1mr(:cstate%f_NZ)
 	end if
         binnkg(:) = 1.e6_r8*numberDensity(:)/rhoa_wet(:)     !#/kg
 
@@ -578,6 +589,12 @@ contains
 
         binnkg_ptr(icol, :cstate%f_NZ) = binnkg(:cstate%f_NZ)
 	kappa_ptr(icol, :cstate%f_NZ) = kappa(:cstate%f_NZ)
+
+	call pbuf_get_field(pbuf, ipbuf4wetr(ibin,igroup), wetr_ptr)
+	call pbuf_get_field(pbuf, ipbuf4dryr(ibin,igroup), dryr_ptr)
+
+	wetr_ptr(icol, :cstate%f_NZ) = r_wet(:cstate%f_NZ)
+        dryr_ptr(icol, :cstate%f_NZ) = (rmass(ibin)/(4._f/3._f*PI*rhop_dry(:cstate%f_NZ)))**(1._f/3._f) !cm
 
       end do !NBIN
     end do !NGROUP
@@ -729,20 +746,20 @@ contains
     !!*******************************************************************************************************
 
 
-    if (ielem == I_ELEM_CROC) then
+    if (ielem == I_ELEM_MXOC) then
        do icol = 1, ncol
           smoke(icol) = OCnew(ilat(icol), ilon(icol), mon)*OMtoOCratio
        enddo
 !  st  scip Fsub PBAFlux etcfor now
        surfaceFlux(:ncol) = smoke(:ncol)*aeronet_fraction(ibin)*SmoketoSufaceFlux
 
-    elseif (ielem == I_ELEM_CRBC) then
+    elseif (ielem == I_ELEM_MXBC) then
         do icol = 1, ncol
           smoke(icol) = BCnew(ilat(icol), ilon(icol), mon)
        enddo
        surfaceFlux(:ncol) = smoke(:ncol)*aeronet_fraction(ibin)*SmoketoSufaceFlux
 
-    elseif (ielem == I_ELEM_CRDUST) then
+    elseif (ielem == I_ELEM_MXDUST) then
 
     ! st if (shortname .eq. "CRDUST") then  ! done by Pengfei
 
@@ -784,7 +801,7 @@ contains
       call outfld('CRSLERFC', soilfact, pcols, lchnk)
 
     ! st elseif (sname_elem .eq. "CRSALT") then ! this is how Pengfei did
-    elseif (ielem == I_ELEM_CRSALT) then
+    elseif (ielem == I_ELEM_MXSALT) then
        !! introduce marine POA emission, use ChlorophyII-dependent mass contribution of OC
        !! see Gantt et al., 2009
        !! for sub-micron, I use sea salt flux instead of sub-micron marine particles
@@ -916,7 +933,7 @@ contains
        call CARMAGROUP_GET(carma, igroup, rc, r=r)
        if (RC < RC_ERROR) return
 
-       if (shortname .eq. "CRDUST") then
+       if (shortname .eq. "MXDUST") then
           count_Silt = 0
           do ibin = 1, NBIN
              if (r(ibin) >= rclay) then
@@ -975,6 +992,8 @@ contains
              endif
              call pbuf_set_field(pbuf2d, ipbuf4binnkg(ibin,igroup), 0.0_r8 )
              call pbuf_set_field(pbuf2d, ipbuf4kappa(ibin,igroup), 0.0_r8 )
+             call pbuf_set_field(pbuf2d, ipbuf4wetr(ibin,igroup), 0.0_r8 )
+             call pbuf_set_field(pbuf2d, ipbuf4dryr(ibin,igroup), 0.0_r8 )
           end do
        end do
 

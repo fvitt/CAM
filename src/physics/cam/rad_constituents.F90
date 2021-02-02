@@ -55,7 +55,8 @@ public :: &
    rad_cnst_get_bin_props, &
    rad_cnst_get_bin_num, &
    rad_cnst_get_bin_num_idx, &
-   rad_cnst_get_carma_mmr_idx
+   rad_cnst_get_carma_mmr_idx, &
+   rad_cnst_get_bin_mmr
 
 public :: rad_cnst_num_name
 
