@@ -33,16 +33,12 @@ use cam_history,      only: addfld, add_default, horiz_only, fieldname_len, outf
 use cam_abortutils,   only: endrun
 use cam_logfile,      only: iulog
 
-use carmagroup_mod,   only: CARMAGROUP_Get
-
 implicit none
 private
 save
 
 public ndrop_carma_init, dropmixnuc_carma, activate_carma, loadaer
 
-!st real(r8), allocatable :: alogsig(:)     ! natl log of geometric standard dev of aerosol
-!st real(r8), allocatable :: exp45logsig(:)
 real(r8), allocatable :: f1(:)          ! abdul-razzak functions of width
 real(r8), allocatable :: f2(:)          ! abdul-razzak functions of width
 
@@ -69,12 +65,6 @@ integer, public, protected :: nspec_max = 0
 integer, public, protected :: nbins = 0
 integer, public, protected, allocatable :: nspec(:)
 
-!st real(r8), allocatable :: sigmag_amode(:)! geometric standard deviation for each aerosol mode
-!st real(r8), allocatable :: dgnumlo_amode(:)
-!st real(r8), allocatable :: dgnumhi_amode(:)
-!st real(r8), allocatable :: voltonumblo_amode(:)
-!st real(r8), allocatable :: voltonumbhi_amode(:)
-
 logical :: history_aerosol      ! Output the aerosol tendencies
 character(len=fieldname_len), allocatable :: fieldname(:)    ! names for drop nuc tendency output fields
 character(len=fieldname_len), allocatable :: fieldname_cw(:) ! names for drop nuc tendency output fields
@@ -84,7 +74,7 @@ integer, allocatable :: bin_idx(:,:) ! table for local indexing of modal aero nu
 integer :: ncnst_tot                  ! total number of mode number conc + mode species
 
 ! Indices for CARMA species in the ptend%q array.  Needed for prognostic aerosol case.
-logical, allocatable :: bin_cnst_lg(:,:)
+logical, allocatable :: bin_cnst_lq(:,:)
 integer, allocatable :: bin_cnst_idx(:,:)
 
 
@@ -165,7 +155,7 @@ subroutine ndrop_carma_init
 
    allocate( &
       bin_idx(nbins,0:nspec_max),      &
-      bin_cnst_lg(nbins,0:nspec_max), &
+      bin_cnst_lq(nbins,0:nspec_max), &
       bin_cnst_idx(nbins,0:nspec_max), &
       fieldname(ncnst_tot),                 &
       fieldname_cw(ncnst_tot)               )
@@ -208,15 +198,8 @@ subroutine ndrop_carma_init
             call rad_cnst_get_info_by_bin_spec(0, m, l-1, spec_name=tmpname, spec_name_cw=tmpname_cw)
          end if
 
-!!$if (masterproc) then
-  print*,' m,l : ', m,l
-  print*,' tmpname : '//trim(tmpname)
-  print*,' tmpname_cw : '//trim(tmpname_cw)
-!!$endif
          fieldname(mm)    = trim(tmpname) // '_mixnuc1'
          fieldname_cw(mm) = trim(tmpname_cw) // '_mixnuc1'
-
-        !st  if (prog_modal_aero) then   ; done for CARMA
 
         ! To set tendencies in the ptend object need to get the constituent indices
         ! for the prognostic species
@@ -224,14 +207,13 @@ subroutine ndrop_carma_init
 
           call cnst_get_ind(tmpname, idxtmp, abort=.false.)
           if (idxtmp.gt.0) then
-             bin_cnst_lg(m,l)   = .true.
-             bin_cnst_idx(m,l)   = idxtmp
-             lq(idxtmp)   = .true.
+             bin_cnst_lq(m,l) = .true.
+             bin_cnst_idx(m,l) = idxtmp
+             lq(idxtmp) = .true.
           else
-             bin_cnst_lg(m,l)   = .false.
-             bin_cnst_idx(m,l)   = 0
+             bin_cnst_lq(m,l) = .false.
+             bin_cnst_idx(m,l) = 0
           end if
-          !st write(iulog, *) 'tmpname, bin_cnst_idx, bin_cst_lg ',tmpname, bin_cnst_idx(m,l), bin_cnst_lg(m,l)
 
           ! Add tendency fields to the history only when prognostic MAM is enabled.
           long_name = trim(tmpname) // ' dropmixnuc mixnuc column tendency'
@@ -244,8 +226,6 @@ subroutine ndrop_carma_init
                call add_default(fieldname(mm), 1, ' ')
                call add_default(fieldname_cw(mm), 1, ' ')
           end if
-
-         !st end if
 
       end do
    end do
@@ -520,13 +500,8 @@ subroutine dropmixnuc_carma( &
    factnum = 0._r8
    wtke = 0._r8
 
-!st   if (prog_modal_aero) then
-      ! aerosol tendencies
-      call physics_ptend_init(ptend, state%psetcols, 'ndrop_carma', lq=lq)
-!st   else
-!st      ! no aerosol tendencies
-!st      call physics_ptend_init(ptend, state%psetcols, 'ndrop')
-!st   end if
+   ! initialize aerosol tendencies
+   call physics_ptend_init(ptend, state%psetcols, 'ndrop_carma', lq=lq)
 
    ! overall_main_i_loop
    do i = 1, ncol
@@ -1152,7 +1127,7 @@ subroutine dropmixnuc_carma( &
                coltend_cw(i,mm) = sum( pdel(i,:)*qqcwtend )/gravit
 
                ! some CARMA interstetial species are not advected, check:
-               if (bin_cnst_lg(m,l)) then ! adveced species
+               if (bin_cnst_lq(m,l)) then ! adveced species
                  ptend%q(i,:,lptr) = 0.0_r8
                  ptend%q(i,top_lev:pver,lptr) = raertend(top_lev:pver)           ! set tendencies for interstitial aerosol
                else
@@ -1434,7 +1409,7 @@ subroutine activate_carma(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
    save ndist
 
    if (present(in_cloud_in)) then
-      if (.not. present(smax_f)) call endrun('activate_carmaerror: smax_f must be supplied when in_cloud is used')
+      if (.not. present(smax_f)) call endrun(subname//' : smax_f must be supplied when in_cloud is used')
       in_cloud = in_cloud_in
    else
       in_cloud = .false.
@@ -1471,10 +1446,6 @@ subroutine activate_carma(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
    do m=1,nmode
 
       if(volume(m).gt.1.e-39_r8.and.na(m).gt.1.e-39_r8)then
-      !st if(volume(m).gt.1.e-39_r8.and.na(m).gt.namin)then
-      !st if(volume(m).gt.1.e-39_r8.and.na(m).gt.1._r8)then
-         !            number mode radius (m)
-      !st write(iulog,'(a,i4,2g12.2)')'SMC calc: m,na,volume= ',m,na(m),volume(m)
 
          amcube(m)=(3._r8*volume(m)/(4._r8*pi*na(m)))
          !           growth coefficent Abdul-Razzak & Ghan 1998 eqn 16
