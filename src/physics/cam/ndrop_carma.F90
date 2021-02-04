@@ -253,7 +253,7 @@ subroutine ndrop_carma_init
    !st if (history_aerosol .and. prog_modal_aero) then
    if (history_carma) then
      do m = 1, nbins
-        do l = 0, nspec(m)   ! loop over number + chem constituents
+        do l = 0, nspec(m) + 1   ! loop over number + chem constituents
            mm = bin_idx(m,l)
            if (l == 0) then   ! number
             call rad_cnst_get_info_by_bin(0, m, num_name=tmpname, num_name_cw=tmpname_cw)
