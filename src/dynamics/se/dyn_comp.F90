@@ -11,7 +11,7 @@ use constituents,           only: pcnst, cnst_get_ind, cnst_name, cnst_longname,
 use cam_control_mod,        only: initial_run, simple_phys
 use cam_initfiles,          only: initial_file_get_id, topo_file_get_id, pertlim
 use phys_control,           only: use_gw_front, use_gw_front_igw, waccmx_is
-use dyn_grid,               only: timelevel, hvcoord, edgebuf
+use dyn_grid,               only: ini_grid_name, timelevel, hvcoord, edgebuf
 
 use cam_grid_support,       only: cam_grid_id, cam_grid_get_gcid, &
                                   cam_grid_dimensions, cam_grid_get_dim_names, &
@@ -598,7 +598,6 @@ subroutine dyn_init(dyn_in, dyn_out)
    use hybrid_mod,         only: get_loop_ranges, config_thread_region
    use dimensions_mod,     only: nu_scale_top, nu_lev, nu_div_lev
    use dimensions_mod,     only: ksponge_end, kmvis_ref, kmcnd_ref,rho_ref,km_sponge_factor
-   use dimensions_mod,     only: kmvisi_ref, kmcndi_ref,rhoi_ref
    use dimensions_mod,     only: cnst_name_gll, cnst_longname_gll
    use dimensions_mod,     only: irecons_tracer_lev, irecons_tracer, otau, kord_tr, kord_tr_cslam
    use prim_driver_mod,    only: prim_init2
@@ -608,6 +607,7 @@ subroutine dyn_init(dyn_in, dyn_out)
    use phys_control,       only: phys_getopts
    use physconst,          only: get_molecular_diff_coef_reference
    use control_mod,        only: vert_remap_uvTq_alg, vert_remap_tracer_alg
+   use std_atm_profile,    only: std_atm_height
    ! Dummy arguments:
    type(dyn_import_t), intent(out) :: dyn_in
    type(dyn_export_t), intent(out) :: dyn_out
@@ -615,7 +615,7 @@ subroutine dyn_init(dyn_in, dyn_out)
    ! Local variables
    integer             :: ithr, nets, nete, ie, k, kmol_end
    real(r8), parameter :: Tinit = 300.0_r8
-   real(r8)            :: press, ptop, tref
+   real(r8)            :: press(1), ptop, tref,z(1)
 
    type(hybrid_t)      :: hybrid
 
@@ -772,9 +772,6 @@ subroutine dyn_init(dyn_in, dyn_out)
      tref = 1000._r8     !mean value at model top for solar max
      km_sponge_factor = molecular_diff
      km_sponge_factor_local = molecular_diff
-     call get_molecular_diff_coef_reference(1,nlev+1,tref,&
-          (hvcoord%hyai(:)+hvcoord%hybi(:))*hvcoord%ps0, km_sponge_factor_local,&
-          kmvisi_ref,kmcndi_ref,rhoi_ref)
      !
      ! get rho, kmvis and kmcnd at mid-levels
      !
@@ -786,8 +783,10 @@ subroutine dyn_init(dyn_in, dyn_out)
        ! only apply molecular viscosity where viscosity is > 1000 m/s^2
        if (MIN(kmvis_ref(k)/rho_ref(k),kmcnd_ref(k)/(cpair*rho_ref(k)))>1000.0_r8) then
          if (masterproc) then
-            write(iulog,'(a,i3,2e11.4)') "k, p, km_sponge_factor                   :",k, &
-               (hvcoord%hyam(k)+hvcoord%hybm(k))*hvcoord%ps0,km_sponge_factor(k)
+           press = (hvcoord%hyam(k)+hvcoord%hybm(k))*hvcoord%ps0
+           call std_atm_height(press,z)
+           write(iulog,'(a,i3,3e11.4)') "k, p, z, km_sponge_factor                   :",k, &
+                press, z,km_sponge_factor(k)
             write(iulog,'(a,2e11.4)') "kmvis_ref/rho_ref, kmcnd_ref/(cp*rho_ref): ", &
                kmvis_ref(k)/rho_ref(k),kmcnd_ref(k)/(cpair*rho_ref(k))
          end if
@@ -815,7 +814,7 @@ subroutine dyn_init(dyn_in, dyn_out)
      do k=1,nlev
        press = (hvcoord%hyam(k)+hvcoord%hybm(k))*hvcoord%ps0
        ptop  = hvcoord%hyai(1)*hvcoord%ps0
-       nu_scale_top(k) = 8.0_r8*(1.0_r8+tanh(1.0_r8*log(ptop/press))) ! tau will be maximum 8 at model top
+       nu_scale_top(k) = 8.0_r8*(1.0_r8+tanh(1.0_r8*log(ptop/press(1)))) ! tau will be maximum 8 at model top
        if (nu_scale_top(k).ge.0.15_r8) then
          ksponge_end = k
        else
@@ -829,8 +828,11 @@ subroutine dyn_init(dyn_in, dyn_out)
    if (masterproc) then
      write(iulog,*) subname//": ksponge_end = ",ksponge_end
      if (nu_top>0) then
-       do k=1,ksponge_end
-         write(iulog,'(a,i3,1e11.4)') subname//": nu_scale_top ",k,nu_scale_top(k)
+       do k=1,ksponge_end+1
+         press = (hvcoord%hyam(k)+hvcoord%hybm(k))*hvcoord%ps0
+         call std_atm_height(press,z)
+         write(iulog,'(a,i3,4e11.4)') subname//": k, p, z, nu_scale_top, nu ",k,press,z,&
+              nu_scale_top(k),nu_scale_top(k)*nu_top
        end do
      end if
    end if
@@ -1020,7 +1022,7 @@ subroutine dyn_run(dyn_state)
          call outfld('FT', ftmp(:,:,3), npsq, ie)
       end do
    end if
-!!$
+
 !!$   do m = 1, qsize
 !!$     if (hist_fld_active('F'//trim(cnst_name_gll(m))//'_gll')) then
 !!$       do ie = nets, nete
@@ -1219,13 +1221,13 @@ subroutine read_inidat(dyn_in)
 
    ! Set mask to indicate which columns are active
    nullify(ldof)
-   call cam_grid_get_gcid(cam_grid_id('GLL'), ldof)
+   call cam_grid_get_gcid(cam_grid_id(ini_grid_name), ldof)
    allocate(pmask(npsq*nelemd))
    pmask(:) = (ldof /= 0)
 
    ! lat/lon needed in radians
-   latvals_deg => cam_grid_get_latvals(cam_grid_id('GLL'))
-   lonvals_deg => cam_grid_get_lonvals(cam_grid_id('GLL'))
+   latvals_deg => cam_grid_get_latvals(cam_grid_id(ini_grid_name))
+   lonvals_deg => cam_grid_get_lonvals(cam_grid_id(ini_grid_name))
    allocate(latvals(np*np*nelemd))
    allocate(lonvals(np*np*nelemd))
    latvals(:) = latvals_deg(:)*deg2rad
@@ -1234,9 +1236,8 @@ subroutine read_inidat(dyn_in)
    ! Set PIO to return error codes when reading data from IC file.
    call pio_seterrorhandling(fh_ini, PIO_BCAST_ERROR, pio_errtype)
 
-   ! The grid name is defined in dyn_grid::define_cam_grids.
    ! Get the number of columns in the global GLL grid.
-   call cam_grid_dimensions('GLL', dims)
+   call cam_grid_dimensions(ini_grid_name, dims)
    dyn_cols = dims(1)
 
    ! Set ICs.  Either from analytic expressions or read from file.
@@ -1330,7 +1331,7 @@ subroutine read_inidat(dyn_in)
       allocate(dbuf2(npsq,nelemd))
       allocate(dbuf3(npsq,nlev,nelemd))
 
-      ! Check that number of columns in IC file matches grid definition.
+      ! Check that columns in IC file match grid definition.
       call check_file_layout(fh_ini, elem, dyn_cols, 'ncdata', .true., dimname)
 
       ! Read 2-D field
@@ -2003,6 +2004,9 @@ end subroutine set_phis
 
 subroutine check_file_layout(file, elem, dyn_cols, file_desc, dyn_ok, dimname)
 
+   ! This routine is only called when data will be read from the initial file.  It is not
+   ! called when the initial file is only supplying vertical coordinate info.
+
    type(file_desc_t), pointer       :: file
    type(element_t),   pointer       :: elem(:)
    integer,           intent(in)    :: dyn_cols
@@ -2023,22 +2027,15 @@ subroutine check_file_layout(file, elem, dyn_cols, file_desc, dyn_ok, dimname)
    !----------------------------------------------------------------------------
 
    ! Check that number of columns in IC file matches grid definition.
-   ! The dimension of the unstructured grid in the IC file can either be 'ncol'
-   ! or 'ncol_d'.  Check for ncol_d first since if a file contains distinct GLL
-   ! and physics grids the GLL grid will use dimension ncol_d.
-   ierr = pio_inq_dimid(file, 'ncol_d', ncol_did)
+
+   call cam_grid_get_dim_names(cam_grid_id(ini_grid_name), dimname, dimname2)
+
+   ierr = pio_inq_dimid(file, trim(dimname), ncol_did)
    if (ierr /= PIO_NOERR) then
-      if (dyn_ok) then
-         ierr = pio_inq_dimid(file, 'ncol', ncol_did)
-         if (ierr /= PIO_NOERR) then
-            call endrun(subname//': ERROR: neither ncol nor ncol_d dimension found in ' &
-                        //trim(file_desc)//' file')
-         end if
-      else
-         call endrun(trim(subname)//': ERROR: ncol dimension not found in '//trim(file_desc) &
-                     //' file')
-      end if
+      call endrun(subname//': ERROR: either ncol or ncol_d dimension not found in ' &
+         //trim(file_desc)//' file')
    end if
+
    ierr = pio_inq_dimlen(file, ncol_did, ncol_size)
    if (ncol_size /= dyn_cols) then
       if (masterproc) then
@@ -2048,22 +2045,11 @@ subroutine check_file_layout(file, elem, dyn_cols, file_desc, dyn_ok, dimname)
       call endrun(subname//': ERROR: dimension ncol size not same as in ncdata file')
    end if
 
-   ! The dimname that's passed to the read_dyn_var routines must match the
-   ! dimname that's in the GLL grid object definition.  The mapping info used by
-   ! pio is constructed using the grid object.  So this dimname is not necessarily
-   ! the one in the IC (or topo) file.
-   grid_id = cam_grid_id('GLL')
-   call cam_grid_get_dim_names(grid_id, dimname, dimname2)
-
-   ! If coordinates come from an initial file containing only the GLL grid then the
-   ! the variable names will be lat/lon.  On the other hand if the file contains both
-   ! GLL and a distinct physics grid, then the variable names will be lat_d/lon_d.
-   ! Check whether lat_d/lon_d are present and use them if they are.  Otherwise use
-   ! lat/lon.
-   if (dyn_field_exists(file, 'lat_d', required=.false.)) then
-      coordname = 'lat_d'
-   else
+   ! Set coordinate name associated with dimname.
+   if (dimname == 'ncol') then
       coordname = 'lat'
+   else
+      coordname = 'lat_d'
    end if
 
    !! Check to make sure file is in correct order
@@ -2075,9 +2061,11 @@ subroutine check_file_layout(file, elem, dyn_cols, file_desc, dyn_ok, dimname)
          do i = 1, np
             if ((abs(dbuf2(indx,ie)) > 1.e-12_r8) .and. &
                (abs((elem(ie)%spherep(i,j)%lat*rad2deg - dbuf2(indx,ie))/dbuf2(indx,ie)) > 1.0e-10_r8)) then
+              if (360._r8-abs( elem(ie)%spherep(i,j)%lon*rad2deg - dbuf2(indx,ie) ) > 1.e-10_r8) then
                write(6, *) 'XXG ',iam,') ',ie,i,j,elem(ie)%spherep(i,j)%lat,dbuf2(indx,ie)*deg2rad
                call shr_sys_flush(6)
                found = .false.
+              end if
             end if
             indx = indx + 1
          end do
@@ -2087,10 +2075,10 @@ subroutine check_file_layout(file, elem, dyn_cols, file_desc, dyn_ok, dimname)
       call endrun("ncdata file latitudes not in correct column order")
    end if
 
-   if (dyn_field_exists(file, 'lon_d', required=.false.)) then
-      coordname = 'lon_d'
-   else
+   if (dimname == 'ncol') then
       coordname = 'lon'
+   else
+      coordname = 'lon_d'
    end if
 
    call read_dyn_var(coordname, file, dimname, dbuf2)
@@ -2167,7 +2155,7 @@ subroutine read_dyn_field_2d(fieldname, fh, dimname, buffer)
 
    buffer = 0.0_r8
    call infld(trim(fieldname), fh, dimname, 1, npsq, 1, nelemd, buffer,    &
-         found, gridname='GLL')
+         found, gridname=ini_grid_name)
    if(.not. found) then
       call endrun('READ_DYN_FIELD_2D: Could not find '//trim(fieldname)//' field on input datafile')
    end if
@@ -2195,7 +2183,7 @@ subroutine read_dyn_field_3d(fieldname, fh, dimname, buffer)
 
    buffer = 0.0_r8
    call infld(trim(fieldname), fh, dimname, 'lev',  1, npsq, 1, nlev,      &
-         1, nelemd, buffer, found, gridname='GLL')
+         1, nelemd, buffer, found, gridname=ini_grid_name)
    if(.not. found) then
       call endrun('READ_DYN_FIELD_3D: Could not find '//trim(fieldname)//' field on input datafile')
    end if

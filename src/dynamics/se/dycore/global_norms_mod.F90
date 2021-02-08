@@ -550,12 +550,27 @@ contains
     call automatically_set_viscosity_coefficients(hybrid,ne,max_min_dx,min_min_dx,nu_p  ,1.0_r8 ,'_p  ')
     call automatically_set_viscosity_coefficients(hybrid,ne,max_min_dx,min_min_dx,nu    ,0.5_r8,'    ')
     call automatically_set_viscosity_coefficients(hybrid,ne,max_min_dx,min_min_dx,nu_div,2.5_r8 ,'_div')
+
+    if (nu_q<0) nu_q = nu_p ! necessary for consistency
+    if (nu_s<0) nu_s = nu_p ! temperature damping is always equal to nu_p
+
+    nu_div_lev(:) = nu_div
+    nu_lev(:)     = nu
+    nu_s_lev(:)   = nu_p
+
     if (ptop>100.0_r8) then
       !
       ! CAM setting
       !
-      nu_div_lev(:)     = nu_div
-      nu_lev(:)         = nu
+      nu_div_max =  4.5_r8*nu_p
+      do k=1,nlev
+        press = pmid(k)
+        scale1        = 0.5_r8*(1.0_r8+tanh(2.0_r8*log(pmid(3)/press)))!
+        nu_div_lev(k) = (1.0_r8-scale1)*nu_div+scale1*nu_div_max
+
+        if (hybrid%masterthread) write(iulog,*) "nu_s_lev     =",k,nu_s_lev(k)
+        if (hybrid%masterthread) write(iulog,*) "nu,nu_div_lev=",k,nu_lev(k),nu_div_lev(k)
+      end do
     else
       !
       ! high top setting
@@ -565,8 +580,7 @@ contains
       nu_div_max =  7.5_r8*nu_p
       do k=1,nlev
         press = pmid(k)
-!        scale1 = 0.5_r8*(1.0_r8+tanh(2.0_r8*log(0.1_r8/press)))!stable
-        scale1        = 0.5_r8*(1.0_r8+tanh(2.0_r8*log(pmid(9)/press)))!
+        scale1        = 0.5_r8*(1.0_r8+tanh(2.0_r8*log(pmid(10)/press)))!
         nu_div_lev(k) = (1.0_r8-scale1)*nu_div+scale1*nu_div_max
         nu_lev(k)     = (1.0_r8-scale1)*nu    +scale1*nu_max
         nu_s_lev(k)   = (1.0_r8-scale1)*nu_p  +scale1*nu_max
@@ -576,8 +590,6 @@ contains
       end do
     end if
 
-    if (nu_q<0) nu_q = nu_p ! necessary for consistency
-    if (nu_s<0) nu_s = nu_p ! temperature damping is always equal to nu_p
 
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !
@@ -608,9 +620,6 @@ contains
       write(iulog,*) rk_str
       write(iulog,'(a)') '   * Spectral-element advection uses SSP preservation RK3'
       write(iulog,'(a)') '   * Viscosity operators use forward Euler'
-      if (ntrac>0) then
-        write(iulog,'(a)') '   * CSLAM uses two time-levels backward trajectory method'
-      end if
     end if
     S_laplacian = 2.0_r8 !using forward Euler for sponge diffusion
     S_hypervis  = 2.0_r8 !using forward Euler for hyperviscosity
@@ -620,6 +629,8 @@ contains
     !
     if (ptop>100.0_r8) then
       umax = 120.0_r8
+    else if (ptop>10.0_r8) then
+      umax = 400.0_r8
     else
       umax = 800.0_r8
     end if
@@ -1109,7 +1120,9 @@ contains
 
     if (nu < 0) then
       if (ne <= 0) then
-        if (hypervis_scaling/=0) then
+        if (hypervis_power/=0) then
+          call endrun('ERROR: Automatic scaling of scalar viscosity not implemented')
+        else if (hypervis_scaling/=0) then
           nu_min = factor*nu_fac*(max_min_dx*1000.0_r8)**uniform_res_hypervis_scaling
           nu_max = factor*nu_fac*(min_min_dx*1000.0_r8)**uniform_res_hypervis_scaling
           nu     = factor*nu_min
@@ -1121,8 +1134,6 @@ contains
           nu = nu_min*(2.0_r8*rearth/(3.0_r8*max_min_dx*1000.0_r8))**hypervis_scaling/(rearth**4)
           if (hybrid%masterthread) &
                write(iulog,'(a,a,a,e9.3)') "Nu_tensor",TRIM(str)," = ",nu
-        else if (hypervis_power/=0) then
-          call endrun('ERROR: Automatic scaling of scalar viscosity not implemented')
         end if
       else
         nu     = factor*nu_fac*((30.0_r8/ne)*110000.0_r8)**uniform_res_hypervis_scaling
