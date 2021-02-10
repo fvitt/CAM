@@ -65,9 +65,8 @@
 <Nudge_File_Template hgrid="ne0np4CONUS.ne30x8" nlev="32">'%y/MERRA2_ne0CONUS30x8_L32.cam2.i.%y-%m-%d-%s.nc'</Nudge_File_Template>
 <Nudge_Force_Opt>0</Nudge_Force_Opt>
 <Nudge_TimeScale_Opt>0</Nudge_TimeScale_Opt>
-<Nudge_Times_Per_Day>4</Nudge_Times_Per_Day>
-<Nudge_Times_Per_Day hgrid="ne0np4CONUS.ne30x8">8</Nudge_Times_Per_Day>
-<Model_Times_Per_Day>8</Model_Times_Per_Day>
+<Nudge_Times_Per_Day>8</Nudge_Times_Per_Day>
+<Model_Times_Per_Day>48</Model_Times_Per_Day>
 <Model_Times_Per_Day hgrid="ne0np4CONUS.ne30x8">384</Model_Times_Per_Day>
 <Nudge_Uprof>1</Nudge_Uprof>
 <Nudge_Ucoef>0.06</Nudge_Ucoef>
@@ -79,7 +78,7 @@
 <Nudge_Qcoef>0.00</Nudge_Qcoef>
 <Nudge_PSprof>0</Nudge_PSprof>
 <Nudge_PScoef>0.00</Nudge_PScoef>
-<Nudge_Beg_Year>2010</Nudge_Beg_Year>
+<Nudge_Beg_Year>1990</Nudge_Beg_Year>
 <Nudge_Beg_Year hgrid="ne0np4CONUS.ne30x8">2013</Nudge_Beg_Year>
 <Nudge_Beg_Month>1</Nudge_Beg_Month>
 <Nudge_Beg_Day>1</Nudge_Beg_Day>

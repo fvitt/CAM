@@ -595,6 +595,7 @@ contains
                  trim(cnst_name(icnst)) // ' wet deposition flux at surface')
 
             if (history_carma_srf_flx) then
+               call add_default(trim(etndname(ielem, ibin))//'EM', 1, ' ')
                call add_default(trim(etndname(ielem, ibin))//'SF', 1, ' ')
                call add_default(trim(etndname(ielem, ibin))//'SW', 1, ' ')
             end if
