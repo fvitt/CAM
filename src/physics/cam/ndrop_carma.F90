@@ -10,10 +10,9 @@ module ndrop_carma
 !---------------------------------------------------------------------------------
 
 use shr_kind_mod,     only: r8 => shr_kind_r8
-use spmd_utils,       only: masterproc
-use ppgrid,           only: pcols, pver, pverp
+use ppgrid,           only: pcols, pver
 use physconst,        only: pi, rhoh2o, mwh2o, r_universal, rh2o, &
-                            gravit, latvap, cpair, epsilo, rair
+                            gravit, latvap, cpair, rair
 use constituents,     only: pcnst, cnst_get_ind, cnst_name, cnst_spec_class_gas, cnst_species_class
 use physics_types,    only: physics_state, physics_ptend, physics_ptend_init
 use physics_buffer,   only: physics_buffer_desc, pbuf_get_index, pbuf_get_field
@@ -22,13 +21,9 @@ use wv_saturation,    only: qsat
 use phys_control,     only: phys_getopts
 use ref_pres,         only: top_lev => trop_cloud_top_lev
 use shr_spfn_mod,     only: erf => shr_spfn_erf
-use rad_constituents, only: rad_cnst_get_info, rad_cnst_get_mode_num, rad_cnst_get_aer_mmr, &
-                            rad_cnst_get_aer_props, rad_cnst_get_mode_props,                &
-                            rad_cnst_get_mam_mmr_idx, rad_cnst_get_mode_num_idx,            &
-                            rad_cnst_get_info_by_bin, rad_cnst_get_info_by_bin_spec,        &
-                            rad_cnst_get_carma_mmr_idx, rad_cnst_get_bin_props_by_idx,      &
-                            rad_cnst_get_bin_num_idx, rad_cnst_get_bin_num, &
-                            rad_cnst_get_bin_mmr_by_idx, rad_cnst_get_bin_mmr
+use rad_constituents, only: rad_cnst_get_info, rad_cnst_get_info_by_bin, rad_cnst_get_info_by_bin_spec,       &
+                            rad_cnst_get_bin_props_by_idx, rad_cnst_get_bin_num, rad_cnst_get_bin_mmr_by_idx, &
+                            rad_cnst_get_bin_mmr
 use cam_history,      only: addfld, add_default, horiz_only, fieldname_len, outfld
 use cam_abortutils,   only: endrun
 use cam_logfile,      only: iulog
@@ -38,9 +33,6 @@ private
 save
 
 public ndrop_carma_init, dropmixnuc_carma, activate_carma, loadaer
-
-real(r8), allocatable :: f1(:)          ! abdul-razzak functions of width
-real(r8), allocatable :: f2(:)          ! abdul-razzak functions of width
 
 real(r8) :: t0            ! reference temperature
 real(r8) :: aten
@@ -96,12 +88,9 @@ contains
 subroutine ndrop_carma_init
 
    integer  :: ii, l, m, mm
-   integer :: lptr      = -1
    integer :: idxtmp    = -1
    character(len=32)   :: tmpname
    character(len=32)   :: tmpname_cw
-   character(len=32) :: mmr_name
-   character(len=32) :: mmr_name_cw
    character(len=128)  :: long_name
    character(len=8)    :: unit
    logical :: history_amwg         ! output the variables used by the AMWG diag package
@@ -306,7 +295,6 @@ subroutine dropmixnuc_carma( &
 
    real(r8), pointer :: ncldwtr(:,:) ! droplet number concentration (#/kg)
    real(r8), pointer :: temp(:,:)    ! temperature (K)
-   real(r8), pointer :: omega(:,:)   ! vertical velocity (Pa/s)
    real(r8), pointer :: pmid(:,:)    ! mid-level pressure (Pa)
    real(r8), pointer :: pint(:,:)    ! pressure at layer interfaces (Pa)
    real(r8), pointer :: pdel(:,:)    ! pressure thickess of layer (Pa)
@@ -374,7 +362,6 @@ subroutine dropmixnuc_carma( &
    real(r8) :: ndropcol(pcols)               ! column droplet number (#/m2)
    real(r8) :: cldo_tmp, cldn_tmp
    real(r8) :: tau_cld_regenerate
-   real(r8) :: zeroaer(pver)
    real(r8) :: taumix_internal_pver_inv ! 1/(internal mixing time scale for k=pver) (1/s)
 
 
@@ -424,7 +411,6 @@ subroutine dropmixnuc_carma( &
 
    ncldwtr  => state%q(:,:,numliq_idx)
    temp     => state%t
-   omega    => state%omega
    pmid     => state%pmid
    pint     => state%pint
    pdel     => state%pdel
@@ -1348,23 +1334,14 @@ subroutine activate_carma(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
    !      local
 
    integer, parameter:: nx=200
-   integer iquasisect_option, isectional
    real(r8) integ,integf
    real(r8), parameter :: p0 = 1013.25e2_r8    ! reference pressure (Pa)
-   real(r8) xmin(nmode),xmax(nmode) ! ln(r) at section interfaces
-   real(r8) volmin(nmode),volmax(nmode) ! volume at interfaces
-   real(r8) tmass ! total aerosol mass concentration (g/cm3)
-   real(r8) sign(nmode)    ! geometric standard deviation of size distribution
    real(r8) rm ! number mode radius of aerosol at max supersat (cm)
    real(r8) pres ! pressure (Pa)
-   real(r8) path ! mean free path (m)
-   real(r8) diff ! diffusivity (m2/s)
-   real(r8) conduct ! thermal conductivity (Joule/m/sec/deg)
    real(r8) diff0,conduct0
    real(r8) es ! saturation vapor pressure
    real(r8) qs ! water vapor saturation mixing ratio
    real(r8) dqsdt ! change in qs with temperature
-   real(r8) dqsdp ! change in qs with pressure
    real(r8) g ! thermodynamic function (m2/s)
    real(r8) zeta(nmode), eta(nmode)
    real(r8) lnsmax ! ln(smax)
@@ -1373,8 +1350,7 @@ subroutine activate_carma(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
    real(r8) beta
    real(r8) sqrtg
    real(r8) :: amcube(nmode) ! cube of dry mode radius (m)
-   real(r8) :: smcrit(nmode) ! critical supersatuation for activation
-   real(r8) :: lnsm(nmode) ! ln(smcrit)
+   real(r8) :: lnsm(nmode)
    real(r8) smc(nmode) ! critical supersaturation for number mode radius
    real(r8) sumflx_fullact
    real(r8) sumflxn(nmode)
@@ -1384,14 +1360,12 @@ subroutine activate_carma(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
    real(r8) fnold(nmode)   ! number fraction activated
    real(r8) fmold(nmode)   ! mass fraction activated
    real(r8) wold,gold
-   real(r8) alogam
-   real(r8) rlo,rhi,xint1,xint2,xint3,xint4
    real(r8) wmin,wmax,w,dw,dwmax,dwmin,wnuc,dwnew,wb
-   real(r8) dfmin,dfmax,fnew,fold,fnmin,fnbar,fsbar,fmbar
+   real(r8) dfmin,dfmax,fnew,fold,fnmin,fnbar,fmbar
    real(r8) alw,sqrtalw
    real(r8) smax
-   real(r8) x,arg
-   real(r8) xmincoeff,xcut,volcut,surfcut
+   real(r8) arg
+   real(r8) xmincoeff
    real(r8) z,z1,z2,wf1,wf2,zf1,zf2,gf1,gf2,gf
    real(r8) etafactor1,etafactor2(nmode),etafactor2max
    real(r8) grow
@@ -1463,7 +1437,6 @@ subroutine activate_carma(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
          else
             smc(m)=100._r8
          endif
-         !	    write(iulog,*)'sm,hygro,amcube=',smcrit(m),hygro(m),amcube(m)
       else
          smc(m)=1._r8
          etafactor2(m)=etafactor2max ! this should make eta big if na is very small.
@@ -1791,13 +1764,11 @@ subroutine ccncalc(state, pbuf, cs, ccn)
 
    ! local
 
-   integer :: lchnk ! chunk index
    integer :: ncol  ! number of columns
    real(r8), pointer :: tair(:,:)     ! air temperature (K)
 
    real(r8) naerosol(pcols) ! interstit+activated aerosol number conc (/m3)
    real(r8) vaerosol(pcols) ! interstit+activated aerosol volume conc (m3/m3)
-   real(r8) r(pcols)        ! interstit+activated aerosol radius (m)
 
    real(r8) amcube(pcols)
    real(r8) super(psat) ! supersaturation
@@ -1811,13 +1782,11 @@ subroutine ccncalc(state, pbuf, cs, ccn)
    real(r8) arg(pcols)
    !     mathematical constants
    real(r8) twothird,sq2
-   integer l,m,n,i,k
-   real(r8) log,cc
+   integer l,m,i,k
    real(r8) smcoefcoef,smcoef(pcols)
    integer phase ! phase of aerosol
    !-------------------------------------------------------------------------------
 
-   lchnk = state%lchnk
    ncol  = state%ncol
    tair  => state%t
 
@@ -1903,9 +1872,6 @@ subroutine loadaer( &
    real(r8), intent(out) :: hygro(:)     ! bulk hygroscopicity of mode
 
    ! internal
-   integer  :: lchnk               ! chunk identifier
-
-   real(r8), pointer :: num(:,:) ! interstitial aerosol number
    real(r8), pointer :: raer(:,:) ! interstitial aerosol mass, number mixing ratios
    real(r8), pointer :: qqcw(:,:) ! cloud-borne aerosol mass, number mixing ratios
    real(r8) :: specdens, spechygro
@@ -1913,8 +1879,6 @@ subroutine loadaer( &
    real(r8) :: vol(pcols) ! aerosol volume mixing ratio
    integer  :: i, l
    !-------------------------------------------------------------------------------
-
-   lchnk = state%lchnk
 
    do i = istart, istop
       vaerosol(i) = 0._r8

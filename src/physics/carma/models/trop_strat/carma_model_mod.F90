@@ -13,7 +13,6 @@
 !! and adds some local functions used to do sea salt emission:
 !!
 !!   - CARMA_SurfaceWind()
-!!   - CARMA_SurfaceWind()
 !!   - WeibullWind()
 !!
 !! @version April-2020
@@ -37,7 +36,6 @@ module carma_model_mod
 
   use spmd_utils,     only: masterproc
   use shr_kind_mod,   only: r8 => shr_kind_r8
-  use radconstants,   only: nswbands, nlwbands
   use cam_abortutils, only: endrun
   use physics_types,  only: physics_state, physics_ptend
   use ppgrid,         only: pcols, pver
@@ -57,7 +55,6 @@ module carma_model_mod
   public CARMA_InitializeModel
   public CARMA_InitializeParticle
   public CARMA_WetDeposition
-  public CARMA_BCOCRead
   public CARMA_SaltFlux
 
   ! Declare public constants
@@ -127,7 +124,6 @@ module carma_model_mod
   real(kind=f)                    :: clay_mf(NBIN)          !! clay mass fraction (fraction)
   real(kind=f), allocatable, dimension(:,:) :: soil_factor  !! Soil Erosion Factor (fraction)
   real(kind=f), public, parameter :: WTMOL_H2SO4    = 98.078479_f    !! molecular weight of sulphuric acid
-  real(kind=f), allocatable, dimension(:,:,:)   :: PCT_LeafArea                 !! Soil Erosion Factor (fraction)
 
 ! NOTE: The WeibullK distribution is not currently supported, since the coefficients are not
 ! generated. This can be added later.
@@ -165,10 +161,10 @@ contains
     character(len=2)                   :: outputname,outputbin
     logical                            :: do_print             ! do print output?
     complex(kind=f)                    :: refidx(NWAVE)        ! refractice indices
-    complex(kind=f)                    :: refidxS(NWAVE)                ! refractice indices for Shell
-    complex(kind=f)                    :: refidxC(NWAVE)                ! refractice indices for Core
+    complex(kind=f)                    :: refidxS(NWAVE)       ! refractice indices for Shell
+    complex(kind=f)                    :: refidxC(NWAVE)       ! refractice indices for Core
 
-    integer                            :: igroup,ibin,ncore
+    integer                            :: igroup,ibin
     character(len=8)                   :: sname                ! short (CAM) name
 
     ! Default return code.
@@ -214,7 +210,6 @@ contains
     call CARMAGROUP_Create(carma, I_GRP_MXAER, "mixed aerosol", rmin_MXAER, vmrat_MXAER, I_SPHERE, 1._f, .false., &
                            rc, do_wetdep=.true., do_drydep=.true., solfac=0.2_f, &
                            scavcoef=0.1_f, shortname="MXAER", refidx=refidx, imiertn=I_MIERTN_TOON1981)
-   !                       irhswell=I_MIX, irhswcomp=I_SWG_URBAN,imiertn=I_MIERTN_TOON1981)
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddGroup failed.')
 
 
@@ -222,26 +217,28 @@ contains
     !
     ! NOTE: For CAM, the optional shortname needs to be provided for the group. These names
     ! should be 6 characters or less and without spaces.
-    call CARMAELEMENT_Create(carma, I_ELEM_PRSUL, I_GRP_PRSUL, "Sulfate", RHO_SULFATE, I_VOLATILE, I_H2SO4, rc, shortname="PRSUL")
+    call CARMAELEMENT_Create(carma, I_ELEM_PRSUL, I_GRP_PRSUL, "Sulfate", &
+                             RHO_SULFATE, I_VOLATILE, I_H2SO4, rc, shortname="PRSUL")
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddElement failed.')
 
-    call CARMAELEMENT_Create(carma, I_ELEM_MXAER,  I_GRP_MXAER, "Sulfate in mixed sulfate", RHO_SULFATE, I_INVOLATILE, I_H2SO4, rc,  shortname="MXAER")
+    call CARMAELEMENT_Create(carma, I_ELEM_MXAER,  I_GRP_MXAER, "Sulfate in mixed sulfate", &
+                             RHO_SULFATE, I_INVOLATILE, I_H2SO4, rc,  shortname="MXAER")
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddElement failed.')
 
-    !call CARMAELEMENT_Create(carma, I_ELEM_CROC,   I_GRP_MIXAER, "organic carbon", RHO_obc, I_COREMASS, I_OC, rc, kappa=Kappa_OC, shortname="CROC")
-    call CARMAELEMENT_Create(carma, I_ELEM_MXOC,   I_GRP_MXAER, "organic carbon", RHO_obc, I_COREMASS, I_OC, rc, shortname="MXOC")
+    call CARMAELEMENT_Create(carma, I_ELEM_MXOC,   I_GRP_MXAER, "organic carbon", &
+                             RHO_obc, I_COREMASS, I_OC, rc, shortname="MXOC")
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddElement failed.')
 
-    !call CARMAELEMENT_Create(carma, I_ELEM_CRBC,   I_GRP_MIXAER, "black carbon", RHO_obc, I_COREMASS, I_BC, rc, kappa=Kappa_BC,  shortname="CRBC")
-    call CARMAELEMENT_Create(carma, I_ELEM_MXBC,   I_GRP_MXAER, "black carbon", RHO_obc, I_COREMASS, I_BC, rc, shortname="MXBC")
+    call CARMAELEMENT_Create(carma, I_ELEM_MXBC,   I_GRP_MXAER, "black carbon", &
+                             RHO_obc, I_COREMASS, I_BC, rc, shortname="MXBC")
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddElement failed.')
 
-    !call CARMAELEMENT_Create(carma, I_ELEM_CRDUST, I_GRP_MIXAER, "dust", RHO_DUST, I_COREMASS, I_DUST, rc,  kappa=Kappa_DUST, shortname="CRDUST")
-    call CARMAELEMENT_Create(carma, I_ELEM_MXDUST, I_GRP_MXAER, "dust", RHO_DUST, I_COREMASS, I_DUST, rc,  shortname="MXDUST")
+    call CARMAELEMENT_Create(carma, I_ELEM_MXDUST, I_GRP_MXAER, "dust", &
+                             RHO_DUST, I_COREMASS, I_DUST, rc,  shortname="MXDUST")
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddElement failed.')
 
-    !call CARMAELEMENT_Create(carma, I_ELEM_CRSALT, I_GRP_MIXAER, "SALT in mixed sulfate", RHO_SALT, I_COREMASS, I_SALT, rc,  kappa=Kappa_SALT, shortname="CRSALT")
-    call CARMAELEMENT_Create(carma, I_ELEM_MXSALT, I_GRP_MXAER, "SALT in mixed sulfate", RHO_SALT, I_COREMASS, I_SALT, rc, shortname="MXSALT")
+    call CARMAELEMENT_Create(carma, I_ELEM_MXSALT, I_GRP_MXAER, "SALT in mixed sulfate", &
+                             RHO_SALT, I_COREMASS, I_SALT, rc, shortname="MXSALT")
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddElement failed.')
 
 
@@ -288,7 +285,7 @@ contains
 
       call CARMAGROUP_Get(carma, igroup, rc, shortname=sname)
       if (rc < 0) call endrun('carma_register::CARMAGROUP_Get failed.')
-      !write(*,*) "igroup",igroup,"sname",sname,"ncore",ncore
+      !write(*,*) "igroup",igroup,"sname",sname
 
       ! surface area density. SADMXAER
       call pbuf_add_field('SAD'//trim(sname), 'global', dtype_r8, (/pcols, pver/), ipbuf4sad(igroup))
@@ -339,10 +336,7 @@ contains
   !!  @see CARMASTATE_SetDetrain
   subroutine CARMA_Detrain(carma, cstate, cam_in, dlf, state, icol, dt, rc, rliq, prec_str, snow_str, &
      tnd_qsnow, tnd_nsnow)
-    use camsrfexch,         only: cam_in_t
-    use physconst,          only: latice, latvap, cpair
-
-    implicit none
+    use camsrfexch, only: cam_in_t
 
     type(carma_type), intent(in)         :: carma            !! the carma object
     type(carmastate_type), intent(inout) :: cstate           !! the carma state object
@@ -370,9 +364,6 @@ contains
   !!  @version July-2009
   !!  @author  Chuck Bardeen
   subroutine CARMA_DiagnoseBins(carma, cstate, state, pbuf, icol, dt, rc, rliq, prec_str, snow_str)
-    use constituents,     only: cnst_get_ind
-
-    implicit none
 
     type(carma_type), intent(in)          :: carma        !! the carma object
     type(carmastate_type), intent(inout)  :: cstate       !! the carma state object
@@ -384,9 +375,6 @@ contains
     real(r8), intent(in), optional        :: rliq(pcols)      !! vertical integral of liquid not yet in q(ixcldliq)
     real(r8), intent(inout), optional     :: prec_str(pcols)  !! [Total] sfc flux of precip from stratiform (m/s)
     real(r8), intent(inout), optional     :: snow_str(pcols)  !! [Total] sfc flux of snow from stratiform (m/s)
-
-    real(r8)                             :: mmr(pver) !! elements mass mixing ratio
-    integer                              :: ibin      !! bin index
 
     ! Default return code.
     rc = RC_OK
@@ -404,11 +392,8 @@ contains
   !!  @author  Chuck Bardeen
   subroutine CARMA_DiagnoseBulk(carma, cstate, cam_out, state, pbuf, ptend, icol, dt, rc, rliq, prec_str, snow_str, &
     prec_sed, snow_sed, tnd_qsnow, tnd_nsnow, re_ice)
-    use camsrfexch,       only: cam_out_t
+    use camsrfexch, only: cam_out_t
     use physics_buffer, only: pbuf_get_field
-    use cam_history,  only: addfld, add_default
-
-    implicit none
 
     type(carma_type), intent(in)         :: carma     !! the carma object
     type(carmastate_type), intent(inout) :: cstate    !! the carma state object
@@ -449,9 +434,8 @@ contains
     real(r8)                             :: rmass(NBIN)           !! dry mass
     real(r8)                             :: rhop_dry(cstate%f_NZ) !! dry particle density [g/cm3]
 
-    integer                              :: ibin, igroup, igas, icomposition,iz
-    integer                              :: icorelem(NELEM),ielem,ncore,ienconc,icore
-    character(len=1024)                  :: outputname
+    integer                              :: ibin, igroup, igas, icomposition
+    integer                              :: icorelem(NELEM), ncore,ienconc,icore
     character(len=8)                     :: sname                ! short (CAM) name
 
     real(r8), pointer, dimension(:,:)    :: sadsulf_ptr            !! Total surface area density pointer
@@ -610,7 +594,6 @@ contains
   !! @author  Lin Su, Pengfei Yu, Chuck Bardeen
   !! @version Dec-2010
   subroutine CARMA_EmitParticle(carma, ielem, ibin, icnst, dt, state, cam_in, tendency, surfaceFlux, rc)
-    use shr_kind_mod,  only: r8 => shr_kind_r8
     use ppgrid,        only: pcols, pver
     use physics_types, only: physics_state
     use phys_grid,     only: get_lon_all_p, get_lat_all_p
@@ -618,8 +601,6 @@ contains
                              is_perpetual
     use camsrfexch,    only: cam_in_t
     use cam_history,   only: outfld
-
-    implicit none
 
     type(carma_type), intent(in)       :: carma                 !! the carma object
     integer, intent(in)                :: ielem                 !! element index
@@ -643,7 +624,6 @@ contains
     integer      :: mon                     ! month
     integer      :: day                     ! day of month
     integer      :: ncsec                   ! time of day (seconds)
-    integer      :: doy                     ! day of year
     real(r8)     :: smoke(pcols)            ! smoke emission flux (molecues/cm2/s)
     integer      :: igroup                  ! the index of the carma aerosol group
     character(len=32) :: shortname          ! the shortname of the group
@@ -666,8 +646,6 @@ contains
     real(r8)     :: rmass(carma%f_NBIN)
     real(r8)     :: aeronet(carma%f_NBIN)               ! AERONET DATA, Sep.20, 2002, Jaru Reserve, Brazil (refer to MATICHUK et al., 2008)
     real(r8)     :: SaltFlux(pcols)                     ! sea salt flux to calculate marine POA
-    real(r8)     :: rm(carma%f_NBIN)                    ! bin mass
-    integer      :: ibin_local
     integer      :: LUNOPRT                             ! logical unit number for output
     logical      :: do_print                            ! do print output?
 
@@ -695,7 +673,6 @@ contains
     else
       call get_curr_date(yr, mon, day, ncsec)
     end if
-    doy = floor(calday)
 
     ! Determine the latitude and longitude of each column.
     lchnk = state%lchnk
@@ -782,7 +759,7 @@ contains
       ! Process each column.
       do icol = 1,ncol
 
-        call CARMA_SurfaceWind(carma, state, icol, ilat(icol), ilon(icol), ielem, igroup, idustbin, cam_in, uv10, wwd, uth, rc)
+        call CARMA_SurfaceWind(carma, icol, ielem, igroup, idustbin, cam_in, uv10, wwd, uth, rc)
 
         ! Is the wind above the threshold for dust production?
         if (uv10 > uth) then
@@ -883,10 +860,8 @@ contains
   !! @author  Chuck Bardeen
   !! @version May-2009
   subroutine CARMA_InitializeModel(carma, lq_carma, pbuf2d, rc)
-    use cam_history,  only: addfld, add_default, horiz_only
+    use cam_history,  only: addfld,  horiz_only
     use constituents, only: pcnst
-
-    implicit none
 
     type(carma_type), intent(in)       :: carma                 !! the carma object
     logical, intent(inout)             :: lq_carma(pcnst)       !! flags to indicate whether the constituent
@@ -947,7 +922,7 @@ contains
     end do
 
     ! Read in the soil factors.
-    call CARMA_ReadSoilErosionFactor(carma, rc)
+    call CARMA_ReadSoilErosionFactor(rc)
     if (RC < RC_ERROR) return
 
     ! To determine Clay Mass Fraction
@@ -978,7 +953,7 @@ contains
     call addfld('CRSLERFC', horiz_only, 'A', 'fraction', 'CARMA soil erosion factor')
 
     ! Added by Pengfei Yu to read smoke emission data
-    call CARMA_BCOCread(carma,rc)
+    call CARMA_BCOCread(rc)
 
     if (is_first_step()) then
        ! Initialize physics buffer fields
@@ -1071,10 +1046,6 @@ contains
   !! @author  Chuck Bardeen
   !! @version May-2009
   subroutine CARMA_InitializeParticle(carma, ielem, ibin, latvals, lonvals, mask, q, rc)
-    use shr_kind_mod,   only: r8 => shr_kind_r8
-    use pmgrid,         only: plat, plev, plon
-
-    implicit none
 
     type(carma_type), intent(in)  :: carma      !! the carma object
     integer,          intent(in)  :: ielem      !! element index
@@ -1102,9 +1073,7 @@ contains
   !!  @version July-2011
   !!  @author  Chuck Bardeen
   subroutine CARMA_WetDeposition(carma, ielem, ibin, sflx, cam_out, state, rc)
-    use camsrfexch,       only: cam_out_t
-
-    implicit none
+    use camsrfexch, only: cam_out_t
 
     type(carma_type), intent(in)         :: carma       !! the carma object
     integer, intent(in)                  :: ielem       !! element index
@@ -1131,14 +1100,10 @@ contains
   !! it a separate subroutine since multiple aerosol types need salt flux
   !! e.g. sea salt, sea salt sulfate, marine organics
   subroutine CARMA_SaltFlux(carma, ibin, state, r, dr, rmass, cam_in, SaltFlux, rc)
-    use shr_kind_mod,  only: r8 => shr_kind_r8
-    use ppgrid,        only: pcols, pver
+    use ppgrid,        only: pcols
     use physics_types, only: physics_state
-    use phys_grid,     only: get_lon_all_p, get_lat_all_p, get_rlat_all_p
+    use phys_grid,     only: get_lon_all_p, get_lat_all_p
     use camsrfexch,    only: cam_in_t
-    use cam_history,   only: outfld
-
-    implicit none
 
     type(carma_type), intent(in)       :: carma                 !! the carma object
     integer, intent(in)                :: ibin                  !! bin index
@@ -1292,7 +1257,7 @@ contains
           !**********************************
           !    WIND for seasalt production
           !**********************************
-          call CARMA_SurfaceWind_salt(carma, state, icol, ilat(icol), ilon(icol), cam_in, u10in, rc)
+          call CARMA_SurfaceWind_salt(icol, ilat(icol), ilon(icol), cam_in, u10in, rc)
 
           ! Add any surface flux here.
           ncflx       = 0.0_r8
@@ -1315,8 +1280,8 @@ contains
              cd_smith = (0.49_r8 + 0.065_r8 * u10in) * 1.e-3_r8
           end if
 
-          ustar_smith = cd_smith **0.5_r8 * u10in
-
+          ! ustar_smith = cd_smith **0.5_r8 * u10in
+          !
           ! We don't have vg yet, since that is calculated by CARMA. That will require
           ! a different interface for the emissions, storing vg in the physics buffer,
           ! and/or doing some duplicate calculations for vg assuming 80% RH.
@@ -1536,16 +1501,10 @@ contains
   !!
   !! @author  Tianyi Fan
   !! @version August-2010
-  subroutine CARMA_SurfaceWind_salt(carma, state, icol, ilat, ilon, cam_in, u10in, rc)
-    use ppgrid,           only: pcols, pver
-    use physics_types,    only: physics_state
-    use camsrfexch,       only: cam_in_t
-
-    implicit none
+  subroutine CARMA_SurfaceWind_salt(icol, ilat, ilon, cam_in, u10in, rc)
+    use camsrfexch, only: cam_in_t
 
     ! in and out field
-    type(carma_type), intent(in)        :: carma                 !! the carma object
-    type(physics_state), intent(in)     :: state                 !! physics state
     integer, intent(in)                 :: icol                  !! column index
     integer, intent(in)                 :: ilat                  !! latitude index
     integer, intent(in)                 :: ilon                  !! longitude index
@@ -1592,7 +1551,6 @@ contains
   !!  @version July-2012
   !!  @author  Lin Su, Pengfei Yu, Chuck Bardeen
   subroutine CARMA_ClayMassFraction(carma, igroup, rc)
-    implicit none
 
     type(carma_type), intent(in)         :: carma       !! the carma object
     integer, intent(in)                  :: igroup      !! the carma group index
@@ -1683,19 +1641,12 @@ contains
   !!
   !! @author  Lin Su, Pengfei Yu, Chuck Bardeen
   !! @version July-2012
-  subroutine CARMA_SurfaceWind(carma, state, icol, ilat, ilon, ielem, igroup, ibin, cam_in, uv10, wwd, uth, rc)
-    use ppgrid,           only: pcols, pver
-    use physics_types,    only: physics_state
-    use camsrfexch,       only: cam_in_t
-
-    implicit none
+  subroutine CARMA_SurfaceWind(carma, icol, ielem, igroup, ibin, cam_in, uv10, wwd, uth, rc)
+    use camsrfexch, only: cam_in_t
 
     ! in and out field
     type(carma_type), intent(in)        :: carma                 !! the carma object
-    type(physics_state), intent(in)     :: state                 !! physics state
     integer, intent(in)                 :: icol                  !! column index
-    integer, intent(in)                 :: ilat                  !! latitude index
-    integer, intent(in)                 :: ilon                  !! longitude index
     integer, intent(in)                 :: ielem                 !! element index
     integer, intent(in)                 :: igroup                !! group index
     integer, intent(in)                 :: ibin                  !! bin index
@@ -1709,7 +1660,6 @@ contains
     real(r8)                            :: r(NBIN)               ! CARMA bin center (cm)
     real(r8)                            :: rhop(NBIN)            ! CARMA partile element density (g/cm3)
     real(r8)                            :: uthfact               !
-    integer                             :: iepart                ! element in group containing the particle concentration
     real(r8), parameter                 :: rhoa = 1.25e-3_r8     ! Air density at surface
 
     rc = RC_OK
@@ -1760,15 +1710,12 @@ contains
 
 !! st
 !! could use /components/cam/src/chemistry/aerosol/soil_erod_mod.F90 here insted of this routine?
-  subroutine CARMA_ReadSoilErosionFactor(carma, rc)
+  subroutine CARMA_ReadSoilErosionFactor(rc)
     use pmgrid,        only: plat, plon
     use ioFileMod,     only: getfil
     use wrap_nf
     use interpolate_data,  only : lininterp_init, lininterp, interp_type, lininterp_finish
 
-    implicit none
-
-    type(carma_type), intent(in)              :: carma                 !! the carma object
     integer, intent(out)                      :: rc                    !! return code, negative indicates failure
 
     ! local variables
@@ -1850,11 +1797,7 @@ contains
   !! @author  Tianyi Fan
   !! @version August-2010
    subroutine WeibullWind(u, uth, n, uwb, wbk)
-    use shr_kind_mod,   only: r8 => shr_kind_r8
-    use shr_spfn_mod, only: gamma =>  shr_spfn_gamma, &
-         igamma => shr_spfn_igamma
-
-    implicit none
+    use shr_spfn_mod, only: gamma =>  shr_spfn_gamma, igamma => shr_spfn_igamma
 
     real(r8), intent(in)  :: u      ! mean wind speed
     real(r8), intent(in)  :: uth    ! threshold velocity
@@ -1892,23 +1835,16 @@ contains
   !!
   !! @author  Pengfei Yu
   !! @version May-2013
-  subroutine CARMA_BCOCRead(carma, rc)
+  subroutine CARMA_BCOCRead(rc)
     use pmgrid,        only: plat, plon
     use ioFileMod,     only: getfil
     use cam_pio_utils, only: cam_pio_openfile
     use interpolate_data,  only : lininterp_init, lininterp, interp_type, lininterp_finish
-    use pio,              only : file_desc_t, var_desc_t, &
-                               pio_seterrorhandling, pio_internal_error, pio_bcast_error, &
-                               pio_char, pio_noerr, &
+    use pio,            only : file_desc_t, var_desc_t, &
                                pio_inq_dimid, pio_inq_varid, &
-                               pio_def_dim, pio_def_var, &
-                               pio_put_att, pio_put_var, &
-                               pio_get_var, pio_get_att, pio_nowrite, pio_inq_dimlen, &
-                               pio_inq_vardimid, pio_inq_dimlen, pio_closefile, &
-                               pio_inquire_variable
-    implicit none
+                               pio_get_var, pio_nowrite, pio_inq_dimlen, &
+                               pio_inq_dimlen, pio_closefile
 
-    type(carma_type), intent(in)              :: carma                 !! the carma object
     integer, intent(out)                      :: rc                    !! return code, negative indicates failure
 
     ! local variables
@@ -1944,7 +1880,6 @@ contains
     real(r8), allocatable, dimension(:)           :: tempor1d
     integer                                                                       :: mid_idx
     real(r8), allocatable, dimension(:,:)         :: BC_dom_f2d, OC_dom_f2d
-    real(r8), allocatable, dimension(:,:)         :: BC_awb_f2d, OC_awb_f2d
     real(r8), allocatable, dimension(:,:,:)       :: BC_dom_f3d, OC_dom_f3d
     real(r8), allocatable, dimension(:,:,:)       :: BC_awb_f3d, OC_awb_f3d
     real(r8), allocatable, dimension(:,:)         :: BC2d_dom, OC2d_dom
@@ -2008,12 +1943,6 @@ contains
     ierr = pio_inq_dimlen(fid, fid_time,f_ntime)
     ierr = pio_inq_dimlen(fid, fid_lon, f_nlon)
     ierr = pio_inq_dimlen(fid, fid_lat, f_nlat)
-
-    !  write(carma%f_LUNOPRT,*) ''
-    !  write(carma%f_LUNOPRT,*) 'f_lon = ', f_nlon
-    !  write(carma%f_LUNOPRT,*) 'f_lat = ', f_nlat
-    !  write(carma%f_LUNOPRT,*) 'f_ntime = ', f_ntime
-    !  write(carma%f_LUNOPRT,*) ''
 
     allocate(BC_lat(f_nlat))
     allocate(BC_lon(f_nlon))
@@ -2556,6 +2485,5 @@ contains
 !
     return
   end subroutine CARMA_BCOCRead
-
 
 end module carma_model_mod
