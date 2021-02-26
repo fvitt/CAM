@@ -66,9 +66,34 @@ contains
   !=============================================================================
   !=============================================================================
   subroutine aero_model_init( pbuf2d )
+    use rad_constituents,only: rad_cnst_get_info, rad_cnst_get_info_by_bin, rad_cnst_get_info_by_bin_spec
+    use physics_buffer,  only: pbuf_get_index, pbuf_set_field
+    use time_manager,    only: is_first_step
 
     ! args
     type(physics_buffer_desc), pointer :: pbuf2d(:,:)
+
+    integer :: m, l
+    character(len=32) :: spec_name
+    character(len=32) :: mmr_name
+    integer :: idx, nspec, nbins
+
+    if (is_first_step()) then
+       call rad_cnst_get_info( 0, nbins=nbins)
+
+       do m = 1, nbins
+          call rad_cnst_get_info_by_bin(0, m, nspec=nspec, mmr_name=mmr_name)
+          idx = pbuf_get_index('CLD'//trim(mmr_name))
+          call pbuf_set_field(pbuf2d, idx, 0.0_r8)
+          idx = pbuf_get_index('CLDNB'//trim(mmr_name))
+          call pbuf_set_field(pbuf2d, idx, 0.0_r8)
+          do l = 1, nspec
+             call rad_cnst_get_info_by_bin_spec(0, m, l, spec_name=spec_name)
+             idx = pbuf_get_index('CLD'//trim(spec_name))
+             call pbuf_set_field(pbuf2d, idx, 0.0_r8)
+          enddo
+       enddo
+    endif
 
   end subroutine aero_model_init
 
