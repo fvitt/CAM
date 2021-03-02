@@ -218,6 +218,10 @@
     <alias>FCARMAnudged</alias>
     <lname>HIST_CAM60%CARMATS%NUDG_CLM50%SP_CICE%PRES_DOCN%DOM_MOSART_SGLC_SWAV</lname>
   </compset>
+  <compset>
+    <alias>FCARMASD</alias>
+    <lname>HIST_CAM60%CARMATS%SDYN_CLM50%SP_CICE%PRES_DOCN%DOM_MOSART_SGLC_SWAV</lname>
+  </compset>
 
   <compset>
     <alias>FC2010climo</alias>
@@ -447,7 +451,7 @@
  	<value  compset="CAM60%CARMATS%NUDG" grid="a%1.9x2.5">1990-01-01</value>
  	<value  compset="_CAM.*%SDYN"                   >2005-01-01</value>
  	<value  compset="_CAM.*%SDYN" grid="a%0.47x0.63">2010-01-01</value>
-	<value  compset="_CAM60%(WCCM|WCTS|WXIE).*%SDYN">1980-01-01</value>
+	<value  compset="_CAM60%(CARMA|WCCM|WCTS|WXIE).*%SDYN">1980-01-01</value>
  	<value  compset="_CAM40%WX.*%SDYN">2000-01-01</value>
 
 	<value  compset="C2R4_CAM">2004-01-01</value>

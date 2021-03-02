@@ -933,43 +933,49 @@ subroutine nucleate_ice_cam_calc( &
                   !st only if dust is a specie in this bin, need to know the dust fraction, and only move that part, so multiply by dust_fraction (per bin)
                   !st analoge from sulfate
 
-                  if  (dst_num >= 1.0e-10_r8) then
+                  if  (dst_num >= 1.0e-10_r8 .and. wght_dst(m) > 0.0_r8) then
+                  !st    write(iulog, *) 'i, k, m, num_bin, odst_num, dst_num, wght_dst, icldm, rho:', i, k, m,  num_bin(i,k), odst_num, dst_num,  wght_dst(m),  num_bin(i,k), icldm(i,k), rho(i,k) 
 
-                     num_bin(i,k)   = num_bin(i,k) - ((odst_num/dst_num) * wght_dst(m) *  num_bin(i,k)  * icldm(i,k) ) /rho(i,k)/1e-6_r8
-                     num_bin_c(i,k)   = num_bin_c(i,k) + ((odst_num/dst_num) * wght_dst(m)* num_bin(i,k)  * icldm(i,k) ) /rho(i,k)/1e-6_r8
-                     mmr_bin_c(i,k)   = mmr_bin_c(i,k) +  (odst_num/dst_num) *  wght_dst(m) * icldm(i,k)  * mmr_bin(i,k)
+                  !st    num_bin(i,k)   = num_bin(i,k) - ((odst_num/dst_num) * wght_dst(m) *  num_bin(i,k)  * icldm(i,k) ) /rho(i,k)/1e-6_r8
+                  !st    num_bin_c(i,k)   = num_bin_c(i,k) + ((odst_num/dst_num) * wght_dst(m)* num_bin(i,k)  * icldm(i,k) ) /rho(i,k)/1e-6_r8
+                      num_bin(i,k)   = num_bin(i,k) - (odst_num * wght_dst(m) * icldm(i,k) ) /rho(i,k)/1e-6_r8
+                      num_bin_c(i,k) = num_bin_c(i,k) + (odst_num * wght_dst(m) * icldm(i,k) ) /rho(i,k)/1e-6_r8
+                      mmr_bin_c(i,k)   = mmr_bin_c(i,k) +  (odst_num/dst_num) *  wght_dst(m) * icldm(i,k)  * mmr_bin(i,k)
 
-                     if (bin_cnst_lq(m,0)) then ! advected species
-                        !need to add mmr_bin changes to tendencies (advected specie)
-                        lptr = bin_cnst_idx(m,0)
-                        ptend%q(i,k,lptr) = - (odst_num / dst_num) * wght_dst(m) * icldm(i,k) * mmr_bin(i,k)  / dtime
-                     else
-                        mmr_bin(i,k)   = mmr_bin(i,k) +  (odst_num/dst_num) *  wght_dst(m) * icldm(i,k)  * mmr_bin(i,k)
-                     endif
+                  !st    mmr_bin_c(i,k)   = mmr_bin_c(i,k) +  (odst_num/dst_num) *  wght_dst(m) * icldm(i,k)  * mmr_bin(i,k)
 
-                     do l = 1, nspec_bin(m)
-                        call rad_cnst_get_bin_mmr_by_idx(0, m, l, 'a', state, pbuf, aer_bin)
-                        call rad_cnst_get_bin_mmr_by_idx(0, m, l, 'c', state, pbuf, qqcw)
-                        call rad_cnst_get_bin_props_by_idx(0, m, l, spectype=spectype)
+                      if (bin_cnst_lq(m,0)) then ! advected species
+                         !need to add mmr_bin changes to tendencies (advected specie)
+                         lptr = bin_cnst_idx(m,0)
+                         ptend%q(i,k,lptr) = - (odst_num / dst_num) * wght_dst(m) * icldm(i,k) * mmr_bin(i,k)  / dtime
+                      else
+                         mmr_bin(i,k)   = mmr_bin_c(i,k) -  (odst_num/dst_num) *  wght_dst(m) * icldm(i,k)  * mmr_bin(i,k)
+                      endif
+
+
+                      do l = 1, nspec_bin(m)
+                         call rad_cnst_get_bin_mmr_by_idx(0, m, l, 'a', state, pbuf, aer_bin)
+                         call rad_cnst_get_bin_mmr_by_idx(0, m, l, 'c', state, pbuf, qqcw)
+                         call rad_cnst_get_bin_props_by_idx(0, m, l, spectype=spectype)
 
                         !st for dust: change concentration element (sulfate), numbers,
-                        if (trim(spectype) == 'dust') then
-                           if (bin_cnst_lq(m,l)) then ! advected species
-                              lptr = bin_cnst_idx(m,l)
-                              ptend%q(i,k,lptr) = - (odst_num / dst_num) * icldm(i,k) * aer_bin(i,k) / dtime
-                           else
-                              aer_bin(i,k) = aer_bin(i,k) - (odst_num / dst_num ) *icldm(i,k) * aer_bin(i,k)
-                           end if
-                           qqcw(i,k) = qqcw(i,k) + (odst_num / dst_num) *icldm(i,k) * aer_bin(i,k)
-                        end if
-                     end do
-
+                         if (trim(spectype) == 'dust') then
+                            if (bin_cnst_lq(m,l)) then ! advected species
+                               lptr = bin_cnst_idx(m,l)
+                               ptend%q(i,k,lptr) = - (odst_num / dst_num) * icldm(i,k) * aer_bin(i,k) / dtime
+                            else
+                               aer_bin(i,k) = aer_bin(i,k) - (odst_num / dst_num ) *icldm(i,k) * aer_bin(i,k)
+                            end if
+                            qqcw(i,k) = qqcw(i,k) + (odst_num / dst_num) *icldm(i,k) * aer_bin(i,k)
+                         end if
+                      end do
                   end if
 
-                  if  (so4_num >= 1.0e-10_r8) then
+                  if  (so4_num >= 1.0e-10_r8 .and. wght_so4(m) >= 1.0e-10_r8) then
+                      !st write(iulog, *) 'i, k, m, num_bin, oso4_num, so4_num, wght_so4, icldm, rho:', i, k, m,  num_bin(i,k), oso4_num, so4_num,  wght_so4(m),  num_bin(i,k), icldm(i,k), rho(i,k) 
 
-                     num_bin(i,k)   = num_bin(i,k) - ((oso4_num/so4_num) * wght_so4(m) *  num_bin(i,k)  * icldm(i,k) ) /rho(i,k)/1e-6_r8
-                     num_bin_c(i,k) = num_bin_c(i,k) + ((oso4_num/so4_num) * wght_so4(m)* num_bin(i,k)  * icldm(i,k) ) /rho(i,k)/1e-6_r8
+                     num_bin(i,k)   = num_bin(i,k) - (oso4_num * wght_so4(m) *  icldm(i,k) ) /rho(i,k)/1e-6_r8
+                     num_bin_c(i,k) = num_bin_c(i,k) + (oso4_num * wght_so4(m) * icldm(i,k) ) /rho(i,k)/1e-6_r8
                      mmr_bin_c(i,k) = mmr_bin_c(i,k) +  (oso4_num/so4_num) *  wght_so4(m) * icldm(i,k)  * mmr_bin(i,k)
 
                      if (bin_cnst_lq(m,0)) then ! advected species
@@ -977,7 +983,7 @@ subroutine nucleate_ice_cam_calc( &
                         lptr = bin_cnst_idx(m,0)
                         ptend%q(i,k,lptr) = - (oso4_num / so4_num) * wght_so4(m) * icldm(i,k) * mmr_bin(i,k)   / dtime
                      else
-                        mmr_bin(i,k)   = mmr_bin(i,k) +  (oso4_num/so4_num) *  wght_so4(m) * icldm(i,k)  * mmr_bin(i,k)
+                        mmr_bin(i,k)   = mmr_bin(i,k) -  (oso4_num/so4_num) *  wght_so4(m) * icldm(i,k)  * mmr_bin(i,k)
                      endif
 
 

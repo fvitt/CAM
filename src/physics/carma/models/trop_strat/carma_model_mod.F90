@@ -121,7 +121,7 @@ module carma_model_mod
 
   integer                         :: nClay                  !! Number of clay bins (r < 1 um)
   integer                         :: nSilt                  !! Number of silt bins
-  real(kind=f)                    :: clay_mf(NBIN)          !! clay mass fraction (fraction)
+  real(kind=f)                    :: clay_mf(NBIN)=-huge(1._f) !! clay mass fraction (fraction)
   real(kind=f), allocatable, dimension(:,:) :: soil_factor  !! Soil Erosion Factor (fraction)
   real(kind=f), public, parameter :: WTMOL_H2SO4    = 98.078479_f    !! molecular weight of sulphuric acid
 
@@ -209,7 +209,7 @@ contains
 
     call CARMAGROUP_Create(carma, I_GRP_MXAER, "mixed aerosol", rmin_MXAER, vmrat_MXAER, I_SPHERE, 1._f, .false., &
                            rc, do_wetdep=.true., do_drydep=.true., solfac=0.2_f, &
-                           scavcoef=0.1_f, shortname="MXAER", refidx=refidx, imiertn=I_MIERTN_TOON1981)
+                           scavcoef=0.1_f, shortname="MXAER", refidx=refidx, irhswell=I_PETTERS, imiertn=I_MIERTN_TOON1981,neutral_volfrc=-1._f)
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddGroup failed.')
 
 
@@ -222,23 +222,23 @@ contains
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddElement failed.')
 
     call CARMAELEMENT_Create(carma, I_ELEM_MXAER,  I_GRP_MXAER, "Sulfate in mixed sulfate", &
-                             RHO_SULFATE, I_INVOLATILE, I_H2SO4, rc,  shortname="MXAER")
+                             RHO_SULFATE, I_VOLATILE, I_H2SO4, rc,  kappaElement=Kappa_SULF, shortname="MXAER")
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddElement failed.')
 
     call CARMAELEMENT_Create(carma, I_ELEM_MXOC,   I_GRP_MXAER, "organic carbon", &
-                             RHO_obc, I_COREMASS, I_OC, rc, shortname="MXOC")
+                             RHO_obc, I_COREMASS, I_OC, rc, kappaElement=Kappa_OC, shortname="MXOC")
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddElement failed.')
 
     call CARMAELEMENT_Create(carma, I_ELEM_MXBC,   I_GRP_MXAER, "black carbon", &
-                             RHO_obc, I_COREMASS, I_BC, rc, shortname="MXBC")
+                             RHO_obc, I_COREMASS, I_BC, rc, kappaElement=Kappa_BC, shortname="MXBC")
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddElement failed.')
 
     call CARMAELEMENT_Create(carma, I_ELEM_MXDUST, I_GRP_MXAER, "dust", &
-                             RHO_DUST, I_COREMASS, I_DUST, rc,  shortname="MXDUST")
+                             RHO_DUST, I_COREMASS, I_DUST, rc,  kappaElement=Kappa_DUST, shortname="MXDUST")
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddElement failed.')
 
     call CARMAELEMENT_Create(carma, I_ELEM_MXSALT, I_GRP_MXAER, "SALT in mixed sulfate", &
-                             RHO_SALT, I_COREMASS, I_SALT, rc, shortname="MXSALT")
+                             RHO_SALT, I_COREMASS, I_SALT, rc, kappaElement=Kappa_SALT, shortname="MXSALT")
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddElement failed.')
 
 
@@ -247,16 +247,12 @@ contains
 
 
     ! Define the Gases
-    !call CARMAGAS_Create(carma, I_GAS_H2O, "Water Vapor", WTMOL_H2O, I_VAPRTN_H2O_MURPHY2005, I_GCOMP_H2O, &
-    !                     rc, shortname = "Q", ds_threshold=-0.2_f)
     call CARMAGAS_Create(carma, I_GAS_H2O, "Water Vapor", WTMOL_H2O, I_VAPRTN_H2O_MURPHY2005, I_GCOMP_H2O, &
-                         rc, shortname = "Q")
+                         rc, shortname = "Q", ds_threshold=-0.2_f)
     if (rc < RC_OK) call endrun('CARMA_DefineModel::CARMAGAS_Create failed.')
 
-    !call CARMAGAS_Create(carma, I_GAS_H2SO4, "Sulfuric Acid", WTMOL_H2SO4, I_VAPRTN_H2SO4_AYERS1980, &
-    !                     I_GCOMP_H2SO4, rc, shortname = "H2SO4", ds_threshold=-0.2_f)
     call CARMAGAS_Create(carma, I_GAS_H2SO4, "Sulfuric Acid", WTMOL_H2SO4, I_VAPRTN_H2SO4_AYERS1980, &
-                         I_GCOMP_H2SO4, rc, shortname = "H2SO4")
+                         I_GCOMP_H2SO4, rc, shortname = "H2SO4", ds_threshold=-0.2_f)
     if (rc < RC_OK) call endrun('CARMA_DefineModel::CARMAGAS_Create failed.')
 
 
@@ -810,41 +806,45 @@ contains
   !!   endif
        surfaceFlux(:ncol) = SaltFlux(:ncol)
 
-  !  elseif (ielem == I_ELEM_CRMIX) then
+   elseif (ielem == I_ELEM_MXAER) then
 !
 !       ! OC & BC
-!       do icol = 1, ncol
-!          smoke(icol) = OCnew(ilat(icol), ilon(icol), mon)*1.8_r8 + BCnew(ilat(icol), ilon(icol), mon)
-!       enddo
+        do icol = 1, ncol
+           smoke(icol) = OCnew(ilat(icol), ilon(icol), mon)*1.8_r8 + BCnew(ilat(icol), ilon(icol), mon)
+        enddo
 !      ! seasalt
-!      call CARMA_SaltFlux(carma, ibin, state, r, dr, rmass, cam_in, SaltFlux, rc)
+       call CARMA_SaltFlux(carma, ibin, state, r, dr, rmass, cam_in, SaltFlux, rc)
 !
 !      ! dust
-!       if (r(ibin) >= rClay) then
-!        sp         = 0.9_r8 / nSilt
-!        idustbin   = ibin
-!       else
-!        sp         = 0.1_r8 / nClay
-!        idustbin   = nClay + 1
-!       end if
+        if (r(ibin) >= rClay) then
+         sp         = 0.9_r8 / nSilt
+         idustbin   = ibin
+        else
+         sp         = 0.1_r8 / nClay
+         idustbin   = nClay + 1
+        end if
 !      ! Process each column.
-!      do icol = 1,ncol
+
+       do icol = 1,ncol
 !        ! need to use dust element (e.g. density) to calculate surface wind
 !        ! otherwise the winds would be different
-!        call CARMA_SurfaceWind(carma, state, icol, ilat(icol), ilon(icol), I_ELEM_CRDUST, igroup, idustbin, cam_in, uv10, wwd, uth, rc)
-!        ! Is the wind above the threshold for dust production?
-!        if (uv10 > uth) then
-!            surfaceFlux(icol) = ch * soil_factor(ilat(icol), ilon(icol)) * sp * &
-!                                wwd  * (uv10 - uth)
-!        endif
-!        ! Scale the clay bins based upon the smallest silt bin.
-!        surfaceFlux(icol) = clay_mf(ibin) * surfaceFlux(icol)
-!      end do
+         call CARMA_SurfaceWind(carma, icol, ielem, igroup, idustbin, cam_in, uv10, wwd, uth, rc)
+
+        ! Is the wind above the threshold for dust production?
+        if (uv10 > uth) then
+          surfaceFlux(icol) = ch * soil_factor(ilat(icol), ilon(icol)) * sp * &
+                              wwd * (uv10 - uth)
+        endif
+
+        ! Scale the clay bins based upon the smallest silt bin.
+        surfaceFlux(icol) = clay_mf(ibin) * surfaceFlux(icol)
+
+       end do
 !
 !      ! dust+poa+bc+marinPOA+seasalt+seasalt_sulfate
       ! marinePOA + sea alt + marineSulfate = SaltFlux
       !surfaceFlux(:ncol) = surfaceFlux(:ncol) + smoke(:ncol)*fraction*1.9934e-22_r8 + SaltFlux(:ncol) + PBAPFlux(:ncol)
-!     surfaceFlux(:ncol) = surfaceFlux(:ncol) + smoke(:ncol)*fraction*1.9934e-22_r8 + SaltFlux(:ncol)
+      surfaceFlux(:ncol) = surfaceFlux(:ncol) + smoke(:ncol)*aeronet_fraction(ibin)*SmoketoSufaceFlux + SaltFlux(:ncol)
 
     else
 
@@ -931,7 +931,7 @@ contains
        call CARMAELEMENT_GET(carma, ielem, rc, igroup=igroup, shortname=shortname)
        if (RC < RC_ERROR) return
 
-       if (shortname .eq. "CRDUST") then
+       if (shortname .eq. "MXDUST") then
           call CARMA_ClayMassFraction(carma, igroup, rc)
        end if
     end do
@@ -1257,7 +1257,8 @@ contains
           !**********************************
           !    WIND for seasalt production
           !**********************************
-          call CARMA_SurfaceWind_salt(icol, ilat(icol), ilon(icol), cam_in, u10in, rc)
+         ! call CARMA_SurfaceWind_salt(icol, ilat(icol), ilon(icol), cam_in, u10in, rc)
+          u10in = cam_in%u10(icol)
 
           ! Add any surface flux here.
           ncflx       = 0.0_r8

@@ -485,6 +485,9 @@ subroutine dropmixnuc_carma( &
 
    factnum = 0._r8
    wtke = 0._r8
+   nsource = 0._r8
+   ndropmix = 0._r8
+   ndropcol = 0._r8
 
    ! initialize aerosol tendencies
    call physics_ptend_init(ptend, state%psetcols, 'ndrop_carma', lq=lq)
