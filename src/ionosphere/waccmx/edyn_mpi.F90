@@ -157,7 +157,7 @@ contains
       !
       ! Initialize MPI, and allocate task table.
       !
-      integer, intent(in) :: mpi_comm 
+      integer, intent(in) :: mpi_comm
       integer, intent(in) :: ionos_npes
       integer, intent(in) :: nlon_geo_in
       integer, intent(in) :: nlat_geo_in
@@ -303,7 +303,7 @@ contains
             endif
          enddo
       endif
-   
+
       !
       ! Create sub-communicators for each task row (used by mp_geopole_3d):
       !
@@ -477,7 +477,7 @@ contains
    subroutine mp_exchange_tasks(mpi_comm, iprint, gmlat)
       !
       ! Args:
-      integer,  intent(in) :: mpi_comm 
+      integer,  intent(in) :: mpi_comm
       integer,  intent(in) :: iprint
       real(r8), intent(in) :: gmlat(:)
       !
@@ -492,9 +492,9 @@ contains
            itasks_send(:,:), & ! send buffer
            itasks_recv(:,:)    ! send buffer
       integer :: npes
-      
+
       call mpi_comm_size(mpi_comm, npes, ier)
-      
+
       !
       ! Pack tasks(mytid) into itasks_send:
       allocate(itasks_send(len_task_type,0:npes-1),stat=ier)
@@ -1670,7 +1670,7 @@ contains
       real(r8),intent(out) :: fout(mlon00:mlon11,mxneed,nf) ! returned data at needed lats
       !
       ! Local:
-      integer,parameter :: sndbuf_cntr_max = 20 ! Maximum number of ibsend from one mpi task
+      integer,parameter :: sndbuf_cntr_max = 50 ! Maximum number of ibsend from one mpi task
       integer :: ier,njneed,i,j,n,nj,idest, &
            icount,len,nlons,isrc,msgid,ifld,sndbuf_cntr
       integer :: tij ! rank in cols_comm (0 to nmagtaskj-1)

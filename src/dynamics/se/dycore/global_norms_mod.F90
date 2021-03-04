@@ -666,7 +666,7 @@ contains
            MIN(dt_max_adv,dt_max_gw),'s ',dt_dyn_actual,'s'
       if (dt_dyn_actual>MIN(dt_max_adv,dt_max_gw)) write(iulog,*) 'WARNING: dt_dyn theoretically unstable'
 
-      write(iulog,'(a,f10.2,a,f10.2,a)') '* dt_dyn_vis    (hyperviscosity)       ; u,v,T,dM) < ',dt_max_hypervis,&
+      write(iulog,'(a,f12.6,a,f12.6,a)') '* dt_dyn_vis    (hyperviscosity)       ; u,v,T,dM) < ',dt_max_hypervis,&
            's ',dt_dyn_visco_actual,'s'
       if (dt_dyn_visco_actual>dt_max_hypervis) write(iulog,*) 'WARNING: dt_dyn_vis theoretically unstable'
       write(iulog,'(a,f10.2,a,f10.2,a)') '* dt_tracer_se  (time-stepping tracers ; q       ) < ',dt_max_tracer_se,'s ',&
