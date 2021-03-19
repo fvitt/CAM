@@ -4,7 +4,7 @@ module mo_drydep
   !       ... Dry deposition
   !---------------------------------------------------------------------
 
-  use shr_kind_mod,     only : r8 => shr_kind_r8, shr_kind_cl
+  use shr_kind_mod,     only : r8 => shr_kind_r8
   use chem_mods,        only : gas_pcnst
   use pmgrid,           only : plev
   use spmd_utils,       only : masterproc
@@ -270,7 +270,6 @@ contains
     ! 	... intialize interactive drydep
     !-------------------------------------------------------------------------------------
     use mo_chem_utls,  only : get_spc_ndx
-    use phys_control,  only : phys_getopts
 
     !-------------------------------------------------------------------------------------
     ! 	... local variables

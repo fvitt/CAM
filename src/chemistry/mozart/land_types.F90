@@ -32,10 +32,10 @@ contains
 
     integer :: nlon_veg, nlat_veg, npft_veg
     integer :: dimid
-    integer :: i,m
+    integer :: i
     integer :: astat
     integer :: plon, plat
-    integer :: ierr, ndx
+    integer :: ierr
 
     real(r8), allocatable :: vegetation_map(:,:,:)
     real(r8), allocatable :: work(:,:)
@@ -43,9 +43,7 @@ contains
     real(r8), allocatable :: urban(:,:)
     real(r8), allocatable :: lake(:,:)
     real(r8), allocatable :: wetland(:,:)
-    real(r8), allocatable :: lon_veg(:)
     real(r8), allocatable :: lon_veg_edge(:)
-    real(r8), allocatable :: lat_veg(:)
     real(r8), allocatable :: lat_veg_edge(:)
 
     type(file_desc_t) :: piofile
@@ -93,8 +91,7 @@ contains
           write(iulog,*) 'dvel_inti: failed to allocate vegation_map; error = ',astat
           call endrun
        end if
-       allocate( lon_veg(nlon_veg), lat_veg(nlat_veg), &
-            lon_veg_edge(nlon_veg+1), lat_veg_edge(nlat_veg+1), stat=astat )
+       allocate( lon_veg_edge(nlon_veg+1), lat_veg_edge(nlat_veg+1), stat=astat )
        if( astat /= 0 ) then
           write(iulog,*) 'dvel_inti: failed to allocate vegation lon, lat arrays; error = ',astat
           call endrun
@@ -136,20 +133,18 @@ contains
        !---------------------------------------------------------------------------
        ! 	... define lat-lon of vegetation map (1x1)
        !---------------------------------------------------------------------------
-       lat_veg(:)      = (/ (-89.5_r8 + (i-1),i=1,nlat_veg  ) /)
-       lon_veg(:)      = (/ (  0.5_r8 + (i-1),i=1,nlon_veg  ) /)
        lat_veg_edge(:) = (/ (-90.0_r8 + (i-1),i=1,nlat_veg+1) /)
        lon_veg_edge(:) = (/ (  0.0_r8 + (i-1),i=1,nlon_veg+1) /)
 
        !---------------------------------------------------------------------------
        ! 	... regrid to model grid
        !---------------------------------------------------------------------------
-       call interp_map( plon, plat, nlon_veg, nlat_veg, npft_veg, lat_veg, lat_veg_edge, &
-            lon_veg, lon_veg_edge, landmask, urban, lake, &
+       call interp_map( plon, plat, nlon_veg, nlat_veg, npft_veg, lat_veg_edge, &
+            lon_veg_edge, landmask, urban, lake, &
             wetland, vegetation_map )
 
        deallocate( vegetation_map, work, stat=astat )
-       deallocate( lon_veg, lat_veg, lon_veg_edge, lat_veg_edge, stat=astat )
+       deallocate( lon_veg_edge, lat_veg_edge, stat=astat )
        deallocate( landmask, urban, lake, wetland, stat=astat )
     endif  ! Unstructured grid
   end subroutine land_types_init
@@ -192,8 +187,8 @@ contains
   end subroutine get_landuse_and_soilw_from_file
 
   !-------------------------------------------------------------------------------------
-  subroutine interp_map( plon, plat, nlon_veg, nlat_veg, npft_veg, lat_veg, lat_veg_edge, &
-                         lon_veg, lon_veg_edge, landmask, urban, lake, &
+  subroutine interp_map( plon, plat, nlon_veg, nlat_veg, npft_veg, lat_veg_edge, &
+                         lon_veg_edge, landmask, urban, lake, &
                          wetland, vegetation_map )
 
     use mo_constants, only : r2d
@@ -212,9 +207,7 @@ contains
     real(r8), intent(in)         :: lake(nlon_veg,nlat_veg)
     real(r8), intent(in)         :: wetland(nlon_veg,nlat_veg)
     real(r8), intent(in)         :: vegetation_map(nlon_veg,nlat_veg,npft_veg)
-    real(r8), intent(in)         :: lon_veg(nlon_veg)
     real(r8), intent(in)         :: lon_veg_edge(nlon_veg+1)
-    real(r8), intent(in)         :: lat_veg(nlat_veg)
     real(r8), intent(in)         :: lat_veg_edge(nlat_veg+1)
 
     !-------------------------------------------------------------------------------------
@@ -223,18 +216,18 @@ contains
     real(r8) :: closelat,closelon
     integer :: latidx,lonidx
 
-    integer, parameter           :: veg_ext = 20
-    type(file_desc_t), pointer   :: piofile
-    integer                      :: i, j, ii, jj, i_ndx, n
-    integer, dimension(plon+1)   :: ind_lon
-    integer, dimension(plat+1)  :: ind_lat
-    real(r8)                         :: total_land
-    real(r8), dimension(plon+1)      :: lon_edge
+    integer, parameter              :: veg_ext = 20
+    type(file_desc_t), pointer      :: piofile
+    integer                         :: i, j, ii, jj, i_ndx, n
+    integer, dimension(plon+1)      :: ind_lon
+    integer, dimension(plat+1)      :: ind_lat
+    real(r8)                        :: total_land
+    real(r8), dimension(plon+1)     :: lon_edge
     real(r8), dimension(plat+1)     :: lat_edge
-    real(r8)                         :: lat1, lon1
-    real(r8)                         :: x1, x2, y1, y2, dx, dy
-    real(r8)                         :: area, total_area
-    real(r8), dimension(npft_veg+3)  :: fraction
+    real(r8)                        :: lat1, lon1
+    real(r8)                        :: x1, x2, y1, y2, dx, dy
+    real(r8)                        :: area, total_area
+    real(r8), dimension(npft_veg+3) :: fraction
     real(r8), dimension(-veg_ext:nlon_veg+veg_ext) :: lon_veg_edge_ext
     integer, dimension(-veg_ext:nlon_veg+veg_ext) :: mapping_ext
 
