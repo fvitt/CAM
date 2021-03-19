@@ -175,7 +175,7 @@ contains
     !-----------------------------------------------------------------------
     !	... initialize the dry deposition module
     !-----------------------------------------------------------------------
-    call drydep_inti(depvel_lnd_file)
+    call drydep_inti()
 
     if (masterproc) write(iulog,*) 'chemini: after drydep_inti on node ',iam
 
