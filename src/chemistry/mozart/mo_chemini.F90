@@ -51,7 +51,7 @@ contains
     use mo_sulf,           only : sulf_inti
     use mo_photo,          only : photo_inti
     use mo_lightning,      only : lightning_inti
-    use mo_drydep,         only : drydep_inti
+    use mo_drydep,         only : drydep_init
     use mo_imp_sol,        only : imp_slv_inti
     use mo_exp_sol,        only : exp_sol_inti
     use spmd_utils,        only : iam
@@ -175,7 +175,7 @@ contains
     !-----------------------------------------------------------------------
     !	... initialize the dry deposition module
     !-----------------------------------------------------------------------
-    call drydep_inti()
+    call drydep_init()
 
     if (masterproc) write(iulog,*) 'chemini: after drydep_inti on node ',iam
 

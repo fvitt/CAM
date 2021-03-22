@@ -13,21 +13,14 @@ module mo_drydep
   use cam_abortutils,   only : endrun
   use cam_logfile,      only : iulog
   use seq_drydep_mod,   only : nddvels => n_drydep, drydep_list, mapping
+  use seq_drydep_mod,   only : n_land_type => NLUse
   use physconst,        only : karman
 
   implicit none
 
-  interface drydep_inti
-     module procedure dvel_inti_xactive
-  end interface
-
-  interface drydep
-     module procedure drydep_fromlnd
-  end interface
-
   private
 
-  public :: drydep_inti, drydep, has_drydep
+  public :: drydep_init, drydep, has_drydep
   public :: drydep_update
 
   integer :: pan_ndx, mpan_ndx, o3_ndx, ch4_ndx, co_ndx, h2_ndx, ch3cooh_ndx
@@ -73,31 +66,12 @@ module mo_drydep
 
   type(lnd_dvel_type), allocatable :: lnd(:)
 
-  integer, parameter :: n_land_type = 11
+  integer, parameter :: ocean_type = 7
+  integer, parameter :: seaice_type = 8
+  integer, parameter :: beglandtype = 7
+  integer, parameter :: endlandtype = 8
+
 contains
-
-  !---------------------------------------------------------------------------
-  !---------------------------------------------------------------------------
-  subroutine dvel_inti_fromlnd
-    use mo_chem_utls,         only : get_spc_ndx
-    use cam_abortutils,       only : endrun
-
-    integer :: ispc
-
-    allocate(spc_ndx(nddvels))
-    allocate( lnd(begchunk:endchunk) )
-
-    do ispc = 1,nddvels
-
-       spc_ndx(ispc) = get_spc_ndx(drydep_list(ispc))
-       if (spc_ndx(ispc) < 1) then
-          write(*,*) 'drydep_inti: '//trim(drydep_list(ispc))//' is not included in species set'
-          call endrun('drydep_init: invalid dry deposition species')
-       endif
-
-    enddo
-
-  endsubroutine dvel_inti_fromlnd
 
   !-------------------------------------------------------------------------------------
   !-------------------------------------------------------------------------------------
@@ -116,10 +90,10 @@ contains
 
   !-------------------------------------------------------------------------------------
   !-------------------------------------------------------------------------------------
-  subroutine drydep_fromlnd( ocnfrac, icefrac, sfc_temp, pressure_sfc,  &
-                             wind_speed, spec_hum, air_temp, pressure_10m, rain, &
-                             snow, solar_flux, dvelocity, dflx, mmr, &
-                             tv, ncol, lchnk )
+  subroutine drydep( ocnfrac, icefrac, sfc_temp, pressure_sfc,  &
+                     wind_speed, spec_hum, air_temp, pressure_10m, rain, &
+                     snow, solar_flux, dvelocity, dflx, mmr, &
+                     tv, ncol, lchnk )
 
     !-------------------------------------------------------------------------------------
     ! combines the deposition velocities provided by the land model with deposition
@@ -137,8 +111,8 @@ contains
     ! 	... dummy arguments
     !-------------------------------------------------------------------------------------
 
-    real(r8), intent(in)      :: icefrac(pcols)
-    real(r8), intent(in)      :: ocnfrac(pcols)
+    real(r8), target, intent(in) :: icefrac(pcols)
+    real(r8), target, intent(in) :: ocnfrac(pcols)
     integer,  intent(in)      :: ncol
     integer,  intent(in)      :: lchnk                    ! chunk number
     real(r8), intent(in)      :: sfc_temp(pcols)          ! surface temperature (K)
@@ -151,9 +125,9 @@ contains
     real(r8), intent(in)      :: snow(pcols)              ! snow height (m)
     real(r8), intent(in)      :: solar_flux(pcols)        ! direct shortwave radiation at surface (W/m^2)
     real(r8), intent(in)      :: tv(pcols)                ! potential temperature
-    real(r8), intent(in)      :: mmr(pcols,plev,gas_pcnst)    ! constituent concentration (kg/kg)
-    real(r8), intent(out)     :: dvelocity(ncol,gas_pcnst)    ! deposition velocity (cm/s)
-    real(r8), intent(inout)   :: dflx(pcols,gas_pcnst)        ! deposition flux (/cm^2/s)
+    real(r8), intent(in)      :: mmr(pcols,plev,gas_pcnst) ! constituent concentration (kg/kg)
+    real(r8), intent(out)     :: dvelocity(ncol,gas_pcnst) ! deposition velocity (cm/s)
+    real(r8), intent(inout)   :: dflx(pcols,gas_pcnst)     ! deposition flux (/cm^2/s)
 
     !-------------------------------------------------------------------------------------
     ! 	... local variables
@@ -163,12 +137,14 @@ contains
 
     real(r8), dimension(ncol) :: term    ! work array
     integer  :: ispec
-    real(r8)  :: lndfrac(pcols)
+    real(r8) :: lndfrac(pcols)
 #if (defined OFFLINE_DYN)
-    real(r8)  :: met_ocnfrac(pcols)
-    real(r8)  :: met_icefrac(pcols)
+    real(r8), target :: met_ocnfrac(pcols)
+    real(r8), target :: met_icefrac(pcols)
 #endif
     integer :: i
+    real(r8), pointer :: ocnfrac_ptr(:)
+    real(r8), pointer :: icefrac_ptr(:)
 
     lndfrac(:ncol) = 1._r8 - ocnfrac(:ncol) - icefrac(:ncol)
 
@@ -178,6 +154,11 @@ contains
 
 #if (defined OFFLINE_DYN)
     call get_met_fields(lndfrac, met_ocnfrac, met_icefrac, lchnk, ncol)
+    ocnfrac_ptr=>met_ocnfrac
+    icefrac_ptr=>met_icefrac
+#else
+    ocnfrac_ptr=>ocnfrac
+    icefrac_ptr=>icefrac
 #endif
 
     !-------------------------------------------------------------------------------------
@@ -187,18 +168,13 @@ contains
 
     !-------------------------------------------------------------------------------------
     !   ... compute the dep velocities over ocean and sea ice
-    !       land type 7 is used for ocean
-    !       land type 8 is used for sea ice
     !-------------------------------------------------------------------------------------
     call drydep_xactive( sfc_temp, pressure_sfc,  &
                          wind_speed, spec_hum, air_temp, pressure_10m, rain, &
                          snow, solar_flux, ocnice_dvel, ocnice_dflx, mmr, &
                          tv, ncol, lchnk, &
-#if (defined OFFLINE_DYN)
-                         ocnfrc=met_ocnfrac,icefrc=met_icefrac, beglandtype=7, endlandtype=8 )
-#else
-                         ocnfrc=ocnfrac,icefrc=icefrac, beglandtype=7, endlandtype=8 )
-#endif
+                         ocnfrc=ocnfrac_ptr, icefrc=icefrac_ptr )
+
     term(:ncol) = 1.e-2_r8 * pressure_10m(:ncol) / (r*tv(:ncol))
 
     do ispec = 1,nddvels
@@ -261,11 +237,11 @@ contains
        dflx(:ncol,spc_ndx(ispec)) = dvelocity(:ncol,spc_ndx(ispec)) * term(:ncol) * mmr(:ncol,plev,spc_ndx(ispec))
     end do
 
-  end subroutine drydep_fromlnd
+  end subroutine drydep
 
   !-------------------------------------------------------------------------------------
   !-------------------------------------------------------------------------------------
-  subroutine dvel_inti_xactive( )
+  subroutine drydep_init( )
     !-------------------------------------------------------------------------------------
     ! 	... intialize interactive drydep
     !-------------------------------------------------------------------------------------
@@ -278,11 +254,23 @@ contains
     integer :: m
     integer :: astat
     integer :: ndx
+    integer :: ispc
 
     character(len=32) :: test_name
     character(len=4) :: tag_name
 
-    call dvel_inti_fromlnd()
+    allocate(spc_ndx(nddvels))
+    allocate( lnd(begchunk:endchunk) )
+
+    do ispc = 1,nddvels
+
+       spc_ndx(ispc) = get_spc_ndx(drydep_list(ispc))
+       if (spc_ndx(ispc) < 1) then
+          write(*,*) 'drydep_inti: '//trim(drydep_list(ispc))//' is not included in species set'
+          call endrun('drydep_init: invalid dry deposition species')
+       endif
+
+    enddo
 
     if( masterproc ) then
        write(iulog,*) 'drydep_inti: following species have dry deposition'
@@ -352,25 +340,26 @@ contains
     !---------------------------------------------------------------------------
     ! 	... allocate module variables
     !---------------------------------------------------------------------------
-    allocate( dep_ra(pcols,n_land_type,begchunk:endchunk),stat=astat )
+    allocate( dep_ra(pcols,beglandtype:endlandtype,begchunk:endchunk),stat=astat )
     if( astat /= 0 ) then
        write(iulog,*) 'dvel_inti: failed to allocate dep_ra; error = ',astat
        call endrun
     end if
-    allocate( dep_rb(pcols,n_land_type,begchunk:endchunk),stat=astat )
+    allocate( dep_rb(pcols,beglandtype:endlandtype,begchunk:endchunk),stat=astat )
     if( astat /= 0 ) then
        write(iulog,*) 'dvel_inti: failed to allocate dep_rb; error = ',astat
        call endrun
     end if
 
-  end subroutine dvel_inti_xactive
+  end subroutine drydep_init
+
   !-------------------------------------------------------------------------------------
   !-------------------------------------------------------------------------------------
   subroutine drydep_xactive( sfc_temp, pressure_sfc,  &
                              wind_speed, spec_hum, air_temp, pressure_10m, rain, &
                              snow, solar_flux, dvel, dflx, mmr, &
-                             tv, ncol, lchnk, &
-                             ocnfrc, icefrc, beglandtype, endlandtype )
+                             tv, ncol, lchnk, ocnfrc, icefrc )
+
     !-------------------------------------------------------------------------------------
     !   code based on wesely (atmospheric environment, 1989, vol 23, p. 1293-1304) for
     !   calculation of r_c, and on walcek et. al. (atmospheric enviroment, 1986,
@@ -415,9 +404,6 @@ contains
 
     integer, intent(in)     ::   lchnk                   ! chunk number
 
-    integer, intent(in), optional     ::  beglandtype
-    integer, intent(in), optional     ::  endlandtype
-
     real(r8), intent(in), optional      :: ocnfrc(pcols)
     real(r8), intent(in), optional      :: icefrc(pcols)
 
@@ -456,7 +442,7 @@ contains
     !-------------------------------------------------------------------------------------
     ! local arrays: dependent on location only
     !-------------------------------------------------------------------------------------
-    integer                :: index_season(ncol,n_land_type)
+    integer                :: index_season(ncol,beglandtype:endlandtype)
     real(r8), dimension(ncol) :: tha     ! atmospheric virtual potential temperature
     real(r8), dimension(ncol) :: thg     ! ground virtual potential temperature
     real(r8), dimension(ncol) :: z       ! height of lowest level
@@ -478,27 +464,25 @@ contains
     !-------------------------------------------------------------------------------------
     ! local arrays: dependent on location and landtype
     !-------------------------------------------------------------------------------------
-    real(r8), dimension(ncol,n_land_type) :: rds   ! resistance for deposition of sulfate
-    real(r8), dimension(ncol,n_land_type) :: b     ! buoyancy parameter for unstable conditions
-    real(r8), dimension(ncol,n_land_type) :: cvar  ! height parameter
-    real(r8), dimension(ncol,n_land_type) :: ustar ! friction velocity
-    real(r8), dimension(ncol,n_land_type) :: xmol  ! monin-obukhov length
+    real(r8), dimension(ncol,beglandtype:endlandtype) :: rds   ! resistance for deposition of sulfate
+    real(r8), dimension(ncol,beglandtype:endlandtype) :: b     ! buoyancy parameter for unstable conditions
+    real(r8), dimension(ncol,beglandtype:endlandtype) :: cvar  ! height parameter
+    real(r8), dimension(ncol,beglandtype:endlandtype) :: ustar ! friction velocity
+    real(r8), dimension(ncol,beglandtype:endlandtype) :: xmol  ! monin-obukhov length
 
     !-------------------------------------------------------------------------------------
     ! local arrays: dependent on location, landtype and species
     !-------------------------------------------------------------------------------------
-    real(r8), dimension(ncol,n_land_type,gas_pcnst) :: rsmx  ! vegetative resistance (plant mesophyll)
-    real(r8), dimension(ncol,n_land_type,gas_pcnst) :: rclx  ! lower canopy resistance
-    real(r8), dimension(ncol,n_land_type,gas_pcnst) :: rlux  ! vegetative resistance (upper canopy)
-    real(r8), dimension(ncol,n_land_type) :: rlux_o3  ! vegetative resistance (upper canopy)
-    real(r8), dimension(ncol,n_land_type,gas_pcnst) :: rgsx  ! ground resistance
+    real(r8), dimension(ncol,beglandtype:endlandtype,gas_pcnst) :: rsmx  ! vegetative resistance (plant mesophyll)
+    real(r8), dimension(ncol,beglandtype:endlandtype,gas_pcnst) :: rclx  ! lower canopy resistance
+    real(r8), dimension(ncol,beglandtype:endlandtype,gas_pcnst) :: rlux  ! vegetative resistance (upper canopy)
+    real(r8), dimension(ncol,beglandtype:endlandtype)           :: rlux_o3 ! vegetative resistance (upper canopy)
+    real(r8), dimension(ncol,beglandtype:endlandtype,gas_pcnst) :: rgsx  ! ground resistance
     real(r8) :: vds
     logical  :: fr_lnduse(ncol,n_land_type)           ! wrking array
     real(r8) :: dewm                                  ! multiplier for rs when dew occurs
 
     real(r8) :: lcl_frc_landuse(ncol,n_land_type)
-
-    integer :: beglt, endlt
 
     !-------------------------------------------------------------------------------------
     ! jfl : mods for PAN
@@ -508,17 +492,6 @@ contains
                                 0.006_r8, 0.000_r8, 0.000_r8, 0.000_r8, 0.002_r8, 0.002_r8 /)
     real(r8) :: k_pan (11) = (/ 0.000_r8, 0.010_r8, 0.005_r8, 0.004_r8, 0.003_r8, &
                                 0.005_r8, 0.000_r8, 0.000_r8, 0.000_r8, 0.075_r8, 0.002_r8 /)
-
-    if (present( beglandtype)) then
-      beglt = beglandtype
-    else
-      beglt = 1
-    endif
-    if (present( endlandtype)) then
-      endlt = endlandtype
-    else
-      endlt = n_land_type
-    endif
 
     !-------------------------------------------------------------------------------------
     ! initialize
@@ -536,7 +509,7 @@ contains
     !-------------------------------------------------------------------------------------
     call seq_drydep_setHCoeff( ncol, sfc_temp, heff )
 
-    do lt = 1,n_land_type
+    do lt = beglandtype,endlandtype
        dep_ra (:,lt,lchnk)   = 0._r8
        dep_rb (:,lt,lchnk)   = 0._r8
        rds(:,lt)   = 0._r8
@@ -616,11 +589,11 @@ contains
        do i=1,ncol
           ! land type 7 is used for ocean
           ! land type 8 is used for sea ice
-          lcl_frc_landuse(i,7) = ocnfrc(i)
-          lcl_frc_landuse(i,8) = icefrc(i)
+          lcl_frc_landuse(i,ocean_type) = ocnfrc(i)
+          lcl_frc_landuse(i,seaice_type) = icefrc(i)
        enddo
     endif
-    do lt = 1,n_land_type
+    do lt = beglandtype,endlandtype
        do i=1,ncol
           fr_lnduse(i,lt) = lcl_frc_landuse(i,lt) > 0._r8
        enddo
@@ -631,7 +604,7 @@ contains
     ! this is calculated so as to find u_i, assuming u*u=u_i*u_i
     !-------------------------------------------------------------------------------------
     z0b(:) = 0._r8
-    do lt = beglt,endlt
+    do lt = beglandtype,endlandtype
        do i = 1,ncol
           if( fr_lnduse(i,lt) ) then
              z0b(i) = z0b(i) + lcl_frc_landuse(i,lt) * log( z0(index_season(i,lt),lt) )
@@ -660,17 +633,11 @@ contains
     !-------------------------------------------------------------------------------------
     ! calculate the friction velocity for each land type u_i=uustar/u*_i
     !-------------------------------------------------------------------------------------
-    do lt = beglt,endlt
+    do lt = beglandtype,endlandtype
        do i = 1,ncol
           if( fr_lnduse(i,lt) ) then
-             if( unstable(i) ) then
-                cvar(i,lt)  = vonkar/log( z(i)/z0(index_season(i,lt),lt) )
-                b(i,lt)     = 9.4_r8*(cvar(i,lt)**2)* sqrt( abs(ribn(i))*z(i)/z0(index_season(i,lt),lt) )
-                ustar(i,lt) = sqrt( cvar(i,lt)*uustar(i)*sqrt( 1._r8 - (9.4_r8*ribn(i)/(1._r8 + 7.4_r8*b(i,lt))) ) )
-             else
-                cvar(i,lt)  = vonkar/log( z(i)/z0(index_season(i,lt),lt) )
-                ustar(i,lt) = sqrt( cvar(i,lt)*uustar(i)/(1._r8 + 4.7_r8*ribn(i)) )
-             end if
+             cvar(i,lt)  = vonkar/log( z(i)/z0(index_season(i,lt),lt) )
+             call ustar_calc( uustar(i), cvar(i,lt), ribn(i), z(i), z0(index_season(i,lt),lt), unstable(i), b(i,lt), ustar(i,lt) )
           end if
        end do
     end do
@@ -678,30 +645,23 @@ contains
     !-------------------------------------------------------------------------------------
     ! revise calculation of friction velocity and z0 over water
     !-------------------------------------------------------------------------------------
-    lt = 7
+    lt = ocean_type
     do i = 1,ncol
        if( fr_lnduse(i,lt) ) then
-          if( unstable(i) ) then
-             z0water     = (.016_r8*(ustar(i,lt)**2)/grav) + diffk/(9.1_r8*ustar(i,lt))
-             cvar(i,lt)  = vonkar/(log( z(i)/z0water ))
-             b(i,lt)     = 9.4_r8*(cvar(i,lt)**2)*sqrt( abs(ribn(i))*z(i)/z0water )
-             ustar(i,lt) = sqrt( cvar(i,lt)*uustar(i)* sqrt( 1._r8 - (9.4_r8*ribn(i)/(1._r8+ 7.4_r8*b(i,lt))) ) )
-          else
-             z0water     = (.016_r8*(ustar(i,lt)**2)/grav) + diffk/(9.1_r8*ustar(i,lt))
-             cvar(i,lt)  = vonkar/(log(z(i)/z0water))
-             ustar(i,lt) = sqrt( cvar(i,lt)*uustar(i)/(1._r8 + 4.7_r8*ribn(i)) )
-          end if
+          z0water    = (.016_r8*(ustar(i,lt)**2)/grav) + diffk/(9.1_r8*ustar(i,lt))
+          cvar(i,lt) = vonkar/(log( z(i)/z0water ))
+          call ustar_calc( uustar(i), cvar(i,lt), ribn(i), z(i), z0water, unstable(i), b(i,lt), ustar(i,lt) )
        end if
     end do
 
     !-------------------------------------------------------------------------------------
     ! compute monin-obukhov length for unstable and stable conditions/ sublayer resistance
     !-------------------------------------------------------------------------------------
-    do lt = beglt,endlt
+    do lt = beglandtype,endlandtype
        do i = 1,ncol
           if( fr_lnduse(i,lt) ) then
              hvar = (va(i)/0.74_r8) * (tha(i) - thg(i)) * (cvar(i,lt)**2)
-             if( unstable(i) ) then                      ! unstable
+             if( unstable(i) ) then
                 h = hvar*(1._r8 - (9.4_r8*ribn(i)/(1._r8 + 5.3_r8*b(i,lt))))
              else
                 h = hvar/((1._r8+4.7_r8*ribn(i))**2)
@@ -714,7 +674,7 @@ contains
     !-------------------------------------------------------------------------------------
     ! psih
     !-------------------------------------------------------------------------------------
-    do lt = beglt,endlt
+    do lt = beglandtype,endlandtype
        do i = 1,ncol
           if( fr_lnduse(i,lt) ) then
              if( xmol(i,lt) < 0._r8 ) then
@@ -745,7 +705,7 @@ contains
     species_loop1 :  do ispec = 1,gas_pcnst
        if( has_dvel(ispec) ) then
           m = map_dvel(ispec)
-          do lt = beglt,endlt
+          do lt = beglandtype,endlandtype
              do i = 1,ncol
                 if( fr_lnduse(i,lt) ) then
                    sndx = index_season(i,lt)
@@ -754,7 +714,7 @@ contains
                    else
                       rmx = 1._r8/(heff(i,m)/3000._r8 + 100._r8*foxd(m))
                    end if
-                   cts(i) = 1000._r8*exp( - tc(i) - 4._r8 )                 ! correction for frost
+                   cts(i) = 1000._r8*exp( - tc(i) - 4._r8 ) ! correction for frost
                    rgsx(i,lt,ispec) = cts(i) + 1._r8/((heff(i,m)/(1.e5_r8*rgss(sndx,lt))) + (foxd(m)/rgso(sndx,lt)))
                    !-------------------------------------------------------------------------------------
                    ! special case for H2 and CO;; CH4 is set ot a fraction of dv(H2)
@@ -763,11 +723,9 @@ contains
                       !-------------------------------------------------------------------------------------
                       ! no deposition on snow, ice, desert, and water
                       !-------------------------------------------------------------------------------------
-                      if( lt == 1 .or. lt == 7 .or. lt == 8 .or. sndx == 4 ) then
-                         rgsx(i,lt,ispec) = large_value
-                      end if
+                      rgsx(i,lt,ispec) = large_value
                    end if
-                   if( lt == 7 ) then
+                   if( lt == ocean_type ) then
                       rclx(i,lt,ispec) = large_value
                       rsmx(i,lt,ispec) = large_value
                       rlux(i,lt,ispec) = large_value
@@ -797,99 +755,82 @@ contains
        end if
     end do species_loop1
 
-    do lt = beglt,endlt
-       if( lt /= 7 ) then
-          do i = 1,ncol
-             if( fr_lnduse(i,lt) ) then
-                sndx = index_season(i,lt)
-                !-------------------------------------------------------------------------------------
-                ! 	... no effect if sfc_temp < O C
-                !-------------------------------------------------------------------------------------
-                if( sfc_temp(i) > tmelt ) then
-                   if( has_dew(i) ) then
-                      rlux_o3(i,lt)     = 3000._r8*rlu(sndx,lt)/(1000._r8 + rlu(sndx,lt))
-                      if( o3_ndx > 0 ) then
-                         rlux(i,lt,o3_ndx) = rlux_o3(i,lt)
-                      endif
-                      if( o3a_ndx > 0 ) then
-                         rlux(i,lt,o3a_ndx) = rlux_o3(i,lt)
-                      endif
-                   end if
-                   if( has_rain(i) ) then
-                      ! rlux(i,lt,o3_ndx) = 1./(1.e-3 + (1./(3.*rlu(sndx,lt))))
-                      rlux_o3(i,lt)     = 3000._r8*rlu(sndx,lt)/(1000._r8 + 3._r8*rlu(sndx,lt))
-                      if( o3_ndx > 0 ) then
-                         rlux(i,lt,o3_ndx) = rlux_o3(i,lt)
-                      endif
-                      if( o3a_ndx > 0 ) then
-                         rlux(i,lt,o3a_ndx) = rlux_o3(i,lt)
-                      endif
-                   end if
-                end if
-
-                if ( o3_ndx > 0 ) then
-                   rclx(i,lt,o3_ndx) = cts(i) + rclo(index_season(i,lt),lt)
-                   rlux(i,lt,o3_ndx) = cts(i) + rlux(i,lt,o3_ndx)
-                end if
-                if ( o3a_ndx > 0 ) then
-                   rclx(i,lt,o3a_ndx) = cts(i) + rclo(index_season(i,lt),lt)
-                   rlux(i,lt,o3a_ndx) = cts(i) + rlux(i,lt,o3a_ndx)
-                end if
-
+    lt = seaice_type
+    do i = 1,ncol
+       if( fr_lnduse(i,lt) ) then
+          sndx = index_season(i,lt)
+          !-------------------------------------------------------------------------------------
+          ! 	... no effect if sfc_temp < O C
+          !-------------------------------------------------------------------------------------
+          if( sfc_temp(i) > tmelt ) then
+             if( has_dew(i) ) then
+                rlux_o3(i,lt)     = 3000._r8*rlu(sndx,lt)/(1000._r8 + rlu(sndx,lt))
+                if( o3_ndx > 0 ) then
+                   rlux(i,lt,o3_ndx) = rlux_o3(i,lt)
+                endif
+                if( o3a_ndx > 0 ) then
+                   rlux(i,lt,o3a_ndx) = rlux_o3(i,lt)
+                endif
              end if
-          end do
+             if( has_rain(i) ) then
+                rlux_o3(i,lt)     = 3000._r8*rlu(sndx,lt)/(1000._r8 + 3._r8*rlu(sndx,lt))
+                if( o3_ndx > 0 ) then
+                   rlux(i,lt,o3_ndx) = rlux_o3(i,lt)
+                endif
+                if( o3a_ndx > 0 ) then
+                   rlux(i,lt,o3a_ndx) = rlux_o3(i,lt)
+                endif
+             end if
+          end if
+
+          if ( o3_ndx > 0 ) then
+             rclx(i,lt,o3_ndx) = cts(i) + rclo(index_season(i,lt),lt)
+             rlux(i,lt,o3_ndx) = cts(i) + rlux(i,lt,o3_ndx)
+          end if
+          if ( o3a_ndx > 0 ) then
+             rclx(i,lt,o3a_ndx) = cts(i) + rclo(index_season(i,lt),lt)
+             rlux(i,lt,o3a_ndx) = cts(i) + rlux(i,lt,o3a_ndx)
+          end if
+
        end if
     end do
 
+    lt = seaice_type
     species_loop2 : do ispec = 1,gas_pcnst
        m = map_dvel(ispec)
        if( has_dvel(ispec) ) then
           if( ispec /= o3_ndx .and. ispec /= o3a_ndx .and. ispec /= so2_ndx ) then
-             do lt = beglt,endlt
-                if( lt /= 7 ) then
-                   do i = 1,ncol
-                      if( fr_lnduse(i,lt) ) then
-                         !-------------------------------------------------------------------------------------
-                         ! no effect if sfc_temp < O C
-                         !-------------------------------------------------------------------------------------
-                         if( sfc_temp(i) > tmelt ) then
-                            if( has_dew(i) ) then
-                               rlux(i,lt,ispec) = 1._r8/((1._r8/(3._r8*rlux(i,lt,ispec))) &
-                                    + 1.e-7_r8*heff(i,m) + foxd(m)/rlux_o3(i,lt))
-                            end if
-                         end if
-
+             do i = 1,ncol
+                if( fr_lnduse(i,lt) ) then
+                   !-------------------------------------------------------------------------------------
+                   ! no effect if sfc_temp < O C
+                   !-------------------------------------------------------------------------------------
+                   if( sfc_temp(i) > tmelt ) then
+                      if( has_dew(i) ) then
+                         rlux(i,lt,ispec) = 1._r8/((1._r8/(3._r8*rlux(i,lt,ispec))) &
+                              + 1.e-7_r8*heff(i,m) + foxd(m)/rlux_o3(i,lt))
                       end if
-                   end do
+                   end if
+
                 end if
              end do
           else if( ispec == so2_ndx ) then
-             do lt = beglt,endlt
-                if( lt /= 7 ) then
-                   do i = 1,ncol
-                      if( fr_lnduse(i,lt) ) then
-                         !-------------------------------------------------------------------------------------
-                         ! no effect if sfc_temp < O C
-                         !-------------------------------------------------------------------------------------
-                         if( sfc_temp(i) > tmelt ) then
-                            if( qs(i) <= spec_hum(i) ) then
-                               rlux(i,lt,ispec) = 100._r8
-                            end if
-                            if( has_rain(i) ) then
-                               !                               rlux(i,lt,ispec) = 1./(2.e-4 + (1./(3.*rlu(index_season(i,lt),lt))))
-                               rlux(i,lt,ispec) = 15._r8*rlu(index_season(i,lt),lt)/(5._r8 + 3.e-3_r8*rlu(index_season(i,lt),lt))
-                            end if
-                         end if
-                         rclx(i,lt,ispec) = cts(i) + rcls(index_season(i,lt),lt)
-                         rlux(i,lt,ispec) = cts(i) + rlux(i,lt,ispec)
-
-                      end if
-                   end do
-                end if
-             end do
              do i = 1,ncol
-                if( fr_lnduse(i,1) .and. (has_dew(i) .or. has_rain(i)) ) then
-                   rlux(i,1,ispec) = 50._r8
+                if( fr_lnduse(i,lt) ) then
+                   !-------------------------------------------------------------------------------------
+                   ! no effect if sfc_temp < O C
+                   !-------------------------------------------------------------------------------------
+                   if( sfc_temp(i) > tmelt ) then
+                      if( qs(i) <= spec_hum(i) ) then
+                         rlux(i,lt,ispec) = 100._r8
+                      end if
+                      if( has_rain(i) ) then
+                         rlux(i,lt,ispec) = 15._r8*rlu(index_season(i,lt),lt)/(5._r8 + 3.e-3_r8*rlu(index_season(i,lt),lt))
+                      end if
+                   end if
+                   rclx(i,lt,ispec) = cts(i) + rcls(index_season(i,lt),lt)
+                   rlux(i,lt,ispec) = cts(i) + rlux(i,lt,ispec)
+
                 end if
              end do
           end if
@@ -903,7 +844,7 @@ contains
     species_loop3 : do ispec = 1,gas_pcnst
        if( has_dvel(ispec) ) then
           wrk(:) = 0._r8
-          lt_loop: do lt = beglt,endlt
+          lt_loop: do lt = beglandtype,endlandtype
              do i = 1,ncol
                 if (fr_lnduse(i,lt)) then
                    resc(i) = 1._r8/( 1._r8/rsmx(i,lt,ispec) + 1._r8/rlux(i,lt,ispec) &
@@ -920,7 +861,7 @@ contains
              !-------------------------------------------------------------------------------------
              select case( solsym(ispec) )
              case( 'SO2' )
-                if( lt == 7 ) then
+                if( lt == ocean_type ) then
                    where( fr_lnduse(:ncol,lt) )
                       ! assume no surface resistance for SO2 over water`
                       wrk(:) = wrk(:) + lnd_frc(:)/(dep_ra(:ncol,lt,lchnk) + dep_rb(:ncol,lt,lchnk))
@@ -947,7 +888,7 @@ contains
              !  ... special case for Pb (for consistency with offline code)
              !-------------------------------------------------------------------------------------
              case( 'Pb' )
-                if( lt == 7 ) then
+                if( lt == ocean_type ) then
                    where( fr_lnduse(:ncol,lt) )
                       wrk(:) = wrk(:) + lnd_frc(:) * 0.05e-2_r8
                    endwhere
@@ -970,7 +911,7 @@ contains
              !    velocity estimated from aircraft measurements (E.Apel, INTEX-B)
              !-------------------------------------------------------------------------------------
              case( 'HCN','CH3CN' )
-                if( lt == 7 ) then ! over ocean only
+                if( lt == ocean_type ) then ! over ocean only
                    where( fr_lnduse(:ncol,lt) .and. snow(:ncol) < 0.01_r8  )
                       wrk(:ncol) = wrk(:ncol) + lnd_frc(:ncol) * 0.2e-2_r8
                    endwhere
@@ -987,64 +928,22 @@ contains
 
     end do species_loop3
 
-    if ( beglt > 1 ) return
+  contains
 
-    !-------------------------------------------------------------------------------------
-    ! 	... special adjustments
-    !-------------------------------------------------------------------------------------
-    if( mpan_ndx > 0 ) then
-       if( has_dvel(mpan_ndx) ) then
-          dvel(:ncol,mpan_ndx) = dvel(:ncol,mpan_ndx)/3._r8
-          dflx(:ncol,mpan_ndx) = term(:ncol) * dvel(:ncol,mpan_ndx) * mmr(:ncol,plev,mpan_ndx)
-       end if
-    end if
-    if( xmpan_ndx > 0 ) then
-       if( has_dvel(xmpan_ndx) ) then
-          dvel(:ncol,xmpan_ndx) = dvel(:ncol,xmpan_ndx)/3._r8
-          dflx(:ncol,xmpan_ndx) = term(:ncol) * dvel(:ncol,xmpan_ndx) * mmr(:ncol,plev,xmpan_ndx)
-       end if
-    end if
+    subroutine ustar_calc( uustar, cvar, ribn, z, z0, unstable, b, ustr )
+      real(r8), intent(in) :: uustar, cvar, ribn, z, z0
+      logical, intent(in) :: unstable
 
-    ! HCOOH, use CH3COOH dep.vel
-    if( hcooh_ndx > 0) then
-       if( has_dvel(hcooh_ndx) ) then
-          dvel(:ncol,hcooh_ndx) = dvel(:ncol,ch3cooh_ndx)
-          dflx(:ncol,hcooh_ndx) = term(:ncol) * dvel(:ncol,hcooh_ndx) * mmr(:ncol,plev,hcooh_ndx)
-       end if
-    end if
-!
-! SOG species
-!
-    if( sogm_ndx > 0) then
-       if( has_dvel(sogm_ndx) ) then
-          dvel(:ncol,sogm_ndx) = dvel(:ncol,ch3cooh_ndx)
-          dflx(:ncol,sogm_ndx) = term(:ncol) * dvel(:ncol,sogm_ndx) * mmr(:ncol,plev,sogm_ndx)
-       end if
-    end if
-    if( sogi_ndx > 0) then
-       if( has_dvel(sogi_ndx) ) then
-          dvel(:ncol,sogi_ndx) = dvel(:ncol,ch3cooh_ndx)
-          dflx(:ncol,sogi_ndx) = term(:ncol) * dvel(:ncol,sogi_ndx) * mmr(:ncol,plev,sogi_ndx)
-       end if
-    end if
-    if( sogt_ndx > 0) then
-       if( has_dvel(sogt_ndx) ) then
-          dvel(:ncol,sogt_ndx) = dvel(:ncol,ch3cooh_ndx)
-          dflx(:ncol,sogt_ndx) = term(:ncol) * dvel(:ncol,sogt_ndx) * mmr(:ncol,plev,sogt_ndx)
-       end if
-    end if
-    if( sogb_ndx > 0) then
-       if( has_dvel(sogb_ndx) ) then
-          dvel(:ncol,sogb_ndx) = dvel(:ncol,ch3cooh_ndx)
-          dflx(:ncol,sogb_ndx) = term(:ncol) * dvel(:ncol,sogb_ndx) * mmr(:ncol,plev,sogb_ndx)
-       end if
-    end if
-    if( sogx_ndx > 0) then
-       if( has_dvel(sogx_ndx) ) then
-          dvel(:ncol,sogx_ndx) = dvel(:ncol,ch3cooh_ndx)
-          dflx(:ncol,sogx_ndx) = term(:ncol) * dvel(:ncol,sogx_ndx) * mmr(:ncol,plev,sogx_ndx)
-       end if
-    end if
+      real(r8), intent(out) :: b, ustr
+
+      if( unstable ) then
+         b = 9.4_r8*(cvar      **2)* sqrt( abs(ribn   )*z   /z0 )
+         ustr = sqrt( cvar      *uustar*   sqrt( 1._r8 - (9.4_r8*ribn   /(1._r8 + 7.4_r8*b      )) ) )
+      else
+         ustr = sqrt( cvar      *uustar   /(1._r8 + 4.7_r8*ribn   ) )
+      end if
+
+    end subroutine ustar_calc
 
   end subroutine drydep_xactive
 
