@@ -24,7 +24,6 @@ module mo_drydep
   public :: drydep_update
 
   integer :: pan_ndx, mpan_ndx, o3_ndx, ch4_ndx, co_ndx, h2_ndx, ch3cooh_ndx
-  integer :: sogm_ndx, sogi_ndx, sogt_ndx, sogb_ndx, sogx_ndx
 
   integer :: so2_ndx, ch3cn_ndx, hcn_ndx, hcooh_ndx
 
@@ -300,12 +299,6 @@ contains
     end if
     so2_ndx     = get_spc_ndx( 'SO2' )
     ch3cooh_ndx = get_spc_ndx( 'CH3COOH')
-
-    sogm_ndx    = get_spc_ndx( 'SOGM' )
-    sogi_ndx    = get_spc_ndx( 'SOGI' )
-    sogt_ndx    = get_spc_ndx( 'SOGT' )
-    sogb_ndx    = get_spc_ndx( 'SOGB' )
-    sogx_ndx    = get_spc_ndx( 'SOGX' )
 
     hcn_ndx     = get_spc_ndx( 'HCN')
     ch3cn_ndx   = get_spc_ndx( 'CH3CN')
