@@ -598,7 +598,6 @@ subroutine dyn_init(dyn_in, dyn_out)
    use hybrid_mod,         only: get_loop_ranges, config_thread_region
    use dimensions_mod,     only: nu_scale_top, nu_lev, nu_div_lev
    use dimensions_mod,     only: ksponge_end, kmvis_ref, kmcnd_ref,rho_ref,km_sponge_factor
-   use dimensions_mod,     only: kmvisi_ref, kmcndi_ref,rhoi_ref
    use dimensions_mod,     only: cnst_name_gll, cnst_longname_gll
    use dimensions_mod,     only: irecons_tracer_lev, irecons_tracer, otau, kord_tr, kord_tr_cslam
    use prim_driver_mod,    only: prim_init2
@@ -608,6 +607,7 @@ subroutine dyn_init(dyn_in, dyn_out)
    use phys_control,       only: phys_getopts
    use physconst,          only: get_molecular_diff_coef_reference
    use control_mod,        only: vert_remap_uvTq_alg, vert_remap_tracer_alg
+   use std_atm_profile,    only: std_atm_height
    ! Dummy arguments:
    type(dyn_import_t), intent(out) :: dyn_in
    type(dyn_export_t), intent(out) :: dyn_out
@@ -615,7 +615,7 @@ subroutine dyn_init(dyn_in, dyn_out)
    ! Local variables
    integer             :: ithr, nets, nete, ie, k, kmol_end
    real(r8), parameter :: Tinit = 300.0_r8
-   real(r8)            :: press, ptop, tref
+   real(r8)            :: press(1), ptop, tref,z(1)
 
    type(hybrid_t)      :: hybrid
 
@@ -772,9 +772,6 @@ subroutine dyn_init(dyn_in, dyn_out)
      tref = 1000._r8     !mean value at model top for solar max
      km_sponge_factor = molecular_diff
      km_sponge_factor_local = molecular_diff
-     call get_molecular_diff_coef_reference(1,nlev+1,tref,&
-          (hvcoord%hyai(:)+hvcoord%hybi(:))*hvcoord%ps0, km_sponge_factor_local,&
-          kmvisi_ref,kmcndi_ref,rhoi_ref)
      !
      ! get rho, kmvis and kmcnd at mid-levels
      !
@@ -786,8 +783,10 @@ subroutine dyn_init(dyn_in, dyn_out)
        ! only apply molecular viscosity where viscosity is > 1000 m/s^2
        if (MIN(kmvis_ref(k)/rho_ref(k),kmcnd_ref(k)/(cpair*rho_ref(k)))>1000.0_r8) then
          if (masterproc) then
-            write(iulog,'(a,i3,2e11.4)') "k, p, km_sponge_factor                   :",k, &
-               (hvcoord%hyam(k)+hvcoord%hybm(k))*hvcoord%ps0,km_sponge_factor(k)
+           press = (hvcoord%hyam(k)+hvcoord%hybm(k))*hvcoord%ps0
+           call std_atm_height(press,z)
+           write(iulog,'(a,i3,3e11.4)') "k, p, z, km_sponge_factor                   :",k, &
+                press, z,km_sponge_factor(k)
             write(iulog,'(a,2e11.4)') "kmvis_ref/rho_ref, kmcnd_ref/(cp*rho_ref): ", &
                kmvis_ref(k)/rho_ref(k),kmcnd_ref(k)/(cpair*rho_ref(k))
          end if
@@ -815,7 +814,7 @@ subroutine dyn_init(dyn_in, dyn_out)
      do k=1,nlev
        press = (hvcoord%hyam(k)+hvcoord%hybm(k))*hvcoord%ps0
        ptop  = hvcoord%hyai(1)*hvcoord%ps0
-       nu_scale_top(k) = 8.0_r8*(1.0_r8+tanh(1.0_r8*log(ptop/press))) ! tau will be maximum 8 at model top
+       nu_scale_top(k) = 8.0_r8*(1.0_r8+tanh(1.0_r8*log(ptop/press(1)))) ! tau will be maximum 8 at model top
        if (nu_scale_top(k).ge.0.15_r8) then
          ksponge_end = k
        else
@@ -829,8 +828,11 @@ subroutine dyn_init(dyn_in, dyn_out)
    if (masterproc) then
      write(iulog,*) subname//": ksponge_end = ",ksponge_end
      if (nu_top>0) then
-       do k=1,ksponge_end
-         write(iulog,'(a,i3,1e11.4)') subname//": nu_scale_top ",k,nu_scale_top(k)
+       do k=1,ksponge_end+1
+         press = (hvcoord%hyam(k)+hvcoord%hybm(k))*hvcoord%ps0
+         call std_atm_height(press,z)
+         write(iulog,'(a,i3,4e11.4)') subname//": k, p, z, nu_scale_top, nu ",k,press,z,&
+              nu_scale_top(k),nu_scale_top(k)*nu_top
        end do
      end if
    end if
@@ -872,10 +874,10 @@ subroutine dyn_init(dyn_in, dyn_out)
       call addfld ('PSDRY_fvm',horiz_only, 'I','Pa','CSLAM dry surface pressure'    , gridname='FVM')
    end if
 
-   do m_cnst = 1, qsize
-     call addfld ('F'//trim(cnst_name_gll(m_cnst))//'_gll',  (/ 'lev' /), 'I', 'kg/kg/s',   &
-          trim(cnst_longname(m_cnst))//' mixing ratio forcing term (q_new-q_old) on GLL grid', gridname='GLL')
-   end do
+!!$   do m_cnst = 1, qsize
+!!$     call addfld ('F'//trim(cnst_name_gll(m_cnst))//'_gll',  (/ 'lev' /), 'I', 'kg/kg/s',   &
+!!$          trim(cnst_longname(m_cnst))//' mixing ratio forcing term (q_new-q_old) on GLL grid', gridname='GLL')
+!!$   end do
 
    ! Energy diagnostics and axial angular momentum diagnostics
    call addfld ('ABS_dPSdt',  horiz_only, 'A', 'Pa/s', 'Absolute surface pressure tendency',gridname='GLL')
@@ -1021,14 +1023,14 @@ subroutine dyn_run(dyn_state)
       end do
    end if
 
-   do m = 1, qsize
-     if (hist_fld_active('F'//trim(cnst_name_gll(m))//'_gll')) then
-       do ie = nets, nete
-         call outfld('F'//trim(cnst_name_gll(m))//'_gll',&
-              RESHAPE(dyn_state%elem(ie)%derived%FQ(:,:,:,m), (/np*np,nlev/)), npsq, ie)
-       end do
-     end if
-   end do
+!!$   do m = 1, qsize
+!!$     if (hist_fld_active('F'//trim(cnst_name_gll(m))//'_gll')) then
+!!$       do ie = nets, nete
+!!$         call outfld('F'//trim(cnst_name_gll(m))//'_gll',&
+!!$              RESHAPE(dyn_state%elem(ie)%derived%FQ(:,:,:,m), (/np*np,nlev/)), npsq, ie)
+!!$       end do
+!!$     end if
+!!$   end do
 
 
 
@@ -2057,17 +2059,11 @@ subroutine check_file_layout(file, elem, dyn_cols, file_desc, dyn_ok, dimname)
       indx = 1
       do j = 1, np
          do i = 1, np
-            if (abs(dbuf2(indx,ie)) > 1.e-12_r8) then
-               if (abs((elem(ie)%spherep(i,j)%lat*rad2deg - dbuf2(indx,ie)) / &
-                    dbuf2(indx,ie)) > 1.0e-10_r8) then
-                  write(iulog, '(2a,4(i0,a),f11.5,a,f11.5)')                  &
-                       "ncdata file latitudes not in correct column order",   &
-                       ' on task ', iam, ': elem(', ie, ')%spherep(', i,      &
-                       ', ', j, ')%lat = ', elem(ie)%spherep(i,j)%lat,        &
-                       ' /= ', dbuf2(indx, ie)*deg2rad
-                  call shr_sys_flush(iulog)
-                  found = .false.
-               end if
+            if ((abs(dbuf2(indx,ie)) > 1.e-12_r8) .and. &
+               (abs((elem(ie)%spherep(i,j)%lat*rad2deg - dbuf2(indx,ie))/dbuf2(indx,ie)) > 1.0e-10_r8)) then
+               write(6, *) 'XXG ',iam,') ',ie,i,j,elem(ie)%spherep(i,j)%lat,dbuf2(indx,ie)*deg2rad
+               call shr_sys_flush(6)
+               found = .false.
             end if
             indx = indx + 1
          end do
@@ -2088,17 +2084,11 @@ subroutine check_file_layout(file, elem, dyn_cols, file_desc, dyn_ok, dimname)
       indx = 1
       do j = 1, np
          do i = 1, np
-            if (abs(dbuf2(indx,ie)) > 1.e-12_r8) then
-               if (abs((elem(ie)%spherep(i,j)%lon*rad2deg - dbuf2(indx,ie)) / &
-                    dbuf2(indx,ie)) > 1.0e-10_r8) then
-                  write(iulog, '(2a,4(i0,a),f11.5,a,f11.5)')                  &
-                       "ncdata file longitudes not in correct column order",  &
-                       ' on task ', iam, ': elem(', ie, ')%spherep(', i,      &
-                       ', ', j, ')%lon = ', elem(ie)%spherep(i,j)%lon,        &
-                       ' /= ', dbuf2(indx, ie)*deg2rad
-                  call shr_sys_flush(iulog)
-                  found = .false.
-               end if
+            if ((abs(dbuf2(indx,ie)) > 1.e-12_r8) .and. &
+               (abs((elem(ie)%spherep(i,j)%lon*rad2deg - dbuf2(indx,ie))/dbuf2(indx,ie)) > 1.0e-10_r8)) then
+               write(6, *) 'XXG ',iam,') ',ie,i,j,elem(ie)%spherep(i,j)%lon,dbuf2(indx,ie)*deg2rad
+               call shr_sys_flush(6)
+               found = .false.
             end if
             indx = indx + 1
          end do
@@ -2159,12 +2149,11 @@ subroutine read_dyn_field_2d(fieldname, fh, dimname, buffer)
 
    ! Local variables
    logical                  :: found
-   real(r8)                 :: fillvalue
    !----------------------------------------------------------------------------
 
    buffer = 0.0_r8
    call infld(trim(fieldname), fh, dimname, 1, npsq, 1, nelemd, buffer,    &
-        found, gridname=ini_grid_name, fillvalue=fillvalue)
+         found, gridname=ini_grid_name)
    if(.not. found) then
       call endrun('READ_DYN_FIELD_2D: Could not find '//trim(fieldname)//' field on input datafile')
    end if
@@ -2172,8 +2161,7 @@ subroutine read_dyn_field_2d(fieldname, fh, dimname, buffer)
    ! This code allows use of compiler option to set uninitialized values
    ! to NaN.  In that case infld can return NaNs where the element GLL points
    ! are not "unique columns"
-   ! Set NaNs or fillvalue points to zero
-   where (isnan(buffer) .or. (buffer==fillvalue)) buffer = 0.0_r8
+   where (isnan(buffer)) buffer = 0.0_r8
 
 end subroutine read_dyn_field_2d
 
@@ -2189,12 +2177,11 @@ subroutine read_dyn_field_3d(fieldname, fh, dimname, buffer)
 
    ! Local variables
    logical                  :: found
-   real(r8)                 :: fillvalue
    !----------------------------------------------------------------------------
 
    buffer = 0.0_r8
-   call infld(trim(fieldname), fh, dimname, 'lev',  1, npsq, 1, nlev,         &
-        1, nelemd, buffer, found, gridname=ini_grid_name, fillvalue=fillvalue)
+   call infld(trim(fieldname), fh, dimname, 'lev',  1, npsq, 1, nlev,      &
+         1, nelemd, buffer, found, gridname=ini_grid_name)
    if(.not. found) then
       call endrun('READ_DYN_FIELD_3D: Could not find '//trim(fieldname)//' field on input datafile')
    end if
@@ -2202,8 +2189,7 @@ subroutine read_dyn_field_3d(fieldname, fh, dimname, buffer)
    ! This code allows use of compiler option to set uninitialized values
    ! to NaN.  In that case infld can return NaNs where the element GLL points
    ! are not "unique columns"
-   ! Set NaNs or fillvalue points to zero
-   where (isnan(buffer) .or. (buffer == fillvalue)) buffer = 0.0_r8
+   where (isnan(buffer)) buffer = 0.0_r8
 
 end subroutine read_dyn_field_3d
 
