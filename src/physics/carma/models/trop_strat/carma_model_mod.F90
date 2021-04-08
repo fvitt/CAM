@@ -1257,8 +1257,7 @@ contains
           !**********************************
           !    WIND for seasalt production
           !**********************************
-         ! call CARMA_SurfaceWind_salt(icol, ilat(icol), ilon(icol), cam_in, u10in, rc)
-          u10in = cam_in%u10(icol)
+          call CARMA_SurfaceWind_salt(icol, ilat(icol), ilon(icol), cam_in, u10in, rc)
 
           ! Add any surface flux here.
           ncflx       = 0.0_r8
@@ -1819,7 +1818,7 @@ contains
 
     ! If u is 0, then k can be 0, which makes a lot of this undefined.
     ! Just return 0. in this case.
-    if (u == 0._r8) then
+    if (u < 0.35) then
       uwb = 0._r8
     else
       c   = u * (gamma(1._r8 + 1._r8 / k))**(-1._r8)
