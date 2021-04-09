@@ -194,7 +194,7 @@ contains
     !if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddGroup failed.')
 
     call CARMAGROUP_Create(carma, I_GRP_PRSUL, "sulfate", rmin_PRSUL, vmrat_PRSUL, I_SPHERE, 1._f, .false., &
-                           rc, irhswell=I_WTPCT_H2SO4, do_wetdep=.true., do_drydep=.true., solfac=0.3_f, &
+                           rc, irhswell=I_WTPCT_H2SO4, do_wetdep=.false., do_drydep=.true., solfac=0.3_f, &
                            scavcoef=0.1_f, is_sulfate=.true., shortname="PRSUL", &
                            imiertn=I_MIERTN_TOON1981)
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddGroup failed.')
@@ -208,7 +208,7 @@ contains
     !if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddGroup failed.')
 
     call CARMAGROUP_Create(carma, I_GRP_MXAER, "mixed aerosol", rmin_MXAER, vmrat_MXAER, I_SPHERE, 1._f, .false., &
-                           rc, do_wetdep=.true., do_drydep=.true., solfac=0.2_f, &
+                           rc, do_wetdep=.false., do_drydep=.true., solfac=0.2_f, &
                            scavcoef=0.1_f, shortname="MXAER", refidx=refidx, irhswell=I_PETTERS, imiertn=I_MIERTN_TOON1981,neutral_volfrc=-1._f)
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddGroup failed.')
 
