@@ -208,6 +208,7 @@ contains
     !st use modal_aero_rename,     only: modal_aero_rename_init
 
     use carma_aero_convproc,   only: ma_convproc_init
+    use time_manager,    only: is_first_step
 
     ! args
     type(physics_buffer_desc), pointer :: pbuf2d(:,:)
@@ -230,6 +231,27 @@ contains
     character(len=2)  :: unit_basename  ! Units 'kg' or '1'
     integer :: errcode
     !st character(len=fieldname_len) :: field_name
+
+    character(len=32) :: spec_name
+    character(len=32) :: mmr_name
+    integer :: idx
+
+    if (is_first_step()) then
+       do m = 1, nbins
+          call rad_cnst_get_info_by_bin(0, m, mmr_name=mmr_name)
+          idx = pbuf_get_index('CLD'//trim(mmr_name))
+          call pbuf_set_field(pbuf2d, idx, 0.0_r8)
+          idx = pbuf_get_index('CLDNB'//trim(mmr_name))
+          call pbuf_set_field(pbuf2d, idx, 0.0_r8)
+          do l = 1, nspec(m)
+             call rad_cnst_get_info_by_bin_spec(0, m, l, spec_name=spec_name)
+             idx = pbuf_get_index('CLD'//trim(spec_name))
+             call pbuf_set_field(pbuf2d, idx, 0.0_r8)
+          enddo
+       enddo
+    endif
+
+
 
     ! aqueous chem initialization
     !st call sox_inti()
@@ -615,7 +637,7 @@ contains
           isprx(:ncol,k) = .false.
        endwhere
        prec(:ncol) = prec(:ncol) + (dep_inputs%prain(:ncol,k) + dep_inputs%cmfdqr(:ncol,k) - dep_inputs%evapr(:ncol,k)) &
-            *state%pdel(:ncol,k)/gravit
+                   * state%pdel(:ncol,k)/gravit
     end do
 
     if(convproc_do_aer) then
@@ -759,7 +781,8 @@ contains
 
           if (lphase == 1) then ! interstial aerosol
 
-            ! This is calculation for scavcoefnv has been introducted by Pengfei Yu for CARMA and is required in particular for a sectional model
+            ! This is calculation for scavcoefnv has been introducted by Pengfei Yu for
+            ! CARMA and is required in particular for a sectional model
             ! The scavenging coefficients are calcuated as a function of the aerosol bin at each
             ! grid point (lat,lon,vertical). Refer to Dana and Hales (1975), however I use
             ! Marshall and Palmer Distribution instead log-normal for rain drop size distribution
@@ -777,8 +800,8 @@ contains
 
               ! convert precipitation prain (kg/kg/s) to mm/h
 
-              J = (dep_inputs%prain(:,:)+dep_inputs%cmfdqr(:,:)-dep_inputs%evapc(:,:)-dep_inputs%evapr(:,:))  &
-                                            *state%pdel/gravit/rho_water*3.6e6_r8   ! m/s
+              J(:ncol,:) = (dep_inputs%prain(:ncol,:)+dep_inputs%cmfdqr(:ncol,:)-dep_inputs%evapc(:ncol,:)-dep_inputs%evapr(:ncol,:))  &
+                         * state%pdel(:ncol,:)/gravit/rho_water*3.6e6_r8   ! m/s
               !st write(iulog,*) 'm, l, J   = ', m, l, J
               !st write(iulog,*) 'm, l, dryr   = ', m, l,  dryr
 
@@ -864,14 +887,14 @@ contains
                 dqdt_tmp(:,:) = 0.0_r8
                 ! q_tmp reflects changes from modal_aero_calcsize and is the "most current" q
                 ! q_tmp(1:ncol,:) = state%q(1:ncol,:,mm) + ptend%q(1:ncol,:,mm)*dt
-                q_tmp(1:ncol,:) = raer(mm)%fld
+                q_tmp(:ncol,:) = raer(mm)%fld(:ncol,:)
 
                 if(convproc_do_aer) then
                    !Feed in the saved cloudborne mixing ratios from phase 2
-                   qqcw_in(:,:) = qqcw_sav(:,:,l)
+                   qqcw_in(:ncol,:) = qqcw_sav(:ncol,:,l)
                 else
                    fldcw = qqcw(mm)%fld
-                   qqcw_in(:,:) = fldcw(:,:)
+                   qqcw_in(:ncol,:) = fldcw(:ncol,:)
                 endif
 
                ! do not calculate for number

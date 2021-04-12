@@ -465,7 +465,7 @@ subroutine ma_convproc_intr( state, ptend, pbuf, ztodt,             &
               call rad_cnst_get_bin_num(0, n, 'a', state, pbuf, raer(l)%fld)
          end if
 
-         qb(1:ncol,:,l) = raer(l)%fld
+         qb(:ncol,:,l) = raer(l)%fld(:ncol,:)
 
       end do
 
@@ -513,7 +513,7 @@ subroutine ma_convproc_intr( state, ptend, pbuf, ztodt,             &
              if (bin_cnst_lq(n,ll)) then ! adveced species
                   ptend%q(1:ncol,:,l) = ptend%q(1:ncol,:,l) + dqdt(1:ncol,:,l)
              else
-                 raer_fld = raer(l)%fld(1:ncol,:) + dqdt(1:ncol,:,1) * dt
+                 raer_fld(1:ncol,:) = raer(l)%fld(1:ncol,:) + dqdt(1:ncol,:,1) * dt
                  raer(l)%fld(1:ncol,:) = max( 0.0_r8, raer(l)%fld(1:ncol,:) )
              end if
 
