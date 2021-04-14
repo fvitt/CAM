@@ -8,7 +8,7 @@ module dpie_coupling
   use cam_history,         only: addfld, horiz_only
   use cam_history_support, only: fillvalue
   use cam_abortutils,      only: endrun
-  use spmd_utils,          only: masterproc, mpi_logical, mpicom, masterprocid
+  use spmd_utils,          only: masterproc, mpi_logical, mpi_real8, mpicom, masterprocid
   use edyn_mpi,            only: array_ptr_type
   use perf_mod,            only: t_startf, t_stopf
   use amie_module,         only: getamie
@@ -234,6 +234,8 @@ contains
 
        crit_out(:) = crit(:)*rtd ! degrees
     endif
+    call mpi_bcast(crit_out, 2, mpi_real8, masterprocid, mpicom, ierr)
+
   end subroutine d_pie_epotent
 
   !-----------------------------------------------------------------------
