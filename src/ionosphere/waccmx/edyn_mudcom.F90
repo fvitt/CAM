@@ -2030,8 +2030,8 @@ module edyn_mudcom
       end subroutine transp
 !-----------------------------------------------------------------------
       subroutine sgfa (a,lda,n,ipvt,info)
-      integer lda,n,ipvt(1),info
-      real(r8) :: a(lda,1)
+      integer lda,n,ipvt(*),info
+      real(r8) :: a(lda,*)
       real(r8) :: t
       integer :: j,k,kp1,l,nm1
       info = 0
@@ -2070,8 +2070,8 @@ module edyn_mudcom
 !-----------------------------------------------------------------------
       subroutine sgsl (a,lda,n,ipvt,b,job)
       implicit none
-      integer lda,n,ipvt(1),job
-      real(r8) :: a(lda,1),b(1)
+      integer lda,n,ipvt(*),job
+      real(r8) :: a(lda,*),b(*)
       real(r8) :: t
       integer k,kb,l,nm1
       nm1 = n - 1
@@ -2119,7 +2119,7 @@ module edyn_mudcom
 
       implicit none
 
-      real(r8), intent(in) :: sx(1),sy(1)
+      real(r8), intent(in) :: sx(*),sy(*)
       integer,  intent(in) :: n, incx, incy
 
       integer :: i,ix,iy,m,mp1
@@ -2158,7 +2158,7 @@ module edyn_mudcom
 !-----------------------------------------------------------------------
       integer function isfmax(n,sx,incx)
       implicit none
-      real(r8) :: sx(1),smax
+      real(r8) :: sx(*),smax
       integer i,incx,ix,n
       isfmax = 0
       if( n .lt. 1 ) return
@@ -2186,7 +2186,7 @@ module edyn_mudcom
 !-----------------------------------------------------------------------
       subroutine sxpy(n,sa,sx,incx,sy,incy)
       implicit none
-      real(r8) :: sx(1),sy(1),sa
+      real(r8) :: sx(*),sy(*),sa
       integer i,incx,incy,ix,iy,m,mp1,n
       if(n.le.0)return
       if (sa .eq. 0.0_r8) return
@@ -2219,7 +2219,7 @@ module edyn_mudcom
 !-----------------------------------------------------------------------
       subroutine sscl(n,sa,sx,incx)
 
-      real(r8) :: sa,sx(1)
+      real(r8) :: sa,sx(*)
       integer i,incx,m,mp1,n,nincx
       if(n.le.0)return
       if(incx.eq.1)go to 20
