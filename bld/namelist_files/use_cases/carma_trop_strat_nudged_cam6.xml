@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <namelist_defaults>
 
- <ncdata hgrid="10x15" nlev="32"  >atm/cam/inic/fv/f2000_carma_model_f10_spinup01.cam.i.0002-01-01-00000.nc</ncdata>
+ <ncdata hgrid="10x15" nlev="32"  >atm/cam/inic/fv/FCARMA2000climo_f10_debug01.cam.i.0001-01-02-00000.nc</ncdata>
  <ncdata hgrid="1.9x2.5" nlev="32">atm/cam/inic/fv/FCARMA2000climo_f19_spinup01.cam.i.0002-01-01-00000_c201119.nc</ncdata>
 
  <lght_no_prd_factor hgrid="1.9x2.5">4.5D0</lght_no_prd_factor>

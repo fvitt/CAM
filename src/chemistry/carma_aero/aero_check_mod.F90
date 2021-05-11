@@ -1,6 +1,5 @@
 module aero_check_mod
   use shr_kind_mod,   only: r8 => shr_kind_r8
-  use cam_abortutils, only: endrun
 
   implicit none
 
