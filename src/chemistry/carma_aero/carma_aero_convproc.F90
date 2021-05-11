@@ -261,7 +261,6 @@ subroutine ma_convproc_init
             ii = ii + 1
             bin_idx(m,l) = ii
 
-            write(iulog,*) 'ncnst_tot, m, l, ii  = ',ncnst_tot, m, l, ii
             if (l <= nspec(m) ) then   ! species
                call rad_cnst_get_info_by_bin_spec(0, m, l, spec_name=fieldname(ii), spec_name_cw=fieldname_cw(ii))
             else if (l == nspec(m) + 1) then   ! number
@@ -269,7 +268,6 @@ subroutine ma_convproc_init
             else if (l == nspec(m) + 2) then
                call rad_cnst_get_info_by_bin(0, m, num_name=fieldname(ii), num_name_cw=fieldname_cw(ii))
             end if
-            write(iulog,*) 'ncnst_tot, m, l, ii, fieldname(ii)  = ',ncnst_tot, m, l, ii, fieldname(ii)
 
             if (l == nspec(m) + 1) then   ! mmr
              call addfld (trim(fieldname(ii))//'SFSEC', &

@@ -554,6 +554,7 @@ contains
             call CARMASTATE_GetBin(cstate, ienconc, ibin, mmr_total(:), rc, numberDensity=numberDensity, r_wet=r_wet,rhop_dry=rhop_dry)
           end if
 	  elem1mr(:) = mmr_total(:)-coremmr(:)
+          elem1mr(:) = max(elem1mr(:),0._f)
 
           call pbuf_get_field(pbuf, ipbuf4elem1mr(ibin,igroup), elem1mr_ptr)
 	  elem1mr_ptr(icol, :cstate%f_NZ) = elem1mr(:cstate%f_NZ)

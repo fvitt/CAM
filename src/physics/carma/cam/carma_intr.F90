@@ -56,6 +56,7 @@ module carma_intr
   public carma_timestep_init            ! initialize timestep dependent variables
   public carma_timestep_tend            ! interface to tendency computation
   public carma_accumulate_stats         ! collect stats from all MPI tasks
+  public carma_checkstate		! check if the coremass exceeding the total
 
   ! Other Microphysics
   public carma_emission_tend            ! calculate tendency from emission source function
@@ -514,8 +515,7 @@ contains
     use wrap_nf
     use time_manager, only: is_first_step
     use phys_control, only: phys_getopts
-
-    implicit none
+    use aero_check_mod, only: aero_check_routine
 
     type(physics_buffer_desc), pointer :: pbuf2d(:,:)
 
@@ -543,6 +543,7 @@ contains
     logical                    :: history_carma
     logical                    :: history_carma_srf_flx
 
+    aero_check_routine=>carma_checkstate
 
 1   format(a6,4x,a11,4x,a11,4x,a11)
 2   format(i6,4x,3(1pe11.3,4x))
@@ -1519,6 +1520,79 @@ contains
 
   end subroutine carma_timestep_tend
 
+  subroutine carma_checkstate(q, ncol, nlev, packagename, fix, logmsg, abort)
+
+    real(r8), intent(inout) :: q(:,:,:)
+    integer, intent(in) :: ncol, nlev
+    character(len=*), intent(in) :: packagename
+    logical, intent(in) :: fix
+    logical, intent(in) :: logmsg
+    logical, intent(in) :: abort
+
+    integer         :: icorelem(NELEM)
+    integer         :: igroup,ienconc,ncore,ibin,iz,icore, icol
+    integer         :: cnst_conc,cnst_core
+    real(r8)        :: total_core
+    character(len=CARMA_SHORT_NAME_LEN) :: shortname
+
+    integer               :: rc
+    integer               :: LUNOPRT              ! logical unit number for output
+    logical               :: do_print             ! do print output?
+    real(r8), parameter   :: small = tiny(1._r8)
+    real(r8) :: factor
+
+    call CARMA_Get(carma, rc, do_print=do_print, LUNOPRT=LUNOPRT)
+
+    grp_loop: do igroup = 1, NGROUP
+
+       call CARMAGROUP_Get(carma, igroup, rc, shortname=shortname, ienconc=ienconc, ncore=ncore, icorelem=icorelem)
+
+       bin_loop: do ibin = 1, NBIN
+          call carma_getcnstforbin(ienconc, ibin, cnst_conc)
+
+          ver_loop: do iz = 1, nlev
+             col_loop: do icol = 1, ncol
+                total_core = 0._r8
+                do icore = 1, NCORE
+                   call carma_getcnstforbin(icorelem(icore), ibin, cnst_core)
+                   total_core = total_core + q(icol,iz,cnst_core)
+                end do
+
+                chck_fail: if(total_core > q(icol,iz,cnst_conc))then
+                   if (logmsg) then
+                      write(LUNOPRT,*) 'carma_checkstate: ERROR - '//trim(packagename)
+                      write(LUNOPRT,*) 'total_core ',total_core,', totalmass ',q(icol,iz,cnst_conc), &
+                           ' diff:', total_core - q(icol,iz,cnst_conc)
+                   endif
+                   if (fix) then
+                      factor = (1._r8-small) * q(icol,iz,cnst_conc) / total_core
+                      do icore = 1, NCORE
+                         call carma_getcnstforbin(icorelem(icore), ibin, cnst_core)
+                         q(icol,iz,cnst_core) = factor * q(icol,iz,cnst_core)
+                      end do
+!!$                      q(icol,iz,cnst_conc) = total_core
+                   endif
+                   if (abort) then
+                      call endrun('carma_checkstate -- total_core > q(icol,iz,cnst_conc) -- '//trim(packagename))
+                   end if
+                end if chck_fail
+             end do col_loop
+          end do ver_loop
+
+       end do bin_loop
+    end do grp_loop
+
+  end subroutine carma_checkstate
+
+  subroutine carma_getcnstforbin(ielem, ibin, icnst)
+    implicit none
+
+    integer, intent(in)  :: ielem, ibin
+    integer, intent(out) :: icnst
+
+    icnst = icnst4elem(ielem,ibin)
+    return
+  end subroutine carma_getcnstforbin
 
   subroutine carma_accumulate_stats()
 #if ( defined SPMD )
