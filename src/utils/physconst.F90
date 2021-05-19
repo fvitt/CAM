@@ -140,6 +140,7 @@ character(len=6 )  :: water_species_in_air(num_names_max)
 integer, protected, public      :: dry_air_species_num
 integer, protected, public      :: water_species_in_air_num
 
+integer,               parameter, public :: thermodynamic_active_n2_idx = -101
 integer,               protected, public :: thermodynamic_active_species_num
 integer,  allocatable, protected, public :: thermodynamic_active_species_idx(:)
 integer,  allocatable,            public :: thermodynamic_active_species_idx_dycore(:)
@@ -420,9 +421,9 @@ end subroutine physconst_init
           write(iulog, *) subname//' dry air component not found: ', dry_air_species(dry_air_species_num)
           call endrun(subname // ':: dry air component not found')
         else
-          mw = 2.0_r8*cnst_mw(ix)
+          mw = 2.0_r8*cnst_mw(ix)  ! N2
           icnst = dry_air_species_num
-          thermodynamic_active_species_idx(icnst) = 1!note - this is not used since this tracer value is derived
+          thermodynamic_active_species_idx(icnst) = thermodynamic_active_n2_idx !note - this is not used since this tracer value is derived
           thermodynamic_active_species_cp (icnst) = 0.5_r8*shr_const_rgas*(2._r8+dof2)/mw !N2
           thermodynamic_active_species_cv (icnst) = 0.5_r8*shr_const_rgas*dof2/mw !N2
           thermodynamic_active_species_R  (icnst) = shr_const_rgas/mw
@@ -1440,7 +1441,7 @@ end subroutine physconst_init
 
      ! local vars
      integer :: nq, itrac
-     integer, dimension(thermodynamic_active_species_num)                   :: idx_local
+     integer, dimension(thermodynamic_active_species_num) :: idx_local
      !
      ! some sanity checks
      !
