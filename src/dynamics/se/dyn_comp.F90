@@ -590,7 +590,6 @@ subroutine dyn_init(dyn_in, dyn_out)
    use dyn_grid,           only: elem, fvm
    use cam_pio_utils,      only: clean_iodesc_list
    use physconst,          only: thermodynamic_active_species_num, thermodynamic_active_species_idx
-   use physconst,          only: thermodynamic_active_n2_idx
    use physconst,          only: thermodynamic_active_species_idx_dycore, rair, cpair
    use cam_history,        only: addfld, add_default, horiz_only, register_vector_field
    use gravity_waves_sources, only: gws_init
@@ -697,15 +696,10 @@ subroutine dyn_init(dyn_in, dyn_out)
        ! note that in this case qsize = thermodynamic_active_species_num
        !
        thermodynamic_active_species_idx_dycore(m) = m
+       kord_tr_cslam(thermodynamic_active_species_idx(m)) = vert_remap_uvTq_alg
        kord_tr(m)                                 = vert_remap_uvTq_alg
-       if (thermodynamic_active_species_idx(m)==thermodynamic_active_n2_idx) then
-          cnst_name_gll    (m) = 'N2'
-          cnst_longname_gll(m) = 'N2'
-       else
-          kord_tr_cslam(thermodynamic_active_species_idx(m)) = vert_remap_uvTq_alg
-          cnst_name_gll    (m) = cnst_name    (thermodynamic_active_species_idx(m))
-          cnst_longname_gll(m) = cnst_longname(thermodynamic_active_species_idx(m))
-       endif
+       cnst_name_gll    (m)                       = cnst_name    (thermodynamic_active_species_idx(m))
+       cnst_longname_gll(m)                       = cnst_longname(thermodynamic_active_species_idx(m))
      else
        !
        ! if not running with CSLAM then the condensate-loading water tracers are not necessarily
@@ -1153,7 +1147,6 @@ subroutine read_inidat(dyn_in)
    use control_mod,         only: runtype,initial_global_ave_dry_ps
    use prim_driver_mod,     only: prim_set_dry_mass
    use physconst,           only: thermodynamic_active_species_idx
-   use physconst,           only: thermodynamic_active_n2_idx
 
    ! Arguments
    type (dyn_import_t), target, intent(inout) :: dyn_in   ! dynamics import
@@ -1705,16 +1698,14 @@ subroutine read_inidat(dyn_in)
       do ie = 1, nelemd
          do nq = 1, thermodynamic_active_species_num
             m_cnst = thermodynamic_active_species_idx(nq)
-            if (m_cnst/=thermodynamic_active_n2_idx) then
-               do k = 1, nlev
-                  do j = 1, np
-                     do i = 1, np
-                        elem(ie)%state%Qdp(i,j,k,nq,:) = &
-                             elem(ie)%state%dp3d(i,j,k,1)*qtmp(i,j,k,ie,m_cnst)
-                     end do
+            do k = 1, nlev
+               do j = 1, np
+                  do i = 1, np
+                     elem(ie)%state%Qdp(i,j,k,nq,:) = &
+                                 elem(ie)%state%dp3d(i,j,k,1)*qtmp(i,j,k,ie,m_cnst)
                   end do
                end do
-            end if
+            end do
          end do
       end do
    else
@@ -1723,8 +1714,8 @@ subroutine read_inidat(dyn_in)
             do k = 1, nlev
                do j = 1, np
                   do i = 1, np
-                     elem(ie)%state%Qdp(i,j,k,m_cnst,:) = &
-                          elem(ie)%state%dp3d(i,j,k,1)*qtmp(i,j,k,ie,m_cnst)
+                     elem(ie)%state%Qdp(i,j,k,m_cnst,:)=&
+                        elem(ie)%state%dp3d(i,j,k,1)*qtmp(i,j,k,ie,m_cnst)
                   end do
                end do
             end do
