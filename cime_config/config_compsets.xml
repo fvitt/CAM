@@ -300,6 +300,10 @@
     <lname>HIST_CAM60%CVBSX_CLM50%SP_CICE%PRES_DOCN%DOM_MOSART_CISM2%NOEVOLVE_SWAV</lname>
   </compset>
   <compset>
+    <alias>FCcotagsHIST</alias>
+    <lname>HIST_CAM60%COTAG_CLM50%SP_CICE%PRES_DOCN%DOM_MOSART_CISM2%NOEVOLVE_SWAV</lname>
+  </compset>
+  <compset>
     <alias>FCfireHIST</alias>
     <lname>HIST_CAM60%CFIRE_CLM50%BGC-CROP_CICE%PRES_DOCN%DOM_MOSART_CISM2%NOEVOLVE_SWAV</lname>
   </compset>
@@ -307,6 +311,10 @@
   <compset>
     <alias>FCnudged</alias>
     <lname>HIST_CAM60%CCTS1%NUDG_CLM50%SP_CICE%PRES_DOCN%DOM_MOSART_SGLC_SWAV</lname>
+  </compset>
+  <compset>
+    <alias>FCcotagsNudged</alias>
+    <lname>HIST_CAM60%COTAG%NUDG_CLM50%SP_CICE%PRES_DOCN%DOM_MOSART_SGLC_SWAV</lname>
   </compset>
   <compset>
     <alias>FCts2nudged</alias>
