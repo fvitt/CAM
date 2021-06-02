@@ -4036,6 +4036,19 @@ Default: Gong
 </entry>
 
 <!-- CARMA model - aerosol -->
+<entry id="carma_BCOCemissions" type="char*32" category="carma_model"
+       group="carma_model_nl" valid_values="Yu2015,Specified" >
+Specifies the input method of black and organic carbon aerosol emissions
+for the trop_strat CARMA model.
+
+Valid options are:
+
+ Yu2015 -- method used in Yu et. al, 2015
+ Specified -- {{ hilight }}emissions_specifier{{ closehilight }} method which places emissons in physcis buffer
+
+Default: Yu2015
+</entry>
+
 <entry id="BC_GAINS_filename" type="char*256" input_pathname="abs" category="carma_model"
        group="carma_model_nl" valid_values="" >
 BC GAINS file.
@@ -6289,9 +6302,8 @@ cycle over a given year, or be fixed to a given date.
 Default: set by build-namelist.
 </entry>
 
-
 <entry id="emissions_specifier" type="char*256(50)" category="cam_chem"
-       group="surface_emisssions_opts" valid_values="" >
+       group="surface_emissions_opts" valid_values="" >
 List of full pathnames of surface emission datasets.
 
 Surface emission data added to physcis buffer read from a set of netcdf file.
@@ -6314,7 +6326,7 @@ Default: set by build-namelist.
 </entry>
 
 <entry id="emissions_type" type="char*32" category="cam_chem"
-       group="surface_emisssions_opts" valid_values="CYCLICAL,SERIAL,INTERP_MISSING_MONTHS,FIXED" >
+       group="surface_emissions_opts" valid_values="CYCLICAL,SERIAL,INTERP_MISSING_MONTHS,FIXED" >
 Type of time interpolation of emission datasets specified.
 Can be set to 'CYCLICAL', 'SERIAL', 'INTERP_MISSING_MONTHS', or 'FIXED'.
 by {{ hilight }}emissions_specifier{{ closehilight }}.
@@ -6322,7 +6334,7 @@ Default: 'CYCLICAL'
 </entry>
 
 <entry id="emissions_cycle_yr" type="integer" category="cam_chem"
-       group="surface_emisssions_opts" valid_values="" >
+       group="surface_emissions_opts" valid_values="" >
 The  cycle year of the surface emissions data
 if {{ hilight }}emissions_type{{ closehilight }}  is 'CYCLICAL'.
 Format: YYYY
@@ -6330,7 +6342,7 @@ Default: 0
 </entry>
 
 <entry id="emissions_fixed_ymd" type="integer" category="cam_chem"
-       group="surface_emisssions_opts" valid_values="" >
+       group="surface_emissions_opts" valid_values="" >
 The date at which the surface emissions are fixed
 if {{ hilight }}emissions_type{{ closehilight }} is 'FIXED'.
 Format: YYYYMMDD
@@ -6338,13 +6350,12 @@ Default: 0
 </entry>
 
 <entry id="emissions_fixed_tod" type="integer" category="cam_chem"
-       group="surface_emisssions_opts" valid_values="" >
+       group="surface_emissions_opts" valid_values="" >
 The time of day (seconds) corresponding to {{ hilight }}emissions_fixed_ymd{{ closehilight }}
 at which the surface emissions are fixed
 if {{ hilight }}emissions_type{{ closehilight }} is 'FIXED'.
 Default: 0 seconds
 </entry>
-
 
 <entry id="sulf_file" type="char*256" input_pathname="abs" category="cam_chem"
        group="sulf_nl" valid_values="" >

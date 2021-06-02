@@ -150,7 +150,7 @@ contains
     use dyn_comp,           only: dyn_register
     use spcam_drivers,      only: spcam_register
     use offline_driver,     only: offline_driver_reg
-    use surface_emisssions_mod, only: surface_emisssions_reg
+    use surface_emissions_mod, only: surface_emissions_reg
 
     !---------------------------Local variables-----------------------------
     !
@@ -257,7 +257,7 @@ contains
           call modal_aero_wateruptake_reg()
        endif
 
-       call surface_emisssions_reg()
+       call surface_emissions_reg()
 
        ! register chemical constituents including aerosols ...
        call chem_register()
@@ -763,7 +763,7 @@ contains
     use cam_abortutils,     only: endrun
     use nudging,            only: Nudge_Model, nudging_init
     use cam_snapshot,       only: cam_snapshot_init
-    use surface_emisssions_mod, only: surface_emisssions_init
+    use surface_emissions_mod, only: surface_emissions_init
 
     ! Input/output arguments
     type(physics_state), pointer       :: phys_state(:)
@@ -837,7 +837,7 @@ contains
 
     ! initialize carma
     call carma_init(pbuf2d)
-    call surface_emisssions_init(pbuf2d)
+    call surface_emissions_init(pbuf2d)
 
     ! solar irradiance data modules
     call solar_data_init()
@@ -1409,7 +1409,7 @@ contains
 
     if (carma_do_emission) then
        ! carma emissions
-       call carma_emission_tend (state, ptend, cam_in, ztodt)
+       call carma_emission_tend(state, ptend, cam_in, ztodt, pbuf)
        call physics_update(state, ptend, ztodt, tend)
     end if
 
@@ -1891,7 +1891,7 @@ contains
     use micro_mg_cam,    only: massless_droplet_destroyer
     use cam_snapshot,    only: cam_snapshot_all_outfld_tphysbc
     use cam_snapshot,    only: cam_snapshot_ptend_outfld
-    use surface_emisssions_mod,only: surface_emisssions_set
+    use surface_emissions_mod,only: surface_emissions_set
 
     ! Arguments
 
@@ -2093,7 +2093,7 @@ contains
 
     call t_stopf('energy_fixer')
 
-    call surface_emisssions_set( lchnk, ncol, pbuf )
+    call surface_emissions_set( lchnk, ncol, pbuf )
 
     !
     !===================================================
@@ -2693,7 +2693,7 @@ subroutine phys_timestep_init(phys_state, cam_in, cam_out, pbuf2d)
   use epp_ionization,      only: epp_ionization_active
   use iop_forcing,         only: scam_use_iop_srf
   use nudging,             only: Nudge_Model, nudging_timestep_init
-  use surface_emisssions_mod,only: surface_emisssions_adv
+  use surface_emissions_mod,only: surface_emissions_adv
 
   implicit none
 
@@ -2714,7 +2714,7 @@ subroutine phys_timestep_init(phys_state, cam_in, cam_out, pbuf2d)
 
   ! Chemistry surface values
   call chem_surfvals_set()
-  call surface_emisssions_adv(pbuf2d, phys_state)
+  call surface_emissions_adv(pbuf2d, phys_state)
 
   ! Solar irradiance
   call solar_data_advance()

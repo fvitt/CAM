@@ -153,7 +153,7 @@ contains
   end subroutine carma_init_cnst
 
 
-  subroutine carma_emission_tend(state, ptend, cam_in, dt)
+  subroutine carma_emission_tend(state, ptend, cam_in, dt, pbuf)
     use camsrfexch,       only: cam_in_t
 
     implicit none
@@ -162,6 +162,7 @@ contains
     type(physics_ptend), intent(inout)  :: ptend                !! physics state tendencies
     type(cam_in_t),      intent(inout)  :: cam_in               !! surface inputs
     real(r8),            intent(in)     :: dt                   !! time step (s)
+    type(physics_buffer_desc), pointer  :: pbuf(:)              !! physics buffer
 
     return
   end subroutine carma_emission_tend

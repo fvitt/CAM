@@ -1669,6 +1669,7 @@ elsif ($carma eq 'trop_strat') {
   add_default($nl, 'carma_do_vdiff',    'val'=>'.true.');
   add_default($nl, 'carma_do_WeibullK', 'val'=>'.false.');
   add_default($nl, 'carma_seasalt_emis','val'=>'Gong');
+  add_default($nl, 'carma_BCOCemissions','val'=>'Yu2015');
   add_default($nl, 'carma_do_coag',     'val'=>'.true.');
   add_default($nl, 'carma_do_grow',     'val'=>'.true.');
   add_default($nl, 'carma_do_substep',  'val'=>'.true.');

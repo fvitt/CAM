@@ -1,4 +1,4 @@
-module surface_emisssions_mod
+module surface_emissions_mod
   !---------------------------------------------------------------
   ! 	... surface emissions module
   !---------------------------------------------------------------
@@ -28,11 +28,11 @@ module surface_emisssions_mod
 
   private
 
-  public :: surface_emisssions_readnl
-  public :: surface_emisssions_reg
-  public :: surface_emisssions_init
-  public :: surface_emisssions_adv
-  public :: surface_emisssions_set
+  public :: surface_emissions_readnl
+  public :: surface_emissions_reg
+  public :: surface_emissions_init
+  public :: surface_emissions_adv
+  public :: surface_emissions_set
 
   integer, parameter :: NMAX=50
 
@@ -55,7 +55,7 @@ contains
 
   !-----------------------------------------------------------------------
   !-----------------------------------------------------------------------
-  subroutine surface_emisssions_readnl(nlfile)
+  subroutine surface_emissions_readnl(nlfile)
 
     use namelist_utils, only : find_group_name
     use spmd_utils,     only : mpicom, masterprocid, mpi_integer, mpi_character
@@ -64,17 +64,17 @@ contains
 
     ! Local variables
     integer :: unitn, ierr
-    character(len=*), parameter :: subname = 'surface_emisssions_readnl'
+    character(len=*), parameter :: subname = 'surface_emissions_readnl'
 
-    namelist /surface_emisssions_opts/ emissions_specifier, emissions_type, emissions_cycle_yr, &
+    namelist /surface_emissions_opts/ emissions_specifier, emissions_type, emissions_cycle_yr, &
                                        emissions_fixed_ymd, emissions_fixed_tod
 
     ! Read namelist
     if (masterproc) then
        open( newunit=unitn, file=trim(nlfile), status='old' )
-       call find_group_name(unitn, 'surface_emisssions_opts', status=ierr)
+       call find_group_name(unitn, 'surface_emissions_opts', status=ierr)
        if (ierr == 0) then
-          read(unitn, surface_emisssions_opts, iostat=ierr)
+          read(unitn, surface_emissions_opts, iostat=ierr)
           if (ierr /= 0) then
              call endrun(subname // ':: ERROR reading namelist')
           end if
@@ -89,11 +89,11 @@ contains
     call mpi_bcast(emissions_fixed_ymd, 1, mpi_integer, masterprocid, mpicom, ierr)
     call mpi_bcast(emissions_fixed_tod, 1, mpi_integer, masterprocid, mpicom, ierr)
 
-  end subroutine surface_emisssions_readnl
+  end subroutine surface_emissions_readnl
 
   !-----------------------------------------------------------------------
   !-----------------------------------------------------------------------
-  subroutine surface_emisssions_reg( )
+  subroutine surface_emissions_reg( )
     use m_MergeSorts,   only : IndexSort
     use physics_buffer, only : pbuf_add_field, dtype_r8, pbuf_get_index
     use ppgrid,         only : pcols
@@ -194,11 +194,11 @@ contains
        emissions(m)%filename         = emis_filenam(indx(m))
        emissions(m)%scalefactor      = emis_scalefactor(indx(m))
     enddo
-  end subroutine surface_emisssions_reg
+  end subroutine surface_emissions_reg
 
   !-----------------------------------------------------------------------
   !-----------------------------------------------------------------------
-  subroutine surface_emisssions_init(pbuf2d)
+  subroutine surface_emissions_init(pbuf2d)
     use tracer_data,   only : trcdata_init
     use cam_pio_utils, only : cam_pio_openfile
     use pio,           only : pio_inquire, pio_nowrite, pio_closefile, pio_inq_varndims
@@ -355,11 +355,11 @@ contains
        call addfld(names(n), horiz_only, 'A', units(n), 'pbuf surf emis '//trim(names(n)))
     end do
 
-  end subroutine surface_emisssions_init
+  end subroutine surface_emissions_init
 
   !-----------------------------------------------------------------------
   !-----------------------------------------------------------------------
-  subroutine surface_emisssions_adv( pbuf2d, state )
+  subroutine surface_emissions_adv( pbuf2d, state )
     !-----------------------------------------------------------------------
     !       ... check serial case for time span
     !-----------------------------------------------------------------------
@@ -385,11 +385,11 @@ contains
        call pbuf_set_field(pbuf2d, emissions(m)%bufndx, 0._r8)
     end do
 
-  end subroutine surface_emisssions_adv
+  end subroutine surface_emissions_adv
 
   !-----------------------------------------------------------------------
   !-----------------------------------------------------------------------
-  subroutine surface_emisssions_set( lchnk, ncol, pbuf )
+  subroutine surface_emissions_set( lchnk, ncol, pbuf )
     use physics_buffer, only : physics_buffer_desc, pbuf_get_field
 
     !--------------------------------------------------------
@@ -420,6 +420,6 @@ contains
        call outfld(names(n), flux(:ncol), ncol, lchnk)
     end do
 
-  end subroutine surface_emisssions_set
+  end subroutine surface_emissions_set
 
-end module surface_emisssions_mod
+end module surface_emissions_mod

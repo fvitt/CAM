@@ -40,6 +40,7 @@ module carma_model_mod
   use physics_types,  only: physics_state, physics_ptend
   use ppgrid,         only: pcols, pver
   use physics_buffer, only: physics_buffer_desc, pbuf_set_field
+  use physics_buffer, only: pbuf_get_field, pbuf_get_index
   use time_manager,   only: is_first_step
 
   implicit none
@@ -140,6 +141,8 @@ module carma_model_mod
   integer                         :: ipbuf4binnkg(NBIN,NGROUP) = -1,ipbuf4kappa(NBIN,NGROUP) = -1
   integer                         :: ipbuf4wetr(NBIN,NGROUP) = -1, ipbuf4dryr(NBIN,NGROUP) = -1
   real(kind=f)                    :: aeronet_fraction(NBIN)  !! fraction of BC dV/dlnr in each bin (100%)
+
+  integer :: bc_srfemis_ndx=-1, oc_srfemis_ndx=-1
 
 contains
 
@@ -389,7 +392,6 @@ contains
   subroutine CARMA_DiagnoseBulk(carma, cstate, cam_out, state, pbuf, ptend, icol, dt, rc, rliq, prec_str, snow_str, &
     prec_sed, snow_sed, tnd_qsnow, tnd_nsnow, re_ice)
     use camsrfexch, only: cam_out_t
-    use physics_buffer, only: pbuf_get_field
 
     type(carma_type), intent(in)         :: carma     !! the carma object
     type(carmastate_type), intent(inout) :: cstate    !! the carma state object
@@ -590,7 +592,7 @@ contains
   !!
   !! @author  Lin Su, Pengfei Yu, Chuck Bardeen
   !! @version Dec-2010
-  subroutine CARMA_EmitParticle(carma, ielem, ibin, icnst, dt, state, cam_in, tendency, surfaceFlux, rc)
+  subroutine CARMA_EmitParticle(carma, ielem, ibin, icnst, dt, state, cam_in, tendency, surfaceFlux, pbuf, rc)
     use ppgrid,        only: pcols, pver
     use physics_types, only: physics_state
     use phys_grid,     only: get_lon_all_p, get_lat_all_p
@@ -608,6 +610,7 @@ contains
     type(cam_in_t), intent(in)         :: cam_in                !! surface inputs
     real(r8), intent(out)              :: tendency(pcols, pver) !! constituent tendency (kg/kg/s)
     real(r8), intent(out)              :: surfaceFlux(pcols)    !! constituent surface flux (kg/m^2/s)
+    type(physics_buffer_desc), pointer :: pbuf(:)               !! physics buffer
     integer, intent(out)               :: rc                    !! return code, negative indicates failure
 
     integer      :: ilat(pcols)             ! latitude index
@@ -647,7 +650,9 @@ contains
     logical      :: do_print                            ! do print output?
 
     real(r8),parameter :: OMtoOCratio = 1.8_r8           ! Need better names and doc
-    real(r8),parameter :: SmoketoSufaceFlux = 1.9934e-22_r8    ! ????
+    real(r8),parameter :: SmoketoSufaceFlux = 1.9934e-22_r8 ! SmoketoSufaceFlux = BC molecular weight
+                                                            ! (12 g/mol)/avocadro constant (6e-23 #/mol) *10
+    real(r8), pointer :: BCemis_ptr(:), OCemis_ptr(:)
 
 !   currently not used
 !   real(r8)     :: MPOAFlux(pcols)             ! marine POA flux
@@ -662,6 +667,7 @@ contains
 
     ! Default return code.
     rc = RC_OK
+    smoke(:) = -huge(1._r8)
 
     ! Determine the day of year.
     calday = get_curr_calday()
@@ -719,18 +725,30 @@ contains
 
     !!*******************************************************************************************************
 
+    if(carma_BCOCemissions == 'Specified')then
+      call pbuf_get_field(pbuf, bc_srfemis_ndx, BCemis_ptr)
+      call pbuf_get_field(pbuf, oc_srfemis_ndx, OCemis_ptr)
+    end if
 
     if (ielem == I_ELEM_MXOC) then
-       do icol = 1, ncol
-          smoke(icol) = OCnew(ilat(icol), ilon(icol), mon)*OMtoOCratio
-       enddo
+       if(carma_BCOCemissions == 'Yu2015')then
+          do icol = 1,ncol
+             smoke(icol) = OCnew(ilat(icol), ilon(icol), mon)*OMtoOCratio
+          end do
+       elseif(carma_BCOCemissions == 'Specified')then
+          smoke(:ncol) = OCemis_ptr(:ncol)
+       end if
 !  st  scip Fsub PBAFlux etcfor now
        surfaceFlux(:ncol) = smoke(:ncol)*aeronet_fraction(ibin)*SmoketoSufaceFlux
 
     elseif (ielem == I_ELEM_MXBC) then
-        do icol = 1, ncol
-          smoke(icol) = BCnew(ilat(icol), ilon(icol), mon)
-       enddo
+       if(carma_BCOCemissions == 'Yu2015')then
+          do icol = 1,ncol
+             smoke(icol) = BCnew(ilat(icol), ilon(icol), mon)
+          end do
+       elseif(carma_BCOCemissions == 'Specified')then
+          smoke(:ncol) = BCemis_ptr(:ncol)
+       end if
        surfaceFlux(:ncol) = smoke(:ncol)*aeronet_fraction(ibin)*SmoketoSufaceFlux
 
     elseif (ielem == I_ELEM_MXDUST) then
@@ -810,9 +828,13 @@ contains
    elseif (ielem == I_ELEM_MXAER) then
 !
 !       ! OC & BC
-        do icol = 1, ncol
-           smoke(icol) = OCnew(ilat(icol), ilon(icol), mon)*1.8_r8 + BCnew(ilat(icol), ilon(icol), mon)
-        enddo
+        if(carma_BCOCemissions == 'Yu2015')then
+           do icol = 1, ncol
+              smoke(icol) = OCnew(ilat(icol), ilon(icol), mon)*1.8_r8 + BCnew(ilat(icol), ilon(icol), mon)
+           enddo
+        elseif(carma_BCOCemissions == 'Specified')then
+           smoke(:ncol) = OCemis_ptr(:ncol) + BCemis_ptr(:ncol)
+        end if
 !      ! seasalt
        call CARMA_SaltFlux(carma, ibin, state, r, dr, rmass, cam_in, SaltFlux, rc)
 !
@@ -953,8 +975,14 @@ contains
 
     call addfld('CRSLERFC', horiz_only, 'A', 'fraction', 'CARMA soil erosion factor')
 
-    ! Added by Pengfei Yu to read smoke emission data
-    call CARMA_BCOCread(rc)
+    if (carma_BCOCemissions == 'Yu2015')then
+       ! Added by Pengfei Yu to read smoke emission data
+       call CARMA_BCOCread(rc)
+    end if
+    if(carma_BCOCemissions == 'Specified')then
+       bc_srfemis_ndx = pbuf_get_index("BC_srfemis")
+       oc_srfemis_ndx = pbuf_get_index("OC_srfemis")
+    end if
 
     if (is_first_step()) then
        ! Initialize physics buffer fields
@@ -1902,11 +1930,13 @@ contains
 !
     nmonth = 12
 
-! allocate BCnew and OCnew, unit is #/cm2/s
-    allocate(BCnew(plat, plon, nmonth))
-    allocate(OCnew(plat, plon, nmonth))
-    BCnew = 0._r8
-    OCnew = 0._r8
+    if(carma_BCOCemissions == 'Yu2015')then
+       ! allocate BCnew and OCnew, unit is #/cm2/s
+       allocate(BCnew(plat, plon, nmonth))
+       allocate(OCnew(plat, plon, nmonth))
+       BCnew = -huge(1._r8)
+       OCnew = -huge(1._r8)
+    endif
 
 ! monthly fraction of domestic emission
     allocate(facH(nmonth))

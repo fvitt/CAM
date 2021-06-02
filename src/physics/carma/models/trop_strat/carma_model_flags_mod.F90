@@ -29,6 +29,7 @@ module carma_model_flags_mod
   logical, public, protected :: carma_do_WeibullK   = .false.  ! if .true. then use calculated Weibull K, [Monahan, 2006]
   character(len=32), public, protected  :: carma_seasalt_emis  = 'Gong'   ! the source function scheme, either "Gong", "Martensson",
                                                                           ! "Clarke",  "Caffrey", "CMS", "CONST", or "NONE"
+  character(len=32), public, protected  :: carma_BCOCemissions  = 'Yu2015'
   character(len=256), public, protected :: carma_soilerosion_file  = 'NONE'
   character(len=256), public, protected :: BC_GAINS_filename   = 'NONE'
   character(len=256), public, protected :: OC_GAINS_filename   = 'NONE'
@@ -65,6 +66,7 @@ contains
     namelist /carma_model_nl/ &
       carma_do_WeibullK, &
       carma_seasalt_emis, &
+      carma_BCOCemissions, &
       carma_soilerosion_file, &
       BC_GAINS_filename, &
       OC_GAINS_filename, &
@@ -91,6 +93,7 @@ contains
     call mpibcast(carma_soilerosion_file,      len(carma_soilerosion_file),       mpichar, 0, mpicom)
     call mpibcast(carma_do_WeibullK,   1,                       mpilog,  0, mpicom)
     call mpibcast(carma_seasalt_emis, len(carma_seasalt_emis), mpichar, 0, mpicom)
+    call mpibcast(carma_BCOCemissions, len(carma_BCOCemissions), mpichar, 0, mpicom)
     call mpibcast(BC_GAINS_filename,  len(BC_GAINS_filename), mpichar, 0, mpicom)
     call mpibcast(OC_GAINS_filename,  len(OC_GAINS_filename), mpichar, 0, mpicom)
     call mpibcast(BC_ship_filename,   len(BC_ship_filename), mpichar, 0, mpicom)

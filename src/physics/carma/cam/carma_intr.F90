@@ -1891,9 +1891,9 @@ contains
   !!
   !! @author  Chuck Bardeen
   !! @version May-2009
-  subroutine carma_emission_tend (state, ptend, cam_in, dt)
-    use cam_history,   only: outfld
-    use camsrfexch,       only: cam_in_t
+  subroutine carma_emission_tend (state, ptend, cam_in, dt, pbuf)
+    use cam_history, only: outfld
+    use camsrfexch,  only: cam_in_t
 
     implicit none
 
@@ -1901,6 +1901,7 @@ contains
     type(physics_ptend), intent(inout)  :: ptend                !! physics state tendencies
     type(cam_in_t),      intent(inout)  :: cam_in               !! surface inputs
     real(r8),            intent(in)     :: dt                   !! time step (s)
+    type(physics_buffer_desc), pointer  :: pbuf(:)              !! physics buffer
 
     integer      :: lchnk                   ! chunk identifier
     integer      :: ncol                    ! number of columns in chunk
@@ -1947,7 +1948,7 @@ contains
 
             icnst = icnst4elem(ielem, ibin)
 
-            call CARMA_EmitParticle(carma, ielem, ibin, icnst, dt, state, cam_in, tendency, surfaceFlux, rc)
+            call CARMA_EmitParticle(carma, ielem, ibin, icnst, dt, state, cam_in, tendency, surfaceFlux, pbuf, rc)
             if (rc < 0) call endrun('carma_emission_tend::CARMA_EmitParticle failed.')
 
             ! Add any surface flux here.
