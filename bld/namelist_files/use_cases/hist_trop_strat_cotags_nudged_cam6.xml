@@ -16,9 +16,6 @@
 <tau_0_ubc>.false.</tau_0_ubc>
 <gw_qbo_hdepth_scaling>0.25D0</gw_qbo_hdepth_scaling>
 
-<flbc_type>SERIAL</flbc_type>
-<flbc_file>atm/waccm/lb/LBC_1750-2014_CMIP6_0p5degLat_c170126.nc</flbc_file>
-
 <prescribed_strataero_type>SERIAL</prescribed_strataero_type>
 
 <!-- emissions -->
@@ -92,6 +89,8 @@
  'CO2', 'H2', 'HCFC22', 'N2O', 'CFC114', 'CFC115', 'HCFC141B', 'HCFC142B',
  'H2402', 'OCS', 'SF6', 'CFC11eq'
 </flbc_list>
+<flbc_type>SERIAL</flbc_type>
+
 
 <!-- emis -->
 
@@ -118,10 +117,10 @@
 <srf_emis_specifier>
   'NO       -> /glade/p/acom/acom-climate/cmip6inputs/historical_ne0CONUSne30x8/emissions-cmip6-SSP_NO_other_surface_surface_1750_2101_ne30x8conus_c20210531.nc',
   'CO       -> /glade/p/acom/acom-climate/cmip6inputs/historical_ne0CONUSne30x8/emissions-cmip6-SSP_CO_other_surface_surface_1750_2101_ne30x8conus_c20210531.nc',
-  'C2H4     -> /glade/p/acom/acom-climate/cmip6inputs/historical_ne0CONUSne30x8/emissions-cmip6-SSP_C2H4_other_surface_surface_1750_2101_ne30x8conus_c20210531.nc',
-  'C2H6     -> /glade/p/acom/acom-climate/cmip6inputs/historical_ne0CONUSne30x8/emissions-cmip6-SSP_C2H6_other_surface_surface_1750_2101_ne30x8conus_c20210531.nc',
-  'C3H6     -> /glade/p/acom/acom-climate/cmip6inputs/historical_ne0CONUSne30x8/emissions-cmip6-SSP_C3H6_other_surface_surface_1750_2101_ne30x8conus_c20210531.nc',
-  'C3H8     -> /glade/p/acom/acom-climate/cmip6inputs/historical_ne0CONUSne30x8/emissions-cmip6-SSP_C3H8_other_surface_surface_1750_2101_ne30x8conus_c20210531.nc',
+  'C2H4     -> /glade/p/acom/acom-climate/cmip6inputs/historical_ne0CONUSne30x8/emissions-cmip6-SSP_C2H4_other_surface_surface_1750_2101_ne30x8conus_c20210602.nc',
+  'C2H6     -> /glade/p/acom/acom-climate/cmip6inputs/historical_ne0CONUSne30x8/emissions-cmip6-SSP_C2H6_other_surface_surface_1750_2101_ne30x8conus_c20210602.nc',
+  'C3H6     -> /glade/p/acom/acom-climate/cmip6inputs/historical_ne0CONUSne30x8/emissions-cmip6-SSP_C3H6_other_surface_surface_1750_2101_ne30x8conus_c20210602.nc',
+  'C3H8     -> /glade/p/acom/acom-climate/cmip6inputs/historical_ne0CONUSne30x8/emissions-cmip6-SSP_C3H8_other_surface_surface_1750_2101_ne30x8conus_c20210602.nc',
   'NH3      -> /glade/p/acom/acom-climate/cmip6inputs/historical_ne0CONUSne30x8/emissions-cmip6-SSP_NH3_other_surface_surface_1750_2101_ne30x8conus_c20210531.nc',
   'SO2      -> /glade/p/acom/MUSICA/emissions/cams/CAMS-GLOB-ANTv5.1/ne0CONUSne30x8/CAMS-GLOB-ANT_v5.1_2000-2021_ne0CONUSne30x8_SO2_c20210419.nc',
   'so4_a1   -> /glade/p/acom/MUSICA/emissions/cams/CAMS-GLOB-ANTv5.1/ne0CONUSne30x8/CAMS-GLOB-ANT_v5.1_2000-2021_ne0CONUSne30x8_so4_a1_ag_ship_fef_c20210419.nc',
