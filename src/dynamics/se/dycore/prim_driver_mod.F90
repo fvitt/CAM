@@ -911,22 +911,22 @@ contains
     !update fields
     !
 !    if ( fra < 1.0_r8 ) then
-      do k=1, kbot
-        v(:,:,:,k) =v(:,:,:,k) +(v0(:,:,:,k)-v(:,:,:,k))*fra!*nu_scale_top(k)
-        temp(:,:,k)=temp(:,:,k)+(T0(:,:,k)-temp(:,:,k))*fra!*nu_scale_top(k)
-      enddo
-      do iq=1,qsize
-        do k=1,kbot
-          qdp(:,:,k,iq) = qdp(:,:,k,iq) + (qdp0(:,:,k,iq) - qdp(:,:,k,iq))*fra!*nu_scale_top(k)
-        enddo
-      enddo
-      if (ntrac>0) then
-        do iq=1,ntrac
-          do k=1,kbot
-            q_fvm(:,:,k,iq) = q_fvm(:,:,k,iq) + (q0_fvm(:,:,k,iq) - q_fvm(:,:,k,iq))!*fra*nu_scale_top(k)
-          enddo
-        enddo
-      endif
+!      do k=1, kbot
+!        v(:,:,:,k) =v(:,:,:,k) +(v0(:,:,:,k)-v(:,:,:,k))*fra!*nu_scale_top(k)
+!        temp(:,:,k)=temp(:,:,k)+(T0(:,:,k)-temp(:,:,k))*fra!*nu_scale_top(k)
+!      enddo
+!      do iq=1,qsize
+!        do k=1,kbot
+!          qdp(:,:,k,iq) = qdp(:,:,k,iq) + (qdp0(:,:,k,iq) - qdp(:,:,k,iq))*fra!*nu_scale_top(k)
+!        enddo
+!      enddo
+!      if (ntrac>0) then
+!        do iq=1,ntrac
+!          do k=1,kbot
+!            q_fvm(:,:,k,iq) = q_fvm(:,:,k,iq) + (q0_fvm(:,:,k,iq) - q_fvm(:,:,k,iq))!*fra*nu_scale_top(k)
+!          enddo
+!        enddo
+!      endif
 !    end if
   end subroutine two_dz_filter
 #endif
