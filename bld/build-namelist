@@ -3579,6 +3579,7 @@ if ($dyn =~ /se/) {
                   se_horz_num_threads
                   se_hypervis_dynamic_ref_state
                   se_lcp_moist
+                  se_exner_pgf
 		  se_large_Courant_incr
                   se_hypervis_subcycle
                   se_hypervis_subcycle_sponge

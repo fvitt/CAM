@@ -7178,6 +7178,14 @@ For more details see Lauritzen et al., (2018;DOI:10.1029/2017MS001257)
 Default: TRUE
 </entry>
 
+<entry id="se_exner_pgf" type="logical" category="se"
+       group="dyn_se_inparm" valid_values="" >
+TRUE if using new Exner PGF formulation throughout domain and False if
+using traditional PGF formulation where pressure surfaces are not
+terrain following
+Default: TRUE
+</entry>
+
 <entry id="se_large_Courant_incr" type="logical" category="se"
        group="dyn_se_inparm" valid_values="" >
   If TRUE the CSLAM algorithm will work for Courant number larger than 1 with

@@ -1029,7 +1029,7 @@ contains
      ! allows us to fuse these two loops for more cache reuse
      !
      ! ===================================
-     use dimensions_mod,  only: np, nc, nlev, ntrac, ksponge_end
+     use dimensions_mod,  only: np, nc, nlev, ntrac, ksponge_end, exner_pgf
      use hybrid_mod,      only: hybrid_t
      use element_mod,     only: element_t
      use derivative_mod,  only: derivative_t, divergence_sphere, gradient_sphere, vorticity_sphere
@@ -1237,46 +1237,50 @@ contains
          call gradient_sphere(Ephi(:,:),deriv,elem(ie)%Dinv,vtemp)
          density_inv(:,:) = R_dry(:,:,k)*T_v(:,:,k)/p_full(:,:,k)
 
-         if (dry_air_species_num==0) then
-           exner(:,:)=(p_full(:,:,k)/hvcoord%ps0)**kappa(:,:,k,ie)
-           theta_v(:,:)=T_v(:,:,k)/exner(:,:)
-           call gradient_sphere(exner(:,:),deriv,elem(ie)%Dinv,grad_exner)
-
-           grad_exner_term(:,:,1) = cp_dry(:,:,k)*theta_v(:,:)*grad_exner(:,:,1)
-           grad_exner_term(:,:,2) = cp_dry(:,:,k)*theta_v(:,:)*grad_exner(:,:,2)
+         if (exner_pgf) then
+           if (dry_air_species_num==0) then
+             exner(:,:)=(p_full(:,:,k)/hvcoord%ps0)**kappa(:,:,k,ie)
+             theta_v(:,:)=T_v(:,:,k)/exner(:,:)
+             call gradient_sphere(exner(:,:),deriv,elem(ie)%Dinv,grad_exner)
+             
+             grad_exner_term(:,:,1) = cp_dry(:,:,k)*theta_v(:,:)*grad_exner(:,:,1)
+             grad_exner_term(:,:,2) = cp_dry(:,:,k)*theta_v(:,:)*grad_exner(:,:,2)
+           else
+             exner(:,:)=(p_full(:,:,k)/hvcoord%ps0)**kappa(:,:,k,ie)
+             theta_v(:,:)=T_v(:,:,k)/exner(:,:)
+             call gradient_sphere(exner(:,:),deriv,elem(ie)%Dinv,grad_exner)
+             
+             call gradient_sphere(kappa(:,:,k,ie),deriv,elem(ie)%Dinv,grad_kappa_term)
+             suml = exner(:,:)*LOG(p_full(:,:,k)/hvcoord%ps0)
+             grad_kappa_term(:,:,1)=-suml*grad_kappa_term(:,:,1)
+             grad_kappa_term(:,:,2)=-suml*grad_kappa_term(:,:,2)
+             
+             grad_exner_term(:,:,1) = cp_dry(:,:,k)*theta_v(:,:)*(grad_exner(:,:,1)+grad_kappa_term(:,:,1))
+             grad_exner_term(:,:,2) = cp_dry(:,:,k)*theta_v(:,:)*(grad_exner(:,:,2)+grad_kappa_term(:,:,2))
+           end if
+           
+           ! balanced ref profile correction:
+           ! reference temperature profile (Simmons and Jiabin, 1991, QJRMS, Section 2a)
+           !
+           !  Tref = T0+T1*Exner
+           !  T1 = .0065*Tref*Cp/g ! = ~191
+           !  T0 = Tref-T1         ! = ~97
+           !
+           T1 = lapse_rate*Tref*cpair/gravit
+           T0 = Tref-T1
+           
+           if (hvcoord%hybm(k)>0) then
+             call gradient_sphere(log(exner(:,:)),deriv,elem(ie)%Dinv,grad_logexner)
+             grad_exner_term(:,:,1)=grad_exner_term(:,:,1) + &
+                  cpair*T0*(grad_logexner(:,:,1)-grad_exner(:,:,1)/exner(:,:))
+             grad_exner_term(:,:,2)=grad_exner_term(:,:,2) + &
+                  cpair*T0*(grad_logexner(:,:,2)-grad_exner(:,:,2)/exner(:,:))
+           end if
          else
-           exner(:,:)=(p_full(:,:,k)/hvcoord%ps0)**kappa(:,:,k,ie)
-           theta_v(:,:)=T_v(:,:,k)/exner(:,:)
-           call gradient_sphere(exner(:,:),deriv,elem(ie)%Dinv,grad_exner)
-
-           call gradient_sphere(kappa(:,:,k,ie),deriv,elem(ie)%Dinv,grad_kappa_term)
-           suml = exner(:,:)*LOG(p_full(:,:,k)/hvcoord%ps0)
-           grad_kappa_term(:,:,1)=-suml*grad_kappa_term(:,:,1)
-           grad_kappa_term(:,:,2)=-suml*grad_kappa_term(:,:,2)
-
-           grad_exner_term(:,:,1) = cp_dry(:,:,k)*theta_v(:,:)*(grad_exner(:,:,1)+grad_kappa_term(:,:,1))
-           grad_exner_term(:,:,2) = cp_dry(:,:,k)*theta_v(:,:)*(grad_exner(:,:,2)+grad_kappa_term(:,:,2))
+           grad_exner_term(:,:,1)  = density_inv(:,:)*grad_p_full(:,:,1,k)!CESM2.2 PGF formulation
+           grad_exner_term(:,:,1)  = density_inv(:,:)*grad_p_full(:,:,2,k)!CESM2.2 PGF formulation
          end if
-
-         ! balanced ref profile correction:
-         ! reference temperature profile (Simmons and Jiabin, 1991, QJRMS, Section 2a)
-         !
-         !  Tref = T0+T1*Exner
-         !  T1 = .0065*Tref*Cp/g ! = ~191
-         !  T0 = Tref-T1         ! = ~97
-         !
-         T1 = lapse_rate*Tref*cpair/gravit
-         T0 = Tref-T1
-
-         if (hvcoord%hybm(k)>0) then
-           call gradient_sphere(log(exner(:,:)),deriv,elem(ie)%Dinv,grad_logexner)
-           grad_exner_term(:,:,1)=grad_exner_term(:,:,1) + &
-                cpair*T0*(grad_logexner(:,:,1)-grad_exner(:,:,1)/exner(:,:))
-           grad_exner_term(:,:,2)=grad_exner_term(:,:,2) + &
-                cpair*T0*(grad_logexner(:,:,2)-grad_exner(:,:,2)/exner(:,:))
-         end if
-
-
+           
          
          do j=1,np
            do i=1,np

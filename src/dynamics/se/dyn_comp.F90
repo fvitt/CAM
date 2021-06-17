@@ -117,7 +117,7 @@ subroutine dyn_readnl(NLFileName)
    use control_mod,    only: max_hypervis_courant, statediag_numtrac,refined_mesh
    use control_mod,    only: molecular_diff
    use dimensions_mod, only: ne, npart
-   use dimensions_mod, only: lcp_moist
+   use dimensions_mod, only: lcp_moist, exner_pgf
    use dimensions_mod, only: hypervis_dynamic_ref_state,large_Courant_incr
    use dimensions_mod, only: fvm_supercycling, fvm_supercycling_jet
    use dimensions_mod, only: kmin_jet, kmax_jet
@@ -166,6 +166,7 @@ subroutine dyn_readnl(NLFileName)
    integer                      :: se_tracer_num_threads
    logical                      :: se_hypervis_dynamic_ref_state
    logical                      :: se_lcp_moist
+   logical                      :: se_exner_pgf
    logical                      :: se_write_restart_unstruct
    logical                      :: se_large_Courant_incr
    integer                      :: se_fvm_supercycling
@@ -211,6 +212,7 @@ subroutine dyn_readnl(NLFileName)
       se_tracer_num_threads,       &
       se_hypervis_dynamic_ref_state,&
       se_lcp_moist,                &
+      se_exner_pgf,                &
       se_write_restart_unstruct,   &
       se_large_Courant_incr,       &
       se_fvm_supercycling,         &
@@ -284,6 +286,7 @@ subroutine dyn_readnl(NLFileName)
    call MPI_bcast(se_tracer_num_threads, 1, MPI_integer, masterprocid, mpicom,ierr)
    call MPI_bcast(se_hypervis_dynamic_ref_state, 1, mpi_logical, masterprocid, mpicom, ierr)
    call MPI_bcast(se_lcp_moist, 1, mpi_logical, masterprocid, mpicom, ierr)
+   call MPI_bcast(se_exner_pgf, 1, mpi_logical, masterprocid, mpicom, ierr)
    call MPI_bcast(se_write_restart_unstruct, 1, mpi_logical, masterprocid, mpicom, ierr)
    call MPI_bcast(se_large_Courant_incr, 1, mpi_logical, masterprocid, mpicom, ierr)
    call MPI_bcast(se_fvm_supercycling, 1, mpi_integer, masterprocid, mpicom, ierr)
@@ -351,6 +354,7 @@ subroutine dyn_readnl(NLFileName)
    fv_nphys                 = se_fv_nphys
    hypervis_dynamic_ref_state = se_hypervis_dynamic_ref_state
    lcp_moist                = se_lcp_moist
+   exner_pgf                = se_exner_pgf
    large_Courant_incr       = se_large_Courant_incr
    fvm_supercycling         = se_fvm_supercycling
    fvm_supercycling_jet     = se_fvm_supercycling_jet
@@ -815,6 +819,17 @@ subroutine dyn_init(dyn_in, dyn_out)
    call addfld ('nu_kmcnd',   (/ 'lev' /), 'A', '', 'Thermal conductivity Laplacian coefficient'           , gridname='GLL')
    call addfld ('nu_kmcnd_dp',(/ 'lev' /), 'A', '', 'Thermal conductivity like Laplacian coefficient on dp', gridname='GLL')
 
+#define richardson_number_damping
+#ifdef richardson_number_damping
+   call addfld ('Ri_number',  (/ 'lev' /), 'A', '', 'Richardson number',     gridname='GLL')
+   call addfld ('Ri_mixing',  (/ 'lev' /), 'A', '', 'Richardson number based mixing',     gridname='GLL')
+   if (ntrac>0) then
+     call addfld ('Ri_mixing_fvm',  (/ 'lev' /), 'A', '', 'Richardson number based mixing',     gridname='FVM')
+   end if
+   call addfld ('two_dz_filter_dT',  (/ 'lev' /), 'A', '', 'Temperature increment from 2dz filter',     gridname='GLL')
+   call addfld ('two_dz_filter_dU',  (/ 'lev' /), 'A', '', 'Zontal wind increment from 2dz filter',     gridname='GLL')
+   call addfld ('two_dz_filter_dV',  (/ 'lev' /), 'A', '', 'Meridional wind increment from 2dz filter',     gridname='GLL')
+#endif
 
    ! Forcing from physics on the GLL grid
    call addfld ('FU',  (/ 'lev' /), 'A', 'm/s2', 'Zonal wind forcing term on GLL grid',     gridname='GLL')
