@@ -1278,7 +1278,7 @@ contains
            end if
          else
            grad_exner_term(:,:,1)  = density_inv(:,:)*grad_p_full(:,:,1,k)!CESM2.2 PGF formulation
-           grad_exner_term(:,:,1)  = density_inv(:,:)*grad_p_full(:,:,2,k)!CESM2.2 PGF formulation
+           grad_exner_term(:,:,2)  = density_inv(:,:)*grad_p_full(:,:,2,k)!CESM2.2 PGF formulation
          end if
            
          
