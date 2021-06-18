@@ -749,7 +749,7 @@ subroutine thermodynamic_consistency(phys_state, phys_tend, ncols, pver, lchnk)
    ! Note: mixing ratios are assumed to be dry.
    !
    use dimensions_mod,    only: lcp_moist
-   use physconst,         only: get_cp, cpair
+   use physconst,         only: get_cp
    use control_mod,       only: phys_dyn_cp
    use physconst,         only: cpairv
 

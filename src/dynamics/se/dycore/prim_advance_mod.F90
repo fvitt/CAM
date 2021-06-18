@@ -56,7 +56,6 @@ contains
     use time_mod,          only: TimeLevel_t,  timelevel_qdp, tevolve
     use dimensions_mod,    only: lcp_moist
     use fvm_control_volume_mod, only: fvm_struct
-    use control_mod,       only: raytau0
     use physconst,         only: get_cp, thermodynamic_active_species_num
     use physconst,         only: get_kappa_dry, dry_air_species_num
     use physconst,         only: thermodynamic_active_species_idx_dycore
@@ -147,7 +146,6 @@ contains
 
     dt_vis = dt
 
-    if (raytau0>0) call rayleigh_friction(elem,n0,nets,nete,dt)
     if (tstep_type==1) then
       ! RK2-SSP 3 stage.  matches tracer scheme. optimal SSP CFL, but
       ! not optimal for regular CFL
@@ -1031,7 +1029,7 @@ contains
      ! allows us to fuse these two loops for more cache reuse
      !
      ! ===================================
-     use dimensions_mod,  only: np, nc, nlev, ntrac, ksponge_end
+     use dimensions_mod,  only: np, nc, nlev, ntrac, ksponge_end, exner_pgf
      use hybrid_mod,      only: hybrid_t
      use element_mod,     only: element_t
      use derivative_mod,  only: derivative_t, divergence_sphere, gradient_sphere, vorticity_sphere
@@ -1239,47 +1237,50 @@ contains
          call gradient_sphere(Ephi(:,:),deriv,elem(ie)%Dinv,vtemp)
          density_inv(:,:) = R_dry(:,:,k)*T_v(:,:,k)/p_full(:,:,k)
 
-         if (dry_air_species_num==0) then        
-           exner(:,:)=(p_full(:,:,k)/hvcoord%ps0)**kappa(:,:,k,ie)
-           theta_v(:,:)=T_v(:,:,k)/exner(:,:)
-           call gradient_sphere(exner(:,:),deriv,elem(ie)%Dinv,grad_exner)
+         if (exner_pgf) then
+           if (dry_air_species_num==0) then
+             exner(:,:)=(p_full(:,:,k)/hvcoord%ps0)**kappa(:,:,k,ie)
+             theta_v(:,:)=T_v(:,:,k)/exner(:,:)
+             call gradient_sphere(exner(:,:),deriv,elem(ie)%Dinv,grad_exner)
 
-           grad_exner_term(:,:,1) = cp_dry(:,:,k)*theta_v(:,:)*grad_exner(:,:,1)
-           grad_exner_term(:,:,2) = cp_dry(:,:,k)*theta_v(:,:)*grad_exner(:,:,2)
+             grad_exner_term(:,:,1) = cp_dry(:,:,k)*theta_v(:,:)*grad_exner(:,:,1)
+             grad_exner_term(:,:,2) = cp_dry(:,:,k)*theta_v(:,:)*grad_exner(:,:,2)
+           else
+             exner(:,:)=(p_full(:,:,k)/hvcoord%ps0)**kappa(:,:,k,ie)
+             theta_v(:,:)=T_v(:,:,k)/exner(:,:)
+             call gradient_sphere(exner(:,:),deriv,elem(ie)%Dinv,grad_exner)
+
+             call gradient_sphere(kappa(:,:,k,ie),deriv,elem(ie)%Dinv,grad_kappa_term)
+             suml = exner(:,:)*LOG(p_full(:,:,k)/hvcoord%ps0)
+             grad_kappa_term(:,:,1)=-suml*grad_kappa_term(:,:,1)
+             grad_kappa_term(:,:,2)=-suml*grad_kappa_term(:,:,2)
+
+             grad_exner_term(:,:,1) = cp_dry(:,:,k)*theta_v(:,:)*(grad_exner(:,:,1)+grad_kappa_term(:,:,1))
+             grad_exner_term(:,:,2) = cp_dry(:,:,k)*theta_v(:,:)*(grad_exner(:,:,2)+grad_kappa_term(:,:,2))
+           end if
+
+           ! balanced ref profile correction:
+           ! reference temperature profile (Simmons and Jiabin, 1991, QJRMS, Section 2a)
+           !
+           !  Tref = T0+T1*Exner
+           !  T1 = .0065*Tref*Cp/g ! = ~191
+           !  T0 = Tref-T1         ! = ~97
+           !
+           T1 = lapse_rate*Tref*cpair/gravit
+           T0 = Tref-T1
+
+           if (hvcoord%hybm(k)>0) then
+             call gradient_sphere(log(exner(:,:)),deriv,elem(ie)%Dinv,grad_logexner)
+             grad_exner_term(:,:,1)=grad_exner_term(:,:,1) + &
+                  cpair*T0*(grad_logexner(:,:,1)-grad_exner(:,:,1)/exner(:,:))
+             grad_exner_term(:,:,2)=grad_exner_term(:,:,2) + &
+                  cpair*T0*(grad_logexner(:,:,2)-grad_exner(:,:,2)/exner(:,:))
+           end if
          else
-           exner(:,:)=(p_full(:,:,k)/hvcoord%ps0)**kappa(:,:,k,ie)
-           theta_v(:,:)=T_v(:,:,k)/exner(:,:)
-           call gradient_sphere(exner(:,:),deriv,elem(ie)%Dinv,grad_exner)
-
-           call gradient_sphere(kappa(:,:,k,ie),deriv,elem(ie)%Dinv,grad_kappa_term)
-           suml = exner(:,:)*LOG(p_full(:,:,k)/hvcoord%ps0)
-           grad_kappa_term(:,:,1)=-suml*grad_kappa_term(:,:,1)
-           grad_kappa_term(:,:,2)=-suml*grad_kappa_term(:,:,2)
-
-           grad_exner_term(:,:,1) = cp_dry(:,:,k)*theta_v(:,:)*(grad_exner(:,:,1)+grad_kappa_term(:,:,1))
-           grad_exner_term(:,:,2) = cp_dry(:,:,k)*theta_v(:,:)*(grad_exner(:,:,2)+grad_kappa_term(:,:,2))
+           grad_exner_term(:,:,1)  = density_inv(:,:)*grad_p_full(:,:,1,k)!CESM2.2 PGF formulation
+           grad_exner_term(:,:,2)  = density_inv(:,:)*grad_p_full(:,:,2,k)!CESM2.2 PGF formulation
          end if
 
-         ! balanced ref profile correction:
-         ! reference temperature profile (Simmons and Jiabin, 1991, QJRMS, Section 2a)
-         !
-         !  Tref = T0+T1*Exner
-         !  T1 = .0065*Tref*Cp/g ! = ~191
-         !  T0 = Tref-T1         ! = ~97
-         !
-         T1 = lapse_rate*Tref*cpair/gravit
-         T0 = Tref-T1
-
-         if (hvcoord%hybm(k)>0) then
-           call gradient_sphere(log(exner(:,:)),deriv,elem(ie)%Dinv,grad_logexner)
-           grad_exner_term(:,:,1)=grad_exner_term(:,:,1) + &
-                cpair*T0*(grad_logexner(:,:,1)-grad_exner(:,:,1)/exner(:,:))
-           grad_exner_term(:,:,2)=grad_exner_term(:,:,2) + &
-                cpair*T0*(grad_logexner(:,:,2)-grad_exner(:,:,2)/exner(:,:))
-         end if
-
-
-         
          do j=1,np
            do i=1,np
              glnps1 = grad_exner_term(i,j,1)
@@ -1651,7 +1652,7 @@ contains
     !
     name_out1 = 'MR_'   //trim(outfld_name_suffix)
     name_out2 = 'MO_'   //trim(outfld_name_suffix)
-    ! 
+    !
     if ( hist_fld_active(name_out1).or.hist_fld_active(name_out2)) then
       call strlist_get_ind(cnst_name_gll, 'CLDLIQ', ixcldliq, abort=.false.)
       call strlist_get_ind(cnst_name_gll, 'CLDICE', ixcldice, abort=.false.)
@@ -2148,25 +2149,4 @@ contains
     return
   end subroutine fill_element
 
-  subroutine rayleigh_friction(elem,nt,nets,nete,dt)
-    use dimensions_mod, only: nlev, otau
-    use hybrid_mod,     only: hybrid_t!, get_loop_ranges
-    use element_mod,    only: element_t
-
-    type (element_t)   , intent(inout), target :: elem(:)
-    integer            , intent(in)   :: nets,nete, nt
-    real(r8)                          :: dt
-
-    real(r8) :: c1, c2
-    integer  :: k,ie
-
-    do ie=nets,nete
-      do k=1,nlev
-        c2 = 1._r8 / (1._r8 + otau(k)*dt)
-        c1 = -otau(k) * c2 * dt
-        elem(ie)%state%v(:,:,:,k,nt) = elem(ie)%state%v(:,:,:,k,nt)+c1 * elem(ie)%state%v(:,:,:,k,nt)
-!         ptend%s(:ncol,k) = c3 * (state%u(:ncol,k)**2 + state%v(:ncol,k)**2)
-      enddo
-    end do
-  end subroutine rayleigh_friction
 end module prim_advance_mod

@@ -38,6 +38,7 @@ module dimensions_mod
   ! .true. : use moist cp in dycore
   !
   logical           , public :: lcp_moist = .true. 
+  logical           , public :: exner_pgf = .true. 
  
   integer, parameter, public :: np = NP
   integer, parameter, public :: nc = 3       !cslam resolution

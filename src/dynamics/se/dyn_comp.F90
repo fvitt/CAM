@@ -115,9 +115,9 @@ subroutine dyn_readnl(NLFileName)
    use control_mod,    only: topology, phys_dyn_cp, variable_nsplit
    use control_mod,    only: fine_ne, hypervis_power, hypervis_scaling
    use control_mod,    only: max_hypervis_courant, statediag_numtrac,refined_mesh
-   use control_mod,    only: raytau0, raykrange, rayk0, molecular_diff
+   use control_mod,    only: molecular_diff
    use dimensions_mod, only: ne, npart
-   use dimensions_mod, only: lcp_moist
+   use dimensions_mod, only: lcp_moist, exner_pgf
    use dimensions_mod, only: hypervis_dynamic_ref_state,large_Courant_incr
    use dimensions_mod, only: fvm_supercycling, fvm_supercycling_jet
    use dimensions_mod, only: kmin_jet, kmax_jet
@@ -166,6 +166,7 @@ subroutine dyn_readnl(NLFileName)
    integer                      :: se_tracer_num_threads
    logical                      :: se_hypervis_dynamic_ref_state
    logical                      :: se_lcp_moist
+   logical                      :: se_exner_pgf
    logical                      :: se_write_restart_unstruct
    logical                      :: se_large_Courant_incr
    integer                      :: se_fvm_supercycling
@@ -173,9 +174,6 @@ subroutine dyn_readnl(NLFileName)
    integer                      :: se_kmin_jet
    integer                      :: se_kmax_jet
    integer                      :: se_phys_dyn_cp
-   real(r8)                     :: se_raytau0
-   real(r8)                     :: se_raykrange
-   integer                      :: se_rayk0
    real(r8)                     :: se_molecular_diff
 
    namelist /dyn_se_inparm/        &
@@ -214,6 +212,7 @@ subroutine dyn_readnl(NLFileName)
       se_tracer_num_threads,       &
       se_hypervis_dynamic_ref_state,&
       se_lcp_moist,                &
+      se_exner_pgf,                &
       se_write_restart_unstruct,   &
       se_large_Courant_incr,       &
       se_fvm_supercycling,         &
@@ -221,9 +220,6 @@ subroutine dyn_readnl(NLFileName)
       se_kmin_jet,                 &
       se_kmax_jet,                 &
       se_phys_dyn_cp,              &
-      se_raytau0,                  &
-      se_raykrange,                &
-      se_rayk0,                    &
       se_molecular_diff
 
    !--------------------------------------------------------------------------
@@ -290,6 +286,7 @@ subroutine dyn_readnl(NLFileName)
    call MPI_bcast(se_tracer_num_threads, 1, MPI_integer, masterprocid, mpicom,ierr)
    call MPI_bcast(se_hypervis_dynamic_ref_state, 1, mpi_logical, masterprocid, mpicom, ierr)
    call MPI_bcast(se_lcp_moist, 1, mpi_logical, masterprocid, mpicom, ierr)
+   call MPI_bcast(se_exner_pgf, 1, mpi_logical, masterprocid, mpicom, ierr)
    call MPI_bcast(se_write_restart_unstruct, 1, mpi_logical, masterprocid, mpicom, ierr)
    call MPI_bcast(se_large_Courant_incr, 1, mpi_logical, masterprocid, mpicom, ierr)
    call MPI_bcast(se_fvm_supercycling, 1, mpi_integer, masterprocid, mpicom, ierr)
@@ -297,9 +294,6 @@ subroutine dyn_readnl(NLFileName)
    call MPI_bcast(se_kmin_jet, 1, mpi_integer, masterprocid, mpicom, ierr)
    call MPI_bcast(se_kmax_jet, 1, mpi_integer, masterprocid, mpicom, ierr)
    call MPI_bcast(se_phys_dyn_cp, 1, mpi_integer, masterprocid, mpicom, ierr)
-   call MPI_bcast(se_rayk0 , 1, mpi_integer, masterprocid, mpicom, ierr)
-   call MPI_bcast(se_raykrange, 1, mpi_real8, masterprocid, mpicom, ierr)
-   call MPI_bcast(se_raytau0, 1, mpi_real8, masterprocid, mpicom, ierr)
    call MPI_bcast(se_molecular_diff, 1, mpi_real8, masterprocid, mpicom, ierr)
 
    if (se_npes <= 0) then
@@ -360,6 +354,7 @@ subroutine dyn_readnl(NLFileName)
    fv_nphys                 = se_fv_nphys
    hypervis_dynamic_ref_state = se_hypervis_dynamic_ref_state
    lcp_moist                = se_lcp_moist
+   exner_pgf                = se_exner_pgf
    large_Courant_incr       = se_large_Courant_incr
    fvm_supercycling         = se_fvm_supercycling
    fvm_supercycling_jet     = se_fvm_supercycling_jet
@@ -367,9 +362,6 @@ subroutine dyn_readnl(NLFileName)
    kmax_jet                 = se_kmax_jet
    variable_nsplit          = .false.
    phys_dyn_cp              = se_phys_dyn_cp
-   raytau0                  = se_raytau0
-   raykrange                = se_raykrange
-   rayk0                    = se_rayk0
    molecular_diff           = se_molecular_diff
 
    if (fv_nphys > 0) then
@@ -499,9 +491,6 @@ subroutine dyn_readnl(NLFileName)
       write(iulog,'(a,l1)') 'dyn_readnl: write restart data on unstructured grid = ', &
                             se_write_restart_unstruct
 
-      write(iulog, '(a,e9.2)') 'dyn_readnl: se_raytau0         = ', raytau0
-      write(iulog, '(a,e9.2)') 'dyn_readnl: se_raykrange       = ', raykrange
-      write(iulog, '(a,i0)'  ) 'dyn_readnl: se_rayk0           = ', rayk0
       write(iulog, '(a,e9.2)') 'dyn_readnl: se_molecular_diff  = ', molecular_diff
    end if
 
@@ -599,10 +588,10 @@ subroutine dyn_init(dyn_in, dyn_out)
    use dimensions_mod,     only: nu_scale_top, nu_lev, nu_div_lev
    use dimensions_mod,     only: ksponge_end, kmvis_ref, kmcnd_ref,rho_ref,km_sponge_factor
    use dimensions_mod,     only: cnst_name_gll, cnst_longname_gll
-   use dimensions_mod,     only: irecons_tracer_lev, irecons_tracer, otau, kord_tr, kord_tr_cslam
+   use dimensions_mod,     only: irecons_tracer_lev, irecons_tracer, kord_tr, kord_tr_cslam
    use prim_driver_mod,    only: prim_init2
    use time_mod,           only: time_at
-   use control_mod,        only: runtype, raytau0, raykrange, rayk0, molecular_diff, nu_top
+   use control_mod,        only: runtype, molecular_diff, nu_top
    use test_fvm_mapping,   only: test_mapping_addfld
    use phys_control,       only: phys_getopts
    use physconst,          only: get_molecular_diff_coef_reference
@@ -663,7 +652,6 @@ subroutine dyn_init(dyn_in, dyn_out)
 
    character(len=*), parameter :: subname = 'dyn_init'
 
-   real(r8) :: tau0, krange, otau0, scale
    real(r8) :: km_sponge_factor_local(nlev+1)
    !----------------------------------------------------------------------------
 
@@ -738,27 +726,6 @@ subroutine dyn_init(dyn_in, dyn_out)
    if (initial_run) then
      call read_inidat(dyn_in)
      call clean_iodesc_list()
-   end if
-   !
-   ! initialize Rayleigh friction
-   !
-   krange = raykrange
-   if (raykrange .eq. 0._r8) krange = (rayk0 - 1) / 2._r8
-   tau0 = (86400._r8) * raytau0   ! convert to seconds
-   otau0 = 0._r8
-   if (tau0 .ne. 0._r8) otau0 = 1._r8/tau0
-   do k = 1, nlev
-     otau(k) = otau0 * (1.0_r8 + tanh((rayk0 - k) / krange)) / (2._r8)
-   enddo
-   if (masterproc) then
-     if (tau0 > 0._r8) then
-       write (iulog,*) 'SE dycore Rayleigh friction - krange = ', krange
-       write (iulog,*) 'SE dycore Rayleigh friction - otau0 = ', 1.0_r8/tau0
-       write (iulog,*) 'SE dycore Rayleigh friction decay rate profile (only applied to (u,v))'
-       do k = 1, nlev
-         write (iulog,*) '   k = ', k, '   otau = ', otau(k)
-       enddo
-     end if
    end if
    !
    ! initialize diffusion in dycore
@@ -852,6 +819,17 @@ subroutine dyn_init(dyn_in, dyn_out)
    call addfld ('nu_kmcnd',   (/ 'lev' /), 'A', '', 'Thermal conductivity Laplacian coefficient'           , gridname='GLL')
    call addfld ('nu_kmcnd_dp',(/ 'lev' /), 'A', '', 'Thermal conductivity like Laplacian coefficient on dp', gridname='GLL')
 
+#define richardson_number_damping
+#ifdef richardson_number_damping
+   call addfld ('Ri_number',  (/ 'lev' /), 'A', '', 'Richardson number',     gridname='GLL')
+   call addfld ('Ri_mixing',  (/ 'lev' /), 'A', '', 'Richardson number based mixing',     gridname='GLL')
+   if (ntrac>0) then
+     call addfld ('Ri_mixing_fvm',  (/ 'lev' /), 'A', '', 'Richardson number based mixing',     gridname='FVM')
+   end if
+   call addfld ('two_dz_filter_dT',  (/ 'lev' /), 'A', '', 'Temperature increment from 2dz filter',     gridname='GLL')
+   call addfld ('two_dz_filter_dU',  (/ 'lev' /), 'A', '', 'Zontal wind increment from 2dz filter',     gridname='GLL')
+   call addfld ('two_dz_filter_dV',  (/ 'lev' /), 'A', '', 'Meridional wind increment from 2dz filter',     gridname='GLL')
+#endif
 
    ! Forcing from physics on the GLL grid
    call addfld ('FU',  (/ 'lev' /), 'A', 'm/s2', 'Zonal wind forcing term on GLL grid',     gridname='GLL')
@@ -874,10 +852,10 @@ subroutine dyn_init(dyn_in, dyn_out)
       call addfld ('PSDRY_fvm',horiz_only, 'I','Pa','CSLAM dry surface pressure'    , gridname='FVM')
    end if
 
-!!$   do m_cnst = 1, qsize
-!!$     call addfld ('F'//trim(cnst_name_gll(m_cnst))//'_gll',  (/ 'lev' /), 'I', 'kg/kg/s',   &
-!!$          trim(cnst_longname(m_cnst))//' mixing ratio forcing term (q_new-q_old) on GLL grid', gridname='GLL')
-!!$   end do
+   do m_cnst = 1, qsize
+     call addfld ('F'//trim(cnst_name_gll(m_cnst))//'_gll',  (/ 'lev' /), 'I', 'kg/kg/s',   &
+          trim(cnst_longname(m_cnst))//' mixing ratio forcing term (q_new-q_old) on GLL grid', gridname='GLL')
+   end do
 
    ! Energy diagnostics and axial angular momentum diagnostics
    call addfld ('ABS_dPSdt',  horiz_only, 'A', 'Pa/s', 'Absolute surface pressure tendency',gridname='GLL')
@@ -1023,14 +1001,14 @@ subroutine dyn_run(dyn_state)
       end do
    end if
 
-!!$   do m = 1, qsize
-!!$     if (hist_fld_active('F'//trim(cnst_name_gll(m))//'_gll')) then
-!!$       do ie = nets, nete
-!!$         call outfld('F'//trim(cnst_name_gll(m))//'_gll',&
-!!$              RESHAPE(dyn_state%elem(ie)%derived%FQ(:,:,:,m), (/np*np,nlev/)), npsq, ie)
-!!$       end do
-!!$     end if
-!!$   end do
+   do m = 1, qsize
+     if (hist_fld_active('F'//trim(cnst_name_gll(m))//'_gll')) then
+       do ie = nets, nete
+         call outfld('F'//trim(cnst_name_gll(m))//'_gll',&
+              RESHAPE(dyn_state%elem(ie)%derived%FQ(:,:,:,m), (/np*np,nlev/)), npsq, ie)
+       end do
+     end if
+   end do
 
 
 
@@ -2059,11 +2037,17 @@ subroutine check_file_layout(file, elem, dyn_cols, file_desc, dyn_ok, dimname)
       indx = 1
       do j = 1, np
          do i = 1, np
-            if ((abs(dbuf2(indx,ie)) > 1.e-12_r8) .and. &
-               (abs((elem(ie)%spherep(i,j)%lat*rad2deg - dbuf2(indx,ie))/dbuf2(indx,ie)) > 1.0e-10_r8)) then
-               write(6, *) 'XXG ',iam,') ',ie,i,j,elem(ie)%spherep(i,j)%lat,dbuf2(indx,ie)*deg2rad
-               call shr_sys_flush(6)
-               found = .false.
+            if (abs(dbuf2(indx,ie)) > 1.e-12_r8) then
+               if (abs((elem(ie)%spherep(i,j)%lat*rad2deg - dbuf2(indx,ie)) / &
+                    dbuf2(indx,ie)) > 1.0e-10_r8) then
+                  write(iulog, '(2a,4(i0,a),f11.5,a,f11.5)')                  &
+                       "ncdata file latitudes not in correct column order",   &
+                       ' on task ', iam, ': elem(', ie, ')%spherep(', i,      &
+                       ', ', j, ')%lat = ', elem(ie)%spherep(i,j)%lat,        &
+                       ' /= ', dbuf2(indx, ie)*deg2rad
+                  call shr_sys_flush(iulog)
+                  found = .false.
+               end if
             end if
             indx = indx + 1
          end do
@@ -2084,11 +2068,15 @@ subroutine check_file_layout(file, elem, dyn_cols, file_desc, dyn_ok, dimname)
       indx = 1
       do j = 1, np
          do i = 1, np
-            if ((abs(dbuf2(indx,ie)) > 1.e-12_r8) .and. &
-               (abs((elem(ie)%spherep(i,j)%lon*rad2deg - dbuf2(indx,ie))/dbuf2(indx,ie)) > 1.0e-10_r8)) then
-               if (360._r8-abs( elem(ie)%spherep(i,j)%lon*rad2deg - dbuf2(indx,ie) ) > 1.e-10_r8) then
-                  write(6, *) 'XXG ',iam,') ',ie,i,j,elem(ie)%spherep(i,j)%lon,dbuf2(indx,ie)*deg2rad
-                  call shr_sys_flush(6)
+            if (abs(dbuf2(indx,ie)) > 1.e-12_r8) then
+               if (abs((elem(ie)%spherep(i,j)%lon*rad2deg - dbuf2(indx,ie)) / &
+                    dbuf2(indx,ie)) > 1.0e-10_r8) then
+                  write(iulog, '(2a,4(i0,a),f11.5,a,f11.5)')                  &
+                       "ncdata file longitudes not in correct column order",  &
+                       ' on task ', iam, ': elem(', ie, ')%spherep(', i,      &
+                       ', ', j, ')%lon = ', elem(ie)%spherep(i,j)%lon,        &
+                       ' /= ', dbuf2(indx, ie)*deg2rad
+                  call shr_sys_flush(iulog)
                   found = .false.
                end if
             end if
@@ -2151,11 +2139,12 @@ subroutine read_dyn_field_2d(fieldname, fh, dimname, buffer)
 
    ! Local variables
    logical                  :: found
+   real(r8)                 :: fillvalue
    !----------------------------------------------------------------------------
 
    buffer = 0.0_r8
    call infld(trim(fieldname), fh, dimname, 1, npsq, 1, nelemd, buffer,    &
-         found, gridname=ini_grid_name)
+        found, gridname=ini_grid_name, fillvalue=fillvalue)
    if(.not. found) then
       call endrun('READ_DYN_FIELD_2D: Could not find '//trim(fieldname)//' field on input datafile')
    end if
@@ -2163,7 +2152,8 @@ subroutine read_dyn_field_2d(fieldname, fh, dimname, buffer)
    ! This code allows use of compiler option to set uninitialized values
    ! to NaN.  In that case infld can return NaNs where the element GLL points
    ! are not "unique columns"
-   where (isnan(buffer)) buffer = 0.0_r8
+   ! Set NaNs or fillvalue points to zero
+   where (isnan(buffer) .or. (buffer==fillvalue)) buffer = 0.0_r8
 
 end subroutine read_dyn_field_2d
 
@@ -2179,11 +2169,12 @@ subroutine read_dyn_field_3d(fieldname, fh, dimname, buffer)
 
    ! Local variables
    logical                  :: found
+   real(r8)                 :: fillvalue
    !----------------------------------------------------------------------------
 
    buffer = 0.0_r8
-   call infld(trim(fieldname), fh, dimname, 'lev',  1, npsq, 1, nlev,      &
-         1, nelemd, buffer, found, gridname=ini_grid_name)
+   call infld(trim(fieldname), fh, dimname, 'lev',  1, npsq, 1, nlev,         &
+        1, nelemd, buffer, found, gridname=ini_grid_name, fillvalue=fillvalue)
    if(.not. found) then
       call endrun('READ_DYN_FIELD_3D: Could not find '//trim(fieldname)//' field on input datafile')
    end if
@@ -2191,7 +2182,8 @@ subroutine read_dyn_field_3d(fieldname, fh, dimname, buffer)
    ! This code allows use of compiler option to set uninitialized values
    ! to NaN.  In that case infld can return NaNs where the element GLL points
    ! are not "unique columns"
-   where (isnan(buffer)) buffer = 0.0_r8
+   ! Set NaNs or fillvalue points to zero
+   where (isnan(buffer) .or. (buffer == fillvalue)) buffer = 0.0_r8
 
 end subroutine read_dyn_field_3d
 
