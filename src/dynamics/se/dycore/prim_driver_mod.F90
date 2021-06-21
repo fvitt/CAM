@@ -745,7 +745,7 @@ contains
     !
     real (kind=r8) :: mixing_fvm(nc,nc,nlev),one(np,np)
     real (kind=r8) :: q0_fvm(nc,nc,nlev,ntrac),inv_fvm_area(nc,nc)
-    return
+
     tau = 1800.0_r8! should be input xxx
     fra = dt/real(tau)
     do iq=1,qsize
