@@ -769,6 +769,7 @@ contains
 !      kbot = k_bot
 !    else
       kbot = 48!xxx nlev
+      kbot = MIN(nlev-1,kbot)
 !      kbot = ksponge_end!48!xxx nlev
 !    endif
     if ( ptop < 2.0_r8 ) then
