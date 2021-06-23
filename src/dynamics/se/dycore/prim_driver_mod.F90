@@ -873,7 +873,7 @@ contains
       !
       ! do mixing on FVM variables ...
       !
-      mixing_fvm(:,:,1) = 0.0_r8
+      mixing_fvm(:,:,:) = 0.0_r8
       one=1.0_r8
       inv_fvm_area(:,:)= dyn2fvm(one(:,:),metdet)
       inv_fvm_area(:,:)= 1.0_r8/inv_fvm_area(:,:)
