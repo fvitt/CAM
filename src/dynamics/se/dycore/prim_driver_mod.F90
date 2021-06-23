@@ -282,13 +282,13 @@ contains
     if (ntrac>0) then
       do ie=nets,nete
         call two_dz_filter(elem(ie)%state%Qdp(:,:,:,1:qsize,np1_qdp),elem(ie)%state%dp3d(:,:,:,tl%np1),elem(ie)%state%T(:,:,:,tl%np1),&
-             elem(ie)%state%v(:,:,:,:,tl%np1),dt_remap,ie,&
+             elem(ie)%state%v(:,:,:,:,tl%np1),dt_phys,ie,&
              metdet=elem(ie)%metdet, dp_dry_fvm=fvm(ie)%dp_fvm(1:nc,1:nc,:),q_fvm=fvm(ie)%c(1:nc,1:nc,:,:))
       end do      
     else
       do ie=nets,nete
         call two_dz_filter(elem(ie)%state%Qdp(:,:,:,1:qsize,np1_qdp),elem(ie)%state%dp3d(:,:,:,tl%np1),elem(ie)%state%T(:,:,:,tl%np1),&
-             elem(ie)%state%v(:,:,:,:,tl%np1),dt_remap,ie)
+             elem(ie)%state%v(:,:,:,:,tl%np1),dt_phys,ie)
       end do
     end if
 #endif
@@ -703,13 +703,12 @@ contains
   !
   subroutine two_dz_filter(qdp,dp_dry,temp,v,dt,ie,metdet,dp_dry_fvm,q_fvm)
     use physconst,      only: get_gz,get_Richardson_number,get_hydrostatic_static_energy,get_sum_species
-    use physconst,      only: thermodynamic_active_species_idx_dycore    
+    use physconst,      only: thermodynamic_active_species_idx_dycore, get_kappa_dry
     use dimensions_mod, only: np, nlev, qsize, npsq, nc, ntrac
     use hycoef,         only: hyai, ps0
     use cam_history,    only: outfld, hist_fld_active
     use fvm_mapping,    only: dyn2fvm
     use dimensions_mod, only: nu_scale_top,ksponge_end
-
     real(kind=r8), intent(inout) :: qdp(np,np,nlev,qsize),temp(np,np,nlev), v(np,np,2,nlev)
     real(kind=r8), intent(in)    :: dp_dry(np,np,nlev)
     !
@@ -735,9 +734,9 @@ contains
     real(kind=r8), dimension(np,np,nlev,qsize)  :: qdp0    
     real(kind=r8), dimension(np,np,nlev)  :: KE,thermalE,gz
     real(kind=r8), dimension(np,np,nlev+1):: Ri
-    real(kind=r8), dimension(np,np,nlev)  :: mixing, sum_species
+    real(kind=r8), dimension(np,np,nlev)  :: mixing, sum_species, kappa, exner
     real(kind=r8), dimension(np,np)       :: phis
-    real(kind=r8) :: ptop, ri_ref,rdt, mc, T_min, T_max, ratio, h0, fra, tau
+    real(kind=r8) :: ptop, ri_ref, mc, T_min, T_max, ratio, h0, fra, tau
     real(kind=r8) :: k_bot!xxx
     integer       :: i,j,k,kbot,km1,n,m,iq,mc_dry
     !
@@ -748,6 +747,9 @@ contains
 
     tau = 1800.0_r8! should be input xxx
     fra = dt/real(tau)
+    !
+    ! xxx not efficient for many tracers!
+    !
     do iq=1,qsize
       qdp0(:,:,:,iq) = qdp(:,:,:,iq)!/dp_dry(:,:,:)
     end do
@@ -761,15 +763,13 @@ contains
     
     ptop = hyai(1)*ps0
     
-    rdt = 1./ dt
 
 !    if ( present(k_bot) ) then
 !      if ( k_bot < 3 ) return
 !      kbot = k_bot
 !    else
-!      kbot = 48!xxx nlev
+      kbot = 48!xxx nlev
 !      kbot = ksponge_end!48!xxx nlev
-      kbot = nlev
 !    endif
     if ( ptop < 2.0_r8 ) then
       t_min = t1_min
@@ -791,10 +791,19 @@ contains
       endif
       call get_Richardson_number(1,np,1,np,nlev,qsize,qdp0,2,thermodynamic_active_species_idx_dycore,&
            dp_dry,ptop,ps0,T0,v0,Ri,pmid=pmid,dp=dp)
+      call get_sum_species(1,np,1,np,1,nlev,qsize,qdp0,thermodynamic_active_species_idx_dycore,sum_species,dp_dry=dp_dry)      
+#ifdef FV3_static_energy
       call get_hydrostatic_static_energy(1,np,1,np,nlev,qsize,qdp0,2,thermodynamic_active_species_idx_dycore,&
            dp_dry,ptop,T0,phis,v0,KE,thermalE,gz)
-      call get_sum_species(1,np,1,np,1,nlev,qsize,qdp0,thermodynamic_active_species_idx_dycore,sum_species,dp_dry=dp_dry)      
       hd(:,:,:) = thermalE(:,:,:)+KE(:,:,:)+gz(:,:,:)
+#else
+      call get_kappa_dry(1,np,1,np,1,nlev,nlev,qsize,qdp0,thermodynamic_active_species_idx_dycore,&
+           kappa(:,:,:),fact=dp_dry)
+      exner(:,:,:)=(pmid(:,:,:)/ps0)**kappa(:,:,:)
+      hd(:,:,:)=T0(:,:,:)/exner(:,:,:)
+#endif
+
+
       do k=kbot, 2, -1
         km1 = k-1        
         do j=1,np
@@ -849,12 +858,15 @@ contains
       !-------------- 
       ! Retrive Temp:
       !--------------
-      hd(:,:,:) = hd(:,:,:)*dp(:,:,:)
       call get_Richardson_number(1,np,1,np,nlev,qsize,qdp0,2,thermodynamic_active_species_idx_dycore,&
            dp_dry,ptop,ps0,T0,v0,Ri,pmid=pmid,dp=dp)      
+#ifdef FV3_static_energy
       call get_hydrostatic_static_energy(1,np,1,np,nlev,qsize,qdp0,2,thermodynamic_active_species_idx_dycore,&
            dp_dry,ptop,T0,phis,v0,KE,thermalE,gz)
-      T0(:,:,:) = T0(:,:,:)*(hd(:,:,:)-gz(:,:,:)*dp(:,:,:)-KE(:,:,:)*dp(:,:,:))/(thermalE(:,:,:)*dp(:,:,:))
+      T0(:,:,:) = T0(:,:,:)*(hd(:,:,:)*dp(:,:,:)-gz(:,:,:)*dp(:,:,:)-KE(:,:,:)*dp(:,:,:))/(thermalE(:,:,:)*dp(:,:,:))
+#else
+      T0(:,:,:)=hd(:,:,:)*exner(:,:,:)
+#endif
     enddo       ! n-loop
 
     if (ntrac>0) then
@@ -869,11 +881,10 @@ contains
       do k=kbot, 2, -1
         km1 = k-1
 
-        mixing_fvm(:,:,k)= dyn2fvm(mixing(:,:,k),metdet,inv_fvm_area(:,:))
+        mixing_fvm(:,:,k)= dyn2fvm(mixing(:,:,k),metdet,inv_fvm_area)
         do iq=1,ntrac
           do j=1,nc          
             do i=1,nc
-              mixing_fvm(i,j,k)=MIN(MAX(mixing_fvm(i,j,k),0.0_r8),1.0_r8)
               h0 = mixing_fvm(i,j,k)*(q0_fvm(i,j,k,iq)-q0_fvm(i,j,km1,iq))
               q0_fvm(i,j,km1,iq) = q0_fvm(i,j,km1,iq) + h0/dp_dry_fvm(i,j,km1)  
               q0_fvm(i,j,k  ,iq) = q0_fvm(i,j,k  ,iq) - h0/dp_dry_fvm(i,j,k  )
@@ -910,24 +921,24 @@ contains
     !
     !update fields
     !
-!    if ( fra < 1.0_r8 ) then
-!      do k=1, kbot
-!        v(:,:,:,k) =v(:,:,:,k) +(v0(:,:,:,k)-v(:,:,:,k))*fra!*nu_scale_top(k)
-!        temp(:,:,k)=temp(:,:,k)+(T0(:,:,k)-temp(:,:,k))*fra!*nu_scale_top(k)
-!      enddo
-!      do iq=1,qsize
-!        do k=1,kbot
-!          qdp(:,:,k,iq) = qdp(:,:,k,iq) + (qdp0(:,:,k,iq) - qdp(:,:,k,iq))*fra!*nu_scale_top(k)
-!        enddo
-!      enddo
-!      if (ntrac>0) then
-!        do iq=1,ntrac
-!          do k=1,kbot
-!            q_fvm(:,:,k,iq) = q_fvm(:,:,k,iq) + (q0_fvm(:,:,k,iq) - q_fvm(:,:,k,iq))!*fra*nu_scale_top(k)
-!          enddo
-!        enddo
-!      endif
-!    end if
+    if ( fra < 1.0_r8 ) then
+      do k=1, kbot
+        v(:,:,:,k) =v(:,:,:,k) +(v0(:,:,:,k)-v(:,:,:,k))*fra!*nu_scale_top(k)
+        temp(:,:,k)=temp(:,:,k)+(T0(:,:,k)-temp(:,:,k))*fra!*nu_scale_top(k)
+      enddo
+      do iq=1,qsize
+        do k=1,kbot
+          qdp(:,:,k,iq) = qdp(:,:,k,iq) + (qdp0(:,:,k,iq) - qdp(:,:,k,iq))*fra!*nu_scale_top(k)
+        enddo
+      enddo
+      if (ntrac>0) then
+        do iq=1,ntrac
+          do k=1,kbot
+            q_fvm(:,:,k,iq) = q_fvm(:,:,k,iq) + (q0_fvm(:,:,k,iq) - q_fvm(:,:,k,iq))*fra!*nu_scale_top(k)
+          enddo
+        enddo
+     endif
+   end if
   end subroutine two_dz_filter
 #endif
 end module prim_driver_mod
