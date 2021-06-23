@@ -922,7 +922,7 @@ contains
     !update fields
     !
     if ( fra < 1.0_r8 ) then
-      do k=1, kbot
+      do k=2, kbot
         v(:,:,:,k) =v(:,:,:,k) +(v0(:,:,:,k)-v(:,:,:,k))*fra!*nu_scale_top(k)
         temp(:,:,k)=temp(:,:,k)+(T0(:,:,k)-temp(:,:,k))*fra!*nu_scale_top(k)
       enddo
