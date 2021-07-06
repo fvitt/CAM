@@ -836,7 +836,7 @@ contains
               mc_dry        = mc/sum_species(i,j,k)
               mixing(i,j,k) = mixing(i,j,k)+mc_dry              
               do iq=1,qsize
-                h0 = mc_dry*(qdp0(i,j,k,iq)/dp_dry(i,j,km1)-qdp0(i,j,km1,iq)/dp_dry(i,j,km1))
+                h0 = mc_dry*(qdp0(i,j,k,iq)/dp_dry(i,j,k)-qdp0(i,j,km1,iq)/dp_dry(i,j,km1))
                 qdp0(i,j,km1,iq) = qdp0(i,j,km1,iq) + h0
                 qdp0(i,j,k  ,iq) = qdp0(i,j,k  ,iq) - h0
               enddo
