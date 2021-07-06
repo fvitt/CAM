@@ -799,7 +799,7 @@ contains
       hd(:,:,:) = thermalE(:,:,:)+KE(:,:,:)+gz(:,:,:)
 #else
       call get_kappa_dry(1,np,1,np,1,nlev,nlev,qsize,qdp0,thermodynamic_active_species_idx_dycore,&
-           kappa(:,:,:),fact=dp_dry)
+           kappa(:,:,:),fact=1.0_r8/dp_dry)
       exner(:,:,:)=(pmid(:,:,:)/ps0)**kappa(:,:,:)
       hd(:,:,:)=T0(:,:,:)/exner(:,:,:)
 #endif
