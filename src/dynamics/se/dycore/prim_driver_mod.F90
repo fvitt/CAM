@@ -769,6 +769,7 @@ contains
 !      kbot = k_bot
 !    else
       kbot = 48!xxx nlev
+      kbot = MIN(nlev-1,kbot)
 !      kbot = ksponge_end!48!xxx nlev
 !    endif
     if ( ptop < 2.0_r8 ) then
@@ -798,7 +799,7 @@ contains
       hd(:,:,:) = thermalE(:,:,:)+KE(:,:,:)+gz(:,:,:)
 #else
       call get_kappa_dry(1,np,1,np,1,nlev,nlev,qsize,qdp0,thermodynamic_active_species_idx_dycore,&
-           kappa(:,:,:),fact=dp_dry)
+           kappa(:,:,:),fact=1.0_r8/dp_dry)
       exner(:,:,:)=(pmid(:,:,:)/ps0)**kappa(:,:,:)
       hd(:,:,:)=T0(:,:,:)/exner(:,:,:)
 #endif
@@ -835,7 +836,7 @@ contains
               mc_dry        = mc/sum_species(i,j,k)
               mixing(i,j,k) = mixing(i,j,k)+mc_dry              
               do iq=1,qsize
-                h0 = mc_dry*(qdp0(i,j,k,iq)/dp_dry(i,j,km1)-qdp0(i,j,km1,iq)/dp_dry(i,j,km1))
+                h0 = mc_dry*(qdp0(i,j,k,iq)/dp_dry(i,j,k)-qdp0(i,j,km1,iq)/dp_dry(i,j,km1))
                 qdp0(i,j,km1,iq) = qdp0(i,j,km1,iq) + h0
                 qdp0(i,j,k  ,iq) = qdp0(i,j,k  ,iq) - h0
               enddo
