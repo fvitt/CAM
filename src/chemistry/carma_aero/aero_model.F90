@@ -817,22 +817,22 @@ contains
                 call rad_cnst_get_bin_props_by_idx(0, m, l,spectype=spectype)
 
                 if (trim(spectype) == 'sulfate') then
-                   solmmr =  solmmr + raer(mm)%fld(i,k)*0.5
+                   solmmr =  solmmr + raer(mm)%fld(i,k)*0.5_r8
                 end if
                 if (trim(spectype) == 'black-c') then
-                   solmmr =  solmmr + raer(mm)%fld(i,k)*0.1
+                   solmmr =  solmmr + raer(mm)%fld(i,k)*0.1_r8
                    specmmr = specmmr + raer(mm)%fld(i,k)
                 end if
                 if (trim(spectype) == 'p-organic') then
-                   solmmr =  solmmr + raer(mm)%fld(i,k)*0.2
+                   solmmr =  solmmr + raer(mm)%fld(i,k)*0.2_r8
                    specmmr = specmmr + raer(mm)%fld(i,k)
                 end if
                 if (trim(spectype) == 'dust') then
-                   solmmr =  solmmr + raer(mm)%fld(i,k)*0.1
+                   solmmr =  solmmr + raer(mm)%fld(i,k)*0.1_r8
                    specmmr = specmmr + raer(mm)%fld(i,k)
                 end if
                 if (trim(spectype) == 'seasalt') then
-                   solmmr =  solmmr + raer(mm)%fld(i,k)*0.1
+                   solmmr =  solmmr + raer(mm)%fld(i,k)*0.1_r8
                    specmmr = specmmr + raer(mm)%fld(i,k)
                 end if
              end do
@@ -859,6 +859,7 @@ contains
           bsscavt_sum(:,:) = 0.0_r8
           rcscavt_sum(:,:) = 0.0_r8
           rsscavt_sum(:,:) = 0.0_r8
+          rtscavt_sum(:,:) = 0.0_r8
 
           ! sol_factb and sol_facti values
           ! sol_factb - currently this is basically a tuning factor
@@ -1576,22 +1577,22 @@ contains
              call rad_cnst_get_bin_mmr_by_idx(0, m, l, 'a', state, pbuf, raer(mm)%fld)
              call rad_cnst_get_bin_mmr_by_idx(0, m, l, 'c', state, pbuf, qqcw(mm)%fld)  ! cloud-borne aerosol
              if (trim(spectype) == 'sulfate') then
-                mw_carma(mm) = 96.
+                mw_carma(mm) = 96._r8
              end if
              if (trim(spectype) == 'black-c') then
-                mw_carma(mm) = 12.
+                mw_carma(mm) = 12._r8
              end if
              if (trim(spectype) == 'p-organic') then
-                mw_carma(mm) = 12.
+                mw_carma(mm) = 12._r8
              end if
              if (trim(spectype) == 's-organic') then
-                mw_carma(mm) = 250.
+                mw_carma(mm) = 250._r8
              end if
              if (trim(spectype) == 'dust') then
-                mw_carma(mm) = 12.
+                mw_carma(mm) = 12._r8
              end if
              if (trim(spectype) == 'seasalt') then
-                mw_carma(mm) = 57.
+                mw_carma(mm) = 57._r8
              end if
           end if
           if (l == nspec(m)+1) then
@@ -1858,9 +1859,9 @@ contains
       call pbuf_get_field(pbuf, pbuf_get_index(trim(bin_name)//"_sad"),sad_carma)
       call pbuf_get_field(pbuf, pbuf_get_index(trim(bin_name)//"_wetr"),wetr)
       if (present(dm_aer)) then
-         dm_aer(:,:,ibin) = 2._r8 * wetr(:,:) ! convert wet radius (cm) to wet diameter (cm)
+         dm_aer(:ncol,:,ibin) = 2._r8 * wetr(:ncol,:) ! convert wet radius (cm) to wet diameter (cm)
       endif
-      sad_bin(:,:,ibin) = sad_carma(:,:) ! cm^2/cm^3
+      sad_bin(:ncol,:,ibin) = sad_carma(:ncol,:) ! cm^2/cm^3
     end do
 
     do icol = 1,ncol
