@@ -188,6 +188,8 @@ contains
        call add_default ('SAD_AERO',8,' ')
     endif
     call addfld( 'REFF_AERO',  (/ 'lev' /), 'I', 'cm',      'aerosol effective radius' )
+    call addfld( 'REFF_TROP',  (/ 'lev' /), 'I', 'cm',      'tropospheric aerosol effective radius' )
+    call addfld( 'REFF_STRAT', (/ 'lev' /), 'I', 'cm',      'stratospheric aerosol effective radius' )
     call addfld( 'SULF_TROP',  (/ 'lev' /), 'I', 'mol/mol', 'tropospheric aerosol SAD' )
     call addfld( 'QDSETT',     (/ 'lev' /), 'I', '/s',      'water vapor settling delta' )
     call addfld( 'QDCHEM',     (/ 'lev' /), 'I', '/s',      'water vapor chemistry delta')
@@ -218,7 +220,7 @@ contains
     ndx_cldtop = pbuf_get_index('CLDTOP')
 
     sad_pbf_ndx= pbuf_get_index('VOLC_SAD',errcode=err) ! prescribed  strat aerosols (volcanic)
-    if (.not.sad_pbf_ndx>0) sad_pbf_ndx = pbuf_get_index('SADSULF',errcode=err) ! CARMA's version of strat aerosols
+!    if (.not.sad_pbf_ndx>0) sad_pbf_ndx = pbuf_get_index('SADSULF',errcode=err) ! CARMA's version of strat aerosols
 
     ele_temp_ndx = pbuf_get_index('TElec',errcode=err)! electron temperature index 
     ion_temp_ndx = pbuf_get_index('TIon',errcode=err) ! ion temperature index
@@ -241,7 +243,7 @@ contains
 
 !-----------------------------------------------------------------------
 !-----------------------------------------------------------------------
-  subroutine gas_phase_chemdr(lchnk, ncol, imozart, q, &
+  subroutine gas_phase_chemdr(state, lchnk, ncol, imozart, q, &
                               phis, zm, zi, calday, &
                               tfld, pmid, pdel, pint,  &
                               cldw, troplev, troplevchem, &
@@ -298,6 +300,7 @@ contains
     use perf_mod,          only : t_startf, t_stopf
     use gas_wetdep_opts,   only : gas_wetdep_method
     use physics_buffer,    only : physics_buffer_desc, pbuf_get_field, pbuf_old_tim_idx
+    use physics_types,     only: physics_state
     use infnan,            only : nan, assignment(=)
     use rate_diags,        only : rate_diags_calc, rate_diags_o3s_loss
     use mo_mass_xforms,    only : mmr2vmr, vmr2mmr, h2o_to_vmr, mmr2vmri
@@ -359,6 +362,7 @@ contains
     real(r8), intent(out) :: nhx_nitrogen_flx(pcols)
     real(r8), intent(out) :: noy_nitrogen_flx(pcols)
 
+    type(physics_state),    intent(in)    :: state     ! Physics state variables
     type(physics_buffer_desc), pointer :: pbuf(:)
 
     !-----------------------------------------------------------------------
@@ -636,7 +640,7 @@ contains
        strato_sad(:,:) = 0._r8
 
        ! Prognostic modal stratospheric sulfate: compute dry strato_sad
-       call aero_model_strat_surfarea( ncol, mmr, pmid, tfld, troplevchem, pbuf, strato_sad, reff_strat )
+       call aero_model_strat_surfarea( state, ncol, mmr, pmid, tfld, troplevchem, pbuf, strato_sad, reff_strat )
 
     endif
 
@@ -771,7 +775,7 @@ contains
     
     cwat(:ncol,:pver) = cldw(:ncol,:pver)
 
-    call usrrxt( reaction_rates, tfld, ion_temp_fld, ele_temp_fld, invariants, h2ovmr, &
+    call usrrxt( state, reaction_rates, tfld, ion_temp_fld, ele_temp_fld, invariants, h2ovmr, &
                  pmid, invariants(:,:,indexm), sulfate, mmr, relhum, strato_sad, &
                  troplevchem, dlats, ncol, sad_trop, reff, cwat, mbar, pbuf )
 
@@ -782,6 +786,8 @@ contains
     call outfld( 'SAD_AERO', sad_trop(:ncol,:), ncol, lchnk )
 
     ! Add trop/strat components of effective radius for output
+    call outfld( 'REFF_TROP', reff(:ncol,:), ncol, lchnk )
+    call outfld( 'REFF_STRAT', reff_strat(:ncol,:), ncol, lchnk )
     reff(:ncol,:)=reff(:ncol,:)+reff_strat(:ncol,:)
     call outfld( 'REFF_AERO', reff(:ncol,:), ncol, lchnk )
     
@@ -971,7 +977,7 @@ contains
 ! Aerosol processes ...
 !
 
-    call aero_model_gasaerexch( imozart-1, ncol, lchnk, troplevchem, delt, reaction_rates, &
+    call aero_model_gasaerexch( state, imozart-1, ncol, lchnk, troplevchem, delt, reaction_rates, &
                                 tfld, pmid, pdel, mbar, relhum, &
                                 zm,  qh2o, cwat, cldfr, ncldwtr, &
                                 invariants(:,:,indexm), invariants, del_h2so4_gasprod,  &

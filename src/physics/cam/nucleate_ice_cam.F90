@@ -476,9 +476,9 @@ subroutine nucleate_ice_cam_calc( &
    integer :: itim_old
    integer :: i, k, l, m
    integer :: lptr
-   integer  :: phase ! phase of aerosol
 
    character(len=32) :: spectype
+   character(len=32) :: bin_name
 
    real(r8), pointer :: t(:,:)          ! input temperature (K)
    real(r8), pointer :: qn(:,:)         ! input water vapor mixing ratio (kg/kg)
@@ -504,6 +504,7 @@ subroutine nucleate_ice_cam_calc( &
    real(r8), pointer :: mmr_bin(:,:)
    real(r8), pointer :: mmr_bin_c(:,:)
    real(r8), pointer :: qqcw(:,:)
+   real(r8), pointer :: dryr(:,:)
    real(r8) :: specdens
 
    real(r8), pointer :: ast(:,:)
@@ -517,7 +518,7 @@ subroutine nucleate_ice_cam_calc( &
    real(r8), allocatable :: maerosol(:,:,:) ! bulk aerosol mass conc (kg/m3)
 
    real(r8), allocatable :: wght_so4(:), wght_dst(:), wght_soot(:)   !bin weights
-   real(r8), allocatable :: so4_num_bin(:), soot_num_bin(:), dst_num_bin(:)
+   real(r8), allocatable :: so4_num_bin(:), soot_num_bin(:), dst_num_bin(:), diamdry(:)
 
    real(r8) :: qs(pcols)            ! liquid-ice weighted sat mixing rat (kg/kg)
    real(r8) :: es(pcols)            ! liquid-ice weighted sat vapor press (pa)
@@ -547,7 +548,6 @@ subroutine nucleate_ice_cam_calc( &
    real(r8) :: sootmmr
    real(r8) :: dstmmr
    real(r8) :: amcube
-   real(r8) :: diamdry
 
    real(r8) :: subgrid(pcols,pver)
    real(r8) :: trop_pd(pcols,pver)
@@ -616,7 +616,8 @@ subroutine nucleate_ice_cam_calc( &
                 dst_num_bin(nbins), &
                 wght_so4(nbins), &
                 wght_dst(nbins), &
-                wght_soot(nbins) )
+                wght_soot(nbins), &
+                diamdry(nbins) )
      so4_num_bin(:) = 0.0_r8
      soot_num_bin(:) = 0.0_r8
      dst_num_bin(:) = 0.0_r8
@@ -807,68 +808,61 @@ subroutine nucleate_ice_cam_calc( &
             else if (clim_carma_aero) then
 
                ! number bins is number from all species in each bin. IF dust is needed, weightening is required for all species
+               diamdry(:) = 0.0_r8
                do m = 1, nbins
                   wght_so4(m) = 1._r8
                   wght_soot(m) = 1._r8
                   wght_dst(m) = 1._r8
 
-                  call rad_cnst_get_bin_num(0, m, 'a', state, pbuf, num_bin)
-                  call rad_cnst_get_bin_mmr(0, m, 'a', state, pbuf, mmr_bin)
+                  call rad_cnst_get_info_by_bin(0, m, bin_name=bin_name)
+                  call pbuf_get_field(pbuf, pbuf_get_index(trim(bin_name)//"_dryr"),dryr)
 
-                  totalmmr = 0._r8
-                  so4mmr   = 0._r8
-                  sootmmr   = 0._r8
-                  dstmmr   = 0._r8
-                  do l = 1, nspec_bin(m)
+                  diamdry(m) = dryr(i,k) * 2.e4_r8  ! diameter in microns (from radius in cm)
 
-                     call rad_cnst_get_bin_mmr_by_idx(0, m, l, 'a', state, pbuf, aer_bin)
-                     totalmmr    = totalmmr + aer_bin(i,k)
+                  if (diamdry(m) >= 0.1_r8) then
 
-                     call rad_cnst_get_bin_props_by_idx(0, m, l,spectype=spectype)
+                     call rad_cnst_get_bin_num(0, m, 'a', state, pbuf, num_bin)
+                     call rad_cnst_get_bin_mmr(0, m, 'a', state, pbuf, mmr_bin)
 
-                     if (trim(spectype) == 'sulfate') then
-                        so4mmr = so4mmr + aer_bin(i,k)
+                     totalmmr = 0._r8
+                     so4mmr   = 0._r8
+                     sootmmr  = 0._r8
+                     dstmmr   = 0._r8
+
+                     do l = 1, nspec_bin(m)
+
+                        call rad_cnst_get_bin_mmr_by_idx(0, m, l, 'a', state, pbuf, aer_bin)
+                        totalmmr = totalmmr + aer_bin(i,k)
+
+                        call rad_cnst_get_bin_props_by_idx(0, m, l,spectype=spectype)
+
+                        if (trim(spectype) == 'sulfate') then
+                           so4mmr = so4mmr + aer_bin(i,k)
+                        end if
+                        if (trim(spectype) == 'black-c') then
+                           sootmmr = sootmmr + aer_bin(i,k)
+                        end if
+                        if (trim(spectype) == 'dust') then
+                           dstmmr = dstmmr + aer_bin(i,k)
+                        end if
+
+                     end do
+
+                     if (totalmmr .gt. 0._r8) then
+                        !st wght_so4(m) = so4mmr/mmr_bin(i,k)
+                        wght_so4(m) = so4mmr/totalmmr
+                        so4_num_bin(m) = wght_so4(m)*num_bin(i,k)*rho(i,k)*1.0e-6_r8
+                        wght_soot(m) = sootmmr/totalmmr
+                        soot_num_bin(m) = wght_soot(m)*num_bin(i,k)*rho(i,k)*1.0e-6_r8
+                        !st wght_dst(m) = dstmmr/mmr_bin(i,k)
+                        wght_dst(m) = dstmmr/totalmmr
+                        dst_num_bin(m) = wght_dst(m)*num_bin(i,k)*rho(i,k)*1.0e-6_r8
                      end if
-                     if (trim(spectype) == 'black-c') then
-                        sootmmr = sootmmr + aer_bin(i,k)
-                     end if
-                     if (trim(spectype) == 'dust') then
-                        dstmmr = dstmmr + aer_bin(i,k)
-                     end if
-                  end do
 
-                  if (totalmmr .gt. 0._r8) then
-                     !st wght_so4(m) = so4mmr/mmr_bin(i,k)
-                     wght_so4(m) = so4mmr/totalmmr
-                     so4_num_bin(m) = wght_so4(m)*num_bin(i,k)*rho(i,k)*1.0e-6_r8
-                     wght_soot(m) = sootmmr/totalmmr
-                     soot_num_bin(m) = wght_soot(m)*num_bin(i,k)*rho(i,k)*1.0e-6_r8
-                     !st wght_dst(m) = dstmmr/mmr_bin(i,k)
-                     wght_dst(m) = dstmmr/totalmmr
-                     dst_num_bin(m) = wght_dst(m)*num_bin(i,k)*rho(i,k)*1.0e-6_r8
-                  end if
-
-                  !st derive dry radius for chosing bins with diameter of > 0.1 micron for nucleation processes
-                  !st cs: air density = rho
-                  !st va: volume concentration, na: number concentration, amcube: cube of dry mode radius (m)
-
-                  phase = 1 ! interstitial
-                  call loadaer( &
-                       state, pbuf, i, i, k, &
-                       m, rho, phase, na, va, &
-                       hy)
-
-                  if (na(i) > 1.e-3_r8) then
-                     amcube=(3._r8*va(i)/(4._r8*pi*na(i)))
-                     diamdry = 2._r8 * amcube**(1._r8 / 3._r8) * 1.e6_r8  ! diameter in microns
-                     !  write(iulog, *) 'i, k, m, amcube, diamdry:', i, k, m, amcube, diamdry
-
-                     if (diamdry .ge. 0.1_r8) then
-                        so4_num = so4_num + so4_num_bin(m)
-                        dst_num = dst_num + dst_num_bin(m)
-                        soot_num = soot_num + soot_num_bin(m)
-                     end if
-                  end if
+                     so4_num = so4_num + so4_num_bin(m)
+                     dst_num = dst_num + dst_num_bin(m)
+                     soot_num = soot_num + soot_num_bin(m)
+                  end if !diam > 0.1microns
                end do
 
             else
@@ -925,86 +919,50 @@ subroutine nucleate_ice_cam_calc( &
                !  move also sulfate and soot if used?
 
                binsloop: do m = 1, nbins
-                  call rad_cnst_get_bin_num(0, m, 'a', state, pbuf, num_bin)
-                  call rad_cnst_get_bin_num(0, m, 'c', state, pbuf, num_bin_c)
-                  call rad_cnst_get_bin_mmr(0, m, 'a', state, pbuf, mmr_bin)
-                  call rad_cnst_get_bin_mmr(0, m, 'c', state, pbuf, mmr_bin_c)
 
-                  !st only if dust is a specie in this bin, need to know the dust fraction, and only move that part, so multiply by dust_fraction (per bin)
-                  !st analoge from sulfate
+                  if (diamdry(m) >= 0.1_r8) then
+                     call rad_cnst_get_bin_num(0, m, 'a', state, pbuf, num_bin)
+                     call rad_cnst_get_bin_num(0, m, 'c', state, pbuf, num_bin_c)
+                     call rad_cnst_get_bin_mmr(0, m, 'a', state, pbuf, mmr_bin)
+                     call rad_cnst_get_bin_mmr(0, m, 'c', state, pbuf, mmr_bin_c)
 
-                  if  (dst_num >= 1.0e-10_r8 .and. wght_dst(m) > 0.0_r8) then
-                  !st    write(iulog, *) 'i, k, m, num_bin, odst_num, dst_num, wght_dst, icldm, rho:', i, k, m,  num_bin(i,k), odst_num, dst_num,  wght_dst(m),  num_bin(i,k), icldm(i,k), rho(i,k) 
+                     !st only if dust is a specie in this bin, need to know the dust fraction, and only move that part,
+                     !   so multiply by dust_fraction (per bin)
+                     !st analoge from sulfate
 
-                  !st    num_bin(i,k)   = num_bin(i,k) - ((odst_num/dst_num) * wght_dst(m) *  num_bin(i,k)  * icldm(i,k) ) /rho(i,k)/1e-6_r8
-                  !st    num_bin_c(i,k)   = num_bin_c(i,k) + ((odst_num/dst_num) * wght_dst(m)* num_bin(i,k)  * icldm(i,k) ) /rho(i,k)/1e-6_r8
-                      num_bin(i,k)   = num_bin(i,k) - (odst_num * wght_dst(m) * icldm(i,k) ) /rho(i,k)/1e-6_r8
-                      num_bin_c(i,k) = num_bin_c(i,k) + (odst_num * wght_dst(m) * icldm(i,k) ) /rho(i,k)/1e-6_r8
-                      mmr_bin_c(i,k)   = mmr_bin_c(i,k) +  (odst_num/dst_num) *  wght_dst(m) * icldm(i,k)  * mmr_bin(i,k)
+                     if  (dst_num >= 1.0e-10_r8 ) then
+                        num_bin(i,k)   = num_bin(i,k)   - (odst_num/dst_num) * wght_dst(m) * icldm(i,k) *  num_bin(i,k)
+                        num_bin_c(i,k) = num_bin_c(i,k) + (odst_num/dst_num) * wght_dst(m) * icldm(i,k) *  num_bin(i,k)
+                        mmr_bin_c(i,k) = mmr_bin_c(i,k) + (odst_num/dst_num) * wght_dst(m) * icldm(i,k)  * mmr_bin(i,k)
 
-                  !st    mmr_bin_c(i,k)   = mmr_bin_c(i,k) +  (odst_num/dst_num) *  wght_dst(m) * icldm(i,k)  * mmr_bin(i,k)
+                        if (bin_cnst_lq(m,0)) then ! advected species
+                           !need to add mmr_bin changes to tendencies (advected specie)
+                           lptr = bin_cnst_idx(m,0)
+                           ptend%q(i,k,lptr) = - (odst_num / dst_num) * wght_dst(m) * icldm(i,k) * mmr_bin(i,k)  / dtime
+                        else
+                           mmr_bin(i,k)   = mmr_bin(i,k) -  (odst_num/dst_num) *  wght_dst(m) * icldm(i,k)  * mmr_bin(i,k)
+                        endif
 
-                      if (bin_cnst_lq(m,0)) then ! advected species
-                         !need to add mmr_bin changes to tendencies (advected specie)
-                         lptr = bin_cnst_idx(m,0)
-                         ptend%q(i,k,lptr) = - (odst_num / dst_num) * wght_dst(m) * icldm(i,k) * mmr_bin(i,k)  / dtime
-                      else
-                         mmr_bin(i,k)   = mmr_bin_c(i,k) -  (odst_num/dst_num) *  wght_dst(m) * icldm(i,k)  * mmr_bin(i,k)
-                      endif
+                        do l = 1, nspec_bin(m)
+                           call rad_cnst_get_bin_mmr_by_idx(0, m, l, 'a', state, pbuf, aer_bin)
+                           call rad_cnst_get_bin_mmr_by_idx(0, m, l, 'c', state, pbuf, qqcw)
+                           call rad_cnst_get_bin_props_by_idx(0, m, l, spectype=spectype)
 
-
-                      do l = 1, nspec_bin(m)
-                         call rad_cnst_get_bin_mmr_by_idx(0, m, l, 'a', state, pbuf, aer_bin)
-                         call rad_cnst_get_bin_mmr_by_idx(0, m, l, 'c', state, pbuf, qqcw)
-                         call rad_cnst_get_bin_props_by_idx(0, m, l, spectype=spectype)
-
-                        !st for dust: change concentration element (sulfate), numbers,
-                         if (trim(spectype) == 'dust') then
-                            if (bin_cnst_lq(m,l)) then ! advected species
-                               lptr = bin_cnst_idx(m,l)
-                               ptend%q(i,k,lptr) = - (odst_num / dst_num) * icldm(i,k) * aer_bin(i,k) / dtime
-                            else
-                               aer_bin(i,k) = aer_bin(i,k) - (odst_num / dst_num ) *icldm(i,k) * aer_bin(i,k)
-                            end if
-                            qqcw(i,k) = qqcw(i,k) + (odst_num / dst_num) *icldm(i,k) * aer_bin(i,k)
-                         end if
-                      end do
-                  end if
-
-                  if  (so4_num >= 1.0e-10_r8 .and. wght_so4(m) >= 1.0e-10_r8) then
-                      !st write(iulog, *) 'i, k, m, num_bin, oso4_num, so4_num, wght_so4, icldm, rho:', i, k, m,  num_bin(i,k), oso4_num, so4_num,  wght_so4(m),  num_bin(i,k), icldm(i,k), rho(i,k) 
-
-                     num_bin(i,k)   = num_bin(i,k) - (oso4_num * wght_so4(m) *  icldm(i,k) ) /rho(i,k)/1e-6_r8
-                     num_bin_c(i,k) = num_bin_c(i,k) + (oso4_num * wght_so4(m) * icldm(i,k) ) /rho(i,k)/1e-6_r8
-                     mmr_bin_c(i,k) = mmr_bin_c(i,k) +  (oso4_num/so4_num) *  wght_so4(m) * icldm(i,k)  * mmr_bin(i,k)
-
-                     if (bin_cnst_lq(m,0)) then ! advected species
-                        !need to add mmr_bin changes to tendencies (advected specie)
-                        lptr = bin_cnst_idx(m,0)
-                        ptend%q(i,k,lptr) = - (oso4_num / so4_num) * wght_so4(m) * icldm(i,k) * mmr_bin(i,k)   / dtime
-                     else
-                        mmr_bin(i,k)   = mmr_bin(i,k) -  (oso4_num/so4_num) *  wght_so4(m) * icldm(i,k)  * mmr_bin(i,k)
-                     endif
-
-
-                     do l = 1, nspec_bin(m)
-                        call rad_cnst_get_bin_mmr_by_idx(0, m, l, 'a', state, pbuf, aer_bin)
-                        call rad_cnst_get_bin_mmr_by_idx(0, m, l, 'c', state, pbuf, qqcw)
-                        call rad_cnst_get_bin_props_by_idx(0, m, l, spectype=spectype)
-
-                        if (trim(spectype) == 'sulfate') then
-                           if (bin_cnst_lq(m,l)) then ! advected species
-                              lptr = bin_cnst_idx(m,l)
-                              ptend%q(i,k,lptr) = - ( oso4_num / so4_num ) * icldm(i,k) * aer_bin(i,k) / dtime
-                           else
-                              aer_bin(i,k) = aer_bin(i,k) - ( oso4_num / so4_num ) *icldm(i,k) * aer_bin(i,k)
+                           !st for dust: change concentration element (sulfate), numbers,
+                           if (trim(spectype) == 'dust') then
+                              if (bin_cnst_lq(m,l)) then ! advected species
+                                 lptr = bin_cnst_idx(m,l)
+                                 ptend%q(i,k,lptr) = - (odst_num / dst_num) * icldm(i,k) * aer_bin(i,k) / dtime
+                              else
+                                 aer_bin(i,k) = aer_bin(i,k) - (odst_num / dst_num ) *icldm(i,k) * aer_bin(i,k)
+                              end if
+                              qqcw(i,k) = qqcw(i,k) + (odst_num / dst_num) *icldm(i,k) * aer_bin(i,k)
                            end if
-                           qqcw(i,k) = qqcw(i,k) + ( oso4_num / so4_num ) *icldm(i,k) * aer_bin(i,k)
-                        end if
+                        end do
+                     end if
 
-                     end do
-                  end if
-
+                     ! sulfates are currently not done, consistently with MAM
+                  end if  !diamdry > 0.1
                end do binsloop
 
             end if carma_aerosols

@@ -1,10 +1,10 @@
 <?xml version="1.0"?>
 <namelist_defaults>
 
- <ncdata hgrid="10x15" nlev="32"  >atm/cam/inic/fv/FCARMA2000climo_f10_debug01.cam.i.0001-01-02-00000.nc</ncdata>
- <ncdata hgrid="1.9x2.5" nlev="32">atm/cam/inic/fv/FCARMA2000climo_f19_spinup01.cam.i.0002-01-01-00000_c201119.nc</ncdata>
+<ncdata hgrid="10x15" nlev="32"  >atm/cam/inic/fv/FCARMA2000climo_f10_debug01.cam.i.0001-01-02-00000.nc</ncdata>
+<ncdata hgrid="1.9x2.5" nlev="32">atm/cam/inic/fv/FCnudged_f19.carma_mode_dev_n05_cam6_2_037.base.cam.i.1991-01-01-00000_c210607.nc</ncdata>
 
- <lght_no_prd_factor hgrid="1.9x2.5">4.5D0</lght_no_prd_factor>
+<lght_no_prd_factor hgrid="1.9x2.5">4.5D0</lght_no_prd_factor>
 
 <!-- Solar data -->
 <solar_irrad_data_file>atm/cam/solar/SolarForcingCMIP6_18491230-23000102_c20200615.nc</solar_irrad_data_file>

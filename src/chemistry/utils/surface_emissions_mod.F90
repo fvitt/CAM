@@ -240,9 +240,6 @@ contains
     !-----------------------------------------------------------------------
     files_loop: do m = 1, n_emis_files
 
-       print*,'FVDBG m : ',m
-       print*,'FVDBG open file : '//trim(emissions(m)%filename)
-
        emissions(m)%nsectors = 0
        call getfil (emissions(m)%filename, locfn, 0)
        call cam_pio_openfile ( ncid, trim(locfn), PIO_NOWRITE)
@@ -252,8 +249,6 @@ contains
        ierr = pio_inq_dimid( ncid, 'ncol', ncol_dimid )
        unstructured = ierr==PIO_NOERR
        call pio_seterrorhandling(ncid, PIO_INTERNAL_ERROR)
-
-       print*,'FVDBG nvars,unstructured : ',nvars,unstructured
 
        allocate(is_sector(nvars))
        is_sector(:) = .false.

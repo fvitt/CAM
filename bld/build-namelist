@@ -1678,7 +1678,7 @@ elsif ($carma eq 'trop_strat') {
   add_default($nl, 'carma_maxretries',  'val'=>'30');
   add_default($nl, 'carma_maxsubsteps', 'val'=>'2');
   add_default($nl, 'carma_dt_threshold','val'=>'2.0');
-  add_default($nl, 'carma_hetchem_feedback','val'=>'.true.');
+  add_default($nl, 'carma_hetchem_feedback','val'=>'.false.');
   add_default($nl, 'bin_defs');
   add_default($nl, 'rad_climate');
   add_default($nl, 'carma_do_emission', 'val'=>'.true.');

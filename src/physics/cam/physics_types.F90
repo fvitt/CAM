@@ -326,30 +326,31 @@ contains
 
     end do
 
-    if (state_debug_checks) then
-       if ( trim(ptend%name)=='vertical diffusion' .or. &
-            trim(ptend%name)=='rayleigh friction' .or. &
-            trim(ptend%name)=='Gravity wave drag' .or. &
-            trim(ptend%name)=='chkenergyfix' .or. &
-            trim(ptend%name)=='dadadj' .or. &
-            trim(ptend%name)=='zm_convr' .or. &
-            trim(ptend%name)=='zm_conv_tend' .or. &
-            trim(ptend%name)=='clubb' .or. &
-            trim(ptend%name)=='micro_mg' .or. &
-            trim(ptend%name)=='nucleatei' .or. &
-            trim(ptend%name)=='ndrop_carma' .or. &
-            trim(ptend%name)=='cldwat' .or. &
-            trim(ptend%name)=='aero_model_wetdep' .or. &
-            trim(ptend%name)=='convtran2' .or. &
-            trim(ptend%name)=='radheat' .or. &
-            trim(ptend%name)=='nudging' .or. &
-            trim(ptend%name)=='CARMA (wetdep)' .or. &
-            trim(ptend%name)=='CARMA (emission)' .or. &
-            trim(ptend%name)=='CARMA' ) then
-          call aero_check_errors( state%q, ncol, pver, ptend%name, fix=.true., logmsg=.false., abort=.false. )
-       else
-          call aero_check_errors( state%q, ncol, pver, ptend%name, fix=.false., logmsg=.true., abort=.true. )
-       endif
+    if ( trim(ptend%name)=='chkenergyfix' .or. &
+         trim(ptend%name)=='dadadj' .or. &
+         trim(ptend%name)=='zm_convr' .or. &
+         trim(ptend%name)=='zm_conv_tend' .or. &
+         trim(ptend%name)=='zm_conv_evap' .or. &
+         trim(ptend%name)=='clubb' .or. &
+         trim(ptend%name)=='nucleatei' .or. &
+         trim(ptend%name)=='ndrop_carma' .or. &
+         trim(ptend%name)=='cldwat' .or. &
+         trim(ptend%name)=='micro_mg' .or. &
+         trim(ptend%name)=='convtran2' .or. &
+         trim(ptend%name)=='radheat' .or. &
+         trim(ptend%name)=='vertical diffusion' .or. &
+         trim(ptend%name)=='rayleigh friction' .or. &
+         trim(ptend%name)=='Gravity wave drag' .or. &
+         trim(ptend%name)=='nudging' .or. &
+         trim(ptend%name)=='aero_model_wetdep' .or. &
+         trim(ptend%name)=='convect_shallow (off)' .or. &
+         trim(ptend%name)=='convect_shallow' .or. &
+         trim(ptend%name)=='CARMA (emission)' .or. &
+         trim(ptend%name)=='CARMA (wetdep)' .or. &
+         trim(ptend%name)=='CARMA' ) then
+       call aero_check_errors( state%q, ncol, pver, ptend%name, fix=.true., logmsg=.false., abort=.false. ) ! update sulfate and num concentration in pbuf when fix=True (all bins)
+    else if (state_debug_checks) then
+       call aero_check_errors( state%q, ncol, pver, ptend%name, fix=.false., logmsg=.true., abort=.true. )
     endif
 
     !------------------------------------------------------------------------

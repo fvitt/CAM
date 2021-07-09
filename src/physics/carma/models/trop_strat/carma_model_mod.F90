@@ -39,8 +39,7 @@ module carma_model_mod
   use cam_abortutils, only: endrun
   use physics_types,  only: physics_state, physics_ptend
   use ppgrid,         only: pcols, pver
-  use physics_buffer, only: physics_buffer_desc, pbuf_set_field
-  use physics_buffer, only: pbuf_get_field, pbuf_get_index
+  use physics_buffer, only: physics_buffer_desc, pbuf_set_field, pbuf_get_field, pbuf_get_index
   use time_manager,   only: is_first_step
 
   implicit none
@@ -135,12 +134,19 @@ module carma_model_mod
   real(kind=f), public, parameter     :: vmrat_MXAER    = 2.2588_f    !2.4610_f        ! volume ratio
 
 ! Physics buffer index for sulfate surface area density
-  integer                         :: ipbuf4sadsulf = -1,ipbuf4wtp = -1
-  integer                         :: ipbuf4sad(NGROUP) = -1, ipbuf4reff(NGROUP) = -1, ipbuf4numnkg(NGROUP) = -1
-  integer                         :: ipbuf4elem1mr(NBIN,NGROUP) = -1
-  integer                         :: ipbuf4binnkg(NBIN,NGROUP) = -1,ipbuf4kappa(NBIN,NGROUP) = -1
-  integer                         :: ipbuf4wetr(NBIN,NGROUP) = -1, ipbuf4dryr(NBIN,NGROUP) = -1
-  real(kind=f)                    :: aeronet_fraction(NBIN)  !! fraction of BC dV/dlnr in each bin (100%)
+  integer      :: ipbuf4sadsulf = -1 ! total aerosol surface area density over all groups (cm2/cm3)
+  integer      :: ipbuf4wtp = -1 ! sulfate weight percent H2SO4 composition
+  integer      :: ipbuf4reffaer = -1 ! total aerosol effective radius over all groups (cm)
+  integer      :: ipbuf4reff(NGROUP) = -1 ! aerosol effective radius per group (m)
+  integer      :: ipbuf4numnkg(NGROUP) = -1 ! aerosol number density (#/kg air)
+  integer      :: ipbuf4sad(NBIN,NGROUP) = -1 ! aerosol surface area density per bin (cm2/cm3)
+  integer      :: ipbuf4elem1mr(NBIN,NGROUP) = -1
+  integer      :: ipbuf4binnkg(NBIN,NGROUP) = -1
+  integer      :: ipbuf4kappa(NBIN,NGROUP) = -1 ! hygroscopicity factor per bin
+  integer      :: ipbuf4wetr(NBIN,NGROUP) = -1 ! aerosol wet radius per bin
+  integer      :: ipbuf4dryr(NBIN,NGROUP) = -1 ! aerosol dry radius per bin
+  integer      :: ipbuf4rmass(NBIN,NGROUP) = -1 ! aerosol mass per bin
+  real(kind=f) :: aeronet_fraction(NBIN)  !! fraction of BC dV/dlnr in each bin (100%)
 
   integer :: bc_srfemis_ndx=-1, oc_srfemis_ndx=-1
 
@@ -286,10 +292,6 @@ contains
       if (rc < 0) call endrun('carma_register::CARMAGROUP_Get failed.')
       !write(*,*) "igroup",igroup,"sname",sname
 
-      ! surface area density. SADMXAER
-      call pbuf_add_field('SAD'//trim(sname), 'global', dtype_r8, (/pcols, pver/), ipbuf4sad(igroup))
-      !write(*,*) "'SAD'//trim(sname)",'SAD'//trim(sname)
-
       ! effective radius. ERMIXAER
       call pbuf_add_field('ER'//trim(sname), 'global', dtype_r8, (/pcols, pver/), ipbuf4reff(igroup))
       !write(*,*) "'ER'//trim(sname)",'ER'//trim(sname)
@@ -313,12 +315,17 @@ contains
          !write(*,*) trim(sname)//outputbin//"_kappa"
          call pbuf_add_field(trim(sname)//outputbin//"_wetr",'global', dtype_r8, (/pcols, pver/), ipbuf4wetr(ibin,igroup))
          call pbuf_add_field(trim(sname)//outputbin//"_dryr",'global', dtype_r8, (/pcols, pver/), ipbuf4dryr(ibin,igroup))
+         call pbuf_add_field(trim(sname)//outputbin//"_rmass",'global', dtype_r8, (/pcols/), ipbuf4rmass(ibin,igroup))
+         call pbuf_add_field(trim(sname)//outputbin//"_sad", 'global', dtype_r8, (/pcols, pver/), ipbuf4sad(ibin,igroup))
 
       end do
    end do
 
-    ! total surface area density.
+    ! total surface area density (cm2/cm3)
     call pbuf_add_field('SADSULF', 'global', dtype_r8, (/pcols, pver/), ipbuf4sadsulf)
+    ! total effective radius (cm) for REFF_AERO history output
+    call pbuf_add_field('REFFAER', 'global', dtype_r8, (/pcols, pver/), ipbuf4reffaer)
+    ! weight percent H2SO4
     call pbuf_add_field('WTP','global', dtype_r8, (/pcols, pver/), ipbuf4wtp)
     !---------------------------------------------
 
@@ -415,12 +422,11 @@ contains
     real(r8)                             :: numberDensity(cstate%f_NZ)
     real(r8)                             :: totad(cstate%f_NZ)
     real(r8)                             :: ad(cstate%f_NZ)       !! aerosol wet surface area density (cm2/cm3)
+    real(r8)                             :: totreff(cstate%f_NZ)  !! total volume density, used to calculate total effective radius (cm) for history output
     real(r8)                             :: reff(cstate%f_NZ)     !! wet effective radius (m)
     real(r8)                             :: mmr(cstate%f_NZ)      !! mass mixing ratio per bin (kg/kg)
     real(r8)                             :: mmr_total(cstate%f_NZ)!! mass mixing ratio of a group (kg/kg)
     real(r8)                             :: coremmr(cstate%f_NZ)  !! mmr of all the core
-    real(r8)                             :: mmr_nodustsalt(cstate%f_NZ) !! mass mixing ratio of mixed particle without dust and salt (kg/kg)
-    real(r8)                             :: mmr_fraction(cstate%f_NZ) !! ratio between mmr_nodustsalt and mmr
     real(r8)                             :: mmr_gas(cstate%f_NZ)  !! gas mass mixing ratio (kg/kg)
     real(r8)                             :: numnkg(cstate%f_NZ)   !! total number density (#/kg)
     real(r8)                             :: r_wet(cstate%f_NZ)    !! Sulfate aerosol bin wet radius (cm)
@@ -434,9 +440,10 @@ contains
 
     integer                              :: ibin, igroup, igas, icomposition
     integer                              :: icorelem(NELEM), ncore,ienconc,icore
-    character(len=8)                     :: sname                ! short (CAM) name
+    character(len=8)                     :: sname                 !! short (CAM) name
 
-    real(r8), pointer, dimension(:,:)    :: sadsulf_ptr            !! Total surface area density pointer
+    real(r8), pointer, dimension(:,:)    :: sadsulf_ptr           !! Total surface area density pointer (cm2/cm3)
+    real(r8), pointer, dimension(:,:)    :: reffaer_ptr           !! Total effective radius pointer (cm) for history output
     real(r8), pointer, dimension(:,:)    :: wtp_ptr		  !! weight percent pointer
     real(r8), pointer, dimension(:,:)    :: sad_ptr               !! Surface area density pointer
     real(r8), pointer, dimension(:,:)    :: reff_ptr              !! Effective radius pointer
@@ -454,7 +461,7 @@ contains
     call CARMASTATE_GetState(cstate, rc, rhoa_wet=rhoa_wet)
 
     totad(:) = 0.0_r8   ! total aerosol surface area density (cm2/cm3)
-    mmr_fraction(:) = 1._r8
+    totreff(:) = 0.0_r8 ! total volume density, used to calculate total effective radius (cm) for REFF_AERO history output
 
     ! calculated SAD, RE, and number density (#/kg) for each group
     do igroup = 1, NGROUP
@@ -465,26 +472,17 @@ contains
 
       call CARMAGROUP_Get(carma, igroup, rc, ienconc=ienconc,ncore=ncore,icorelem=icorelem, rmass=rmass)
       do ibin = 1, NBIN
+              
         call CARMASTATE_GetBin(cstate, ienconc, ibin, mmr_total(:), rc, &
                              numberDensity=numberDensity, r_wet=r_wet)
         if (rc < 0) call endrun('CARMA_DiagnoseBulk::CARMASTATE_GetBin failed.')
 
-	mmr_nodustsalt(:) = mmr_total(:)
 	if (ncore .ne. 0)then
           do icore = 1,ncore
             call CARMASTATE_GetBin(cstate, icorelem(icore), ibin, mmr(:), rc)
 	    call CARMAELEMENT_Get(carma, icorelem(icore), rc, icomposition=icomposition)
-	    !write(*,*) "icorelem(icore)",icorelem(icore),"icomposition",icomposition
-            if(icomposition .eq. I_SALT .or. icomposition .eq. I_DUST)then
-              mmr_nodustsalt(:) = mmr_nodustsalt(:) - mmr(:)
-	    end if
           end do
         end if
-
-	mmr_fraction(:) = mmr_nodustsalt(:)/mmr_total(:)
-	mmr_fraction(:) = max(mmr_fraction(:),0.0_f)
-	mmr_fraction(:) = min(mmr_fraction(:),1.0_f)
-	!write(*,*) "igroup",igroup,"mmr_fraction",mmr_fraction(:),"mmr_nodustsalt(:)",mmr_nodustsalt(:),"mmr(:)",mmr_total(:)
 
         ! Calculate the total densities.
         ! NOTE: Calculate AD in cm2/cm3.
@@ -494,33 +492,36 @@ contains
         end if
       end do
 
+      totreff(:) = totreff(:) + reff(:) ! volume density in cm3
       reff(:) = reff(:) / ad(:) ! wet effective radius in cm
       reff(:) = reff(:) / 100.0_r8 ! cm -> m
 
       ad(:) = ad(:) * 4.0_r8 * PI ! surface area density in cm2/cm3
-      ad(:) = ad(:) * mmr_fraction(:)
 
       ! airdensity from carma state
       ! convert the number density from #/cm3 to #/kg
       ! number Density #/cm3; rhoa_wet kg/m3
       numnkg(:) = 1.e6_r8*numberDensity(:)/rhoa_wet(:)    !#/kg
 
-      call pbuf_get_field(pbuf, ipbuf4sad(igroup), sad_ptr)     ! surface area density cm2/cm3
       call pbuf_get_field(pbuf, ipbuf4reff(igroup), reff_ptr)   ! effective radius m
       call pbuf_get_field(pbuf, ipbuf4numnkg(igroup), numnkg_ptr) ! number density #/kg
 
       ! put variables in physics buffer
-      sad_ptr(icol, :cstate%f_NZ)  = ad(:cstate%f_NZ)
       reff_ptr(icol, :cstate%f_NZ) = reff(:cstate%f_NZ)
       numnkg_ptr(icol, :cstate%f_NZ)= numnkg(:cstate%f_NZ)
 
-      !calculate the surface area density including all the sulfate+BC+OC, no salt, no dust
+      !calculate the surface area density including all bins (cm2/cm3)
       totad(:) = totad(:)+ad(:)
 
     end do
 
-    call pbuf_get_field(pbuf, ipbuf4sadsulf, sadsulf_ptr)     ! surface area density
+    totreff(:) = 4.0_r8 * PI * totreff(:) / totad(:) ! cm
+
+    call pbuf_get_field(pbuf, ipbuf4sadsulf, sadsulf_ptr)     ! surface area density (cm2/cm3)
     sadsulf_ptr(icol, :cstate%f_NZ)  = totad(:cstate%f_NZ)
+
+    call pbuf_get_field(pbuf, ipbuf4reffaer, reffaer_ptr)     ! effective radius (cm)
+    reffaer_ptr(icol, :cstate%f_NZ)  = totreff(:cstate%f_NZ)
 
     do igas = 1,NGAS
       if(igas .eq. I_GAS_H2SO4)then ! only output the sulfate weight percent
@@ -534,7 +535,7 @@ contains
     ! calculate CRSULF mass mixing ratio : MXAER minus CROC+CRBC+CRBC+CRDUST+CRSALT (+SUM(CRSOA*)
 
     do igroup = 1, NGROUP
-      call CARMAGROUP_Get(carma, igroup, rc, shortname=sname,ienconc=ienconc,ncore=ncore,icorelem=icorelem)
+      call CARMAGROUP_Get(carma, igroup, rc, shortname=sname,ienconc=ienconc,ncore=ncore,icorelem=icorelem, rmass=rmass)
       !write(*,*) "igroup",igroup,"ncore",ncore,"ienconc",ienconc,"icorelem",icorelem
       do ibin = 1, NBIN
 
@@ -575,9 +576,17 @@ contains
 
 	call pbuf_get_field(pbuf, ipbuf4wetr(ibin,igroup), wetr_ptr)
 	call pbuf_get_field(pbuf, ipbuf4dryr(ibin,igroup), dryr_ptr)
+	call pbuf_get_field(pbuf, ipbuf4sad(ibin,igroup), sad_ptr)
 
 	wetr_ptr(icol, :cstate%f_NZ) = r_wet(:cstate%f_NZ)
-        dryr_ptr(icol, :cstate%f_NZ) = (rmass(ibin)/(4._f/3._f*PI*rhop_dry(:cstate%f_NZ)))**(1._f/3._f) !cm
+        !dryr_ptr(icol, :cstate%f_NZ) = (rmass(ibin)/(4._f/3._f*PI*rhop_dry(:cstate%f_NZ)))**(1._f/3._f) !cm
+        ! r = (mass / rho / 4 * 3 / PI)^(1/3)
+        dryr_ptr(icol, :cstate%f_NZ) = (rmass(ibin)/rhop_dry(:cstate%f_NZ) / 4._f * 3._f / PI)**(1._f/3._f) !cm
+        
+        sad_ptr(icol, :cstate%f_NZ) = 4.0_r8 * PI * numberDensity(:cstate%f_NZ) * (r_wet(:cstate%f_NZ)**2) !cm2/cm3
+        
+        !write(*,*) 'CARMA igroup, ibin, rmass(ibin), rhop_dry',igroup, ibin, rmass(ibin), rhop_dry(:cstate%f_NZ)
+        !write(*,*) 'CARMA dryr igroup, ibin',igroup, ibin, dryr_ptr(icol, :cstate%f_NZ)
 
       end do !NBIN
     end do !NGROUP
@@ -909,6 +918,7 @@ contains
     real(r8),dimension(aeronet_dim1,aeronet_dim2) :: sizedist_aeronet
     real(r8),dimension(aeronet_dim1) :: sizedist_avg
     real(r8),dimension(NBIN) :: sizedist_carmabin
+    real(r8) :: rmass(NBIN) !! dry mass
 
     real(r8),parameter :: size_aeronet(aeronet_dim1) = (/0.050000_r8,0.065604_r8,0.086077_r8,0.112939_r8,0.148184_r8, &
          0.194429_r8,0.255105_r8,0.334716_r8,0.439173_r8,0.576227_r8,0.756052_r8,0.991996_r8,1.301571_r8,1.707757_r8, &
@@ -987,9 +997,12 @@ contains
     if (is_first_step()) then
        ! Initialize physics buffer fields
        do igroup = 1, NGROUP
-          call pbuf_set_field(pbuf2d, ipbuf4sad(igroup), 0.0_r8 )
           call pbuf_set_field(pbuf2d, ipbuf4reff(igroup), 0.0_r8 )
           call pbuf_set_field(pbuf2d, ipbuf4numnkg(igroup), 0.0_r8 )
+
+          call CARMAGROUP_Get(carma, igroup, rc, rmass=rmass)
+          if (RC /= RC_OK) return
+
           do ibin=1,NBIN
              if (ipbuf4elem1mr(ibin,igroup)>0) then
                 call pbuf_set_field(pbuf2d, ipbuf4elem1mr(ibin,igroup), 0.0_r8 )
@@ -998,12 +1011,25 @@ contains
              call pbuf_set_field(pbuf2d, ipbuf4kappa(ibin,igroup), 0.0_r8 )
              call pbuf_set_field(pbuf2d, ipbuf4wetr(ibin,igroup), 0.0_r8 )
              call pbuf_set_field(pbuf2d, ipbuf4dryr(ibin,igroup), 0.0_r8 )
+             call pbuf_set_field(pbuf2d, ipbuf4sad(ibin,igroup), 0.0_r8 )           
+             call pbuf_set_field(pbuf2d, ipbuf4rmass(ibin,igroup), 1.0e-3_r8*rmass(ibin) ) ! convert rmass from g to kg
           end do
        end do
 
        call pbuf_set_field(pbuf2d, ipbuf4sadsulf, 0.0_r8 )
+       call pbuf_set_field(pbuf2d, ipbuf4reffaer, 0.0_r8 )
        call pbuf_set_field(pbuf2d, ipbuf4wtp, 0.0_r8 )
     endif
+!!$
+!!$    ! set bin masses (kg)
+!!$    do igroup = 1, NGROUP
+!!$       call CARMAGROUP_Get(carma, igroup, rc, rmass=rmass)
+!!$       if (RC /= RC_OK) return
+!!$       do ibin=1,NBIN
+!!$          ! convert rmass from g to kg
+!!$          call pbuf_set_field(pbuf2d, ipbuf4rmass(ibin,igroup), 1.0e-3_r8*rmass(ibin) )
+!!$       end do
+!!$    end do
 
     sizedist_aeronet(:aeronet_dim1,1) = (/0.000585_r8,0.006080_r8,0.025113_r8,0.052255_r8,0.079131_r8,0.081938_r8, &
          0.035791_r8,0.010982_r8,0.005904_r8,0.007106_r8,0.011088_r8,0.012340_r8,0.010812_r8,0.010423_r8, &
@@ -1242,7 +1268,7 @@ contains
     real(r8), parameter :: c1   = 0.7674_r8        ! .
     real(r8), parameter :: c2   = 3.079_r8         ! .
     real(r8), parameter :: c3   = 2.573e-11_r8     ! .
-    real(r8), parameter :: c4   = -1.424_r8        ! constants in calculating the particel wet radius
+    real(r8), parameter :: c4   = -1.424_r8        ! constants in calculating the particle wet radius
 
     ! Default return code.
     rc = RC_OK
@@ -2473,10 +2499,6 @@ contains
     else
        OC_lon = OC_lon
     endif
-
-    ! convert unit from g/m2/month to #/cm2/s
-    OC_f3d = OC_f3d/1.e4_r8/30._r8/86400._r8/12._r8*6.02e23_r8
-
     call lininterp_init(OC_lat, f_nlat, lat, plat, 1, wgt1)
     call lininterp_init(OC_lon, f_nlon, lon, plon, 1, wgt2)
     do itime = 1, nmonth
