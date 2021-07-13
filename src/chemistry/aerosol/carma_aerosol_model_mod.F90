@@ -1,10 +1,11 @@
 module carma_aerosol_model_mod
   use shr_kind_mod, only: r8 => shr_kind_r8
-  use aerosol_model_mod, only: aerosol_model
+  use aerosol_model_mod, only: aerosol_model, twothird, sq2
   use cam_logfile, only: iulog
   use spmd_utils, only: masterproc
   use rad_constituents, only: rad_cnst_get_info, rad_cnst_get_info_by_bin
   use rad_constituents, only: rad_cnst_get_bin_props_by_idx, rad_cnst_get_bin_mmr_by_idx, rad_cnst_get_bin_num
+  use physconst, only: pi
 
   implicit none
 
@@ -15,8 +16,6 @@ module carma_aerosol_model_mod
      procedure :: model_init => carma_model_init
      procedure :: model_final => carma_model_final
   end type carma_aerosol_model
-
-
 
 contains
 
@@ -32,10 +31,16 @@ contains
 
     call rad_cnst_get_info( 0, nbins=nbins)
 
+    self%mtotal = nbins
+
     allocate( self%nspec(nbins) )
+    allocate( self%amcubecoef(nbins) )
+    allocate( self%argfactor(nbins) )
 
     do m = 1, nbins
        call rad_cnst_get_info_by_bin(0, m, nspec=self%nspec(m))
+       self%amcubecoef(m)=3._r8/(4._r8*pi)
+       self%argfactor(m)=twothird/(sq2*log(2._r8))
     end do
 
   end subroutine carma_model_init
@@ -44,6 +49,8 @@ contains
     class(carma_aerosol_model), intent(inout) :: self
 
     deallocate( self%nspec )
+    deallocate( self%amcubecoef )
+    deallocate( self%argfactor )
 
   end subroutine carma_model_final
 

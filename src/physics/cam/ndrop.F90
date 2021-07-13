@@ -699,10 +699,6 @@ subroutine dropmixnuc( aero_model, &
             phase = 1 ! interstitial
             do m = 1, ntot_amode
                call aero_model%loadaer( i, i, k, m, cs, phase, na, va, hy)
-!!$               call loadaer( &
-!!$                  state, pbuf, i, i, k, &
-!!$                  m, cs, phase, na, va, &
-!!$                  hy)
                naermod(m)  = na(i)
                vaerosol(m) = va(i)
                hygro(m)    = hy(i)
@@ -786,10 +782,6 @@ subroutine dropmixnuc( aero_model, &
                   ! rce-comment - use kp1 here as old-cloud activation involves
                   !   aerosol from layer below
                   call aero_model%loadaer( i, i, kp1, m, cs, phase, na, va, hy)
-!!$                  call loadaer( &
-!!$                     state, pbuf, i, i, kp1,  &
-!!$                     m, cs, phase, na, va,   &
-!!$                     hy)
                   naermod(m)  = na(i)
                   vaerosol(m) = va(i)
                   hygro(m)    = hy(i)
@@ -1166,8 +1158,7 @@ subroutine dropmixnuc( aero_model, &
         call outfld('SPKVH     ', kvh     , pcols, lchnk   )
    endif
 
-!!$   call ccncalc(state, pbuf, cs, ccn)
-   call ccncalc(aero_model, state, cs, ccn)
+   call aero_model%ccncalc(state, cs, ccn)
    do l = 1, psat
       call outfld(ccn_name(l), ccn(1,1,l), pcols, lchnk)
    enddo
@@ -1753,223 +1744,5 @@ subroutine maxsat(zeta,eta,nmode,smc,smax)
    smax=1._r8/sqrt(sum)
 
 end subroutine maxsat
-
-!===============================================================================
-
-!!$subroutine ccncalc(state, pbuf, cs, ccn)
-subroutine ccncalc(aero_model, state, cs, ccn)
-
-   ! calculates number concentration of aerosols activated as CCN at
-   ! supersaturation supersat.
-   ! assumes an internal mixture of a multiple externally-mixed aerosol modes
-   ! cgs units
-
-   ! Ghan et al., Atmos. Res., 1993, 198-221.
-
-   ! arguments
-
-   class(aerosol_model), intent(in) :: aero_model
-   type(physics_state), target, intent(in)    :: state
-!!$   type(physics_buffer_desc),   pointer       :: pbuf(:)
-
-
-   real(r8), intent(in)  :: cs(pcols,pver)       ! air density (kg/m3)
-   real(r8), intent(out) :: ccn(pcols,pver,psat) ! number conc of aerosols activated at supersat (#/m3)
-
-   ! local
-
-   integer :: lchnk ! chunk index
-   integer :: ncol  ! number of columns
-   real(r8), pointer :: tair(:,:)     ! air temperature (K)
-
-   real(r8) naerosol(pcols) ! interstit+activated aerosol number conc (/m3)
-   real(r8) vaerosol(pcols) ! interstit+activated aerosol volume conc (m3/m3)
-
-   real(r8) amcube(pcols)
-   real(r8) super(psat) ! supersaturation
-   real(r8), allocatable :: amcubecoef(:)
-   real(r8), allocatable :: argfactor(:)
-   real(r8) :: surften       ! surface tension of water w/respect to air (N/m)
-   real(r8) surften_coef
-   real(r8) a(pcols) ! surface tension parameter
-   real(r8) hygro(pcols)  ! aerosol hygroscopicity
-   real(r8) sm(pcols)  ! critical supersaturation at mode radius
-   real(r8) arg(pcols)
-   !     mathematical constants
-   real(r8) twothird,sq2
-   integer l,m,n,i,k
-   real(r8) log,cc
-   real(r8) smcoefcoef,smcoef(pcols)
-   integer phase ! phase of aerosol
-   !-------------------------------------------------------------------------------
-
-   lchnk = state%lchnk
-   ncol  = state%ncol
-   tair  => state%t
-
-   allocate( &
-      amcubecoef(ntot_amode), &
-      argfactor(ntot_amode)   )
-
-   super(:)=supersat(:)*0.01_r8
-   sq2=sqrt(2._r8)
-   twothird=2._r8/3._r8
-   surften=0.076_r8
-   surften_coef=2._r8*mwh2o*surften/(r_universal*rhoh2o)
-   smcoefcoef=2._r8/sqrt(27._r8)
-
-   do m=1,ntot_amode
-      amcubecoef(m)=3._r8/(4._r8*pi*exp45logsig(m))
-      argfactor(m)=twothird/(sq2*alogsig(m))
-   end do
-
-   ccn = 0._r8
-   do k=top_lev,pver
-
-      do i=1,ncol
-         a(i)=surften_coef/tair(i,k)
-         smcoef(i)=smcoefcoef*a(i)*sqrt(a(i))
-      end do
-
-      do m=1,ntot_amode
-
-         phase=3 ! interstitial+cloudborne
-
-         call aero_model%loadaer( 1, ncol, k, m, cs, phase, naerosol, vaerosol, hygro)
-!!$         call loadaer( &
-!!$            state, pbuf, 1, ncol, k, &
-!!$            m, cs, phase, naerosol, vaerosol, &
-!!$            hygro)
-!!$
-         where(naerosol(:ncol)>1.e-3_r8)
-            amcube(:ncol)=amcubecoef(m)*vaerosol(:ncol)/naerosol(:ncol)
-            sm(:ncol)=smcoef(:ncol)/sqrt(hygro(:ncol)*amcube(:ncol)) ! critical supersaturation
-         elsewhere
-            sm(:ncol)=1._r8 ! value shouldn't matter much since naerosol is small
-         endwhere
-         do l=1,psat
-            do i=1,ncol
-               arg(i)=argfactor(m)*log(sm(i)/super(l))
-               ccn(i,k,l)=ccn(i,k,l)+naerosol(i)*0.5_r8*(1._r8-erf(arg(i)))
-            enddo
-         enddo
-      enddo
-   enddo
-   ccn(:ncol,:,:)=ccn(:ncol,:,:)*1.e-6_r8 ! convert from #/m3 to #/cm3
-
-   deallocate( &
-      amcubecoef, &
-      argfactor   )
-
-end subroutine ccncalc
-
-!===============================================================================
-!!$
-!!$subroutine loadaer( &
-!!$   state, pbuf, istart, istop, k, &
-!!$   m, cs, phase, naerosol, &
-!!$   vaerosol, hygro)
-!!$
-!!$   ! return aerosol number, volume concentrations, and bulk hygroscopicity
-!!$
-!!$   ! input arguments
-!!$   type(physics_state), target, intent(in) :: state
-!!$   type(physics_buffer_desc),   pointer    :: pbuf(:)
-!!$
-!!$   integer,  intent(in) :: istart      ! start column index (1 <= istart <= istop <= pcols)
-!!$   integer,  intent(in) :: istop       ! stop column index
-!!$   integer,  intent(in) :: m           ! mode index
-!!$   integer,  intent(in) :: k           ! level index
-!!$   real(r8), intent(in) :: cs(:,:)     ! air density (kg/m3)
-!!$   integer,  intent(in) :: phase       ! phase of aerosol: 1 for interstitial, 2 for cloud-borne, 3 for sum
-!!$
-!!$   ! output arguments
-!!$   real(r8), intent(out) :: naerosol(:)  ! number conc (1/m3)
-!!$   real(r8), intent(out) :: vaerosol(:)  ! volume conc (m3/m3)
-!!$   real(r8), intent(out) :: hygro(:)     ! bulk hygroscopicity of mode
-!!$
-!!$   ! internal
-!!$   integer  :: lchnk               ! chunk identifier
-!!$
-!!$   real(r8), pointer :: raer(:,:) ! interstitial aerosol mass, number mixing ratios
-!!$   real(r8), pointer :: qqcw(:,:) ! cloud-borne aerosol mass, number mixing ratios
-!!$   real(r8) :: specdens, spechygro
-!!$
-!!$   real(r8) :: vol(pcols) ! aerosol volume mixing ratio
-!!$   integer  :: i, l
-!!$   !-------------------------------------------------------------------------------
-!!$
-!!$   lchnk = state%lchnk
-!!$
-!!$   do i = istart, istop
-!!$      vaerosol(i) = 0._r8
-!!$      hygro(i)    = 0._r8
-!!$   end do
-!!$
-!!$   do l = 1, nspec_amode(m)
-!!$
-!!$      call rad_cnst_get_aer_mmr(0, m, l, 'a', state, pbuf, raer)
-!!$      call rad_cnst_get_aer_mmr(0, m, l, 'c', state, pbuf, qqcw)
-!!$      call rad_cnst_get_aer_props(0, m, l, density_aer=specdens, hygro_aer=spechygro)
-!!$
-!!$      if (phase == 3) then
-!!$         do i = istart, istop
-!!$            vol(i) = max(raer(i,k) + qqcw(i,k), 0._r8)/specdens
-!!$         end do
-!!$      else if (phase == 2) then
-!!$         do i = istart, istop
-!!$            vol(i) = max(qqcw(i,k), 0._r8)/specdens
-!!$         end do
-!!$      else if (phase == 1) then
-!!$         do i = istart, istop
-!!$            vol(i) = max(raer(i,k), 0._r8)/specdens
-!!$         end do
-!!$      else
-!!$         write(iulog,*)'phase=',phase,' in loadaer'
-!!$         call endrun('phase error in loadaer')
-!!$      end if
-!!$
-!!$      do i = istart, istop
-!!$         vaerosol(i) = vaerosol(i) + vol(i)
-!!$         hygro(i)    = hygro(i) + vol(i)*spechygro
-!!$      end do
-!!$
-!!$   end do
-!!$
-!!$   do i = istart, istop
-!!$      if (vaerosol(i) > 1.0e-30_r8) then   ! +++xl add 8/2/2007
-!!$         hygro(i)    = hygro(i)/(vaerosol(i))
-!!$         vaerosol(i) = vaerosol(i)*cs(i,k)
-!!$      else
-!!$         hygro(i)    = 0.0_r8
-!!$         vaerosol(i) = 0.0_r8
-!!$      end if
-!!$   end do
-!!$
-!!$   ! aerosol number
-!!$   call rad_cnst_get_mode_num(0, m, 'a', state, pbuf, raer)
-!!$   call rad_cnst_get_mode_num(0, m, 'c', state, pbuf, qqcw)
-!!$   if (phase == 3) then
-!!$      do i = istart, istop
-!!$         naerosol(i) = (raer(i,k) + qqcw(i,k))*cs(i,k)
-!!$      end do
-!!$   else if (phase == 2) then
-!!$      do i = istart, istop
-!!$         naerosol(i) = qqcw(i,k)*cs(i,k)
-!!$      end do
-!!$   else
-!!$      do i = istart, istop
-!!$         naerosol(i) = raer(i,k)*cs(i,k)
-!!$      end do
-!!$   end if
-!!$   ! adjust number so that dgnumlo < dgnum < dgnumhi
-!!$   do i = istart, istop
-!!$      naerosol(i) = max(naerosol(i), vaerosol(i)*voltonumbhi_amode(m))
-!!$      naerosol(i) = min(naerosol(i), vaerosol(i)*voltonumblo_amode(m))
-!!$   end do
-!!$
-!!$end subroutine loadaer
-!!$
-!!$!===============================================================================
 
 end module ndrop

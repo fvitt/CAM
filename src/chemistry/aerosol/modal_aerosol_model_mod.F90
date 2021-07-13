@@ -1,6 +1,6 @@
 module modal_aerosol_model_mod
   use shr_kind_mod, only: r8 => shr_kind_r8
-  use aerosol_model_mod, only: aerosol_model
+  use aerosol_model_mod, only: aerosol_model, twothird, sq2
   use cam_logfile, only: iulog
   use spmd_utils, only: masterproc
   use physconst,        only: pi
@@ -41,6 +41,8 @@ contains
     ! get info about the modal aerosols
     ! get ntot_amode
     call rad_cnst_get_info(0, nmodes=self%ntot_amode)
+    self%mtotal = self%ntot_amode
+
     allocate( &
          self%nspec_amode(self%ntot_amode),  &
          self%sigmag_amode(self%ntot_amode), &
@@ -53,6 +55,8 @@ contains
          self%voltonumblo_amode(self%ntot_amode), &
          self%voltonumbhi_amode(self%ntot_amode)  )
 
+    allocate( self%amcubecoef(self%mtotal) )
+    allocate( self%argfactor(self%mtotal) )
 
     do m = 1, self%ntot_amode
        ! use only if width of size distribution is prescribed
@@ -73,6 +77,9 @@ contains
             (self%dgnumlo_amode(m)**3._r8)*exp(4.5_r8*self%alogsig(m)**2._r8) )
        self%voltonumbhi_amode(m) = 1._r8 / ( (pi/6._r8)*                          &
             (self%dgnumhi_amode(m)**3._r8)*exp(4.5_r8*self%alogsig(m)**2._r8) )
+
+       self%amcubecoef(m)=3._r8/(4._r8*pi*self%exp45logsig(m))
+       self%argfactor(m)=twothird/(sq2*self%alogsig(m))
     end do
   end subroutine modal_model_init
 
@@ -90,6 +97,8 @@ contains
          self%f2,           &
          self%voltonumblo_amode, &
          self%voltonumbhi_amode )
+    deallocate( self%amcubecoef )
+    deallocate( self%argfactor )
 
   end subroutine modal_model_final
 
