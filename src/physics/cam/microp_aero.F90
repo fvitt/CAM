@@ -366,6 +366,9 @@ end subroutine microp_aero_readnl
 
 subroutine microp_aero_run ( &
    state, ptend_all, deltatin, pbuf)
+ use aerosol_model_mod, only: aerosol_model
+ use carma_aerosol_model_mod, only: carma_aerosol_model
+ use modal_aerosol_model_mod, only: modal_aerosol_model
 
    ! input arguments
    type(physics_state),         intent(in)    :: state
@@ -434,6 +437,10 @@ subroutine microp_aero_run ( &
 
    real(r8), allocatable :: factnum(:,:,:) ! activation fraction for aerosol number
    !-------------------------------------------------------------------------------
+
+   class(aerosol_model), pointer :: aero_model
+   type(carma_aerosol_model),target :: carma_aero_model
+   type(modal_aerosol_model),target :: modal_aero_model
 
    call physics_state_copy(state,state1)
 
@@ -616,29 +623,45 @@ subroutine microp_aero_run ( &
       call outfld('LCLOUD', lcldn, pcols, lchnk)
 
       if (clim_modal_aero) then
+
+         aero_model => modal_aero_model
+         call aero_model%create(state1,pbuf)
+
          ! If not using preexsiting ice, then only use cloudbourne aerosol for the
          ! liquid clouds. This is the same behavior as CAM5.
          if (use_preexisting_ice) then
-            call dropmixnuc( &
+            call dropmixnuc( aero_model, &
                  state1, ptend_loc, deltatin, pbuf, wsub, &
                  cldn, cldo, cldliqf, nctend_mixnuc, factnum)
          else
             cldliqf = 1._r8
-            call dropmixnuc( &
+            call dropmixnuc( aero_model, &
                  state1, ptend_loc, deltatin, pbuf, wsub, &
                  lcldn, lcldo, cldliqf, nctend_mixnuc, factnum)
          end if
+
+         call aero_model%destroy()
+         nullify(aero_model)
+
       elseif (clim_carma_aero) then
+
+         aero_model => carma_aero_model
+         call aero_model%create(state1,pbuf)
+
          if (use_preexisting_ice) then
-            call dropmixnuc_carma( &
+            call dropmixnuc_carma( aero_model, &
                  state1, ptend_loc, deltatin, pbuf, wsub, &
                  cldn, cldo, cldliqf, nctend_mixnuc, factnum)
          else
             cldliqf = 1._r8
-            call dropmixnuc_carma( &
+            call dropmixnuc_carma( aero_model, &
                  state1, ptend_loc, deltatin, pbuf, wsub, &
                  lcldn, lcldo, cldliqf, nctend_mixnuc, factnum)
          end if
+
+         call aero_model%destroy()
+         nullify(aero_model)
+
       endif
 
       npccn(:ncol,:) = nctend_mixnuc(:ncol,:)
