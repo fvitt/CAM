@@ -3,28 +3,78 @@ module mee_ap_ionization
   use solar_parms_data, only: Ap=>solar_parms_ap ! geomag activity index
   use mo_apex, only: alatm !(icol,lchnk) apex mag latitude at each geographic grid point (radians)
   use ppgrid, only: pcols, pver
-  use cam_logfile,  only : iulog
-  use spmd_utils,   only : masterproc
+  use cam_logfile,  only: iulog
+  use spmd_utils,   only: masterproc
+  use cam_abortutils, only : endrun
 
   implicit none
+
+  private
+  public :: mee_ap_ion_readnl
+  public :: mee_ap_ion_init
+  public :: mee_ap_ionpairs
 
   integer, parameter :: nbins=100
 
   real(r8) :: energies(nbins)
   real(r8) :: denergies(nbins) ! width of each energy bin
 
+  logical :: mee_ap_ion_inline = .false.
+
 contains
+
+  !-----------------------------------------------------------------------------
+  !-----------------------------------------------------------------------------
+  subroutine mee_ap_ion_readnl(nlfile)
+
+    use namelist_utils, only: find_group_name
+    use spmd_utils,     only: mpicom, mpi_logical, masterprocid
+
+    character(len=*), intent(in) :: nlfile  ! filepath for file containing namelist input
+
+    ! Local variables
+    integer :: unitn, ierr
+    character(len=*), parameter :: subname = 'mee_ap_ion_readnl'
+
+    namelist /mee_ap_ion_nl/ mee_ap_ion_inline
+
+
+    ! Read namelist
+    if (masterproc) then
+       open( newunit=unitn, file=trim(nlfile), status='old' )
+       call find_group_name(unitn, 'mee_ap_ion_nl', status=ierr)
+       if (ierr == 0) then
+          read(unitn, mee_ap_ion_nl, iostat=ierr)
+          if (ierr /= 0) then
+             call endrun(subname // ':: ERROR reading namelist')
+          end if
+       end if
+       close(unitn)
+    end if
+
+    ! Broadcast namelist variables
+    call mpi_bcast(mee_ap_ion_inline, 1, mpi_logical, masterprocid, mpicom, ierr)
+    if ( masterproc ) then
+       write(iulog,*) subname//':: mee_ap_ion_inline = ',mee_ap_ion_inline
+    endif
+
+  end subroutine mee_ap_ion_readnl
+
+  !-----------------------------------------------------------------------------
+  !-----------------------------------------------------------------------------
   subroutine mee_ap_ion_init()
     use cam_history, only: addfld
     use mee_ap_util_mod, only: gen_energy_grid
 
+    if (.not.mee_ap_ion_inline) return
+
     call gen_energy_grid(nbins, energies, denergies)
 
-    call addfld( 'APMEEionprs', (/ 'lev' /), 'A', 'pairs/cm3/sec', 'Ap generated MEE ionization' )
-    call addfld( 'APMEErho', (/ 'lev' /), 'A', 'g/cm3', ' ' )
-    call addfld( 'APMEEh', (/ 'lev' /), 'A', 'km', ' ' )
+    call addfld( 'APMEEionprs', (/ 'lev' /), 'A', 'pairs/cm3/sec', 'Ap generated MEE ionization rate' )
   end subroutine mee_ap_ion_init
 
+  !-----------------------------------------------------------------------------
+  !-----------------------------------------------------------------------------
   subroutine mee_ap_ionpairs(ncol,lchnk, pmid, temp, ionpairs )
 
     use physconst, only: pi
@@ -51,6 +101,8 @@ contains
     real(r8) :: ipr(nbins,pver)
 
     integer :: i,k
+
+    if (.not.mee_ap_ion_inline) return
 
     rho(:ncol,:) = pmid(:ncol,:)/(rairv(:ncol,:,lchnk)*temp(:ncol,:)) ! kg/m3
     rho(:ncol,:) = rho(:ncol,:)*1.0e-3_r8 !  kg/m3 --> g/cm3
@@ -88,8 +140,6 @@ contains
     end do
 
     call outfld( 'APMEEionprs', ionpairs(:ncol,:), ncol, lchnk )
-    call outfld( 'APMEErho', rho(:ncol,:), ncol, lchnk )
-    call outfld( 'APMEEh', scaleh(:ncol,:)*1.e-5_r8, ncol, lchnk )
 
   end subroutine mee_ap_ionpairs
 

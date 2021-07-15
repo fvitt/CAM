@@ -267,7 +267,7 @@ contains
     call epp_ionization_ionpairs( ncol, lchnk, pmid, tfld, epp_ipr )
     call outfld( 'EPP_ionpairs', epp_ipr, ncol, lchnk )
 
-    epp_ipr(:ncol,:pver) = epp_ipr(:ncol,:) + gcr_ipr(:ncol,:)
+    epp_ipr(:ncol,:pver) = epp_ipr(:ncol,:) + gcr_ipr(:ncol,:) + mee_ap_ipr(:ncol,:)
 
     if (has_dregion_ions) then
        ! D-region ion chemistry is active ...
