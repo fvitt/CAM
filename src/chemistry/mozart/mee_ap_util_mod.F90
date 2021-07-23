@@ -3,11 +3,80 @@
 ! geomagnetic activity index
 !------------------------------------------------------------------------------
 module mee_ap_util_mod
-  use shr_kind_mod,   only : r8 => shr_kind_r8
+  use shr_kind_mod, only: r8 => shr_kind_r8
+  use shr_const_mod, only: pi => shr_const_pi
 
   implicit none
 
+  private
+  public :: mee_ap_iprs
+  public :: mee_ap_init
+
+  integer, parameter :: nbins=100
+
+  real(r8) :: energies(nbins)
+  real(r8) :: denergies(nbins) ! width of each energy bin
+
 contains
+
+  !-----------------------------------------------------------------------------
+  ! Sets up energy spectrum grid for medium energy electrons in earth's
+  ! radiation belt
+  !-----------------------------------------------------------------------------
+  subroutine mee_ap_init()
+
+    call gen_energy_grid(nbins, energies, denergies)
+
+  end subroutine mee_ap_init
+
+  !-----------------------------------------------------------------------------
+  ! Computes ion pair production rates base on Ap geomagnetic activity index
+  !-----------------------------------------------------------------------------
+  function mee_ap_iprs( ncols, nlyrs, airden, scaleh, maglat, Ap) result(ionpairs )
+    integer ,intent(in) :: ncols, nlyrs
+    real(r8),intent(in) :: airden(ncols,nlyrs) ! g/cm3
+    real(r8),intent(in) :: scaleh(ncols,nlyrs) ! cm
+    real(r8),intent(in) :: maglat(ncols)       ! magnetic latitude (radians)
+    real(r8),intent(in) :: Ap                  ! geomagnetic activity index
+
+    real(r8) :: ionpairs(ncols,nlyrs)  ! pairs/cm3/sec
+
+    integer :: i,k
+    real(r8) :: lshell
+    real(r8) :: flux_sd(nbins)
+    real(r8) :: flux(nbins)
+    real(r8) :: ipr(nbins,nlyrs)
+
+    ionpairs(:,:) = 0._r8
+
+    do i = 1,ncols
+
+       if ( abs(maglat(i)) < 85._r8*pi/180._r8 ) then
+
+          ! get L-shell value corresponeding to the column geo-mag latitude
+          lshell = maglat2lshell( maglat(i) )
+
+          ! calculate the top of the atmosphere energetic electron energy spectrum
+          flux_sd(:) = FluxSpectrum(energies, lshell, Ap)
+
+          ! van de Kamp is per steradian (electrons / (cm2 sr s keV))
+          ! assume flux is isotropic inside a nominal bounce loss cone (BLC) angle
+          ! of 66.3˚. The area of the BLC in sr is 2pi(1-cosd(66.3))
+          flux(:) = 2._r8*pi*(1._r8-cos(66.3*pi/180._r8)) * flux_sd(:)
+
+          ! calculate the IPR as a function f height and energy
+          ipr(:,:) = iprmono(energies, flux, airden(i,:), scaleh(i,:))
+
+          ! integrate across the energy range to get total IPR
+          do k=1,nlyrs
+             ionpairs(i,k) = ionpairs(i,k) + sum(ipr(:,k)*denergies(:))
+          end do
+
+       end if
+
+    end do
+
+  end function mee_ap_iprs
 
   !------------------------------------------------------------------------------
   ! Calculating an energy spectrum for a specific L-shell and Ap calculation
