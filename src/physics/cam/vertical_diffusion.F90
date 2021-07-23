@@ -131,10 +131,6 @@ integer              :: taubljy_idx  = -1
 
 logical              :: diff_cnsrv_mass_check        ! do mass conservation check
 logical              :: do_iss                       ! switch for implicit turbulent surface stress
-logical              :: prog_modal_aero = .false.    ! set true if prognostic modal aerosols are present
-integer              :: pmam_ncnst = 0               ! number of prognostic modal aerosol constituents
-integer, allocatable :: pmam_cnst_idx(:)             ! constituent indices of prognostic modal aerosols
-
 logical              :: do_pbl_diags = .false.
 logical              :: waccmx_mode = .false.
 
@@ -267,12 +263,10 @@ subroutine vertical_diffusion_init(pbuf2d)
   use hb_diff,           only : init_hb_diff
   use molec_diff,        only : init_molec_diff
   use diffusion_solver,  only : init_vdiff, new_fieldlist_vdiff, vdiff_select
-  use constituents,      only : cnst_get_ind, cnst_get_type_byind, cnst_name, cnst_get_molec_byind
+  use constituents,      only : cnst_get_ind, cnst_get_type_byind, cnst_name, cnst_get_molec_byind, cnst_ndropmixed
   use spmd_utils,        only : masterproc
   use ref_pres,          only : press_lim_idx, pref_mid
   use physics_buffer,    only : pbuf_set_field, pbuf_get_index, physics_buffer_desc
-  use rad_constituents,  only : rad_cnst_get_info, rad_cnst_get_mode_num_idx, &
-       rad_cnst_get_mam_mmr_idx
   use trb_mtn_stress_cam,only : trb_mtn_stress_init
   use beljaars_drag_cam, only : beljaars_drag_init
   use upper_bc,          only : ubc_init
@@ -315,39 +309,6 @@ subroutine vertical_diffusion_init(pbuf2d)
   ! constituents.
   call cnst_get_ind( 'NUMLIQ', ixnumliq, abort=.false. )
   call cnst_get_ind( 'NUMICE', ixnumice, abort=.false. )
-
-  ! prog_modal_aero determines whether prognostic modal aerosols are present in the run.
-  call phys_getopts(prog_modal_aero_out=prog_modal_aero)
-  if (prog_modal_aero) then
-
-     ! Get the constituent indices of the number and mass mixing ratios of the modal
-     ! aerosols.
-     !
-     ! N.B. - This implementation assumes that the prognostic modal aerosols are
-     !        impacting the climate calculation (i.e., can get info from list 0).
-     !
-
-     ! First need total number of mam constituents
-     call rad_cnst_get_info(0, nmodes=nmodes)
-     do m = 1, nmodes
-        call rad_cnst_get_info(0, m, nspec=nspec)
-        pmam_ncnst = pmam_ncnst + 1 + nspec
-     end do
-
-     allocate(pmam_cnst_idx(pmam_ncnst))
-
-     ! Get the constituent indicies
-     im = 1
-     do m = 1, nmodes
-        call rad_cnst_get_mode_num_idx(m, pmam_cnst_idx(im))
-        im = im + 1
-        call rad_cnst_get_info(0, m, nspec=nspec)
-        do l = 1, nspec
-           call rad_cnst_get_mam_mmr_idx(m, l, pmam_cnst_idx(im))
-           im = im + 1
-        end do
-     end do
-  end if
 
   ! Initialize upper boundary condition module
 
@@ -435,14 +396,9 @@ subroutine vertical_diffusion_init(pbuf2d)
 
   constit_loop: do k = 1, pcnst
 
-     if (prog_modal_aero) then
-        ! Do not diffuse droplet number - treated in dropmixnuc
-        if (k == ixnumliq) cycle constit_loop
-        ! Don't diffuse modal aerosol - treated in dropmixnuc
-        do m = 1, pmam_ncnst
-           if (k == pmam_cnst_idx(m)) cycle constit_loop
-        enddo
-     end if
+     if (cnst_ndropmixed(k)) then
+        cycle constit_loop ! Do not diffuse tracer -- treated in dropmixnuc
+     endif
 
      ! Convert all constituents to wet before doing diffusion.
      if( vdiff_select( fieldlist_wet, 'q', k ) .ne. '' ) call endrun( vdiff_select( fieldlist_wet, 'q', k ) )
@@ -651,7 +607,7 @@ subroutine vertical_diffusion_tend( &
   use physics_buffer,     only : physics_buffer_desc, pbuf_get_field, pbuf_set_field
   use physics_types,      only : physics_state, physics_ptend, physics_ptend_init
   use physics_types,      only : set_dry_to_wet, set_wet_to_dry
-  
+
   use camsrfexch,         only : cam_in_t
   use cam_history,        only : outfld
 
@@ -666,7 +622,7 @@ subroutine vertical_diffusion_tend( &
   use physconst,          only : cpairv, rairv !Needed for calculation of upward H flux
   use time_manager,       only : get_nstep
   use constituents,       only : cnst_get_type_byind, cnst_name, &
-       cnst_mw, cnst_fixed_ubc, cnst_fixed_ubflx
+                                 cnst_mw, cnst_fixed_ubc, cnst_fixed_ubflx, cnst_ndropmixed
   use physconst,          only : pi
   use pbl_utils,          only : virtem, calc_obklen, calc_ustar
   use upper_bc,           only : ubc_get_vals
@@ -846,7 +802,7 @@ subroutine vertical_diffusion_tend( &
 
   ! Assume 'wet' mixing ratios in diffusion code.
   call set_dry_to_wet(state)
-  
+
   rztodt = 1._r8 / ztodt
   lchnk  = state%lchnk
   ncol   = state%ncol
@@ -1151,7 +1107,7 @@ subroutine vertical_diffusion_tend( &
           p_dry , state%t      , rhoi_dry,  ztodt         , taux          , &
           tauy          , shflux             , cflux        , &
           kvh           , kvm                , kvq          , cgs           , cgh           , &
-          state%zi      , ksrftms            , dragblj      , & 
+          state%zi      , ksrftms            , dragblj      , &
           qmincg       , fieldlist_dry , fieldlist_molec,&
           u_tmp         , v_tmp              , q_tmp        , s_tmp         ,                 &
           tautmsx_temp  , tautmsy_temp       , dtk_temp     , topflx_temp   , errstring     , &
@@ -1167,17 +1123,14 @@ subroutine vertical_diffusion_tend( &
 
   end if
 
-  if (prog_modal_aero) then
-
-     ! Modal aerosol species not diffused, so just add the explicit surface fluxes to the
-     ! lowest layer.  **NOTE** This code assumes wet mmr.
-
-     tmp1(:ncol) = ztodt * gravit * state%rpdel(:ncol,pver)
-     do m = 1, pmam_ncnst
-        l = pmam_cnst_idx(m)
+  ! For species not diffused, so just add the explicit surface fluxes to the
+  ! lowest layer.  **NOTE** This code assumes wet mmr.
+  tmp1(:ncol) = ztodt * gravit * state%rpdel(:ncol,pver)
+  do l = 1, pcnst
+     if (cnst_ndropmixed(l)) then
         q_tmp(:ncol,pver,l) = q_tmp(:ncol,pver,l) + tmp1(:ncol) * cam_in%cflx(:ncol,l)
-     enddo
-  end if
+     end if
+  end do
 
   ! -------------------------------------------------------- !
   ! Diagnostics and output writing after applying PBL scheme !

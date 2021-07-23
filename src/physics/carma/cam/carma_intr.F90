@@ -206,6 +206,7 @@ contains
     real(r8)          :: wtmol                    ! gas molecular weight
     integer           :: cnsttype                 ! constituent type
     integer           :: maxbin                   ! last prognostic bin
+    logical           :: ndropmixed               ! tracer is vertically mixed in ndrop
 
     character(len=16) :: radiation_scheme         ! CAM's radiation package.
 
@@ -339,6 +340,7 @@ contains
                           tstick        = carma_tstick)
     if (rc < 0) call endrun('carma_register::CARMA_Initialize failed.')
 
+    ndropmixed = carma_model=='trop_strat'
 
     ! The elements and gases from CARMA need to be added as constituents in
     ! CAM (if they don't already exist). For the elements, each radius bin
@@ -380,7 +382,8 @@ contains
             ! doesn't make sense for particles. The CAM solvers are unstable if the
             ! mass provided is large.
             call cnst_add(c_name, WTMOL_AIR, cpair, 0._r8, icnst4elem(ielem, ibin), &
-              longname=c_longname, mixtype=carma_mixtype, is_convtran1=is_convtran1(igroup))
+              longname=c_longname, mixtype=carma_mixtype, is_convtran1=is_convtran1(igroup), &
+              ndropmixed=ndropmixed )
           end if
         end do
       end if

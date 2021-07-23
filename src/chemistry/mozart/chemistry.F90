@@ -195,6 +195,7 @@ end function chem_is
     logical :: cam_outfld
     character(len=128) :: mixtype
     character(len=128) :: molectype
+    logical :: ndropmixed
     integer :: islvd
 
 !-----------------------------------------------------------------------
@@ -242,10 +243,15 @@ end function chem_is
        ic_from_cam2  = .true.
        has_fixed_ubc = .false.
        has_fixed_ubflx = .false.
+       ndropmixed = .false.
        lng_name      = trim( solsym(m) )
        molectype = 'minor'
 
        qmin = 1.e-36_r8
+
+       if ( index(lng_name,'_a')>0 ) then ! modal aerosol species undergoes ndrop activation mixing
+          ndropmixed = .true.
+       endif
 
        if ( lng_name(1:5) .eq. 'num_a' ) then ! aerosol number density
           qmin = 1.e-5_r8
@@ -309,7 +315,8 @@ end function chem_is
           short_lived_map(islvd) = m
        else
           call cnst_add( solsym(m), adv_mass(m), cptmp, qmin, n, readiv=ic_from_cam2, cam_outfld=cam_outfld, &
-                         mixtype=mixtype, molectype=molectype, fixed_ubc=has_fixed_ubc, fixed_ubflx=has_fixed_ubflx, &
+                         mixtype=mixtype, molectype=molectype, ndropmixed=ndropmixed, &
+                         fixed_ubc=has_fixed_ubc, fixed_ubflx=has_fixed_ubflx, &
                          longname=trim(lng_name) )
 
           if( imozart == -1 ) then
