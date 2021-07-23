@@ -1,4 +1,3 @@
-
 module carma_aero_convproc
 !---------------------------------------------------------------------------------
 ! Purpose:
@@ -43,29 +42,28 @@ public :: &
    ma_convproc_intr,     &
    ma_convproc_readnl
 
-  ! description of bin aerosols
-  integer, public, protected :: nspec_max = 0
-  integer, public, protected :: nbins = 0
-  integer, public, protected, allocatable :: nspec(:)
+! description of bin aerosols
+integer, public, protected :: nspec_max = 0
+integer, public, protected :: nbins = 0
+integer, public, protected, allocatable :: nspec(:)
 
-  ! local indexing for bins
-  integer, allocatable :: bin_idx(:,:) ! table for local indexing of modal aero number and mmr
-  integer :: ncnst_tot                  ! total number of bin species, mmr, and number conc
-  integer :: ncnst_extd                 ! twice total number of bin species, mmr and number conc
-  integer :: pcnst_extd                 ! twice total number of bin species, mmr and number conc
+! local indexing for bins
+integer, allocatable :: bin_idx(:,:) ! table for local indexing of modal aero number and mmr
+integer :: ncnst_tot                  ! total number of bin species, mmr, and number conc
+integer :: ncnst_extd                 ! twice total number of bin species, mmr and number conc
+integer :: pcnst_extd                 ! twice total number of bin species, mmr and number conc
 
-  ! Indices for CARMA species in the ptend%q array.  Needed for prognostic aerosol case.
-  logical, allocatable :: bin_cnst_lq(:,:)
-  integer, allocatable :: bin_cnst_idx(:,:)
+! Indices for CARMA species in the ptend%q array.  Needed for prognostic aerosol case.
+logical, allocatable :: bin_cnst_lq(:,:)
+integer, allocatable :: bin_cnst_idx(:,:)
 
-  ! ptr2d_t is used to create arrays of pointers to 2D fields
-  type ptr2d_t
-    real(r8), pointer :: fld(:,:)
-  end type ptr2d_t
+! ptr2d_t is used to create arrays of pointers to 2D fields
+type ptr2d_t
+   real(r8), pointer :: fld(:,:)
+end type ptr2d_t
 
-  logical :: lq(pcnst) = .false. ! set flags true for constituents with non-zero tendencies
+logical :: lq(pcnst) = .false. ! set flags true for constituents with non-zero tendencies
                                ! in the ptend object
-
 
 ! namelist options
 ! NOTE: These are the defaults for CAM6.
@@ -76,8 +74,8 @@ logical, protected, public :: convproc_do_deep = .true.
 logical, protected, public :: convproc_do_shallow = .false.
 ! NOTE: These are the defaults for the Eaton/Wang parameterization.
 logical, protected, public :: convproc_do_evaprain_atonce = .false.
-real(r8), protected, public    :: convproc_pom_spechygro = -1._r8
-real(r8), protected, public    :: convproc_wup_max       = 4.0_r8
+real(r8), protected, public :: convproc_pom_spechygro = -1._r8
+real(r8), protected, public :: convproc_wup_max       = 4.0_r8
 
 logical, parameter :: use_cwaer_for_activate_maxsat = .false.
 logical, parameter :: apply_convproc_tend_to_ptend = .true.
@@ -241,17 +239,17 @@ subroutine ma_convproc_init
       ! add plus one to include number, total mmr and nspec
       nspec_max = maxval(nspec) + 2
 
-      ncnst_tot = nspec(1) + 2
-      do m = 2, nbins
+      ncnst_tot = 0
+      do m = 1, nbins
         ncnst_tot = ncnst_tot + nspec(m) + 2
       end do
       ncnst_extd = 2*ncnst_tot
       pcnst_extd = 2*ncnst_tot
 
       allocate( &
-       bin_idx(nbins,0:nspec_max),      &
-       bin_cnst_lq(nbins,0:nspec_max), &
-       bin_cnst_idx(nbins,0:nspec_max), &
+       bin_idx(nbins,nspec_max),      &
+       bin_cnst_lq(nbins,nspec_max), &
+       bin_cnst_idx(nbins,nspec_max), &
        fieldname_cw(ncnst_tot), &
        fieldname(ncnst_tot)  )
 
@@ -263,9 +261,9 @@ subroutine ma_convproc_init
 
             if (l <= nspec(m) ) then   ! species
                call rad_cnst_get_info_by_bin_spec(0, m, l, spec_name=fieldname(ii), spec_name_cw=fieldname_cw(ii))
-            else if (l == nspec(m) + 1) then   ! number
-               call rad_cnst_get_info_by_bin(0, m,  mmr_name=fieldname(ii), mmr_name_cw=fieldname_cw(ii))
-            else if (l == nspec(m) + 2) then
+            else if (l == nspec(m) + 1) then   ! bin mmr
+               call rad_cnst_get_info_by_bin(0, m, mmr_name=fieldname(ii), mmr_name_cw=fieldname_cw(ii))
+            else if (l == nspec(m) + 2) then   ! bin num dens
                call rad_cnst_get_info_by_bin(0, m, num_name=fieldname(ii), num_name_cw=fieldname_cw(ii))
             end if
 
@@ -287,7 +285,7 @@ subroutine ma_convproc_init
              end if
             end if
             call cnst_get_ind(fieldname(ii), idxtmp, abort=.false.)
-            if (idxtmp.gt.0) then
+            if (idxtmp>0) then
                bin_cnst_lq(m,l) = .true.
                bin_cnst_idx(m,l) = idxtmp
                lq(idxtmp) = .true.
@@ -407,13 +405,13 @@ subroutine ma_convproc_intr( state, ptend, pbuf, ztodt,             &
    ! Local variables
    integer, parameter :: nsrflx = 5        ! last dimension of qsrflx
    integer  :: l, ll, lchnk
+   integer  :: lpr
    integer  :: n, ncol
 
    real(r8) :: dqdt(pcols,pver,ncnst_tot)
    real(r8) :: dt
    real(r8) :: qa(pcols,pver,ncnst_tot), qb(pcols,pver,ncnst_tot)
    real(r8) :: qsrflx(pcols,ncnst_tot,nsrflx)
-   real(r8) :: raer_fld(pcols,pver)
    real(r8) :: sflxic(pcols,ncnst_tot)
    real(r8) :: sflxid(pcols,ncnst_tot)
    real(r8) :: sflxec(pcols,ncnst_tot)
@@ -437,24 +435,19 @@ subroutine ma_convproc_intr( state, ptend, pbuf, ztodt,             &
    sflxec(:,:) = 0.0_r8
    sflxed(:,:) = 0.0_r8
 
-  allocate(  raer(ncnst_tot)                )
-
+   allocate(raer(ncnst_tot))
 
    do n = 1, nbins      ! main loop over aerosol bins
       call rad_cnst_get_info_by_bin(0, n, nspec=nspec(n))
       do ll = 1, nspec(n) + 2
          l = bin_idx(n, ll)
+         lpr = bin_cnst_idx(n,ll)
 
          sflxec(1:ncol,l) = qsrflx_mzaer2cnvpr(1:ncol,l,1)
          sflxed(1:ncol,l) = qsrflx_mzaer2cnvpr(1:ncol,l,2)
 
          if (ll <= nspec(n)) then
              call rad_cnst_get_bin_mmr_by_idx(0, n, ll, 'a', state, pbuf, raer(l)%fld)
-             ! calc new raer(l) if from state, and add ptend
-             if (bin_cnst_lq(n,ll)) then ! adveced species, non advective species have been updated
-          !st        write(iulog,*) 'ptend%q(1:ncol,:,l), n, ll ',ptend%q(1:ncol,:,l), n, ll
-                  raer(l)%fld(1:ncol,:) = raer(l)%fld(1:ncol,:)  + dt*ptend%q(1:ncol,:,l)
-             end if
          end if
          if (ll == nspec(n)+1) then ! mmr
               call rad_cnst_get_bin_mmr(0, n, 'a', state, pbuf, raer(l)%fld)
@@ -462,8 +455,12 @@ subroutine ma_convproc_intr( state, ptend, pbuf, ztodt,             &
          if (ll == nspec(n)+2) then ! number
               call rad_cnst_get_bin_num(0, n, 'a', state, pbuf, raer(l)%fld)
          end if
-
-         qb(:ncol,:,l) = raer(l)%fld(:ncol,:)
+        ! calc new raer(l) if from state, add ptend
+         if (bin_cnst_lq(n,ll)) then ! advected species, non advective species have been updated
+            qb(:ncol,:,l) = raer(l)%fld(1:ncol,:) + dt*ptend%q(1:ncol,:,lpr)
+         else
+            qb(:ncol,:,l) = raer(l)%fld(:ncol,:)
+         end if
 
       end do
 
@@ -499,6 +496,7 @@ subroutine ma_convproc_intr( state, ptend, pbuf, ztodt,             &
          do n = 1, nbins      ! main loop over aerosol bins
            do ll = 1, nspec(n) + 2
             l = bin_idx(n, ll)
+            lpr = bin_cnst_idx(n,ll)
 !st
             if ( .not. dotend(l) ) cycle
 
@@ -508,29 +506,28 @@ subroutine ma_convproc_intr( state, ptend, pbuf, ztodt,             &
 
             if ( apply_convproc_tend_to_ptend ) then
                ! add dqdt onto ptend%q and set ptend%lq   and set pbuf variable if not transported
-             if (bin_cnst_lq(n,ll)) then ! adveced species
-                  ptend%q(1:ncol,:,l) = ptend%q(1:ncol,:,l) + dqdt(1:ncol,:,l)
-             else
-                 raer_fld(1:ncol,:) = raer(l)%fld(1:ncol,:) + dqdt(1:ncol,:,1) * dt
-                 raer(l)%fld(1:ncol,:) = max( 0.0_r8, raer(l)%fld(1:ncol,:) )
-             end if
+               if (bin_cnst_lq(n,ll)) then ! adveced species
+                  ptend%q(1:ncol,:,lpr) = ptend%q(1:ncol,:,lpr) + dqdt(1:ncol,:,l)
+               else
+                  raer(l)%fld(1:ncol,:) = max( 0.0_r8, raer(l)%fld(1:ncol,:) + dqdt(1:ncol,:,1) * dt )
+               end if
 
             end if
 
             !st done for all CARMA aerosols
             !st if ((cnst_species_class(l) == cnst_spec_class_aerosol) .or. &
             !st     (cnst_species_class(l) == cnst_spec_class_gas    )) then
-               ! these used for history file wetdep diagnostics
-               sflxic(1:ncol,l) = sflxic(1:ncol,l) + qsrflx(1:ncol,l,4)
-               sflxid(1:ncol,l) = sflxid(1:ncol,l) + qsrflx(1:ncol,l,4)
-               sflxec(1:ncol,l) = sflxec(1:ncol,l) + qsrflx(1:ncol,l,5)
-               sflxed(1:ncol,l) = sflxed(1:ncol,l) + qsrflx(1:ncol,l,5)
+            ! these used for history file wetdep diagnostics
+            sflxic(1:ncol,l) = sflxic(1:ncol,l) + qsrflx(1:ncol,l,4)
+            sflxid(1:ncol,l) = sflxid(1:ncol,l) + qsrflx(1:ncol,l,4)
+            sflxec(1:ncol,l) = sflxec(1:ncol,l) + qsrflx(1:ncol,l,5)
+            sflxed(1:ncol,l) = sflxed(1:ncol,l) + qsrflx(1:ncol,l,5)
             !st end if
 
             !st if (cnst_species_class(l) == cnst_spec_class_aerosol) then
-               ! this used for surface coupling
-               aerdepwetis(1:ncol,l) = aerdepwetis(1:ncol,l) &
-                  + qsrflx(1:ncol,l,4) + qsrflx(1:ncol,l,5)
+            ! this used for surface coupling
+            aerdepwetis(1:ncol,l) = aerdepwetis(1:ncol,l) &
+                 + qsrflx(1:ncol,l,4) + qsrflx(1:ncol,l,5)
             !st end if
            end do
          end do
@@ -547,39 +544,39 @@ subroutine ma_convproc_intr( state, ptend, pbuf, ztodt,             &
          !st do l = 1, pcnst  ! mm in aero_model
          !st do l = 1, pcnst
          do n = 1, nbins      ! main loop over aerosol bins
-           do ll = 1, nspec(n) + 2
-            l = bin_idx(n, ll)
+            do ll = 1, nspec(n) + 2
+               l = bin_idx(n, ll)
+               lpr = bin_cnst_idx(n,ll)
 
-            if ( .not. dotend(l) ) cycle
+               if ( .not. dotend(l) ) cycle
 
-           ! calc new q (after ma_convproc_sh_intr)
-           qa(1:ncol,:,l) = qb(1:ncol,:,l) + dt*dqdt(1:ncol,:,l)
-           qb(1:ncol,:,l) = max( 0.0_r8, qa(1:ncol,:,l) )
+               ! calc new q (after ma_convproc_sh_intr)
+               qa(1:ncol,:,l) = qb(1:ncol,:,l) + dt*dqdt(1:ncol,:,l)
+               qb(1:ncol,:,l) = max( 0.0_r8, qa(1:ncol,:,l) )
 
-            if ( apply_convproc_tend_to_ptend ) then
-            ! add dqdt onto ptend%q and set ptend%lq   and set pbuf variable if not transported
-             if (bin_cnst_lq(n,ll)) then ! adveced species
-                  ptend%q(1:ncol,:,l) = ptend%q(1:ncol,:,l) + dqdt(1:ncol,:,l)
-             else
-                 raer_fld = raer(l)%fld(1:ncol,:) + dqdt(1:ncol,:,1) * dt
-                 raer(l)%fld(1:ncol,:) = max( 0.0_r8, raer(l)%fld(1:ncol,:) )
-             end if
+               if ( apply_convproc_tend_to_ptend ) then
+                  ! add dqdt onto ptend%q and set ptend%lq   and set pbuf variable if not transported
+                  if (bin_cnst_lq(n,ll)) then ! advected species
+                     ptend%q(1:ncol,:,lpr) = ptend%q(1:ncol,:,lpr) + dqdt(1:ncol,:,l)
+                  else
+                     raer(l)%fld(1:ncol,:) = max( 0.0_r8, raer(l)%fld(1:ncol,:) + dqdt(1:ncol,:,1) * dt )
+                  end if
 
-            end if
+               end if
 
-            !st done for all CARMA aerosols
-            !st if ((cnst_species_class(l) == cnst_spec_class_aerosol) .or. &
-            !st     (cnst_species_class(l) == cnst_spec_class_gas    )) then
+               !st done for all CARMA aerosols
+               !st if ((cnst_species_class(l) == cnst_spec_class_aerosol) .or. &
+               !st     (cnst_species_class(l) == cnst_spec_class_gas    )) then
                sflxic(1:ncol,l) = sflxic(1:ncol,l) + qsrflx(1:ncol,l,4)
                sflxec(1:ncol,l) = sflxec(1:ncol,l) + qsrflx(1:ncol,l,5)
-            !st end if
+               !st end if
 
-            !st if (cnst_species_class(l) == cnst_spec_class_aerosol) then
+               !st if (cnst_species_class(l) == cnst_spec_class_aerosol) then
                aerdepwetis(1:ncol,l) = aerdepwetis(1:ncol,l) &
-                  + qsrflx(1:ncol,l,4) + qsrflx(1:ncol,l,5)
-            !st end if
+                                     + qsrflx(1:ncol,l,4) + qsrflx(1:ncol,l,5)
+               !st end if
 
-           end do
+            end do
          end do
       end if
 
@@ -591,16 +588,16 @@ subroutine ma_convproc_intr( state, ptend, pbuf, ztodt,             &
          do ll = 1, nspec(n) + 2
             l = bin_idx(n, ll)
 
-           if (l .eq. nspec(n) + 1) then
-            call outfld( trim(fieldname(l))//'SFWET', aerdepwetis(:,l), pcols, lchnk )
-            call outfld( trim(fieldname(l))//'SFSIC', sflxic(:,l), pcols, lchnk )
-            call outfld( trim(fieldname(l))//'SFSEC', sflxec(:,l), pcols, lchnk )
+            if (l .eq. nspec(n) + 1) then
+               call outfld( trim(fieldname(l))//'SFWET', aerdepwetis(:,l), pcols, lchnk )
+               call outfld( trim(fieldname(l))//'SFSIC', sflxic(:,l), pcols, lchnk )
+               call outfld( trim(fieldname(l))//'SFSEC', sflxec(:,l), pcols, lchnk )
 
-            if ( deepconv_wetdep_history ) then
-                call outfld( trim(fieldname(l))//'SFSID', sflxid(:,l), pcols, lchnk )
-                call outfld( trim(fieldname(l))//'SFSED', sflxed(:,l), pcols, lchnk )
+               if ( deepconv_wetdep_history ) then
+                  call outfld( trim(fieldname(l))//'SFSID', sflxid(:,l), pcols, lchnk )
+                  call outfld( trim(fieldname(l))//'SFSED', sflxed(:,l), pcols, lchnk )
+               end if
             end if
-           end if
          end do
       end do
    end if

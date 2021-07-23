@@ -574,7 +574,7 @@ contains
 
     real(r8) :: iscavt(pcols, pver)
 
-    integer :: mm
+    integer :: mm, lpr
     integer :: i,k
 
 
@@ -886,6 +886,7 @@ contains
 
           do l = 1, nspec(m) + 2  ! loop over different npsec plus over total mmr and number
              mm = bin_idx(m,l)
+             lpr = bin_cnst_idx(m,l)
 
              if (l <= nspec(m)) then  ! loop only over nspec
                 call rad_cnst_get_bin_props_by_idx(0, m, l, density_aer=specdens)
@@ -1024,36 +1025,51 @@ contains
                       rtscavt_sum(1:ncol,:) = rtscavt_sum(1:ncol,:) + rtscavt(1:ncol,:,l)
                    endif
 
+                   ! make sure raer values are not negative, adjust dqdt_tmp accordingly
+                   do k= 1,pver
+                     do i= 1,ncol
+                      if ( (dqdt_tmp(i,k).lt.0.0_r8) .and. (raer(mm)%fld(i,k).eq.0.0_r8) )  then
+                         dqdt_tmp(i,k) = 0.0
+                      else
+                       if ( (raer(mm)%fld(i,k) + dqdt_tmp(i,k) * dt) .lt. 0.0_r8 )   then
+                          dqdt_tmp(i,k) = raer(mm)%fld(i,k) / dt
+                       end if
+                      end if
+                     end do
+                   end do
+
                    ! some CARMA interstetial species are not advected, check:
-                   if (bin_cnst_lq(m,l)) then ! adveced species
-                      ptend%q(1:ncol,:,mm) = ptend%q(1:ncol,:,mm) + dqdt_tmp(1:ncol,:)
+                   if (bin_cnst_lq(m,l)) then ! advected species
+                        ptend%q(1:ncol,:,lpr) = ptend%q(1:ncol,:,lpr) + dqdt_tmp(1:ncol,:)
+                        fld_sum(1:ncol,:)  = fld_sum(1:ncol,:) + raer(mm)%fld(1:ncol,:) + dqdt_tmp(1:ncol,:) * dt
                    else
-                      raer(mm)%fld(1:ncol,:) = raer(mm)%fld(1:ncol,:) + dqdt_tmp(1:ncol,:) * dt
+                        raer(mm)%fld(1:ncol,:) = max(raer(mm)%fld(1:ncol,:) + dqdt_tmp(1:ncol,:) * dt, 0.0_r8)
+                        fld_sum(1:ncol,:) = fld_sum(1:ncol,:) + raer(mm)%fld(1:ncol,:)
                    end if
 
+                   !raer(mm)%fld(1:ncol,:) = raer(mm)%fld(1:ncol,:) + dqdt_tmp(1:ncol,:) * dt
+
                    ! sum up dqdt_tmp for all species (not total mmr and number)
-                   do k= 1,pver
-                      do i= 1,ncol
-                         dqdt_tmp_sum(i,k) = dqdt_tmp_sum(i,k) + dqdt_tmp(i,k)
-                         fld_sum(i,k) = fld_sum(i,k) + raer(mm)%fld(i,k)
-                      end do
-                   end do
+                   dqdt_tmp_sum(1:ncol,:) = dqdt_tmp_sum(1:ncol,:) + dqdt_tmp(1:ncol,:)
 
 
-                else if (l == nspec(m) + 1) then   !mmr and number are not advected
+                else if (l == nspec(m) + 1) then   !mmr is advected and number is  not advected
 
-                   do k= 1,pver
-                      do i= 1,ncol
-                         raer(mm)%fld(i,k) = raer(mm)%fld(i,k) + dqdt_tmp_sum(i,k) * dt
-                         if (fld_sum(i,k) /= raer(mm)%fld(i,k)) then
-                            raer(mm)%fld(i,k) = fld_sum(i,k)
-                         end if
-                      end do
-                   end do
-                   dqdt_tmp(:ncol,:) = dqdt_tmp_sum(:ncol,:)
-                   if(convproc_do_aer) then
+                  ! do k= 1,pver
+                  !    do i= 1,ncol
+                  if (bin_cnst_lq(m,l)) then ! adveced species
+                      ptend%q(1:ncol,:,lpr) = ptend%q(1:ncol,:,lpr) + dqdt_tmp_sum(1:ncol,:)
+                  end if
+                        ! raer(mm)%fld(i,k) = raer(mm)%fld(i,k) + dqdt_tmp_sum(i,k) * dt
+                        ! if (fld_sum(i,k) /= raer(mm)%fld(i,k)) then
+                        !     raer(mm)%fld(i,k) = fld_sum(i,k)
+                        ! end if
+                 !     end do
+                 !  end do
+                  dqdt_tmp(:ncol,:) = dqdt_tmp_sum(:ncol,:)
+                  if(convproc_do_aer) then
                        rtscavt(1:ncol,:,l) = rtscavt_sum(1:ncol,:)
-                   endif
+                  endif
 
                 else if (l == nspec(m) + 2) then   !num fraction is assuming dN/N = dM/M
 
@@ -1234,6 +1250,19 @@ contains
                          ! undo this, so the resuspension of cloudborne can be added to the dqdt of interstitial (above)
                          dqdt_tmp(1:ncol,:) = dqdt_tmp(1:ncol,:) - rtscavt(1:ncol,:,l)
                       endif
+
+                      do k= 1,pver
+                        do i= 1,ncol
+                          if ( (dqdt_tmp(i,k).lt.0.0_r8) .and. (qqcw(mm)%fld(i,k).eq.0.0_r8) )  then
+                             dqdt_tmp(i,k) = 0.0
+                          else
+                           if ( (qqcw(mm)%fld(i,k) + dqdt_tmp(i,k) * dt) .lt. 0.0_r8 )   then
+                             dqdt_tmp(i,k) = qqcw(mm)%fld(i,k) / dt
+                           end if
+                          end if
+                         end do
+                      end do
+
 
                       ! sum up dqdt_tmp for all species (not total mmr and number)
                       do k= 1,pver
