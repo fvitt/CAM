@@ -11,11 +11,14 @@ module mee_ap_util_mod
   private
   public :: mee_ap_iprs
   public :: mee_ap_init
+  public :: mee_ap_error
 
+  integer, parameter :: mee_ap_error=-1
   integer, parameter :: nbins=100
 
-  real(r8) :: energies(nbins)
-  real(r8) :: denergies(nbins) ! width of each energy bin
+  real(r8) :: energies(nbins) = -huge(1._r8)
+  real(r8) :: denergies(nbins) = -huge(1._r8) ! width of each energy bin
+  real(r8) :: solid_angle_factor = -huge(1._r8)
 
 contains
 
@@ -23,7 +26,17 @@ contains
   ! Sets up energy spectrum grid for medium energy electrons in earth's
   ! radiation belt
   !-----------------------------------------------------------------------------
-  subroutine mee_ap_init()
+  subroutine mee_ap_init(loss_cone_angle, status)
+
+    real(r8), intent(in) :: loss_cone_angle ! Bounce Loss Cone angle (degrees)
+    integer, intent(out) :: status          ! error status
+
+    if ( loss_cone_angle<0._r8 .or. loss_cone_angle>90._r8 ) then
+       status = mee_ap_error
+       return
+    endif
+
+    solid_angle_factor = 2._r8*pi*(1._r8-cos(loss_cone_angle*pi/180._r8))
 
     call gen_energy_grid(nbins, energies, denergies)
 
@@ -32,37 +45,49 @@ contains
   !-----------------------------------------------------------------------------
   ! Computes ion pair production rates base on Ap geomagnetic activity index
   !-----------------------------------------------------------------------------
-  function mee_ap_iprs( ncols, nlyrs, airden, scaleh, maglat, Ap) result(ionpairs )
+  function mee_ap_iprs( ncols, nlyrs, airden, scaleh, Ap, status, maglat, lshell) result(ionpairs )
     integer ,intent(in) :: ncols, nlyrs
-    real(r8),intent(in) :: airden(ncols,nlyrs) ! g/cm3
-    real(r8),intent(in) :: scaleh(ncols,nlyrs) ! cm
-    real(r8),intent(in) :: maglat(ncols)       ! magnetic latitude (radians)
-    real(r8),intent(in) :: Ap                  ! geomagnetic activity index
+    real(r8),intent(in) :: airden(ncols,nlyrs)     ! g/cm3
+    real(r8),intent(in) :: scaleh(ncols,nlyrs)     ! cm
+    real(r8),intent(in) :: Ap                      ! geomagnetic activity index
+    integer, intent(out) :: status                 ! error status
+    real(r8),intent(in), optional :: maglat(ncols) ! magnetic latitude (radians)
+    real(r8),intent(in), optional :: lshell(ncols) ! magnetosphere L-Shells
 
     real(r8) :: ionpairs(ncols,nlyrs)  ! pairs/cm3/sec
 
     integer :: i,k
-    real(r8) :: lshell
     real(r8) :: flux_sd(nbins)
     real(r8) :: flux(nbins)
     real(r8) :: ipr(nbins,nlyrs)
+    real(r8) :: l_shells(ncols)
+
+    status = 0
+
+    if (present(lshell)) then
+       l_shells(:) = lshell(:)
+    elseif (present(maglat)) then
+       ! get L-shell values corresponeding to the column geo-mag latitudes
+       l_shells = maglat2lshell( maglat )
+    else
+       ionpairs(:,:) = -huge(1._r8)
+       status = mee_ap_error
+       return
+    endif
 
     ionpairs(:,:) = 0._r8
 
     do i = 1,ncols
 
-       if ( abs(maglat(i)) < 85._r8*pi/180._r8 ) then
-
-          ! get L-shell value corresponeding to the column geo-mag latitude
-          lshell = maglat2lshell( maglat(i) )
+       if ( l_shells(i) < 133._r8 ) then ! near 85 degrees mag lat
 
           ! calculate the top of the atmosphere energetic electron energy spectrum
-          flux_sd(:) = FluxSpectrum(energies, lshell, Ap)
+          flux_sd(:) = FluxSpectrum(energies, l_shells(i), Ap)
 
           ! van de Kamp is per steradian (electrons / (cm2 sr s keV))
-          ! assume flux is isotropic inside a nominal bounce loss cone (BLC) angle
-          ! of 66.3˚. The area of the BLC in sr is 2pi(1-cosd(66.3))
-          flux(:) = 2._r8*pi*(1._r8-cos(66.3*pi/180._r8)) * flux_sd(:)
+          ! assume flux is isotropic inside a nominal bounce loss cone (BLC) angle.
+          ! The area of the BLC in sr is 2pi(1-cosd(BLC))
+          flux(:) = solid_angle_factor* flux_sd(:)
 
           ! calculate the IPR as a function f height and energy
           ipr(:,:) = iprmono(energies, flux, airden(i,:), scaleh(i,:))
@@ -269,7 +294,7 @@ contains
   !------------------------------------------------------------------------------
   ! returns L-Shell number for a given magnetic latitude (radians)
   !------------------------------------------------------------------------------
-  pure function maglat2lshell( rmaglat ) result(lshell)
+  pure elemental function maglat2lshell( rmaglat ) result(lshell)
     real(r8), intent(in) :: rmaglat ! mag latitude in radians
     real(r8) :: lshell  ! magnetosphere L-Shell number
 

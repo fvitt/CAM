@@ -2796,6 +2796,10 @@ $epp_gcr_file =~ s/['"]//g; # strip quotes "'
 $epp_mee_file =~ s/['"]//g; # strip quotes "'
 $gcr_ion_file =~ s/['"]//g; # strip quotes "'
 
+if ($nl->get_value('mee_ap_ion_inline') =~ m/$TRUE/io) {
+    add_default($nl, 'mee_ap_ion_blc', 'val'=>'80.D0');
+}
+
 if ($gcr_ion_file and $gcr_ion_file ne 'NONE') {
     if (($epp_all_file and $epp_all_file ne 'NONE') or ($epp_gcr_file and $epp_gcr_file ne 'NONE')) {
         die "CAM Namelist ERROR: Conflicting GCR inputs specified.  Variable gcr_ionization_filename".

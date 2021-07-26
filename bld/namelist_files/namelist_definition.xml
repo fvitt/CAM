@@ -6985,6 +6985,13 @@ computed inline using Ap geomagnetic activity index input data.
 Default: FALSE
 </entry>
 
+<entry id="mee_ap_ion_blc" type="real" category="waccm"
+       group="mee_ap_ion_nl" valid_values="" >
+Bounce code loss angle (degrees) for electrons in radiation belts.
+Must range from 0 to 90 degrees.
+Default: None
+</entry>
+
 <entry id="apply_lunar_tides" type="logical" category="waccm_phys"
        group="lunar_tides_opts" valid_values="" >
 Switch to apply lunar tidal tendencies to neutral winds.
