@@ -80,7 +80,6 @@ contains
   !-----------------------------------------------------------------------------
   subroutine mee_ap_ionpairs(ncol,lchnk, pmid, temp, ionpairs )
 
-    use physconst, only: pi
     use physconst, only: mbarv  ! kg/kmole
     use physconst, only: gravit
     use physconst, only: rairv  ! composition dependent gas constant (J/K/kg)
