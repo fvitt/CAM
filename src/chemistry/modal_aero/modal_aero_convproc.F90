@@ -2353,8 +2353,6 @@ end subroutine ma_convproc_tend
 !
 !-----------------------------------------------------------------------
 
-   use ndrop, only: activate_modal
-
    use modal_aero_data, only:  lmassptr_amode, lmassptrcw_amode, &
       ntot_amode, &
       nspec_amode, ntot_amode, numptr_amode, numptrcw_amode, &
@@ -2510,7 +2508,7 @@ end subroutine ma_convproc_tend
    wminf = wbar
    wmaxf = wbar
 
-   call activate_modal( aero_model,                                        &
+   call aero_model%activate( &
          wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,                    &
          naerosol, ntot_amode, vaerosol, hygro,                            &
          fn, fm, fluxn, fluxm, flux_fullact                                )
@@ -2613,8 +2611,6 @@ end subroutine ma_convproc_tend
 ! Author: R. Easter
 !
 !-----------------------------------------------------------------------
-
-   use ndrop, only: activate_modal
 
    use modal_aero_data, only:  lmassptr_amode, lmassptrcw_amode, &
       ntot_amode, &
@@ -2789,7 +2785,7 @@ end subroutine ma_convproc_tend
 
    if (k == kactfirst) then
 
-      call activate_modal(aero_model,                                                 &
+      call aero_model%activate( &
          wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,                    &
          naerosol, ntot_amode, vaerosol, hygro,                            &
          fn, fm, fluxn, fluxm, flux_fullact                                )
@@ -2799,7 +2795,7 @@ end subroutine ma_convproc_tend
 ! above cloud base - do secondary activation with prescribed supersat
 ! that is constant with height
       smax_prescribed = method2_activate_smaxmax
-      call activate_modal(aero_model,                                      &
+      call aero_model%activate( &
          wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,                    &
          naerosol, ntot_amode, vaerosol, hygro,                            &
          fn, fm, fluxn, fluxm, flux_fullact, smax_prescribed               )

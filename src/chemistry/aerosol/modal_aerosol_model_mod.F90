@@ -19,7 +19,6 @@ module modal_aerosol_model_mod
      real(r8), allocatable :: dgnumhi_amode(:)
      real(r8), allocatable :: voltonumblo_amode(:)
      real(r8), allocatable :: voltonumbhi_amode(:)
-     real(r8), allocatable :: alogsig(:)     ! natl log of geometric standard dev of aerosol
      real(r8), allocatable :: exp45logsig(:)
    contains
      procedure :: loadaer => modal_loadaer

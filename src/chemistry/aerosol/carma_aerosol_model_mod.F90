@@ -15,6 +15,7 @@ module carma_aerosol_model_mod
      procedure :: loadaer => carma_loadaer
      procedure :: model_init => carma_model_init
      procedure :: model_final => carma_model_final
+     procedure :: err_funct => carma_err_funct ! override base routine
   end type carma_aerosol_model
 
 contains
@@ -36,6 +37,7 @@ contains
     allocate( self%nspec(nbins) )
     allocate( self%amcubecoef(nbins) )
     allocate( self%argfactor(nbins) )
+    allocate( self%alogsig(nbins) )
     allocate( self%f1(nbins) )
     allocate( self%f2(nbins) )
 
@@ -43,6 +45,7 @@ contains
        call rad_cnst_get_info_by_bin(0, m, nspec=self%nspec(m))
        self%amcubecoef(m)=3._r8/(4._r8*pi)
        self%argfactor(m)=twothird/(sq2*log(2._r8))
+       self%alogsig(m)=1._r8
        self%f1(m)=1._r8
        self%f2(m)=1._r8
     end do
@@ -153,5 +156,13 @@ contains
     end if
 
   end subroutine carma_loadaer
+
+  ! override the error function
+  function carma_err_funct(self,x) result(err)
+    class(carma_aerosol_model), intent(in) :: self
+    real(r8), intent(in) :: x
+    real(r8) :: err
+    err = -1._r8
+  end function carma_err_funct
 
 end module carma_aerosol_model_mod

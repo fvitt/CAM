@@ -2491,8 +2491,6 @@ end subroutine ma_convproc_tend
 !
 !-----------------------------------------------------------------------
 
-   use ndrop_carma, only: activate_carma
-
    implicit none
 
 !-----------------------------------------------------------------------
@@ -2664,7 +2662,7 @@ end subroutine ma_convproc_tend
    wminf = wbar
    wmaxf = wbar
 
-   call activate_carma( aero_model,                                                     &
+   call aero_model%activate( &
          wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,                    &
          naerosol, nbins, vaerosol, hygro,                            &
          fn, fm, fluxn, fluxm, flux_fullact                                )
@@ -2767,8 +2765,6 @@ end subroutine ma_convproc_tend
 ! Author: R. Easter
 !
 !-----------------------------------------------------------------------
-
-   use ndrop_carma, only: activate_carma
 
    !st use modal_aero_data, only:  lmassptr_amode, lmassptrcw_amode, &
    !st ntot_amode, &
@@ -2955,7 +2951,7 @@ end subroutine ma_convproc_tend
 
    if (k == kactfirst) then
 
-      call activate_carma(  aero_model,                                               &
+      call aero_model%activate( &
          wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,                    &
          naerosol, nbins, vaerosol, hygro,                            &
          fn, fm, fluxn, fluxm, flux_fullact                                )
@@ -2965,7 +2961,7 @@ end subroutine ma_convproc_tend
 ! above cloud base - do secondary activation with prescribed supersat
 ! that is constant with height
       smax_prescribed = method2_activate_smaxmax
-      call activate_carma(  aero_model,                                               &
+      call aero_model%activate( &
          wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,                    &
          naerosol, nbins, vaerosol, hygro,                            &
          fn, fm, fluxn, fluxm, flux_fullact, smax_prescribed               )
