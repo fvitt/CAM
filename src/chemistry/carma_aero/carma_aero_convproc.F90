@@ -33,6 +33,9 @@ use cam_abortutils,  only: endrun
 use rad_constituents,only: rad_cnst_get_info, rad_cnst_get_info_by_bin, rad_cnst_get_info_by_bin_spec, &
                            rad_cnst_get_bin_props_by_idx, rad_cnst_get_bin_mmr_by_idx, rad_cnst_get_bin_mmr, &
                            rad_cnst_get_bin_num
+
+use aerosol_model_mod, only: aerosol_model
+
 implicit none
 private
 save
@@ -370,7 +373,7 @@ end subroutine ma_convproc_init
 
 !=========================================================================================
 
-subroutine ma_convproc_intr( state, ptend, pbuf, ztodt,             &
+subroutine ma_convproc_intr( aero_model, state, ptend, pbuf, ztodt,             &
                            nsrflx_mzaer2cnvpr, qsrflx_mzaer2cnvpr,  &
                            aerdepwetis, dcondt_resusp3d )
 !-----------------------------------------------------------------------
@@ -391,6 +394,7 @@ subroutine ma_convproc_intr( state, ptend, pbuf, ztodt,             &
 
 
    ! Arguments
+   class(aerosol_model), intent(in) :: aero_model
    type(physics_state),       intent(in )   :: state      ! Physics state variables
    type(physics_ptend),       intent(inout) :: ptend      ! %lq set in aero_model_wetdep
    type(physics_buffer_desc), pointer       :: pbuf(:)
@@ -489,7 +493,7 @@ subroutine ma_convproc_intr( state, ptend, pbuf, ztodt,             &
 
       ! do deep conv processing
       if (convproc_do_deep) then
-         call ma_convproc_dp_intr(                    &
+         call ma_convproc_dp_intr(aero_model,                    &
             state, pbuf, dt,                          &
             qb, dqdt, dotend, nsrflx, qsrflx, dcondt_resusp3d )
 
@@ -539,7 +543,7 @@ subroutine ma_convproc_intr( state, ptend, pbuf, ztodt,             &
       dqdt(:,:,:) = 0.0_r8
       qsrflx(:,:,:) = 0.0_r8
       if (convproc_do_shallow) then
-         call ma_convproc_sh_intr(                    &
+         call ma_convproc_sh_intr( aero_model,                   &
             state, pbuf, dt,                          &
             qb, dqdt, dotend, nsrflx, qsrflx, dcondt_resusp3d )
 
@@ -609,7 +613,7 @@ end subroutine ma_convproc_intr
 
 !=========================================================================================
 
-subroutine ma_convproc_dp_intr(                &
+subroutine ma_convproc_dp_intr( aero_model,               &
      state, pbuf, dt,                          &
      q, dqdt, dotend, nsrflx, qsrflx,  dcondt_resusp3d)
 !-----------------------------------------------------------------------
@@ -630,6 +634,7 @@ subroutine ma_convproc_dp_intr(                &
 
 
    ! Arguments
+   class(aerosol_model), intent(in) :: aero_model
    type(physics_state),       intent(in ) :: state          ! Physics state variables
    type(physics_buffer_desc), pointer     :: pbuf(:)
 
@@ -717,7 +722,7 @@ subroutine ma_convproc_dp_intr(                &
 
    itmpveca(:) = -1
 
-   call ma_convproc_tend(                                            &
+   call ma_convproc_tend(  aero_model,                                           &
                      'deep',                                         &
                      lchnk,      pcnst,      nstep,      dt,         &
                      state%t,    state%pmid, state%pdel, qaa,        &
@@ -739,7 +744,7 @@ end subroutine ma_convproc_dp_intr
 
 
 !=========================================================================================
-subroutine ma_convproc_sh_intr(                 &
+subroutine ma_convproc_sh_intr( aero_model,                &
      state, pbuf, dt,                           &
      q, dqdt, dotend, nsrflx, qsrflx, dcondt_resusp3d )
 !-----------------------------------------------------------------------
@@ -760,6 +765,7 @@ subroutine ma_convproc_sh_intr(                 &
 !-----------------------------------------------------------------------
 
 ! Arguments
+   class(aerosol_model), intent(in) :: aero_model
    type(physics_state), intent(in ) :: state          ! Physics state variables
    type(physics_buffer_desc), pointer :: pbuf(:)
 
@@ -947,7 +953,7 @@ subroutine ma_convproc_sh_intr(                 &
 
    itmpveca(:) = -1
 
-   call ma_convproc_tend(                                            &
+   call ma_convproc_tend( aero_model,                                           &
                      'uwsh',                                         &
                      lchnk,      pcnst,      nstep,      dt,         &
                      state%t,    state%pmid, state%pdel, qaa,        &
@@ -968,7 +974,7 @@ end subroutine ma_convproc_sh_intr
 
 !=========================================================================================
 
-subroutine ma_convproc_tend(                                           &
+subroutine ma_convproc_tend( aero_model,                                          &
                      convtype,                                       &
                      lchnk,      ncnst,      nstep,      dt,         &
                      t,          pmid,       pdel,       q,          &
@@ -1024,6 +1030,7 @@ subroutine ma_convproc_tend(                                           &
 !
 ! Input arguments
 !
+   class(aerosol_model), intent(in) :: aero_model
    character(len=*), intent(in) :: convtype  ! identifies the type of
                                              ! convection ("deep", "shcu")
    integer,  intent(in) :: lchnk             ! chunk identifier
@@ -1580,7 +1587,7 @@ k_loop_main_bb: &
 
                      kactfirst = k
                      tmpa = 1.0_r8
-                     call ma_activate_convproc(                            &
+                     call ma_activate_convproc( aero_model,                           &
                         conu(:,k),  dconudt_activa(:,k), conu(:,k),        &
                         tmpa,       dt_u(k),             wup(k),           &
                         t(icol,k),  rhoair_i(k),         fracice(icol,k),  &
@@ -1591,7 +1598,7 @@ k_loop_main_bb: &
                      ! current layer is above cloud base (=first layer with activation)
                      !    only allow activation at k = kactfirst thru kactfirst-(method1_activate_nlayers-1)
                      if (k >= kactfirst-(method1_activate_nlayers-1)) then
-                        call ma_activate_convproc(                            &
+                        call ma_activate_convproc( aero_model,                           &
                            conu(:,k),  dconudt_activa(:,k), const(:,k),       &
                            f_ent,      dt_u(k),             wup(k),           &
                            t(icol,k),  rhoair_i(k),         fracice(icol,k),  &
@@ -1646,7 +1653,7 @@ k_loop_main_bb: &
                         'qaku act_conv lchnk,i,jtsub', lchnk, icol, jtsub
                   end if
 
-                  call ma_activate_convproc_method2(                    &
+                  call ma_activate_convproc_method2( aero_model,                   &
                      conu(:,k),  dconudt_activa(:,k),                   &
                      f_ent,      dt_u(k),             wup(k),           &
                      t(icol,k),  rhoair_i(k),         fracice(icol,k),  &
@@ -2433,7 +2440,7 @@ end subroutine ma_convproc_tend
    end subroutine accumulate_to_larger_mode
 
 !=========================================================================================
-   subroutine ma_activate_convproc(             &
+   subroutine ma_activate_convproc( aero_model,            &
               conu,       dconudt,   conent,    &
               f_ent,      dt_u,      wup,       &
               tair,       rhoair,    fracice,   &
@@ -2490,6 +2497,7 @@ end subroutine ma_convproc_tend
 
 !-----------------------------------------------------------------------
 ! arguments  (note:  TMR = tracer mixing ratio)
+   class(aerosol_model), intent(in) :: aero_model
    integer, intent(in)     :: pcnst_extd
    ! conu = tracer mixing ratios in updraft at top of this (current) level
    !        The conu are changed by activation
@@ -2656,7 +2664,7 @@ end subroutine ma_convproc_tend
    wminf = wbar
    wmaxf = wbar
 
-   call activate_carma(                                                    &
+   call activate_carma( aero_model,                                                     &
          wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,                    &
          naerosol, nbins, vaerosol, hygro,                            &
          fn, fm, fluxn, fluxm, flux_fullact                                )
@@ -2715,7 +2723,7 @@ end subroutine ma_convproc_tend
 
 
 !=========================================================================================
-   subroutine ma_activate_convproc_method2(     &
+   subroutine ma_activate_convproc_method2( aero_model,    &
               conu,       dconudt,              &
               f_ent,      dt_u,      wup,       &
               tair,       rhoair,    fracice,   &
@@ -2774,6 +2782,7 @@ end subroutine ma_convproc_tend
 
 !-----------------------------------------------------------------------
 ! arguments  (note:  TMR = tracer mixing ratio)
+   class(aerosol_model), intent(in) :: aero_model
    integer, intent(in)     :: pcnst_extd
    ! conu = tracer mixing ratios in updraft at top of this (current) level
    !        The conu are changed by activation
@@ -2937,7 +2946,6 @@ end subroutine ma_convproc_tend
 
    end do
 
-
 ! call Razzak-Ghan activation routine with single updraft
    wbar = max( wup, 0.5_r8 )  ! force wbar >= 0.5 m/s for now
    sigw = 0.0_r8
@@ -2947,7 +2955,7 @@ end subroutine ma_convproc_tend
 
    if (k == kactfirst) then
 
-      call activate_carma(                                                 &
+      call activate_carma(  aero_model,                                               &
          wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,                    &
          naerosol, nbins, vaerosol, hygro,                            &
          fn, fm, fluxn, fluxm, flux_fullact                                )
@@ -2957,7 +2965,7 @@ end subroutine ma_convproc_tend
 ! above cloud base - do secondary activation with prescribed supersat
 ! that is constant with height
       smax_prescribed = method2_activate_smaxmax
-      call activate_carma(                                                 &
+      call activate_carma(  aero_model,                                               &
          wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,                    &
          naerosol, nbins, vaerosol, hygro,                            &
          fn, fm, fluxn, fluxm, flux_fullact, smax_prescribed               )

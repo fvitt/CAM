@@ -978,6 +978,8 @@ contains
     use modal_aero_calcsize,   only: modal_aero_calcsize_sub
     use modal_aero_wateruptake,only: modal_aero_wateruptake_dr
     use modal_aero_convproc,   only: deepconv_wetdep_history, ma_convproc_intr, convproc_do_evaprain_atonce
+    use aerosol_model_mod, only: aerosol_model
+    use modal_aerosol_model_mod, only: modal_aerosol_model
 
     ! args
 
@@ -1074,6 +1076,11 @@ contains
     type(wetdep_inputs_t) :: dep_inputs
 
     real(r8) :: dcondt_resusp3d(2*pcnst,pcols, pver)
+    class(aerosol_model), pointer :: aero_model
+    type(modal_aerosol_model),target :: modal_aero_model
+
+    aero_model => modal_aero_model
+    call aero_model%create(state,pbuf)
 
     lchnk = state%lchnk
     ncol  = state%ncol
@@ -1619,7 +1626,7 @@ contains
 
     if (convproc_do_aer) then
        call t_startf('ma_convproc')
-       call ma_convproc_intr( state, ptend, pbuf, dt,                &
+       call ma_convproc_intr( aero_model, state, ptend, pbuf, dt,                &
             nsrflx_mzaer2cnvpr, qsrflx_mzaer2cnvpr, aerdepwetis, &
             dcondt_resusp3d)
 
@@ -1659,7 +1666,10 @@ contains
        call set_srf_wetdep(aerdepwetis, aerdepwetcw, cam_out)
     endif
 
-  endsubroutine aero_model_wetdep
+    call aero_model%destroy()
+    nullify(aero_model)
+
+  end subroutine aero_model_wetdep
 
   !-------------------------------------------------------------------------
   ! provides wet tropospheric aerosol surface area info for modal aerosols

@@ -21,8 +21,6 @@ module modal_aerosol_model_mod
      real(r8), allocatable :: voltonumbhi_amode(:)
      real(r8), allocatable :: alogsig(:)     ! natl log of geometric standard dev of aerosol
      real(r8), allocatable :: exp45logsig(:)
-     real(r8), allocatable :: f1(:)          ! abdul-razzak functions of width
-     real(r8), allocatable :: f2(:)          ! abdul-razzak functions of width
    contains
      procedure :: loadaer => modal_loadaer
      procedure :: model_init => modal_model_init

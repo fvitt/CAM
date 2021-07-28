@@ -555,6 +555,8 @@ contains
     use carma_aero_convproc,   only: deepconv_wetdep_history, ma_convproc_intr, convproc_do_evaprain_atonce
     use time_manager,          only: is_first_step
 
+    use aerosol_model_mod, only: aerosol_model
+    use carma_aerosol_model_mod, only: carma_aerosol_model
 
     ! args
 
@@ -678,6 +680,12 @@ contains
 
     character(len=32) :: spectype
     character(len=32) :: bin_name
+
+    class(aerosol_model), pointer :: aero_model
+    type(carma_aerosol_model),target :: carma_aero_model
+
+    aero_model => carma_aero_model
+    call aero_model%create(state,pbuf)
 
     lchnk = state%lchnk
     ncol  = state%ncol
@@ -1342,7 +1350,7 @@ contains
 
     if (convproc_do_aer) then
        call t_startf('ma_convproc')
-       call ma_convproc_intr( state, ptend, pbuf, dt,                &
+       call ma_convproc_intr( aero_model, state, ptend, pbuf, dt,                &
             nsrflx_mzaer2cnvpr, qsrflx_mzaer2cnvpr, aerdepwetis, &
             dcondt_resusp3d)
 
@@ -1359,7 +1367,10 @@ contains
     !st    call set_srf_wetdep(aerdepwetis, aerdepwetcw, cam_out)
     !st endif
 
-  endsubroutine aero_model_wetdep
+    call aero_model%destroy()
+    nullify(aero_model)
+
+  end subroutine aero_model_wetdep
 
   !-------------------------------------------------------------------------
   ! provides wet tropospheric aerosol surface area info for sectional aerosols

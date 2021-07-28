@@ -17,6 +17,8 @@ module aerosol_model_mod
      type(physics_buffer_desc), pointer :: pbuf(:) => null()
      real(r8), allocatable :: amcubecoef(:)
      real(r8), allocatable :: argfactor(:)
+     real(r8), allocatable :: f1(:) ! abdul-razzak functions of width
+     real(r8), allocatable :: f2(:) ! abdul-razzak functions of width
    contains
      procedure :: create => aero_create
      procedure(aero_model_init), deferred :: model_init
@@ -24,6 +26,7 @@ module aerosol_model_mod
      procedure :: destroy => aero_destroy
      procedure(aero_loadaer), deferred :: loadaer
      procedure :: ccncalc => aero_ccncalc
+     procedure :: maxsat => aero_maxsat
   end type aerosol_model
 
   interface
@@ -177,6 +180,57 @@ contains
     ccn(:ncol,:,:)=ccn(:ncol,:,:)*1.e-6_r8 ! convert from #/m3 to #/cm3
 
   end subroutine aero_ccncalc
+
+  !===============================================================================
+
+  subroutine aero_maxsat(self,zeta,eta,nmode,smc,smax)
+
+    !      calculates maximum supersaturation for multiple
+    !      competing aerosol modes.
+
+    !      Abdul-Razzak and Ghan, A parameterization of aerosol activation.
+    !      2. Multiple aerosol types. J. Geophys. Res., 105, 6837-6844.
+
+    class(aerosol_model), intent(in) :: self
+    integer,  intent(in)  :: nmode ! number of modes
+    real(r8), intent(in)  :: smc(nmode) ! critical supersaturation for number mode radius
+    real(r8), intent(in)  :: zeta(nmode)
+    real(r8), intent(in)  :: eta(nmode)
+    real(r8), intent(out) :: smax ! maximum supersaturation
+    integer  :: m  ! mode index
+    real(r8) :: sum, g1, g2, g1sqrt, g2sqrt
+
+    do m=1,nmode
+       if(zeta(m).gt.1.e5_r8*eta(m).or.smc(m)*smc(m).gt.1.e5_r8*eta(m))then
+          ! weak forcing. essentially none activated
+          smax=1.e-20_r8
+       else
+          ! significant activation of this mode. calc activation all modes.
+          exit
+       endif
+       ! No significant activation in any mode.  Do nothing.
+       if (m == nmode) return
+
+    enddo
+
+    sum=0.0_r8
+    do m=1,nmode
+       if(eta(m).gt.1.e-20_r8)then
+          g1=zeta(m)/eta(m)
+          g1sqrt=sqrt(g1)
+          g1=g1sqrt*g1
+          g2=smc(m)/sqrt(eta(m)+3._r8*zeta(m))
+          g2sqrt=sqrt(g2)
+          g2=g2sqrt*g2
+          sum=sum+(self%f1(m)*g1+self%f2(m)*g2)/(smc(m)*smc(m))
+       else
+          sum=1.e20_r8
+       endif
+    enddo
+
+    smax=1._r8/sqrt(sum)
+
+  end subroutine aero_maxsat
 
 
  end module aerosol_model_mod

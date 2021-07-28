@@ -684,7 +684,7 @@ subroutine dropmixnuc_carma( aero_model, &
                hygro(m)    = hy(i)
             end do
 
-            call activate_carma( &
+            call activate_carma( aero_model, &
                wbar, wmix, wdiab, wmin, wmax,                       &
                temp(i,k), cs(i,k), naermod, nbins,             &
                vaerosol, hygro, fn, fm, fluxn,     &
@@ -769,7 +769,7 @@ subroutine dropmixnuc_carma( aero_model, &
                   hygro(m)    = hy(i)
                end do
 
-               call activate_carma( &
+               call activate_carma( aero_model, &
                   wbar, wmix, wdiab, wmin, wmax,                       &
                   temp(i,k), cs(i,k), naermod, nbins,             &
                   vaerosol, hygro,  fn, fm, fluxn,     &
@@ -1283,7 +1283,7 @@ end subroutine explmix
 
 !===============================================================================
 
-subroutine activate_carma(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
+subroutine activate_carma(aero_model, wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
    na, nmode, volume, hygro,  &
    fn, fm, fluxn, fluxm, flux_fullact, smax_prescribed, in_cloud_in, smax_f)
 
@@ -1299,6 +1299,7 @@ subroutine activate_carma(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
 
 
    !      input
+   class(aerosol_model), intent(in) :: aero_model
 
    real(r8), intent(in) :: wbar          ! grid cell mean vertical velocity (m/s)
    real(r8), intent(in) :: sigw          ! subgrid standard deviation of vertical vel (m/s)
@@ -1488,7 +1489,7 @@ subroutine activate_carma(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
          if ( present( smax_prescribed ) ) then
             smax = smax_prescribed
          else
-            call maxsat(zeta,eta,nmode,smc,smax)
+            call aero_model%maxsat(zeta,eta,nmode,smc,smax)
          endif
          !	      write(iulog,*)'w,smax=',w,smax
 
@@ -1660,7 +1661,7 @@ subroutine activate_carma(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
             if ( present(smax_prescribed) ) then
                smax = smax_prescribed
             else
-               call maxsat(zeta, eta, nmode, smc, smax)
+               call aero_model%maxsat(zeta, eta, nmode, smc, smax)
             end if
          end if
 
@@ -1689,58 +1690,5 @@ subroutine activate_carma(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
    endif
 
 end subroutine activate_carma
-
-!===============================================================================
-
-subroutine maxsat(zeta,eta,nmode,smc,smax)
-
-   !      calculates maximum supersaturation for multiple
-   !      competing aerosol modes.
-
-   !      Abdul-Razzak and Ghan, A parameterization of aerosol activation.
-   !      2. Multiple aerosol types. J. Geophys. Res., 105, 6837-6844.
-
-   integer,  intent(in)  :: nmode ! number of modes
-   real(r8), intent(in)  :: smc(nmode) ! critical supersaturation for number mode radius
-   real(r8), intent(in)  :: zeta(nmode)
-   real(r8), intent(in)  :: eta(nmode)
-   real(r8), intent(out) :: smax ! maximum supersaturation
-   integer  :: m  ! mode or bin index
-   real(r8) :: sum, g1, g2, g1sqrt, g2sqrt
-
-   do m=1,nmode
-      if(zeta(m).gt.1.e5_r8*eta(m).or.smc(m)*smc(m).gt.1.e5_r8*eta(m))then
-         !            weak forcing. essentially none activated
-         smax=1.e-20_r8
-      else
-         !            significant activation of this mode. calc activation all modes.
-         exit
-      endif
-          ! No significant activation in any mode.  Do nothing.
-      if (m == nmode) return
-
-   enddo
-
-   sum=0.0_r8
-
-   do m=1,nmode
-      if(eta(m).gt.1.e-20_r8)then
-         g1=zeta(m)/eta(m)
-         g1sqrt=sqrt(g1)
-         g1=g1sqrt*g1
-         g2=smc(m)/sqrt(eta(m)+3._r8*zeta(m))
-         g2sqrt=sqrt(g2)
-         g2=g2sqrt*g2
-         sum=sum+(g1+g2)/(smc(m)*smc(m))
-      else
-         sum=1.e20_r8
-      endif
-   enddo
-
-   smax=1._r8/sqrt(sum)
-
-end subroutine maxsat
-
-!===============================================================================
 
 end module ndrop_carma
