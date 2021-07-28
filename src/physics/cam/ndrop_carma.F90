@@ -1421,30 +1421,22 @@ subroutine activate_carma(aero_model, wbar, sigw, wdiab, wminf, wmaxf, tair, rho
 
       if(volume(m).gt.1.e-39_r8.and.na(m).gt.1.e-39_r8)then
 
-         amcube(m)=(3._r8*volume(m)/(4._r8*pi*na(m)))
+         amcube(m)= aero_model%amcubecoef(m)*(volume(m)/na(m))
          !           growth coefficent Abdul-Razzak & Ghan 1998 eqn 16
          !           should depend on mean radius of mode to account for gas kinetic effects
          !           see Fountoukis and Nenes, JGR2005 and Meskhidze et al., JGR2006
          !           for approriate size to use for effective diffusivity.
-         !st changed according to Pengfei's code
          etafactor2(m)=1._r8/(na(m)*beta*sqrtg)
          if(hygro(m).gt.1.e-10_r8)then
-            !st old mam description: smc(m)=2._r8*aten*sqrt(aten/(27._r8*hygro(m)*amcube(m))) ! only if variable size dist
             smc(m)=2._r8*aten*sqrt(aten/(27._r8*hygro(m)*amcube(m))) ! only if variable size dist
-            !use Tianyi's code
-            !smc(m)=2._r8*aten*sqrt(aten/(20.25_r8/pi*hygro(m,igroup)*&
-            !                           4._r8/3._r8*3.14159_r8*r(m)**3*1.e-6_r8))
          else
             smc(m)=100._r8
          endif
       else
          smc(m)=1._r8
          etafactor2(m)=etafactor2max ! this should make eta big if na is very small.
-         !st write(iulog,'(a,i4,2g12.2)')'SMC1: m,na,volume= ',m,na(m),volume(m)
       endif
-      !st  lnsm(m)=log(smc(m)) ! only if variable size dist
-       !st write(iulog,'(a,i4,5g12.2)')'m,na,volume,amcube,hygro,smc,= ', &
-       !st                    m,na(m),volume(m),amcube(m),hygro(m),smc(m)
+      lnsm(m)=log(smc(m)) ! only if variable size dist
    enddo
 
    if(sigw.gt.1.e-5_r8)then ! spectrum of updrafts

@@ -1423,9 +1423,8 @@ subroutine activate_modal(aero_model, wbar, sigw, wdiab, wminf, wmaxf, tair, rho
    do m=1,nmode
 
       if(volume(m).gt.1.e-39_r8.and.na(m).gt.1.e-39_r8)then
-         !            number mode radius (m)
-         !           write(iulog,*)'alogsig,volc,na=',alogsig(m),volc(m),na(m)
-         amcube(m)=(3._r8*volume(m)/(4._r8*pi*exp45logsig(m)*na(m)))  ! only if variable size dist
+
+         amcube(m)= aero_model%amcubecoef(m)*(volume(m)/na(m))
          !           growth coefficent Abdul-Razzak & Ghan 1998 eqn 16
          !           should depend on mean radius of mode to account for gas kinetic effects
          !           see Fountoukis and Nenes, JGR2005 and Meskhidze et al., JGR2006
@@ -1436,14 +1435,11 @@ subroutine activate_modal(aero_model, wbar, sigw, wdiab, wminf, wmaxf, tair, rho
          else
             smc(m)=100._r8
          endif
-         !	    write(iulog,*)'sm,hygro,amcube=',smcrit(m),hygro(m),amcube(m)
       else
          smc(m)=1._r8
          etafactor2(m)=etafactor2max ! this should make eta big if na is very small.
       endif
       lnsm(m)=log(smc(m)) ! only if variable size dist
-      !	 write(iulog,'(a,i4,4g12.2)')'m,na,amcube,hygro,sm,lnsm=', &
-      !                   m,na(m),amcube(m),hygro(m),sm(m),lnsm(m)
    enddo
 
    if(sigw.gt.1.e-5_r8)then ! spectrum of updrafts
