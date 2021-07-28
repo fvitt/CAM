@@ -13,7 +13,7 @@ module aerosol_model_mod
 
   type, abstract :: aerosol_model
      integer :: mtotal
-     type(physics_state), pointer :: state => null()
+     type(physics_state) :: state
      type(physics_buffer_desc), pointer :: pbuf(:) => null()
      real(r8), allocatable :: amcubecoef(:)
      real(r8), allocatable :: argfactor(:)
@@ -75,10 +75,10 @@ contains
 
   subroutine aero_create( self, state, pbuf )
     class(aerosol_model), intent(inout) :: self
-    type(physics_state), target, intent(in) :: state
+    type(physics_state), intent(in) :: state
     type(physics_buffer_desc), pointer :: pbuf(:)
 
-    self%state => state
+    self%state = state
     self%pbuf => pbuf
 
     call self%model_init()
@@ -88,7 +88,6 @@ contains
   subroutine aero_destroy( self )
     class(aerosol_model), intent(inout) :: self
 
-    nullify(self%state)
     nullify(self%pbuf)
 
     call self%model_final()
