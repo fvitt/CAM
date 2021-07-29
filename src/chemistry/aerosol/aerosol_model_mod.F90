@@ -32,6 +32,7 @@ module aerosol_model_mod
      procedure :: maxsat => aero_maxsat
      procedure :: activate => aero_activate
      procedure :: err_funct => aero_err_funct
+     procedure :: explmix => aero_explmix
   end type aerosol_model
 
   interface
@@ -637,6 +638,84 @@ contains
 
   end subroutine aero_activate
 
+  !===============================================================================
+
+  subroutine aero_explmix( self, q, src, ekkp, ekkm, overlapp, overlapm, &
+       qold, surfrate, flxconv, pver, dt, is_unact, qactold )
+
+    !  explicit integration of droplet/aerosol mixing
+    !     with source due to activation/nucleation
+
+
+    class(aerosol_model), intent(in) :: self
+    integer, intent(in) :: pver ! number of levels
+    real(r8), intent(out) :: q(pver) ! mixing ratio to be updated
+    real(r8), intent(in) :: qold(pver) ! mixing ratio from previous time step
+    real(r8), intent(in) :: src(pver) ! source due to activation/nucleation (/s)
+    real(r8), intent(in) :: ekkp(pver) ! zn*zs*density*diffusivity (kg/m3 m2/s) at interface
+    ! below layer k  (k,k+1 interface)
+    real(r8), intent(in) :: ekkm(pver) ! zn*zs*density*diffusivity (kg/m3 m2/s) at interface
+    ! above layer k  (k,k+1 interface)
+    real(r8), intent(in) :: overlapp(pver) ! cloud overlap below
+    real(r8), intent(in) :: overlapm(pver) ! cloud overlap above
+    real(r8), intent(in) :: surfrate ! surface exchange rate (/s)
+    real(r8), intent(in) :: flxconv ! convergence of flux from surface
+    real(r8), intent(in) :: dt ! time step (s)
+    logical, intent(in) :: is_unact ! true if this is an unactivated species
+    real(r8), intent(in),optional :: qactold(pver)
+    ! mixing ratio of ACTIVATED species from previous step
+    ! *** this should only be present
+    !     if the current species is unactivated number/sfc/mass
+
+    integer k,kp1,km1
+
+    if ( is_unact ) then
+       !     the qactold*(1-overlap) terms are resuspension of activated material
+       do k=top_lev,pver
+          kp1=min(k+1,pver)
+          km1=max(k-1,top_lev)
+          q(k) = qold(k) + dt*( - src(k) + ekkp(k)*(qold(kp1) - qold(k) +       &
+               qactold(kp1)*(1.0_r8-overlapp(k)))               &
+               + ekkm(k)*(qold(km1) - qold(k) +     &
+               qactold(km1)*(1.0_r8-overlapm(k))) )
+          !        force to non-negative
+          !        if(q(k)<-1.e-30)then
+          !           write(iulog,*)'q=',q(k),' in explmix'
+          q(k)=max(q(k),0._r8)
+          !        endif
+       end do
+
+       !     diffusion loss at base of lowest layer
+       q(pver)=q(pver)-surfrate*qold(pver)*dt+flxconv*dt
+       !        force to non-negative
+       !        if(q(pver)<-1.e-30)then
+       !           write(iulog,*)'q=',q(pver),' in explmix'
+       q(pver)=max(q(pver),0._r8)
+       !        endif
+    else
+       do k=top_lev,pver
+          kp1=min(k+1,pver)
+          km1=max(k-1,top_lev)
+          q(k) = qold(k) + dt*(src(k) + ekkp(k)*(overlapp(k)*qold(kp1)-qold(k)) +      &
+               ekkm(k)*(overlapm(k)*qold(km1)-qold(k)) )
+          !        force to non-negative
+          !        if(q(k)<-1.e-30)then
+          !           write(iulog,*)'q=',q(k),' in explmix'
+          q(k)=max(q(k),0._r8)
+          !        endif
+       end do
+       !     diffusion loss at base of lowest layer
+       q(pver)=q(pver)-surfrate*qold(pver)*dt+flxconv*dt
+       !        force to non-negative
+       !        if(q(pver)<-1.e-30)then
+       !           write(iulog,*)'q=',q(pver),' in explmix'
+       q(pver)=max(q(pver),0._r8)
+
+    end if
+
+  end subroutine aero_explmix
+
+  !===============================================================================
 
   function aero_err_funct(self,x) result(err)
     class(aerosol_model), intent(in) :: self
