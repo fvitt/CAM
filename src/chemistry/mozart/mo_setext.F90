@@ -1,4 +1,3 @@
-
 module mo_setext
 
   use shr_kind_mod, only : r8 => shr_kind_r8
@@ -162,7 +161,7 @@ contains
 
     real(r8) :: mee_ap_ipr(ncol,pver) ! ion pairs production rate from Ap formulation
 
-    call mee_ap_ionpairs(ncol,lchnk, pmid, tfld, mee_ap_ipr )
+    call mee_ap_ionpairs(ncol, lchnk, pmid, zmid*1.e3_r8, tfld, mee_ap_ipr)
 
     extfrc(:,:,:) = 0._r8
 

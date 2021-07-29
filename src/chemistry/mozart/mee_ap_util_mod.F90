@@ -19,6 +19,7 @@ module mee_ap_util_mod
   real(r8) :: energies(nbins) = -huge(1._r8)
   real(r8) :: denergies(nbins) = -huge(1._r8) ! width of each energy bin
   real(r8) :: solid_angle_factor = -huge(1._r8)
+  real(r8) :: fang_coefs(8,nbins) = -huge(1._r8)
 
 contains
 
@@ -39,6 +40,7 @@ contains
     solid_angle_factor = 2._r8*pi*(1._r8-cos(loss_cone_angle*pi/180._r8))
 
     call gen_energy_grid(nbins, energies, denergies)
+    call init_fang_coefs()
 
   end subroutine mee_ap_init
 
@@ -79,7 +81,7 @@ contains
 
     do i = 1,ncols
 
-       if ( l_shells(i) < 133._r8 ) then ! near 85 degrees mag lat
+       if (  l_shells(i) >= 2._r8 .and. l_shells(i) <= 10._r8 ) then
 
           ! calculate the top of the atmosphere energetic electron energy spectrum
           flux_sd(:) = FluxSpectrum(energies, l_shells(i), Ap)
@@ -210,7 +212,7 @@ contains
        y(:) = (2/e(n))*(rho(:)*scaleh(:)/6.0e-6_r8)**0.7_r8
 
        do k = 1,nlayers
-          f(k) = fang(y(k), e(n))
+          f(k) = fang(y(k), n)
        end do
 
        ! calculate ipr (qtot) using eq. (3) for a specified flux at ea. energy
@@ -220,8 +222,10 @@ contains
 
   contains
 
-    function fang(y, Emono) result(f)
-      real(r8), intent(in) :: y, Emono
+    pure function fang(y,n) result(f)
+      real(r8), intent(in) :: y
+      integer,  intent(in) :: n ! energy ndx
+
       real(r8) :: f
       ! Input:
       ! y - normalized atmospheric column mass as a function of vertical location (z)
@@ -229,38 +233,49 @@ contains
       ! Output:
       ! f - quanity calculated by eqn. (4)
 
-      real(r8) :: lne, lne2, lne3
-      real(r8) :: c(8)
-      integer :: i
-
-      ! Table 1.
-      real(r8), parameter :: p1(8,4) = reshape( &
-           (/ 1.24616E+0_r8,  1.45903E+0_r8, -2.42269E-1_r8,  5.95459E-2_r8, &
-              2.23976E+0_r8, -4.22918E-7_r8,  1.36458E-2_r8,  2.53332E-3_r8, &
-              1.41754E+0_r8,  1.44597E-1_r8,  1.70433E-2_r8,  6.39717E-4_r8, &
-              2.48775E-1_r8, -1.50890E-1_r8,  6.30894E-9_r8,  1.23707E-3_r8, &
-             -4.65119E-1_r8, -1.05081E-1_r8, -8.95701E-2_r8,  1.22450E-2_r8, &
-              3.86019E-1_r8,  1.75430E-3_r8, -7.42960E-4_r8,  4.60881E-4_r8, &
-             -6.45454E-1_r8,  8.49555E-4_r8, -4.28581E-2_r8, -2.99302E-3_r8, &
-              9.48930E-1_r8,  1.97385E-1_r8, -2.50660E-3_r8, -2.06938E-3_r8 /), shape=(/8,4/),order=(/2,1/))
-
-
-      ! terms in eq. (5)
-      lne = log(Emono)
-      lne2 = lne*lne
-      lne3 = lne*lne2
-
-      ! step 2. calculate the C array in (5)
-      do i = 1,8
-         c(i) = exp(p1(i,1) + p1(i,2)*lne + p1(i,3)*lne2 + p1(i,4)*lne3)
-      end do
 
       ! eq. (4) - Normalized energy deposition
-      f = c(1)*y**c(2)*exp(-c(3)*y**c(4)) + c(5)*y**c(6)*exp(-c(7)*y**c(8))
+      f = fang_coefs(1,n)*y**fang_coefs(2,n)*exp(-fang_coefs(3,n)*y**fang_coefs(4,n)) &
+        + fang_coefs(5,n)*y**fang_coefs(6,n)*exp(-fang_coefs(7,n)*y**fang_coefs(8,n))
 
     end function fang
 
   end function iprmono
+
+  !------------------------------------------------------------------------------
+  ! initializes the coeffs used in the fang function in iprmono
+  !------------------------------------------------------------------------------
+  subroutine init_fang_coefs
+
+    integer :: n,i
+
+    real(r8) :: lne, lne2, lne3
+    ! Table 1.
+    real(r8), parameter :: p1(8,4) = reshape( &
+         (/ 1.24616E+0_r8,  1.45903E+0_r8, -2.42269E-1_r8,  5.95459E-2_r8, &
+            2.23976E+0_r8, -4.22918E-7_r8,  1.36458E-2_r8,  2.53332E-3_r8, &
+            1.41754E+0_r8,  1.44597E-1_r8,  1.70433E-2_r8,  6.39717E-4_r8, &
+            2.48775E-1_r8, -1.50890E-1_r8,  6.30894E-9_r8,  1.23707E-3_r8, &
+           -4.65119E-1_r8, -1.05081E-1_r8, -8.95701E-2_r8,  1.22450E-2_r8, &
+            3.86019E-1_r8,  1.75430E-3_r8, -7.42960E-4_r8,  4.60881E-4_r8, &
+           -6.45454E-1_r8,  8.49555E-4_r8, -4.28581E-2_r8, -2.99302E-3_r8, &
+            9.48930E-1_r8,  1.97385E-1_r8, -2.50660E-3_r8, -2.06938E-3_r8 /), &
+         shape=(/8,4/),order=(/2,1/))
+
+    do n = 1,nbins
+       ! terms in eq. (5)
+       lne = log(energies(n))
+       lne2 = lne*lne
+       lne3 = lne*lne2
+
+       ! step 2. calculate the C array in (5)
+       do i = 1,8
+          fang_coefs(i,n) = exp(p1(i,1) + p1(i,2)*lne + p1(i,3)*lne2 + p1(i,4)*lne3)
+       end do
+
+    end do
+  end subroutine init_fang_coefs
+
 
 
   !------------------------------------------------------------------------------

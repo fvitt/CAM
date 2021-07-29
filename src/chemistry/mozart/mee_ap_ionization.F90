@@ -78,24 +78,27 @@ contains
 
   !-----------------------------------------------------------------------------
   !-----------------------------------------------------------------------------
-  subroutine mee_ap_ionpairs(ncol,lchnk, pmid, temp, ionpairs )
+  subroutine mee_ap_ionpairs(ncol, lchnk, pmid, alt, temp, ionpairs)
 
     use physconst, only: mbarv  ! kg/kmole
     use physconst, only: gravit
     use physconst, only: rairv  ! composition dependent gas constant (J/K/kg)
     use physconst, only: boltz  ! Boltzman's constant (J/K/molecule)
     use physconst, only: avogad ! Avogadro's number (molecules/kmole)
-
+    use physconst, only: rearth ! radius of earth (m)
     use cam_history, only : outfld
 
     integer,  intent(in) :: ncol,lchnk
     real(r8), intent(in) :: pmid(:,:)
+    real(r8), intent(in) :: alt(:,:) ! meters
     real(r8), intent(in) :: temp(:,:)
     real(r8), intent(out) :: ionpairs(:,:)
 
     real(r8) :: rho(pcols,pver)
     real(r8) :: scaleh(pcols,pver)
+    real(r8) :: grvty(pcols,pver)
     integer :: err
+    integer :: k
 
     if (.not.mee_ap_ion_inline) then
        ionpairs(:,:) = 0._r8
@@ -105,7 +108,9 @@ contains
     rho(:ncol,:) = pmid(:ncol,:)/(rairv(:ncol,:,lchnk)*temp(:ncol,:)) ! kg/m3
     rho(:ncol,:) = rho(:ncol,:)*1.0e-3_r8 ! kg/m3 --> g/cm3
 
-    scaleh(:ncol,:) = avogad * boltz*temp(:ncol,:)/(mbarv(:ncol,:,lchnk)*gravit) ! m
+    grvty(:ncol,:) = gravit * ( (rearth/(rearth+alt(:ncol,:)))**2 )
+
+    scaleh(:ncol,:) = avogad * boltz*temp(:ncol,:)/(mbarv(:ncol,:,lchnk)*grvty(:ncol,:)) ! m
     scaleh(:ncol,:) = scaleh(:ncol,:) * 1.0e2_r8 ! m -> cm
 
     ionpairs(:ncol,:) = mee_ap_iprs(ncol, pver, rho(:ncol,:), scaleh(:ncol,:), Ap, status=err, maglat=alatm(:ncol,lchnk))
