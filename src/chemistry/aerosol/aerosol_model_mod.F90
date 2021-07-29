@@ -8,10 +8,8 @@ module aerosol_model_mod
   use cam_logfile,    only: iulog
   use ppgrid,         only: pcols, pver
   use ref_pres,       only: top_lev => trop_cloud_top_lev
-  use physconst,      only: r_universal, rh2o, pi
+  use physconst,      only: mwh2o, rhoh2o, r_universal, rh2o, pi
   use physconst,      only: gravit, latvap, cpair, rair
-  use shr_const_mod,  only: mwh2o => shr_const_mwwv
-  use shr_const_mod,  only: rhoh2o => shr_const_rhofw
 
   implicit none
 
@@ -82,8 +80,6 @@ module aerosol_model_mod
   real(r8), parameter :: sqpi     = sqrt(pi)
   real(r8), parameter :: t0       = 273._r8  ! reference temperature
   real(r8), parameter :: surften  = 0.076_r8 ! surface tension of water w/respect to air (N/m)
-  real(r8), parameter :: aten     = 2._r8*mwh2o*surften/(r_universal*t0*rhoh2o)
-  real(r8), parameter :: alogaten = log(aten)
   real(r8), parameter :: alog2    = log(2._r8)
   real(r8), parameter :: alog3    = log(3._r8)
 
@@ -150,9 +146,10 @@ contains
 
     real(r8), parameter :: smcoefcoef=2._r8/sqrt(27._r8)
     real(r8), parameter :: super(psat)=supersat(:psat)*0.01_r8
-    real(r8), parameter :: surften_coef=2._r8*mwh2o*surften/(r_universal*rhoh2o)
+    real(r8) :: surften_coef
 
     !-------------------------------------------------------------------------------
+    surften_coef = 2._r8*mwh2o*surften/(r_universal*rhoh2o)
 
     lchnk = state%lchnk
     ncol  = state%ncol
@@ -337,12 +334,15 @@ contains
     integer m,n
     !      numerical integration parameters
     real(r8), parameter :: eps=0.3_r8,fmax=0.99_r8,sds=3._r8
-
     real(r8), parameter :: namin=1.e6_r8   ! minimum aerosol number concentration (/m3)
+    real(r8) :: aten, alogaten
 
     integer ndist(nx)  ! accumulates frequency distribution of integration bins required
     data ndist/nx*0/
     save ndist
+
+    aten     = 2._r8*mwh2o*surften/(r_universal*t0*rhoh2o)
+    alogaten = log(aten)
 
     if (present(in_cloud_in)) then
        if (.not. present(smax_f)) call endrun(subname//' : smax_f must be supplied when in_cloud is used')
