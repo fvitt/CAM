@@ -8,6 +8,7 @@ module aerosol_model_mod
   use cam_logfile,    only: iulog
   use ppgrid,         only: pcols, pver
   use ref_pres,       only: top_lev => trop_cloud_top_lev
+  use shr_spfn_mod,   only: erf => shr_spfn_erf
   use physconst,      only: mwh2o, rhoh2o, r_universal, rh2o, pi
   use physconst,      only: gravit, latvap, cpair, rair
 
@@ -18,6 +19,7 @@ module aerosol_model_mod
      type(physics_state) :: state
      type(physics_buffer_desc), pointer :: pbuf(:) => null()
      real(r8), allocatable :: amcubecoef(:)
+     real(r8), allocatable :: exp45logsig(:)
      real(r8), allocatable :: argfactor(:)
      real(r8), allocatable :: alogsig(:) ! natl log of geometric standard dev of aerosol
      real(r8), allocatable :: f1(:) ! abdul-razzak functions of width
@@ -384,7 +386,7 @@ contains
 
        if(volume(m).gt.1.e-39_r8.and.na(m).gt.1.e-39_r8)then
 
-          amcube(m)= self%amcubecoef(m)*(volume(m)/na(m))
+          amcube(m)=(3._r8*volume(m)/(4._r8*pi*self%exp45logsig(m)*na(m)))
           !           growth coefficent Abdul-Razzak & Ghan 1998 eqn 16
           !           should depend on mean radius of mode to account for gas kinetic effects
           !           see Fountoukis and Nenes, JGR2005 and Meskhidze et al., JGR2006
