@@ -523,22 +523,12 @@ subroutine dropmixnuc_carma( aero_model, &
 
       nsav = 1
       nnew = 2
-      do m = 1, nbins
-        do l = 0, nspec(m) +1
-         mm = bin_idx(m,l)
+      do mm = 1,ncnst_tot
          raercol_cw(:,mm,nsav) = 0.0_r8
          raercol(:,mm,nsav)    = 0.0_r8
          raercol_cw(top_lev:pver,mm,nsav) = qqcw(mm)%fld(i,top_lev:pver)
          raercol(top_lev:pver,mm,nsav)    = raer(mm)%fld(i,top_lev:pver)
-        end do
-
-         !st do l = 2, nspec(m) +1
-         !st    mm = bin_idx(m,l)
-         !st    raercol_cw(top_lev:pver,mm,nsav) = qqcw(mm)%fld(i,top_lev:pver)
-         !st    raercol(top_lev:pver,mm,nsav)    = raer(mm)%fld(i,top_lev:pver)
-         !st end do
-      end do
-
+      enddo
 
       if (called_from_spcam) then
       !

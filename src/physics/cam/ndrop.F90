@@ -541,17 +541,11 @@ subroutine dropmixnuc( aero_model, &
 
       nsav = 1
       nnew = 2
-      do m = 1, ntot_amode
-         mm = mam_idx(m,0)
+      do mm = 1,ncnst_tot
          raercol_cw(:,mm,nsav) = 0.0_r8
          raercol(:,mm,nsav)    = 0.0_r8
          raercol_cw(top_lev:pver,mm,nsav) = qqcw(mm)%fld(i,top_lev:pver)
          raercol(top_lev:pver,mm,nsav)    = raer(mm)%fld(i,top_lev:pver)
-         do l = 1, nspec_amode(m)
-            mm = mam_idx(m,l)
-            raercol_cw(top_lev:pver,mm,nsav) = qqcw(mm)%fld(i,top_lev:pver)
-            raercol(top_lev:pver,mm,nsav)    = raer(mm)%fld(i,top_lev:pver)
-         end do
       end do
 
 
