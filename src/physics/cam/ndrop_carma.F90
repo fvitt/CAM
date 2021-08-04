@@ -27,7 +27,7 @@ use rad_constituents, only: rad_cnst_get_info, rad_cnst_get_info_by_bin, rad_cns
 use cam_history,      only: addfld, add_default, horiz_only, fieldname_len, outfld
 use cam_abortutils,   only: endrun
 use cam_logfile,      only: iulog
-use aerosol_model_mod, only: aerosol_model
+use aerosol_model_mod, only: aerosol_model, ptr2d_t
 
 implicit none
 private
@@ -69,12 +69,6 @@ integer :: ncnst_tot                  ! total number of mode number conc + mode 
 ! Indices for CARMA species in the ptend%q array.  Needed for prognostic aerosol case.
 logical, allocatable :: bin_cnst_lq(:,:)
 integer, allocatable :: bin_cnst_idx(:,:)
-
-
-! ptr2d_t is used to create arrays of pointers to 2D fields
-type ptr2d_t
-   real(r8), pointer :: fld(:,:)
-end type ptr2d_t
 
 ! modal aerosols
 logical :: prog_modal_aero     ! true when aerosols are prognostic   !st make sure to check
