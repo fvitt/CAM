@@ -476,18 +476,7 @@ subroutine dropmixnuc( aero_model, &
       fluxn(ntot_amode),              &
       fluxm(ntot_amode)               )
 
-   ! Init pointers to mode number and specie mass mixing ratios in
-   ! intersitial and cloud borne phases.
-   do m = 1, ntot_amode
-      mm = mam_idx(m, 0)
-      call rad_cnst_get_mode_num(0, m, 'a', state, pbuf, raer(mm)%fld)
-      call rad_cnst_get_mode_num(0, m, 'c', state, pbuf, qqcw(mm)%fld)  ! cloud-borne aerosol
-      do l = 1, nspec_amode(m)
-         mm = mam_idx(m, l)
-         call rad_cnst_get_aer_mmr(0, m, l, 'a', state, pbuf, raer(mm)%fld)
-         call rad_cnst_get_aer_mmr(0, m, l, 'c', state, pbuf, qqcw(mm)%fld)  ! cloud-borne aerosol
-      end do
-   end do
+   call aero_model%set_ptrs( raer, qqcw )
 
    called_from_spcam = (present(from_spcam))
 

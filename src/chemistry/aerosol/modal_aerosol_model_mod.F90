@@ -1,6 +1,6 @@
 module modal_aerosol_model_mod
   use shr_kind_mod, only: r8 => shr_kind_r8
-  use aerosol_model_mod, only: aerosol_model, twothird, sq2
+  use aerosol_model_mod, only: aerosol_model, twothird, sq2, ptr2d_t
   use cam_logfile, only: iulog
   use spmd_utils, only: masterproc
   use physconst,        only: pi
@@ -13,6 +13,7 @@ module modal_aerosol_model_mod
 
   type, extends(aerosol_model) :: modal_aerosol_model
      integer               :: ntot_amode     ! number of aerosol modes
+     integer,  allocatable :: mam_idx(:,:) ! table for local indexing of modal aero number and mmr
      integer,  allocatable :: nspec_amode(:) ! number of chemical species in each aerosol mode
      real(r8), allocatable :: sigmag_amode(:)! geometric standard deviation for each aerosol mode
      real(r8), allocatable :: dgnumlo_amode(:)
@@ -21,6 +22,7 @@ module modal_aerosol_model_mod
      real(r8), allocatable :: voltonumbhi_amode(:)
    contains
      procedure :: loadaer => modal_loadaer
+     procedure :: set_ptrs => modal_set_ptrs
      procedure :: model_init => modal_model_init
      procedure :: model_final => modal_model_final
   end type modal_aerosol_model
@@ -30,9 +32,7 @@ contains
   subroutine modal_model_init(self)
     class(modal_aerosol_model), intent(inout) :: self
 
-    integer :: m
-
-    if (masterproc) write(iulog,*) 'AERO_MODEL: Init MODAL data...'
+    integer :: ii,l, m, nspec_max
 
     ! get info about the modal aerosols
     ! get ntot_amode
@@ -77,6 +77,22 @@ contains
        self%amcubecoef(m)=3._r8/(4._r8*pi*self%exp45logsig(m))
        self%argfactor(m)=twothird/(sq2*self%alogsig(m))
     end do
+
+    ! Find max number of species in all the modes
+    nspec_max = maxval(self%nspec_amode)
+    allocate( self%mam_idx(self%ntot_amode,0:nspec_max) )
+
+    ! Local indexing compresses the mode and number/mass indicies into one index.
+    ! This indexing is used by the pointer arrays used to reference state and pbuf
+    ! fields.
+    ii = 0
+    do m = 1, self%ntot_amode
+       do l = 0, self%nspec_amode(m)
+          ii = ii + 1
+          self%mam_idx(m,l) = ii
+       end do
+    end do
+
   end subroutine modal_model_init
 
   subroutine modal_model_final(self)
@@ -197,5 +213,24 @@ contains
     end do
 
   end subroutine modal_loadaer
+
+  subroutine modal_set_ptrs( self, raer, qqcw )
+    class(modal_aerosol_model), intent(in) :: self
+    type(ptr2d_t), intent(out) :: raer(:)
+    type(ptr2d_t), intent(out) :: qqcw(:)
+
+    integer :: m,mm,l
+
+   do m = 1, self%ntot_amode
+      mm = self%mam_idx(m, 0)
+      call rad_cnst_get_mode_num(0, m, 'a', self%state, self%pbuf, raer(mm)%fld)
+      call rad_cnst_get_mode_num(0, m, 'c', self%state, self%pbuf, qqcw(mm)%fld)  ! cloud-borne aerosol
+      do l = 1, self%nspec_amode(m)
+         mm = self%mam_idx(m, l)
+         call rad_cnst_get_aer_mmr(0, m, l, 'a', self%state, self%pbuf, raer(mm)%fld)
+         call rad_cnst_get_aer_mmr(0, m, l, 'c', self%state, self%pbuf, qqcw(mm)%fld)  ! cloud-borne aerosol
+      end do
+   end do
+  end subroutine modal_set_ptrs
 
 end module modal_aerosol_model_mod

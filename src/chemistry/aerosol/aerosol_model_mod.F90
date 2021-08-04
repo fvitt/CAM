@@ -14,6 +14,11 @@ module aerosol_model_mod
 
   implicit none
 
+  ! ptr2d_t is used to create arrays of pointers to 2D fields
+  type ptr2d_t
+     real(r8), pointer :: fld(:,:)
+  end type ptr2d_t
+
   type, abstract :: aerosol_model
      integer :: mtotal
      type(physics_state) :: state
@@ -30,6 +35,7 @@ module aerosol_model_mod
      procedure(aero_model_final), deferred :: model_final
      procedure :: destroy => aero_destroy
      procedure(aero_loadaer), deferred :: loadaer
+     procedure(aero_set_ptrs), deferred :: set_ptrs
      procedure :: ccncalc => aero_ccncalc
      procedure :: maxsat => aero_maxsat
      procedure :: activate => aero_activate
@@ -68,6 +74,15 @@ module aerosol_model_mod
 
      end subroutine aero_loadaer
 
+     subroutine aero_set_ptrs( self, raer, qqcw )
+       import
+
+       class(aerosol_model), intent(in) :: self
+       type(ptr2d_t), intent(out) :: raer(:)
+       type(ptr2d_t), intent(out) :: qqcw(:)
+
+     end subroutine aero_set_ptrs
+
   end interface
 
   integer,  parameter :: psat=6    ! number of supersaturations to calc ccn concentration
@@ -86,6 +101,9 @@ module aerosol_model_mod
   real(r8), parameter :: alog2    = log(2._r8)
   real(r8), parameter :: alog3    = log(3._r8)
 
+  real(r8) :: aten, alogaten
+  real(r8) :: surften_coef
+
 contains
 
   subroutine aero_create( self, state, pbuf )
@@ -97,6 +115,10 @@ contains
     self%pbuf => pbuf
 
     call self%model_init()
+
+    aten     = 2._r8*mwh2o*surften/(r_universal*t0*rhoh2o)
+    alogaten = log(aten)
+    surften_coef = 2._r8*mwh2o*surften/(r_universal*rhoh2o)
 
   end subroutine aero_create
 
@@ -149,10 +171,8 @@ contains
 
     real(r8), parameter :: smcoefcoef=2._r8/sqrt(27._r8)
     real(r8), parameter :: super(psat)=supersat(:psat)*0.01_r8
-    real(r8) :: surften_coef
 
     !-------------------------------------------------------------------------------
-    surften_coef = 2._r8*mwh2o*surften/(r_universal*rhoh2o)
 
     lchnk = state%lchnk
     ncol  = state%ncol
@@ -338,14 +358,10 @@ contains
     !      numerical integration parameters
     real(r8), parameter :: eps=0.3_r8,fmax=0.99_r8,sds=3._r8
     real(r8), parameter :: namin=1.e6_r8   ! minimum aerosol number concentration (/m3)
-    real(r8) :: aten, alogaten
 
     integer ndist(nx)  ! accumulates frequency distribution of integration bins required
     data ndist/nx*0/
     save ndist
-
-    aten     = 2._r8*mwh2o*surften/(r_universal*t0*rhoh2o)
-    alogaten = log(aten)
 
     if (present(in_cloud_in)) then
        if (.not. present(smax_f)) call endrun(subname//' : smax_f must be supplied when in_cloud is used')

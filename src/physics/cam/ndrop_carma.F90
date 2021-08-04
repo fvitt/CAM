@@ -460,22 +460,7 @@ subroutine dropmixnuc_carma( aero_model, &
       fluxn(nbins),                   &
       fluxm(nbins)                    )
 
-   ! Init pointers to mode number and specie mass mixing ratios in
-   ! intersitial and cloud borne phases.
-   do m = 1, nbins
-      mm = bin_idx(m, 0)
-      call rad_cnst_get_bin_num(0, m, 'a', state, pbuf, raer(mm)%fld)
-      call rad_cnst_get_bin_num(0, m, 'c', state, pbuf, qqcw(mm)%fld)  ! cloud-borne aerosol
-      mm = bin_idx(m, 1)
-      call rad_cnst_get_bin_mmr(0, m, 'a', state, pbuf, raer(mm)%fld)
-      call rad_cnst_get_bin_mmr(0, m, 'c', state, pbuf, qqcw(mm)%fld)  ! cloud-borne aerosol
-      do l = 2, nspec(m)+1
-         mm = bin_idx(m, l)
-         !st need to check
-         call rad_cnst_get_bin_mmr_by_idx(0, m, l-1, 'a', state, pbuf, raer(mm)%fld)
-         call rad_cnst_get_bin_mmr_by_idx(0, m, l-1, 'c', state, pbuf, qqcw(mm)%fld)  ! cloud-borne aerosol
-      end do
-   end do
+   call aero_model%set_ptrs( raer, qqcw )
 
    called_from_spcam = (present(from_spcam))
 

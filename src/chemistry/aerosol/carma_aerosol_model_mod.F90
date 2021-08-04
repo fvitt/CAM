@@ -1,18 +1,21 @@
 module carma_aerosol_model_mod
   use shr_kind_mod, only: r8 => shr_kind_r8
-  use aerosol_model_mod, only: aerosol_model, twothird, sq2
+  use aerosol_model_mod, only: aerosol_model, twothird, sq2, ptr2d_t
   use cam_logfile, only: iulog
   use spmd_utils, only: masterproc
   use rad_constituents, only: rad_cnst_get_info, rad_cnst_get_info_by_bin
   use rad_constituents, only: rad_cnst_get_bin_props_by_idx, rad_cnst_get_bin_mmr_by_idx, rad_cnst_get_bin_num
+  use rad_constituents, only: rad_cnst_get_bin_mmr
   use physconst, only: pi
 
   implicit none
 
   type, extends(aerosol_model) :: carma_aerosol_model
      integer, allocatable :: nspec(:)
+     integer, allocatable :: bin_idx(:,:) ! table for local indexing of modal aero number and mmr
    contains
      procedure :: loadaer => carma_loadaer
+     procedure :: set_ptrs => carma_set_ptrs
      procedure :: model_init => carma_model_init
      procedure :: model_final => carma_model_final
      procedure :: err_funct => carma_err_funct ! override base routine
@@ -23,7 +26,7 @@ contains
   subroutine carma_model_init(self)
     class(carma_aerosol_model), intent(inout) :: self
 
-    integer :: m, nbins
+    integer :: l, m, nbins, nspec_max, ii
 
     if (masterproc) write(iulog,*) 'AERO_MODEL: Init CARMA data...'
 
@@ -50,6 +53,21 @@ contains
        self%alogsig(m)=1._r8
        self%f1(m)=1._r8
        self%f2(m)=1._r8
+    end do
+    ! add plus one to include number, total mmr and nspec
+    nspec_max = maxval(self%nspec) + 1
+    allocate( self%bin_idx(nbins,0:nspec_max) )
+
+    ! Local indexing compresses the mode and number/mass indicies into one index.
+    ! This indexing is used by the pointer arrays used to reference state and pbuf
+    ! fields.
+    ! for CARMA we add number = 0, total mass = 1, and mass from each constituence into mm.
+    ii = 0
+    do m = 1, nbins
+       do l = 0, self%nspec(m) + 1
+          ii = ii + 1
+          self%bin_idx(m,l) = ii
+       end do
     end do
 
   end subroutine carma_model_init
@@ -158,6 +176,29 @@ contains
     end if
 
   end subroutine carma_loadaer
+
+  subroutine carma_set_ptrs( self, raer, qqcw )
+    class(carma_aerosol_model), intent(in) :: self
+    type(ptr2d_t), intent(out) :: raer(:)
+    type(ptr2d_t), intent(out) :: qqcw(:)
+
+    integer :: m, mm, l
+
+    do m = 1, self%mtotal
+       mm = self%bin_idx(m, 0)
+       call rad_cnst_get_bin_num(0, m, 'a', self%state, self%pbuf, raer(mm)%fld)
+       call rad_cnst_get_bin_num(0, m, 'c', self%state, self%pbuf, qqcw(mm)%fld)  ! cloud-borne aerosol
+       mm = self%bin_idx(m, 1)
+       call rad_cnst_get_bin_mmr(0, m, 'a', self%state, self%pbuf, raer(mm)%fld)
+       call rad_cnst_get_bin_mmr(0, m, 'c', self%state, self%pbuf, qqcw(mm)%fld)  ! cloud-borne aerosol
+       do l = 2, self%nspec(m)+1
+          mm = self%bin_idx(m, l)
+          call rad_cnst_get_bin_mmr_by_idx(0, m, l-1, 'a', self%state, self%pbuf, raer(mm)%fld)
+          call rad_cnst_get_bin_mmr_by_idx(0, m, l-1, 'c', self%state, self%pbuf, qqcw(mm)%fld)  ! cloud-borne aerosol
+       end do
+    end do
+
+  end subroutine carma_set_ptrs
 
   ! override the error function
   function carma_err_funct(self,x) result(err)
