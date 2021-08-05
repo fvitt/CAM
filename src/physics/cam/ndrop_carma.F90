@@ -577,19 +577,10 @@ subroutine dropmixnuc_carma( aero_model, &
             ! convert activated aerosol to interstitial in decaying cloud
 
             dumc = (cldn_tmp - cldo_tmp)/cldo_tmp * (1._r8 - cldliqf(i,k))
-            do m = 1, nbins
-              do l = 0, nspec(m) + 1
-               mm = bin_idx(m,l)
+            do mm = 1,ncnst_tot
                dact   = raercol_cw(k,mm,nsav)*dumc
                raercol_cw(k,mm,nsav) = raercol_cw(k,mm,nsav) + dact   ! cloud-borne aerosol
                raercol(k,mm,nsav)    = raercol(k,mm,nsav) - dact
-              end do
-              !st do l = 2, nspec(m) + 1
-              !st    mm = bin_idx(m,l)
-              !st    dact    = raercol_cw(k,mm,nsav)*dumc
-              !st    raercol_cw(k,mm,nsav) = raercol_cw(k,mm,nsav) + dact  ! cloud-borne aerosol
-              !st    raercol(k,mm,nsav)    = raercol(k,mm,nsav) - dact
-              !st end do
             end do
          end if
 
@@ -612,19 +603,10 @@ subroutine dropmixnuc_carma( aero_model, &
             ! convert activated aerosol to interstitial in decaying cloud
 
             dumc = (cldn_tmp - cldo_tmp)/cldo_tmp * cldliqf(i,k)
-            do m = 1, nbins
-              do l = 0, nspec(m) + 1
-               mm = bin_idx(m,l)
+            do mm = 1,ncnst_tot
                dact   = raercol_cw(k,mm,nsav)*dumc
                raercol_cw(k,mm,nsav) = raercol_cw(k,mm,nsav) + dact   ! cloud-borne aerosol
                raercol(k,mm,nsav)    = raercol(k,mm,nsav) - dact
-              end do
-              !st do l = 2, nspec(m) + 1
-              !st    mm = bin_idx(m,l)
-              !st    dact    = raercol_cw(k,mm,nsav)*dumc
-              !st    raercol_cw(k,mm,nsav) = raercol_cw(k,mm,nsav) + dact  ! cloud-borne aerosol
-              !st    raercol(k,mm,nsav)    = raercol(k,mm,nsav) - dact
-              !st end do
             end do
          end if
 
@@ -828,17 +810,9 @@ subroutine dropmixnuc_carma( aero_model, &
 
                ! convert activated aerosol to interstitial in decaying cloud
 
-               do m = 1, nbins
-                 do l = 0, nspec(m) + 1
-                  mm = bin_idx(m,l)
+               do mm = 1,ncnst_tot
                   raercol(k,mm,nsav)    = raercol(k,mm,nsav) + raercol_cw(k,mm,nsav)  ! cloud-borne aerosol
                   raercol_cw(k,mm,nsav) = 0._r8
-                 end do
-                 !st do l = 2, nspec(m) + 1
-                 !st    mm = bin_idx(m,l)
-                 !st    raercol(k,mm,nsav)    = raercol(k,mm,nsav) + raercol_cw(k,mm,nsav) ! cloud-borne aerosol
-                 !st    raercol_cw(k,mm,nsav) = 0._r8
-                 !st end do
                end do
             end if
          end if
