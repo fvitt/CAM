@@ -1027,17 +1027,11 @@ subroutine dropmixnuc( aero_model, &
             qcld(k)=0._r8
 
             ! convert activated aerosol to interstitial in decaying cloud
-            do m = 1, ntot_amode
-               mm = mam_idx(m,0)
+            do mm = 1,ncnst_tot
                raercol(k,mm,nnew)    = raercol(k,mm,nnew) + raercol_cw(k,mm,nnew)
                raercol_cw(k,mm,nnew) = 0._r8
-
-               do l = 1, nspec_amode(m)
-                  mm = mam_idx(m,l)
-                  raercol(k,mm,nnew)    = raercol(k,mm,nnew) + raercol_cw(k,mm,nnew)
-                  raercol_cw(k,mm,nnew) = 0._r8
-               end do
             end do
+
          end if
       end do
 
