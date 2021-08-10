@@ -586,6 +586,9 @@ contains
     real(r8) :: sol_factb(pcols,pver)
     real(r8) :: sol_facti(pcols,pver)
     real(r8) :: sol_factic(pcols,pver)
+    real(r8) :: sol_factb_c(pcols,pver)
+    real(r8) :: sol_facti_c(pcols,pver)
+    real(r8) :: sol_factic_c(pcols,pver)
 
     real(r8) :: sflx(pcols) ! deposition flux
 
@@ -595,7 +598,6 @@ contains
     integer :: l ! index for aerosol number / chem-mass / water-mass
     real(r8) :: dqdt_tmp(pcols,pver) ! temporary array to hold tendency for 1 species
     real(r8) :: dqdt_tmp_sum(pcols,pver) ! temporary array to hold sum of tendency for all species
-    real(r8) :: rtscavt_sum(pcols,pver) ! temporary array to hold sum of tendency for all species
     real(r8) :: icscavt_sum(pcols,pver) ! temporary array to hold sum of tendency for all species
     real(r8) :: isscavt_sum(pcols,pver) ! temporary array to hold sum of tendency for all species
     real(r8) :: bcscavt_sum(pcols,pver) ! temporary array to hold sum of tendency for all species
@@ -603,6 +605,7 @@ contains
     real(r8) :: rcscavt_sum(pcols,pver) ! prescribed aerosol activation fraction for convective cloud ! rce 2010/05/01
     real(r8) :: rsscavt_sum(pcols,pver) ! prescribed aerosol activation fraction for convective cloud ! rce 2010/05/01
     real(r8) :: f_act_conv(pcols,pver) ! prescribed aerosol activation fraction for convective cloud ! rce 2010/05/01
+    real(r8) :: f_act_conv_c(pcols,pver) ! prescribed aerosol activation fraction for convective cloud ! rce 2010/05/01
     real(r8) :: fracis_cw(pcols,pver)
     real(r8) :: stoke(pcols,pver)       ! dry radius from CARMA
     real(r8) :: J(pcols,pver)       ! dry radius from CARMA
@@ -838,7 +841,6 @@ contains
              end do
              if (totalmmr .gt. 0._r8) then
                 sol_factb(i,k) = solmmr/totalmmr
-                !st  write(iulog,*) 'i,k, sol_factb first  = ', i,k, sol_factb(i,k)
              end if
              sol_factb(i,k) = min(max(sol_factb(i,k), 0.1_r8), 0.8_r8)
           end do
@@ -859,7 +861,6 @@ contains
           bsscavt_sum(:,:) = 0.0_r8
           rcscavt_sum(:,:) = 0.0_r8
           rsscavt_sum(:,:) = 0.0_r8
-          rtscavt_sum(:,:) = 0.0_r8
 
           ! sol_factb and sol_facti values
           ! sol_factb - currently this is basically a tuning factor
@@ -920,8 +921,8 @@ contains
                       do i= 1,ncol
                          stoke(i,k) = 0.1_r8*(dryr(i,k)**2)*1.0e8_r8*specdens                    ! stoke parameter
                          if ((J(i,k) .le. 0._r8)  .or. (dryr(i,k) .le. 0._r8))  then
-                            scavcoefnv(:,:,1) =  0.1_r8
-                            scavcoefnv(:,:,2) =  0.1_r8
+                            scavcoefnv(i,k,1) =  0.1_r8
+                            scavcoefnv(i,k,2) =  0.1_r8
                          else
                             if (dryr(i,k) .lt. 1.e-4_r8) then
                                !z_scavcoef(i_col,k_ver) = 63.03750_r8*r(ibin)*(J(i_col,k_ver)**(-0.42_r8))
@@ -956,12 +957,11 @@ contains
 
                 else ! cloud-borne aerosol (borne by stratiform cloud drops)
 
-                   sol_factb  = 0.0_r8   ! all below-cloud scav OFF (anything cloud-borne is located "in-cloud")
-                   sol_facti  = sol_facti_cloud_borne   ! strat  in-cloud scav cloud-borne tuning factor  ! 1.0 in Pengfei's model
-                   sol_factic = 0.0_r8   ! conv   in-cloud scav OFF (having this on would mean
-                                         !        that conv precip collects strat droplets)
-                   f_act_conv = 0.0_r8   ! conv   in-cloud scav OFF (having this on would mean
-
+                   sol_factb_c  = 0.0_r8   ! all below-cloud scav OFF (anything cloud-borne is located "in-cloud")
+                   sol_facti_c  = sol_facti_cloud_borne   ! strat  in-cloud scav cloud-borne tuning factor  ! 1.0 in Pengfei's model
+                   sol_factic_c = 0.0_r8   ! conv   in-cloud scav OFF (having this on would mean
+                                           !        that conv precip collects strat droplets)
+                   f_act_conv_c = 0.0_r8   ! conv   in-cloud scav OFF (having this on would mean
                 end if
                 if (convproc_do_aer .and. lphase == 1) then
                    ! if modal aero convproc is turned on for aerosols, then
@@ -971,6 +971,7 @@ contains
                    ! for (stratiform)-cloudborne aerosols, convective wet removal
                    !    (all forms) is zero, so no action is needed
                    sol_factic = 0.0_r8
+                   sol_factic_c = 0.0_r8
                 end if
 
              end if   !(l <= nspec(m)) then
@@ -979,7 +980,7 @@ contains
              if (lphase == 1) then
                 jnv = 2
              else
-                jnv = 1
+                jnv = 0
              end if
 
              ! cloud-borne num & vol (0),
@@ -1022,7 +1023,6 @@ contains
                    if(convproc_do_aer) then
                       ! add resuspension of cloudborne species to dqdt of interstitial species
                       dqdt_tmp(1:ncol,:) = dqdt_tmp(1:ncol,:) + rtscavt(1:ncol,:,l)
-                      rtscavt_sum(1:ncol,:) = rtscavt_sum(1:ncol,:) + rtscavt(1:ncol,:,l)
                    endif
 
                    ! make sure raer values are not negative, adjust dqdt_tmp accordingly
@@ -1067,22 +1067,23 @@ contains
                  !     end do
                  !  end do
                   dqdt_tmp(:ncol,:) = dqdt_tmp_sum(:ncol,:)
-                  if(convproc_do_aer) then
-                       rtscavt(1:ncol,:,l) = rtscavt_sum(1:ncol,:)
-                  endif
+
+                  !if(convproc_do_aer) then
+                  !     rtscavt(1:ncol,:,l) = rtscavt_sum(1:ncol,:)
+                  !endif
 
                 else if (l == nspec(m) + 2) then   !num fraction is assuming dN/N = dM/M
 
                    raer(mm)%fld(:ncol,:) = fld_sum(:ncol,:) / rmass(m)
                    dqdt_tmp(:ncol,:) = dqdt_tmp_sum(:ncol,:)
-                   rtscavt(1:ncol,:,l) = rtscavt_sum(1:ncol,:)
+
+                   !rtscavt(1:ncol,:,l) = rtscavt_sum(1:ncol,:)
 
                 end if   ! nspec
 
                 !st for testing may keep all output fields
                 !if (l == nspec(m) + 1) then   ! write output only for mmr  to reduce output
                    !st write(iulog,*) 'outfld   = ', m, l,  mm, fieldname(mm)
-                   call outfld( trim(fieldname(mm))//'WET', dqdt_tmp(:,:), pcols, lchnk)
                    call outfld( trim(fieldname(mm))//'WET', dqdt_tmp(:,:), pcols, lchnk)
                    call outfld( trim(fieldname(mm))//'SIC', icscavt, pcols, lchnk)
                    call outfld( trim(fieldname(mm))//'SIS', isscavt, pcols, lchnk)
@@ -1234,12 +1235,12 @@ contains
                            dep_inputs%evapc, dep_inputs%conicw, dep_inputs%prain, dep_inputs%qme, &
                            dep_inputs%evapr, dep_inputs%totcond, fldcw, dt, &
                            dqdt_tmp, iscavt, dep_inputs%cldvcu, dep_inputs%cldvst, &
-                           dlf, fracis_cw, sol_factb, ncol, &
+                           dlf, fracis_cw, sol_factb_c, ncol, &
                            scavcoefnv(:,:,jnv), &
                            is_strat_cloudborne=.true.,  &
                            icscavt=icscavt, isscavt=isscavt, bcscavt=bcscavt, bsscavt=bsscavt, &
                            convproc_do_aer=convproc_do_aer, rcscavt=rcscavt, rsscavt=rsscavt,  &
-                           sol_facti_in=sol_facti, sol_factic_in=sol_factic, &
+                           sol_facti_in=sol_facti_c, sol_factic_in=sol_factic_c, &
                            convproc_do_evaprain_atonce_in=convproc_do_evaprain_atonce, &
                            bergso_in=dep_inputs%bergso )
 
@@ -1643,7 +1644,7 @@ contains
     !write(iulog,*) 'mm start vmrcw, raervmr'
     ! qqcw2vrm is different from what is done in MAM, here we pass in the fields set by the qqcw and raer pointer
     ! for all the CARMA aerosols, species, mmr, and number, vmrcw (kg/kg) -> vmr
-    call mmr2vmr_carma ( lchnk, vmrcw, mbar, mw_carma, ncol, loffset )
+    call mmr2vmr_carma ( lchnk, vmrcw, mbar, mw_carma, ncol, loffset, rmass )
     !write(iulog,*) 'vmrcw(:,:,1) mmr', maxval(vmrcw(:,:,1))
 
     if (.not. is_spcam_m2005) then  ! regular CAM
@@ -1759,7 +1760,7 @@ contains
 
 
     ! note vmr2qqcw does not change qqcw pointer (different than in MAM)
-    call vmr2mmr_carma ( lchnk, vmrcw, mbar, mw_carma, ncol, loffset )
+    call vmr2mmr_carma ( lchnk, vmrcw, mbar, mw_carma, ncol, loffset, rmass )
 
     !vmrcw in kg/kg
     ! change pointer value for total mmr and number. In order to do this correctly
@@ -1937,7 +1938,7 @@ contains
   end subroutine surf_area_dens
 
   !=============================================================================
-  subroutine mmr2vmr_carma(lchnk, vmr, mbar, mw_carma, ncol, im)
+  subroutine mmr2vmr_carma(lchnk, vmr, mbar, mw_carma, ncol, im, rmass)
     !-----------------------------------------------------------------
     !   ... Xfrom from mass to volume mixing ratio
     !-----------------------------------------------------------------
@@ -1951,8 +1952,10 @@ contains
     !-----------------------------------------------------------------
     integer, intent(in)     :: lchnk, ncol, im
     real(r8), intent(in)    :: mbar(ncol,pver)
+    real(r8), intent(in)    :: rmass(nbins)
     real(r8), intent(in)    :: mw_carma(ncnst_tot)
     real(r8), intent(inout) :: vmr(ncol,pver,ncnst_tot)
+    real(r8)                :: vmr_total(ncol,pver)
 
     !-----------------------------------------------------------------
     !   ... Local variables
@@ -1960,18 +1963,28 @@ contains
     integer :: k, m, mm, l
 
     do m = 1, nbins
+       vmr_total(:ncol,:) = 0._r8
        do l = 1, nspec(m)   ! for each species, not total mmr or number, information of mw are missing
              mm = bin_idx(m, l)
              do k=1,pver
                 vmr(:ncol,k,mm) = mbar(:ncol,k) * vmr(:ncol,k,mm) / mw_carma(mm)
              end do
+             vmr_total(:ncol,:) = vmr_total(:ncol,:) +  vmr(:ncol,:,mm)
        end do
+       ! calculate mmr
+       l =nspec(m) + 1
+       mm = bin_idx(m, l)
+       vmr(:ncol,:,mm) = vmr_total(:ncol,:)
+       ! calculate number
+       l =nspec(m) + 2
+       mm = bin_idx(m, l)
+       vmr(:ncol,:,mm) = vmr_total(:ncol,:) / rmass(m)
     end do
   end subroutine mmr2vmr_carma
     !=============================================================================
 
   !=============================================================================
-  subroutine vmr2mmr_carma ( lchnk, vmr, mbar, mw_carma, ncol, im )
+  subroutine vmr2mmr_carma ( lchnk, vmr, mbar, mw_carma, ncol, im, rmass )
     !-----------------------------------------------------------------
     !   ... Xfrom from volume to mass mixing ratio
     !-----------------------------------------------------------------
@@ -1983,8 +1996,10 @@ contains
     !-----------------------------------------------------------------
     integer, intent(in)     :: lchnk, ncol, im
     real(r8), intent(in)    :: mbar(ncol,pver)
+    real(r8), intent(in)    :: rmass(nbins)
     real(r8), intent(inout)    :: vmr(ncol,pver,ncnst_tot)
     real(r8), intent(in)    :: mw_carma(ncnst_tot)
+    real(r8)                :: vmr_total(ncol,pver)
 
     !-----------------------------------------------------------------
     !   ... Local variables
@@ -1994,12 +2009,22 @@ contains
     !   ... The non-group species
     !-----------------------------------------------------------------
     do m = 1, nbins
+       vmr_total(:ncol,:) = 0._r8
        do l = 1, nspec(m)   ! for each species, not total mmr or number, information of mw are missing
              mm = bin_idx(m, l)
              do k=1,pver
                 vmr(:ncol,k,mm) = mw_carma(mm) * vmr(:ncol,k,mm) / mbar(:ncol,k)
              end do
+             vmr_total(:ncol,:) = vmr_total(:ncol,:) +  vmr(:ncol,:,mm)
        end do
+       ! calculate mmr
+       l =nspec(m) + 1
+       mm = bin_idx(m, l)
+       vmr(:ncol,:,mm) = vmr_total(:ncol,:)
+       ! calculate number
+       l =nspec(m) + 2
+       mm = bin_idx(m, l)
+       vmr(:ncol,:,mm) = vmr_total(:ncol,:) / rmass(m)
     end do
 
    end subroutine vmr2mmr_carma

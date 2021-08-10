@@ -267,22 +267,20 @@ subroutine ma_convproc_init
                call rad_cnst_get_info_by_bin(0, m, num_name=fieldname(ii), num_name_cw=fieldname_cw(ii))
             end if
 
-            if (l == nspec(m) + 1) then   ! mmr
-             call addfld (trim(fieldname(ii))//'SFSEC', &
-                horiz_only,  'A','kg/m2/s','Wet deposition flux (precip evap, convective) at surface')
-             if (history_aerosol) then
+            call addfld (trim(fieldname(ii))//'SFSEC', &
+                 horiz_only,  'A','kg/m2/s','Wet deposition flux (precip evap, convective) at surface')
+            if (history_aerosol) then
                call add_default(trim(fieldname(ii))//'SFSEC', 1, ' ')
-             end if
-             if ( deepconv_wetdep_history ) then
+            end if
+            if ( deepconv_wetdep_history ) then
                call addfld (trim(fieldname(ii))//'SFSID', &
-                  horiz_only,  'A','kg/m2/s','Wet deposition flux (incloud, deep convective) at surface')
+                    horiz_only,  'A','kg/m2/s','Wet deposition flux (incloud, deep convective) at surface')
                call addfld (trim(fieldname(ii))//'SFSED', &
-                  horiz_only,  'A','kg/m2/s','Wet deposition flux (precip evap, deep convective) at surface')
+                    horiz_only,  'A','kg/m2/s','Wet deposition flux (precip evap, deep convective) at surface')
                if (history_aerosol) then
                   call add_default(trim(fieldname(ii))//'SFSID', 1, ' ')
                   call add_default(trim(fieldname(ii))//'SFSED', 1, ' ')
                end if
-             end if
             end if
             call cnst_get_ind(fieldname(ii), idxtmp, abort=.false.)
             if (idxtmp>0) then
@@ -494,42 +492,39 @@ subroutine ma_convproc_intr( state, ptend, pbuf, ztodt,             &
          ! apply deep conv processing tendency and prepare for shallow conv processing
          !st do l = 1, pcnst  ! mm in aero_model
          do n = 1, nbins      ! main loop over aerosol bins
-           do ll = 1, nspec(n) + 2
-            l = bin_idx(n, ll)
-            lpr = bin_cnst_idx(n,ll)
-!st
-            if ( .not. dotend(l) ) cycle
+            do ll = 1, nspec(n) + 2
+               l = bin_idx(n, ll)
+               lpr = bin_cnst_idx(n,ll)
 
-            ! calc new q (after ma_convproc_dp_intr)
-            qa(1:ncol,:,l) = qb(1:ncol,:,l) + dt*dqdt(1:ncol,:,l)
-            qb(1:ncol,:,l) = max( 0.0_r8, qa(1:ncol,:,l) )
+               if ( .not. dotend(l) ) cycle
 
-            if ( apply_convproc_tend_to_ptend ) then
-               ! add dqdt onto ptend%q and set ptend%lq   and set pbuf variable if not transported
-               if (bin_cnst_lq(n,ll)) then ! adveced species
-                  ptend%q(1:ncol,:,lpr) = ptend%q(1:ncol,:,lpr) + dqdt(1:ncol,:,l)
-               else
-                  raer(l)%fld(1:ncol,:) = max( 0.0_r8, raer(l)%fld(1:ncol,:) + dqdt(1:ncol,:,1) * dt )
+               ! calc new q (after ma_convproc_dp_intr)
+               qa(1:ncol,:,l) = qb(1:ncol,:,l) + dt*dqdt(1:ncol,:,l)
+               qb(1:ncol,:,l) = max( 0.0_r8, qa(1:ncol,:,l) )
+
+               if ( apply_convproc_tend_to_ptend ) then
+                  ! add dqdt onto ptend%q and set ptend%lq   and set pbuf variable if not transported
+                  if (bin_cnst_lq(n,ll)) then ! adveced species
+                     ptend%q(1:ncol,:,lpr) = ptend%q(1:ncol,:,lpr) + dqdt(1:ncol,:,l)
+                  else
+                     raer(l)%fld(1:ncol,:) = max( 0.0_r8, raer(l)%fld(1:ncol,:) + dqdt(1:ncol,:,l) * dt )
+                  end if
+
                end if
 
-            end if
+               !st done for all CARMA aerosols
+               ! these used for history file wetdep diagnostics
+               sflxic(1:ncol,l) = sflxic(1:ncol,l) + qsrflx(1:ncol,l,4)
+               sflxid(1:ncol,l) = sflxid(1:ncol,l) + qsrflx(1:ncol,l,4)
+               sflxec(1:ncol,l) = sflxec(1:ncol,l) + qsrflx(1:ncol,l,5)
+               sflxed(1:ncol,l) = sflxed(1:ncol,l) + qsrflx(1:ncol,l,5)
+               !st end if
 
-            !st done for all CARMA aerosols
-            !st if ((cnst_species_class(l) == cnst_spec_class_aerosol) .or. &
-            !st     (cnst_species_class(l) == cnst_spec_class_gas    )) then
-            ! these used for history file wetdep diagnostics
-            sflxic(1:ncol,l) = sflxic(1:ncol,l) + qsrflx(1:ncol,l,4)
-            sflxid(1:ncol,l) = sflxid(1:ncol,l) + qsrflx(1:ncol,l,4)
-            sflxec(1:ncol,l) = sflxec(1:ncol,l) + qsrflx(1:ncol,l,5)
-            sflxed(1:ncol,l) = sflxed(1:ncol,l) + qsrflx(1:ncol,l,5)
-            !st end if
-
-            !st if (cnst_species_class(l) == cnst_spec_class_aerosol) then
-            ! this used for surface coupling
-            aerdepwetis(1:ncol,l) = aerdepwetis(1:ncol,l) &
-                 + qsrflx(1:ncol,l,4) + qsrflx(1:ncol,l,5)
-            !st end if
-           end do
+               !st if (cnst_species_class(l) == cnst_spec_class_aerosol) then
+               ! this used for surface coupling
+               aerdepwetis(1:ncol,l) = aerdepwetis(1:ncol,l) &
+                    + qsrflx(1:ncol,l,4) + qsrflx(1:ncol,l,5)
+            end do
          end do
       end if
 
@@ -582,21 +577,18 @@ subroutine ma_convproc_intr( state, ptend, pbuf, ztodt,             &
 
    end if ! (convproc_do_aer  .or. convproc_do_gas) then
 
-
    if (convproc_do_aer .and. apply_convproc_tend_to_ptend ) then
       do n = 1, nbins      ! main loop over aerosol bins
          do ll = 1, nspec(n) + 2
             l = bin_idx(n, ll)
 
-            if (l .eq. nspec(n) + 1) then
-               call outfld( trim(fieldname(l))//'SFWET', aerdepwetis(:,l), pcols, lchnk )
-               call outfld( trim(fieldname(l))//'SFSIC', sflxic(:,l), pcols, lchnk )
-               call outfld( trim(fieldname(l))//'SFSEC', sflxec(:,l), pcols, lchnk )
+            call outfld( trim(fieldname(l))//'SFWET', aerdepwetis(:,l), pcols, lchnk )
+            call outfld( trim(fieldname(l))//'SFSIC', sflxic(:,l), pcols, lchnk )
+            call outfld( trim(fieldname(l))//'SFSEC', sflxec(:,l), pcols, lchnk )
 
-               if ( deepconv_wetdep_history ) then
-                  call outfld( trim(fieldname(l))//'SFSID', sflxid(:,l), pcols, lchnk )
-                  call outfld( trim(fieldname(l))//'SFSED', sflxed(:,l), pcols, lchnk )
-               end if
+            if ( deepconv_wetdep_history ) then
+               call outfld( trim(fieldname(l))//'SFSID', sflxid(:,l), pcols, lchnk )
+               call outfld( trim(fieldname(l))//'SFSED', sflxed(:,l), pcols, lchnk )
             end if
          end do
       end do
