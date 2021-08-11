@@ -1007,19 +1007,11 @@ subroutine dropmixnuc_carma( aero_model, &
             qcld(k)=0._r8
 
             ! convert activated aerosol to interstitial in decaying cloud
-            do m = 1, nbins
-              do l = 0, nspec(m) + 1
-               mm = bin_idx(m,l)
+            do mm = 1,ncnst_tot
                raercol(k,mm,nnew)    = raercol(k,mm,nnew) + raercol_cw(k,mm,nnew)
                raercol_cw(k,mm,nnew) = 0._r8
-              end do
-
-              !st do l = 1, nspec(m)
-              !st    mm = bin_idx(m,l)
-              !st    raercol(k,mm,nnew)    = raercol(k,mm,nnew) + raercol_cw(k,mm,nnew)
-              !st    raercol_cw(k,mm,nnew) = 0._r8
-              !st end do
             end do
+
          end if
       end do
 
