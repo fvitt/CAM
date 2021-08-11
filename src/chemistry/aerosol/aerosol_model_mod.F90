@@ -21,6 +21,7 @@ module aerosol_model_mod
 
   type, abstract :: aerosol_model
      integer :: mtotal
+     integer, allocatable :: nmasses(:)
      type(physics_state) :: state
      type(physics_buffer_desc), pointer :: pbuf(:) => null()
      real(r8), allocatable :: amcubecoef(:)

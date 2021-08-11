@@ -41,6 +41,7 @@ contains
 
     allocate( &
          self%nspec_amode(self%ntot_amode),  &
+         self%nmasses(self%ntot_amode),  &
          self%sigmag_amode(self%ntot_amode), &
          self%dgnumlo_amode(self%ntot_amode), &
          self%dgnumhi_amode(self%ntot_amode), &
@@ -59,6 +60,7 @@ contains
 
        ! get mode info
        call rad_cnst_get_info(0, m, nspec=self%nspec_amode(m))
+       self%nmasses(m) = self%nspec_amode(m)
 
        ! get mode properties
        call rad_cnst_get_mode_props(0, m, sigmag=self%sigmag_amode(m),  &

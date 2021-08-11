@@ -38,6 +38,7 @@ contains
     self%mtotal = nbins
 
     allocate( self%nspec(nbins) )
+    allocate( self%nmasses(nbins) )
     allocate( self%amcubecoef(nbins) )
     allocate( self%exp45logsig(nbins) )
     allocate( self%argfactor(nbins) )
@@ -47,6 +48,7 @@ contains
 
     do m = 1, nbins
        call rad_cnst_get_info_by_bin(0, m, nspec=self%nspec(m))
+       self%nmasses(m) = self%nspec(m)+1
        self%amcubecoef(m)=3._r8/(4._r8*pi)
        self%argfactor(m)=twothird/(sq2*log(2._r8))
        self%exp45logsig(m)=1._r8

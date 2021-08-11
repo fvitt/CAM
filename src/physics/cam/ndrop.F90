@@ -454,21 +454,21 @@ subroutine dropmixnuc( aero_model, &
    dtinv = 1._r8/dtmicro
 
    allocate( &
-      nact(pver,ntot_amode),          &
-      mact(pver,ntot_amode),          &
+      nact(pver,aero_model%mtotal),          &
+      mact(pver,aero_model%mtotal),          &
       raer(ncnst_tot),                &
       qqcw(ncnst_tot),                &
       raercol(pver,ncnst_tot,2),      &
       raercol_cw(pver,ncnst_tot,2),   &
       coltend(pcols,ncnst_tot),       &
       coltend_cw(pcols,ncnst_tot),    &
-      naermod(ntot_amode),            &
-      hygro(ntot_amode),              &
-      vaerosol(ntot_amode),           &
-      fn(ntot_amode),                 &
-      fm(ntot_amode),                 &
-      fluxn(ntot_amode),              &
-      fluxm(ntot_amode)               )
+      naermod(aero_model%mtotal),            &
+      hygro(aero_model%mtotal),              &
+      vaerosol(aero_model%mtotal),           &
+      fn(aero_model%mtotal),                 &
+      fm(aero_model%mtotal),                 &
+      fluxn(aero_model%mtotal),              &
+      fluxm(aero_model%mtotal)               )
 
    call aero_model%set_ptrs( raer, qqcw )
 
@@ -509,7 +509,7 @@ subroutine dropmixnuc( aero_model, &
          cs(i,k)  = pmid(i,k)/(rair*temp(i,k))        ! air density (kg/m3)
          dz(i,k)  = 1._r8/(cs(i,k)*gravit*rpdel(i,k)) ! layer thickness in m
 
-         do m = 1, ntot_amode
+         do m = 1, aero_model%mtotal
             nact(k,m) = 0._r8
             mact(k,m) = 0._r8
          end do
@@ -547,7 +547,6 @@ subroutine dropmixnuc( aero_model, &
          raercol_cw(top_lev:pver,mm,nsav) = qqcw(mm)%fld(i,top_lev:pver)
          raercol(top_lev:pver,mm,nsav)    = raer(mm)%fld(i,top_lev:pver)
       end do
-
 
       if (called_from_spcam) then
       !
@@ -647,7 +646,7 @@ subroutine dropmixnuc( aero_model, &
             ! load aerosol properties, assuming external mixtures
 
             phase = 1 ! interstitial
-            do m = 1, ntot_amode
+            do m = 1, aero_model%mtotal
                call aero_model%loadaer( i, i, k, m, cs, phase, na, va, hy)
                naermod(m)  = na(i)
                vaerosol(m) = va(i)
@@ -656,14 +655,14 @@ subroutine dropmixnuc( aero_model, &
 
             call aero_model%activate( &
                wbar, wmix, wdiab, wmin, wmax,                       &
-               temp(i,k), cs(i,k), naermod, ntot_amode,             &
+               temp(i,k), cs(i,k), naermod, aero_model%mtotal,             &
                vaerosol, hygro, fn, fm, fluxn,     &
                fluxm,flux_fullact(k))
 
             factnum(i,k,:) = fn
 
             dumc = (cldn_tmp - cldo_tmp)
-            do m = 1, ntot_amode
+            do m = 1, aero_model%mtotal
                mm = mam_idx(m,0)
                dact   = dumc*fn(m)*raer(mm)%fld(i,k) ! interstitial only
                qcld(k) = qcld(k) + dact
@@ -671,7 +670,7 @@ subroutine dropmixnuc( aero_model, &
                raercol_cw(k,mm,nsav) = raercol_cw(k,mm,nsav) + dact  ! cloud-borne aerosol
                raercol(k,mm,nsav)    = raercol(k,mm,nsav) - dact
                dum = dumc*fm(m)
-               do l = 1, nspec_amode(m)
+               do l = 1, aero_model%nmasses(m)
                   mm = mam_idx(m,l)
                   dact    = dum*raer(mm)%fld(i,k) ! interstitial only
                   raercol_cw(k,mm,nsav) = raercol_cw(k,mm,nsav) + dact  ! cloud-borne aerosol
@@ -728,7 +727,7 @@ subroutine dropmixnuc( aero_model, &
                wmin    = wbar + wmix*0.25_r8*sq2pi*log(alogarg)
                phase   = 1   ! interstitial
 
-               do m = 1, ntot_amode
+               do m = 1, aero_model%mtotal
                   ! rce-comment - use kp1 here as old-cloud activation involves
                   !   aerosol from layer below
                   call aero_model%loadaer( i, i, kp1, m, cs, phase, na, va, hy)
@@ -739,7 +738,7 @@ subroutine dropmixnuc( aero_model, &
 
                call aero_model%activate( &
                   wbar, wmix, wdiab, wmin, wmax,                       &
-                  temp(i,k), cs(i,k), naermod, ntot_amode,             &
+                  temp(i,k), cs(i,k), naermod, aero_model%mtotal,             &
                   vaerosol, hygro,  fn, fm, fluxn,     &
                   fluxm, flux_fullact(k))
 
@@ -794,7 +793,7 @@ subroutine dropmixnuc( aero_model, &
                   taumix_internal_pver_inv = flux_fullact(k)/dz(i,k)
                end if
 
-               do m = 1, ntot_amode
+               do m = 1, aero_model%mtotal
                   mm = mam_idx(m,0)
                   fluxn(m) = fluxn(m)*dumc
                   fluxm(m) = fluxm(m)*dumc
@@ -913,7 +912,7 @@ subroutine dropmixnuc( aero_model, &
       !    however it might if things are not "just right" in subr activate
       !    the following is a safety measure to avoid negatives in explmix
       do k = top_lev, pver-1
-         do m = 1, ntot_amode
+         do m = 1, aero_model%mtotal
             nact(k,m) = min( nact(k,m), ekkp(k) )
             mact(k,m) = min( mact(k,m), ekkp(k) )
          end do
@@ -929,7 +928,7 @@ subroutine dropmixnuc( aero_model, &
          nnew    = ntemp
          srcn(:) = 0.0_r8
 
-         do m = 1, ntot_amode
+         do m = 1, aero_model%mtotal
             mm = mam_idx(m,0)
 
             ! update droplet source
@@ -955,7 +954,7 @@ subroutine dropmixnuc( aero_model, &
          !    source terms involve clear air (from below) moving into cloudy air (above).
          !    in theory, the clear-portion mixratio should be used when calculating
          !    source terms
-         do m = 1, ntot_amode
+         do m = 1, aero_model%mtotal
             mm = mam_idx(m,0)
             ! rce-comment -   activation source in layer k involves particles from k+1
             !	              source(:)= nact(:,m)*(raercol(:,mm,nsav))
@@ -968,16 +967,16 @@ subroutine dropmixnuc( aero_model, &
             flxconv = 0._r8
 
             call aero_model%explmix( &
-               raercol_cw(:,mm,nnew), source, ekkp, ekkm, overlapp, &
-               overlapm, raercol_cw(:,mm,nsav), zero, zero, pver,   &
-               dtmix, .false.)
+                 raercol_cw(:,mm,nnew), source, ekkp, ekkm, overlapp, &
+                 overlapm, raercol_cw(:,mm,nsav), zero, zero, pver,   &
+                 dtmix, .false.)
 
             call aero_model%explmix( &
-               raercol(:,mm,nnew), source, ekkp, ekkm, overlapp,  &
-               overlapm, raercol(:,mm,nsav), zero, flxconv, pver, &
-               dtmix, .true., raercol_cw(:,mm,nsav))
+                 raercol(:,mm,nnew), source, ekkp, ekkm, overlapp,  &
+                 overlapm, raercol(:,mm,nsav), zero, flxconv, pver, &
+                 dtmix, .true., raercol_cw(:,mm,nsav))
 
-            do l = 1, nspec_amode(m)
+            do l = 1, aero_model%nmasses(m)
                mm = mam_idx(m,l)
                ! rce-comment -   activation source in layer k involves particles from k+1
                !	          source(:)= mact(:,m)*(raercol(:,mm,nsav))
@@ -990,14 +989,14 @@ subroutine dropmixnuc( aero_model, &
                flxconv = 0._r8
 
                call aero_model%explmix( &
-                  raercol_cw(:,mm,nnew), source, ekkp, ekkm, overlapp, &
-                  overlapm, raercol_cw(:,mm,nsav), zero, zero, pver,   &
-                  dtmix, .false.)
+                    raercol_cw(:,mm,nnew), source, ekkp, ekkm, overlapp, &
+                    overlapm, raercol_cw(:,mm,nsav), zero, zero, pver,   &
+                    dtmix, .false.)
 
                call aero_model%explmix( &
-                  raercol(:,mm,nnew), source, ekkp, ekkm, overlapp,  &
-                  overlapm, raercol(:,mm,nsav), zero, flxconv, pver, &
-                  dtmix, .true., raercol_cw(:,mm,nsav))
+                    raercol(:,mm,nnew), source, ekkp, ekkm, overlapp,  &
+                    overlapm, raercol(:,mm,nsav), zero, flxconv, pver, &
+                    dtmix, .true., raercol_cw(:,mm,nsav))
 
             end do
          end do
@@ -1050,8 +1049,8 @@ subroutine dropmixnuc( aero_model, &
          raertend = 0._r8
          qqcwtend = 0._r8
 
-         do m = 1, ntot_amode
-            do l = 0, nspec_amode(m)
+         do m = 1, aero_model%mtotal
+            do l = 0, aero_model%nmasses(m)
 
                mm   = mam_idx(m,l)
                lptr = mam_cnst_idx(m,l)
@@ -1103,12 +1102,9 @@ subroutine dropmixnuc( aero_model, &
 
    ! do column tendencies
    if (prog_modal_aero) then
-      do m = 1, ntot_amode
-         do l = 0, nspec_amode(m)
-            mm = mam_idx(m,l)
-            call outfld(fieldname(mm),    coltend(:,mm),    pcols, lchnk)
-            call outfld(fieldname_cw(mm), coltend_cw(:,mm), pcols, lchnk)
-         end do
+      do mm = 1,ncnst_tot
+         call outfld(fieldname(mm),    coltend(:,mm),    pcols, lchnk)
+         call outfld(fieldname_cw(mm), coltend_cw(:,mm), pcols, lchnk)
       end do
    end if
 
