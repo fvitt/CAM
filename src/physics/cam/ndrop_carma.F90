@@ -645,21 +645,19 @@ subroutine dropmixnuc_carma( aero_model, &
 
             dumc = (cldn_tmp - cldo_tmp)
             do m = 1, nbins
-              do l = 0, nspec(m) + 1
-               mm = bin_idx(m,l)
+               mm = bin_idx(m,0)
                dact   = dumc*fn(m)*raer(mm)%fld(i,k) ! interstitial only
                qcld(k) = qcld(k) + dact
                nsource(i,k) = nsource(i,k) + dact*dtinv
                raercol_cw(k,mm,nsav) = raercol_cw(k,mm,nsav) + dact  ! cloud-borne aerosol
                raercol(k,mm,nsav)    = raercol(k,mm,nsav) - dact
                dum = dumc*fm(m)
-              enddo
-              !st do l = 2, nspec(m) + 1
-              !st    mm = bin_idx(m,l)
-              !st    dact    = dum*raer(mm)%fld(i,k) ! interstitial only
-              !st    raercol_cw(k,mm,nsav) = raercol_cw(k,mm,nsav) + dact  ! cloud-borne aerosol
-              !st    raercol(k,mm,nsav)    = raercol(k,mm,nsav) - dact
-              !st enddo
+               do l = 1, nspec(m) + 1
+                  mm = bin_idx(m,l)
+                  dact    = dum*raer(mm)%fld(i,k) ! interstitial only
+                  raercol_cw(k,mm,nsav) = raercol_cw(k,mm,nsav) + dact  ! cloud-borne aerosol
+                  raercol(k,mm,nsav)    = raercol(k,mm,nsav) - dact
+               enddo
             enddo
          endif
 
@@ -938,8 +936,7 @@ subroutine dropmixnuc_carma( aero_model, &
          !    in theory, the clear-portion mixratio should be used when calculating
          !    source terms
          do m = 1, nbins
-           do l = 0, nspec(m) + 1
-            mm = bin_idx(m,l)
+            mm = bin_idx(m,0)
             ! rce-comment -   activation source in layer k involves particles from k+1
             !	              source(:)= nact(:,m)*(raercol(:,mm,nsav))
             source(top_lev:pver-1) = nact(top_lev:pver-1,m)*(raercol(top_lev+1:pver,mm,nsav))
@@ -951,39 +948,38 @@ subroutine dropmixnuc_carma( aero_model, &
             flxconv = 0._r8
 
             call aero_model%explmix( &
-               raercol_cw(:,mm,nnew), source, ekkp, ekkm, overlapp, &
-               overlapm, raercol_cw(:,mm,nsav), zero, zero, pver,   &
-               dtmix, .false.)
+                 raercol_cw(:,mm,nnew), source, ekkp, ekkm, overlapp, &
+                 overlapm, raercol_cw(:,mm,nsav), zero, zero, pver,   &
+                 dtmix, .false.)
 
             call aero_model%explmix( &
-               raercol(:,mm,nnew), source, ekkp, ekkm, overlapp,  &
-               overlapm, raercol(:,mm,nsav), zero, flxconv, pver, &
-               dtmix, .true., raercol_cw(:,mm,nsav))
-            end do
+                 raercol(:,mm,nnew), source, ekkp, ekkm, overlapp,  &
+                 overlapm, raercol(:,mm,nsav), zero, flxconv, pver, &
+                 dtmix, .true., raercol_cw(:,mm,nsav))
 
-            !st do l = 1, nspec(m)
-            !st    mm = bin_idx(m,l)
-            !st    ! rce-comment -   activation source in layer k involves particles from k+1
-            !st    !	          source(:)= mact(:,m)*(raercol(:,mm,nsav))
-            !st   source(top_lev:pver-1) = mact(top_lev:pver-1,m)*(raercol(top_lev+1:pver,mm,nsav))
+            do l = 1, nspec(m) + 1
+               mm = bin_idx(m,l)
+               ! rce-comment -   activation source in layer k involves particles from k+1
+               !	          source(:)= mact(:,m)*(raercol(:,mm,nsav))
+               source(top_lev:pver-1) = mact(top_lev:pver-1,m)*(raercol(top_lev+1:pver,mm,nsav))
                ! rce-comment- new formulation for k=pver
                !                 source(  pver  )= mact(  pver  ,m)*(raercol(  pver,mm,nsav))
-            !st   tmpa = raercol(pver,mm,nsav)*mact(pver,m) &
-            !st        + raercol_cw(pver,mm,nsav)*(mact(pver,m) - taumix_internal_pver_inv)
-            !st   source(pver) = max(0.0_r8, tmpa)
-            !st   flxconv = 0._r8
+               tmpa = raercol(pver,mm,nsav)*mact(pver,m) &
+                    + raercol_cw(pver,mm,nsav)*(mact(pver,m) - taumix_internal_pver_inv)
+               source(pver) = max(0.0_r8, tmpa)
+               flxconv = 0._r8
 
-            !st   call explmix( &
-            !st      raercol_cw(:,mm,nnew), source, ekkp, ekkm, overlapp, &
-            !st      overlapm, raercol_cw(:,mm,nsav), zero, zero, pver,   &
-            !st      dtmix, .false.)
+               call aero_model%explmix( &
+                    raercol_cw(:,mm,nnew), source, ekkp, ekkm, overlapp, &
+                    overlapm, raercol_cw(:,mm,nsav), zero, zero, pver,   &
+                    dtmix, .false.)
 
-            !st   call explmix( &
-            !st      raercol(:,mm,nnew), source, ekkp, ekkm, overlapp,  &
-            !st      overlapm, raercol(:,mm,nsav), zero, flxconv, pver, &
-            !st      dtmix, .true., raercol_cw(:,mm,nsav))
+               call aero_model%explmix( &
+                    raercol(:,mm,nnew), source, ekkp, ekkm, overlapp,  &
+                    overlapm, raercol(:,mm,nsav), zero, flxconv, pver, &
+                    dtmix, .true., raercol_cw(:,mm,nsav))
 
-            !st end do
+            end do
          end do
 
          if (called_from_spcam) then
