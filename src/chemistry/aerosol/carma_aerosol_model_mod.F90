@@ -12,7 +12,6 @@ module carma_aerosol_model_mod
 
   type, extends(aerosol_model) :: carma_aerosol_model
      integer, allocatable :: nspec(:)
-     integer, allocatable :: bin_idx(:,:) ! table for local indexing of modal aero number and mmr
    contains
      procedure :: loadaer => carma_loadaer
      procedure :: set_ptrs => carma_set_ptrs
@@ -58,19 +57,7 @@ contains
     end do
     ! add plus one to include number, total mmr and nspec
     nspec_max = maxval(self%nspec) + 1
-    allocate( self%bin_idx(nbins,0:nspec_max) )
-
-    ! Local indexing compresses the mode and number/mass indicies into one index.
-    ! This indexing is used by the pointer arrays used to reference state and pbuf
-    ! fields.
-    ! for CARMA we add number = 0, total mass = 1, and mass from each constituence into mm.
-    ii = 0
-    do m = 1, nbins
-       do l = 0, self%nspec(m) + 1
-          ii = ii + 1
-          self%bin_idx(m,l) = ii
-       end do
-    end do
+    allocate( self%indexer(nbins,0:nspec_max) )
 
   end subroutine carma_model_init
 
@@ -187,14 +174,14 @@ contains
     integer :: m, mm, l
 
     do m = 1, self%mtotal
-       mm = self%bin_idx(m, 0)
+       mm = self%indexer(m, 0)
        call rad_cnst_get_bin_num(0, m, 'a', self%state, self%pbuf, raer(mm)%fld)
        call rad_cnst_get_bin_num(0, m, 'c', self%state, self%pbuf, qqcw(mm)%fld)  ! cloud-borne aerosol
-       mm = self%bin_idx(m, 1)
+       mm = self%indexer(m, 1)
        call rad_cnst_get_bin_mmr(0, m, 'a', self%state, self%pbuf, raer(mm)%fld)
        call rad_cnst_get_bin_mmr(0, m, 'c', self%state, self%pbuf, qqcw(mm)%fld)  ! cloud-borne aerosol
        do l = 2, self%nspec(m)+1
-          mm = self%bin_idx(m, l)
+          mm = self%indexer(m, l)
           call rad_cnst_get_bin_mmr_by_idx(0, m, l-1, 'a', self%state, self%pbuf, raer(mm)%fld)
           call rad_cnst_get_bin_mmr_by_idx(0, m, l-1, 'c', self%state, self%pbuf, qqcw(mm)%fld)  ! cloud-borne aerosol
        end do

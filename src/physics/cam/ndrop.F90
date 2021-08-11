@@ -279,6 +279,7 @@ subroutine dropmixnuc( aero_model, &
    ! doesn't distinguish between warm, cold clouds
 
    ! arguments
+   class(aerosol_model), intent(inout) :: aero_model
    type(physics_state), target, intent(in)    :: state
    type(physics_ptend),         intent(out)   :: ptend
    real(r8),                    intent(in)    :: dtmicro     ! time step for microphysics (s)
@@ -286,7 +287,6 @@ subroutine dropmixnuc( aero_model, &
    type(physics_buffer_desc), pointer :: pbuf(:)
 
    ! arguments
-   class(aerosol_model), intent(inout) :: aero_model
    real(r8), intent(in) :: wsub(pcols,pver)    ! subgrid vertical velocity
    real(r8), intent(in) :: cldn(pcols,pver)    ! cloud fraction
    real(r8), intent(in) :: cldo(pcols,pver)    ! cloud fraction on previous time step
@@ -303,7 +303,6 @@ subroutine dropmixnuc( aero_model, &
 
    real(r8), pointer :: ncldwtr(:,:) ! droplet number concentration (#/kg)
    real(r8), pointer :: temp(:,:)    ! temperature (K)
-   real(r8), pointer :: omega(:,:)   ! vertical velocity (Pa/s)
    real(r8), pointer :: pmid(:,:)    ! mid-level pressure (Pa)
    real(r8), pointer :: pint(:,:)    ! pressure at layer interfaces (Pa)
    real(r8), pointer :: pdel(:,:)    ! pressure thickess of layer (Pa)
@@ -371,7 +370,6 @@ subroutine dropmixnuc( aero_model, &
    real(r8) :: ndropcol(pcols)               ! column droplet number (#/m2)
    real(r8) :: cldo_tmp, cldn_tmp
    real(r8) :: tau_cld_regenerate
-   real(r8) :: zeroaer(pver)
    real(r8) :: taumix_internal_pver_inv ! 1/(internal mixing time scale for k=pver) (1/s)
 
 
@@ -414,7 +412,6 @@ subroutine dropmixnuc( aero_model, &
    logical  :: called_from_spcam
    !-------------------------------------------------------------------------------
 
-
    sq2pi = sqrt(2._r8*pi)
 
    lchnk = state%lchnk
@@ -422,7 +419,6 @@ subroutine dropmixnuc( aero_model, &
 
    ncldwtr  => state%q(:,:,numliq_idx)
    temp     => state%t
-   omega    => state%omega
    pmid     => state%pmid
    pint     => state%pint
    pdel     => state%pdel
@@ -663,7 +659,7 @@ subroutine dropmixnuc( aero_model, &
 
             dumc = (cldn_tmp - cldo_tmp)
             do m = 1, aero_model%mtotal
-               mm = mam_idx(m,0)
+               mm = aero_model%indexer(m,0)
                dact   = dumc*fn(m)*raer(mm)%fld(i,k) ! interstitial only
                qcld(k) = qcld(k) + dact
                nsource(i,k) = nsource(i,k) + dact*dtinv
@@ -671,7 +667,7 @@ subroutine dropmixnuc( aero_model, &
                raercol(k,mm,nsav)    = raercol(k,mm,nsav) - dact
                dum = dumc*fm(m)
                do l = 1, aero_model%nmasses(m)
-                  mm = mam_idx(m,l)
+                  mm = aero_model%indexer(m,l)
                   dact    = dum*raer(mm)%fld(i,k) ! interstitial only
                   raercol_cw(k,mm,nsav) = raercol_cw(k,mm,nsav) + dact  ! cloud-borne aerosol
                   raercol(k,mm,nsav)    = raercol(k,mm,nsav) - dact
@@ -794,7 +790,7 @@ subroutine dropmixnuc( aero_model, &
                end if
 
                do m = 1, aero_model%mtotal
-                  mm = mam_idx(m,0)
+                  mm = aero_model%indexer(m,0)
                   fluxn(m) = fluxn(m)*dumc
                   fluxm(m) = fluxm(m)*dumc
                   nact(k,m) = nact(k,m) + fluxn(m)*dum
@@ -929,7 +925,7 @@ subroutine dropmixnuc( aero_model, &
          srcn(:) = 0.0_r8
 
          do m = 1, aero_model%mtotal
-            mm = mam_idx(m,0)
+            mm = aero_model%indexer(m,0)
 
             ! update droplet source
             ! rce-comment- activation source in layer k involves particles from k+1
@@ -955,7 +951,7 @@ subroutine dropmixnuc( aero_model, &
          !    in theory, the clear-portion mixratio should be used when calculating
          !    source terms
          do m = 1, aero_model%mtotal
-            mm = mam_idx(m,0)
+            mm = aero_model%indexer(m,0)
             ! rce-comment -   activation source in layer k involves particles from k+1
             !	              source(:)= nact(:,m)*(raercol(:,mm,nsav))
             source(top_lev:pver-1) = nact(top_lev:pver-1,m)*(raercol(top_lev+1:pver,mm,nsav))
@@ -977,7 +973,7 @@ subroutine dropmixnuc( aero_model, &
                  dtmix, .true., raercol_cw(:,mm,nsav))
 
             do l = 1, aero_model%nmasses(m)
-               mm = mam_idx(m,l)
+               mm = aero_model%indexer(m,l)
                ! rce-comment -   activation source in layer k involves particles from k+1
                !	          source(:)= mact(:,m)*(raercol(:,mm,nsav))
                source(top_lev:pver-1) = mact(top_lev:pver-1,m)*(raercol(top_lev+1:pver,mm,nsav))
@@ -1052,7 +1048,7 @@ subroutine dropmixnuc( aero_model, &
          do m = 1, aero_model%mtotal
             do l = 0, aero_model%nmasses(m)
 
-               mm   = mam_idx(m,l)
+               mm   =  aero_model%indexer(m,l)
                lptr = mam_cnst_idx(m,l)
 
                raertend(top_lev:pver) = (raercol(top_lev:pver,mm,nnew) - raer(mm)%fld(i,top_lev:pver))*dtinv

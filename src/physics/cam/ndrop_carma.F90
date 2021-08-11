@@ -645,7 +645,7 @@ subroutine dropmixnuc_carma( aero_model, &
 
             dumc = (cldn_tmp - cldo_tmp)
             do m = 1, aero_model%mtotal
-               mm = bin_idx(m,0)
+               mm = aero_model%indexer(m,0)
                dact   = dumc*fn(m)*raer(mm)%fld(i,k) ! interstitial only
                qcld(k) = qcld(k) + dact
                nsource(i,k) = nsource(i,k) + dact*dtinv
@@ -653,7 +653,7 @@ subroutine dropmixnuc_carma( aero_model, &
                raercol(k,mm,nsav)    = raercol(k,mm,nsav) - dact
                dum = dumc*fm(m)
                do l = 1, aero_model%nmasses(m)
-                  mm = bin_idx(m,l)
+                  mm = aero_model%indexer(m,l)
                   dact    = dum*raer(mm)%fld(i,k) ! interstitial only
                   raercol_cw(k,mm,nsav) = raercol_cw(k,mm,nsav) + dact  ! cloud-borne aerosol
                   raercol(k,mm,nsav)    = raercol(k,mm,nsav) - dact
@@ -776,7 +776,7 @@ subroutine dropmixnuc_carma( aero_model, &
                end if
 
                do m = 1, aero_model%mtotal
-                  mm = bin_idx(m,0)
+                  mm = aero_model%indexer(m,0)
                   fluxn(m) = fluxn(m)*dumc
                   fluxm(m) = fluxm(m)*dumc
                   nact(k,m) = nact(k,m) + fluxn(m)*dum
@@ -911,7 +911,7 @@ subroutine dropmixnuc_carma( aero_model, &
          srcn(:) = 0.0_r8
 
          do m = 1, aero_model%mtotal
-            mm = bin_idx(m,0)
+            mm = aero_model%indexer(m,0)
 
             ! update droplet source
             ! rce-comment- activation source in layer k involves particles from k+1
@@ -937,7 +937,7 @@ subroutine dropmixnuc_carma( aero_model, &
          !    in theory, the clear-portion mixratio should be used when calculating
          !    source terms
          do m = 1, aero_model%mtotal
-            mm = bin_idx(m,0)
+            mm = aero_model%indexer(m,0)
             ! rce-comment -   activation source in layer k involves particles from k+1
             !	              source(:)= nact(:,m)*(raercol(:,mm,nsav))
             source(top_lev:pver-1) = nact(top_lev:pver-1,m)*(raercol(top_lev+1:pver,mm,nsav))
@@ -959,7 +959,7 @@ subroutine dropmixnuc_carma( aero_model, &
                  dtmix, .true., raercol_cw(:,mm,nsav))
 
             do l = 1, aero_model%nmasses(m)
-               mm = bin_idx(m,l)
+               mm = aero_model%indexer(m,l)
                ! rce-comment -   activation source in layer k involves particles from k+1
                !	          source(:)= mact(:,m)*(raercol(:,mm,nsav))
                source(top_lev:pver-1) = mact(top_lev:pver-1,m)*(raercol(top_lev+1:pver,mm,nsav))
@@ -1034,7 +1034,7 @@ subroutine dropmixnuc_carma( aero_model, &
          do m = 1, aero_model%mtotal
             do l = 0, aero_model%nmasses(m)
 
-               mm   = bin_idx(m,l)
+               mm   = aero_model%indexer(m,l)
                lptr = bin_cnst_idx(m,l)
 
                raertend(top_lev:pver) = (raercol(top_lev:pver,mm,nnew) - raer(mm)%fld(i,top_lev:pver))*dtinv

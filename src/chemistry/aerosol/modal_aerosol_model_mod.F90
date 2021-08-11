@@ -13,7 +13,6 @@ module modal_aerosol_model_mod
 
   type, extends(aerosol_model) :: modal_aerosol_model
      integer               :: ntot_amode     ! number of aerosol modes
-     integer,  allocatable :: mam_idx(:,:) ! table for local indexing of modal aero number and mmr
      integer,  allocatable :: nspec_amode(:) ! number of chemical species in each aerosol mode
      real(r8), allocatable :: sigmag_amode(:)! geometric standard deviation for each aerosol mode
      real(r8), allocatable :: dgnumlo_amode(:)
@@ -32,7 +31,7 @@ contains
   subroutine modal_model_init(self)
     class(modal_aerosol_model), intent(inout) :: self
 
-    integer :: ii,l, m, nspec_max
+    integer :: m, nspec_max
 
     ! get info about the modal aerosols
     ! get ntot_amode
@@ -82,18 +81,7 @@ contains
 
     ! Find max number of species in all the modes
     nspec_max = maxval(self%nspec_amode)
-    allocate( self%mam_idx(self%ntot_amode,0:nspec_max) )
-
-    ! Local indexing compresses the mode and number/mass indicies into one index.
-    ! This indexing is used by the pointer arrays used to reference state and pbuf
-    ! fields.
-    ii = 0
-    do m = 1, self%ntot_amode
-       do l = 0, self%nspec_amode(m)
-          ii = ii + 1
-          self%mam_idx(m,l) = ii
-       end do
-    end do
+    allocate( self%indexer(self%ntot_amode,0:nspec_max) )
 
   end subroutine modal_model_init
 
@@ -224,11 +212,11 @@ contains
     integer :: m,mm,l
 
    do m = 1, self%ntot_amode
-      mm = self%mam_idx(m, 0)
+      mm = self%indexer(m, 0)
       call rad_cnst_get_mode_num(0, m, 'a', self%state, self%pbuf, raer(mm)%fld)
       call rad_cnst_get_mode_num(0, m, 'c', self%state, self%pbuf, qqcw(mm)%fld)  ! cloud-borne aerosol
       do l = 1, self%nspec_amode(m)
-         mm = self%mam_idx(m, l)
+         mm = self%indexer(m, l)
          call rad_cnst_get_aer_mmr(0, m, l, 'a', self%state, self%pbuf, raer(mm)%fld)
          call rad_cnst_get_aer_mmr(0, m, l, 'c', self%state, self%pbuf, qqcw(mm)%fld)  ! cloud-borne aerosol
       end do

@@ -22,6 +22,7 @@ module aerosol_model_mod
   type, abstract :: aerosol_model
      integer :: mtotal
      integer, allocatable :: nmasses(:)
+     integer, allocatable :: indexer(:,:)
      type(physics_state) :: state
      type(physics_buffer_desc), pointer :: pbuf(:) => null()
      real(r8), allocatable :: amcubecoef(:)
@@ -112,10 +113,23 @@ contains
     type(physics_state), intent(in) :: state
     type(physics_buffer_desc), pointer :: pbuf(:)
 
+    integer :: ii,l,m
+
     self%state = state
     self%pbuf => pbuf
 
     call self%model_init()
+
+    ! Local indexing compresses the mode and number/mass indicies into one index.
+    ! This indexing is used by the pointer arrays used to reference state and pbuf
+    ! fields.
+    ii = 0
+    do m = 1, self%mtotal
+       do l = 0, self%nmasses(m)
+          ii = ii + 1
+          self%indexer(m,l) = ii
+       end do
+    end do
 
     aten     = 2._r8*mwh2o*surften/(r_universal*t0*rhoh2o)
     alogaten = log(aten)
