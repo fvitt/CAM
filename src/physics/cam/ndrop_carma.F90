@@ -67,8 +67,8 @@ integer, allocatable :: bin_idx(:,:) ! table for local indexing of modal aero nu
 integer :: ncnst_tot                  ! total number of mode number conc + mode species
 
 ! Indices for CARMA species in the ptend%q array.  Needed for prognostic aerosol case.
-logical, allocatable :: bin_cnst_lq(:,:)
-integer, allocatable :: bin_cnst_idx(:,:)
+!!$logical, allocatable :: bin_cnst_lq(:,:)
+!!$integer, allocatable :: bin_cnst_idx(:,:)
 
 ! modal aerosols
 logical :: prog_modal_aero     ! true when aerosols are prognostic   !st make sure to check
@@ -139,8 +139,8 @@ subroutine ndrop_carma_init
 
    allocate( &
       bin_idx(nbins,0:nspec_max),      &
-      bin_cnst_lq(nbins,0:nspec_max), &
-      bin_cnst_idx(nbins,0:nspec_max), &
+!!$      bin_cnst_lq(nbins,0:nspec_max), &
+!!$      bin_cnst_idx(nbins,0:nspec_max), &
       fieldname(ncnst_tot),                 &
       fieldname_cw(ncnst_tot)               )
 
@@ -191,12 +191,12 @@ subroutine ndrop_carma_init
 
           call cnst_get_ind(tmpname, idxtmp, abort=.false.)
           if (idxtmp.gt.0) then
-             bin_cnst_lq(m,l) = .true.
-             bin_cnst_idx(m,l) = idxtmp
+!!$             bin_cnst_lq(m,l) = .true.
+!!$             bin_cnst_idx(m,l) = idxtmp
              lq(idxtmp) = .true.
           else
-             bin_cnst_lq(m,l) = .false.
-             bin_cnst_idx(m,l) = 0
+!!$             bin_cnst_lq(m,l) = .false.
+!!$             bin_cnst_idx(m,l) = 0
           end if
 
           ! Add tendency fields to the history only when prognostic MAM is enabled.
@@ -232,27 +232,6 @@ subroutine ndrop_carma_init
    if (history_amwg) then
       call add_default('CCN3', 1, ' ')
    endif
-
-   !st could change to a history_carma case (if defined)
-   !st if (history_aerosol .and. prog_modal_aero) then
-   if (history_carma) then
-     do m = 1, nbins
-        do l = 0, nspec(m) + 1   ! loop over number + chem constituents
-           mm = bin_idx(m,l)
-           if (l == 0) then   ! number
-            call rad_cnst_get_info_by_bin(0, m, num_name=tmpname, num_name_cw=tmpname_cw)
-           else  if (l == 1) then   ! total mmr
-            call rad_cnst_get_info_by_bin(0, m, mmr_name=tmpname, mmr_name_cw=tmpname_cw)
-           else
-            call rad_cnst_get_info_by_bin_spec(0, m, l-1, spec_name=tmpname, spec_name_cw=tmpname_cw)
-           end if
-           fieldname(mm)    = trim(tmpname) // '_mixnuc1'
-           fieldname_cw(mm) = trim(tmpname_cw) // '_mixnuc1'
-        end do
-     end do
-   endif
-
-
 
 end subroutine ndrop_carma_init
 
@@ -470,8 +449,13 @@ subroutine dropmixnuc_carma( aero_model, &
    ndropmix = 0._r8
    ndropcol = 0._r8
 
-   ! initialize aerosol tendencies
-   call physics_ptend_init(ptend, state%psetcols, 'ndrop_carma', lq=lq)
+   if (aero_model%prognostic) then
+      ! aerosol tendencies
+      call physics_ptend_init(ptend, state%psetcols, 'ndrop_carma', lq=lq)
+   else
+      ! no aerosol tendencies
+      call physics_ptend_init(ptend, state%psetcols, 'ndrop_carma')
+   end if
 
    ! overall_main_i_loop
    do i = 1, ncol
@@ -1026,7 +1010,7 @@ subroutine dropmixnuc_carma( aero_model, &
       end do
       ndropcol(i) = ndropcol(i)/gravit
 
-!st      if (prog_modal_aero) then
+      if (aero_model%prognostic) then
 
          raertend = 0._r8
          qqcwtend = 0._r8
@@ -1035,7 +1019,7 @@ subroutine dropmixnuc_carma( aero_model, &
             do l = 0, aero_model%nmasses(m)
 
                mm   = aero_model%indexer(m,l)
-               lptr = bin_cnst_idx(m,l)
+               lptr = aero_model%cnstndx(m,l)
 
                raertend(top_lev:pver) = (raercol(top_lev:pver,mm,nnew) - raer(mm)%fld(i,top_lev:pver))*dtinv
                qqcwtend(top_lev:pver) = (raercol_cw(top_lev:pver,mm,nnew) - qqcw(mm)%fld(i,top_lev:pver))*dtinv
@@ -1043,8 +1027,8 @@ subroutine dropmixnuc_carma( aero_model, &
                coltend(i,mm)    = sum( pdel(i,:)*raertend )/gravit
                coltend_cw(i,mm) = sum( pdel(i,:)*qqcwtend )/gravit
 
-               ! some CARMA interstetial species are not advected, check:
-               if (bin_cnst_lq(m,l)) then ! adveced species
+               ! some interstetial species are might not be advected, check:
+               if (lptr>0) then ! adveced species
                  ptend%q(i,:,lptr) = 0.0_r8
                  ptend%q(i,top_lev:pver,lptr) = raertend(top_lev:pver)           ! set tendencies for interstitial aerosol
                else
@@ -1058,7 +1042,7 @@ subroutine dropmixnuc_carma( aero_model, &
             end do
          end do
 
-!st      end if
+      end if
 
       if (called_from_spcam) then
       !
@@ -1091,12 +1075,12 @@ subroutine dropmixnuc_carma( aero_model, &
    enddo
 
    ! do column tendencies
-!st   if (prog_modal_aero) then
-   do mm = 1,ncnst_tot
-      call outfld(fieldname(mm),    coltend(:,mm),    pcols, lchnk)
-      call outfld(fieldname_cw(mm), coltend_cw(:,mm), pcols, lchnk)
-   end do
-!st   end if
+   if (aero_model%prognostic) then
+      do mm = 1,ncnst_tot
+         call outfld(fieldname(mm),    coltend(:,mm),    pcols, lchnk)
+         call outfld(fieldname_cw(mm), coltend_cw(:,mm), pcols, lchnk)
+      end do
+   end if
 
    if(called_from_spcam) then
    !
@@ -1129,8 +1113,7 @@ subroutine dropmixnuc_carma( aero_model, &
       fn,         &
       fm,         &
       fluxn,      &
-      fluxm      )
-
+      fluxm       )
 
 end subroutine dropmixnuc_carma
 

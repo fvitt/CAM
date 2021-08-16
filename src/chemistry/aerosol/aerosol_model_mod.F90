@@ -20,9 +20,11 @@ module aerosol_model_mod
   end type ptr2d_t
 
   type, abstract :: aerosol_model
+     logical :: prognostic = .true.
      integer :: mtotal
      integer, allocatable :: nmasses(:)
      integer, allocatable :: indexer(:,:)
+     integer, allocatable :: cnstndx(:,:)
      type(physics_state) :: state
      type(physics_buffer_desc), pointer :: pbuf(:) => null()
      real(r8), allocatable :: amcubecoef(:)

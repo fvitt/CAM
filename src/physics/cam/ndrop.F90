@@ -76,7 +76,7 @@ integer, allocatable :: mam_idx(:,:) ! table for local indexing of modal aero nu
 integer :: ncnst_tot                  ! total number of mode number conc + mode species
 
 ! Indices for MAM species in the ptend%q array.  Needed for prognostic aerosol case.
-integer, allocatable :: mam_cnst_idx(:,:)
+!!$integer, allocatable :: mam_cnst_idx(:,:)
 
 ! modal aerosols
 logical :: prog_modal_aero     ! true when modal aerosols are prognostic
@@ -158,7 +158,7 @@ subroutine ndrop_init
 
    allocate( &
       mam_idx(ntot_amode,0:nspec_max),      &
-      mam_cnst_idx(ntot_amode,0:nspec_max), &
+!!$      mam_cnst_idx(ntot_amode,0:nspec_max), &
       fieldname(ncnst_tot),                 &
       fieldname_cw(ncnst_tot)               )
 
@@ -208,7 +208,7 @@ subroutine ndrop_init
             else
                call rad_cnst_get_mam_mmr_idx(m, l, lptr)
             end if
-            mam_cnst_idx(m,l) = lptr
+!!$            mam_cnst_idx(m,l) = lptr
             lq(lptr)          = .true.
 
             ! Add tendency fields to the history only when prognostic MAM is enabled.
@@ -248,23 +248,6 @@ subroutine ndrop_init
    if (history_amwg) then
       call add_default('CCN3', 1, ' ')
    endif
-
-   if (history_aerosol .and. prog_modal_aero) then
-     do m = 1, ntot_amode
-        do l = 0, nspec_amode(m)   ! loop over number + chem constituents
-           mm = mam_idx(m,l)
-           if (l == 0) then   ! number
-              call rad_cnst_get_info(0, m, num_name=tmpname, num_name_cw=tmpname_cw)
-           else
-              call rad_cnst_get_info(0, m, l, spec_name=tmpname, spec_name_cw=tmpname_cw)
-           end if
-           fieldname(mm)    = trim(tmpname) // '_mixnuc1'
-           fieldname_cw(mm) = trim(tmpname_cw) // '_mixnuc1'
-        end do
-     end do
-   endif
-
-
 
 end subroutine ndrop_init
 
@@ -478,8 +461,11 @@ subroutine dropmixnuc( aero_model, &
 
    factnum = 0._r8
    wtke = 0._r8
+   nsource = 0._r8
+   ndropmix = 0._r8
+   ndropcol = 0._r8
 
-   if (prog_modal_aero) then
+   if (aero_model%prognostic) then
       ! aerosol tendencies
       call physics_ptend_init(ptend, state%psetcols, 'ndrop', lq=lq)
    else
@@ -1040,7 +1026,7 @@ subroutine dropmixnuc( aero_model, &
       end do
       ndropcol(i) = ndropcol(i)/gravit
 
-      if (prog_modal_aero) then
+      if (aero_model%prognostic) then
 
          raertend = 0._r8
          qqcwtend = 0._r8
@@ -1048,8 +1034,8 @@ subroutine dropmixnuc( aero_model, &
          do m = 1, aero_model%mtotal
             do l = 0, aero_model%nmasses(m)
 
-               mm   =  aero_model%indexer(m,l)
-               lptr = mam_cnst_idx(m,l)
+               mm   = aero_model%indexer(m,l)
+               lptr = aero_model%cnstndx(m,l)
 
                raertend(top_lev:pver) = (raercol(top_lev:pver,mm,nnew) - raer(mm)%fld(i,top_lev:pver))*dtinv
                qqcwtend(top_lev:pver) = (raercol_cw(top_lev:pver,mm,nnew) - qqcw(mm)%fld(i,top_lev:pver))*dtinv
@@ -1057,10 +1043,18 @@ subroutine dropmixnuc( aero_model, &
                coltend(i,mm)    = sum( pdel(i,:)*raertend )/gravit
                coltend_cw(i,mm) = sum( pdel(i,:)*qqcwtend )/gravit
 
-               ptend%q(i,:,lptr) = 0.0_r8
-               ptend%q(i,top_lev:pver,lptr) = raertend(top_lev:pver)           ! set tendencies for interstitial aerosol
+               ! some interstetial species are might not be advected, check:
+               if (lptr>0) then ! adveced species
+                 ptend%q(i,:,lptr) = 0.0_r8
+                 ptend%q(i,top_lev:pver,lptr) = raertend(top_lev:pver)           ! set tendencies for interstitial aerosol
+               else
+                 raer(mm)%fld(i,:) = 0.0_r8
+                 raer(mm)%fld(i,top_lev:pver)  = raercol(top_lev:pver,mm,nnew)           ! update interstitial aerosol
+               end if
+
                qqcw(mm)%fld(i,:) = 0.0_r8
                qqcw(mm)%fld(i,top_lev:pver) = raercol_cw(top_lev:pver,mm,nnew) ! update cloud-borne aerosol
+
             end do
          end do
 
@@ -1097,7 +1091,7 @@ subroutine dropmixnuc( aero_model, &
    enddo
 
    ! do column tendencies
-   if (prog_modal_aero) then
+   if (aero_model%prognostic) then
       do mm = 1,ncnst_tot
          call outfld(fieldname(mm),    coltend(:,mm),    pcols, lchnk)
          call outfld(fieldname_cw(mm), coltend_cw(:,mm), pcols, lchnk)

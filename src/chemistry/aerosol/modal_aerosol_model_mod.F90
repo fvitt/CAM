@@ -6,8 +6,10 @@ module modal_aerosol_model_mod
   use physconst,        only: pi
   use rad_constituents, only: rad_cnst_get_aer_mmr, rad_cnst_get_aer_props, rad_cnst_get_mode_num
   use rad_constituents, only: rad_cnst_get_info, rad_cnst_get_mode_props
+  use rad_constituents, only: rad_cnst_get_mam_mmr_idx, rad_cnst_get_mode_num_idx
   use ppgrid,           only: pcols
-  use cam_abortutils, only: endrun
+  use cam_abortutils,   only: endrun
+  use phys_control,     only: phys_getopts
 
   implicit none
 
@@ -31,7 +33,9 @@ contains
   subroutine modal_model_init(self)
     class(modal_aerosol_model), intent(inout) :: self
 
-    integer :: m, nspec_max
+    integer :: m, nspec_max, l,idx
+
+    call phys_getopts(prog_modal_aero_out=self%prognostic)
 
     ! get info about the modal aerosols
     ! get ntot_amode
@@ -82,6 +86,26 @@ contains
     ! Find max number of species in all the modes
     nspec_max = maxval(self%nspec_amode)
     allocate( self%indexer(self%ntot_amode,0:nspec_max) )
+    allocate( self%cnstndx(self%ntot_amode,0:nspec_max) )
+
+    do m = 1, self%ntot_amode
+       do l = 0, self%nspec_amode(m)   ! loop over number + chem constituents
+          if (self%prognostic) then
+
+             ! To set tendencies in the ptend object need to get the constituent indices
+             ! for the prognostic species
+             if (l == 0) then   ! number
+                call rad_cnst_get_mode_num_idx(m, idx)
+             else
+                call rad_cnst_get_mam_mmr_idx(m, l, idx)
+             end if
+             self%cnstndx(m,l) = idx
+             ! lq(lptr)          = .true.
+
+          endif
+
+       end do
+    end do
 
   end subroutine modal_model_init
 

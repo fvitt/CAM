@@ -3,10 +3,11 @@ module carma_aerosol_model_mod
   use aerosol_model_mod, only: aerosol_model, twothird, sq2, ptr2d_t
   use cam_logfile, only: iulog
   use spmd_utils, only: masterproc
-  use rad_constituents, only: rad_cnst_get_info, rad_cnst_get_info_by_bin
+  use rad_constituents, only: rad_cnst_get_info, rad_cnst_get_info_by_bin, rad_cnst_get_info_by_bin_spec
   use rad_constituents, only: rad_cnst_get_bin_props_by_idx, rad_cnst_get_bin_mmr_by_idx, rad_cnst_get_bin_num
   use rad_constituents, only: rad_cnst_get_bin_mmr
   use physconst, only: pi
+  use constituents,     only: cnst_get_ind
 
   implicit none
 
@@ -26,6 +27,9 @@ contains
     class(carma_aerosol_model), intent(inout) :: self
 
     integer :: l, m, nbins, nspec_max, ii
+    character(len=32) :: tmpname
+    character(len=32) :: tmpname_cw
+    integer :: idxtmp
 
     if (masterproc) write(iulog,*) 'AERO_MODEL: Init CARMA data...'
 
@@ -58,7 +62,26 @@ contains
     ! add plus one to include number, total mmr and nspec
     nspec_max = maxval(self%nspec) + 1
     allocate( self%indexer(nbins,0:nspec_max) )
+    allocate( self%cnstndx(nbins,0:nspec_max) )
+    self%cnstndx = -1
 
+    do m = 1, nbins
+       do l = 0, self%nspec(m) + 1  ! loop over bin + aerosol constituents
+          if (l == 0) then   ! number
+             call rad_cnst_get_info_by_bin(0, m, num_name=tmpname, num_name_cw=tmpname_cw)
+          else if (l == 1) then
+             call rad_cnst_get_info_by_bin(0, m,  mmr_name=tmpname, mmr_name_cw=tmpname_cw)
+          else
+             call rad_cnst_get_info_by_bin_spec(0, m, l-1, spec_name=tmpname, spec_name_cw=tmpname_cw)
+          end if
+
+          call cnst_get_ind(tmpname, idxtmp, abort=.false.)
+          if (idxtmp>0) then
+             self%cnstndx(m,l) = idxtmp
+!!$             self%lq(idxtmp) = .true.
+          end if
+       end do
+    end do
   end subroutine carma_model_init
 
   subroutine carma_model_final(self)
@@ -99,8 +122,6 @@ contains
     real(r8) :: vol(pcols) ! aerosol volume mixing ratio
     integer  :: i, l
     !-------------------------------------------------------------------------------
-
-    if (masterproc) write(iulog,*) 'AERO_MODEL: CARMA load aerosol data..'
 
     do i = istart, istop
        vaerosol(i) = 0._r8
