@@ -9,27 +9,9 @@ module ndrop
 !            index 0 in all the calls to rad_constituent interfaces.
 !---------------------------------------------------------------------------------
 
-use shr_kind_mod,     only: r8 => shr_kind_r8
-use spmd_utils,       only: masterproc
-use ppgrid,           only: pcols, pver, pverp
-use physconst,        only: pi, rhoh2o, mwh2o, r_universal, rh2o, &
-                            gravit, latvap, cpair, epsilo, rair
-use constituents,     only: pcnst, cnst_get_ind, cnst_name, cnst_spec_class_gas, cnst_species_class
-use physics_types,    only: physics_state, physics_ptend, physics_ptend_init
-use physics_buffer,   only: physics_buffer_desc, pbuf_get_index, pbuf_get_field
-
-use wv_saturation,    only: qsat
 use phys_control,     only: phys_getopts
-use ref_pres,         only: top_lev => trop_cloud_top_lev
-use shr_spfn_mod,     only: erf => shr_spfn_erf
-use rad_constituents, only: rad_cnst_get_info, rad_cnst_get_mode_num, rad_cnst_get_aer_mmr, &
-                            rad_cnst_get_aer_props, rad_cnst_get_mode_props,                &
-                            rad_cnst_get_mam_mmr_idx, rad_cnst_get_mode_num_idx
-use cam_history,      only: addfld, add_default, horiz_only, fieldname_len, outfld
-use cam_abortutils,   only: endrun
-use cam_logfile,      only: iulog
-
-use aerosol_model_mod, only: aerosol_model, ptr2d_t
+use rad_constituents, only: rad_cnst_get_info
+use cam_history,      only: addfld, add_default, horiz_only, fieldname_len
 
 implicit none
 private
@@ -56,7 +38,7 @@ contains
 
 subroutine ndrop_init
 
-   integer  :: ii, l, lptr, m, mm
+   integer  :: l, m, mm
    character(len=32)   :: tmpname
    character(len=32)   :: tmpname_cw
    character(len=128)  :: long_name

@@ -36,8 +36,6 @@ contains
     integer :: m, nspec_max, l,idx, mm
     character(len=32)   :: tmpname
     character(len=32)   :: tmpname_cw
-    character(len=128)  :: long_name
-    character(len=8)    :: unit
 
     self%model_name = 'modal'
 
@@ -106,11 +104,6 @@ contains
        do l = 0, self%nspec_amode(m)   ! loop over number + chem constituents
 
           mm = mm+1
-
-          unit = 'kg/m2/s'
-          if (l == 0) then   ! number
-             unit = '#/m2/s'
-          end if
 
           if (l == 0) then   ! number
              call rad_cnst_get_info(0, m, num_name=tmpname, num_name_cw=tmpname_cw)

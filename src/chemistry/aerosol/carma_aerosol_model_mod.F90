@@ -26,7 +26,7 @@ contains
   subroutine carma_model_init(self)
     class(carma_aerosol_model), intent(inout) :: self
 
-    integer :: l, m, mm, nbins, nspec_max, ii
+    integer :: l, m, mm, nbins, nspec_max
     character(len=32) :: tmpname
     character(len=32) :: tmpname_cw
     integer :: idxtmp
@@ -70,6 +70,8 @@ contains
     allocate( self%fieldname_cw(self%ncnst_tot) )
 
     self%cnstndx = -1
+
+    mm = 0
 
     do m = 1, nbins
        do l = 0, self%nspec(m) + 1  ! loop over bin + aerosol constituents

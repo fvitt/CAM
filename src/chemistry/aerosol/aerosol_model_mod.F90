@@ -1068,7 +1068,6 @@ contains
 
     ! local
 
-    integer :: lchnk ! chunk index
     integer :: ncol  ! number of columns
     real(r8), pointer :: tair(:,:)     ! air temperature (K)
 
@@ -1081,8 +1080,7 @@ contains
     real(r8) :: sm(pcols)  ! critical supersaturation at mode radius
     real(r8) :: arg(pcols)
 
-    integer :: l,m,n,i,k
-    real(r8) :: log,cc
+    integer :: l,m,i,k
     real(r8) :: smcoef(pcols)
     integer :: phase ! phase of aerosol
 
@@ -1091,10 +1089,8 @@ contains
 
     !-------------------------------------------------------------------------------
 
-    lchnk = state%lchnk
     ncol  = state%ncol
     tair  => state%t
-
 
     ccn = 0._r8
     do k=top_lev,pver
@@ -1235,7 +1231,6 @@ contains
     integer, parameter:: nx=200
     real(r8) integ,integf
     real(r8), parameter :: p0 = 1013.25e2_r8    ! reference pressure (Pa)
-    real(r8) rm ! number mode radius of aerosol at max supersat (cm)
     real(r8) pres ! pressure (Pa)
     real(r8) diff0,conduct0
     real(r8) es ! saturation vapor pressure
@@ -1264,7 +1259,6 @@ contains
     real(r8) alw,sqrtalw
     real(r8) smax
     real(r8) x,arg
-    real(r8) xmincoeff
     real(r8) z,z1,z2,wf1,wf2,zf1,zf2,gf1,gf2,gf
     real(r8) etafactor1,etafactor2(nmode),etafactor2max
     real(r8) grow
@@ -1410,7 +1404,6 @@ contains
           z=(w-wbar)/(sigw*sq2)
           g=exp(-z*z)
           fnmin=1._r8
-          xmincoeff=alogaten-twothird*(lnsmax-alog2)-alog3
 
           do m=1,nmode
              !              modal
@@ -1551,8 +1544,6 @@ contains
           end if
 
           lnsmax=log(smax)
-          xmincoeff=alogaten-twothird*(lnsmax-alog2)-alog3
-
 
           do m=1,nmode
              !                 modal
