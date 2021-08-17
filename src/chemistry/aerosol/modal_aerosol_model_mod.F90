@@ -33,9 +33,15 @@ contains
   subroutine modal_model_init(self)
     class(modal_aerosol_model), intent(inout) :: self
 
-    integer :: m, nspec_max, l,idx
+    integer :: m, nspec_max, l,idx, mm
+    character(len=32)   :: tmpname
+    character(len=32)   :: tmpname_cw
+    character(len=128)  :: long_name
+    character(len=8)    :: unit
 
-    call phys_getopts(prog_modal_aero_out=self%prognostic)
+    self%model_name = 'modal'
+
+    call phys_getopts(prog_modal_aero_out = self%prognostic)
 
     ! get info about the modal aerosols
     ! get ntot_amode
@@ -58,12 +64,15 @@ contains
     allocate( self%amcubecoef(self%mtotal) )
     allocate( self%argfactor(self%mtotal) )
 
+    self%ncnst_tot = 0
+
     do m = 1, self%ntot_amode
        ! use only if width of size distribution is prescribed
 
        ! get mode info
        call rad_cnst_get_info(0, m, nspec=self%nspec_amode(m))
        self%nmasses(m) = self%nspec_amode(m)
+       self%ncnst_tot =  self%ncnst_tot + self%nspec_amode(m) + 1
 
        ! get mode properties
        call rad_cnst_get_mode_props(0, m, sigmag=self%sigmag_amode(m),  &
@@ -87,9 +96,31 @@ contains
     nspec_max = maxval(self%nspec_amode)
     allocate( self%indexer(self%ntot_amode,0:nspec_max) )
     allocate( self%cnstndx(self%ntot_amode,0:nspec_max) )
+    allocate( self%fieldname(self%ncnst_tot) )
+    allocate( self%fieldname_cw(self%ncnst_tot) )
+
+    self%cnstndx = -1
+    mm=0
 
     do m = 1, self%ntot_amode
        do l = 0, self%nspec_amode(m)   ! loop over number + chem constituents
+
+          mm = mm+1
+
+          unit = 'kg/m2/s'
+          if (l == 0) then   ! number
+             unit = '#/m2/s'
+          end if
+
+          if (l == 0) then   ! number
+             call rad_cnst_get_info(0, m, num_name=tmpname, num_name_cw=tmpname_cw)
+          else
+             call rad_cnst_get_info(0, m, l, spec_name=tmpname, spec_name_cw=tmpname_cw)
+          end if
+
+          self%fieldname(mm)    = trim(tmpname) // '_mixnuc1'
+          self%fieldname_cw(mm) = trim(tmpname_cw) // '_mixnuc1'
+
           if (self%prognostic) then
 
              ! To set tendencies in the ptend object need to get the constituent indices
@@ -100,7 +131,7 @@ contains
                 call rad_cnst_get_mam_mmr_idx(m, l, idx)
              end if
              self%cnstndx(m,l) = idx
-             ! lq(lptr)          = .true.
+             self%lq(idx) = .true.
 
           endif
 
@@ -114,6 +145,7 @@ contains
 
     deallocate( &
          self%nspec_amode,  &
+         self%nmasses, &
          self%sigmag_amode, &
          self%dgnumlo_amode, &
          self%dgnumhi_amode, &
@@ -125,6 +157,10 @@ contains
          self%voltonumbhi_amode )
     deallocate( self%amcubecoef )
     deallocate( self%argfactor )
+    deallocate( self%indexer )
+    deallocate( self%cnstndx )
+    deallocate( self%fieldname )
+    deallocate( self%fieldname_cw )
 
   end subroutine modal_model_final
 

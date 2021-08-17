@@ -37,8 +37,8 @@ use rad_constituents, only: rad_cnst_get_info, rad_cnst_get_aer_mmr, rad_cnst_ge
 use nucleate_ice_cam, only: use_preexisting_ice, nucleate_ice_cam_readnl, nucleate_ice_cam_register, &
                             nucleate_ice_cam_init, nucleate_ice_cam_calc
 
-use ndrop,            only: ndrop_init, dropmixnuc
-use ndrop_carma,      only: ndrop_carma_init, dropmixnuc_carma
+use ndrop,            only: ndrop_init
+use ndrop_carma,      only: ndrop_carma_init
 use ndrop_bam,        only: ndrop_bam_init, ndrop_bam_run, ndrop_bam_ccn
 
 use hetfrz_classnuc_cam, only: hetfrz_classnuc_cam_readnl, hetfrz_classnuc_cam_register, hetfrz_classnuc_cam_init, &
@@ -625,44 +625,30 @@ subroutine microp_aero_run ( &
       if (clim_modal_aero) then
 
          aero_model => modal_aero_model
-         call aero_model%create(state1,pbuf)
-
-         ! If not using preexsiting ice, then only use cloudbourne aerosol for the
-         ! liquid clouds. This is the same behavior as CAM5.
-         if (use_preexisting_ice) then
-            call dropmixnuc( aero_model, &
-                 state1, ptend_loc, deltatin, pbuf, wsub, &
-                 cldn, cldo, cldliqf, nctend_mixnuc, factnum)
-         else
-            cldliqf = 1._r8
-            call dropmixnuc( aero_model, &
-                 state1, ptend_loc, deltatin, pbuf, wsub, &
-                 lcldn, lcldo, cldliqf, nctend_mixnuc, factnum)
-         end if
-
-         call aero_model%destroy()
-         nullify(aero_model)
 
       elseif (clim_carma_aero) then
 
          aero_model => carma_aero_model
-         call aero_model%create(state1,pbuf)
-
-         if (use_preexisting_ice) then
-            call dropmixnuc_carma( aero_model, &
-                 state1, ptend_loc, deltatin, pbuf, wsub, &
-                 cldn, cldo, cldliqf, nctend_mixnuc, factnum)
-         else
-            cldliqf = 1._r8
-            call dropmixnuc_carma( aero_model, &
-                 state1, ptend_loc, deltatin, pbuf, wsub, &
-                 lcldn, lcldo, cldliqf, nctend_mixnuc, factnum)
-         end if
-
-         call aero_model%destroy()
-         nullify(aero_model)
 
       endif
+
+      call aero_model%create(state1,pbuf)
+
+      ! If not using preexsiting ice, then only use cloudbourne aerosol for the
+      ! liquid clouds. This is the same behavior as CAM5.
+      if (use_preexisting_ice) then
+         call aero_model%dropmixnuc( &
+              state1, ptend_loc, deltatin, pbuf, wsub, &
+              cldn, cldo, cldliqf, nctend_mixnuc, factnum)
+      else
+         cldliqf = 1._r8
+         call aero_model%dropmixnuc( &
+              state1, ptend_loc, deltatin, pbuf, wsub, &
+              lcldn, lcldo, cldliqf, nctend_mixnuc, factnum)
+      end if
+
+      call aero_model%destroy()
+      nullify(aero_model)
 
       npccn(:ncol,:) = nctend_mixnuc(:ncol,:)
 

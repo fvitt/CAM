@@ -26,12 +26,12 @@ contains
   subroutine carma_model_init(self)
     class(carma_aerosol_model), intent(inout) :: self
 
-    integer :: l, m, nbins, nspec_max, ii
+    integer :: l, m, mm, nbins, nspec_max, ii
     character(len=32) :: tmpname
     character(len=32) :: tmpname_cw
     integer :: idxtmp
 
-    if (masterproc) write(iulog,*) 'AERO_MODEL: Init CARMA data...'
+    self%model_name = 'carma'
 
     ! get info about the modal aerosols
     ! get nbins
@@ -49,9 +49,12 @@ contains
     allocate( self%f1(nbins) )
     allocate( self%f2(nbins) )
 
+    self%ncnst_tot = 0
+
     do m = 1, nbins
        call rad_cnst_get_info_by_bin(0, m, nspec=self%nspec(m))
-       self%nmasses(m) = self%nspec(m)+1
+       self%nmasses(m) = self%nspec(m) + 1
+       self%ncnst_tot =  self%ncnst_tot + self%nspec(m) + 2
        self%amcubecoef(m)=3._r8/(4._r8*pi)
        self%argfactor(m)=twothird/(sq2*log(2._r8))
        self%exp45logsig(m)=1._r8
@@ -63,6 +66,9 @@ contains
     nspec_max = maxval(self%nspec) + 1
     allocate( self%indexer(nbins,0:nspec_max) )
     allocate( self%cnstndx(nbins,0:nspec_max) )
+    allocate( self%fieldname(self%ncnst_tot) )
+    allocate( self%fieldname_cw(self%ncnst_tot) )
+
     self%cnstndx = -1
 
     do m = 1, nbins
@@ -75,10 +81,15 @@ contains
              call rad_cnst_get_info_by_bin_spec(0, m, l-1, spec_name=tmpname, spec_name_cw=tmpname_cw)
           end if
 
+          mm = mm+1
+
+          self%fieldname(mm)    = trim(tmpname) // '_mixnuc1'
+          self%fieldname_cw(mm) = trim(tmpname_cw) // '_mixnuc1'
+
           call cnst_get_ind(tmpname, idxtmp, abort=.false.)
           if (idxtmp>0) then
              self%cnstndx(m,l) = idxtmp
-!!$             self%lq(idxtmp) = .true.
+             self%lq(idxtmp) = .true.
           end if
        end do
     end do
@@ -88,8 +99,15 @@ contains
     class(carma_aerosol_model), intent(inout) :: self
 
     deallocate( self%nspec )
+    deallocate( self%nmasses )
     deallocate( self%amcubecoef )
     deallocate( self%argfactor )
+    deallocate( self%alogsig )
+    deallocate( self%f1 )
+    deallocate( self%f2 )
+    deallocate( self%indexer )
+    deallocate( self%cnstndx )
+    deallocate( self%fieldname_cw )
 
   end subroutine carma_model_final
 
