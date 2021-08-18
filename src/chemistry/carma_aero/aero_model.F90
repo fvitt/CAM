@@ -167,6 +167,7 @@ contains
   !=============================================================================
   subroutine aero_model_register()
 
+    use carma_flags_mod,   only: carma_model
 
     integer :: m, l, i
     integer :: nsoa_vbs
@@ -196,9 +197,9 @@ contains
   ! Define number of VBS bins (nsoa) based on number of SOAG chemistry species
     nsoa_vbs = 0
     do i = 1, pcnst
-      if (cnst_name(i)(:4) == 'SOAG') then
-             nsoa_vbs = nsoa_vbs + 1
-      end if
+       if (cnst_name(i)(:4) == 'SOAG') then
+          nsoa_vbs = nsoa_vbs + 1
+       end if
     end do
     if (masterproc) then
        write(iulog,*) 'nsoa_vbs  = ', nsoa_vbs
@@ -207,6 +208,11 @@ contains
    ! Define pbuf field for soa_fraction
     call pbuf_add_field('FRACVBS','global',dtype_r8,(/nbins,nsoa_vbs,pcols,pver/), idx)
 
+   ! for SOA losses
+    if (carma_model == 'trop_strat') then
+       ! no2 photolysis rate constant (/sec)
+       call pbuf_add_field('JNO2', 'physpkg', dtype_r8, (/pcols,pver/), idx)
+    end if
 
   end subroutine aero_model_register
 
