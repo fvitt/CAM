@@ -211,6 +211,11 @@
   </compset>
 
   <compset>
+    <alias>QPCARMA</alias>
+    <lname>2000_CAM60%CARMATS_SLND_SICE_DOCN%AQP3_SROF_SGLC_SWAV</lname>
+  </compset>
+
+  <compset>
     <alias>FCARMAHIST</alias>
     <lname>HIST_CAM60%CARMATS_CLM50%SP_CICE%PRES_DOCN%DOM_MOSART_CISM2%NOEVOLVE_SWAV</lname>
   </compset>
