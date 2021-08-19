@@ -1,0 +1,207 @@
+module mee_fluxes
+  use shr_kind_mod,   only : r8 => shr_kind_r8, cs => shr_kind_cs, cl=> shr_kind_cl
+  use shr_kind_mod,   only : r4 => shr_kind_r4
+  use spmd_utils,     only : masterproc
+  use cam_logfile,    only : iulog
+  use cam_abortutils, only : endrun
+  use input_data_utils, only : time_coordinate
+  use pio, only : file_desc_t, var_desc_t, pio_get_var, pio_inq_varid
+  use pio, only : PIO_NOWRITE, pio_inq_dimid, pio_inq_dimlen
+  use infnan, only: isnan
+
+  implicit none
+
+  private
+  public :: mee_fluxes_readnl
+  public :: mee_fluxes_init
+  public :: mee_fluxes_adv
+  public :: mee_fluxes_extract
+  public :: mee_fluxes_active
+  public :: mee_fluxes_denergy
+  public :: mee_fluxes_energy
+  public :: mee_fluxes_nenergy
+
+  real(r8),protected, pointer :: mee_fluxes_denergy(:)
+  real(r8),protected, pointer :: mee_fluxes_energy(:)
+  integer, protected :: mee_fluxes_nenergy
+  logical, protected :: mee_fluxes_active = .false.
+
+  real(r8), allocatable :: lshell(:)
+  real(r8), allocatable :: indata(:,:,:)
+  real(r8), allocatable :: influx(:,:)
+
+  character(len=cl) :: mee_fluxes_filepath = 'NONE'
+
+  type(time_coordinate) :: time_coord
+  integer :: ntimes, nlshells
+
+  type(file_desc_t) :: file_id
+  type(var_desc_t) :: flux_var_id
+
+contains
+
+  !-----------------------------------------------------------------------------
+  !-----------------------------------------------------------------------------
+  subroutine mee_fluxes_readnl(nlfile)
+
+    use namelist_utils, only: find_group_name
+    use spmd_utils,     only: mpicom, mpi_character, masterprocid
+
+    character(len=*), intent(in) :: nlfile  ! filepath for file containing namelist input
+
+    ! Local variables
+    integer :: unitn, ierr
+    character(len=*), parameter :: subname = 'mee_fluxes_readnl'
+
+    namelist /mee_fluxes_opts/ mee_fluxes_filepath
+
+    ! Read namelist
+    if (masterproc) then
+       open( newunit=unitn, file=trim(nlfile), status='old' )
+       call find_group_name(unitn, 'mee_fluxes_opts', status=ierr)
+       if (ierr == 0) then
+          read(unitn, mee_fluxes_opts, iostat=ierr)
+          if (ierr /= 0) then
+             call endrun(subname // ':: ERROR reading namelist')
+          end if
+       end if
+       close(unitn)
+    end if
+
+    ! Broadcast namelist variables
+    call mpi_bcast(mee_fluxes_filepath, len(mee_fluxes_filepath), mpi_character, masterprocid, mpicom, ierr)
+
+    mee_fluxes_active = mee_fluxes_filepath /= 'NONE'
+
+    if ( mee_fluxes_active .and. masterproc ) then
+       write(iulog,*) subname//':: mee_fluxes_filepath = '//trim(mee_fluxes_filepath)
+    end if
+
+  end subroutine mee_fluxes_readnl
+
+  !-----------------------------------------------------------------------------
+  !-----------------------------------------------------------------------------
+  subroutine mee_fluxes_init()
+    use cam_pio_utils,  only : cam_pio_openfile
+    use ioFileMod,      only : getfil
+
+    character(len=cl) :: filen
+    integer :: ierr, dimid, varid
+    integer :: i
+    real(r8), allocatable :: logdelta(:)
+
+    if (.not.mee_fluxes_active) return
+
+    call time_coord%initialize( mee_fluxes_filepath, force_time_interp=.true. )
+    ntimes = time_coord%ntimes
+
+    call getfil( mee_fluxes_filepath, filen, 0 )
+    call cam_pio_openfile( file_id, filen, PIO_NOWRITE )
+
+    ierr = pio_inq_dimid(file_id, 'energy', dimid)
+    ierr = pio_inq_dimlen(file_id, dimid, mee_fluxes_nenergy )
+
+    ierr = pio_inq_dimid(file_id, 'lshell', dimid)
+    ierr = pio_inq_dimlen(file_id, dimid, nlshells )
+
+    ierr = pio_inq_varid(file_id, 'RBSP_flux_scaled', flux_var_id)
+
+    allocate( indata( mee_fluxes_nenergy, nlshells, 2 ) )
+    allocate( influx( mee_fluxes_nenergy, nlshells ) )
+    allocate( mee_fluxes_energy( mee_fluxes_nenergy ) )
+    allocate( mee_fluxes_denergy( mee_fluxes_nenergy ) )
+    allocate( logdelta( mee_fluxes_nenergy ) )
+    allocate( lshell( nlshells ) )
+
+
+    ierr = pio_inq_varid(file_id, 'energy', varid)
+    ierr = pio_get_var( file_id, varid, mee_fluxes_energy)
+
+    ierr = pio_inq_varid(file_id, 'lshell', varid)
+    ierr = pio_get_var( file_id, varid, lshell)
+
+    logdelta(2:) =  log(mee_fluxes_energy(2:mee_fluxes_nenergy))-log(mee_fluxes_energy(1:mee_fluxes_nenergy-1))
+    logdelta(1) = logdelta(2)
+    mee_fluxes_denergy(:) = exp( log(mee_fluxes_energy(:)) + 0.5*logdelta(:) ) &
+                          - exp( log(mee_fluxes_energy(:)) - 0.5*logdelta(:) )
+
+    deallocate(logdelta)
+
+    call read_fluxes()
+
+  end subroutine mee_fluxes_init
+
+  !-----------------------------------------------------------------------------
+  !-----------------------------------------------------------------------------
+  subroutine mee_fluxes_adv
+
+    integer :: i
+
+    if (.not.mee_fluxes_active) return
+
+    call time_coord%advance()
+
+    if ( time_coord%read_more() ) then
+       call read_fluxes( )
+    endif
+
+    influx(:,:) = 0._r8
+    where ( .not.isnan(indata(:,:,1)) .and.  .not.isnan(indata(:,:,2)) )
+       influx(:,:) = time_coord%wghts(1)*indata(:,:,1) + time_coord%wghts(2)*indata(:,:,2)
+    end where
+
+    if (any(isnan(influx))) then
+       call endrun('mee_fluxes_adv -- influx has NaNs')
+    end if
+
+
+  end subroutine mee_fluxes_adv
+
+  !-----------------------------------------------------------------------------
+  !-----------------------------------------------------------------------------
+  subroutine mee_fluxes_extract( l_shell, fluxes )
+
+    real(r8), intent(in) :: l_shell
+    real(r8), intent(out) :: fluxes(mee_fluxes_nenergy)
+
+    integer :: i
+    logical :: found
+    real(r8) :: wght1,wght2
+
+    fluxes = 0._r8
+
+    if (.not.mee_fluxes_active) return
+
+    found = .false.
+
+    findloop: do i = 1,nlshells-1
+       if ( l_shell>=lshell(i) .and. l_shell<=lshell(i+1) ) then
+          wght1 = (l_shell-lshell(i))/(lshell(i+1)-lshell(i))
+          wght2 = 1._r8 - wght1
+          found = .true.
+          exit findloop
+       endif
+    end do findloop
+
+    if (found) then
+       fluxes(:) = wght1*influx(:,1) + wght2*influx(:,2)
+    end if
+
+  end subroutine mee_fluxes_extract
+
+  !-----------------------------------------------------------------------------
+  !-----------------------------------------------------------------------------
+  subroutine read_fluxes()
+
+    ! local vars
+    integer :: ierr, cnt(4), start(4)
+
+    cnt = (/1, mee_fluxes_nenergy, nlshells, 2/)
+    start = (/3, 1, 1, time_coord%indxs(1)/)
+
+    ! float RBSP_flux_scaled(time, lshell, energy, percentiles) ;
+    ierr = pio_get_var( file_id, flux_var_id, start, cnt, indata )
+
+  end subroutine read_fluxes
+
+end module mee_fluxes
