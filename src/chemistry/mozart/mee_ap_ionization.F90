@@ -26,6 +26,7 @@ contains
 
     use namelist_utils, only: find_group_name
     use spmd_utils, only: mpicom, mpi_logical, mpi_real8, masterprocid
+    use mee_fluxes, only: mee_fluxes_readnl
 
     character(len=*), intent(in) :: nlfile  ! filepath for file containing namelist input
 
@@ -57,17 +58,23 @@ contains
        write(iulog,*) subname//':: mee_ap_ion_blc = ', mee_ap_ion_blc
     endif
 
+    if (mee_ap_ion_inline) then
+       call mee_fluxes_readnl(nlfile)
+    end if
+
   end subroutine mee_ap_ion_readnl
 
   !-----------------------------------------------------------------------------
   !-----------------------------------------------------------------------------
   subroutine mee_ap_ion_init()
     use cam_history, only: addfld
+    use mee_fluxes,  only : mee_fluxes_init
 
     integer :: err
 
     if (.not.mee_ap_ion_inline) return
 
+    call mee_fluxes_init()
     call mee_ap_init(mee_ap_ion_blc,err)
     if (err==mee_ap_error) then
        call endrun('mee_ap_ion_init: not able to initialize Ap based MEE ionization')

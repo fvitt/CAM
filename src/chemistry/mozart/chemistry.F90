@@ -1076,6 +1076,7 @@ end function chem_is_active
     use cfc11star,         only : update_cfc11star
     use physics_buffer,    only : physics_buffer_desc
     use ocean_emis,        only : ocean_emis_advance
+    use mee_fluxes,        only : mee_fluxes_adv
 
     implicit none
 
@@ -1152,6 +1153,9 @@ end function chem_is_active
     ! Galatic Cosmic Rays ...
     call gcr_ionization_adv( pbuf2d, phys_state )
     call epp_ionization_adv()
+
+    ! medium energy electron flux data ...
+    call mee_fluxes_adv()
 
     call ocean_emis_advance( pbuf2d, phys_state )
 

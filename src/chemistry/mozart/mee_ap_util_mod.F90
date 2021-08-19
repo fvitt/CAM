@@ -5,6 +5,8 @@
 module mee_ap_util_mod
   use shr_kind_mod, only: r8 => shr_kind_r8
   use shr_const_mod, only: pi => shr_const_pi
+  use mee_fluxes, only: mee_fluxes_nenergy, mee_fluxes_energy, mee_fluxes_denergy
+  use mee_fluxes, only: mee_fluxes_active, mee_fluxes_extract
 
   implicit none
 
@@ -14,12 +16,12 @@ module mee_ap_util_mod
   public :: mee_ap_error
 
   integer, parameter :: mee_ap_error=-1
-  integer, parameter :: nbins=100
+  integer :: nbins=0
 
-  real(r8) :: energies(nbins) = -huge(1._r8)
-  real(r8) :: denergies(nbins) = -huge(1._r8) ! width of each energy bin
+  real(r8),pointer :: energies(:)
+  real(r8),pointer :: denergies(:) ! width of each energy bin
   real(r8) :: solid_angle_factor = -huge(1._r8)
-  real(r8) :: fang_coefs(8,nbins) = -huge(1._r8)
+  real(r8),allocatable :: fang_coefs(:,:)
 
 contains
 
@@ -39,7 +41,17 @@ contains
 
     solid_angle_factor = 2._r8*pi*(1._r8-cos(loss_cone_angle*pi/180._r8))
 
-    call gen_energy_grid(nbins, energies, denergies)
+    if (mee_fluxes_active) then
+       nbins=mee_fluxes_nenergy
+       energies=>mee_fluxes_energy
+       denergies=>mee_fluxes_denergy
+    else
+       nbins=100
+       allocate(energies(nbins))
+       allocate(denergies(nbins))
+       call gen_energy_grid(nbins, energies, denergies)
+    endif
+
     call init_fang_coefs()
 
   end subroutine mee_ap_init
@@ -83,10 +95,15 @@ contains
 
        if (  l_shells(i) >= 2._r8 .and. l_shells(i) <= 10._r8 ) then
 
-          ! calculate the top of the atmosphere energetic electron energy spectrum
-          flux_sd(:) = FluxSpectrum(energies, l_shells(i), Ap)
+          if (mee_fluxes_active) then
+             ! use prescribed top-of-atmosphere fluxes
+             call mee_fluxes_extract( l_shells(i), flux_sd )
+          else
+             ! calculate the top of the atmosphere energetic electron energy spectrum
+             ! van de Kamp is per steradian (electrons / (cm2 sr s keV))
+             flux_sd(:) = FluxSpectrum(energies, l_shells(i), Ap)
+          endif
 
-          ! van de Kamp is per steradian (electrons / (cm2 sr s keV))
           ! assume flux is isotropic inside a nominal bounce loss cone (BLC) angle.
           ! The area of the BLC in sr is 2pi(1-cosd(BLC))
           flux(:) = solid_angle_factor* flux_sd(:)
@@ -96,7 +113,7 @@ contains
 
           ! integrate across the energy range to get total IPR
           do k=1,nlyrs
-             ionpairs(i,k) = ionpairs(i,k) + sum(ipr(:,k)*denergies(:))
+             ionpairs(i,k) = sum(ipr(:,k)*denergies(:))
           end do
 
        end if
@@ -262,6 +279,8 @@ contains
             9.48930E-1_r8,  1.97385E-1_r8, -2.50660E-3_r8, -2.06938E-3_r8 /), &
          shape=(/8,4/),order=(/2,1/))
 
+    allocate(fang_coefs(8,nbins))
+
     do n = 1,nbins
        ! terms in eq. (5)
        lne = log(energies(n))
@@ -275,8 +294,6 @@ contains
 
     end do
   end subroutine init_fang_coefs
-
-
 
   !------------------------------------------------------------------------------
   ! Generate a grid of energy bins for the flux spectrum.
