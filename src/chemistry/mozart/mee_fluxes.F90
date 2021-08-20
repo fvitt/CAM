@@ -159,7 +159,7 @@ contains
     real(r8), intent(in) :: l_shell
     real(r8), intent(out) :: fluxes(mee_fluxes_nenergy)
 
-    integer :: i
+    integer :: i, ndx1, ndx2
     logical :: found
     real(r8) :: wght1,wght2
 
@@ -171,15 +171,17 @@ contains
 
     findloop: do i = 1,nlshells-1
        if ( l_shell>=lshell(i) .and. l_shell<=lshell(i+1) ) then
-          wght1 = (l_shell-lshell(i))/(lshell(i+1)-lshell(i))
-          wght2 = 1._r8 - wght1
+          ndx1=i
+          ndx2=i+1
+          wght2 = (l_shell-lshell(ndx1))/(lshell(ndx2)-lshell(ndx1))
+          wght1 = 1._r8 - wght2
           found = .true.
           exit findloop
        endif
     end do findloop
 
     if (found) then
-       fluxes(:) = wght1*influx(:,1) + wght2*influx(:,2)
+       fluxes(:) = wght1*influx(:,ndx1) + wght2*influx(:,ndx2)
     end if
 
   end subroutine mee_fluxes_extract
