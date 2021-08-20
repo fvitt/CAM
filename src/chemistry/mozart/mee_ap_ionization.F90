@@ -105,7 +105,6 @@ contains
     real(r8) :: scaleh(pcols,pver)
     real(r8) :: grvty(pcols,pver)
     integer :: err
-    integer :: k
 
     if (.not.mee_ap_ion_inline) then
        ionpairs(:,:) = 0._r8

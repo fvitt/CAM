@@ -1,6 +1,5 @@
 module mee_fluxes
-  use shr_kind_mod,   only : r8 => shr_kind_r8, cs => shr_kind_cs, cl=> shr_kind_cl
-  use shr_kind_mod,   only : r4 => shr_kind_r4
+  use shr_kind_mod,   only : r8 => shr_kind_r8, cl=> shr_kind_cl
   use spmd_utils,     only : masterproc
   use cam_logfile,    only : iulog
   use cam_abortutils, only : endrun
@@ -33,7 +32,7 @@ module mee_fluxes
   character(len=cl) :: mee_fluxes_filepath = 'NONE'
 
   type(time_coordinate) :: time_coord
-  integer :: ntimes, nlshells
+  integer :: nlshells
 
   type(file_desc_t) :: file_id
   type(var_desc_t) :: flux_var_id
@@ -87,13 +86,11 @@ contains
 
     character(len=cl) :: filen
     integer :: ierr, dimid, varid
-    integer :: i
     real(r8), allocatable :: logdelta(:)
 
     if (.not.mee_fluxes_active) return
 
     call time_coord%initialize( mee_fluxes_filepath, force_time_interp=.true. )
-    ntimes = time_coord%ntimes
 
     call getfil( mee_fluxes_filepath, filen, 0 )
     call cam_pio_openfile( file_id, filen, PIO_NOWRITE )
@@ -134,8 +131,6 @@ contains
   !-----------------------------------------------------------------------------
   !-----------------------------------------------------------------------------
   subroutine mee_fluxes_adv
-
-    integer :: i
 
     if (.not.mee_fluxes_active) return
 
