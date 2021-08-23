@@ -1,6 +1,5 @@
 module modal_aerosol_model_mod
   use shr_kind_mod, only: r8 => shr_kind_r8
-  use aerosol_model_mod, only: aerosol_model, twothird, sq2, ptr2d_t
   use cam_logfile, only: iulog
   use spmd_utils, only: masterproc
   use physconst,        only: pi
@@ -10,8 +9,11 @@ module modal_aerosol_model_mod
   use ppgrid,           only: pcols
   use cam_abortutils,   only: endrun
   use phys_control,     only: phys_getopts
+  use aerosol_model_mod, only: aerosol_model, twothird, sq2, ptr2d_t
 
   implicit none
+  private
+  public :: modal_aerosol_model
 
   type, extends(aerosol_model) :: modal_aerosol_model
      integer               :: ntot_amode     ! number of aerosol modes

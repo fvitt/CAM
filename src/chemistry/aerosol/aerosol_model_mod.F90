@@ -16,6 +16,11 @@ module aerosol_model_mod
 
   implicit none
 
+  private
+
+  public :: aerosol_model
+  public :: ptr2d_t
+
   ! ptr2d_t is used to create arrays of pointers to 2D fields
   type ptr2d_t
      real(r8), pointer :: fld(:,:)
@@ -42,17 +47,17 @@ module aerosol_model_mod
      real(r8), allocatable :: f2(:) ! abdul-razzak functions of width
    contains
      procedure :: create => aero_create
-     procedure(aero_model_init), deferred :: model_init
-     procedure(aero_model_final), deferred :: model_final
      procedure :: destroy => aero_destroy
      procedure :: dropmixnuc => aero_dropmixnuc
-     procedure(aero_loadaer), deferred :: loadaer
-     procedure(aero_set_ptrs), deferred :: set_ptrs
-     procedure :: ccncalc => aero_ccncalc
-     procedure :: maxsat => aero_maxsat
      procedure :: activate => aero_activate
-     procedure :: err_funct => aero_err_funct
-     procedure :: explmix => aero_explmix
+     procedure(aero_model_init), private, deferred :: model_init
+     procedure(aero_model_final), private, deferred :: model_final
+     procedure(aero_loadaer), private, deferred :: loadaer
+     procedure(aero_set_ptrs), private, deferred :: set_ptrs
+     procedure, private :: ccncalc => aero_ccncalc
+     procedure, private :: maxsat => aero_maxsat
+     procedure, private :: err_funct => aero_err_funct
+     procedure, private :: explmix => aero_explmix
   end type aerosol_model
 
   interface
@@ -97,21 +102,22 @@ module aerosol_model_mod
 
   end interface
 
+
+  real(r8), parameter :: zero     = 0._r8
+  real(r8), parameter :: third    = 1._r8/3._r8
+  real(r8), public, parameter :: twothird = 2._r8*third
+  real(r8), public, parameter :: sq2      = sqrt(2._r8)
+  real(r8), parameter :: sixth    = 1._r8/6._r8
+  real(r8), parameter :: sqpi     = sqrt(pi)
+  real(r8), parameter :: alog2    = log(2._r8)
+  real(r8), parameter :: alog3    = log(3._r8)
+
+  real(r8), parameter :: t0       = 273._r8  ! reference temperature
+  real(r8), parameter :: surften  = 0.076_r8 ! surface tension of water w/respect to air (N/m)
+
   integer,  parameter :: psat=6    ! number of supersaturations to calc ccn concentration
   real(r8), parameter :: supersat(psat)= & ! supersaturation (%) to determine ccn concentration
                        (/ 0.02_r8, 0.05_r8, 0.1_r8, 0.2_r8, 0.5_r8, 1.0_r8 /)
-
-  ! mathematical constants
-  real(r8), parameter :: zero     = 0._r8
-  real(r8), parameter :: third    = 1._r8/3._r8
-  real(r8), parameter :: twothird = 2._r8*third
-  real(r8), parameter :: sixth    = 1._r8/6._r8
-  real(r8), parameter :: sq2      = sqrt(2._r8)
-  real(r8), parameter :: sqpi     = sqrt(pi)
-  real(r8), parameter :: t0       = 273._r8  ! reference temperature
-  real(r8), parameter :: surften  = 0.076_r8 ! surface tension of water w/respect to air (N/m)
-  real(r8), parameter :: alog2    = log(2._r8)
-  real(r8), parameter :: alog3    = log(3._r8)
 
   character(len=4),parameter :: ccn_name(psat) = &
                     (/'CCN1','CCN2','CCN3','CCN4','CCN5','CCN6'/)
