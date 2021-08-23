@@ -50,13 +50,13 @@ module aerosol_model_mod
      procedure :: destroy => aero_destroy
      procedure :: dropmixnuc => aero_dropmixnuc
      procedure :: activate => aero_activate
-     procedure(aero_model_init), private, deferred :: model_init
-     procedure(aero_model_final), private, deferred :: model_final
-     procedure(aero_loadaer), private, deferred :: loadaer
-     procedure(aero_set_ptrs), private, deferred :: set_ptrs
+     procedure(aero_model_init), deferred :: model_init
+     procedure(aero_model_final), deferred :: model_final
+     procedure(aero_loadaer), deferred :: loadaer
+     procedure(aero_set_ptrs), deferred :: set_ptrs
+     procedure :: err_funct => aero_err_funct
      procedure, private :: ccncalc => aero_ccncalc
      procedure, private :: maxsat => aero_maxsat
-     procedure, private :: err_funct => aero_err_funct
      procedure, private :: explmix => aero_explmix
   end type aerosol_model
 
