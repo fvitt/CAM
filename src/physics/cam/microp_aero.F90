@@ -46,7 +46,11 @@ use hetfrz_classnuc_cam, only: hetfrz_classnuc_cam_readnl, hetfrz_classnuc_cam_r
 
 use cam_history,      only: addfld, add_default, outfld
 use cam_logfile,      only: iulog
-use cam_abortutils,       only: endrun
+use cam_abortutils,   only: endrun
+
+use aerosol_model_mod, only: aerosol_model
+use carma_aerosol_model_mod, only: carma_aerosol_model
+use modal_aerosol_model_mod, only: modal_aerosol_model
 
 implicit none
 private
@@ -113,6 +117,10 @@ integer :: coarse_so4_idx = -1  ! index of sulfate in coarse mode
 integer :: npccn_idx, rndst_idx, nacon_idx
 
 logical  :: separate_dust = .false.
+
+class(aerosol_model), pointer :: aero_model
+type(carma_aerosol_model),target :: carma_aero_model
+type(modal_aerosol_model),target :: modal_aero_model
 
 !=========================================================================================
 contains
@@ -300,6 +308,18 @@ subroutine microp_aero_init(pbuf2d)
 
    end if
 
+   if (clim_modal_aero) then
+
+      aero_model => modal_aero_model
+
+   elseif (clim_carma_aero) then
+
+      aero_model => carma_aero_model
+
+   endif
+
+   call aero_model%create()
+
    call addfld('LCLOUD', (/ 'lev' /), 'A', ' ',   'Liquid cloud fraction used in stratus activation')
 
    call addfld('WSUB',   (/ 'lev' /), 'A', 'm/s', 'Diagnostic sub-grid vertical velocity'                   )
@@ -366,9 +386,6 @@ end subroutine microp_aero_readnl
 
 subroutine microp_aero_run ( &
    state, ptend_all, deltatin, pbuf)
- use aerosol_model_mod, only: aerosol_model
- use carma_aerosol_model_mod, only: carma_aerosol_model
- use modal_aerosol_model_mod, only: modal_aerosol_model
 
    ! input arguments
    type(physics_state),         intent(in)    :: state
@@ -437,10 +454,6 @@ subroutine microp_aero_run ( &
 
    real(r8), allocatable :: factnum(:,:,:) ! activation fraction for aerosol number
    !-------------------------------------------------------------------------------
-
-   class(aerosol_model), pointer :: aero_model
-   type(carma_aerosol_model),target :: carma_aero_model
-   type(modal_aerosol_model),target :: modal_aero_model
 
    call physics_state_copy(state,state1)
 
@@ -632,7 +645,6 @@ subroutine microp_aero_run ( &
 
       endif
 
-      call aero_model%create()
       aero_model%state => state1
       aero_model%pbuf => pbuf
 
@@ -649,10 +661,8 @@ subroutine microp_aero_run ( &
               lcldn, lcldo, cldliqf, nctend_mixnuc, factnum)
       end if
 
-      call aero_model%destroy()
       nullify(aero_model%pbuf)
       nullify(aero_model%state)
-      nullify(aero_model)
 
       npccn(:ncol,:) = nctend_mixnuc(:ncol,:)
 

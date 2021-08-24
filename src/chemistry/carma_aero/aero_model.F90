@@ -25,6 +25,9 @@ module aero_model
                                rad_cnst_get_bin_num
   use mo_setsox,         only: setsox, has_sox
 
+  use aerosol_model_mod, only: aerosol_model
+  use carma_aerosol_model_mod, only: carma_aerosol_model
+
   implicit none
   private
 
@@ -38,7 +41,7 @@ module aero_model
   public :: aero_model_surfarea    ! tropospheric aerosol wet surface area for chemistry
   public :: aero_model_strat_surfarea   ! stub
 
-   ! Misc private data
+  ! Misc private data
   character(len=32), allocatable :: fieldname(:)    ! names for interstitial output fields
   character(len=32), allocatable :: fieldname_cw(:)    ! names for cloud_borne output fields
 
@@ -96,8 +99,10 @@ module aero_model
   real(r8)          :: sol_factic_interstitial = 0.4_r8
   real(r8)          :: seasalt_emis_scale
 
- logical :: convproc_do_aer
+  logical :: convproc_do_aer
 
+  class(aerosol_model), pointer :: aeromodel
+  type(carma_aerosol_model),target :: carma_aero_model
 
 
 contains
@@ -263,6 +268,9 @@ contains
     character(len=32) :: bin_name
 
     integer :: idx
+
+    aeromodel => carma_aero_model
+    call aeromodel%create()
 
     if (is_first_step()) then
        do m = 1, nbins
@@ -555,9 +563,6 @@ contains
     use carma_aero_convproc,   only: deepconv_wetdep_history, ma_convproc_intr, convproc_do_evaprain_atonce
     use time_manager,          only: is_first_step
 
-    use aerosol_model_mod, only: aerosol_model
-    use carma_aerosol_model_mod, only: carma_aerosol_model
-
     ! args
 
     type(physics_state), target, intent(in)    :: state       ! Physics state variables
@@ -681,13 +686,8 @@ contains
     character(len=32) :: spectype
     character(len=32) :: bin_name
 
-    class(aerosol_model), pointer :: aero_model
-    type(carma_aerosol_model),target :: carma_aero_model
-
-    aero_model => carma_aero_model
-    call aero_model%create()
-    aero_model%state=>state
-    aero_model%pbuf=>pbuf
+    aeromodel%state=>state
+    aeromodel%pbuf=>pbuf
 
     lchnk = state%lchnk
     ncol  = state%ncol
@@ -1352,7 +1352,7 @@ contains
 
     if (convproc_do_aer) then
        call t_startf('ma_convproc')
-       call ma_convproc_intr( aero_model, state, ptend, pbuf, dt,                &
+       call ma_convproc_intr( aeromodel, state, ptend, pbuf, dt,                &
             nsrflx_mzaer2cnvpr, qsrflx_mzaer2cnvpr, aerdepwetis, &
             dcondt_resusp3d)
 
@@ -1369,10 +1369,8 @@ contains
     !st    call set_srf_wetdep(aerdepwetis, aerdepwetcw, cam_out)
     !st endif
 
-    call aero_model%destroy()
-    nullify(aero_model%pbuf)
-    nullify(aero_model%state)
-    nullify(aero_model)
+    nullify(aeromodel%pbuf)
+    nullify(aeromodel%state)
 
   end subroutine aero_model_wetdep
 

@@ -29,6 +29,8 @@ module aero_model
 
   use modal_aero_wateruptake, only: modal_strat_sulfate
   use mo_setsox,              only: setsox, has_sox
+  use aerosol_model_mod, only: aerosol_model
+  use modal_aerosol_model_mod, only: modal_aerosol_model
 
   implicit none
   private
@@ -106,6 +108,8 @@ module aero_model
 
   logical :: convproc_do_aer
 
+  class(aerosol_model), pointer :: aeromodel => null()
+  type(modal_aerosol_model),target :: modal_aero_model
 contains
 
   !=============================================================================
@@ -225,6 +229,9 @@ contains
     character(len=32) :: spec_type
     character(len=32) :: mode_type
     integer :: nspec
+
+    aeromodel => modal_aero_model
+    call aeromodel%create()
 
     ! aqueous chem initialization
     call sox_inti()
@@ -978,8 +985,6 @@ contains
     use modal_aero_calcsize,   only: modal_aero_calcsize_sub
     use modal_aero_wateruptake,only: modal_aero_wateruptake_dr
     use modal_aero_convproc,   only: deepconv_wetdep_history, ma_convproc_intr, convproc_do_evaprain_atonce
-    use aerosol_model_mod, only: aerosol_model
-    use modal_aerosol_model_mod, only: modal_aerosol_model
 
     ! args
 
@@ -1076,14 +1081,10 @@ contains
     type(wetdep_inputs_t) :: dep_inputs
 
     real(r8) :: dcondt_resusp3d(2*pcnst,pcols, pver)
-    class(aerosol_model), pointer :: aero_model
-    type(modal_aerosol_model),target :: modal_aero_model
 
-    aero_model => modal_aero_model
-    call aero_model%create()
-    aero_model%state=>state
-    aero_model%pbuf=>pbuf
-    
+    aeromodel%state=>state
+    aeromodel%pbuf=>pbuf
+
     lchnk = state%lchnk
     ncol  = state%ncol
 
@@ -1628,7 +1629,7 @@ contains
 
     if (convproc_do_aer) then
        call t_startf('ma_convproc')
-       call ma_convproc_intr( aero_model, state, ptend, pbuf, dt,                &
+       call ma_convproc_intr( aeromodel, state, ptend, pbuf, dt,                &
             nsrflx_mzaer2cnvpr, qsrflx_mzaer2cnvpr, aerdepwetis, &
             dcondt_resusp3d)
 
@@ -1668,10 +1669,8 @@ contains
        call set_srf_wetdep(aerdepwetis, aerdepwetcw, cam_out)
     endif
 
-    call aero_model%destroy()
-    nullify(aero_model%pbuf)
-    nullify(aero_model%state)
-    nullify(aero_model)
+    nullify(aeromodel%pbuf)
+    nullify(aeromodel%state)
 
   end subroutine aero_model_wetdep
 
