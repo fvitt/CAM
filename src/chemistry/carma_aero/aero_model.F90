@@ -560,7 +560,7 @@ contains
 
     ! args
 
-    type(physics_state), intent(in)    :: state       ! Physics state variables
+    type(physics_state), target, intent(in)    :: state       ! Physics state variables
     real(r8),            intent(in)    :: dt          ! time step
     real(r8),            intent(in)    :: dlf(:,:)    ! shallow+deep convective detrainment [kg/kg/s]
     type(cam_out_t),     intent(inout) :: cam_out     ! export state
@@ -685,7 +685,9 @@ contains
     type(carma_aerosol_model),target :: carma_aero_model
 
     aero_model => carma_aero_model
-    call aero_model%create(state,pbuf)
+    call aero_model%create()
+    aero_model%state=>state
+    aero_model%pbuf=>pbuf
 
     lchnk = state%lchnk
     ncol  = state%ncol
@@ -1368,6 +1370,8 @@ contains
     !st endif
 
     call aero_model%destroy()
+    nullify(aero_model%pbuf)
+    nullify(aero_model%state)
     nullify(aero_model)
 
   end subroutine aero_model_wetdep

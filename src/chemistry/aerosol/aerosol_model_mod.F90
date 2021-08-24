@@ -131,15 +131,10 @@ module aerosol_model_mod
 
 contains
 
-  subroutine aero_create( self, state, pbuf )
+  subroutine aero_create( self )
     class(aerosol_model), intent(inout) :: self
-    type(physics_state), target, intent(in) :: state
-    type(physics_buffer_desc), pointer :: pbuf(:)
 
     integer :: ii,l,m
-
-    self%state => state
-    self%pbuf => pbuf
 
     call self%model_init()
 
@@ -167,9 +162,6 @@ contains
 
   subroutine aero_destroy( self )
     class(aerosol_model), intent(inout) :: self
-
-    nullify(self%pbuf)
-    nullify(self%state)
 
     call self%model_final()
 

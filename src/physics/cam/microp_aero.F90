@@ -384,7 +384,7 @@ subroutine microp_aero_run ( &
    integer :: nmodes
    integer :: nbins
 
-   type(physics_state) :: state1                ! Local copy of state variable
+   type(physics_state), target :: state1                ! Local copy of state variable
    type(physics_ptend) :: ptend_loc
 
    real(r8), pointer :: ast(:,:)
@@ -632,7 +632,9 @@ subroutine microp_aero_run ( &
 
       endif
 
-      call aero_model%create(state1,pbuf)
+      call aero_model%create()
+      aero_model%state => state1
+      aero_model%pbuf => pbuf
 
       ! If not using preexsiting ice, then only use cloudbourne aerosol for the
       ! liquid clouds. This is the same behavior as CAM5.
@@ -648,6 +650,8 @@ subroutine microp_aero_run ( &
       end if
 
       call aero_model%destroy()
+      nullify(aero_model%pbuf)
+      nullify(aero_model%state)
       nullify(aero_model)
 
       npccn(:ncol,:) = nctend_mixnuc(:ncol,:)
