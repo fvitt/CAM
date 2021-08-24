@@ -27,6 +27,9 @@ module aerosol_model_mod
   end type ptr2d_t
 
   type, abstract :: aerosol_model
+     type(physics_state), pointer :: state => null()
+     type(physics_buffer_desc), pointer :: pbuf(:) => null()
+
      character(len=16) :: model_name = 'base'
      logical :: lq(pcnst) = .false. ! set flags true for constituents with non-zero tendencies
      character(len=fieldname_len), allocatable :: fieldname(:)    ! names for drop nuc tendency output fields
@@ -37,8 +40,6 @@ module aerosol_model_mod
      integer, allocatable :: nmasses(:)
      integer, allocatable :: indexer(:,:)
      integer, allocatable :: cnstndx(:,:)
-     type(physics_state) :: state
-     type(physics_buffer_desc), pointer :: pbuf(:) => null()
      real(r8), allocatable :: amcubecoef(:)
      real(r8), allocatable :: exp45logsig(:)
      real(r8), allocatable :: argfactor(:)
@@ -132,12 +133,12 @@ contains
 
   subroutine aero_create( self, state, pbuf )
     class(aerosol_model), intent(inout) :: self
-    type(physics_state), intent(in) :: state
+    type(physics_state), target, intent(in) :: state
     type(physics_buffer_desc), pointer :: pbuf(:)
 
     integer :: ii,l,m
 
-    self%state = state
+    self%state => state
     self%pbuf => pbuf
 
     call self%model_init()
@@ -168,14 +169,15 @@ contains
     class(aerosol_model), intent(inout) :: self
 
     nullify(self%pbuf)
+    nullify(self%state)
 
     call self%model_final()
 
   end subroutine aero_destroy
 
 
-  subroutine aero_dropmixnuc( aero_model, &
-       state, ptend, dtmicro, pbuf, wsub, &
+  subroutine aero_dropmixnuc( self, &
+       ptend, dtmicro, wsub, &
        cldn, cldo, cldliqf, tendnd, factnum, from_spcam)
 
     ! vertical diffusion and nucleation of cloud droplets
@@ -183,12 +185,9 @@ contains
     ! doesn't distinguish between warm, cold clouds
 
     ! arguments
-    class(aerosol_model), intent(inout) :: aero_model
-    type(physics_state), target, intent(in)    :: state
+    class(aerosol_model), intent(inout) :: self
     type(physics_ptend),         intent(out)   :: ptend
     real(r8),                    intent(in)    :: dtmicro     ! time step for microphysics (s)
-
-    type(physics_buffer_desc), pointer :: pbuf(:)
 
     ! arguments
     real(r8), intent(in) :: wsub(pcols,pver)    ! subgrid vertical velocity
@@ -318,18 +317,18 @@ contains
 
     sq2pi = sqrt(2._r8*pi)
 
-    lchnk = state%lchnk
-    ncol  = state%ncol
+    lchnk = self%state%lchnk
+    ncol  = self%state%ncol
 
-    ncldwtr  => state%q(:,:,numliq_idx)
-    temp     => state%t
-    pmid     => state%pmid
-    pint     => state%pint
-    pdel     => state%pdel
-    rpdel    => state%rpdel
-    zm       => state%zm
+    ncldwtr  => self%state%q(:,:,numliq_idx)
+    temp     => self%state%t
+    pmid     => self%state%pmid
+    pint     => self%state%pint
+    pdel     => self%state%pdel
+    rpdel    => self%state%rpdel
+    zm       => self%state%zm
 
-    call pbuf_get_field(pbuf, kvh_idx, kvh)
+    call pbuf_get_field(self%pbuf, kvh_idx, kvh)
 
     ! Create the liquid weighted cloud fractions that were passsed in
     ! before. This doesn't seem like the best variable, since the cloud could
@@ -354,28 +353,28 @@ contains
     dtinv = 1._r8/dtmicro
 
     allocate( &
-         nact(pver,aero_model%mtotal),          &
-         mact(pver,aero_model%mtotal),          &
-         raer(aero_model%ncnst_tot),                &
-         qqcw(aero_model%ncnst_tot),                &
-         raercol(pver,aero_model%ncnst_tot,2),      &
-         raercol_cw(pver,aero_model%ncnst_tot,2),   &
-         coltend(pcols,aero_model%ncnst_tot),       &
-         coltend_cw(pcols,aero_model%ncnst_tot),    &
-         naermod(aero_model%mtotal),            &
-         hygro(aero_model%mtotal),              &
-         vaerosol(aero_model%mtotal),           &
-         fn(aero_model%mtotal),                 &
-         fm(aero_model%mtotal),                 &
-         fluxn(aero_model%mtotal),              &
-         fluxm(aero_model%mtotal)               )
+         nact(pver,self%mtotal),          &
+         mact(pver,self%mtotal),          &
+         raer(self%ncnst_tot),                &
+         qqcw(self%ncnst_tot),                &
+         raercol(pver,self%ncnst_tot,2),      &
+         raercol_cw(pver,self%ncnst_tot,2),   &
+         coltend(pcols,self%ncnst_tot),       &
+         coltend_cw(pcols,self%ncnst_tot),    &
+         naermod(self%mtotal),            &
+         hygro(self%mtotal),              &
+         vaerosol(self%mtotal),           &
+         fn(self%mtotal),                 &
+         fm(self%mtotal),                 &
+         fluxn(self%mtotal),              &
+         fluxm(self%mtotal)               )
 
-    call aero_model%set_ptrs( raer, qqcw )
+    call self%set_ptrs( raer, qqcw )
 
     called_from_spcam = (present(from_spcam))
 
     if (called_from_spcam) then
-       rgas  => state%q
+       rgas  => self%state%q
        allocate(rgascol(pver, pcnst, 2))
        allocate(coltendgas(pcols))
     endif
@@ -386,12 +385,12 @@ contains
     ndropmix = 0._r8
     ndropcol = 0._r8
 
-    if (aero_model%prognostic) then
+    if (self%prognostic) then
        ! aerosol tendencies
-       call physics_ptend_init(ptend, state%psetcols, 'ndrop_'//trim(aero_model%model_name), lq=aero_model%lq)
+       call physics_ptend_init(ptend, self%state%psetcols, 'ndrop_'//trim(self%model_name), lq=self%lq)
     else
        ! no aerosol tendencies
-       call physics_ptend_init(ptend, state%psetcols, 'ndrop_'//trim(aero_model%model_name))
+       call physics_ptend_init(ptend, self%state%psetcols, 'ndrop_'//trim(self%model_name))
     end if
 
     ! overall_main_i_loop
@@ -412,7 +411,7 @@ contains
           cs(i,k)  = pmid(i,k)/(rair*temp(i,k))        ! air density (kg/m3)
           dz(i,k)  = 1._r8/(cs(i,k)*gravit*rpdel(i,k)) ! layer thickness in m
 
-          do m = 1, aero_model%mtotal
+          do m = 1, self%mtotal
              nact(k,m) = 0._r8
              mact(k,m) = 0._r8
           end do
@@ -444,7 +443,7 @@ contains
 
        nsav = 1
        nnew = 2
-       do mm = 1,aero_model%ncnst_tot
+       do mm = 1,self%ncnst_tot
           raercol_cw(:,mm,nsav) = 0.0_r8
           raercol(:,mm,nsav)    = 0.0_r8
           raercol_cw(top_lev:pver,mm,nsav) = qqcw(mm)%fld(i,top_lev:pver)
@@ -498,7 +497,7 @@ contains
              ! convert activated aerosol to interstitial in decaying cloud
 
              dumc = (cldn_tmp - cldo_tmp)/cldo_tmp * (1._r8 - cldliqf(i,k))
-             do mm = 1,aero_model%ncnst_tot
+             do mm = 1,self%ncnst_tot
                 dact   = raercol_cw(k,mm,nsav)*dumc
                 raercol_cw(k,mm,nsav) = raercol_cw(k,mm,nsav) + dact   ! cloud-borne aerosol
                 raercol(k,mm,nsav)    = raercol(k,mm,nsav) - dact
@@ -524,7 +523,7 @@ contains
              ! convert activated aerosol to interstitial in decaying cloud
 
              dumc = (cldn_tmp - cldo_tmp)/cldo_tmp * cldliqf(i,k)
-             do mm = 1,aero_model%ncnst_tot
+             do mm = 1,self%ncnst_tot
                 dact   = raercol_cw(k,mm,nsav)*dumc
                 raercol_cw(k,mm,nsav) = raercol_cw(k,mm,nsav) + dact   ! cloud-borne aerosol
                 raercol(k,mm,nsav)    = raercol(k,mm,nsav) - dact
@@ -549,32 +548,32 @@ contains
              ! load aerosol properties, assuming external mixtures
 
              phase = 1 ! interstitial
-             do m = 1, aero_model%mtotal
-                call aero_model%loadaer( i, i, k, m, cs, phase, na, va, hy)
+             do m = 1, self%mtotal
+                call self%loadaer( i, i, k, m, cs, phase, na, va, hy)
                 naermod(m)  = na(i)
                 vaerosol(m) = va(i)
                 hygro(m)    = hy(i)
              end do
 
-             call aero_model%activate( &
+             call self%activate( &
                   wbar, wmix, wdiab, wmin, wmax,                       &
-                  temp(i,k), cs(i,k), naermod, aero_model%mtotal,             &
+                  temp(i,k), cs(i,k), naermod, self%mtotal,             &
                   vaerosol, hygro, fn, fm, fluxn,     &
                   fluxm,flux_fullact(k))
 
              factnum(i,k,:) = fn
 
              dumc = (cldn_tmp - cldo_tmp)
-             do m = 1, aero_model%mtotal
-                mm = aero_model%indexer(m,0)
+             do m = 1, self%mtotal
+                mm = self%indexer(m,0)
                 dact   = dumc*fn(m)*raer(mm)%fld(i,k) ! interstitial only
                 qcld(k) = qcld(k) + dact
                 nsource(i,k) = nsource(i,k) + dact*dtinv
                 raercol_cw(k,mm,nsav) = raercol_cw(k,mm,nsav) + dact  ! cloud-borne aerosol
                 raercol(k,mm,nsav)    = raercol(k,mm,nsav) - dact
                 dum = dumc*fm(m)
-                do l = 1, aero_model%nmasses(m)
-                   mm = aero_model%indexer(m,l)
+                do l = 1, self%nmasses(m)
+                   mm = self%indexer(m,l)
                    dact    = dum*raer(mm)%fld(i,k) ! interstitial only
                    raercol_cw(k,mm,nsav) = raercol_cw(k,mm,nsav) + dact  ! cloud-borne aerosol
                    raercol(k,mm,nsav)    = raercol(k,mm,nsav) - dact
@@ -630,18 +629,18 @@ contains
                 wmin    = wbar + wmix*0.25_r8*sq2pi*log(alogarg)
                 phase   = 1   ! interstitial
 
-                do m = 1, aero_model%mtotal
+                do m = 1, self%mtotal
                    ! rce-comment - use kp1 here as old-cloud activation involves
                    !   aerosol from layer below
-                   call aero_model%loadaer( i, i, kp1, m, cs, phase, na, va, hy)
+                   call self%loadaer( i, i, kp1, m, cs, phase, na, va, hy)
                    naermod(m)  = na(i)
                    vaerosol(m) = va(i)
                    hygro(m)    = hy(i)
                 end do
 
-                call aero_model%activate( &
+                call self%activate( &
                      wbar, wmix, wdiab, wmin, wmax,                       &
-                     temp(i,k), cs(i,k), naermod, aero_model%mtotal,             &
+                     temp(i,k), cs(i,k), naermod, self%mtotal,             &
                      vaerosol, hygro,  fn, fm, fluxn,     &
                      fluxm, flux_fullact(k))
 
@@ -696,8 +695,8 @@ contains
                    taumix_internal_pver_inv = flux_fullact(k)/dz(i,k)
                 end if
 
-                do m = 1, aero_model%mtotal
-                   mm = aero_model%indexer(m,0)
+                do m = 1, self%mtotal
+                   mm = self%indexer(m,0)
                    fluxn(m) = fluxn(m)*dumc
                    fluxm(m) = fluxm(m)*dumc
                    nact(k,m) = nact(k,m) + fluxn(m)*dum
@@ -729,7 +728,7 @@ contains
 
                 ! convert activated aerosol to interstitial in decaying cloud
 
-                do mm = 1,aero_model%ncnst_tot
+                do mm = 1,self%ncnst_tot
                    raercol(k,mm,nsav)    = raercol(k,mm,nsav) + raercol_cw(k,mm,nsav)  ! cloud-borne aerosol
                    raercol_cw(k,mm,nsav) = 0._r8
                 end do
@@ -815,7 +814,7 @@ contains
        !    however it might if things are not "just right" in subr activate
        !    the following is a safety measure to avoid negatives in explmix
        do k = top_lev, pver-1
-          do m = 1, aero_model%mtotal
+          do m = 1, self%mtotal
              nact(k,m) = min( nact(k,m), ekkp(k) )
              mact(k,m) = min( mact(k,m), ekkp(k) )
           end do
@@ -831,8 +830,8 @@ contains
           nnew    = ntemp
           srcn(:) = 0.0_r8
 
-          do m = 1, aero_model%mtotal
-             mm = aero_model%indexer(m,0)
+          do m = 1, self%mtotal
+             mm = self%indexer(m,0)
 
              ! update droplet source
              ! rce-comment- activation source in layer k involves particles from k+1
@@ -845,7 +844,7 @@ contains
                   + raercol_cw(pver,mm,nsav)*(nact(pver,m) - taumix_internal_pver_inv)
              srcn(pver) = srcn(pver) + max(0.0_r8,tmpa)
           end do
-          call aero_model%explmix(  &
+          call self%explmix(  &
                qcld, srcn, ekkp, ekkm, overlapp,  &
                overlapm, qncld, zero, zero, pver, &
                dtmix, .false.)
@@ -857,8 +856,8 @@ contains
           !    source terms involve clear air (from below) moving into cloudy air (above).
           !    in theory, the clear-portion mixratio should be used when calculating
           !    source terms
-          do m = 1, aero_model%mtotal
-             mm = aero_model%indexer(m,0)
+          do m = 1, self%mtotal
+             mm = self%indexer(m,0)
              ! rce-comment -   activation source in layer k involves particles from k+1
              !	              source(:)= nact(:,m)*(raercol(:,mm,nsav))
              source(top_lev:pver-1) = nact(top_lev:pver-1,m)*(raercol(top_lev+1:pver,mm,nsav))
@@ -869,18 +868,18 @@ contains
              source(pver) = max(0.0_r8, tmpa)
              flxconv = 0._r8
 
-             call aero_model%explmix( &
+             call self%explmix( &
                   raercol_cw(:,mm,nnew), source, ekkp, ekkm, overlapp, &
                   overlapm, raercol_cw(:,mm,nsav), zero, zero, pver,   &
                   dtmix, .false.)
 
-             call aero_model%explmix( &
+             call self%explmix( &
                   raercol(:,mm,nnew), source, ekkp, ekkm, overlapp,  &
                   overlapm, raercol(:,mm,nsav), zero, flxconv, pver, &
                   dtmix, .true., raercol_cw(:,mm,nsav))
 
-             do l = 1, aero_model%nmasses(m)
-                mm = aero_model%indexer(m,l)
+             do l = 1, self%nmasses(m)
+                mm = self%indexer(m,l)
                 ! rce-comment -   activation source in layer k involves particles from k+1
                 !	          source(:)= mact(:,m)*(raercol(:,mm,nsav))
                 source(top_lev:pver-1) = mact(top_lev:pver-1,m)*(raercol(top_lev+1:pver,mm,nsav))
@@ -891,12 +890,12 @@ contains
                 source(pver) = max(0.0_r8, tmpa)
                 flxconv = 0._r8
 
-                call aero_model%explmix( &
+                call self%explmix( &
                      raercol_cw(:,mm,nnew), source, ekkp, ekkm, overlapp, &
                      overlapm, raercol_cw(:,mm,nsav), zero, zero, pver,   &
                      dtmix, .false.)
 
-                call aero_model%explmix( &
+                call self%explmix( &
                      raercol(:,mm,nnew), source, ekkp, ekkm, overlapp,  &
                      overlapm, raercol(:,mm,nsav), zero, flxconv, pver, &
                      dtmix, .true., raercol_cw(:,mm,nsav))
@@ -912,7 +911,7 @@ contains
                 if (cnst_species_class(m) == cnst_spec_class_gas) then
                    flxconv = 0.0_r8
                    zerogas(:) = 0.0_r8
-                   call aero_model%explmix(rgascol(1,m,nnew),zerogas,ekkp,ekkm,overlapp,overlapm,  &
+                   call self%explmix(rgascol(1,m,nnew),zerogas,ekkp,ekkm,overlapp,overlapm,  &
                         rgascol(1,m,nsav),zero, flxconv, pver,dtmix,&
                         .true., zerogas)
                 end if
@@ -929,7 +928,7 @@ contains
              qcld(k)=0._r8
 
              ! convert activated aerosol to interstitial in decaying cloud
-             do mm = 1,aero_model%ncnst_tot
+             do mm = 1,self%ncnst_tot
                 raercol(k,mm,nnew)    = raercol(k,mm,nnew) + raercol_cw(k,mm,nnew)
                 raercol_cw(k,mm,nnew) = 0._r8
              end do
@@ -947,16 +946,16 @@ contains
        end do
        ndropcol(i) = ndropcol(i)/gravit
 
-       if (aero_model%prognostic) then
+       if (self%prognostic) then
 
           raertend = 0._r8
           qqcwtend = 0._r8
 
-          do m = 1, aero_model%mtotal
-             do l = 0, aero_model%nmasses(m)
+          do m = 1, self%mtotal
+             do l = 0, self%nmasses(m)
 
-                mm   = aero_model%indexer(m,l)
-                lptr = aero_model%cnstndx(m,l)
+                mm   = self%indexer(m,l)
+                lptr = self%cnstndx(m,l)
 
                 raertend(top_lev:pver) = (raercol(top_lev:pver,mm,nnew) - raer(mm)%fld(i,top_lev:pver))*dtinv
                 qqcwtend(top_lev:pver) = (raercol_cw(top_lev:pver,mm,nnew) - qqcw(mm)%fld(i,top_lev:pver))*dtinv
@@ -1006,16 +1005,16 @@ contains
        call outfld('SPKVH     ', kvh     , pcols, lchnk   )
     endif
 
-    call aero_model%ccncalc(state, cs, ccn)
+    call self%ccncalc(cs, ccn)
     do l = 1, psat
        call outfld(ccn_name(l), ccn(:,:,l), pcols, lchnk)
     enddo
 
     ! do column tendencies
-    if (aero_model%prognostic) then
-       do mm = 1,aero_model%ncnst_tot
-          call outfld(aero_model%fieldname(mm),    coltend(:,mm),    pcols, lchnk)
-          call outfld(aero_model%fieldname_cw(mm), coltend_cw(:,mm), pcols, lchnk)
+    if (self%prognostic) then
+       do mm = 1,self%ncnst_tot
+          call outfld(self%fieldname(mm),    coltend(:,mm),    pcols, lchnk)
+          call outfld(self%fieldname_cw(mm), coltend_cw(:,mm), pcols, lchnk)
        end do
     end if
 
@@ -1054,7 +1053,7 @@ contains
 
   end subroutine aero_dropmixnuc
 
-  subroutine aero_ccncalc(self, state, cs, ccn)
+  subroutine aero_ccncalc(self, cs, ccn)
 
     ! calculates number concentration of aerosols activated as CCN at
     ! supersaturation supersat.
@@ -1065,10 +1064,6 @@ contains
 
     ! arguments
     class(aerosol_model), intent(in) :: self
-
-    type(physics_state), target, intent(in)    :: state
-
-
     real(r8), intent(in)  :: cs(pcols,pver)       ! air density (kg/m3)
     real(r8), intent(out) :: ccn(pcols,pver,psat) ! number conc of aerosols activated at supersat (#/m3)
 
@@ -1095,8 +1090,8 @@ contains
 
     !-------------------------------------------------------------------------------
 
-    ncol  = state%ncol
-    tair  => state%t
+    ncol  = self%state%ncol
+    tair  => self%state%t
 
     ccn = 0._r8
     do k=top_lev,pver
@@ -1268,7 +1263,7 @@ contains
     real(r8) z,z1,z2,wf1,wf2,zf1,zf2,gf1,gf2,gf
     real(r8) etafactor1,etafactor2(nmode),etafactor2max
     real(r8) grow
-    character(len=*), parameter :: subname='aero_model%activate'
+    character(len=*), parameter :: subname='%activate'
 
     logical :: in_cloud
     integer m,n
@@ -1281,7 +1276,10 @@ contains
     save ndist
 
     if (present(in_cloud_in)) then
-       if (.not. present(smax_f)) call endrun(subname//' : smax_f must be supplied when in_cloud is used')
+       if (.not. present(smax_f)) then
+          call endrun(trim(self%model_name)//subname &
+                      //' : smax_f must be supplied when in_cloud is used')
+       end if
        in_cloud = in_cloud_in
     else
        in_cloud = .false.

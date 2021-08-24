@@ -638,12 +638,12 @@ subroutine microp_aero_run ( &
       ! liquid clouds. This is the same behavior as CAM5.
       if (use_preexisting_ice) then
          call aero_model%dropmixnuc( &
-              state1, ptend_loc, deltatin, pbuf, wsub, &
+              ptend_loc, deltatin, wsub, &
               cldn, cldo, cldliqf, nctend_mixnuc, factnum)
       else
          cldliqf = 1._r8
          call aero_model%dropmixnuc( &
-              state1, ptend_loc, deltatin, pbuf, wsub, &
+              ptend_loc, deltatin, wsub, &
               lcldn, lcldo, cldliqf, nctend_mixnuc, factnum)
       end if
 
