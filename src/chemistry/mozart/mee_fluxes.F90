@@ -28,8 +28,10 @@ module mee_fluxes
   real(r8), allocatable :: lshell(:)
   real(r8), allocatable :: indata(:,:,:)
   real(r8), allocatable :: influx(:,:)
+  logical , allocatable :: valflx(:,:)
 
   character(len=cl) :: mee_fluxes_filepath = 'NONE'
+  logical :: mee_fluxes_fillin = .false.
 
   type(time_coordinate) :: time_coord
   integer :: nlshells
@@ -52,7 +54,7 @@ contains
     integer :: unitn, ierr
     character(len=*), parameter :: subname = 'mee_fluxes_readnl'
 
-    namelist /mee_fluxes_opts/ mee_fluxes_filepath
+    namelist /mee_fluxes_opts/ mee_fluxes_filepath, mee_fluxes_fillin
 
     ! Read namelist
     if (masterproc) then
@@ -73,7 +75,8 @@ contains
     mee_fluxes_active = mee_fluxes_filepath /= 'NONE'
 
     if ( mee_fluxes_active .and. masterproc ) then
-       write(iulog,*) subname//':: mee_fluxes_filepath = '//trim(mee_fluxes_filepath)
+       write(iulog,*) subname//':: Input electron fluxes filepath: '//trim(mee_fluxes_filepath)
+       write(iulog,*) subname//':: Fill in missing fluxes with vdk-derived fluxes: ', mee_fluxes_fillin
     end if
 
   end subroutine mee_fluxes_readnl
@@ -105,6 +108,7 @@ contains
 
     allocate( indata( mee_fluxes_nenergy, nlshells, 2 ) )
     allocate( influx( mee_fluxes_nenergy, nlshells ) )
+    allocate( valflx( mee_fluxes_nenergy, nlshells ) )
     allocate( mee_fluxes_energy( mee_fluxes_nenergy ) )
     allocate( mee_fluxes_denergy( mee_fluxes_nenergy ) )
     allocate( logdelta( mee_fluxes_nenergy ) )
@@ -141,7 +145,9 @@ contains
     endif
 
     influx(:,:) = 0._r8
-    where ( .not.isnan(indata(:,:,1)) .and.  .not.isnan(indata(:,:,2)) )
+
+    valflx(:,:) = (.not.isnan(indata(:,:,1))) .and. (.not.isnan(indata(:,:,2)))
+    where ( valflx(:,:) )
        influx(:,:) = time_coord%wghts(1)*indata(:,:,1) + time_coord%wghts(2)*indata(:,:,2)
     end where
 
@@ -149,21 +155,26 @@ contains
        call endrun('mee_fluxes_adv -- influx has NaNs')
     end if
 
-
   end subroutine mee_fluxes_adv
 
   !-----------------------------------------------------------------------------
   !-----------------------------------------------------------------------------
-  subroutine mee_fluxes_extract( l_shell, fluxes )
+  subroutine mee_fluxes_extract( l_shell, fluxes, valid )
 
     real(r8), intent(in) :: l_shell
     real(r8), intent(out) :: fluxes(mee_fluxes_nenergy)
+    logical, intent(out) :: valid(mee_fluxes_nenergy)
 
     integer :: i, ndx1, ndx2
     logical :: found
     real(r8) :: wght1,wght2
 
-    fluxes = 0._r8
+    if (mee_fluxes_fillin) then
+       valid(:) = .false.
+    else
+       valid(:) = .true.
+    endif
+    fluxes(:) = 0._r8
 
     if (.not.mee_fluxes_active) return
 
@@ -181,7 +192,12 @@ contains
     end do findloop
 
     if (found) then
-       fluxes(:) = wght1*influx(:,ndx1) + wght2*influx(:,ndx2)
+       if (mee_fluxes_fillin) then
+          valid(:) = valflx(:,ndx1) .and. valflx(:,ndx2)
+       end if
+       where( valid(:) )
+          fluxes(:) = wght1*influx(:,ndx1) + wght2*influx(:,ndx2)
+       end where
     end if
 
   end subroutine mee_fluxes_extract

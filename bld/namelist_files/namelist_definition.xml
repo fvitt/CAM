@@ -6992,6 +6992,13 @@ on upper atmosphere.
 Default: None.
 </entry>
 
+<entry id="mee_fluxes_fillin" type="logical" category="waccm"
+       group="mee_fluxes_opts" valid_values="" >
+If TRUE, fill in missing fluxes with computed fluxes based in Ap index using van de Kamp
+method.
+Default: FALSE
+</entry>
+
 <entry id="mee_ap_ion_blc" type="real" category="waccm"
        group="mee_ap_ion_nl" valid_values="" >
 Bounce code loss angle (degrees) for electrons in radiation belts.

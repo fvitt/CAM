@@ -14,8 +14,11 @@ module mee_ap_util_mod
   public :: mee_ap_iprs
   public :: mee_ap_init
   public :: mee_ap_error
+  public :: mee_ap_noerror
 
   integer, parameter :: mee_ap_error=-1
+  integer, parameter :: mee_ap_noerror=0
+
   integer :: nbins=0
 
   real(r8),pointer :: energies(:)
@@ -34,11 +37,13 @@ contains
     real(r8), intent(in) :: loss_cone_angle ! Bounce Loss Cone angle (degrees)
     integer, intent(out) :: status          ! error status
 
+    status = mee_ap_noerror
     if ( loss_cone_angle<0._r8 .or. loss_cone_angle>90._r8 ) then
        status = mee_ap_error
        return
     endif
 
+    ! The area of the BLC in sr is 2pi(1-cosd(BLC))
     solid_angle_factor = 2._r8*pi*(1._r8-cos(loss_cone_angle*pi/180._r8))
 
     if (mee_fluxes_active) then
@@ -60,6 +65,7 @@ contains
   ! Computes ion pair production rates base on Ap geomagnetic activity index
   !-----------------------------------------------------------------------------
   function mee_ap_iprs( ncols, nlyrs, airden, scaleh, Ap, status, maglat, lshell) result(ionpairs )
+
     integer ,intent(in) :: ncols, nlyrs
     real(r8),intent(in) :: airden(ncols,nlyrs)     ! g/cm3
     real(r8),intent(in) :: scaleh(ncols,nlyrs)     ! cm
@@ -72,6 +78,7 @@ contains
 
     integer :: i,k
     real(r8) :: flux_sd(nbins)
+    logical  :: valid(nbins)
     real(r8) :: flux(nbins)
     real(r8) :: ipr(nbins,nlyrs)
     real(r8) :: l_shells(ncols)
@@ -95,18 +102,23 @@ contains
 
        if (  l_shells(i) >= 2._r8 .and. l_shells(i) <= 10._r8 ) then
 
+          valid(:) = .false.
+          flux_sd(:) = 0._r8
+
           if (mee_fluxes_active) then
              ! use prescribed top-of-atmosphere fluxes
-             call mee_fluxes_extract( l_shells(i), flux_sd )
-          else
+             call mee_fluxes_extract( l_shells(i), flux_sd, valid )
+          end if
+
+          where ( (.not.valid(:)) .and. (energies(:)>=30._r8) .and. (energies(:)<=1000._r8) )
              ! calculate the top of the atmosphere energetic electron energy spectrum
              ! van de Kamp is per steradian (electrons / (cm2 sr s keV))
-             flux_sd(:) = FluxSpectrum(energies, l_shells(i), Ap)
-          endif
+             flux_sd(:) = FluxSpectrum(energies(:), l_shells(i), Ap)
+          end where
 
           ! assume flux is isotropic inside a nominal bounce loss cone (BLC) angle.
           ! The area of the BLC in sr is 2pi(1-cosd(BLC))
-          flux(:) = solid_angle_factor* flux_sd(:)
+          flux(:) = solid_angle_factor*flux_sd(:)
 
           ! calculate the IPR as a function f height and energy
           ipr(:,:) = iprmono(energies, flux, airden(i,:), scaleh(i,:))
@@ -133,13 +145,13 @@ contains
   ! J. Geophys. Res. Atmos., 121, 12,520– 12,540,
   ! [doi:10.1002/2015JD024212](https://agupubs.onlinelibrary.wiley.com/doi/full/10.1002/2015JD024212)
   !------------------------------------------------------------------------------
-  function FluxSpectrum( energies, lshell, Ap ) result(flux)
+  pure function FluxSpectrum( en, lshell, Ap ) result(flux)
 
-    real(r8), intent(in) :: energies(:)
+    real(r8), intent(in) :: en(:)
     real(r8), intent(in) :: lshell
     real(r8), intent(in) :: Ap
 
-    real(r8) :: flux(size(energies))
+    real(r8) :: flux(size(en))
 
     real(r8) :: lpp
     real(r8) :: Spp
@@ -178,7 +190,7 @@ contains
 
     x=k+1
     c = F30*x/(1e3_r8**x-30._r8**x)
-    flux(:) = energies(:)**k*c
+    flux(:) = en(:)**k*c
 
   end function FluxSpectrum
 
