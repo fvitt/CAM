@@ -101,9 +101,8 @@ module aero_model
 
   logical :: convproc_do_aer
 
-  class(aerosol_model), pointer :: aeromodel
-  type(carma_aerosol_model),target :: carma_aero_model
-
+  class(aerosol_model), pointer :: aeromodel(:)
+  type(carma_aerosol_model),pointer :: carma_aero_model(:)
 
 contains
 
@@ -239,6 +238,7 @@ contains
 
     use carma_aero_convproc,   only: ma_convproc_init
     use time_manager,    only: is_first_step
+    use ppgrid, only: begchunk, endchunk
 
     ! args
     type(physics_buffer_desc), pointer :: pbuf2d(:,:)
@@ -254,7 +254,7 @@ contains
     logical  :: history_aerosol ! Output MAM or SECT aerosol tendencies
     logical  :: history_chemistry, history_cesm_forcing, history_dust
 
-    integer :: l
+    integer :: l, c
     character(len=6) :: test_name
     character(len=64) :: errmes
 
@@ -269,8 +269,11 @@ contains
 
     integer :: idx
 
+    allocate(carma_aero_model(begchunk:endchunk))
     aeromodel => carma_aero_model
-    call aeromodel%create()
+    do c = begchunk, endchunk
+       call aeromodel(c)%create()
+    enddo
 
     if (is_first_step()) then
        do m = 1, nbins
@@ -686,11 +689,11 @@ contains
     character(len=32) :: spectype
     character(len=32) :: bin_name
 
-    aeromodel%state=>state
-    aeromodel%pbuf=>pbuf
-
     lchnk = state%lchnk
     ncol  = state%ncol
+
+    aeromodel(lchnk)%state=>state
+    aeromodel(lchnk)%pbuf=>pbuf
 
     dcondt_resusp3d(:,:,:) = 0._r8
 
@@ -1352,7 +1355,7 @@ contains
 
     if (convproc_do_aer) then
        call t_startf('ma_convproc')
-       call ma_convproc_intr( aeromodel, state, ptend, pbuf, dt,                &
+       call ma_convproc_intr( aeromodel(lchnk), state, ptend, pbuf, dt,                &
             nsrflx_mzaer2cnvpr, qsrflx_mzaer2cnvpr, aerdepwetis, &
             dcondt_resusp3d)
 
@@ -1369,8 +1372,8 @@ contains
     !st    call set_srf_wetdep(aerdepwetis, aerdepwetcw, cam_out)
     !st endif
 
-    nullify(aeromodel%pbuf)
-    nullify(aeromodel%state)
+    nullify(aeromodel(lchnk)%pbuf)
+    nullify(aeromodel(lchnk)%state)
 
   end subroutine aero_model_wetdep
 

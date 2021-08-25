@@ -118,9 +118,9 @@ integer :: npccn_idx, rndst_idx, nacon_idx
 
 logical  :: separate_dust = .false.
 
-class(aerosol_model), pointer :: aero_model
-type(carma_aerosol_model),target :: carma_aero_model
-type(modal_aerosol_model),target :: modal_aero_model
+class(aerosol_model), pointer :: aero_model(:)
+type(carma_aerosol_model),pointer :: carma_aero_model(:)
+type(modal_aerosol_model),pointer :: modal_aero_model(:)
 
 !=========================================================================================
 contains
@@ -152,6 +152,8 @@ end subroutine microp_aero_register
 
 subroutine microp_aero_init(pbuf2d)
 
+   use ppgrid, only: begchunk, endchunk
+
    !-----------------------------------------------------------------------
    !
    ! Purpose:
@@ -166,7 +168,7 @@ subroutine microp_aero_init(pbuf2d)
    ! local variables
    integer  :: iaer, ierr
    integer  :: m, n, nmodes, nspec
-   integer :: nbins
+   integer :: nbins, c
 
    character(len=32) :: str32
    character(len=*), parameter :: routine = 'microp_aero_init'
@@ -309,16 +311,15 @@ subroutine microp_aero_init(pbuf2d)
    end if
 
    if (clim_modal_aero) then
-
+      allocate(modal_aero_model(begchunk:endchunk))
       aero_model => modal_aero_model
-
    elseif (clim_carma_aero) then
-
+      allocate(carma_aero_model(begchunk:endchunk))
       aero_model => carma_aero_model
-
    endif
-
-   call aero_model%create()
+   do c = begchunk, endchunk
+      call aero_model(c)%create()
+   enddo
 
    call addfld('LCLOUD', (/ 'lev' /), 'A', ' ',   'Liquid cloud fraction used in stratus activation')
 
@@ -635,34 +636,24 @@ subroutine microp_aero_run ( &
 
       call outfld('LCLOUD', lcldn, pcols, lchnk)
 
-      if (clim_modal_aero) then
-
-         aero_model => modal_aero_model
-
-      elseif (clim_carma_aero) then
-
-         aero_model => carma_aero_model
-
-      endif
-
-      aero_model%state => state1
-      aero_model%pbuf => pbuf
+      aero_model(lchnk)%state => state1
+      aero_model(lchnk)%pbuf => pbuf
 
       ! If not using preexsiting ice, then only use cloudbourne aerosol for the
       ! liquid clouds. This is the same behavior as CAM5.
       if (use_preexisting_ice) then
-         call aero_model%dropmixnuc( &
+         call aero_model(lchnk)%dropmixnuc( &
               ptend_loc, deltatin, wsub, &
               cldn, cldo, cldliqf, nctend_mixnuc, factnum)
       else
          cldliqf = 1._r8
-         call aero_model%dropmixnuc( &
+         call aero_model(lchnk)%dropmixnuc( &
               ptend_loc, deltatin, wsub, &
               lcldn, lcldo, cldliqf, nctend_mixnuc, factnum)
       end if
 
-      nullify(aero_model%pbuf)
-      nullify(aero_model%state)
+      nullify(aero_model(state1%lchnk)%pbuf)
+      nullify(aero_model(state1%lchnk)%state)
 
       npccn(:ncol,:) = nctend_mixnuc(:ncol,:)
 

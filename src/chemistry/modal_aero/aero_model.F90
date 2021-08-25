@@ -108,8 +108,9 @@ module aero_model
 
   logical :: convproc_do_aer
 
-  class(aerosol_model), pointer :: aeromodel => null()
-  type(modal_aerosol_model),target :: modal_aero_model
+  class(aerosol_model), pointer :: aeromodel(:)
+  type(modal_aerosol_model),pointer :: modal_aero_model(:)
+
 contains
 
   !=============================================================================
@@ -197,6 +198,7 @@ contains
     use drydep_mod,      only: inidrydep
     use wetdep,          only: wetdep_init
     use mo_setsox,       only: sox_inti
+    use ppgrid, only: begchunk, endchunk
 
     use modal_aero_calcsize,   only: modal_aero_calcsize_init
     use modal_aero_coag,       only: modal_aero_coag_init
@@ -217,7 +219,7 @@ contains
     logical  :: history_aerosol ! Output MAM or SECT aerosol tendencies
     logical  :: history_chemistry, history_cesm_forcing, history_dust
 
-    integer :: l
+    integer :: l, c
     character(len=6) :: test_name
     character(len=64) :: errmes
 
@@ -230,8 +232,11 @@ contains
     character(len=32) :: mode_type
     integer :: nspec
 
+    allocate(modal_aero_model(begchunk:endchunk))
     aeromodel => modal_aero_model
-    call aeromodel%create()
+    do c = begchunk, endchunk
+       call aeromodel(c)%create()
+    enddo
 
     ! aqueous chem initialization
     call sox_inti()
@@ -1082,11 +1087,11 @@ contains
 
     real(r8) :: dcondt_resusp3d(2*pcnst,pcols, pver)
 
-    aeromodel%state=>state
-    aeromodel%pbuf=>pbuf
-
     lchnk = state%lchnk
     ncol  = state%ncol
+
+    aeromodel(lchnk)%state=>state
+    aeromodel(lchnk)%pbuf=>pbuf
 
     dcondt_resusp3d(:,:,:) = 0._r8
 
@@ -1629,7 +1634,7 @@ contains
 
     if (convproc_do_aer) then
        call t_startf('ma_convproc')
-       call ma_convproc_intr( aeromodel, state, ptend, pbuf, dt,                &
+       call ma_convproc_intr( aeromodel(lchnk), state, ptend, pbuf, dt,                &
             nsrflx_mzaer2cnvpr, qsrflx_mzaer2cnvpr, aerdepwetis, &
             dcondt_resusp3d)
 
@@ -1669,8 +1674,8 @@ contains
        call set_srf_wetdep(aerdepwetis, aerdepwetcw, cam_out)
     endif
 
-    nullify(aeromodel%pbuf)
-    nullify(aeromodel%state)
+    nullify(aeromodel(lchnk)%pbuf)
+    nullify(aeromodel(lchnk)%state)
 
   end subroutine aero_model_wetdep
 

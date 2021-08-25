@@ -187,8 +187,6 @@ contains
     integer  :: i, l
     !-------------------------------------------------------------------------------
 
-    if (masterproc) write(iulog,*) 'AERO_MODEL: MODAL load aerosol data..'
-
     do i = istart, istop
        vaerosol(i) = 0._r8
        hygro(i)    = 0._r8
