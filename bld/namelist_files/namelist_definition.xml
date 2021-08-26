@@ -6978,15 +6978,22 @@ ion pairs production rates.
 Default: None.
 </entry>
 
-<entry id="mee_ap_ion_inline" type="logical" category="waccm"
-       group="mee_ap_ion_nl" valid_values="" >
+<entry id="mee_ion_inline" type="logical" category="waccm"
+       group="mee_ion_nl" valid_values="" >
 Switch to turn on medium energy electron ionization chemical forcings
 computed inline using Ap geomagnetic activity index input data.
 Default: FALSE
 </entry>
 
-<entry id="mee_ap_ion_diagonly" type="logical" category="waccm"
-       group="mee_ap_ion_nl" valid_values="" >
+<entry id="mee_ion_blc" type="real" category="waccm"
+       group="mee_ion_nl" valid_values="" >
+Bounce code loss angle (degrees) for electrons in radiation belts.
+Must range from 0 to 90 degrees.
+Default: 80 degrees
+</entry>
+
+<entry id="mee_ion_diagonly" type="logical" category="waccm"
+       group="mee_ion_nl" valid_values="" >
 If TRUE, compute medium energy electron ionization rates only for output to history stream.
 Otherwise,  apply the ionization rates as forcings to the chemistry.
 Default: FALSE
@@ -7004,13 +7011,6 @@ Default: None.
 If TRUE, fill in missing fluxes with computed fluxes based in Ap index using van de Kamp
 method.
 Default: FALSE
-</entry>
-
-<entry id="mee_ap_ion_blc" type="real" category="waccm"
-       group="mee_ap_ion_nl" valid_values="" >
-Bounce code loss angle (degrees) for electrons in radiation belts.
-Must range from 0 to 90 degrees.
-Default: None
 </entry>
 
 <entry id="apply_lunar_tides" type="logical" category="waccm_phys"

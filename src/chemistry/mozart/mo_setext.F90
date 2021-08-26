@@ -25,7 +25,7 @@ contains
     use mo_chem_utls, only : get_extfrc_ndx, get_spc_ndx
     use cam_history,  only : addfld
     use spmd_utils,   only : masterproc
-    use mee_ap_ionization,only: mee_ap_ion_init
+    use mee_ionization,only: mee_ion_init
 
     implicit none
 
@@ -84,7 +84,7 @@ contains
        call addfld('AOA_NH_XFRC', (/ 'lev' /), 'A', 'molec/cm3/s',  'external forcing for AOA_NH' )
     endif
 
-    call mee_ap_ion_init()
+    call mee_ion_init()
 
   end subroutine setext_inti
 
@@ -113,7 +113,7 @@ contains
     use mo_aurora,      only : aurora
     use gcr_ionization, only : gcr_ionization_ionpairs
     use epp_ionization, only : epp_ionization_ionpairs
-    use mee_ap_ionization,only: mee_ap_ionpairs
+    use mee_ionization,only: mee_ionpairs
     use spehox,         only : hox_prod_factor
 
     use physics_buffer, only : physics_buffer_desc
@@ -161,7 +161,7 @@ contains
 
     real(r8) :: mee_ap_ipr(ncol,pver) ! ion pairs production rate from Ap formulation
 
-    call mee_ap_ionpairs(ncol, lchnk, pmid, zmid*1.e3_r8, tfld, mee_ap_ipr)
+    call mee_ionpairs(ncol, lchnk, pmid, zmid*1.e3_r8, tfld, mee_ap_ipr)
 
     extfrc(:,:,:) = 0._r8
 
