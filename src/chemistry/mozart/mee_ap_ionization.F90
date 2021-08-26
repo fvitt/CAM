@@ -16,6 +16,7 @@ module mee_ap_ionization
   public :: mee_ap_ionpairs
 
   logical :: mee_ap_ion_inline = .false.
+  logical :: mee_ap_ion_diagonly = .false.
   real(r8) :: mee_ap_ion_blc = -huge(1._r8) ! bounce cone angle (degrees)
 
 contains
@@ -34,7 +35,7 @@ contains
     integer :: unitn, ierr
     character(len=*), parameter :: subname = 'mee_ap_ion_readnl'
 
-    namelist /mee_ap_ion_nl/ mee_ap_ion_inline, mee_ap_ion_blc
+    namelist /mee_ap_ion_nl/ mee_ap_ion_inline, mee_ap_ion_blc, mee_ap_ion_diagonly
 
 
     ! Read namelist
@@ -53,9 +54,13 @@ contains
     ! Broadcast namelist variables
     call mpi_bcast(mee_ap_ion_inline, 1, mpi_logical, masterprocid, mpicom, ierr)
     call mpi_bcast(mee_ap_ion_blc, 1, mpi_real8, masterprocid, mpicom, ierr)
+    call mpi_bcast(mee_ap_ion_diagonly, 1, mpi_logical, masterprocid, mpicom, ierr)
     if ( masterproc ) then
        write(iulog,*) subname//':: mee_ap_ion_inline = ', mee_ap_ion_inline
-       write(iulog,*) subname//':: mee_ap_ion_blc = ', mee_ap_ion_blc
+       if (mee_ap_ion_inline) then
+          write(iulog,*) subname//':: mee_ap_ion_blc = ', mee_ap_ion_blc
+          write(iulog,*) subname//':: mee_ap_ion_diagonly = ', mee_ap_ion_diagonly
+       endif
     endif
 
     if (mee_ap_ion_inline) then
@@ -109,7 +114,7 @@ contains
     if (.not.mee_ap_ion_inline) then
        ionpairs(:,:) = 0._r8
        return
-    endif
+    end if
 
     rho(:ncol,:) = pmid(:ncol,:)/(rairv(:ncol,:,lchnk)*temp(:ncol,:)) ! kg/m3
     rho(:ncol,:) = rho(:ncol,:)*1.0e-3_r8 ! kg/m3 --> g/cm3
@@ -122,9 +127,13 @@ contains
     ionpairs(:ncol,:) = mee_ap_iprs(ncol, pver, rho(:ncol,:), scaleh(:ncol,:), Ap, status=err, maglat=alatm(:ncol,lchnk))
     if (err==mee_ap_error) then
        call endrun('mee_ap_ionpairs: error in Ap based MEE ionization calculation')
-    endif
+    end if
 
     call outfld( 'APMEEionprs', ionpairs(:ncol,:), ncol, lchnk )
+
+    if (mee_ap_ion_diagonly) then
+       ionpairs(:,:) = 0._r8
+    end if
 
   end subroutine mee_ap_ionpairs
 

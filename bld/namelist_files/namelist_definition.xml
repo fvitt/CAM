@@ -6985,6 +6985,13 @@ computed inline using Ap geomagnetic activity index input data.
 Default: FALSE
 </entry>
 
+<entry id="mee_ap_ion_diagonly" type="logical" category="waccm"
+       group="mee_ap_ion_nl" valid_values="" >
+If TRUE, compute medium energy electron ionization rates only for output to history stream.
+Otherwise,  apply the ionization rates as forcings to the chemistry.
+Default: FALSE
+</entry>
+
 <entry id="mee_fluxes_filepath" type="char*256" input_pathname="abs" category="waccm"
        group="mee_fluxes_opts" valid_values="" >
 Filepath input dataset for radiation belt medium energy electrons fluxes incident
