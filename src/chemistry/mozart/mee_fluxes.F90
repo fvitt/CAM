@@ -46,7 +46,7 @@ contains
   subroutine mee_fluxes_readnl(nlfile)
 
     use namelist_utils, only: find_group_name
-    use spmd_utils,     only: mpicom, mpi_character, masterprocid
+    use spmd_utils,     only: mpicom, mpi_character, mpi_logical, masterprocid
 
     character(len=*), intent(in) :: nlfile  ! filepath for file containing namelist input
 
@@ -71,6 +71,7 @@ contains
 
     ! Broadcast namelist variables
     call mpi_bcast(mee_fluxes_filepath, len(mee_fluxes_filepath), mpi_character, masterprocid, mpicom, ierr)
+    call mpi_bcast(mee_fluxes_fillin, 1, mpi_logical, masterprocid, mpicom, ierr)
 
     mee_fluxes_active = mee_fluxes_filepath /= 'NONE'
 
