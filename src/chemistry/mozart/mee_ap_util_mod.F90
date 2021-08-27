@@ -1,6 +1,6 @@
 !------------------------------------------------------------------------------
 ! Utility routines for medium energy electron ionization base on Ap
-! geomagnetic activity index
+! geomagnetic activity index or observed electron fluxes
 !------------------------------------------------------------------------------
 module mee_ap_util_mod
   use shr_kind_mod, only: r8 => shr_kind_r8
@@ -63,6 +63,7 @@ contains
 
   !-----------------------------------------------------------------------------
   ! Computes ion pair production rates base on Ap geomagnetic activity index
+  ! or observed electron fluxes
   !-----------------------------------------------------------------------------
   function mee_ap_iprs( ncols, nlyrs, airden, scaleh, Ap, status, maglat, lshell) result(ionpairs )
 
@@ -135,10 +136,9 @@ contains
   end function mee_ap_iprs
 
   !------------------------------------------------------------------------------
-  ! Calculating an energy spectrum for a specific L-shell and Ap calculation
+  ! Electron fluxes for a specific L-shell and Ap
   !
-  ! A routine to return an energy spectrum for a specific L-shell and Ap
-  ! Calcs based on:
+  ! Based on:
   !
   ! van de Kamp, M., Seppala, A., Clilverd, M. A., Rodger, C. J., Verronen, P. T., and Whittaker, I. C. (2016),
   ! A model providing long‐term datasets of energetic electron precipitation during geomagnetic storms,
@@ -208,7 +208,7 @@ contains
   !
   ! Application of the new parameterization requires the following steps:
   !
-  ! 1. Calculate the Ci coefficients using equation (5) and Table 1.
+  ! 1. Fang coefficients using equation (5) and Table 1. are calculated at initialization time
   ! 2. Calculate the y values throughout the atmosphere using equation (1).
   ! 3. Calculate the normalized energy dissipation f values using equation (4).
   ! 4. Obtain the altitude profile of qtot by substituting the f values into equation (3).

@@ -1,7 +1,13 @@
+!--------------------------------------------------------------------------
+! CAM interface layer for inline computation of atmosphere ionization rates
+! due to medium energy electrons in the magnetosphere radiation belts impacting
+! the atmosphere.  Fluxes of electrons incident on the upper atmosphere can
+! be computed based on Ap or read from file.
+!--------------------------------------------------------------------------
 module mee_ionization
   use shr_kind_mod, only: r8 => shr_kind_r8
   use solar_parms_data, only: Ap=>solar_parms_ap ! geomag activity index
-  use mo_apex, only: alatm !(icol,lchnk) apex mag latitude at each geographic grid point (radians)
+  use mo_apex, only: alatm ! mag latitude at each column (radians)
   use ppgrid, only: pcols, pver
   use cam_logfile,  only: iulog
   use spmd_utils,   only: masterproc
@@ -22,6 +28,7 @@ module mee_ionization
 contains
 
   !-----------------------------------------------------------------------------
+  ! reads namelist options
   !-----------------------------------------------------------------------------
   subroutine mee_ion_readnl(nlfile)
 
@@ -104,7 +111,7 @@ contains
     real(r8), intent(in) :: pmid(:,:)
     real(r8), intent(in) :: alt(:,:) ! meters
     real(r8), intent(in) :: temp(:,:)
-    real(r8), intent(out) :: ionpairs(:,:)
+    real(r8), intent(out) :: ionpairs(:,:) ! ion pairs /cm3/sec
 
     real(r8) :: rho(pcols,pver)
     real(r8) :: scaleh(pcols,pver)

@@ -6987,7 +6987,7 @@ Default: FALSE
 
 <entry id="mee_ion_blc" type="real" category="waccm"
        group="mee_ion_nl" valid_values="" >
-Bounce code loss angle (degrees) for electrons in radiation belts.
+Bounce cone loss angle (degrees) for medium energy electrons in radiation belts.
 Must range from 0 to 90 degrees.
 Default: 80 degrees
 </entry>

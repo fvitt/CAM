@@ -1,3 +1,6 @@
+!--------------------------------------------------------------------------------
+! Provids electron fluxes read from input data set
+!--------------------------------------------------------------------------------
 module mee_fluxes
   use shr_kind_mod,   only : r8 => shr_kind_r8, cl=> shr_kind_cl
   use spmd_utils,     only : masterproc
@@ -13,12 +16,12 @@ module mee_fluxes
   private
   public :: mee_fluxes_readnl
   public :: mee_fluxes_init
-  public :: mee_fluxes_adv
-  public :: mee_fluxes_extract
-  public :: mee_fluxes_active
-  public :: mee_fluxes_denergy
-  public :: mee_fluxes_energy
-  public :: mee_fluxes_nenergy
+  public :: mee_fluxes_adv     ! read and time interpolate fluxes
+  public :: mee_fluxes_extract ! interpolate flux to column L-shell
+  public :: mee_fluxes_active  ! true when input flux file is specified
+  public :: mee_fluxes_denergy ! energy bin widths
+  public :: mee_fluxes_energy  ! center of each energy bin
+  public :: mee_fluxes_nenergy ! number of energy bins
 
   real(r8),protected, pointer :: mee_fluxes_denergy(:)
   real(r8),protected, pointer :: mee_fluxes_energy(:)
@@ -42,6 +45,7 @@ module mee_fluxes
 contains
 
   !-----------------------------------------------------------------------------
+  ! read namelist options
   !-----------------------------------------------------------------------------
   subroutine mee_fluxes_readnl(nlfile)
 
@@ -83,6 +87,7 @@ contains
   end subroutine mee_fluxes_readnl
 
   !-----------------------------------------------------------------------------
+  ! intialize -- allocate memory and read coordinate data
   !-----------------------------------------------------------------------------
   subroutine mee_fluxes_init()
     use cam_pio_utils,  only : cam_pio_openfile
@@ -134,6 +139,8 @@ contains
   end subroutine mee_fluxes_init
 
   !-----------------------------------------------------------------------------
+  ! time interpolate the input fluxes
+  ! reads data as needed
   !-----------------------------------------------------------------------------
   subroutine mee_fluxes_adv
 
@@ -159,6 +166,7 @@ contains
   end subroutine mee_fluxes_adv
 
   !-----------------------------------------------------------------------------
+  ! linear interpolate fluxes in L-shell where the fluxes are valid
   !-----------------------------------------------------------------------------
   subroutine mee_fluxes_extract( l_shell, fluxes, valid )
 
@@ -211,6 +219,8 @@ contains
     integer :: ierr, cnt(4), start(4)
 
     cnt = (/1, mee_fluxes_nenergy, nlshells, 2/)
+
+    ! use the 50 percentile level data ( index 3 )
     start = (/3, 1, 1, time_coord%indxs(1)/)
 
     ! float RBSP_flux_scaled(time, lshell, energy, percentiles) ;
