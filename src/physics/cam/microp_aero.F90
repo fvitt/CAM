@@ -118,7 +118,7 @@ integer :: npccn_idx, rndst_idx, nacon_idx
 
 logical  :: separate_dust = .false.
 
-class(aerosol_model), pointer :: aero_model(:)
+class(aerosol_model), pointer :: aero_model(:)=>null()
 type(carma_aerosol_model),pointer :: carma_aero_model(:)
 type(modal_aerosol_model),pointer :: modal_aero_model(:)
 
@@ -317,9 +317,11 @@ subroutine microp_aero_init(pbuf2d)
       allocate(carma_aero_model(begchunk:endchunk))
       aero_model => carma_aero_model
    endif
-   do c = begchunk, endchunk
-      call aero_model(c)%create()
-   enddo
+   if (associated(aero_model)) then
+      do c = begchunk, endchunk
+         call aero_model(c)%create()
+      enddo
+   endif
 
    call addfld('LCLOUD', (/ 'lev' /), 'A', ' ',   'Liquid cloud fraction used in stratus activation')
 
@@ -635,25 +637,27 @@ subroutine microp_aero_run ( &
       end do
 
       call outfld('LCLOUD', lcldn, pcols, lchnk)
+      
+      if (associated(aero_model)) then
+         aero_model(lchnk)%state => state1
+         aero_model(lchnk)%pbuf => pbuf
 
-      aero_model(lchnk)%state => state1
-      aero_model(lchnk)%pbuf => pbuf
+         ! If not using preexsiting ice, then only use cloudbourne aerosol for the
+         ! liquid clouds. This is the same behavior as CAM5.
+         if (use_preexisting_ice) then
+            call aero_model(lchnk)%dropmixnuc( &
+                 ptend_loc, deltatin, wsub, &
+                 cldn, cldo, cldliqf, nctend_mixnuc, factnum)
+         else
+            cldliqf = 1._r8
+            call aero_model(lchnk)%dropmixnuc( &
+                 ptend_loc, deltatin, wsub, &
+                 lcldn, lcldo, cldliqf, nctend_mixnuc, factnum)
+         end if
 
-      ! If not using preexsiting ice, then only use cloudbourne aerosol for the
-      ! liquid clouds. This is the same behavior as CAM5.
-      if (use_preexisting_ice) then
-         call aero_model(lchnk)%dropmixnuc( &
-              ptend_loc, deltatin, wsub, &
-              cldn, cldo, cldliqf, nctend_mixnuc, factnum)
-      else
-         cldliqf = 1._r8
-         call aero_model(lchnk)%dropmixnuc( &
-              ptend_loc, deltatin, wsub, &
-              lcldn, lcldo, cldliqf, nctend_mixnuc, factnum)
-      end if
-
-      nullify(aero_model(state1%lchnk)%pbuf)
-      nullify(aero_model(state1%lchnk)%state)
+         nullify(aero_model(lchnk)%pbuf)
+         nullify(aero_model(lchnk)%state)
+      endif
 
       npccn(:ncol,:) = nctend_mixnuc(:ncol,:)
 

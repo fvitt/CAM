@@ -748,17 +748,17 @@ end subroutine crm_init_cnst
    use micro_mg_utils,      only: size_dist_param_liq, mg_liq_props, mincld, qsmall
 
 #ifdef MODAL_AERO
-     use crmclouds_camaerosols, only: crmclouds_mixnuc_tend, spcam_modal_aero_wateruptake_dr
-     use ndrop,                 only: loadaer
+   use crmclouds_camaerosols, only: crmclouds_mixnuc_tend, spcam_modal_aero_wateruptake_dr
+   use modal_aerosol_model_mod, only: modal_aerosol_model
 #endif
 #ifdef m2005
-     use module_ecpp_ppdriver2, only: parampollu_driver2
-     use crmx_ecppvars,         only: NCLASS_CL, ncls_ecpp_in, NCLASS_PR
-     use module_data_ecpp1,     only: dtstep_pp_input
+   use module_ecpp_ppdriver2, only: parampollu_driver2
+   use crmx_ecppvars,         only: NCLASS_CL, ncls_ecpp_in, NCLASS_PR
+   use module_data_ecpp1,     only: dtstep_pp_input
 #endif
 #ifdef SPCAM_CLUBB_SGS
-     use cloud_cover_diags, only: cloud_cover_diags_out 
-     use pkg_cldoptics,     only: cldovrlap
+   use cloud_cover_diags, only: cloud_cover_diags_out 
+   use pkg_cldoptics,     only: cldovrlap
 #endif
 
 #endif 
@@ -777,7 +777,7 @@ end subroutine crm_init_cnst
 
 #ifdef CRM
 
-   type(physics_state) :: state_loc   ! local copy of state   
+   type(physics_state),target :: state_loc   ! local copy of state   
    type(physics_tend)  :: tend_loc    ! local copy of tend   
    type(physics_ptend) :: ptend_loc   ! local copy of ptend   
 
@@ -1050,6 +1050,10 @@ end subroutine crm_init_cnst
    integer i, k, m
    integer ifld
    logical :: ls, lu, lv, lq(pcnst)
+
+#ifdef MODAL_AERO
+   type(modal_aerosol_model) :: aero_model
+#endif
 
    zero = 0.0_r8
 !========================================================
@@ -1468,8 +1472,14 @@ end subroutine crm_init_cnst
       if (is_spcam_m2005) then
           cs(1:ncol, 1:pver) = state_loc%pmid(1:ncol, 1:pver)/(287.15_r8*state_loc%t(1:ncol, 1:pver))
       end if
+      
+#ifdef MODAL_AERO
+      call aero_model%create()
+      aero_model%state => state_loc
+      aero_model%pbuf => pbuf
+#endif
 
-       do i = 1,ncol
+      do i = 1,ncol
 
          tau00  = sqrt(cam_in%wsx(i)**2 + cam_in%wsy(i)**2)
          wnd    = sqrt(state_loc%u(i,pver)**2 + state_loc%v(i,pver)**2)
@@ -1544,8 +1554,7 @@ end subroutine crm_init_cnst
             do k=1, pver
               phase = 1  ! interstital aerosols only
               do m=1, nmodes
-               call loadaer( &
-                     state_loc, pbuf, i, i, k, &
+               call aero_model%loadaer( i, i, k, &
                      m, cs, phase, na, va, &
                      hy)
                 naermod(k, m)  = na(i)
@@ -1642,6 +1651,12 @@ end subroutine crm_init_cnst
               crm_qc(i,:,:,:) = crm_micro(i,:,:,:,11)
           endif
        end do ! i (loop over ncol)
+
+#ifdef MODAL_AERO
+       nullify(aero_model%pbuf)
+       nullify(aero_model%state)
+       call aero_model%destroy()
+#endif
 
        call t_stopf('crm_call')
 

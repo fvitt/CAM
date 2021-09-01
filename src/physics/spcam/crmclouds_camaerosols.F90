@@ -364,12 +364,12 @@ subroutine crmclouds_mixnuc_tend (state, ptend, dtime, cflx, pblht, pbuf,   &
   use constituents,     only: cnst_get_ind, pcnst, cnst_species_class, cnst_spec_class_gas
   use time_manager,     only: is_first_step
   use cam_history,      only: outfld
-  use ndrop,         only: dropmixnuc
+  use modal_aerosol_model_mod, only: modal_aerosol_model
   use modal_aero_data
   use rad_constituents, only: rad_cnst_get_info
 
 ! Input 
-  type(physics_state), intent(in)    :: state   ! state variables
+  type(physics_state), target, intent(in) :: state   ! state variables
   type(physics_buffer_desc), pointer :: pbuf(:)
   real(r8), intent(in) :: pblht(pcols)          ! PBL height (meter)
   real(r8), intent(in)  :: dtime                ! timestep
@@ -427,6 +427,8 @@ subroutine crmclouds_mixnuc_tend (state, ptend, dtime, cflx, pblht, pbuf,   &
   real(r8), pointer, dimension(:,:) :: tk_crm     ! m2/s
 
   logical :: lq(pcnst)
+
+  type(modal_aerosol_model) :: aero_model
 
   lchnk = state%lchnk
   ncol  = state%ncol
@@ -575,7 +577,13 @@ subroutine crmclouds_mixnuc_tend (state, ptend, dtime, cflx, pblht, pbuf,   &
 ! should we set omega to be zero ??
   omega(:ncol, :) = state%omega(:ncol, :)
 
-  call dropmixnuc(state, ptend, dtime, pbuf, wsub, lcldn, lcldo, cldliqf, tendnd, factnum, dommf )
+  call aero_model%create()
+  aero_model%state => state
+  aero_model%pbuf => pbuf
+  call aero_model%dropmixnuc( ptend, dtime, wsub, lcldn, lcldo, cldliqf, tendnd, factnum, dommf )
+  nullify(aero_model%pbuf)
+  nullify(aero_model%state)
+  call aero_model%destroy()
 
 ! this part is moved into tphysbc after aerosol stuffs. 
 !

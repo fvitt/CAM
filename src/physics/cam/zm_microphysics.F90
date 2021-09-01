@@ -306,7 +306,7 @@ subroutine zm_mphy(su,    qu,   mu,   du,   eu,    cmel,  cmei,  zf,   pm,   te,
 ! Author: Xialiang Song, June 2010
 
   use time_manager,    only: get_step_size
- use aerosol_model_mod, only: aerosol_model
+  use modal_aerosol_model_mod, only: modal_aerosol_model
 
 ! variable declarations
 
@@ -616,8 +616,10 @@ subroutine zm_mphy(su,    qu,   mu,   du,   eu,    cmel,  cmei,  zf,   pm,   te,
   real(r8)  rmean, beta6, beta66, r6, r6c
   real(r8)  temp1, temp2, temp3, temp4   ! variable to store output which is not required by this routine
 
-  class(aerosol_model), pointer :: aero_model
+  type(modal_aerosol_model) :: aero_model
 
+  call aero_model%create()
+  
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 ! initialization
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
@@ -2439,6 +2441,8 @@ subroutine zm_mphy(su,    qu,   mu,   du,   eu,    cmel,  cmei,  zf,   pm,   te,
         naer2h,   &
         maerosol  )
   end if
+
+  call aero_model%destroy()
 
 end subroutine zm_mphy
 

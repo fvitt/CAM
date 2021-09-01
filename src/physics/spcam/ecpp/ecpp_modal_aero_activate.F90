@@ -425,7 +425,7 @@ vert_k_loop:   &
 
 	use module_ecpp_util, only:  ecpp_error_fatal, ecpp_message
 
-        use ndrop,           only: activate_modal
+        use modal_aerosol_model_mod, only: modal_aerosol_model
 
 !   arguments
 	integer, intent(in) ::                  &
@@ -491,7 +491,9 @@ vert_k_loop:   &
 	real(r8), dimension( 1:maxd_acomp, 1:maxd_asize, 1:maxd_atype ) ::   &
 	    maerosol, maerosolcw
 
+        type(modal_aerosol_model) :: aero_model
 
+        call aero_model%create()
 
 !   initialize fnact/fmact to zero
 	fmact(:,:) = 0.0_r8
@@ -550,7 +552,8 @@ vert_k_loop:   &
 
 !   do activate call
         m = 1    ! for the CAM modal aeosol, nsize_aer is always 1.
-        call activate_modal( wbar, wmix, wdiab, wmin, wmax, tempair, rhoair, &
+        call aero_model%activate( &
+            wbar, wmix, wdiab, wmin, wmax, tempair, rhoair, &
             naerosol(m,:), ntype_aer, &
             vaerosol(m,:), hygro(m,:),         &
             fn(m,:), fm(m,:), fluxn(m,:), fluxm(m,:), flux_fullact )
@@ -578,6 +581,7 @@ vert_k_loop:   &
 
 	end if
 
+        call aero_model%destroy()
 
 	return
 	end subroutine parampollu_tdx_activate_intface

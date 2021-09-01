@@ -446,7 +446,7 @@ subroutine parampollu_tdx_cldchem(               &
           !--------------------------------------------------------------------------
           !        ... Aqueous chemistry
           !--------------------------------------------------------------------------
-          call setsox( ncol,   &                   ! ncol
+          call setsox(pbuf, ncol,   &                   ! ncol
                jt,  &                              ! lchnk
                imozart-1,&                         ! loffset
                dt_tmp,                  &          ! dtime

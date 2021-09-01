@@ -10,6 +10,5 @@
 /
 &carma_nl
  carma_do_fixedinit=.false.
- carma_reftfile="camrun.cam.r.carma_reft.nc"
 /
 
