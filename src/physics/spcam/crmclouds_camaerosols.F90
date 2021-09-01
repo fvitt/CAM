@@ -416,7 +416,7 @@ subroutine crmclouds_mixnuc_tend (state, ptend, dtime, cflx, pblht, pbuf,   &
 
   real(r8) :: qcld, qsmall
 
-  logical :: dommf=.true.              ! value insignificant, if present, means that dropmixnuc is called the mmf part. 
+  logical, parameter :: dommf=.true.  ! value insignificant, if present, means that dropmixnuc is called the mmf part. 
 
 ! Variables in the physics buffer:
   real(r8), pointer, dimension(:,:) :: cldn    ! cloud fractin at the current time step
@@ -580,7 +580,7 @@ subroutine crmclouds_mixnuc_tend (state, ptend, dtime, cflx, pblht, pbuf,   &
   call aero_model%create()
   aero_model%state => state
   aero_model%pbuf => pbuf
-  call aero_model%dropmixnuc( ptend, dtime, wsub, lcldn, lcldo, cldliqf, tendnd, factnum, dommf )
+  call aero_model%dropmixnuc( ptend, dtime, wsub, lcldn, lcldo, cldliqf, tendnd, factnum, from_spcam=dommf )
   nullify(aero_model%pbuf)
   nullify(aero_model%state)
   call aero_model%destroy()

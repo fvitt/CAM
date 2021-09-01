@@ -363,7 +363,11 @@ contains
 
     call self%set_ptrs( raer, qqcw )
 
-    called_from_spcam = (present(from_spcam))
+    if (present(from_spcam)) then
+       called_from_spcam = from_spcam
+    else
+       called_from_spcam = .false.
+    endif
 
     if (called_from_spcam) then
        rgas  => self%state%q
