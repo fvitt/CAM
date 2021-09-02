@@ -129,8 +129,8 @@ contains
 
     logdelta(2:) =  log(mee_fluxes_energy(2:mee_fluxes_nenergy))-log(mee_fluxes_energy(1:mee_fluxes_nenergy-1))
     logdelta(1) = logdelta(2)
-    mee_fluxes_denergy(:) = exp( log(mee_fluxes_energy(:)) + 0.5*logdelta(:) ) &
-                          - exp( log(mee_fluxes_energy(:)) - 0.5*logdelta(:) )
+    mee_fluxes_denergy(:) = exp( log(mee_fluxes_energy(:)) + 0.5_r8*logdelta(:) ) &
+                          - exp( log(mee_fluxes_energy(:)) - 0.5_r8*logdelta(:) )
 
     deallocate(logdelta)
 
