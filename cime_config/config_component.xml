@@ -237,9 +237,8 @@
       <value compset="HIST_CAM40%WCMD"   >waccm_ma_hist_cam4</value>
       <value compset="HIST_CAM60%.*CCTS1"  >hist_trop_strat_vbs_cam6</value>
       <value compset="HIST_CAM60%.*CCTS[12]%NUDG">hist_trop_strat_nudged_cam6</value>
-      <value compset="HIST_CAM60%COTAG%NUDG">hist_trop_strat_nudged_cam6</value>
       <value compset="HIST_CAM60%CVBSX"  >hist_trop_strat_vbsext_cam6</value>
-      <value compset="HIST_CAM60%COTAG"  >hist_trop_strat_vbsext_cam6</value>
+      <value compset="HIST_CAM60%COTAG%NUDG">hist_trop_strat_cotags_nudged_cam6</value>
       <value compset="HIST_CAM60%CFIRE"  >hist_trop_strat_vbsfire_cam6</value>
       <value compset="HIST_CAM60%WXIE"   >waccmx_ma_hist_cam6</value>
 
@@ -331,6 +330,7 @@
     <value compset="DOCN%AQP">$COMP_ROOT_DIR_ATM/cime_config/usermods_dirs/aquap</value>
     <value compset="DOCN%SOMAQP">$COMP_ROOT_DIR_ATM/cime_config/usermods_dirs/aquap</value>
     <value compset="CAM[456]0%.*SCAM" >$COMP_ROOT_DIR_ATM/cime_config/usermods_dirs/scam_mandatory</value>
+    <value compset="CAM60%COTAG" grid="a%ne0np4CONUS">$COMP_ROOT_DIR_ATM/cime_config/usermods_dirs/coags_conus</value>
     </values>
     <group>run_component_cam</group>
     <file>env_case.xml</file>

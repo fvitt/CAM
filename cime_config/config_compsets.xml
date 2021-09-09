@@ -300,10 +300,6 @@
     <lname>HIST_CAM60%CVBSX_CLM50%SP_CICE%PRES_DOCN%DOM_MOSART_CISM2%NOEVOLVE_SWAV</lname>
   </compset>
   <compset>
-    <alias>FCcotagsHIST</alias>
-    <lname>HIST_CAM60%COTAG_CLM50%SP_CICE%PRES_DOCN%DOM_MOSART_CISM2%NOEVOLVE_SWAV</lname>
-  </compset>
-  <compset>
     <alias>FCfireHIST</alias>
     <lname>HIST_CAM60%CFIRE_CLM50%BGC-CROP_CICE%PRES_DOCN%DOM_MOSART_CISM2%NOEVOLVE_SWAV</lname>
   </compset>
@@ -542,6 +538,7 @@
 	<value  compset="HIST_CAM60%CCTS[12]" grid="a%ne0np4CONUS">2013-01-01</value>
 	<value  compset="HIST_CAM60%CVBSX">1995-01-01</value>
 	<value  compset="HIST_CAM60%CFIRE">1995-01-01</value>
+	<value  compset="HIST_CAM60%COTAG" grid="a%ne0np4CONUS">2013-04-01</value>
 	<value  compset="RCP[2468]_CAM\d+">2005-01-01</value>
  	<value  compset="_CAM.*%SDYN"                   >2005-01-01</value>
  	<value  compset="_CAM.*%SDYN" grid="a%0.47x0.63">2010-01-01</value>

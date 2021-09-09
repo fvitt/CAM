@@ -1,0 +1,2 @@
+finidat  = '/glade/p/acom/MUSICA/restart/ne0CONUSne30x8/f.e22.FCnudged.ne0CONUSne30x8.cesm220.2018_01.clm2.r.2018-04-01-00000.nc'
+use_init_interp = .true.
