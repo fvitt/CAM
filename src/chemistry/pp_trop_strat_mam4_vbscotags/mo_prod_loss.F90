@@ -408,10 +408,11 @@
          loss(k,13) = ((rxt(k,296) +rxt(k,297))* y(k,217) + het_rates(k,240)) &
                  * y(k,240)
          prod(k,13) = 0._r8
-         loss(k,14) = ((rxt(k,298) +rxt(k,299) +rxt(k,300) +rxt(k,301))* y(k,217) &
-                  + het_rates(k,241))* y(k,241)
+         loss(k,14) = ((rxt(k,298) +rxt(k,299))* y(k,217) + het_rates(k,241)) &
+                 * y(k,241)
          prod(k,14) = 0._r8
-         loss(k,15) = ( + het_rates(k,242))* y(k,242)
+         loss(k,15) = ((rxt(k,300) +rxt(k,301))* y(k,217) + het_rates(k,242)) &
+                 * y(k,242)
          prod(k,15) = 0._r8
          loss(k,64) = (rxt(k,235)* y(k,216) + rxt(k,96) + het_rates(k,64))* y(k,64)
          prod(k,64) = (rxt(k,200)*y(k,34) +rxt(k,202)*y(k,37) + &

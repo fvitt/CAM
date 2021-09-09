@@ -866,8 +866,8 @@ Class List
   CO12_OH_M        (176)   CO12 + OH + M ->  OH + M                                             troe : ko=5.90E-33*(300/t)**1.00  (299)
                                                                                                        ki=1.10E-12*(300/t)**-1.30 
                                                                                                         f=0.60                    
-  usr_CO13_OH      (177)   CO12 + OH ->  OH                                                     rate = ** User defined **         (300)
-  CO13_OH_M        (178)   CO12 + OH + M ->  OH + M                                             troe : ko=5.90E-33*(300/t)**1.00  (301)
+  usr_CO13_OH      (177)   CO13 + OH ->  OH                                                     rate = ** User defined **         (300)
+  CO13_OH_M        (178)   CO13 + OH + M ->  OH + M                                             troe : ko=5.90E-33*(300/t)**1.00  (301)
                                                                                                        ki=1.10E-12*(300/t)**-1.30 
                                                                                                         f=0.60                    
   C2H2_CL_M        (179)   C2H2 + CL + M ->  CL + M                                             troe : ko=5.20E-30*(300/t)**2.40  (302)
@@ -1915,5 +1915,5 @@ Extraneous prod/loss species
     d(CO09)/dt =  - r169*OH*CO09  - r170*M*OH*CO09                                                                      
     d(CO10)/dt =  - r171*OH*CO10  - r172*M*OH*CO10                                                                      
     d(CO11)/dt =  - r173*OH*CO11  - r174*M*OH*CO11                                                                      
-    d(CO12)/dt =  - r175*OH*CO12  - r176*M*OH*CO12  - r177*OH*CO12  - r178*M*OH*CO12                                    
-    d(CO13)/dt = 0                                                                                                      
+    d(CO12)/dt =  - r175*OH*CO12  - r176*M*OH*CO12                                                                      
+    d(CO13)/dt =  - r177*OH*CO13  - r178*M*OH*CO13                                                                      

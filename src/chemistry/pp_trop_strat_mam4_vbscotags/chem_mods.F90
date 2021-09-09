@@ -13,7 +13,7 @@
                             nfs = 3, & ! number of "fixed" species
                             relcnt = 0, & ! number of relationship species
                             grpcnt = 0, & ! number of group members
-                            nzcnt = 2101, & ! number of non-zero matrix entries
+                            nzcnt = 2102, & ! number of non-zero matrix entries
                             extcnt = 16, & ! number of species with external forcing
                             clscnt1 = 31, & ! number of species in explicit class
                             clscnt2 = 0, & ! number of species in hov class

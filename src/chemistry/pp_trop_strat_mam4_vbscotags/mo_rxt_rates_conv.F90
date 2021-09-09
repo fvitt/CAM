@@ -307,8 +307,8 @@ contains
       rxt_rates(:ncol,:,   297) = rxt_rates(:ncol,:,   297)*sol(:ncol,:,   240)*sol(:ncol,:,   217)                            ! rate_const*M*CO11*OH
       rxt_rates(:ncol,:,   298) = rxt_rates(:ncol,:,   298)*sol(:ncol,:,   241)*sol(:ncol,:,   217)                            ! rate_const*CO12*OH
       rxt_rates(:ncol,:,   299) = rxt_rates(:ncol,:,   299)*sol(:ncol,:,   241)*sol(:ncol,:,   217)                            ! rate_const*M*CO12*OH
-      rxt_rates(:ncol,:,   300) = rxt_rates(:ncol,:,   300)*sol(:ncol,:,   241)*sol(:ncol,:,   217)                            ! rate_const*CO12*OH
-      rxt_rates(:ncol,:,   301) = rxt_rates(:ncol,:,   301)*sol(:ncol,:,   241)*sol(:ncol,:,   217)                            ! rate_const*M*CO12*OH
+      rxt_rates(:ncol,:,   300) = rxt_rates(:ncol,:,   300)*sol(:ncol,:,   242)*sol(:ncol,:,   217)                            ! rate_const*CO13*OH
+      rxt_rates(:ncol,:,   301) = rxt_rates(:ncol,:,   301)*sol(:ncol,:,   242)*sol(:ncol,:,   217)                            ! rate_const*M*CO13*OH
       rxt_rates(:ncol,:,   302) = rxt_rates(:ncol,:,   302)*sol(:ncol,:,    24)*sol(:ncol,:,    56)                            ! rate_const*M*C2H2*CL
       rxt_rates(:ncol,:,   303) = rxt_rates(:ncol,:,   303)*sol(:ncol,:,    24)*sol(:ncol,:,   217)                            ! rate_const*M*C2H2*OH
       rxt_rates(:ncol,:,   304) = rxt_rates(:ncol,:,   304)*sol(:ncol,:,    25)*sol(:ncol,:,    56)                            ! rate_const*M*C2H4*CL
