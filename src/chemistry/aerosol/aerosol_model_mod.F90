@@ -13,22 +13,18 @@ module aerosol_model_mod
   use physconst,      only: gravit, latvap, cpair, rair
   use cam_history,    only: addfld, add_default, horiz_only, fieldname_len, outfld
   use constituents,   only: pcnst, cnst_name, cnst_spec_class_gas, cnst_species_class, cnst_get_ind
+  use aerosol_data_mod,only: aerosol_data, ptr2d_t
 
   implicit none
 
   private
 
   public :: aerosol_model
-  public :: ptr2d_t
-
-  ! ptr2d_t is used to create arrays of pointers to 2D fields
-  type ptr2d_t
-     real(r8), pointer :: fld(:,:)
-  end type ptr2d_t
 
   type, abstract :: aerosol_model
      type(physics_state), pointer :: state => null()
      type(physics_buffer_desc), pointer :: pbuf(:) => null()
+     class(aerosol_data), pointer :: aero_data
 
      character(len=16) :: model_name = 'base'
      logical :: lq(pcnst) = .false. ! set flags true for constituents with non-zero tendencies
@@ -53,8 +49,6 @@ module aerosol_model_mod
      procedure :: activate => aero_activate
      procedure(aero_model_init), deferred :: model_init
      procedure(aero_model_final), deferred :: model_final
-     procedure(aero_loadaer), deferred :: loadaer
-     procedure(aero_set_ptrs), deferred :: set_ptrs
      procedure :: err_funct => aero_err_funct
      procedure, private :: ccncalc => aero_ccncalc
      procedure, private :: maxsat => aero_maxsat
@@ -73,36 +67,7 @@ module aerosol_model_mod
        class(aerosol_model), intent(inout) :: self
      end subroutine aero_model_final
 
-     subroutine aero_loadaer( self, istart, istop, k, m, cs, phase, naerosol, vaerosol, hygro)
-       import
-
-       class(aerosol_model), intent(in) :: self
-       ! inputs
-       integer,  intent(in) :: istart      ! start column index (1 <= istart <= istop <= pcols)
-       integer,  intent(in) :: istop       ! stop column index
-       integer,  intent(in) :: m           ! mode or bin index
-       integer,  intent(in) :: k           ! level index
-       real(r8), intent(in) :: cs(:,:)     ! air density (kg/m3)
-       integer,  intent(in) :: phase       ! phase of aerosol: 1 for interstitial, 2 for cloud-borne, 3 for sum
-
-       ! outputs
-       real(r8), intent(out) :: naerosol(:)  ! number conc (1/m3)
-       real(r8), intent(out) :: vaerosol(:)  ! volume conc (m3/m3)
-       real(r8), intent(out) :: hygro(:)     ! bulk hygroscopicity of mode
-
-     end subroutine aero_loadaer
-
-     subroutine aero_set_ptrs( self, raer, qqcw )
-       import
-
-       class(aerosol_model), intent(in) :: self
-       type(ptr2d_t), intent(out) :: raer(:)
-       type(ptr2d_t), intent(out) :: qqcw(:)
-
-     end subroutine aero_set_ptrs
-
   end interface
-
 
   real(r8), parameter :: zero     = 0._r8
   real(r8), parameter :: third    = 1._r8/3._r8
@@ -166,7 +131,6 @@ contains
     call self%model_final()
 
   end subroutine aero_destroy
-
 
   subroutine aero_dropmixnuc( self, &
        ptend, dtmicro, wsub, &
@@ -303,6 +267,7 @@ contains
     real(r8), allocatable :: coltendgas(:)
     real(r8) :: zerogas(pver)
     character*200 fieldnamegas
+    character(len=*), parameter :: subname='%dropmixnuc'
 
     logical  :: called_from_spcam
     !-------------------------------------------------------------------------------
@@ -333,13 +298,13 @@ contains
     arg = 1.0_r8
     if (abs(0.8427_r8 - erf(arg))/0.8427_r8 > 0.001_r8) then
        write(iulog,*) 'erf(1.0) = ',ERF(arg)
-       call endrun('dropmixnuc: Error function error')
+       call endrun(trim(self%model_name)//subname//': Error function error')
     endif
     arg = 0.0_r8
     if (erf(arg) /= 0.0_r8) then
        write(iulog,*) 'erf(0.0) = ',erf(arg)
        write(iulog,*) 'dropmixnuc: Error function error'
-       call endrun('dropmixnuc: Error function error')
+       call endrun(trim(self%model_name)//subname//': Error function error')
     endif
 
     dtinv = 1._r8/dtmicro
@@ -361,7 +326,7 @@ contains
          fluxn(self%mtotal),              &
          fluxm(self%mtotal)               )
 
-    call self%set_ptrs( raer, qqcw )
+    call self%aero_data%set_ptrs( self%indexer, raer, qqcw )
 
     if (present(from_spcam)) then
        called_from_spcam = from_spcam
@@ -545,7 +510,7 @@ contains
 
              phase = 1 ! interstitial
              do m = 1, self%mtotal
-                call self%loadaer( i, i, k, m, cs, phase, na, va, hy)
+                call self%aero_data%loadaer( i, i, k, m, cs, phase, na, va, hy)
                 naermod(m)  = na(i)
                 vaerosol(m) = va(i)
                 hygro(m)    = hy(i)
@@ -628,7 +593,7 @@ contains
                 do m = 1, self%mtotal
                    ! rce-comment - use kp1 here as old-cloud activation involves
                    !   aerosol from layer below
-                   call self%loadaer( i, i, kp1, m, cs, phase, na, va, hy)
+                   call self%aero_data%loadaer( i, i, kp1, m, cs, phase, na, va, hy)
                    naermod(m)  = na(i)
                    vaerosol(m) = va(i)
                    hygro(m)    = hy(i)
@@ -907,9 +872,9 @@ contains
                 if (cnst_species_class(m) == cnst_spec_class_gas) then
                    flxconv = 0.0_r8
                    zerogas(:) = 0.0_r8
-                   call self%explmix(rgascol(1,m,nnew),zerogas,ekkp,ekkm,overlapp,overlapm,  &
-                        rgascol(1,m,nsav),zero, flxconv, pver,dtmix,&
-                        .true., zerogas)
+                   call self%explmix(rgascol(:,m,nnew),zerogas,ekkp,ekkm,overlapp,overlapm,  &
+                                     rgascol(:,m,nsav),zero, flxconv, pver,dtmix,&
+                                     .true., zerogas)
                 end if
              end do
           endif
@@ -1101,7 +1066,7 @@ contains
 
           phase=3 ! interstitial+cloudborne
 
-          call self%loadaer( 1, ncol, k, m, cs, phase, naerosol, vaerosol, hygro)
+          call self%aero_data%loadaer( 1, ncol, k, m, cs, phase, naerosol, vaerosol, hygro)
 
           where(naerosol(:ncol)>1.e-3_r8 .and. hygro(:ncol)>0._r8)
              amcube(:ncol)=self%amcubecoef(m)*vaerosol(:ncol)/naerosol(:ncol)
@@ -1295,6 +1260,7 @@ contains
        if (smax_prescribed <= 0.0_r8) return
     end if
 
+
     pres=rair*rhoair*tair
     diff0=0.211e-4_r8*(p0/pres)*(tair/t0)**1.94_r8
     conduct0=(5.69_r8+0.017_r8*(tair-t0))*4.186e2_r8*1.e-5_r8 ! convert to J/m/s/deg
@@ -1452,7 +1418,7 @@ contains
              write(iulog,*)'volume=', (volume(m),m=1,nmode)
              write(iulog,*)'hydro='
              write(iulog,*) hygro
-             call endrun(subname)
+             call endrun(trim(self%model_name)//subname)
           end if
 
        enddo
@@ -1497,7 +1463,7 @@ contains
              write(iulog,*)'fn=',fn(m),' > 1 in activate'
              write(iulog,*)'w,m,na,amcube=',w,m,na(m),amcube(m)
              write(iulog,*)'integ,sumfn,sigw=',integ,sumfn(m),sigw
-             call endrun('activate')
+             call endrun(trim(self%model_name)//subname)
           endif
           fluxn(m)=sumflxn(m)/(sq2*sqpi*sigw)
           fm(m)=sumfm(m)/(sq2*sqpi*sigw)

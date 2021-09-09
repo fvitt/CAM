@@ -51,6 +51,7 @@ use cam_abortutils,   only: endrun
 use aerosol_model_mod, only: aerosol_model
 use carma_aerosol_model_mod, only: carma_aerosol_model
 use modal_aerosol_model_mod, only: modal_aerosol_model
+use cam_aerosol_data_mod,    only: cam_aerosol_data
 
 implicit none
 private
@@ -336,6 +337,7 @@ subroutine microp_aero_init(pbuf2d)
    if (use_hetfrz_classnuc) then
       call hetfrz_classnuc_cam_init(mincld)
    endif
+
 end subroutine microp_aero_init
 
 !=========================================================================================
@@ -637,10 +639,15 @@ subroutine microp_aero_run ( &
       end do
 
       call outfld('LCLOUD', lcldn, pcols, lchnk)
-      
+
       if (associated(aero_model)) then
          aero_model(lchnk)%state => state1
          aero_model(lchnk)%pbuf => pbuf
+         select type (obj=>aero_model(lchnk)%aero_data)
+         class is (cam_aerosol_data)
+            obj%state => state1
+            obj%pbuf => pbuf
+         end select
 
          ! If not using preexsiting ice, then only use cloudbourne aerosol for the
          ! liquid clouds. This is the same behavior as CAM5.
@@ -657,6 +664,11 @@ subroutine microp_aero_run ( &
 
          nullify(aero_model(lchnk)%pbuf)
          nullify(aero_model(lchnk)%state)
+         select type (obj=>aero_model(lchnk)%aero_data)
+         class is (cam_aerosol_data)
+            nullify(obj%state)
+            nullify(obj%pbuf)
+         end select
       endif
 
       npccn(:ncol,:) = nctend_mixnuc(:ncol,:)

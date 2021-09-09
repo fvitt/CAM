@@ -1,0 +1,57 @@
+module aerosol_data_mod
+  use shr_kind_mod, only: r8 => shr_kind_r8
+
+  ! ptr2d_t is used to create arrays of pointers to 2D fields
+  type ptr2d_t
+     real(r8), pointer :: fld(:,:)
+  end type ptr2d_t
+
+  type, abstract :: aerosol_data
+   contains
+     procedure(aero_initialize), deferred :: initialize
+     procedure(aero_loadaer), deferred :: loadaer
+     procedure(aero_set_ptrs), deferred :: set_ptrs
+  end type aerosol_data
+
+  interface
+
+     subroutine aero_initialize(self)
+       import
+       class(aerosol_data), intent(inout) :: self
+     end subroutine aero_initialize
+
+     subroutine aero_loadaer( self, istart, istop, k, m, cs, phase, naerosol, vaerosol, hygro )
+       import
+
+       class(aerosol_data), intent(in) :: self
+       ! inputs
+       integer,  intent(in) :: istart      ! start column index (1 <= istart <= istop <= pcols)
+       integer,  intent(in) :: istop       ! stop column index
+       integer,  intent(in) :: m           ! mode or bin index
+       integer,  intent(in) :: k           ! level index
+       real(r8), intent(in) :: cs(:,:)     ! air density (kg/m3)
+       integer,  intent(in) :: phase       ! phase of aerosol: 1 for interstitial, 2 for cloud-borne, 3 for sum
+
+       ! outputs
+       real(r8), intent(out) :: naerosol(:)  ! number conc (1/m3)
+       real(r8), intent(out) :: vaerosol(:)  ! volume conc (m3/m3)
+       real(r8), intent(out) :: hygro(:)     ! bulk hygroscopicity of mode
+
+     end subroutine aero_loadaer
+
+     subroutine aero_set_ptrs( self, indexer, raer, qqcw )
+       import
+
+       class(aerosol_data), intent(in) :: self
+       integer,       intent(in) :: indexer(:,:)
+       type(ptr2d_t), intent(out) :: raer(:)
+       type(ptr2d_t), intent(out) :: qqcw(:)
+
+     end subroutine aero_set_ptrs
+
+  end interface
+
+contains
+
+
+end module aerosol_data_mod
