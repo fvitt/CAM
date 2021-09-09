@@ -218,13 +218,14 @@
 
 <inithist>'MONTHLY'</inithist>
 
-<interpolate_output>.true.,.false.</interpolate_output>
-<interpolate_nlat>192,192</interpolate_nlat>
-<interpolate_nlon>288,288</interpolate_nlon>
+<interpolate_output>.true.,.false.,.false.,.true.,.false.</interpolate_output>
+<interpolate_gridtype>  1,1,1,1,1 </interpolate_gridtype>
+<interpolate_nlat>192,192,192,192,192</interpolate_nlat>
+<interpolate_nlon>288,288,288,288,288</interpolate_nlon>
 
-<mfilt           >  1,   1  </mfilt>
-<nhtfrq          >  0,   0  </nhtfrq>
-<avgflag_pertape >'A', 'A'  </avgflag_pertape>
+<mfilt           >  1, 1,  1,   4, 24  </mfilt>
+<nhtfrq          >  0, 0, -24, -6, -1 </nhtfrq>
+<avgflag_pertape >'A','A', 'A','I','I' </avgflag_pertape>
 
 <history_amwg>.true.</history_amwg>
 <history_aerosol>.false.</history_aerosol>
@@ -244,6 +245,7 @@
          'BENZENE', 'C2H2', 'C2H4', 'C2H6', 'C3H8', 'CCL4', 'CFC11', 'CFC113',
          'CFC12', 'CH2O', 'CH3BR', 'CH3CCL3', 'CH3CHO', 'CH3CL', 'CH3CN', 'CH3COCH3',
          'CH3OH', 'CH4', 'CO', 'H2O2', 'HCFC22', 'HCN', 'HNO3', 'ISOP',
+         'CO01','CO02','CO03','CO04','CO05','CO06','CO07','CO08','CO09','CO10','CO11','CO12','CO13',
          'MTERP', 'N2O', 'O3', 'O3S', 'O3S_Loss', 'O3S_LOSS', 'PAN', 'SO2',
          'TOLUENE', 'OH', 'ALKNIT', 'ALKOOH', 'BCARY', 'BENZENE', 'BENZOOH', 'BEPOMUC',
          'BIGALD', 'BIGALD1', 'BIGALD2', 'BIGALD3', 'BIGALD4', 'BIGALK', 'BIGENE', 'BR',
@@ -344,7 +346,6 @@
          'r_jsoa5_a1', 'r_jsoa1_a2', 'r_jsoa2_a2', 'r_jsoa3_a2', 'r_jsoa4_a2', 'r_jsoa5_a2', 'r_GLYOXAL_aer', 'H2SO4_sfnnuc1',
          'num_a2_sfnnuc1', 'TMOCS', 'TMSO2', 'TMDMS', 'TMso4_a1', 'TMso4_a2', 'TMso4_a3', 'BURDENDUSTdn',
          'BURDENPOMdn', 'BURDENSO4dn', 'BURDENSOAdn', 'BURDENSEASALTdn', 'BURDENBCdn', 'PM25','OCN_FLUX_DMS'
-
 </fincl1>
 
 <fincl2>
