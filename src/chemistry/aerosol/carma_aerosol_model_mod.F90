@@ -5,7 +5,7 @@ module carma_aerosol_model_mod
   use rad_constituents, only: rad_cnst_get_info, rad_cnst_get_info_by_bin, rad_cnst_get_info_by_bin_spec
   use physconst, only: pi
   use constituents,     only: cnst_get_ind
-  use aerosol_model_mod, only: aerosol_model, twothird, sq2, ptr2d_t
+  use aerosol_model_mod, only: aerosol_model, twothird, sq2
   use carma_cam_aerosol_data_mod, only: carma_cam_aerosol_data
 
   implicit none

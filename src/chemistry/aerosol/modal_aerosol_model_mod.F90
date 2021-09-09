@@ -7,7 +7,7 @@ module modal_aerosol_model_mod
   use ppgrid,           only: pcols
   use cam_abortutils,   only: endrun
   use phys_control,     only: phys_getopts
-  use aerosol_model_mod, only: aerosol_model, twothird, sq2, ptr2d_t
+  use aerosol_model_mod, only: aerosol_model, twothird, sq2
   use modal_cam_aerosol_data_mod, only: modal_cam_aerosol_data
 
   implicit none

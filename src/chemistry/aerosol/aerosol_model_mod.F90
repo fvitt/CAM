@@ -178,7 +178,7 @@ contains
 
     real(r8), parameter :: zkmin = 0.01_r8, zkmax = 100._r8
     real(r8), parameter :: wmixmin = 0.1_r8        ! minimum turbulence vertical velocity (m/s)
-    real(r8) :: sq2pi
+    real(r8), parameter :: sq2pi = sqrt(2._r8*pi)
 
     integer  :: i, k, l, m, mm, n
     integer  :: km1, kp1
@@ -271,8 +271,6 @@ contains
 
     logical  :: called_from_spcam
     !-------------------------------------------------------------------------------
-
-    sq2pi = sqrt(2._r8*pi)
 
     lchnk = self%state%lchnk
     ncol  = self%state%ncol
