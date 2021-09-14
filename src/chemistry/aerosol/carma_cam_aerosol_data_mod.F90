@@ -7,6 +7,8 @@ module carma_cam_aerosol_data_mod
   use ppgrid,           only: pcols
   use rad_constituents, only: rad_cnst_get_bin_props_by_idx, rad_cnst_get_bin_mmr_by_idx, rad_cnst_get_bin_num
   use rad_constituents, only: rad_cnst_get_info, rad_cnst_get_info_by_bin, rad_cnst_get_bin_mmr
+  use rad_constituents, only: rad_cnst_get_info_by_bin_spec
+  use constituents,     only: cnst_get_ind
 
   implicit none
 
@@ -24,7 +26,11 @@ contains
   subroutine carma_initialize(self)
     class(carma_cam_aerosol_data), intent(inout) :: self
 
-    integer :: m
+    integer :: l, m, mm
+    character(len=32) :: tmpname
+    character(len=32) :: tmpname_cw
+    integer :: nspec_max
+    integer :: idxtmp
 
     ! get info about the modal aerosols
     ! get nbins
@@ -33,10 +39,44 @@ contains
 
     allocate( self%nspec(self%nbins) )
 
+    self%ncnst_tot = 0
+
     do m = 1, self%nbins
        call rad_cnst_get_info_by_bin(0, m, nspec=self%nspec(m))
+       self%ncnst_tot =  self%ncnst_tot + self%nspec(m) + 2
     end do
 
+    allocate( self%fieldname(self%ncnst_tot) )
+    allocate( self%fieldname_cw(self%ncnst_tot) )
+
+    nspec_max = maxval(self%nspec) + 1
+    allocate( self%cnstndx(self%nbins,0:nspec_max) )
+
+    self%cnstndx = -1
+    mm = 0
+
+    do m = 1, self%nbins
+       do l = 0, self%nspec(m) + 1  ! loop over bin + aerosol constituents
+          if (l == 0) then   ! number
+             call rad_cnst_get_info_by_bin(0, m, num_name=tmpname, num_name_cw=tmpname_cw)
+          else if (l == 1) then
+             call rad_cnst_get_info_by_bin(0, m,  mmr_name=tmpname, mmr_name_cw=tmpname_cw)
+          else
+             call rad_cnst_get_info_by_bin_spec(0, m, l-1, spec_name=tmpname, spec_name_cw=tmpname_cw)
+          end if
+
+          mm = mm+1
+
+          self%fieldname(mm)    = trim(tmpname) // '_mixnuc1'
+          self%fieldname_cw(mm) = trim(tmpname_cw) // '_mixnuc1'
+
+          call cnst_get_ind(tmpname, idxtmp, abort=.false.)
+          if (idxtmp>0) then
+             self%cnstndx(m,l) = idxtmp
+             self%lq(idxtmp) = .true.
+          end if
+       end do
+    end do
   end subroutine carma_initialize
 
 

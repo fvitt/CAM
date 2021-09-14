@@ -7,7 +7,9 @@ module modal_cam_aerosol_data_mod
   use ppgrid,           only: pcols
   use rad_constituents, only: rad_cnst_get_aer_mmr, rad_cnst_get_aer_props
   use rad_constituents, only: rad_cnst_get_info, rad_cnst_get_mode_props, rad_cnst_get_mode_num
+  use rad_constituents, only: rad_cnst_get_mam_mmr_idx, rad_cnst_get_mode_num_idx
   use physconst,        only: pi
+  use phys_control,     only: phys_getopts
 
   implicit none
 
@@ -31,7 +33,10 @@ contains
     class(modal_cam_aerosol_data), intent(inout) :: self
 
     real(r8),allocatable :: alogsig(:)
-    integer :: m
+    integer :: l, m, mm, nspec_max, idx
+    character(len=32)   :: tmpname
+    character(len=32)   :: tmpname_cw
+    logical :: prognostic
 
     ! get info about the modal aerosols
     ! get ntot_amode
@@ -47,11 +52,15 @@ contains
 
     allocate( alogsig(self%ntot_amode) )
 
+    self%ncnst_tot = 0
+
     do m = 1, self%ntot_amode
        ! use only if width of size distribution is prescribed
 
        ! get mode info
        call rad_cnst_get_info(0, m, nspec=self%nspec_amode(m))
+
+       self%ncnst_tot =  self%ncnst_tot + self%nspec_amode(m) + 1
 
        ! get mode properties
        call rad_cnst_get_mode_props(0, m, sigmag=self%sigmag_amode(m),  &
@@ -67,7 +76,46 @@ contains
     end do
 
     deallocate( alogsig )
+    allocate( self%fieldname(self%ncnst_tot) )
+    allocate( self%fieldname_cw(self%ncnst_tot) )
 
+    nspec_max = maxval(self%nspec_amode) + 1
+    allocate( self%cnstndx(self%ntot_amode,0:nspec_max) )
+
+    self%cnstndx = -1
+    mm = 0
+    call phys_getopts(prog_modal_aero_out=prognostic)
+
+    do m = 1, self%ntot_amode
+       do l = 0, self%nspec_amode(m)   ! loop over number + chem constituents
+
+          mm = mm+1
+
+          if (l == 0) then   ! number
+             call rad_cnst_get_info(0, m, num_name=tmpname, num_name_cw=tmpname_cw)
+          else
+             call rad_cnst_get_info(0, m, l, spec_name=tmpname, spec_name_cw=tmpname_cw)
+          end if
+
+          self%fieldname(mm)    = trim(tmpname) // '_mixnuc1'
+          self%fieldname_cw(mm) = trim(tmpname_cw) // '_mixnuc1'
+
+          if (prognostic) then
+
+             ! To set tendencies in the ptend object need to get the constituent indices
+             ! for the prognostic species
+             if (l == 0) then   ! number
+                call rad_cnst_get_mode_num_idx(m, idx)
+             else
+                call rad_cnst_get_mam_mmr_idx(m, l, idx)
+             end if
+             self%cnstndx(m,l) = idx
+             self%lq(idx) = .true.
+
+          endif
+
+       end do
+    end do
   end subroutine modal_initialize
 
   subroutine modal_loadaer( self, istart, istop, k, m, cs, phase, naerosol, vaerosol, hygro)

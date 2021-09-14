@@ -3,7 +3,6 @@ module modal_aerosol_model_mod
   use cam_logfile, only: iulog
   use spmd_utils, only: masterproc
   use physconst,        only: pi
-  use rad_constituents, only: rad_cnst_get_info, rad_cnst_get_mam_mmr_idx, rad_cnst_get_mode_num_idx
   use ppgrid,           only: pcols
   use cam_abortutils,   only: endrun
   use phys_control,     only: phys_getopts
@@ -27,9 +26,7 @@ contains
   subroutine modal_model_init(self)
     class(modal_aerosol_model), intent(inout) :: self
 
-    integer :: m, nspec_max, l,idx, mm
-    character(len=32)   :: tmpname
-    character(len=32)   :: tmpname_cw
+    integer :: m, nspec_max, l,idx
 
     allocate(modal_cam_aerosol_data::self%aero_data)
     call self%aero_data%initialize()
@@ -84,43 +81,6 @@ contains
     ! Find max number of species in all the modes
     nspec_max = maxval(self%nspec_amode)
     allocate( self%indexer(self%ntot_amode,0:nspec_max) )
-    allocate( self%cnstndx(self%ntot_amode,0:nspec_max) )
-    allocate( self%fieldname(self%ncnst_tot) )
-    allocate( self%fieldname_cw(self%ncnst_tot) )
-
-    self%cnstndx = -1
-    mm=0
-
-    do m = 1, self%ntot_amode
-       do l = 0, self%nspec_amode(m)   ! loop over number + chem constituents
-
-          mm = mm+1
-
-          if (l == 0) then   ! number
-             call rad_cnst_get_info(0, m, num_name=tmpname, num_name_cw=tmpname_cw)
-          else
-             call rad_cnst_get_info(0, m, l, spec_name=tmpname, spec_name_cw=tmpname_cw)
-          end if
-
-          self%fieldname(mm)    = trim(tmpname) // '_mixnuc1'
-          self%fieldname_cw(mm) = trim(tmpname_cw) // '_mixnuc1'
-
-          if (self%prognostic) then
-
-             ! To set tendencies in the ptend object need to get the constituent indices
-             ! for the prognostic species
-             if (l == 0) then   ! number
-                call rad_cnst_get_mode_num_idx(m, idx)
-             else
-                call rad_cnst_get_mam_mmr_idx(m, l, idx)
-             end if
-             self%cnstndx(m,l) = idx
-             self%lq(idx) = .true.
-
-          endif
-
-       end do
-    end do
 
   end subroutine modal_model_init
 
@@ -137,9 +97,6 @@ contains
     deallocate( self%amcubecoef )
     deallocate( self%argfactor )
     deallocate( self%indexer )
-    deallocate( self%cnstndx )
-    deallocate( self%fieldname )
-    deallocate( self%fieldname_cw )
 
   end subroutine modal_model_final
 

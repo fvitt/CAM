@@ -1,12 +1,18 @@
 module aerosol_data_mod
   use shr_kind_mod, only: r8 => shr_kind_r8
 
+  implicit none
+
   ! ptr2d_t is used to create arrays of pointers to 2D fields
   type ptr2d_t
      real(r8), pointer :: fld(:,:)
   end type ptr2d_t
 
   type, abstract :: aerosol_data
+     character(len=24), allocatable :: fieldname(:)    ! names for drop nuc tendency output fields
+     character(len=24), allocatable :: fieldname_cw(:) ! names for drop nuc tendency output fields
+     integer, allocatable :: cnstndx(:,:)
+     integer :: ncnst_tot
    contains
      procedure(aero_initialize), deferred :: initialize
      procedure(aero_loadaer), deferred :: loadaer

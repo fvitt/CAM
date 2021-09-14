@@ -14,6 +14,7 @@ module aerosol_model_mod
   use cam_history,    only: addfld, add_default, horiz_only, fieldname_len, outfld
   use constituents,   only: pcnst, cnst_name, cnst_spec_class_gas, cnst_species_class, cnst_get_ind
   use aerosol_data_mod,only: aerosol_data, ptr2d_t
+  use cam_aerosol_data_mod, only: cam_aerosol_data
 
   implicit none
 
@@ -25,17 +26,12 @@ module aerosol_model_mod
      type(physics_state), pointer :: state => null()
      type(physics_buffer_desc), pointer :: pbuf(:) => null()
      class(aerosol_data), pointer :: aero_data
-
      character(len=16) :: model_name = 'base'
-     logical :: lq(pcnst) = .false. ! set flags true for constituents with non-zero tendencies
-     character(len=fieldname_len), allocatable :: fieldname(:)    ! names for drop nuc tendency output fields
-     character(len=fieldname_len), allocatable :: fieldname_cw(:) ! names for drop nuc tendency output fields
      logical :: prognostic = .true.
      integer :: mtotal
      integer :: ncnst_tot
      integer, allocatable :: nmasses(:)
      integer, allocatable :: indexer(:,:)
-     integer, allocatable :: cnstndx(:,:)
      real(r8), allocatable :: amcubecoef(:)
      real(r8), allocatable :: exp45logsig(:)
      real(r8), allocatable :: argfactor(:)
@@ -346,7 +342,10 @@ contains
 
     if (self%prognostic) then
        ! aerosol tendencies
-       call physics_ptend_init(ptend, self%state%psetcols, 'ndrop_'//trim(self%model_name), lq=self%lq)
+       select type (obj=>self%aero_data)
+       class is (cam_aerosol_data)
+          call physics_ptend_init(ptend, self%state%psetcols, 'ndrop_'//trim(self%model_name), lq=obj%lq)
+       end select
     else
        ! no aerosol tendencies
        call physics_ptend_init(ptend, self%state%psetcols, 'ndrop_'//trim(self%model_name))
@@ -914,7 +913,7 @@ contains
              do l = 0, self%nmasses(m)
 
                 mm   = self%indexer(m,l)
-                lptr = self%cnstndx(m,l)
+                lptr = self%aero_data%cnstndx(m,l)
 
                 raertend(top_lev:pver) = (raercol(top_lev:pver,mm,nnew) - raer(mm)%fld(i,top_lev:pver))*dtinv
                 qqcwtend(top_lev:pver) = (raercol_cw(top_lev:pver,mm,nnew) - qqcw(mm)%fld(i,top_lev:pver))*dtinv
@@ -972,8 +971,8 @@ contains
     ! do column tendencies
     if (self%prognostic) then
        do mm = 1,self%ncnst_tot
-          call outfld(self%fieldname(mm),    coltend(:,mm),    pcols, lchnk)
-          call outfld(self%fieldname_cw(mm), coltend_cw(:,mm), pcols, lchnk)
+          call outfld(self%aero_data%fieldname(mm),    coltend(:,mm),    pcols, lchnk)
+          call outfld(self%aero_data%fieldname_cw(mm), coltend_cw(:,mm), pcols, lchnk)
        end do
     end if
 
