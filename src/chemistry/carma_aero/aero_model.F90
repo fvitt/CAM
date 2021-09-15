@@ -692,9 +692,6 @@ contains
     lchnk = state%lchnk
     ncol  = state%ncol
 
-    aeromodel(lchnk)%state=>state
-    aeromodel(lchnk)%pbuf=>pbuf
-
     dcondt_resusp3d(:,:,:) = 0._r8
 
     call physics_ptend_init(ptend, state%psetcols, 'aero_model_wetdep', lq=lq)
@@ -1371,9 +1368,6 @@ contains
     !st if (.not. aerodep_flx_prescribed()) then
     !st    call set_srf_wetdep(aerdepwetis, aerdepwetcw, cam_out)
     !st endif
-
-    nullify(aeromodel(lchnk)%pbuf)
-    nullify(aeromodel(lchnk)%state)
 
   end subroutine aero_model_wetdep
 

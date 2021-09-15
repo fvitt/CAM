@@ -118,10 +118,8 @@ integer :: coarse_so4_idx = -1  ! index of sulfate in coarse mode
 integer :: npccn_idx, rndst_idx, nacon_idx
 
 logical  :: separate_dust = .false.
-
+logical  :: prog_modal_aero
 class(aerosol_model), pointer :: aero_model(:)=>null()
-type(carma_aerosol_model),pointer :: carma_aero_model(:)
-type(modal_aerosol_model),pointer :: modal_aero_model(:)
 
 !=========================================================================================
 contains
@@ -177,8 +175,9 @@ subroutine microp_aero_init(pbuf2d)
    !-----------------------------------------------------------------------
 
    ! Query the PBL eddy scheme
-   call phys_getopts(eddy_scheme_out          = eddy_scheme,  &
-                     history_amwg_out         = history_amwg )
+   call phys_getopts(eddy_scheme_out     = eddy_scheme,  &
+                     history_amwg_out    = history_amwg, &
+                     prog_modal_aero_out = prog_modal_aero )
 
    ! Access the physical properties of the aerosols that are affecting the climate
    ! by using routines from the rad_constituents module.
@@ -194,9 +193,9 @@ subroutine microp_aero_init(pbuf2d)
       tke_idx      = pbuf_get_index('tke')
    case ('CLUBB_SGS')
       wp2_idx = pbuf_get_index('WP2_nadv')
-   case default
-      kvh_idx      = pbuf_get_index('kvh')
    end select
+
+   kvh_idx      = pbuf_get_index('kvh')
 
    ! clim_modal_aero determines whether modal aerosols are used in the climate calculation.
    ! The modal aerosols can be either prognostic or prescribed.
@@ -312,11 +311,10 @@ subroutine microp_aero_init(pbuf2d)
    end if
 
    if (clim_modal_aero) then
-      allocate(modal_aero_model(begchunk:endchunk))
-      aero_model => modal_aero_model
+      allocate(modal_aerosol_model::aero_model(begchunk:endchunk))
+      aero_model(:)%prognostic = prog_modal_aero
    elseif (clim_carma_aero) then
-      allocate(carma_aero_model(begchunk:endchunk))
-      aero_model => carma_aero_model
+      allocate(carma_aerosol_model::aero_model(begchunk:endchunk))
    endif
    if (associated(aero_model)) then
       do c = begchunk, endchunk
@@ -431,6 +429,14 @@ subroutine microp_aero_run ( &
    real(r8), pointer :: dgnumwet(:,:,:) ! aerosol mode diameter
 
    real(r8), pointer :: aer_mmr(:,:)    ! aerosol mass mixing ratio
+
+   real(r8), pointer :: ncldwtr(:,:)=>null() ! droplet number concentration (#/kg)
+   real(r8), pointer :: temp(:,:)=>null()    ! temperature (K)
+   real(r8), pointer :: pmid(:,:)=>null()    ! mid-level pressure (Pa)
+   real(r8), pointer :: pint(:,:)=>null()    ! pressure at layer interfaces (Pa)
+   real(r8), pointer :: pdel(:,:)=>null()    ! pressure thickess of layer (Pa)
+   real(r8), pointer :: rpdel(:,:)=>null()   ! inverse of pressure thickess of layer (/Pa)
+   real(r8), pointer :: zm(:,:)=>null()      ! geopotential height of level (m)
 
    real(r8) :: rho(pcols,pver)     ! air density (kg m-3)
 
@@ -557,10 +563,9 @@ subroutine microp_aero_run ( &
       call pbuf_get_field(pbuf, wp2_idx, wp2, start=(/1,1,itim_old/),kount=(/pcols,pverp,1/))
       allocate(tke(pcols,pverp))
       tke(:ncol,:) = (3._r8/2._r8)*wp2(:ncol,:)
-
-   case default
-      call pbuf_get_field(pbuf, kvh_idx, kvh)
    end select
+
+   call pbuf_get_field(pbuf, kvh_idx, kvh)
 
    ! Set minimum values above top_lev.
    wsub(:ncol,:top_lev-1)  = 0.20_r8
@@ -641,29 +646,35 @@ subroutine microp_aero_run ( &
       call outfld('LCLOUD', lcldn, pcols, lchnk)
 
       if (associated(aero_model)) then
-         aero_model(lchnk)%state => state1
-         aero_model(lchnk)%pbuf => pbuf
          select type (obj=>aero_model(lchnk)%aero_data)
          class is (cam_aerosol_data)
             obj%state => state1
             obj%pbuf => pbuf
          end select
 
+         ncldwtr => state1%q(:,:,numliq_idx)
+         temp    => state1%t
+         pmid    => state1%pmid
+         pint    => state1%pint
+         pdel    => state1%pdel
+         rpdel   => state1%rpdel
+         zm      => state1%zm
+
          ! If not using preexsiting ice, then only use cloudbourne aerosol for the
          ! liquid clouds. This is the same behavior as CAM5.
          if (use_preexisting_ice) then
-            call aero_model(lchnk)%dropmixnuc( &
+            call aero_model(lchnk)%dropmixnuc( ncol, pver, top_lev, lchnk, &
                  ptend_loc, deltatin, wsub, &
+                 ncldwtr, temp, pmid, pint, pdel, rpdel, zm, kvh, &
                  cldn, cldo, cldliqf, nctend_mixnuc, factnum)
          else
             cldliqf = 1._r8
-            call aero_model(lchnk)%dropmixnuc( &
+            call aero_model(lchnk)%dropmixnuc( ncol, pver, top_lev, lchnk, &
                  ptend_loc, deltatin, wsub, &
+                 ncldwtr, temp, pmid, pint, pdel, rpdel, zm, kvh, &
                  lcldn, lcldo, cldliqf, nctend_mixnuc, factnum)
          end if
 
-         nullify(aero_model(lchnk)%pbuf)
-         nullify(aero_model(lchnk)%state)
          select type (obj=>aero_model(lchnk)%aero_data)
          class is (cam_aerosol_data)
             nullify(obj%state)

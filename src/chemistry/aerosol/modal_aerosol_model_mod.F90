@@ -1,11 +1,7 @@
 module modal_aerosol_model_mod
   use shr_kind_mod, only: r8 => shr_kind_r8
-  use cam_logfile, only: iulog
-  use spmd_utils, only: masterproc
-  use physconst,        only: pi
-  use ppgrid,           only: pcols
-  use cam_abortutils,   only: endrun
-  use phys_control,     only: phys_getopts
+  use shr_const_mod, only: pi => shr_const_pi
+
   use aerosol_model_mod, only: aerosol_model, twothird, sq2
   use modal_cam_aerosol_data_mod, only: modal_cam_aerosol_data
 
@@ -32,8 +28,6 @@ contains
     call self%aero_data%initialize()
 
     self%model_name = 'modal'
-
-    call phys_getopts(prog_modal_aero_out = self%prognostic)
 
     select type (obj=>self%aero_data)
     type is (modal_cam_aerosol_data)

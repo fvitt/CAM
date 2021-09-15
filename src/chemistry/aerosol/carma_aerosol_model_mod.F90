@@ -1,8 +1,7 @@
 module carma_aerosol_model_mod
   use shr_kind_mod, only: r8 => shr_kind_r8
-  use cam_logfile, only: iulog
-  use spmd_utils, only: masterproc
-  use physconst, only: pi
+  use shr_const_mod, only: pi => shr_const_pi
+
   use aerosol_model_mod, only: aerosol_model, twothird, sq2
   use carma_cam_aerosol_data_mod, only: carma_cam_aerosol_data
 

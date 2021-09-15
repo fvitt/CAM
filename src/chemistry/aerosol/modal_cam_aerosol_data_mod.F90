@@ -79,7 +79,7 @@ contains
     allocate( self%fieldname(self%ncnst_tot) )
     allocate( self%fieldname_cw(self%ncnst_tot) )
 
-    nspec_max = maxval(self%nspec_amode) + 1
+    nspec_max = maxval(self%nspec_amode)
     allocate( self%cnstndx(self%ntot_amode,0:nspec_max) )
 
     self%cnstndx = -1
