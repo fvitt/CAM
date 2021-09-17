@@ -433,7 +433,7 @@ subroutine microp_aero_run ( &
    real(r8) :: ncldwtr(pcols,pver)   ! droplet number concentration (#/kg)
    real(r8) :: temp(pcols,pver)    ! temperature (K)
    real(r8) :: pmid(pcols,pver)    ! mid-level pressure (Pa)
-   real(r8) :: pint(pcols,pver)    ! pressure at layer interfaces (Pa)
+   real(r8) :: pint(pcols,pverp)    ! pressure at layer interfaces (Pa)
    real(r8) :: pdel(pcols,pver)    ! pressure thickess of layer (Pa)
    real(r8) :: rpdel(pcols,pver)   ! inverse of pressure thickess of layer (/Pa)
    real(r8) :: zm(pcols,pver)      ! geopotential height of level (m)
