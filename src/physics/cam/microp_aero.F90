@@ -430,13 +430,13 @@ subroutine microp_aero_run ( &
 
    real(r8), pointer :: aer_mmr(:,:)    ! aerosol mass mixing ratio
 
-   real(r8), pointer :: ncldwtr(:,:)=>null() ! droplet number concentration (#/kg)
-   real(r8), pointer :: temp(:,:)=>null()    ! temperature (K)
-   real(r8), pointer :: pmid(:,:)=>null()    ! mid-level pressure (Pa)
-   real(r8), pointer :: pint(:,:)=>null()    ! pressure at layer interfaces (Pa)
-   real(r8), pointer :: pdel(:,:)=>null()    ! pressure thickess of layer (Pa)
-   real(r8), pointer :: rpdel(:,:)=>null()   ! inverse of pressure thickess of layer (/Pa)
-   real(r8), pointer :: zm(:,:)=>null()      ! geopotential height of level (m)
+   real(r8) :: ncldwtr(pcols,pver)   ! droplet number concentration (#/kg)
+   real(r8) :: temp(pcols,pver)    ! temperature (K)
+   real(r8) :: pmid(pcols,pver)    ! mid-level pressure (Pa)
+   real(r8) :: pint(pcols,pver)    ! pressure at layer interfaces (Pa)
+   real(r8) :: pdel(pcols,pver)    ! pressure thickess of layer (Pa)
+   real(r8) :: rpdel(pcols,pver)   ! inverse of pressure thickess of layer (/Pa)
+   real(r8) :: zm(pcols,pver)      ! geopotential height of level (m)
 
    real(r8) :: rho(pcols,pver)     ! air density (kg m-3)
 
@@ -652,13 +652,13 @@ subroutine microp_aero_run ( &
             obj%pbuf => pbuf
          end select
 
-         ncldwtr => state1%q(:,:,numliq_idx)
-         temp    => state1%t
-         pmid    => state1%pmid
-         pint    => state1%pint
-         pdel    => state1%pdel
-         rpdel   => state1%rpdel
-         zm      => state1%zm
+         ncldwtr(:ncol,:) = state1%q(:ncol,:,numliq_idx)
+         temp(:ncol,:)    = state1%t(:ncol,:)
+         pmid(:ncol,:)    = state1%pmid(:ncol,:)
+         pint(:ncol,:)    = state1%pint(:ncol,:)
+         pdel(:ncol,:)    = state1%pdel(:ncol,:)
+         rpdel(:ncol,:)   = state1%rpdel(:ncol,:)
+         zm(:ncol,:)      = state1%zm(:ncol,:)
 
          ! If not using preexsiting ice, then only use cloudbourne aerosol for the
          ! liquid clouds. This is the same behavior as CAM5.
