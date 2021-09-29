@@ -944,8 +944,8 @@ contains
     call outfld('WTKE    ', wtke,     ncol, lchnk)
 
     if(called_from_spcam) then
-       call outfld('SPLCLOUD  ', cldn    , ncol, lchnk   )
-       call outfld('SPKVH     ', kvh     , ncol, lchnk   )
+       call outfld('SPLCLOUD  ', cldn(:ncol,:), ncol, lchnk   )
+       call outfld('SPKVH     ', kvh(:ncol,:), ncol, lchnk   )
     endif
 
     call self%ccncalc(ncol,nlev,top_lev, temp, cs, ccn)

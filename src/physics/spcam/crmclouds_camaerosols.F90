@@ -365,6 +365,7 @@ subroutine crmclouds_mixnuc_tend (state, ptend, dtime, cflx, pblht, pbuf,   &
   use time_manager,     only: is_first_step
   use cam_history,      only: outfld
   use modal_aerosol_model_mod, only: modal_aerosol_model
+  use cam_aerosol_data_mod, only: cam_aerosol_data
   use modal_aero_data
   use rad_constituents, only: rad_cnst_get_info
 
@@ -578,11 +579,19 @@ subroutine crmclouds_mixnuc_tend (state, ptend, dtime, cflx, pblht, pbuf,   &
   omega(:ncol, :) = state%omega(:ncol, :)
 
   call aero_model%create()
-  aero_model%state => state
-  aero_model%pbuf => pbuf
-  call aero_model%dropmixnuc( ptend, dtime, wsub, lcldn, lcldo, cldliqf, tendnd, factnum, from_spcam=dommf )
-  nullify(aero_model%pbuf)
-  nullify(aero_model%state)
+  select type (obj=>aero_model%aero_data)
+  class is (cam_aerosol_data)
+     obj%state => state
+     obj%pbuf => pbuf
+  end select
+  call aero_model%dropmixnuc( ncol, pver, top_lev, lchnk, ptend, dtime, wsub, state%q(:,:,ixnumliq), &
+                              state%t, state%pmid, state%pint, state%pdel, state%rpdel, state%zm, kkvh, &
+                              lcldn, lcldo, cldliqf, nctend, factnum, from_spcam=dommf, rgas=state%q )
+  select type (obj=>aero_model%aero_data)
+  class is (cam_aerosol_data)
+     nullify(obj%state)
+     nullify(obj%pbuf)
+  end select
   call aero_model%destroy()
 
 ! this part is moved into tphysbc after aerosol stuffs. 

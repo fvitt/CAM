@@ -750,6 +750,7 @@ end subroutine crm_init_cnst
 #ifdef MODAL_AERO
    use crmclouds_camaerosols, only: crmclouds_mixnuc_tend, spcam_modal_aero_wateruptake_dr
    use modal_aerosol_model_mod, only: modal_aerosol_model
+   use modal_cam_aerosol_data_mod, only: modal_cam_aerosol_data
 #endif
 #ifdef m2005
    use module_ecpp_ppdriver2, only: parampollu_driver2
@@ -1475,8 +1476,11 @@ end subroutine crm_init_cnst
       
 #ifdef MODAL_AERO
       call aero_model%create()
-      aero_model%state => state_loc
-      aero_model%pbuf => pbuf
+      select type (obj=>aero_model%aero_data)
+      type is (modal_cam_aerosol_data)
+         obj%state => state_loc
+         obj%pbuf => pbuf
+      end select
 #endif
 
       do i = 1,ncol
@@ -1551,17 +1555,20 @@ end subroutine crm_init_cnst
 ! ifdef required because of loadaer
 #ifdef MODAL_AERO
          if (prog_modal_aero) then
-            do k=1, pver
-              phase = 1  ! interstital aerosols only
-              do m=1, nmodes
-               call aero_model%loadaer( i, i, k, &
-                     m, cs, phase, na, va, &
-                     hy)
-                naermod(k, m)  = na(i)
-                vaerosol(k, m) = va(i)
-                hygro(k, m)    = hy(i)
-              end do    
-            end do
+            select type (obj=>aero_model%aero_data)
+            type is (modal_cam_aerosol_data)
+               do k=1, pver
+                  phase = 1  ! interstital aerosols only
+                  do m=1, nmodes
+                     call obj%loadaer( i, i, k, &
+                          m, cs, phase, na, va, &
+                          hy)
+                     naermod(k, m)  = na(i)
+                     vaerosol(k, m) = va(i)
+                     hygro(k, m)    = hy(i)
+                  end do
+               end do
+            end select
          endif
 #endif
 
@@ -1653,8 +1660,11 @@ end subroutine crm_init_cnst
        end do ! i (loop over ncol)
 
 #ifdef MODAL_AERO
-       nullify(aero_model%pbuf)
-       nullify(aero_model%state)
+       select type (obj=>aero_model%aero_data)
+       type is (modal_cam_aerosol_data)
+          nullify(obj%pbuf)
+          nullify(obj%state)
+       end select
        call aero_model%destroy()
 #endif
 
