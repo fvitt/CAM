@@ -16,7 +16,7 @@ module aerosol_model_mod
   use cam_abortutils, only: endrun
   use cam_logfile,    only: iulog
   use cam_history,    only: addfld, add_default, horiz_only, fieldname_len, outfld
-  use constituents,   only: pcnst, cnst_name, cnst_spec_class_gas, cnst_species_class
+
   use aerosol_data_mod,only: aerosol_data, ptr2d_t
   use cam_aerosol_data_mod, only: cam_aerosol_data
 
@@ -130,7 +130,8 @@ contains
   subroutine aero_dropmixnuc( self, ncol, nlev, top_lev, lchnk, &
        ptend, dtmicro, wsub, &
        ncldwtr, temp, pmid, pint, pdel, rpdel, zm, kvh, &
-       cldn, cldo, cldliqf, tendnd, factnum, from_spcam, rgas)
+       cldn, cldo, cldliqf, tendnd, factnum, &
+       from_spcam, gasndx, gasnames, rgas )
 
     ! vertical diffusion and nucleation of cloud droplets
     ! assume cloud presence controlled by cloud fraction
@@ -158,6 +159,8 @@ contains
     real(r8), intent(in) :: cldliqf(:,:) ! liquid cloud fraction (liquid / (liquid + ice))
 
     logical,  intent(in),optional :: from_spcam ! value insignificant - if variable present, is called from spcam
+    integer,  intent(in),optional :: gasndx(:)
+    character(len=*), intent(in),optional :: gasnames(:)
     real(r8), intent(in),optional :: rgas(:,:,:)
 
     ! output arguments
@@ -176,7 +179,7 @@ contains
     real(r8), parameter :: wmixmin = 0.1_r8        ! minimum turbulence vertical velocity (m/s)
     real(r8), parameter :: sq2pi = sqrt(2._r8*pi)
 
-    integer  :: i, k, l, m, mm, n
+    integer  :: i, k, l, m, mm, n, ngas
     integer  :: km1, kp1
     integer  :: nnew, nsav, ntemp
     integer  :: lptr
@@ -308,14 +311,17 @@ contains
 
     call self%aero_data%set_ptrs( self%indexer, raer, qqcw )
 
-    if (present(from_spcam)) then
+    if (present(from_spcam).and.present(gasndx).and.&
+        present(gasnames).and.present(rgas)) then
        called_from_spcam = from_spcam
+       ngas = size(gasndx)
     else
        called_from_spcam = .false.
+       ngas = 0
     endif
 
     if (called_from_spcam) then
-       allocate(rgascol(nlev, pcnst, 2))
+       allocate(rgascol(nlev, ngas, 2))
        allocate(coltendgas(ncol))
     endif
 
@@ -399,8 +405,8 @@ contains
           ! So the turbulent for gas species mixing are added here.
           ! (Previously, it had the turbulent mixing for aerosol species)
           !
-          do m=1, pcnst
-             if (cnst_species_class(m) == cnst_spec_class_gas) rgascol(:,m,nsav) = rgas(i,:,m)
+          do m=1, ngas
+             rgascol(:,m,nsav) = rgas(i,:,m)
           end do
 
        endif
@@ -850,14 +856,13 @@ contains
              !
              ! turbulent mixing for gas species .
              !
-             do m=1, pcnst
-                if (cnst_species_class(m) == cnst_spec_class_gas) then
-                   flxconv = 0.0_r8
-                   zerogas(:) = 0.0_r8
-                   call self%explmix(rgascol(:,m,nnew),zerogas,ekkp,ekkm,overlapp,overlapm,  &
-                                     rgascol(:,m,nsav),zero, flxconv, nlev,top_lev, dtmix,&
-                                     .true., zerogas)
-                end if
+             do m=1, ngas
+                flxconv = 0.0_r8
+                zerogas(:) = 0.0_r8
+                call self%explmix(rgascol(:,m,nnew),zerogas,ekkp,ekkm,overlapp,overlapm,  &
+                                  rgascol(:,m,nsav),zero, flxconv, nlev,top_lev, dtmix,&
+                                  .true., zerogas)
+
              end do
           endif
 
@@ -927,11 +932,10 @@ contains
           !
           ! Gas tendency
           !
-          do m=1, pcnst
-             if (cnst_species_class(m) == cnst_spec_class_gas) then
-                ptend%lq(m) = .true.
-                ptend%q(i, :, m) = (rgascol(:,m,nnew)-rgas(i,:,m)) * dtinv
-             end if
+          do m=1, ngas
+             mm = gasndx(m)
+             ptend%lq(mm) = .true.
+             ptend%q(i, :, mm) = (rgascol(:,m,nnew)-rgas(i,:,m)) * dtinv
           end do
        endif
 
@@ -965,14 +969,13 @@ contains
        !
        ! output column-integrated Gas tendency (this should be zero)
        !
-       do m=1, pcnst
-          if (cnst_species_class(m) == cnst_spec_class_gas) then
-             do i=1, ncol
-                coltendgas(i) = sum( pdel(i,:)*ptend%q(i,:,m) )/gravit
-             end do
-             fieldnamegas = trim(cnst_name(m)) // '_mixnuc1sp'
-             call outfld( trim(fieldnamegas), coltendgas, ncol, lchnk)
-          end if
+       do m=1, ngas
+          mm = gasndx(m)
+          do i=1, ncol
+             coltendgas(i) = sum( pdel(i,:)*ptend%q(i,:,mm) )/gravit
+          end do
+          fieldnamegas = trim(gasnames(m)) // '_mixnuc1sp'
+          call outfld( trim(fieldnamegas), coltendgas, ncol, lchnk)
        end do
        deallocate(rgascol, coltendgas)
     end if
