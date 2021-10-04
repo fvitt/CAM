@@ -60,7 +60,6 @@ contains
          self%f2 )
     deallocate( self%amcubecoef )
     deallocate( self%argfactor )
-    deallocate( self%indexer )
 
   end subroutine modal_model_final
 

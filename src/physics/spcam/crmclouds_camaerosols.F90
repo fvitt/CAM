@@ -381,7 +381,7 @@ subroutine crmclouds_mixnuc_tend (state, ptend, dtime, cflx, pblht, pbuf,   &
   real(r8), intent(in) :: wwqui_cloudy_bnd(pcols, pver+1)  ! vertical velocity variance in quiescent, and cloudy class (m2/s2)
 
 ! output
-  type(physics_ptend), intent(out) :: ptend   ! package tendencies
+  type(physics_ptend), target, intent(out) :: ptend   ! package tendencies
 
 ! Local variables
   integer i,k,m, k1, k2
@@ -586,6 +586,7 @@ subroutine crmclouds_mixnuc_tend (state, ptend, dtime, cflx, pblht, pbuf,   &
   class is (cam_aerosol_data)
      obj%state => state
      obj%pbuf => pbuf
+     obj%ptend => ptend
   end select
 
   ngas=0
@@ -607,6 +608,7 @@ subroutine crmclouds_mixnuc_tend (state, ptend, dtime, cflx, pblht, pbuf,   &
   class is (cam_aerosol_data)
      nullify(obj%state)
      nullify(obj%pbuf)
+     nullify(obj%ptend)
   end select
   call aero_model%destroy()
 

@@ -56,7 +56,6 @@ contains
     deallocate( self%alogsig )
     deallocate( self%f1 )
     deallocate( self%f2 )
-    deallocate( self%indexer )
 
   end subroutine carma_model_final
 

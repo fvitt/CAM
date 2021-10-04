@@ -31,7 +31,6 @@ module aerosol_model_mod
      class(aerosol_data), pointer :: aero_data
      character(len=16) :: model_name = 'base'
      logical :: prognostic = .true.
-     integer, allocatable :: indexer(:,:)
      real(r8), allocatable :: amcubecoef(:)
      real(r8), allocatable :: exp45logsig(:)
      real(r8), allocatable :: argfactor(:)
