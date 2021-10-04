@@ -10,8 +10,6 @@ module modal_aerosol_model_mod
   public :: modal_aerosol_model
 
   type, extends(aerosol_model) :: modal_aerosol_model
-     integer               :: ntot_amode     ! number of aerosol modes
-     integer,  allocatable :: nspec_amode(:) ! number of chemical species in each aerosol mode
    contains
      procedure :: model_init => modal_model_init
      procedure :: model_final => modal_model_final
@@ -29,52 +27,26 @@ contains
 
     self%model_name = 'modal'
 
-    select type (obj=>self%aero_data)
-    type is (modal_cam_aerosol_data)
-       self%ntot_amode = obj%ntot_amode
-    end select
-
-    self%mtotal = self%ntot_amode
-
     allocate( &
-         self%nspec_amode(self%ntot_amode),  &
-         self%nmasses(self%ntot_amode),  &
-         self%alogsig(self%ntot_amode),      &
-         self%exp45logsig(self%ntot_amode),  &
-         self%f1(self%ntot_amode),           &
-         self%f2(self%ntot_amode) )
+         self%alogsig(self%aero_data%mtotal),      &
+         self%exp45logsig(self%aero_data%mtotal),  &
+         self%f1(self%aero_data%mtotal),           &
+         self%f2(self%aero_data%mtotal) )
 
-    allocate( self%amcubecoef(self%mtotal) )
-    allocate( self%argfactor(self%mtotal) )
+    allocate( self%amcubecoef(self%aero_data%mtotal) )
+    allocate( self%argfactor(self%aero_data%mtotal) )
 
-    select type (obj=>self%aero_data)
-    type is (modal_cam_aerosol_data)
-       self%nspec_amode(:) = obj%nspec_amode(:)
-    end select
-
-    self%ncnst_tot = 0
-
-    do m = 1, self%ntot_amode
+    do m = 1, self%aero_data%mtotal
        ! use only if width of size distribution is prescribed
 
-       self%nmasses(m) = self%nspec_amode(m)
-       self%ncnst_tot =  self%ncnst_tot + self%nspec_amode(m) + 1
-
-       select type (obj=>self%aero_data)
-       type is (modal_cam_aerosol_data)
-          self%alogsig(m) = log(obj%sigmag_amode(m))
-       end select
+       self%alogsig(m) = log(self%aero_data%sigmag_amode(m))
 
        self%exp45logsig(m) = exp(4.5_r8*self%alogsig(m)*self%alogsig(m))
        self%f1(m)          = 0.5_r8*exp(2.5_r8*self%alogsig(m)*self%alogsig(m))
        self%f2(m)          = 1._r8 + 0.25_r8*self%alogsig(m)
-       self%amcubecoef(m)=3._r8/(4._r8*pi*self%exp45logsig(m))
-       self%argfactor(m)=twothird/(sq2*self%alogsig(m))
+       self%amcubecoef(m)  = 3._r8/(4._r8*pi*self%exp45logsig(m))
+       self%argfactor(m)   = twothird/(sq2*self%alogsig(m))
     end do
-
-    ! Find max number of species in all the modes
-    nspec_max = maxval(self%nspec_amode)
-    allocate( self%indexer(self%ntot_amode,0:nspec_max) )
 
   end subroutine modal_model_init
 
@@ -82,8 +54,6 @@ contains
     class(modal_aerosol_model), intent(inout) :: self
 
     deallocate( &
-         self%nspec_amode,  &
-         self%nmasses, &
          self%alogsig,      &
          self%exp45logsig,  &
          self%f1,           &

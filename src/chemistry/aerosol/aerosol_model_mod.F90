@@ -11,7 +11,8 @@ module aerosol_model_mod
   use physconst,      only: gravit, rair, cpair
   use physconst,      only: mwh2o, rhoh2o, rh2o
 
-  use wv_saturation,only: qsat
+  use wv_saturation,  only: qsat ! for activate
+
   use physics_types,  only: physics_ptend, physics_ptend_init
   use cam_abortutils, only: endrun
   use cam_logfile,    only: iulog
@@ -30,9 +31,6 @@ module aerosol_model_mod
      class(aerosol_data), pointer :: aero_data
      character(len=16) :: model_name = 'base'
      logical :: prognostic = .true.
-     integer :: mtotal
-     integer :: ncnst_tot
-     integer, allocatable :: nmasses(:)
      integer, allocatable :: indexer(:,:)
      real(r8), allocatable :: amcubecoef(:)
      real(r8), allocatable :: exp45logsig(:)
@@ -95,20 +93,7 @@ contains
   subroutine aero_create( self )
     class(aerosol_model), intent(inout) :: self
 
-    integer :: ii,l,m
-
     call self%model_init()
-
-    ! Local indexing compresses the mode and number/mass indicies into one index.
-    ! This indexing is used by the pointer arrays used to reference state and pbuf
-    ! fields.
-    ii = 0
-    do m = 1, self%mtotal
-       do l = 0, self%nmasses(m)
-          ii = ii + 1
-          self%indexer(m,l) = ii
-       end do
-    end do
 
     aten     = 2._r8*mwh2o*surften/(r_universal*t0*rhoh2o)
     alogaten = log(aten)
@@ -293,23 +278,23 @@ contains
     dtinv = 1._r8/dtmicro
 
     allocate( &
-         nact(nlev,self%mtotal),          &
-         mact(nlev,self%mtotal),          &
-         raer(self%ncnst_tot),                &
-         qqcw(self%ncnst_tot),                &
-         raercol(nlev,self%ncnst_tot,2),      &
-         raercol_cw(nlev,self%ncnst_tot,2),   &
-         coltend(ncol,self%ncnst_tot),       &
-         coltend_cw(ncol,self%ncnst_tot),    &
-         naermod(self%mtotal),            &
-         hygro(self%mtotal),              &
-         vaerosol(self%mtotal),           &
-         fn(self%mtotal),                 &
-         fm(self%mtotal),                 &
-         fluxn(self%mtotal),              &
-         fluxm(self%mtotal)               )
+         nact(nlev,self%aero_data%mtotal),          &
+         mact(nlev,self%aero_data%mtotal),          &
+         raer(self%aero_data%ncnst_tot),                &
+         qqcw(self%aero_data%ncnst_tot),                &
+         raercol(nlev,self%aero_data%ncnst_tot,2),      &
+         raercol_cw(nlev,self%aero_data%ncnst_tot,2),   &
+         coltend(ncol,self%aero_data%ncnst_tot),       &
+         coltend_cw(ncol,self%aero_data%ncnst_tot),    &
+         naermod(self%aero_data%mtotal),            &
+         hygro(self%aero_data%mtotal),              &
+         vaerosol(self%aero_data%mtotal),           &
+         fn(self%aero_data%mtotal),                 &
+         fm(self%aero_data%mtotal),                 &
+         fluxn(self%aero_data%mtotal),              &
+         fluxm(self%aero_data%mtotal)               )
 
-    call self%aero_data%set_ptrs( self%indexer, raer, qqcw )
+    call self%aero_data%set_ptrs( raer, qqcw )
 
     if (present(from_spcam).and.present(gasndx).and.&
         present(gasnames).and.present(rgas)) then
@@ -360,7 +345,7 @@ contains
           cs(i,k)  = pmid(i,k)/(rair*temp(i,k))        ! air density (kg/m3)
           dz(i,k)  = 1._r8/(cs(i,k)*gravit*rpdel(i,k)) ! layer thickness in m
 
-          do m = 1, self%mtotal
+          do m = 1, self%aero_data%mtotal
              nact(k,m) = 0._r8
              mact(k,m) = 0._r8
           end do
@@ -392,7 +377,7 @@ contains
 
        nsav = 1
        nnew = 2
-       do mm = 1,self%ncnst_tot
+       do mm = 1,self%aero_data%ncnst_tot
           raercol_cw(:,mm,nsav) = 0.0_r8
           raercol(:,mm,nsav)    = 0.0_r8
           raercol_cw(top_lev:nlev,mm,nsav) = qqcw(mm)%fld(i,top_lev:nlev)
@@ -446,7 +431,7 @@ contains
              ! convert activated aerosol to interstitial in decaying cloud
 
              dumc = (cldn_tmp - cldo_tmp)/cldo_tmp * (1._r8 - cldliqf(i,k))
-             do mm = 1,self%ncnst_tot
+             do mm = 1,self%aero_data%ncnst_tot
                 dact   = raercol_cw(k,mm,nsav)*dumc
                 raercol_cw(k,mm,nsav) = raercol_cw(k,mm,nsav) + dact   ! cloud-borne aerosol
                 raercol(k,mm,nsav)    = raercol(k,mm,nsav) - dact
@@ -472,7 +457,7 @@ contains
              ! convert activated aerosol to interstitial in decaying cloud
 
              dumc = (cldn_tmp - cldo_tmp)/cldo_tmp * cldliqf(i,k)
-             do mm = 1,self%ncnst_tot
+             do mm = 1,self%aero_data%ncnst_tot
                 dact   = raercol_cw(k,mm,nsav)*dumc
                 raercol_cw(k,mm,nsav) = raercol_cw(k,mm,nsav) + dact   ! cloud-borne aerosol
                 raercol(k,mm,nsav)    = raercol(k,mm,nsav) - dact
@@ -497,7 +482,7 @@ contains
              ! load aerosol properties, assuming external mixtures
 
              phase = 1 ! interstitial
-             do m = 1, self%mtotal
+             do m = 1, self%aero_data%mtotal
                 call self%aero_data%loadaer( i, i, k, m, cs, phase, na, va, hy)
                 naermod(m)  = na(i)
                 vaerosol(m) = va(i)
@@ -506,23 +491,23 @@ contains
 
              call self%activate( &
                   wbar, wmix, wdiab, wmin, wmax,                       &
-                  temp(i,k), cs(i,k), naermod, self%mtotal,             &
+                  temp(i,k), cs(i,k), naermod, self%aero_data%mtotal,             &
                   vaerosol, hygro, fn, fm, fluxn,     &
                   fluxm,flux_fullact(k))
 
              factnum(i,k,:) = fn
 
              dumc = (cldn_tmp - cldo_tmp)
-             do m = 1, self%mtotal
-                mm = self%indexer(m,0)
+             do m = 1, self%aero_data%mtotal
+                mm = self%aero_data%indexer(m,0)
                 dact   = dumc*fn(m)*raer(mm)%fld(i,k) ! interstitial only
                 qcld(k) = qcld(k) + dact
                 nsource(i,k) = nsource(i,k) + dact*dtinv
                 raercol_cw(k,mm,nsav) = raercol_cw(k,mm,nsav) + dact  ! cloud-borne aerosol
                 raercol(k,mm,nsav)    = raercol(k,mm,nsav) - dact
                 dum = dumc*fm(m)
-                do l = 1, self%nmasses(m)
-                   mm = self%indexer(m,l)
+                do l = 1, self%aero_data%nmasses(m)
+                   mm = self%aero_data%indexer(m,l)
                    dact    = dum*raer(mm)%fld(i,k) ! interstitial only
                    raercol_cw(k,mm,nsav) = raercol_cw(k,mm,nsav) + dact  ! cloud-borne aerosol
                    raercol(k,mm,nsav)    = raercol(k,mm,nsav) - dact
@@ -578,7 +563,7 @@ contains
                 wmin    = wbar + wmix*0.25_r8*sq2pi*log(alogarg)
                 phase   = 1   ! interstitial
 
-                do m = 1, self%mtotal
+                do m = 1, self%aero_data%mtotal
                    ! rce-comment - use kp1 here as old-cloud activation involves
                    !   aerosol from layer below
                    call self%aero_data%loadaer( i, i, kp1, m, cs, phase, na, va, hy)
@@ -589,7 +574,7 @@ contains
 
                 call self%activate( &
                      wbar, wmix, wdiab, wmin, wmax,                       &
-                     temp(i,k), cs(i,k), naermod, self%mtotal,             &
+                     temp(i,k), cs(i,k), naermod, self%aero_data%mtotal,             &
                      vaerosol, hygro,  fn, fm, fluxn,     &
                      fluxm, flux_fullact(k))
 
@@ -644,8 +629,8 @@ contains
                    taumix_internal_nlev_inv = flux_fullact(k)/dz(i,k)
                 end if
 
-                do m = 1, self%mtotal
-                   mm = self%indexer(m,0)
+                do m = 1, self%aero_data%mtotal
+                   mm = self%aero_data%indexer(m,0)
                    fluxn(m) = fluxn(m)*dumc
                    fluxm(m) = fluxm(m)*dumc
                    nact(k,m) = nact(k,m) + fluxn(m)*dum
@@ -677,7 +662,7 @@ contains
 
                 ! convert activated aerosol to interstitial in decaying cloud
 
-                do mm = 1,self%ncnst_tot
+                do mm = 1,self%aero_data%ncnst_tot
                    raercol(k,mm,nsav)    = raercol(k,mm,nsav) + raercol_cw(k,mm,nsav)  ! cloud-borne aerosol
                    raercol_cw(k,mm,nsav) = 0._r8
                 end do
@@ -763,7 +748,7 @@ contains
        !    however it might if things are not "just right" in subr activate
        !    the following is a safety measure to avoid negatives in explmix
        do k = top_lev, nlev-1
-          do m = 1, self%mtotal
+          do m = 1, self%aero_data%mtotal
              nact(k,m) = min( nact(k,m), ekkp(k) )
              mact(k,m) = min( mact(k,m), ekkp(k) )
           end do
@@ -779,8 +764,8 @@ contains
           nnew    = ntemp
           srcn(:) = 0.0_r8
 
-          do m = 1, self%mtotal
-             mm = self%indexer(m,0)
+          do m = 1, self%aero_data%mtotal
+             mm = self%aero_data%indexer(m,0)
 
              ! update droplet source
              ! rce-comment- activation source in layer k involves particles from k+1
@@ -805,8 +790,8 @@ contains
           !    source terms involve clear air (from below) moving into cloudy air (above).
           !    in theory, the clear-portion mixratio should be used when calculating
           !    source terms
-          do m = 1, self%mtotal
-             mm = self%indexer(m,0)
+          do m = 1, self%aero_data%mtotal
+             mm = self%aero_data%indexer(m,0)
              ! rce-comment -   activation source in layer k involves particles from k+1
              !	              source(:)= nact(:,m)*(raercol(:,mm,nsav))
              source(top_lev:nlev-1) = nact(top_lev:nlev-1,m)*(raercol(top_lev+1:nlev,mm,nsav))
@@ -827,8 +812,8 @@ contains
                   overlapm, raercol(:,mm,nsav), zero, flxconv, nlev,top_lev, &
                   dtmix, .true., raercol_cw(:,mm,nsav))
 
-             do l = 1, self%nmasses(m)
-                mm = self%indexer(m,l)
+             do l = 1, self%aero_data%nmasses(m)
+                mm = self%aero_data%indexer(m,l)
                 ! rce-comment -   activation source in layer k involves particles from k+1
                 !	          source(:)= mact(:,m)*(raercol(:,mm,nsav))
                 source(top_lev:nlev-1) = mact(top_lev:nlev-1,m)*(raercol(top_lev+1:nlev,mm,nsav))
@@ -859,8 +844,8 @@ contains
              do m=1, ngas
                 flxconv = 0.0_r8
                 zerogas(:) = 0.0_r8
-                call self%explmix(rgascol(:,m,nnew),zerogas,ekkp,ekkm,overlapp,overlapm,  &
-                                  rgascol(:,m,nsav),zero, flxconv, nlev,top_lev, dtmix,&
+                call self%explmix(rgascol(:,m,nnew),zerogas,ekkp,ekkm,overlapp,overlapm, &
+                                  rgascol(:,m,nsav),zero, flxconv, nlev,top_lev, dtmix, &
                                   .true., zerogas)
 
              end do
@@ -876,7 +861,7 @@ contains
              qcld(k)=0._r8
 
              ! convert activated aerosol to interstitial in decaying cloud
-             do mm = 1,self%ncnst_tot
+             do mm = 1,self%aero_data%ncnst_tot
                 raercol(k,mm,nnew)    = raercol(k,mm,nnew) + raercol_cw(k,mm,nnew)
                 raercol_cw(k,mm,nnew) = 0._r8
              end do
@@ -896,36 +881,8 @@ contains
 
        if (self%prognostic) then
 
-          raertend = 0._r8
-          qqcwtend = 0._r8
-
-          do m = 1, self%mtotal
-             do l = 0, self%nmasses(m)
-
-                mm   = self%indexer(m,l)
-                lptr = self%aero_data%cnstndx(m,l)
-
-                raertend(top_lev:nlev) = (raercol(top_lev:nlev,mm,nnew) - raer(mm)%fld(i,top_lev:nlev))*dtinv
-                qqcwtend(top_lev:nlev) = (raercol_cw(top_lev:nlev,mm,nnew) - qqcw(mm)%fld(i,top_lev:nlev))*dtinv
-
-                coltend(i,mm)    = sum( pdel(i,:)*raertend )/gravit
-                coltend_cw(i,mm) = sum( pdel(i,:)*qqcwtend )/gravit
-
-                ! some interstetial species are might not be advected, check:
-                if (lptr>0) then ! adveced species
-                   ptend%q(i,:,lptr) = 0.0_r8
-                   ptend%q(i,top_lev:nlev,lptr) = raertend(top_lev:nlev)           ! set tendencies for interstitial aerosol
-                else
-                   raer(mm)%fld(i,:) = 0.0_r8
-                   raer(mm)%fld(i,top_lev:nlev)  = raercol(top_lev:nlev,mm,nnew)           ! update interstitial aerosol
-                end if
-
-                qqcw(mm)%fld(i,:) = 0.0_r8
-                qqcw(mm)%fld(i,top_lev:nlev) = raercol_cw(top_lev:nlev,mm,nnew) ! update cloud-borne aerosol
-
-             end do
-          end do
-
+          call self%aero_data%update( pdel, raer, qqcw, raercol(:,:,nnew), raercol_cw(:,:,nnew), i,dtinv, &
+                                      coltend(i,:),coltend_cw(i,:) )
        end if
 
        if (called_from_spcam) then
@@ -959,7 +916,7 @@ contains
 
     ! do column tendencies
     if (self%prognostic) then
-       do mm = 1,self%ncnst_tot
+       do mm = 1,self%aero_data%ncnst_tot
           call outfld(self%aero_data%fieldname(mm),    coltend(:,mm),    ncol, lchnk)
           call outfld(self%aero_data%fieldname_cw(mm), coltend_cw(:,mm), ncol, lchnk)
        end do
@@ -1045,7 +1002,7 @@ contains
           smcoef(i)=smcoefcoef*a(i)*sqrt(a(i))
        end do
 
-       do m=1,self%mtotal
+       do m=1,self%aero_data%mtotal
 
           phase=3 ! interstitial+cloudborne
 

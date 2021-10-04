@@ -13,8 +13,6 @@ module carma_cam_aerosol_data_mod
   implicit none
 
   type, extends(cam_aerosol_data) :: carma_cam_aerosol_data
-     integer, allocatable :: nspec(:)
-     integer :: nbins
   contains
      procedure :: initialize => carma_initialize
      procedure :: loadaer => carma_loadaer
@@ -35,27 +33,31 @@ contains
     ! get info about the modal aerosols
     ! get nbins
 
-    call rad_cnst_get_info( 0, nbins=self%nbins)
+    call rad_cnst_get_info( 0, nbins=self%mtotal)
 
-    allocate( self%nspec(self%nbins) )
+    allocate( self%nspec(self%mtotal) )
+    allocate( self%nmasses(self%mtotal) )
 
+    self%mtotal = self%mtotal
     self%ncnst_tot = 0
 
-    do m = 1, self%nbins
+    do m = 1, self%mtotal
        call rad_cnst_get_info_by_bin(0, m, nspec=self%nspec(m))
        self%ncnst_tot =  self%ncnst_tot + self%nspec(m) + 2
+       self%nmasses(m) = self%nspec(m) + 1
     end do
 
     allocate( self%fieldname(self%ncnst_tot) )
     allocate( self%fieldname_cw(self%ncnst_tot) )
 
     nspec_max = maxval(self%nspec) + 1
-    allocate( self%cnstndx(self%nbins,0:nspec_max) )
+    allocate( self%cnstndx(self%mtotal,0:nspec_max) )
+    allocate( self%indexer(self%mtotal,0:nspec_max) )
 
     self%cnstndx = -1
     mm = 0
 
-    do m = 1, self%nbins
+    do m = 1, self%mtotal
        do l = 0, self%nspec(m) + 1  ! loop over bin + aerosol constituents
           if (l == 0) then   ! number
              call rad_cnst_get_info_by_bin(0, m, num_name=tmpname, num_name_cw=tmpname_cw)
@@ -66,6 +68,7 @@ contains
           end if
 
           mm = mm+1
+          self%indexer(m,l) = mm
 
           self%fieldname(mm)    = trim(tmpname) // '_mixnuc1'
           self%fieldname_cw(mm) = trim(tmpname_cw) // '_mixnuc1'
@@ -77,6 +80,7 @@ contains
           end if
        end do
     end do
+
   end subroutine carma_initialize
 
 
@@ -171,23 +175,22 @@ contains
 
   end subroutine carma_loadaer
 
-  subroutine carma_set_ptrs( self, indexer, raer, qqcw )
+  subroutine carma_set_ptrs( self, raer, qqcw )
     class(carma_cam_aerosol_data), intent(in) :: self
-    integer,       intent(in) :: indexer(:,0:)
     type(ptr2d_t), intent(out) :: raer(:)
     type(ptr2d_t), intent(out) :: qqcw(:)
 
     integer :: m, mm, l
 
-    do m = 1, self%nbins
-       mm = indexer(m, 0)
+    do m = 1, self%mtotal
+       mm = self%indexer(m, 0)
        call rad_cnst_get_bin_num(0, m, 'a', self%state, self%pbuf, raer(mm)%fld)
        call rad_cnst_get_bin_num(0, m, 'c', self%state, self%pbuf, qqcw(mm)%fld)  ! cloud-borne aerosol
-       mm = indexer(m, 1)
+       mm = self%indexer(m, 1)
        call rad_cnst_get_bin_mmr(0, m, 'a', self%state, self%pbuf, raer(mm)%fld)
        call rad_cnst_get_bin_mmr(0, m, 'c', self%state, self%pbuf, qqcw(mm)%fld)  ! cloud-borne aerosol
        do l = 2, self%nspec(m)+1
-          mm = indexer(m, l)
+          mm = self%indexer(m, l)
           call rad_cnst_get_bin_mmr_by_idx(0, m, l-1, 'a', self%state, self%pbuf, raer(mm)%fld)
           call rad_cnst_get_bin_mmr_by_idx(0, m, l-1, 'c', self%state, self%pbuf, qqcw(mm)%fld)  ! cloud-borne aerosol
        end do

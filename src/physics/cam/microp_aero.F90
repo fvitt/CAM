@@ -405,7 +405,7 @@ subroutine microp_aero_run ( &
    integer :: nbins
 
    type(physics_state), target :: state1                ! Local copy of state variable
-   type(physics_ptend) :: ptend_loc
+   type(physics_ptend), target :: ptend_loc
 
    real(r8), pointer :: ast(:,:)
 
@@ -650,6 +650,7 @@ subroutine microp_aero_run ( &
          class is (cam_aerosol_data)
             obj%state => state1
             obj%pbuf => pbuf
+            obj%ptend => ptend_loc
          end select
 
          ncldwtr(:ncol,:) = state1%q(:ncol,:,numliq_idx)
@@ -679,6 +680,7 @@ subroutine microp_aero_run ( &
          class is (cam_aerosol_data)
             nullify(obj%state)
             nullify(obj%pbuf)
+            nullify(obj%ptend)
          end select
       endif
 

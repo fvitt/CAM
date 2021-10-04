@@ -9,14 +9,22 @@ module aerosol_data_mod
   end type ptr2d_t
 
   type, abstract :: aerosol_data
+     real(r8), allocatable :: sigmag_amode(:)! geometric standard deviation for each aerosol mode
+     real(r8), allocatable :: dgnumlo_amode(:)
+     real(r8), allocatable :: dgnumhi_amode(:)
      character(len=24), allocatable :: fieldname(:)    ! names for drop nuc tendency output fields
      character(len=24), allocatable :: fieldname_cw(:) ! names for drop nuc tendency output fields
+     integer, allocatable :: indexer(:,:)
      integer, allocatable :: cnstndx(:,:)
      integer :: ncnst_tot
+     integer :: mtotal
+     integer, allocatable :: nmasses(:)
+     integer, allocatable :: nspec(:)
    contains
      procedure(aero_initialize), deferred :: initialize
-     procedure(aero_loadaer), deferred :: loadaer
-     procedure(aero_set_ptrs), deferred :: set_ptrs
+     procedure(aero_loadaer),    deferred :: loadaer
+     procedure(aero_set_ptrs),   deferred :: set_ptrs
+     procedure(aero_update),     deferred :: update
   end type aerosol_data
 
   interface
@@ -45,16 +53,30 @@ module aerosol_data_mod
 
      end subroutine aero_loadaer
 
-     subroutine aero_set_ptrs( self, indexer, raer, qqcw )
+     subroutine aero_set_ptrs( self, raer, qqcw )
        import
 
        class(aerosol_data), intent(in) :: self
-       integer,       intent(in) :: indexer(:,:)
        type(ptr2d_t), intent(out) :: raer(:)
        type(ptr2d_t), intent(out) :: qqcw(:)
 
      end subroutine aero_set_ptrs
 
+     subroutine aero_update(self, pdel, raer, qqcw, raercol, raercol_cw, colnum, dtinv, &
+                            coltend, coltend_cw)
+       import
+       class(aerosol_data), intent(inout) :: self
+       real(r8), intent(in) :: pdel(:,:)    ! pressure thickess of layer (Pa)
+       type(ptr2d_t), intent(in) :: raer(:)
+       type(ptr2d_t), intent(inout) :: qqcw(:)
+       real(r8), intent(in) :: raercol(:,:)
+       real(r8), intent(in) :: raercol_cw(:,:)
+       integer,  intent(in) :: colnum
+       real(r8), intent(in) :: dtinv
+
+       real(r8), intent(out) :: coltend(:)
+       real(r8), intent(out) :: coltend_cw(:)
+     end subroutine aero_update
   end interface
 
 contains

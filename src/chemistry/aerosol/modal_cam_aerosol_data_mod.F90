@@ -14,11 +14,6 @@ module modal_cam_aerosol_data_mod
   implicit none
 
   type, extends(cam_aerosol_data) :: modal_cam_aerosol_data
-     integer               :: ntot_amode     ! number of aerosol modes
-     integer,  allocatable :: nspec_amode(:) ! number of chemical species in each aerosol mode
-     real(r8), allocatable :: sigmag_amode(:)! geometric standard deviation for each aerosol mode
-     real(r8), allocatable :: dgnumlo_amode(:)
-     real(r8), allocatable :: dgnumhi_amode(:)
      real(r8), allocatable :: voltonumblo_amode(:)
      real(r8), allocatable :: voltonumbhi_amode(:)
   contains
@@ -40,27 +35,30 @@ contains
 
     ! get info about the modal aerosols
     ! get ntot_amode
-    call rad_cnst_get_info(0, nmodes=self%ntot_amode)
+    call rad_cnst_get_info(0, nmodes=self%mtotal)
+
+    allocate( self%nspec(self%mtotal) )
+    allocate( self%nmasses(self%mtotal) )
 
     allocate( &
-         self%nspec_amode(self%ntot_amode),  &
-         self%sigmag_amode(self%ntot_amode), &
-         self%dgnumlo_amode(self%ntot_amode), &
-         self%dgnumhi_amode(self%ntot_amode), &
-         self%voltonumblo_amode(self%ntot_amode), &
-         self%voltonumbhi_amode(self%ntot_amode)  )
+         self%sigmag_amode(self%mtotal), &
+         self%dgnumlo_amode(self%mtotal), &
+         self%dgnumhi_amode(self%mtotal), &
+         self%voltonumblo_amode(self%mtotal), &
+         self%voltonumbhi_amode(self%mtotal)  )
 
-    allocate( alogsig(self%ntot_amode) )
+    allocate( alogsig(self%mtotal) )
 
     self%ncnst_tot = 0
 
-    do m = 1, self%ntot_amode
+    do m = 1, self%mtotal
        ! use only if width of size distribution is prescribed
 
        ! get mode info
-       call rad_cnst_get_info(0, m, nspec=self%nspec_amode(m))
+       call rad_cnst_get_info(0, m, nspec=self%nspec(m))
 
-       self%ncnst_tot =  self%ncnst_tot + self%nspec_amode(m) + 1
+       self%nmasses(m) = self%nspec(m)
+       self%ncnst_tot =  self%ncnst_tot + self%nspec(m) + 1
 
        ! get mode properties
        call rad_cnst_get_mode_props(0, m, sigmag=self%sigmag_amode(m),  &
@@ -79,17 +77,19 @@ contains
     allocate( self%fieldname(self%ncnst_tot) )
     allocate( self%fieldname_cw(self%ncnst_tot) )
 
-    nspec_max = maxval(self%nspec_amode)
-    allocate( self%cnstndx(self%ntot_amode,0:nspec_max) )
+    nspec_max = maxval(self%nspec)
+    allocate( self%cnstndx(self%mtotal,0:nspec_max) )
+    allocate( self%indexer(self%mtotal,0:nspec_max) )
 
     self%cnstndx = -1
     mm = 0
     call phys_getopts(prog_modal_aero_out=prognostic)
 
-    do m = 1, self%ntot_amode
-       do l = 0, self%nspec_amode(m)   ! loop over number + chem constituents
+    do m = 1, self%mtotal
+       do l = 0, self%nspec(m)   ! loop over number + chem constituents
 
           mm = mm+1
+          self%indexer(m,l) = mm
 
           if (l == 0) then   ! number
              call rad_cnst_get_info(0, m, num_name=tmpname, num_name_cw=tmpname_cw)
@@ -150,7 +150,7 @@ contains
        hygro(i)    = 0._r8
     end do
 
-    do l = 1, self%nspec_amode(m)
+    do l = 1, self%nspec(m)
 
        call rad_cnst_get_aer_mmr(0, m, l, 'a', self%state, self%pbuf, raer)
        call rad_cnst_get_aer_mmr(0, m, l, 'c', self%state, self%pbuf, qqcw)
@@ -215,20 +215,19 @@ contains
 
   end subroutine modal_loadaer
 
-  subroutine modal_set_ptrs( self, indexer, raer, qqcw )
+  subroutine modal_set_ptrs( self, raer, qqcw )
     class(modal_cam_aerosol_data), intent(in) :: self
-    integer,       intent(in) :: indexer(:,0:)
     type(ptr2d_t), intent(out) :: raer(:)
     type(ptr2d_t), intent(out) :: qqcw(:)
 
     integer :: m,mm,l
 
-    do m = 1, self%ntot_amode
-       mm = indexer(m, 0)
+    do m = 1, self%mtotal
+       mm = self%indexer(m, 0)
        call rad_cnst_get_mode_num(0, m, 'a', self%state, self%pbuf, raer(mm)%fld)
        call rad_cnst_get_mode_num(0, m, 'c', self%state, self%pbuf, qqcw(mm)%fld)  ! cloud-borne aerosol
-       do l = 1, self%nspec_amode(m)
-          mm = indexer(m, l)
+       do l = 1, self%nspec(m)
+          mm = self%indexer(m, l)
           call rad_cnst_get_aer_mmr(0, m, l, 'a', self%state, self%pbuf, raer(mm)%fld)
           call rad_cnst_get_aer_mmr(0, m, l, 'c', self%state, self%pbuf, qqcw(mm)%fld)  ! cloud-borne aerosol
        end do
