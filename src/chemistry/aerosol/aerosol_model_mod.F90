@@ -13,10 +13,9 @@ module aerosol_model_mod
 
   use wv_saturation,  only: qsat ! for activate
 
-  use physics_types,  only: physics_ptend, physics_ptend_init
   use cam_abortutils, only: endrun
   use cam_logfile,    only: iulog
-  use cam_history,    only: addfld, add_default, horiz_only, fieldname_len, outfld
+  use cam_history,    only: fieldname_len, outfld
 
   use aerosol_data_mod,only: aerosol_data, ptr2d_t
   use cam_aerosol_data_mod, only: cam_aerosol_data
@@ -89,8 +88,12 @@ contains
 
   !===============================================================================
 
-  subroutine aero_create( self )
+  subroutine aero_create( self, aero_data)
     class(aerosol_model), intent(inout) :: self
+    class(aerosol_data), target :: aero_data
+
+    self%aero_data => aero_data
+    call self%aero_data%initialize()
 
     call self%model_init()
 
@@ -112,7 +115,7 @@ contains
   !===============================================================================
 
   subroutine aero_dropmixnuc( self, ncol, nlev, top_lev, lchnk, &
-       ptend, dtmicro, wsub, &
+       dtmicro, wsub, &
        ncldwtr, temp, pmid, pint, pdel, rpdel, zm, kvh, &
        cldn, cldo, cldliqf, tendnd, factnum, &
        from_spcam, gasndx, gasnames, rgas )
@@ -133,7 +136,6 @@ contains
     real(r8), intent(in) :: zm(:,:)      ! geopotential height of level (m)
     real(r8), intent(in) :: kvh(:,:)     ! vertical diffusivity (m2/s)
 
-    type(physics_ptend),         intent(out)   :: ptend
     real(r8),                    intent(in)    :: dtmicro     ! time step for microphysics (s)
 
     ! arguments
@@ -239,16 +241,14 @@ contains
     !     fluxn = [flux of activated aero. number into cloud (#/cm2/s)]
     !           / [aero. number conc. in updraft, just below cloudbase (#/cm3)]
 
-
-    real(r8), allocatable :: coltend(:,:)       ! column tendency for diagnostic output
-    real(r8), allocatable :: coltend_cw(:,:)    ! column tendency
-    real(r8) :: ccn(ncol,nlev,psat)    ! number conc of aerosols activated at supersat
+    real(r8) :: ccn(ncol,nlev,psat)             ! number conc of aerosols activated at supersat
 
     !for gas species turbulent mixing
     real(r8), allocatable :: rgascol(:,:,:)
     real(r8), allocatable :: coltendgas(:)
+    character(len=fieldname_len) fieldnamegas
     real(r8) :: zerogas(nlev)
-    character(len=200) fieldnamegas
+
     character(len=*), parameter :: subname='%dropmixnuc'
 
     logical  :: called_from_spcam
@@ -283,8 +283,6 @@ contains
          qqcw(self%aero_data%ncnst_tot),                &
          raercol(nlev,self%aero_data%ncnst_tot,2),      &
          raercol_cw(nlev,self%aero_data%ncnst_tot,2),   &
-         coltend(ncol,self%aero_data%ncnst_tot),       &
-         coltend_cw(ncol,self%aero_data%ncnst_tot),    &
          naermod(self%aero_data%mtotal),            &
          hygro(self%aero_data%mtotal),              &
          vaerosol(self%aero_data%mtotal),           &
@@ -305,8 +303,10 @@ contains
     endif
 
     if (called_from_spcam) then
-       allocate(rgascol(nlev, ngas, 2))
        allocate(coltendgas(ncol))
+       allocate(rgascol(nlev,ngas,2))
+    else
+       allocate(rgascol(1,1,2))
     endif
 
     factnum = 0._r8
@@ -314,17 +314,6 @@ contains
     nsource = 0._r8
     ndropmix = 0._r8
     ndropcol = 0._r8
-
-    select type (obj=>self%aero_data)
-    class is (cam_aerosol_data)
-       if (self%prognostic) then
-          ! aerosol tendencies
-          call physics_ptend_init(ptend, obj%state%psetcols, 'ndrop_'//trim(self%model_name), lq=obj%lq)
-       else
-          ! no aerosol tendencies
-          call physics_ptend_init(ptend, obj%state%psetcols, 'ndrop_'//trim(self%model_name))
-       end if
-    end select
 
     ! overall_main_i_loop
     do i = 1, ncol
@@ -879,21 +868,8 @@ contains
        ndropcol(i) = ndropcol(i)/gravit
 
        if (self%prognostic) then
-
-          call self%aero_data%update( pdel, raer, qqcw, raercol(:,:,nnew), raercol_cw(:,:,nnew), i,dtinv, &
-                                      coltend(i,:),coltend_cw(i,:) )
+          call self%aero_data%update( raer, qqcw, raercol(:,:,nnew), raercol_cw(:,:,nnew), rgascol(:,:,nnew), i,dtinv )
        end if
-
-       if (called_from_spcam) then
-          !
-          ! Gas tendency
-          !
-          do m=1, ngas
-             mm = gasndx(m)
-             ptend%lq(mm) = .true.
-             ptend%q(i, :, mm) = (rgascol(:,m,nnew)-rgas(i,:,m)) * dtinv
-          end do
-       endif
 
     end do  ! overall_main_i_loop
     ! end of main loop over i/longitude ....................................
@@ -916,24 +892,27 @@ contains
     ! do column tendencies
     if (self%prognostic) then
        do mm = 1,self%aero_data%ncnst_tot
-          call outfld(self%aero_data%fieldname(mm),    coltend(:,mm),    ncol, lchnk)
-          call outfld(self%aero_data%fieldname_cw(mm), coltend_cw(:,mm), ncol, lchnk)
+          call outfld(self%aero_data%fieldname(mm),    self%aero_data%coltend(:,mm),    ncol, lchnk)
+          call outfld(self%aero_data%fieldname_cw(mm), self%aero_data%coltend_cw(:,mm), ncol, lchnk)
        end do
     end if
 
     if(called_from_spcam) then
+       select type (obj=>self%aero_data)
+       class is (cam_aerosol_data)
        !
        ! output column-integrated Gas tendency (this should be zero)
        !
        do m=1, ngas
           mm = gasndx(m)
           do i=1, ncol
-             coltendgas(i) = sum( pdel(i,:)*ptend%q(i,:,mm) )/gravit
+             coltendgas(i) = sum( pdel(i,:)*obj%ptend%q(i,:,mm) )/gravit
           end do
           fieldnamegas = trim(gasnames(m)) // '_mixnuc1sp'
           call outfld( trim(fieldnamegas), coltendgas, ncol, lchnk)
        end do
-       deallocate(rgascol, coltendgas)
+       end select
+       deallocate(coltendgas)
     end if
 
     deallocate( &
@@ -943,8 +922,6 @@ contains
          qqcw,       &
          raercol,    &
          raercol_cw, &
-         coltend,    &
-         coltend_cw, &
          naermod,    &
          hygro,      &
          vaerosol,   &

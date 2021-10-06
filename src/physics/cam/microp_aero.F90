@@ -52,6 +52,9 @@ use aerosol_model_mod, only: aerosol_model
 use carma_aerosol_model_mod, only: carma_aerosol_model
 use modal_aerosol_model_mod, only: modal_aerosol_model
 use cam_aerosol_data_mod,    only: cam_aerosol_data
+use aerosol_data_mod,           only: aerosol_data
+use modal_cam_aerosol_data_mod, only: modal_cam_aerosol_data
+use carma_cam_aerosol_data_mod, only: carma_cam_aerosol_data
 
 implicit none
 private
@@ -120,6 +123,7 @@ integer :: npccn_idx, rndst_idx, nacon_idx
 logical  :: separate_dust = .false.
 logical  :: prog_modal_aero
 class(aerosol_model), pointer :: aero_model(:)=>null()
+class(aerosol_data), pointer :: aero_data(:)=>null()
 
 !=========================================================================================
 contains
@@ -311,14 +315,16 @@ subroutine microp_aero_init(pbuf2d)
    end if
 
    if (clim_modal_aero) then
+      allocate(modal_cam_aerosol_data::aero_data(begchunk:endchunk))
       allocate(modal_aerosol_model::aero_model(begchunk:endchunk))
       aero_model(:)%prognostic = prog_modal_aero
    elseif (clim_carma_aero) then
+      allocate(carma_cam_aerosol_data::aero_data(begchunk:endchunk))
       allocate(carma_aerosol_model::aero_model(begchunk:endchunk))
    endif
    if (associated(aero_model)) then
       do c = begchunk, endchunk
-         call aero_model(c)%create()
+         call aero_model(c)%create(aero_data(c))
       enddo
    endif
 
@@ -646,11 +652,13 @@ subroutine microp_aero_run ( &
       call outfld('LCLOUD', lcldn, pcols, lchnk)
 
       if (associated(aero_model)) then
+
          select type (obj=>aero_model(lchnk)%aero_data)
          class is (cam_aerosol_data)
             obj%state => state1
             obj%pbuf => pbuf
             obj%ptend => ptend_loc
+            call obj%init_ptend( aero_model(lchnk)%prognostic, aero_model(lchnk)%model_name )
          end select
 
          ncldwtr(:ncol,:) = state1%q(:ncol,:,numliq_idx)
@@ -665,13 +673,13 @@ subroutine microp_aero_run ( &
          ! liquid clouds. This is the same behavior as CAM5.
          if (use_preexisting_ice) then
             call aero_model(lchnk)%dropmixnuc( ncol, pver, top_lev, lchnk, &
-                 ptend_loc, deltatin, wsub, &
+                 deltatin, wsub, &
                  ncldwtr, temp, pmid, pint, pdel, rpdel, zm, kvh, &
                  cldn, cldo, cldliqf, nctend_mixnuc, factnum)
          else
             cldliqf = 1._r8
             call aero_model(lchnk)%dropmixnuc( ncol, pver, top_lev, lchnk, &
-                 ptend_loc, deltatin, wsub, &
+                 deltatin, wsub, &
                  ncldwtr, temp, pmid, pint, pdel, rpdel, zm, kvh, &
                  lcldn, lcldo, cldliqf, nctend_mixnuc, factnum)
          end if

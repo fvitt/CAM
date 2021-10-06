@@ -1,9 +1,9 @@
 module ecpp_modal_aero_activate
 
 !-----------------------------------------------------------------
-!  Module interface of aerosol activaiton used in the ECPP treatment 
+!  Module interface of aerosol activaiton used in the ECPP treatment
 ! in the MMF model
-!  Adopted from ndrop.F90 and from the similar one used in the ECPP 
+!  Adopted from ndrop.F90 and from the similar one used in the ECPP
 !  for the WRF-chem model written by Dick Easter
 !
 !  Minghuai Wang, 2009-11
@@ -11,7 +11,7 @@ module ecpp_modal_aero_activate
    use shr_kind_mod, only: r8 => shr_kind_r8
    use cam_abortutils,   only: endrun
    use constituents,     only: pcnst
- 
+
    implicit none
 
    public parampollu_tdx_activate1
@@ -53,7 +53,7 @@ contains
 
 	use module_data_ecpp1
 
-	use module_ecpp_util, only:  ecpp_error_fatal, ecpp_message   
+	use module_ecpp_util, only:  ecpp_error_fatal, ecpp_message
 
 !   arguments
 	integer, intent(in) ::                  &
@@ -109,22 +109,22 @@ contains
 
 	integer, intent(out), dimension( 1:2, 1:maxcls_ecpp, 1:2, 1:maxcls_ecpp ) ::   &
 		ido_actres_horz
-!   ido_actres_horz(iccaa,jclsaa,iccbb,jclsbb) is associated with air moving 
+!   ido_actres_horz(iccaa,jclsaa,iccbb,jclsbb) is associated with air moving
 !       into sub-class (iccaa,jclsaa) from sub-class (iccbb,jclsbb)
 !   ido_actres_horz = +1 or +2 if activation, -1 if resuspension, 0 otherwise
-!   note that its values are independent of k (i.e., they only depend on the source and 
+!   note that its values are independent of k (i.e., they only depend on the source and
 !       destination sub-classes)
 !   the fnact and fmact do depend on k
 
 	real(r8), intent(out), dimension( 1:maxd_asize, 1:maxd_atype, 1:maxcls_ecpp,   &
 		                          1:2, 1:maxcls_ecpp, kts:ktecen ) ::   &
 		fmact_horz, fnact_horz
-!   fmact_horz(m,n,jclsaa,iccbb,jclsbb,k) and fnact(...) are associated with air moving 
+!   fmact_horz(m,n,jclsaa,iccbb,jclsbb,k) and fnact(...) are associated with air moving
 !       into sub-class (icc=2,jclsaa,k) from sub-class (iccbb,jclsbb,k)
 
 	real(r8), optional, intent(out), dimension( 1:maxd_asize, 1:maxd_atype, kts:ktecen ) ::   &
 		fmact_vert, fnact_vert
-!   fnact_vert(m,n,k) and fmact(...) are associated with (quiescent, clear, layer k-1) air moving 
+!   fnact_vert(m,n,k) and fmact(...) are associated with (quiescent, clear, layer k-1) air moving
 !      into (quiescent, cloudy, layer k)
 
 	real(r8), optional, intent(in), dimension( kts:ktebnd, 0:2, 0:2 ) ::   &
@@ -223,11 +223,11 @@ horz_iccy_loop:   &
 	if (ent_airamt(icc,jcls,iccy,jclsy,k) <= 0.0_r8) cycle horz_iccy_loop
 
 	if (jcls == jcls_qu) then
-!   quiescent class 
+!   quiescent class
 !      it can entrain from quiescent, updraft, dndraft
 !      do activation for entrain from clear-any
 	    if (iccy == 2) cycle horz_iccy_loop   ! only activate clear --> cloudy
-	
+
 	else if (mtype_updnenv_use(icc,jcls) == mtype_dndraft_ecpp) then
 !   downdraft class
 !      it can entrain from quiescent, dndraft
@@ -306,7 +306,7 @@ horz_iccy_loop:   &
 
 
 !
-! vertical transfer 
+! vertical transfer
 !    in up/dndrafts, vertical transport is clear<-->clear or cloudy<-->cloudy
 !       so no activation
 !    in quiescent, can have clear<-->cloudy
@@ -323,7 +323,7 @@ vert_k_loop:   &
 	jclsy = jcls_qu
 	iccy = 1
 
-!	mfbnd_quiescn_up(k,iccy,icc) is upwards mass flux from iccy to icc 
+!	mfbnd_quiescn_up(k,iccy,icc) is upwards mass flux from iccy to icc
 !		at bottom of layer k
 	if (mfbnd_quiescn_up(k,iccy,icc) <= 0.0_r8) cycle vert_k_loop
 
@@ -426,6 +426,7 @@ vert_k_loop:   &
 	use module_ecpp_util, only:  ecpp_error_fatal, ecpp_message
 
         use modal_aerosol_model_mod, only: modal_aerosol_model
+        use modal_spcam_aerosol_data_mod, only: modal_spcam_aerosol_data
 
 !   arguments
 	integer, intent(in) ::                  &
@@ -492,8 +493,9 @@ vert_k_loop:   &
 	    maerosol, maerosolcw
 
         type(modal_aerosol_model) :: aero_model
+        type(modal_spcam_aerosol_data) :: aero_data
 
-        call aero_model%create()
+        call aero_model%create(aero_data)
 
 !   initialize fnact/fmact to zero
 	fmact(:,:) = 0.0_r8
@@ -531,14 +533,14 @@ vert_k_loop:   &
 
 !   load raercol (with units conversion) and calculate hygro
 	raercol(:,:) = 0.0_r8
-        
+
         raer(1:pcnst) = chem_sub_old(k,iccy,jclsy,1:pcnst)
         qqcw(1:pcnst) = chem_sub_old(k,iccy,jclsy,pcnst+1:2*pcnst)
 
 !   do loadaer calls
 	do n=1,ntype_aer
 	do m=1,nsize_aer(n)
-	
+
           if(ido_actres ==2 ) then
             iphase = 3
           else
@@ -568,12 +570,12 @@ vert_k_loop:   &
 
 	if ((ktau /= ktau_save) .or. (ifrom_where /= ifrom_where_save)) &
 		write(lun,'(//a,4i8)') &
-		'activate_intface - ktau, ifrom_where =', ktau, ifrom_where 
+		'activate_intface - ktau, ifrom_where =', ktau, ifrom_where
 	ktau_save = ktau
 	ifrom_where_save = ifrom_where
 
 	write(lun,'(2i3,2x,2i2,2x,4i2, 1p,2x,3e8.1, 0p,3x,3f7.3, 2(3x,4f6.3))') &
-		jcls, k, jclsy, iccy, ido_actres, ihorzvert, maxd_asize, maxd_atype, & 
+		jcls, k, jclsy, iccy, ido_actres, ihorzvert, maxd_asize, maxd_atype, &
 		naerosol(1,1:3)*1.0e-6_r8, wbar_in, wmix_in, wbar, fmact(1,1:3), fnact(1,1:3)
 	write(lun,'(8x,a, 1p,2x,4e10.2)') '  vaerosol', vaerosol(1,1:3)
 	write(lun,'(8x,a, 1p,2x,4e10.2)') '  hygro   ', hygro(1,1:3)
@@ -591,7 +593,7 @@ vert_k_loop:   &
       subroutine loadaer0D(raer,qqcw,m,cs, phase, &
                          naerosol, vaerosol,  hygro )
 !-------------------------------------------------------------------------
-!     This subroutine is adopted from loadaer in ndrop.F90. It is 2D in ndrop.F90, 
+!     This subroutine is adopted from loadaer in ndrop.F90. It is 2D in ndrop.F90,
 !     but it is 0D here (single point). So that we do not need to define arrays with
 !     pcols, pver.
 !     Minghuai Wang, 2009-11

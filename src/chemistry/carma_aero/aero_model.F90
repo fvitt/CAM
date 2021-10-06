@@ -27,6 +27,8 @@ module aero_model
 
   use aerosol_model_mod, only: aerosol_model
   use carma_aerosol_model_mod, only: carma_aerosol_model
+  use aerosol_data_mod, only: aerosol_data
+  use carma_cam_aerosol_data_mod, only: carma_cam_aerosol_data
 
   implicit none
   private
@@ -102,7 +104,7 @@ module aero_model
   logical :: convproc_do_aer
 
   class(aerosol_model), pointer :: aeromodel(:)
-  type(carma_aerosol_model),pointer :: carma_aero_model(:)
+  class(aerosol_data), pointer :: aerodata
 
 contains
 
@@ -269,10 +271,10 @@ contains
 
     integer :: idx
 
-    allocate(carma_aero_model(begchunk:endchunk))
-    aeromodel => carma_aero_model
+    allocate(carma_aerosol_model::aeromodel(begchunk:endchunk))
     do c = begchunk, endchunk
-       call aeromodel(c)%create()
+       allocate(carma_cam_aerosol_data::aerodata)
+       call aeromodel(c)%create(aerodata)
     enddo
 
     if (is_first_step()) then

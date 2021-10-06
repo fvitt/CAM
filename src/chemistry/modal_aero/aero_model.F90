@@ -29,8 +29,11 @@ module aero_model
 
   use modal_aero_wateruptake, only: modal_strat_sulfate
   use mo_setsox,              only: setsox, has_sox
+
   use aerosol_model_mod, only: aerosol_model
   use modal_aerosol_model_mod, only: modal_aerosol_model
+  use aerosol_data_mod, only: aerosol_data
+  use modal_cam_aerosol_data_mod, only: modal_cam_aerosol_data
 
   implicit none
   private
@@ -109,7 +112,7 @@ module aero_model
   logical :: convproc_do_aer
 
   class(aerosol_model), pointer :: aeromodel(:)
-  type(modal_aerosol_model),pointer :: modal_aero_model(:)
+  class(aerosol_data), pointer :: aerodata
 
 contains
 
@@ -232,10 +235,10 @@ contains
     character(len=32) :: mode_type
     integer :: nspec
 
-    allocate(modal_aero_model(begchunk:endchunk))
-    aeromodel => modal_aero_model
+    allocate(modal_aerosol_model::aeromodel(begchunk:endchunk))
     do c = begchunk, endchunk
-       call aeromodel(c)%create()
+       allocate(modal_cam_aerosol_data::aerodata)
+       call aeromodel(c)%create(aerodata)
     enddo
 
     ! aqueous chem initialization

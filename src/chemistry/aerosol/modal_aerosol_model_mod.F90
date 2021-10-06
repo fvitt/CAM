@@ -3,7 +3,6 @@ module modal_aerosol_model_mod
   use shr_const_mod, only: pi => shr_const_pi
 
   use aerosol_model_mod, only: aerosol_model, twothird, sq2
-  use modal_cam_aerosol_data_mod, only: modal_cam_aerosol_data
 
   implicit none
   private
@@ -21,9 +20,6 @@ contains
     class(modal_aerosol_model), intent(inout) :: self
 
     integer :: m, nspec_max, l,idx
-
-    allocate(modal_cam_aerosol_data::self%aero_data)
-    call self%aero_data%initialize()
 
     self%model_name = 'modal'
 

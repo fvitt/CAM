@@ -365,6 +365,7 @@ subroutine crmclouds_mixnuc_tend (state, ptend, dtime, cflx, pblht, pbuf,   &
   use time_manager,     only: is_first_step
   use cam_history,      only: outfld
   use modal_aerosol_model_mod, only: modal_aerosol_model
+  use modal_spcam_aerosol_data_mod, only: modal_spcam_aerosol_data
   use cam_aerosol_data_mod, only: cam_aerosol_data
   use modal_aero_data
   use rad_constituents, only: rad_cnst_get_info
@@ -433,6 +434,7 @@ subroutine crmclouds_mixnuc_tend (state, ptend, dtime, cflx, pblht, pbuf,   &
   character(len=16) :: gasnames(pcnst)
 
   type(modal_aerosol_model) :: aero_model
+  type(modal_spcam_aerosol_data) :: aero_data
 
   lchnk = state%lchnk
   ncol  = state%ncol
@@ -581,12 +583,13 @@ subroutine crmclouds_mixnuc_tend (state, ptend, dtime, cflx, pblht, pbuf,   &
 ! should we set omega to be zero ??
   omega(:ncol, :) = state%omega(:ncol, :)
 
-  call aero_model%create()
+  call aero_model%create(aero_data)
   select type (obj=>aero_model%aero_data)
   class is (cam_aerosol_data)
      obj%state => state
      obj%pbuf => pbuf
      obj%ptend => ptend
+     call obj%init_ptend( aero_model%prognostic, aero_model%model_name )
   end select
 
   ngas=0
@@ -599,7 +602,7 @@ subroutine crmclouds_mixnuc_tend (state, ptend, dtime, cflx, pblht, pbuf,   &
      endif
   end do
 
-  call aero_model%dropmixnuc( ncol, pver, top_lev, lchnk, ptend, dtime, wsub, state%q(:,:,ixnumliq), &
+  call aero_model%dropmixnuc( ncol, pver, top_lev, lchnk, dtime, wsub, state%q(:,:,ixnumliq), &
        state%t, state%pmid, state%pint, state%pdel, state%rpdel, state%zm, kkvh, &
        lcldn, lcldo, cldliqf, nctend, factnum, &
        from_spcam=dommf, gasndx=gasndx(:ngas), gasnames=gasnames(:ngas), rgas=gasmmr(:,:,:ngas) )

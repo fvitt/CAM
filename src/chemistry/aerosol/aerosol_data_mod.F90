@@ -20,6 +20,8 @@ module aerosol_data_mod
      integer :: mtotal
      integer, allocatable :: nmasses(:)
      integer, allocatable :: nspec(:)
+     real(r8), allocatable :: coltend(:,:)       ! column tendency for diagnostic output
+     real(r8), allocatable :: coltend_cw(:,:)    ! column tendency
    contains
      procedure(aero_initialize), deferred :: initialize
      procedure(aero_loadaer),    deferred :: loadaer
@@ -62,21 +64,19 @@ module aerosol_data_mod
 
      end subroutine aero_set_ptrs
 
-     subroutine aero_update(self, pdel, raer, qqcw, raercol, raercol_cw, colnum, dtinv, &
-                            coltend, coltend_cw)
+     subroutine aero_update(self, raer, qqcw, raercol, raercol_cw, rgascol, colnum, dtinv)
        import
        class(aerosol_data), intent(inout) :: self
-       real(r8), intent(in) :: pdel(:,:)    ! pressure thickess of layer (Pa)
        type(ptr2d_t), intent(in) :: raer(:)
        type(ptr2d_t), intent(inout) :: qqcw(:)
        real(r8), intent(in) :: raercol(:,:)
        real(r8), intent(in) :: raercol_cw(:,:)
+       real(r8), intent(in) :: rgascol(:,:)
        integer,  intent(in) :: colnum
        real(r8), intent(in) :: dtinv
 
-       real(r8), intent(out) :: coltend(:)
-       real(r8), intent(out) :: coltend_cw(:)
      end subroutine aero_update
+
   end interface
 
 contains

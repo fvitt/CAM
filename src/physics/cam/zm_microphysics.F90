@@ -307,6 +307,7 @@ subroutine zm_mphy(su,    qu,   mu,   du,   eu,    cmel,  cmei,  zf,   pm,   te,
 
   use time_manager,    only: get_step_size
   use modal_aerosol_model_mod, only: modal_aerosol_model
+  use modal_cam_aerosol_data_mod, only: modal_cam_aerosol_data
 
 ! variable declarations
 
@@ -617,9 +618,10 @@ subroutine zm_mphy(su,    qu,   mu,   du,   eu,    cmel,  cmei,  zf,   pm,   te,
   real(r8)  temp1, temp2, temp3, temp4   ! variable to store output which is not required by this routine
 
   type(modal_aerosol_model) :: aero_model
+  type(modal_cam_aerosol_data) :: aero_data
 
-  call aero_model%create()
-  
+  call aero_model%create(aero_data)
+
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 ! initialization
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc

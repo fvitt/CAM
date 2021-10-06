@@ -24,9 +24,6 @@ contains
     integer :: l, m, nspec_max
     integer :: idxtmp
 
-    allocate(carma_cam_aerosol_data::self%aero_data)
-    call self%aero_data%initialize()
-
     self%model_name = 'carma'
 
     allocate( self%amcubecoef(self%aero_data%mtotal) )
