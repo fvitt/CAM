@@ -434,7 +434,7 @@ subroutine crmclouds_mixnuc_tend (state, ptend, dtime, cflx, pblht, pbuf,   &
   character(len=16) :: gasnames(pcnst)
 
   type(modal_aerosol_model) :: aero_model
-  type(modal_spcam_aerosol_data) :: aero_data
+  type(modal_spcam_aerosol_data), target :: aero_data
 
   lchnk = state%lchnk
   ncol  = state%ncol

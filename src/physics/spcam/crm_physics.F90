@@ -1054,7 +1054,7 @@ end subroutine crm_init_cnst
 
 #ifdef MODAL_AERO
    type(modal_aerosol_model) :: aero_model
-   type(modal_spcam_aerosol_data) :: aero_data
+   type(modal_spcam_aerosol_data), target :: aero_data
 #endif
 
    zero = 0.0_r8

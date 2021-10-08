@@ -49,7 +49,7 @@ contains
 
     integer :: m,mm
 
-    call self%cam_aerosol_data%update(raer, qqcw, raercol, raercol_cw, rgascol, colnum, dtinv)
+    call self%modal_cam_aerosol_data%update(raer, qqcw, raercol, raercol_cw, rgascol, colnum, dtinv)
 
     !
     ! Gas tendency
