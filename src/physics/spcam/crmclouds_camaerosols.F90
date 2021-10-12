@@ -363,7 +363,7 @@ subroutine crmclouds_mixnuc_tend (state, ptend, dtime, cflx, pblht, pbuf,   &
   use physconst,        only: gravit, rair, karman
   use constituents,     only: cnst_get_ind, pcnst, cnst_species_class, cnst_spec_class_gas, cnst_name
   use time_manager,     only: is_first_step
-  use cam_history,      only: outfld
+  use cam_history,      only: outfld, fieldname_len
   use modal_aerosol_model_mod, only: modal_aerosol_model
   use modal_spcam_aerosol_data_mod, only: modal_spcam_aerosol_data
   use cam_aerosol_data_mod, only: cam_aerosol_data
@@ -429,12 +429,24 @@ subroutine crmclouds_mixnuc_tend (state, ptend, dtime, cflx, pblht, pbuf,   &
   real(r8), pointer, dimension(:,:) :: tk_crm     ! m2/s
 
   logical :: lq(pcnst)
-  integer :: ngas, gasndx(pcnst)
   real(r8) :: gasmmr(pcols,pver,pcnst)
-  character(len=16) :: gasnames(pcnst)
+  integer :: ngas
 
   type(modal_aerosol_model) :: aero_model
   type(modal_spcam_aerosol_data), target :: aero_data
+
+  integer,  parameter :: psat=6    ! number of supersaturations to calc ccn concentration
+  character(len=4),parameter :: ccn_name(psat) = &
+       (/'CCN1','CCN2','CCN3','CCN4','CCN5','CCN6'/)
+  real(r8) :: ccn(pcols,pver,psat)             ! number conc of aerosols activated at supersat
+
+  real(r8) :: nsource(pcols,pver)       ! droplet number source (#/kg/s)
+  real(r8) :: ndropmix(pcols,pver)      ! droplet number mixing (#/kg/s)
+  real(r8) :: ndropcol(pcols)           ! column droplet number (#/m2)
+  real(r8) :: wtke(pcols,pver)          ! turbulent vertical velocity at base of layer k (m/s)
+
+  real(r8) :: coltendgas(pcols)
+  character(len=fieldname_len) :: fieldnamegas
 
   lchnk = state%lchnk
   ncol  = state%ncol
@@ -596,16 +608,45 @@ subroutine crmclouds_mixnuc_tend (state, ptend, dtime, cflx, pblht, pbuf,   &
   do m=1, pcnst
      if (cnst_species_class(m) == cnst_spec_class_gas) then
         ngas=ngas+1
-        gasndx(ngas) = m
         gasmmr(:ncol,:,ngas) = state%q(:ncol,:,m)
-        gasnames(ngas) = cnst_name(m)
      endif
   end do
 
   call aero_model%dropmixnuc( ncol, pver, top_lev, lchnk, dtime, wsub, state%q(:,:,ixnumliq), &
        state%t, state%pmid, state%pint, state%pdel, state%rpdel, state%zm, kkvh, &
        lcldn, lcldo, cldliqf, nctend, factnum, &
-       from_spcam=dommf, gasndx=gasndx(:ngas), gasnames=gasnames(:ngas), rgas=gasmmr(:,:,:ngas) )
+       from_spcam=dommf, rgas=gasmmr(:,:,:ngas), &
+       ndropcol_out=ndropcol,nsource_out=nsource,ndropmix_out=ndropmix, &
+       wtke_out=wtke,  ccn=ccn )
+
+  call outfld('SPLCLOUD', lcldn(:ncol,:), ncol, lchnk)
+  call outfld('SPKVH   ', kkvh(:ncol,:),  ncol, lchnk)
+
+  call outfld('NDROPCOL', ndropcol(:ncol),   ncol, lchnk)
+  call outfld('NDROPSRC', nsource(:ncol,:),  ncol, lchnk)
+  call outfld('NDROPMIX', ndropmix(:ncol,:), ncol, lchnk)
+  call outfld('WTKE    ', wtke(:ncol,:),     ncol, lchnk)
+
+  do m = 1,aero_model%aero_data%ncnst_tot
+     call outfld(aero_model%aero_data%fieldname(m), &
+                 aero_model%aero_data%coltend(:ncol,m),    ncol, lchnk)
+     call outfld(aero_model%aero_data%fieldname_cw(m), &
+                 aero_model%aero_data%coltend_cw(:ncol,m), ncol, lchnk)
+  end do
+
+  do m = 1, psat
+     call outfld(ccn_name(m), ccn(:ncol,:,m), ncol, lchnk)
+  enddo
+
+  do m = 1, pcnst
+     if (cnst_species_class(m) == cnst_spec_class_gas) then
+        do i=1, ncol
+           coltendgas(i) = sum( state%pdel(i,:)*ptend%q(i,:,m) )/gravit
+        end do
+        fieldnamegas = trim(cnst_name(m)) // '_mixnuc1sp'
+        call outfld( trim(fieldnamegas), coltendgas(:ncol), ncol, lchnk)
+     end if
+  end do
 
   select type (obj=>aero_model%aero_data)
   class is (cam_aerosol_data)

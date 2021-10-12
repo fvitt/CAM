@@ -470,6 +470,16 @@ subroutine microp_aero_run ( &
    integer :: lchnk, ncol
 
    real(r8), allocatable :: factnum(:,:,:) ! activation fraction for aerosol number
+   integer,  parameter :: psat=6    ! number of supersaturations to calc ccn concentration
+   character(len=4),parameter :: ccn_name(psat) = &
+        (/'CCN1','CCN2','CCN3','CCN4','CCN5','CCN6'/)
+   real(r8) :: ccn(pcols,pver,psat)             ! number conc of aerosols activated at supersat
+
+   real(r8) :: nsource(pcols,pver)       ! droplet number source (#/kg/s)
+   real(r8) :: ndropmix(pcols,pver)      ! droplet number mixing (#/kg/s)
+   real(r8) :: ndropcol(pcols)           ! column droplet number (#/m2)
+   real(r8) :: wtke(pcols,pver)          ! turbulent vertical velocity at base of layer k (m/s)
+
    !-------------------------------------------------------------------------------
 
    call physics_state_copy(state,state1)
@@ -675,14 +685,33 @@ subroutine microp_aero_run ( &
             call aero_model(lchnk)%dropmixnuc( ncol, pver, top_lev, lchnk, &
                  deltatin, wsub, &
                  ncldwtr, temp, pmid, pint, pdel, rpdel, zm, kvh, &
-                 cldn, cldo, cldliqf, nctend_mixnuc, factnum)
+                 cldn, cldo, cldliqf, nctend_mixnuc, factnum, &
+                 ndropcol_out=ndropcol,nsource_out=nsource,ndropmix_out=ndropmix, &
+                 wtke_out=wtke,  ccn=ccn )
          else
             cldliqf = 1._r8
             call aero_model(lchnk)%dropmixnuc( ncol, pver, top_lev, lchnk, &
                  deltatin, wsub, &
                  ncldwtr, temp, pmid, pint, pdel, rpdel, zm, kvh, &
-                 lcldn, lcldo, cldliqf, nctend_mixnuc, factnum)
+                 lcldn, lcldo, cldliqf, nctend_mixnuc, factnum, &
+                 ndropcol_out=ndropcol,nsource_out=nsource,ndropmix_out=ndropmix, &
+                 wtke_out=wtke,  ccn=ccn )
          end if
+
+         call outfld('NDROPCOL', ndropcol(:ncol),   ncol, lchnk)
+         call outfld('NDROPSRC', nsource(:ncol,:),  ncol, lchnk)
+         call outfld('NDROPMIX', ndropmix(:ncol,:), ncol, lchnk)
+         call outfld('WTKE    ', wtke(:ncol,:),     ncol, lchnk)
+
+         do m = 1,aero_model(lchnk)%aero_data%ncnst_tot
+            call outfld(aero_model(lchnk)%aero_data%fieldname(m),    &
+                        aero_model(lchnk)%aero_data%coltend(:ncol,m),    ncol, lchnk)
+            call outfld(aero_model(lchnk)%aero_data%fieldname_cw(m), &
+                        aero_model(lchnk)%aero_data%coltend_cw(:ncol,m), ncol, lchnk)
+         end do
+         do m = 1, psat
+            call outfld(ccn_name(m), ccn(:ncol,:,m), ncol, lchnk)
+         enddo
 
          select type (obj=>aero_model(lchnk)%aero_data)
          class is (cam_aerosol_data)

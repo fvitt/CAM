@@ -15,10 +15,8 @@ module aerosol_model_mod
 
   use cam_abortutils, only: endrun
   use cam_logfile,    only: iulog
-  use cam_history,    only: fieldname_len, outfld
 
   use aerosol_data_mod,only: aerosol_data, ptr2d_t
-  use cam_aerosol_data_mod, only: cam_aerosol_data
 
   implicit none
 
@@ -118,7 +116,8 @@ contains
        dtmicro, wsub, &
        ncldwtr, temp, pmid, pint, pdel, rpdel, zm, kvh, &
        cldn, cldo, cldliqf, tendnd, factnum, &
-       from_spcam, gasndx, gasnames, rgas )
+       from_spcam, rgas, nsource_out, ndropmix_out,&
+       ndropcol_out, wtke_out, ccn )
 
     ! vertical diffusion and nucleation of cloud droplets
     ! assume cloud presence controlled by cloud fraction
@@ -145,9 +144,13 @@ contains
     real(r8), intent(in) :: cldliqf(:,:) ! liquid cloud fraction (liquid / (liquid + ice))
 
     logical,  intent(in),optional :: from_spcam ! value insignificant - if variable present, is called from spcam
-    integer,  intent(in),optional :: gasndx(:)
-    character(len=*), intent(in),optional :: gasnames(:)
     real(r8), intent(in),optional :: rgas(:,:,:)
+
+    real(r8), intent(out),optional :: nsource_out(:,:)  ! droplet number source (#/kg/s)
+    real(r8), intent(out),optional :: ndropmix_out(:,:) ! droplet number mixing (#/kg/s)
+    real(r8), intent(out),optional :: ndropcol_out(:)   ! column droplet number (#/m2)
+    real(r8), intent(out),optional :: wtke_out(:,:)     ! turbulent vertical velocity at base of layer k (m/s)
+    real(r8), intent(out),optional :: ccn(:,:,:)             ! number conc of aerosols activated at supersat
 
     ! output arguments
     real(r8), intent(out) :: tendnd(:,:)    ! change in droplet number concentration (#/kg/s)
@@ -241,12 +244,8 @@ contains
     !     fluxn = [flux of activated aero. number into cloud (#/cm2/s)]
     !           / [aero. number conc. in updraft, just below cloudbase (#/cm3)]
 
-    real(r8) :: ccn(ncol,nlev,psat)             ! number conc of aerosols activated at supersat
-
     !for gas species turbulent mixing
     real(r8), allocatable :: rgascol(:,:,:)
-    real(r8), allocatable :: coltendgas(:)
-    character(len=fieldname_len) fieldnamegas
     real(r8) :: zerogas(nlev)
 
     character(len=*), parameter :: subname='%dropmixnuc'
@@ -293,19 +292,13 @@ contains
 
     call self%aero_data%set_ptrs( raer, qqcw )
 
-    if (present(from_spcam).and.present(gasndx).and.&
-        present(gasnames).and.present(rgas)) then
+    if (present(from_spcam).and.present(rgas)) then
        called_from_spcam = from_spcam
-       ngas = size(gasndx)
+       ngas = size(rgas,dim=3)
+       allocate(rgascol(nlev,ngas,2))
     else
        called_from_spcam = .false.
        ngas = 0
-    endif
-
-    if (called_from_spcam) then
-       allocate(coltendgas(ncol))
-       allocate(rgascol(nlev,ngas,2))
-    else
        allocate(rgascol(1,1,2))
     endif
 
@@ -874,46 +867,22 @@ contains
     end do  ! overall_main_i_loop
     ! end of main loop over i/longitude ....................................
 
-    call outfld('NDROPCOL', ndropcol, ncol, lchnk)
-    call outfld('NDROPSRC', nsource,  ncol, lchnk)
-    call outfld('NDROPMIX', ndropmix, ncol, lchnk)
-    call outfld('WTKE    ', wtke,     ncol, lchnk)
-
-    if(called_from_spcam) then
-       call outfld('SPLCLOUD  ', cldn(:ncol,:), ncol, lchnk   )
-       call outfld('SPKVH     ', kvh(:ncol,:), ncol, lchnk   )
+    if (present(ndropcol_out)) then
+       ndropcol_out(:ncol) = ndropcol(:ncol)
+    endif
+    if (present(nsource_out)) then
+       nsource_out(:ncol,:) = nsource(:ncol,:)
+    endif
+    if (present(ndropmix_out)) then
+       ndropmix_out(:ncol,:) = ndropmix(:ncol,:)
+    endif
+    if (present(wtke_out)) then
+       wtke_out(:ncol,:) = wtke(:ncol,:)
     endif
 
-    call self%ccncalc(ncol,nlev,top_lev, temp, cs, ccn)
-    do l = 1, psat
-       call outfld(ccn_name(l), ccn(:,:,l), ncol, lchnk)
-    enddo
-
-    ! do column tendencies
-    if (self%prognostic) then
-       do mm = 1,self%aero_data%ncnst_tot
-          call outfld(self%aero_data%fieldname(mm),    self%aero_data%coltend(:,mm),    ncol, lchnk)
-          call outfld(self%aero_data%fieldname_cw(mm), self%aero_data%coltend_cw(:,mm), ncol, lchnk)
-       end do
-    end if
-
-    if(called_from_spcam) then
-       select type (obj=>self%aero_data)
-       class is (cam_aerosol_data)
-       !
-       ! output column-integrated Gas tendency (this should be zero)
-       !
-       do m=1, ngas
-          mm = gasndx(m)
-          do i=1, ncol
-             coltendgas(i) = sum( pdel(i,:)*obj%ptend%q(i,:,mm) )/gravit
-          end do
-          fieldnamegas = trim(gasnames(m)) // '_mixnuc1sp'
-          call outfld( trim(fieldnamegas), coltendgas, ncol, lchnk)
-       end do
-       end select
-       deallocate(coltendgas)
-    end if
+    if (present(ccn)) then
+       call self%ccncalc(ncol,nlev,top_lev, temp, cs, ccn)
+    endif
 
     deallocate( &
          nact,       &
