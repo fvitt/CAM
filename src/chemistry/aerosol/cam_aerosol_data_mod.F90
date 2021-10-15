@@ -20,6 +20,7 @@ module cam_aerosol_data_mod
      procedure :: update => cam_data_update
      procedure :: init_ptend => cam_data_init_ptend
      procedure :: set => cam_data_set
+     procedure :: unset => cam_data_unset
   end type cam_aerosol_data
 
 contains
@@ -49,7 +50,25 @@ contains
     if (present(pbuf )) self%pbuf => pbuf
     if (present(ptend)) self%ptend => ptend
 
+    allocate(self%coltend(self%state%ncol,self%ncnst_tot))
+    allocate(self%coltend_cw(self%state%ncol,self%ncnst_tot))
+
   end subroutine cam_data_set
+
+  subroutine cam_data_unset(self, state, pbuf, ptend)
+    class(cam_aerosol_data), intent(inout) :: self
+    type(physics_state), target, optional :: state
+    type(physics_buffer_desc), pointer, optional :: pbuf(:)
+    type(physics_ptend), target, optional :: ptend
+
+    if (associated(self%state)) nullify(self%state)
+    if (associated(self%pbuf)) nullify(self%pbuf)
+    if (associated(self%ptend)) nullify(self%ptend)
+
+    if (allocated(self%coltend)) deallocate(self%coltend)
+    if (allocated(self%coltend_cw)) deallocate(self%coltend_cw)
+
+  end subroutine cam_data_unset
 
   subroutine cam_data_update(self, raer, qqcw, raercol, raercol_cw, rgascol, colnum, dtinv) !, &
     class(cam_aerosol_data), intent(inout) :: self
@@ -64,11 +83,6 @@ contains
     integer :: m,l, lptr, mm
     real(r8) :: raertend(pver)
     real(r8) :: qqcwtend(pver)
-
-    if (.not.allocated(self%coltend) .and. .not.allocated(self%coltend_cw)) then
-       allocate(self%coltend(self%state%ncol,self%ncnst_tot))
-       allocate(self%coltend_cw(self%state%ncol,self%ncnst_tot))
-    end if
 
     raertend = 0._r8
     qqcwtend = 0._r8

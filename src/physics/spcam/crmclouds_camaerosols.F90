@@ -643,9 +643,7 @@ subroutine crmclouds_mixnuc_tend (state, ptend, dtime, cflx, pblht, pbuf,   &
      end if
   end do
 
-  nullify(aero_data%state)
-  nullify(aero_data%pbuf)
-  nullify(aero_data%ptend)
+  call aero_data%unset()
   call aero_model%destroy()
 
 ! this part is moved into tphysbc after aerosol stuffs.
