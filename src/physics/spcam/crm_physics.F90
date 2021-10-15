@@ -749,8 +749,7 @@ end subroutine crm_init_cnst
 
 #ifdef MODAL_AERO
    use crmclouds_camaerosols, only: crmclouds_mixnuc_tend, spcam_modal_aero_wateruptake_dr
-   use modal_aerosol_model_mod, only: modal_aerosol_model
-   use modal_spcam_aerosol_data_mod, only: modal_spcam_aerosol_data
+   use modal_cam_aerosol_data_mod, only: modal_cam_aerosol_data
 #endif
 #ifdef m2005
    use module_ecpp_ppdriver2, only: parampollu_driver2
@@ -1053,8 +1052,7 @@ end subroutine crm_init_cnst
    logical :: ls, lu, lv, lq(pcnst)
 
 #ifdef MODAL_AERO
-   type(modal_aerosol_model) :: aero_model
-   type(modal_spcam_aerosol_data), target :: aero_data
+   type(modal_cam_aerosol_data), target :: aero_data
 #endif
 
    zero = 0.0_r8
@@ -1476,12 +1474,8 @@ end subroutine crm_init_cnst
       end if
 
 #ifdef MODAL_AERO
-      call aero_model%create(aero_data)
-      select type (obj=>aero_model%aero_data)
-      type is (modal_spcam_aerosol_data)
-         obj%state => state_loc
-         obj%pbuf => pbuf
-      end select
+         call aero_data%set(state=state_loc, pbuf=pbuf)
+         call aero_data%initialize()
 #endif
 
       do i = 1,ncol
@@ -1556,20 +1550,17 @@ end subroutine crm_init_cnst
 ! ifdef required because of loadaer
 #ifdef MODAL_AERO
          if (prog_modal_aero) then
-            select type (obj=>aero_model%aero_data)
-            type is (modal_spcam_aerosol_data)
-               do k=1, pver
-                  phase = 1  ! interstital aerosols only
-                  do m=1, nmodes
-                     call obj%loadaer( i, i, k, &
-                          m, cs, phase, na, va, &
-                          hy)
-                     naermod(k, m)  = na(i)
-                     vaerosol(k, m) = va(i)
-                     hygro(k, m)    = hy(i)
-                  end do
+            do k=1, pver
+               phase = 1  ! interstital aerosols only
+               do m=1, nmodes
+                  call aero_data%loadaer( i, i, k, &
+                       m, cs, phase, na, va, &
+                       hy)
+                  naermod(k, m)  = na(i)
+                  vaerosol(k, m) = va(i)
+                  hygro(k, m)    = hy(i)
                end do
-            end select
+            end do
          endif
 #endif
 
@@ -1661,12 +1652,8 @@ end subroutine crm_init_cnst
        end do ! i (loop over ncol)
 
 #ifdef MODAL_AERO
-       select type (obj=>aero_model%aero_data)
-       type is (modal_spcam_aerosol_data)
-          nullify(obj%pbuf)
-          nullify(obj%state)
-       end select
-       call aero_model%destroy()
+          nullify(aero_data%pbuf)
+          nullify(aero_data%state)
 #endif
 
        call t_stopf('crm_call')

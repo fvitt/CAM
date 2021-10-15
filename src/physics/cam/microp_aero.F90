@@ -436,14 +436,6 @@ subroutine microp_aero_run ( &
 
    real(r8), pointer :: aer_mmr(:,:)    ! aerosol mass mixing ratio
 
-   real(r8) :: ncldwtr(pcols,pver)   ! droplet number concentration (#/kg)
-   real(r8) :: temp(pcols,pver)    ! temperature (K)
-   real(r8) :: pmid(pcols,pver)    ! mid-level pressure (Pa)
-   real(r8) :: pint(pcols,pverp)    ! pressure at layer interfaces (Pa)
-   real(r8) :: pdel(pcols,pver)    ! pressure thickess of layer (Pa)
-   real(r8) :: rpdel(pcols,pver)   ! inverse of pressure thickess of layer (/Pa)
-   real(r8) :: zm(pcols,pver)      ! geopotential height of level (m)
-
    real(r8) :: rho(pcols,pver)     ! air density (kg m-3)
 
    real(r8) :: lcldm(pcols,pver)   ! liq cloud fraction
@@ -665,34 +657,24 @@ subroutine microp_aero_run ( &
 
          select type (obj=>aero_model(lchnk)%aero_data)
          class is (cam_aerosol_data)
-            obj%state => state1
-            obj%pbuf => pbuf
-            obj%ptend => ptend_loc
+            call obj%set(state1,pbuf,ptend_loc)
             call obj%init_ptend( aero_model(lchnk)%prognostic, aero_model(lchnk)%model_name )
          end select
-
-         ncldwtr(:ncol,:) = state1%q(:ncol,:,numliq_idx)
-         temp(:ncol,:)    = state1%t(:ncol,:)
-         pmid(:ncol,:)    = state1%pmid(:ncol,:)
-         pint(:ncol,:)    = state1%pint(:ncol,:)
-         pdel(:ncol,:)    = state1%pdel(:ncol,:)
-         rpdel(:ncol,:)   = state1%rpdel(:ncol,:)
-         zm(:ncol,:)      = state1%zm(:ncol,:)
 
          ! If not using preexsiting ice, then only use cloudbourne aerosol for the
          ! liquid clouds. This is the same behavior as CAM5.
          if (use_preexisting_ice) then
             call aero_model(lchnk)%dropmixnuc( ncol, pver, top_lev, lchnk, &
-                 deltatin, wsub, &
-                 ncldwtr, temp, pmid, pint, pdel, rpdel, zm, kvh, &
+                 deltatin, wsub, state1%q(:,:,numliq_idx), &
+                 state1%t, state1%pmid, state1%pint, state1%pdel, state1%rpdel, state1%zm, kvh, &
                  cldn, cldo, cldliqf, nctend_mixnuc, factnum, &
                  ndropcol_out=ndropcol,nsource_out=nsource,ndropmix_out=ndropmix, &
                  wtke_out=wtke,  ccn=ccn )
          else
             cldliqf = 1._r8
             call aero_model(lchnk)%dropmixnuc( ncol, pver, top_lev, lchnk, &
-                 deltatin, wsub, &
-                 ncldwtr, temp, pmid, pint, pdel, rpdel, zm, kvh, &
+                 deltatin, wsub, state1%q(:,:,numliq_idx), &
+                 state1%t, state1%pmid, state1%pint, state1%pdel, state1%rpdel, state1%zm, kvh, &
                  lcldn, lcldo, cldliqf, nctend_mixnuc, factnum, &
                  ndropcol_out=ndropcol,nsource_out=nsource,ndropmix_out=ndropmix, &
                  wtke_out=wtke,  ccn=ccn )

@@ -19,6 +19,7 @@ module cam_aerosol_data_mod
    contains
      procedure :: update => cam_data_update
      procedure :: init_ptend => cam_data_init_ptend
+     procedure :: set => cam_data_set
   end type cam_aerosol_data
 
 contains
@@ -37,6 +38,18 @@ contains
     end if
 
   end subroutine cam_data_init_ptend
+
+  subroutine cam_data_set(self, state, pbuf, ptend)
+    class(cam_aerosol_data), intent(inout) :: self
+    type(physics_state), target, optional :: state
+    type(physics_buffer_desc), pointer, optional :: pbuf(:)
+    type(physics_ptend), target, optional :: ptend
+
+    if (present(state)) self%state => state
+    if (present(pbuf )) self%pbuf => pbuf
+    if (present(ptend)) self%ptend => ptend
+
+  end subroutine cam_data_set
 
   subroutine cam_data_update(self, raer, qqcw, raercol, raercol_cw, rgascol, colnum, dtinv) !, &
     class(cam_aerosol_data), intent(inout) :: self

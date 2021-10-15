@@ -596,13 +596,8 @@ subroutine crmclouds_mixnuc_tend (state, ptend, dtime, cflx, pblht, pbuf,   &
   omega(:ncol, :) = state%omega(:ncol, :)
 
   call aero_model%create(aero_data)
-  select type (obj=>aero_model%aero_data)
-  class is (cam_aerosol_data)
-     obj%state => state
-     obj%pbuf => pbuf
-     obj%ptend => ptend
-     call obj%init_ptend( aero_model%prognostic, aero_model%model_name )
-  end select
+  call aero_data%set(state,pbuf,ptend)
+  call aero_data%init_ptend( aero_model%prognostic, aero_model%model_name )
 
   ngas=0
   do m=1, pcnst
@@ -648,12 +643,9 @@ subroutine crmclouds_mixnuc_tend (state, ptend, dtime, cflx, pblht, pbuf,   &
      end if
   end do
 
-  select type (obj=>aero_model%aero_data)
-  class is (cam_aerosol_data)
-     nullify(obj%state)
-     nullify(obj%pbuf)
-     nullify(obj%ptend)
-  end select
+  nullify(aero_data%state)
+  nullify(aero_data%pbuf)
+  nullify(aero_data%ptend)
   call aero_model%destroy()
 
 ! this part is moved into tphysbc after aerosol stuffs.
