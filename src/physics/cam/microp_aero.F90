@@ -654,7 +654,7 @@ subroutine microp_aero_run ( &
       select type (obj=>aero_data)
       class is (cam_aerosol_data)
          call obj%set(state1,pbuf,ptend_loc)
-         call obj%init_ptend( prog_modal_aero, aero_model%model_name )
+         call obj%init_ptend( aero_model%prognostic, aero_model%model_name )
       end select
 
       ! If not using preexsiting ice, then only use cloudbourne aerosol for the
