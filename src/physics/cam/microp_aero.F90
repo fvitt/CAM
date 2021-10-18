@@ -123,6 +123,9 @@ integer :: npccn_idx, rndst_idx, nacon_idx
 logical  :: separate_dust = .false.
 logical  :: prog_modal_aero
 
+class(aerosol_model), pointer :: aero_model(:) => null()
+class(aerosol_data), pointer :: aero_data(:) => null()
+
 !=========================================================================================
 contains
 !=========================================================================================
@@ -326,6 +329,20 @@ subroutine microp_aero_init(pbuf2d)
       call hetfrz_classnuc_cam_init(mincld)
    endif
 
+   if (clim_modal_aero) then
+      allocate(modal_cam_aerosol_data::aero_data(begchunk:endchunk))
+      allocate(modal_aerosol_model::aero_model(begchunk:endchunk))
+      aero_model(:)%prognostic = prog_modal_aero
+   elseif (clim_carma_aero) then
+      allocate(carma_cam_aerosol_data::aero_data(begchunk:endchunk))
+      allocate(carma_aerosol_model::aero_model(begchunk:endchunk))
+   endif
+   if (associated(aero_model)) then
+      do c = begchunk, endchunk
+         call aero_model(c)%create(aero_data(c))
+      enddo
+   endif
+
 end subroutine microp_aero_init
 
 !=========================================================================================
@@ -455,9 +472,6 @@ subroutine microp_aero_run ( &
    real(r8) :: ndropmix(pcols,pver)      ! droplet number mixing (#/kg/s)
    real(r8) :: ndropcol(pcols)           ! column droplet number (#/m2)
    real(r8) :: wtke(pcols,pver)          ! turbulent vertical velocity at base of layer k (m/s)
-
-   class(aerosol_model), pointer :: aero_model=>null()
-   class(aerosol_data), pointer :: aero_data=>null()
 
    !-------------------------------------------------------------------------------
 
@@ -640,27 +654,16 @@ subroutine microp_aero_run ( &
 
       call outfld('LCLOUD', lcldn, pcols, lchnk)
 
-      if (clim_modal_aero) then
-         allocate(modal_cam_aerosol_data::aero_data)
-         allocate(modal_aerosol_model::aero_model)
-         aero_model%prognostic = prog_modal_aero
-      elseif (clim_carma_aero) then
-         allocate(carma_cam_aerosol_data::aero_data)
-         allocate(carma_aerosol_model::aero_model)
-      endif
-
-      call aero_model%create(aero_data)
-
-      select type (obj=>aero_data)
+      select type (obj=>aero_model(lchnk)%aero_data)
       class is (cam_aerosol_data)
          call obj%set(state1,pbuf,ptend_loc)
-         call obj%init_ptend( aero_model%prognostic, aero_model%model_name )
+         call obj%init_ptend( aero_model(lchnk)%prognostic, aero_model(lchnk)%model_name )
       end select
 
       ! If not using preexsiting ice, then only use cloudbourne aerosol for the
       ! liquid clouds. This is the same behavior as CAM5.
       if (use_preexisting_ice) then
-         call aero_model%dropmixnuc( ncol, pver, top_lev, lchnk, &
+         call aero_model(lchnk)%dropmixnuc( ncol, pver, top_lev, lchnk, &
               deltatin, wsub, state1%q(:,:,numliq_idx), &
               state1%t, state1%pmid, state1%pint, state1%pdel, state1%rpdel, state1%zm, kvh, &
               cldn, cldo, cldliqf, nctend_mixnuc, factnum, &
@@ -668,7 +671,7 @@ subroutine microp_aero_run ( &
               wtke_out=wtke,  ccn=ccn )
       else
          cldliqf = 1._r8
-         call aero_model%dropmixnuc( ncol, pver, top_lev, lchnk, &
+         call aero_model(lchnk)%dropmixnuc( ncol, pver, top_lev, lchnk, &
               deltatin, wsub, state1%q(:,:,numliq_idx), &
               state1%t, state1%pmid, state1%pint, state1%pdel, state1%rpdel, state1%zm, kvh, &
               lcldn, lcldo, cldliqf, nctend_mixnuc, factnum, &
@@ -681,21 +684,20 @@ subroutine microp_aero_run ( &
       call outfld('NDROPMIX', ndropmix(:ncol,:), ncol, lchnk)
       call outfld('WTKE    ', wtke(:ncol,:),     ncol, lchnk)
 
-      do m = 1,aero_model%aero_data%ncnst_tot
-         call outfld(aero_model%aero_data%fieldname(m),    &
-              aero_model%aero_data%coltend(:ncol,m),    ncol, lchnk)
-         call outfld(aero_model%aero_data%fieldname_cw(m), &
-              aero_model%aero_data%coltend_cw(:ncol,m), ncol, lchnk)
+      do m = 1,aero_model(lchnk)%aero_data%ncnst_tot
+         call outfld(aero_model(lchnk)%aero_data%fieldname(m),    &
+                     aero_model(lchnk)%aero_data%coltend(:ncol,m),    ncol, lchnk)
+         call outfld(aero_model(lchnk)%aero_data%fieldname_cw(m), &
+                     aero_model(lchnk)%aero_data%coltend_cw(:ncol,m), ncol, lchnk)
       end do
       do m = 1, psat
          call outfld(ccn_name(m), ccn(:ncol,:,m), ncol, lchnk)
       enddo
 
-      select type (obj=>aero_data)
+      select type (obj=>aero_model(lchnk)%aero_data)
       class is (cam_aerosol_data)
          call obj%unset()
       end select
-      call aero_model%destroy()
 
       npccn(:ncol,:) = nctend_mixnuc(:ncol,:)
 
