@@ -479,7 +479,7 @@ implicit none
 
    call pbuf_get_field(pbuf, fracvbs_idx,  frac_vbs )
 
-
+   num_bin(:,:,:) = 0._r8
 
    do m = 1, nbins      ! main loop over aerosol bins
       if (do_soag_any(m)) then  ! only bins that contain soa
@@ -581,33 +581,34 @@ implicit none
    do k=top_lev,pver
       do i=1,ncol
          sum_uprt_soa(:) = 0.0_r8
+         uptkrate_soa(:,:) = 0.0_r8
          do n = 1, nbins
-           if (do_soag_any(n)) then  ! only bins that contain soa
-                 uptkratebb(n) = uptkrate(n,i,k)
-                 if (npoa .gt. 0) then
-                   do j = 1, npoa
+            if (do_soag_any(n)) then  ! only bins that contain soa
+               uptkratebb(n) = uptkrate(n,i,k)
+               if (npoa .gt. 0) then
+                  do j = 1, npoa
                      qold_poa(n,j) = poa_c(n,j,i,k)
-                   end do
-                 else
-                   qold_poa(n,j) = 0.0_r8
-                 end if
-         !        write(iulog,*) 'jsoa '
-                 do jsoa = 1, nsoa_vbs
+                  end do
+               else
+                  qold_poa(n,j) = 0.0_r8
+               end if
+               !        write(iulog,*) 'jsoa '
+               do jsoa = 1, nsoa_vbs
                   ! 0.81 factor is for gas diffusivity (soa/h2so4)
                   ! (differences in fuch-sutugin and accom coef ignored)
-                   fgain_soa(n,jsoa) = uptkratebb(n)*0.81_r8
-                   uptkrate_soa(n,jsoa) = fgain_soa(n,jsoa)
-                   sum_uprt_soa(jsoa) = sum_uprt_soa(jsoa) + fgain_soa(n,jsoa)
-                   qold_soa(n,jsoa) = soa_vbs(n,jsoa,i,k)
-                 end do
-          else
-            qold_poa(n,:) = 0.0_r8
-            qold_soa(n,:) = 0.0_r8
-            fgain_soa(n,:) = 0.0_r8
-          end if
-          if (maxval(uptkrate_soa(n,:)) .gt. 0.0_r8) then
-           !write(*,*) 'uptkrate_soa ', n, uptkrate_soa(n,:)
-          end if
+                  fgain_soa(n,jsoa) = uptkratebb(n)*0.81_r8
+                  uptkrate_soa(n,jsoa) = fgain_soa(n,jsoa)
+                  sum_uprt_soa(jsoa) = sum_uprt_soa(jsoa) + fgain_soa(n,jsoa)
+                  qold_soa(n,jsoa) = soa_vbs(n,jsoa,i,k)
+               end do
+            else
+               qold_poa(n,:) = 0.0_r8
+               qold_soa(n,:) = 0.0_r8
+               fgain_soa(n,:) = 0.0_r8
+            end if
+            if (maxval(uptkrate_soa(n,:)) .gt. 0.0_r8) then
+               !write(*,*) 'uptkrate_soa ', n, uptkrate_soa(n,:)
+            end if
          end do ! n
          !write(*,*) 'sum_uprt_soa', sum_uprt_soa
          !write(iulog,*) 'end n '
@@ -635,7 +636,7 @@ implicit none
 
          !write(iulog,*) 'sum_dqdt_soa '
          do jsoa = 1, nsoa_vbs
-               sum_dqdt_soa(jsoa) = q(i,k,l_soag(jsoa)) * avg_uprt_soa(jsoa)
+            sum_dqdt_soa(jsoa) = q(i,k,l_soag(jsoa)) * avg_uprt_soa(jsoa)
          end do
 
          !write(iulog,*) 'method_soa = ', method_soa
@@ -698,15 +699,15 @@ implicit none
          do n = 1, nbins
             if ( do_soag_any(n) ) then
                if (nsoa.eq.nsoa_vbs) then
-                     do jsoa = 1, nsoa_vbs
-                        qsrflx(i,n,jsoa) = qsrflx(i,n,jsoa) + dqdt_soa_vbs(n,jsoa)*pdel_fac
-                        dqdt_soa_all(n,nsoa,i,k) = dqdt_soa_vbs(n,jsoa) !  sum up for different volatility bins
-                     end do
+                  do jsoa = 1, nsoa_vbs
+                     qsrflx(i,n,jsoa) = qsrflx(i,n,jsoa) + dqdt_soa_vbs(n,jsoa)*pdel_fac
+                     dqdt_soa_all(n,nsoa,i,k) = dqdt_soa_vbs(n,jsoa) !  sum up for different volatility bins
+                  end do
                else if (nsoa.eq.1) then
-                 !write(iulog,*) 'gasaer_exch:  nsoa.eq.1, n', n
+                  !write(iulog,*) 'gasaer_exch:  nsoa.eq.1, n', n
                   do jsoa = 1, nsoa_vbs
                      dqdt_soa_all(n,nsoa,i,k) = dqdt_soa_all(n,nsoa,i,k) + dqdt_soa_vbs(n,jsoa) !  sum up for different volatility bins
-                   !  write(iulog,*) 'dqdt_soa_all, dqdt_soa_vbs :',  n, nsoa, jsoa, dqdt_soa_all(n,nsoa,i,k), dqdt_soa_vbs(n,jsoa)
+                     !  write(iulog,*) 'dqdt_soa_all, dqdt_soa_vbs :',  n, nsoa, jsoa, dqdt_soa_all(n,nsoa,i,k), dqdt_soa_vbs(n,jsoa)
                   end do
                   do jsoa = 1, nsoa_vbs
                      qsrflx(i,n,nsoa) = qsrflx(i,n,nsoa) + dqdt_soa_vbs(n,jsoa)*pdel_fac
@@ -715,23 +716,23 @@ implicit none
                   end do
                   do jsoa = 1, nsoa_vbs
                      if (qnew_soa(n) .gt. 0.0_r8) then
-                       frac_vbs(n,jsoa,i,k) = qnew_soa_vbs(n,jsoa) / qnew_soa(n)
-                       !write(iulog,*) 'frac_vbs:  n, jsoa', n, jsoa, frac_vbs(n,jsoa,i,k)
+                        frac_vbs(n,jsoa,i,k) = qnew_soa_vbs(n,jsoa) / qnew_soa(n)
+                        !write(iulog,*) 'frac_vbs:  n, jsoa', n, jsoa, frac_vbs(n,jsoa,i,k)
                      end if
                   end do
                else
-                   call endrun( 'carma_aero_gasaerexch_sub error' )
+                  call endrun( 'carma_aero_gasaerexch_sub error' )
                end if
 
 !------- Add code for condensation/evaporation diagnostics sum of all bin---
                do jsoa = 1, nsoa_vbs
-                   if (dqdt_soa_vbs(n,jsoa).ge.0.0_r8) then
-                           qcon_vbs(jsoa,i,k)=dqdt_soa_vbs(n,jsoa)*(mw_soa/mwdry)
-                           qcon(i,k)=qcon(i,k)+dqdt_soa_vbs(n,jsoa)*(mw_soa/mwdry)
-                   else if (dqdt_soa_vbs(n,jsoa).lt.0.0_r8) then
-                           qevap_vbs(jsoa,i,k)=dqdt_soa_vbs(n,jsoa)*(mw_soa/mwdry)
-                           qevap(i,k)=qevap(i,k)+dqdt_soa_vbs(n,jsoa)*(mw_soa/mwdry)
-                   endif
+                  if (dqdt_soa_vbs(n,jsoa).ge.0.0_r8) then
+                     qcon_vbs(jsoa,i,k)=dqdt_soa_vbs(n,jsoa)*(mw_soa/mwdry)
+                     qcon(i,k)=qcon(i,k)+dqdt_soa_vbs(n,jsoa)*(mw_soa/mwdry)
+                  else if (dqdt_soa_vbs(n,jsoa).lt.0.0_r8) then
+                     qevap_vbs(jsoa,i,k)=dqdt_soa_vbs(n,jsoa)*(mw_soa/mwdry)
+                     qevap(i,k)=qevap(i,k)+dqdt_soa_vbs(n,jsoa)*(mw_soa/mwdry)
+                  endif
                end do
 !---------------------------------------------------------------------------------------------------------------------
            end if
@@ -741,14 +742,14 @@ implicit none
 !   compute TMR tendencies for SAOG gas
 !   due to simple gas uptake
          do jsoa = 1, nsoa
-               !write(iulog,*) 'jsoa',jsoa
-               !write(iulog,*) ' dqdt', dqdt(i,k,l_soag(jsoa))
-               !write(iulog,*) ' sum_dqdt_soa', -sum_dqdt_soa(jsoa)
-               dqdt(i,k,l_soag(jsoa)) = -sum_dqdt_soa(jsoa)
-! dqdt for gas is negative of the sum of dqdt for aerosol soa species in each mode: Manish
-              !ADD OUTFLD for SAOG loss
-              ! qsrflx_soag(i,jsoa) = qsrflx(i,jsoa) + dqdt(i,k,l_soag(jsoa))*pdel_fac
-              ! call outfld( fieldname, qsrflx_soag(:,j), pcols, lchnk )
+            !write(iulog,*) 'jsoa',jsoa
+            !write(iulog,*) ' dqdt', dqdt(i,k,l_soag(jsoa))
+            !write(iulog,*) ' sum_dqdt_soa', -sum_dqdt_soa(jsoa)
+            dqdt(i,k,l_soag(jsoa)) = -sum_dqdt_soa(jsoa)
+            ! dqdt for gas is negative of the sum of dqdt for aerosol soa species in each mode: Manish
+            !ADD OUTFLD for SAOG loss
+            ! qsrflx_soag(i,jsoa) = qsrflx(i,jsoa) + dqdt(i,k,l_soag(jsoa))*pdel_fac
+            ! call outfld( fieldname, qsrflx_soag(:,j), pcols, lchnk )
          end do
 
       end do   ! "i = 1, ncol"
@@ -761,24 +762,24 @@ implicit none
 !
         ! write(iulog,*) 'soag tendencies'
    do jsoa = 1, nsoa_vbs
-         do k = top_lev, pver
-            do i = 1, ncol
-               q(i,k,l_soag(jsoa)) = q(i,k,l_soag(jsoa)) + dqdt(i,k,l_soag(jsoa))*deltat
-            end do
+      do k = top_lev, pver
+         do i = 1, ncol
+            q(i,k,l_soag(jsoa)) = q(i,k,l_soag(jsoa)) + dqdt(i,k,l_soag(jsoa))*deltat
          end do
-   end do
-
-
-!-----Outfld for condensation/evaporation------------------------------
-      call outfld(trim('qcon_gaex'), qcon(:,:), pcols, lchnk )
-      call outfld(trim('qevap_gaex'), qevap(:,:), pcols, lchnk )
-      do jsoa = 1, nsoa_vbs
-        write (outsoa, "(I2.2)") jsoa
-        call outfld(trim('qcon_gaex')//outsoa, qcon_vbs(jsoa,:,:), pcols, lchnk )
-        call outfld(trim('qevap_gaex')//outsoa, qevap_vbs(jsoa,:,:), pcols, lchnk )
       end do
-!-----------------------------------------------------------------------
-!   do history file of column-tendency fields over SOA fields (as defined in CARMA) and set pointer
+   end do
+   
+   
+   !-----Outfld for condensation/evaporation------------------------------
+   call outfld(trim('qcon_gaex'), qcon(:,:), pcols, lchnk )
+   call outfld(trim('qevap_gaex'), qevap(:,:), pcols, lchnk )
+   do jsoa = 1, nsoa_vbs
+      write (outsoa, "(I2.2)") jsoa
+      call outfld(trim('qcon_gaex')//outsoa, qcon_vbs(jsoa,:,:), pcols, lchnk )
+      call outfld(trim('qevap_gaex')//outsoa, qevap_vbs(jsoa,:,:), pcols, lchnk )
+   end do
+   !-----------------------------------------------------------------------
+   !   do history file of column-tendency fields over SOA fields (as defined in CARMA) and set pointer
    do m = 1, nbins
       if (do_soag_any(m)) then
          j  = 0
@@ -789,7 +790,7 @@ implicit none
                j = j + 1
                fieldname= trim(fldname(mm)) // '_sfgaex1'
                do i = 1, ncol
-                   qsrflx(i,m,j) = qsrflx(i,m,j)*(mw_soa/mwdry)
+                  qsrflx(i,m,j) = qsrflx(i,m,j)*(mw_soa/mwdry)
                end do
                call outfld( fieldname, qsrflx(:,m,j), pcols, lchnk )
 
