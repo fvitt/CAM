@@ -701,7 +701,7 @@ subroutine ma_convproc_dp_intr(                &
 
    ! turn on/off calculations for aerosols and trace gases
    ! st CARMA all aerosols are turned on
-   dotend = .true.
+   dotend(:) = .true.
 
 
    itmpveca(:) = -1
@@ -754,8 +754,8 @@ subroutine ma_convproc_sh_intr(                 &
 
    real(r8), intent(in) :: dt                         ! delta t (model time increment)
 
-   real(r8), intent(in)    :: q(pcols,pver,pcnst)
-   real(r8), intent(inout) :: dqdt(pcols,pver,pcnst)
+   real(r8), intent(in)    :: q(pcols,pver,ncnst_tot)
+   real(r8), intent(inout) :: dqdt(pcols,pver,ncnst_tot)
    logical,  intent(out)   :: dotend(ncnst_tot)
    integer,  intent(in)    :: nsrflx
    real(r8), intent(inout) :: qsrflx(pcols,pcnst,nsrflx)
@@ -1016,7 +1016,7 @@ subroutine ma_convproc_tend(                                           &
    character(len=*), intent(in) :: convtype  ! identifies the type of
                                              ! convection ("deep", "shcu")
    integer,  intent(in) :: lchnk             ! chunk identifier
-   integer,  intent(in) :: ncnst             ! number of tracers to transport
+   integer,  intent(in) :: ncnst             ! number of aerosol tracers to transport
    integer,  intent(in) :: nstep             ! Time step index
    real(r8), intent(in) :: dt                ! Model timestep
    real(r8), intent(in) :: t(pcols,pver)     ! Temperature
@@ -1173,7 +1173,7 @@ subroutine ma_convproc_tend(                                           &
    real(r8) netflux              ! a work variable
    real(r8) netsrce              ! a work variable
    real(r8) q_i(pver,ncnst_tot)      ! q(i,k,m) at current i
-   real(r8) qsrflx_i(pcnst,nsrflx) ! qsrflx(i,m,n) at current i
+   real(r8) qsrflx_i(ncnst_tot,nsrflx) ! qsrflx(i,m,n) at current i
    real(r8) relerr_cut           ! relative error criterion for diagnostics
    real(r8) rhoair_i(pver)       ! air density at current i
    real(r8) small                ! a small number
@@ -1251,7 +1251,6 @@ subroutine ma_convproc_tend(                                           &
    !st enddo ! n
 
    do l = 1, pcnst_extd
-
       if (l <= ncnst_tot) then
          cnst_name_extd(l) = fieldname(l)
          aqfrac(l) = 0.0_r8

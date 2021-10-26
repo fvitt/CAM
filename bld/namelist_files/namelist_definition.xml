@@ -3643,6 +3643,13 @@ allowed per substep.
 Default: 0.
 </entry>
 
+<entry id="carma_do_coremasscheck" type="logical" category="carma"
+       group="carma_nl" valid_values="" >
+Flag indicating that do coremasscheck after certain subroutines
+and abort the model if the check not pass.
+Default: FALSE
+</entry>
+
 <entry id="carma_do_aerosol" type="logical" category="carma"
        group="carma_nl" valid_values="" >
 Flag indicating that the CARMA model is an aerosol model, and

@@ -24,6 +24,7 @@ module carma_flags_mod
   ! -carma none to totally disable CARMA and prevent even the register from happening.
   logical, protected           :: carma_flag        = .false.   ! If .true. then turn on CARMA microphysics in CAM
   logical, protected           :: carma_do_aerosol  = .true.    ! If .true. then CARMA is processed after surface coupling
+  logical, protected           :: carma_do_coremasscheck = .false. ! If .true. then do coremasscheck and abort model after certain subroutines
   logical, protected           :: carma_do_cldice   = .false.   ! If .true. then do cloud ice
   logical, protected           :: carma_do_cldliq   = .false.   ! If .true. then do cloud liquid
   logical, protected           :: carma_do_clearsky = .false.   ! If .true. then do clear sky particle calculations
@@ -89,6 +90,7 @@ contains
     namelist /carma_nl/ &
       carma_flag, &
       carma_do_aerosol, &
+      carma_do_coremasscheck, &
       carma_do_cldliq, &
       carma_do_cldice, &
       carma_do_clearsky, &
@@ -140,6 +142,7 @@ contains
 
     call mpi_bcast (carma_flag,            1 ,mpi_logical, masterprocid, mpicom, ierr)
     call mpi_bcast (carma_do_aerosol,      1 ,mpi_logical, masterprocid, mpicom, ierr)
+    call mpi_bcast (carma_do_coremasscheck,1 ,mpi_logical, masterprocid, mpicom, ierr)
     call mpi_bcast (carma_do_cldliq,       1 ,mpi_logical, masterprocid, mpicom, ierr)
     call mpi_bcast (carma_do_cldice,       1 ,mpi_logical, masterprocid, mpicom, ierr)
     call mpi_bcast (carma_do_clearsky,     1 ,mpi_logical, masterprocid, mpicom, ierr)

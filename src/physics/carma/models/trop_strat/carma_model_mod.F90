@@ -231,23 +231,23 @@ contains
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddElement failed.')
 
     call CARMAELEMENT_Create(carma, I_ELEM_MXAER,  I_GRP_MXAER, "Sulfate in mixed sulfate", &
-                             RHO_SULFATE, I_VOLATILE, I_H2SO4, rc,  kappaElement=Kappa_SULF, shortname="MXAER")
+                             RHO_SULFATE, I_VOLATILE, I_H2SO4, rc,  kappa=Kappa_SULF, shortname="MXAER")
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddElement failed.')
 
     call CARMAELEMENT_Create(carma, I_ELEM_MXOC,   I_GRP_MXAER, "organic carbon", &
-                             RHO_obc, I_COREMASS, I_OC, rc, kappaElement=Kappa_OC, shortname="MXOC")
+                             RHO_obc, I_COREMASS, I_OC, rc, kappa=Kappa_OC, shortname="MXOC")
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddElement failed.')
 
     call CARMAELEMENT_Create(carma, I_ELEM_MXBC,   I_GRP_MXAER, "black carbon", &
-                             RHO_obc, I_COREMASS, I_BC, rc, kappaElement=Kappa_BC, shortname="MXBC")
+                             RHO_obc, I_COREMASS, I_BC, rc, kappa=Kappa_BC, shortname="MXBC")
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddElement failed.')
 
     call CARMAELEMENT_Create(carma, I_ELEM_MXDUST, I_GRP_MXAER, "dust", &
-                             RHO_DUST, I_COREMASS, I_DUST, rc,  kappaElement=Kappa_DUST, shortname="MXDUST")
+                             RHO_DUST, I_COREMASS, I_DUST, rc,  kappa=Kappa_DUST, shortname="MXDUST")
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddElement failed.')
 
     call CARMAELEMENT_Create(carma, I_ELEM_MXSALT, I_GRP_MXAER, "SALT in mixed sulfate", &
-                             RHO_SALT, I_COREMASS, I_SALT, rc, kappaElement=Kappa_SALT, shortname="MXSALT")
+                             RHO_SALT, I_COREMASS, I_SALT, rc, kappa=Kappa_SALT, shortname="MXSALT")
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddElement failed.')
 
 
@@ -472,7 +472,7 @@ contains
 
       call CARMAGROUP_Get(carma, igroup, rc, ienconc=ienconc,ncore=ncore,icorelem=icorelem, rmass=rmass)
       do ibin = 1, NBIN
-              
+
         call CARMASTATE_GetBin(cstate, ienconc, ibin, mmr_total(:), rc, &
                              numberDensity=numberDensity, r_wet=r_wet)
         if (rc < 0) call endrun('CARMA_DiagnoseBulk::CARMASTATE_GetBin failed.')
@@ -582,9 +582,9 @@ contains
         !dryr_ptr(icol, :cstate%f_NZ) = (rmass(ibin)/(4._f/3._f*PI*rhop_dry(:cstate%f_NZ)))**(1._f/3._f) !cm
         ! r = (mass / rho / 4 * 3 / PI)^(1/3)
         dryr_ptr(icol, :cstate%f_NZ) = (rmass(ibin)/rhop_dry(:cstate%f_NZ) / 4._f * 3._f / PI)**(1._f/3._f) !cm
-        
+
         sad_ptr(icol, :cstate%f_NZ) = 4.0_r8 * PI * numberDensity(:cstate%f_NZ) * (r_wet(:cstate%f_NZ)**2) !cm2/cm3
-        
+
         !write(*,*) 'CARMA igroup, ibin, rmass(ibin), rhop_dry',igroup, ibin, rmass(ibin), rhop_dry(:cstate%f_NZ)
         !write(*,*) 'CARMA dryr igroup, ibin',igroup, ibin, dryr_ptr(icol, :cstate%f_NZ)
 
@@ -1011,7 +1011,7 @@ contains
              call pbuf_set_field(pbuf2d, ipbuf4kappa(ibin,igroup), 0.0_r8 )
              call pbuf_set_field(pbuf2d, ipbuf4wetr(ibin,igroup), 0.0_r8 )
              call pbuf_set_field(pbuf2d, ipbuf4dryr(ibin,igroup), 0.0_r8 )
-             call pbuf_set_field(pbuf2d, ipbuf4sad(ibin,igroup), 0.0_r8 )           
+             call pbuf_set_field(pbuf2d, ipbuf4sad(ibin,igroup), 0.0_r8 )
              call pbuf_set_field(pbuf2d, ipbuf4rmass(ibin,igroup), 1.0e-3_r8*rmass(ibin) ) ! convert rmass from g to kg
           end do
        end do

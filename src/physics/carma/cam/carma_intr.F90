@@ -267,6 +267,7 @@ contains
       write(LUNOPRT,*) ''
       write(LUNOPRT,*) 'CARMA general settings for ', trim(carma_model), ' model : '
       write(LUNOPRT,*) '  carma_do_aerosol    = ', carma_do_aerosol
+      write(LUNOPRT,*) '  carma_do_coremasscheck = ',carma_do_coremasscheck
       write(LUNOPRT,*) '  carma_do_cldice     = ', carma_do_cldice
       write(LUNOPRT,*) '  carma_do_cldliq     = ', carma_do_cldliq
       write(LUNOPRT,*) '  carma_do_clearsky   = ', carma_do_clearsky
@@ -311,6 +312,7 @@ contains
     ! assumptions made in the CAM energy checking and microphysics code.
     call CARMA_Initialize(carma, &
                           rc, &
+                          do_coremasscheck = carma_do_coremasscheck, &
                           do_clearsky   = carma_do_clearsky, &
                           do_cnst_rlh   = .true., &
                           do_coag       = carma_do_coag, &

@@ -234,7 +234,7 @@ contains
     !st use modal_aero_calcsize,   only: modal_aero_calcsize_init
     !st use modal_aero_coag,       only: modal_aero_coag_init
     !st use modal_aero_deposition, only: modal_aero_deposition_init
-    !st use modal_aero_gasaerexch, only: modal_aero_gasaerexch_init
+    use carma_aero_gasaerexch, only: carma_aero_gasaerexch_init
     !st use modal_aero_newnuc,     only: modal_aero_newnuc_init
     !st use modal_aero_rename,     only: modal_aero_rename_init
 
@@ -269,6 +269,7 @@ contains
     character(len=32) :: bin_name
 
     integer :: idx
+    real(r8) :: nanval
 
     if (is_first_step()) then
        do m = 1, nbins
@@ -289,6 +290,11 @@ contains
     if (is_first_step()) then
        idx = pbuf_get_index('FRACVBS')
        call pbuf_set_field(pbuf2d, idx, 0.0_r8)
+       idx = pbuf_get_index('JNO2',errcode=errcode)
+       if (idx>0) then
+          nanval=nan
+          call pbuf_set_field(pbuf2d, idx, nanval)
+       end if
     end if
 
     ! aqueous chem initialization
@@ -320,7 +326,7 @@ contains
     !st  call modal_aero_rename_init( modal_accum_coarse_exch )
     !   calcsize call must follow rename call
     !st call modal_aero_calcsize_init( pbuf2d )
-    !st call modal_aero_gasaerexch_init
+    call carma_aero_gasaerexch_init
     !   coag call must follow gasaerexch call
     !st call modal_aero_coag_init
     !st call modal_aero_newnuc_init
@@ -613,6 +619,7 @@ contains
     real(r8) :: f_act_conv(pcols,pver) ! prescribed aerosol activation fraction for convective cloud ! rce 2010/05/01
     real(r8) :: f_act_conv_c(pcols,pver) ! prescribed aerosol activation fraction for convective cloud ! rce 2010/05/01
     real(r8) :: fracis_cw(pcols,pver)
+    real(r8) :: fracis_nadv(pcols,pver)
     real(r8) :: stoke(pcols,pver)       ! dry radius from CARMA
     real(r8) :: J(pcols,pver)       ! dry radius from CARMA
     real(r8) :: prec(pcols) ! precipitation rate
@@ -723,7 +730,8 @@ contains
     !st needed to calcuate modal_aero_bcscavcoef_get scavcoefvol, scavcoefnum (need to get CARMA bin wet radius)
 
     !st call pbuf_get_field(pbuf, qaerwat_idx,        qaerwat,  start=(/1,1,1/), kount=(/pcols,pver,nmodes/) )
-    call pbuf_get_field(pbuf, fracis_idx,         fracis, start=(/1,1,1/), kount=(/pcols, pver, ncnst_tot/) )
+    call pbuf_get_field(pbuf, fracis_idx,         fracis, start=(/1,1,1/), kount=(/pcols, pver, pcnst/) )
+    !call pbuf_get_field(pbuf, fracis_idx,         fracis) 
 
     prec(:ncol)=0._r8
     do k=1,pver
@@ -836,12 +844,16 @@ contains
                    solmmr =  solmmr + raer(mm)%fld(i,k)*0.2_r8
                    specmmr = specmmr + raer(mm)%fld(i,k)
                 end if
+                if (trim(spectype) == 's-organic') then
+                   solmmr =  solmmr + raer(mm)%fld(i,k)*0.2_r8
+                   specmmr = specmmr + raer(mm)%fld(i,k)
+                end if
                 if (trim(spectype) == 'dust') then
                    solmmr =  solmmr + raer(mm)%fld(i,k)*0.1_r8
                    specmmr = specmmr + raer(mm)%fld(i,k)
                 end if
                 if (trim(spectype) == 'seasalt') then
-                   solmmr =  solmmr + raer(mm)%fld(i,k)*0.1_r8
+                   solmmr =  solmmr + raer(mm)%fld(i,k)*0.8_r8
                    specmmr = specmmr + raer(mm)%fld(i,k)
                 end if
              end do
@@ -894,6 +906,7 @@ contains
           do l = 1, nspec(m) + 2  ! loop over different npsec plus over total mmr and number
              mm = bin_idx(m,l)
              lpr = bin_cnst_idx(m,l)
+             !write(*,*) 'lpr,pcnst',lpr, pcnst
 
              if (l <= nspec(m)) then  ! loop only over nspec
                 call rad_cnst_get_bin_props_by_idx(0, m, l, density_aer=specdens)
@@ -1010,13 +1023,14 @@ contains
                       qqcw_in(:ncol,:) = fldcw(:ncol,:)
                    endif
 
+                   if (bin_cnst_lq(m,l)) then ! advected species
                    ! do not calculate for number
-                   call wetdepa_v2( state%pmid, state%q(:,:,1), state%pdel, &
+                       call wetdepa_v2( state%pmid, state%q(:,:,1), state%pdel, &
                         dep_inputs%cldt, dep_inputs%cldcu, dep_inputs%cmfdqr, &
                         dep_inputs%evapc, dep_inputs%conicw, dep_inputs%prain, dep_inputs%qme, &
                         dep_inputs%evapr, dep_inputs%totcond, q_tmp, dt, &
                         dqdt_tmp, iscavt, dep_inputs%cldvcu, dep_inputs%cldvst, &
-                        dlf, fracis(:,:,mm), sol_factb, ncol, &
+                        dlf, fracis(:,:,lpr), sol_factb, ncol, &
                         scavcoefnv(:,:,jnv), &
                         is_strat_cloudborne=.false.,  &
                         qqcw=qqcw_in(:,:),  &
@@ -1025,6 +1039,23 @@ contains
                         convproc_do_aer=convproc_do_aer, rcscavt=rcscavt, rsscavt=rsscavt,  &
                         sol_facti_in=sol_facti, sol_factic_in=sol_factic, &
                         convproc_do_evaprain_atonce_in=convproc_do_evaprain_atonce )
+                   else 
+                       call wetdepa_v2( state%pmid, state%q(:,:,1), state%pdel, &
+                        dep_inputs%cldt, dep_inputs%cldcu, dep_inputs%cmfdqr, &
+                        dep_inputs%evapc, dep_inputs%conicw, dep_inputs%prain, dep_inputs%qme, &
+                        dep_inputs%evapr, dep_inputs%totcond, q_tmp, dt, &
+                        dqdt_tmp, iscavt, dep_inputs%cldvcu, dep_inputs%cldvst, &
+                        dlf, fracis_nadv, sol_factb, ncol, &
+                        scavcoefnv(:,:,jnv), &
+                        is_strat_cloudborne=.false.,  &
+                        qqcw=qqcw_in(:,:),  &
+                        f_act_conv=f_act_conv, &
+                        icscavt=icscavt, isscavt=isscavt, bcscavt=bcscavt, bsscavt=bsscavt, &
+                        convproc_do_aer=convproc_do_aer, rcscavt=rcscavt, rsscavt=rsscavt,  &
+                        sol_facti_in=sol_facti, sol_factic_in=sol_factic, &
+                        convproc_do_evaprain_atonce_in=convproc_do_evaprain_atonce )
+                   end if
+
 
                    if(convproc_do_aer) then
                       ! add resuspension of cloudborne species to dqdt of interstitial species
@@ -1384,6 +1415,20 @@ contains
 
        if (convproc_do_evaprain_atonce) then
         ! st Francis can we ADD END RUN statement here: "convproc_do_evaprain_atonce does not work with CARMA, needs to be set to .false."
+           do m = 1, nbins! main loop over aerosol modes
+             do lphase = strt_loop,end_loop, stride_loop
+                ! loop over interstitial (1) and cloud-borne (2) forms
+                do l = 1, nspec(m) + 2
+                 mm = bin_idx(m, l)
+                 ! lphase=1 consider interstitial areosols, lphase=2 consider cloud-borne aerosols
+                 ! seems to only considers cloud-borne here
+                   if (lphase == 2) then
+                      qqcw(mm)%fld(:ncol,:) = qqcw(mm)%fld(:ncol,:) + dcondt_resusp3d(mm,:ncol,:)*dt 
+                   end if
+                end do ! loop over number + mmr +  chem constituents 
+             end do  ! lphase
+          end do   ! m aerosol modes
+
        end if
 
        call t_stopf('ma_convproc')
@@ -1474,7 +1519,7 @@ contains
                                     airdens, invariants, del_h2so4_gasprod,  &
                                     vmr0, vmr, pbuf )
 
-    !use carma_aero_gasaerexch, only : carma_aero_gasaerexch_sub
+    use carma_aero_gasaerexch, only : carma_aero_gasaerexch_sub
     use time_manager,          only : get_nstep
     !-----------------------------------------------------------------------
     !      ... dummy arguments
@@ -1747,16 +1792,16 @@ contains
     !endif
     !write(iulog,*) 'start carma_aero_gasaerexch_sub'
     ! need to transform raer to raervmr from CARMA, routine requires vmr, note number wil not be changed here
-    !call mmr2vmr_carma ( lchnk, raervmr, mbar, mw_carma, ncol, loffset )
+    call mmr2vmr_carma ( lchnk, raervmr, mbar, mw_carma, ncol, loffset, rmass)
     !write(iulog,*) 'mm start raervmr done'
 
-    !call carma_aero_gasaerexch_sub(            &
-    !      pbuf, lchnk,    ncol,     nstep,            &
-    !      loffset,            delt,             &
-    !      tfld,     pmid,     pdel,             &
-    !      qh2o,               troplev,          &
-    !      vmr,                raervmr,          &
-    !      wetr_n     )
+    call carma_aero_gasaerexch_sub(             &
+          pbuf, lchnk,    ncol,     nstep,      &
+          loffset,            delt, mbar ,      &
+          tfld,     pmid,     pdel,             &
+          qh2o,               troplev,          &
+          vmr,                raervmr,          &
+          wetr_n     )
 
     !if (h2so4_ndx > 0) then
     !   del_h2so4_aeruptk(1:ncol,:) = vmr(1:ncol,:,h2so4_ndx) - del_h2so4_aeruptk(1:ncol,:)
@@ -1918,6 +1963,7 @@ contains
 
              if ( trim(spectype) == 'sulfate'   .or. &
                 trim(spectype) == 's-organic' .or. &
+                trim(spectype) == 'p-organic' .or. &
                 trim(spectype) == 'black-c'   .or. &
                 trim(spectype) == 'ammonium') then
                 chm_mass = chm_mass + aer_bin_mmr(icol,ilev)

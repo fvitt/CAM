@@ -1297,7 +1297,6 @@ subroutine activate_carma(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
    !      Abdul-Razzak and Ghan, A parameterization of aerosol activation.
    !      2. Multiple aerosol types. J. Geophys. Res., 105, 6837-6844.
 
-
    !      input
 
    real(r8), intent(in) :: wbar          ! grid cell mean vertical velocity (m/s)
@@ -1441,9 +1440,10 @@ subroutine activate_carma(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
          etafactor2(m)=etafactor2max ! this should make eta big if na is very small.
          !st write(iulog,'(a,i4,2g12.2)')'SMC1: m,na,volume= ',m,na(m),volume(m)
       endif
+
       !st  lnsm(m)=log(smc(m)) ! only if variable size dist
-       !st write(iulog,'(a,i4,5g12.2)')'m,na,volume,amcube,hygro,smc,= ', &
-       !st                    m,na(m),volume(m),amcube(m),hygro(m),smc(m)
+        !write(iulog,'(a,i4,5g12.2)')'m,na,volume,amcube,hygro,smc,smc2,r= ', &
+        !                   m,na(m),volume(m),amcube(m),hygro(m),smc(m),smc2(m),r(m)
    enddo
 
    if(sigw.gt.1.e-5_r8)then ! spectrum of updrafts
@@ -1667,6 +1667,8 @@ subroutine activate_carma(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
          !st nsmax=log(smax)
          !st xmincoeff=alogaten-twothird*(lnsmax-alog2)-alog3
 
+         fn(:) = 0._r8
+         fm(:) = 0._r8
 
          do m=1,nmode
             !                 modal
@@ -1674,9 +1676,10 @@ subroutine activate_carma(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
             !st fn(m)=0.5_r8*(1._r8-erf(x))
             !st arg=x-1.5_r8*sq2*alogsig(m)
             !st fm(m)=0.5_r8*(1._r8-erf(arg))
-
-            fm(m) = 1._r8
-            fn(m) = 1._r8
+            if (smax .ge. smc(m)) then
+               fm(m) = 1._r8
+               fn(m) = 1._r8
+            end if
 
             if(wbar.gt.0._r8)then
                fluxn(m)=fn(m)*w
