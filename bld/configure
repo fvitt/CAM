@@ -1531,7 +1531,7 @@ elsif ($carma_pkg eq 'test_tracers2') {
     $carma_nadv = 434;
 }
 elsif ($carma_pkg eq 'trop_strat') {
-    $carma_nadv = 120;
+    $carma_nadv = 140;
 }
 elsif ($carma_pkg eq 'dst_sslt_bc_pom') {
     $carma_nadv = 48;

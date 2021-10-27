@@ -45,7 +45,6 @@ module aero_model
   ! number of modes
   integer :: pblh_idx            = 0
   integer :: wetdens_ap_idx      = 0
-  integer :: qaerwat_idx         = 0
 
   integer :: fracis_idx          = 0
   integer :: prain_idx           = 0
@@ -208,12 +207,6 @@ contains
    ! Define pbuf field for soa_fraction
     call pbuf_add_field('FRACVBS','global',dtype_r8,(/nbins,nsoa_vbs,pcols,pver/), idx)
 
-   ! for SOA losses
-    if (carma_model == 'trop_strat') then
-       ! no2 photolysis rate constant (/sec)
-       call pbuf_add_field('JNO2', 'physpkg', dtype_r8, (/pcols,pver/), idx)
-    end if
-
   end subroutine aero_model_register
 
   !=============================================================================
@@ -290,11 +283,6 @@ contains
     if (is_first_step()) then
        idx = pbuf_get_index('FRACVBS')
        call pbuf_set_field(pbuf2d, idx, 0.0_r8)
-       idx = pbuf_get_index('JNO2',errcode=errcode)
-       if (idx>0) then
-          nanval=nan
-          call pbuf_set_field(pbuf2d, idx, nanval)
-       end if
     end if
 
     ! aqueous chem initialization
@@ -678,10 +666,6 @@ contains
     real(r8) :: qsrflx_mzaer2cnvpr(pcols,ncnst_tot,nsrflx_mzaer2cnvpr)
     ! End unified convection scheme
 
-
-    !st real(r8), pointer :: dgnumwet(:,:,:)
-    !st real(r8), pointer :: qaerwat(:,:,:)  ! aerosol water
-
     real(r8), pointer :: fracis(:,:,:)   ! fraction of transported species that are insoluble
 
     real(r8), pointer :: dryr(:,:)   ! CARMA dry radius in cm
@@ -726,12 +710,7 @@ contains
       raer(ncnst_tot),                &
       qqcw(ncnst_tot)                 )
 
-
-    !st needed to calcuate modal_aero_bcscavcoef_get scavcoefvol, scavcoefnum (need to get CARMA bin wet radius)
-
-    !st call pbuf_get_field(pbuf, qaerwat_idx,        qaerwat,  start=(/1,1,1/), kount=(/pcols,pver,nmodes/) )
-    call pbuf_get_field(pbuf, fracis_idx,         fracis, start=(/1,1,1/), kount=(/pcols, pver, pcnst/) )
-    !call pbuf_get_field(pbuf, fracis_idx,         fracis) 
+    call pbuf_get_field(pbuf, fracis_idx, fracis, start=(/1,1,1/), kount=(/pcols, pver, pcnst/) )
 
     prec(:ncol)=0._r8
     do k=1,pver
@@ -1039,7 +1018,7 @@ contains
                         convproc_do_aer=convproc_do_aer, rcscavt=rcscavt, rsscavt=rsscavt,  &
                         sol_facti_in=sol_facti, sol_factic_in=sol_factic, &
                         convproc_do_evaprain_atonce_in=convproc_do_evaprain_atonce )
-                   else 
+                   else
                        call wetdepa_v2( state%pmid, state%q(:,:,1), state%pdel, &
                         dep_inputs%cldt, dep_inputs%cldcu, dep_inputs%cmfdqr, &
                         dep_inputs%evapc, dep_inputs%conicw, dep_inputs%prain, dep_inputs%qme, &
@@ -1423,9 +1402,9 @@ contains
                  ! lphase=1 consider interstitial areosols, lphase=2 consider cloud-borne aerosols
                  ! seems to only considers cloud-borne here
                    if (lphase == 2) then
-                      qqcw(mm)%fld(:ncol,:) = qqcw(mm)%fld(:ncol,:) + dcondt_resusp3d(mm,:ncol,:)*dt 
+                      qqcw(mm)%fld(:ncol,:) = qqcw(mm)%fld(:ncol,:) + dcondt_resusp3d(mm,:ncol,:)*dt
                    end if
-                end do ! loop over number + mmr +  chem constituents 
+                end do ! loop over number + mmr +  chem constituents
              end do  ! lphase
           end do   ! m aerosol modes
 

@@ -41,6 +41,7 @@ module carma_model_mod
   use ppgrid,         only: pcols, pver
   use physics_buffer, only: physics_buffer_desc, pbuf_set_field, pbuf_get_field, pbuf_get_index
   use time_manager,   only: is_first_step
+  use cam_logfile,    only: iulog
 
   implicit none
 
@@ -59,7 +60,7 @@ module carma_model_mod
 
   ! Declare public constants
   integer, public, parameter      :: NGROUP   = 2               !! Number of particle groups
-  integer, public, parameter      :: NELEM    = 6               !! Number of particle elements
+  integer, public, parameter      :: NELEM    = 7               !! Number of particle elements
   integer, public, parameter      :: NBIN     = 20              !! Number of particle bins
   integer, public, parameter      :: NSOLUTE  = 0               !! Number of particle solutes
   integer, public, parameter      :: NGAS     = 2               !! Number of gases
@@ -77,33 +78,36 @@ module carma_model_mod
   ! should have a unique number.
   integer, public, parameter      :: I_H2SO4          = 1       !! H2SO4 coposition
   integer, public, parameter      :: I_OC             = 2       !! OC composition
-  integer, public, parameter      :: I_BC             = 3       !! BC composition
-  integer, public, parameter      :: I_DUST           = 4       !! dust composition
-  integer, public, parameter      :: I_SALT           = 5       !! sea salt composition
+  integer, public, parameter      :: I_SOA            = 3       !! SOA composition
+  integer, public, parameter      :: I_BC             = 4       !! BC composition
+  integer, public, parameter      :: I_DUST           = 5       !! dust composition
+  integer, public, parameter      :: I_SALT           = 6       !! sea salt composition
 
-  integer, public, parameter      :: I_GRP_PRSUL     = 1       !! sulfate aerosol
-  integer, public, parameter      :: I_GRP_MXAER     = 2       !! mixed aerosol
+  integer, public, parameter      :: I_GRP_PRSUL     = 1        !! sulfate aerosol
+  integer, public, parameter      :: I_GRP_MXAER     = 2        !! mixed aerosol
 
   integer, public, parameter      :: I_ELEM_PRSUL     = 1       !! sulfate aerosol;  nameing needs to only have 2 charaters  before the element name to work with
                                                                 !! partsof the code reading different elements
   integer, public, parameter      :: I_ELEM_MXAER     = 2       !! aerosol
   integer, public, parameter      :: I_ELEM_MXOC      = 3       !! organics aerosol
-  integer, public, parameter      :: I_ELEM_MXBC      = 4       !! black carbon
-  integer, public, parameter      :: I_ELEM_MXDUST    = 5       !! dust aerosol
-  integer, public, parameter      :: I_ELEM_MXSALT    = 6       !! sea salt aerosol
+  integer, public, parameter      :: I_ELEM_MXSOA     = 4       !! secondary organic aerosol
+  integer, public, parameter      :: I_ELEM_MXBC      = 5       !! black carbon
+  integer, public, parameter      :: I_ELEM_MXDUST    = 6       !! dust aerosol
+  integer, public, parameter      :: I_ELEM_MXSALT    = 7       !! sea salt aerosol
 
-  integer, public, parameter      :: I_GAS_H2O        = 1              !! water vapor
-  integer, public, parameter      :: I_GAS_H2SO4      = 2              !! sulphuric acid
+  integer, public, parameter      :: I_GAS_H2O        = 1       !! water vapor
+  integer, public, parameter      :: I_GAS_H2SO4      = 2       !! sulphuric acid
 
   real(kind=f), public, parameter         :: Kappa_OC = 0.5_f      !! hygroscopicity of OC
+  real(kind=f), public, parameter         :: Kappa_SOA = 0.5_f     !! hygroscopicity of SOA
   real(kind=f), public, parameter         :: Kappa_BC = 0.1_f
   real(kind=f), public, parameter         :: Kappa_DUST = 0.2_f
   real(kind=f), public, parameter         :: Kappa_SALT = 1.0_f
   real(kind=f), public, parameter         :: Kappa_SULF = 0.5_f
 
-  real(kind=f), public, parameter         :: RHO_obc  = 1.35_f                  !! dry density of smoke aerosol
-  real(kind=f), public, parameter         :: RHO_DUST = 2.65_f                  !! dry density of dust particles (g/cm^3) -Lin Su
-  real(kind=f), public, parameter         :: RHO_SALT = 2.65_f                  !! dry density of sea salt particles (g/cm)
+  real(kind=f), public, parameter         :: RHO_obc  = 1.35_f          !! dry density of smoke aerosol
+  real(kind=f), public, parameter         :: RHO_DUST = 2.65_f          !! dry density of dust particles (g/cm^3) -Lin Su
+  real(kind=f), public, parameter         :: RHO_SALT = 2.65_f          !! dry density of sea salt particles (g/cm)
   real(kind=f), public, parameter         :: RHO_SULFATE  = 1.923_f     !! dry density of sulfate particles (g/cm3)
 
  ! see CARMA_SmokeEmissionRead
@@ -146,6 +150,8 @@ module carma_model_mod
   integer      :: ipbuf4wetr(NBIN,NGROUP) = -1 ! aerosol wet radius per bin
   integer      :: ipbuf4dryr(NBIN,NGROUP) = -1 ! aerosol dry radius per bin
   integer      :: ipbuf4rmass(NBIN,NGROUP) = -1 ! aerosol mass per bin
+  integer      :: ipbuf4soa(NBIN) = -1
+  integer      :: ipbuf4jno2 = -1
   real(kind=f) :: aeronet_fraction(NBIN)  !! fraction of BC dV/dlnr in each bin (100%)
 
   integer :: bc_srfemis_ndx=-1, oc_srfemis_ndx=-1
@@ -238,6 +244,10 @@ contains
                              RHO_obc, I_COREMASS, I_OC, rc, kappa=Kappa_OC, shortname="MXOC")
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddElement failed.')
 
+    call CARMAELEMENT_Create(carma, I_ELEM_MXSOA,   I_GRP_MXAER, "secondary organic aerosol", &
+                             RHO_obc, I_COREMASS, I_SOA, rc, kappa=Kappa_SOA, shortname="MXSOA")
+    if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddElement failed.')
+
     call CARMAELEMENT_Create(carma, I_ELEM_MXBC,   I_GRP_MXAER, "black carbon", &
                              RHO_obc, I_COREMASS, I_BC, rc, kappa=Kappa_BC, shortname="MXBC")
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddElement failed.')
@@ -317,7 +327,9 @@ contains
          call pbuf_add_field(trim(sname)//outputbin//"_dryr",'global', dtype_r8, (/pcols, pver/), ipbuf4dryr(ibin,igroup))
          call pbuf_add_field(trim(sname)//outputbin//"_rmass",'global', dtype_r8, (/pcols/), ipbuf4rmass(ibin,igroup))
          call pbuf_add_field(trim(sname)//outputbin//"_sad", 'global', dtype_r8, (/pcols, pver/), ipbuf4sad(ibin,igroup))
-
+         if (igroup==I_GRP_MXAER) then
+           call pbuf_add_field("DQDT_MXSOA"//outputbin,'global',dtype_r8,(/pcols,pver/), ipbuf4soa(ibin))
+         end if
       end do
    end do
 
@@ -327,6 +339,9 @@ contains
     call pbuf_add_field('REFFAER', 'global', dtype_r8, (/pcols, pver/), ipbuf4reffaer)
     ! weight percent H2SO4
     call pbuf_add_field('WTP','global', dtype_r8, (/pcols, pver/), ipbuf4wtp)
+    ! no2 photolysis rate constant (/sec)
+    call pbuf_add_field('JNO2', 'global', dtype_r8, (/pcols,pver/), ipbuf4jno2)
+
     !---------------------------------------------
 
     return
@@ -382,13 +397,86 @@ contains
     real(r8), intent(inout), optional     :: prec_str(pcols)  !! [Total] sfc flux of precip from stratiform (m/s)
     real(r8), intent(inout), optional     :: snow_str(pcols)  !! [Total] sfc flux of snow from stratiform (m/s)
 
+    ! local variables
+    character(len=8)                     :: snamecore                !! short (CAM) name
+    character(len=8)                     :: shortname                !! short (CAM) name
+    real(r8), pointer, dimension(:,:)    :: dqdt_soa              !! soa tendency due to gas-aerosol exchange  kg/kg/s
+    real(r8), pointer, dimension(:,:)    :: jno2_rate             !! jno2 tendency due to gas-aerosol exchange  kg/kg/s
+    real(r8)                             :: mmr_total(cstate%f_NZ)!! mass mixing ratio of a group (kg/kg)
+    real(r8)                             :: mmr_core(cstate%f_NZ)!! mass mixing ratio of the core (kg/kg)
+    real(r8)                             :: mmr_soa(cstate%f_NZ)  !! mass mixing ratio of soa element (kg/kg)
+    real(r8)                             :: mmr(cstate%f_NZ)      !! mass mixing ratio per bin (kg/kg)
+    real(r8)                             :: delta_soa(cstate%f_NZ)     !! mass mixing ratio differences from soa gas-aerosol-exchange
+    integer                              :: icorelem(NELEM), ncore,ienconc,icore, ielem, ielem_soa, igroup, ibin, icomposition, n, err
+
     ! Default return code.
     rc = RC_OK
 
-    ! By default, do nothing. If diagnosed groups exist, this needs to be replaced by
-    ! code to determine the mass in each bin from the CAM state.
+    ! get no2 photolysis rates if they exist
+    call pbuf_get_field(pbuf, ipbuf4jno2, jno2_rate)     ! surface area density
 
-    return
+    ! get SOA tendency pbuf field for the mixed group and every bin
+
+    igroup = I_GRP_MXAER
+
+    call CARMAGROUP_Get(carma, igroup, rc, ienconc=ienconc,ncore=ncore,icorelem=icorelem)
+
+    do ibin = 1, NBIN
+
+       call CARMASTATE_GetBin(cstate, ienconc, ibin, mmr_total(:), rc)
+       if (rc /= RC_OK) call endrun('CARMA_DiagnoseBins::CARMASTATE_GetBin failed.')
+
+       mmr_soa(:) = 0.0_r8
+       mmr_core(:) = 0.0_r8
+       delta_soa(:) = 0.0_r8
+
+       do ielem = 1, ncore
+
+          call CARMASTATE_GetBin(cstate, icorelem(ielem), ibin, mmr(:), rc)
+
+          call CARMAELEMENT_GET(carma, icorelem(ielem), rc, igroup=igroup, shortname=snamecore, icomposition=icomposition)
+
+          if (icomposition==I_SOA) then
+             call pbuf_get_field(pbuf, ipbuf4soa(ibin), dqdt_soa)     ! surface area density
+             ielem_soa = ielem
+             mmr_soa = mmr
+
+             !add soa tendency to mmr_soa  ; dqdt = kg/kg/s
+
+             mmr_soa(:) = mmr_soa(:) + dqdt_soa(icol,:) * dt
+
+             ! substract photolysis rates
+             mmr_soa(:) = mmr_soa(:) - 0.0004*jno2_rate(icol,:)*mmr_soa(:) * dt
+
+             mmr_soa(:) = max(mmr_soa(:),0.0_r8)
+
+             delta_soa(:) = mmr_soa(:) - mmr(:)
+
+             ! set mmr to new mmr
+
+             mmr(:) = mmr_soa(:)
+
+          end if  !mxsoa
+          mmr_core(:) = mmr_core(:) + mmr(:)
+
+       end do  !ielem
+
+       !update mmr_total and check that not smaller than core mass
+       do n = 1, cstate%f_NZ
+          mmr_total(n) = mmr_total(n) + delta_soa(n)
+          if (mmr_total(n) .lt.  mmr_core(n))  then
+             mmr_total(n) = mmr_core(n)
+          end if
+       end do
+
+       call CARMASTATE_SetBin(cstate, icorelem(ielem_soa), ibin, mmr_soa, rc)
+       if (rc /= RC_OK) call endrun('CARMA_DiagnoseBins::CARMAGROUP_SetBin failed.')
+
+       call CARMASTATE_SetBin(cstate, ienconc, ibin, mmr_total, rc)
+       if (rc /= RC_OK) call endrun('CARMA_DiagnoseBins::CARMAGROUP_SetBin failed.')
+
+    end do  !ibin
+
   end subroutine CARMA_DiagnoseBins
 
 
@@ -1013,12 +1101,16 @@ contains
              call pbuf_set_field(pbuf2d, ipbuf4dryr(ibin,igroup), 0.0_r8 )
              call pbuf_set_field(pbuf2d, ipbuf4sad(ibin,igroup), 0.0_r8 )
              call pbuf_set_field(pbuf2d, ipbuf4rmass(ibin,igroup), 1.0e-3_r8*rmass(ibin) ) ! convert rmass from g to kg
+             if (igroup==I_GRP_MXAER) then
+                call pbuf_set_field(pbuf2d, ipbuf4soa(ibin), 0.0_r8 )
+             end if
           end do
        end do
 
        call pbuf_set_field(pbuf2d, ipbuf4sadsulf, 0.0_r8 )
        call pbuf_set_field(pbuf2d, ipbuf4reffaer, 0.0_r8 )
        call pbuf_set_field(pbuf2d, ipbuf4wtp, 0.0_r8 )
+       call pbuf_set_field(pbuf2d, ipbuf4jno2, 0.0_r8 )
     endif
 !!$
 !!$    ! set bin masses (kg)
