@@ -14,8 +14,7 @@ module carma_aero_gasaerexch
   use ppgrid,          only:  pcols, pver
   use rad_constituents, only: rad_cnst_get_info, rad_cnst_get_info_by_bin, rad_cnst_get_bin_props_by_idx, &
                               rad_cnst_get_info_by_bin_spec
-  use cam_logfile,      only: iulog
-  use physics_buffer,   only: physics_buffer_desc, pbuf_get_index, pbuf_add_field, pbuf_get_field, pbuf_set_field, dtype_r8
+  use physics_buffer,   only: physics_buffer_desc, pbuf_get_index, pbuf_get_field
 
   implicit none
   private
@@ -40,8 +39,8 @@ module carma_aero_gasaerexch
   integer, allocatable :: bin_idx(:,:) ! table for local indexing of modal aero number and mmr
   integer :: ncnst_tot                  ! total number of mode number conc + mode species
 
-  integer :: mw_soa          = 250.
-  integer :: fracvbs_idx          = 0
+  real(r8) :: mw_soa = 250._r8
+  integer :: fracvbs_idx = -1
   integer, allocatable :: dqdtsoa_idx(:,:)
   integer, allocatable  :: cnsoa(:)         ! true if soa gas is a species and carma soa in bin
   integer, allocatable  :: cnpoa(:)         ! true if soa gas is a species and carma soa in bin
@@ -79,10 +78,8 @@ contains
 !
 !-----------------------------------------------------------------------
 
-    use cam_abortutils, only: endrun
     use cam_history,    only: addfld, add_default, fieldname_len, horiz_only
-    use constituents,   only: pcnst, cnst_get_ind, cnst_name
-    use spmd_utils,     only: masterproc
+    use constituents,   only: pcnst, cnst_name
     use phys_control,   only: phys_getopts
 
 !-----------------------------------------------------------------------
@@ -90,27 +87,19 @@ contains
 
 !-----------------------------------------------------------------------
 ! local
-    integer  :: ipair, iq, iqfrm, iqfrm_aa, iqtoo, iqtoo_aa
-    integer  :: j, jsoa,p
+    integer  :: j
     integer  :: i, ii
-    integer  :: l, l1, l2, lsfrm, lstoo, lunout
-    integer  :: l_so4g
-    integer  :: m, mm, mfrm, mtoo
-    integer  :: n, nacc, nait, ns
-
-
-    real(r8) :: tmp1, tmp2
-
+    integer  :: l
+    integer  :: m
+    integer  :: ns
     character(len=fieldname_len+3) :: fieldname
     character(len=32)              :: spectype
     character(len=32)              :: spec_name
     character(128)                 :: long_name
-    character(128)                 :: msg
     character(8)                   :: unit
     character(len=2)               :: outsoa
 
     logical                        :: history_aerosol      ! Output the MAM aerosol tendencies
-    logical                        :: history_aerocom    ! Output the aerocom history
     !-----------------------------------------------------------------------
 
     call phys_getopts( history_aerosol_out        = history_aerosol   )
@@ -171,14 +160,13 @@ contains
        end if
     end do
 
-    fracvbs_idx      = pbuf_get_index('FRACVBS')
+    fracvbs_idx = pbuf_get_index('FRACVBS')
 
     ! identify number of SOA and POA in CARMA code (CARMA number cn)
     do m = 1, nbins
        cnsoa(m) = 0
        cnpoa(m) = 0
        do l = 1, nspec(m)
-          mm = bin_idx(m, l)
           call rad_cnst_get_bin_props_by_idx(0, m, l,spectype=spectype)
           if (trim(spectype) == 's-organic') then
              cnsoa(m) = cnsoa(m) + 1
@@ -221,8 +209,14 @@ contains
 
     do j = 1, nsoa_vbs
        write (outsoa, "(I2.2)") j
-       fieldname=trim('qcon_gaex')//outsoa
-       long_name = trim('3D fields for SOA condensation for VBS bin')//outsoa
+       fieldname = 'qcon_gaex'//outsoa
+       long_name = '3D fields for SOA condensation for VBS bin'//outsoa
+       call addfld(fieldname, (/'lev'/), 'A', unit, long_name )
+       if ( history_aerosol ) then
+          call add_default( fieldname,  1, ' ' )
+       endif
+       fieldname = 'qevap_gaex'//outsoa
+       long_name = '3D fields for SOA evaporation for VBS bin'//outsoa
        call addfld(fieldname, (/'lev'/), 'A', unit, long_name )
        if ( history_aerosol ) then
           call add_default( fieldname,  1, ' ' )
@@ -235,16 +229,6 @@ contains
     if ( history_aerosol ) then
        call add_default( fieldname,  1, ' ' )
     endif
-
-    do j = 1, nsoa_vbs
-       write (outsoa, "(I2.2)") j
-       fieldname=trim('qevap_gaex')//outsoa
-       long_name = trim('3D fields for SOA evaporation for VBS bin')//outsoa
-       call addfld(fieldname, (/'lev'/), 'A', unit, long_name )
-       if ( history_aerosol ) then
-          call add_default( fieldname,  1, ' ' )
-       endif
-    end do
 
 !------------------------------------------------------------------------------
 
@@ -290,11 +274,8 @@ subroutine carma_aero_gasaerexch_sub(                            &
 
   ! !USES:
   use cam_history,       only: outfld, fieldname_len
-  use constituents,      only: pcnst, cnst_name, cnst_get_ind
-  use mo_tracname,       only: solsym
-  use physconst,         only: gravit, mwdry, rair
+  use physconst,         only: gravit, mwdry
   use cam_abortutils,    only: endrun
-  use spmd_utils,        only: iam, masterproc
   use time_manager,      only: is_first_step
 
   ! !PARAMETERS:
@@ -312,7 +293,7 @@ subroutine carma_aero_gasaerexch_sub(                            &
   ! *** MUST BE  #/kmol-air for number
   ! *** MUST BE mol/mol-air for mass
   ! *** NOTE ncol dimension
-  real(r8), intent(inout) :: raervmr (ncol,pver,ncnst_tot) ! aerosol mixing rations (vmr)
+  real(r8), intent(in)    :: raervmr (ncol,pver,ncnst_tot) ! aerosol mixing rations (vmr)
   real(r8), intent(in)    :: t(pcols,pver)        ! temperature at model levels (K)
   real(r8), intent(in)    :: pmid(pcols,pver)     ! pressure at model levels (Pa)
   real(r8), intent(in)    :: pdel(pcols,pver)     ! pressure thickness of levels (Pa)
@@ -339,27 +320,22 @@ subroutine carma_aero_gasaerexch_sub(                            &
   real (r8), parameter :: mw_poa_host = 12.0_r8    ! molec wght of poa used in host code
   real (r8), parameter :: mw_soa_host = 250.0_r8   ! molec wght of soa used in host code
 
-  integer :: i, iq, itmpa
-  integer :: idiagss
-  integer :: j, jsoa, jpoa
-  integer :: k,p
-  integer :: l, l2, lb, lsfrm, lstoo
-  integer :: l_soa(nsoa_vbs)
-  integer :: mm, m, n, nn, niter, niter_max, ntot_soamode
+  integer :: i
+  integer :: j, jsoa
+  integer :: k
+  integer :: l
+  integer :: mm, m, n, nn, niter, niter_max
 
   character(len=fieldname_len+3) :: fieldname
-  character(len=100) :: msg !BSINGH - msg string for endrun calls
   character(len=32)              :: spectype
-  character(len=32)              :: spec_name
   character(len=2)               :: outsoa
 
-  real (r8) :: avg_uprt_nh4, avg_uprt_so4, avg_uprt_soa(nsoa_vbs)
+  real (r8) :: avg_uprt_soa(nsoa_vbs)
   real (r8) :: deltatxx
   real (r8) :: dqdt_soa_vbs(nbins,nsoa_vbs)
   real (r8) :: dqdt_soa_all(nbins,nsoa,pcols,pver)
   real (r8) :: dqdt_soag(nsoa_vbs)
   real (r8) :: fgain_soa(nbins,nsoa_vbs)
-  real (r8) :: g0_soa(nsoa_vbs)
   real (r8) :: pdel_fac
   real (r8) :: num_bin(nbins,pcols,pver)
   real (r8) :: soa_vbs(nbins,nsoa_vbs,pcols,pver)
@@ -372,8 +348,6 @@ subroutine carma_aero_gasaerexch_sub(                            &
   real (r8) :: qold_soag(nsoa_vbs)
   real (r8) :: sum_dqdt_soa(nsoa_vbs)     !   sum_dqdt_soa = soa tendency from soa  gas uptake (mol/mol/s)
   real (r8) :: sum_uprt_soa(nsoa_vbs)     ! total soa uptake rate over all bin, for each soa vbs bin
-  real (r8) :: tmp1, tmp2, tmpa
-  real (r8) :: tmp_kxt, tmp_pxt
   real (r8) :: uptkrate(nbins,pcols,pver)
   real (r8) :: uptkratebb(nbins)
   real (r8) :: uptkrate_soa(nbins,nsoa_vbs)
@@ -394,19 +368,15 @@ subroutine carma_aero_gasaerexch_sub(                            &
   real(r8), pointer :: frac_vbs(:,:,:,:)   ! fraction of vbs SOA bins to total SOA
   real(r8), pointer :: dqdt_soa(:,:)
 
-!  following only needed for diagnostics
-  real(r8) :: qold(ncol,pver,gas_pcnst)  ! NOTE dims
-  real(r8) :: qnew(ncol,pver,gas_pcnst)  ! NOTE dims
-  real(r8) :: qdel(ncol,pver,gas_pcnst)  ! NOTE dims
-  real(r8) :: dqdtsv1(ncol,pver,gas_pcnst)
-
 !----------------------------------------------------------------------
 
 !  map CARMA soa to working soa(nbins,nsoa)
 
-  call pbuf_get_field(pbuf, fracvbs_idx,  frac_vbs )
+  call pbuf_get_field(pbuf, fracvbs_idx, frac_vbs)
 
   num_bin(:,:,:) = 0._r8
+  soa_c(:,:,:,:) = 0._r8
+  poa_c(:,:,:,:) = 0._r8
 
   do m = 1, nbins      ! main loop over aerosol bins
      if (do_soag_any(m)) then  ! only bins that contain soa
@@ -428,9 +398,8 @@ subroutine carma_aero_gasaerexch_sub(                            &
            call endrun( 'carma_aero_gasaerexch_sub error: CARMA currently only supports 1 POA element' )
         end if
 
-
         if (nsoa_vbs.eq.nsoa) then
-           soa_vbs(:,:,:,:) = soa_c(:,:,:,:)
+           soa_vbs(:,:,:ncol,:) = soa_c(:,:,:ncol,:)
         else
            if (nsoa.eq.1) then
               if (is_first_step()) then
@@ -444,19 +413,17 @@ subroutine carma_aero_gasaerexch_sub(                            &
                        end do
                        if (total_soag .gt. 0.0_r8) then
                           do j= 1, nsoa_vbs
-                             frac_vbs(m,j,i,k) = soag(j)/total_soag
+                             frac_vbs(i,k,m,j) = soag(j)/total_soag
                           end do
                        end if
                     end do
                  end do
-                 !write(iulog,*) 'first time step done'
               end if
-              !write(iulog,*) 'second time step done'
               ! end first time step, after that use fraction from previous time step
               do k=top_lev,pver
                  do i=1,ncol
                     do j= 1, nsoa_vbs
-                       soa_vbs(m,j,i,k) = frac_vbs(m,j,i,k)*soa_c(m,nsoa,i,k)
+                       soa_vbs(m,j,i,k) = frac_vbs(i,k,m,j)*soa_c(m,nsoa,i,k)
                     end do
                  end do
               end do
@@ -596,7 +563,6 @@ subroutine carma_aero_gasaerexch_sub(                            &
                     dqdt_soa_all(n,nsoa,i,k) = dqdt_soa_vbs(n,jsoa) !  sum up for different volatility bins
                  end do
               else if (nsoa.eq.1) then
-                 !write(iulog,*) 'gasaer_exch:  nsoa.eq.1, n', n
                  do jsoa = 1, nsoa_vbs
                     !  sum up for different volatility bins
                     dqdt_soa_all(n,nsoa,i,k) = dqdt_soa_all(n,nsoa,i,k) + dqdt_soa_vbs(n,jsoa) 
@@ -608,8 +574,7 @@ subroutine carma_aero_gasaerexch_sub(                            &
                  end do
                  do jsoa = 1, nsoa_vbs
                     if (qnew_soa(n) .gt. 0.0_r8) then
-                       frac_vbs(n,jsoa,i,k) = qnew_soa_vbs(n,jsoa) / qnew_soa(n)
-                       !write(iulog,*) 'frac_vbs:  n, jsoa', n, jsoa, frac_vbs(n,jsoa,i,k)
+                       frac_vbs(i,k,n,jsoa) = qnew_soa_vbs(n,jsoa) / qnew_soa(n)
                     end if
                  end do
               else
@@ -710,7 +675,6 @@ subroutine gas_aer_uptkrates( ncol,       loffset,                &
 
   use physconst, only: mwdry, rair
 
-
   integer,  intent(in) :: ncol                 ! number of atmospheric column
   integer,  intent(in) :: loffset
   real(r8), intent(in) :: t(pcols,pver)        ! Temperature in Kelvin
@@ -724,7 +688,7 @@ subroutine gas_aer_uptkrates( ncol,       loffset,                &
 
 ! local
   integer, parameter :: nghq = 2
-  integer :: i, iq, k, l1, l2, la, n
+  integer :: i, k, n
 
   ! Can use sqrt here once Lahey is gone.
   real(r8), parameter :: tworootpi = 3.5449077_r8
@@ -733,15 +697,12 @@ subroutine gas_aer_uptkrates( ncol,       loffset,                &
 
   real(r8) :: aircon
   real(r8) :: const
-  real(r8) :: dp, dum_m2v
-  real(r8) :: dryvol_a(pcols,pver)
+  real(r8) :: dp
   real(r8) :: gasdiffus, gasspeed
   real(r8) :: freepathx2, fuchs_sutugin
   real(r8) :: knudsen
-  real(r8) :: lndp, lndpgn, lnsg
   real(r8) :: num_a
   real(r8) :: rhoair
-  real(r8) :: sumghq
 
 ! outermost loop over all bins
   do n = 1, nbins
@@ -821,13 +782,11 @@ subroutine carma_aero_soaexch( dtfull, temp, pres, &
   integer,  intent(out) :: niter                      ! number of iterations performed
   integer,  intent(in)  :: niter_max                  ! max allowed number of iterations
   integer,  intent(in)  :: nbins                      ! number of bins
-  !integer,  intent(in)  :: ntot_soamode               ! number of modes having soa (here set equal to number of all bins)
   integer,  intent(in)  :: ntot_poaspec               ! number of poa species
   integer,  intent(in)  :: ntot_soaspec               ! number of soa species
   real(r8), intent(in)  :: mw_poa_host                ! molec wght of poa used in host code
   real(r8), intent(in)  :: mw_soa_host                ! molec wght of soa used in host code
   real(r8), intent(in)  :: g_soa_in(ntot_soaspec)               ! initial soa gas mixrat (mol/mol at host mw)
-  !ntot soaspec = nbin, ntot_soamode = 5
   real(r8), intent(in)  :: a_soa_in(nbins,ntot_soaspec)    ! initial soa aerosol mixrat (mol/mol at host mw)
   real(r8), intent(in)  :: a_poa_in(nbins,ntot_poaspec)    ! initial poa aerosol mixrat (mol/mol at host mw)
   real(r8), intent(in)  :: xferrate_in(nbins,ntot_soaspec) ! gas-aerosol mass transfer rate (1/s)
@@ -835,7 +794,7 @@ subroutine carma_aero_soaexch( dtfull, temp, pres, &
   real(r8), intent(out) :: a_soa_tend(nbins,ntot_soaspec)  ! soa aerosol mixrat tendency (mol/mol/s at host mw)
 
   integer :: ll
-  integer :: m,k
+  integer :: m
 
   logical :: skip_soamode(nbins)   ! true if this bin does not have soa
 

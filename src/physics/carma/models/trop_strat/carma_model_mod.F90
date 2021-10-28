@@ -446,7 +446,7 @@ contains
              mmr_soa(:) = mmr_soa(:) + dqdt_soa(icol,:) * dt
 
              ! substract photolysis rates
-             mmr_soa(:) = mmr_soa(:) - 0.0004*jno2_rate(icol,:)*mmr_soa(:) * dt
+             mmr_soa(:) = mmr_soa(:) - 0.0004_r8*jno2_rate(icol,:)*mmr_soa(:) * dt
 
              mmr_soa(:) = max(mmr_soa(:),0.0_r8)
 
@@ -1965,7 +1965,7 @@ contains
 
     ! If u is 0, then k can be 0, which makes a lot of this undefined.
     ! Just return 0. in this case.
-    if (u < 0.35) then
+    if (u < 0.35_r8) then
       uwb = 0._r8
     else
       c   = u * (gamma(1._r8 + 1._r8 / k))**(-1._r8)

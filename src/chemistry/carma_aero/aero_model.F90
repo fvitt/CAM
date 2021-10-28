@@ -205,7 +205,7 @@ contains
     endif
 
    ! Define pbuf field for soa_fraction
-    call pbuf_add_field('FRACVBS','global',dtype_r8,(/nbins,nsoa_vbs,pcols,pver/), idx)
+    call pbuf_add_field('FRACVBS','global',dtype_r8,(/pcols,pver,nbins,nsoa_vbs/), idx)
 
   end subroutine aero_model_register
 
@@ -281,8 +281,9 @@ contains
 
     ! define pbuf field for soa_fraction
     if (is_first_step()) then
+       nanval = nan
        idx = pbuf_get_index('FRACVBS')
-       call pbuf_set_field(pbuf2d, idx, 0.0_r8)
+       call pbuf_set_field(pbuf2d, idx, nanval)
     end if
 
     ! aqueous chem initialization
@@ -1045,7 +1046,7 @@ contains
                    do k= 1,pver
                      do i= 1,ncol
                       if ( (dqdt_tmp(i,k).lt.0.0_r8) .and. (raer(mm)%fld(i,k).eq.0.0_r8) )  then
-                         dqdt_tmp(i,k) = 0.0
+                         dqdt_tmp(i,k) = 0.0_r8
                       else
                        if ( (raer(mm)%fld(i,k) + dqdt_tmp(i,k) * dt) .lt. 0.0_r8 )   then
                           dqdt_tmp(i,k) = raer(mm)%fld(i,k) / dt
@@ -1271,7 +1272,7 @@ contains
                       do k= 1,pver
                         do i= 1,ncol
                           if ( (dqdt_tmp(i,k).lt.0.0_r8) .and. (qqcw(mm)%fld(i,k).eq.0.0_r8) )  then
-                             dqdt_tmp(i,k) = 0.0
+                             dqdt_tmp(i,k) = 0.0_r8
                           else
                            if ( (qqcw(mm)%fld(i,k) + dqdt_tmp(i,k) * dt) .lt. 0.0_r8 )   then
                              dqdt_tmp(i,k) = qqcw(mm)%fld(i,k) / dt
