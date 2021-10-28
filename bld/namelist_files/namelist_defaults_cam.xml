@@ -55,6 +55,9 @@
 <ncdata dyn="fv"  hgrid="4x5"       nlev="30"  ic_ymd="101"     >atm/cam/inic/fv/cami_0000-01-01_4x5_L30_c090108.nc</ncdata>
 <ncdata dyn="fv"  hgrid="10x15"     nlev="30"  ic_ymd="101"     >atm/cam/inic/fv/cami_0000-01-01_10x15_L30_c081013.nc</ncdata>
 
+<ncdata dyn="fv"  hgrid="10x15"     nlev="32"                 carma="trop_strat">atm/cam/inic/fv/carma_trop_strat_2000_10x15_spinup01.cam.i.0002-01-01-00000_c211027.nc</ncdata>
+<ncdata dyn="fv"  hgrid="10x15"     nlev="32"  aquaplanet="1" carma="trop_strat">atm/cam/inic/fv/aqua_carma_trop_strat_10x15_spinup01.cam.i.0002-01-01-00000_c211027.nc</ncdata>
+
 <ncdata dyn="fv"  hgrid="0.9x1.25"  nlev="32" chem="trop_strat_mam4_vbs">atm/cam/inic/fv/f.e22.FC2010climo.f09_f09_mg17.cam6_2_022.001.cam.i.0016-01-01-00000_c200610.nc</ncdata>
 <ncdata dyn="fv"  hgrid="0.9x1.25"  nlev="32" chem="trop_strat_mam4_ts2">atm/cam/inic/fv/f.e22.FC2010climo.f09_f09_mg17.cam6_2_022.001.cam.i.0016-01-01-00000_c200610.nc</ncdata>
 <ncdata dyn="fv"  hgrid="0.9x1.25"  nlev="32"  ic_ymd="101"     >atm/cam/inic/fv/cami-mam3_0000-01-01_0.9x1.25_L32_c141031.nc</ncdata>
