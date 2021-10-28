@@ -336,8 +336,8 @@ subroutine carma_aero_gasaerexch_sub(                            &
   integer, parameter :: ldiag1=-1, ldiag2=-1, ldiag3=-1, ldiag4=-1
   integer, parameter :: method_soa = 2
 
-  real (r8), parameter :: mw_poa_host = 12.0_r8             ! molec wght of poa used in host code
-  real (r8), parameter :: mw_soa_host = 250.0_r8             ! molec wght of soa used in host code
+  real (r8), parameter :: mw_poa_host = 12.0_r8    ! molec wght of poa used in host code
+  real (r8), parameter :: mw_soa_host = 250.0_r8   ! molec wght of soa used in host code
 
   integer :: i, iq, itmpa
   integer :: idiagss
@@ -379,7 +379,7 @@ subroutine carma_aero_gasaerexch_sub(                            &
   real (r8) :: uptkrate_soa(nbins,nsoa_vbs)
   ! gas-to-aerosol mass transfer rates (1/s)
 
-  integer, parameter :: nsrflx = 1     ! only one dimension of qsrflx, no renaming or changes in size for CARMA currently
+  integer, parameter :: nsrflx = 1 ! only one dimension of qsrflx, no renaming or changes in size for CARMA currently
   real(r8) :: dqdt(ncol,pver,gas_pcnst)  ! TMR "delta q" array - NOTE dims
   real(r8) :: qsrflx(pcols,nbins,nsoa)
   ! process-specific column tracer tendencies
@@ -417,11 +417,11 @@ subroutine carma_aero_gasaerexch_sub(                            &
            call rad_cnst_get_bin_props_by_idx(0, m, l, spectype=spectype)
            if (trim(spectype) == 's-organic') then
               n = n + 1
-              soa_c(m,n,:,:) = raervmr(:,:,mm)
+              soa_c(m,n,:ncol,:) = raervmr(:ncol,:,mm)
            end if
            if (trim(spectype) == 'p-organic') then
               nn = nn + 1
-              poa_c(m,nn,:,:) = raervmr(:,:,mm)
+              poa_c(m,nn,:ncol,:) = raervmr(:ncol,:,mm)
            end if
         end do
         if (npoa .gt. 1) then
@@ -461,7 +461,8 @@ subroutine carma_aero_gasaerexch_sub(                            &
                  end do
               end do
            else
-              ! error message this code only works if SOAG and SOA CARMA have the same number of species, or if SOA CARMA has only one species.
+              ! error message this code only works if SOAG and SOA CARMA have the same number of species,
+              ! or if SOA CARMA has only one species.
               call endrun( 'carma_aero_gasaerexch_sub error in number of SOA species' )
            end if
 
@@ -470,7 +471,7 @@ subroutine carma_aero_gasaerexch_sub(                            &
         ! get bin number for all aerosols
         l = nspec(m) + 2
         mm = bin_idx(m, l)
-        num_bin(m,:,:) = raervmr(:,:,mm)
+        num_bin(m,:ncol,:) = raervmr(:ncol,:,mm)
      end if
   end do
 
@@ -597,8 +598,8 @@ subroutine carma_aero_gasaerexch_sub(                            &
               else if (nsoa.eq.1) then
                  !write(iulog,*) 'gasaer_exch:  nsoa.eq.1, n', n
                  do jsoa = 1, nsoa_vbs
-                    dqdt_soa_all(n,nsoa,i,k) = dqdt_soa_all(n,nsoa,i,k) + dqdt_soa_vbs(n,jsoa) !  sum up for different volatility bins
-                    !  write(iulog,*) 'dqdt_soa_all, dqdt_soa_vbs :',  n, nsoa, jsoa, dqdt_soa_all(n,nsoa,i,k), dqdt_soa_vbs(n,jsoa)
+                    !  sum up for different volatility bins
+                    dqdt_soa_all(n,nsoa,i,k) = dqdt_soa_all(n,nsoa,i,k) + dqdt_soa_vbs(n,jsoa) 
                  end do
                  do jsoa = 1, nsoa_vbs
                     qsrflx(i,n,nsoa) = qsrflx(i,n,nsoa) + dqdt_soa_vbs(n,jsoa)*pdel_fac
