@@ -308,6 +308,7 @@ subroutine zm_mphy(su,    qu,   mu,   du,   eu,    cmel,  cmei,  zf,   pm,   te,
   use time_manager,    only: get_step_size
   use modal_aerosol_model_mod, only: modal_aerosol_model
   use modal_cam_aerosol_data_mod, only: modal_cam_aerosol_data
+  use wv_saturation,  only: qsat
 
 ! variable declarations
 
@@ -619,6 +620,10 @@ subroutine zm_mphy(su,    qu,   mu,   du,   eu,    cmel,  cmei,  zf,   pm,   te,
 
   type(modal_aerosol_model) :: aero_model
   type(modal_cam_aerosol_data) :: aero_data
+
+  real(r8) :: pres       ! pressure (Pa)
+  real(r8) :: sat_spchum ! water vapor saturation mixing ratio (specific humidity)
+  real(r8) :: sat_vpress ! saturation vapor pressure
 
   call aero_model%create(aero_data)
 
@@ -1471,9 +1476,11 @@ subroutine zm_mphy(su,    qu,   mu,   du,   eu,    cmel,  cmei,  zf,   pm,   te,
 
                     end if
 
+                    pres=rair*rho(i,k)*t(i,k)
+                    call qsat(t(i,k), pres, sat_vpress, sat_spchum)
                     call aero_model%activate( &
                        wu(i,k), wmix, wdiab, wmin, wmax,                 &
-                       t(i,k), rho(i,k), naermod, aero%nmodes, vaerosol, &
+                       t(i,k), rho(i,k), pres, sat_spchum, naermod, aero%nmodes, vaerosol, &
                        hygro, fn, fm,                  &
                        fluxn, fluxm, flux_fullact, in_cloud_in=in_cloud, smax_f=smax_f)
 

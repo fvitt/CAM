@@ -11,6 +11,8 @@ module ecpp_modal_aero_activate
    use shr_kind_mod, only: r8 => shr_kind_r8
    use cam_abortutils,   only: endrun
    use constituents,     only: pcnst
+   use wv_saturation, only: qsat
+   use physconst, only: rair
 
    implicit none
 
@@ -495,6 +497,11 @@ vert_k_loop:   &
         type(modal_aerosol_model) :: aero_model
         type(modal_spcam_aerosol_data) :: aero_data
 
+
+        real(r8) :: pres       ! pressure (Pa)
+        real(r8) :: sat_spchum ! water vapor saturation mixing ratio (specific humidity)
+        real(r8) :: sat_vpress ! saturation vapor pressure
+
         call aero_model%create(aero_data)
 
 !   initialize fnact/fmact to zero
@@ -553,10 +560,12 @@ vert_k_loop:   &
 	enddo ! n
 
 !   do activate call
+        pres=rair*rhoair*tempair
+        call qsat(tempair, pres, sat_vpress, sat_spchum)
         m = 1    ! for the CAM modal aeosol, nsize_aer is always 1.
         call aero_model%activate( &
             wbar, wmix, wdiab, wmin, wmax, tempair, rhoair, &
-            naerosol(m,:), ntype_aer, &
+            pres, sat_spchum, naerosol(m,:), ntype_aer, &
             vaerosol(m,:), hygro(m,:),         &
             fn(m,:), fm(m,:), fluxn(m,:), fluxm(m,:), flux_fullact )
 

@@ -24,7 +24,7 @@ module crmclouds_camaerosols
    use physics_buffer,  only: physics_buffer_desc, pbuf_get_field, pbuf_get_index, pbuf_old_tim_idx
    use physics_types,   only: physics_state, physics_state_copy, physics_ptend
    use ref_pres,        only: top_lev => clim_modal_aero_top_lev
-   use wv_saturation,   only: qsat_water
+   use wv_saturation,   only: qsat_water, qsat
    implicit none
    private
    save
@@ -448,6 +448,11 @@ subroutine crmclouds_mixnuc_tend (state, ptend, dtime, cflx, pblht, pbuf,   &
   real(r8) :: coltendgas(pcols)
   character(len=fieldname_len) :: fieldnamegas
 
+  real(r8) :: sat_spchum(pcols,pver) ! water vapor saturation mixing ratio (specific humidity)
+  real(r8) :: sat_vpress(pcols,pver) ! saturation vapor pressure
+  real(r8) :: pres(pcols,pver)
+  real(r8) :: rho(pcols,pver)
+
   lchnk = state%lchnk
   ncol  = state%ncol
 
@@ -607,8 +612,11 @@ subroutine crmclouds_mixnuc_tend (state, ptend, dtime, cflx, pblht, pbuf,   &
      endif
   end do
 
+  rho(:ncol,:)=state%pmid(:ncol,:)/(rair*state%t(:ncol,:))
+  pres(:ncol,:)=rair*rho(:ncol,:)*state%t(:ncol,:)
+  call qsat(state%t(:ncol,:), pres(:ncol,:), sat_vpress(:ncol,:), sat_spchum(:ncol,:))
   call aero_model%dropmixnuc( ncol, pver, top_lev, lchnk, dtime, wsub, state%q(:,:,ixnumliq), &
-       state%t, state%pmid, state%pint, state%pdel, state%rpdel, state%zm, kkvh, &
+       state%t, state%pmid, state%pint, state%pdel, state%rpdel, sat_spchum, state%zm, kkvh, &
        lcldn, lcldo, cldliqf, nctend, factnum, &
        from_spcam=dommf, rgas=gasmmr(:,:,:ngas), &
        ndropcol_out=ndropcol,nsource_out=nsource,ndropmix_out=ndropmix, &

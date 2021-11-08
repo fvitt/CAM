@@ -37,6 +37,7 @@ use modal_aero_data, only: lptr2_pom_a_amode, lptr2_soa_a_amode, lptr2_bc_a_amod
 use modal_aero_data, only: lptr_msa_a_amode, lptr_nh4_a_amode, lptr_no3_a_amode
 
 use aerosol_model_mod, only: aerosol_model
+use wv_saturation,   only: qsat
 
 implicit none
 private
@@ -2412,6 +2413,9 @@ end subroutine ma_convproc_tend
    real(r8) :: wdiab                 ! diabatic vertical velocity (cm/s)
    real(r8) :: wminf, wmaxf          ! limits for integration over updraft spectrum (cm/s)
 
+   real(r8) :: pres       ! pressure (Pa)
+   real(r8) :: sat_spchum ! water vapor saturation mixing ratio (specific humidity)
+   real(r8) :: sat_vpress ! saturation vapor pressure
 
 !-----------------------------------------------------------------------
 
@@ -2508,9 +2512,11 @@ end subroutine ma_convproc_tend
    wminf = wbar
    wmaxf = wbar
 
+   pres=rair*rhoair*tair
+   call qsat(tair, pres, sat_vpress, sat_spchum)
    call aero_model%activate( &
          wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,                    &
-         naerosol, ntot_amode, vaerosol, hygro,                            &
+         pres, sat_spchum, naerosol, ntot_amode, vaerosol, hygro,          &
          fn, fm, fluxn, fluxm, flux_fullact                                )
 
 
@@ -2675,6 +2681,9 @@ end subroutine ma_convproc_tend
 
    character(len=32) :: spec_type
 
+   real(r8) :: pres       ! pressure (Pa)
+   real(r8) :: sat_spchum ! water vapor saturation mixing ratio (specific humidity)
+   real(r8) :: sat_vpress ! saturation vapor pressure
 !-----------------------------------------------------------------------
 
 
@@ -2783,11 +2792,14 @@ end subroutine ma_convproc_tend
    wminf = wbar
    wmaxf = wbar
 
+   pres=rair*rhoair*tair
+   call qsat(tair, pres, sat_vpress, sat_spchum)
+
    if (k == kactfirst) then
 
       call aero_model%activate( &
          wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,                    &
-         naerosol, ntot_amode, vaerosol, hygro,                            &
+         pres, sat_spchum, naerosol, ntot_amode, vaerosol, hygro,          &
          fn, fm, fluxn, fluxm, flux_fullact                                )
 
 
@@ -2797,7 +2809,7 @@ end subroutine ma_convproc_tend
       smax_prescribed = method2_activate_smaxmax
       call aero_model%activate( &
          wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,                    &
-         naerosol, ntot_amode, vaerosol, hygro,                            &
+         pres, sat_spchum, naerosol, ntot_amode, vaerosol, hygro,          &
          fn, fm, fluxn, fluxm, flux_fullact, smax_prescribed               )
    end if
 

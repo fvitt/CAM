@@ -56,6 +56,8 @@ use aerosol_data_mod,           only: aerosol_data
 use modal_cam_aerosol_data_mod, only: modal_cam_aerosol_data
 use carma_cam_aerosol_data_mod, only: carma_cam_aerosol_data
 
+use wv_saturation, only: qsat
+
 implicit none
 private
 save
@@ -473,6 +475,10 @@ subroutine microp_aero_run ( &
    real(r8) :: ndropcol(pcols)           ! column droplet number (#/m2)
    real(r8) :: wtke(pcols,pver)          ! turbulent vertical velocity at base of layer k (m/s)
 
+   real(r8) :: sat_spchum(pcols,pver) ! water vapor saturation mixing ratio (specific humidity)
+   real(r8) :: sat_vpress(pcols,pver) ! saturation vapor pressure
+   real(r8) :: pres(pcols,pver)
+
    !-------------------------------------------------------------------------------
 
    call physics_state_copy(state,state1)
@@ -660,12 +666,15 @@ subroutine microp_aero_run ( &
          call obj%init_ptend( aero_model(lchnk)%prognostic, aero_model(lchnk)%model_name )
       end select
 
+      pres(:ncol,:)=rair*rho(:ncol,:)*state1%t(:ncol,:)
+      call qsat(state1%t(:ncol,:), pres(:ncol,:), sat_vpress(:ncol,:), sat_spchum(:ncol,:))
+
       ! If not using preexsiting ice, then only use cloudbourne aerosol for the
       ! liquid clouds. This is the same behavior as CAM5.
       if (use_preexisting_ice) then
          call aero_model(lchnk)%dropmixnuc( ncol, pver, top_lev, lchnk, &
               deltatin, wsub, state1%q(:,:,numliq_idx), &
-              state1%t, state1%pmid, state1%pint, state1%pdel, state1%rpdel, state1%zm, kvh, &
+              state1%t, state1%pmid, state1%pint, state1%pdel, state1%rpdel, sat_spchum, state1%zm, kvh, &
               cldn, cldo, cldliqf, nctend_mixnuc, factnum, &
               ndropcol_out=ndropcol,nsource_out=nsource,ndropmix_out=ndropmix, &
               wtke_out=wtke,  ccn=ccn )
@@ -673,7 +682,7 @@ subroutine microp_aero_run ( &
          cldliqf = 1._r8
          call aero_model(lchnk)%dropmixnuc( ncol, pver, top_lev, lchnk, &
               deltatin, wsub, state1%q(:,:,numliq_idx), &
-              state1%t, state1%pmid, state1%pint, state1%pdel, state1%rpdel, state1%zm, kvh, &
+              state1%t, state1%pmid, state1%pint, state1%pdel, state1%rpdel, sat_spchum, state1%zm, kvh, &
               lcldn, lcldo, cldliqf, nctend_mixnuc, factnum, &
               ndropcol_out=ndropcol,nsource_out=nsource,ndropmix_out=ndropmix, &
               wtke_out=wtke,  ccn=ccn )

@@ -11,8 +11,6 @@ module aerosol_model_mod
   use physconst,      only: gravit, rair, cpair
   use physconst,      only: mwh2o, rhoh2o, rh2o
 
-  use wv_saturation,  only: qsat ! for activate
-
   use cam_abortutils, only: endrun
   use cam_logfile,    only: iulog
 
@@ -114,7 +112,7 @@ contains
 
   subroutine aero_dropmixnuc( self, ncol, nlev, top_lev, lchnk, &
        dtmicro, wsub, &
-       ncldwtr, temp, pmid, pint, pdel, rpdel, zm, kvh, &
+       ncldwtr, temp, pmid, pint, pdel, rpdel, sat_spchum, zm, kvh, &
        cldn, cldo, cldliqf, tendnd, factnum, &
        from_spcam, rgas, nsource_out, ndropmix_out,&
        ndropcol_out, wtke_out, ccn )
@@ -132,10 +130,11 @@ contains
     real(r8), intent(in) :: pint(:,:)    ! pressure at layer interfaces (Pa)
     real(r8), intent(in) :: pdel(:,:)    ! pressure thickess of layer (Pa)
     real(r8), intent(in) :: rpdel(:,:)   ! inverse of pressure thickess of layer (/Pa)
+    real(r8), intent(in) :: sat_spchum(:,:) ! water vapor saturation mixing ratio (specific humidity)
     real(r8), intent(in) :: zm(:,:)      ! geopotential height of level (m)
     real(r8), intent(in) :: kvh(:,:)     ! vertical diffusivity (m2/s)
 
-    real(r8),                    intent(in)    :: dtmicro     ! time step for microphysics (s)
+    real(r8), intent(in) :: dtmicro     ! time step for microphysics (s)
 
     ! arguments
     real(r8), intent(in) :: wsub(:,:)    ! subgrid vertical velocity
@@ -251,6 +250,9 @@ contains
     character(len=*), parameter :: subname='%dropmixnuc'
 
     logical  :: called_from_spcam
+
+    real(r8) :: pres       ! pressure (Pa)
+
     !-------------------------------------------------------------------------------
 
     ! Create the liquid weighted cloud fractions that were passsed in
@@ -470,9 +472,10 @@ contains
                 hygro(m)    = hy(i)
              end do
 
+             pres=rair*cs(i,k)*temp(i,k)
              call self%activate( &
                   wbar, wmix, wdiab, wmin, wmax,                       &
-                  temp(i,k), cs(i,k), naermod, self%aero_data%mtotal,             &
+                  temp(i,k), cs(i,k), pres, sat_spchum(i,k), naermod, self%aero_data%mtotal,             &
                   vaerosol, hygro, fn, fm, fluxn,     &
                   fluxm,flux_fullact(k))
 
@@ -553,10 +556,11 @@ contains
                    hygro(m)    = hy(i)
                 end do
 
+                pres=rair*cs(i,k)*temp(i,k)
                 call self%activate( &
-                     wbar, wmix, wdiab, wmin, wmax,                       &
-                     temp(i,k), cs(i,k), naermod, self%aero_data%mtotal,             &
-                     vaerosol, hygro,  fn, fm, fluxn,     &
+                     wbar, wmix, wdiab, wmin, wmax, &
+                     temp(i,k), cs(i,k), pres, sat_spchum(i,k), naermod, self%aero_data%mtotal, &
+                     vaerosol, hygro,  fn, fm, fluxn, &
                      fluxm, flux_fullact(k))
 
                 factnum(i,k,:) = fn
@@ -1025,7 +1029,7 @@ contains
   !===============================================================================
 
   subroutine aero_activate(self, wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
-       na, nmode, volume, hygro,  &
+       pres, sat_spchum, na, nmode, volume, hygro,  &
        fn, fm, fluxn, fluxm, flux_fullact, smax_prescribed, in_cloud_in, smax_f)
 
     !      calculates number, surface, and mass fraction of aerosols activated as CCN
@@ -1042,13 +1046,15 @@ contains
     !      input
     class(aerosol_model), intent(in) :: self
 
-    real(r8), intent(in) :: wbar          ! grid cell mean vertical velocity (m/s)
-    real(r8), intent(in) :: sigw          ! subgrid standard deviation of vertical vel (m/s)
-    real(r8), intent(in) :: wdiab         ! diabatic vertical velocity (0 if adiabatic)
-    real(r8), intent(in) :: wminf         ! minimum updraft velocity for integration (m/s)
-    real(r8), intent(in) :: wmaxf         ! maximum updraft velocity for integration (m/s)
-    real(r8), intent(in) :: tair          ! air temperature (K)
-    real(r8), intent(in) :: rhoair        ! air density (kg/m3)
+    real(r8), intent(in) :: wbar       ! grid cell mean vertical velocity (m/s)
+    real(r8), intent(in) :: sigw       ! subgrid standard deviation of vertical vel (m/s)
+    real(r8), intent(in) :: wdiab      ! diabatic vertical velocity (0 if adiabatic)
+    real(r8), intent(in) :: wminf      ! minimum updraft velocity for integration (m/s)
+    real(r8), intent(in) :: wmaxf      ! maximum updraft velocity for integration (m/s)
+    real(r8), intent(in) :: tair       ! air temperature (K)
+    real(r8), intent(in) :: rhoair     ! air density (kg/m3)
+    real(r8), intent(in) :: pres       ! pressure (Pa)
+    real(r8), intent(in) :: sat_spchum ! water vapor saturation mixing ratio (specific humidity)
     real(r8), intent(in) :: na(:)      ! aerosol number concentration (/m3)
     integer,  intent(in) :: nmode      ! number of aerosol modes or bins
     real(r8), intent(in) :: volume(:)  ! aerosol volume concentration (m3/m3)
@@ -1077,10 +1083,8 @@ contains
     integer, parameter:: nx=200
     real(r8) integ,integf
     real(r8), parameter :: p0 = 1013.25e2_r8    ! reference pressure (Pa)
-    real(r8) pres ! pressure (Pa)
     real(r8) diff0,conduct0
-    real(r8) es ! saturation vapor pressure
-    real(r8) qs ! water vapor saturation mixing ratio
+
     real(r8) dqsdt ! change in qs with temperature
     real(r8) g ! thermodynamic function (m2/s)
     real(r8) zeta(nmode), eta(nmode)
@@ -1145,16 +1149,14 @@ contains
     end if
 
 
-    pres=rair*rhoair*tair
     diff0=0.211e-4_r8*(p0/pres)*(tair/t0)**1.94_r8
     conduct0=(5.69_r8+0.017_r8*(tair-t0))*4.186e2_r8*1.e-5_r8 ! convert to J/m/s/deg
-    call qsat(tair, pres, es, qs)
-    dqsdt=latvap/(rh2o*tair*tair)*qs
+    dqsdt=latvap/(rh2o*tair*tair)*sat_spchum
     alpha=gravit*(latvap/(cpair*rh2o*tair*tair)-1._r8/(rair*tair))
-    gamma=(1.0_r8+latvap/cpair*dqsdt)/(rhoair*qs)
+    gamma=(1.0_r8+latvap/cpair*dqsdt)/(rhoair*sat_spchum)
     etafactor2max=1.e10_r8/(alpha*wmaxf)**1.5_r8 ! this should make eta big if na is very small.
 
-    grow  = 1._r8/(rhoh2o/(diff0*rhoair*qs)  &
+    grow  = 1._r8/(rhoh2o/(diff0*rhoair*sat_spchum)  &
          + latvap*rhoh2o/(conduct0*tair)*(latvap/(rh2o*tair) - 1._r8))
     sqrtg = sqrt(grow)
     beta  = 2._r8*pi*rhoh2o*grow*gamma
