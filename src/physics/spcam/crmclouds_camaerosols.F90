@@ -612,9 +612,10 @@ subroutine crmclouds_mixnuc_tend (state, ptend, dtime, cflx, pblht, pbuf,   &
      endif
   end do
 
-  rho(:ncol,:)=state%pmid(:ncol,:)/(rair*state%t(:ncol,:))
+  rho(:ncol,:)=state%pmid(:ncol,:)/(rair*state%t(:ncol,:)) ! bit-for-bit funkiness
   pres(:ncol,:)=rair*rho(:ncol,:)*state%t(:ncol,:)
   call qsat(state%t(:ncol,:), pres(:ncol,:), sat_vpress(:ncol,:), sat_spchum(:ncol,:))
+!!$  call qsat(state%t(:ncol,:), state%pmid(:ncol,:), sat_vpress(:ncol,:), sat_spchum(:ncol,:))
   call aero_model%dropmixnuc( ncol, pver, top_lev, lchnk, dtime, wsub, state%q(:,:,ixnumliq), &
        state%t, state%pmid, state%pint, state%pdel, state%rpdel, sat_spchum, state%zm, kkvh, &
        lcldn, lcldo, cldliqf, nctend, factnum, &

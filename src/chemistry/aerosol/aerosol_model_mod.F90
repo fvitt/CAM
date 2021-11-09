@@ -251,8 +251,6 @@ contains
 
     logical  :: called_from_spcam
 
-    real(r8) :: pres       ! pressure (Pa)
-
     !-------------------------------------------------------------------------------
 
     ! Create the liquid weighted cloud fractions that were passsed in
@@ -261,19 +259,6 @@ contains
     ! ice portion; however, this is what was done before.
     lcldo(:ncol,:) = cldo(:ncol,:) * cldliqf(:ncol,:)
     lcldn(:ncol,:) = cldn(:ncol,:) * cldliqf(:ncol,:)
-
-
-    arg = 1.0_r8
-    if (abs(0.8427_r8 - erf(arg))/0.8427_r8 > 0.001_r8) then
-       write(iulog,*) 'erf(1.0) = ',ERF(arg)
-       call endrun(trim(self%model_name)//subname//': Error function error')
-    endif
-    arg = 0.0_r8
-    if (erf(arg) /= 0.0_r8) then
-       write(iulog,*) 'erf(0.0) = ',erf(arg)
-       write(iulog,*) 'dropmixnuc: Error function error'
-       call endrun(trim(self%model_name)//subname//': Error function error')
-    endif
 
     dtinv = 1._r8/dtmicro
 
@@ -472,11 +457,10 @@ contains
                 hygro(m)    = hy(i)
              end do
 
-             pres=rair*cs(i,k)*temp(i,k)
              call self%activate( &
-                  wbar, wmix, wdiab, wmin, wmax,                       &
-                  temp(i,k), cs(i,k), pres, sat_spchum(i,k), naermod, self%aero_data%mtotal,             &
-                  vaerosol, hygro, fn, fm, fluxn,     &
+                  wbar, wmix, wdiab, wmin, wmax, &
+                  temp(i,k), cs(i,k), sat_spchum(i,k), naermod, self%aero_data%mtotal, &
+                  vaerosol, hygro, fn, fm, fluxn, &
                   fluxm,flux_fullact(k))
 
              factnum(i,k,:) = fn
@@ -556,10 +540,9 @@ contains
                    hygro(m)    = hy(i)
                 end do
 
-                pres=rair*cs(i,k)*temp(i,k)
                 call self%activate( &
                      wbar, wmix, wdiab, wmin, wmax, &
-                     temp(i,k), cs(i,k), pres, sat_spchum(i,k), naermod, self%aero_data%mtotal, &
+                     temp(i,k), cs(i,k), sat_spchum(i,k), naermod, self%aero_data%mtotal, &
                      vaerosol, hygro,  fn, fm, fluxn, &
                      fluxm, flux_fullact(k))
 
@@ -1029,22 +1012,22 @@ contains
   !===============================================================================
 
   subroutine aero_activate(self, wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
-       pres, sat_spchum, na, nmode, volume, hygro,  &
+       sat_spchum, na, nmode, volume, hygro,  &
        fn, fm, fluxn, fluxm, flux_fullact, smax_prescribed, in_cloud_in, smax_f)
 
-    !      calculates number, surface, and mass fraction of aerosols activated as CCN
-    !      calculates flux of cloud droplets, surface area, and aerosol mass into cloud
-    !      assumes an internal mixture within each of up to nbin multiple aerosol bins
-    !      a gaussiam spectrum of updrafts can be treated. mode -> bins
+    ! calculates number, surface, and mass fraction of aerosols activated as CCN
+    ! calculates flux of cloud droplets, surface area, and aerosol mass into cloud
+    ! assumes an internal mixture within each of up to nbin multiple aerosol bins
+    ! a gaussiam spectrum of updrafts can be treated. mode -> bins
 
-    !      mks units
+    ! mks units
 
-    !      Abdul-Razzak and Ghan, A parameterization of aerosol activation.
-    !      2. Multiple aerosol types. J. Geophys. Res., 105, 6837-6844.
+    ! Abdul-Razzak and Ghan, A parameterization of aerosol activation.
+    ! 2. Multiple aerosol types. J. Geophys. Res., 105, 6837-6844.
 
-
-    !      input
     class(aerosol_model), intent(in) :: self
+
+    ! input
 
     real(r8), intent(in) :: wbar       ! grid cell mean vertical velocity (m/s)
     real(r8), intent(in) :: sigw       ! subgrid standard deviation of vertical vel (m/s)
@@ -1053,21 +1036,20 @@ contains
     real(r8), intent(in) :: wmaxf      ! maximum updraft velocity for integration (m/s)
     real(r8), intent(in) :: tair       ! air temperature (K)
     real(r8), intent(in) :: rhoair     ! air density (kg/m3)
-    real(r8), intent(in) :: pres       ! pressure (Pa)
     real(r8), intent(in) :: sat_spchum ! water vapor saturation mixing ratio (specific humidity)
     real(r8), intent(in) :: na(:)      ! aerosol number concentration (/m3)
     integer,  intent(in) :: nmode      ! number of aerosol modes or bins
     real(r8), intent(in) :: volume(:)  ! aerosol volume concentration (m3/m3)
     real(r8), intent(in) :: hygro(:)   ! hygroscopicity of aerosol mode
 
-    !      output
+    ! output
 
     real(r8), intent(out) :: fn(:)      ! number fraction of aerosols activated
     real(r8), intent(out) :: fm(:)      ! mass fraction of aerosols activated
     real(r8), intent(out) :: fluxn(:)   ! flux of activated aerosol number fraction into cloud (cm/s)
     real(r8), intent(out) :: fluxm(:)   ! flux of activated aerosol mass fraction into cloud (cm/s)
     real(r8), intent(out) :: flux_fullact   ! flux of activated aerosol fraction assuming 100% activation (cm/s)
-    !    rce-comment
+    ! rce-comment
     !    used for consistency check -- this should match (ekd(k)*zs(k))
     !    also, fluxm/flux_fullact gives fraction of aerosol mass flux
     !       that is activated
@@ -1078,11 +1060,12 @@ contains
     real(r8), optional, intent(in) :: smax_f           ! droplet and rain size distr factor in the smax calculation
     ! used when in_cloud=.true.
 
-    !      local
+    ! local
 
     integer, parameter:: nx=200
     real(r8) integ,integf
     real(r8), parameter :: p0 = 1013.25e2_r8    ! reference pressure (Pa)
+    real(r8) pres ! pressure (Pa)
     real(r8) diff0,conduct0
 
     real(r8) dqsdt ! change in qs with temperature
@@ -1149,8 +1132,10 @@ contains
     end if
 
 
+    pres=rair*rhoair*tair
     diff0=0.211e-4_r8*(p0/pres)*(tair/t0)**1.94_r8
     conduct0=(5.69_r8+0.017_r8*(tair-t0))*4.186e2_r8*1.e-5_r8 ! convert to J/m/s/deg
+
     dqsdt=latvap/(rh2o*tair*tair)*sat_spchum
     alpha=gravit*(latvap/(cpair*rh2o*tair*tair)-1._r8/(rair*tair))
     gamma=(1.0_r8+latvap/cpair*dqsdt)/(rhoair*sat_spchum)
@@ -1166,10 +1151,10 @@ contains
        if(volume(m).gt.1.e-39_r8.and.na(m).gt.1.e-39_r8)then
 
           amcube(m)=(3._r8*volume(m)/(4._r8*pi*self%exp45logsig(m)*na(m)))
-          !           growth coefficent Abdul-Razzak & Ghan 1998 eqn 16
-          !           should depend on mean radius of mode to account for gas kinetic effects
-          !           see Fountoukis and Nenes, JGR2005 and Meskhidze et al., JGR2006
-          !           for approriate size to use for effective diffusivity.
+          ! growth coefficent Abdul-Razzak & Ghan 1998 eqn 16
+          ! should depend on mean radius of mode to account for gas kinetic effects
+          ! see Fountoukis and Nenes, JGR2005 and Meskhidze et al., JGR2006
+          ! for approriate size to use for effective diffusivity.
           etafactor2(m)=1._r8/(na(m)*beta*sqrtg)
           if(hygro(m).gt.1.e-10_r8)then
              smc(m)=2._r8*aten*sqrt(aten/(27._r8*hygro(m)*amcube(m))) ! only if variable size dist
@@ -1212,7 +1197,6 @@ contains
        do n = 1, nx
 
 100       wnuc=w+wdiab
-          !           write(iulog,*)'wnuc=',wnuc
           alw=alpha*wnuc
           sqrtalw=sqrt(alw)
           etafactor1=alw*sqrtalw
@@ -1227,7 +1211,6 @@ contains
           else
              call self%maxsat(zeta,eta,nmode,smc,smax)
           endif
-          !	      write(iulog,*)'w,smax=',w,smax
 
           lnsmax=log(smax)
 
@@ -1236,7 +1219,7 @@ contains
 
           dwnew = dw
           if(fnew-fold.gt.dfmax.and.n.gt.1)then
-             !              reduce updraft increment for greater accuracy in integration
+             ! reduce updraft increment for greater accuracy in integration
              if (dw .gt. 1.01_r8*dwmin) then
                 dw=0.7_r8*dw
                 dw=max(dw,dwmin)
@@ -1248,7 +1231,7 @@ contains
           endif
 
           if(fnew-fold.lt.dfmin)then
-             !              increase updraft increment to accelerate integration
+             ! increase updraft increment to accelerate integration
              dwnew=min(1.5_r8*dw,dwmax)
           endif
           fold=fnew
@@ -1258,12 +1241,11 @@ contains
           fnmin=1._r8
 
           do m=1,nmode
-             !              modal
              x=twothird*(lnsm(m)-lnsmax)/(sq2*self%alogsig(m))
              fn(m)=0.5_r8*(1._r8-self%err_funct(x))
              fnmin=min(fn(m),fnmin)
-             !               integration is second order accurate
-             !               assumes linear variation of f*g with w
+             ! integration is second order accurate
+             ! assumes linear variation of f*g with w
              fnbar=(fn(m)*g+fnold(m)*gold)
              arg=x-1.5_r8*sq2*self%alogsig(m)
              fm(m)=0.5_r8*(1._r8-self%err_funct(arg))
@@ -1271,19 +1253,19 @@ contains
              wb=(w+wold)
              if(w.gt.0._r8)then
                 sumflxn(m)=sumflxn(m)+sixth*(wb*fnbar           &
-                     +(fn(m)*g*w+fnold(m)*gold*wold))*dw
+                          +(fn(m)*g*w+fnold(m)*gold*wold))*dw
                 sumflxm(m)=sumflxm(m)+sixth*(wb*fmbar           &
-                     +(fm(m)*g*w+fmold(m)*gold*wold))*dw
+                          +(fm(m)*g*w+fmold(m)*gold*wold))*dw
              endif
              sumfn(m)=sumfn(m)+0.5_r8*fnbar*dw
              fnold(m)=fn(m)
              sumfm(m)=sumfm(m)+0.5_r8*fmbar*dw
              fmold(m)=fm(m)
           enddo
-          !           same form as sumflxm but replace the fm with 1.0
+          ! same form as sumflxm but replace the fm with 1.0
           sumflx_fullact = sumflx_fullact &
-               + sixth*(wb*(g+gold) + (g*w+gold*wold))*dw
-          !            sumg=sumg+0.5_r8*(g+gold)*dw
+                         + sixth*(wb*(g+gold) + (g*w+gold*wold))*dw
+          ! sumg=sumg+0.5_r8*(g+gold)*dw
           gold=g
           wold=w
           dw=dwnew
@@ -1296,8 +1278,8 @@ contains
              write(iulog,*)'wnuc=',wnuc
              write(iulog,*)'na=',(na(m),m=1,nmode)
              write(iulog,*)'fn=',(fn(m),m=1,nmode)
-             !   dump all subr parameters to allow testing with standalone code
-             !   (build a driver that will read input and call activate)
+             ! dump all subr parameters to allow testing with standalone code
+             ! (build a driver that will read input and call activate)
              write(iulog,*)'wbar,sigw,wdiab,tair,rhoair,nmode='
              write(iulog,*) wbar,sigw,wdiab,tair,rhoair,nmode
              write(iulog,*)'na=',na
@@ -1312,15 +1294,15 @@ contains
        ndist(n)=ndist(n)+1
        if(w.lt.wmaxf)then
 
-          !            contribution from all updrafts stronger than wmax
-          !            assuming constant f (close to fmax)
+          ! contribution from all updrafts stronger than wmax
+          ! assuming constant f (close to fmax)
           wnuc=w+wdiab
 
           z1=(w-wbar)/(sigw*sq2)
           z2=(wmaxf-wbar)/(sigw*sq2)
           g=exp(-z1*z1)
           integ=sigw*0.5_r8*sq2*sqpi*(erf(z2)-erf(z1))
-          !            consider only upward flow into cloud base when estimating flux
+          ! consider only upward flow into cloud base when estimating flux
           wf1=max(w,zero)
           zf1=(wf1-wbar)/(sigw*sq2)
           gf1=exp(-zf1*zf1)
@@ -1336,15 +1318,13 @@ contains
              sumflxm(m)=sumflxm(m)+integf*fm(m)
              sumfm(m)=sumfm(m)+fm(m)*integ
           enddo
-          !           same form as sumflxm but replace the fm with 1.0
+          ! same form as sumflxm but replace the fm with 1.0
           sumflx_fullact = sumflx_fullact + integf
-          !            sumg=sumg+integ
        endif
 
 
        do m=1,nmode
           fn(m)=sumfn(m)/(sq2*sqpi*sigw)
-          !            fn(m)=sumfn(m)/(sumg)
           if(fn(m).gt.1.01_r8)then
              write(iulog,*)'fn=',fn(m),' > 1 in activate'
              write(iulog,*)'w,m,na,amcube=',w,m,na(m),amcube(m)
@@ -1353,18 +1333,17 @@ contains
           endif
           fluxn(m)=sumflxn(m)/(sq2*sqpi*sigw)
           fm(m)=sumfm(m)/(sq2*sqpi*sigw)
-          !            fm(m)=sumfm(m)/(sumg)
           if(fm(m).gt.1.01_r8)then
              write(iulog,*)'fm=',fm(m),' > 1 in activate'
           endif
           fluxm(m)=sumflxm(m)/(sq2*sqpi*sigw)
        enddo
-       !        same form as fluxm
+       ! same form as fluxm
        flux_fullact = sumflx_fullact/(sq2*sqpi*sigw)
 
     else
 
-       !        single updraft
+       ! single updraft
        wnuc=wbar+wdiab
 
        if(wnuc.gt.0._r8)then
@@ -1398,7 +1377,6 @@ contains
           lnsmax=log(smax)
 
           do m=1,nmode
-             !                 modal
              x=twothird*(lnsm(m)-lnsmax)/(sq2*self%alogsig(m))
              fn(m)=0.5_r8*(1._r8-self%err_funct(x))
              arg=x-1.5_r8*sq2*self%alogsig(m)
@@ -1424,7 +1402,6 @@ contains
     !  explicit integration of droplet/aerosol mixing
     !     with source due to activation/nucleation
 
-
     class(aerosol_model), intent(in) :: self
     integer, intent(in) :: nlev ! number of levels
     integer, intent(in) :: top_lev !
@@ -1449,7 +1426,7 @@ contains
     integer k,kp1,km1
 
     if ( is_unact ) then
-       !     the qactold*(1-overlap) terms are resuspension of activated material
+       ! the qactold*(1-overlap) terms are resuspension of activated material
        do k=top_lev,nlev
           kp1=min(k+1,nlev)
           km1=max(k-1,top_lev)
@@ -1457,37 +1434,26 @@ contains
                qactold(kp1)*(1.0_r8-overlapp(k)))               &
                + ekkm(k)*(qold(km1) - qold(k) +     &
                qactold(km1)*(1.0_r8-overlapm(k))) )
-          !        force to non-negative
-          !        if(q(k)<-1.e-30)then
-          !           write(iulog,*)'q=',q(k),' in explmix'
+          ! force to non-negative
           q(k)=max(q(k),0._r8)
-          !        endif
        end do
 
-       !     diffusion loss at base of lowest layer
+       ! diffusion loss at base of lowest layer
        q(nlev)=q(nlev)-surfrate*qold(nlev)*dt+flxconv*dt
-       !        force to non-negative
-       !        if(q(nlev)<-1.e-30)then
-       !           write(iulog,*)'q=',q(nlev),' in explmix'
+       ! force to non-negative
        q(nlev)=max(q(nlev),0._r8)
-       !        endif
     else
        do k=top_lev,nlev
           kp1=min(k+1,nlev)
           km1=max(k-1,top_lev)
           q(k) = qold(k) + dt*(src(k) + ekkp(k)*(overlapp(k)*qold(kp1)-qold(k)) +      &
                ekkm(k)*(overlapm(k)*qold(km1)-qold(k)) )
-          !        force to non-negative
-          !        if(q(k)<-1.e-30)then
-          !           write(iulog,*)'q=',q(k),' in explmix'
+          ! force to non-negative
           q(k)=max(q(k),0._r8)
-          !        endif
        end do
-       !     diffusion loss at base of lowest layer
+       ! diffusion loss at base of lowest layer
        q(nlev)=q(nlev)-surfrate*qold(nlev)*dt+flxconv*dt
-       !        force to non-negative
-       !        if(q(nlev)<-1.e-30)then
-       !           write(iulog,*)'q=',q(nlev),' in explmix'
+       ! force to non-negative
        q(nlev)=max(q(nlev),0._r8)
 
     end if

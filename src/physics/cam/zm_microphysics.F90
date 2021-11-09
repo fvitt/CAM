@@ -1480,7 +1480,7 @@ subroutine zm_mphy(su,    qu,   mu,   du,   eu,    cmel,  cmei,  zf,   pm,   te,
                     call qsat(t(i,k), pres, sat_vpress, sat_spchum)
                     call aero_model%activate( &
                        wu(i,k), wmix, wdiab, wmin, wmax,                 &
-                       t(i,k), rho(i,k), pres, sat_spchum, naermod, aero%nmodes, vaerosol, &
+                       t(i,k), rho(i,k), sat_spchum, naermod, aero%nmodes, vaerosol, &
                        hygro, fn, fm,                  &
                        fluxn, fluxm, flux_fullact, in_cloud_in=in_cloud, smax_f=smax_f)
 

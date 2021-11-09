@@ -2515,9 +2515,9 @@ end subroutine ma_convproc_tend
    pres=rair*rhoair*tair
    call qsat(tair, pres, sat_vpress, sat_spchum)
    call aero_model%activate( &
-         wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,                    &
-         pres, sat_spchum, naerosol, ntot_amode, vaerosol, hygro,          &
-         fn, fm, fluxn, fluxm, flux_fullact                                )
+         wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair, &
+         sat_spchum, naerosol, ntot_amode, vaerosol, hygro, &
+         fn, fm, fluxn, fluxm, flux_fullact )
 
 
 
@@ -2798,9 +2798,9 @@ end subroutine ma_convproc_tend
    if (k == kactfirst) then
 
       call aero_model%activate( &
-         wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,                    &
-         pres, sat_spchum, naerosol, ntot_amode, vaerosol, hygro,          &
-         fn, fm, fluxn, fluxm, flux_fullact                                )
+         wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair, &
+         sat_spchum, naerosol, ntot_amode, vaerosol, hygro, &
+         fn, fm, fluxn, fluxm, flux_fullact )
 
 
    else
@@ -2808,9 +2808,9 @@ end subroutine ma_convproc_tend
 ! that is constant with height
       smax_prescribed = method2_activate_smaxmax
       call aero_model%activate( &
-         wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,                    &
-         pres, sat_spchum, naerosol, ntot_amode, vaerosol, hygro,          &
-         fn, fm, fluxn, fluxm, flux_fullact, smax_prescribed               )
+         wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair, &
+         sat_spchum, naerosol, ntot_amode, vaerosol, hygro, &
+         fn, fm, fluxn, fluxm, flux_fullact, smax_prescribed )
    end if
 
 

@@ -565,7 +565,7 @@ vert_k_loop:   &
         m = 1    ! for the CAM modal aeosol, nsize_aer is always 1.
         call aero_model%activate( &
             wbar, wmix, wdiab, wmin, wmax, tempair, rhoair, &
-            pres, sat_spchum, naerosol(m,:), ntype_aer, &
+            sat_spchum, naerosol(m,:), ntype_aer, &
             vaerosol(m,:), hygro(m,:),         &
             fn(m,:), fm(m,:), fluxn(m,:), fluxm(m,:), flux_fullact )
 
