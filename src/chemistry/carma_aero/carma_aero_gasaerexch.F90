@@ -610,7 +610,7 @@ subroutine carma_aero_gasaerexch_sub(                            &
   do jsoa = 1, nsoa_vbs
      do k = top_lev, pver
         do i = 1, ncol
-           q(i,k,l_soag(jsoa)) = q(i,k,l_soag(jsoa)) + dqdt(i,k,l_soag(jsoa))*deltat
+           q(i,k,l_soag(jsoa)) = max (q(i,k,l_soag(jsoa)) + dqdt(i,k,l_soag(jsoa))*deltat, 1.0e-40_r8)
         end do
      end do
   end do

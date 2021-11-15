@@ -342,6 +342,8 @@ contains
          trim(ptend%name)=='rayleigh friction' .or. &
          trim(ptend%name)=='Gravity wave drag' .or. &
          trim(ptend%name)=='nudging' .or. &
+         trim(ptend%name)=='qbo' .or. &
+         trim(ptend%name)=='aoa_tracers' .or. &
          trim(ptend%name)=='aero_model_wetdep' .or. &
          trim(ptend%name)=='convect_shallow (off)' .or. &
          trim(ptend%name)=='convect_shallow' .or. &
