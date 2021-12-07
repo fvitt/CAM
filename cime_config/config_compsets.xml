@@ -585,12 +585,12 @@
         <value compset="DOCN%DOM" grid="a%0.47x0.63.*_oi%0.47x0.63"          >$DIN_LOC_ROOT/atm/cam/sst/sst_HadOIBl_bc_0.47x0.63_clim_c061106.nc</value>
         <value compset="DOCN%DOM" grid="a%0.23x0.31.*_oi%0.23x0.31"          >$DIN_LOC_ROOT/atm/cam/sst/sst_HadOIBl_bc_0.23x0.31_clim_c110526.nc</value>
 
-        <value compset="(HIST_|20TR_|5505_|TSCH)" grid=".+"                             >$DIN_LOC_ROOT/atm/cam/sst/sst_HadOIBl_bc_1x1_1850_2017_c180507.nc</value>
-        <value compset="(HIST_|20TR_|5505_|TSCH)" grid="a%T31.*_oi%T31"                 >$DIN_LOC_ROOT/atm/cam/sst/"sst_HadOIBl_bc_48x96_1850_2017_c180507.nc</value>
-        <value compset="(HIST_|20TR_|5505_|TSCH)" grid="a%1.9x2.5.*_oi%1.9x2.5"         >$DIN_LOC_ROOT/atm/cam/sst/sst_HadOIBl_bc_1.9x2.5_1850_2017_c180507.nc</value>
-        <value compset="(HIST_|20TR_|5505_|TSCH)" grid="a%0.9x1.25.*_oi%0.9x1.25"       >$DIN_LOC_ROOT/atm/cam/sst/sst_HadOIBl_bc_0.9x1.25_1850_2017_c180507.nc</value>
-        <value compset="(HIST_|20TR_|5505_|TSCH)" grid="a%0.47x0.63.*_oi%0.47x0.63"     >$DIN_LOC_ROOT/atm/cam/sst/sst_HadOIBl_bc_0.47x0.63_1850_2017_c180507.nc</value>
-        <value compset="(HIST_|20TR_|5505_|TSCH)" grid="a%0.23x0.31.*_oi%0.23x0.31"     >$DIN_LOC_ROOT/atm/cam/sst/sst_HadOIBl_bc_0.23x0.31_1850_2017_c180507.nc</value>
+        <value compset="(HIST_|20TR_|5505_|TSCH)" grid=".+"                             >$DIN_LOC_ROOT/atm/cam/sst/sst_HadOIBl_bc_1x1_1850_2021_c141021.nc</value>
+        <value compset="(HIST_|20TR_|5505_|TSCH)" grid="a%T31.*_oi%T31"                 >$DIN_LOC_ROOT/atm/cam/sst/sst_HadOIBl_bc_48x96_1850_2021_c141021.nc</value>
+        <value compset="(HIST_|20TR_|5505_|TSCH)" grid="a%1.9x2.5.*_oi%1.9x2.5"         >$DIN_LOC_ROOT/atm/cam/sst/sst_HadOIBl_bc_1.9x2.5_1850_2021_c141021.nc</value>
+        <value compset="(HIST_|20TR_|5505_|TSCH)" grid="a%0.9x1.25.*_oi%0.9x1.25"       >$DIN_LOC_ROOT/atm/cam/sst/sst_HadOIBl_bc_0.9x1.25_1850_2021_c141021.nc</value>
+        <value compset="(HIST_|20TR_|5505_|TSCH)" grid="a%0.47x0.63.*_oi%0.47x0.63"     >$DIN_LOC_ROOT/atm/cam/sst/sst_HadOIBl_bc_0.47x0.63_1850_2021_c141021.nc</value>
+        <value compset="(HIST_|20TR_|5505_|TSCH)" grid="a%0.23x0.31.*_oi%0.23x0.31"     >$DIN_LOC_ROOT/atm/cam/sst/sst_HadOIBl_bc_0.23x0.31_1850_2021_c141021.nc</value>
 
         <value compset="1850_" grid=".+"                                     >$DIN_LOC_ROOT/atm/cam/sst/sst_HadOIBl_bc_1x1_clim_pi_c101029.nc</value>
         <value compset="1850_"         grid="a%T31.*_oi%T31"                 >$DIN_LOC_ROOT/atm/cam/sst/sst_HadOIBl_bc_48x96_clim_pi_c101028.nc</value>
@@ -641,7 +641,7 @@
     </entry>
     <entry id="SSTICE_YEAR_END">
       <values match="first">
-        <value compset="HIST_">2016</value>
+        <value compset="HIST_">2021</value>
       </values>
     </entry>
 
