@@ -330,7 +330,7 @@
     <value compset="DOCN%AQP">$COMP_ROOT_DIR_ATM/cime_config/usermods_dirs/aquap</value>
     <value compset="DOCN%SOMAQP">$COMP_ROOT_DIR_ATM/cime_config/usermods_dirs/aquap</value>
     <value compset="CAM[456]0%.*SCAM" >$COMP_ROOT_DIR_ATM/cime_config/usermods_dirs/scam_mandatory</value>
-    <value compset="CAM60%COTAG" grid="a%ne0np4CONUS">$COMP_ROOT_DIR_ATM/cime_config/usermods_dirs/coags_conus</value>
+    <value compset="CAM60%COTAG" grid="a%ne0np4CONUS">$COMP_ROOT_DIR_ATM/cime_config/usermods_dirs/cotags_conus</value>
     </values>
     <group>run_component_cam</group>
     <file>env_case.xml</file>
