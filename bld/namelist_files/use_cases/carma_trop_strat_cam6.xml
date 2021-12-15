@@ -3,6 +3,7 @@
 
 <start_ymd>10101</start_ymd>
 <ncdata hgrid="1.9x2.5" nlev="32">atm/cam/inic/fv/FCnudged_f19.carma_mode_dev_n05_cam6_2_037.base.cam.i.1991-01-01-00000_c210607.nc</ncdata>
+<ncdata hgrid="0.9x1.25" nlev="32">atm/cam/inic/fv/FCnudged_f09.carma_mode_dev_n13_cam6_2_037.2000.001.cam.i.2001-01-01-00000_c211207.nc</ncdata>
 
 <lght_no_prd_factor hgrid="1.9x2.5">4.5D0</lght_no_prd_factor>
 
@@ -126,5 +127,7 @@
   'SO2 -> $INPUTDATA_ROOT/atm/cam/chem/emis/CMIP6_emissions_2000climo/emissions-cmip6_SO2_anthro-ene_surface_2000climo_0.9x1.25_c20170616.nc',
   'SO2 -> $INPUTDATA_ROOT/atm/cam/chem/emis/CMIP6_emissions_2000climo/emissions-cmip6_SO2_bb_surface_2000climo_0.9x1.25_c20170322.nc',
 </srf_emis_specifier>
+
+<sim_year>2000</sim_year>
 
 </namelist_defaults>

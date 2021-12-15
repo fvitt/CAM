@@ -2,6 +2,7 @@
 <namelist_defaults>
 
 <ncdata hgrid="1.9x2.5" nlev="32">atm/cam/inic/fv/FCnudged_f19.carma_mode_dev_n05_cam6_2_037.base.cam.i.1991-01-01-00000_c210607.nc</ncdata>
+<ncdata hgrid="0.9x1.25" nlev="32">atm/cam/inic/fv/FCnudged_f09.carma_mode_dev_n13_cam6_2_037.2000.001.cam.i.2001-01-01-00000_c211207.nc</ncdata>
 
 <lght_no_prd_factor hgrid="1.9x2.5">4.5D0</lght_no_prd_factor>
 
@@ -68,11 +69,11 @@
 <Model_Times_Per_Day>48</Model_Times_Per_Day>
 <Model_Times_Per_Day hgrid="ne0np4CONUS.ne30x8">384</Model_Times_Per_Day>
 <Nudge_Uprof>1</Nudge_Uprof>
-<Nudge_Ucoef>0.06</Nudge_Ucoef>
+<Nudge_Ucoef>0.25</Nudge_Ucoef>
 <Nudge_Vprof>1</Nudge_Vprof>
-<Nudge_Vcoef>0.06</Nudge_Vcoef>
+<Nudge_Vcoef>0.25</Nudge_Vcoef>
 <Nudge_Tprof>1</Nudge_Tprof>
-<Nudge_Tcoef>0.06</Nudge_Tcoef>
+<Nudge_Tcoef>0.25</Nudge_Tcoef>
 <Nudge_Qprof>0</Nudge_Qprof>
 <Nudge_Qcoef>0.00</Nudge_Qcoef>
 <Nudge_PSprof>0</Nudge_PSprof>
@@ -103,5 +104,7 @@
 <Nudge_Vwin_Lindex>0.</Nudge_Vwin_Lindex>
 <Nudge_Vwin_Ldelta>0.1</Nudge_Vwin_Ldelta>
 <Nudge_Vwin_Invert>.false.</Nudge_Vwin_Invert>
+
+<sim_year>1850-2000</sim_year>
 
 </namelist_defaults>

@@ -258,6 +258,10 @@ contains
     dryr_n(:,:,:) = 0.0_r8
 
     ntot_msa_c = 0.0_r8
+    aqso4 = 0.0_r8
+    aqh2so4 = 0.0_r8
+    aqso4_h2o2 = 0.0_r8
+    aqso4_o3 = 0.0_r8
 
     do n = 1, nbins
        call rad_cnst_get_info_by_bin(0, n, nspec=nspec(n), bin_name=bin_name)

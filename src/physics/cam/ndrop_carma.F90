@@ -79,7 +79,12 @@ end type ptr2d_t
 logical :: prog_modal_aero     ! true when aerosols are prognostic   !st make sure to check
 logical :: history_carma       ! true when for carma history output
 logical :: lq(pcnst) = .false. ! set flags true for constituents with non-zero tendencies
-                               ! in the ptend object
+! in the ptend object
+
+! overloaded routine
+interface loadaer
+   procedure loadaer1, loadaer2
+end interface loadaer
 
 !===============================================================================
 contains
@@ -1850,7 +1855,7 @@ end subroutine ccncalc
 
 !===============================================================================
 
-subroutine loadaer( &
+subroutine loadaer1( &
    state, pbuf, istart, istop, k, &
    m, cs, phase, naerosol, &
    vaerosol, hygro)
@@ -1949,8 +1954,44 @@ subroutine loadaer( &
    !st    naerosol(i) = min(naerosol(i), vaerosol(i)*voltonumblo_amode(m))
    !st end do
 
-end subroutine loadaer
+end subroutine loadaer1
 
 !===============================================================================
+subroutine loadaer2( &
+   state, pbuf, i, k, &
+   m, cs, phase, naerosol, &
+   vaerosol, hygro)
+
+   ! return aerosol number, volume concentrations, and bulk hygroscopicity
+
+   ! input arguments
+   type(physics_state), target, intent(in) :: state
+   type(physics_buffer_desc),   pointer    :: pbuf(:)
+
+   integer,  intent(in) :: i           ! column index
+   integer,  intent(in) :: k           ! level index
+   integer,  intent(in) :: m           ! mode or bin index
+   real(r8), intent(in) :: cs          ! air density (kg/m3)
+   integer,  intent(in) :: phase       ! phase of aerosol: 1 for interstitial, 2 for cloud-borne, 3 for sum
+
+   ! output arguments
+   real(r8), intent(out) :: naerosol  ! number conc (1/m3)
+   real(r8), intent(out) :: vaerosol  ! volume conc (m3/m3)
+   real(r8), intent(out) :: hygro     ! bulk hygroscopicity of mode
+
+   real(r8) :: cs_a(pcols,pver)          ! air density (kg/m3)
+   real(r8) :: naerosol_a(pcols)  ! number conc (1/m3)
+   real(r8) :: vaerosol_a(pcols)  ! volume conc (m3/m3)
+   real(r8) :: hygro_a(pcols)     ! bulk hygroscopicity of mode
+
+   cs_a(i,k) = cs
+
+   call loadaer1(state, pbuf, i, i, k, m, cs_a, phase, naerosol_a, vaerosol_a, hygro_a)
+
+   naerosol = naerosol_a(i)
+   vaerosol = vaerosol_a(i)
+   hygro = hygro_a(i)
+
+end subroutine loadaer2
 
 end module ndrop_carma

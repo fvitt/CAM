@@ -906,10 +906,6 @@ contains
                    sol_factic(:,:) = 0.0_r8
                    sol_facti(:,:) = 0._r8
 
-                   !st z_scavcoef = 0.1_r8
-                   scavcoefnv(:,:,1) =  0.1_r8
-                   scavcoefnv(:,:,2) =  0.1_r8
-
                    ! convert precipitation prain (kg/kg/s) to mm/h
 
                    J(:ncol,:) = ( dep_inputs%prain(:ncol,:) + dep_inputs%cmfdqr(:ncol,:) &
@@ -920,8 +916,8 @@ contains
                       do i= 1,ncol
                          stoke(i,k) = 0.1_r8*(dryr(i,k)**2)*1.0e8_r8*specdens                    ! stoke parameter
                          if ((J(i,k) .le. 0._r8)  .or. (dryr(i,k) .le. 0._r8))  then
-                            scavcoefnv(i,k,1) =  0.1_r8
-                            scavcoefnv(i,k,2) =  0.1_r8
+                            scavcoefnv(i,k,1) =  0.0_r8
+                            scavcoefnv(i,k,2) =  0.0_r8
                          else
                             if (dryr(i,k) .lt. 1.e-4_r8) then
                                !z_scavcoef(i_col,k_ver) = 63.03750_r8*r(ibin)*(J(i_col,k_ver)**(-0.42_r8))
@@ -1850,7 +1846,7 @@ contains
           mm = bin_idx(m, l)
           qqcw(mm)%fld(:ncol,:) = vmrcw(:ncol,:,mm)
           if (l == nspec(m) + 1) then   ! mmr
-           call outfld( trim(fieldname_cw(mm)), qqcw(mm)%fld(:ncol,:), pcols, lchnk)
+           call outfld( trim(fieldname_cw(mm)), qqcw(mm)%fld(:ncol,:), ncol, lchnk)
           end if
        end do
     end do

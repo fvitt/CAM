@@ -700,6 +700,8 @@ subroutine nucleate_ice_cam_calc( &
    nidep(1:ncol,1:pver) = 0._r8
    nimey(1:ncol,1:pver) = 0._r8
 
+   regm(1:ncol,1:pver) = 0._r8
+
    if (use_preexisting_ice) then
       fhom(:,:)     = 0.0_r8
       wice(:,:)     = 0.0_r8
@@ -849,14 +851,16 @@ subroutine nucleate_ice_cam_calc( &
                      end do
 
                      if (totalmmr .gt. 0._r8) then
-                        !st wght_so4(m) = so4mmr/mmr_bin(i,k)
                         wght_so4(m) = so4mmr/totalmmr
                         so4_num_bin(m) = wght_so4(m)*num_bin(i,k)*rho(i,k)*1.0e-6_r8
                         wght_soot(m) = sootmmr/totalmmr
                         soot_num_bin(m) = wght_soot(m)*num_bin(i,k)*rho(i,k)*1.0e-6_r8
-                        !st wght_dst(m) = dstmmr/mmr_bin(i,k)
                         wght_dst(m) = dstmmr/totalmmr
                         dst_num_bin(m) = wght_dst(m)*num_bin(i,k)*rho(i,k)*1.0e-6_r8
+                     else
+                        so4_num_bin(m) = 0._r8
+                        soot_num_bin(m) = 0._r8
+                        dst_num_bin(m) = 0._r8
                      end if
 
                      so4_num = so4_num + so4_num_bin(m)

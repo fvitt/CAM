@@ -331,6 +331,7 @@ contains
          trim(ptend%name)=='zm_convr' .or. &
          trim(ptend%name)=='zm_conv_tend' .or. &
          trim(ptend%name)=='zm_conv_evap' .or. &
+         trim(ptend%name)=='momtran' .or. &
          trim(ptend%name)=='clubb' .or. &
          trim(ptend%name)=='nucleatei' .or. &
          trim(ptend%name)=='ndrop_carma' .or. &

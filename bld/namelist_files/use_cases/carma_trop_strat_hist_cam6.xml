@@ -2,6 +2,7 @@
 <namelist_defaults>
 
 <ncdata hgrid="1.9x2.5" nlev="32">atm/cam/inic/fv/FCnudged_f19.carma_mode_dev_n05_cam6_2_037.base.cam.i.1991-01-01-00000_c210607.nc</ncdata>
+<ncdata hgrid="0.9x1.25" nlev="32">atm/cam/inic/fv/FCnudged_f09.carma_mode_dev_n13_cam6_2_037.2000.001.cam.i.2001-01-01-00000_c211207.nc</ncdata>
 
 <lght_no_prd_factor hgrid="1.9x2.5">4.5D0</lght_no_prd_factor>
 
@@ -48,5 +49,7 @@
          'TMMXSALT01','TMMXSALT02','TMMXSALT03','TMMXSALT04','TMMXSALT05','TMMXSALT06','TMMXSALT07','TMMXSALT08','TMMXSALT09','TMMXSALT10',
          'TMMXSALT11','TMMXSALT12','TMMXSALT13','TMMXSALT14','TMMXSALT15','TMMXSALT16','TMMXSALT17','TMMXSALT18','TMMXSALT19','TMMXSALT20'
 </fincl1>
+
+<sim_year>1850-2000</sim_year>
 
 </namelist_defaults>
