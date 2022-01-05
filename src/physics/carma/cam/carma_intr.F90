@@ -85,8 +85,10 @@ module carma_intr
   integer, parameter             :: GPDIAGS_AR       = 12         ! Area Ratio
 
   ! Particle Bin (Element) Statistics
-  integer, parameter             :: NBNDIAGS         = 1          ! Number of bin surface diagnostics ...
+  integer, parameter             :: NBNDIAGS         = 3          ! Number of bin surface diagnostics ...
   integer, parameter             :: BNDIAGS_TP       = 1          ! Delta Particle Temperature [K]
+  integer, parameter             :: BNDIAGS_WETR     = 2          ! wet radius
+  integer, parameter             :: BNDIAGS_ND       = 3          ! Number density
 
   ! Surface
   integer, parameter             :: NSBDIAGS         = 2          ! Number of bin surface diagnostics ...
@@ -670,6 +672,13 @@ contains
         end do
       end if
 
+      do ibin = 1, NBIN
+         call addfld(trim(btndname(igroup, ibin))//'ND', (/ 'lev' /), 'A', '#/cm3', &
+              trim(cnst_name(icnst)) // ' number density')
+         call addfld(trim(btndname(igroup, ibin))//'WR', (/ 'lev' /), 'A', 'um', &
+              trim(cnst_name(icnst)) // ' wet radius')
+      end do
+
     end do
 
     do igas = 1, NGAS
@@ -915,6 +924,7 @@ contains
     real(r8)              :: numberDensity(pver)                    ! number density (cm-3)
     real(r8)              :: nucleationRate(pver)                   ! nucleation rate (cm-3 s-1)
     real(r8)              :: extinctionCoefficient(pver)            ! extinction coefficient (cm2)
+    real(r8)              :: r_wet(pver)                            ! wet radius (um)
     real(r8)              :: dd                                     ! dry deposition (kg/m2)
     real(r8)              :: vd                                     ! dry deposition velocity (cm/s)
     real(r8)              :: vf(pverp)                              ! fall velocity (cm/s)
@@ -1353,7 +1363,7 @@ contains
 
         do ibin = 1, NBIN
           call CARMASTATE_GetBin(cstate, ielem, ibin, newstate(:), rc, &
-                 numberDensity=numberDensity, nucleationRate=nucleationRate, surface=dd, vd=vd, vf=vf, dtpart=dtpart)
+                 numberDensity=numberDensity, nucleationRate=nucleationRate, r_wet=r_wet, surface=dd, vd=vd, vf=vf, dtpart=dtpart)
           if (rc < 0) call endrun('carma_timestep_tend::CARMASTATE_GetBin failed.')
 
           ! For prognostic groups, set the tendency from the corresponding constituents.
@@ -1407,6 +1417,11 @@ contains
           if (nucleationRate(1) /= CAM_FILL) then
             jn(:)  = jn(:)  + nucleationRate(:)
           end if
+
+          ! Output nd and wet radius for each bin.
+          r_wet = r_wet * 1e4_r8  ! cm to um
+          bndiags(icol,:,ibin,ielem,BNDIAGS_WETR) = r_wet(:)
+          bndiags(icol,:,ibin,ielem,BNDIAGS_ND) = numberDensity(:)
         end do
 
         ! If this is the number element for the group, then write out the
@@ -1865,6 +1880,11 @@ contains
           call outfld(trim(btndname(igroup, ibin))//'VD', sbdiags(:, ibin, ienconc, SBDIAGS_VD), pcols, lchnk)
         end do
       end if
+
+      do ibin = 1,NBIN
+        call outfld(trim(btndname(igroup, ibin))//'ND',bndiags(:, :, ibin, ienconc, BNDIAGS_ND), pcols, lchnk)
+        call outfld(trim(btndname(igroup, ibin))//'WR',bndiags(:, :, ibin, ienconc, BNDIAGS_WETR), pcols, lchnk)
+      end do
     end do
 
     ! Output the gas tendencies.
