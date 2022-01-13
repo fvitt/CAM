@@ -12,9 +12,9 @@ module microp_aero
 ! Based on code from: Hugh Morrison, Xiaohong Liu and Steve Ghan
 ! May 2010
 ! Description in: Morrison and Gettelman, 2008. J. Climate (MG2008)
-!                 Gettelman et al., 2010 J. Geophys. Res. - Atmospheres (G2010)         
+!                 Gettelman et al., 2010 J. Geophys. Res. - Atmospheres (G2010)
 ! for questions contact Andrew Gettelman  (andrew@ucar.edu)
-! Modifications: A. Gettelman Nov 2010  - changed to support separation of 
+! Modifications: A. Gettelman Nov 2010  - changed to support separation of
 !                  microphysics and macrophysics and concentrate aerosol information here
 !                B. Eaton, Sep 2014 - Refactored to move CAM interface code into the CAM
 !                  interface modules and preserve just the driver layer functionality here.
@@ -37,7 +37,7 @@ use rad_constituents, only: rad_cnst_get_info, rad_cnst_get_aer_mmr, rad_cnst_ge
 use nucleate_ice_cam, only: use_preexisting_ice, nucleate_ice_cam_readnl, nucleate_ice_cam_register, &
                             nucleate_ice_cam_init, nucleate_ice_cam_calc
 
-use ndrop,            only: ndrop_init, dropmixnuc
+use ndrop,            only: ndrop_init
 use ndrop_bam,        only: ndrop_bam_init, ndrop_bam_run, ndrop_bam_ccn
 
 use hetfrz_classnuc_cam, only: hetfrz_classnuc_cam_readnl, hetfrz_classnuc_cam_register, hetfrz_classnuc_cam_init, &
@@ -45,7 +45,15 @@ use hetfrz_classnuc_cam, only: hetfrz_classnuc_cam_readnl, hetfrz_classnuc_cam_r
 
 use cam_history,      only: addfld, add_default, outfld
 use cam_logfile,      only: iulog
-use cam_abortutils,       only: endrun
+use cam_abortutils,   only: endrun
+
+use aerosol_model_mod, only: aerosol_model
+use modal_aerosol_model_mod, only: modal_aerosol_model
+use cam_aerosol_data_mod,    only: cam_aerosol_data
+use aerosol_data_mod,           only: aerosol_data
+use modal_cam_aerosol_data_mod, only: modal_cam_aerosol_data
+
+use wv_saturation, only: qsat
 
 implicit none
 private
@@ -115,19 +123,23 @@ integer :: coarse_so4_idx = -1  ! index of sulfate in coarse mode
 integer :: npccn_idx, rndst_idx, nacon_idx
 
 logical  :: separate_dust = .false.
+logical  :: prog_modal_aero
+
+class(aerosol_model), pointer :: aero_model(:) => null()
+class(aerosol_data), pointer :: aero_data(:) => null()
 
 !=========================================================================================
 contains
 !=========================================================================================
 
 subroutine microp_aero_register
-   !----------------------------------------------------------------------- 
-   ! 
-   ! Purpose: 
+   !-----------------------------------------------------------------------
+   !
+   ! Purpose:
    ! Register pbuf fields for aerosols needed by microphysics
-   ! 
+   !
    ! Author: Cheryl Craig October 2012
-   ! 
+   !
    !-----------------------------------------------------------------------
    use ppgrid,         only: pcols
    use physics_buffer, only: pbuf_add_field, dtype_r8
@@ -136,7 +148,7 @@ subroutine microp_aero_register
 
    call pbuf_add_field('RNDST',      'physpkg',dtype_r8,(/pcols,pver,4/), rndst_idx)
    call pbuf_add_field('NACON',      'physpkg',dtype_r8,(/pcols,pver,4/), nacon_idx)
- 
+
    call nucleate_ice_cam_register()
    call hetfrz_classnuc_cam_register()
 
@@ -146,20 +158,22 @@ end subroutine microp_aero_register
 
 subroutine microp_aero_init(pbuf2d)
 
-   !----------------------------------------------------------------------- 
-   ! 
-   ! Purpose: 
+   use ppgrid, only: begchunk, endchunk
+
+   !-----------------------------------------------------------------------
+   !
+   ! Purpose:
    ! Initialize constants for aerosols needed by microphysics
-   ! 
+   !
    ! Author: Andrew Gettelman May 2010
-   ! 
+   !
    !-----------------------------------------------------------------------
 
    type(physics_buffer_desc), pointer :: pbuf2d(:,:)
 
    ! local variables
    integer  :: iaer, ierr
-   integer  :: m, n, nmodes, nspec
+   integer  :: m, n, nmodes, nspec, c
 
    character(len=32) :: str32
    character(len=*), parameter :: routine = 'microp_aero_init'
@@ -167,8 +181,9 @@ subroutine microp_aero_init(pbuf2d)
    !-----------------------------------------------------------------------
 
    ! Query the PBL eddy scheme
-   call phys_getopts(eddy_scheme_out          = eddy_scheme,  &
-                     history_amwg_out         = history_amwg )
+   call phys_getopts(eddy_scheme_out     = eddy_scheme,  &
+                     history_amwg_out    = history_amwg, &
+                     prog_modal_aero_out = prog_modal_aero  )
 
    ! Access the physical properties of the aerosols that are affecting the climate
    ! by using routines from the rad_constituents module.
@@ -181,12 +196,13 @@ subroutine microp_aero_init(pbuf2d)
 
    select case(trim(eddy_scheme))
    case ('diag_TKE')
-      tke_idx      = pbuf_get_index('tke')   
+      tke_idx      = pbuf_get_index('tke')
    case ('CLUBB_SGS')
       wp2_idx = pbuf_get_index('WP2_nadv')
    case default
-      kvh_idx      = pbuf_get_index('kvh')
    end select
+
+   kvh_idx = pbuf_get_index('kvh')
 
    ! clim_modal_aero determines whether modal aerosols are used in the climate calculation.
    ! The modal aerosols can be either prognostic or prescribed.
@@ -224,7 +240,7 @@ subroutine microp_aero_init(pbuf2d)
       ! check if coarse dust is in separate mode
       separate_dust = mode_coarse_dst_idx > 0
 
-      ! for 3-mode 
+      ! for 3-mode
       if ( mode_coarse_dst_idx<0 ) mode_coarse_dst_idx = mode_coarse_idx
       if ( mode_coarse_slt_idx<0 ) mode_coarse_slt_idx = mode_coarse_idx
 
@@ -309,6 +325,20 @@ subroutine microp_aero_init(pbuf2d)
    call nucleate_ice_cam_init(mincld, bulk_scale, pbuf2d)
    call hetfrz_classnuc_cam_init(mincld)
 
+   if (clim_modal_aero) then
+      allocate(modal_cam_aerosol_data::aero_data(begchunk:endchunk))
+      allocate(modal_aerosol_model::aero_model(begchunk:endchunk))
+      aero_model(:)%prognostic = prog_modal_aero
+!!$   elseif (clim_carma_aero) then
+!!$      allocate(carma_cam_aerosol_data::aero_data(begchunk:endchunk))
+!!$      allocate(carma_aerosol_model::aero_model(begchunk:endchunk))
+   endif
+   if (associated(aero_model)) then
+      do c = begchunk, endchunk
+         call aero_model(c)%create(aero_data(c))
+      enddo
+   endif
+
 end subroutine microp_aero_init
 
 !=========================================================================================
@@ -330,7 +360,7 @@ subroutine microp_aero_readnl(nlfile)
    real(r8) :: microp_aero_wsub_min = unset_r8  ! subgrid vertical velocity (liquid) minimum
    real(r8) :: microp_aero_wsubi_min = unset_r8  ! subgrid vertical velocity (ice) minimum
 
-    
+
    ! Local variables
    integer :: unitn, ierr
    character(len=*), parameter :: subname = 'microp_aero_readnl'
@@ -353,7 +383,7 @@ subroutine microp_aero_readnl(nlfile)
       call freeunit(unitn)
    end if
 
-   ! Broadcast namelist variables     
+   ! Broadcast namelist variables
    call mpi_bcast(microp_aero_bulk_scale, 1, mpi_real8, mstrid, mpicom, ierr)
    if (ierr /= 0) call endrun(subname//": FATAL: mpi_bcast: microp_aero_bulk_scale")
    call mpi_bcast(microp_aero_npccn_scale, 1, mpi_real8, mstrid, mpicom, ierr)
@@ -369,7 +399,7 @@ subroutine microp_aero_readnl(nlfile)
 
    ! set local variables
    bulk_scale = microp_aero_bulk_scale
-   npccn_scale = microp_aero_npccn_scale   
+   npccn_scale = microp_aero_npccn_scale
    wsub_scale = microp_aero_wsub_scale
    wsubi_scale = microp_aero_wsubi_scale
    wsub_min = microp_aero_wsub_min
@@ -405,10 +435,10 @@ subroutine microp_aero_run ( &
    integer :: itim_old
    integer :: nmodes
 
-   type(physics_state) :: state1                ! Local copy of state variable
-   type(physics_ptend) :: ptend_loc
+   type(physics_state), target :: state1                ! Local copy of state variable
+   type(physics_ptend), target :: ptend_loc
 
-   real(r8), pointer :: ast(:,:)        
+   real(r8), pointer :: ast(:,:)
 
    real(r8), pointer :: npccn(:,:)      ! number of CCN (liquid activated)
 
@@ -457,6 +487,21 @@ subroutine microp_aero_run ( &
    integer :: lchnk, ncol
 
    real(r8), allocatable :: factnum(:,:,:) ! activation fraction for aerosol number
+
+   integer,  parameter :: psat=6    ! number of supersaturations to calc ccn concentration
+   character(len=4),parameter :: ccn_name(psat) = &
+        (/'CCN1','CCN2','CCN3','CCN4','CCN5','CCN6'/)
+   real(r8) :: ccn(pcols,pver,psat)             ! number conc of aerosols activated at supersat
+
+   real(r8) :: nsource(pcols,pver)       ! droplet number source (#/kg/s)
+   real(r8) :: ndropmix(pcols,pver)      ! droplet number mixing (#/kg/s)
+   real(r8) :: ndropcol(pcols)           ! column droplet number (#/m2)
+   real(r8) :: wtke(pcols,pver)          ! turbulent vertical velocity at base of layer k (m/s)
+
+   real(r8) :: sat_spchum(pcols,pver) ! water vapor saturation mixing ratio (specific humidity)
+   real(r8) :: sat_vpress(pcols,pver) ! saturation vapor pressure
+   real(r8) :: pres(pcols,pver)
+
    !-------------------------------------------------------------------------------
 
    call physics_state_copy(state,state1)
@@ -477,7 +522,7 @@ subroutine microp_aero_run ( &
    if (clim_modal_aero) then
 
       itim_old = pbuf_old_tim_idx()
-      
+
       call pbuf_get_field(pbuf, ast_idx,  cldn, start=(/1,1,itim_old/), kount=(/pcols,pver,1/) )
       call pbuf_get_field(pbuf, cldo_idx, cldo, start=(/1,1,itim_old/), kount=(/pcols,pver,1/) )
 
@@ -489,7 +534,7 @@ subroutine microp_aero_run ( &
    end if
 
    ! initialize output
-   npccn(1:ncol,1:pver)    = 0._r8  
+   npccn(1:ncol,1:pver)    = 0._r8
 
    nacon(1:ncol,1:pver,:)  = 0._r8
 
@@ -531,7 +576,7 @@ subroutine microp_aero_run ( &
       do m = 1, naer_all
          call rad_cnst_get_aer_mmr(0, m, state1, pbuf, aer_mmr)
          maerosol(:ncol,:,m) = aer_mmr(:ncol,:)*rho(:ncol,:)
-         
+
          if (m .eq. idxsul) then
             naer2(:ncol,:,m) = maerosol(:ncol,:,m)*num_to_mass_aer(m)*bulk_scale
          else
@@ -541,7 +586,7 @@ subroutine microp_aero_run ( &
    end if
 
    !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-   ! More refined computation of sub-grid vertical velocity 
+   ! More refined computation of sub-grid vertical velocity
    ! Set to be zero at the surface by initialization.
 
    select case (trim(eddy_scheme))
@@ -554,8 +599,9 @@ subroutine microp_aero_run ( &
       tke(:ncol,:) = (3._r8/2._r8)*wp2(:ncol,:)
 
    case default
-      call pbuf_get_field(pbuf, kvh_idx, kvh)
    end select
+
+   call pbuf_get_field(pbuf, kvh_idx, kvh)
 
    ! Set minimum values above top_lev.
    wsub(:ncol,:top_lev-1)  = wsub_min
@@ -568,7 +614,7 @@ subroutine microp_aero_run ( &
          case ('diag_TKE', 'CLUBB_SGS')
             wsub(i,k) = sqrt(0.5_r8*(tke(i,k) + tke(i,k+1))*(2._r8/3._r8))
             wsub(i,k) = min(wsub(i,k),10._r8)
-         case default 
+         case default
             ! get sub-grid vertical velocity from diff coef.
             ! following morrison et al. 2005, JAS
             ! assume mixing length of 30 m
@@ -635,18 +681,53 @@ subroutine microp_aero_run ( &
 
       call outfld('LCLOUD', lcldn, pcols, lchnk)
 
+      select type (obj=>aero_model(lchnk)%aero_data)
+      class is (cam_aerosol_data)
+         call obj%set(state1,pbuf,ptend_loc)
+         call obj%init_ptend( aero_model(lchnk)%prognostic, aero_model(lchnk)%model_name )
+      end select
+
+      pres(:ncol,:pver)=rair*rho(:ncol,:pver)*state1%t(:ncol,:pver)
+      call qsat(state1%t(:ncol,:pver), pres(:ncol,:pver), sat_vpress(:ncol,:pver), sat_spchum(:ncol,:pver), ncol, pver)
+
       ! If not using preexsiting ice, then only use cloudbourne aerosol for the
       ! liquid clouds. This is the same behavior as CAM5.
       if (use_preexisting_ice) then
-         call dropmixnuc( &
-            state1, ptend_loc, deltatin, pbuf, wsub, &
-            cldn, cldo, cldliqf, nctend_mixnuc, factnum)
-      else   
+         call aero_model(lchnk)%dropmixnuc( ncol, pver, top_lev, lchnk, &
+              deltatin, wsub, state1%q(:,:,numliq_idx), &
+              state1%t, state1%pmid, state1%pint, state1%pdel, state1%rpdel, sat_spchum, state1%zm, kvh, &
+              cldn, cldo, cldliqf, nctend_mixnuc, factnum, &
+              ndropcol_out=ndropcol,nsource_out=nsource,ndropmix_out=ndropmix, &
+              wtke_out=wtke,  ccn=ccn )
+      else
          cldliqf = 1._r8
-         call dropmixnuc( &
-            state1, ptend_loc, deltatin, pbuf, wsub, &
-            lcldn, lcldo, cldliqf, nctend_mixnuc, factnum)
+         call aero_model(lchnk)%dropmixnuc( ncol, pver, top_lev, lchnk, &
+              deltatin, wsub, state1%q(:,:,numliq_idx), &
+              state1%t, state1%pmid, state1%pint, state1%pdel, state1%rpdel, sat_spchum, state1%zm, kvh, &
+              lcldn, lcldo, cldliqf, nctend_mixnuc, factnum, &
+              ndropcol_out=ndropcol,nsource_out=nsource,ndropmix_out=ndropmix, &
+              wtke_out=wtke,  ccn=ccn )
       end if
+
+      call outfld('NDROPCOL', ndropcol(:ncol),   ncol, lchnk)
+      call outfld('NDROPSRC', nsource(:ncol,:),  ncol, lchnk)
+      call outfld('NDROPMIX', ndropmix(:ncol,:), ncol, lchnk)
+      call outfld('WTKE    ', wtke(:ncol,:),     ncol, lchnk)
+
+      do m = 1,aero_model(lchnk)%aero_data%ncnst_tot
+         call outfld(aero_model(lchnk)%aero_data%fieldname(m),    &
+                     aero_model(lchnk)%aero_data%coltend(:ncol,m),    ncol, lchnk)
+         call outfld(aero_model(lchnk)%aero_data%fieldname_cw(m), &
+                     aero_model(lchnk)%aero_data%coltend_cw(:ncol,m), ncol, lchnk)
+      end do
+      do m = 1, psat
+         call outfld(ccn_name(m), ccn(:ncol,:,m), ncol, lchnk)
+      enddo
+
+      select type (obj=>aero_model(lchnk)%aero_data)
+      class is (cam_aerosol_data)
+         call obj%unset()
+      end select
 
       npccn(:ncol,:) = nctend_mixnuc(:ncol,:)
 
@@ -699,12 +780,12 @@ subroutine microp_aero_run ( &
                ! For modal aerosols:
                !  use size '3' for dust coarse mode...
                !  scale by dust fraction in coarse mode
-               
+
                dmc  = coarse_dust(i,k)
                ssmc = coarse_nacl(i,k)
 
                if ( separate_dust ) then
-                  ! 7-mode -- has separate dust and seasalt mode types and no need for weighting 
+                  ! 7-mode -- has separate dust and seasalt mode types and no need for weighting
                   wght = 1._r8
                else
                   so4mc = coarse_so4(i,k)
@@ -721,7 +802,7 @@ subroutine microp_aero_run ( &
                !also redefine parameters based on size...
 
                rndst(i,k,3) = 0.5_r8*dgnumwet(i,k,mode_coarse_dst_idx)
-               if (rndst(i,k,3) <= 0._r8) then 
+               if (rndst(i,k,3) <= 0._r8) then
                   rndst(i,k,3) = rn_dst3
                end if
 
@@ -729,13 +810,13 @@ subroutine microp_aero_run ( &
 
                !For Bulk Aerosols: set equal to aerosol number for dust for bins 2-4 (bin 1=0)
 
-               if (idxdst2 > 0) then 
+               if (idxdst2 > 0) then
                   nacon(i,k,2) = naer2(i,k,idxdst2)
                end if
-               if (idxdst3 > 0) then 
+               if (idxdst3 > 0) then
                   nacon(i,k,3) = naer2(i,k,idxdst3)
                end if
-               if (idxdst4 > 0) then 
+               if (idxdst4 > 0) then
                   nacon(i,k,4) = naer2(i,k,idxdst4)
                end if
             end if

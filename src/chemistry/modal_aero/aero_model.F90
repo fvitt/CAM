@@ -30,6 +30,11 @@ module aero_model
   use modal_aero_wateruptake, only: modal_strat_sulfate
   use mo_setsox,              only: setsox, has_sox
 
+  use aerosol_model_mod, only: aerosol_model
+  use modal_aerosol_model_mod, only: modal_aerosol_model
+  use aerosol_data_mod, only: aerosol_data
+  use modal_cam_aerosol_data_mod, only: modal_cam_aerosol_data
+
   implicit none
   private
 
@@ -105,6 +110,9 @@ module aero_model
   logical :: modal_accum_coarse_exch = .false.
 
   logical :: convproc_do_aer
+
+  class(aerosol_model), pointer :: aeromodel(:)
+  class(aerosol_data), pointer :: aerodata
 
 contains
 
@@ -190,6 +198,7 @@ contains
     use seasalt_model,   only: seasalt_init, seasalt_names, seasalt_active,seasalt_nbin
     use drydep_mod,      only: inidrydep
     use wetdep,          only: wetdep_init
+    use ppgrid,          only: begchunk, endchunk
 
     use modal_aero_calcsize,   only: modal_aero_calcsize_init
     use modal_aero_coag,       only: modal_aero_coag_init
@@ -210,7 +219,7 @@ contains
     logical  :: history_aerosol ! Output MAM or SECT aerosol tendencies
     logical  :: history_chemistry, history_cesm_forcing, history_dust
 
-    integer :: l
+    integer :: l, c
     character(len=6) :: test_name
     character(len=64) :: errmes
 
@@ -222,6 +231,12 @@ contains
     character(len=32) :: spec_type
     character(len=32) :: mode_type
     integer :: nspec
+
+    allocate(modal_aerosol_model::aeromodel(begchunk:endchunk))
+    do c = begchunk, endchunk
+       allocate(modal_cam_aerosol_data::aerodata)
+       call aeromodel(c)%create(aerodata)
+    enddo
 
     dgnum_idx       = pbuf_get_index('DGNUM')
     dgnumwet_idx    = pbuf_get_index('DGNUMWET')
@@ -1613,7 +1628,7 @@ contains
 
     if (convproc_do_aer) then
        call t_startf('ma_convproc')
-       call ma_convproc_intr( state, ptend, pbuf, dt,                &
+       call ma_convproc_intr( aeromodel(lchnk), state, ptend, pbuf, dt,                &
             nsrflx_mzaer2cnvpr, qsrflx_mzaer2cnvpr, aerdepwetis, &
             dcondt_resusp3d)
 
@@ -1653,7 +1668,7 @@ contains
        call set_srf_wetdep(aerdepwetis, aerdepwetcw, cam_out)
     endif
 
-  endsubroutine aero_model_wetdep
+  end subroutine aero_model_wetdep
 
   !-------------------------------------------------------------------------
   ! provides wet tropospheric aerosol surface area info for modal aerosols

@@ -5,10 +5,10 @@ module modal_aero_convproc
 !
 ! CAM interface to aerosol/trace-gas convective cloud processing scheme
 !
-! currently these routines assume stratiform and convective clouds only interact 
+! currently these routines assume stratiform and convective clouds only interact
 ! through the detrainment of convective cloudborne material into stratiform clouds
 !
-! thus the stratiform-cloudborne aerosols (in the qqcw array) are not processed 
+! thus the stratiform-cloudborne aerosols (in the qqcw array) are not processed
 ! by the convective up/downdrafts, but are affected by the detrainment
 !
 ! Author: R. C. Easter
@@ -35,7 +35,10 @@ use modal_aero_data, only: lmassptr_amode, nspec_amode, ntot_amode, numptr_amode
 use modal_aero_data, only: lptr_so4_a_amode, lptr_dust_a_amode, lptr_nacl_a_amode, mode_size_order
 use modal_aero_data, only: lptr2_pom_a_amode, lptr2_soa_a_amode, lptr2_bc_a_amode, nsoa, npoa, nbc
 use modal_aero_data, only: lptr_msa_a_amode, lptr_nh4_a_amode, lptr_no3_a_amode
- 
+
+use aerosol_model_mod, only: aerosol_model
+use wv_saturation,   only: qsat
+
 implicit none
 private
 save
@@ -86,16 +89,16 @@ integer, parameter :: convproc_method_activate = 2
 logical :: convproc_do_aer
 
 ! physics buffer indices
-integer :: fracis_idx         = 0 
+integer :: fracis_idx         = 0
 
-integer :: rprddp_idx         = 0 
-integer :: rprdsh_idx         = 0 
-integer :: nevapr_shcu_idx    = 0 
-integer :: nevapr_dpcu_idx    = 0 
+integer :: rprddp_idx         = 0
+integer :: rprdsh_idx         = 0
+integer :: nevapr_shcu_idx    = 0
+integer :: nevapr_dpcu_idx    = 0
 
-integer :: icwmrdp_idx        = 0 
-integer :: icwmrsh_idx        = 0 
-integer :: sh_frac_idx        = 0 
+integer :: icwmrdp_idx        = 0
+integer :: icwmrsh_idx        = 0
+integer :: sh_frac_idx        = 0
 integer :: dp_frac_idx        = 0
 
 integer :: zm_mu_idx          = 0
@@ -126,7 +129,7 @@ end subroutine ma_convproc_register
 
 !=========================================================================================
 subroutine ma_convproc_readnl(nlfile)
-  
+
   use namelist_utils, only: find_group_name
   use spmd_utils,     only: mpicom, masterprocid, mpi_real8, mpi_logical
 
@@ -170,7 +173,7 @@ subroutine ma_convproc_readnl(nlfile)
      write(iulog,*) subname//': convproc_pom_spechygro = ',convproc_pom_spechygro
      write(iulog,*) subname//': convproc_wup_max = ', convproc_wup_max
   end if
-  
+
 end subroutine ma_convproc_readnl
 
 !=========================================================================================
@@ -242,12 +245,12 @@ subroutine ma_convproc_init
       call add_default( 'DP_KCLDBASE', 1, ' ' )
    end if
 
-   fracis_idx      = pbuf_get_index('FRACIS') 
+   fracis_idx      = pbuf_get_index('FRACIS')
 
-   rprddp_idx      = pbuf_get_index('RPRDDP')  
-   rprdsh_idx      = pbuf_get_index('RPRDSH')  
-   nevapr_dpcu_idx = pbuf_get_index('NEVAPR_DPCU') 
-   nevapr_shcu_idx = pbuf_get_index('NEVAPR_SHCU') 
+   rprddp_idx      = pbuf_get_index('RPRDDP')
+   rprdsh_idx      = pbuf_get_index('RPRDSH')
+   nevapr_dpcu_idx = pbuf_get_index('NEVAPR_DPCU')
+   nevapr_shcu_idx = pbuf_get_index('NEVAPR_SHCU')
 
    icwmrdp_idx     = pbuf_get_index('ICWMRDP')
    icwmrsh_idx     = pbuf_get_index('ICWMRSH')
@@ -302,11 +305,11 @@ end subroutine ma_convproc_init
 
 !=========================================================================================
 
-subroutine ma_convproc_intr( state, ptend, pbuf, ztodt,             &
+subroutine ma_convproc_intr( aero_model, state, ptend, pbuf, ztodt,             &
                            nsrflx_mzaer2cnvpr, qsrflx_mzaer2cnvpr,  &
                            aerdepwetis, dcondt_resusp3d )
-!----------------------------------------------------------------------- 
-! 
+!-----------------------------------------------------------------------
+!
 ! Convective cloud processing (transport, activation/resuspension,
 !    wet removal) of aerosols and trace gases.
 !    (Currently no aqueous chemistry and no trace-gas wet removal)
@@ -316,13 +319,14 @@ subroutine ma_convproc_intr( state, ptend, pbuf, ztodt,             &
 ! Does deep and shallow convection
 ! Uses mass fluxes, cloud water, precip production from the
 !    convective cloud routines
-! 
+!
 ! Author: R. Easter
-! 
+!
 !-----------------------------------------------------------------------
 
- 
+
    ! Arguments
+   class(aerosol_model), intent(in) :: aero_model
    type(physics_state),       intent(in )   :: state      ! Physics state variables
    type(physics_ptend),       intent(inout) :: ptend      ! %lq set in aero_model_wetdep
    type(physics_buffer_desc), pointer       :: pbuf(:)
@@ -366,8 +370,8 @@ subroutine ma_convproc_intr( state, ptend, pbuf, ztodt,             &
    sflxed(:,:) = 0.0_r8
    do l = 1, pcnst
       if ( (cnst_species_class(l) == cnst_spec_class_aerosol) .and. ptend%lq(l) ) then
-         sflxec(1:ncol,l) = qsrflx_mzaer2cnvpr(1:ncol,l,1) 
-         sflxed(1:ncol,l) = qsrflx_mzaer2cnvpr(1:ncol,l,2) 
+         sflxec(1:ncol,l) = qsrflx_mzaer2cnvpr(1:ncol,l,1)
+         sflxed(1:ncol,l) = qsrflx_mzaer2cnvpr(1:ncol,l,2)
       end if
    end do
 
@@ -376,7 +380,7 @@ subroutine ma_convproc_intr( state, ptend, pbuf, ztodt,             &
       if ( ptend%lq(l) ) then
          ! calc new q (after calcaersize and mz_aero_wet_intr)
          qa(1:ncol,:,l) = state%q(1:ncol,:,l) + dt*ptend%q(1:ncol,:,l)
-         qb(1:ncol,:,l) = max( 0.0_r8, qa(1:ncol,:,l) ) 
+         qb(1:ncol,:,l) = max( 0.0_r8, qa(1:ncol,:,l) )
       else
          ! use old q
          qb(1:ncol,:,l) = state%q(1:ncol,:,l)
@@ -389,7 +393,7 @@ subroutine ma_convproc_intr( state, ptend, pbuf, ztodt,             &
 
       ! do deep conv processing
       if (convproc_do_deep) then
-         call ma_convproc_dp_intr(                    &
+         call ma_convproc_dp_intr( aero_model,                    &
             state, pbuf, dt,                          &
             qb, dqdt, dotend, nsrflx, qsrflx, dcondt_resusp3d )
 
@@ -400,7 +404,7 @@ subroutine ma_convproc_intr( state, ptend, pbuf, ztodt,             &
 
             ! calc new q (after ma_convproc_dp_intr)
             qa(1:ncol,:,l) = qb(1:ncol,:,l) + dt*dqdt(1:ncol,:,l)
-            qb(1:ncol,:,l) = max( 0.0_r8, qa(1:ncol,:,l) ) 
+            qb(1:ncol,:,l) = max( 0.0_r8, qa(1:ncol,:,l) )
 
             if ( apply_convproc_tend_to_ptend ) then
                ! add dqdt onto ptend%q and set ptend%lq
@@ -411,16 +415,16 @@ subroutine ma_convproc_intr( state, ptend, pbuf, ztodt,             &
             if ((cnst_species_class(l) == cnst_spec_class_aerosol) .or. &
                 (cnst_species_class(l) == cnst_spec_class_gas    )) then
                ! these used for history file wetdep diagnostics
-               sflxic(1:ncol,l) = sflxic(1:ncol,l) + qsrflx(1:ncol,l,4) 
-               sflxid(1:ncol,l) = sflxid(1:ncol,l) + qsrflx(1:ncol,l,4) 
-               sflxec(1:ncol,l) = sflxec(1:ncol,l) + qsrflx(1:ncol,l,5) 
-               sflxed(1:ncol,l) = sflxed(1:ncol,l) + qsrflx(1:ncol,l,5) 
+               sflxic(1:ncol,l) = sflxic(1:ncol,l) + qsrflx(1:ncol,l,4)
+               sflxid(1:ncol,l) = sflxid(1:ncol,l) + qsrflx(1:ncol,l,4)
+               sflxec(1:ncol,l) = sflxec(1:ncol,l) + qsrflx(1:ncol,l,5)
+               sflxed(1:ncol,l) = sflxed(1:ncol,l) + qsrflx(1:ncol,l,5)
             end if
 
             if (cnst_species_class(l) == cnst_spec_class_aerosol) then
                ! this used for surface coupling
                aerdepwetis(1:ncol,l) = aerdepwetis(1:ncol,l) &
-                  + qsrflx(1:ncol,l,4) + qsrflx(1:ncol,l,5) 
+                  + qsrflx(1:ncol,l,4) + qsrflx(1:ncol,l,5)
             end if
          end do
       end if
@@ -428,7 +432,7 @@ subroutine ma_convproc_intr( state, ptend, pbuf, ztodt,             &
       dqdt(:,:,:) = 0.0_r8
       qsrflx(:,:,:) = 0.0_r8
       if (convproc_do_shallow) then
-         call ma_convproc_sh_intr(                    &
+         call ma_convproc_sh_intr( aero_model,                    &
             state, pbuf, dt,                          &
             qb, dqdt, dotend, nsrflx, qsrflx, dcondt_resusp3d )
 
@@ -438,7 +442,7 @@ subroutine ma_convproc_intr( state, ptend, pbuf, ztodt,             &
 
            ! calc new q (after ma_convproc_sh_intr)
            qa(1:ncol,:,l) = qb(1:ncol,:,l) + dt*dqdt(1:ncol,:,l)
-           qb(1:ncol,:,l) = max( 0.0_r8, qa(1:ncol,:,l) ) 
+           qb(1:ncol,:,l) = max( 0.0_r8, qa(1:ncol,:,l) )
 
             if ( apply_convproc_tend_to_ptend ) then
                ! add dqdt onto ptend%q and set ptend%lq
@@ -448,17 +452,17 @@ subroutine ma_convproc_intr( state, ptend, pbuf, ztodt,             &
 
             if ((cnst_species_class(l) == cnst_spec_class_aerosol) .or. &
                 (cnst_species_class(l) == cnst_spec_class_gas    )) then
-               sflxic(1:ncol,l) = sflxic(1:ncol,l) + qsrflx(1:ncol,l,4) 
-               sflxec(1:ncol,l) = sflxec(1:ncol,l) + qsrflx(1:ncol,l,5) 
+               sflxic(1:ncol,l) = sflxic(1:ncol,l) + qsrflx(1:ncol,l,4)
+               sflxec(1:ncol,l) = sflxec(1:ncol,l) + qsrflx(1:ncol,l,5)
             end if
 
             if (cnst_species_class(l) == cnst_spec_class_aerosol) then
                aerdepwetis(1:ncol,l) = aerdepwetis(1:ncol,l) &
-                  + qsrflx(1:ncol,l,4) + qsrflx(1:ncol,l,5) 
+                  + qsrflx(1:ncol,l,4) + qsrflx(1:ncol,l,5)
             end if
 
          end do
-      end if 
+      end if
 
    end if ! (convproc_do_aer  .or. convproc_do_gas) then
 
@@ -488,11 +492,11 @@ end subroutine ma_convproc_intr
 
 !=========================================================================================
 
-subroutine ma_convproc_dp_intr(                &
+subroutine ma_convproc_dp_intr( aero_model,                &
      state, pbuf, dt,                          &
      q, dqdt, dotend, nsrflx, qsrflx,  dcondt_resusp3d)
-!----------------------------------------------------------------------- 
-! 
+!-----------------------------------------------------------------------
+!
 ! Convective cloud processing (transport, activation/resuspension,
 !    wet removal) of aerosols and trace gases.
 !    (Currently no aqueous chemistry and no trace-gas wet removal)
@@ -502,13 +506,14 @@ subroutine ma_convproc_dp_intr(                &
 ! This routine does deep convection
 ! Uses mass fluxes, cloud water, precip production from the
 !    convective cloud routines
-! 
+!
 ! Author: R. Easter
-! 
+!
 !-----------------------------------------------------------------------
 
- 
+
    ! Arguments
+   class(aerosol_model), intent(in) :: aero_model
    type(physics_state),       intent(in ) :: state          ! Physics state variables
    type(physics_buffer_desc), pointer     :: pbuf(:)
 
@@ -531,7 +536,7 @@ subroutine ma_convproc_dp_intr(                &
    real(r8) :: qaa(pcols,pver,pcnst)
    real(r8) :: xx_mfup_max(pcols), xx_wcldbase(pcols), xx_kcldbase(pcols)
 
-   ! physics buffer fields 
+   ! physics buffer fields
    real(r8), pointer :: fracis(:,:,:)  ! fraction of transported species that are insoluble
    real(r8), pointer :: rprddp(:,:)    ! Deep conv precip production (kg/kg/s - grid avg)
    real(r8), pointer :: evapcdp(:,:)   ! Deep conv precip evaporation (kg/kg/s - grid avg)
@@ -601,13 +606,13 @@ subroutine ma_convproc_dp_intr(                &
 
    itmpveca(:) = -1
 
-   call ma_convproc_tend(                                            &
+   call ma_convproc_tend( aero_model,                                            &
                      'deep',                                         &
                      lchnk,      pcnst,      nstep,      dt,         &
-                     state%t,    state%pmid, state%pdel, qaa,        &   
-                     mu,         md,         du,         eu,         &   
-                     ed,         dp,         dpdry,      jt,         &   
-                     maxg,       ideep,      1,          lengath,    &       
+                     state%t,    state%pmid, state%pdel, qaa,        &
+                     mu,         md,         du,         eu,         &
+                     ed,         dp,         dpdry,      jt,         &
+                     maxg,       ideep,      1,          lengath,    &
                      dp_frac,    icwmrdp,    rprddp,     evapcdp,    &
                      fracice,                                        &
                      dqdt,       dotend,     nsrflx,     qsrflx,     &
@@ -623,12 +628,12 @@ end subroutine ma_convproc_dp_intr
 
 
 !=========================================================================================
-subroutine ma_convproc_sh_intr(                 &
+subroutine ma_convproc_sh_intr( aero_model,                 &
      state, pbuf, dt,                           &
      q, dqdt, dotend, nsrflx, qsrflx, dcondt_resusp3d )
-!----------------------------------------------------------------------- 
-! 
-! Purpose: 
+!-----------------------------------------------------------------------
+!
+! Purpose:
 ! Convective cloud processing (transport, activation/resuspension,
 !    wet removal) of aerosols and trace gases.
 !    (Currently no aqueous chemistry and no trace-gas wet removal)
@@ -638,12 +643,13 @@ subroutine ma_convproc_sh_intr(                 &
 ! This routine does shallow convection
 ! Uses mass fluxes, cloud water, precip production from the
 !    convective cloud routines
-! 
+!
 ! Author: R. Easter
-! 
+!
 !-----------------------------------------------------------------------
 
 ! Arguments
+   class(aerosol_model), intent(in) :: aero_model
    type(physics_state), intent(in ) :: state          ! Physics state variables
    type(physics_buffer_desc), pointer :: pbuf(:)
 
@@ -683,7 +689,7 @@ subroutine ma_convproc_sh_intr(                 &
    integer   :: ideep(pcols)      ! Gathering array
    integer   :: lengath           ! Gathered min lon indices over which to operate
 
-   ! physics buffer fields 
+   ! physics buffer fields
    real(r8), pointer :: rprdsh(:,:)  ! Shallow conv precip production (kg/kg/s - grid avg)
    real(r8), pointer :: evapcsh(:,:) ! Shal conv precip evaporation (kg/kg/s - grid avg)
    real(r8), pointer :: icwmrsh(:,:) ! Shal conv cloud condensate (kg/kg - in cloud)
@@ -711,7 +717,7 @@ subroutine ma_convproc_sh_intr(                 &
 
    fracice(:,:) = 0.0_r8
 
-   ! create mass flux, entrainment, detrainment, and delta-p arrays 
+   ! create mass flux, entrainment, detrainment, and delta-p arrays
    ! with same units as the zm-deep
    mu(:,:) = 0.0_r8
    md(:,:) = 0.0_r8
@@ -744,7 +750,7 @@ subroutine ma_convproc_sh_intr(                 &
          end if
       end do
       if (kk <= 0) cycle  ! current column has no convection
-      
+
       ! extend below-cloud source region downwards (how far?)
       maxg_minval = min( maxg_minval, maxg(i) )
       kaa = maxg(i)
@@ -764,7 +770,7 @@ subroutine ma_convproc_sh_intr(                 &
       ! note that the ratio is set to -1.0 (invalid) when both fer and fdr are very small
       !    and the ratio values are often strange (??) at topmost layer
       !
-      ! for initial testing, impose a limit of 
+      ! for initial testing, impose a limit of
       !    entrainment <= 4 * (net entrainment), OR
       !    detrainment <= 4 * (net detrainment)
       do k = jt(i), maxg(i)
@@ -830,13 +836,13 @@ subroutine ma_convproc_sh_intr(                 &
 
    itmpveca(:) = -1
 
-   call ma_convproc_tend(                                            &
+   call ma_convproc_tend( aero_model,                                           &
                      'uwsh',                                         &
                      lchnk,      pcnst,      nstep,      dt,         &
-                     state%t,    state%pmid, state%pdel, qaa,        &   
-                     mu,         md,         du,         eu,         &   
-                     ed,         dp,         dpdry,      jt,         &   
-                     maxg,       ideep,      1,          lengath,    &       
+                     state%t,    state%pmid, state%pdel, qaa,        &
+                     mu,         md,         du,         eu,         &
+                     ed,         dp,         dpdry,      jt,         &
+                     maxg,       ideep,      1,          lengath,    &
                      sh_frac,    icwmrsh,    rprdsh,     evapcsh,    &
                      fracice,                                        &
                      dqdt,       dotend,     nsrflx,     qsrflx,     &
@@ -851,22 +857,22 @@ end subroutine ma_convproc_sh_intr
 
 !=========================================================================================
 
-subroutine ma_convproc_tend(                                           &
+subroutine ma_convproc_tend(  aero_model,                            &
                      convtype,                                       &
                      lchnk,      ncnst,      nstep,      dt,         &
-                     t,          pmid,       pdel,       q,          &   
-                     mu,         md,         du,         eu,         &   
-                     ed,         dp,         dpdry,      jt,         &   
-                     mx,         ideep,      il1g,       il2g,       &       
+                     t,          pmid,       pdel,       q,          &
+                     mu,         md,         du,         eu,         &
+                     ed,         dp,         dpdry,      jt,         &
+                     mx,         ideep,      il1g,       il2g,       &
                      cldfrac,    icwmr,      rprd,       evapc,      &
                      fracice,                                        &
                      dqdt,       doconvproc, nsrflx,     qsrflx,     &
                      xx_mfup_max, xx_wcldbase, xx_kcldbase,          &
                      lun,        idiag_in,  dcondt_resusp3d )
 
-!----------------------------------------------------------------------- 
-! 
-! Purpose: 
+!-----------------------------------------------------------------------
+!
+! Purpose:
 ! Convective transport of trace species.
 ! The trace species need not be conservative, and source/sink terms for
 !    activation, resuspension, aqueous chemistry and gas uptake, and
@@ -878,11 +884,11 @@ subroutine ma_convproc_tend(                                           &
 ! Compare to subr convproc which does conservative trace species.
 !
 ! A distinction between "moist" and "dry" mixing ratios is not currently made.
-! (P. Rasch comment:  Note that we are still assuming that the tracers are 
+! (P. Rasch comment:  Note that we are still assuming that the tracers are
 !  in a moist mixing ratio this will change soon)
 
-! 
-! Method: 
+!
+! Method:
 ! Computes tracer mixing ratios in updraft and downdraft "cells" in a
 ! Lagrangian manner, with source/sinks applied in the updraft other.
 ! Then computes grid-cell-mean tendencies by considering
@@ -893,12 +899,12 @@ subroutine ma_convproc_tend(                                           &
 !
 ! Note1:  A better estimate or calculation of either the updraft velocity
 !         or fractional area is needed.
-! Note2:  If updraft area is a small fraction of over cloud area, 
+! Note2:  If updraft area is a small fraction of over cloud area,
 !         then aqueous chemistry is underestimated.  These are both
 !         research areas.
-! 
+!
 ! Authors: O. Seland and R. Easter, based on convtran by P. Rasch
-! 
+!
 !-----------------------------------------------------------------------
 
    use modal_aero_data, only:  cnst_name_cw, &
@@ -912,6 +918,7 @@ subroutine ma_convproc_tend(                                           &
 !
 ! Input arguments
 !
+   class(aerosol_model), intent(in) :: aero_model
    character(len=*), intent(in) :: convtype  ! identifies the type of
                                              ! convection ("deep", "shcu")
    integer,  intent(in) :: lchnk             ! chunk identifier
@@ -938,7 +945,7 @@ subroutine ma_convproc_tend(                                           &
 !  real(r8), intent(in) :: dsubcld(pcols)    ! Delta pressure from cloud base to sfc
    integer,  intent(in) :: jt(pcols)         ! Index of cloud top for each column
    integer,  intent(in) :: mx(pcols)         ! Index of cloud top for each column
-   integer,  intent(in) :: ideep(pcols)      ! Gathering array indices 
+   integer,  intent(in) :: ideep(pcols)      ! Gathering array indices
    integer,  intent(in) :: il1g              ! Gathered min lon indices over which to operate
    integer,  intent(in) :: il2g              ! Gathered max lon indices over which to operate
 ! *** note4 -- for il1g <= i <= il2g,  icol = ideep(i) is the "normal" chunk column index
@@ -995,7 +1002,7 @@ subroutine ma_convproc_tend(                                           &
    integer :: nerrmax         ! maximum number of errors to report
    integer :: ncnst_extd
    integer :: npass_calc_updraft
-   integer :: ntsub           ! 
+   integer :: ntsub           !
 
    logical  do_act_this_lev             ! flag for doing activation at current level
    logical  doconvproc_extd(pcnst_extd) ! flag for doing convective transport
@@ -1043,15 +1050,15 @@ subroutine ma_convproc_tend(                                           &
    real(r8) courantmax           ! maximum courant no.
    real(r8) dddp(pver)           ! dd(i,k)*dp(i,k) at current i
    real(r8) dp_i(pver)           ! dp(i,k) at current i
-   real(r8) dt_u(pver)           ! lagrangian transport time in the updraft  
+   real(r8) dt_u(pver)           ! lagrangian transport time in the updraft
    real(r8) dudp(pver)           ! du(i,k)*dp(i,k) at current i
    real(r8) dqdt_i(pver,pcnst)   ! dqdt(i,k,m) at current i
    real(r8) dtsub                ! dt/ntsub
-   real(r8) dz                   ! working layer thickness (m) 
+   real(r8) dz                   ! working layer thickness (m)
    real(r8) eddp(pver)           ! ed(i,k)*dp(i,k) at current i
    real(r8) eudp(pver)           ! eu(i,k)*dp(i,k) at current i
    real(r8) expcdtm1             ! a work variable
-   real(r8) fa_u(pver)           ! fractional area of in the updraft  
+   real(r8) fa_u(pver)           ! fractional area of in the updraft
    real(r8) fa_u_dp              ! current fa_u(k)*dp_i(k)
    real(r8) f_ent                ! fraction of the "before-detrainment" updraft
                                  ! massflux at k/k-1 interface resulting from
@@ -1090,7 +1097,7 @@ subroutine ma_convproc_tend(                                           &
 
    !Fractional area of ensemble mean updrafts in ZM scheme set to 0.01
    !Chosen to reproduce vertical vecocities in GATEIII GIGALES (Khairoutdinov etal 2009, JAMES)
-   real(r8), parameter :: zm_areafrac = 0.01_r8 
+   real(r8), parameter :: zm_areafrac = 0.01_r8
 !-----------------------------------------------------------------------
 !
 
@@ -1241,21 +1248,21 @@ i_loop_main_aa: &
       do k = ktop, kbot
          if ((mu_i(k) > 0) .or. (mu_i(k+1) > 0)) then
             if (du(i,k) <= 0.0_r8) then
-               eudp(k) = mu_i(k) - mu_i(k+1) 
+               eudp(k) = mu_i(k) - mu_i(k+1)
             else
                eudp(k) = max( eu(i,k)*dp_i(k), 0.0_r8 )
-               dudp(k) = (mu_i(k+1) + eudp(k)) - mu_i(k) 
+               dudp(k) = (mu_i(k+1) + eudp(k)) - mu_i(k)
                if (dudp(k) < 1.0e-12_r8*eudp(k)) then
-                  eudp(k) = mu_i(k) - mu_i(k+1) 
+                  eudp(k) = mu_i(k) - mu_i(k+1)
                   dudp(k) = 0.0_r8
                end if
             end if
          end if
          if ((md_i(k) < 0) .or. (md_i(k+1) < 0)) then
             eddp(k) = max( ed(i,k)*dp_i(k), 0.0_r8 )
-            dddp(k) = (md_i(k+1) + eddp(k)) - md_i(k) 
+            dddp(k) = (md_i(k+1) + eddp(k)) - md_i(k)
             if (dddp(k) < 1.0e-12_r8*eddp(k)) then
-               eddp(k) = md_i(k) - md_i(k+1) 
+               eddp(k) = md_i(k) - md_i(k+1)
                dddp(k) = 0.0_r8
             end if
          end if
@@ -1331,7 +1338,7 @@ ipass_calc_updraft_loop: &
          do k = 1,pver
             const(m,k) = q_i(k,m)
          end do
-         
+
 ! From now on work only with gathered data
 ! Interpolate environment tracer values to interfaces
          do k = 1,pver
@@ -1374,9 +1381,9 @@ ipass_calc_updraft_loop: &
 
 
 ! Compute updraft mixing ratios from cloudbase to cloudtop
-! No special treatment is needed at k=pver because arrays 
+! No special treatment is needed at k=pver because arrays
 !    are dimensioned 1:pver+1
-! A time-split approach is used.  First, entrainment is applied to produce 
+! A time-split approach is used.  First, entrainment is applied to produce
 !    an initial conu(m,k) from conu(m,k+1).  Next, chemistry/physics are
 !    applied to the initial conu(m,k) to produce a final conu(m,k).
 !    Detrainment from the updraft uses this final conu(m,k).
@@ -1387,7 +1394,7 @@ k_loop_main_bb: &
       do k = kbot, ktop, -1
          kp1 = k+1
 
-! cldfrac = conv cloud fractional area.  This could represent anvil cirrus area, 
+! cldfrac = conv cloud fractional area.  This could represent anvil cirrus area,
 !    and may not useful for aqueous chem and wet removal calculations
          cldfrac_i(k) = max( cldfrac_i(k), 0.005_r8 )
 ! mu_p_eudp(k) = updraft massflux at k, without detrainment between kp1,k
@@ -1396,7 +1403,7 @@ k_loop_main_bb: &
          fa_u(k) = 0.0_r8 !BSINGH(10/15/2014): Initialized so that it has a value if the following "if" check yeilds .false.
          if (mu_p_eudp(k) > mbsth) then
 ! if (mu_p_eudp(k) <= mbsth) the updraft mass flux is negligible at base and top
-!    of current layer, 
+!    of current layer,
 ! so current layer is a "gap" between two unconnected updrafts,
 ! so essentially skip all the updraft calculations for this layer
 
@@ -1410,7 +1417,7 @@ k_loop_main_bb: &
                end if
             end do
 
-! estimate updraft velocity (wup) 
+! estimate updraft velocity (wup)
             if (iconvtype /= 1) then
 ! shallow - wup = (mup in kg/m2/s) / [rhoair * (updraft area)]
                wup(k) = (mu_i(kp1) + mu_i(k))*0.5_r8*hund_ovr_g &
@@ -1428,7 +1435,7 @@ k_loop_main_bb: &
             fa_u(k) = dt_u(k)*(mu_p_eudp(k)/dp_i(k))
 
 
-! Now apply transformation and removal changes 
+! Now apply transformation and removal changes
 !    Skip levels where icwmr(icol,k) <= clw_cut (= 1.0e-6) to eliminate
 !    occasional very small icwmr values from the ZM module
             clw_cut = 1.0e-6_r8
@@ -1437,7 +1444,7 @@ k_loop_main_bb: &
             if (convproc_method_activate <= 1) then
 ! aerosol activation - method 1
 !    skip levels that are completely glaciated (fracice(icol,k) == 1.0)
-!    when kactcnt=1 (first/lowest layer with cloud water) apply 
+!    when kactcnt=1 (first/lowest layer with cloud water) apply
 !       activatation to the entire updraft
 !    when kactcnt>1 apply activatation to the amount entrained at this level
                if ((icwmr(icol,k) > clw_cut) .and. (fracice(icol,k) < 1.0_r8)) then
@@ -1461,7 +1468,7 @@ k_loop_main_bb: &
 
                      kactfirst = k
                      tmpa = 1.0_r8
-                     call ma_activate_convproc(                            &
+                     call ma_activate_convproc( aero_model,                           &
                         conu(:,k),  dconudt_activa(:,k), conu(:,k),        &
                         tmpa,       dt_u(k),             wup(k),           &
                         t(icol,k),  rhoair_i(k),         fracice(icol,k),  &
@@ -1472,7 +1479,7 @@ k_loop_main_bb: &
                      ! current layer is above cloud base (=first layer with activation)
                      !    only allow activation at k = kactfirst thru kactfirst-(method1_activate_nlayers-1)
                      if (k >= kactfirst-(method1_activate_nlayers-1)) then
-                        call ma_activate_convproc(                            &
+                        call ma_activate_convproc( aero_model,                   &
                            conu(:,k),  dconudt_activa(:,k), const(:,k),       &
                            f_ent,      dt_u(k),             wup(k),           &
                            t(icol,k),  rhoair_i(k),         fracice(icol,k),  &
@@ -1484,7 +1491,7 @@ k_loop_main_bb: &
 ! the following was for cam2 shallow convection (hack),
 ! but is not appropriate for cam5 (uwshcu)
 !                 else if ((kactcnt > 0) .and. (iconvtype /= 1)) then
-! !    for shallow conv, when you move from activation occuring to 
+! !    for shallow conv, when you move from activation occuring to
 ! !       not occuring, reset kactcnt=0, because the hack scheme can
 ! !       produce multiple "1.5 layer clouds" separated by clear air
 !                    kactcnt = 0
@@ -1494,9 +1501,9 @@ k_loop_main_bb: &
             else ! (convproc_method_activate >= 2)
 ! aerosol activation - method 2
 !    skip levels that are completely glaciated (fracice(icol,k) == 1.0)
-!    when kactcnt=1 (first/lowest layer with cloud water) 
+!    when kactcnt=1 (first/lowest layer with cloud water)
 !       apply "primary" activatation to the entire updraft
-!    when kactcnt>1 
+!    when kactcnt>1
 !       apply secondary activatation to the entire updraft
 !       do this for all levels above cloud base (even if completely glaciated)
 !          (this is something for sensitivity testing)
@@ -1527,7 +1534,7 @@ k_loop_main_bb: &
                         'qaku act_conv lchnk,i,jtsub', lchnk, icol, jtsub
                   end if
 
-                  call ma_activate_convproc_method2(                    &
+                  call ma_activate_convproc_method2( aero_model,                   &
                      conu(:,k),  dconudt_activa(:,k),                   &
                      f_ent,      dt_u(k),             wup(k),           &
                      t(icol,k),  rhoair_i(k),         fracice(icol,k),  &
@@ -1554,7 +1561,7 @@ k_loop_main_bb: &
 !    icwmr              = cloud water MR within updraft area (kgW/kgA)
 !    fupdr              = updraft fractional area (--)
 !    A = rprd/fupdr     = precip formation rate within updraft area (kgW/kgA/s)
-!    B = A/icwmr = rprd/(icwmr*fupdr) 
+!    B = A/icwmr = rprd/(icwmr*fupdr)
 !                       = first-order removal rate (1/s)
 !    C = dp/(mup/fupdr) = updraft air residence time in the layer (s)
 !
@@ -1569,8 +1576,8 @@ k_loop_main_bb: &
 ! cam5
 !    clw_preloss = cloud water MR before loss to precip
 !                = icwmr + dt*(rprd/fupdr)
-!    B = A/clw_preloss  = (rprd/fupdr)/(icwmr + dt*rprd/fupdr) 
-!                       = rprd/(fupdr*icwmr + dt*rprd) 
+!    B = A/clw_preloss  = (rprd/fupdr)/(icwmr + dt*rprd/fupdr)
+!                       = rprd/(fupdr*icwmr + dt*rprd)
 !                       = first-order removal rate (1/s)
 !
 !    fraction removed = (1.0 - exp(-cdt)) where
@@ -1580,12 +1587,12 @@ k_loop_main_bb: &
 !                and is not the same as the convective cloud fraction
 !    Note2:  dt is appropriate in the above cdt expression, not dtsub
 !
-!    Apply wet removal at levels where 
+!    Apply wet removal at levels where
 !       icwmr(icol,k) > clw_cut  AND  rprd(icol,k) > 0.0
 !    as wet removal occurs in both liquid and ice clouds
 !
             cdt(k) = 0.0_r8
-            if ((icwmr(icol,k) > clw_cut) .and. (rprd(icol,k) > 0.0_r8)) then 
+            if ((icwmr(icol,k) > clw_cut) .and. (rprd(icol,k) > 0.0_r8)) then
 !              if (iconvtype == 1) then
                   tmpf = 0.5_r8*cldfrac_i(k)
                   cdt(k) = (tmpf*dp(i,k)/mu_p_eudp(k)) * rprd(icol,k) / &
@@ -1614,7 +1621,7 @@ k_loop_main_bb: &
            (npass_calc_updraft == 2) ) cycle ipass_calc_updraft_loop
 
       if (idiag_in(icol) > 0) then
-         ! do wet removal diagnostics here 
+         ! do wet removal diagnostics here
          do k = kbot, ktop, -1
             if (mu_p_eudp(k) > mbsth) &
                write(lun,'(a,i9,3i4,1p,6e10.3)') &
@@ -1672,8 +1679,8 @@ k_loop_main_cc: &
          do m = 2, ncnst_extd
             if (doconvproc_extd(m)) then
 
-! First compute fluxes using environment subsidence/lifting and 
-! entrainment/detrainment into up/downdrafts, 
+! First compute fluxes using environment subsidence/lifting and
+! entrainment/detrainment into up/downdrafts,
 ! to provide an additional mass balance check
 ! (this could be deleted after the code is well tested)
                fluxin  = mu_i(k)*min(chat(m,k),const(m,km1x))       &
@@ -1751,7 +1758,7 @@ k_loop_main_cc: &
                write(lun,'(a,i9,4i4,1p,22x,   2x,11x,  2x,6e11.3)') &
                   'qakww0-'//convtype(1:4), lchnk, icol, k, -1, jtsub, &
                   dtsub*mu_i(k+1)/dp_i(k), dtsub*mu_i(k)/dp_i(k), dtsub*eudp(k)/dp_i(k), &
-                  dtsub*md_i(k+1)/dp_i(k), dtsub*md_i(k)/dp_i(k), dtsub*eddp(k)/dp_i(k) 
+                  dtsub*md_i(k+1)/dp_i(k), dtsub*md_i(k)/dp_i(k), dtsub*eddp(k)/dp_i(k)
 
                write(lun,'(a,i9,4i4,1p,2e11.3,2x,e11.3,2x,6e11.3)') &
                   'qakww1-'//convtype(1:4), lchnk, icol, k, m, jtsub, &
@@ -1796,14 +1803,14 @@ k_loop_main_cc: &
 !    pairs to account any (or total) resuspension of convective-cloudborne aerosol
       call ma_resuspend_convproc( dcondt, dcondt_resusp,   &
                                   const, dp_i, ktop, kbot_prevap, pcnst_extd )
-      
+
       ! Do resuspension of aerosols from rain only when the rain has
-      ! totally evaporated. 
+      ! totally evaporated.
       if (convproc_do_evaprain_atonce) then
          dcondt_resusp3d(pcnst+1:pcnst_extd,icol,:) = dcondt_resusp(pcnst+1:pcnst_extd,:)
          dcondt_resusp(pcnst+1:pcnst_extd,:) = 0._r8
       end if
-      
+
       if ( idiag_in(icol)>0 ) then
          k = 26
          do m = 16, 23, 7
@@ -1872,10 +1879,10 @@ k_loop_main_cc: &
                   write(lun,9151) '3', m, cnst_name_extd(m), tmpb, tmpa, (tmpa/tmpb)
                   itmpa = itmpa + 100
                end if
-               ! sumchng3 = sumchng + sumresusp + sumprevap, 
+               ! sumchng3 = sumchng + sumresusp + sumprevap,
                !    so tmpa (below) should be ~=0.0
                ! NOTE: This check needs to be redone if the rain is being
-               ! evaporated all at once. Until then, skip this check for that case. 
+               ! evaporated all at once. Until then, skip this check for that case.
                if (.not. convproc_do_evaprain_atonce) then
                   tmpa = sumchng3(m) - (sumsrce(m) + sumresusp(m) + sumprevap(m))
                   tmpb = max( maxflux(m), maxsrce(m), maxresusp(m), maxprevap(m), small )
@@ -2121,7 +2128,7 @@ end subroutine ma_convproc_tend
 !-----------------------------------------------------------------------
 !
 ! Purpose:
-! Calculate resuspension of wet-removed aerosol species resulting 
+! Calculate resuspension of wet-removed aerosol species resulting
 !    precip evaporation
 !
 ! Author: R. Easter
@@ -2203,7 +2210,7 @@ end subroutine ma_convproc_tend
       do m = 2, pcnst_extd
          if ( doconvproc_extd(m) ) then
             ! use -dcondt_wetdep(m,k) as it is negative (or zero)
-            wd_flux(m) = wd_flux(m) + tmpdp*max(0.0_r8, -dcondt_wetdep(m,k)) 
+            wd_flux(m) = wd_flux(m) + tmpdp*max(0.0_r8, -dcondt_wetdep(m,k))
             del_wd_flux_evap = wd_flux(m)*fdel_pr_flux_evap
             wd_flux(m) = max( 0.0_r8, wd_flux(m)-del_wd_flux_evap )
 
@@ -2211,7 +2218,7 @@ end subroutine ma_convproc_tend
             dcondt(m,k) = dcondt(m,k) + dcondt_prevap(m,k)
          end if
       end do
- 
+
       ! Do resuspension of aerosol species from rain to coarse mode (large particle) rather
       ! than to individual modes.
       if (convproc_do_evaprain_atonce) then
@@ -2232,15 +2239,15 @@ end subroutine ma_convproc_tend
          do i = 1,npoa
             if (npoa>1) write(spcstr,'(i4)') i
             call accumulate_to_larger_mode( 'POM'//adjustl(spcstr), lptr2_pom_a_amode(:,i), dcondt_prevap(:,k) )
-         enddo            
+         enddo
          spcstr = '    '
          do i = 1,nbc
             if (nbc>1) write(spcstr,'(i4)') i
             call accumulate_to_larger_mode( 'BC'//adjustl(spcstr), lptr2_bc_a_amode(:,i), dcondt_prevap(:,k) )
-         enddo            
+         enddo
 
       end if
-      
+
       pr_flux = max( 0.0_r8, pr_flux-del_pr_flux_evap )
 
       if (idiag_prevap > 0) then
@@ -2273,7 +2280,7 @@ end subroutine ma_convproc_tend
 
      integer :: m,n, nl,ns
 
-     ! find constituent index of the largest mode for the species 
+     ! find constituent index of the largest mode for the species
      loop1: do m = 1,ntot_amode-1
         nl = lptr(mode_size_order(m))
         if (nl>0) exit loop1
@@ -2294,9 +2301,9 @@ end subroutine ma_convproc_tend
      end do
 
    end subroutine accumulate_to_larger_mode
-       
+
 !=========================================================================================
-   subroutine ma_activate_convproc(             &
+   subroutine ma_activate_convproc( aero_model,            &
               conu,       dconudt,   conent,    &
               f_ent,      dt_u,      wup,       &
               tair,       rhoair,    fracice,   &
@@ -2312,42 +2319,40 @@ end subroutine ma_convproc_tend
 ! Method:
 ! conu(l)    = Updraft TMR (tracer mixing ratio) at k/k-1 interface
 ! conent(l)  = TMR of air that is entrained into the updraft from level k
-! f_ent      = Fraction of the "before-detrainment" updraft massflux at 
+! f_ent      = Fraction of the "before-detrainment" updraft massflux at
 !              k/k-1 interface" resulting from entrainment of level k air
 !              (where k is the current level in subr ma_convproc_tend)
 !
 ! On entry to this routine, the conu(l) represents the updraft TMR
-! after entrainment, but before chemistry/physics and detrainment, 
+! after entrainment, but before chemistry/physics and detrainment,
 ! and is equal to
 !    conu(l) = f_ent*conent(l) + (1.0-f_ent)*conu_below(l)
-! where 
+! where
 !    conu_below(l) = updraft TMR at the k+1/k interface, and
-!    f_ent   = (eudp/mu_p_eudp) is the fraction of the updraft massflux 
+!    f_ent   = (eudp/mu_p_eudp) is the fraction of the updraft massflux
 !              from level k entrainment
 !
 ! This routine applies aerosol activation to the entrained tracer,
 ! then adjusts the conu so that on exit,
 !   conu(la) = conu_incoming(la) - f_ent*conent(la)*f_act(la)
 !   conu(lc) = conu_incoming(lc) + f_ent*conent(la)*f_act(la)
-! where 
+! where
 !   la, lc   = indices for an unactivated/activated aerosol component pair
 !   f_act    = fraction of conent(la) that is activated.  The f_act are
 !              calculated with the Razzak-Ghan activation parameterization.
 !              The f_act differ for each mode, and for number/surface/mass.
 !
-! Note:  At the lowest layer with cloud water, subr convproc calls this 
-! routine with conent==conu and f_ent==1.0, with the result that 
+! Note:  At the lowest layer with cloud water, subr convproc calls this
+! routine with conent==conu and f_ent==1.0, with the result that
 ! activation is applied to the entire updraft tracer flux
 !
-! *** The updraft velocity used for activation calculations is rather 
-!     uncertain and needs more work.  However, an updraft of 1-3 m/s 
+! *** The updraft velocity used for activation calculations is rather
+!     uncertain and needs more work.  However, an updraft of 1-3 m/s
 !     will activate essentially all of accumulation and coarse mode particles.
 !
 ! Author: R. Easter
 !
 !-----------------------------------------------------------------------
-
-   use ndrop, only: activate_modal
 
    use modal_aero_data, only:  lmassptr_amode, lmassptrcw_amode, &
       ntot_amode, &
@@ -2359,17 +2364,18 @@ end subroutine ma_convproc_tend
 
 !-----------------------------------------------------------------------
 ! arguments  (note:  TMR = tracer mixing ratio)
+   class(aerosol_model), intent(in) :: aero_model
    integer, intent(in)     :: pcnst_extd
    ! conu = tracer mixing ratios in updraft at top of this (current) level
    !        The conu are changed by activation
-   real(r8), intent(inout) :: conu(pcnst_extd)    
+   real(r8), intent(inout) :: conu(pcnst_extd)
    ! conent = TMRs in the entrained air at this level
    real(r8), intent(in)    :: conent(pcnst_extd)
    real(r8), intent(inout) :: dconudt(pcnst_extd) ! TMR tendencies due to activation
 
    real(r8), intent(in)    :: f_ent  ! fraction of updraft massflux that was
                                      ! entrained across this layer == eudp/mu_p_eudp
-   real(r8), intent(in)    :: dt_u   ! lagrangian transport time (s) in the 
+   real(r8), intent(in)    :: dt_u   ! lagrangian transport time (s) in the
                                      ! updraft at current level
    real(r8), intent(in)    :: wup    ! mean updraft vertical velocity (m/s)
                                      ! at current level updraft
@@ -2407,6 +2413,9 @@ end subroutine ma_convproc_tend
    real(r8) :: wdiab                 ! diabatic vertical velocity (cm/s)
    real(r8) :: wminf, wmaxf          ! limits for integration over updraft spectrum (cm/s)
 
+   real(r8) :: pres       ! pressure (Pa)
+   real(r8) :: sat_spchum ! water vapor saturation mixing ratio (specific humidity)
+   real(r8) :: sat_vpress ! saturation vapor pressure
 
 !-----------------------------------------------------------------------
 
@@ -2503,11 +2512,13 @@ end subroutine ma_convproc_tend
    wminf = wbar
    wmaxf = wbar
 
-   call activate_modal(                                                    &
-         wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,                    &
-         naerosol, ntot_amode, vaerosol, hygro,                            &
-         fn, fm, fluxn, fluxm, flux_fullact                                )
-   
+   pres=rair*rhoair*tair
+   call qsat(tair, pres, sat_vpress, sat_spchum)
+   call aero_model%activate( &
+         wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair, &
+         sat_spchum, naerosol, ntot_amode, vaerosol, hygro, &
+         fn, fm, fluxn, fluxm, flux_fullact )
+
 
 
 ! diagnostic output for testing/development
@@ -2526,7 +2537,7 @@ end subroutine ma_convproc_tend
 !9570  format( 'fmact values       ', 6(1pe11.3) )
 !   end if
 
-      
+
 ! apply the activation fractions to the updraft aerosol mixing ratios
    dt_u_inv = 1.0_r8/dt_u
 
@@ -2562,7 +2573,7 @@ end subroutine ma_convproc_tend
 
 
 !=========================================================================================
-   subroutine ma_activate_convproc_method2(     &
+   subroutine ma_activate_convproc_method2( aero_model,    &
               conu,       dconudt,              &
               f_ent,      dt_u,      wup,       &
               tair,       rhoair,    fracice,   &
@@ -2577,18 +2588,18 @@ end subroutine ma_convproc_tend
 !
 ! Method:
 ! conu(l)    = Updraft TMR (tracer mixing ratio) at k/k-1 interface
-! f_ent      = Fraction of the "before-detrainment" updraft massflux at 
+! f_ent      = Fraction of the "before-detrainment" updraft massflux at
 !              k/k-1 interface" resulting from entrainment of level k air
 !              (where k is the current level in subr ma_convproc_tend)
 !
 ! On entry to this routine, the conu(l) represents the updraft TMR
-! after entrainment, but before chemistry/physics and detrainment. 
+! after entrainment, but before chemistry/physics and detrainment.
 !
 ! This routine applies aerosol activation to the conu tracer mixing ratios,
 ! then adjusts the conu so that on exit,
 !   conu(la) = conu_incoming(la) - conu(la)*f_act(la)
 !   conu(lc) = conu_incoming(lc) + conu(la)*f_act(la)
-! where 
+! where
 !   la, lc   = indices for an unactivated/activated aerosol component pair
 !   f_act    = fraction of conu(la) that is activated.  The f_act are
 !              calculated with the Razzak-Ghan activation parameterization.
@@ -2599,15 +2610,13 @@ end subroutine ma_convproc_tend
 ! Above cloud base, secondary activation is done using a
 ! prescribed supersaturation.
 !
-! *** The updraft velocity used for activation calculations is rather 
-!     uncertain and needs more work.  However, an updraft of 1-3 m/s 
+! *** The updraft velocity used for activation calculations is rather
+!     uncertain and needs more work.  However, an updraft of 1-3 m/s
 !     will activate essentially all of accumulation and coarse mode particles.
 !
 ! Author: R. Easter
 !
 !-----------------------------------------------------------------------
-
-   use ndrop, only: activate_modal
 
    use modal_aero_data, only:  lmassptr_amode, lmassptrcw_amode, &
       ntot_amode, &
@@ -2621,15 +2630,16 @@ end subroutine ma_convproc_tend
 
 !-----------------------------------------------------------------------
 ! arguments  (note:  TMR = tracer mixing ratio)
+   class(aerosol_model), intent(in) :: aero_model
    integer, intent(in)     :: pcnst_extd
    ! conu = tracer mixing ratios in updraft at top of this (current) level
    !        The conu are changed by activation
-   real(r8), intent(inout) :: conu(pcnst_extd)    
+   real(r8), intent(inout) :: conu(pcnst_extd)
    real(r8), intent(inout) :: dconudt(pcnst_extd) ! TMR tendencies due to activation
 
    real(r8), intent(in)    :: f_ent  ! fraction of updraft massflux that was
                                      ! entrained across this layer == eudp/mu_p_eudp
-   real(r8), intent(in)    :: dt_u   ! lagrangian transport time (s) in the 
+   real(r8), intent(in)    :: dt_u   ! lagrangian transport time (s) in the
                                      ! updraft at current level
    real(r8), intent(in)    :: wup    ! mean updraft vertical velocity (m/s)
                                      ! at current level updraft
@@ -2671,6 +2681,9 @@ end subroutine ma_convproc_tend
 
    character(len=32) :: spec_type
 
+   real(r8) :: pres       ! pressure (Pa)
+   real(r8) :: sat_spchum ! water vapor saturation mixing ratio (specific humidity)
+   real(r8) :: sat_vpress ! saturation vapor pressure
 !-----------------------------------------------------------------------
 
 
@@ -2718,7 +2731,7 @@ end subroutine ma_convproc_tend
          tmpc = tmpc + max( conu(lmassptrcw_amode(ll,n)+pcnst), 0.0_r8 )
          tmpc = tmpc / specdens_amode(ll,n)
          tmpa = tmpa + tmpc
-         
+
          ! Change the hygroscopicity of POM based on the discussion with Prof.
          ! Xiaohong Liu. Some observational studies found that the primary organic
          ! material from biomass burning emission shows very high hygroscopicity.
@@ -2779,22 +2792,25 @@ end subroutine ma_convproc_tend
    wminf = wbar
    wmaxf = wbar
 
+   pres=rair*rhoair*tair
+   call qsat(tair, pres, sat_vpress, sat_spchum)
+
    if (k == kactfirst) then
 
-      call activate_modal(                                                 &
-         wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,                    &
-         naerosol, ntot_amode, vaerosol, hygro,                            &
-         fn, fm, fluxn, fluxm, flux_fullact                                )
+      call aero_model%activate( &
+         wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair, &
+         sat_spchum, naerosol, ntot_amode, vaerosol, hygro, &
+         fn, fm, fluxn, fluxm, flux_fullact )
 
 
    else
-! above cloud base - do secondary activation with prescribed supersat 
+! above cloud base - do secondary activation with prescribed supersat
 ! that is constant with height
       smax_prescribed = method2_activate_smaxmax
-      call activate_modal(                                                 &
-         wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,                    &
-         naerosol, ntot_amode, vaerosol, hygro,                            &
-         fn, fm, fluxn, fluxm, flux_fullact, smax_prescribed               )
+      call aero_model%activate( &
+         wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair, &
+         sat_spchum, naerosol, ntot_amode, vaerosol, hygro, &
+         fn, fm, fluxn, fluxm, flux_fullact, smax_prescribed )
    end if
 
 
@@ -2814,7 +2830,7 @@ end subroutine ma_convproc_tend
 !9570  format( 'fmact values       ', 6(1pe11.3) )
 !   end if
 
-      
+
 ! apply the activation fractions to the updraft aerosol mixing ratios
    dt_u_inv = 1.0_r8/dt_u
 
@@ -2864,14 +2880,14 @@ end subroutine ma_convproc_tend
 ! Method:
 ! Three possible approaches were considered:
 !
-! 1. Ad-hoc #1 approach.  At each level, adjust dcondt for the activated 
-!    and unactivated portions of a particular aerosol species so that the 
-!    ratio of dcondt (activated/unactivate) is equal to the ratio of the 
-!    mixing ratios before convection.  
+! 1. Ad-hoc #1 approach.  At each level, adjust dcondt for the activated
+!    and unactivated portions of a particular aerosol species so that the
+!    ratio of dcondt (activated/unactivate) is equal to the ratio of the
+!    mixing ratios before convection.
 !    THIS WAS IMPLEMENTED IN MIRAGE2
 !
-! 2. Ad-hoc #2 approach.  At each level, adjust dcondt for the activated 
-!    and unactivated portions of a particular aerosol species so that the 
+! 2. Ad-hoc #2 approach.  At each level, adjust dcondt for the activated
+!    and unactivated portions of a particular aerosol species so that the
 !    change to the activated portion is minimized (zero if possible).  The
 !    would minimize effects of convection on the large-scale cloud.
 !    THIS IS CURRENTLY IMPLEMENTED IN CAM5 where we assume that convective
@@ -2922,7 +2938,7 @@ end subroutine ma_convproc_tend
             lc = lmassptrcw_amode(ll,n) + pcnst
          end if
 
-! apply adjustments to dcondt for pairs of unactivated (la) and 
+! apply adjustments to dcondt for pairs of unactivated (la) and
 ! activated (lc) aerosol species
          if ( (la <= 0) .or. (la > pcnst_extd) ) cycle
          if ( (lc <= 0) .or. (lc > pcnst_extd) ) cycle
@@ -2948,7 +2964,7 @@ end subroutine ma_convproc_tend
             if (convproc_do_evaprain_atonce) then
                dcondt(la,k) = qdota
                dcondt(lc,k) = qdotc
-            
+
                dcondt_resusp(la,k) = dcondt(la,k)
                dcondt_resusp(lc,k) = dcondt(lc,k)
             else
@@ -2957,7 +2973,7 @@ end subroutine ma_convproc_tend
 
                dcondt_resusp(la,k) = (dcondt(la,k) - qdota)
                dcondt_resusp(lc,k) = (dcondt(lc,k) - qdotc)
-            end if         
+            end if
          end do
 
       end do   ! "ll = -1, nspec_amode(n)"
