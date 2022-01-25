@@ -1491,12 +1491,14 @@ secant_in_bounds : &
              o3_exo_col(:) = 0._r8
           end if
 #ifdef DEBUG
-          write(iulog,*) '-----------------------------------'
-          write(iulog,*) 'o2_exo_col'
-          write(iulog,'(1p,5g15.7)') o2_exo_col(:)
-          write(iulog,*) 'o3_exo_col'
-          write(iulog,'(1p,5g15.7)') o3_exo_col(:)
-          write(iulog,*) '-----------------------------------'
+          if (masterproc) then
+             write(iulog,*) '-----------------------------------'
+             write(iulog,*) 'o2_exo_col'
+             write(iulog,'(1p,5g15.7)') o2_exo_col(:)
+             write(iulog,*) 'o3_exo_col'
+             write(iulog,'(1p,5g15.7)') o3_exo_col(:)
+             write(iulog,*) '-----------------------------------'
+          endif
 #endif
        else
           !---------------------------------------------------------------

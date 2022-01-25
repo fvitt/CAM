@@ -34,6 +34,7 @@ module physpkg
 
   use modal_aero_calcsize,    only: modal_aero_calcsize_init, modal_aero_calcsize_diag, modal_aero_calcsize_reg
   use modal_aero_wateruptake, only: modal_aero_wateruptake_init, modal_aero_wateruptake_dr, modal_aero_wateruptake_reg
+  use carma_fixer_mod, only: carma_fix_pbuf
 
   implicit none
   private
@@ -152,6 +153,7 @@ contains
     use dyn_comp,           only: dyn_register
     use spcam_drivers,      only: spcam_register
     use offline_driver,     only: offline_driver_reg
+    use surface_emissions_mod, only: surface_emissions_reg
 
     !---------------------------Local variables-----------------------------
     !
@@ -257,6 +259,8 @@ contains
           call modal_aero_calcsize_reg()
           call modal_aero_wateruptake_reg()
        endif
+
+       call surface_emissions_reg()
 
        ! register chemical constituents including aerosols ...
        call chem_register()
@@ -764,6 +768,7 @@ contains
     use cam_snapshot,       only: cam_snapshot_init
     use cam_history,        only: addfld, register_vector_field, add_default
     use phys_control,       only: phys_getopts
+    use surface_emissions_mod, only: surface_emissions_init
 
     ! Input/output arguments
     type(physics_state), pointer       :: phys_state(:)
@@ -841,7 +846,8 @@ contains
     call aer_rad_props_init()
 
     ! initialize carma
-    call carma_init()
+    call carma_init(pbuf2d)
+    call surface_emissions_init(pbuf2d)
 
     ! solar irradiance data modules
     call solar_data_init()
@@ -1491,7 +1497,7 @@ contains
 
     if (carma_do_emission) then
        ! carma emissions
-       call carma_emission_tend (state, ptend, cam_in, ztodt)
+       call carma_emission_tend(state, ptend, cam_in, ztodt, pbuf)
        call physics_update(state, ptend, ztodt, tend)
     end if
 
@@ -1852,7 +1858,7 @@ contains
        call unicon_cam_org_diags(state, pbuf)
 
     end if
-    moist_mixing_ratio_dycore = dycore_is('LR').or. dycore_is('FV3')    
+    moist_mixing_ratio_dycore = dycore_is('LR').or. dycore_is('FV3')
     !
     ! FV: convert dry-type mixing ratios to moist here because physics_dme_adjust
     !     assumes moist. This is done in p_d_coupling for other dynamics. Bundy, Feb 2004.
@@ -1866,12 +1872,12 @@ contains
     tmp_cldliq(:ncol,:pver) = state%q(:ncol,:pver,ixcldliq)
     tmp_cldice(:ncol,:pver) = state%q(:ncol,:pver,ixcldice)
 
-    ! for dry mixing ratio dycore, physics_dme_adjust is called for energy diagnostic purposes only.  
-    ! So, save off tracers 
+    ! for dry mixing ratio dycore, physics_dme_adjust is called for energy diagnostic purposes only.
+    ! So, save off tracers
     if (.not.moist_mixing_ratio_dycore.and.&
          (hist_fld_active('SE_phAM').or.hist_fld_active('KE_phAM').or.hist_fld_active('WV_phAM').or.&
           hist_fld_active('WL_phAM').or.hist_fld_active('WI_phAM').or.hist_fld_active('MR_phAM').or.&
-          hist_fld_active('MO_phAM'))) then         
+          hist_fld_active('MO_phAM'))) then
       tmp_trac(:ncol,:pver,:pcnst) = state%q(:ncol,:pver,:pcnst)
       tmp_pdel(:ncol,:pver)        = state%pdel(:ncol,:pver)
       tmp_ps(:ncol)                = state%ps(:ncol)
@@ -2017,6 +2023,7 @@ contains
     use cam_snapshot_common, only: cam_snapshot_ptend_outfld
     use ssatcontrail,       only: ssatcontrail_d0
     use dyn_tests_utils, only: vc_dycore
+    use surface_emissions_mod,only: surface_emissions_set
 
     ! Arguments
 
@@ -2198,6 +2205,7 @@ contains
     if (.not.dycore_is('EUL')) then
        call check_energy_fix(state, ptend, nstep, flx_heat)
        call physics_update(state, ptend, ztodt, tend)
+       call carma_fix_pbuf( state, pbuf )
        call check_energy_chng(state, tend, "chkengyfix", nstep, ztodt, zero, zero, zero, flx_heat)
        call outfld( 'EFIX', flx_heat    , pcols, lchnk   )
     end if
@@ -2228,6 +2236,9 @@ contains
     end if
 
     call t_stopf('energy_fixer')
+
+    call surface_emissions_set( lchnk, ncol, pbuf )
+
     !
     !===================================================
     ! Dry adjustment
@@ -2246,6 +2257,7 @@ contains
             call cam_snapshot_ptend_outfld(ptend, lchnk)
     end if
     call physics_update(state, ptend, ztodt, tend)
+    call carma_fix_pbuf( state, pbuf )
 
     if (trim(cam_take_snapshot_after) == "dadadj_tend") then
        call cam_snapshot_all_outfld_tphysbc(cam_snapshot_after_num, state, tend, cam_in, cam_out, pbuf, &
@@ -2285,6 +2297,7 @@ contains
       call outfld( 'VTEND_DCONV', ptend%v, pcols, lchnk)
     end if
     call physics_update(state, ptend, ztodt, tend)
+    call carma_fix_pbuf( state, pbuf )
 
     if (trim(cam_take_snapshot_after) == "convect_deep_tend") then
        call cam_snapshot_all_outfld_tphysbc(cam_snapshot_after_num, state, tend, cam_in, cam_out, pbuf, &
@@ -2348,6 +2361,7 @@ contains
       call outfld( 'VTEND_SHCONV', ptend%v, pcols, lchnk)
     end if
     call physics_update(state, ptend, ztodt, tend)
+    call carma_fix_pbuf( state, pbuf )
 
     if (trim(cam_take_snapshot_after) == "convect_shallow_tend") then
        call cam_snapshot_all_outfld_tphysbc(cam_snapshot_after_num, state, tend, cam_in, cam_out, pbuf, &
@@ -2383,6 +2397,7 @@ contains
        call carma_timestep_tend(state, cam_in, cam_out, ptend, ztodt, pbuf, dlf=dlf, rliq=rliq, &
             prec_str=prec_str, snow_str=snow_str, prec_sed=prec_sed_carma, snow_sed=snow_sed_carma)
        call physics_update(state, ptend, ztodt, tend)
+       call carma_fix_pbuf( state, pbuf )
 
        ! Before the detrainment, the reserved condensate is all liquid, but if CARMA is doing
        ! detrainment, then the reserved condensate is snow.
@@ -2652,6 +2667,7 @@ contains
              call cam_snapshot_ptend_outfld(ptend, lchnk)
           end if
           call physics_update (state, ptend, ztodt, tend)
+          call carma_fix_pbuf( state, pbuf )
 
           if (trim(cam_take_snapshot_after) == "microp_section") then
              call cam_snapshot_all_outfld_tphysbc(cam_snapshot_after_num, state, tend, cam_in, cam_out, pbuf, &
@@ -2719,6 +2735,7 @@ contains
           call cam_snapshot_ptend_outfld(ptend, lchnk)
        end if
        call physics_update(state, ptend, ztodt, tend)
+       call carma_fix_pbuf( state, pbuf )
 
        if (trim(cam_take_snapshot_after) == "aero_model_wetdep") then
           call cam_snapshot_all_outfld_tphysbc(cam_snapshot_after_num, state, tend, cam_in, cam_out, pbuf, &
@@ -2734,12 +2751,14 @@ contains
           call t_startf ('carma_wetdep_tend')
           call carma_wetdep_tend(state, ptend, ztodt, pbuf, dlf, cam_out)
           call physics_update(state, ptend, ztodt, tend)
+          call carma_fix_pbuf( state, pbuf )
           call t_stopf ('carma_wetdep_tend')
        end if
 
        call t_startf ('convect_deep_tend2')
        call convect_deep_tend_2( state,   ptend,  ztodt,  pbuf )
        call physics_update(state, ptend, ztodt, tend)
+       call carma_fix_pbuf( state, pbuf )
        call t_stopf ('convect_deep_tend2')
 
        ! check tracer integrals
@@ -2857,6 +2876,7 @@ subroutine phys_timestep_init(phys_state, cam_in, cam_out, pbuf2d)
   use iop_forcing,         only: scam_use_iop_srf
   use nudging,             only: Nudge_Model, nudging_timestep_init
   use waccmx_phys_intr,    only: waccmx_phys_ion_elec_temp_timestep_init
+  use surface_emissions_mod,only: surface_emissions_adv
 
   implicit none
 
@@ -2877,6 +2897,7 @@ subroutine phys_timestep_init(phys_state, cam_in, cam_out, pbuf2d)
 
   ! Chemistry surface values
   call chem_surfvals_set()
+  call surface_emissions_adv(pbuf2d, phys_state)
 
   ! Solar irradiance
   call solar_data_advance()

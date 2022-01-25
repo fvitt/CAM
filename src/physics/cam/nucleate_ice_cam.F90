@@ -17,12 +17,16 @@ use physics_buffer, only: physics_buffer_desc
 use phys_control,   only: use_hetfrz_classnuc
 use rad_constituents, only: rad_cnst_get_info, rad_cnst_get_aer_mmr, rad_cnst_get_aer_props, &
                             rad_cnst_get_mode_num, rad_cnst_get_mode_props, rad_cnst_get_mode_num_idx, &
-                            rad_cnst_get_mam_mmr_idx
+                            rad_cnst_get_info_by_bin_spec, rad_cnst_get_bin_mmr_by_idx, &
+                            rad_cnst_get_bin_num, rad_cnst_get_info_by_bin, &
+                            rad_cnst_get_bin_num_idx, rad_cnst_get_bin_props_by_idx, &
+                            rad_cnst_get_carma_mmr_idx, rad_cnst_get_mam_mmr_idx, rad_cnst_get_bin_mmr
 
 use physics_buffer, only: pbuf_add_field, dtype_r8, pbuf_old_tim_idx, &
                           pbuf_get_index, pbuf_get_field, &
                           pbuf_set_field
 use cam_history,    only: addfld, add_default, outfld
+use ndrop_carma,    only: loadaer
 
 use ref_pres,       only: top_lev => trop_cloud_top_lev
 use wv_saturation,  only: qsat_water, svp_water, svp_ice
@@ -86,6 +90,16 @@ integer :: idxdst2  = -1 ! index in aerosol list for dust2
 integer :: idxdst3  = -1 ! index in aerosol list for dust3
 integer :: idxdst4  = -1 ! index in aerosol list for dust4
 integer :: idxbcphi = -1 ! index in aerosol list for Soot (BCPHIL)
+
+! CARMA aerosols
+logical :: clim_carma_aero
+integer, public, protected :: nspec_max = 0
+integer, public, protected :: nbins = 0
+integer, public, protected, allocatable :: nspec_bin(:)
+
+! Indices for BIN species in the ptend%q array.  Needed for prognostic aerosol carma case.
+integer, allocatable :: bin_cnst_idx(:,:)
+logical, allocatable :: bin_cnst_lq(:,:)
 
 ! modal aerosols
 logical :: clim_modal_aero
@@ -181,11 +195,21 @@ subroutine nucleate_ice_cam_init(mincld_in, bulk_scale_in, pbuf2d)
    ! local variables
    integer  :: iaer
    integer :: ierr
-   integer  :: m, n, nspec
+   integer  :: l, m, n, nspec, lptr
+   integer :: idxtmp    = -1
 
    character(len=32) :: str32
    character(len=*), parameter :: routine = 'nucleate_ice_cam_init'
+   character(len=32) :: spec_name
+   character(len=32) :: mmr_name
    logical :: history_cesm_forcing
+   real(r8), pointer :: aer_bin(:,:)
+   real(r8), pointer :: mmr_bin(:,:)
+   real(r8), pointer :: mmr_bin_c(:,:)
+   real(r8), pointer :: num_bin(:,:)
+   real(r8), pointer :: num_bin_c(:,:)
+   real(r8), pointer :: qqcw(:,:)
+
    !--------------------------------------------------------------------------------------------
    call phys_getopts(prog_modal_aero_out = prog_modal_aero, history_cesm_forcing_out = history_cesm_forcing)
 
@@ -262,10 +286,12 @@ subroutine nucleate_ice_cam_init(mincld_in, bulk_scale_in, pbuf2d)
       end if
    end if
 
-   ! clim_modal_aero determines whether modal aerosols are used in the climate calculation.
+   ! clim_modal_aero determines whether modal or carma aerosols are used in the climate calculation.
    ! The modal aerosols can be either prognostic or prescribed.
-   call rad_cnst_get_info(0, nmodes=nmodes)
+   call rad_cnst_get_info(0, nmodes=nmodes, nbins=nbins)
+
    clim_modal_aero = (nmodes > 0)
+   clim_carma_aero = (nbins > 0)
 
    if (clim_modal_aero) then
 
@@ -343,7 +369,6 @@ subroutine nucleate_ice_cam_init(mincld_in, bulk_scale_in, pbuf2d)
          call endrun(routine//': ERROR required mode-species type not found')
       end if
 
-
       ! get specific mode properties
       call rad_cnst_get_mode_props(0, mode_aitken_idx, sigmag=sigmag_aitken)
       call rad_cnst_get_mode_props(0, mode_accum_idx, sigmag=sigmag_accum)
@@ -357,6 +382,46 @@ subroutine nucleate_ice_cam_init(mincld_in, bulk_scale_in, pbuf2d)
          lq(cnum_idx) = .true.
          lq(cdst_idx) = .true.
       endif
+
+   else if (clim_carma_aero) then
+      allocate( nspec_bin(nbins) )
+      do m = 1, nbins
+         call rad_cnst_get_info_by_bin(0, m, nspec=nspec_bin(m))
+      end do
+      nspec_max = maxval( nspec_bin )
+
+      allocate( bin_cnst_idx(nbins,0:nspec_max) )
+      allocate( bin_cnst_lq(nbins,0:nspec_max) )
+
+      do m = 1, nbins
+         do l = 0, nspec_bin(m)   ! loop over bin + aerosol constituents
+            ! To set tendencies in the ptend object need to get the constituent indices
+            ! for the prognostic species
+            ! note: If non-advected lptr is the CARMA aerosol index, else it is the constituent index,
+            ! only for interstitial aerosols, cloud borne assumed to be not advected
+            if (l==0) then
+               call rad_cnst_get_info_by_bin(0, m, nspec=nspec_bin(m), mmr_name=mmr_name)
+               call cnst_get_ind(mmr_name, idxtmp, abort=.false.)
+            else
+               call rad_cnst_get_info_by_bin_spec(0, m, l, spec_name=spec_name)
+               call cnst_get_ind(spec_name, idxtmp, abort=.false.)
+            end if
+            if (idxtmp.gt.0) then
+               bin_cnst_lq(m,l) = .true.
+               bin_cnst_idx(m,l) = idxtmp
+               lq(idxtmp) = .true.
+            else
+               bin_cnst_lq(m,l) = .false.
+               bin_cnst_idx(m,l) = -1
+            end if
+
+         end do
+      end do
+
+      ! To set tendencies in the ptend object need to get the constituent indices
+      ! for the prognostic species
+      ! note: If non-advected lptr is the CARMA aerosol index, else it is the constituent index,
+      ! only for interstitial aerosols, cloud borne assumed to be not advected
 
    else
 
@@ -386,7 +451,7 @@ subroutine nucleate_ice_cam_init(mincld_in, bulk_scale_in, pbuf2d)
         mincld)
 
    ! get indices for fields in the physics buffer
-   ast_idx      = pbuf_get_index('AST')
+   ast_idx = pbuf_get_index('AST')
 
 end subroutine nucleate_ice_cam_init
 
@@ -412,7 +477,11 @@ subroutine nucleate_ice_cam_calc( &
 
    integer :: lchnk, ncol
    integer :: itim_old
-   integer :: i, k, m
+   integer :: i, k, l, m
+   integer :: lptr
+
+   character(len=32) :: spectype
+   character(len=32) :: bin_name
 
    real(r8), pointer :: t(:,:)          ! input temperature (K)
    real(r8), pointer :: qn(:,:)         ! input water vapor mixing ratio (kg/kg)
@@ -433,15 +502,27 @@ subroutine nucleate_ice_cam_calc( &
    real(r8), pointer :: cld_coarse_dust(:,:) ! mass m.r. of coarse dust
 
    real(r8), pointer :: num_strcrs(:,:)  ! number m.r. of strat. coarse mode
+   real(r8), pointer :: aer_bin(:,:)
+   real(r8), pointer :: num_bin(:,:)
+   real(r8), pointer :: num_bin_c(:,:)
+   real(r8), pointer :: mmr_bin(:,:)
+   real(r8), pointer :: mmr_bin_c(:,:)
+   real(r8), pointer :: qqcw(:,:)
+   real(r8), pointer :: dryr(:,:)
+   real(r8) :: specdens
 
    real(r8), pointer :: ast(:,:)
    real(r8) :: icecldf(pcols,pver)  ! ice cloud fraction
    real(r8), pointer :: qsatfac(:,:)      ! Subgrid cloud water saturation scaling factor.
 
    real(r8) :: rho(pcols,pver)      ! air density (kg m-3)
+   real(r8) :: na(pcols), va(pcols), hy(pcols)
 
    real(r8), allocatable :: naer2(:,:,:)    ! bulk aerosol number concentration (1/m3)
    real(r8), allocatable :: maerosol(:,:,:) ! bulk aerosol mass conc (kg/m3)
+
+   real(r8), allocatable :: wght_so4(:), wght_dst(:), wght_soot(:)   !bin weights
+   real(r8), allocatable :: so4_num_bin(:), soot_num_bin(:), dst_num_bin(:), diamdry(:)
 
    real(r8) :: qs(pcols)            ! liquid-ice weighted sat mixing rat (kg/kg)
    real(r8) :: es(pcols)            ! liquid-ice weighted sat vapor press (pa)
@@ -451,10 +532,11 @@ subroutine nucleate_ice_cam_calc( &
    real(r8) :: relhum(pcols,pver)  ! relative humidity
    real(r8) :: icldm(pcols,pver)   ! ice cloud fraction
 
-   real(r8) :: so4_num                               ! so4 aerosol number (#/cm^3)
-   real(r8) :: soot_num                              ! soot (hydrophilic) aerosol number (#/cm^3)
    real(r8) :: dst1_num,dst2_num,dst3_num,dst4_num   ! dust aerosol number (#/cm^3)
    real(r8) :: dst_num                               ! total dust aerosol number (#/cm^3)
+   real(r8) :: dso4_num                               ! so4 aerosol number (#/cm^3)
+   real(r8) :: so4_num                               ! so4 aerosol number (#/cm^3)
+   real(r8) :: soot_num                              ! soot (hydrophilic) aerosol number (#/cm^3)
    real(r8) :: wght
    real(r8) :: dmc
    real(r8) :: ssmc
@@ -462,11 +544,15 @@ subroutine nucleate_ice_cam_calc( &
    real(r8) :: oso4_num
    real(r8) :: odst_num
    real(r8) :: osoot_num
-   real(r8) :: dso4_num
    real(r8) :: so4_num_ac
    real(r8) :: so4_num_cr
    real(r8) :: so4_num_st_cr
    real(r8) :: ramp
+   real(r8) :: totalmmr
+   real(r8) :: so4mmr
+   real(r8) :: sootmmr
+   real(r8) :: dstmmr
+   real(r8) :: amcube
 
    real(r8) :: subgrid(pcols,pver)
    real(r8) :: trop_pd(pcols,pver)
@@ -529,8 +615,26 @@ subroutine nucleate_ice_cam_calc( &
       ! can be moved from interstial to cloudbourne.
       call rad_cnst_get_mode_num(0, mode_coarse_dst_idx, 'c', state, pbuf, cld_num_coarse)
       call rad_cnst_get_aer_mmr(0, mode_coarse_dst_idx, coarse_dust_idx, 'c', state, pbuf, cld_coarse_dust)
-
       call physics_ptend_init(ptend, state%psetcols, 'nucleatei', lq=lq)
+
+   else if (clim_carma_aero) then
+
+      allocate( so4_num_bin(nbins), &
+                soot_num_bin(nbins), &
+                dst_num_bin(nbins), &
+                wght_so4(nbins), &
+                wght_dst(nbins), &
+                wght_soot(nbins), &
+                diamdry(nbins) )
+     so4_num_bin(:) = 0.0_r8
+     soot_num_bin(:) = 0.0_r8
+     dst_num_bin(:) = 0.0_r8
+     wght_so4(:) = 0.0_r8
+     wght_dst(:) = 0.0_r8
+     wght_soot(:) = 0.0_r8
+
+     call physics_ptend_init(ptend, state%psetcols, 'nucleatei', lq=lq)
+
    else
       ! init number/mass arrays for bulk aerosols
       allocate( &
@@ -604,6 +708,8 @@ subroutine nucleate_ice_cam_calc( &
    nidep(1:ncol,1:pver) = 0._r8
    nimey(1:ncol,1:pver) = 0._r8
 
+   regm(1:ncol,1:pver) = 0._r8
+
    if (use_preexisting_ice) then
       fhom(:,:)     = 0.0_r8
       wice(:,:)     = 0.0_r8
@@ -633,10 +739,10 @@ subroutine nucleate_ice_cam_calc( &
    end do
 
 
-   do k = top_lev, pver
-      do i = 1, ncol
+   kloop: do k = top_lev, pver
+      iloop: do i = 1, ncol
 
-         if (t(i,k) < tmelt - 5._r8) then
+         freezing: if (t(i,k) < tmelt - 5._r8) then
 
             ! compute aerosol number for so4, soot, and dust with units #/cm^3
             so4_num  = 0._r8
@@ -707,6 +813,68 @@ subroutine nucleate_ice_cam_calc( &
                   so4_num  = num_aitken(i,k)*rho(i,k)*1.0e-6_r8
                end if
 
+            else if (clim_carma_aero) then
+
+               ! number bins is number from all species in each bin. IF dust is needed, weightening is required for all species
+               diamdry(:) = 0.0_r8
+               do m = 1, nbins
+                  wght_so4(m) = 1._r8
+                  wght_soot(m) = 1._r8
+                  wght_dst(m) = 1._r8
+
+                  call rad_cnst_get_info_by_bin(0, m, bin_name=bin_name)
+                  call pbuf_get_field(pbuf, pbuf_get_index(trim(bin_name)//"_dryr"),dryr)
+
+                  diamdry(m) = dryr(i,k) * 2.e4_r8  ! diameter in microns (from radius in cm)
+
+                  if (diamdry(m) >= 0.1_r8) then
+
+                     call rad_cnst_get_bin_num(0, m, 'a', state, pbuf, num_bin)
+                     call rad_cnst_get_bin_mmr(0, m, 'a', state, pbuf, mmr_bin)
+
+                     totalmmr = 0._r8
+                     so4mmr   = 0._r8
+                     sootmmr  = 0._r8
+                     dstmmr   = 0._r8
+
+                     do l = 1, nspec_bin(m)
+
+                        call rad_cnst_get_bin_mmr_by_idx(0, m, l, 'a', state, pbuf, aer_bin)
+                        totalmmr = totalmmr + aer_bin(i,k)
+
+                        call rad_cnst_get_bin_props_by_idx(0, m, l,spectype=spectype)
+
+                        if (trim(spectype) == 'sulfate') then
+                           so4mmr = so4mmr + aer_bin(i,k)
+                        end if
+                        if (trim(spectype) == 'black-c') then
+                           sootmmr = sootmmr + aer_bin(i,k)
+                        end if
+                        if (trim(spectype) == 'dust') then
+                           dstmmr = dstmmr + aer_bin(i,k)
+                        end if
+
+                     end do
+
+                     if (totalmmr .gt. 0._r8) then
+                        wght_so4(m) = so4mmr/totalmmr
+                        so4_num_bin(m) = wght_so4(m)*num_bin(i,k)*rho(i,k)*1.0e-6_r8
+                        wght_soot(m) = sootmmr/totalmmr
+                        soot_num_bin(m) = wght_soot(m)*num_bin(i,k)*rho(i,k)*1.0e-6_r8
+                        wght_dst(m) = dstmmr/totalmmr
+                        dst_num_bin(m) = wght_dst(m)*num_bin(i,k)*rho(i,k)*1.0e-6_r8
+                     else
+                        so4_num_bin(m) = 0._r8
+                        soot_num_bin(m) = 0._r8
+                        dst_num_bin(m) = 0._r8
+                     end if
+
+                     so4_num = so4_num + so4_num_bin(m)
+                     dst_num = dst_num + dst_num_bin(m)
+                     soot_num = soot_num + soot_num_bin(m)
+                  end if !diam > 0.1microns
+               end do
+
             else
 
                if (idxsul > 0) then
@@ -756,6 +924,59 @@ subroutine nucleate_ice_cam_calc( &
                cld_coarse_dust(i,k) = cld_coarse_dust(i,k) + odst_num / dst_num *icldm(i,k) * coarse_dust(i,k)
             end if
 
+            carma_aerosols: if (clim_carma_aero .and. use_preexisting_ice) then
+               ! carma number and cloud-borne species are assumed to be not advected
+               !  move also sulfate and soot if used?
+
+               binsloop: do m = 1, nbins
+
+                  if (diamdry(m) >= 0.1_r8) then
+                     call rad_cnst_get_bin_num(0, m, 'a', state, pbuf, num_bin)
+                     call rad_cnst_get_bin_num(0, m, 'c', state, pbuf, num_bin_c)
+                     call rad_cnst_get_bin_mmr(0, m, 'a', state, pbuf, mmr_bin)
+                     call rad_cnst_get_bin_mmr(0, m, 'c', state, pbuf, mmr_bin_c)
+
+                     !st only if dust is a specie in this bin, need to know the dust fraction, and only move that part,
+                     !   so multiply by dust_fraction (per bin)
+                     !st analoge from sulfate
+
+                     if  (dst_num >= 1.0e-10_r8 ) then
+                        num_bin(i,k)   = num_bin(i,k)   - (odst_num/dst_num) * wght_dst(m) * icldm(i,k) *  num_bin(i,k)
+                        num_bin_c(i,k) = num_bin_c(i,k) + (odst_num/dst_num) * wght_dst(m) * icldm(i,k) *  num_bin(i,k)
+                        mmr_bin_c(i,k) = mmr_bin_c(i,k) + (odst_num/dst_num) * wght_dst(m) * icldm(i,k)  * mmr_bin(i,k)
+
+                        if (bin_cnst_lq(m,0)) then ! advected species
+                           !need to add mmr_bin changes to tendencies (advected specie)
+                           lptr = bin_cnst_idx(m,0)
+                           ptend%q(i,k,lptr) = - (odst_num / dst_num) * wght_dst(m) * icldm(i,k) * mmr_bin(i,k)  / dtime
+                        else
+                           mmr_bin(i,k)   = mmr_bin(i,k) -  (odst_num/dst_num) *  wght_dst(m) * icldm(i,k)  * mmr_bin(i,k)
+                        endif
+
+                        do l = 1, nspec_bin(m)
+                           call rad_cnst_get_bin_mmr_by_idx(0, m, l, 'a', state, pbuf, aer_bin)
+                           call rad_cnst_get_bin_mmr_by_idx(0, m, l, 'c', state, pbuf, qqcw)
+                           call rad_cnst_get_bin_props_by_idx(0, m, l, spectype=spectype)
+
+                           !st for dust: change concentration element (sulfate), numbers,
+                           if (trim(spectype) == 'dust') then
+                              if (bin_cnst_lq(m,l)) then ! advected species
+                                 lptr = bin_cnst_idx(m,l)
+                                 ptend%q(i,k,lptr) = - (odst_num / dst_num) * icldm(i,k) * aer_bin(i,k) / dtime
+                              else
+                                 aer_bin(i,k) = aer_bin(i,k) - (odst_num / dst_num ) *icldm(i,k) * aer_bin(i,k)
+                              end if
+                              qqcw(i,k) = qqcw(i,k) + (odst_num / dst_num) *icldm(i,k) * aer_bin(i,k)
+                           end if
+                        end do
+                     end if
+
+                     ! sulfates are currently not done, consistently with MAM
+                  end if  !diamdry > 0.1
+               end do binsloop
+
+            end if carma_aerosols
+
             ! Liu&Penner does not generate enough nucleation in the polar winter
             ! stratosphere, which affects surface area density, dehydration and
             ! ozone chemistry. Part of this is that there are a larger number of
@@ -773,21 +994,31 @@ subroutine nucleate_ice_cam_calc( &
             ! particles. It may not represent the proper saturation threshold for
             ! nucleation, and wsubi from CLUBB is probably not representative of
             ! wave driven varaibility in the polar stratosphere.
-            if (nucleate_ice_use_troplev .and. clim_modal_aero) then
-              if ((k < troplev(i)) .and. (nucleate_ice_strat > 0._r8)) then
-                 if (oso4_num > 0._r8) then
-                    so4_num_ac = num_accum(i,k)*rho(i,k)*1.0e-6_r8
-                    if (mode_strat_coarse_idx > 0) then
-                        so4_num_st_cr = num_strcrs(i,k)*rho(i,k)*1.0e-6_r8 ! include stratosphere coarse
-                        dso4_num = max(0._r8, (nucleate_ice_strat * (so4_num_cr + so4_num_ac + so4_num_st_cr)) &
-                                   - oso4_num) * 1e6_r8 / rho(i,k)
-                    else
-                        dso4_num = max(0._r8, (nucleate_ice_strat * (so4_num_cr + so4_num_ac)) - oso4_num) * 1e6_r8 / rho(i,k)
-                    endif
-                    naai(i,k) = naai(i,k) + dso4_num
-                    nihf(i,k) = nihf(i,k) + dso4_num
-                 end if
-              end if
+            if (nucleate_ice_use_troplev .and. (clim_modal_aero.or.clim_carma_aero)) then
+               if (clim_modal_aero) then
+                  if ((k < troplev(i)) .and. (nucleate_ice_strat > 0._r8)) then
+                     if (oso4_num > 0._r8) then
+                        so4_num_ac = num_accum(i,k)*rho(i,k)*1.0e-6_r8
+                        if (mode_strat_coarse_idx > 0) then
+                           so4_num_st_cr = num_strcrs(i,k)*rho(i,k)*1.0e-6_r8 ! include stratosphere coarse
+                           dso4_num = max(0._r8, (nucleate_ice_strat * (so4_num_cr + so4_num_ac + so4_num_st_cr)) &
+                                - oso4_num) * 1e6_r8 / rho(i,k)
+                        else
+                           dso4_num = max(0._r8, (nucleate_ice_strat * (so4_num_cr + so4_num_ac)) - oso4_num) * 1e6_r8 / rho(i,k)
+                        endif
+                        naai(i,k) = naai(i,k) + dso4_num
+                        nihf(i,k) = nihf(i,k) + dso4_num
+                     end if
+                  end if
+               elseif (clim_carma_aero) then
+                  if ((k < troplev(i)) .and. (nucleate_ice_strat > 0._r8)) then
+                     if (oso4_num > 0._r8) then
+                        dso4_num = max(0._r8, (nucleate_ice_strat * so4_num - oso4_num)) * 1e6_r8 / rho(i,k)
+                        naai(i,k) = naai(i,k) + dso4_num
+                        nihf(i,k) = nihf(i,k) + dso4_num
+                     end if
+                  end if
+               end if
             else
 
               ! This maintains backwards compatibility with the previous version.
@@ -838,16 +1069,23 @@ subroutine nucleate_ice_cam_calc( &
                endif
             end if
 
-         end if
-      end do
-   end do
+         end if freezing
+      end do iloop
+   end do kloop
 
-   if (.not. clim_modal_aero) then
 
+   if (clim_carma_aero) then
+      deallocate( so4_num_bin, &
+           soot_num_bin, &
+           dst_num_bin, &
+           wght_so4, &
+           wght_dst, &
+           wght_soot )
+
+   else if (.not. clim_modal_aero) then
       deallocate( &
-         naer2,    &
-         maerosol)
-
+           naer2,    &
+           maerosol)
    end if
 
    call outfld('NIHF',   nihf, pcols, lchnk)

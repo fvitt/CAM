@@ -54,6 +54,7 @@ real(r8),    public :: cnst_cv  (pcnst)          ! specific heat at constant vol
 real(r8),    public :: cnst_mw  (pcnst)          ! molecular weight (kg/kmole)
 character*3, public, protected :: cnst_type(pcnst)! wet or dry mixing ratio
 character*5, public :: cnst_molec(pcnst)         ! major or minor species molecular diffusion
+logical,     public, protected :: cnst_ndropmixed(pcnst) = .false. ! vertically mixed by ndrop activation process
 real(r8),    public :: cnst_rgas(pcnst)          ! gas constant ()
 real(r8),    public :: qmin     (pcnst)          ! minimum permitted constituent concentration (kg/kg)
 real(r8),    public :: qmincg   (pcnst)          ! for backward compatibility only
@@ -132,7 +133,7 @@ end subroutine cnst_readnl
 
 
 subroutine cnst_add (name, mwc, cpc, qminc, &
-                     ind, longname, readiv, mixtype, molectype, cam_outfld, &
+                     ind, longname, readiv, mixtype, molectype, ndropmixed, cam_outfld, &
                      fixed_ubc, fixed_ubflx, is_convtran1, is_convtran2, cnst_spec_class)
 
    ! Register a constituent.
@@ -152,7 +153,9 @@ subroutine cnst_add (name, mwc, cpc, qminc, &
    character(len=*), intent(in), optional :: &
       mixtype     ! mixing ratio type (dry, wet)
    character(len=*), intent(in), optional :: &
-      molectype     ! molecular diffusion type (minor, major)
+      molectype   ! molecular diffusion type (minor, major)
+   logical,          intent(in), optional :: &
+      ndropmixed  ! vertically mixed by ndrop activation process
    logical,          intent(in), optional :: &
       cam_outfld  ! true => default CAM output of constituent in kg/kg
    logical,          intent(in), optional :: &
@@ -207,7 +210,14 @@ subroutine cnst_add (name, mwc, cpc, qminc, &
       cnst_molec(ind) = 'minor'
    end if
 
-   ! set outfld type 
+   ! vertically mixed by ndrop activation process
+   if (present(ndropmixed)) then
+      cnst_ndropmixed(ind) = ndropmixed
+   else
+      cnst_ndropmixed(ind) = .false.
+   end if
+
+   ! set outfld type
    ! (false: the module declaring the constituent is responsible for outfld calls)
    if (present(cam_outfld)) then
       cam_outfld_(ind) = cam_outfld
@@ -320,7 +330,7 @@ subroutine cnst_set_spec_class(ind, cnst_spec_class_in)
        write(iulog,*) subname//': illegal tracer index: padv, ind = ', padv, ind
        call endrun(subname//': illegal tracer index')
     end if
-    
+
     ! Check designator
     if (cnst_spec_class_in /= cnst_spec_class_undefined  .and. &
         cnst_spec_class_in /= cnst_spec_class_cldphysics .and. &
@@ -393,7 +403,7 @@ end subroutine cnst_get_ind
 
 character*3 function cnst_get_type_byind(ind)
 
-   ! Return the mixing ratio type of a constituent 
+   ! Return the mixing ratio type of a constituent
 
    !-----------------------------Arguments---------------------------------
    integer, intent(in)   :: ind    ! global constituent index (in q array)
@@ -417,7 +427,7 @@ end function cnst_get_type_byind
 
 character*5 function cnst_get_molec_byind (ind)
 
-   ! Return the molecular diffusion type of a constituent 
+   ! Return the molecular diffusion type of a constituent
 
    !-----------------------------Arguments---------------------------------
    integer, intent(in)   :: ind    ! global constituent index (in q array)
@@ -510,7 +520,7 @@ function cnst_cam_outfld(m)
 
    ! Query whether default CAM outfld calls should be made.
 
-   !----------------------------------------------------------------------- 
+   !-----------------------------------------------------------------------
    integer, intent(in) :: m                ! constituent index
 
    logical             :: cnst_cam_outfld  ! true => use default CAM outfld calls
@@ -535,7 +545,7 @@ pure logical function cnst_is_a_water_species(name)
 
    ! test whether the input name matches the name of a water species
 
-   character(len=*), intent(in) :: name  
+   character(len=*), intent(in) :: name
    !-------------------------------------------------------------------------
 
    cnst_is_a_water_species = .false.
@@ -546,7 +556,7 @@ pure logical function cnst_is_a_water_species(name)
        name == 'RAINQM' .or. &
        name == 'SNOWQM' .or. &
        name == 'GRAUQM'      ) cnst_is_a_water_species = .true.
-      
+
 end function cnst_is_a_water_species
 
 !==============================================================================

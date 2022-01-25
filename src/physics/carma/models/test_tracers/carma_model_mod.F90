@@ -352,7 +352,7 @@ contains
   !!
   !! @author  Chuck Bardeen
   !! @version May-2009
-  subroutine CARMA_EmitParticle(carma, ielem, ibin, icnst, dt, state, cam_in, tendency, surfaceFlux, rc)
+  subroutine CARMA_EmitParticle(carma, ielem, ibin, icnst, dt, state, cam_in, tendency, surfaceFlux, pbuf, rc)
     use shr_kind_mod,  only: r8 => shr_kind_r8
     use ppgrid,        only: pcols, pver
     use physics_types, only: physics_state
@@ -372,6 +372,7 @@ contains
     type(cam_in_t), intent(in)         :: cam_in                !! surface inputs
     real(r8), intent(out)              :: tendency(pcols, pver) !! constituent tendency (kg/kg/s)
     real(r8), intent(out)              :: surfaceFlux(pcols)    !! constituent surface flux (kg/m^2/s)
+    type(physics_buffer_desc), pointer :: pbuf(:)               !! physics buffer
     integer, intent(out)               :: rc                    !! return code, negative indicates failure
 
     real(r8)     :: lat(state%ncol)         ! latitude (degrees)
@@ -500,13 +501,15 @@ contains
   !!
   !! @author  Chuck Bardeen
   !! @version May-2009
-  subroutine CARMA_InitializeModel(carma, lq_carma, rc)
+  subroutine CARMA_InitializeModel(carma, lq_carma, pbuf2d, rc)
     use constituents, only : pcnst
+
     implicit none
     
     type(carma_type), intent(inout)    :: carma                 !! the carma object
     logical, intent(inout)             :: lq_carma(pcnst)       !! flags to indicate whether the constituent
                                                                 !! could have a CARMA tendency
+    type(physics_buffer_desc), pointer :: pbuf2d(:,:)
     integer, intent(out)               :: rc                    !! return code, negative indicates failure
 
     ! Default return code.
