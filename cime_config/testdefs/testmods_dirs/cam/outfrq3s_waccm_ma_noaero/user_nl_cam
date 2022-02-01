@@ -1,0 +1,37 @@
+! Users should add all user specific namelist changes below in the form of
+! namelist_var = new_namelist_value
+
+mfilt=1,1,1,1,1,1
+ndens=1,1,1,1,1,1
+nhtfrq=3,3,3,3,3,3
+inithist='ENDOFRUN'
+
+fincl1 = ' '
+
+ ext_frc_cycle_yr = 2000
+ ext_frc_specifier =
+         'NO2    -> $DIN_LOC_ROOT/atm/cam/chem/emis/CMIP6_emissions_2000climo/emissions-cmip6_NO2_aircraft_vertical_2000climo_0.9x1.25_c20170322.nc',
+         'SO2    -> $DIN_LOC_ROOT/atm/cam/chem/emis/CMIP6_emissions_1750_2015/emissions-cmip6_SO2_contvolcano_vertical_850-5000_0.9x1.25_c20170724.nc',
+         'SO2    -> $DIN_LOC_ROOT/atm/cam/chem/emis/CMIP6_emissions_2000climo/emissions-cmip6_SO2_aircraft_vertical_2000climo_0.9x1.25_c20170322.nc',
+         'SO2    -> $DIN_LOC_ROOT/atm/cam/chem/stratvolc/VolcanEESMv3.10_SO2_1995-2005average_1deg_ZeroTrop_c180912.nc'
+
+ srf_emis_cycle_yr = 2000
+ srf_emis_specifier =
+         'CH2O -> $DIN_LOC_ROOT/atm/cam/chem/emis/CMIP6_emissions_2000climo/emissions-cmip6_CH2O_anthro_surface_2000climo_0.9x1.25_c20170608.nc',
+         'CH2O -> $DIN_LOC_ROOT/atm/cam/chem/emis/CMIP6_emissions_2000climo/emissions-cmip6_CH2O_bb_surface_2000climo_0.9x1.25_c20170322.nc',
+         'CO -> $DIN_LOC_ROOT/atm/cam/chem/emis/CMIP6_emissions_2000climo/emissions-cmip6_CO_anthro_surface_2000climo_0.9x1.25_c20180504.nc',
+         'CO -> $DIN_LOC_ROOT/atm/cam/chem/emis/CMIP6_emissions_2000climo/emissions-cmip6_CO_bb_surface_2000climo_0.9x1.25_c20170322.nc',
+         'CO -> $DIN_LOC_ROOT/atm/cam/chem/emis/CMIP6_emissions_2000climo/emissions-cmip6_CO_other_surface_2000climo_0.9x1.25_c20170322.nc',
+         'NO -> $DIN_LOC_ROOT/atm/cam/chem/emis/CMIP6_emissions_2000climo/emissions-cmip6_NO_anthro_surface_2000climo_0.9x1.25_c20170608.nc',
+         'NO -> $DIN_LOC_ROOT/atm/cam/chem/emis/CMIP6_emissions_2000climo/emissions-cmip6_NO_bb_surface_2000climo_0.9x1.25_c20170322.nc',
+         'NO -> $DIN_LOC_ROOT/atm/cam/chem/emis/CMIP6_emissions_2000climo/emissions-cmip6_NO_other_surface_2000climo_0.9x1.25_c20170322.nc',
+         'SO2 -> $DIN_LOC_ROOT/atm/cam/chem/emis/CMIP6_emissions_2000climo/emissions-cmip6_SO2_anthro-ag-ship-res_surface_2000climo_0.9x1.25_c20170616.nc',
+         'SO2 -> $DIN_LOC_ROOT/atm/cam/chem/emis/CMIP6_emissions_2000climo/emissions-cmip6_SO2_anthro-ene_surface_2000climo_0.9x1.25_c20170616.nc',
+         'SO2 -> $DIN_LOC_ROOT/atm/cam/chem/emis/CMIP6_emissions_2000climo/emissions-cmip6_SO2_bb_surface_2000climo_0.9x1.25_c20170322.nc',
+
+ rad_climate = 'A:Q:H2O', 'N:O2:O2',
+         'A:CO2:CO2', 'A:O3:O3',
+         'A:N2O:N2O', 'A:CH4:CH4',
+         'N:CFC11STAR:CFC11', 'A:CFC12:CFC12'
+ prescribed_strataero_file = ' '
+ prescribed_strataero_datapath= ' '
