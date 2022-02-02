@@ -1513,6 +1513,65 @@ elsif ($carma eq 'tholin') {
   add_default($nl, 'carma_emis_total',  'val'=>'1e5');
   add_default($nl, 'carma_emis_file');
 }
+elsif ($carma eq 'trop_strat') {
+  add_default($nl, 'carma_do_fixedinit','val'=>'.true.');
+  add_default($nl, 'carma_do_partialinit','val'=>'.true.');
+  add_default($nl, 'carma_do_drydep',   'val'=>'.true.');
+  add_default($nl, 'carma_do_optics',   'val'=>'.false.');
+  add_default($nl, 'carma_do_vtran',    'val'=>'.true.');
+  add_default($nl, 'carma_do_wetdep',   'val'=>'.true.');
+  add_default($nl, 'carma_soilerosion_file');
+  add_default($nl, 'carma_fields',      'val'=>'Sl_soilw');
+  add_default($nl, 'carma_do_vdiff',    'val'=>'.true.');
+  add_default($nl, 'carma_do_WeibullK', 'val'=>'.false.');
+  add_default($nl, 'carma_seasalt_emis','val'=>'Gong');
+  add_default($nl, 'carma_do_coag',     'val'=>'.true.');
+  add_default($nl, 'carma_do_grow',     'val'=>'.true.');
+  add_default($nl, 'carma_do_substep',  'val'=>'.true.');
+  add_default($nl, 'carma_do_thermo',   'val'=>'.false.');
+  add_default($nl, 'carma_seasalt_emis','val'=>'Gong');
+  add_default($nl, 'carma_maxretries',  'val'=>'20');
+  add_default($nl, 'carma_maxsubsteps', 'val'=>'2');
+  add_default($nl, 'carma_dt_threshold','val'=>'2.0');
+  add_default($nl, 'carma_hetchem_feedback','val'=>'.false.');
+#  add_default($nl, 'bin_defs');
+#  add_default($nl, 'rad_climate');
+  add_default($nl, 'carma_do_emission', 'val'=>'.true.');
+  add_default($nl, 'BC_GAINS_filename');
+  add_default($nl, 'OC_GAINS_filename');
+  add_default($nl, 'BC_ship_filename');
+  add_default($nl, 'OC_ship_filename');
+  add_default($nl, 'BC_GFEDv3_filename');
+  add_default($nl, 'OC_GFEDv3_filename');
+
+#  # default CMIP6 emissions
+#  add_default($nl, 'carma_BCOCemissions','val'=>'Specified');
+#  my $carma_BCOCemis = $nl->get_value('carma_BCOCemissions');
+#  $carma_BCOCemis =~ s/['"]//g; # strip quotes "'
+#  if ($carma_BCOCemis eq 'Specified') {
+#    my %verhash; # = ('ver'=>'cam6');
+#    if ( $sim_year == '2000' ) {
+#      %verhash = ('ver'=>'2000cam6');
+#      add_default($nl, 'emissions_type', 'val'=>'CYCLICAL');
+#      add_default($nl, 'emissions_cycle_yr', 'val'=>'2000');
+#    } else {
+#      %verhash = ('ver'=>'cam6');
+#      add_default($nl, 'emissions_type', 'val'=>'INTERP_MISSING_MONTHS');
+#    }
+#    my %species = ('bc_a4_an_srf_file'  => 'BC',
+#                   'bc_a4_bb_srf_file'  => 'BC',
+#                   'pom_a4_an_srf_file' => 'OC',
+#                   'pom_a4_bb_srf_file' => 'OC' );
+#    my $first = 1; my $pre = ""; my $val = "";
+#    foreach my $id (sort keys %species) {
+#      my $rel_filepath = get_default_value($id, \%verhash);
+#      my $abs_filepath = set_abs_filepath($rel_filepath, $inputdata_rootdir);
+#      $val .= $pre . quote_string("$species{$id} -> " . $abs_filepath);
+#      if ($first) { $pre = ","; $first = 0; }
+#    }
+#    add_default($nl, 'emissions_specifier', 'val'=>$val);
+#  }
+}
 
 # Stratospheric sulfur aerosols
 
