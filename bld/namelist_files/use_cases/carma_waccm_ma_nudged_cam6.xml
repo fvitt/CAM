@@ -84,10 +84,10 @@
 <Nudge_Hwin_lonDelta hgrid="ne0np4CONUS.ne30x8">5.</Nudge_Hwin_lonDelta>
 <Nudge_Hwin_Invert>.false.</Nudge_Hwin_Invert>
 <Nudge_Hwin_Invert hgrid="ne0np4CONUS.ne30x8">.true.</Nudge_Hwin_Invert>
-<Nudge_Vwin_Hindex>33.</Nudge_Vwin_Hindex>
+<Nudge_Vwin_Hindex>71.</Nudge_Vwin_Hindex>
 <Nudge_Vwin_Hdelta>0.001</Nudge_Vwin_Hdelta>
-<Nudge_Vwin_Lindex>0.</Nudge_Vwin_Lindex>
-<Nudge_Vwin_Ldelta>0.1</Nudge_Vwin_Ldelta>
+<Nudge_Vwin_Lindex>22.</Nudge_Vwin_Lindex>
+<Nudge_Vwin_Ldelta>1.0</Nudge_Vwin_Ldelta>
 <Nudge_Vwin_Invert>.false.</Nudge_Vwin_Invert>
 
 <sim_year>1850-2000</sim_year>
