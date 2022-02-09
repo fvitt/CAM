@@ -1513,21 +1513,7 @@ elsif ($carma eq 'tholin') {
   add_default($nl, 'carma_emis_total',  'val'=>'1e5');
   add_default($nl, 'carma_emis_file');
 }
-elsif ($carma eq 'dst_sslt_bc_pom') {
-  add_default($nl, 'carma_do_emission', 'val'=>'.true.');
-  add_default($nl, 'carma_do_fixedinit','val'=>'.true.');
-  add_default($nl, 'carma_do_drydep',   'val'=>'.true.');
-  add_default($nl, 'carma_do_optics',   'val'=>'.true.');
-  add_default($nl, 'carma_do_vtran',    'val'=>'.true.');
-  add_default($nl, 'carma_do_wetdep',   'val'=>'.true.');
-  add_default($nl, 'carma_soilerosion_file');
-  add_default($nl, 'carma_fields',      'val'=>'Sl_soilw');
-  add_default($nl, 'carma_do_vdiff',    'val'=>'.true.');
-  add_default($nl, 'carma_do_vtran',    'val'=>'.true.');
-  add_default($nl, 'carma_do_WeibullK', 'val'=>'.false.');
-  add_default($nl, 'carma_seasalt_emis', 'val'=>'Gong');
-}
-elsif ($carma eq 'trop_strat') {
+elsif ($carma =~ /trop_strat/) {
   add_default($nl, 'carma_do_fixedinit','val'=>'.true.');
   add_default($nl, 'carma_do_partialinit','val'=>'.true.');
   add_default($nl, 'carma_do_drydep',   'val'=>'.true.');
@@ -1551,14 +1537,8 @@ elsif ($carma eq 'trop_strat') {
   add_default($nl, 'bin_defs');
   add_default($nl, 'rad_climate');
   add_default($nl, 'carma_do_emission', 'val'=>'.true.');
-  add_default($nl, 'BC_GAINS_filename');
-  add_default($nl, 'OC_GAINS_filename');
-  add_default($nl, 'BC_ship_filename');
-  add_default($nl, 'OC_ship_filename');
-  add_default($nl, 'BC_GFEDv3_filename');
-  add_default($nl, 'OC_GFEDv3_filename');
 
-  # default CMIP6 emissions
+  # emissions
   add_default($nl, 'carma_BCOCemissions','val'=>'Specified');
   my $carma_BCOCemis = $nl->get_value('carma_BCOCemissions');
   $carma_BCOCemis =~ s/['"]//g; # strip quotes "'
@@ -1584,6 +1564,13 @@ elsif ($carma eq 'trop_strat') {
       if ($first) { $pre = ","; $first = 0; }
     }
     add_default($nl, 'emissions_specifier', 'val'=>$val);
+  } else {
+    add_default($nl, 'BC_GAINS_filename');
+    add_default($nl, 'OC_GAINS_filename');
+    add_default($nl, 'BC_ship_filename');
+    add_default($nl, 'OC_ship_filename');
+    add_default($nl, 'BC_GFEDv3_filename');
+    add_default($nl, 'OC_GFEDv3_filename');
   }
 }
 
@@ -1632,7 +1619,7 @@ if (defined $nl->get_value('prescribed_strataero_3modes')) {
 
 # determine if prescribed stratospheric aerosol data is needed
 if ( ($het_chem) || ($nl->get_value('prescribed_strataero_feedback') =~ /$TRUE/io ) ){
-    if ( ($carma ne 'sulfate') && ($carma ne 'trop_strat') &&
+    if ( ($carma ne 'sulfate') && !($carma =~ /trop_strat/) &&
          !($nl->get_value('modal_strat_sulfate') =~ /$TRUE/io) ) { # if no prognostic stratospheric aerosols
 
         unless (defined $nl->get_value('prescribed_strataero_type')) {

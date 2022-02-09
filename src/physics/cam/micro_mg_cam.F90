@@ -128,7 +128,7 @@ real(r8) :: micro_mg_berg_eff_factor   = unset_r8        ! berg efficiency facto
 real(r8) :: micro_mg_accre_enhan_fact  = unset_r8        ! accretion enhancment factor
 real(r8) :: micro_mg_autocon_fact      = unset_r8       ! autoconversion prefactor
 real(r8) :: micro_mg_autocon_nd_exp    = unset_r8       ! autoconversion nd exponent
-real(r8) :: micro_mg_autocon_lwp_exp   = unset_r8       ! autoconversion lwp exponent      
+real(r8) :: micro_mg_autocon_lwp_exp   = unset_r8       ! autoconversion lwp exponent
 real(r8) :: micro_mg_homog_size        = unset_r8     ! size of freezing homogeneous ice
 real(r8) :: micro_mg_vtrmi_factor      = unset_r8        ! ice fall speed factor
 real(r8) :: micro_mg_effi_factor       = unset_r8        ! ice effective radius factor
@@ -149,7 +149,7 @@ logical :: micro_mg_nicons = .false. ! set .true. to specify constant cloud ice 
 logical :: micro_mg_ngcons = .false. ! set .true. to specify constant graupel/hail number
 logical :: micro_mg_nrcons = .false. ! set .true. to specify constant rain number
 logical :: micro_mg_nscons = .false. ! set .true. to specify constant snow number
-      
+
 ! parameters for specified ice and droplet number concentration
 ! note: these are local in-cloud values, not grid-mean
 real(r8) :: micro_mg_ncnst = 50.e6_r8 ! constant liquid droplet num concentration (m-3)
@@ -169,7 +169,7 @@ logical  ::  micro_mg_evap_scl_ifs = .false.      ! Scale evaporation as IFS doe
 logical  ::  micro_mg_evap_rhthrsh_ifs = .false.  ! Evap RH threhold following IFS
 logical  ::  micro_mg_rainfreeze_ifs = .false.    ! Rain freezing at 0C following IFS
 logical  ::  micro_mg_ifs_sed = .false.           ! Snow sedimentation = 1 m/s following IFS
-logical  ::  micro_mg_precip_fall_corr = .false.    ! Precip fall speed following IFS 
+logical  ::  micro_mg_precip_fall_corr = .false.    ! Precip fall speed following IFS
 
 character(len=10), parameter :: &      ! Constituent names
    cnst_names(10) = (/'CLDLIQ', 'CLDICE','NUMLIQ','NUMICE', &
@@ -520,13 +520,13 @@ subroutine micro_mg_cam_readnl(nlfile)
 
   call mpi_bcast(micro_mg_rainfreeze_ifs, 1, mpi_logical, mstrid, mpicom, ierr)
   if (ierr /= 0) call endrun(sub//": FATAL: mpi_bcast: micro_mg_rainfreeze_ifs")
-  
+
   call mpi_bcast(micro_mg_ifs_sed, 1, mpi_logical, mstrid, mpicom, ierr)
   if (ierr /= 0) call endrun(sub//": FATAL: mpi_bcast: micro_mg_ifs_sed")
-  
+
   call mpi_bcast(micro_mg_precip_fall_corr, 1, mpi_logical, mstrid, mpicom, ierr)
   if (ierr /= 0) call endrun(sub//": FATAL: mpi_bcast: micro_mg_precip_fall_corr")
-  
+
   if(micro_mg_berg_eff_factor == unset_r8) call endrun(sub//": FATAL: micro_mg_berg_eff_factor is not set")
   if(micro_mg_accre_enhan_fact == unset_r8) call endrun(sub//": FATAL: micro_mg_accre_enhan_fact is not set")
   if(micro_mg_autocon_fact == unset_r8) call endrun(sub//": FATAL: micro_mg_autocon_fact is not set")
@@ -535,7 +535,7 @@ subroutine micro_mg_cam_readnl(nlfile)
   if(micro_mg_homog_size == unset_r8) call endrun(sub//": FATAL: micro_mg_homog_size is not set")
   if(micro_mg_vtrmi_factor == unset_r8) call endrun(sub//": FATAL: micro_mg_vtrmi_factor is not set")
   if(micro_mg_effi_factor == unset_r8) call endrun(sub//": FATAL: micro_mg_effi_factor is not set")
-  if(micro_mg_iaccr_factor == unset_r8) call endrun(sub//": FATAL: micro_mg_iaccr_factor is not set")  
+  if(micro_mg_iaccr_factor == unset_r8) call endrun(sub//": FATAL: micro_mg_iaccr_factor is not set")
   if(micro_mg_max_nicons == unset_r8) call endrun(sub//": FATAL: micro_mg_max_nicons is not set")
 
   if (masterproc) then
@@ -549,7 +549,7 @@ subroutine micro_mg_cam_readnl(nlfile)
      write(iulog,*) '  microp_uniform              = ', microp_uniform
      write(iulog,*) '  micro_mg_dcs                = ', micro_mg_dcs
      write(iulog,*) '  micro_mg_berg_eff_factor    = ', micro_mg_berg_eff_factor
-     write(iulog,*) '  micro_mg_accre_enhan_fact   = ', micro_mg_accre_enhan_fact 
+     write(iulog,*) '  micro_mg_accre_enhan_fact   = ', micro_mg_accre_enhan_fact
      write(iulog,*) '  micro_mg_autocon_fact       = ' , micro_mg_autocon_fact
      write(iulog,*) '  micro_mg_autocon_nd_exp     = ' , micro_mg_autocon_nd_exp
      write(iulog,*) '  micro_mg_autocon_lwp_exp    = ' , micro_mg_autocon_lwp_exp
@@ -618,7 +618,7 @@ subroutine micro_mg_cam_register
       longname='Grid box averaged cloud ice amount', is_convtran1=.true.)
 
    call cnst_add(cnst_names(3), mwh2o, cpair, 0._r8, ixnumliq, &
-      ndropmixed=prog_modal_aero.or.carma_model=='trop_strat', &
+      ndropmixed=prog_modal_aero.or.carma_model(:10)=='trop_strat', &
       longname='Grid box averaged cloud liquid number', is_convtran1=.true.)
    call cnst_add(cnst_names(4), mwh2o, cpair, 0._r8, ixnumice, &
       longname='Grid box averaged cloud ice number', is_convtran1=.true.)
@@ -3159,7 +3159,7 @@ subroutine micro_mg_cam_tend_pack(state, ptend, dtime, pbuf, mgncol, mgcols, nle
 
    ncic_grid = 1.e8_r8
 
-   do k = top_lev, pver  
+   do k = top_lev, pver
       !$acc data copyin  (mg_liq_props,icwmrst_grid(:ngrdcol,k),rho_grid(:ngrdcol,k)) &
       !$acc      copy    (ncic_grid(:ngrdcol,k)) &
       !$acc      copyout (mu_grid(:ngrdcol,k),lambdac_grid(:ngrdcol,k))

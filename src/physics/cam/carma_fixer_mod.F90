@@ -32,7 +32,7 @@ contains
     logical, parameter :: debug=.false.
     character(len=*), parameter :: prefix = 'carma_fix_pbuf: '
 
-    if (carma_model /= 'trop_strat') return
+    if (carma_model(:10) /= 'trop_strat') return
 
     ncol = state%ncol
 

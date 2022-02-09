@@ -344,7 +344,7 @@ contains
                           tstick        = carma_tstick)
     if (rc < 0) call endrun('carma_register::CARMA_Initialize failed.')
 
-    ndropmixed = carma_model=='trop_strat'
+    ndropmixed = carma_model(:10)=='trop_strat'
 
     ! The elements and gases from CARMA need to be added as constituents in
     ! CAM (if they don't already exist). For the elements, each radius bin
