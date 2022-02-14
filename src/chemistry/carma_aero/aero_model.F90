@@ -422,8 +422,15 @@ contains
        call addfld (trim(fieldname(mm))//'SBS',(/ 'lev' /), 'A',unit_basename//'/kg/s ', &
             trim(fieldname(mm))//' bs wet deposition')
 
+       call addfld (trim(fieldname(mm))//'WETC',(/ 'lev' /), 'A',unit_basename//'/kg/s ','wet deposition tendency??')
+       call addfld (trim(fieldname(mm))//'CONU',(/ 'lev' /), 'A',unit_basename//'/kg ','updraft mixing ratio??')
+       call addfld (trim(fieldname(mm))//'QCONST',(/ 'lev' /), 'A',unit_basename//'/kg ','all mixing ratio??')
+
        if ( history_aerosol .or. history_chemistry ) then
           call add_default (trim(fieldname(mm))//'SFWET', 1, ' ')
+          call add_default (trim(fieldname(mm))//'WETC', 1, ' ')
+          call add_default (trim(fieldname(mm))//'CONU', 1, ' ')
+          call add_default (trim(fieldname(mm))//'QCONST', 1, ' ')
        endif
        if ( history_aerosol ) then
           call add_default (trim(fieldname(mm))//'SFSIC', 1, ' ')

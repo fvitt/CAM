@@ -454,6 +454,10 @@ contains
        end if
 
        call addfld (trim(wetdep_list(m))//'WET',(/ 'lev' /), 'A',unit_basename//'/kg/s ','wet deposition tendency')
+
+       call addfld (trim(wetdep_list(m))//'WETC',(/ 'lev' /), 'A',unit_basename//'/kg/s','wet deposition tendency??')
+       call addfld (trim(wetdep_list(m))//'CONU',(/ 'lev' /), 'A',unit_basename//'/kg','updraft mixing ratio')
+
        call addfld (trim(wetdep_list(m))//'SIC',(/ 'lev' /), 'A',unit_basename//'/kg/s ', &
             trim(wetdep_list(m))//' ic wet deposition')
        call addfld (trim(wetdep_list(m))//'SIS',(/ 'lev' /), 'A',unit_basename//'/kg/s ', &
@@ -465,6 +469,8 @@ contains
 
        if ( history_aerosol .or. history_chemistry ) then
           call add_default (trim(wetdep_list(m))//'SFWET', 1, ' ')
+          call add_default (trim(wetdep_list(m))//'WETC', 1, ' ')
+          call add_default (trim(wetdep_list(m))//'CONU', 1, ' ')
        endif
        if ( history_aerosol ) then
           call add_default (trim(wetdep_list(m))//'SFSIC', 1, ' ')

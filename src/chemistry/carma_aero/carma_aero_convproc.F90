@@ -1274,6 +1274,9 @@ subroutine ma_convproc_tend(                                           &
    real(r8) zmagl(pver)          ! working height above surface (m)
    real(r8) zkm                  ! working height above surface (km)
 
+   real(r8) conu2(pcols,pver,pcnst_extd)   !q(i,k,m) at current i
+   real(r8) dcondt2(pcols,pver,pcnst_extd)   !q(i,k,m) at current i
+
    character(len=16) :: cnst_name_extd(pcnst_extd)
    !st character(len=32), allocatable :: fieldname(:)    ! names for interstitial output fields
    !st character(len=32), allocatable :: fieldname_cw(:)    ! names for cloud_borne output fields
@@ -1310,7 +1313,8 @@ subroutine ma_convproc_tend(                                           &
    xx_mfup_max(:) = 0.0_r8
    xx_wcldbase(:) = 0.0_r8
    xx_kcldbase(:) = 0.0_r8
-
+   conu2(:,:,:) = 0.0_r8
+   dcondt2(:,:,:) = 0.0_r8
    wup(:) = 0.0_r8
 
 ! set doconvproc_extd (extended array) values
@@ -1840,6 +1844,7 @@ k_loop_main_bb: &
                       !end if
 
                   end if
+                  conu2(icol,k,m) = conu(m,k)
                enddo
             end if
 
@@ -2003,6 +2008,7 @@ k_loop_main_cc: &
             end if
 
             end if   ! "(doconvproc_extd(m))"
+            dcondt2(icol,k,m) = dcondt(m,k)
          end do      ! "m = 2,ncnst_extd"
       end do k_loop_main_cc ! "k = ktop, kbot"
 
@@ -2348,6 +2354,18 @@ k_loop_main_cc: &
 
 
    end do i_loop_main_aa  ! of the main "do i = il1g, il2g" loop
+
+   do n = 1, nbins
+      do ll = 1, nspec(n) + 2
+         l = bin_idx(n,ll)
+         la = l
+         lc = l + ncnst_tot
+         ! q(icol,1:pver,1:ncnst_tot)
+         call outfld( trim(fieldname(l))//'QCONST', q(:,:,la), pcols, lchnk )
+         call outfld( trim(fieldname(l))//'CONU', conu2(:,:,la), pcols, lchnk )
+         call outfld( trim(fieldname(l))//'WETC', dcondt2(:,:,la), pcols, lchnk )
+      end do
+   end do
 
    return
 end subroutine ma_convproc_tend
