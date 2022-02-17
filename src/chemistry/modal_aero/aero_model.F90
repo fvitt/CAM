@@ -469,8 +469,8 @@ contains
 
        if ( history_aerosol .or. history_chemistry ) then
           call add_default (trim(wetdep_list(m))//'SFWET', 1, ' ')
-          call add_default (trim(wetdep_list(m))//'WETC', 1, ' ')
-          call add_default (trim(wetdep_list(m))//'CONU', 1, ' ')
+!!$          call add_default (trim(wetdep_list(m))//'WETC', 1, ' ')
+!!$          call add_default (trim(wetdep_list(m))//'CONU', 1, ' ')
        endif
        if ( history_aerosol ) then
           call add_default (trim(wetdep_list(m))//'SFSIC', 1, ' ')

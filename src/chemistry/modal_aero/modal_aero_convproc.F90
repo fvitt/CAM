@@ -36,6 +36,8 @@ use modal_aero_data, only: lptr_so4_a_amode, lptr_dust_a_amode, lptr_nacl_a_amod
 use modal_aero_data, only: lptr2_pom_a_amode, lptr2_soa_a_amode, lptr2_bc_a_amode, nsoa, npoa, nbc
 use modal_aero_data, only: lptr_msa_a_amode, lptr_nh4_a_amode, lptr_no3_a_amode
 
+use modal_aerosol_properties_mod, only: modal_aerosol_properties
+
 implicit none
 private
 save
@@ -115,6 +117,8 @@ integer :: sh_e_ed_ratio_idx  = 0
 integer :: istat
 
 logical, parameter :: debug=.false.
+
+type(modal_aerosol_properties), pointer :: aero_props_obj
 
 !=========================================================================================
 contains
@@ -297,6 +301,8 @@ subroutine ma_convproc_init
          npass_calc_updraft
 
    end if
+
+   aero_props_obj => modal_aerosol_properties()
 
 end subroutine ma_convproc_init
 
@@ -2524,7 +2530,7 @@ end subroutine ma_convproc_tend
 
    call activate_modal(                                                    &
          wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,                    &
-         naerosol, ntot_amode, vaerosol, hygro,                            &
+         naerosol, ntot_amode, vaerosol, hygro, aero_props_obj,            &
          fn, fm, fluxn, fluxm, flux_fullact                                )
 
 
@@ -2802,7 +2808,7 @@ end subroutine ma_convproc_tend
 
       call activate_modal(                                                 &
          wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,                    &
-         naerosol, ntot_amode, vaerosol, hygro,                            &
+         naerosol, ntot_amode, vaerosol, hygro, aero_props_obj,            &
          fn, fm, fluxn, fluxm, flux_fullact                                )
 
 
@@ -2812,7 +2818,7 @@ end subroutine ma_convproc_tend
       smax_prescribed = method2_activate_smaxmax
       call activate_modal(                                                 &
          wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,                    &
-         naerosol, ntot_amode, vaerosol, hygro,                            &
+         naerosol, ntot_amode, vaerosol, hygro, aero_props_obj,            &
          fn, fm, fluxn, fluxm, flux_fullact, smax_prescribed               )
    end if
 

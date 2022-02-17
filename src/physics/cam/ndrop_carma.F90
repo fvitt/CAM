@@ -27,6 +27,7 @@ use rad_constituents, only: rad_cnst_get_info, rad_cnst_get_info_by_bin, rad_cns
 use cam_history,      only: addfld, add_default, horiz_only, fieldname_len, outfld
 use cam_abortutils,   only: endrun
 use cam_logfile,      only: iulog
+use aerosol_properties_mod, only: aerosol_properties
 
 implicit none
 private
@@ -268,7 +269,7 @@ end subroutine ndrop_carma_init
 
 !===============================================================================
 
-subroutine dropmixnuc_carma( &
+subroutine dropmixnuc_carma( aero_props, &
    state, ptend, dtmicro, pbuf, wsub, &
    cldn, cldo, cldliqf, tendnd, factnum, from_spcam)
 
@@ -282,6 +283,8 @@ subroutine dropmixnuc_carma( &
    real(r8),                    intent(in)    :: dtmicro     ! time step for microphysics (s)
 
    type(physics_buffer_desc), pointer :: pbuf(:)
+
+   class(aerosol_properties), intent(in) :: aero_props
 
    ! arguments
    real(r8), intent(in) :: wsub(pcols,pver)    ! subgrid vertical velocity
@@ -693,7 +696,7 @@ subroutine dropmixnuc_carma( &
             call activate_carma( &
                wbar, wmix, wdiab, wmin, wmax,                       &
                temp(i,k), cs(i,k), naermod, nbins,             &
-               vaerosol, hygro, fn, fm, fluxn,     &
+               vaerosol, hygro, aero_props, fn, fm, fluxn,     &
                fluxm,flux_fullact(k))
 
             factnum(i,k,:) = fn
@@ -779,7 +782,7 @@ subroutine dropmixnuc_carma( &
                call activate_carma( &
                   wbar, wmix, wdiab, wmin, wmax,                       &
                   temp(i,k), cs(i,k), naermod, nbins,             &
-                  vaerosol, hygro,  fn, fm, fluxn,     &
+                  vaerosol, hygro, aero_props, fn, fm, fluxn,     &
                   fluxm, flux_fullact(k))
 
                factnum(i,k,:) = fn
@@ -1289,7 +1292,7 @@ end subroutine explmix
 !===============================================================================
 
 subroutine activate_carma(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
-   na, nmode, volume, hygro,  &
+   na, nmode, volume, hygro, aero_props, &
    fn, fm, fluxn, fluxm, flux_fullact, smax_prescribed, in_cloud_in, smax_f)
 
    !      calculates number, surface, and mass fraction of aerosols activated as CCN
@@ -1315,6 +1318,8 @@ subroutine activate_carma(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
    integer,  intent(in) :: nmode      ! number of aerosol modes or bins
    real(r8), intent(in) :: volume(:)  ! aerosol volume concentration (m3/m3)
    real(r8), intent(in) :: hygro(:)   ! hygroscopicity of aerosol mode
+
+   class(aerosol_properties), intent(in) :: aero_props
 
    !      output
 
@@ -1493,7 +1498,7 @@ subroutine activate_carma(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
          if ( present( smax_prescribed ) ) then
             smax = smax_prescribed
          else
-            call maxsat(zeta,eta,nmode,smc,smax)
+            call maxsat(zeta,eta,nmode,smc,aero_props,smax)
          endif
          !	      write(iulog,*)'w,smax=',w,smax
 
@@ -1665,7 +1670,7 @@ subroutine activate_carma(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
             if ( present(smax_prescribed) ) then
                smax = smax_prescribed
             else
-               call maxsat(zeta, eta, nmode, smc, smax)
+               call maxsat(zeta, eta, nmode, smc, aero_props, smax)
             end if
          end if
 
@@ -1700,7 +1705,7 @@ end subroutine activate_carma
 
 !===============================================================================
 
-subroutine maxsat(zeta,eta,nmode,smc,smax)
+subroutine maxsat(zeta,eta,nmode,smc,aero_props,smax)
 
    !      calculates maximum supersaturation for multiple
    !      competing aerosol modes.
@@ -1712,6 +1717,7 @@ subroutine maxsat(zeta,eta,nmode,smc,smax)
    real(r8), intent(in)  :: smc(nmode) ! critical supersaturation for number mode radius
    real(r8), intent(in)  :: zeta(nmode)
    real(r8), intent(in)  :: eta(nmode)
+   class(aerosol_properties), intent(in) :: aero_props
    real(r8), intent(out) :: smax ! maximum supersaturation
    integer  :: m  ! mode or bin index
    real(r8) :: sum, g1, g2, g1sqrt, g2sqrt
@@ -1730,7 +1736,6 @@ subroutine maxsat(zeta,eta,nmode,smc,smax)
    enddo
 
    sum=0.0_r8
-
    do m=1,nmode
       if(eta(m).gt.1.e-20_r8)then
          g1=zeta(m)/eta(m)
@@ -1739,7 +1744,7 @@ subroutine maxsat(zeta,eta,nmode,smc,smax)
          g2=smc(m)/sqrt(eta(m)+3._r8*zeta(m))
          g2sqrt=sqrt(g2)
          g2=g2sqrt*g2
-         sum=sum+(g1+g2)/(smc(m)*smc(m))
+         sum=sum+(aero_props%abdraz_f1(m)*g1+aero_props%abdraz_f2(m)*g2)/(smc(m)*smc(m))
       else
          sum=1.e20_r8
       endif

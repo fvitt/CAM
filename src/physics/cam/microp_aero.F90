@@ -48,6 +48,10 @@ use cam_history,      only: addfld, add_default, outfld
 use cam_logfile,      only: iulog
 use cam_abortutils,       only: endrun
 
+use aerosol_properties_mod, only: aerosol_properties
+use modal_aerosol_properties_mod, only: modal_aerosol_properties
+use sectional_aerosol_properties_mod, only: sectional_aerosol_properties
+
 implicit none
 private
 save
@@ -119,6 +123,8 @@ integer :: coarse_so4_idx = -1  ! index of sulfate in coarse mode
 integer :: npccn_idx, rndst_idx, nacon_idx
 
 logical  :: separate_dust = .false.
+
+class(aerosol_properties), pointer :: aero_props_obj
 
 !=========================================================================================
 contains
@@ -278,9 +284,14 @@ subroutine microp_aero_init(pbuf2d)
          call endrun(routine//': ERROR required mode-species type not found')
       end if
 
+      aero_props_obj => modal_aerosol_properties()
+
    elseif (clim_carma_aero) then
       cldo_idx = pbuf_get_index('CLDO')
       call ndrop_carma_init()
+
+      aero_props_obj => sectional_aerosol_properties()
+
    else
 
       ! Props needed for BAM number concentration calcs.
@@ -654,23 +665,23 @@ subroutine microp_aero_run ( &
          ! If not using preexsiting ice, then only use cloudbourne aerosol for the
          ! liquid clouds. This is the same behavior as CAM5.
          if (use_preexisting_ice) then
-            call dropmixnuc( &
+            call dropmixnuc( aero_props_obj, &
                  state1, ptend_loc, deltatin, pbuf, wsub, &
                  cldn, cldo, cldliqf, nctend_mixnuc, factnum)
          else
             cldliqf = 1._r8
-            call dropmixnuc( &
+            call dropmixnuc( aero_props_obj, &
                  state1, ptend_loc, deltatin, pbuf, wsub, &
                  lcldn, lcldo, cldliqf, nctend_mixnuc, factnum)
          end if
       elseif (clim_carma_aero) then
          if (use_preexisting_ice) then
-            call dropmixnuc_carma( &
+            call dropmixnuc_carma( aero_props_obj, &
                  state1, ptend_loc, deltatin, pbuf, wsub, &
                  cldn, cldo, cldliqf, nctend_mixnuc, factnum)
          else
             cldliqf = 1._r8
-            call dropmixnuc_carma( &
+            call dropmixnuc_carma( aero_props_obj, &
                  state1, ptend_loc, deltatin, pbuf, wsub, &
                  lcldn, lcldo, cldliqf, nctend_mixnuc, factnum)
          end if

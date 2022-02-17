@@ -32,6 +32,9 @@ use cam_abortutils,  only: endrun
 use rad_constituents,only: rad_cnst_get_info, rad_cnst_get_info_by_bin, rad_cnst_get_info_by_bin_spec, &
                            rad_cnst_get_bin_props_by_idx, rad_cnst_get_bin_mmr_by_idx, rad_cnst_get_bin_mmr, &
                            rad_cnst_get_bin_num
+
+use sectional_aerosol_properties_mod, only: sectional_aerosol_properties
+
 implicit none
 private
 save
@@ -142,6 +145,7 @@ integer, allocatable :: imx_bl(:)    ! index used to map pure sulfate bin to mix
 integer, allocatable :: imx_mmr_bl(:)    ! index used to map pure sulfate bin to mixed sulfate bin for mmr
 integer, allocatable :: imx_num_bl(:)    ! index used to map pure sulfate bin to mixed sulfate bin for num
 
+type(sectional_aerosol_properties), pointer :: aero_props_obj
 
 !=========================================================================================
 contains
@@ -439,6 +443,8 @@ subroutine ma_convproc_init
          npass_calc_updraft
 
    end if
+
+   aero_props_obj => sectional_aerosol_properties()
 
 end subroutine ma_convproc_init
 
@@ -2814,7 +2820,7 @@ end subroutine ma_convproc_tend
 
    call activate_carma(                                                    &
          wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,                    &
-         naerosol, nbins, vaerosol, hygro,                            &
+         naerosol, nbins, vaerosol, hygro, aero_props_obj,                 &
          fn, fm, fluxn, fluxm, flux_fullact                                )
 
 
@@ -3123,7 +3129,7 @@ end subroutine ma_convproc_tend
 
       call activate_carma(                                                 &
          wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,                    &
-         naerosol, nbins, vaerosol, hygro,                            &
+         naerosol, nbins, vaerosol, hygro, aero_props_obj,                 &
          fn, fm, fluxn, fluxm, flux_fullact                                )
 
 
@@ -3133,7 +3139,7 @@ end subroutine ma_convproc_tend
       smax_prescribed = method2_activate_smaxmax
       call activate_carma(                                                 &
          wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,                    &
-         naerosol, nbins, vaerosol, hygro,                            &
+         naerosol, nbins, vaerosol, hygro, aero_props_obj,                 &
          fn, fm, fluxn, fluxm, flux_fullact, smax_prescribed               )
    end if
 
