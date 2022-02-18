@@ -52,6 +52,10 @@ use aerosol_properties_mod, only: aerosol_properties
 use modal_aerosol_properties_mod, only: modal_aerosol_properties
 use sectional_aerosol_properties_mod, only: sectional_aerosol_properties
 
+use aerosol_state_mod, only: aerosol_state
+use modal_aerosol_state_mod, only: modal_aerosol_state
+use carma_aerosol_state_mod, only: carma_aerosol_state
+
 implicit none
 private
 save
@@ -479,6 +483,9 @@ subroutine microp_aero_run ( &
    integer :: lchnk, ncol
 
    real(r8), allocatable :: factnum(:,:,:) ! activation fraction for aerosol number
+
+   class(aerosol_state), pointer :: aero_state_obj
+
    !-------------------------------------------------------------------------------
 
    call physics_state_copy(state,state1)
@@ -662,29 +669,37 @@ subroutine microp_aero_run ( &
       call outfld('LCLOUD', lcldn, pcols, lchnk)
 
       if (clim_modal_aero) then
+         aero_state_obj => modal_aerosol_state( state1, pbuf )
          ! If not using preexsiting ice, then only use cloudbourne aerosol for the
          ! liquid clouds. This is the same behavior as CAM5.
          if (use_preexisting_ice) then
-            call dropmixnuc( aero_props_obj, &
+            call dropmixnuc( aero_props_obj, aero_state_obj, &
                  state1, ptend_loc, deltatin, pbuf, wsub, &
                  cldn, cldo, cldliqf, nctend_mixnuc, factnum)
          else
             cldliqf = 1._r8
-            call dropmixnuc( aero_props_obj, &
+            call dropmixnuc( aero_props_obj, aero_state_obj, &
                  state1, ptend_loc, deltatin, pbuf, wsub, &
                  lcldn, lcldo, cldliqf, nctend_mixnuc, factnum)
          end if
+
+         deallocate(aero_state_obj)
+         nullify(aero_state_obj)
       elseif (clim_carma_aero) then
+         aero_state_obj => carma_aerosol_state( state1, pbuf )
          if (use_preexisting_ice) then
-            call dropmixnuc_carma( aero_props_obj, &
+            call dropmixnuc_carma( aero_props_obj, aero_state_obj, &
                  state1, ptend_loc, deltatin, pbuf, wsub, &
                  cldn, cldo, cldliqf, nctend_mixnuc, factnum)
          else
             cldliqf = 1._r8
-            call dropmixnuc_carma( aero_props_obj, &
+            call dropmixnuc_carma( aero_props_obj, aero_state_obj, &
                  state1, ptend_loc, deltatin, pbuf, wsub, &
                  lcldn, lcldo, cldliqf, nctend_mixnuc, factnum)
          end if
+
+         deallocate(aero_state_obj)
+         nullify(aero_state_obj)
       endif
 
       npccn(:ncol,:) = nctend_mixnuc(:ncol,:)

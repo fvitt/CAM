@@ -30,6 +30,7 @@ use cam_abortutils,   only: endrun
 use cam_logfile,      only: iulog
 
 use aerosol_properties_mod, only: aerosol_properties
+use aerosol_state_mod, only: aerosol_state
 
 implicit none
 private
@@ -289,7 +290,7 @@ end subroutine ndrop_init
 
 !===============================================================================
 
-subroutine dropmixnuc( aero_props, &
+subroutine dropmixnuc( aero_props, aero_state, &
    state, ptend, dtmicro, pbuf, wsub, &
    cldn, cldo, cldliqf, tendnd, factnum, from_spcam)
 
@@ -305,6 +306,7 @@ subroutine dropmixnuc( aero_props, &
    type(physics_buffer_desc), pointer :: pbuf(:)
 
    class(aerosol_properties), intent(in) :: aero_props
+   class(aerosol_state), intent(in) :: aero_state
 
    ! arguments
    real(r8), intent(in) :: wsub(pcols,pver)    ! subgrid vertical velocity
@@ -699,7 +701,7 @@ subroutine dropmixnuc( aero_props, &
 
             phase = 1 ! interstitial
             do m = 1, ntot_amode
-               call loadaer( &
+               call loadaer( aero_state, &
                   state, pbuf, i, i, k, &
                   m, cs, phase, na, va, &
                   hy)
@@ -785,7 +787,7 @@ subroutine dropmixnuc( aero_props, &
                do m = 1, ntot_amode
                   ! rce-comment - use kp1 here as old-cloud activation involves
                   !   aerosol from layer below
-                  call loadaer( &
+                  call loadaer( aero_state, &
                      state, pbuf, i, i, kp1,  &
                      m, cs, phase, na, va,   &
                      hy)
@@ -1165,7 +1167,7 @@ subroutine dropmixnuc( aero_props, &
         call outfld('SPKVH     ', kvh     , pcols, lchnk   )
    endif
 
-   call ccncalc(state, pbuf, cs, ccn)
+   call ccncalc(aero_state, state, pbuf, cs, ccn)
    do l = 1, psat
       call outfld(ccn_name(l), ccn(1,1,l), pcols, lchnk)
    enddo
@@ -1757,7 +1759,7 @@ end subroutine maxsat
 
 !===============================================================================
 
-subroutine ccncalc(state, pbuf, cs, ccn)
+subroutine ccncalc(aero_state, state, pbuf, cs, ccn)
 
    ! calculates number concentration of aerosols activated as CCN at
    ! supersaturation supersat.
@@ -1767,10 +1769,10 @@ subroutine ccncalc(state, pbuf, cs, ccn)
    ! Ghan et al., Atmos. Res., 1993, 198-221.
 
    ! arguments
+   class(aerosol_state), intent(in) :: aero_state
 
    type(physics_state), target, intent(in)    :: state
    type(physics_buffer_desc),   pointer       :: pbuf(:)
-
 
    real(r8), intent(in)  :: cs(pcols,pver)       ! air density (kg/m3)
    real(r8), intent(out) :: ccn(pcols,pver,psat) ! number conc of aerosols activated at supersat (#/m3)
@@ -1834,7 +1836,7 @@ subroutine ccncalc(state, pbuf, cs, ccn)
 
          phase=3 ! interstitial+cloudborne
 
-         call loadaer( &
+         call loadaer( aero_state, &
             state, pbuf, 1, ncol, k, &
             m, cs, phase, naerosol, vaerosol, &
             hygro)
@@ -1864,13 +1866,15 @@ end subroutine ccncalc
 !===============================================================================
 
 subroutine loadaer( &
-   state, pbuf, istart, istop, k, &
+   aero_state, state, pbuf, istart, istop, k, &
    m, cs, phase, naerosol, &
    vaerosol, hygro)
 
    ! return aerosol number, volume concentrations, and bulk hygroscopicity
 
    ! input arguments
+   class(aerosol_state), intent(in) :: aero_state
+
    type(physics_state), target, intent(in) :: state
    type(physics_buffer_desc),   pointer    :: pbuf(:)
 
@@ -1906,8 +1910,8 @@ subroutine loadaer( &
 
    do l = 1, nspec_amode(m)
 
-      call rad_cnst_get_aer_mmr(0, m, l, 'a', state, pbuf, raer)
-      call rad_cnst_get_aer_mmr(0, m, l, 'c', state, pbuf, qqcw)
+      raer => aero_state%get_ambient_mmr(l,m)
+      qqcw => aero_state%get_cldbrne_mmr(l,m)
       call rad_cnst_get_aer_props(0, m, l, density_aer=specdens, hygro_aer=spechygro)
 
       if (phase == 3) then
@@ -1945,8 +1949,8 @@ subroutine loadaer( &
    end do
 
    ! aerosol number
-   call rad_cnst_get_mode_num(0, m, 'a', state, pbuf, raer)
-   call rad_cnst_get_mode_num(0, m, 'c', state, pbuf, qqcw)
+   raer => aero_state%get_ambient_num(m)
+   qqcw => aero_state%get_cldbrne_num(m)
    if (phase == 3) then
       do i = istart, istop
          naerosol(i) = (raer(i,k) + qqcw(i,k))*cs(i,k)

@@ -34,6 +34,7 @@ use rad_constituents,only: rad_cnst_get_info, rad_cnst_get_info_by_bin, rad_cnst
                            rad_cnst_get_bin_num
 
 use sectional_aerosol_properties_mod, only: sectional_aerosol_properties
+use carma_aerosol_state_mod, only: carma_aerosol_state
 
 implicit none
 private
@@ -2698,6 +2699,7 @@ end subroutine ma_convproc_tend
    real(r8) :: specdens              ! specie density from physprops files
    real(r8) :: spechygro             ! hygroscopicity from physprops files
 
+   type(carma_aerosol_state), pointer :: aero_state_obj
 
 !-----------------------------------------------------------------------
 
@@ -2814,9 +2816,12 @@ end subroutine ma_convproc_tend
    wmaxf = wbar
 
    phase = 1 ! interstitial
+   aero_state_obj => carma_aerosol_state(state, pbuf)
    do n = 1, nbins
-      call loadaer( state, pbuf, i, k, n, rhoair, phase, naerosol(n), vaerosol(n), hygro(n))
+      call loadaer( aero_state_obj, state, pbuf, i, k, n, rhoair, phase, naerosol(n), vaerosol(n), hygro(n))
    end do
+   deallocate(aero_state_obj)
+   nullify(aero_state_obj)
 
    call activate_carma(                                                    &
          wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,                    &
@@ -2999,6 +3004,8 @@ end subroutine ma_convproc_tend
 
    character(len=32) :: spec_type
 
+   type(carma_aerosol_state), pointer :: aero_state_obj
+
 !-----------------------------------------------------------------------
 
 
@@ -3121,9 +3128,12 @@ end subroutine ma_convproc_tend
    wmaxf = wbar
 
    phase = 1 ! interstitial
+   aero_state_obj => carma_aerosol_state(state, pbuf)
    do n = 1, nbins
-      call loadaer( state, pbuf, i, k, n, rhoair, phase, naerosol(n), vaerosol(n), hygro(n))
+      call loadaer( aero_state_obj, state, pbuf, i, k, n, rhoair, phase, naerosol(n), vaerosol(n), hygro(n))
    end do
+   deallocate(aero_state_obj)
+   nullify(aero_state_obj)
 
    if (k == kactfirst) then
 
