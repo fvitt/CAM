@@ -687,8 +687,8 @@ subroutine dropmixnuc_carma( aero_props, aero_state, &
 
             phase = 1 ! interstitial
             do m = 1, nbins
-               call loadaer( aero_state, &
-                  state, pbuf, i, i, k, &
+               call loadaer( aero_state, aero_props, &
+                  i, i, k, &
                   m, cs, phase, na, va, &
                   hy)
                naermod(m)  = na(i)
@@ -773,8 +773,8 @@ subroutine dropmixnuc_carma( aero_props, aero_state, &
                do m = 1, nbins
                   ! rce-comment - use kp1 here as old-cloud activation involves
                   !   aerosol from layer below
-                  call loadaer( aero_state, &
-                     state, pbuf, i, i, kp1,  &
+                  call loadaer( aero_state, aero_props, &
+                     i, i, kp1,  &
                      m, cs, phase, na, va,   &
                      hy)
                   naermod(m)  = na(i)
@@ -1164,7 +1164,7 @@ subroutine dropmixnuc_carma( aero_props, aero_state, &
         call outfld('SPKVH     ', kvh     , pcols, lchnk   )
    endif
 
-   call ccncalc(aero_state, state, pbuf, cs, ccn)
+   call ccncalc(aero_state, aero_props, state, pbuf, cs, ccn)
    do l = 1, psat
       call outfld(ccn_name(l), ccn(1,1,l), pcols, lchnk)
    enddo
@@ -1759,7 +1759,7 @@ end subroutine maxsat
 
 !===============================================================================
 
-subroutine ccncalc(aero_state, state, pbuf, cs, ccn)
+subroutine ccncalc(aero_state, aero_props, state, pbuf, cs, ccn)
 
    ! calculates number concentration of aerosols activated as CCN at
    ! supersaturation supersat.
@@ -1770,6 +1770,7 @@ subroutine ccncalc(aero_state, state, pbuf, cs, ccn)
 
    ! arguments
    class(aerosol_state), intent(in) :: aero_state
+   class(aerosol_properties), intent(in) :: aero_props
 
    type(physics_state), target, intent(in)    :: state
    type(physics_buffer_desc),   pointer       :: pbuf(:)
@@ -1833,8 +1834,8 @@ subroutine ccncalc(aero_state, state, pbuf, cs, ccn)
 
          phase=3 ! interstitial+cloudborne
 
-         call loadaer( aero_state, &
-            state, pbuf, 1, ncol, k, &
+         call loadaer( aero_state, aero_props, &
+            1, ncol, k, &
             m, cs, phase, naerosol, vaerosol, &
             hygro)
 
@@ -1864,7 +1865,7 @@ end subroutine ccncalc
 !===============================================================================
 
 subroutine loadaer1( &
-   aero_state, state, pbuf, istart, istop, k, &
+   aero_state, aero_props, istart, istop, k, &
    m, cs, phase, naerosol, &
    vaerosol, hygro)
 
@@ -1872,9 +1873,7 @@ subroutine loadaer1( &
 
    ! input arguments
    class(aerosol_state), intent(in) :: aero_state
-
-   type(physics_state), target, intent(in) :: state
-   type(physics_buffer_desc),   pointer    :: pbuf(:)
+   class(aerosol_properties), intent(in) :: aero_props
 
    integer,  intent(in) :: istart      ! start column index (1 <= istart <= istop <= pcols)
    integer,  intent(in) :: istop       ! stop column index
@@ -1906,7 +1905,7 @@ subroutine loadaer1( &
 
       raer => aero_state%get_ambient_mmr(l,m)
       qqcw => aero_state%get_cldbrne_mmr(l,m)
-      call rad_cnst_get_bin_props_by_idx(0, m, l, density_aer=specdens, hygro_aer=spechygro)
+      call aero_props%get(m,l, density=specdens, hygro=spechygro)
 
       if (phase == 3) then
          do i = istart, istop
@@ -1967,8 +1966,8 @@ subroutine loadaer1( &
 end subroutine loadaer1
 
 !===============================================================================
-subroutine loadaer2( aero_state, &
-   state, pbuf, i, k, &
+subroutine loadaer2( aero_state, aero_props, &
+   i, k, &
    m, cs, phase, naerosol, &
    vaerosol, hygro)
 
@@ -1976,8 +1975,7 @@ subroutine loadaer2( aero_state, &
 
    ! input arguments
    class(aerosol_state), intent(in) :: aero_state
-   type(physics_state), target, intent(in) :: state
-   type(physics_buffer_desc),   pointer    :: pbuf(:)
+   class(aerosol_properties), intent(in) :: aero_props
 
    integer,  intent(in) :: i           ! column index
    integer,  intent(in) :: k           ! level index
@@ -1997,7 +1995,7 @@ subroutine loadaer2( aero_state, &
 
    cs_a(i,k) = cs
 
-   call loadaer1(aero_state, state, pbuf, i, i, k, m, cs_a, phase, naerosol_a, vaerosol_a, hygro_a)
+   call loadaer1(aero_state, aero_props, i, i, k, m, cs_a, phase, naerosol_a, vaerosol_a, hygro_a)
 
    naerosol = naerosol_a(i)
    vaerosol = vaerosol_a(i)

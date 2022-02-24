@@ -11,9 +11,18 @@ module aerosol_properties_mod
    contains
      procedure(aero_props_abdraz_f), deferred :: abdraz_f1
      procedure(aero_props_abdraz_f), deferred :: abdraz_f2
+     procedure(aero_props_get), deferred :: get
   end type aerosol_properties
 
   interface
+     subroutine aero_props_get(self, m,l, density,hygro)
+       import
+       class(aerosol_properties), intent(in) :: self
+       integer, intent(in) :: m,l
+       real(r8), optional, intent(out) :: density
+       real(r8), optional, intent(out) :: hygro
+     end subroutine aero_props_get
+
      function aero_props_abdraz_f(self, m) result(f)
        import
        class(aerosol_properties), intent(in) :: self

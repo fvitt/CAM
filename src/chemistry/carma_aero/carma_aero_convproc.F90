@@ -2818,7 +2818,7 @@ end subroutine ma_convproc_tend
    phase = 1 ! interstitial
    aero_state_obj => carma_aerosol_state(state, pbuf)
    do n = 1, nbins
-      call loadaer( aero_state_obj, state, pbuf, i, k, n, rhoair, phase, naerosol(n), vaerosol(n), hygro(n))
+      call loadaer( aero_state_obj, aero_props_obj, i, k, n, rhoair, phase, naerosol(n), vaerosol(n), hygro(n))
    end do
    deallocate(aero_state_obj)
    nullify(aero_state_obj)
@@ -3130,7 +3130,7 @@ end subroutine ma_convproc_tend
    phase = 1 ! interstitial
    aero_state_obj => carma_aerosol_state(state, pbuf)
    do n = 1, nbins
-      call loadaer( aero_state_obj, state, pbuf, i, k, n, rhoair, phase, naerosol(n), vaerosol(n), hygro(n))
+      call loadaer( aero_state_obj, aero_props_obj, i, k, n, rhoair, phase, naerosol(n), vaerosol(n), hygro(n))
    end do
    deallocate(aero_state_obj)
    nullify(aero_state_obj)
