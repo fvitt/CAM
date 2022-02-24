@@ -26,8 +26,25 @@ contains
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------
   function constructor() result(newobj)
+    use rad_constituents, only: rad_cnst_get_info, rad_cnst_get_info_by_bin
+
     type(carma_aerosol_properties), pointer :: newobj
+
+    integer :: m, nbins
+    integer,allocatable :: nspecies(:)
+
     allocate(newobj)
+
+    call rad_cnst_get_info( 0, nbins=nbins)
+    allocate( nspecies(nbins) )
+
+    do m = 1, nbins
+       call rad_cnst_get_info_by_bin(0, m, nspec=nspecies(m))
+    end do
+
+    call newobj%initialize(nbins,nspecies)
+    deallocate(nspecies)
+
   end function constructor
 
   !------------------------------------------------------------------------------

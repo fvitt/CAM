@@ -35,7 +35,7 @@ implicit none
 private
 save
 
-public ndrop_carma_init, dropmixnuc_carma, activate_carma, loadaer
+public ndrop_carma_init, dropmixnuc_carma, activate_carma
 
 real(r8) :: t0            ! reference temperature
 real(r8) :: aten
@@ -83,11 +83,6 @@ logical :: prog_modal_aero     ! true when aerosols are prognostic   !st make su
 logical :: history_carma       ! true when for carma history output
 logical :: lq(pcnst) = .false. ! set flags true for constituents with non-zero tendencies
 ! in the ptend object
-
-! overloaded routine
-interface loadaer
-   procedure loadaer1, loadaer2
-end interface loadaer
 
 !===============================================================================
 contains
@@ -687,7 +682,7 @@ subroutine dropmixnuc_carma( aero_props, aero_state, &
 
             phase = 1 ! interstitial
             do m = 1, nbins
-               call loadaer( aero_state, aero_props, &
+               call aero_state%loadaer( aero_props, &
                   i, i, k, &
                   m, cs, phase, na, va, &
                   hy)
@@ -773,7 +768,7 @@ subroutine dropmixnuc_carma( aero_props, aero_state, &
                do m = 1, nbins
                   ! rce-comment - use kp1 here as old-cloud activation involves
                   !   aerosol from layer below
-                  call loadaer( aero_state, aero_props, &
+                  call aero_state%loadaer( aero_props, &
                      i, i, kp1,  &
                      m, cs, phase, na, va,   &
                      hy)
@@ -1834,7 +1829,7 @@ subroutine ccncalc(aero_state, aero_props, state, pbuf, cs, ccn)
 
          phase=3 ! interstitial+cloudborne
 
-         call loadaer( aero_state, aero_props, &
+         call aero_state%loadaer( aero_props, &
             1, ncol, k, &
             m, cs, phase, naerosol, vaerosol, &
             hygro)
@@ -1863,144 +1858,4 @@ subroutine ccncalc(aero_state, aero_props, state, pbuf, cs, ccn)
 end subroutine ccncalc
 
 !===============================================================================
-
-subroutine loadaer1( &
-   aero_state, aero_props, istart, istop, k, &
-   m, cs, phase, naerosol, &
-   vaerosol, hygro)
-
-   ! return aerosol number, volume concentrations, and bulk hygroscopicity
-
-   ! input arguments
-   class(aerosol_state), intent(in) :: aero_state
-   class(aerosol_properties), intent(in) :: aero_props
-
-   integer,  intent(in) :: istart      ! start column index (1 <= istart <= istop <= pcols)
-   integer,  intent(in) :: istop       ! stop column index
-   integer,  intent(in) :: m           ! mode or bin index
-   integer,  intent(in) :: k           ! level index
-   real(r8), intent(in) :: cs(:,:)     ! air density (kg/m3)
-   integer,  intent(in) :: phase       ! phase of aerosol: 1 for interstitial, 2 for cloud-borne, 3 for sum
-
-   ! output arguments
-   real(r8), intent(out) :: naerosol(:)  ! number conc (1/m3)
-   real(r8), intent(out) :: vaerosol(:)  ! volume conc (m3/m3)
-   real(r8), intent(out) :: hygro(:)     ! bulk hygroscopicity of mode
-
-   ! internal
-   real(r8), pointer :: raer(:,:) ! interstitial aerosol mass, number mixing ratios
-   real(r8), pointer :: qqcw(:,:) ! cloud-borne aerosol mass, number mixing ratios
-   real(r8) :: specdens, spechygro
-
-   real(r8) :: vol(pcols) ! aerosol volume mixing ratio
-   integer  :: i, l
-   !-------------------------------------------------------------------------------
-
-   do i = istart, istop
-      vaerosol(i) = 0._r8
-      hygro(i)    = 0._r8
-   end do
-
-   do l = 1, nspec(m)
-
-      raer => aero_state%get_ambient_mmr(l,m)
-      qqcw => aero_state%get_cldbrne_mmr(l,m)
-      call aero_props%get(m,l, density=specdens, hygro=spechygro)
-
-      if (phase == 3) then
-         do i = istart, istop
-            vol(i) = max(raer(i,k) + qqcw(i,k), 0._r8)/specdens
-         end do
-      else if (phase == 2) then
-         do i = istart, istop
-            vol(i) = max(qqcw(i,k), 0._r8)/specdens
-         end do
-      else if (phase == 1) then
-         do i = istart, istop
-            vol(i) = max(raer(i,k), 0._r8)/specdens
-         end do
-      else
-         write(iulog,*)'phase=',phase,' in loadaer'
-         call endrun('phase error in loadaer')
-      end if
-
-      do i = istart, istop
-         vaerosol(i) = vaerosol(i) + vol(i)
-         hygro(i)    = hygro(i) + vol(i)*spechygro
-      end do
-
-   end do
-
-   do i = istart, istop
-      if (vaerosol(i) > 1.0e-30_r8) then   ! +++xl add 8/2/2007
-         hygro(i)    = hygro(i)/(vaerosol(i))
-         vaerosol(i) = vaerosol(i)*cs(i,k)
-      else
-         hygro(i)    = 0.0_r8
-         vaerosol(i) = 0.0_r8
-      end if
-   end do
-
-   ! aerosol number
-   raer => aero_state%get_ambient_num(m)
-   qqcw => aero_state%get_cldbrne_num(m)
-   if (phase == 3) then
-      do i = istart, istop
-         naerosol(i) = (raer(i,k) + qqcw(i,k))*cs(i,k)
-      end do
-   else if (phase == 2) then
-      do i = istart, istop
-         naerosol(i) = qqcw(i,k)*cs(i,k)
-      end do
-   else
-      do i = istart, istop
-         naerosol(i) = raer(i,k)*cs(i,k)
-      end do
-   end if
-   ! adjust number so that dgnumlo < dgnum < dgnumhi not done for bins
-   !st do i = istart, istop
-   !st    naerosol(i) = max(naerosol(i), vaerosol(i)*voltonumbhi_amode(m))
-   !st    naerosol(i) = min(naerosol(i), vaerosol(i)*voltonumblo_amode(m))
-   !st end do
-
-end subroutine loadaer1
-
-!===============================================================================
-subroutine loadaer2( aero_state, aero_props, &
-   i, k, &
-   m, cs, phase, naerosol, &
-   vaerosol, hygro)
-
-   ! return aerosol number, volume concentrations, and bulk hygroscopicity
-
-   ! input arguments
-   class(aerosol_state), intent(in) :: aero_state
-   class(aerosol_properties), intent(in) :: aero_props
-
-   integer,  intent(in) :: i           ! column index
-   integer,  intent(in) :: k           ! level index
-   integer,  intent(in) :: m           ! mode or bin index
-   real(r8), intent(in) :: cs          ! air density (kg/m3)
-   integer,  intent(in) :: phase       ! phase of aerosol: 1 for interstitial, 2 for cloud-borne, 3 for sum
-
-   ! output arguments
-   real(r8), intent(out) :: naerosol  ! number conc (1/m3)
-   real(r8), intent(out) :: vaerosol  ! volume conc (m3/m3)
-   real(r8), intent(out) :: hygro     ! bulk hygroscopicity of mode
-
-   real(r8) :: cs_a(pcols,pver)          ! air density (kg/m3)
-   real(r8) :: naerosol_a(pcols)  ! number conc (1/m3)
-   real(r8) :: vaerosol_a(pcols)  ! volume conc (m3/m3)
-   real(r8) :: hygro_a(pcols)     ! bulk hygroscopicity of mode
-
-   cs_a(i,k) = cs
-
-   call loadaer1(aero_state, aero_props, i, i, k, m, cs_a, phase, naerosol_a, vaerosol_a, hygro_a)
-
-   naerosol = naerosol_a(i)
-   vaerosol = vaerosol_a(i)
-   hygro = hygro_a(i)
-
-end subroutine loadaer2
-
 end module ndrop_carma

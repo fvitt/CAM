@@ -23,7 +23,6 @@ module carma_aerosol_state_mod
      procedure :: get_cldbrne_mmr
      procedure :: get_ambient_num
      procedure :: get_cldbrne_num
-     procedure :: set_ptrs
      final :: destructor
 
   end type carma_aerosol_state
@@ -43,20 +42,10 @@ contains
 
     allocate(newobj)
 
-    call newobj%set_ptrs(state,pbuf)
+    newobj%state => state
+    newobj%pbuf => pbuf
 
   end function constructor
-
-  !------------------------------------------------------------------------------
-  !------------------------------------------------------------------------------
-  subroutine set_ptrs(self,state,pbuf)
-    class(carma_aerosol_state), intent(inout) :: self
-    type(physics_state), target, optional :: state
-    type(physics_buffer_desc), pointer, optional :: pbuf(:)
-
-    self%state => state
-    self%pbuf => pbuf
-  end subroutine set_ptrs
 
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------

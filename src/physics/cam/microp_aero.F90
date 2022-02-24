@@ -61,6 +61,7 @@ private
 save
 
 public :: microp_aero_init, microp_aero_run, microp_aero_readnl, microp_aero_register
+public :: microp_aero_final
 
 ! Private module data
 character(len=16)   :: eddy_scheme
@@ -128,7 +129,7 @@ integer :: npccn_idx, rndst_idx, nacon_idx
 
 logical  :: separate_dust = .false.
 
-class(aerosol_properties), pointer :: aero_props_obj
+class(aerosol_properties), pointer :: aero_props_obj =>null()
 
 !=========================================================================================
 contains
@@ -335,6 +336,17 @@ subroutine microp_aero_init(pbuf2d)
       call hetfrz_classnuc_cam_init(mincld)
    endif
 end subroutine microp_aero_init
+
+!=========================================================================================
+
+subroutine microp_aero_final
+
+  if (associated(aero_props_obj)) then
+     deallocate(aero_props_obj)
+  end if
+  nullify(aero_props_obj)
+
+end subroutine microp_aero_final
 
 !=========================================================================================
 

@@ -26,7 +26,6 @@ use physics_buffer, only: pbuf_add_field, dtype_r8, pbuf_old_tim_idx, &
                           pbuf_get_index, pbuf_get_field, &
                           pbuf_set_field
 use cam_history,    only: addfld, add_default, outfld
-use ndrop_carma,    only: loadaer
 
 use ref_pres,       only: top_lev => trop_cloud_top_lev
 use wv_saturation,  only: qsat_water, svp_water, svp_ice
