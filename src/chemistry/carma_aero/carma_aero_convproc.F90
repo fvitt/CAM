@@ -33,7 +33,7 @@ use rad_constituents,only: rad_cnst_get_info, rad_cnst_get_info_by_bin, rad_cnst
                            rad_cnst_get_bin_props_by_idx, rad_cnst_get_bin_mmr_by_idx, rad_cnst_get_bin_mmr, &
                            rad_cnst_get_bin_num
 
-use sectional_aerosol_properties_mod, only: sectional_aerosol_properties
+use carma_aerosol_properties_mod, only: carma_aerosol_properties
 use carma_aerosol_state_mod, only: carma_aerosol_state
 
 implicit none
@@ -146,7 +146,7 @@ integer, allocatable :: imx_bl(:)    ! index used to map pure sulfate bin to mix
 integer, allocatable :: imx_mmr_bl(:)    ! index used to map pure sulfate bin to mixed sulfate bin for mmr
 integer, allocatable :: imx_num_bl(:)    ! index used to map pure sulfate bin to mixed sulfate bin for num
 
-type(sectional_aerosol_properties), pointer :: aero_props_obj
+type(carma_aerosol_properties), pointer :: aero_props_obj
 
 !=========================================================================================
 contains
@@ -445,7 +445,7 @@ subroutine ma_convproc_init
 
    end if
 
-   aero_props_obj => sectional_aerosol_properties()
+   aero_props_obj => carma_aerosol_properties()
 
 end subroutine ma_convproc_init
 

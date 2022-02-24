@@ -50,7 +50,7 @@ use cam_abortutils,       only: endrun
 
 use aerosol_properties_mod, only: aerosol_properties
 use modal_aerosol_properties_mod, only: modal_aerosol_properties
-use sectional_aerosol_properties_mod, only: sectional_aerosol_properties
+use carma_aerosol_properties_mod, only: carma_aerosol_properties
 
 use aerosol_state_mod, only: aerosol_state
 use modal_aerosol_state_mod, only: modal_aerosol_state
@@ -294,7 +294,7 @@ subroutine microp_aero_init(pbuf2d)
       cldo_idx = pbuf_get_index('CLDO')
       call ndrop_carma_init()
 
-      aero_props_obj => sectional_aerosol_properties()
+      aero_props_obj => carma_aerosol_properties()
 
    else
 
