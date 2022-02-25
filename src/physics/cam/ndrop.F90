@@ -1511,9 +1511,8 @@ subroutine activate_modal(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
          if ( present( smax_prescribed ) ) then
             smax = smax_prescribed
          else
-            call maxsat(zeta,eta,nmode,smc,aero_props,smax)
+            smax = aero_props%maxsat(zeta,eta,smc)
          endif
-         !	      write(iulog,*)'w,smax=',w,smax
 
          lnsmax=log(smax)
 
@@ -1680,7 +1679,7 @@ subroutine activate_modal(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
             if ( present(smax_prescribed) ) then
                smax = smax_prescribed
             else
-               call maxsat(zeta, eta, nmode, smc,aero_props, smax)
+               smax = aero_props%maxsat(zeta,eta,smc)
             end if
          end if
 
@@ -1708,57 +1707,6 @@ end subroutine activate_modal
 
 !===============================================================================
 
-subroutine maxsat(zeta,eta,nmode,smc,aero_props,smax)
-
-   !      calculates maximum supersaturation for multiple
-   !      competing aerosol modes.
-
-   !      Abdul-Razzak and Ghan, A parameterization of aerosol activation.
-   !      2. Multiple aerosol types. J. Geophys. Res., 105, 6837-6844.
-
-   integer,  intent(in)  :: nmode ! number of modes
-   real(r8), intent(in)  :: smc(nmode) ! critical supersaturation for number mode radius
-   real(r8), intent(in)  :: zeta(nmode)
-   real(r8), intent(in)  :: eta(nmode)
-   class(aerosol_properties), intent(in) :: aero_props
-   real(r8), intent(out) :: smax ! maximum supersaturation
-   integer  :: m  ! mode index
-   real(r8) :: sum, g1, g2, g1sqrt, g2sqrt
-
-   do m=1,nmode
-      if(zeta(m).gt.1.e5_r8*eta(m).or.smc(m)*smc(m).gt.1.e5_r8*eta(m))then
-         !            weak forcing. essentially none activated
-         smax=1.e-20_r8
-      else
-         !            significant activation of this mode. calc activation all modes.
-         exit
-      endif
-          ! No significant activation in any mode.  Do nothing.
-      if (m == nmode) return
-
-   enddo
-
-   sum=0.0_r8
-   do m=1,nmode
-      if(eta(m).gt.1.e-20_r8)then
-         g1=zeta(m)/eta(m)
-         g1sqrt=sqrt(g1)
-         g1=g1sqrt*g1
-         g2=smc(m)/sqrt(eta(m)+3._r8*zeta(m))
-         g2sqrt=sqrt(g2)
-         g2=g2sqrt*g2
-         sum=sum+(aero_props%abdraz_f1(m)*g1+aero_props%abdraz_f2(m)*g2)/(smc(m)*smc(m))
-      else
-         sum=1.e20_r8
-      endif
-   enddo
-
-   smax=1._r8/sqrt(sum)
-
-end subroutine maxsat
-
-!===============================================================================
-
 subroutine ccncalc(aero_state, aero_props, state, pbuf, cs, ccn)
 
    ! calculates number concentration of aerosols activated as CCN at
@@ -1780,8 +1728,8 @@ subroutine ccncalc(aero_state, aero_props, state, pbuf, cs, ccn)
 
    ! local
 
-   integer :: lchnk ! chunk index
    integer :: ncol  ! number of columns
+   integer :: nbin  ! number of bins
    real(r8), pointer :: tair(:,:)     ! air temperature (K)
 
    real(r8) naerosol(pcols) ! interstit+activated aerosol number conc (/m3)
@@ -1799,19 +1747,18 @@ subroutine ccncalc(aero_state, aero_props, state, pbuf, cs, ccn)
    real(r8) arg(pcols)
    !     mathematical constants
    real(r8) twothird,sq2
-   integer l,m,n,i,k
-   real(r8) log,cc
+   integer l,m,i,k
    real(r8) smcoefcoef,smcoef(pcols)
    integer phase ! phase of aerosol
    !-------------------------------------------------------------------------------
 
-   lchnk = state%lchnk
+   nbin  = aero_props%nbins()
    ncol  = state%ncol
    tair  => state%t
 
    allocate( &
-      amcubecoef(ntot_amode), &
-      argfactor(ntot_amode)   )
+      amcubecoef(nbin), &
+      argfactor(nbin)   )
 
    super(:)=supersat(:)*0.01_r8
    sq2=sqrt(2._r8)
@@ -1820,7 +1767,7 @@ subroutine ccncalc(aero_state, aero_props, state, pbuf, cs, ccn)
    surften_coef=2._r8*mwh2o*surften/(r_universal*rhoh2o)
    smcoefcoef=2._r8/sqrt(27._r8)
 
-   do m=1,ntot_amode
+   do m=1,nbin
       amcubecoef(m)=3._r8/(4._r8*pi*exp45logsig(m))
       argfactor(m)=twothird/(sq2*alogsig(m))
    end do
@@ -1833,7 +1780,7 @@ subroutine ccncalc(aero_state, aero_props, state, pbuf, cs, ccn)
          smcoef(i)=smcoefcoef*a(i)*sqrt(a(i))
       end do
 
-      do m=1,ntot_amode
+      do m=1,nbin
 
          phase=3 ! interstitial+cloudborne
 
@@ -1842,7 +1789,7 @@ subroutine ccncalc(aero_state, aero_props, state, pbuf, cs, ccn)
             m, cs, phase, naerosol, vaerosol, &
             hygro)
 
-         where(naerosol(:ncol)>1.e-3_r8)
+         where(naerosol(:ncol)>1.e-3_r8 .and. hygro(:ncol).gt.1.e-10_r8)
             amcube(:ncol)=amcubecoef(m)*vaerosol(:ncol)/naerosol(:ncol)
             sm(:ncol)=smcoef(:ncol)/sqrt(hygro(:ncol)*amcube(:ncol)) ! critical supersaturation
          elsewhere
@@ -1865,5 +1812,4 @@ subroutine ccncalc(aero_state, aero_props, state, pbuf, cs, ccn)
 end subroutine ccncalc
 
 !===============================================================================
-
 end module ndrop

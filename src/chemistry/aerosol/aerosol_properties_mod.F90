@@ -15,6 +15,7 @@ module aerosol_properties_mod
      procedure :: initialize => aero_props_init
      procedure :: nbins
      procedure :: nspecies
+     procedure :: maxsat     ! *** Does this belong with this class ??
      procedure(aero_props_abdraz_f), deferred :: abdraz_f1
      procedure(aero_props_abdraz_f), deferred :: abdraz_f2
      procedure(aero_props_get), deferred :: get
@@ -80,5 +81,63 @@ contains
 
     nbins = self%nbins_
   end function nbins
+
+  !------------------------------------------------------------------------------
+  ! *** Does maxsat belong with this class ??
+  !------------------------------------------------------------------------------
+  function maxsat(self, zeta,eta,smc) result(smax)
+
+    !-------------------------------------------------------------------------
+    ! Calculates maximum supersaturation for multiple competing aerosol modes.
+    !
+    ! Abdul-Razzak and Ghan, A parameterization of aerosol activation.
+    ! 2. Multiple aerosol types. J. Geophys. Res., 105, 6837-6844.
+    !-------------------------------------------------------------------------
+
+    class(aerosol_properties), intent(in) :: self
+    real(r8), intent(in)  :: zeta(self%nbins_)
+    real(r8), intent(in)  :: eta(self%nbins_)
+    real(r8), intent(in)  :: smc(self%nbins_) ! critical supersaturation for number mode radius
+
+    real(r8) :: smax ! maximum supersaturation
+
+    integer  :: m
+    integer  :: nbins
+    real(r8) :: sum, g1, g2, g1sqrt, g2sqrt
+
+    smax=0.0_r8
+    nbins = self%nbins_
+
+    check_loop: do m=1,nbins
+       if((zeta(m) > 1.e5_r8*eta(m)) .or. (smc(m)*smc(m) > 1.e5_r8*eta(m))) then
+          ! weak forcing -- essentially none activated
+          smax=1.e-20_r8
+       else
+          ! significant activation of this mode -- calc activation all modes
+          exit check_loop
+       endif
+       ! No significant activation in any mode.  Do nothing.
+       if (m == nbins) return
+    enddo check_loop
+
+    sum=0.0_r8
+
+    do m=1,nbins
+       if(eta(m) > 1.e-20_r8)then
+          g1=zeta(m)/eta(m)
+          g1sqrt=sqrt(g1)
+          g1=g1sqrt*g1
+          g2=smc(m)/sqrt(eta(m)+3._r8*zeta(m))
+          g2sqrt=sqrt(g2)
+          g2=g2sqrt*g2
+          sum=sum+(self%abdraz_f1(m)*g1+self%abdraz_f2(m)*g2)/(smc(m)*smc(m))
+       else
+          sum=1.e20_r8
+       endif
+    enddo
+
+    smax=1._r8/sqrt(sum)
+
+  end function maxsat
 
 end module aerosol_properties_mod
