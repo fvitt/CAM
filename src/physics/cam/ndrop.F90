@@ -1446,9 +1446,8 @@ subroutine activate_modal(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
    do m=1,nmode
 
       if(volume(m).gt.1.e-39_r8.and.na(m).gt.1.e-39_r8)then
-         !            number mode radius (m)
-         !           write(iulog,*)'alogsig,volc,na=',alogsig(m),volc(m),na(m)
-         amcube(m)=(3._r8*volume(m)/(4._r8*pi*exp45logsig(m)*na(m)))  ! only if variable size dist
+         ! number mode radius (m)
+         amcube(m)=aero_props%amcube(m, volume(m),na(m))
          !           growth coefficent Abdul-Razzak & Ghan 1998 eqn 16
          !           should depend on mean radius of mode to account for gas kinetic effects
          !           see Fountoukis and Nenes, JGR2005 and Meskhidze et al., JGR2006
@@ -1459,14 +1458,12 @@ subroutine activate_modal(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
          else
             smc(m)=100._r8
          endif
-         !	    write(iulog,*)'sm,hygro,amcube=',smcrit(m),hygro(m),amcube(m)
       else
          smc(m)=1._r8
          etafactor2(m)=etafactor2max ! this should make eta big if na is very small.
       endif
       lnsm(m)=log(smc(m)) ! only if variable size dist
-      !	 write(iulog,'(a,i4,4g12.2)')'m,na,amcube,hygro,sm,lnsm=', &
-      !                   m,na(m),amcube(m),hygro(m),sm(m),lnsm(m)
+
    enddo
 
    if(sigw.gt.1.e-5_r8)then ! spectrum of updrafts
@@ -1737,7 +1734,6 @@ subroutine ccncalc(aero_state, aero_props, state, pbuf, cs, ccn)
 
    real(r8) amcube(pcols)
    real(r8) super(psat) ! supersaturation
-   real(r8), allocatable :: amcubecoef(:)
    real(r8), allocatable :: argfactor(:)
    real(r8) :: surften       ! surface tension of water w/respect to air (N/m)
    real(r8) surften_coef
@@ -1757,7 +1753,6 @@ subroutine ccncalc(aero_state, aero_props, state, pbuf, cs, ccn)
    tair  => state%t
 
    allocate( &
-      amcubecoef(nbin), &
       argfactor(nbin)   )
 
    super(:)=supersat(:)*0.01_r8
@@ -1768,7 +1763,6 @@ subroutine ccncalc(aero_state, aero_props, state, pbuf, cs, ccn)
    smcoefcoef=2._r8/sqrt(27._r8)
 
    do m=1,nbin
-      amcubecoef(m)=3._r8/(4._r8*pi*exp45logsig(m))
       argfactor(m)=twothird/(sq2*alogsig(m))
    end do
 
@@ -1790,7 +1784,7 @@ subroutine ccncalc(aero_state, aero_props, state, pbuf, cs, ccn)
             hygro)
 
          where(naerosol(:ncol)>1.e-3_r8 .and. hygro(:ncol).gt.1.e-10_r8)
-            amcube(:ncol)=amcubecoef(m)*vaerosol(:ncol)/naerosol(:ncol)
+            amcube(:ncol)=aero_props%amcubecoef(m)*vaerosol(:ncol)/naerosol(:ncol)
             sm(:ncol)=smcoef(:ncol)/sqrt(hygro(:ncol)*amcube(:ncol)) ! critical supersaturation
          elsewhere
             sm(:ncol)=1._r8 ! value shouldn't matter much since naerosol is small
@@ -1806,7 +1800,6 @@ subroutine ccncalc(aero_state, aero_props, state, pbuf, cs, ccn)
    ccn(:ncol,:,:)=ccn(:ncol,:,:)*1.e-6_r8 ! convert from #/m3 to #/cm3
 
    deallocate( &
-      amcubecoef, &
       argfactor   )
 
 end subroutine ccncalc

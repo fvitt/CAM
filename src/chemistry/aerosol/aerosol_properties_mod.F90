@@ -11,11 +11,14 @@ module aerosol_properties_mod
      private
      integer :: nbins_ = 0
      integer, allocatable :: nspecies_(:)
+     real(r8), allocatable :: amcubecoefs_(:)
    contains
      procedure :: initialize => aero_props_init
      procedure :: nbins
      procedure :: nspecies
      procedure :: maxsat     ! *** Does this belong with this class ??
+     procedure :: amcubecoef
+     procedure :: amcube
      procedure(aero_props_abdraz_f), deferred :: abdraz_f1
      procedure(aero_props_abdraz_f), deferred :: abdraz_f2
      procedure(aero_props_get), deferred :: get
@@ -37,20 +40,26 @@ module aerosol_properties_mod
        integer, intent(in) :: m
        real(r8) :: f
      end function aero_props_abdraz_f
+
   end interface
 
 contains
 
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------
-  subroutine aero_props_init(self, n, nspec )
+  subroutine aero_props_init(self, n, nspec, amcubecoefs )
     class(aerosol_properties), intent(inout) :: self
     integer :: n
     integer :: nspec(n)
+    real(8) :: amcubecoefs(n)
+
+    allocate(self%nspecies_(n))
+    allocate(self%amcubecoefs_(n))
 
     self%nbins_ = n
-    allocate(self%nspecies_(n))
     self%nspecies_(:) = nspec(:)
+    self%amcubecoefs_(:) = amcubecoefs(:)
+
   end subroutine aero_props_init
 
   !------------------------------------------------------------------------------
@@ -60,6 +69,9 @@ contains
 
     if (allocated(self%nspecies_)) then
        deallocate(self%nspecies_)
+    end if
+    if (allocated(self%amcubecoefs_)) then
+       deallocate(self%amcubecoefs_)
     end if
 
     self%nbins_ = 0
@@ -81,6 +93,29 @@ contains
 
     nbins = self%nbins_
   end function nbins
+
+  !------------------------------------------------------------------------------
+  !------------------------------------------------------------------------------
+  pure real(r8) function amcubecoef(self, m)
+    class(aerosol_properties), intent(in) :: self
+    integer, intent(in) :: m
+
+    amcubecoef = self%amcubecoefs_(m)
+  end function amcubecoef
+
+  !------------------------------------------------------------------------------
+  !------------------------------------------------------------------------------
+  pure real(r8) function amcube(self, m, volconc, numconc)
+
+    class(aerosol_properties), intent(in) :: self
+    integer, intent(in) :: m
+    real(r8), intent(in) :: volconc
+    real(r8), intent(in) :: numconc
+
+    amcube = self%amcubecoefs_(m)*volconc/numconc
+
+  end function amcube
+
 
   !------------------------------------------------------------------------------
   ! *** Does maxsat belong with this class ??

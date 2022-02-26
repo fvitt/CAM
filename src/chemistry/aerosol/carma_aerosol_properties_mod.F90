@@ -27,23 +27,29 @@ contains
   !------------------------------------------------------------------------------
   function constructor() result(newobj)
     use rad_constituents, only: rad_cnst_get_info, rad_cnst_get_info_by_bin
+    use physconst,        only: pi
 
     type(carma_aerosol_properties), pointer :: newobj
 
     integer :: m, nbins
     integer,allocatable :: nspecies(:)
+    real(r8),allocatable :: amcubecoefs(:)
 
     allocate(newobj)
 
     call rad_cnst_get_info( 0, nbins=nbins)
     allocate( nspecies(nbins) )
+    allocate( amcubecoefs(nbins) )
 
     do m = 1, nbins
        call rad_cnst_get_info_by_bin(0, m, nspec=nspecies(m))
     end do
 
-    call newobj%initialize(nbins,nspecies)
+    amcubecoefs(:)=3._r8/(4._r8*pi)
+
+    call newobj%initialize(nbins,nspecies,amcubecoefs)
     deallocate(nspecies)
+    deallocate(amcubecoefs)
 
   end function constructor
 

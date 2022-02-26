@@ -23,6 +23,7 @@ module modal_aerosol_state_mod
      procedure :: get_cldbrne_mmr
      procedure :: get_ambient_num
      procedure :: get_cldbrne_num
+
      final :: destructor
 
   end type modal_aerosol_state

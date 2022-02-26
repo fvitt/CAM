@@ -1426,32 +1426,24 @@ subroutine activate_carma(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
    do m=1,nmode
 
       if(volume(m).gt.1.e-39_r8.and.na(m).gt.1.e-39_r8)then
-
-         amcube(m)=(3._r8*volume(m)/(4._r8*pi*na(m)))
+         ! number mode radius (m)
+         amcube(m)=aero_props%amcube(m, volume(m),na(m))
          !           growth coefficent Abdul-Razzak & Ghan 1998 eqn 16
          !           should depend on mean radius of mode to account for gas kinetic effects
          !           see Fountoukis and Nenes, JGR2005 and Meskhidze et al., JGR2006
          !           for approriate size to use for effective diffusivity.
-         !st changed according to Pengfei's code
          etafactor2(m)=1._r8/(na(m)*beta*sqrtg)
          if(hygro(m).gt.1.e-10_r8)then
-            !st old mam description: smc(m)=2._r8*aten*sqrt(aten/(27._r8*hygro(m)*amcube(m))) ! only if variable size dist
             smc(m)=2._r8*aten*sqrt(aten/(27._r8*hygro(m)*amcube(m))) ! only if variable size dist
-            !use Tianyi's code
-            !smc(m)=2._r8*aten*sqrt(aten/(20.25_r8/pi*hygro(m,igroup)*&
-            !                           4._r8/3._r8*3.14159_r8*r(m)**3*1.e-6_r8))
          else
             smc(m)=100._r8
          endif
       else
          smc(m)=1._r8
          etafactor2(m)=etafactor2max ! this should make eta big if na is very small.
-         !st write(iulog,'(a,i4,2g12.2)')'SMC1: m,na,volume= ',m,na(m),volume(m)
       endif
+      ! lnsm(m)=log(smc(m)) ! only if variable size dist
 
-      !st  lnsm(m)=log(smc(m)) ! only if variable size dist
-        !write(iulog,'(a,i4,5g12.2)')'m,na,volume,amcube,hygro,smc,smc2,r= ', &
-        !                   m,na(m),volume(m),amcube(m),hygro(m),smc(m),smc2(m),r(m)
    enddo
 
    if(sigw.gt.1.e-5_r8)then ! spectrum of updrafts
@@ -1732,7 +1724,6 @@ subroutine ccncalc(aero_state, aero_props, state, pbuf, cs, ccn)
 
    real(r8) amcube(pcols)
    real(r8) super(psat) ! supersaturation
-   real(r8), allocatable :: amcubecoef(:)
    real(r8), allocatable :: argfactor(:)
    real(r8) :: surften       ! surface tension of water w/respect to air (N/m)
    real(r8) surften_coef
@@ -1752,7 +1743,6 @@ subroutine ccncalc(aero_state, aero_props, state, pbuf, cs, ccn)
    tair  => state%t
 
    allocate( &
-      amcubecoef(nbin), &
       argfactor(nbin)   )
 
    super(:)=supersat(:)*0.01_r8
@@ -1763,8 +1753,7 @@ subroutine ccncalc(aero_state, aero_props, state, pbuf, cs, ccn)
    smcoefcoef=2._r8/sqrt(27._r8)
 
    do m=1,nbin
-      amcubecoef(m)=3._r8/(4._r8*pi)
-      argfactor(m)=twothird/(sq2*log(2._r8))
+      argfactor(m)=twothird/(sq2*log(2._r8)) ! is this correct for CARMA ??
    end do
 
    ccn = 0._r8
@@ -1785,7 +1774,7 @@ subroutine ccncalc(aero_state, aero_props, state, pbuf, cs, ccn)
             hygro)
 
          where(naerosol(:ncol)>1.e-3_r8 .and. hygro(:ncol).gt.1.e-10_r8)
-            amcube(:ncol)=amcubecoef(m)*vaerosol(:ncol)/naerosol(:ncol)
+            amcube(:ncol)=aero_props%amcubecoef(m)*vaerosol(:ncol)/naerosol(:ncol)
             sm(:ncol)=smcoef(:ncol)/sqrt(hygro(:ncol)*amcube(:ncol)) ! critical supersaturation
          elsewhere
             sm(:ncol)=1._r8 ! value shouldn't matter much since naerosol is small
@@ -1793,7 +1782,7 @@ subroutine ccncalc(aero_state, aero_props, state, pbuf, cs, ccn)
          do l=1,psat
             do i=1,ncol
                arg(i)=argfactor(m)*log(sm(i)/super(l))
-               ccn(i,k,l)=ccn(i,k,l)+naerosol(i)*0.5_r8*(1._r8-erf(arg(i)))
+               ccn(i,k,l)=ccn(i,k,l)+naerosol(i)*0.5_r8*(1._r8-erf(arg(i))) ! is this correct for CARMA ??
             enddo
          enddo
       enddo
@@ -1801,7 +1790,6 @@ subroutine ccncalc(aero_state, aero_props, state, pbuf, cs, ccn)
    ccn(:ncol,:,:)=ccn(:ncol,:,:)*1.e-6_r8 ! convert from #/m3 to #/cm3
 
    deallocate( &
-      amcubecoef, &
       argfactor   )
 
 end subroutine ccncalc
