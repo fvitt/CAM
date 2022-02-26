@@ -51,7 +51,7 @@ contains
     class(aerosol_properties), intent(inout) :: self
     integer :: n
     integer :: nspec(n)
-    real(8) :: amcubecoefs(n)
+    real(r8) :: amcubecoefs(n)
 
     allocate(self%nspecies_(n))
     allocate(self%amcubecoefs_(n))

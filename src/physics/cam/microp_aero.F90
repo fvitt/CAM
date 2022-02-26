@@ -443,7 +443,7 @@ subroutine microp_aero_run ( &
    integer :: nmodes
    integer :: nbins
 
-   type(physics_state) :: state1                ! Local copy of state variable
+   type(physics_state), target :: state1                ! Local copy of state variable
    type(physics_ptend) :: ptend_loc
 
    real(r8), pointer :: ast(:,:)
