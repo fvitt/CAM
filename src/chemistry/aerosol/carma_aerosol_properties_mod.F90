@@ -14,6 +14,7 @@ module carma_aerosol_properties_mod
      procedure :: abdraz_f1
      procedure :: abdraz_f2
      procedure :: get
+     procedure :: actfracs
      final :: destructor
   end type carma_aerosol_properties
 
@@ -93,5 +94,24 @@ contains
 
     f = 1._r8
   end function abdraz_f2
+
+  !------------------------------------------------------------------------------
+  !------------------------------------------------------------------------------
+  subroutine actfracs(self, m, smc, smax, fn, fm )
+    class(carma_aerosol_properties), intent(in) :: self
+    integer, intent(in) :: m
+    real(r8),intent(in) :: smc
+    real(r8),intent(in) :: smax
+    real(r8),intent(out) :: fn, fm
+
+    fn = 0._r8
+    fm = 0._r8
+
+    if (smc < smax) then
+       fn = 1._r8
+       fm = 1._r8
+    end if
+
+  end subroutine actfracs
 
 end module carma_aerosol_properties_mod

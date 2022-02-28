@@ -22,6 +22,7 @@ module aerosol_properties_mod
      procedure(aero_props_abdraz_f), deferred :: abdraz_f1
      procedure(aero_props_abdraz_f), deferred :: abdraz_f2
      procedure(aero_props_get), deferred :: get
+     procedure(aero_actfracs), deferred :: actfracs
      procedure :: final=>aero_props_final
   end type aerosol_properties
 
@@ -40,6 +41,17 @@ module aerosol_properties_mod
        integer, intent(in) :: m
        real(r8) :: f
      end function aero_props_abdraz_f
+
+     subroutine aero_actfracs(self, m, smc, smax, fn, fm )
+       import
+       class(aerosol_properties), intent(in) :: self
+       integer, intent(in) :: m
+       real(r8),intent(in) :: smc
+       real(r8),intent(in) :: smax
+       real(r8),intent(out) :: fn, fm
+
+     end subroutine aero_actfracs
+
 
   end interface
 

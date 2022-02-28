@@ -26,6 +26,7 @@ module modal_aerosol_properties_mod
      procedure :: voltonumblo
      procedure :: voltonumbhi
      procedure :: amcube
+     procedure :: actfracs
      final :: destructor
   end type modal_aerosol_properties
 
@@ -179,5 +180,27 @@ contains
     amcube = (3._r8*volconc/(4._r8*pi*self%exp45logsig_(m)*numconc))
 
   end function amcube
+
+  !------------------------------------------------------------------------------
+  !------------------------------------------------------------------------------
+  subroutine actfracs(self, m, smc, smax, fn, fm )
+    use shr_spfn_mod, only: erf => shr_spfn_erf
+    class(modal_aerosol_properties), intent(in) :: self
+    integer, intent(in) :: m
+    real(r8),intent(in) :: smc
+    real(r8),intent(in) :: smax
+    real(r8),intent(out) :: fn, fm
+
+    real(r8) :: x,y
+    real(r8), parameter :: twothird = 2._r8/3._r8
+    real(r8), parameter :: sq2      = sqrt(2._r8)
+
+    x=twothird*(log(smc)-log(smax))/(sq2*self%alogsig(m))
+    y=x-1.5_r8*sq2*self%alogsig(m)
+
+    fn = 0.5_r8*(1._r8-erf(x))
+    fm = 0.5_r8*(1._r8-erf(y))
+
+  end subroutine actfracs
 
 end module modal_aerosol_properties_mod

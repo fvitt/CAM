@@ -1371,7 +1371,6 @@ subroutine activate_carma(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
    real(r8) alw,sqrtalw
    real(r8) smax
    real(r8) arg
-   real(r8) xmincoeff
    real(r8) z,z1,z2,wf1,wf2,zf1,zf2,gf1,gf2,gf
    real(r8) etafactor1,etafactor2(nmode),etafactor2max
    real(r8) grow
@@ -1491,11 +1490,7 @@ subroutine activate_carma(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
             smax = aero_props%maxsat(zeta,eta,smc)
          endif
 
-         !st lnsmax=log(smax)
-
-         !st x=twothird*(lnsm(nmode)-lnsmax)/(sq2*alogsig(nmode))
-         !st fnew=0.5_r8*(1._r8-erf(x))
-         fnew = 1._r8
+         call aero_props%actfracs( nmode, smc(nmode), smax, fnew, fm(nmode) )
 
          dwnew = dw
          if(fnew-fold.gt.dfmax.and.n.gt.1)then
@@ -1519,21 +1514,14 @@ subroutine activate_carma(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
          z=(w-wbar)/(sigw*sq2)
          g=exp(-z*z)
          fnmin=1._r8
-         !st xmincoeff=alogaten-twothird*(lnsmax-alog2)-alog3
 
          do m=1,nmode
             !              modal
-            !st x=twothird*(lnsm(m)-lnsmax)/(sq2*alogsig(m))
-            !st fn(m)=0.5_r8*(1._r8-erf(x))
-            !st fnmin=min(fn(m),fnmin)
+            call aero_props%actfracs( m, smc(m), smax, fn(m), fm(m) )
+            fnmin=min(fn(m),fnmin)
             !               integration is second order accurate
             !               assumes linear variation of f*g with w
-            fm(m) = 1._r8
-            fn(m) = 1._r8
-
             fnbar=(fn(m)*g+fnold(m)*gold)
-            !st arg=x-1.5_r8*sq2*alogsig(m)
-            !st fm(m)=0.5_r8*(1._r8-erf(arg))
             fmbar=(fm(m)*g+fmold(m)*gold)
             wb=(w+wold)
             if(w.gt.0._r8)then
@@ -1663,22 +1651,9 @@ subroutine activate_carma(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
             end if
          end if
 
-         !st nsmax=log(smax)
-         !st xmincoeff=alogaten-twothird*(lnsmax-alog2)-alog3
-
-         fn(:) = 0._r8
-         fm(:) = 0._r8
-
          do m=1,nmode
-            !                 modal
-            !st x=twothird*(lnsm(m)-lnsmax)/(sq2*alogsig(m))
-            !st fn(m)=0.5_r8*(1._r8-erf(x))
-            !st arg=x-1.5_r8*sq2*alogsig(m)
-            !st fm(m)=0.5_r8*(1._r8-erf(arg))
-            if (smax .ge. smc(m)) then
-               fm(m) = 1._r8
-               fn(m) = 1._r8
-            end if
+
+            call aero_props%actfracs( m, smc(m), smax, fn(m), fm(m) )
 
             if(wbar.gt.0._r8)then
                fluxn(m)=fn(m)*w
