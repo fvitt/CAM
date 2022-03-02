@@ -1501,7 +1501,11 @@ subroutine activate_carma(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
 
          !st x=twothird*(lnsm(nmode)-lnsmax)/(sq2*alogsig(nmode))
          !st fnew=0.5_r8*(1._r8-erf(x))
-         fnew = 1._r8
+         if (smax .ge. smc(m)) then
+            fnew = 1._r8
+         else
+            fnew = 0._r8
+         end if
 
          dwnew = dw
          if(fnew-fold.gt.dfmax.and.n.gt.1)then
@@ -1534,8 +1538,13 @@ subroutine activate_carma(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
             !st fnmin=min(fn(m),fnmin)
             !               integration is second order accurate
             !               assumes linear variation of f*g with w
-            fm(m) = 1._r8
-            fn(m) = 1._r8
+            if (smax .ge. smc(m)) then
+               fm(m) = 1._r8
+               fn(m) = 1._r8
+            else
+               fm(m) = 0._r8
+               fn(m) = 0._r8
+            end if
 
             fnbar=(fn(m)*g+fnold(m)*gold)
             !st arg=x-1.5_r8*sq2*alogsig(m)

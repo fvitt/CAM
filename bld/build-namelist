@@ -1514,8 +1514,8 @@ elsif ($carma eq 'tholin') {
   add_default($nl, 'carma_emis_file');
 }
 elsif ($carma =~ /trop_strat/) {
-  add_default($nl, 'carma_do_fixedinit','val'=>'.true.');
-  add_default($nl, 'carma_do_partialinit','val'=>'.true.');
+  add_default($nl, 'carma_do_fixedinit','val'=>'.false.');
+  add_default($nl, 'carma_do_partialinit','val'=>'.false.');
   add_default($nl, 'carma_do_drydep',   'val'=>'.true.');
   add_default($nl, 'carma_do_optics',   'val'=>'.false.');
   add_default($nl, 'carma_do_vtran',    'val'=>'.true.');
