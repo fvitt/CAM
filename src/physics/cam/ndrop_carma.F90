@@ -1350,13 +1350,11 @@ subroutine activate_carma(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
    real(r8) dqsdt ! change in qs with temperature
    real(r8) g ! thermodynamic function (m2/s)
    real(r8) zeta(nmode), eta(nmode)
-   real(r8) lnsmax ! ln(smax)
    real(r8) alpha
    real(r8) gamma
    real(r8) beta
    real(r8) sqrtg
    real(r8) :: amcube(nmode) ! cube of dry mode radius (m)
-   real(r8) :: lnsm(nmode)
    real(r8) smc(nmode) ! critical supersaturation for number mode radius
    real(r8) sumflx_fullact
    real(r8) sumflxn(nmode)
@@ -1370,7 +1368,6 @@ subroutine activate_carma(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
    real(r8) dfmin,dfmax,fnew,fold,fnmin,fnbar,fmbar
    real(r8) alw,sqrtalw
    real(r8) smax
-   real(r8) arg
    real(r8) z,z1,z2,wf1,wf2,zf1,zf2,gf1,gf2,gf
    real(r8) etafactor1,etafactor2(nmode),etafactor2max
    real(r8) grow
@@ -1441,7 +1438,6 @@ subroutine activate_carma(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
          smc(m)=1._r8
          etafactor2(m)=etafactor2max ! this should make eta big if na is very small.
       endif
-      ! lnsm(m)=log(smc(m)) ! only if variable size dist
 
    enddo
 
@@ -1531,7 +1527,6 @@ subroutine activate_carma(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
                   +(fm(m)*g*w+fmold(m)*gold*wold))*dw
             endif
             sumfn(m)=sumfn(m)+0.5_r8*fnbar*dw
-            !	       write(iulog,'(a,9g10.2)')'lnsmax,lnsm(m),x,fn(m),fnold(m),g,gold,fnbar,dw=',lnsmax,lnsm(m),x,fn(m),fnold(m),g,gold,fnbar,dw
             fnold(m)=fn(m)
             sumfm(m)=sumfm(m)+0.5_r8*fmbar*dw
             fmold(m)=fm(m)
@@ -1539,7 +1534,6 @@ subroutine activate_carma(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
          !           same form as sumflxm but replace the fm with 1.0
          sumflx_fullact = sumflx_fullact &
             + sixth*(wb*(g+gold) + (g*w+gold*wold))*dw
-         !            sumg=sumg+0.5_r8*(g+gold)*dw
          gold=g
          wold=w
          dw=dwnew

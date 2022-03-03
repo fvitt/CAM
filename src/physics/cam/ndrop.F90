@@ -1310,7 +1310,6 @@ subroutine activate_modal(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
    !      Abdul-Razzak and Ghan, A parameterization of aerosol activation.
    !      2. Multiple aerosol types. J. Geophys. Res., 105, 6837-6844.
 
-
    !      input
 
    real(r8), intent(in) :: wbar          ! grid cell mean vertical velocity (m/s)
@@ -1348,33 +1347,21 @@ subroutine activate_modal(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
    !      local
 
    integer, parameter:: nx=200
-   integer iquasisect_option, isectional
    real(r8) integ,integf
    real(r8), parameter :: p0 = 1013.25e2_r8    ! reference pressure (Pa)
-   real(r8) xmin(nmode),xmax(nmode) ! ln(r) at section interfaces
-   real(r8) volmin(nmode),volmax(nmode) ! volume at interfaces
-   real(r8) tmass ! total aerosol mass concentration (g/cm3)
-   real(r8) sign(nmode)    ! geometric standard deviation of size distribution
    real(r8) rm ! number mode radius of aerosol at max supersat (cm)
    real(r8) pres ! pressure (Pa)
-   real(r8) path ! mean free path (m)
-   real(r8) diff ! diffusivity (m2/s)
-   real(r8) conduct ! thermal conductivity (Joule/m/sec/deg)
    real(r8) diff0,conduct0
    real(r8) es ! saturation vapor pressure
    real(r8) qs ! water vapor saturation mixing ratio
    real(r8) dqsdt ! change in qs with temperature
-   real(r8) dqsdp ! change in qs with pressure
    real(r8) g ! thermodynamic function (m2/s)
    real(r8) zeta(nmode), eta(nmode)
-   real(r8) lnsmax ! ln(smax)
    real(r8) alpha
    real(r8) gamma
    real(r8) beta
    real(r8) sqrtg
    real(r8) :: amcube(nmode) ! cube of dry mode radius (m)
-   real(r8) :: smcrit(nmode) ! critical supersatuation for activation
-   real(r8) :: lnsm(nmode) ! ln(smcrit)
    real(r8) smc(nmode) ! critical supersaturation for number mode radius
    real(r8) sumflx_fullact
    real(r8) sumflxn(nmode)
@@ -1384,13 +1371,10 @@ subroutine activate_modal(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
    real(r8) fnold(nmode)   ! number fraction activated
    real(r8) fmold(nmode)   ! mass fraction activated
    real(r8) wold,gold
-   real(r8) alogam
-   real(r8) rlo,rhi,xint1,xint2,xint3,xint4
    real(r8) wmin,wmax,w,dw,dwmax,dwmin,wnuc,dwnew,wb
-   real(r8) dfmin,dfmax,fnew,fold,fnmin,fnbar,fsbar,fmbar
+   real(r8) dfmin,dfmax,fnew,fold,fnmin,fnbar,fmbar
    real(r8) alw,sqrtalw
    real(r8) smax
-   real(r8) x,arg
    real(r8) z,z1,z2,wf1,wf2,zf1,zf2,gf1,gf2,gf
    real(r8) etafactor1,etafactor2(nmode),etafactor2max
    real(r8) grow
@@ -1461,7 +1445,6 @@ subroutine activate_modal(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
          smc(m)=1._r8
          etafactor2(m)=etafactor2max ! this should make eta big if na is very small.
       endif
-!!$      lnsm(m)=log(smc(m)) ! only if variable size dist
 
    enddo
 
@@ -1551,7 +1534,6 @@ subroutine activate_modal(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
                   +(fm(m)*g*w+fmold(m)*gold*wold))*dw
             endif
             sumfn(m)=sumfn(m)+0.5_r8*fnbar*dw
-            !	       write(iulog,'(a,9g10.2)')'lnsmax,lnsm(m),x,fn(m),fnold(m),g,gold,fnbar,dw=',lnsmax,lnsm(m),x,fn(m),fnold(m),g,gold,fnbar,dw
             fnold(m)=fn(m)
             sumfm(m)=sumfm(m)+0.5_r8*fmbar*dw
             fmold(m)=fm(m)
@@ -1559,7 +1541,6 @@ subroutine activate_modal(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
          !           same form as sumflxm but replace the fm with 1.0
          sumflx_fullact = sumflx_fullact &
             + sixth*(wb*(g+gold) + (g*w+gold*wold))*dw
-         !            sumg=sumg+0.5_r8*(g+gold)*dw
          gold=g
          wold=w
          dw=dwnew
