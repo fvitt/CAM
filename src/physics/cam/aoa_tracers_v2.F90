@@ -70,7 +70,7 @@ contains
     use physconst, only: cpair, mwdry
     use constituents, only: cnst_add
 
-    integer :: i, ndx
+    integer :: i
 
     if (.not.aoa_v2_active) return
 
