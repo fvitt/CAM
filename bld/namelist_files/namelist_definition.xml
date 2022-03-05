@@ -5438,6 +5438,17 @@ If this is not specified then they are not read from IC file.
 Default: TRUE
 </entry>
 
+<entry id="aoa_v2_active" type="logical" category="test_tracers"
+       group="aoa_tracers_v2_opts" valid_values="" >
+If true age of air tracers are included.
+Default: FALSE
+</entry>
+<entry id="aoa_v2_readic" type="logical" category="test_tracers"
+       group="aoa_tracers_v2_opts" valid_values="" >
+If TRUE age of air tracers are read from the initial conditions file.
+Default: TRUE
+</entry>
+
 <!-- Time step -->
 
 <entry id="dtime" type="integer"  category="time_mgr"

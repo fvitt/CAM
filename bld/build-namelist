@@ -772,6 +772,7 @@ if ($test_tracer_num > 0) {
 }
 
 if ($cfg->get('age_of_air_trcs')) { add_default($nl, 'aoa_tracers_flag', 'val'=>'.true.'); }
+if ($cfg->get('aoa_tracers_v2')) { add_default($nl, 'aoa_v2_active', 'val'=>'.true.'); }
 
 # If phys option is "cam3" then turn on the CAM3 prescribed ozone and aerosols
 if ($phys eq 'cam3' and !$aqua_mode) {

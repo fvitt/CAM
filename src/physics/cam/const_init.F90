@@ -26,6 +26,7 @@ CONTAINS
        verbose, notfound, z)
     use constituents,  only: cnst_name, cnst_read_iv
     use aoa_tracers,   only: aoa_tracers_implements_cnst,   aoa_tracers_init_cnst
+    use aoa_tracers_v2,only: aoa_tracers_v2_impl_cnst, aoa_tracers_v2_init_cnst
     use carma_intr,    only: carma_implements_cnst,         carma_init_cnst
     use chemistry,     only: chem_implements_cnst,          chem_init_cnst
     use clubb_intr,    only: clubb_implements_cnst,         clubb_init_cnst
@@ -98,6 +99,11 @@ CONTAINS
       call aoa_tracers_init_cnst(trim(name), latvals, lonvals, mask_use, q)
       if(masterproc .and. verbose_use) then
         write(iulog,*) '          ', trim(name), ' initialized by "aoa_tracers_init_cnst"'
+      end if
+    else if (aoa_tracers_v2_impl_cnst(trim(name))) then
+      call aoa_tracers_v2_init_cnst(trim(name), latvals, lonvals, mask_use, q)
+      if(masterproc .and. verbose_use) then
+        write(iulog,*) '          ', trim(name), ' initialized by "aoa_tracers_v2_init_cnst"'
       end if
     else if (carma_implements_cnst(trim(name))) then
       call carma_init_cnst(trim(name), latvals, lonvals, mask_use, q)

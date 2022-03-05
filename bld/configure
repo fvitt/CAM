@@ -53,6 +53,7 @@ OPTIONS
   effect whether running CAM from CESM scripts or running via CAM standalone scripts:
 
      -[no]age_of_air_trcs Switch on [off] age of air tracers. Default: on for waccm_phys, otherwise off.
+     -[no]aoa_tracers_v2 Switch on [off] version2 age of air tracers. Default: off.
      -analytic_ic       Enables the (namelist controlled) dycore testing infrastructure
      -aquaplanet        Switch on aqua-planet mode.
      -build_chem_proc   Switch forces the build of the chemistry preprocessor (primarily for testing).
@@ -234,6 +235,7 @@ my %opts = (
             );
 GetOptions(
     "age_of_air_trcs!"          => \$opts{'age_of_air_trcs'},
+    "aoa_tracers_v2"            => \$opts{'aoa_tracers_v2'},
     "analytic_ic"               => \$opts{'analytic_ic'},
     "aquaplanet"                => \$opts{'aquaplanet'},
     "build_chem_proc"           => \$opts{'build_chem_proc'},
@@ -715,6 +717,12 @@ if (defined $opts{'age_of_air_trcs'}) {
 my $age_of_air_trcs = $cfg_ref->get('age_of_air_trcs') ? "ON" : "OFF";
 
 if ($print>=2) { print "Age of air tracer package: $age_of_air_trcs$eol"; }
+
+$cfg_ref->set('aoa_tracers_v2', (defined $opts{'aoa_tracers_v2'}) ? $opts{'aoa_tracers_v2'} : 0);
+
+my $aoa_tracers_v2 = $cfg_ref->get('aoa_tracers_v2') ? "ON" : "OFF";
+if ($print>=2) { print "Age of air tracer package version2: $aoa_tracers_v2 $eol"; }
+
 
 # waccmx option
 if (defined $opts{'waccmx'}) {
@@ -1544,6 +1552,10 @@ else {
     if ($age_of_air_trcs eq "ON") {
         $nadv += 4;
         if ($print>=2) { print "Advected constituents added by the age of air tracer package: 4$eol"; }
+    }
+    if ($aoa_tracers_v2 eq "ON") {
+        $nadv += 1;
+        if ($print>=2) { print "Advected constituents added by the age of air tracer v2 package: 1$eol"; }
     }
 
     $cfg_ref->set('nadv', $nadv);

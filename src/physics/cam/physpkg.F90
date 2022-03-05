@@ -142,6 +142,7 @@ contains
     use prescribed_ghg,     only: prescribed_ghg_register
     use sslt_rebin,         only: sslt_rebin_register
     use aoa_tracers,        only: aoa_tracers_register
+    use aoa_tracers_v2,     only: aoa_tracers_v2_reg
     use aircraft_emit,      only: aircraft_emit_register
     use cam_diagnostics,    only: diag_register
     use cloud_diagnostics,  only: cloud_diagnostics_register
@@ -325,6 +326,7 @@ contains
 
     ! Register age of air tracers
     call aoa_tracers_register()
+    call aoa_tracers_v2_reg()
 
     ! Register test tracers
     call tracers_register()
@@ -736,6 +738,7 @@ contains
     use spcam_drivers,      only: spcam_init
     use tracers,            only: tracers_init
     use aoa_tracers,        only: aoa_tracers_init
+    use aoa_tracers_v2,     only: aoa_tracers_v2_init
     use rayleigh_friction,  only: rayleigh_friction_init
     use pbl_utils,          only: pbl_utils_init
     use vertical_diffusion, only: vertical_diffusion_init
@@ -813,6 +816,7 @@ contains
 
     ! age of air tracers
     call aoa_tracers_init()
+    call aoa_tracers_v2_init()
 
     teout_idx = pbuf_get_index( 'TEOUT')
 
@@ -1530,7 +1534,6 @@ contains
     end if
     call check_tracers_chng(state, tracerint, "aoa_tracers_timestep_tend", nstep, ztodt,   &
          cam_in%cflx)
-
     if (trim(cam_take_snapshot_before) == "co2_cycle_set_ptend") then
        call cam_snapshot_all_outfld_tphysac(cam_snapshot_before_num, state, tend, cam_in, cam_out, pbuf,&
                     fh2o, surfric, obklen, flx_heat)
@@ -1852,7 +1855,7 @@ contains
        call unicon_cam_org_diags(state, pbuf)
 
     end if
-    moist_mixing_ratio_dycore = dycore_is('LR').or. dycore_is('FV3')    
+    moist_mixing_ratio_dycore = dycore_is('LR').or. dycore_is('FV3')
     !
     ! FV: convert dry-type mixing ratios to moist here because physics_dme_adjust
     !     assumes moist. This is done in p_d_coupling for other dynamics. Bundy, Feb 2004.
@@ -1866,12 +1869,12 @@ contains
     tmp_cldliq(:ncol,:pver) = state%q(:ncol,:pver,ixcldliq)
     tmp_cldice(:ncol,:pver) = state%q(:ncol,:pver,ixcldice)
 
-    ! for dry mixing ratio dycore, physics_dme_adjust is called for energy diagnostic purposes only.  
-    ! So, save off tracers 
+    ! for dry mixing ratio dycore, physics_dme_adjust is called for energy diagnostic purposes only.
+    ! So, save off tracers
     if (.not.moist_mixing_ratio_dycore.and.&
          (hist_fld_active('SE_phAM').or.hist_fld_active('KE_phAM').or.hist_fld_active('WV_phAM').or.&
           hist_fld_active('WL_phAM').or.hist_fld_active('WI_phAM').or.hist_fld_active('MR_phAM').or.&
-          hist_fld_active('MO_phAM'))) then         
+          hist_fld_active('MO_phAM'))) then
       tmp_trac(:ncol,:pver,:pcnst) = state%q(:ncol,:pver,:pcnst)
       tmp_pdel(:ncol,:pver)        = state%pdel(:ncol,:pver)
       tmp_ps(:ncol)                = state%ps(:ncol)
@@ -2017,6 +2020,8 @@ contains
     use cam_snapshot_common, only: cam_snapshot_ptend_outfld
     use ssatcontrail,       only: ssatcontrail_d0
     use dyn_tests_utils, only: vc_dycore
+
+    use aoa_tracers_v2, only: aoa_tracers_v2_tend
 
     ! Arguments
 
@@ -2747,7 +2752,13 @@ contains
 
        call t_stopf('bc_aerosols')
 
-   endif
+    endif
+
+    ! Version 2 age of air test tracers -- updated before diag tracer output
+
+    call aoa_tracers_v2_tend(ztodt, state, ptend)
+    call physics_update(state, ptend, ztodt, tend)
+    call check_tracers_chng(state, tracerint, "aoa_tracers_v2_tend", nstep, ztodt, cam_in%cflx)
 
     !===================================================
     ! Moist physical parameteriztions complete:

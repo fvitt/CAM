@@ -179,6 +179,9 @@ Total number of advected test tracers.
 <entry id="age_of_air_trcs" valid_values="0,1" value="0">
 Switch on (off) age of air tracers: 0=off, 1=on.
 </entry>
+<entry id="aoa_tracers_v2" valid_values="0,1" value="0">
+Switch on (off) version2 age of air tracers: 0=off, 1=on.
+</entry>
 <entry id="max_n_rad_cnst" value="30">
 Maximum number of constituents that are radiatively active or in any one
 diagnostic list.
