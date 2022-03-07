@@ -26,8 +26,7 @@ module upper_bc
 !
 ! Public interfaces
 !
-  public :: ubc_defaultopts    ! set default values of namelist variables
-  public :: ubc_setopts        ! get namelist input
+  public :: ubc_readnl         ! read namelist options for UBCs
   public :: ubc_init           ! global initialization
   public :: ubc_timestep_init  ! time step initialization
   public :: ubc_get_vals       ! get ubc values for this step
@@ -64,111 +63,54 @@ module upper_bc
   character(len=32)  :: tgcm_ubc_data_type = 'CYCLICAL'
 
   logical :: apply_upper_bc = .false.
-  logical :: reported= .false.
+  logical :: reported = .false.
+
 !================================================================================================
 contains
 !================================================================================================
 
-subroutine ubc_defaultopts(tgcm_ubc_file_out, tgcm_ubc_data_type_out, tgcm_ubc_cycle_yr_out, tgcm_ubc_fixed_ymd_out, &
-     tgcm_ubc_fixed_tod_out, snoe_ubc_file_out, t_pert_ubc_out, no_xfac_ubc_out)
 !-----------------------------------------------------------------------
-! Purpose: Return default runtime options
 !-----------------------------------------------------------------------
+  subroutine ubc_readnl(nlfile)
+    use namelist_utils, only : find_group_name
+    use spmd_utils, only : mpicom, masterprocid, mpi_character, mpi_integer, mpi_real8
+    use cam_abortutils, only: endrun
 
-   real(r8), intent(out), optional         :: t_pert_ubc_out
-   real(r8), intent(out), optional         :: no_xfac_ubc_out
-   character(len=*), intent(out), optional :: tgcm_ubc_file_out
-   character(len=*), intent(out), optional :: snoe_ubc_file_out
-   integer         , intent(out), optional :: tgcm_ubc_cycle_yr_out
-   integer         , intent(out), optional :: tgcm_ubc_fixed_ymd_out
-   integer         , intent(out), optional :: tgcm_ubc_fixed_tod_out
-   character(len=*), intent(out), optional :: tgcm_ubc_data_type_out
+    character(len=*), intent(in) :: nlfile
+    integer :: unitn, ierr
 
-!-----------------------------------------------------------------------
+    namelist /upper_bc_opts/ tgcm_ubc_file,tgcm_ubc_data_type,tgcm_ubc_cycle_yr,tgcm_ubc_fixed_ymd, &
+                             tgcm_ubc_fixed_tod, snoe_ubc_file, no_xfac_ubc, t_pert_ubc
 
-   if ( present(tgcm_ubc_file_out) ) then
-      tgcm_ubc_file_out = tgcm_ubc_file
-   endif
-   if ( present(tgcm_ubc_data_type_out) ) then
-      tgcm_ubc_data_type_out = tgcm_ubc_data_type
-   endif
-   if ( present(tgcm_ubc_cycle_yr_out) ) then
-      tgcm_ubc_cycle_yr_out = tgcm_ubc_cycle_yr
-   endif
-   if ( present(tgcm_ubc_fixed_ymd_out) ) then
-      tgcm_ubc_fixed_ymd_out = tgcm_ubc_fixed_ymd
-   endif
-   if ( present(tgcm_ubc_fixed_tod_out) ) then
-      tgcm_ubc_fixed_tod_out = tgcm_ubc_fixed_tod
-   endif
-   if ( present(snoe_ubc_file_out) ) then
-      snoe_ubc_file_out = snoe_ubc_file
-   endif
-   if ( present(t_pert_ubc_out) ) then
-      t_pert_ubc_out = t_pert_ubc
-   endif
-   if ( present(no_xfac_ubc_out) ) then
-      no_xfac_ubc_out = no_xfac_ubc
-   endif
+    ! read namelist only by masterpoc MPI tasks
+    if (masterproc) then
+       open( newunit=unitn, file=trim(nlfile), status='old' )
+       call find_group_name(unitn, 'upper_bc_opts', status=ierr)
+       if (ierr == 0) then
+          read(unitn, upper_bc_opts, iostat=ierr)
+          if (ierr /= 0) then
+             call endrun('upper_bc_opts: ERROR reading namelist')
+          end if
+       end if
+       close(unitn)
+    end if
 
-end subroutine ubc_defaultopts
-
-!================================================================================================
-
-subroutine ubc_setopts(tgcm_ubc_file_in, tgcm_ubc_data_type_in, tgcm_ubc_cycle_yr_in, tgcm_ubc_fixed_ymd_in, &
-     tgcm_ubc_fixed_tod_in, snoe_ubc_file_in, t_pert_ubc_in, no_xfac_ubc_in)
-!-----------------------------------------------------------------------
-! Purpose: Set runtime options
-!-----------------------------------------------------------------------
-
-   use cam_abortutils, only : endrun
-
-   real(r8), intent(in), optional         :: t_pert_ubc_in
-   real(r8), intent(in), optional         :: no_xfac_ubc_in
-   character(len=*), intent(in), optional :: tgcm_ubc_file_in
-   character(len=*), intent(in), optional :: snoe_ubc_file_in
-   integer         , intent(in), optional :: tgcm_ubc_cycle_yr_in
-   integer         , intent(in), optional :: tgcm_ubc_fixed_ymd_in
-   integer         , intent(in), optional :: tgcm_ubc_fixed_tod_in
-   character(len=*), intent(in), optional :: tgcm_ubc_data_type_in
-
-!-----------------------------------------------------------------------
-
-   if ( present(tgcm_ubc_file_in) ) then
-      tgcm_ubc_file = tgcm_ubc_file_in
-   endif
-   if ( present(tgcm_ubc_data_type_in) ) then
-      tgcm_ubc_data_type = tgcm_ubc_data_type_in
-   endif
-   if ( present(tgcm_ubc_cycle_yr_in) ) then
-      tgcm_ubc_cycle_yr = tgcm_ubc_cycle_yr_in
-   endif
-   if ( present(tgcm_ubc_fixed_ymd_in) ) then
-      tgcm_ubc_fixed_ymd = tgcm_ubc_fixed_ymd_in
-   endif
-   if ( present(tgcm_ubc_fixed_tod_in) ) then
-      tgcm_ubc_fixed_tod = tgcm_ubc_fixed_tod_in
-   endif
-   if ( present(snoe_ubc_file_in) ) then
-      snoe_ubc_file = snoe_ubc_file_in
-   endif
+    ! broadcast to all MPI tasks
+    call mpi_bcast (tgcm_ubc_file,      len(tgcm_ubc_file), mpi_character,masterprocid, mpicom, ierr)
+    call mpi_bcast (tgcm_ubc_data_type, len(tgcm_ubc_data_type),mpi_character, masterprocid, mpicom, ierr)
+    call mpi_bcast (tgcm_ubc_cycle_yr,  1, mpi_integer, masterprocid, mpicom, ierr)
+    call mpi_bcast (tgcm_ubc_fixed_ymd, 1, mpi_integer, masterprocid, mpicom, ierr)
+    call mpi_bcast (tgcm_ubc_fixed_tod, 1, mpi_integer, masterprocid, mpicom, ierr)
+    call mpi_bcast (snoe_ubc_file, len(snoe_ubc_file), mpi_character, masterprocid, mpicom, ierr)
+    call mpi_bcast (t_pert_ubc,    1,  mpi_real8, masterprocid, mpicom, ierr)
+    call mpi_bcast (no_xfac_ubc,   1,  mpi_real8, masterprocid, mpicom, ierr)
 
    if (len_trim(snoe_ubc_file)>0 .and. len_trim(tgcm_ubc_file)>0) then
       fixed_spc(1:10) = (/ 'Q  ','CH4','F  ','HF ','H  ','N  ','O  ','O2 ','H2 ','NO ' /)
+!!$   else
+!!$      fixed_spc(1:4) = (/ 'Q  ','CH4','F  ','HF '/)
    endif
-
-   if ( present(t_pert_ubc_in) ) then
-      t_pert_ubc = t_pert_ubc_in
-   endif
-   if ( present(no_xfac_ubc_in) ) then
-      no_xfac_ubc = no_xfac_ubc_in
-      if( no_xfac_ubc < 0._r8 ) then
-         write(iulog,*) 'ubc_setopts: no_xfac_ubc = ',no_xfac_ubc,' must be >= 0'
-         call endrun
-      end if
-   endif
-
-end subroutine ubc_setopts
+  end subroutine ubc_readnl
 
 !===============================================================================
 
@@ -200,16 +142,18 @@ end subroutine ubc_setopts
     call cnst_get_ind('H', h_ndx, abort=.false.)
 
     do m = 1,num_fixed
-       call cnst_get_ind(fixed_spc(m), spc_ndx(m), abort=.false.)
-       if (spc_ndx(m)>0) then
-          if (.not.msis_active) then
-             msis_active = (any(msis_spc == fixed_spc(m)))
-          endif
-          if (.not.snoe_active) then
-             snoe_active = (any(snoe_spc == fixed_spc(m)))
-          endif
-          if (.not.tgcm_active) then
-             tgcm_active = (any(tgcm_spc == fixed_spc(m)))
+       if (len_trim(fixed_spc(m))>0) then
+          call cnst_get_ind(fixed_spc(m), spc_ndx(m), abort=.false.)
+          if (spc_ndx(m)>0) then
+             if (.not.msis_active) then
+                msis_active = (any(msis_spc == fixed_spc(m)))
+             endif
+             if (.not.snoe_active) then
+                snoe_active = (any(snoe_spc == fixed_spc(m)))
+             endif
+             if (.not.tgcm_active) then
+                tgcm_active = (any(tgcm_spc == fixed_spc(m)))
+             endif
           endif
        endif
     end do
