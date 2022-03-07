@@ -4,6 +4,7 @@
 module aoa_tracers_v2
   use shr_kind_mod, only: r8 => shr_kind_r8
   use spmd_utils, only: masterproc
+  use cam_logfile, only: iulog
 
   implicit none
 
@@ -35,8 +36,8 @@ contains
   ! reads namelist options included in aoa_tracers_v2_opts group (in atm_in)
   !---------------------------------------------------------------------------
   subroutine aoa_tracers_v2_readnl(nlfile)
-    use namelist_utils, only : find_group_name
-    use spmd_utils, only : mpicom, masterprocid, mpi_logical
+    use namelist_utils, only: find_group_name
+    use spmd_utils, only: mpicom, masterprocid, mpi_logical
     use cam_abortutils, only: endrun
 
     character(len=*), intent(in) :: nlfile
@@ -60,6 +61,12 @@ contains
     ! broadcast to all MPI tasks
     call mpi_bcast(aoa_v2_active, 1, mpi_logical, masterprocid, mpicom, ierr)
     call mpi_bcast(aoa_v2_readic, 1, mpi_logical, masterprocid, mpicom, ierr)
+
+    ! log the AOA options
+    if (masterproc) then
+       write(iulog,*) 'aoa_tracers_v2_readnl: aoa_v2_active = ',aoa_v2_active
+       write(iulog,*) 'aoa_tracers_v2_readnl: aoa_v2_readic = ',aoa_v2_readic
+    end if
 
   end subroutine aoa_tracers_v2_readnl
 
@@ -181,7 +188,7 @@ contains
 
     dtinv = 1._r8/dt
 
-    fixed_lbc_mmr = 1.e-6_r8 ! some tempary number for testing -- will be set
+    fixed_lbc_mmr = 1.e-6_r8 ! some temporary number for testing -- will be set
                              ! via some time-dependent algorithm
 
     do i=1,ncnst
