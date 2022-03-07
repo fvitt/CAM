@@ -6678,6 +6678,16 @@ Perturbation applied to the upper boundary temperature.
 Default: 0.0
 </entry>
 
+<entry id="ubc_filepath" type="char*512" input_pathname="abs" category="waccm"
+       group="upper_bc_opts" valid_values="" >
+Default: set by build-namelist
+</entry>
+<entry id="ubc_fields" type="char*64(pcnst)"  category="waccm"
+       group="upper_bc_opts" valid_values="" >
+List of fields that have fixed upper boundary conditions (temperature and mass mixing ratios).
+Default: set by build-namelist
+</entry>
+
 <entry id="chem_freq" type="integer" category="cam_chem"
        group="chem_inparm" valid_values="" >
 Frequency in time steps at which the chemical equations are solved.

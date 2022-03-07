@@ -2634,7 +2634,11 @@ if ($chem =~ /waccm_ma/ or $chem =~ /waccm_tsmlt/) {
                  'xs_coef_file', 'xs_short_file','xs_long_file', 'rsf_file',
                  'soil_erod_file' );
 
-    if (!$waccmx) { @files = (@files, 'tgcm_ubc_file', 'snoe_ubc_file' ); }
+    if (!$waccmx) {
+        @files = (@files, 'tgcm_ubc_file', 'snoe_ubc_file' );
+        my $fields = "'T','Q = 2.d-8 vmr','CH4 = 2.d-10 vmr','F = 1.0D-15mmr','HF=1.0D-15mmr','H','N','O','O2','H2','NO'";
+        add_default($nl, 'ubc_fields', 'val'=>$fields);
+    }
 
     if ($chem =~ /_mozart/) {
         @files = (@files, 'sulf_file' );
