@@ -1,10 +1,10 @@
 module modal_aerosol_state_mod
   use shr_kind_mod, only: r8 => shr_kind_r8
-  use aerosol_state_mod, only: aerosol_state
-
+  use aerosol_state_mod, only: aerosol_state, ptr2d_t
   use rad_constituents, only: rad_cnst_get_aer_mmr, rad_cnst_get_mode_num
   use physics_buffer, only: physics_buffer_desc
   use physics_types, only: physics_state
+  use aerosol_properties_mod, only: aerosol_properties
 
   implicit none
 
@@ -16,13 +16,14 @@ module modal_aerosol_state_mod
      private
      type(physics_state), pointer :: state => null()
      type(physics_buffer_desc), pointer :: pbuf(:) => null()
-
+     integer, allocatable :: indexer_(:,:)
    contains
 
      procedure :: get_ambient_mmr
      procedure :: get_cldbrne_mmr
      procedure :: get_ambient_num
      procedure :: get_cldbrne_num
+     procedure :: get_states
 
      final :: destructor
 
@@ -36,15 +37,33 @@ contains
 
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------
-  function constructor(state,pbuf) result(newobj)
-    type(physics_state), target, optional :: state
-    type(physics_buffer_desc), pointer, optional :: pbuf(:)
+  function constructor(state,pbuf,props) result(newobj)
+    type(physics_state), target :: state
+    type(physics_buffer_desc), pointer :: pbuf(:)
+    class(aerosol_properties), intent(in) :: props
+
     type(modal_aerosol_state), pointer :: newobj
+
+    integer :: l,m,mm
 
     allocate(newobj)
 
     newobj%state => state
     newobj%pbuf => pbuf
+
+    allocate( newobj%indexer_(props%nbins(),0:props%nspec_max()) )
+
+    newobj%indexer_ = -1
+    mm = 0
+
+    do m=1,props%nbins()
+       do l = 0,props%nspecies(m) ! loop over number + chem constituents
+
+          mm = mm+1
+          newobj%indexer_(m,l) = mm
+
+       end do
+    end do
 
   end function constructor
 
@@ -99,5 +118,28 @@ contains
 
     call rad_cnst_get_mode_num(0, m, 'c', self%state, self%pbuf, x)
   end function get_cldbrne_num
+
+  !------------------------------------------------------------------------------
+  !------------------------------------------------------------------------------
+  subroutine get_states( self, aero_props, raer, qqcw )
+    class(modal_aerosol_state), intent(in) :: self
+    class(aerosol_properties), intent(in) :: aero_props
+    type(ptr2d_t), intent(out) :: raer(:)
+    type(ptr2d_t), intent(out) :: qqcw(:)
+
+    integer :: m,mm,l
+
+    do m = 1, aero_props%nbins()
+       mm = self%indexer_(m, 0)
+       call rad_cnst_get_mode_num(0, m, 'a', self%state, self%pbuf, raer(mm)%fld)
+       call rad_cnst_get_mode_num(0, m, 'c', self%state, self%pbuf, qqcw(mm)%fld)  ! cloud-borne aerosol
+       do l = 1, aero_props%nspecies(m)
+          mm = self%indexer_(m, l)
+          call rad_cnst_get_aer_mmr(0, m, l, 'a', self%state, self%pbuf, raer(mm)%fld)
+          call rad_cnst_get_aer_mmr(0, m, l, 'c', self%state, self%pbuf, qqcw(mm)%fld)  ! cloud-borne aerosol
+       end do
+    end do
+
+  end subroutine get_states
 
 end module modal_aerosol_state_mod

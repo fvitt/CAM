@@ -681,7 +681,7 @@ subroutine microp_aero_run ( &
       call outfld('LCLOUD', lcldn, pcols, lchnk)
 
       if (clim_modal_aero) then
-         aero_state_obj => modal_aerosol_state( state1, pbuf )
+         aero_state_obj => modal_aerosol_state( state1, pbuf, aero_props_obj )
          ! If not using preexsiting ice, then only use cloudbourne aerosol for the
          ! liquid clouds. This is the same behavior as CAM5.
          if (use_preexisting_ice) then
@@ -698,7 +698,7 @@ subroutine microp_aero_run ( &
          deallocate(aero_state_obj)
          nullify(aero_state_obj)
       elseif (clim_carma_aero) then
-         aero_state_obj => carma_aerosol_state( state1, pbuf )
+         aero_state_obj => carma_aerosol_state( state1, pbuf, aero_props_obj )
          if (use_preexisting_ice) then
             call dropmixnuc_carma( aero_props_obj, aero_state_obj, &
                  state1, ptend_loc, deltatin, pbuf, wsub, &

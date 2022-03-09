@@ -2816,7 +2816,7 @@ end subroutine ma_convproc_tend
    wmaxf = wbar
 
    phase = 1 ! interstitial
-   aero_state_obj => carma_aerosol_state(state, pbuf)
+   aero_state_obj => carma_aerosol_state(state, pbuf, aero_props_obj)
    do n = 1, nbins
       call aero_state_obj%loadaer( aero_props_obj, i, k, n, rhoair, phase, naerosol(n), vaerosol(n), hygro(n))
    end do
@@ -3128,7 +3128,7 @@ end subroutine ma_convproc_tend
    wmaxf = wbar
 
    phase = 1 ! interstitial
-   aero_state_obj => carma_aerosol_state(state, pbuf)
+   aero_state_obj => carma_aerosol_state(state, pbuf, aero_props_obj)
    do n = 1, nbins
       call aero_state_obj%loadaer( aero_props_obj, i, k, n, rhoair, phase, naerosol(n), vaerosol(n), hygro(n))
    end do

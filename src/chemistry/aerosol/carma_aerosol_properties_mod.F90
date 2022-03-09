@@ -15,6 +15,7 @@ module carma_aerosol_properties_mod
      procedure :: abdraz_f2
      procedure :: get
      procedure :: actfracs
+     procedure :: nspec_max
      final :: destructor
   end type carma_aerosol_properties
 
@@ -113,5 +114,13 @@ contains
     end if
 
   end subroutine actfracs
+
+  !------------------------------------------------------------------------------
+  !------------------------------------------------------------------------------
+  pure integer function nspec_max(self)
+    class(carma_aerosol_properties), intent(in) :: self
+
+    nspec_max = self%default_nspec_max()+1
+  end function nspec_max
 
 end module carma_aerosol_properties_mod

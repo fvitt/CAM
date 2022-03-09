@@ -16,6 +16,8 @@ module aerosol_properties_mod
      procedure :: initialize => aero_props_init
      procedure :: nbins
      procedure :: nspecies
+     procedure :: nspec_max=>default_nspec_max
+     procedure :: default_nspec_max
      procedure :: maxsat     ! *** Does this belong with this class ??
      procedure :: amcubecoef
      procedure :: amcube
@@ -27,6 +29,8 @@ module aerosol_properties_mod
   end type aerosol_properties
 
   interface
+     !------------------------------------------------------------------------
+     !------------------------------------------------------------------------
      subroutine aero_props_get(self, m,l, density,hygro)
        import
        class(aerosol_properties), intent(in) :: self
@@ -35,6 +39,8 @@ module aerosol_properties_mod
        real(r8), optional, intent(out) :: hygro
      end subroutine aero_props_get
 
+     !------------------------------------------------------------------------
+     !------------------------------------------------------------------------
      function aero_props_abdraz_f(self, m) result(f)
        import
        class(aerosol_properties), intent(in) :: self
@@ -42,6 +48,8 @@ module aerosol_properties_mod
        real(r8) :: f
      end function aero_props_abdraz_f
 
+     !------------------------------------------------------------------------
+     !------------------------------------------------------------------------
      subroutine aero_actfracs(self, m, smc, smax, fn, fm )
        import
        class(aerosol_properties), intent(in) :: self
@@ -51,7 +59,6 @@ module aerosol_properties_mod
        real(r8),intent(out) :: fn, fm
 
      end subroutine aero_actfracs
-
 
   end interface
 
@@ -105,6 +112,14 @@ contains
 
     nbins = self%nbins_
   end function nbins
+
+  !------------------------------------------------------------------------------
+  !------------------------------------------------------------------------------
+  pure integer function default_nspec_max(self)
+    class(aerosol_properties), intent(in) :: self
+
+    default_nspec_max = maxval(self%nspecies_)
+  end function default_nspec_max
 
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------

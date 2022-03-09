@@ -29,7 +29,7 @@ use cam_abortutils,   only: endrun
 use cam_logfile,      only: iulog
 
 use aerosol_properties_mod, only: aerosol_properties
-use aerosol_state_mod, only: aerosol_state
+use aerosol_state_mod, only: aerosol_state, ptr2d_t
 
 implicit none
 private
@@ -71,12 +71,6 @@ integer :: ncnst_tot                  ! total number of mode number conc + mode 
 ! Indices for CARMA species in the ptend%q array.  Needed for prognostic aerosol case.
 logical, allocatable :: bin_cnst_lq(:,:)
 integer, allocatable :: bin_cnst_idx(:,:)
-
-
-! ptr2d_t is used to create arrays of pointers to 2D fields
-type ptr2d_t
-   real(r8), pointer :: fld(:,:)
-end type ptr2d_t
 
 ! modal aerosols
 logical :: prog_modal_aero     ! true when aerosols are prognostic   !st make sure to check
@@ -466,20 +460,7 @@ subroutine dropmixnuc_carma( aero_props, aero_state, &
 
    ! Init pointers to mode number and specie mass mixing ratios in
    ! intersitial and cloud borne phases.
-   do m = 1, nbins
-      mm = bin_idx(m, 0)
-      call rad_cnst_get_bin_num(0, m, 'a', state, pbuf, raer(mm)%fld)
-      call rad_cnst_get_bin_num(0, m, 'c', state, pbuf, qqcw(mm)%fld)  ! cloud-borne aerosol
-      mm = bin_idx(m, 1)
-      call rad_cnst_get_bin_mmr(0, m, 'a', state, pbuf, raer(mm)%fld)
-      call rad_cnst_get_bin_mmr(0, m, 'c', state, pbuf, qqcw(mm)%fld)  ! cloud-borne aerosol
-      do l = 2, nspec(m)+1
-         mm = bin_idx(m, l)
-         !st need to check
-         call rad_cnst_get_bin_mmr_by_idx(0, m, l-1, 'a', state, pbuf, raer(mm)%fld)
-         call rad_cnst_get_bin_mmr_by_idx(0, m, l-1, 'c', state, pbuf, qqcw(mm)%fld)  ! cloud-borne aerosol
-      end do
-   end do
+   call aero_state%get_states( aero_props, raer, qqcw )
 
    called_from_spcam = (present(from_spcam))
 

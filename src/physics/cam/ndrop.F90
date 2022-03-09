@@ -30,7 +30,7 @@ use cam_abortutils,   only: endrun
 use cam_logfile,      only: iulog
 
 use aerosol_properties_mod, only: aerosol_properties
-use aerosol_state_mod, only: aerosol_state
+use aerosol_state_mod, only: aerosol_state, ptr2d_t
 
 implicit none
 private
@@ -80,12 +80,6 @@ integer :: ncnst_tot                  ! total number of mode number conc + mode 
 
 ! Indices for MAM species in the ptend%q array.  Needed for prognostic aerosol case.
 integer, allocatable :: mam_cnst_idx(:,:)
-
-
-! ptr2d_t is used to create arrays of pointers to 2D fields
-type ptr2d_t
-   real(r8), pointer :: fld(:,:)
-end type ptr2d_t
 
 ! modal aerosols
 logical :: prog_modal_aero     ! true when modal aerosols are prognostic
@@ -325,7 +319,6 @@ subroutine dropmixnuc( aero_props, aero_state, &
 
    real(r8), pointer :: ncldwtr(:,:) ! droplet number concentration (#/kg)
    real(r8), pointer :: temp(:,:)    ! temperature (K)
-   real(r8), pointer :: omega(:,:)   ! vertical velocity (Pa/s)
    real(r8), pointer :: pmid(:,:)    ! mid-level pressure (Pa)
    real(r8), pointer :: pint(:,:)    ! pressure at layer interfaces (Pa)
    real(r8), pointer :: pdel(:,:)    ! pressure thickess of layer (Pa)
@@ -393,7 +386,6 @@ subroutine dropmixnuc( aero_props, aero_state, &
    real(r8) :: ndropcol(pcols)               ! column droplet number (#/m2)
    real(r8) :: cldo_tmp, cldn_tmp
    real(r8) :: tau_cld_regenerate
-   real(r8) :: zeroaer(pver)
    real(r8) :: taumix_internal_pver_inv ! 1/(internal mixing time scale for k=pver) (1/s)
 
 
@@ -443,7 +435,6 @@ subroutine dropmixnuc( aero_props, aero_state, &
 
    ncldwtr  => state%q(:,:,numliq_idx)
    temp     => state%t
-   omega    => state%omega
    pmid     => state%pmid
    pint     => state%pint
    pdel     => state%pdel
@@ -493,16 +484,7 @@ subroutine dropmixnuc( aero_props, aero_state, &
 
    ! Init pointers to mode number and specie mass mixing ratios in
    ! intersitial and cloud borne phases.
-   do m = 1, ntot_amode
-      mm = mam_idx(m, 0)
-      call rad_cnst_get_mode_num(0, m, 'a', state, pbuf, raer(mm)%fld)
-      call rad_cnst_get_mode_num(0, m, 'c', state, pbuf, qqcw(mm)%fld)  ! cloud-borne aerosol
-      do l = 1, nspec_amode(m)
-         mm = mam_idx(m, l)
-         call rad_cnst_get_aer_mmr(0, m, l, 'a', state, pbuf, raer(mm)%fld)
-         call rad_cnst_get_aer_mmr(0, m, l, 'c', state, pbuf, qqcw(mm)%fld)  ! cloud-borne aerosol
-      end do
-   end do
+   call aero_state%get_states( aero_props, raer, qqcw )
 
    called_from_spcam = (present(from_spcam))
 

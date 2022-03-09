@@ -2,12 +2,14 @@ module aerosol_state_mod
   use shr_kind_mod, only: r8 => shr_kind_r8
   use cam_abortutils, only: endrun
   use cam_logfile, only: iulog
+  use aerosol_properties_mod, only: aerosol_properties
 
   implicit none
 
   private
 
   public :: aerosol_state
+  public :: ptr2d_t
 
   type, abstract :: aerosol_state
    contains
@@ -15,12 +17,20 @@ module aerosol_state_mod
      procedure(aero_get_state_mmr), deferred :: get_cldbrne_mmr
      procedure(aero_get_state_num), deferred :: get_ambient_num
      procedure(aero_get_state_num), deferred :: get_cldbrne_num
+     procedure(aero_get_states), deferred :: get_states
      procedure, private :: loadaer1
      procedure, private :: loadaer2
      generic :: loadaer => loadaer1, loadaer2
   end type aerosol_state
 
+  ! for state fields
+  type ptr2d_t
+     real(r8), pointer :: fld(:,:)
+  end type ptr2d_t
+
   interface
+     !------------------------------------------------------------------------
+     !------------------------------------------------------------------------
      function aero_get_state_mmr(self, l,m) result(x)
        import
        class(aerosol_state), intent(in) :: self
@@ -29,12 +39,27 @@ module aerosol_state_mod
        real(r8), pointer :: x(:,:)
      end function aero_get_state_mmr
 
+     !------------------------------------------------------------------------
+     !------------------------------------------------------------------------
      function aero_get_state_num(self, m) result(x)
        import
        class(aerosol_state), intent(in) :: self
        integer, intent(in) :: m
        real(r8), pointer :: x(:,:)
      end function aero_get_state_num
+
+     !------------------------------------------------------------------------
+     !------------------------------------------------------------------------
+     subroutine aero_get_states( self, aero_props, raer, qqcw )
+       import
+
+       class(aerosol_state), intent(in) :: self
+       class(aerosol_properties), intent(in) :: aero_props
+       type(ptr2d_t), intent(out) :: raer(:)
+       type(ptr2d_t), intent(out) :: qqcw(:)
+
+     end subroutine aero_get_states
+
   end interface
 
 contains
