@@ -75,6 +75,7 @@ contains
 
     nullify(self%state)
     nullify(self%pbuf)
+    deallocate(self%indexer_)
 
   end subroutine destructor
 
