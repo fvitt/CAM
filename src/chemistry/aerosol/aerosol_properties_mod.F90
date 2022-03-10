@@ -10,12 +10,16 @@ module aerosol_properties_mod
   type, abstract :: aerosol_properties
      private
      integer :: nbins_ = 0
+     integer :: ncnst_tot_ = 0
+     integer, allocatable :: nmasses_(:)
      integer, allocatable :: nspecies_(:)
      real(r8), allocatable :: amcubecoefs_(:)
    contains
      procedure :: initialize => aero_props_init
      procedure :: nbins
+     procedure :: ncnst_tot
      procedure :: nspecies
+     procedure :: nmasses
      procedure :: nspec_max=>default_nspec_max
      procedure :: default_nspec_max
      procedure :: maxsat     ! *** Does this belong with this class ??
@@ -66,16 +70,21 @@ contains
 
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------
-  subroutine aero_props_init(self, n, nspec, amcubecoefs )
+  subroutine aero_props_init(self, nbin, ncnst, nspec, nmasses, amcubecoefs )
     class(aerosol_properties), intent(inout) :: self
-    integer :: n
-    integer :: nspec(n)
-    real(r8) :: amcubecoefs(n)
+    integer :: nbin
+    integer :: ncnst
+    integer :: nspec(nbin)
+    integer :: nmasses(nbin)
+    real(r8) :: amcubecoefs(nbin)
 
-    allocate(self%nspecies_(n))
-    allocate(self%amcubecoefs_(n))
+    allocate(self%nspecies_(nbin))
+    allocate(self%nmasses_(nbin))
+    allocate(self%amcubecoefs_(nbin))
 
-    self%nbins_ = n
+    self%nbins_ = nbin
+    self%ncnst_tot_ = ncnst
+    self%nmasses_(:) = nmasses(:)
     self%nspecies_(:) = nspec(:)
     self%amcubecoefs_(:) = amcubecoefs(:)
 
@@ -107,11 +116,28 @@ contains
 
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------
+  pure integer function nmasses(self,m)
+    class(aerosol_properties), intent(in) :: self
+    integer, intent(in) :: m
+
+    nmasses = self%nmasses_(m)
+  end function nmasses
+
+  !------------------------------------------------------------------------------
+  !------------------------------------------------------------------------------
   pure integer function nbins(self)
     class(aerosol_properties), intent(in) :: self
 
     nbins = self%nbins_
   end function nbins
+
+  !------------------------------------------------------------------------------
+  !------------------------------------------------------------------------------
+  pure integer function ncnst_tot(self)
+    class(aerosol_properties), intent(in) :: self
+
+    ncnst_tot = self%ncnst_tot_
+  end function ncnst_tot
 
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------

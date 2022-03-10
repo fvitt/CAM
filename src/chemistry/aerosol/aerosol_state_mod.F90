@@ -18,6 +18,7 @@ module aerosol_state_mod
      procedure(aero_get_state_num), deferred :: get_ambient_num
      procedure(aero_get_state_num), deferred :: get_cldbrne_num
      procedure(aero_get_states), deferred :: get_states
+     procedure(aero_indexer), deferred :: indexer
      procedure, private :: loadaer1
      procedure, private :: loadaer2
      generic :: loadaer => loadaer1, loadaer2
@@ -59,6 +60,15 @@ module aerosol_state_mod
        type(ptr2d_t), intent(out) :: qqcw(:)
 
      end subroutine aero_get_states
+
+     !------------------------------------------------------------------------
+     !------------------------------------------------------------------------
+     pure function aero_indexer(self, m,l) result(ndx)
+       import
+       class(aerosol_state), intent(in) :: self
+       integer, intent(in) :: m,l
+       integer :: ndx
+     end function aero_indexer
 
   end interface
 

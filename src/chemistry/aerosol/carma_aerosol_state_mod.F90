@@ -26,6 +26,7 @@ module carma_aerosol_state_mod
      procedure :: get_cldbrne_num
      procedure :: get_ambient_bin_mmr
      procedure :: get_cldbrne_bin_mmr
+     procedure :: indexer
      procedure :: get_states
 
      final :: destructor
@@ -169,5 +170,14 @@ contains
     end do
 
   end subroutine get_states
+
+  !------------------------------------------------------------------------
+  !------------------------------------------------------------------------
+  pure function indexer(self, m,l) result(ndx)
+    class(carma_aerosol_state), intent(in) :: self
+    integer, intent(in) :: m,l
+    integer :: ndx
+    ndx = self%indexer_(m,l)
+  end function indexer
 
 end module carma_aerosol_state_mod

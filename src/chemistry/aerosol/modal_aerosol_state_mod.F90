@@ -23,6 +23,7 @@ module modal_aerosol_state_mod
      procedure :: get_cldbrne_mmr
      procedure :: get_ambient_num
      procedure :: get_cldbrne_num
+     procedure :: indexer
      procedure :: get_states
 
      final :: destructor
@@ -143,5 +144,14 @@ contains
     end do
 
   end subroutine get_states
+
+  !------------------------------------------------------------------------
+  !------------------------------------------------------------------------
+  pure function indexer(self, m,l) result(ndx)
+    class(modal_aerosol_state), intent(in) :: self
+    integer, intent(in) :: m,l
+    integer :: ndx
+    ndx = self%indexer_(m,l)
+  end function indexer
 
 end module modal_aerosol_state_mod

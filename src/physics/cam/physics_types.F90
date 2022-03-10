@@ -98,7 +98,7 @@ module physics_types
           zi         ! geopotential height above surface at interfaces (m)
 
      real(r8), dimension(:,:),allocatable          :: &
-                           ! Second dimension is (phys_te_idx) CAM physics total energy and 
+                           ! Second dimension is (phys_te_idx) CAM physics total energy and
                            ! (dyn_te_idx) dycore total energy computed in physics
           te_ini,         &! vertically integrated total (kinetic + static) energy of initial state
           te_cur,         &! vertically integrated total (kinetic + static) energy of current state
@@ -341,7 +341,7 @@ contains
          trim(ptend%name)=='momtran' .or. &
          trim(ptend%name)=='clubb' .or. &
          trim(ptend%name)=='nucleatei' .or. &
-         trim(ptend%name)=='ndrop_carma' .or. &
+         trim(ptend%name)=='ndrop' .or. &
          trim(ptend%name)=='cldwat' .or. &
          trim(ptend%name)=='micro_mg' .or. &
          trim(ptend%name)=='convtran2' .or. &

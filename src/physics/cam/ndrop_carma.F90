@@ -292,6 +292,8 @@ subroutine dropmixnuc_carma( aero_props, aero_state, &
 
    integer  :: lchnk               ! chunk identifier
    integer  :: ncol                ! number of columns
+   integer  :: nbin                ! number of modes/bins
+   integer  :: nele_tot            ! total number of aerosol elements
 
    real(r8), pointer :: ncldwtr(:,:) ! droplet number concentration (#/kg)
    real(r8), pointer :: temp(:,:)    ! temperature (K)
@@ -408,6 +410,8 @@ subroutine dropmixnuc_carma( aero_props, aero_state, &
 
    lchnk = state%lchnk
    ncol  = state%ncol
+   nbin  = aero_props%nbins()
+   nele_tot  = aero_props%ncnst_tot()
 
    ncldwtr  => state%q(:,:,numliq_idx)
    temp     => state%t
@@ -442,21 +446,21 @@ subroutine dropmixnuc_carma( aero_props, aero_state, &
    dtinv = 1._r8/dtmicro
 
    allocate( &
-      nact(pver,nbins),               &
-      mact(pver,nbins),               &
-      raer(ncnst_tot),                &
-      qqcw(ncnst_tot),                &
-      raercol(pver,ncnst_tot,2),      &
-      raercol_cw(pver,ncnst_tot,2),   &
-      coltend(pcols,ncnst_tot),       &
-      coltend_cw(pcols,ncnst_tot),    &
-      naermod(nbins),                 &
-      hygro(nbins),                   &
-      vaerosol(nbins),                &
-      fn(nbins),                      &
-      fm(nbins),                      &
-      fluxn(nbins),                   &
-      fluxm(nbins)                    )
+      nact(pver,nbin),             &
+      mact(pver,nbin),             &
+      raer(nele_tot),              &
+      qqcw(nele_tot),              &
+      raercol(pver,nele_tot,2),    &
+      raercol_cw(pver,nele_tot,2), &
+      coltend(pcols,nele_tot),     &
+      coltend_cw(pcols,nele_tot),  &
+      naermod(nbin),               &
+      hygro(nbin),                 &
+      vaerosol(nbin),              &
+      fn(nbin),                    &
+      fm(nbin),                    &
+      fluxn(nbin),                 &
+      fluxm(nbin)               )
 
    ! Init pointers to mode number and specie mass mixing ratios in
    ! intersitial and cloud borne phases.
@@ -475,9 +479,10 @@ subroutine dropmixnuc_carma( aero_props, aero_state, &
    nsource = 0._r8
    ndropmix = 0._r8
    ndropcol = 0._r8
+   tendnd = 0._r8
 
    ! initialize aerosol tendencies
-   call physics_ptend_init(ptend, state%psetcols, 'ndrop_carma', lq=lq)
+   call physics_ptend_init(ptend, state%psetcols, 'ndrop', lq=lq)
 
    ! overall_main_i_loop
    do i = 1, ncol
@@ -497,7 +502,7 @@ subroutine dropmixnuc_carma( aero_props, aero_state, &
          cs(i,k)  = pmid(i,k)/(rair*temp(i,k))        ! air density (kg/m3)
          dz(i,k)  = 1._r8/(cs(i,k)*gravit*rpdel(i,k)) ! layer thickness in m
 
-         do m = 1, nbins
+         do m = 1, nbin
             nact(k,m) = 0._r8
             mact(k,m) = 0._r8
          end do
@@ -529,22 +534,13 @@ subroutine dropmixnuc_carma( aero_props, aero_state, &
 
       nsav = 1
       nnew = 2
-      do m = 1, nbins
-        do l = 0, nspec(m) +1
-         mm = bin_idx(m,l)
+
+      do mm = 1,nele_tot
          raercol_cw(:,mm,nsav) = 0.0_r8
          raercol(:,mm,nsav)    = 0.0_r8
          raercol_cw(top_lev:pver,mm,nsav) = qqcw(mm)%fld(i,top_lev:pver)
          raercol(top_lev:pver,mm,nsav)    = raer(mm)%fld(i,top_lev:pver)
-        end do
-
-         !st do l = 2, nspec(m) +1
-         !st    mm = bin_idx(m,l)
-         !st    raercol_cw(top_lev:pver,mm,nsav) = qqcw(mm)%fld(i,top_lev:pver)
-         !st    raercol(top_lev:pver,mm,nsav)    = raer(mm)%fld(i,top_lev:pver)
-         !st end do
       end do
-
 
       if (called_from_spcam) then
       !
@@ -593,20 +589,12 @@ subroutine dropmixnuc_carma( aero_props, aero_state, &
             ! convert activated aerosol to interstitial in decaying cloud
 
             dumc = (cldn_tmp - cldo_tmp)/cldo_tmp * (1._r8 - cldliqf(i,k))
-            do m = 1, nbins
-              do l = 0, nspec(m) + 1
-               mm = bin_idx(m,l)
+            do mm = 1,nele_tot
                dact   = raercol_cw(k,mm,nsav)*dumc
                raercol_cw(k,mm,nsav) = raercol_cw(k,mm,nsav) + dact   ! cloud-borne aerosol
                raercol(k,mm,nsav)    = raercol(k,mm,nsav) - dact
-              end do
-              !st do l = 2, nspec(m) + 1
-              !st    mm = bin_idx(m,l)
-              !st    dact    = raercol_cw(k,mm,nsav)*dumc
-              !st    raercol_cw(k,mm,nsav) = raercol_cw(k,mm,nsav) + dact  ! cloud-borne aerosol
-              !st    raercol(k,mm,nsav)    = raercol(k,mm,nsav) - dact
-              !st end do
             end do
+
          end if
 
          ! shrinking liquid cloud ......................................................
@@ -628,20 +616,12 @@ subroutine dropmixnuc_carma( aero_props, aero_state, &
             ! convert activated aerosol to interstitial in decaying cloud
 
             dumc = (cldn_tmp - cldo_tmp)/cldo_tmp * cldliqf(i,k)
-            do m = 1, nbins
-              do l = 0, nspec(m) + 1
-               mm = bin_idx(m,l)
+            do mm = 1,nele_tot
                dact   = raercol_cw(k,mm,nsav)*dumc
                raercol_cw(k,mm,nsav) = raercol_cw(k,mm,nsav) + dact   ! cloud-borne aerosol
                raercol(k,mm,nsav)    = raercol(k,mm,nsav) - dact
-              end do
-              !st do l = 2, nspec(m) + 1
-              !st    mm = bin_idx(m,l)
-              !st    dact    = raercol_cw(k,mm,nsav)*dumc
-              !st    raercol_cw(k,mm,nsav) = raercol_cw(k,mm,nsav) + dact  ! cloud-borne aerosol
-              !st    raercol(k,mm,nsav)    = raercol(k,mm,nsav) - dact
-              !st end do
             end do
+
          end if
 
          ! growing liquid cloud ......................................................
@@ -662,7 +642,7 @@ subroutine dropmixnuc_carma( aero_props, aero_state, &
             ! load aerosol properties, assuming external mixtures
 
             phase = 1 ! interstitial
-            do m = 1, nbins
+            do m = 1, nbin
                call aero_state%loadaer( aero_props, &
                   i, i, k, &
                   m, cs, phase, na, va, &
@@ -674,28 +654,30 @@ subroutine dropmixnuc_carma( aero_props, aero_state, &
 
             call activate_carma( &
                wbar, wmix, wdiab, wmin, wmax,                       &
-               temp(i,k), cs(i,k), naermod, nbins,             &
+               temp(i,k), cs(i,k), naermod, nbin,             &
                vaerosol, hygro, aero_props, fn, fm, fluxn,     &
                fluxm,flux_fullact(k))
 
             factnum(i,k,:) = fn
 
             dumc = (cldn_tmp - cldo_tmp)
-            do m = 1, nbins
-               mm = bin_idx(m,0)
+
+            do m = 1, nbin
+               mm = aero_state%indexer(m,0)
                dact   = dumc*fn(m)*raer(mm)%fld(i,k) ! interstitial only
                qcld(k) = qcld(k) + dact
                nsource(i,k) = nsource(i,k) + dact*dtinv
                raercol_cw(k,mm,nsav) = raercol_cw(k,mm,nsav) + dact  ! cloud-borne aerosol
                raercol(k,mm,nsav)    = raercol(k,mm,nsav) - dact
                dum = dumc*fm(m)
-               do l = 1, nspec(m) + 1
-                  mm = bin_idx(m,l)
+               do l = 1,aero_props%nmasses(m)
+                  mm = aero_state%indexer(m,l)
                   dact    = dum*raer(mm)%fld(i,k) ! interstitial only
                   raercol_cw(k,mm,nsav) = raercol_cw(k,mm,nsav) + dact  ! cloud-borne aerosol
                   raercol(k,mm,nsav)    = raercol(k,mm,nsav) - dact
                enddo
             enddo
+
          endif
 
       enddo  ! grow_shrink_main_k_loop
@@ -746,7 +728,7 @@ subroutine dropmixnuc_carma( aero_props, aero_state, &
                wmin    = wbar + wmix*0.25_r8*sq2pi*log(alogarg)
                phase   = 1   ! interstitial
 
-               do m = 1, nbins
+               do m = 1, nbin
                   ! rce-comment - use kp1 here as old-cloud activation involves
                   !   aerosol from layer below
                   call aero_state%loadaer( aero_props, &
@@ -760,7 +742,7 @@ subroutine dropmixnuc_carma( aero_props, aero_state, &
 
                call activate_carma( &
                   wbar, wmix, wdiab, wmin, wmax,                       &
-                  temp(i,k), cs(i,k), naermod, nbins,             &
+                  temp(i,k), cs(i,k), naermod, nbin,             &
                   vaerosol, hygro, aero_props, fn, fm, fluxn,     &
                   fluxm, flux_fullact(k))
 
@@ -815,8 +797,8 @@ subroutine dropmixnuc_carma( aero_props, aero_state, &
                   taumix_internal_pver_inv = flux_fullact(k)/dz(i,k)
                end if
 
-               do m = 1, nbins
-                  mm = bin_idx(m,0)
+               do m = 1, nbin
+                  mm = aero_state%indexer(m,0)
                   fluxn(m) = fluxn(m)*dumc
                   fluxm(m) = fluxm(m)*dumc
                   nact(k,m) = nact(k,m) + fluxn(m)*dum
@@ -848,18 +830,11 @@ subroutine dropmixnuc_carma( aero_props, aero_state, &
 
                ! convert activated aerosol to interstitial in decaying cloud
 
-               do m = 1, nbins
-                 do l = 0, nspec(m) + 1
-                  mm = bin_idx(m,l)
+               do mm = 1,nele_tot
                   raercol(k,mm,nsav)    = raercol(k,mm,nsav) + raercol_cw(k,mm,nsav)  ! cloud-borne aerosol
                   raercol_cw(k,mm,nsav) = 0._r8
-                 end do
-                 !st do l = 2, nspec(m) + 1
-                 !st    mm = bin_idx(m,l)
-                 !st    raercol(k,mm,nsav)    = raercol(k,mm,nsav) + raercol_cw(k,mm,nsav) ! cloud-borne aerosol
-                 !st    raercol_cw(k,mm,nsav) = 0._r8
-                 !st end do
                end do
+
             end if
          end if
 
@@ -941,7 +916,7 @@ subroutine dropmixnuc_carma( aero_props, aero_state, &
       !    however it might if things are not "just right" in subr activate
       !    the following is a safety measure to avoid negatives in explmix
       do k = top_lev, pver-1
-         do m = 1, nbins
+         do m = 1, nbin
             nact(k,m) = min( nact(k,m), ekkp(k) )
             mact(k,m) = min( mact(k,m), ekkp(k) )
          end do
@@ -957,8 +932,8 @@ subroutine dropmixnuc_carma( aero_props, aero_state, &
          nnew    = ntemp
          srcn(:) = 0.0_r8
 
-         do m = 1, nbins
-            mm = bin_idx(m,0)
+         do m = 1, nbin
+            mm = aero_state%indexer(m,0)
 
             ! update droplet source
             ! rce-comment- activation source in layer k involves particles from k+1
@@ -983,8 +958,8 @@ subroutine dropmixnuc_carma( aero_props, aero_state, &
          !    source terms involve clear air (from below) moving into cloudy air (above).
          !    in theory, the clear-portion mixratio should be used when calculating
          !    source terms
-         do m = 1, nbins
-            mm = bin_idx(m,0)
+         do m = 1, nbin
+            mm = aero_state%indexer(m,0)
             ! rce-comment -   activation source in layer k involves particles from k+1
             !	              source(:)= nact(:,m)*(raercol(:,mm,nsav))
             source(top_lev:pver-1) = nact(top_lev:pver-1,m)*(raercol(top_lev+1:pver,mm,nsav))
@@ -1005,8 +980,8 @@ subroutine dropmixnuc_carma( aero_props, aero_state, &
                  overlapm, raercol(:,mm,nsav), zero, flxconv, pver, &
                  dtmix, .true., raercol_cw(:,mm,nsav))
 
-            do l = 1, nspec(m) + 1
-               mm = bin_idx(m,l)
+            do l = 1,aero_props%nmasses(m)
+               mm = aero_state%indexer(m,l)
                ! rce-comment -   activation source in layer k involves particles from k+1
                !	          source(:)= mact(:,m)*(raercol(:,mm,nsav))
                source(top_lev:pver-1) = mact(top_lev:pver-1,m)*(raercol(top_lev+1:pver,mm,nsav))
@@ -1055,19 +1030,11 @@ subroutine dropmixnuc_carma( aero_props, aero_state, &
             qcld(k)=0._r8
 
             ! convert activated aerosol to interstitial in decaying cloud
-            do m = 1, nbins
-              do l = 0, nspec(m) + 1
-               mm = bin_idx(m,l)
+            do mm = 1,nele_tot
                raercol(k,mm,nnew)    = raercol(k,mm,nnew) + raercol_cw(k,mm,nnew)
                raercol_cw(k,mm,nnew) = 0._r8
-              end do
-
-              !st do l = 1, nspec(m)
-              !st    mm = bin_idx(m,l)
-              !st    raercol(k,mm,nnew)    = raercol(k,mm,nnew) + raercol_cw(k,mm,nnew)
-              !st    raercol_cw(k,mm,nnew) = 0._r8
-              !st end do
             end do
+
          end if
       end do
 
@@ -1271,7 +1238,7 @@ end subroutine explmix
 !===============================================================================
 
 subroutine activate_carma(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
-   na, nmode, volume, hygro, aero_props, &
+   na, nbins, volume, hygro, aero_props, &
    fn, fm, fluxn, fluxm, flux_fullact, smax_prescribed, in_cloud_in, smax_f)
 
    !      calculates number, surface, and mass fraction of aerosols activated as CCN
@@ -1294,7 +1261,7 @@ subroutine activate_carma(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
    real(r8), intent(in) :: tair          ! air temperature (K)
    real(r8), intent(in) :: rhoair        ! air density (kg/m3)
    real(r8), intent(in) :: na(:)      ! aerosol number concentration (/m3)
-   integer,  intent(in) :: nmode      ! number of aerosol modes or bins
+   integer,  intent(in) :: nbins      ! number of aerosol modes or bins
    real(r8), intent(in) :: volume(:)  ! aerosol volume concentration (m3/m3)
    real(r8), intent(in) :: hygro(:)   ! hygroscopicity of aerosol mode
 
@@ -1330,27 +1297,27 @@ subroutine activate_carma(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
    real(r8) qs ! water vapor saturation mixing ratio
    real(r8) dqsdt ! change in qs with temperature
    real(r8) g ! thermodynamic function (m2/s)
-   real(r8) zeta(nmode), eta(nmode)
+   real(r8) zeta(nbins), eta(nbins)
    real(r8) alpha
    real(r8) gamma
    real(r8) beta
    real(r8) sqrtg
-   real(r8) :: amcube(nmode) ! cube of dry mode radius (m)
-   real(r8) smc(nmode) ! critical supersaturation for number mode radius
+   real(r8) :: amcube(nbins) ! cube of dry mode radius (m)
+   real(r8) smc(nbins) ! critical supersaturation for number mode radius
    real(r8) sumflx_fullact
-   real(r8) sumflxn(nmode)
-   real(r8) sumflxm(nmode)
-   real(r8) sumfn(nmode)
-   real(r8) sumfm(nmode)
-   real(r8) fnold(nmode)   ! number fraction activated
-   real(r8) fmold(nmode)   ! mass fraction activated
+   real(r8) sumflxn(nbins)
+   real(r8) sumflxm(nbins)
+   real(r8) sumfn(nbins)
+   real(r8) sumfm(nbins)
+   real(r8) fnold(nbins)   ! number fraction activated
+   real(r8) fmold(nbins)   ! mass fraction activated
    real(r8) wold,gold
    real(r8) wmin,wmax,w,dw,dwmax,dwmin,wnuc,dwnew,wb
    real(r8) dfmin,dfmax,fnew,fold,fnmin,fnbar,fmbar
    real(r8) alw,sqrtalw
    real(r8) smax
    real(r8) z,z1,z2,wf1,wf2,zf1,zf2,gf1,gf2,gf
-   real(r8) etafactor1,etafactor2(nmode),etafactor2max
+   real(r8) etafactor1,etafactor2(nbins),etafactor2max
    real(r8) grow
    character(len=*), parameter :: subname='activate_carma'
 
@@ -1378,7 +1345,7 @@ subroutine activate_carma(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
    fluxm(:)=0._r8
    flux_fullact=0._r8
 
-   if(nmode.eq.1.and.na(1).lt.1.e-20_r8)return
+   if(nbins.eq.1.and.na(1).lt.1.e-20_r8)return
 
    if(sigw.le.1.e-5_r8.and.wbar.le.0._r8)return
 
@@ -1400,7 +1367,7 @@ subroutine activate_carma(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
    sqrtg = sqrt(grow)
    beta  = 2._r8*pi*rhoh2o*grow*gamma
 
-   do m=1,nmode
+   do m=1,nbins
 
       if(volume(m).gt.1.e-39_r8.and.na(m).gt.1.e-39_r8)then
          ! number mode radius (m)
@@ -1433,7 +1400,7 @@ subroutine activate_carma(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
       dfmax=0.2_r8
       dfmin=0.1_r8
       if (wmax <= w) return
-      do m=1,nmode
+      do m=1,nbins
          sumflxn(m)=0._r8
          sumfn(m)=0._r8
          fnold(m)=0._r8
@@ -1456,7 +1423,7 @@ subroutine activate_carma(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
          sqrtalw=sqrt(alw)
          etafactor1=alw*sqrtalw
 
-         do m=1,nmode
+         do m=1,nbins
             eta(m)=etafactor1*etafactor2(m)
             zeta(m)=twothird*sqrtalw*aten/sqrtg
          enddo
@@ -1467,7 +1434,7 @@ subroutine activate_carma(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
             smax = aero_props%maxsat(zeta,eta,smc)
          endif
 
-         call aero_props%actfracs( nmode, smc(nmode), smax, fnew, fm(nmode) )
+         call aero_props%actfracs( nbins, smc(nbins), smax, fnew, fm(nbins) )
 
          dwnew = dw
          if(fnew-fold.gt.dfmax.and.n.gt.1)then
@@ -1492,7 +1459,7 @@ subroutine activate_carma(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
          g=exp(-z*z)
          fnmin=1._r8
 
-         do m=1,nmode
+         do m=1,nbins
             !              modal
             call aero_props%actfracs( m, smc(m), smax, fn(m), fm(m) )
             fnmin=min(fn(m),fnmin)
@@ -1525,14 +1492,14 @@ subroutine activate_carma(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
             write(iulog,*)'wmin=',wmin,' w=',w,' wmax=',wmax,' dw=',dw
             write(iulog,*)'wbar=',wbar,' sigw=',sigw,' wdiab=',wdiab
             write(iulog,*)'wnuc=',wnuc
-            write(iulog,*)'na=',(na(m),m=1,nmode)
-            write(iulog,*)'fn=',(fn(m),m=1,nmode)
+            write(iulog,*)'na=',(na(m),m=1,nbins)
+            write(iulog,*)'fn=',(fn(m),m=1,nbins)
             !   dump all subr parameters to allow testing with standalone code
             !   (build a driver that will read input and call activate)
-            write(iulog,*)'wbar,sigw,wdiab,tair,rhoair,nmode='
-            write(iulog,*) wbar,sigw,wdiab,tair,rhoair,nmode
+            write(iulog,*)'wbar,sigw,wdiab,tair,rhoair,nbins='
+            write(iulog,*) wbar,sigw,wdiab,tair,rhoair,nbins
             write(iulog,*)'na=',na
-            write(iulog,*)'volume=', (volume(m),m=1,nmode)
+            write(iulog,*)'volume=', (volume(m),m=1,nbins)
             write(iulog,*)'hydro='
             write(iulog,*) hygro
             call endrun(subname)
@@ -1561,7 +1528,7 @@ subroutine activate_carma(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
          gf=(gf1-gf2)
          integf=wbar*sigw*0.5_r8*sq2*sqpi*(erf(zf2)-erf(zf1))+sigw*sigw*gf
 
-         do m=1,nmode
+         do m=1,nbins
             sumflxn(m)=sumflxn(m)+integf*fn(m)
             sumfn(m)=sumfn(m)+fn(m)*integ
             sumflxm(m)=sumflxm(m)+integf*fm(m)
@@ -1573,7 +1540,7 @@ subroutine activate_carma(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
       endif
 
 
-      do m=1,nmode
+      do m=1,nbins
          fn(m)=sumfn(m)/(sq2*sqpi*sigw)
          !            fn(m)=sumfn(m)/(sumg)
          if(fn(m).gt.1.01_r8)then
@@ -1615,7 +1582,7 @@ subroutine activate_carma(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
             sqrtalw    = sqrt(alw)
             etafactor1 = alw*sqrtalw
 
-            do m = 1, nmode
+            do m = 1, nbins
                eta(m)  = etafactor1*etafactor2(m)
                zeta(m) = twothird*sqrtalw*aten/sqrtg
             end do
@@ -1626,7 +1593,7 @@ subroutine activate_carma(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
             end if
          end if
 
-         do m=1,nmode
+         do m=1,nbins
 
             call aero_props%actfracs( m, smc(m), smax, fn(m), fm(m) )
 

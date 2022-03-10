@@ -43,10 +43,11 @@ contains
 
     type(modal_aerosol_properties), pointer :: newobj
 
-    integer :: m, nmodes
+    integer :: m, nmodes, ncnst_tot
     real(r8) :: dgnumlo
     real(r8) :: dgnumhi
     integer,allocatable :: nspecies(:)
+    integer,allocatable :: nmasses(:)
     real(r8),allocatable :: amcubecoefs(:)
 
     allocate(newobj)
@@ -54,6 +55,7 @@ contains
     call rad_cnst_get_info(0, nmodes=nmodes)
 
     allocate(nspecies(nmodes))
+    allocate(nmasses(nmodes))
     allocate(amcubecoefs(nmodes))
 
     allocate(newobj%alogsig(nmodes))
@@ -64,8 +66,13 @@ contains
     allocate(newobj%voltonumblo_(nmodes))
     allocate(newobj%voltonumbhi_(nmodes))
 
+    ncnst_tot = 0
+
     do m = 1, nmodes
        call rad_cnst_get_info(0, m, nspec=nspecies(m))
+
+       ncnst_tot =  ncnst_tot + nspecies(m) + 1
+       nmasses(m) = nspecies(m)
 
        call rad_cnst_get_mode_props(0, m, sigmag=newobj%sigmag_amode(m), &
                                     dgnumhi=dgnumhi, dgnumlo=dgnumlo )
@@ -86,8 +93,9 @@ contains
 
     end do
 
-    call newobj%initialize(nmodes,nspecies,amcubecoefs)
+    call newobj%initialize(nmodes,ncnst_tot,nspecies,nmasses,amcubecoefs)
     deallocate(nspecies)
+    deallocate(nmasses)
     deallocate(amcubecoefs)
 
   end function constructor

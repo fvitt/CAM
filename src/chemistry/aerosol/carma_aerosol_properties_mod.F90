@@ -33,24 +33,31 @@ contains
 
     type(carma_aerosol_properties), pointer :: newobj
 
-    integer :: m, nbins
+    integer :: m, nbins, ncnst_tot
     integer,allocatable :: nspecies(:)
+    integer,allocatable :: nmasses(:)
     real(r8),allocatable :: amcubecoefs(:)
 
     allocate(newobj)
 
     call rad_cnst_get_info( 0, nbins=nbins)
     allocate( nspecies(nbins) )
+    allocate( nmasses(nbins) )
     allocate( amcubecoefs(nbins) )
+
+    ncnst_tot = 0
 
     do m = 1, nbins
        call rad_cnst_get_info_by_bin(0, m, nspec=nspecies(m))
+       ncnst_tot = ncnst_tot + nspecies(m) + 2
+       nmasses(m) = nspecies(m) + 1
     end do
 
     amcubecoefs(:)=3._r8/(4._r8*pi)
 
-    call newobj%initialize(nbins,nspecies,amcubecoefs)
+    call newobj%initialize(nbins,ncnst_tot,nspecies,nmasses,amcubecoefs)
     deallocate(nspecies)
+    deallocate(nmasses)
     deallocate(amcubecoefs)
 
   end function constructor
