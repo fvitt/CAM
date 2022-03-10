@@ -17,7 +17,7 @@ module carma_aerosol_state_mod
      private
      type(physics_state), pointer :: state => null()
      type(physics_buffer_desc), pointer :: pbuf(:) => null()
-     integer, allocatable :: indexer_(:,:)
+     integer, pointer :: indexer_(:,:) => null()
    contains
 
      procedure :: get_ambient_mmr
@@ -76,6 +76,7 @@ contains
     nullify(self%state)
     nullify(self%pbuf)
     deallocate(self%indexer_)
+    nullify(self%indexer_)
 
   end subroutine destructor
 
