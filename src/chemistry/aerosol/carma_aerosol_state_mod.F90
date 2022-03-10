@@ -24,6 +24,8 @@ module carma_aerosol_state_mod
      procedure :: get_cldbrne_mmr
      procedure :: get_ambient_num
      procedure :: get_cldbrne_num
+     procedure :: get_ambient_bin_mmr
+     procedure :: get_cldbrne_bin_mmr
      procedure :: get_states
 
      final :: destructor
@@ -124,6 +126,26 @@ contains
 
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------
+  function get_ambient_bin_mmr(self,m) result(x)
+    class(carma_aerosol_state), intent(in) :: self
+    integer, intent(in) :: m
+    real(r8), pointer :: x(:,:)
+
+    call rad_cnst_get_bin_mmr(0, m, 'a', self%state, self%pbuf, x)
+  end function get_ambient_bin_mmr
+
+  !------------------------------------------------------------------------------
+  !------------------------------------------------------------------------------
+  function get_cldbrne_bin_mmr(self,m) result(x)
+    class(carma_aerosol_state), intent(in) :: self
+    integer, intent(in) :: m
+    real(r8), pointer :: x(:,:)
+
+    call rad_cnst_get_bin_mmr(0, m, 'c', self%state, self%pbuf, x)
+  end function get_cldbrne_bin_mmr
+
+  !------------------------------------------------------------------------------
+  !------------------------------------------------------------------------------
   subroutine get_states( self, aero_props, raer, qqcw )
     class(carma_aerosol_state), intent(in) :: self
     class(aerosol_properties), intent(in) :: aero_props
@@ -134,15 +156,15 @@ contains
 
     do m = 1, aero_props%nbins()
        mm = self%indexer_(m, 0)
-       call rad_cnst_get_bin_num(0, m, 'a', self%state, self%pbuf, raer(mm)%fld)
-       call rad_cnst_get_bin_num(0, m, 'c', self%state, self%pbuf, qqcw(mm)%fld)  ! cloud-borne aerosol
+       raer(mm)%fld => self%get_ambient_num(m)
+       qqcw(mm)%fld => self%get_cldbrne_num(m)
        mm = self%indexer_(m, 1)
-       call rad_cnst_get_bin_mmr(0, m, 'a', self%state, self%pbuf, raer(mm)%fld)
-       call rad_cnst_get_bin_mmr(0, m, 'c', self%state, self%pbuf, qqcw(mm)%fld)  ! cloud-borne aerosol
-       do l = 2, aero_props%nspecies(m)+1
-          mm = self%indexer_(m, l)
-          call rad_cnst_get_bin_mmr_by_idx(0, m, l-1, 'a', self%state, self%pbuf, raer(mm)%fld)
-          call rad_cnst_get_bin_mmr_by_idx(0, m, l-1, 'c', self%state, self%pbuf, qqcw(mm)%fld)  ! cloud-borne aerosol
+       raer(mm)%fld => self%get_ambient_bin_mmr(m)
+       qqcw(mm)%fld => self%get_cldbrne_bin_mmr(m)
+       do l = 1, aero_props%nspecies(m)
+          mm = self%indexer_(m, l+1)
+          raer(mm)%fld => self%get_ambient_mmr(l,m)
+          qqcw(mm)%fld => self%get_cldbrne_mmr(l,m)
        end do
     end do
 
