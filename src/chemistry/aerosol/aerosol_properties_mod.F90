@@ -98,6 +98,9 @@ contains
     if (allocated(self%nspecies_)) then
        deallocate(self%nspecies_)
     end if
+    if (allocated(self%nmasses_)) then
+       deallocate(self%nmasses_)
+    end if
     if (allocated(self%amcubecoefs_)) then
        deallocate(self%amcubecoefs_)
     end if
