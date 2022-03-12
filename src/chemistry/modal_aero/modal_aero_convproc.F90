@@ -2372,7 +2372,7 @@ end subroutine ma_convproc_tend
 !
 !-----------------------------------------------------------------------
 
-   use ndrop, only: activate_modal
+   use ndrop, only: activate_aerosol
 
    use modal_aero_data, only:  lmassptr_amode, lmassptrcw_amode, &
       ntot_amode, &
@@ -2417,9 +2417,9 @@ end subroutine ma_convproc_tend
 
    real(r8) :: delact                ! working variable
    real(r8) :: dt_u_inv              ! 1.0/dt_u
-   real(r8) :: fluxm(ntot_amode)      ! to understand this, see subr activate_modal
-   real(r8) :: fluxn(ntot_amode)      ! to understand this, see subr activate_modal
-   real(r8) :: flux_fullact           ! to understand this, see subr activate_modal
+   real(r8) :: fluxm(ntot_amode)      ! to understand this, see subr activate_aerosol
+   real(r8) :: fluxn(ntot_amode)      ! to understand this, see subr activate_aerosol
+   real(r8) :: flux_fullact           ! to understand this, see subr activate_aerosol
    real(r8) :: fm(ntot_amode)         ! mass fraction of aerosols activated
    real(r8) :: fn(ntot_amode)         ! number fraction of aerosols activated
    real(r8) :: hygro(ntot_amode)      ! current hygroscopicity for int+act
@@ -2528,7 +2528,7 @@ end subroutine ma_convproc_tend
    wminf = wbar
    wmaxf = wbar
 
-   call activate_modal(                                                    &
+   call activate_aerosol(                                                    &
          wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,                    &
          naerosol, ntot_amode, vaerosol, hygro, aero_props_obj,            &
          fn, fm, fluxn, fluxm, flux_fullact                                )
@@ -2632,7 +2632,7 @@ end subroutine ma_convproc_tend
 !
 !-----------------------------------------------------------------------
 
-   use ndrop, only: activate_modal
+   use ndrop, only: activate_aerosol
 
    use modal_aero_data, only:  lmassptr_amode, lmassptrcw_amode, &
       ntot_amode, &
@@ -2678,9 +2678,9 @@ end subroutine ma_convproc_tend
 
    real(r8) :: delact                ! working variable
    real(r8) :: dt_u_inv              ! 1.0/dt_u
-   real(r8) :: fluxm(ntot_amode)      ! to understand this, see subr activate_modal
-   real(r8) :: fluxn(ntot_amode)      ! to understand this, see subr activate_modal
-   real(r8) :: flux_fullact           ! to understand this, see subr activate_modal
+   real(r8) :: fluxm(ntot_amode)      ! to understand this, see subr activate_aerosol
+   real(r8) :: fluxn(ntot_amode)      ! to understand this, see subr activate_aerosol
+   real(r8) :: flux_fullact           ! to understand this, see subr activate_aerosol
    real(r8) :: fm(ntot_amode)         ! mass fraction of aerosols activated
    real(r8) :: fn(ntot_amode)         ! number fraction of aerosols activated
    real(r8) :: hygro(ntot_amode)      ! current hygroscopicity for int+act
@@ -2806,7 +2806,7 @@ end subroutine ma_convproc_tend
 
    if (k == kactfirst) then
 
-      call activate_modal(                                                 &
+      call activate_aerosol(                                                 &
          wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,                    &
          naerosol, ntot_amode, vaerosol, hygro, aero_props_obj,            &
          fn, fm, fluxn, fluxm, flux_fullact                                )
@@ -2816,7 +2816,7 @@ end subroutine ma_convproc_tend
 ! above cloud base - do secondary activation with prescribed supersat
 ! that is constant with height
       smax_prescribed = method2_activate_smaxmax
-      call activate_modal(                                                 &
+      call activate_aerosol(                                                 &
          wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,                    &
          naerosol, ntot_amode, vaerosol, hygro, aero_props_obj,            &
          fn, fm, fluxn, fluxm, flux_fullact, smax_prescribed               )

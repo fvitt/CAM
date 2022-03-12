@@ -2637,7 +2637,7 @@ end subroutine ma_convproc_tend
 !
 !-----------------------------------------------------------------------
 
-   use ndrop_carma, only: activate_carma
+   use ndrop, only: activate_aerosol
    use ppgrid,          only: pcols
 
    implicit none
@@ -2823,7 +2823,7 @@ end subroutine ma_convproc_tend
    deallocate(aero_state_obj)
    nullify(aero_state_obj)
 
-   call activate_carma(                                                    &
+   call activate_aerosol(                                                    &
          wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,                    &
          naerosol, nbins, vaerosol, hygro, aero_props_obj,                 &
          fn, fm, fluxn, fluxm, flux_fullact                                )
@@ -2932,7 +2932,7 @@ end subroutine ma_convproc_tend
 !
 !-----------------------------------------------------------------------
 
-   use ndrop_carma, only: activate_carma
+   use ndrop, only: activate_aerosol
    use ppgrid,          only: pcols
 
    !st use modal_aero_data, only:  lmassptr_amode, lmassptrcw_amode, &
@@ -3137,7 +3137,7 @@ end subroutine ma_convproc_tend
 
    if (k == kactfirst) then
 
-      call activate_carma(                                                 &
+      call activate_aerosol(                                                 &
          wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,                    &
          naerosol, nbins, vaerosol, hygro, aero_props_obj,                 &
          fn, fm, fluxn, fluxm, flux_fullact                                )
@@ -3147,7 +3147,7 @@ end subroutine ma_convproc_tend
 ! above cloud base - do secondary activation with prescribed supersat
 ! that is constant with height
       smax_prescribed = method2_activate_smaxmax
-      call activate_carma(                                                 &
+      call activate_aerosol(                                                 &
          wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,                    &
          naerosol, nbins, vaerosol, hygro, aero_props_obj,                 &
          fn, fm, fluxn, fluxm, flux_fullact, smax_prescribed               )

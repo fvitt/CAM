@@ -13,7 +13,7 @@ use ppgrid,            only: pcols, pver, pverp
 use physconst,         only: gravit, rair, tmelt, cpair, rh2o, r_universal, mwh2o, rhoh2o
 use physconst,         only: latvap, latice
 !use activate_drop_mam, only: actdrop_mam_calc
-use ndrop,             only: activate_modal
+use ndrop,             only: activate_aerosol
 use ndrop_bam,         only: ndrop_bam_run
 use nucleate_ice,      only: nucleati
 use shr_spfn_mod,     only: erf => shr_spfn_erf
@@ -1474,7 +1474,7 @@ subroutine zm_mphy(su,    qu,   mu,   du,   eu,    cmel,  cmei,  zf,   pm,   te,
 
                     end if
 
-                    call activate_modal(  &
+                    call activate_aerosol(  &
                        wu(i,k), wmix, wdiab, wmin, wmax,                 &
                        t(i,k), rho(i,k), naermod, aero%nmodes, vaerosol, &
                        hygro, aero_props_obj, fn, fm,                  &

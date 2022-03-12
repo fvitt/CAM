@@ -32,7 +32,7 @@ implicit none
 private
 save
 
-public ndrop_init, dropmixnuc, activate_modal
+public ndrop_init, dropmixnuc, activate_aerosol
 
 real(r8) :: t0            ! reference temperature
 real(r8) :: aten
@@ -569,7 +569,7 @@ subroutine dropmixnuc( aero_props, aero_state, &
                hygro(m)    = hy(i)
             end do
 
-            call activate_modal( &
+            call activate_aerosol( &
                wbar, wmix, wdiab, wmin, wmax,                       &
                temp(i,k), cs(i,k), naermod, nbin,             &
                vaerosol, hygro, aero_props, fn, fm, fluxn,     &
@@ -657,7 +657,7 @@ subroutine dropmixnuc( aero_props, aero_state, &
                   hygro(m)    = hy(i)
                end do
 
-               call activate_modal( &
+               call activate_aerosol( &
                   wbar, wmix, wdiab, wmin, wmax,                       &
                   temp(i,k), cs(i,k), naermod, nbin,             &
                   vaerosol, hygro, aero_props, fn, fm, fluxn,     &
@@ -1147,7 +1147,7 @@ end subroutine explmix
 
 !===============================================================================
 
-subroutine activate_modal(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
+subroutine activate_aerosol(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
    na, nbins, volume, hygro, aero_props, &
    fn, fm, fluxn, fluxm, flux_fullact, smax_prescribed, in_cloud_in, smax_f)
 
@@ -1229,7 +1229,7 @@ subroutine activate_modal(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
    real(r8) z,z1,z2,wf1,wf2,zf1,zf2,gf1,gf2,gf
    real(r8) etafactor1,etafactor2(nbins),etafactor2max
    real(r8) grow
-   character(len=*), parameter :: subname='activate_modal'
+   character(len=*), parameter :: subname='activate_aerosol'
 
    logical :: in_cloud
    integer m,n
@@ -1243,7 +1243,7 @@ subroutine activate_modal(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
    save ndist
 
    if (present(in_cloud_in)) then
-      if (.not. present(smax_f)) call endrun('activate_modal error: smax_f must be supplied when in_cloud is used')
+      if (.not. present(smax_f)) call endrun(subname//' error: smax_f must be supplied when in_cloud is used')
       in_cloud = in_cloud_in
    else
       in_cloud = .false.
@@ -1410,7 +1410,7 @@ subroutine activate_modal(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
             write(iulog,*) wbar,sigw,wdiab,tair,rhoair,nbins
             write(iulog,*)'na=',na
             write(iulog,*)'volume=', (volume(m),m=1,nbins)
-            write(iulog,*)'hydro='
+            write(iulog,*)'hygro='
             write(iulog,*) hygro
             call endrun(subname)
          end if
@@ -1517,7 +1517,7 @@ subroutine activate_modal(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
 
    endif
 
-end subroutine activate_modal
+end subroutine activate_aerosol
 
 !===============================================================================
 
