@@ -34,12 +34,18 @@ save
 
 public ndrop_init, dropmixnuc, activate_aerosol
 
-real(r8) :: t0            ! reference temperature
+! mathematical constants
+real(r8), parameter :: zero     = 0._r8
+real(r8), parameter :: third    = 1._r8/3._r8
+real(r8), parameter :: twothird = 2._r8*third
+real(r8), parameter :: sixth    = 1._r8/6._r8
+real(r8), parameter :: sq2      = sqrt(2._r8)
+real(r8), parameter :: sq2pi    = sqrt(2._r8*pi)
+real(r8), parameter :: sqpi     = sqrt(pi)
+real(r8), parameter :: surften  = 0.076_r8
+real(r8), parameter :: t0       = 273._r8
+
 real(r8) :: aten
-real(r8) :: surften       ! surface tension of water w/respect to air (N/m)
-real(r8) :: alog2, alog3, alogaten
-real(r8) :: third, twothird, sixth, zero
-real(r8) :: sq2, sqpi
 
 ! CCN diagnostic fields
 integer,  parameter :: psat=6    ! number of supersaturations to calc ccn concentration
@@ -70,7 +76,7 @@ subroutine ndrop_init(aero_props)
 
    class(aerosol_properties), intent(in) :: aero_props
 
-   integer  :: ii, l, m, mm
+   integer :: l, m, mm
    integer :: idxtmp = -1
    character(len=32)   :: tmpname
    character(len=32)   :: tmpname_cw
@@ -83,21 +89,9 @@ subroutine ndrop_init(aero_props)
    ! get indices into state%q and pbuf structures
    call cnst_get_ind('NUMLIQ', numliq_idx)
 
-   kvh_idx      = pbuf_get_index('kvh')
+   kvh_idx = pbuf_get_index('kvh')
 
-   zero     = 0._r8
-   third    = 1._r8/3._r8
-   twothird = 2._r8*third
-   sixth    = 1._r8/6._r8
-   sq2      = sqrt(2._r8)
-   sqpi     = sqrt(pi)
-
-   t0       = 273._r8
-   surften  = 0.076_r8
-   aten     = 2._r8*mwh2o*surften/(r_universal*t0*rhoh2o)
-   alogaten = log(aten)
-   alog2    = log(2._r8)
-   alog3    = log(3._r8)
+   aten = 2._r8*mwh2o*surften/(r_universal*t0*rhoh2o)
 
    allocate( &
       aer_cnst_idx(aero_props%nbins(),0:maxval(aero_props%nmasses())), &
@@ -230,8 +224,6 @@ subroutine dropmixnuc( aero_props, aero_state, &
 
    real(r8), parameter :: zkmin = 0.01_r8, zkmax = 100._r8
    real(r8), parameter :: wmixmin = 0.1_r8        ! minimum turbulence vertical velocity (m/s)
-   real(r8) :: sq2pi
-
    integer  :: i, k, l, m, mm, n
    integer  :: km1, kp1
    integer  :: nnew, nsav, ntemp
@@ -322,8 +314,6 @@ subroutine dropmixnuc( aero_props, aero_state, &
 
    logical  :: called_from_spcam
    !-------------------------------------------------------------------------------
-
-   sq2pi = sqrt(2._r8*pi)
 
    lchnk = state%lchnk
    ncol  = state%ncol
@@ -800,7 +790,7 @@ subroutine dropmixnuc( aero_props, aero_state, &
       end do
 
       dtmix   = 0.9_r8*dtmin
-      nsubmix = dtmicro/dtmix + 1
+      nsubmix = int(dtmicro/dtmix) + 1
       if (nsubmix > 100) then
          nsubmix_bnd = 100
       else
@@ -1020,7 +1010,7 @@ subroutine dropmixnuc( aero_props, aero_state, &
         call outfld('SPKVH     ', kvh     , pcols, lchnk   )
    endif
 
-   call ccncalc(aero_state, aero_props, state, pbuf, cs, ccn)
+   call ccncalc(aero_state, aero_props, state, cs, ccn)
    do l = 1, psat
       call outfld(ccn_name(l), ccn(1,1,l), pcols, lchnk)
    enddo
@@ -1200,7 +1190,6 @@ subroutine activate_aerosol(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
    integer, parameter:: nx=200
    real(r8) integ,integf
    real(r8), parameter :: p0 = 1013.25e2_r8    ! reference pressure (Pa)
-   real(r8) rm ! number mode radius of aerosol at max supersat (cm)
    real(r8) pres ! pressure (Pa)
    real(r8) diff0,conduct0
    real(r8) es ! saturation vapor pressure
@@ -1521,7 +1510,7 @@ end subroutine activate_aerosol
 
 !===============================================================================
 
-subroutine ccncalc(aero_state, aero_props, state, pbuf, cs, ccn)
+subroutine ccncalc(aero_state, aero_props, state, cs, ccn)
 
    ! calculates number concentration of aerosols activated as CCN at
    ! supersaturation supersat.
@@ -1535,7 +1524,6 @@ subroutine ccncalc(aero_state, aero_props, state, pbuf, cs, ccn)
    class(aerosol_properties), intent(in) :: aero_props
 
    type(physics_state), target, intent(in)    :: state
-   type(physics_buffer_desc),   pointer       :: pbuf(:)
 
    real(r8), intent(in)  :: cs(pcols,pver)       ! air density (kg/m3)
    real(r8), intent(out) :: ccn(pcols,pver,psat) ! number conc of aerosols activated at supersat (#/m3)
@@ -1550,34 +1538,29 @@ subroutine ccncalc(aero_state, aero_props, state, pbuf, cs, ccn)
    real(r8) vaerosol(pcols) ! interstit+activated aerosol volume conc (m3/m3)
 
    real(r8) amcube(pcols)
-   real(r8) super(psat) ! supersaturation
    real(r8), allocatable :: argfactor(:)
-   real(r8) :: surften       ! surface tension of water w/respect to air (N/m)
    real(r8) surften_coef
    real(r8) a(pcols) ! surface tension parameter
    real(r8) hygro(pcols)  ! aerosol hygroscopicity
    real(r8) sm(pcols)  ! critical supersaturation at mode radius
    real(r8) arg(pcols)
-   !     mathematical constants
-   real(r8) twothird,sq2
    integer l,m,i,k
-   real(r8) smcoefcoef,smcoef(pcols)
+   real(r8) smcoef(pcols)
    integer phase ! phase of aerosol
+
+   !     mathematical constants
+   real(r8), parameter :: super(psat) = supersat(:psat)*0.01_r8
+   real(r8), parameter :: smcoefcoef  = 2._r8/sqrt(27._r8)
+
    !-------------------------------------------------------------------------------
 
    nbin  = aero_props%nbins()
    ncol  = state%ncol
    tair  => state%t
 
-   allocate( &
-      argfactor(nbin)   )
+   allocate( argfactor(nbin) )
 
-   super(:)=supersat(:)*0.01_r8
-   sq2=sqrt(2._r8)
-   twothird=2._r8/3._r8
-   surften=0.076_r8
    surften_coef=2._r8*mwh2o*surften/(r_universal*rhoh2o)
-   smcoefcoef=2._r8/sqrt(27._r8)
 
    do m=1,nbin
       argfactor(m)=twothird/(sq2*aero_props%alogsig(m))
@@ -1616,8 +1599,7 @@ subroutine ccncalc(aero_state, aero_props, state, pbuf, cs, ccn)
    enddo
    ccn(:ncol,:,:)=ccn(:ncol,:,:)*1.e-6_r8 ! convert from #/m3 to #/cm3
 
-   deallocate( &
-      argfactor   )
+   deallocate( argfactor )
 
 end subroutine ccncalc
 
