@@ -217,7 +217,8 @@ subroutine microp_aero_init(pbuf2d)
       cldo_idx     = pbuf_get_index('CLDO')
       dgnumwet_idx = pbuf_get_index('DGNUMWET')
 
-      call ndrop_init()
+      aero_props_obj => modal_aerosol_properties()
+      call ndrop_init(aero_props_obj)
 
       ! Init indices for specific modes/species
 
@@ -289,13 +290,12 @@ subroutine microp_aero_init(pbuf2d)
          call endrun(routine//': ERROR required mode-species type not found')
       end if
 
-      aero_props_obj => modal_aerosol_properties()
-
    elseif (clim_carma_aero) then
       cldo_idx = pbuf_get_index('CLDO')
-      call ndrop_carma_init()
 
       aero_props_obj => carma_aerosol_properties()
+      call ndrop_carma_init(aero_props_obj)
+
 
    else
 

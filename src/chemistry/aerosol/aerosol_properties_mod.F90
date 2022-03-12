@@ -13,22 +13,29 @@ module aerosol_properties_mod
      integer :: ncnst_tot_ = 0
      integer, allocatable :: nmasses_(:)
      integer, allocatable :: nspecies_(:)
+     integer, allocatable :: indexer_(:,:)
      real(r8), allocatable :: amcubecoefs_(:)
+     real(r8), allocatable :: alogsig_(:)
    contains
      procedure :: initialize => aero_props_init
      procedure :: nbins
      procedure :: ncnst_tot
      procedure :: nspecies
-     procedure :: nmasses
-     procedure :: nspec_max=>default_nspec_max
-     procedure :: default_nspec_max
+     procedure,private :: nmassesa
+     procedure,private :: nmassesv
+     generic :: nmasses => nmassesa,nmassesv
+     procedure :: indexer
      procedure :: maxsat     ! *** Does this belong with this class ??
      procedure :: amcubecoef
      procedure :: amcube
+     procedure :: alogsig
      procedure(aero_props_abdraz_f), deferred :: abdraz_f1
      procedure(aero_props_abdraz_f), deferred :: abdraz_f2
      procedure(aero_props_get), deferred :: get
      procedure(aero_actfracs), deferred :: actfracs
+     procedure(aero_num_names), deferred :: get_num_names
+     procedure(aero_mmr_names), deferred :: get_mmr_names
+
      procedure :: final=>aero_props_final
   end type aerosol_properties
 
@@ -64,29 +71,64 @@ module aerosol_properties_mod
 
      end subroutine aero_actfracs
 
+     !------------------------------------------------------------------------
+     !------------------------------------------------------------------------
+     subroutine aero_num_names(self, m, name_a, name_c)
+       import
+       class(aerosol_properties), intent(in) :: self
+       integer, intent(in) :: m
+       character(len=32), intent(out) :: name_a, name_c
+     end subroutine aero_num_names
+
+     !------------------------------------------------------------------------
+     !------------------------------------------------------------------------
+     subroutine aero_mmr_names(self, m,l, name_a, name_c)
+       import
+       class(aerosol_properties), intent(in) :: self
+       integer, intent(in) :: m,l
+       character(len=32), intent(out) :: name_a, name_c
+     end subroutine aero_mmr_names
+
   end interface
 
 contains
 
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------
-  subroutine aero_props_init(self, nbin, ncnst, nspec, nmasses, amcubecoefs )
+  subroutine aero_props_init(self, nbin, ncnst, nspec, nmasses, amcubecoefs, alogsig )
     class(aerosol_properties), intent(inout) :: self
-    integer :: nbin
-    integer :: ncnst
-    integer :: nspec(nbin)
-    integer :: nmasses(nbin)
-    real(r8) :: amcubecoefs(nbin)
+    integer, intent(in) :: nbin
+    integer, intent(in) :: ncnst
+    integer, intent(in) :: nspec(nbin)
+    integer, intent(in) :: nmasses(nbin)
+    real(r8),intent(in) :: amcubecoefs(nbin)
+    real(r8),intent(in) :: alogsig(nbin)
+
+    integer :: l,m,mm
 
     allocate(self%nspecies_(nbin))
     allocate(self%nmasses_(nbin))
     allocate(self%amcubecoefs_(nbin))
+    allocate(self%alogsig_(nbin))
+
+    allocate( self%indexer_(nbin,0:maxval(nmasses)) )
+
+    self%indexer_ = -1
+    mm = 0
+
+    do m=1,nbin
+       do l = 0,nmasses(m)
+          mm = mm+1
+          self%indexer_(m,l) = mm
+       end do
+    end do
 
     self%nbins_ = nbin
     self%ncnst_tot_ = ncnst
     self%nmasses_(:) = nmasses(:)
     self%nspecies_(:) = nspec(:)
     self%amcubecoefs_(:) = amcubecoefs(:)
+    self%alogsig_(:) = alogsig(:)
 
   end subroutine aero_props_init
 
@@ -104,8 +146,16 @@ contains
     if (allocated(self%amcubecoefs_)) then
        deallocate(self%amcubecoefs_)
     end if
+    if (allocated(self%indexer_)) then
+       deallocate(self%indexer_)
+    endif
+    if (allocated(self%alogsig_)) then
+       deallocate(self%alogsig_)
+    endif
 
     self%nbins_ = 0
+    self%ncnst_tot_ = 0
+
   end subroutine aero_props_final
 
   !------------------------------------------------------------------------------
@@ -119,12 +169,31 @@ contains
 
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------
-  pure integer function nmasses(self,m)
+  pure function nmassesv(self,m) result(val)
     class(aerosol_properties), intent(in) :: self
     integer, intent(in) :: m
+    integer :: val
 
-    nmasses = self%nmasses_(m)
-  end function nmasses
+    val = self%nmasses_(m)
+  end function nmassesv
+
+  !------------------------------------------------------------------------------
+  !------------------------------------------------------------------------------
+  pure function nmassesa(self) result(arr)
+    class(aerosol_properties), intent(in) :: self
+    integer :: arr(self%nbins_)
+
+    arr(:) = self%nmasses_(:)
+  end function nmassesa
+
+  !------------------------------------------------------------------------------
+  !------------------------------------------------------------------------------
+  pure integer function indexer(self,m,l)
+    class(aerosol_properties), intent(in) :: self
+    integer, intent(in) :: m,l
+
+    indexer = self%indexer_(m,l)
+  end function indexer
 
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------
@@ -144,20 +213,21 @@ contains
 
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------
-  pure integer function default_nspec_max(self)
-    class(aerosol_properties), intent(in) :: self
-
-    default_nspec_max = maxval(self%nspecies_)
-  end function default_nspec_max
-
-  !------------------------------------------------------------------------------
-  !------------------------------------------------------------------------------
   pure real(r8) function amcubecoef(self, m)
     class(aerosol_properties), intent(in) :: self
     integer, intent(in) :: m
 
     amcubecoef = self%amcubecoefs_(m)
   end function amcubecoef
+
+  !------------------------------------------------------------------------------
+  !------------------------------------------------------------------------------
+  pure real(r8) function alogsig(self, m)
+    class(aerosol_properties), intent(in) :: self
+    integer, intent(in) :: m
+
+    alogsig = self%alogsig_(m)
+  end function alogsig
 
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------

@@ -10,10 +10,9 @@ module ndrop
 !---------------------------------------------------------------------------------
 
 use shr_kind_mod,     only: r8 => shr_kind_r8
-use spmd_utils,       only: masterproc
-use ppgrid,           only: pcols, pver, pverp
+use ppgrid,           only: pcols, pver
 use physconst,        only: pi, rhoh2o, mwh2o, r_universal, rh2o, &
-                            gravit, latvap, cpair, epsilo, rair
+                            gravit, latvap, cpair, rair
 use constituents,     only: pcnst, cnst_get_ind, cnst_name, cnst_spec_class_gas, cnst_species_class
 use physics_types,    only: physics_state, physics_ptend, physics_ptend_init
 use physics_buffer,   only: physics_buffer_desc, pbuf_get_index, pbuf_get_field
@@ -22,9 +21,6 @@ use wv_saturation,    only: qsat
 use phys_control,     only: phys_getopts
 use ref_pres,         only: top_lev => trop_cloud_top_lev
 use shr_spfn_mod,     only: erf => shr_spfn_erf
-use rad_constituents, only: rad_cnst_get_info, rad_cnst_get_mode_num, rad_cnst_get_aer_mmr, &
-                            rad_cnst_get_aer_props, rad_cnst_get_mode_props,                &
-                            rad_cnst_get_mam_mmr_idx, rad_cnst_get_mode_num_idx
 use cam_history,      only: addfld, add_default, horiz_only, fieldname_len, outfld
 use cam_abortutils,   only: endrun
 use cam_logfile,      only: iulog
@@ -37,11 +33,6 @@ private
 save
 
 public ndrop_init, dropmixnuc, activate_modal
-
-real(r8), allocatable :: alogsig(:)     ! natl log of geometric standard dev of aerosol
-real(r8), allocatable :: exp45logsig(:)
-real(r8), allocatable :: f1(:)          ! abdul-razzak functions of width
-real(r8), allocatable :: f2(:)          ! abdul-razzak functions of width
 
 real(r8) :: t0            ! reference temperature
 real(r8) :: aten
@@ -61,28 +52,13 @@ character(len=8) :: ccn_name(psat)= &
 integer :: numliq_idx = -1
 integer :: kvh_idx    = -1
 
-! description of modal aerosols
-integer               :: ntot_amode     ! number of aerosol modes
-integer,  allocatable :: nspec_amode(:) ! number of chemical species in each aerosol mode
-real(r8), allocatable :: sigmag_amode(:)! geometric standard deviation for each aerosol mode
-real(r8), allocatable :: dgnumlo_amode(:)
-real(r8), allocatable :: dgnumhi_amode(:)
-real(r8), allocatable :: voltonumblo_amode(:)
-real(r8), allocatable :: voltonumbhi_amode(:)
-
-logical :: history_aerosol      ! Output the MAM aerosol tendencies
+logical :: history_aerosol      ! Output the aerosol tendencies
 character(len=fieldname_len), allocatable :: fieldname(:)    ! names for drop nuc tendency output fields
 character(len=fieldname_len), allocatable :: fieldname_cw(:) ! names for drop nuc tendency output fields
 
-! local indexing for MAM
-integer, allocatable :: mam_idx(:,:) ! table for local indexing of modal aero number and mmr
-integer :: ncnst_tot                  ! total number of mode number conc + mode species
+! Indices for aerosol species in the ptend%q array.
+integer, allocatable :: aer_cnst_idx(:,:)
 
-! Indices for MAM species in the ptend%q array.  Needed for prognostic aerosol case.
-integer, allocatable :: mam_cnst_idx(:,:)
-
-! modal aerosols
-logical :: prog_modal_aero     ! true when modal aerosols are prognostic
 logical :: lq(pcnst) = .false. ! set flags true for constituents with non-zero tendencies
                                ! in the ptend object
 
@@ -90,10 +66,12 @@ logical :: lq(pcnst) = .false. ! set flags true for constituents with non-zero t
 contains
 !===============================================================================
 
-subroutine ndrop_init
+subroutine ndrop_init(aero_props)
 
-   integer  :: ii, l, lptr, m, mm
-   integer  :: nspec_max            ! max number of species in a mode
+   class(aerosol_properties), intent(in) :: aero_props
+
+   integer  :: ii, l, m, mm
+   integer :: idxtmp = -1
    character(len=32)   :: tmpname
    character(len=32)   :: tmpname_cw
    character(len=128)  :: long_name
@@ -121,83 +99,21 @@ subroutine ndrop_init
    alog2    = log(2._r8)
    alog3    = log(3._r8)
 
-   ! get info about the modal aerosols
-   ! get ntot_amode
-   call rad_cnst_get_info(0, nmodes=ntot_amode)
-
    allocate( &
-      nspec_amode(ntot_amode),  &
-      sigmag_amode(ntot_amode), &
-      dgnumlo_amode(ntot_amode), &
-      dgnumhi_amode(ntot_amode), &
-      alogsig(ntot_amode),      &
-      exp45logsig(ntot_amode),  &
-      f1(ntot_amode),           &
-      f2(ntot_amode),           &
-      voltonumblo_amode(ntot_amode), &
-      voltonumbhi_amode(ntot_amode)  )
-
-   do m = 1, ntot_amode
-      ! use only if width of size distribution is prescribed
-
-      ! get mode info
-      call rad_cnst_get_info(0, m, nspec=nspec_amode(m))
-
-      ! get mode properties
-      call rad_cnst_get_mode_props(0, m, sigmag=sigmag_amode(m),  &
-         dgnumhi=dgnumhi_amode(m), dgnumlo=dgnumlo_amode(m))
-
-      alogsig(m)     = log(sigmag_amode(m))
-      exp45logsig(m) = exp(4.5_r8*alogsig(m)*alogsig(m))
-      f1(m)          = 0.5_r8*exp(2.5_r8*alogsig(m)*alogsig(m))
-      f2(m)          = 1._r8 + 0.25_r8*alogsig(m)
-
-      voltonumblo_amode(m) = 1._r8 / ( (pi/6._r8)*                          &
-                             (dgnumlo_amode(m)**3._r8)*exp(4.5_r8*alogsig(m)**2._r8) )
-      voltonumbhi_amode(m) = 1._r8 / ( (pi/6._r8)*                          &
-                             (dgnumhi_amode(m)**3._r8)*exp(4.5_r8*alogsig(m)**2._r8) )
-   end do
-
-   ! Init the table for local indexing of mam number conc and mmr.
-   ! This table uses species index 0 for the number conc.
-
-   ! Find max number of species in all the modes, and the total
-   ! number of mode number concentrations + mode species
-   nspec_max = nspec_amode(1)
-   ncnst_tot = nspec_amode(1) + 1
-   do m = 2, ntot_amode
-      nspec_max = max(nspec_max, nspec_amode(m))
-      ncnst_tot = ncnst_tot + nspec_amode(m) + 1
-   end do
-
-   allocate( &
-      mam_idx(ntot_amode,0:nspec_max),      &
-      mam_cnst_idx(ntot_amode,0:nspec_max), &
-      fieldname(ncnst_tot),                 &
-      fieldname_cw(ncnst_tot)               )
-
-   ! Local indexing compresses the mode and number/mass indicies into one index.
-   ! This indexing is used by the pointer arrays used to reference state and pbuf
-   ! fields.
-   ii = 0
-   do m = 1, ntot_amode
-      do l = 0, nspec_amode(m)
-         ii = ii + 1
-         mam_idx(m,l) = ii
-      end do
-   end do
+      aer_cnst_idx(aero_props%nbins(),0:maxval(aero_props%nmasses())), &
+      fieldname(aero_props%ncnst_tot()),                 &
+      fieldname_cw(aero_props%ncnst_tot())               )
 
    ! Add dropmixnuc tendencies for all modal aerosol species
 
    call phys_getopts(history_amwg_out = history_amwg, &
-                     history_aerosol_out = history_aerosol, &
-                     prog_modal_aero_out=prog_modal_aero)
+                     history_aerosol_out = history_aerosol)
 
 
-   do m = 1, ntot_amode
-      do l = 0, nspec_amode(m)   ! loop over number + chem constituents
+   do m = 1, aero_props%nbins()
+      do l = 0, aero_props%nmasses(m)
 
-         mm = mam_idx(m,l)
+         mm = aero_props%indexer(m,l)
 
          unit = 'kg/m2/s'
          if (l == 0) then   ! number
@@ -205,40 +121,34 @@ subroutine ndrop_init
          end if
 
          if (l == 0) then   ! number
-            call rad_cnst_get_info(0, m, num_name=tmpname, num_name_cw=tmpname_cw)
+            call aero_props%get_num_names( m, tmpname, tmpname_cw)
          else
-            call rad_cnst_get_info(0, m, l, spec_name=tmpname, spec_name_cw=tmpname_cw)
+            call aero_props%get_mmr_names( m,l, tmpname, tmpname_cw)
          end if
 
          fieldname(mm)    = trim(tmpname) // '_mixnuc1'
          fieldname_cw(mm) = trim(tmpname_cw) // '_mixnuc1'
 
-         if (prog_modal_aero) then
+         ! To set tendencies in the ptend object need to get the constituent indices
+         ! for the prognostic species
 
-            ! To set tendencies in the ptend object need to get the constituent indices
-            ! for the prognostic species
-            if (l == 0) then   ! number
-               call rad_cnst_get_mode_num_idx(m, lptr)
-            else
-               call rad_cnst_get_mam_mmr_idx(m, l, lptr)
-            end if
-            mam_cnst_idx(m,l) = lptr
-            lq(lptr)          = .true.
+         call cnst_get_ind(tmpname, idxtmp, abort=.false.)
+         aer_cnst_idx(m,l) = idxtmp
 
-            ! Add tendency fields to the history only when prognostic MAM is enabled.
-            long_name = trim(tmpname) // ' dropmixnuc mixnuc column tendency'
-            call addfld(fieldname(mm),    horiz_only, 'A', unit, long_name)
+         if (idxtmp>0) then
+            lq(idxtmp) = .true.
+         end if
 
-            long_name = trim(tmpname_cw) // ' dropmixnuc mixnuc column tendency'
-            call addfld(fieldname_cw(mm), horiz_only, 'A', unit, long_name)
+         ! Add tendency fields to the history only when prognostic MAM is enabled.
+         long_name = trim(tmpname) // ' dropmixnuc mixnuc column tendency'
+         call addfld(fieldname(mm),    horiz_only, 'A', unit, long_name)
 
-            if (history_aerosol) then
-               call add_default(fieldname(mm), 1, ' ')
-               call add_default(fieldname_cw(mm), 1, ' ')
-            end if
+         long_name = trim(tmpname_cw) // ' dropmixnuc mixnuc column tendency'
+         call addfld(fieldname_cw(mm), horiz_only, 'A', unit, long_name)
 
-
-
+         if (history_aerosol) then
+            call add_default(fieldname(mm), 1, ' ')
+            call add_default(fieldname_cw(mm), 1, ' ')
          end if
 
       end do
@@ -262,23 +172,6 @@ subroutine ndrop_init
    if (history_amwg) then
       call add_default('CCN3', 1, ' ')
    endif
-
-   if (history_aerosol .and. prog_modal_aero) then
-     do m = 1, ntot_amode
-        do l = 0, nspec_amode(m)   ! loop over number + chem constituents
-           mm = mam_idx(m,l)
-           if (l == 0) then   ! number
-              call rad_cnst_get_info(0, m, num_name=tmpname, num_name_cw=tmpname_cw)
-           else
-              call rad_cnst_get_info(0, m, l, spec_name=tmpname, spec_name_cw=tmpname_cw)
-           end if
-           fieldname(mm)    = trim(tmpname) // '_mixnuc1'
-           fieldname_cw(mm) = trim(tmpname_cw) // '_mixnuc1'
-        end do
-     end do
-   endif
-
-
 
 end subroutine ndrop_init
 
@@ -687,7 +580,7 @@ subroutine dropmixnuc( aero_props, aero_state, &
             dumc = (cldn_tmp - cldo_tmp)
 
             do m = 1, nbin
-               mm = aero_state%indexer(m,0)
+               mm = aero_props%indexer(m,0)
                dact   = dumc*fn(m)*raer(mm)%fld(i,k) ! interstitial only
                qcld(k) = qcld(k) + dact
                nsource(i,k) = nsource(i,k) + dact*dtinv
@@ -695,7 +588,7 @@ subroutine dropmixnuc( aero_props, aero_state, &
                raercol(k,mm,nsav)    = raercol(k,mm,nsav) - dact
                dum = dumc*fm(m)
                do l = 1,aero_props%nmasses(m)
-                  mm = aero_state%indexer(m,l)
+                  mm = aero_props%indexer(m,l)
                   dact    = dum*raer(mm)%fld(i,k) ! interstitial only
                   raercol_cw(k,mm,nsav) = raercol_cw(k,mm,nsav) + dact  ! cloud-borne aerosol
                   raercol(k,mm,nsav)    = raercol(k,mm,nsav) - dact
@@ -822,7 +715,7 @@ subroutine dropmixnuc( aero_props, aero_state, &
                end if
 
                do m = 1, nbin
-                  mm = aero_state%indexer(m,0)
+                  mm = aero_props%indexer(m,0)
                   fluxn(m) = fluxn(m)*dumc
                   fluxm(m) = fluxm(m)*dumc
                   nact(k,m) = nact(k,m) + fluxn(m)*dum
@@ -957,7 +850,7 @@ subroutine dropmixnuc( aero_props, aero_state, &
          srcn(:) = 0.0_r8
 
          do m = 1, nbin
-            mm = aero_state%indexer(m,0)
+            mm = aero_props%indexer(m,0)
 
             ! update droplet source
             ! rce-comment- activation source in layer k involves particles from k+1
@@ -983,7 +876,7 @@ subroutine dropmixnuc( aero_props, aero_state, &
          !    in theory, the clear-portion mixratio should be used when calculating
          !    source terms
          do m = 1, nbin
-            mm = aero_state%indexer(m,0)
+            mm = aero_props%indexer(m,0)
             ! rce-comment -   activation source in layer k involves particles from k+1
             !	              source(:)= nact(:,m)*(raercol(:,mm,nsav))
             source(top_lev:pver-1) = nact(top_lev:pver-1,m)*(raercol(top_lev+1:pver,mm,nsav))
@@ -1005,7 +898,7 @@ subroutine dropmixnuc( aero_props, aero_state, &
                  dtmix, .true., raercol_cw(:,mm,nsav))
 
             do l = 1,aero_props%nmasses(m)
-               mm = aero_state%indexer(m,l)
+               mm = aero_props%indexer(m,l)
                ! rce-comment -   activation source in layer k involves particles from k+1
                !	          source(:)= mact(:,m)*(raercol(:,mm,nsav))
                source(top_lev:pver-1) = mact(top_lev:pver-1,m)*(raercol(top_lev+1:pver,mm,nsav))
@@ -1072,31 +965,35 @@ subroutine dropmixnuc( aero_props, aero_state, &
       end do
       ndropcol(i) = ndropcol(i)/gravit
 
-      if (prog_modal_aero) then
+      raertend = 0._r8
+      qqcwtend = 0._r8
 
-         raertend = 0._r8
-         qqcwtend = 0._r8
+      do m = 1, nbin
+         do l = 0, aero_props%nmasses(m)
 
-         do m = 1, ntot_amode
-            do l = 0, nspec_amode(m)
+            mm = aero_props%indexer(m,l)
+            lptr = aer_cnst_idx(m,l)
 
-               mm   = mam_idx(m,l)
-               lptr = mam_cnst_idx(m,l)
+            raertend(top_lev:pver) = (raercol(top_lev:pver,mm,nnew) - raer(mm)%fld(i,top_lev:pver))*dtinv
+            qqcwtend(top_lev:pver) = (raercol_cw(top_lev:pver,mm,nnew) - qqcw(mm)%fld(i,top_lev:pver))*dtinv
 
-               raertend(top_lev:pver) = (raercol(top_lev:pver,mm,nnew) - raer(mm)%fld(i,top_lev:pver))*dtinv
-               qqcwtend(top_lev:pver) = (raercol_cw(top_lev:pver,mm,nnew) - qqcw(mm)%fld(i,top_lev:pver))*dtinv
+            coltend(i,mm)    = sum( pdel(i,:)*raertend )/gravit
+            coltend_cw(i,mm) = sum( pdel(i,:)*qqcwtend )/gravit
 
-               coltend(i,mm)    = sum( pdel(i,:)*raertend )/gravit
-               coltend_cw(i,mm) = sum( pdel(i,:)*qqcwtend )/gravit
-
+            ! some CARMA interstetial species are not advected, check:
+            if (lptr>0) then ! adveced species
                ptend%q(i,:,lptr) = 0.0_r8
                ptend%q(i,top_lev:pver,lptr) = raertend(top_lev:pver)           ! set tendencies for interstitial aerosol
-               qqcw(mm)%fld(i,:) = 0.0_r8
-               qqcw(mm)%fld(i,top_lev:pver) = raercol_cw(top_lev:pver,mm,nnew) ! update cloud-borne aerosol
-            end do
-         end do
+            else
+               raer(mm)%fld(i,:) = 0.0_r8
+               raer(mm)%fld(i,top_lev:pver)  = raercol(top_lev:pver,mm,nnew)           ! update interstitial aerosol
+            end if
 
-      end if
+            qqcw(mm)%fld(i,:) = 0.0_r8
+            qqcw(mm)%fld(i,top_lev:pver) = raercol_cw(top_lev:pver,mm,nnew) ! update cloud-borne aerosol
+
+         end do
+      end do
 
       if (called_from_spcam) then
       !
@@ -1129,15 +1026,13 @@ subroutine dropmixnuc( aero_props, aero_state, &
    enddo
 
    ! do column tendencies
-   if (prog_modal_aero) then
-      do m = 1, ntot_amode
-         do l = 0, nspec_amode(m)
-            mm = mam_idx(m,l)
-            call outfld(fieldname(mm),    coltend(:,mm),    pcols, lchnk)
-            call outfld(fieldname_cw(mm), coltend_cw(:,mm), pcols, lchnk)
-         end do
+   do m = 1, nbin
+      do l = 0,aero_props%nmasses(m)
+         mm = aero_props%indexer(m,l)
+         call outfld(fieldname(mm),    coltend(:,mm),    pcols, lchnk)
+         call outfld(fieldname_cw(mm), coltend_cw(:,mm), pcols, lchnk)
       end do
-   end if
+   end do
 
    if(called_from_spcam) then
    !
@@ -1685,7 +1580,7 @@ subroutine ccncalc(aero_state, aero_props, state, pbuf, cs, ccn)
    smcoefcoef=2._r8/sqrt(27._r8)
 
    do m=1,nbin
-      argfactor(m)=twothird/(sq2*alogsig(m))
+      argfactor(m)=twothird/(sq2*aero_props%alogsig(m))
    end do
 
    ccn = 0._r8
@@ -1713,8 +1608,8 @@ subroutine ccncalc(aero_state, aero_props, state, pbuf, cs, ccn)
          endwhere
          do l=1,psat
             do i=1,ncol
-               arg(i)=argfactor(m)*log(sm(i)/super(l))
-               ccn(i,k,l)=ccn(i,k,l)+naerosol(i)*0.5_r8*(1._r8-erf(arg(i)))
+               arg(i)=argfactor(m)*log(sm(i)/super(l))                      ! staturation factors are a little diff         <--| ???
+               ccn(i,k,l)=ccn(i,k,l)+naerosol(i)*0.5_r8*(1._r8-erf(arg(i))) ! looks like activation frac fn (arg is a little diff) ??
             enddo
          enddo
       enddo

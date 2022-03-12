@@ -1,6 +1,9 @@
 module carma_aerosol_properties_mod
   use shr_kind_mod, only: r8 => shr_kind_r8
+  use physconst, only: pi
   use aerosol_properties_mod, only: aerosol_properties
+  use rad_constituents, only: rad_cnst_get_info, rad_cnst_get_bin_props_by_idx, &
+                              rad_cnst_get_info_by_bin, rad_cnst_get_info_by_bin_spec
 
   implicit none
 
@@ -15,7 +18,8 @@ module carma_aerosol_properties_mod
      procedure :: abdraz_f2
      procedure :: get
      procedure :: actfracs
-     procedure :: nspec_max
+     procedure :: get_num_names
+     procedure :: get_mmr_names
      final :: destructor
   end type carma_aerosol_properties
 
@@ -28,15 +32,14 @@ contains
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------
   function constructor() result(newobj)
-    use rad_constituents, only: rad_cnst_get_info, rad_cnst_get_info_by_bin
-    use physconst,        only: pi
 
     type(carma_aerosol_properties), pointer :: newobj
 
-    integer :: m, nbins, ncnst_tot
+    integer :: m,mm,l, nbins, ncnst_tot
     integer,allocatable :: nspecies(:)
     integer,allocatable :: nmasses(:)
     real(r8),allocatable :: amcubecoefs(:)
+    real(r8),allocatable :: alogsig(:)
 
     allocate(newobj)
 
@@ -44,6 +47,7 @@ contains
     allocate( nspecies(nbins) )
     allocate( nmasses(nbins) )
     allocate( amcubecoefs(nbins) )
+    allocate( alogsig(nbins) )
 
     ncnst_tot = 0
 
@@ -54,11 +58,13 @@ contains
     end do
 
     amcubecoefs(:)=3._r8/(4._r8*pi)
+    alogsig(:) = log(2._r8)  !!!! ???? IS THIS RIGHT ???? !!!
 
-    call newobj%initialize(nbins,ncnst_tot,nspecies,nmasses,amcubecoefs)
+    call newobj%initialize(nbins,ncnst_tot,nspecies,nmasses,amcubecoefs,alogsig)
     deallocate(nspecies)
     deallocate(nmasses)
     deallocate(amcubecoefs)
+    deallocate(alogsig)
 
   end function constructor
 
@@ -67,12 +73,13 @@ contains
   subroutine destructor(self)
     type(carma_aerosol_properties), intent(inout) :: self
 
+    call self%final()
+
   end subroutine destructor
 
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------
   subroutine get(self, m,l, density,hygro)
-    use rad_constituents, only:  rad_cnst_get_bin_props_by_idx
 
     class(carma_aerosol_properties), intent(in) :: self
     integer, intent(in) :: m,l
@@ -122,12 +129,31 @@ contains
 
   end subroutine actfracs
 
-  !------------------------------------------------------------------------------
-  !------------------------------------------------------------------------------
-  pure integer function nspec_max(self)
+  !------------------------------------------------------------------------
+  !------------------------------------------------------------------------
+  subroutine get_num_names(self, m, name_a, name_c)
     class(carma_aerosol_properties), intent(in) :: self
+    integer, intent(in) :: m
+    character(len=32), intent(out) :: name_a, name_c
 
-    nspec_max = self%default_nspec_max()+1
-  end function nspec_max
+    call rad_cnst_get_info_by_bin(0, m, num_name=name_a, num_name_cw=name_c)
+
+  end subroutine get_num_names
+
+  !------------------------------------------------------------------------
+  !------------------------------------------------------------------------
+  subroutine get_mmr_names(self, m,l, name_a, name_c)
+    class(carma_aerosol_properties), intent(in) :: self
+    integer, intent(in) :: m,l
+    character(len=32), intent(out) :: name_a, name_c
+
+    if (l>1) then
+       call rad_cnst_get_info_by_bin_spec(0, m, l-1, spec_name=name_a, spec_name_cw=name_c)
+    else
+       call rad_cnst_get_info_by_bin(0, m,  mmr_name=name_a, mmr_name_cw=name_c)
+    end if
+
+  end subroutine get_mmr_names
+
 
 end module carma_aerosol_properties_mod

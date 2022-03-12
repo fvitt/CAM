@@ -17,7 +17,6 @@ module carma_aerosol_state_mod
      private
      type(physics_state), pointer :: state => null()
      type(physics_buffer_desc), pointer :: pbuf(:) => null()
-     integer, pointer :: indexer_(:,:) => null()
    contains
 
      procedure :: get_ambient_mmr
@@ -26,7 +25,6 @@ module carma_aerosol_state_mod
      procedure :: get_cldbrne_num
      procedure :: get_ambient_bin_mmr
      procedure :: get_cldbrne_bin_mmr
-     procedure :: indexer
      procedure :: get_states
 
      final :: destructor
@@ -48,26 +46,10 @@ contains
 
     type(carma_aerosol_state), pointer :: newobj
 
-    integer :: l,m,mm
-
     allocate(newobj)
 
     newobj%state => state
     newobj%pbuf => pbuf
-
-    allocate( newobj%indexer_(props%nbins(),0:props%nspec_max()) )
-
-    newobj%indexer_ = -1
-    mm = 0
-
-    do m=1,props%nbins()
-       do l = 0,props%nspecies(m) + 1  ! loop over bin + aerosol constituents
-
-          mm = mm+1
-          newobj%indexer_(m,l) = mm
-
-       end do
-    end do
 
   end function constructor
 
@@ -78,8 +60,6 @@ contains
 
     nullify(self%state)
     nullify(self%pbuf)
-    deallocate(self%indexer_)
-    nullify(self%indexer_)
 
   end subroutine destructor
 
@@ -156,28 +136,19 @@ contains
     integer :: m, mm, l
 
     do m = 1, aero_props%nbins()
-       mm = self%indexer_(m, 0)
+       mm = aero_props%indexer(m, 0)
        raer(mm)%fld => self%get_ambient_num(m)
        qqcw(mm)%fld => self%get_cldbrne_num(m)
-       mm = self%indexer_(m, 1)
+       mm = aero_props%indexer(m, 1)
        raer(mm)%fld => self%get_ambient_bin_mmr(m)
        qqcw(mm)%fld => self%get_cldbrne_bin_mmr(m)
        do l = 1, aero_props%nspecies(m)
-          mm = self%indexer_(m, l+1)
+          mm = aero_props%indexer(m, l+1)
           raer(mm)%fld => self%get_ambient_mmr(l,m)
           qqcw(mm)%fld => self%get_cldbrne_mmr(l,m)
        end do
     end do
 
   end subroutine get_states
-
-  !------------------------------------------------------------------------
-  !------------------------------------------------------------------------
-  pure function indexer(self, m,l) result(ndx)
-    class(carma_aerosol_state), intent(in) :: self
-    integer, intent(in) :: m,l
-    integer :: ndx
-    ndx = self%indexer_(m,l)
-  end function indexer
 
 end module carma_aerosol_state_mod

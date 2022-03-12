@@ -2,6 +2,7 @@ module modal_aerosol_properties_mod
   use shr_kind_mod, only: r8 => shr_kind_r8
   use physconst, only: pi
   use aerosol_properties_mod, only: aerosol_properties
+  use rad_constituents, only: rad_cnst_get_info, rad_cnst_get_mode_props, rad_cnst_get_aer_props
 
   implicit none
 
@@ -11,7 +12,6 @@ module modal_aerosol_properties_mod
 
   type, extends(aerosol_properties) :: modal_aerosol_properties
      private
-     real(r8), allocatable :: alogsig(:)
      real(r8), allocatable :: sigmag_amode(:)
      real(r8), allocatable :: f1(:)
      real(r8), allocatable :: f2(:)
@@ -27,6 +27,8 @@ module modal_aerosol_properties_mod
      procedure :: voltonumbhi
      procedure :: amcube
      procedure :: actfracs
+     procedure :: get_num_names
+     procedure :: get_mmr_names
      final :: destructor
   end type modal_aerosol_properties
 
@@ -39,7 +41,6 @@ contains
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------
   function constructor() result(newobj)
-    use rad_constituents, only: rad_cnst_get_info, rad_cnst_get_mode_props
 
     type(modal_aerosol_properties), pointer :: newobj
 
@@ -49,6 +50,7 @@ contains
     integer,allocatable :: nspecies(:)
     integer,allocatable :: nmasses(:)
     real(r8),allocatable :: amcubecoefs(:)
+    real(r8),allocatable :: alogsig(:)
 
     allocate(newobj)
 
@@ -57,8 +59,8 @@ contains
     allocate(nspecies(nmodes))
     allocate(nmasses(nmodes))
     allocate(amcubecoefs(nmodes))
+    allocate(alogsig(nmodes))
 
-    allocate(newobj%alogsig(nmodes))
     allocate(newobj%sigmag_amode(nmodes))
     allocate(newobj%f1(nmodes))
     allocate(newobj%f2(nmodes))
@@ -77,26 +79,27 @@ contains
        call rad_cnst_get_mode_props(0, m, sigmag=newobj%sigmag_amode(m), &
                                     dgnumhi=dgnumhi, dgnumlo=dgnumlo )
 
-       newobj%alogsig(m) = log(newobj%sigmag_amode(m))
+       alogsig(m) = log(newobj%sigmag_amode(m))
 
-       newobj%exp45logsig_(m) = exp(4.5_r8*newobj%alogsig(m)*newobj%alogsig(m))
+       newobj%exp45logsig_(m) = exp(4.5_r8*alogsig(m)*alogsig(m))
 
        amcubecoefs(m)=3._r8/(4._r8*pi*newobj%exp45logsig_(m))
 
-       newobj%f1(m) = 0.5_r8*exp(2.5_r8*newobj%alogsig(m)*newobj%alogsig(m))
-       newobj%f2(m) = 1._r8 + 0.25_r8*newobj%alogsig(m)
+       newobj%f1(m) = 0.5_r8*exp(2.5_r8*alogsig(m)*alogsig(m))
+       newobj%f2(m) = 1._r8 + 0.25_r8*alogsig(m)
 
        newobj%voltonumblo_(m) = 1._r8 / ( (pi/6._r8)*                          &
-            (dgnumlo**3._r8)*exp(4.5_r8*newobj%alogsig(m)**2._r8) )
+            (dgnumlo**3._r8)*exp(4.5_r8*alogsig(m)**2._r8) )
        newobj%voltonumbhi_(m) = 1._r8 / ( (pi/6._r8)*                          &
-            (dgnumhi**3._r8)*exp(4.5_r8*newobj%alogsig(m)**2._r8) )
+            (dgnumhi**3._r8)*exp(4.5_r8*alogsig(m)**2._r8) )
 
     end do
 
-    call newobj%initialize(nmodes,ncnst_tot,nspecies,nmasses,amcubecoefs)
+    call newobj%initialize(nmodes,ncnst_tot,nspecies,nmasses,amcubecoefs,alogsig)
     deallocate(nspecies)
     deallocate(nmasses)
     deallocate(amcubecoefs)
+    deallocate(alogsig)
 
   end function constructor
 
@@ -105,7 +108,6 @@ contains
   subroutine destructor(self)
     type(modal_aerosol_properties), intent(inout) :: self
 
-    deallocate(self%alogsig)
     deallocate(self%sigmag_amode)
     deallocate(self%f1)
     deallocate(self%f2)
@@ -144,7 +146,6 @@ contains
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------
   subroutine get(self, m,l, density,hygro)
-    use rad_constituents, only: rad_cnst_get_aer_props
 
     class(modal_aerosol_properties), intent(in) :: self
     integer, intent(in) :: m,l
@@ -210,5 +211,25 @@ contains
     fm = 0.5_r8*(1._r8-erf(y))
 
   end subroutine actfracs
+
+  !------------------------------------------------------------------------
+  !------------------------------------------------------------------------
+  subroutine get_num_names(self, m, name_a, name_c)
+    class(modal_aerosol_properties), intent(in) :: self
+    integer, intent(in) :: m
+    character(len=32), intent(out) :: name_a, name_c
+
+    call rad_cnst_get_info(0, m, num_name=name_a, num_name_cw=name_c)
+  end subroutine get_num_names
+
+  !------------------------------------------------------------------------
+  !------------------------------------------------------------------------
+  subroutine get_mmr_names(self, m,l, name_a, name_c)
+    class(modal_aerosol_properties), intent(in) :: self
+    integer, intent(in) :: m,l
+    character(len=32), intent(out) :: name_a, name_c
+
+    call rad_cnst_get_info(0, m, l, spec_name=name_a, spec_name_cw=name_c)
+  end subroutine get_mmr_names
 
 end module modal_aerosol_properties_mod

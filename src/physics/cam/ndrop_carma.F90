@@ -21,9 +21,6 @@ use wv_saturation,    only: qsat
 use phys_control,     only: phys_getopts
 use ref_pres,         only: top_lev => trop_cloud_top_lev
 use shr_spfn_mod,     only: erf => shr_spfn_erf
-use rad_constituents, only: rad_cnst_get_info, rad_cnst_get_info_by_bin, rad_cnst_get_info_by_bin_spec,       &
-                            rad_cnst_get_bin_props_by_idx, rad_cnst_get_bin_num, rad_cnst_get_bin_mmr_by_idx, &
-                            rad_cnst_get_bin_mmr
 use cam_history,      only: addfld, add_default, horiz_only, fieldname_len, outfld
 use cam_abortutils,   only: endrun
 use cam_logfile,      only: iulog
@@ -55,37 +52,26 @@ character(len=8) :: ccn_name(psat)= &
 integer :: numliq_idx = -1
 integer :: kvh_idx    = -1
 
-! description of bin aerosols
-integer, public, protected :: nspec_max = 0
-integer, public, protected :: nbins = 0
-integer, public, protected, allocatable :: nspec(:)
-
 logical :: history_aerosol      ! Output the aerosol tendencies
 character(len=fieldname_len), allocatable :: fieldname(:)    ! names for drop nuc tendency output fields
 character(len=fieldname_len), allocatable :: fieldname_cw(:) ! names for drop nuc tendency output fields
 
-! local indexing for bins
-integer, allocatable :: bin_idx(:,:) ! table for local indexing of modal aero number and mmr
-integer :: ncnst_tot                  ! total number of mode number conc + mode species
+! Indices for aerosol species in the ptend%q array.
+integer, allocatable :: aer_cnst_idx(:,:)
 
-! Indices for CARMA species in the ptend%q array.  Needed for prognostic aerosol case.
-logical, allocatable :: bin_cnst_lq(:,:)
-integer, allocatable :: bin_cnst_idx(:,:)
-
-! modal aerosols
-logical :: prog_modal_aero     ! true when aerosols are prognostic   !st make sure to check
-logical :: history_carma       ! true when for carma history output
 logical :: lq(pcnst) = .false. ! set flags true for constituents with non-zero tendencies
-! in the ptend object
+                               ! in the ptend object
 
 !===============================================================================
 contains
 !===============================================================================
 
-subroutine ndrop_carma_init
+subroutine ndrop_carma_init(aero_props)
+
+   class(aerosol_properties), intent(in) :: aero_props
 
    integer  :: ii, l, m, mm
-   integer :: idxtmp    = -1
+   integer :: idxtmp = -1
    character(len=32)   :: tmpname
    character(len=32)   :: tmpname_cw
    character(len=128)  :: long_name
@@ -113,63 +99,21 @@ subroutine ndrop_carma_init
    alog2    = log(2._r8)
    alog3    = log(3._r8)
 
-   ! get info about the modal aerosols
-   ! get nbins
-
-    call rad_cnst_get_info( 0, nbins=nbins)
-
-    allocate( nspec(nbins) )
-
-
-    do m = 1, nbins
-       call rad_cnst_get_info_by_bin(0, m, nspec=nspec(m))
-       !st alogsig(m)         = 0.0_r8
-       !st exp45logsig(m) = exp(4.5_r8*alogsig(m)*alogsig(m))
-    end do
-    ! add plus one to include number, total mmr and nspec
-    nspec_max = maxval(nspec) + 1
-
-   ! Init the table for local indexing of bin number conc and mmr.
-   ! This table uses species index 0 for the number conc.
-   ! Find max number of species in all the bins, and the total
-   ! number of bin number concentrations + mode species
-
-   ncnst_tot = nspec(1) + 2
-   do m = 2, nbins
-      ncnst_tot = ncnst_tot + nspec(m) + 2
-   end do
-
    allocate( &
-      bin_idx(nbins,0:nspec_max),      &
-      bin_cnst_lq(nbins,0:nspec_max), &
-      bin_cnst_idx(nbins,0:nspec_max), &
-      fieldname(ncnst_tot),                 &
-      fieldname_cw(ncnst_tot)               )
-
-   ! Local indexing compresses the mode and number/mass indicies into one index.
-   ! This indexing is used by the pointer arrays used to reference state and pbuf
-   ! fields.
-   ! for CARMA we add number = 0, total mass = 1, and mass from each constituence into mm.
-   ii = 0
-   do m = 1, nbins
-      do l = 0, nspec(m) + 1
-         ii = ii + 1
-         bin_idx(m,l) = ii
-      end do
-   end do
+      aer_cnst_idx(aero_props%nbins(),0:maxval(aero_props%nmasses())), &
+      fieldname(aero_props%ncnst_tot()),                 &
+      fieldname_cw(aero_props%ncnst_tot())               )
 
    ! Add dropmixnuc tendencies for all modal aerosol species
 
    call phys_getopts(history_amwg_out = history_amwg, &
-                     history_aerosol_out = history_aerosol, &
-                     prog_modal_aero_out=prog_modal_aero, &
-                     history_carma_out=history_carma)
+                     history_aerosol_out = history_aerosol)
 
 
-   do m = 1, nbins
-      do l = 0, nspec(m) + 1  ! loop over bin + aerosol constituents
+   do m = 1, aero_props%nbins()
+      do l = 0, aero_props%nmasses(m)
 
-         mm = bin_idx(m,l)
+         mm = aero_props%indexer(m,l)
 
          unit = 'kg/m2/s'
          if (l == 0) then   ! number
@@ -177,41 +121,35 @@ subroutine ndrop_carma_init
          end if
 
          if (l == 0) then   ! number
-            call rad_cnst_get_info_by_bin(0, m, num_name=tmpname, num_name_cw=tmpname_cw)
-         else if (l == 1) then
-            call rad_cnst_get_info_by_bin(0, m,  mmr_name=tmpname, mmr_name_cw=tmpname_cw)
+            call aero_props%get_num_names( m, tmpname, tmpname_cw)
          else
-            call rad_cnst_get_info_by_bin_spec(0, m, l-1, spec_name=tmpname, spec_name_cw=tmpname_cw)
+            call aero_props%get_mmr_names( m,l, tmpname, tmpname_cw)
          end if
 
          fieldname(mm)    = trim(tmpname) // '_mixnuc1'
          fieldname_cw(mm) = trim(tmpname_cw) // '_mixnuc1'
 
-        ! To set tendencies in the ptend object need to get the constituent indices
-        ! for the prognostic species
-        ! find out if species are advected through tmpname, done for clould borne (assumed always non-adveced)
+         ! To set tendencies in the ptend object need to get the constituent indices
+         ! for the prognostic species
 
-          call cnst_get_ind(tmpname, idxtmp, abort=.false.)
-          if (idxtmp.gt.0) then
-             bin_cnst_lq(m,l) = .true.
-             bin_cnst_idx(m,l) = idxtmp
-             lq(idxtmp) = .true.
-          else
-             bin_cnst_lq(m,l) = .false.
-             bin_cnst_idx(m,l) = 0
-          end if
+         call cnst_get_ind(tmpname, idxtmp, abort=.false.)
+         aer_cnst_idx(m,l) = idxtmp
 
-          ! Add tendency fields to the history only when prognostic MAM is enabled.
-          long_name = trim(tmpname) // ' dropmixnuc mixnuc column tendency'
-          call addfld(fieldname(mm),    horiz_only, 'A', unit, long_name)
+         if (idxtmp>0) then
+            lq(idxtmp) = .true.
+         end if
 
-          long_name = trim(tmpname_cw) // ' dropmixnuc mixnuc column tendency'
-          call addfld(fieldname_cw(mm), horiz_only, 'A', unit, long_name)
+         ! Add tendency fields to the history only when prognostic MAM is enabled.
+         long_name = trim(tmpname) // ' dropmixnuc mixnuc column tendency'
+         call addfld(fieldname(mm),    horiz_only, 'A', unit, long_name)
 
-          if (history_aerosol) then
-               call add_default(fieldname(mm), 1, ' ')
-               call add_default(fieldname_cw(mm), 1, ' ')
-          end if
+         long_name = trim(tmpname_cw) // ' dropmixnuc mixnuc column tendency'
+         call addfld(fieldname_cw(mm), horiz_only, 'A', unit, long_name)
+
+         if (history_aerosol) then
+            call add_default(fieldname(mm), 1, ' ')
+            call add_default(fieldname_cw(mm), 1, ' ')
+         end if
 
       end do
    end do
@@ -234,27 +172,6 @@ subroutine ndrop_carma_init
    if (history_amwg) then
       call add_default('CCN3', 1, ' ')
    endif
-
-   !st could change to a history_carma case (if defined)
-   !st if (history_aerosol .and. prog_modal_aero) then
-   if (history_carma) then
-     do m = 1, nbins
-        do l = 0, nspec(m) + 1   ! loop over number + chem constituents
-           mm = bin_idx(m,l)
-           if (l == 0) then   ! number
-            call rad_cnst_get_info_by_bin(0, m, num_name=tmpname, num_name_cw=tmpname_cw)
-           else  if (l == 1) then   ! total mmr
-            call rad_cnst_get_info_by_bin(0, m, mmr_name=tmpname, mmr_name_cw=tmpname_cw)
-           else
-            call rad_cnst_get_info_by_bin_spec(0, m, l-1, spec_name=tmpname, spec_name_cw=tmpname_cw)
-           end if
-           fieldname(mm)    = trim(tmpname) // '_mixnuc1'
-           fieldname_cw(mm) = trim(tmpname_cw) // '_mixnuc1'
-        end do
-     end do
-   endif
-
-
 
 end subroutine ndrop_carma_init
 
@@ -663,7 +580,7 @@ subroutine dropmixnuc_carma( aero_props, aero_state, &
             dumc = (cldn_tmp - cldo_tmp)
 
             do m = 1, nbin
-               mm = aero_state%indexer(m,0)
+               mm = aero_props%indexer(m,0)
                dact   = dumc*fn(m)*raer(mm)%fld(i,k) ! interstitial only
                qcld(k) = qcld(k) + dact
                nsource(i,k) = nsource(i,k) + dact*dtinv
@@ -671,7 +588,7 @@ subroutine dropmixnuc_carma( aero_props, aero_state, &
                raercol(k,mm,nsav)    = raercol(k,mm,nsav) - dact
                dum = dumc*fm(m)
                do l = 1,aero_props%nmasses(m)
-                  mm = aero_state%indexer(m,l)
+                  mm = aero_props%indexer(m,l)
                   dact    = dum*raer(mm)%fld(i,k) ! interstitial only
                   raercol_cw(k,mm,nsav) = raercol_cw(k,mm,nsav) + dact  ! cloud-borne aerosol
                   raercol(k,mm,nsav)    = raercol(k,mm,nsav) - dact
@@ -798,7 +715,7 @@ subroutine dropmixnuc_carma( aero_props, aero_state, &
                end if
 
                do m = 1, nbin
-                  mm = aero_state%indexer(m,0)
+                  mm = aero_props%indexer(m,0)
                   fluxn(m) = fluxn(m)*dumc
                   fluxm(m) = fluxm(m)*dumc
                   nact(k,m) = nact(k,m) + fluxn(m)*dum
@@ -933,7 +850,7 @@ subroutine dropmixnuc_carma( aero_props, aero_state, &
          srcn(:) = 0.0_r8
 
          do m = 1, nbin
-            mm = aero_state%indexer(m,0)
+            mm = aero_props%indexer(m,0)
 
             ! update droplet source
             ! rce-comment- activation source in layer k involves particles from k+1
@@ -959,7 +876,7 @@ subroutine dropmixnuc_carma( aero_props, aero_state, &
          !    in theory, the clear-portion mixratio should be used when calculating
          !    source terms
          do m = 1, nbin
-            mm = aero_state%indexer(m,0)
+            mm = aero_props%indexer(m,0)
             ! rce-comment -   activation source in layer k involves particles from k+1
             !	              source(:)= nact(:,m)*(raercol(:,mm,nsav))
             source(top_lev:pver-1) = nact(top_lev:pver-1,m)*(raercol(top_lev+1:pver,mm,nsav))
@@ -981,7 +898,7 @@ subroutine dropmixnuc_carma( aero_props, aero_state, &
                  dtmix, .true., raercol_cw(:,mm,nsav))
 
             do l = 1,aero_props%nmasses(m)
-               mm = aero_state%indexer(m,l)
+               mm = aero_props%indexer(m,l)
                ! rce-comment -   activation source in layer k involves particles from k+1
                !	          source(:)= mact(:,m)*(raercol(:,mm,nsav))
                source(top_lev:pver-1) = mact(top_lev:pver-1,m)*(raercol(top_lev+1:pver,mm,nsav))
@@ -1048,39 +965,35 @@ subroutine dropmixnuc_carma( aero_props, aero_state, &
       end do
       ndropcol(i) = ndropcol(i)/gravit
 
-!st      if (prog_modal_aero) then
+      raertend = 0._r8
+      qqcwtend = 0._r8
 
-         raertend = 0._r8
-         qqcwtend = 0._r8
+      do m = 1, nbin
+         do l = 0, aero_props%nmasses(m)
 
-         do m = 1, nbins
-            do l = 0, nspec(m) + 1
+            mm = aero_props%indexer(m,l)
+            lptr = aer_cnst_idx(m,l)
 
-               mm   = bin_idx(m,l)
-               lptr = bin_cnst_idx(m,l)
+            raertend(top_lev:pver) = (raercol(top_lev:pver,mm,nnew) - raer(mm)%fld(i,top_lev:pver))*dtinv
+            qqcwtend(top_lev:pver) = (raercol_cw(top_lev:pver,mm,nnew) - qqcw(mm)%fld(i,top_lev:pver))*dtinv
 
-               raertend(top_lev:pver) = (raercol(top_lev:pver,mm,nnew) - raer(mm)%fld(i,top_lev:pver))*dtinv
-               qqcwtend(top_lev:pver) = (raercol_cw(top_lev:pver,mm,nnew) - qqcw(mm)%fld(i,top_lev:pver))*dtinv
+            coltend(i,mm)    = sum( pdel(i,:)*raertend )/gravit
+            coltend_cw(i,mm) = sum( pdel(i,:)*qqcwtend )/gravit
 
-               coltend(i,mm)    = sum( pdel(i,:)*raertend )/gravit
-               coltend_cw(i,mm) = sum( pdel(i,:)*qqcwtend )/gravit
+            ! some CARMA interstetial species are not advected, check:
+            if (lptr>0) then ! adveced species
+               ptend%q(i,:,lptr) = 0.0_r8
+               ptend%q(i,top_lev:pver,lptr) = raertend(top_lev:pver)           ! set tendencies for interstitial aerosol
+            else
+               raer(mm)%fld(i,:) = 0.0_r8
+               raer(mm)%fld(i,top_lev:pver)  = raercol(top_lev:pver,mm,nnew)           ! update interstitial aerosol
+            end if
 
-               ! some CARMA interstetial species are not advected, check:
-               if (bin_cnst_lq(m,l)) then ! adveced species
-                 ptend%q(i,:,lptr) = 0.0_r8
-                 ptend%q(i,top_lev:pver,lptr) = raertend(top_lev:pver)           ! set tendencies for interstitial aerosol
-               else
-                 raer(mm)%fld(i,:) = 0.0_r8
-                 raer(mm)%fld(i,top_lev:pver)  = raercol(top_lev:pver,mm,nnew)           ! update interstitial aerosol
-               end if
+            qqcw(mm)%fld(i,:) = 0.0_r8
+            qqcw(mm)%fld(i,top_lev:pver) = raercol_cw(top_lev:pver,mm,nnew) ! update cloud-borne aerosol
 
-               qqcw(mm)%fld(i,:) = 0.0_r8
-               qqcw(mm)%fld(i,top_lev:pver) = raercol_cw(top_lev:pver,mm,nnew) ! update cloud-borne aerosol
-
-            end do
          end do
-
-!st      end if
+      end do
 
       if (called_from_spcam) then
       !
@@ -1113,15 +1026,13 @@ subroutine dropmixnuc_carma( aero_props, aero_state, &
    enddo
 
    ! do column tendencies
-!st   if (prog_modal_aero) then
-      do m = 1, nbins
-         do l = 0, nspec(m) + 1
-            mm = bin_idx(m,l)
-            call outfld(fieldname(mm),    coltend(:,mm),    pcols, lchnk)
-            call outfld(fieldname_cw(mm), coltend_cw(:,mm), pcols, lchnk)
-         end do
+   do m = 1, nbin
+      do l = 0,aero_props%nmasses(m)
+         mm = aero_props%indexer(m,l)
+         call outfld(fieldname(mm),    coltend(:,mm),    pcols, lchnk)
+         call outfld(fieldname_cw(mm), coltend_cw(:,mm), pcols, lchnk)
       end do
-!st   end if
+   end do
 
    if(called_from_spcam) then
    !
@@ -1154,8 +1065,7 @@ subroutine dropmixnuc_carma( aero_props, aero_state, &
       fn,         &
       fm,         &
       fluxn,      &
-      fluxm      )
-
+      fluxm       )
 
 end subroutine dropmixnuc_carma
 
@@ -1261,7 +1171,7 @@ subroutine activate_carma(wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,  &
    real(r8), intent(in) :: tair          ! air temperature (K)
    real(r8), intent(in) :: rhoair        ! air density (kg/m3)
    real(r8), intent(in) :: na(:)      ! aerosol number concentration (/m3)
-   integer,  intent(in) :: nbins      ! number of aerosol modes or bins
+   integer,  intent(in) :: nbins      ! number of aerosol bins
    real(r8), intent(in) :: volume(:)  ! aerosol volume concentration (m3/m3)
    real(r8), intent(in) :: hygro(:)   ! hygroscopicity of aerosol mode
 
@@ -1670,7 +1580,7 @@ subroutine ccncalc(aero_state, aero_props, state, pbuf, cs, ccn)
    smcoefcoef=2._r8/sqrt(27._r8)
 
    do m=1,nbin
-      argfactor(m)=twothird/(sq2*log(2._r8)) ! is this correct for CARMA ??
+      argfactor(m)=twothird/(sq2*aero_props%alogsig(m))
    end do
 
    ccn = 0._r8
