@@ -353,8 +353,7 @@ subroutine microp_aero_readnl(nlfile)
 
    use namelist_utils,  only: find_group_name
    use units,           only: getunit, freeunit
-   use spmd_utils,      only: mpicom, mstrid=>masterprocid, mpi_integer, mpi_real8, &
-                             mpi_logical, mpi_character
+   use spmd_utils,      only: mpicom, mstrid=>masterprocid, mpi_real8
 
    character(len=*), intent(in) :: nlfile  ! filepath for file containing namelist input
 
@@ -477,7 +476,6 @@ subroutine microp_aero_run ( &
    real(r8) :: nctend_mixnuc(pcols,pver)
    real(r8) :: dum, dum2           ! temporary dummy variable
    real(r8) :: dmc, ssmc, so4mc    ! variables for modal scheme.
-   integer  :: dst_idx, num_idx
 
    ! bulk aerosol variables
    real(r8), allocatable :: naer2(:,:,:)    ! bulk aerosol number concentration (1/m3)

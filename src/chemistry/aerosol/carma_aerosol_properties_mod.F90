@@ -35,7 +35,7 @@ contains
 
     type(carma_aerosol_properties), pointer :: newobj
 
-    integer :: m,mm,l, nbins, ncnst_tot
+    integer :: m, nbins, ncnst_tot
     integer,allocatable :: nspecies(:)
     integer,allocatable :: nmasses(:)
     real(r8),allocatable :: amcubecoefs(:)
