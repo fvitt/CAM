@@ -4,7 +4,7 @@
 module aero_model
   use physics_buffer,    only: physics_buffer_desc, pbuf_get_index, pbuf_add_field, dtype_r8
   use shr_kind_mod,      only: r8 => shr_kind_r8
-  use constituents,      only: pcnst, cnst_name, cnst_get_ind
+  use constituents,      only: pcnst, cnst_name, cnst_get_ind, cnst_set_convtran2
   use perf_mod,          only: t_startf, t_stopf
   use ppgrid,            only: pcols, pver, pverp
   use phys_control,      only: phys_getopts, cam_physpkg_is
@@ -382,6 +382,7 @@ contains
              bin_cnst_lq(m,l) = .true.
              bin_cnst_idx(m,l) = idxtmp
              lq(idxtmp) = .true.
+             call cnst_set_convtran2(idxtmp, .not.convproc_do_aer)
           else
              bin_cnst_lq(m,l) = .false.
              bin_cnst_idx(m,l) = 0

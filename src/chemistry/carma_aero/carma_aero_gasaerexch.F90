@@ -333,14 +333,14 @@ subroutine carma_aero_gasaerexch_sub(                            &
   real (r8) :: avg_uprt_soa(nsoa_vbs)
   real (r8) :: deltatxx
   real (r8) :: dqdt_soa_vbs(nbins,nsoa_vbs)
-  real (r8) :: dqdt_soa_all(nbins,nsoa,pcols,pver)
+  real (r8) :: dqdt_soa_all(pcols,pver,nbins,nsoa)
   real (r8) :: dqdt_soag(nsoa_vbs)
   real (r8) :: fgain_soa(nbins,nsoa_vbs)
   real (r8) :: pdel_fac
-  real (r8) :: num_bin(nbins,pcols,pver)
-  real (r8) :: soa_vbs(nbins,nsoa_vbs,pcols,pver)
-  real (r8) :: soa_c(nbins,nsoa,pcols,pver) ! SOA from CARMA
-  real (r8) :: poa_c(nbins,npoa,pcols,pver) ! POA from CARMA
+  real (r8) :: num_bin(pcols,pver,nbins)
+  real (r8) :: soa_vbs(pcols,pver,nbins,nsoa_vbs)
+  real (r8) :: soa_c(pcols,pver,nbins,nsoa) ! SOA from CARMA
+  real (r8) :: poa_c(pcols,pver,nbins,npoa) ! POA from CARMA
   real (r8) :: qold_poa(nbins,npoa)         ! POA from CARMA old
   real (r8) :: qold_soa(nbins,nsoa_vbs)     ! SOA on VBS bins  old
   real (r8) :: qnew_soa_vbs(nbins,nsoa_vbs) ! SOA on VBS bins  new
@@ -348,7 +348,7 @@ subroutine carma_aero_gasaerexch_sub(                            &
   real (r8) :: qold_soag(nsoa_vbs)
   real (r8) :: sum_dqdt_soa(nsoa_vbs)     !   sum_dqdt_soa = soa tendency from soa  gas uptake (mol/mol/s)
   real (r8) :: sum_uprt_soa(nsoa_vbs)     ! total soa uptake rate over all bin, for each soa vbs bin
-  real (r8) :: uptkrate(nbins,pcols,pver)
+  real (r8) :: uptkrate(pcols,pver,nbins)
   real (r8) :: uptkratebb(nbins)
   real (r8) :: uptkrate_soa(nbins,nsoa_vbs)
   ! gas-to-aerosol mass transfer rates (1/s)
@@ -358,8 +358,8 @@ subroutine carma_aero_gasaerexch_sub(                            &
   real(r8) :: qsrflx(pcols,nbins,nsoa)
   ! process-specific column tracer tendencies
   ! (1=gas condensation)
-  real(r8) :: qcon_vbs(nsoa_vbs,pcols,pver)
-  real(r8) :: qevap_vbs(nsoa_vbs,pcols,pver)
+  real(r8) :: qcon_vbs(pcols,pver,nsoa_vbs)
+  real(r8) :: qevap_vbs(pcols,pver,nsoa_vbs)
   real(r8) :: qcon(pcols,pver)
   real(r8) :: qevap(pcols,pver)
   real(r8) :: total_soag
@@ -387,11 +387,11 @@ subroutine carma_aero_gasaerexch_sub(                            &
            call rad_cnst_get_bin_props_by_idx(0, m, l, spectype=spectype)
            if (trim(spectype) == 's-organic') then
               n = n + 1
-              soa_c(m,n,:ncol,:) = raervmr(:ncol,:,mm)
+              soa_c(:ncol,:,m,n) = raervmr(:ncol,:,mm)
            end if
            if (trim(spectype) == 'p-organic') then
               nn = nn + 1
-              poa_c(m,nn,:ncol,:) = raervmr(:ncol,:,mm)
+              poa_c(:ncol,:,m,nn) = raervmr(:ncol,:,mm)
            end if
         end do
         if (npoa .gt. 1) then
@@ -399,7 +399,7 @@ subroutine carma_aero_gasaerexch_sub(                            &
         end if
 
         if (nsoa_vbs.eq.nsoa) then
-           soa_vbs(:,:,:ncol,:) = soa_c(:,:,:ncol,:)
+           soa_vbs(:ncol,:,:,:) = soa_c(:ncol,:,:,:)
         else
            if (nsoa.eq.1) then
               if (is_first_step()) then
@@ -423,7 +423,7 @@ subroutine carma_aero_gasaerexch_sub(                            &
               do k=top_lev,pver
                  do i=1,ncol
                     do j= 1, nsoa_vbs
-                       soa_vbs(m,j,i,k) = frac_vbs(i,k,m,j)*soa_c(m,nsoa,i,k)
+                       soa_vbs(i,k,m,j) = frac_vbs(i,k,m,j)*soa_c(i,k,m,nsoa)
                     end do
                  end do
               end do
@@ -438,7 +438,7 @@ subroutine carma_aero_gasaerexch_sub(                            &
         ! get bin number for all aerosols
         l = nspec(m) + 2
         mm = bin_idx(m, l)
-        num_bin(m,:ncol,:) = raervmr(:ncol,:,mm)
+        num_bin(:ncol,:,m) = raervmr(:ncol,:,mm)
      end if
   end do
 
@@ -471,10 +471,10 @@ subroutine carma_aero_gasaerexch_sub(                            &
         uptkrate_soa(:,:) = 0.0_r8
         do n = 1, nbins
            if (do_soag_any(n)) then  ! only bins that contain soa
-              uptkratebb(n) = uptkrate(n,i,k)
+              uptkratebb(n) = uptkrate(i,k,n)
               if (npoa .gt. 0) then
                  do j = 1, npoa
-                    qold_poa(n,j) = poa_c(n,j,i,k)
+                    qold_poa(n,j) = poa_c(i,k,n,j)
                  end do
               else
                  qold_poa(n,j) = 0.0_r8
@@ -485,7 +485,7 @@ subroutine carma_aero_gasaerexch_sub(                            &
                  fgain_soa(n,jsoa) = uptkratebb(n)*0.81_r8
                  uptkrate_soa(n,jsoa) = fgain_soa(n,jsoa)
                  sum_uprt_soa(jsoa) = sum_uprt_soa(jsoa) + fgain_soa(n,jsoa)
-                 qold_soa(n,jsoa) = soa_vbs(n,jsoa,i,k)
+                 qold_soa(n,jsoa) = soa_vbs(i,k,n,jsoa)
               end do
            else
               qold_poa(n,:) = 0.0_r8
@@ -560,12 +560,12 @@ subroutine carma_aero_gasaerexch_sub(                            &
               if (nsoa.eq.nsoa_vbs) then
                  do jsoa = 1, nsoa_vbs
                     qsrflx(i,n,jsoa) = qsrflx(i,n,jsoa) + dqdt_soa_vbs(n,jsoa)*pdel_fac
-                    dqdt_soa_all(n,nsoa,i,k) = dqdt_soa_vbs(n,jsoa) !  sum up for different volatility bins
+                    dqdt_soa_all(i,k,n,jsoa) = dqdt_soa_vbs(n,jsoa) !  sum up for different volatility bins
                  end do
               else if (nsoa.eq.1) then
                  do jsoa = 1, nsoa_vbs
                     !  sum up for different volatility bins
-                    dqdt_soa_all(n,nsoa,i,k) = dqdt_soa_all(n,nsoa,i,k) + dqdt_soa_vbs(n,jsoa) 
+                    dqdt_soa_all(i,k,n,nsoa) = dqdt_soa_all(i,k,n,nsoa) + dqdt_soa_vbs(n,jsoa)
                  end do
                  do jsoa = 1, nsoa_vbs
                     qsrflx(i,n,nsoa) = qsrflx(i,n,nsoa) + dqdt_soa_vbs(n,jsoa)*pdel_fac
@@ -584,10 +584,10 @@ subroutine carma_aero_gasaerexch_sub(                            &
 !------- Add code for condensation/evaporation diagnostics sum of all bin---
               do jsoa = 1, nsoa_vbs
                  if (dqdt_soa_vbs(n,jsoa).ge.0.0_r8) then
-                    qcon_vbs(jsoa,i,k)=dqdt_soa_vbs(n,jsoa)*(mw_soa/mwdry)
+                    qcon_vbs(i,k,jsoa)=dqdt_soa_vbs(n,jsoa)*(mw_soa/mwdry)
                     qcon(i,k)=qcon(i,k)+dqdt_soa_vbs(n,jsoa)*(mw_soa/mwdry)
                  else if (dqdt_soa_vbs(n,jsoa).lt.0.0_r8) then
-                    qevap_vbs(jsoa,i,k)=dqdt_soa_vbs(n,jsoa)*(mw_soa/mwdry)
+                    qevap_vbs(i,k,jsoa)=dqdt_soa_vbs(n,jsoa)*(mw_soa/mwdry)
                     qevap(i,k)=qevap(i,k)+dqdt_soa_vbs(n,jsoa)*(mw_soa/mwdry)
                  endif
               end do
@@ -621,8 +621,8 @@ subroutine carma_aero_gasaerexch_sub(                            &
   call outfld(trim('qevap_gaex'), qevap(:,:), pcols, lchnk )
   do jsoa = 1, nsoa_vbs
      write (outsoa, "(I2.2)") jsoa
-     call outfld(trim('qcon_gaex')//outsoa, qcon_vbs(jsoa,:,:), pcols, lchnk )
-     call outfld(trim('qevap_gaex')//outsoa, qevap_vbs(jsoa,:,:), pcols, lchnk )
+     call outfld(trim('qcon_gaex')//outsoa, qcon_vbs(:,:,jsoa), pcols, lchnk )
+     call outfld(trim('qevap_gaex')//outsoa, qevap_vbs(:,:,jsoa), pcols, lchnk )
   end do
   !-----------------------------------------------------------------------
   !   do history file of column-tendency fields over SOA fields (as defined in CARMA) and set pointer
@@ -643,7 +643,7 @@ subroutine carma_aero_gasaerexch_sub(                            &
               !set pointer field
               call pbuf_get_field(pbuf, dqdtsoa_idx(m,j),  dqdt_soa )
 
-              dqdt_soa(:ncol,:) = dqdt_soa_all(m,j,:ncol,:) *(mw_soa/mbar(:ncol,:))
+              dqdt_soa(:ncol,:) = dqdt_soa_all(:ncol,:,m,j) *(mw_soa/mbar(:ncol,:))
            end if
         end do ! l = ...
      end if
@@ -680,9 +680,9 @@ subroutine gas_aer_uptkrates( ncol,       loffset,                &
   real(r8), intent(in) :: t(pcols,pver)        ! Temperature in Kelvin
   real(r8), intent(in) :: pmid(pcols,pver)     ! Air pressure in Pa
   real(r8), intent(in) :: wetr(pcols,pver,nbins)
-  real(r8), intent(in) :: num_bin(nbins,pcols,pver)
+  real(r8), intent(in) :: num_bin(pcols,pver,nbins)
 
-  real(r8), intent(out) :: uptkrate(nbins,pcols,pver)
+  real(r8), intent(out) :: uptkrate(pcols,pver,nbins)
   ! gas-to-aerosol mass transfer rates (1/s)
 
 
@@ -718,7 +718,7 @@ subroutine gas_aer_uptkrates( ncol,       loffset,                &
 !   so need aircon in (kmol-air/m3)
 !   num_bin = number per bin
               aircon = rhoair/mwdry              ! (kmol-air/m3)
-              num_a = num_bin(n,i,k)*aircon
+              num_a = num_bin(i,k,n)*aircon
 
 !   gasdiffus = h2so4 gas diffusivity from mosaic code (m^2/s)
 !               (pmid must be Pa)
@@ -727,17 +727,17 @@ subroutine gas_aer_uptkrates( ncol,       loffset,                &
               gasspeed  = 1.470e1_r8 * sqrt(t(i,k))
 !   freepathx2 = 2 * (h2so4 mean free path)  (m)
               freepathx2 = 6.0_r8*gasdiffus/gasspeed
-              dp =  0.01_r8 * wetr(i,k,n)
+              dp = wetr(i,k,n)
               const = tworootpi * num_a * 2.0_r8 * dp
               ! gas_conden_rate(Dp) = const *  gasdiffus *  F(Kn,ac)
               !   knudsen number
               knudsen = freepathx2/dp
               fuchs_sutugin = (0.4875_r8*(1._r8 + knudsen)) /   &
                    (knudsen*(1.184_r8 + knudsen) + 0.4875_r8)
-              uptkrate(n,i,k) = const * gasdiffus * fuchs_sutugin
+              uptkrate(i,k,n) = const * gasdiffus * fuchs_sutugin
 
            else
-              uptkrate(n,i,k) = 0.0_r8
+              uptkrate(i,k,n) = 0.0_r8
            end if
 
         end do   ! "do i = 1, ncol"
