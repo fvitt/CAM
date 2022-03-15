@@ -151,6 +151,7 @@ subroutine d_p_coupling(phys_state, phys_tend, pbuf2d, dyn_out)
                                              Rv_over_Rd * tracers(index_qv,kk,i)) * exner(kk,i)
          phys_state(lchnk)%u(icol_p,k)       = ux(kk,i)
          phys_state(lchnk)%v(icol_p,k)       = uy(kk,i)
+         phys_state(lchnk)%w(icol_p,k)       = 0.5_r8*(w(kk,i)+w(kk+1,i))   ! vertical velocity (m/s)
          phys_state(lchnk)%omega(icol_p,k)   = -rho_zz(kk,i)*zz(kk,i)*gravit*0.5_r8*(w(kk,i)+w(kk+1,i))   ! omega
          phys_state(lchnk)%pmiddry(icol_p,k) = pmiddry(kk,i)
          phys_state(lchnk)%pmid(icol_p,k)    = pmid(kk,i)
@@ -726,11 +727,11 @@ subroutine hydrostatic_pressure(nCells, nVertLevels, zz, zgrid, rho_zz, theta_m,
       end do
 
       do k = nVertLevels, 1, -1
-        !hydrostatic mid-level pressure - MPAS full pressure is (rhok*rgas*thetavk*kap1)**kap2 
-        pmid   (k,iCell) = 0.5_r8*(pint(k+1)+pint(k))       
-        !hydrostatic dry mid-level dry pressure - 
+        !hydrostatic mid-level pressure - MPAS full pressure is (rhok*rgas*thetavk*kap1)**kap2
+        pmid   (k,iCell) = 0.5_r8*(pint(k+1)+pint(k))
+        !hydrostatic dry mid-level dry pressure -
         !MPAS non-hydrostatic dry pressure is pmiddry(k,iCell) = (rhodryk*rgas*theta*kap1)**kap2
-        pmiddry(k,iCell) = 0.5_r8*(pintdry(k+1,iCell)+pintdry(k,iCell))  
+        pmiddry(k,iCell) = 0.5_r8*(pintdry(k+1,iCell)+pintdry(k,iCell))
       end do
     end do
 end subroutine hydrostatic_pressure

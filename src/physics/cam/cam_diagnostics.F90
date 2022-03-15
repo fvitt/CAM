@@ -220,13 +220,17 @@ contains
     call addfld (cnst_name(1), (/ 'lev' /), 'A', 'kg/kg',    cnst_longname(1))
     call addfld ('NSTEP',      horiz_only,  'A', 'timestep', 'Model timestep')
     call addfld ('PHIS',       horiz_only,  'I', 'm2/s2',    'Surface geopotential')
-    
+
     call addfld ('PS',         horiz_only,  'A', 'Pa',       'Surface pressure')
     call addfld ('T',          (/ 'lev' /), 'A', 'K',        'Temperature')
     call addfld ('U',          (/ 'lev' /), 'A', 'm/s',      'Zonal wind')
     call addfld ('V',          (/ 'lev' /), 'A', 'm/s',      'Meridional wind')
-
     call register_vector_field('U','V')
+
+    if (dycore_is('MPAS')) then
+       call addfld ('W', (/ 'lev' /), 'A', 'm/s','Vertical wind')
+       call add_default ('W', 1, ' ')
+    end if
 
     ! State before physics
     call addfld ('TBP',     (/ 'lev' /), 'A','K',             'Temperature (before physics)')
@@ -978,6 +982,9 @@ contains
     call outfld('PS      ',state%ps, pcols   ,lchnk   )
     call outfld('U       ',state%u , pcols   ,lchnk   )
     call outfld('V       ',state%v , pcols   ,lchnk   )
+    if (dycore_is('MPAS')) then
+       call outfld('W', state%w, pcols, lchnk)
+    end if
 
     call outfld('PHIS    ',state%phis,    pcols,   lchnk     )
 

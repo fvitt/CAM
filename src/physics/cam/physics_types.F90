@@ -75,6 +75,7 @@ module physics_types
           t,       &! temperature (K)
           u,       &! zonal wind (m/s)
           v,       &! meridional wind (m/s)
+          w,       &! vertical wind (m/s)(when mpas dycore is used)
           s,       &! dry static energy
           omega,   &! vertical pressure velocity (Pa/s)
           pmid,    &! midpoint pressure (Pa)
@@ -1361,11 +1362,11 @@ end subroutine physics_ptend_copy
        state_out%lon(i)      = state_in%lon(i)
        state_out%ps(i)       = state_in%ps(i)
        state_out%phis(i)     = state_in%phis(i)
-     end do
-     state_out%te_ini(:ncol,:) = state_in%te_ini(:ncol,:)
-     state_out%te_cur(:ncol,:) = state_in%te_cur(:ncol,:)
-     state_out%tw_ini(:ncol,:) = state_in%tw_ini(:ncol,:)
-     state_out%tw_cur(:ncol,:) = state_in%tw_cur(:ncol,:)
+    end do
+    state_out%te_ini(:ncol,:) = state_in%te_ini(:ncol,:)
+    state_out%te_cur(:ncol,:) = state_in%te_cur(:ncol,:)
+    state_out%tw_ini(:ncol,:) = state_in%tw_ini(:ncol,:)
+    state_out%tw_cur(:ncol,:) = state_in%tw_cur(:ncol,:)
 
     do k = 1, pver
        do i = 1, ncol
@@ -1385,6 +1386,10 @@ end subroutine physics_ptend_copy
        end do
     end do
 
+    if (allocated(state_out%w).and.allocated(state_in%w)) then
+       state_out%w(:ncol,:) = state_in%w(:ncol,:)
+    end if
+
     do k = 1, pverp
        do i = 1, ncol
           state_out%pint(i,k)      = state_in%pint(i,k)
@@ -1394,23 +1399,23 @@ end subroutine physics_ptend_copy
     end do
 
 
+    do i = 1, ncol
+       state_out%psdry(i)  = state_in%psdry(i)
+    end do
+    do k = 1, pver
        do i = 1, ncol
-          state_out%psdry(i)  = state_in%psdry(i)
+          state_out%lnpmiddry(i,k) = state_in%lnpmiddry(i,k)
+          state_out%pmiddry(i,k)   = state_in%pmiddry(i,k)
+          state_out%pdeldry(i,k)   = state_in%pdeldry(i,k)
+          state_out%rpdeldry(i,k)  = state_in%rpdeldry(i,k)
        end do
-       do k = 1, pver
-          do i = 1, ncol
-             state_out%lnpmiddry(i,k) = state_in%lnpmiddry(i,k)
-             state_out%pmiddry(i,k)   = state_in%pmiddry(i,k)
-             state_out%pdeldry(i,k)   = state_in%pdeldry(i,k)
-             state_out%rpdeldry(i,k)  = state_in%rpdeldry(i,k)
-          end do
+    end do
+    do k = 1, pverp
+       do i = 1, ncol
+          state_out%pintdry(i,k)   = state_in%pintdry(i,k)
+          state_out%lnpintdry(i,k) = state_in%lnpintdry(i,k)
        end do
-       do k = 1, pverp
-          do i = 1, ncol
-             state_out%pintdry(i,k)   = state_in%pintdry(i,k)
-             state_out%lnpintdry(i,k) = state_in%lnpintdry(i,k)
-          end do
-       end do
+    end do
 
     do m = 1, pcnst
        do k = 1, pver
@@ -1537,6 +1542,7 @@ end subroutine set_dry_to_wet
 subroutine physics_state_alloc(state,lchnk,psetcols)
 
   use infnan, only : inf, assignment(=)
+  use dycore, only: dycore_is
 
 ! allocate the individual state components
 
@@ -1587,6 +1593,11 @@ subroutine physics_state_alloc(state,lchnk,psetcols)
 
   allocate(state%v(psetcols,pver), stat=ierr)
   if ( ierr /= 0 ) call endrun('physics_state_alloc error: allocation error for state%v')
+
+  if (dycore_is('MPAS')) then
+     allocate(state%w(psetcols,pver), stat=ierr)
+     if ( ierr /= 0 ) call endrun('physics_state_alloc error: allocation error for state%w')
+  end if
 
   allocate(state%s(psetcols,pver), stat=ierr)
   if ( ierr /= 0 ) call endrun('physics_state_alloc error: allocation error for state%s')
@@ -1679,6 +1690,9 @@ subroutine physics_state_alloc(state,lchnk,psetcols)
   state%t(:,:) = inf
   state%u(:,:) = inf
   state%v(:,:) = inf
+  if (allocated(state%w)) then
+     state%w=inf
+  end if
   state%s(:,:) = inf
   state%omega(:,:) = inf
   state%pmid(:,:) = inf
@@ -1746,6 +1760,11 @@ subroutine physics_state_dealloc(state)
 
   deallocate(state%v, stat=ierr)
   if ( ierr /= 0 ) call endrun('physics_state_dealloc error: deallocation error for state%v')
+
+  if (allocated(state%w)) then
+     deallocate(state%w, stat=ierr)
+     if ( ierr /= 0 ) call endrun('physics_state_dealloc error: deallocation error for state%w')
+  end if
 
   deallocate(state%s, stat=ierr)
   if ( ierr /= 0 ) call endrun('physics_state_dealloc error: deallocation error for state%s')
