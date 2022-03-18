@@ -115,7 +115,7 @@ module tracer_data
      integer, pointer, dimension(:) :: count0_x=>null(), count0_y=>null()
      integer, pointer, dimension(:,:) :: index0_x=>null(), index0_y=>null()
      logical :: dist
-     
+
      real(r8)                        :: p0
      type(var_desc_t) :: ps_id
      logical,  allocatable, dimension(:) :: in_pbuf
@@ -459,10 +459,16 @@ contains
     endif
 
 
+    call pio_seterrorhandling(File%curr_fileid, PIO_BCAST_ERROR)
+
     flds_loop: do f = 1,mxnflds
 
        ! get netcdf variable id for the field
        ierr = pio_inq_varid( file%curr_fileid, flds(f)%srcnam, flds(f)%var_id )
+       if (ierr/=pio_noerr) then
+          call endrun('trcdata_init: Cannot find var "'//trim(flds(f)%srcnam)// &
+                      '" in file '//trim(file%curr_filename))
+       endif
 
        ! determine if the field has a vertical dimension
 
@@ -478,9 +484,9 @@ contains
 
        if ( .not. file%in_pbuf(f) ) then
           if ( flds(f)%srf_fld .or. file%top_bndry ) then
-             allocate( flds(f)         %data(pcols,1,begchunk:endchunk), stat=astat   )
+             allocate( flds(f)%data(pcols,1,begchunk:endchunk), stat=astat   )
           else
-             allocate( flds(f)         %data(pcols,pver,begchunk:endchunk), stat=astat   )
+             allocate( flds(f)%data(pcols,pver,begchunk:endchunk), stat=astat   )
           endif
           if( astat/= 0 ) then
              write(iulog,*) 'trcdata_init: failed to allocate flds(f)%data array; error = ',astat
@@ -581,6 +587,8 @@ contains
        flds(f)%units = trim(data_units(1:32))
 
     enddo flds_loop
+
+    call pio_seterrorhandling(File%curr_fileid, PIO_INTERNAL_ERROR)
 
 ! if weighting by latitude, compute weighting for horizontal interpolation
     if( file%weight_by_lat ) then
@@ -751,7 +759,7 @@ contains
             enddo
            endif
         endif
-   
+
         call mpi_bcast(file%weight_x, plon*file%nlon, mpi_real8 , mstrid, mpicom,ierr)
         if (ierr /= 0) call endrun(sub//": FATAL: mpi_bcast: file%weight_x")
         call mpi_bcast(file%weight_y, plat*file%nlat, mpi_real8 , mstrid, mpicom,ierr)
@@ -1749,7 +1757,7 @@ contains
 
         call xy_interp(file%nlon,file%nlat,file%nlev,plon,plat,pcols,ncols, &
                        file%weight0_x,file%weight0_y,wrk3d_in,loc_arr(:,:,c-begchunk+1),  &
-                       lons,lats,file%count0_x,file%count0_y,file%index0_x,file%index0_y) 
+                       lons,lats,file%count0_x,file%count0_y,file%index0_x,file%index0_y)
       enddo
      else
       do c = begchunk,endchunk
@@ -2446,7 +2454,7 @@ contains
     real(r8)              :: src_x(nsrc+1)         ! source coordinates
     real(r8), intent(in)      :: trg_x(pcols,ntrg+1)         ! target coordinates
     real(r8), intent(in)      :: src(pcols,nsrc)             ! source array
-    logical, intent(in)   :: use_flight_distance                    ! .true. = flight distance, .false. = mixing ratio 
+    logical, intent(in)   :: use_flight_distance                    ! .true. = flight distance, .false. = mixing ratio
     real(r8), intent(out)     :: trg(pcols,ntrg)             ! target array
 
     real(r8) :: ps(pcols), p0, hyai(nsrc+1), hybi(nsrc+1)

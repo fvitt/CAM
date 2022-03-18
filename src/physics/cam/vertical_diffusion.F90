@@ -669,7 +669,7 @@ subroutine vertical_diffusion_tend( &
        cnst_mw, cnst_fixed_ubc, cnst_fixed_ubflx
   use physconst,          only : pi
   use pbl_utils,          only : virtem, calc_obklen, calc_ustar
-  use upper_bc,           only : ubc_get_vals, msis_active
+  use upper_bc,           only : ubc_get_vals, ubc_fixed_temp
   use upper_bc,           only : ubc_get_flxs
   use coords_1d,          only : Coords1D
 
@@ -874,8 +874,8 @@ subroutine vertical_diffusion_tend( &
      call ubc_get_flxs( state%lchnk, ncol, state%pint, state%zi, state%t, state%q, state%phis, ubc_flux )
      ! For WACCM-X, set ubc temperature to extrapolate from next two lower interface level temperatures
      tint(:ncol,1) = 1.5_r8*tint(:ncol,2)-.5_r8*tint(:ncol,3)
-  else if(msis_active) then
-     tint (:ncol,1) = ubc_t(:ncol)
+  else if(ubc_fixed_temp) then
+     tint(:ncol,1) = ubc_t(:ncol)
   else
      tint(:ncol,1) = state%t(:ncol,1)
   end if

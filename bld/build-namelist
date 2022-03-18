@@ -2635,9 +2635,12 @@ if ($chem =~ /waccm_ma/ or $chem =~ /waccm_tsmlt/) {
                  'soil_erod_file' );
 
     if (!$waccmx) {
-        @files = (@files, 'tgcm_ubc_file', 'snoe_ubc_file' );
-        my $fields = "'T','Q = 2.d-8 vmr','CH4 = 2.d-10 vmr','F = 1.0D-15mmr','HF=1.0D-15mmr','H','N','O','O2','H2','NO'";
-        add_default($nl, 'ubc_fields', 'val'=>$fields);
+	unless (defined $nl->get_value('ubc_file_path')) {
+	    @files = (@files, 'tgcm_ubc_file', 'snoe_ubc_file' );
+	}
+        my $fields = "'T->MSIS','Q -> 2.d-8 vmr','CH4 -> 2.d-10 vmr','F -> 1.0D-15mmr','HF->1.0D-15mmr',"
+                    ."'H->MSIS','N->MSIS','O->MSIS','O2->MSIS','H2->tgcm','NO -> snoe'";
+        add_default($nl, 'ubc_specifier', 'val'=>$fields);
     }
 
     if ($chem =~ /_mozart/) {
