@@ -14,8 +14,6 @@ module carma_aerosol_properties_mod
   type, extends(aerosol_properties) :: carma_aerosol_properties
      private
    contains
-     procedure :: abdraz_f1
-     procedure :: abdraz_f2
      procedure :: get
      procedure :: actfracs
      procedure :: get_num_names
@@ -40,6 +38,8 @@ contains
     integer,allocatable :: nmasses(:)
     real(r8),allocatable :: amcubecoefs(:)
     real(r8),allocatable :: alogsig(:)
+    real(r8),allocatable :: f1(:)
+    real(r8),allocatable :: f2(:)
 
     allocate(newobj)
 
@@ -48,6 +48,8 @@ contains
     allocate( nmasses(nbins) )
     allocate( amcubecoefs(nbins) )
     allocate( alogsig(nbins) )
+    allocate( f1(nbins) )
+    allocate( f2(nbins) )
 
     ncnst_tot = 0
 
@@ -59,12 +61,16 @@ contains
 
     amcubecoefs(:)=3._r8/(4._r8*pi)
     alogsig(:) = log(2._r8)  !!!! ???? IS THIS RIGHT ???? !!!
+    f1 = 1._r8
+    f2 = 1._r8
 
-    call newobj%initialize(nbins,ncnst_tot,nspecies,nmasses,amcubecoefs,alogsig)
+    call newobj%initialize(nbins,ncnst_tot,nspecies,nmasses,amcubecoefs,alogsig,f1,f2)
     deallocate(nspecies)
     deallocate(nmasses)
     deallocate(amcubecoefs)
     deallocate(alogsig)
+    deallocate(f1)
+    deallocate(f2)
 
   end function constructor
 
@@ -89,26 +95,6 @@ contains
     call rad_cnst_get_bin_props_by_idx(0, m, l, density_aer=density, hygro_aer=hygro)
 
   end subroutine get
-
-  !------------------------------------------------------------------------------
-  !------------------------------------------------------------------------------
-  function abdraz_f1(self,m) result(f)
-    class(carma_aerosol_properties), intent(in) :: self
-    integer, intent(in) :: m
-    real(r8) :: f
-
-    f = 1._r8
-  end function abdraz_f1
-
-  !------------------------------------------------------------------------------
-  !------------------------------------------------------------------------------
-  function abdraz_f2(self,m) result(f)
-    class(carma_aerosol_properties), intent(in) :: self
-    integer, intent(in) :: m
-    real(r8) :: f
-
-    f = 1._r8
-  end function abdraz_f2
 
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------

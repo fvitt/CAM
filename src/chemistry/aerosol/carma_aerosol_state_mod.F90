@@ -23,8 +23,6 @@ module carma_aerosol_state_mod
      procedure :: get_cldbrne_mmr
      procedure :: get_ambient_num
      procedure :: get_cldbrne_num
-     procedure :: get_ambient_bin_mmr
-     procedure :: get_cldbrne_bin_mmr
      procedure :: get_states
 
      final :: destructor
@@ -65,65 +63,55 @@ contains
 
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------
-  function get_ambient_mmr(self,l,m) result(x)
+  subroutine get_ambient_mmr(self,l,m, x)
     class(carma_aerosol_state), intent(in) :: self
     integer, intent(in) :: l
     integer, intent(in) :: m
     real(r8), pointer :: x(:,:)
 
-    call rad_cnst_get_bin_mmr_by_idx(0, m, l, 'a', self%state, self%pbuf, x)
-  end function get_ambient_mmr
+    if (l<1) then
+       call rad_cnst_get_bin_mmr(0, m, 'a', self%state, self%pbuf, x)
+    else
+       call rad_cnst_get_bin_mmr_by_idx(0, m, l, 'a', self%state, self%pbuf, x)
+    end if
+
+  end subroutine get_ambient_mmr
 
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------
-  function get_cldbrne_mmr(self,l,m) result(x)
+  subroutine get_cldbrne_mmr(self,l,m, x)
     class(carma_aerosol_state), intent(in) :: self
     integer, intent(in) :: l
     integer, intent(in) :: m
     real(r8), pointer :: x(:,:)
 
-    call rad_cnst_get_bin_mmr_by_idx(0, m, l, 'c', self%state, self%pbuf, x)
-  end function get_cldbrne_mmr
+    if (l<1) then
+       call rad_cnst_get_bin_mmr(0, m, 'c', self%state, self%pbuf, x)
+    else
+       call rad_cnst_get_bin_mmr_by_idx(0, m, l, 'c', self%state, self%pbuf, x)
+    end if
+
+  end subroutine get_cldbrne_mmr
 
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------
-  function get_ambient_num(self,m) result(x)
+  subroutine get_ambient_num(self,m, x)
     class(carma_aerosol_state), intent(in) :: self
     integer, intent(in) :: m
     real(r8), pointer :: x(:,:)
 
     call rad_cnst_get_bin_num(0, m, 'a', self%state, self%pbuf, x)
-  end function get_ambient_num
+  end subroutine get_ambient_num
 
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------
-  function get_cldbrne_num(self,m) result(x)
+  subroutine get_cldbrne_num(self,m, x)
     class(carma_aerosol_state), intent(in) :: self
     integer, intent(in) :: m
     real(r8), pointer :: x(:,:)
 
     call rad_cnst_get_bin_num(0, m, 'c', self%state, self%pbuf, x)
-  end function get_cldbrne_num
-
-  !------------------------------------------------------------------------------
-  !------------------------------------------------------------------------------
-  function get_ambient_bin_mmr(self,m) result(x)
-    class(carma_aerosol_state), intent(in) :: self
-    integer, intent(in) :: m
-    real(r8), pointer :: x(:,:)
-
-    call rad_cnst_get_bin_mmr(0, m, 'a', self%state, self%pbuf, x)
-  end function get_ambient_bin_mmr
-
-  !------------------------------------------------------------------------------
-  !------------------------------------------------------------------------------
-  function get_cldbrne_bin_mmr(self,m) result(x)
-    class(carma_aerosol_state), intent(in) :: self
-    integer, intent(in) :: m
-    real(r8), pointer :: x(:,:)
-
-    call rad_cnst_get_bin_mmr(0, m, 'c', self%state, self%pbuf, x)
-  end function get_cldbrne_bin_mmr
+  end subroutine get_cldbrne_num
 
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------
@@ -137,15 +125,15 @@ contains
 
     do m = 1, aero_props%nbins()
        mm = aero_props%indexer(m, 0)
-       raer(mm)%fld => self%get_ambient_num(m)
-       qqcw(mm)%fld => self%get_cldbrne_num(m)
+       call self%get_ambient_num(m, raer(mm)%fld)
+       call self%get_cldbrne_num(m, qqcw(mm)%fld)
        mm = aero_props%indexer(m, 1)
-       raer(mm)%fld => self%get_ambient_bin_mmr(m)
-       qqcw(mm)%fld => self%get_cldbrne_bin_mmr(m)
+       call self%get_ambient_mmr(0,m, raer(mm)%fld)
+       call self%get_cldbrne_mmr(0,m, qqcw(mm)%fld)
        do l = 1, aero_props%nspecies(m)
           mm = aero_props%indexer(m, l+1)
-          raer(mm)%fld => self%get_ambient_mmr(l,m)
-          qqcw(mm)%fld => self%get_cldbrne_mmr(l,m)
+          call self%get_ambient_mmr(l,m, raer(mm)%fld)
+          call self%get_cldbrne_mmr(l,m, qqcw(mm)%fld)
        end do
     end do
 
