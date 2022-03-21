@@ -2604,6 +2604,17 @@ if ($maxzen>0.0) {
     add_default($nl, 'photo_max_zen', 'val'=>"${maxzen}D0");
 }
 
+# upper boundary specifier
+my $ubc_ver;
+if (($chem =~ /waccm_ma/ or $chem =~ /waccm_tsmlt/ ) and !$waccmx) {
+    $ubc_ver = 'waccmchem';
+} elsif ($chem =~ /waccm_sc/) {
+    $ubc_ver = 'waccmsc';
+}
+if (defined $ubc_ver) {
+    add_default($nl, 'ubc_specifier', 'ver'=>$ubc_ver);
+}
+
 # WACCM options.
 if ($chem =~ /waccm_ma/ or $chem =~ /waccm_tsmlt/) {
 
@@ -2636,9 +2647,6 @@ if ($chem =~ /waccm_ma/ or $chem =~ /waccm_tsmlt/) {
 
     if (!$waccmx) {
 	@files = (@files, 'tgcm_ubc_file', 'snoe_ubc_file' );
-        my $fields = "'T->MSIS','Q->2.d-8vmr','CH4->2.d-10vmr','F->1.0D-15mmr','HF->1.0D-15mmr',"
-                    ."'H->MSIS','N->MSIS','O->MSIS','O2->MSIS','H2->TGCM','NO->SNOE'";
-        add_default($nl, 'ubc_specifier', 'val'=>$fields);
     }
 
     if ($chem =~ /_mozart/) {
