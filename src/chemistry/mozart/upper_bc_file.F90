@@ -5,7 +5,8 @@ module upper_bc_file
   use cam_logfile,   only: iulog
   use spmd_utils,    only: masterproc
   use cam_abortutils,only: endrun
-  use cam_history,   only: addfld, add_default, horiz_only, outfld, fieldname_len
+  use cam_history,   only: addfld, horiz_only, outfld, fieldname_len
+  !use cam_history,   only: add_default
 
   use tracer_data,   only: trfld,trfile,MAXTRCRS
 

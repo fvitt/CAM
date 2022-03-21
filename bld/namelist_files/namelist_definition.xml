@@ -6680,30 +6680,28 @@ Default: 0.0
 
 <entry id="ubc_specifier" type="char*64(pcnst)"  category="upper_boundary"
        group="upper_bc_opts" valid_values="" >
+
 List of fields that have fixed upper boundary conditions (temperature and mass mixing ratios)
 and corresponding data sources. Each entry in this list is of the form:
-  FLD -> source
+  FLD->source
 where source may be of the following:
   MSIS
   TGCM
   SNOE
   UBC_FILE
   value (mmr|vmr)
+
 These fields can be set to constant values with units of "mmr" (mass mixing ratio)
 or "vmr" (volume mixing ratio).  The upper boundary values of source UBC_FILE are prescribed
 in the UBC_FILE_path file. Fields of source UBC_FILE may may include a CAM constituent name
-and a file field name separated by ":". The historical WACCM upper boundary setters are
-designated by MSIS, TGCM, and SNOE sources.
+and a file field name separated by ":".
 
 Example:
-  ubc_specifier = 'Q:H2O -> UBC_FILE', 'CH4 -> 2.D-10 vmr', 'F -> 1.0D-15mmr', 'HF->1.0D-15 mmr',
-		  'T->MSIS', 'H->MSIS', 'N->MSIS','O->MSIS', 'O2->MSIS', 'H2->TGCM', 'NO -> SNOE'
+  ubc_specifier = 'Q:H2O->UBC_FILE', 'CH4->2.D-10vmr', 'F->1.0D-15mmr', 'HF->1.0D-15mmr',
+		  'T->MSIS', 'H->MSIS', 'N->MSIS','O->MSIS', 'O2->MSIS', 'H2->TGCM', 'NO->SNOE'
 
 Default: set by build-namelist
-
 </entry>
-
-
 
 <entry id="ubc_file_path" type="char*512" input_pathname="abs" category="upper_boundary"
        group="upper_bc_file_opts" valid_values="" >

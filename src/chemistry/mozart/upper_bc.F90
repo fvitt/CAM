@@ -1,8 +1,8 @@
 module upper_bc
 
 !---------------------------------------------------------------------------------
-! Module to compute the upper boundary condition for temperature (dry static energy)
-! and trace gases. Uses the MSIS model, and SNOE and TIME GCM data.
+! Module to compute the upper boundary conditions for temperature (dry static energy)
+! and trace gases. Uses the MSIS model, and SNOE and TIME GCM and general prescribed UBC data.
 !---------------------------------------------------------------------------------
 
   use shr_kind_mod, only: r8 => shr_kind_r8
@@ -17,7 +17,8 @@ module upper_bc
   use ref_pres,     only: do_molec_diff, ptop_ref
   use shr_kind_mod, only: cx=>SHR_KIND_CX
   use cam_abortutils,only: endrun
-  use cam_history,   only: addfld, add_default, horiz_only, outfld, fieldname_len
+  use cam_history,   only: addfld, horiz_only, outfld, fieldname_len
+  !use cam_history,   only: add_default
 
   use upper_bc_file, only: upper_bc_file_readnl, upper_bc_file_specified, upper_bc_file_adv, upper_bc_file_get
     use infnan,       only : nan, assignment(=)
@@ -47,11 +48,11 @@ module upper_bc
 
   integer :: num_infile = 0
   integer :: num_fixed = 0
-  character(len=2), parameter :: msis_spc(4) = &
-       (/ 'H ','N ','O ','O2' /)
-  character(len=2), parameter :: tgcm_spc(1) = &
+  character(len=2), parameter :: msis_flds(5) = &
+       (/ 'H ','N ','O ','O2','T ' /)
+  character(len=2), parameter :: tgcm_flds(1) = &
        (/ 'H2' /)
-  character(len=2), parameter :: snoe_spc(1) = &
+  character(len=2), parameter :: snoe_flds(1) = &
        (/ 'NO' /)
 
   logical, protected :: ubc_fixed_temp =.false.
@@ -74,7 +75,6 @@ module upper_bc
   character(len=32)  :: tgcm_ubc_data_type = 'CYCLICAL'
 
   logical :: apply_upper_bc = .false.
-  logical :: reported = .false.
 
   integer, allocatable :: file_spc_ndx(:)
   integer, allocatable :: spc_ndx(:)
@@ -202,8 +202,6 @@ contains
 
     !-----------------------------------------------------------------------
 
-    if (masterproc)   write(iulog,*) 'FVDBG.ubc_init ptop_ref = ', ptop_ref
-
     apply_upper_bc = .true. !do_molec_diff ! ptop_ref<1._r8 ! Pa
 
     if (.not.apply_upper_bc) return
@@ -233,24 +231,23 @@ contains
        !call add_default(hist_names(m), 2, ' ' )
 
        if (trim(ubc_source(m))=='msis') then
-          if (do_molec_diff .and. (ubc_flds(m)=='T'.or.any(msis_spc==ubc_flds(m)))) then
+          if (do_molec_diff .and. any(msis_flds==ubc_flds(m))) then
              msis_active = .true.
-
-             if (ubc_flds(m)=='H') h_msis_ndx=spc_ndx(m)
-             if (ubc_flds(m)=='N') n_msis_ndx=spc_ndx(m)
-             if (ubc_flds(m)=='O') o_msis_ndx=spc_ndx(m)
-             if (ubc_flds(m)=='O2') o2_msis_ndx=spc_ndx(m)
+             if (trim(ubc_flds(m))=='H') h_msis_ndx=spc_ndx(m)
+             if (trim(ubc_flds(m))=='N') n_msis_ndx=spc_ndx(m)
+             if (trim(ubc_flds(m))=='O') o_msis_ndx=spc_ndx(m)
+             if (trim(ubc_flds(m))=='O2') o2_msis_ndx=spc_ndx(m)
           else
              call endrun(prefix//'MSIS is not allowed in this configuration')
           end if
        else if (trim(ubc_source(m))=='tgcm') then
-          if (do_molec_diff .and. any(tgcm_spc==ubc_flds(m))) then
+          if (do_molec_diff .and. any(tgcm_flds==ubc_flds(m))) then
              tgcm_active = .true.
           else
              call endrun(prefix//'TGCM is not allowed in this configuration')
           end if
        else if (trim(ubc_source(m))=='snoe') then
-          if (do_molec_diff .and. any(snoe_spc==ubc_flds(m))) then
+          if (do_molec_diff .and. any(snoe_flds==ubc_flds(m))) then
              snoe_active = .true.
           else
              call endrun(prefix//'SNOE is not allowed in this configuration')
@@ -275,12 +272,6 @@ contains
           end if
        end if
     end do
-
-    if (masterproc) then
-       write(iulog,*) 'FVDBG.ubc_init msis_active = ',msis_active
-       write(iulog,*) 'FVDBG.ubc_init snoe_active = ',snoe_active
-       write(iulog,*) 'FVDBG.ubc_init tgcm_active = ',tgcm_active
-    end if
 
     if (tgcm_active) then
        !-----------------------------------------------------------------------
@@ -325,7 +316,6 @@ contains
     do m = 1,num_fixed
        if ( trim(ubc_flds(m)) == trim(name) ) then
           ubc_fixed_conc = .true.
-          if (masterproc) write(iulog,*) 'FVDBG ubc_fixed_conc TRUE for '// trim(name)
           return
        endif
     end do
@@ -434,7 +424,7 @@ contains
           ubc_temp(:ncol) = ubc_temp(:ncol) + t_pert_ubc
           if( any( ubc_temp(:ncol) < 0._r8 ) ) then
              write(iulog,*) 'ubc_get_vals: msis temp < 0 after applying offset = ',t_pert_ubc
-             call endrun
+             call endrun('ubc_get_vals: msis temp < 0 after applying t_pert_ubc')
           end if
        end if
     end if
@@ -498,16 +488,6 @@ contains
           call outfld(hist_names(m),ubc_mmr(:ncol,spc_ndx(m)),ncol,lchnk)
        end if
     end do
-
-    if (masterproc.and..not.reported) then
-       do m = 1,pcnst
-          if ( cnst_fixed_ubc(m) ) &
-             write(iulog,*) 'FVDBG.ubc_get_vals  cnst_name,source,max mmr: '//cnst_name(m)//source(m), maxval(ubc_mmr(:ncol,m)), cnst_fixed_ubc(m)
-       end do
-       reported=.true.
-       write(iulog,*) 'FVDBG.ubc_get_vals  ubc_fixed_temp: ',ubc_fixed_temp
-       write(iulog,*) 'FVDBG.ubc_get_vals  ubc_temp: ',ubc_temp(1) !maxval( ubc_temp(:ncol))
-    endif
 
   end subroutine ubc_get_vals
 
