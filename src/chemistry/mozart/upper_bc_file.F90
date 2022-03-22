@@ -90,6 +90,7 @@ contains
     use constituents,only: cnst_get_ind, cnst_mw
     use physconst,   only: mwdry
     use string_utils,only: to_lower
+    use ref_pres,    only: do_molec_diff
 
     character(len=*) :: flds_list(:)
 
@@ -109,7 +110,11 @@ contains
     call trcdata_init( flds_list, ubc_file_path, ' ', ' ', fields, file, .false., &
          ubc_file_cycle_yr, ubc_file_fixed_ymd, ubc_file_fixed_tod, ubc_file_input_type)
 
-    file%top_bndry = .true.
+    if (do_molec_diff) then
+       file%top_bndry = .true.
+    else
+       file%top_layer = .true.
+    endif
 
     allocate(hist_names(num_ubc_flds))
     hist_names = ' '

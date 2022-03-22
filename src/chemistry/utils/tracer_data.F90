@@ -132,6 +132,7 @@ module tracer_data
      logical :: fixed = .false.
      logical :: initialized = .false.
      logical :: top_bndry = .false.
+     logical :: top_layer = .false.
      logical :: stepTime = .false.  ! Do not interpolate in time, but use stepwise times
   endtype trfile
 
@@ -248,6 +249,10 @@ contains
     if ( (.not.file%cyclical) .and. (data_cycle_yr>0._r8) ) then
        call endrun('trcdata_init: Cannot specify data_cycle_yr if data type is not CYCLICAL')
     endif
+
+    if (file%top_bndry .and. file%top_layer) then
+       call endrun('trcdata_init: Cannot both file%top_bndry and file%top_layer to TRUE.')
+    end if
 
     if (masterproc) then
        write(iulog,*) 'trcdata_init: data type: '//trim(data_type)//' file: '//trim(filename)
@@ -483,7 +488,7 @@ contains
        ! allocate memory only if not already in pbuf2d
 
        if ( .not. file%in_pbuf(f) ) then
-          if ( flds(f)%srf_fld .or. file%top_bndry ) then
+          if ( flds(f)%srf_fld .or. file%top_bndry .or. file%top_layer ) then
              allocate( flds(f)%data(pcols,1,begchunk:endchunk), stat=astat   )
           else
              allocate( flds(f)%data(pcols,pver,begchunk:endchunk), stat=astat   )
@@ -1970,6 +1975,8 @@ contains
                 end if
                 if ( file%top_bndry ) then
                    call vert_interp_ub(ncol, file%nlev, file%levs,  datain(:ncol,:), data_out(:ncol,:) )
+                else if ( file%top_layer ) then
+                   call vert_interp_ub_var(ncol, file%nlev, file%levs, state(c)%pmid(:ncol,1), datain(:ncol,:), data_out(:ncol,:) )
                 else if(file%conserve_column) then
                    call vert_interp_mixrat(ncol,file%nlev,pver,state(c)%pint, &
                         datain, data_out(:,:), &
@@ -2671,6 +2678,59 @@ contains
     end do
 
   end subroutine vert_interp_ub
+!------------------------------------------------------------------------------
+!------------------------------------------------------------------------------
+  subroutine vert_interp_ub_var( ncol, nlevs, plevs, press, datain, dataout )
+
+    !-----------------------------------------------------------------------
+    !
+    ! Interpolate data from current time-interpolated values to press
+    !
+    !--------------------------------------------------------------------------
+    ! Arguments
+    !
+    integer,  intent(in)  :: ncol
+    integer,  intent(in)  :: nlevs
+    real(r8), intent(in)  :: plevs(nlevs)
+    real(r8), intent(in)  :: press(ncol)
+    real(r8), intent(in)  :: datain(ncol,nlevs)
+    real(r8), intent(out) :: dataout(ncol)
+
+    !
+    ! local variables
+    !
+    integer  :: i,k
+    integer  :: ku,kl
+    real(r8) :: delp
+
+
+    do i = 1,ncol
+
+       if( press(i) <= plevs(1) ) then
+          kl = 1
+          ku = 1
+          delp = 0._r8
+       else if( press(i) >= plevs(nlevs) ) then
+          kl = nlevs
+          ku = nlevs
+          delp = 0._r8
+       else
+
+          do k = 2,nlevs
+             if( press(i) <= plevs(k) ) then
+                ku = k
+                kl = k - 1
+                delp = log( press(i)/plevs(k) ) / log( plevs(k-1)/plevs(k) )
+                exit
+             end if
+          end do
+
+       end if
+
+       dataout(i) = datain(i,kl) + delp * (datain(i,ku) - datain(i,kl))
+    end do
+
+  end subroutine vert_interp_ub_var
 !------------------------------------------------------------------------------
 
 !------------------------------------------------------------------------------
