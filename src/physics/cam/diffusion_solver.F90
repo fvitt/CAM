@@ -901,11 +901,11 @@
               if (.not. use_spcam) then
                  ! Currently, no ubc for constituents without molecular
                  ! diffusion (they cannot diffuse out the top of the model).
-                  if (cnst_fixed_ubc(m)) then
+!!$                  if (cnst_fixed_ubc(m)) then
                      call no_molec_decomp%left_div(q(:ncol,:,m), l_cond=BoundaryData(ubc_mmr(:ncol,m)))
-                  else
-                     call no_molec_decomp%left_div(q(:ncol,:,m))
-                  end if
+!!$                  else
+!!$                     call no_molec_decomp%left_div(q(:ncol,:,m))
+!!$                  end if
               end if
 
            end if
