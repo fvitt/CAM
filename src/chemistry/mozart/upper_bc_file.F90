@@ -110,11 +110,12 @@ contains
     call trcdata_init( flds_list, ubc_file_path, ' ', ' ', fields, file, .false., &
          ubc_file_cycle_yr, ubc_file_fixed_ymd, ubc_file_fixed_tod, ubc_file_input_type)
 
-    if (do_molec_diff) then
-       file%top_bndry = .true.
-    else
-       file%top_layer = .true.
-    endif
+!!$    if (do_molec_diff) then
+!!$       file%top_bndry = .true.
+!!$    else
+!!$       file%top_layer = .true.
+!!$    endif
+    file%top_bndry = .true.
 
     allocate(hist_names(num_ubc_flds))
     hist_names = ' '

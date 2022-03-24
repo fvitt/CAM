@@ -893,16 +893,20 @@
 
            else
 
+!!$              ! explicitly set mmr in top layer for cases where molecular diffusion is not active
+!!$              if (cnst_fixed_ubc(m)) then
+!!$                 q(:ncol,1,m) = ubc_mmr(:ncol,m)
+!!$              endif
+
               if (.not. use_spcam) then
                  ! Currently, no ubc for constituents without molecular
                  ! diffusion (they cannot diffuse out the top of the model).
-                 call no_molec_decomp%left_div(q(:ncol,:,m))
+                  if (cnst_fixed_ubc(m)) then
+                     call no_molec_decomp%left_div(q(:ncol,:,m), l_cond=BoundaryData(ubc_mmr(:ncol,m)))
+                  else
+                     call no_molec_decomp%left_div(q(:ncol,:,m))
+                  end if
               end if
-
-              ! explicitly set mmr in top layer for cases where molecular diffusion is not active
-              if (cnst_fixed_ubc(m)) then
-                 q(:ncol,1,m) = ubc_mmr(:ncol,m)
-              endif
 
            end if
 
