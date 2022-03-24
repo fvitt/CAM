@@ -43,8 +43,13 @@ module upper_bc
   character(len=16) :: ubc_file_spfr(pcnst) = ' '
   character(len=32) :: ubc_source(pcnst) = ' '
 
-  real(r8) :: fixed_mmr(pcnst) = -huge(1._r8)
-  real(r8) :: fixed_vmr(pcnst) = -huge(1._r8)
+  integer :: n_fixed_mmr=0
+  integer :: n_fixed_vmr=0
+
+  integer, allocatable :: fixed_mmr_ndx(:)
+  integer, allocatable :: fixed_vmr_ndx(:)
+  real(r8), allocatable :: fixed_mmr(:)
+  real(r8), allocatable :: fixed_vmr(:)
 
   integer :: num_infile = 0
   integer :: num_fixed = 0
@@ -92,14 +97,13 @@ contains
     use string_utils, only : to_lower
 
     character(len=*), intent(in) :: nlfile
-    integer :: unitn, ierr, m, n, ndx, ndx_eq, ndx_co
-    integer :: ndx_ar
+    integer :: unitn, ierr, m, n, ndx_co, ndx_ar
 
     character(len=*), parameter :: prefix = 'ubc_readnl: '
 
     namelist /upper_bc_opts/ tgcm_ubc_file,tgcm_ubc_data_type,tgcm_ubc_cycle_yr,tgcm_ubc_fixed_ymd, &
                              tgcm_ubc_fixed_tod, snoe_ubc_file, no_xfac_ubc, t_pert_ubc
-    namelist /upper_bc_opts/ ubc_specifier !!, ubc_filepath
+    namelist /upper_bc_opts/ ubc_specifier
 
     if (masterproc) then
        ! read namelist
@@ -141,6 +145,12 @@ contains
              ubc_file_spfr(m) = trim(ubc_specifier(n)(:ndx_ar-1))
              m=m+1
           endif
+          if (index(ubc_source(n),'mmr')>0) then
+             n_fixed_mmr=n_fixed_mmr+1
+          end if
+          if (index(ubc_source(n),'vmr')>0) then
+             n_fixed_vmr=n_fixed_vmr+1
+          end if
 
           ndx_co = index(ubc_specifier(n),':')
 
@@ -160,6 +170,8 @@ contains
     ! broadcast to all MPI tasks
     call mpi_bcast(num_fixed, 1, mpi_integer, masterprocid, mpicom, ierr)
     call mpi_bcast(num_infile, 1, mpi_integer, masterprocid, mpicom, ierr)
+    call mpi_bcast(n_fixed_mmr, 1, mpi_integer, masterprocid, mpicom, ierr)
+    call mpi_bcast(n_fixed_vmr, 1, mpi_integer, masterprocid, mpicom, ierr)
     call mpi_bcast(tgcm_ubc_file, len(tgcm_ubc_file), mpi_character, masterprocid, mpicom, ierr)
     call mpi_bcast(tgcm_ubc_data_type, len(tgcm_ubc_data_type),mpi_character, masterprocid, mpicom, ierr)
     call mpi_bcast(tgcm_ubc_cycle_yr, 1, mpi_integer, masterprocid, mpicom, ierr)
@@ -173,7 +185,11 @@ contains
     call mpi_bcast(ubc_file_spfr, pcnst*len(ubc_file_spfr(1)), mpi_character,masterprocid, mpicom, ierr)
     call mpi_bcast(ubc_source,    pcnst*len(ubc_source(1)),    mpi_character,masterprocid, mpicom, ierr)
 
-    call upper_bc_file_readnl(nlfile)
+    apply_upper_bc = num_fixed>0
+
+    if (apply_upper_bc) then
+       call upper_bc_file_readnl(nlfile)
+    end if
 
   end subroutine ubc_readnl
 
@@ -190,19 +206,17 @@ contains
     use constituents,only: cnst_get_ind
     use upper_bc_file, only: upper_bc_file_init
 
-!---------------------------Local workspace-----------------------------
+    !---------------------------Local workspace-----------------------------
     logical, parameter :: zonal_avg = .false.
     integer :: m, mm
-    integer :: ndx, mmrndx, vmrndx
+    integer :: mmrndx, vmrndx, m_mmr, m_vmr
 
     real(r8) :: val
-    character(len=32) :: fld, str, valstr
+    character(len=32) :: str
     character(len=*), parameter :: prefix = 'ubc_init: '
-
-
     !-----------------------------------------------------------------------
 
-    apply_upper_bc = .true. !do_molec_diff ! ptop_ref<1._r8 ! Pa
+    call cnst_get_ind('H', h_ndx, abort=.false.) ! for H fluxes UBC (WACCMX)
 
     if (.not.apply_upper_bc) return
 
@@ -216,7 +230,26 @@ contains
 
     allocate(hist_names(num_fixed))
     allocate(spc_ndx(num_fixed))
-    allocate(file_spc_ndx(num_infile))
+    spc_ndx=-1
+    if (num_infile>0) then
+       allocate(file_spc_ndx(num_infile))
+       file_spc_ndx=-1
+    end if
+    if (n_fixed_mmr>0) then
+       allocate(fixed_mmr_ndx(n_fixed_mmr))
+       allocate(fixed_mmr(n_fixed_mmr))
+       fixed_mmr_ndx=-1
+       fixed_mmr = nan
+    end if
+    if (n_fixed_vmr>0) then
+       allocate(fixed_vmr_ndx(n_fixed_vmr))
+       allocate(fixed_vmr(n_fixed_vmr))
+       fixed_vmr_ndx=-1
+       fixed_vmr = nan
+    end if
+
+    m_mmr = 0
+    m_vmr = 0
 
     do m = 1,num_fixed
        hist_names(m) = trim(ubc_flds(m))//'_UBC'
@@ -262,11 +295,15 @@ contains
           if (mmrndx>0) then
              str = ubc_source(m)(:mmrndx-1)
              read(str,*) val
-             fixed_mmr(spc_ndx(m)) = val
+             m_mmr = m_mmr + 1
+             fixed_mmr(m_mmr) = val
+             fixed_mmr_ndx(m_mmr) = spc_ndx(m)
           else if (vmrndx>0) then
              str = ubc_source(m)(:vmrndx-1)
              read(str,*) val
-             fixed_vmr(spc_ndx(m)) = val
+             m_vmr = m_vmr + 1
+             fixed_vmr(m_vmr) = val
+             fixed_vmr_ndx(m_vmr) = spc_ndx(m)
           else
              call endrun(prefix//'unrecognized UBC source: '//trim(ubc_source(m)))
           end if
@@ -297,8 +334,6 @@ contains
        call msis_ubc_inti( zonal_avg, n_msis_ndx,h_msis_ndx,o_msis_ndx,o2_msis_ndx )
        if (masterproc) write(iulog,*) 'ubc_init: after msis_ubc_inti'
     endif
-
-    call cnst_get_ind('H', h_ndx, abort=.false.) ! for H fluxes UBC (WACCMX)
 
   end subroutine ubc_init
 
@@ -370,7 +405,7 @@ contains
     use mo_tgcm_ubc,      only: set_tgcm_ubc
     use cam_abortutils,   only: endrun
     use physconst,        only: rairv, mbarv
-    use constituents,     only: cnst_mw, cnst_fixed_ubc, cnst_name  ! Needed for ubc_flux
+    use constituents,     only: cnst_mw
 
 !------------------------------Arguments--------------------------------
     integer,  intent(in)  :: lchnk                 ! chunk identifier
@@ -381,26 +416,22 @@ contains
     real(r8), intent(out) :: ubc_temp(pcols)      ! upper bndy temperature (K)
     real(r8), intent(out) :: ubc_mmr(pcols,pcnst)  ! upper bndy mixing ratios (kg/kg)
 
-!---------------------------Local storage-------------------------------
+    !---------------------------Local storage-------------------------------
     integer :: m                                   ! constituent index
     real(r8) :: rho_top(pcols)                     ! density at top interface
     real(r8) :: z_top(pcols)                       ! height of top interface (km)
+    real(r8) :: vals(pcols,num_infile)
 
     real(r8), parameter :: m2km = 1.e-3_r8         ! meter to km
 
     !-----------------------------------------------------------------------
 
-    character(len=16) :: source(pcnst) = 'NONE'
-
-    real(r8), parameter :: NOTSET = -huge(1._r8)
-    real(r8) :: vals(pcols,num_infile)
-
-    ubc_mmr(:,:) = nan
+    ubc_mmr(:,:) = 0._r8
     ubc_temp(:) = nan
-    ubc_mmr(:,:) = NOTSET ! nan
 
     if (.not. apply_upper_bc) return
 
+    ! UBC_FILE
     if (num_infile>0) then
        call upper_bc_file_get(lchnk, ncol, vals)
        do m = 1,num_infile
@@ -413,11 +444,8 @@ contains
        end do
 
     endif
-    do m = 1,pcnst
-       if (source(m)=='NONE' .and. any(ubc_mmr(:ncol,m)/=NOTSET) )  &
-            source(m)='FILE'
-    end do
 
+    ! MSIS
     if (msis_active) then
        call get_msis_ubc( lchnk, ncol, ubc_temp, ubc_mmr )
        if( t_pert_ubc /= 0._r8 ) then
@@ -428,11 +456,8 @@ contains
           end if
        end if
     end if
-    do m = 1,pcnst
-       if (source(m)=='NONE' .and. any(ubc_mmr(:ncol,m)/=NOTSET) )  &
-            source(m)='MSIS'
-    end do
 
+    ! SNOE
     if (snoe_active) then
 
        rho_top(:ncol) = pint(:ncol,1) / (rairv(:ncol,1,lchnk)*ubc_temp(:ncol))
@@ -445,42 +470,20 @@ contains
 
     endif
 
-    do m = 1,pcnst
-       if (source(m)=='NONE' .and. any(ubc_mmr(:ncol,m)/=NOTSET) )  &
-            source(m)='SNOE'
-    end do
-
-
+    ! TIE-GCM
     if (tgcm_active) then
        call set_tgcm_ubc( lchnk, ncol, ubc_mmr )
     endif
 
-    do m = 1,pcnst
-       if (source(m)=='NONE' .and. any(ubc_mmr(:ncol,m)/=NOTSET) )  &
-            source(m)='TGCM'
-    end do
-
     ! fixed values
-    do m = 1,pcnst
-       if (fixed_mmr(m) > 0._r8) then
-          ubc_mmr(:ncol, m) = fixed_mmr(m)
-       elseif (fixed_vmr(m) > 0._r8) then
-          ubc_mmr(:ncol, m) = cnst_mw(m)*fixed_vmr(m)/mbarv(:ncol,1,lchnk)
-       end if
+    do m = 1,n_fixed_mmr
+       ubc_mmr(:ncol,fixed_mmr_ndx(m)) = fixed_mmr(m)
+    end do
+    do m = 1,n_fixed_vmr
+       ubc_mmr(:ncol,fixed_vmr_ndx(m)) = cnst_mw(fixed_vmr_ndx(m))*fixed_vmr(m)/mbarv(:ncol,1,lchnk)
     end do
 
-    do m = 1,pcnst
-       if (source(m)=='NONE' .and. any(ubc_mmr(:ncol,m)/=NOTSET) )  &
-            source(m)='CONST_MMR'
-    end do
-
-    ! Zero out constituent ubc's that are not used.
-    do m = 1, pcnst
-       if (.not.cnst_fixed_ubc(m)) then
-          ubc_mmr(:,m) = 0.0_r8
-       end if
-    end do
-
+    ! diagnostic output
     do m = 1,num_fixed
        if (ubc_flds(m)=='T') then
           call outfld(hist_names(m),ubc_temp(:ncol),ncol,lchnk)
@@ -519,9 +522,6 @@ contains
     real(r8), pointer :: qh_top(:)         ! Top level hydrogen mixing ratio (kg/kg)
 
     ubc_flux(:,:) = nan
-
-    if (.not. apply_upper_bc) return
-!!$    if (.not. ( waccmx_is('ionosphere') .or. waccmx_is('neutral') ) ) return
 
     qh_top => q(:,1,h_ndx)
 

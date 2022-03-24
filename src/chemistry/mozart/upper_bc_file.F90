@@ -45,7 +45,7 @@ contains
 
     character(len=*), intent(in) :: nlfile
 
-    integer :: unitn, ierr, n, ndx
+    integer :: unitn, ierr
     character(len=*), parameter :: prefix = 'upper_bc_file_readnl: '
 
     namelist /upper_bc_file_opts/ ubc_file_path, ubc_file_input_type

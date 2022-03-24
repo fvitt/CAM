@@ -2645,9 +2645,7 @@ if ($chem =~ /waccm_ma/ or $chem =~ /waccm_tsmlt/) {
                  'xs_coef_file', 'xs_short_file','xs_long_file', 'rsf_file',
                  'soil_erod_file' );
 
-    if (!$waccmx) {
-	@files = (@files, 'tgcm_ubc_file', 'snoe_ubc_file' );
-    }
+    if (!$waccmx) { @files = (@files, 'tgcm_ubc_file', 'snoe_ubc_file' ); }
 
     if ($chem =~ /_mozart/) {
         @files = (@files, 'sulf_file' );

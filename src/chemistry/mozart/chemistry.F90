@@ -167,7 +167,7 @@ end function chem_is
     use mo_aurora,           only : aurora_register
     use aero_model,          only : aero_model_register
     use physics_buffer,      only : pbuf_add_field, dtype_r8
-    use upper_bc, only: ubc_fixed_conc
+    use upper_bc,            only : ubc_fixed_conc
 
     implicit none
 
