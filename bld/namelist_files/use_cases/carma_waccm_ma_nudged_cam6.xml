@@ -1,7 +1,6 @@
 <?xml version="1.0"?>
 <namelist_defaults>
 
-<ncdata hgrid="1.9x2.5" nlev="70">atm/cam/inic/fv/FWmaHIST.nudged.f19_f19_mg17.carma_model_dev_dec22.new_coag.Mwet.1979_2000.001.cam.i.1990-01-01-00000_c220127.nc</ncdata>
 <ncdata hgrid="0.9x1.25" nlev="70">atm/waccm/ic/FWmaCARMAHIST_f09_spinup01.cam.i.1980-01-01-00000_c220128.nc</ncdata>
 
 <!-- Solar data -->

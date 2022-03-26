@@ -4,7 +4,7 @@
 module aero_model
   use physics_buffer,    only: physics_buffer_desc, pbuf_get_index, pbuf_add_field, dtype_r8
   use shr_kind_mod,      only: r8 => shr_kind_r8
-  use constituents,      only: pcnst, cnst_name, cnst_get_ind, cnst_set_convtran2
+  use constituents,      only: pcnst, cnst_name, cnst_get_ind
   use perf_mod,          only: t_startf, t_stopf
   use ppgrid,            only: pcols, pver, pverp
   use phys_control,      only: phys_getopts, cam_physpkg_is
@@ -12,7 +12,7 @@ module aero_model
   use cam_logfile,       only: iulog
   use physics_types,     only: physics_state, physics_ptend, physics_ptend_init
   use camsrfexch,        only: cam_in_t, cam_out_t
-  use physics_buffer,    only: pbuf_get_field, pbuf_get_index, pbuf_set_field, dtype_r8
+  use physics_buffer,    only: pbuf_get_field, pbuf_set_field, dtype_r8
   use physconst,         only: gravit, rair, rhoh2o
   use spmd_utils,        only: masterproc
   use cam_history,       only: outfld
@@ -309,8 +309,7 @@ contains
                       history_cesm_forcing_out=history_cesm_forcing, &
                       convproc_do_aer_out = convproc_do_aer)
 
-    !st call modal_aero_data_init(pbuf2d)
-    !st call modal_aero_bcscavcoef_init()
+    call carma_aero_bcscavcoef_init(pbuf2d)
 
     !st  call modal_aero_rename_init( modal_accum_coarse_exch )
     !   calcsize call must follow rename call
@@ -382,7 +381,6 @@ contains
              bin_cnst_lq(m,l) = .true.
              bin_cnst_idx(m,l) = idxtmp
              lq(idxtmp) = .true.
-             call cnst_set_convtran2(idxtmp, .not.convproc_do_aer)
           else
              bin_cnst_lq(m,l) = .false.
              bin_cnst_idx(m,l) = 0
@@ -413,6 +411,13 @@ contains
                horiz_only,  'A','kg/m2/s','Wet deposition flux (belowcloud, deep convective) at surface')
        end if
 
+       call addfld (trim(fieldname(mm))//'WETC',  (/ 'lev' /), 'A',unit_basename//'/kg/s ','wet deposition tendency??')
+       call addfld (trim(fieldname(mm))//'CONU',  (/ 'lev' /), 'A',unit_basename//'/kg ','updraft mixing ratio??')
+       call addfld (trim(fieldname(mm))//'QCONST',(/ 'lev' /), 'A',unit_basename//'/kg ','all mixing ratio??')
+
+       call addfld (trim(fieldname_cw(mm))//'WETC',(/ 'lev' /), 'A',unit_basename//'/kg/s ','wet deposition tendency??')
+       call addfld (trim(fieldname_cw(mm))//'CONU',(/ 'lev' /), 'A',unit_basename//'/kg ','updraft mixing ratio??')
+
        call addfld (trim(fieldname(mm))//'WET',(/ 'lev' /), 'A',unit_basename//'/kg/s ','wet deposition tendency')
        call addfld (trim(fieldname(mm))//'SIC',(/ 'lev' /), 'A',unit_basename//'/kg/s ', &
             trim(fieldname(mm))//' ic wet deposition')
@@ -423,15 +428,8 @@ contains
        call addfld (trim(fieldname(mm))//'SBS',(/ 'lev' /), 'A',unit_basename//'/kg/s ', &
             trim(fieldname(mm))//' bs wet deposition')
 
-       call addfld (trim(fieldname(mm))//'WETC',(/ 'lev' /), 'A',unit_basename//'/kg/s ','wet deposition tendency??')
-       call addfld (trim(fieldname(mm))//'CONU',(/ 'lev' /), 'A',unit_basename//'/kg ','updraft mixing ratio??')
-       call addfld (trim(fieldname(mm))//'QCONST',(/ 'lev' /), 'A',unit_basename//'/kg ','all mixing ratio??')
-
        if ( history_aerosol .or. history_chemistry ) then
           call add_default (trim(fieldname(mm))//'SFWET', 1, ' ')
-          call add_default (trim(fieldname(mm))//'WETC', 1, ' ')
-          call add_default (trim(fieldname(mm))//'CONU', 1, ' ')
-          call add_default (trim(fieldname(mm))//'QCONST', 1, ' ')
        endif
        if ( history_aerosol ) then
           call add_default (trim(fieldname(mm))//'SFSIC', 1, ' ')
@@ -446,6 +444,7 @@ contains
 
           call addfld( fieldname_cw(mm),                (/ 'lev' /), 'A', unit_basename//'/kg ',   &
                trim(fieldname_cw(mm))//' in cloud water')
+          call addfld (trim(fieldname_cw(mm))//'WET',(/ 'lev' /), 'A',unit_basename//'/kg/s ','wet deposition tendency')
           call addfld (trim(fieldname_cw(mm))//'SFWET', horiz_only,  'A', unit_basename//'/m2/s ', &
                trim(fieldname_cw(mm))//' wet deposition flux at surface')
           call addfld (trim(fieldname_cw(mm))//'SFSIC', horiz_only,  'A', unit_basename//'/m2/s ', &
@@ -583,7 +582,7 @@ contains
 
     real(r8) :: iscavt(pcols, pver)
 
-    integer :: mm, lpr
+    integer :: mm, lc, lpr
     integer :: i,k
 
 
@@ -591,6 +590,7 @@ contains
     real(r8) :: isscavt(pcols, pver)
     real(r8) :: bcscavt(pcols, pver)
     real(r8) :: bsscavt(pcols, pver)
+    real(r8) :: totalmmr(pcols, pver)
     !st real(r8) :: sol_factb, sol_facti
     real(r8) :: sol_factb(pcols,pver)
     real(r8) :: sol_facti(pcols,pver)
@@ -652,11 +652,9 @@ contains
     real(r8) :: evapcshsum(pcols)
 
     real(r8) :: tmp_resudp, tmp_resush
-    real(r8) :: totalmmr
     real(r8) :: specmmr
     real(r8) :: solmmr
     real(r8) :: so4mmr
-    real(r8) :: solfact
     real(r8) :: rho_water
     real(r8) :: specdens              ! specie density from physprops files
 
@@ -678,6 +676,7 @@ contains
     real(r8), pointer :: fracis(:,:,:)   ! fraction of transported species that are insoluble
 
     real(r8), pointer :: dryr(:,:)   ! CARMA dry radius in cm
+    real(r8), pointer :: wetr(:,:)   ! CARMA wet radius in cm
     real(r8), pointer :: rmass_ptr(:)     ! CARMA rmass
     real(r8), allocatable :: rmass(:)     ! CARMA rmass
 
@@ -703,12 +702,6 @@ contains
     !st call t_startf('calcsize')  not needed for CARMA
     ! for prognostic modal aerosols the transfer of mass between aitken and accumulation
     ! modes is done in conjunction with the dry radius calculation
-    !st call modal_aero_calcsize_sub(state, ptend, dt, pbuf)
-    !st call t_stopf('calcsize')
-
-    !st call t_startf('wateruptake')
-    !st call modal_aero_wateruptake_dr(state, pbuf)
-    !st call t_stopf('wateruptake')
 
     !NOTE: currently all aerosols in CARMA are wet deposited, namelist setting or master table of ndep could be included later
     !st if (nwetdep<1) return
@@ -742,6 +735,8 @@ contains
        aerdepwetcw(:,:)          = nan
     endif
 
+       aerdepwetis(:,:)          = 0.0_r8
+
     scavcoefnv(:,:,0) = 0.0_r8 ! below-cloud scavcoef = 0.0 for cloud-borne species
 
     ! Counters for "without" unified convective treatment (i.e. default case)
@@ -760,146 +755,62 @@ contains
     do m = 1, nbins      ! main loop over aerosol bins
        ! r(m) is the dry bin radius
        ! taken here from CARMA pbuf field
-       ! get bin info
+       ! get bin info general for each bin
        call rad_cnst_get_info_by_bin(0, m, bin_name=bin_name)
        call pbuf_get_field(pbuf, pbuf_get_index(trim(bin_name)//"_dryr"),dryr)
+       call pbuf_get_field(pbuf, pbuf_get_index(trim(bin_name)//"_wetr"),wetr)
        call pbuf_get_field(pbuf, pbuf_get_index(trim(bin_name)//"_rmass"),rmass_ptr)
        rmass(m) =  rmass_ptr(1)
 
-       ! Init pointers to mode number and specie mass mixing ratios in
-       ! intersitial and cloud borne phases.
-       do l = 1, nspec(m) + 2
-          mm = bin_idx(m, l)
-          if (l <= nspec(m)) then
-             call rad_cnst_get_bin_mmr_by_idx(0, m, l, 'a', state, pbuf, raer(mm)%fld)
-             call rad_cnst_get_bin_mmr_by_idx(0, m, l, 'c', state, pbuf, qqcw(mm)%fld)  ! cloud-borne aerosol
-          end if
-
-          if (l == nspec(m)+1) then
-             call rad_cnst_get_bin_mmr(0, m, 'a', state, pbuf, raer(mm)%fld)
-             call rad_cnst_get_bin_mmr(0, m, 'c', state, pbuf, qqcw(mm)%fld)  ! cloud-borne aerosol
-          end if
-          if (l == nspec(m)+2) then
-             call rad_cnst_get_bin_num(0, m, 'a', state, pbuf, raer(mm)%fld)
-             call rad_cnst_get_bin_num(0, m, 'c', state, pbuf, qqcw(mm)%fld)  ! cloud-borne aerosol
-          end if
-       end do
-
-
-       ! get  solfac
-       ! note: solfact is for particle (group bin) not for element, need to get from CARMA, make namelist variable
-       ! Francis, could  you add namelist variables that set solfact for pure sulates 'PR*" and mixed groups 'MX*"?
-       solfact = 0._r8
-       if (index(bin_name,'PRSUL')>0) then
-          solfact = 0.3_r8
-       else if (index(bin_name,'MXAER')>0) then
-          solfact = 0.2_r8
-       else
-          call endrun('aero_model_wetdep: can not determine CARMA bin type')
-       end if
-
-       !--------------------------------------------------------------
-       !sol_factb(:ncol,:)=solfact
-       ! get mmr for each specie and multiply by the factors to derive sol_factb
-       sol_factb(:ncol,:)=0._r8
-
-       do k= 1,pver
-          do i= 1,ncol
-             totalmmr = 0._r8
-             specmmr  = 0._r8
-             solmmr = 0._r8
-             so4mmr = 0._r8
-
-             ! get total mass from mmr
-             l = nspec(m) + 1
-             mm = bin_idx(m, l)
-             totalmmr = raer(mm)%fld(i,k)
-
-             do l = 1, nspec(m)
-                mm = bin_idx(m, l)
-                !totalmmr    = totalmmr + raer(mm)%fld(i,k)
-
-                call rad_cnst_get_bin_props_by_idx(0, m, l,spectype=spectype)
-
-                if (trim(spectype) == 'sulfate') then
-                   solmmr =  solmmr + raer(mm)%fld(i,k)*0.5_r8
-                end if
-                if (trim(spectype) == 'black-c') then
-                   solmmr =  solmmr + raer(mm)%fld(i,k)*0.1_r8
-                   specmmr = specmmr + raer(mm)%fld(i,k)
-                end if
-                if (trim(spectype) == 'p-organic') then
-                   solmmr =  solmmr + raer(mm)%fld(i,k)*0.2_r8
-                   specmmr = specmmr + raer(mm)%fld(i,k)
-                end if
-                if (trim(spectype) == 's-organic') then
-                   solmmr =  solmmr + raer(mm)%fld(i,k)*0.2_r8
-                   specmmr = specmmr + raer(mm)%fld(i,k)
-                end if
-                if (trim(spectype) == 'dust') then
-                   solmmr =  solmmr + raer(mm)%fld(i,k)*0.1_r8
-                   specmmr = specmmr + raer(mm)%fld(i,k)
-                end if
-                if (trim(spectype) == 'seasalt') then
-                   solmmr =  solmmr + raer(mm)%fld(i,k)*0.8_r8
-                   specmmr = specmmr + raer(mm)%fld(i,k)
-                end if
-             end do
-             if (totalmmr .gt. 0._r8) then
-                sol_factb(i,k) = solmmr/totalmmr
-             end if
-             sol_factb(i,k) = min(max(sol_factb(i,k), 0.1_r8), 0.8_r8)
-          end do
-       end do
-
-       ! the check has been put in the loop
-       !st sol_factb = min(max(sol_factb, 0.1_r8), 0.8_r8)
-
-
        do lphase = strt_loop,end_loop, stride_loop ! loop over interstitial (1) and cloud-borne (2) forms
+          ! Init pointers to mode number and specie mass mixing ratios in
+          ! intersitial and cloud borne phases.
+          !st note only raer is needed here to calcuted  solfact_b
 
-          dqdt_tmp_sum(:,:) = 0.0_r8
-          fldcw_sum(:,:) = 0.0_r8
-          fld_sum(:,:) = 0.0_r8
-          icscavt_sum(:,:) = 0.0_r8
-          isscavt_sum(:,:) = 0.0_r8
-          bcscavt_sum(:,:) = 0.0_r8
-          bsscavt_sum(:,:) = 0.0_r8
-          rcscavt_sum(:,:) = 0.0_r8
-          rsscavt_sum(:,:) = 0.0_r8
+          if (lphase == 2) then !  cloud-borne aerosol (borne by stratiform cloud drops)
+             sol_factb_c  = 0.0_r8   ! all below-cloud scav OFF (anything cloud-borne is located "in-cloud")
+             sol_facti_c  = sol_facti_cloud_borne   ! strat  in-cloud scav cloud-borne tuning factor  ! 1.0 in Pengfei's model
+             sol_factic_c = 0.0_r8   ! conv   in-cloud scav OFF (having this on would mean
+             f_act_conv_c = 0.0_r8   ! conv   in-cloud scav OFF (having this on would mean
+          end if
 
-          ! sol_factb and sol_facti values
-          ! sol_factb - currently this is basically a tuning factor
-          ! sol_facti & sol_factic - currently has a physical basis, and reflects activation fraction
-          !
-          ! 2008-mar-07 rce - sol_factb (interstitial) changed from 0.3 to 0.1
-          ! was done for MAM
-          ! - sol_factic (interstitial, dust modes) changed from 1.0 to 0.5
-          ! - sol_factic (cloud-borne, pcarb modes) no need to set it to 0.0
-          ! because the cloud-borne pcarbon == 0 (no activation)
-          !
-          ! rce 2010/05/02
-          ! prior to this date, sol_factic was used for convective in-cloud wet removal,
-          ! and its value reflected a combination of an activation fraction (which varied between modes)
-          ! and a tuning factor
-          ! from this date forward, two parameters are used for convective in-cloud wet removal
-          ! f_act_conv is the activation fraction
-          ! note that "non-activation" of aerosol in air entrained into updrafts should
-          ! be included here
-          ! eventually we might use the activate routine (with w ~= 1 m/s) to calculate
-          ! this, but there is still the entrainment issue
-          ! sol_factic is strictly a tuning factor
-          !
+          if (lphase == 1) then ! interstial aerosol
+             dqdt_tmp_sum(:,:) = 0.0_r8
+             fldcw_sum(:,:) = 0.0_r8
+             fld_sum(:,:) = 0.0_r8
+             icscavt_sum(:,:) = 0.0_r8
+             isscavt_sum(:,:) = 0.0_r8
+             bcscavt_sum(:,:) = 0.0_r8
+             bsscavt_sum(:,:) = 0.0_r8
+             rcscavt_sum(:,:) = 0.0_r8
+             rsscavt_sum(:,:) = 0.0_r8
 
-          do l = 1, nspec(m) + 2  ! loop over different npsec plus over total mmr and number
-             mm = bin_idx(m,l)
-             lpr = bin_cnst_idx(m,l)
-             !write(*,*) 'lpr,pcnst',lpr, pcnst
+             sol_facti(:,:) = 0._r8
+             sol_factic = sol_factic_interstitial
+             f_act_conv = 0.8_r8 ! rce 2010/05/02
+             if (convproc_do_aer) then
+                ! for (stratiform)-cloudborne aerosols, convective wet removal
+                !    (all forms) is zero, so no action is needed
+                sol_factic = 0.0_r8
+             end if
 
-             if (l <= nspec(m)) then  ! loop only over nspec
-                call rad_cnst_get_bin_props_by_idx(0, m, l, density_aer=specdens)
+             call carma_aero_bcscavcoef_get( m, ncol, isprx, wetr, dryr,&
+                  scavcoefnv(:,:,1), scavcoefnv(:,:,2), pbuf )
 
-                if (lphase == 1) then ! interstial aerosol
+          !alternative function to drive  scavcoefnv for CARMA  using Pengfei's method
+          !load mmr and number
+
+
+          !if  (dryr(i,k) .le. 0._r8)  then
+                  !          scavcoefnv(i,k,1) =  0.0_r8
+                  !          scavcoefnv(i,k,2) =  0.0_r8
+                  !else
+
+
+                   !follow MAMs approach for calculating the scavenging approach
+                  ! call carma_aero_bcscavcoef_get( m, l, ncol, isprx, wetr, dryr,&
+                  !      scavcoefnv(i,k,1), scavcoefnv(i,k,2) )
+                  !end if
 
                    ! This is calculation for scavcoefnv has been introducted by Pengfei Yu for
                    ! CARMA and is required in particular for a sectional model
@@ -910,93 +821,131 @@ contains
                    ! Aug.25, 2011
 
 
-                   rho_water = 1.e3_r8                                               ! kg/m3
-                   sol_factic(:,:) = 0.0_r8
-                   sol_facti(:,:) = 0._r8
+
+                   !st z_scavcoef = 0.1_r8
+                   !scavcoefnv(:,:,1) =  0.1_r8
+                   !scavcoefnv(:,:,2) =  0.1_r8
 
                    ! convert precipitation prain (kg/kg/s) to mm/h
 
-                   J(:ncol,:) = ( dep_inputs%prain(:ncol,:) + dep_inputs%cmfdqr(:ncol,:) &
-                                - dep_inputs%evapc(:ncol,:) - dep_inputs%evapr(:ncol,:) ) &
-                              * state%pdel(:ncol,:)/gravit/rho_water*3.6e6_r8   ! m/s
+                   !J(:ncol,:) = ( dep_inputs%prain(:ncol,:) + dep_inputs%cmfdqr(:ncol,:) &
+                   !             - dep_inputs%evapc(:ncol,:) - dep_inputs%evapr(:ncol,:) ) &
+                   !           * state%pdel(:ncol,:)/gravit/rho_water*3.6e6_r8   ! m/s
+                   ! Note needs to be revisited, here scavenging function is dependent on each specie:
 
-                   do k= 1,pver
-                      do i= 1,ncol
-                         stoke(i,k) = 0.1_r8*(dryr(i,k)**2)*1.0e8_r8*specdens                    ! stoke parameter
-                         if ((J(i,k) .le. 0._r8)  .or. (dryr(i,k) .le. 0._r8))  then
-                            scavcoefnv(i,k,1) =  0.0_r8
-                            scavcoefnv(i,k,2) =  0.0_r8
-                         else
-                            if (dryr(i,k) .lt. 1.e-4_r8) then
-                               !z_scavcoef(i_col,k_ver) = 63.03750_r8*r(ibin)*(J(i_col,k_ver)**(-0.42_r8))
-                               ! scavenging volume
-                               scavcoefnv(i,k,2) = 252.15_r8*dryr(i,k)*(J(i,k)**(-0.42_r8))
-                               ! scavenging number
-                               !st z_scavcoef(i,k,0) = 252.15_r8*r(ibin)*(J(i_col,k_ver)**(-0.42_r8))
-                            else
-                               !z_scavcoef(i_col,k_ver) = 1.025_r8*(J(i_col,k_ver)**(-0.21_r8))*(((stoke - 0.0833_r8)/(stoke + 0.5833_r8))**1.5_r8)
-                               ! scavenging volume
-                               scavcoefnv(i,k,2) = 2.05_r8*(J(i,k)**(-0.21_r8)) &
-                                                 * (((stoke(i,k) - 0.0833_r8)/(stoke(i,k) + 0.5833_r8))**1.5_r8)
-                               ! scavenging  number
-                               !st z_scavcoef(i,k,1) = 2.05_r8*(J(i_col,k_ver)**(-0.21_r8))*(((stoke - 0.0833_r8)/(stoke + 0.5833_r8))**1.5_r8)
-                            endif
-                         endif
-                      enddo
-                   enddo
+                   !do l = 1, nspec(m)   ! loop over different npsec plus over total mmr and number
+                   ! call rad_cnst_get_bin_props_by_idx(0, m, l, density_aer=specdens)
 
-                   sol_factic = sol_factic_interstitial
-
-                   !             if (m == modeptr_pcarbon) then
-                   !                ! sol_factic = 0.0_r8 ! conv in-cloud scav OFF (0.0 activation fraction)
-                   !                f_act_conv = 0.0_r8 ! rce 2010/05/02
-                   !             else if ((m == modeptr_finedust) .or. (m == modeptr_coardust)) then
-                   !                ! sol_factic = 0.2_r8 ! conv in-cloud scav ON (0.5 activation fraction) ! tuned 1/4
-                   !                f_act_conv = 0.4_r8 ! rce 2010/05/02
-                   !             else
-                   ! sol_factic = 0.4_r8 ! conv in-cloud scav ON (1.0 activation fraction) ! tuned 1/4
-                   f_act_conv = 0.8_r8 ! rce 2010/05/02
-                   !             end if
-
-                else ! cloud-borne aerosol (borne by stratiform cloud drops)
-
-                   sol_factb_c  = 0.0_r8   ! all below-cloud scav OFF (anything cloud-borne is located "in-cloud")
-                   sol_facti_c  = sol_facti_cloud_borne   ! strat  in-cloud scav cloud-borne tuning factor  ! 1.0 in Pengfei's model
-                   sol_factic_c = 0.0_r8   ! conv   in-cloud scav OFF (having this on would mean
-                                           !        that conv precip collects strat droplets)
-                   f_act_conv_c = 0.0_r8   ! conv   in-cloud scav OFF (having this on would mean
-                end if
-                if (convproc_do_aer .and. lphase == 1) then
-                   ! if modal aero convproc is turned on for aerosols, then
-                   !    turn off the convective in-cloud removal for interstitial aerosols
-                   !    (but leave the below-cloud on, as convproc only does in-cloud)
-                   !    and turn off the outfld SFWET, SFSIC, SFSID, SFSEC, and SFSED calls
-                   ! for (stratiform)-cloudborne aerosols, convective wet removal
-                   !    (all forms) is zero, so no action is needed
-                   sol_factic = 0.0_r8
-                   sol_factic_c = 0.0_r8
-                end if
-
-             end if   !(l <= nspec(m)) then
+                   !do k= 1,pver
+                   !   do i= 1,ncol
+                   !      stoke(i,k) = 0.1_r8*(dryr(i,k)**2)*1.0e8_r8*specdens                    ! stoke parameter
+                   !      if ((J(i,k) .le. 0._r8)  .or. (dryr(i,k) .le. 0._r8))  then
+                   !         scavcoefnv(i,k,1) =  0.0_r8
+                   !         scavcoefnv(i,k,2) =  0.0_r8
+                   !      else
+                   !         if (dryr(i,k) .lt. 1.e-4_r8) then
+                   !            !z_scavcoef(i_col,k_ver) = 63.03750_r8*r(ibin)*(J(i_col,k_ver)**(-0.42_r8))
+                   !            ! scavenging volume
+                   !            scavcoefnv(i,k,2) = 252.15_r8*dryr(i,k)*(J(i,k)**(-0.42_r8))
+                   !            ! scavenging number
+                   !            !st z_scavcoef(i,k,0) = 252.15_r8*r(ibin)*(J(i_col,k_ver)**(-0.42_r8))
+                   !         else
+                   !            !z_scavcoef(i_col,k_ver) = 1.025_r8*(J(i_col,k_ver)**(-0.21_r8))*(((stoke - 0.0833_r8)/(stoke + 0.5833_r8))**1.5_r8)
+                   !            ! scavenging volume
+                   !            scavcoefnv(i,k,2) = 2.05_r8*(J(i,k)**(-0.21_r8)) &
+                   !                              * (((stoke(i,k) - 0.0833_r8)/(stoke(i,k) + 0.5833_r8))**1.5_r8)
+                   !            ! scavenging  number
+                   !            !st z_scavcoef(i,k,1) = 2.05_r8*(J(i_col,k_ver)**(-0.21_r8))*(((stoke - 0.0833_r8)/(stoke + 0.5833_r8))**1.5_r8)
+                   !         endif
+                   !      endif
+                   !   enddo
+                   !enddo
 
 
-             if (lphase == 1) then
-                jnv = 2
-             else
-                jnv = 0
+             ! derive sol_factb for CARMA  specific for bins and phase
+             sol_factb(:ncol,:)=0._r8
+             ! get total mass (per bin)
+             l = nspec(m) + 1
+             mm = bin_idx(m, l)
+             call rad_cnst_get_bin_mmr(0, m, 'a', state, pbuf, raer(mm)%fld)
+             totalmmr = raer(mm)%fld
+             do l = 1, nspec(m)
+                mm = bin_idx(m, l)
+                call rad_cnst_get_bin_mmr_by_idx(0, m, l, 'a', state, pbuf, raer(mm)%fld)
+             end do
+
+             do k= 1,pver
+                do i= 1,ncol
+                   specmmr  = 0._r8
+                   solmmr = 0._r8
+                   so4mmr = 0._r8
+
+                   ! loop through species:
+                   do l = 1, nspec(m)
+                      mm = bin_idx(m, l)
+                      call rad_cnst_get_bin_props_by_idx(0, m, l,spectype=spectype)
+
+                      if (trim(spectype) == 'sulfate') then
+                         solmmr =  solmmr + raer(mm)%fld(i,k)*0.5_r8
+                      end if
+                      if (trim(spectype) == 'black-c') then
+                         solmmr =  solmmr + raer(mm)%fld(i,k)*0.1_r8
+                         specmmr = specmmr + raer(mm)%fld(i,k)
+                      end if
+                      if (trim(spectype) == 'p-organic') then
+                         solmmr =  solmmr + raer(mm)%fld(i,k)*0.2_r8
+                         specmmr = specmmr + raer(mm)%fld(i,k)
+                      end if
+                      if (trim(spectype) == 's-organic') then
+                         solmmr =  solmmr + raer(mm)%fld(i,k)*0.2_r8
+                         specmmr = specmmr + raer(mm)%fld(i,k)
+                      end if
+                      if (trim(spectype) == 'dust') then
+                         solmmr =  solmmr + raer(mm)%fld(i,k)*0.1_r8
+                         specmmr = specmmr + raer(mm)%fld(i,k)
+                      end if
+                      if (trim(spectype) == 'seasalt') then
+                         solmmr =  solmmr + raer(mm)%fld(i,k)*0.8_r8
+                         specmmr = specmmr + raer(mm)%fld(i,k)
+                      end if
+
+                   end do   !nspec
+                   if (totalmmr(i,k) .gt. 0._r8) then
+                      sol_factb(i,k) = solmmr/totalmmr(i,k)
+                   end if
+                   sol_factb(i,k) = min(max(sol_factb(i,k), 0.1_r8), 0.8_r8)
+                end do ! ncol
+             end do !pver
+          end if !phase 1
+          ! for scavenging coefficient, for CARMA this is specie independent (different than for MAM)
+          if (lphase == 1) then
+             jnv = 2
+          else
+             jnv = 0
+          end if
+
+          !load mmr and number   specie loop starts
+          do l = 1, nspec(m) + 2  ! loop over different npsec plus over total mmr and number
+             mm = bin_idx(m,l)
+             lpr = bin_cnst_idx(m,l)
+             if (l <= nspec(m)) then
+                call rad_cnst_get_bin_mmr_by_idx(0, m, l, 'a', state, pbuf, raer(mm)%fld)
+                call rad_cnst_get_bin_mmr_by_idx(0, m, l, 'c', state, pbuf, qqcw(mm)%fld)  ! cloud-borne aerosol
+             end if
+             if (l == nspec(m)+1) then
+                call rad_cnst_get_bin_mmr(0, m, 'a', state, pbuf, raer(mm)%fld)
+                call rad_cnst_get_bin_mmr(0, m, 'c', state, pbuf, qqcw(mm)%fld)  ! cloud-borne aerosol
+             end if
+             if (l == nspec(m)+2) then
+                call rad_cnst_get_bin_num(0, m, 'a', state, pbuf, raer(mm)%fld)
+                call rad_cnst_get_bin_num(0, m, 'c', state, pbuf, qqcw(mm)%fld)  ! cloud-borne aerosol
              end if
 
-             ! cloud-borne num & vol (0),
-             ! interstitial num & vol (1), interstitial vol (2)
 
-             ! calculate removal for mmr
-             ! lphase = 1 interstitial  (jnv = 1 for number and mmr)
              if (lphase == 1) then
-
+                !ptend%lq(lpr) = .TRUE.
                 if (l <= nspec(m)) then
                    dqdt_tmp(:,:) = 0.0_r8
-                   ! q_tmp reflects changes from modal_aero_calcsize and is the "most current" q
-                   ! q_tmp(1:ncol,:) = state%q(1:ncol,:,mm) + ptend%q(1:ncol,:,mm)*dt
                    q_tmp(:ncol,:) = raer(mm)%fld(:ncol,:)
 
                    if(convproc_do_aer) then
@@ -1007,37 +956,38 @@ contains
                       qqcw_in(:ncol,:) = fldcw(:ncol,:)
                    endif
 
-                   if (bin_cnst_lq(m,l)) then ! advected species
-                   ! do not calculate for number
-                       call wetdepa_v2( state%pmid, state%q(:,:,1), state%pdel, &
-                        dep_inputs%cldt, dep_inputs%cldcu, dep_inputs%cmfdqr, &
-                        dep_inputs%evapc, dep_inputs%conicw, dep_inputs%prain, dep_inputs%qme, &
-                        dep_inputs%evapr, dep_inputs%totcond, q_tmp, dt, &
-                        dqdt_tmp, iscavt, dep_inputs%cldvcu, dep_inputs%cldvst, &
-                        dlf, fracis(:,:,lpr), sol_factb, ncol, &
-                        scavcoefnv(:,:,jnv), &
-                        is_strat_cloudborne=.false.,  &
-                        qqcw=qqcw_in(:,:),  &
-                        f_act_conv=f_act_conv, &
-                        icscavt=icscavt, isscavt=isscavt, bcscavt=bcscavt, bsscavt=bsscavt, &
-                        convproc_do_aer=convproc_do_aer, rcscavt=rcscavt, rsscavt=rsscavt,  &
-                        sol_facti_in=sol_facti, sol_factic_in=sol_factic, &
-                        convproc_do_evaprain_atonce_in=convproc_do_evaprain_atonce )
+                   if (bin_cnst_lq(m,l)) then
+                      ! advected species (differences between advected and non-advected is fracis
+                      ! do not calculate for number
+                      call wetdepa_v2( state%pmid, state%q(:,:,1), state%pdel, &
+                           dep_inputs%cldt, dep_inputs%cldcu, dep_inputs%cmfdqr, &
+                           dep_inputs%evapc, dep_inputs%conicw, dep_inputs%prain, dep_inputs%qme, &
+                           dep_inputs%evapr, dep_inputs%totcond, q_tmp, dt, &
+                           dqdt_tmp, iscavt, dep_inputs%cldvcu, dep_inputs%cldvst, &
+                           dlf, fracis(:,:,lpr), sol_factb, ncol, &
+                           scavcoefnv(:,:,jnv), &
+                           is_strat_cloudborne=.false.,  &
+                           qqcw=qqcw_in(:,:),  &
+                           f_act_conv=f_act_conv, &
+                           icscavt=icscavt, isscavt=isscavt, bcscavt=bcscavt, bsscavt=bsscavt, &
+                           convproc_do_aer=convproc_do_aer, rcscavt=rcscavt, rsscavt=rsscavt,  &
+                           sol_facti_in=sol_facti, sol_factic_in=sol_factic, &
+                           convproc_do_evaprain_atonce_in=convproc_do_evaprain_atonce )
                    else
-                       call wetdepa_v2( state%pmid, state%q(:,:,1), state%pdel, &
-                        dep_inputs%cldt, dep_inputs%cldcu, dep_inputs%cmfdqr, &
-                        dep_inputs%evapc, dep_inputs%conicw, dep_inputs%prain, dep_inputs%qme, &
-                        dep_inputs%evapr, dep_inputs%totcond, q_tmp, dt, &
-                        dqdt_tmp, iscavt, dep_inputs%cldvcu, dep_inputs%cldvst, &
-                        dlf, fracis_nadv, sol_factb, ncol, &
-                        scavcoefnv(:,:,jnv), &
-                        is_strat_cloudborne=.false.,  &
-                        qqcw=qqcw_in(:,:),  &
-                        f_act_conv=f_act_conv, &
-                        icscavt=icscavt, isscavt=isscavt, bcscavt=bcscavt, bsscavt=bsscavt, &
-                        convproc_do_aer=convproc_do_aer, rcscavt=rcscavt, rsscavt=rsscavt,  &
-                        sol_facti_in=sol_facti, sol_factic_in=sol_factic, &
-                        convproc_do_evaprain_atonce_in=convproc_do_evaprain_atonce )
+                      call wetdepa_v2( state%pmid, state%q(:,:,1), state%pdel, &
+                           dep_inputs%cldt, dep_inputs%cldcu, dep_inputs%cmfdqr, &
+                           dep_inputs%evapc, dep_inputs%conicw, dep_inputs%prain, dep_inputs%qme, &
+                           dep_inputs%evapr, dep_inputs%totcond, q_tmp, dt, &
+                           dqdt_tmp, iscavt, dep_inputs%cldvcu, dep_inputs%cldvst, &
+                           dlf, fracis_nadv, sol_factb, ncol, &
+                           scavcoefnv(:,:,jnv), &
+                           is_strat_cloudborne=.false.,  &
+                           qqcw=qqcw_in(:,:),  &
+                           f_act_conv=f_act_conv, &
+                           icscavt=icscavt, isscavt=isscavt, bcscavt=bcscavt, bsscavt=bsscavt, &
+                           convproc_do_aer=convproc_do_aer, rcscavt=rcscavt, rsscavt=rsscavt,  &
+                           sol_facti_in=sol_facti, sol_factic_in=sol_factic, &
+                           convproc_do_evaprain_atonce_in=convproc_do_evaprain_atonce )
                    end if
 
 
@@ -1048,69 +998,48 @@ contains
 
                    ! make sure raer values are not negative, adjust dqdt_tmp accordingly
                    do k= 1,pver
-                     do i= 1,ncol
-                      if ( (dqdt_tmp(i,k).lt.0.0_r8) .and. (raer(mm)%fld(i,k).eq.0.0_r8) )  then
-                         dqdt_tmp(i,k) = 0.0_r8
-                      else
-                       if ( (raer(mm)%fld(i,k) + dqdt_tmp(i,k) * dt) .lt. 0.0_r8 )   then
-                          dqdt_tmp(i,k) = raer(mm)%fld(i,k) / dt
-                       end if
-                      end if
-                     end do
+                      do i= 1,ncol
+                         if ( (dqdt_tmp(i,k).lt.0.0_r8) .and. (raer(mm)%fld(i,k).eq.0.0_r8) )  then
+                            dqdt_tmp(i,k) = 0.0_r8
+                         else
+                            if ( (raer(mm)%fld(i,k) + dqdt_tmp(i,k) * dt) .lt. 0.0_r8 )   then
+                               dqdt_tmp(i,k) = raer(mm)%fld(i,k) / dt
+                            end if
+                         end if
+                      end do
                    end do
 
                    ! some CARMA interstetial species are not advected, check:
                    if (bin_cnst_lq(m,l)) then ! advected species
-                        ptend%q(1:ncol,:,lpr) = ptend%q(1:ncol,:,lpr) + dqdt_tmp(1:ncol,:)
-                        fld_sum(1:ncol,:)  = fld_sum(1:ncol,:) + raer(mm)%fld(1:ncol,:) + dqdt_tmp(1:ncol,:) * dt
+                      ptend%q(1:ncol,:,lpr) = ptend%q(1:ncol,:,lpr) + dqdt_tmp(1:ncol,:)
+                      fld_sum(1:ncol,:)  = fld_sum(1:ncol,:) + raer(mm)%fld(1:ncol,:) + dqdt_tmp(1:ncol,:) * dt
                    else
-                        raer(mm)%fld(1:ncol,:) = max(raer(mm)%fld(1:ncol,:) + dqdt_tmp(1:ncol,:) * dt, 0.0_r8)
-                        fld_sum(1:ncol,:) = fld_sum(1:ncol,:) + raer(mm)%fld(1:ncol,:)
+                      raer(mm)%fld(1:ncol,:) = max(raer(mm)%fld(1:ncol,:) + dqdt_tmp(1:ncol,:) * dt, 0.0_r8)
+                      fld_sum(1:ncol,:) = fld_sum(1:ncol,:) + raer(mm)%fld(1:ncol,:)
                    end if
 
-                   !raer(mm)%fld(1:ncol,:) = raer(mm)%fld(1:ncol,:) + dqdt_tmp(1:ncol,:) * dt
-
-                   ! sum up dqdt_tmp for all species (not total mmr and number)
                    dqdt_tmp_sum(1:ncol,:) = dqdt_tmp_sum(1:ncol,:) + dqdt_tmp(1:ncol,:)
 
 
                 else if (l == nspec(m) + 1) then   !mmr is advected and number is  not advected
 
-                  ! do k= 1,pver
-                  !    do i= 1,ncol
-                  if (bin_cnst_lq(m,l)) then ! adveced species
+                   if (bin_cnst_lq(m,l)) then ! adveced species
                       ptend%q(1:ncol,:,lpr) = ptend%q(1:ncol,:,lpr) + dqdt_tmp_sum(1:ncol,:)
-                  end if
-                        ! raer(mm)%fld(i,k) = raer(mm)%fld(i,k) + dqdt_tmp_sum(i,k) * dt
-                        ! if (fld_sum(i,k) /= raer(mm)%fld(i,k)) then
-                        !     raer(mm)%fld(i,k) = fld_sum(i,k)
-                        ! end if
-                 !     end do
-                 !  end do
-                  dqdt_tmp(:ncol,:) = dqdt_tmp_sum(:ncol,:)
-
-                  !if(convproc_do_aer) then
-                  !     rtscavt(1:ncol,:,l) = rtscavt_sum(1:ncol,:)
-                  !endif
+                   end if
+                   dqdt_tmp(:ncol,:) = dqdt_tmp_sum(:ncol,:)
 
                 else if (l == nspec(m) + 2) then   !num fraction is assuming dN/N = dM/M
 
                    raer(mm)%fld(:ncol,:) = fld_sum(:ncol,:) / rmass(m)
                    dqdt_tmp(:ncol,:) = dqdt_tmp_sum(:ncol,:)
 
-                   !rtscavt(1:ncol,:,l) = rtscavt_sum(1:ncol,:)
-
                 end if   ! nspec
 
-                !st for testing may keep all output fields
-                !if (l == nspec(m) + 1) then   ! write output only for mmr  to reduce output
-                   !st write(iulog,*) 'outfld   = ', m, l,  mm, fieldname(mm)
-                   call outfld( trim(fieldname(mm))//'WET', dqdt_tmp(:,:), pcols, lchnk)
-                   call outfld( trim(fieldname(mm))//'SIC', icscavt, pcols, lchnk)
-                   call outfld( trim(fieldname(mm))//'SIS', isscavt, pcols, lchnk)
-                   call outfld( trim(fieldname(mm))//'SBC', bcscavt, pcols, lchnk)
-                   call outfld( trim(fieldname(mm))//'SBS', bsscavt, pcols, lchnk)
-                !end if
+                call outfld( trim(fieldname(mm))//'SIS', isscavt, pcols, lchnk)
+                call outfld( trim(fieldname(mm))//'SBC', bcscavt, pcols, lchnk)
+                call outfld( trim(fieldname(mm))//'SBS', bsscavt, pcols, lchnk)
+                call outfld( trim(fieldname(mm))//'SIC', icscavt, pcols, lchnk)
+                call outfld( trim(fieldname(mm))//'WET', dqdt_tmp(:,:), pcols, lchnk)
 
                 sflx(:)=0._r8
                 do k=1,pver
@@ -1236,6 +1165,7 @@ contains
                 endif ! convproc_do_aer
 
              elseif (lphase == 2) then
+                ! for all cases in CARMA
                 do_lphase2 = .true.
 
                 if (do_lphase2) then
@@ -1274,14 +1204,14 @@ contains
                       endif
 
                       do k= 1,pver
-                        do i= 1,ncol
-                          if ( (dqdt_tmp(i,k).lt.0.0_r8) .and. (qqcw(mm)%fld(i,k).eq.0.0_r8) )  then
-                             dqdt_tmp(i,k) = 0.0_r8
-                          else
-                           if ( (qqcw(mm)%fld(i,k) + dqdt_tmp(i,k) * dt) .lt. 0.0_r8 )   then
-                             dqdt_tmp(i,k) = qqcw(mm)%fld(i,k) / dt
-                           end if
-                          end if
+                         do i= 1,ncol
+                            if ( (dqdt_tmp(i,k).lt.0.0_r8) .and. (qqcw(mm)%fld(i,k).eq.0.0_r8) )  then
+                               dqdt_tmp(i,k) = 0.0_r8
+                            else
+                               if ( (qqcw(mm)%fld(i,k) + dqdt_tmp(i,k) * dt) .lt. 0.0_r8 )   then
+                                  dqdt_tmp(i,k) = qqcw(mm)%fld(i,k) / dt
+                               end if
+                            end if
                          end do
                       end do
 
@@ -1294,12 +1224,12 @@ contains
                             fldcw_sum(i,k) = fldcw_sum(i,k) + qqcw(mm)%fld(i,k)
                          end do
                       end do
-                            icscavt_sum(:ncol,:) = icscavt_sum(:ncol,:) + icscavt(:ncol,:)
-                            isscavt_sum(:ncol,:) = isscavt_sum(:ncol,:) + isscavt(:ncol,:)
-                            bcscavt_sum(:ncol,:) = bcscavt_sum(:ncol,:) + bcscavt(:ncol,:)
-                            bsscavt_sum(:ncol,:) = bsscavt_sum(:ncol,:) + bsscavt(:ncol,:)
-                            rcscavt_sum(:ncol,:) = rcscavt_sum(:ncol,:) + rcscavt(:ncol,:)
-                            rsscavt_sum(:ncol,:) = rsscavt_sum(:ncol,:) + rsscavt(:ncol,:)
+                      icscavt_sum(:ncol,:) = icscavt_sum(:ncol,:) + icscavt(:ncol,:)
+                      isscavt_sum(:ncol,:) = isscavt_sum(:ncol,:) + isscavt(:ncol,:)
+                      bcscavt_sum(:ncol,:) = bcscavt_sum(:ncol,:) + bcscavt(:ncol,:)
+                      bsscavt_sum(:ncol,:) = bsscavt_sum(:ncol,:) + bsscavt(:ncol,:)
+                      rcscavt_sum(:ncol,:) = rcscavt_sum(:ncol,:) + rcscavt(:ncol,:)
+                      rsscavt_sum(:ncol,:) = rsscavt_sum(:ncol,:) + rsscavt(:ncol,:)
 
                    else if (l == nspec(m) + 1) then     !mmr and number are not advected
 
@@ -1341,48 +1271,48 @@ contains
                    call outfld( trim(fieldname_cw(mm))//'SFWET', sflx, pcols, lchnk)
                    aerdepwetcw(:ncol,mm) = sflx(:ncol)
 
-                      sflx(:)=0._r8
-                      do k=1,pver
-                         do i=1,ncol
-                            sflx(i)=sflx(i)+icscavt(i,k)*state%pdel(i,k)/gravit
-                         enddo
+                   sflx(:)=0._r8
+                   do k=1,pver
+                      do i=1,ncol
+                         sflx(i)=sflx(i)+icscavt(i,k)*state%pdel(i,k)/gravit
                       enddo
-                      call outfld( trim(fieldname_cw(mm))//'SFSIC', sflx, pcols, lchnk)
-                      sflx(:)=0._r8
-                      do k=1,pver
-                         do i=1,ncol
-                            sflx(i)=sflx(i)+isscavt(i,k)*state%pdel(i,k)/gravit
-                         enddo
+                   enddo
+                   call outfld( trim(fieldname_cw(mm))//'SFSIC', sflx, pcols, lchnk)
+                   sflx(:)=0._r8
+                   do k=1,pver
+                      do i=1,ncol
+                         sflx(i)=sflx(i)+isscavt(i,k)*state%pdel(i,k)/gravit
                       enddo
-                      call outfld( trim(fieldname_cw(mm))//'SFSIS', sflx, pcols, lchnk)
-                      sflx(:)=0._r8
-                      do k=1,pver
-                         do i=1,ncol
-                            sflx(i)=sflx(i)+bcscavt(i,k)*state%pdel(i,k)/gravit
-                         enddo
+                   enddo
+                   call outfld( trim(fieldname_cw(mm))//'SFSIS', sflx, pcols, lchnk)
+                   sflx(:)=0._r8
+                   do k=1,pver
+                      do i=1,ncol
+                         sflx(i)=sflx(i)+bcscavt(i,k)*state%pdel(i,k)/gravit
                       enddo
-                      call outfld( trim(fieldname_cw(mm))//'SFSBC', sflx, pcols, lchnk)
-                      sflx(:)=0._r8
-                      do k=1,pver
-                         do i=1,ncol
-                            sflx(i)=sflx(i)+bsscavt(i,k)*state%pdel(i,k)/gravit
-                         enddo
+                   enddo
+                   call outfld( trim(fieldname_cw(mm))//'SFSBC', sflx, pcols, lchnk)
+                   sflx(:)=0._r8
+                   do k=1,pver
+                      do i=1,ncol
+                         sflx(i)=sflx(i)+bsscavt(i,k)*state%pdel(i,k)/gravit
                       enddo
-                      call outfld( trim(fieldname_cw(mm))//'SFSBS', sflx, pcols, lchnk)
+                   enddo
+                   call outfld( trim(fieldname_cw(mm))//'SFSBS', sflx, pcols, lchnk)
 
-                      if(convproc_do_aer) then
-                         sflx(:)=0.0_r8
-                         do k=1,pver
-                            sflx(1:ncol)=sflx(1:ncol)+rcscavt(1:ncol,k)*state%pdel(1:ncol,k)/gravit
-                         enddo
-                         call outfld( trim(fieldname_cw(mm))//'SFSEC', sflx, pcols, lchnk)
+                   if(convproc_do_aer) then
+                      sflx(:)=0.0_r8
+                      do k=1,pver
+                         sflx(1:ncol)=sflx(1:ncol)+rcscavt(1:ncol,k)*state%pdel(1:ncol,k)/gravit
+                      enddo
+                      call outfld( trim(fieldname_cw(mm))//'SFSEC', sflx, pcols, lchnk)
 
-                         sflx(:)=0.0_r8
-                         do k=1,pver
-                            sflx(1:ncol)=sflx(1:ncol)+rsscavt(1:ncol,k)*state%pdel(1:ncol,k)/gravit
-                         enddo
-                         call outfld( trim(fieldname_cw(mm))//'SFSES', sflx, pcols, lchnk)
-                      endif
+                      sflx(:)=0.0_r8
+                      do k=1,pver
+                         sflx(1:ncol)=sflx(1:ncol)+rsscavt(1:ncol,k)*state%pdel(1:ncol,k)/gravit
+                      enddo
+                      call outfld( trim(fieldname_cw(mm))//'SFSES', sflx, pcols, lchnk)
+                   endif
                 endif
              endif
 
@@ -1391,6 +1321,7 @@ contains
     enddo ! m = 1, nbins
 
 
+    !st TEST
     if (convproc_do_aer) then
        call t_startf('ma_convproc')
        call ma_convproc_intr( state, ptend, pbuf, dt,                &
@@ -1398,16 +1329,16 @@ contains
             dcondt_resusp3d)
 
        if (convproc_do_evaprain_atonce) then
-        ! st Francis can we ADD END RUN statement here: "convproc_do_evaprain_atonce does not work with CARMA, needs to be set to .false."
-           do m = 1, nbins! main loop over aerosol modes
+          do m = 1, nbins! main loop over aerosol modes
              do lphase = strt_loop,end_loop, stride_loop
                 ! loop over interstitial (1) and cloud-borne (2) forms
                 do l = 1, nspec(m) + 2
-                 mm = bin_idx(m, l)
-                 ! lphase=1 consider interstitial areosols, lphase=2 consider cloud-borne aerosols
-                 ! seems to only considers cloud-borne here
+                   mm = bin_idx(m, l)
+                   lc = mm + ncnst_tot
+                   ! lphase=1 consider interstitial areosols, lphase=2 consider cloud-borne aerosols
+                   ! seems to only considers cloud-borne here (lc instead of mm)
                    if (lphase == 2) then
-                      qqcw(mm)%fld(:ncol,:) = qqcw(mm)%fld(:ncol,:) + dcondt_resusp3d(mm,:ncol,:)*dt
+                      qqcw(mm)%fld(:ncol,:) = qqcw(mm)%fld(:ncol,:) + dcondt_resusp3d(lc,:ncol,:)*dt
                    end if
                 end do ! loop over number + mmr +  chem constituents
              end do  ! lphase
@@ -1732,22 +1663,14 @@ contains
     dvmrdt = (vmr - dvmrdt) / delt
     dvmrcwdt = (vmrcw - dvmrcwdt) / delt
 
-    !write(iulog,*) 'vmrcw(:,:,1) after sox', maxval(vmrcw(:,:,1) )
-    ! write out tendency if not zero
     do m = 1, gas_pcnst
-        if( maxval(dvmrdt(:ncol,:,m)).ne.0.0_r8 ) then
-            write(iulog,*) 'dvmrdt > 0 for ',solsym(m), m
-        end if
-    end do
-
-     do m = 1, gas_pcnst
        wrk(:) = 0.0_r8
        do k = 1,pver
-         wrk(:ncol) = wrk(:ncol) + dvmrdt(:ncol,k,m) * adv_mass(m)/mbar(:ncol,k)*pdel(:ncol,k)/gravit
+          wrk(:ncol) = wrk(:ncol) + dvmrdt(:ncol,k,m) * adv_mass(m)/mbar(:ncol,k)*pdel(:ncol,k)/gravit
        end do
        name = 'AQ_'//trim(solsym(m))
        call outfld( name, wrk(:ncol), ncol, lchnk )
-     enddo
+    enddo
 
     else if (is_spcam_m2005) then  ! SPCAM ECPP
 ! when ECPP is used, aqueous chemistry is done in ECPP,
@@ -1834,7 +1757,6 @@ contains
              mm = bin_idx(m, l)
              if (delta_so4mass(i,k,mm) .gt. 0.0_r8) then
                call rad_cnst_get_bin_props_by_idx(0, m, l,spectype=spectype)
-               write(iulog,*) 'm, l, spectype ',m, l, trim(spectype)
                old_total_mass = vmrcw(i,k,mm)
                vmrcw(i,k,mm) = vmrcw(i,k,mm) + delta_so4mass(i,k,mm)
                new_total_mass = vmrcw(i,k,mm)
@@ -1973,6 +1895,530 @@ contains
 
   end subroutine surf_area_dens
 
+  !===============================================================================
+  !===============================================================================
+  subroutine carma_aero_bcscavcoef_init ( pbuf2d )
+    !-----------------------------------------------------------------------
+    !
+    ! Purpose:
+    ! Computes lookup table for aerosol impaction/interception scavenging rates
+    !
+    ! Authors: R. Easter
+    ! Simone Tilmes Nov 2021
+    ! added modifications for bin model, assuming sigma = 1.
+    !
+    !-----------------------------------------------------------------------
+
+    use shr_kind_mod,    only: r8 => shr_kind_r8
+    use cam_abortutils,  only: endrun
+    use mo_constants, only:  pi
+    use ppgrid,          only: begchunk
+
+    implicit none
+
+    type(physics_buffer_desc), pointer :: pbuf2d(:,:)
+
+    !   local variables
+    integer nnfit_maxd
+    parameter (nnfit_maxd=27)
+
+    integer m, i, l, jgrow, jdens, jpress, jtemp, nnfit
+    integer lunerr
+
+    character(len=32) :: bin_name
+    character(len=32) :: spectype
+
+    real(r8), pointer :: rmass_ptr(:)   ! CARMA rmass fixed per bin
+    real(r8), allocatable :: rmass(:)     ! CARMA rmass
+
+    real(r8) dg0, dg0_cgs, press, dg0_base, &
+         rhodryaero, rhowetaero, rhowetaero_cgs, rmserr, &
+         scavratenum, scavratevol, sigmag,                &
+         temp, wetdiaratio, wetvolratio
+    real(r8) :: specdens
+    real(r8) aafitnum(1), xxfitnum(1,nnfit_maxd), yyfitnum(nnfit_maxd)
+    real(r8) aafitvol(1), xxfitvol(1,nnfit_maxd), yyfitvol(nnfit_maxd)
+
+
+    allocate(scavimptblnum(nimptblgrow_mind:nimptblgrow_maxd, nbins))
+    allocate(scavimptblvol(nimptblgrow_mind:nimptblgrow_maxd, nbins))
+
+    lunerr = iulog
+    dlndg_nimptblgrow = log( 1.25_r8 )
+
+    allocate ( rmass(nbins) )
+    ! bin model: main loop over aerosol bins
+
+    modeloop: do m = 1, nbins
+       !write(*,*) 'mloop start ',m
+       ! r(m) is the dry bin radius
+       ! taken here from CARMA pbuf field
+       ! get bin info
+       call rad_cnst_get_info_by_bin(0, m, bin_name=bin_name)
+
+       call pbuf_get_field(pbuf2d, begchunk, pbuf_get_index(trim(bin_name)//"_rmass"),rmass_ptr)
+       rmass(m) = rmass_ptr(1)
+
+       !   for setting up the lookup table, use the dry density of the first
+      ! get specdens from sulfate (check)
+       do l = 1, nspec(m)
+
+        call rad_cnst_get_bin_props_by_idx(0, m, l,spectype=spectype, density_aer=specdens)
+
+       !   chemical component of the aerosol type (which currently will be so4)
+       !   For  CARMA, rmass per bin stays the same, while dry radius varies when the particle density varies
+       !   rmass = 4/3 * Pi * density * dry radius
+       !   We assume a fixed specie density
+        if (trim(spectype) == 'sulfate') then
+           rhodryaero = specdens
+        end if
+       end do
+       dg0_base = 2._r8 * (0.75*rmass(m) / pi  / (1.0e-3_r8*rhodryaero)) **(0.33_r8)    ! specdens kg/m3 to g/cm3, convert from radiust to diameter
+
+           !sigmag = sigmag_amode(mode)
+           !dg0_base = dcen_sect(m,n)*exp( -1.5*((log(sigmag))**2) )
+           ! for bin approach sigma assumed to be 1., dg0_base equal dry radius
+       sigmag = 1._r8
+
+
+       !st rhodryaero = specdens_amode(1,mode)
+
+       growloop: do jgrow = nimptblgrow_mind, nimptblgrow_maxd
+
+          wetdiaratio = exp( jgrow*dlndg_nimptblgrow )
+          !dg0 = dgnum_amode(mode)*wetdiaratio
+          dg0 = dg0_base*wetdiaratio
+          !st write(*,*) 'm,l,dg0 ',m,l,dg0
+
+          wetvolratio = exp( jgrow*dlndg_nimptblgrow*3._r8 )
+          rhowetaero = 1.0_r8 + (rhodryaero-1.0_r8)/wetvolratio
+          rhowetaero = min( rhowetaero, rhodryaero )
+
+          !
+          !   compute impaction scavenging rates at 1 temp-press pair and save
+          !
+          nnfit = 0
+
+          temp = 273.16_r8
+          press = 0.75e6_r8   ! dynes/cm2
+          rhowetaero = rhodryaero
+
+          ! CARMA dry radius is in  cm
+          !dg0_cgs = dg0*1.0e2_r8   ! m to cm
+          dg0_cgs = dg0   ! CARMA  radius / diameter is already in cm
+
+          rhowetaero_cgs = rhowetaero*1.0e-3_r8   ! kg/m3 to g/cm3
+
+
+          call calc_1_impact_rate( &
+               dg0_cgs, sigmag, rhowetaero_cgs, temp, press, &
+               scavratenum, scavratevol, lunerr )
+
+
+          nnfit = nnfit + 1
+          if (nnfit > nnfit_maxd) then
+             write(lunerr,9110)
+             call endrun()
+          end if
+9110      format( '*** subr. carma_aero_bcscavcoef_init -- nnfit too big' )
+
+          xxfitnum(1,nnfit) = 1._r8
+          yyfitnum(nnfit) = log( scavratenum )
+
+          xxfitvol(1,nnfit) = 1._r8
+          yyfitvol(nnfit) = log( scavratevol )
+
+          !
+          ! skip mlinfit stuff because scav table no longer has dependencies on
+          !    air temp, air press, and particle wet density
+          ! just load the log( scavrate--- ) values
+          !
+          !!
+          !!   do linear regression
+          !!    log(scavrate) = a1 + a2*log(wetdens)
+          !!
+          !     call mlinft( xxfitnum, yyfitnum, aafitnum, nnfit, 1, 1, rmserr )
+          !     call mlinft( xxfitvol, yyfitvol, aafitvol, nnfit, 1, 1, rmserr )
+          !
+          !     scavimptblnum(jgrow,mode) = aafitnum(1)
+          !     scavimptblvol(jgrow,mode) = aafitvol(1)
+
+         !depends on both bins and different species
+          scavimptblnum(jgrow,m) = yyfitnum(1)
+          scavimptblvol(jgrow,m) = yyfitvol(1)
+
+       enddo growloop
+    enddo modeloop
+
+    return
+  end subroutine carma_aero_bcscavcoef_init
+
+  !===============================================================================
+  !===============================================================================
+
+
+  !===============================================================================
+  subroutine carma_aero_bcscavcoef_get( m, ncol, isprx, wetr, dryr, scavcoefnum, scavcoefvol, pbuf )
+    !  need to go through both bins and species
+    ! need dry radius and wet radius
+
+    !-----------------------------------------------------------------------
+
+    use mo_constants, only:  pi
+
+    implicit none
+
+    integer,intent(in) :: m, ncol
+    logical,intent(in):: isprx(pcols,pver)
+    ! wet radius per bin dgn_awet -> wetr
+    real(r8), intent(in) :: dryr(pcols,pver)
+    real(r8), intent(in) :: wetr(pcols,pver)
+    real(r8), intent(out) :: scavcoefnum(pcols,pver), scavcoefvol(pcols,pver)
+    type(physics_buffer_desc), pointer :: pbuf(:)
+
+    integer i, k, jgrow, l
+    real(r8) dumdgratio, xgrow, dumfhi, dumflo, scavimpvol, scavimpnum, dg0_base, specdens, rhodryaero
+
+    character(len=32) :: spectype
+    character(len=32) :: bin_name
+
+    real(r8), allocatable :: rmass(:)     ! CARMA rmass
+    real(r8), pointer :: rmass_ptr(:)   ! CARMA rmass fixed per bin
+
+    allocate ( rmass(nbins) )
+    ! bin model: main loop over aerosol bins
+
+    ! get bin info
+     call rad_cnst_get_info_by_bin(0, m, bin_name=bin_name)
+     call pbuf_get_field(pbuf, pbuf_get_index(trim(bin_name)//"_rmass"),rmass_ptr)
+     rmass(m) = rmass_ptr(1)
+
+
+    ! get rmass and specdens for sulfate
+    do l = 1, nspec(m)
+        call rad_cnst_get_bin_props_by_idx(0, m, l,spectype=spectype, density_aer=specdens)
+
+       !   chemical component of the aerosol type (which currently will be so4)
+       !   For  CARMA, rmass per bin stays the same, while dry radius varies when the particle density varies
+       !   rmass = 4/3 * Pi * density * dry radius
+       !   We assume a fixed specie density
+        if (trim(spectype) == 'sulfate') then
+           rhodryaero = specdens
+        end if
+    end do
+    dg0_base = 2._r8 * (0.75*rmass(m) / pi  / (1.0e-3_r8*rhodryaero)) **(0.33_r8)    ! specdens kg/m3 to g/cm3, convert from radiust to diameter
+    !rg0_base = (0.75*rmass(m) / pi  / (1.0e-3_r8*specdens)) **(0.33_r8)    ! specdens kg/m3 to g/cm3
+
+    do k = 1, pver
+       do i = 1, ncol
+
+          ! do only if no precip
+          if ( isprx(i,k) .and. dryr(i,k).gt.0._r8) then
+             !
+             ! interpolate table values using log of (actual-wet-size)/(base-dry-size)
+
+             ! dumdgratio = dgn_awet(i,k,m)/dgnum_amode(m)
+             ! dgnum_amode(m) is the rg0_base radius.
+
+             dumdgratio = wetr(i,k)/dg0_base
+
+              if ((dumdgratio >= 0.99_r8) .and. (dumdgratio <= 1.01_r8)) then
+                 scavimpvol = scavimptblvol(0,m)
+                 scavimpnum = scavimptblnum(0,m)
+              else
+                xgrow = log( dumdgratio ) / dlndg_nimptblgrow
+                jgrow = int( xgrow )
+                if (xgrow < 0._r8) jgrow = jgrow - 1
+                if (jgrow < nimptblgrow_mind) then
+                   jgrow = nimptblgrow_mind
+                   xgrow = jgrow
+                else
+                   jgrow = min( jgrow, nimptblgrow_maxd-1 )
+                end if
+
+                dumfhi = xgrow - jgrow
+                dumflo = 1._r8 - dumfhi
+
+                scavimpvol = dumflo*scavimptblvol(jgrow,m) + &
+                     dumfhi*scavimptblvol(jgrow+1,m)
+                scavimpnum = dumflo*scavimptblnum(jgrow,m) + &
+                     dumfhi*scavimptblnum(jgrow+1,m)
+
+             end if
+
+             ! impaction scavenging removal amount for volume
+             scavcoefvol(i,k) = exp( scavimpvol )
+             ! impaction scavenging removal amount to number
+             scavcoefnum(i,k) = exp( scavimpnum )
+
+             ! scavcoef = impaction scav rate (1/h) for precip = 1 mm/h
+             ! scavcoef = impaction scav rate (1/s) for precip = pfx_inrain
+             ! (scavcoef/3600) = impaction scav rate (1/s) for precip = 1 mm/h
+             ! (pfx_inrain*3600) = in-rain-area precip rate (mm/h)
+             ! impactrate = (scavcoef/3600) * (pfx_inrain*3600)
+          else
+             scavcoefvol(i,k) = 0._r8
+             scavcoefnum(i,k) = 0._r8
+          end if
+
+       end do
+    end do
+
+    return
+  end subroutine carma_aero_bcscavcoef_get
+
+  !===============================================================================
+  subroutine calc_1_impact_rate(             &
+       dg0, sigmag, rhoaero, temp, press, &
+       scavratenum, scavratevol, lunerr )
+    !
+    !   routine computes a single impaction scavenging rate
+    !    for precipitation rate of 1 mm/h
+    !
+    !   dg0 = geometric mean diameter of aerosol number size distrib. (for CARMA it is the dry radius) (cm)
+    !   sigmag = geometric standard deviation of size distrib.
+    !   rhoaero = density of aerosol particles (g/cm^3)
+    !   temp = temperature (K)
+    !   press = pressure (dyne/cm^2)
+    !   scavratenum = number scavenging rate (1/h)
+    !   scavratevol = volume or mass scavenging rate (1/h)
+    !   lunerr = logical unit for error message
+    !
+    use shr_kind_mod, only: r8 => shr_kind_r8
+    use mo_constants, only: boltz_cgs, pi, rhowater => rhoh2o_cgs, &
+                           gravity => gravity_cgs, rgas => rgas_cgs
+
+   implicit none
+
+   !   subr. parameters
+   integer lunerr
+   real(r8) dg0, sigmag, rhoaero, temp, press, scavratenum, scavratevol
+
+   !   local variables
+   integer nrainsvmax
+   parameter (nrainsvmax=50)
+   real(r8) rrainsv(nrainsvmax), xnumrainsv(nrainsvmax),&
+        vfallrainsv(nrainsvmax)
+
+   integer naerosvmax
+   parameter (naerosvmax=51)
+   real(r8) aaerosv(naerosvmax), &
+        ynumaerosv(naerosvmax), yvolaerosv(naerosvmax)
+
+   integer i, ja, jr, na, nr
+   real(r8) a, aerodiffus, aeromass, ag0, airdynvisc, airkinvisc
+   real(r8) anumsum, avolsum, cair, chi
+   real(r8) d, dr, dum, dumfuchs, dx
+   real(r8) ebrown, eimpact, eintercept, etotal, freepath
+   real(r8) precip, precipmmhr, precipsum
+   real(r8) r, rainsweepout, reynolds, rhi, rhoair, rlo, rnumsum
+   real(r8) scavsumnum, scavsumnumbb
+   real(r8) scavsumvol, scavsumvolbb
+   real(r8) schmidt, sqrtreynolds, sstar, stokes, sx
+   real(r8) taurelax, vfall, vfallstp
+   real(r8) x, xg0, xg3, xhi, xlo, xmuwaterair
+
+
+   rlo = .005_r8
+   rhi = .250_r8
+   dr = 0.005_r8
+   nr = 1 + nint( (rhi-rlo)/dr )
+   if (nr > nrainsvmax) then
+      write(lunerr,9110)
+      call endrun()
+   end if
+
+9110 format( '*** subr. calc_1_impact_rate -- nr > nrainsvmax' )
+
+   precipmmhr = 1.0_r8
+   precip = precipmmhr/36000._r8
+
+! if dg0 the diameter, than ag0 equals the radius
+   ag0 = dg0/2._r8
+  if (sigmag.ne.1._r8) then
+   sx = log( sigmag )
+   xg0 = log( ag0 )
+   xg3 = xg0 + 3._r8*sx*sx
+
+   xlo = xg3 - 4._r8*sx
+   xhi = xg3 + 4._r8*sx
+   dx = 0.2_r8*sx
+
+   dx = max( 0.2_r8*sx, 0.01_r8 )
+   xlo = xg3 - max( 4._r8*sx, 2._r8*dx )
+   xhi = xg3 + max( 4._r8*sx, 2._r8*dx )
+
+   na = 1 + nint( (xhi-xlo)/dx )
+   if (na > naerosvmax) then
+      write(lunerr,9120)
+      call endrun()
+   end if
+  else
+   na = 1
+   a = ag0
+  end if
+
+9120 format( '*** subr. calc_1_impact_rate -- na > naerosvmax' )
+
+   !   air molar density
+   cair = press/(rgas*temp)
+   !   air mass density
+   rhoair = 28.966_r8*cair
+   !   molecular freepath
+   freepath = 2.8052e-10_r8/cair
+   !   air dynamic viscosity
+   airdynvisc = 1.8325e-4_r8 * (416.16_r8/(temp+120._r8)) *    &
+        ((temp/296.16_r8)**1.5_r8)
+   !   air kinemaic viscosity
+   airkinvisc = airdynvisc/rhoair
+   !   ratio of water viscosity to air viscosity (from Slinn)
+   xmuwaterair = 60.0_r8
+
+   !
+   !   compute rain drop number concentrations
+   !    rrainsv = raindrop radius (cm)
+   !    xnumrainsv = raindrop number concentration (#/cm^3)
+   !            (number in the bin, not number density)
+   !    vfallrainsv = fall velocity (cm/s)
+   !
+   precipsum = 0._r8
+   do i = 1, nr
+      r = rlo + (i-1)*dr
+      rrainsv(i) = r
+      xnumrainsv(i) = exp( -r/2.7e-2_r8 )
+
+      d = 2._r8*r
+      if (d <= 0.007_r8) then
+         vfallstp = 2.88e5_r8 * d**2._r8
+      else if (d <= 0.025_r8) then
+         vfallstp = 2.8008e4_r8 * d**1.528_r8
+      else if (d <= 0.1_r8) then
+         vfallstp = 4104.9_r8 * d**1.008_r8
+      else if (d <= 0.25_r8) then
+         vfallstp = 1812.1_r8 * d**0.638_r8
+      else
+         vfallstp = 1069.8_r8 * d**0.235_r8
+      end if
+
+      vfall = vfallstp * sqrt(1.204e-3_r8/rhoair)
+      vfallrainsv(i) = vfall
+      precipsum = precipsum + vfall*(r**3)*xnumrainsv(i)
+   end do
+   precipsum = precipsum*pi*1.333333_r8
+
+   rnumsum = 0._r8
+   do i = 1, nr
+      xnumrainsv(i) = xnumrainsv(i)*(precip/precipsum)
+      rnumsum = rnumsum + xnumrainsv(i)
+   end do
+
+   !
+   !   compute aerosol concentrations
+   !    aaerosv = particle radius (cm)
+   !    fnumaerosv = fraction of total number in the bin (--)
+   !    fvolaerosv = fraction of total volume in the bin (--)
+   !
+
+
+   anumsum = 0._r8
+   avolsum = 0._r8
+   ynumaerosv(:) = 1._r8
+   yvolaerosv(:) = 1._r8
+   aaerosv(:) = a
+  if (na.ne.1) then
+   do i = 1, na
+      x = xlo + (i-1)*dx
+      a = exp( x )
+      aaerosv(i) = a
+      dum = (x - xg0)/sx
+      ynumaerosv(i) = exp( -0.5_r8*dum*dum )
+      yvolaerosv(i) = ynumaerosv(i)*1.3333_r8*pi*a*a*a
+      anumsum = anumsum + ynumaerosv(i)
+      avolsum = avolsum + yvolaerosv(i)
+   end do
+
+   do i = 1, na
+      ynumaerosv(i) = ynumaerosv(i)/anumsum
+      yvolaerosv(i) = yvolaerosv(i)/avolsum
+   end do
+  end if
+
+
+   !
+   !   compute scavenging
+   !
+   scavsumnum = 0._r8
+   scavsumvol = 0._r8
+   !
+   !   outer loop for rain drop radius
+   !
+   jr_loop: do jr = 1, nr
+
+      r = rrainsv(jr)
+      vfall = vfallrainsv(jr)
+
+      reynolds = r * vfall / airkinvisc
+      sqrtreynolds = sqrt( reynolds )
+
+      !
+      !   inner loop for aerosol particle radius
+      !
+      scavsumnumbb = 0._r8
+      scavsumvolbb = 0._r8
+
+      ja_loop: do ja = 1, na
+
+         a = aaerosv(ja)
+
+         chi = a/r
+
+         dum = freepath/a
+         dumfuchs = 1._r8 + 1.246_r8*dum + 0.42_r8*dum*exp(-0.87_r8/dum)
+         taurelax = 2._r8*rhoaero*a*a*dumfuchs/(9._r8*rhoair*airkinvisc)
+
+
+         aeromass = 4._r8*pi*a*a*a*rhoaero/3._r8
+         aerodiffus = boltz_cgs*temp*taurelax/aeromass
+
+         schmidt = airkinvisc/aerodiffus
+         stokes = vfall*taurelax/r
+
+         ebrown = 4._r8*(1._r8 + 0.4_r8*sqrtreynolds*(schmidt**0.3333333_r8)) /  &
+              (reynolds*schmidt)
+
+         dum = (1._r8 + 2._r8*xmuwaterair*chi) /         &
+              (1._r8 + xmuwaterair/sqrtreynolds)
+         eintercept = 4._r8*chi*(chi + dum)
+
+         dum = log( 1._r8 + reynolds )
+         sstar = (1.2_r8 + dum/12._r8) / (1._r8 + dum)
+         eimpact = 0._r8
+         if (stokes > sstar) then
+            dum = stokes - sstar
+            eimpact = (dum/(dum+0.6666667_r8)) ** 1.5_r8
+         end if
+
+         etotal = ebrown + eintercept + eimpact
+         etotal = min( etotal, 1.0_r8 )
+
+         rainsweepout = xnumrainsv(jr)*4._r8*pi*r*r*vfall
+
+         scavsumnumbb = scavsumnumbb + rainsweepout*etotal*ynumaerosv(ja)
+         scavsumvolbb = scavsumvolbb + rainsweepout*etotal*yvolaerosv(ja)
+
+      enddo ja_loop
+
+      scavsumnum = scavsumnum + scavsumnumbb
+      scavsumvol = scavsumvol + scavsumvolbb
+
+   enddo jr_loop
+
+   scavratenum = scavsumnum*3600._r8
+   scavratevol = scavsumvol*3600._r8
+
+   return
+ end subroutine calc_1_impact_rate
+
   !=============================================================================
   subroutine mmr2vmr_carma(lchnk, vmr, mbar, mw_carma, ncol, im, rmass)
     !-----------------------------------------------------------------
@@ -2064,6 +2510,5 @@ contains
     end do
 
    end subroutine vmr2mmr_carma
-
 
 end module aero_model

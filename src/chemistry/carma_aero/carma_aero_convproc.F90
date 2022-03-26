@@ -710,10 +710,11 @@ subroutine ma_convproc_dp_intr(                &
    real(r8), intent(inout) :: qsrflx(pcols,ncnst_tot,nsrflx)
    real(r8), intent(inout) :: dcondt_resusp3d(pcnst_extd,pcols,pver)
 
-   integer :: i
+   integer :: i, n, ll
    integer :: itmpveca(pcols)
    integer :: l, lchnk, lun
    integer :: nstep
+   integer :: ncol
 
    real(r8) :: dpdry(pcols,pver)     ! layer delta-p-dry (mb)
    real(r8) :: fracice(pcols,pver)   ! Ice fraction of cloud droplets
@@ -745,6 +746,7 @@ subroutine ma_convproc_dp_intr(                &
    ! Initialize
 
    lchnk = state%lchnk
+   ncol  = state%ncol
    nstep = get_nstep()
    lun   = iulog
 
@@ -1504,6 +1506,7 @@ i_loop_main_aa: &
 
 !  load tracer mixing ratio array, which will be updated at the end of each jtsub interation
       q_i(1:pver,1:ncnst_tot) = q(icol,1:pver,1:ncnst_tot)
+      conu2(icol,1:pver,1:ncnst_tot) = q(icol,1:pver,1:ncnst_tot)
 
 !
 !   when method_reduce_actfrac = 2, need to do the updraft calc twice
@@ -1581,9 +1584,6 @@ ipass_calc_updraft_loop: &
 ! Set provisional up and down draft values, and tendencies
             conu(m,k) = chat(m,k)
             cond(m,k) = chat(m,k)
-            !if (k.eq.30) then
-            ! write(*,*) 'conu1 ', conu(m,k),m
-            !end if
          end do ! k
 
 ! Values at surface inferface == values in lowest layer
@@ -1630,9 +1630,6 @@ k_loop_main_bb: &
             do m = 1, pcnst_extd
               if (doconvproc_extd(m)) then
                   conu(m,k) = tmpa*conu(m,kp1) + f_ent*const(m,k)
-                   !if (k.eq.30) then
-                   !  write(*,*) 'conu ',m,tmpa,conu(m,k), const(m,k)
-                   !end if
               end if
             end do
 
@@ -1764,7 +1761,7 @@ k_loop_main_bb: &
                      lchnk,      icol,                k,                &
                      kactfirst,  ipass_calc_updraft                     )
                end if
-
+               conu2(icol,k,1:pver) = conu(1:pver,k)
             end if ! (convproc_method_activate <= 1)
 
 ! aqueous chemistry
@@ -1812,39 +1809,24 @@ k_loop_main_bb: &
 !    Apply wet removal at levels where
 !       icwmr(icol,k) > clw_cut  AND  rprd(icol,k) > 0.0
 !    as wet removal occurs in both liquid and ice clouds
-!
+
+
             cdt(k) = 0.0_r8
-            cdt2(k) = 0.0_r8
             if ((icwmr(icol,k) > clw_cut) .and. (rprd(icol,k) > 0.0_r8)) then
-!              if (iconvtype == 1) then
-!  why is there a 0.5? Setting it to 1. increases wet deposition that seems to be improving the CARMA aerosols
-                  !tmpf = 0.5_r8*cldfrac_i(k)
-                  tmpf = 1._r8*cldfrac_i(k)
+                  tmpf = 0.5_r8*cldfrac_i(k)
                   cdt(k) = (tmpf*dp(i,k)/mu_p_eudp(k)) * rprd(icol,k) / &
                         (tmpf*icwmr(icol,k) + dt*rprd(icol,k))
-                  tmpf = 1._r8*cldfrac_i(k)
-! just testing the differences between  using the 0.5 factor
-                  cdt2(k) = (tmpf*dp(i,k)/mu_p_eudp(k)) * rprd(icol,k) / &
-                        (tmpf*icwmr(icol,k) + dt*rprd(icol,k))
-!              else if (k < pver) then
-!                 if (eudp(k+1) > 0) cdt(k) =   &
-!                       rprd(icol,k)*dp(i,k)/(icwmr(icol,k)*eudp(k+1))
-!              end if
             end if
+
             if (cdt(k) > 0.0_r8) then
                expcdtm1 = exp(-cdt(k)) - 1.0_r8
-               expcdtm2 = exp(-cdt2(k)) - 1.0_r8
                do m = 1, pcnst_extd
                   if (doconvproc_extd(m)) then
                      dconudt_wetdep(m,k) = conu(m,k)*aqfrac(m)*expcdtm1
                      conu(m,k) = conu(m,k) + dconudt_wetdep(m,k)
                      dconudt_wetdep(m,k) = dconudt_wetdep(m,k) / dt_u(k)
-                      !if (aqfrac(m).gt.0.0_r8 .and. k.eq.30) then
-                      ! write(*,*) 'wetdep, conu,m', dconudt_wetdep(m,k), conu(m,k), const(m,k), expcdtm1,expcdtm2 ,m
-                      !end if
-
+                     conu2(icol,k,m) = conu(m,k)
                   end if
-                  conu2(icol,k,m) = conu(m,k)
                enddo
             end if
 
@@ -1911,6 +1893,7 @@ k_loop_main_cc: &
          kp1x = min( kp1, pver )
          km1x = max( km1, 1 )
          fa_u_dp = fa_u(k)*dp_i(k)
+
          do m = 1, pcnst_extd
             if (doconvproc_extd(m)) then
 
@@ -1972,6 +1955,7 @@ k_loop_main_cc: &
             netflux = fluxin - fluxout
             netsrce = fa_u_dp*(dconudt_aqchem(m,k) + &
                         dconudt_activa(m,k) + dconudt_wetdep(m,k))
+
             dcondt(m,k) = (netflux+netsrce)/dp_i(k)
 
             dcondt_wetdep(m,k) = fa_u_dp*dconudt_wetdep(m,k)/dp_i(k)
@@ -2181,9 +2165,6 @@ k_loop_main_cc: &
                sumaqchem(la) = sumaqchem(la) + sumaqchem(lc)
                sumwetdep(la) = sumwetdep(la) + sumwetdep(lc)
                sumprevap(la) = sumprevap(la) + sumprevap(lc)
-            !   if (n==10 .and. ll==1) then
- 	    !       write(*,*) 'la, sumwetdep(la),sumwetdep(lc) =', la, sumwetdep(la),sumwetdep(lc)
-            !   endif
             end if
          enddo ! ll
       enddo ! n
@@ -2209,7 +2190,6 @@ k_loop_main_cc: &
             qsrflx_i(m,3) = sumaqchem(m)*hund_ovr_g
             qsrflx_i(m,4) = sumwetdep(m)*hund_ovr_g
             qsrflx_i(m,5) = sumprevap(m)*hund_ovr_g
-!           qsrflx_i(m,1:4) = 0.
             qsrflx(icol,m,1:5) = qsrflx(icol,m,1:5) + qsrflx_i(m,1:5)*xinv_ntsub
          end if
       end do ! m
@@ -2364,6 +2344,8 @@ k_loop_main_cc: &
          call outfld( trim(fieldname(l))//'QCONST', q(:,:,la), pcols, lchnk )
          call outfld( trim(fieldname(l))//'CONU', conu2(:,:,la), pcols, lchnk )
          call outfld( trim(fieldname(l))//'WETC', dcondt2(:,:,la), pcols, lchnk )
+         call outfld( trim(fieldname_cw(l))//'CONU', conu2(:,:,lc), pcols, lchnk )
+         call outfld( trim(fieldname_cw(l))//'WETC', dcondt2(:,:,lc), pcols, lchnk )
       end do
    end do
 
@@ -2991,7 +2973,7 @@ end subroutine ma_convproc_tend
    real(r8) :: specdens              ! specie density from physprops files
    real(r8) :: spechygro             ! hygroscopicity from physprops files
 
-   character(len=32) :: spec_type
+   character(len=32) :: spectype
 
 !-----------------------------------------------------------------------
 
@@ -3015,9 +2997,6 @@ end subroutine ma_convproc_tend
          conu(lc) = conu(lc) + delact
          dconudt(la) = -delact*dt_u_inv
          dconudt(lc) =  delact*dt_u_inv
-         !if (lc.eq.400) then
-         !   write(*,*) 'ipass_calc_updraft2, conu(la),conu(lc),m',conu(la),conu(lc),delact,dconudt(la),dconudt(lc)
-         !end if
 
       end do
    end do   ! "n = 1, ntot_amode"
@@ -3029,83 +3008,59 @@ end subroutine ma_convproc_tend
 ! check f_ent > 0
    if (f_ent <= 0.0_r8) return
 
-
-!  do n = 1, nbins
+   do n = 1, nbins
 ! compute a (or a+cw) volume and hygroscopicity
-!     tmpa = 0.0_r8
-!     tmpb = 0.0_r8
-!     do ll = 1, nspec(n)
-!        l = bin_idx(n,ll)
+      tmpa = 0.0_r8
+      tmpb = 0.0_r8
+      do ll = 1, nspec(n)
+         l = bin_idx(n,ll)
 
-!        call rad_cnst_get_bin_props_by_idx(0, n, ll, density_aer=specdens, hygro_aer=spechygro)
+         call rad_cnst_get_bin_props_by_idx(0, n, ll, density_aer=specdens, hygro_aer=spechygro)
 
-!        tmpc = max( conu(l), 0.0_r8 )
-!        if ( use_cwaer_for_activate_maxsat ) &
-!         tmpc = tmpc + max( conu(l+ncnst_tot), 0.0_r8 )
-!         tmpc = tmpc / specdens
-!        tmpa = tmpa + tmpc
+         tmpc = max( conu(l), 0.0_r8 )
+         if ( use_cwaer_for_activate_maxsat ) &
+          tmpc = tmpc + max( conu(l+ncnst_tot), 0.0_r8 )
+          tmpc = tmpc / specdens
+         tmpa = tmpa + tmpc
 
-!        ! Change the hygroscopicity of POM based on the discussion with Prof.
-!        ! Xiaohong Liu. Some observational studies found that the primary organic
-!        ! material from biomass burning emission shows very high hygroscopicity.
-!        ! Also, found that BC mass will be overestimated if all the aerosols in
-!        ! the primary mode are free to be removed. Therefore, set the hygroscopicity
-!        ! of POM here as 0.2 to enhance the wet scavenge of primary BC and POM.
+         ! Change the hygroscopicity of POM based on the discussion with Prof.
+         ! Xiaohong Liu. Some observational studies found that the primary organic
+         ! material from biomass burning emission shows very high hygroscopicity.
+         ! Also, found that BC mass will be overestimated if all the aerosols in
+         ! the primary mode are free to be removed. Therefore, set the hygroscopicity
+         ! of POM here as 0.2 to enhance the wet scavenge of primary BC and POM.
 
-!        !st call rad_cnst_get_info(0, n, ll, spec_type=spec_type)
-!        !st if (spec_type=='p-organic' .and. convproc_pom_spechygro>0._r8) then
-!        !st    tmpb = tmpb + tmpc * convproc_pom_spechygro
-!        !st else
-!           tmpb = tmpb + tmpc * spechygro
-!        !st end if
-!     end do
-!     vaerosol(n) = tmpa * rhoair
-!     if (tmpa < 1.0e-35_r8) then
-!        hygro(n) = 0.2_r8
-!     else
-!        hygro(n) = tmpb/tmpa
-!     end if
+         call rad_cnst_get_bin_props_by_idx(0, n, ll,spectype=spectype)
+         if (spectype=='p-organic' .and. convproc_pom_spechygro>0._r8) then
+             tmpb = tmpb + tmpc * convproc_pom_spechygro
+         else
+            tmpb = tmpb + tmpc * spechygro
+         end if
+      end do
+      vaerosol(n) = tmpa * rhoair
+      if (tmpa < 1.0e-35_r8) then
+         hygro(n) = 0.2_r8
+      else
+         hygro(n) = tmpb/tmpa
+      end if
 
+! total mass not needed
 ! load a (or a+cw) total mmr  and bound it
-!     l = bin_idx(n,nspec(n)+1)
-!     tmpa = max( conu(l), 0.0_r8 )
-!     if ( use_cwaer_for_activate_maxsat ) &
-!     tmpa = tmpa + max( conu(l+ncnst_tot), 0.0_r8 )
-!     maerosol(n) = tmpa * rhoair
-!     maerosol(n) = max( vaerosol(n),maerosol(n))
+!      l = bin_idx(n,nspec(n)+1)
+!      tmpa = max( conu(l), 0.0_r8 )
+!      if ( use_cwaer_for_activate_maxsat ) &
+!      tmpa = tmpa + max( conu(l+ncnst_tot), 0.0_r8 )
+!      maerosol(n) = tmpa * rhoair
+!      maerosol(n) = max( vaerosol(n),maerosol(n))
 
 ! load a (or a+cw) number and bound it
-!     l = bin_idx(n,nspec(n)+2)
-!     tmpa = max( conu(l), 0.0_r8 )
-!     if ( use_cwaer_for_activate_maxsat ) &
-!     tmpa = tmpa + max( conu(l+ncnst_tot), 0.0_r8 )
-!     naerosol(n) = tmpa * rhoair
-!     !st naerosol(n) = max( naerosol(n),   &
-      !st                    vaerosol(n)*voltonumbhi_amode(n) )
-      !st naerosol(n) = min( naerosol(n),   &
-      !st                    vaerosol(n)*voltonumblo_amode(n) )
-
-! diagnostic output for testing/development
-!      if (lun > 0) then
-!         if (n == 1) then
-!            write(lun,9500)
-!            write(lun,9510) (cnst_name(l), conu(l), l=1,pcnst_extd)
-!            write(lun,9520) tair, rhoaircgs, airconcgs
-!         end if
-!         write(lun,9530) n, ntype(n), vaerosol
-!         write(lun,9540) naerosol(n), tmp*airconcgs, &
-!                         voltonumbhi_amode(n), voltonumblo_amode(n)
-!         write(lun,9550) (maerosol(l,n), l=1,ntype(n))
-!9500     format( / 'activate_conv output -- conu values' )
-!9510     format( 3( a, 1pe11.3, 4x ) )
-!9520     format( 'ta, rhoa, acon     ', 3(1pe11.3) )
-!9530     format( 'n, ntype, sg, vol  ', i6, i5, 2(1pe11.3) )
-!9540     format( 'num, num0, v2nhi&lo', 4(1pe11.3) )
-!9550     format( 'masses             ', 6(1pe11.3) )
-!      end if
-
-!  end do
-
+      l = bin_idx(n,nspec(n)+2)
+      tmpa = max( conu(l), 0.0_r8 )
+      if ( use_cwaer_for_activate_maxsat ) &
+      tmpa = tmpa + max( conu(l+ncnst_tot), 0.0_r8 )
+!      naerosol(n) = tmpa * 1000.0_r8 * rhoair
+      naerosol(n) = tmpa * rhoair
+   end do
 
 ! call Razzak-Ghan activation routine with single updraft
    wbar = max( wup, 0.5_r8 )  ! force wbar >= 0.5 m/s for now
@@ -3115,9 +3070,9 @@ end subroutine ma_convproc_tend
    wmaxf = wbar
 
    phase = 1 ! interstitial
-   do n = 1, nbins
-      call loadaer( state, pbuf, i, k, n, rhoair, phase, naerosol(n), vaerosol(n), hygro(n))
-   end do
+!   do n = 1, nbins
+!      call loadaer( state, pbuf, i, k, n, rhoair, phase, naerosol(n), vaerosol(n), hygro(n))
+!   end do
 
    if (k == kactfirst) then
 
@@ -3190,15 +3145,6 @@ end subroutine ma_convproc_tend
          conu(lc) = conu(lc) + delact
          dconudt(la) = -delact*dt_u_inv
          dconudt(lc) =  delact*dt_u_inv
-
-         !if (lc.eq.360) then
-         !   write(*,*) 'naerosol,vaerosol,hygro 360',naerosol(n),vaerosol(n),hygro(n),fn(n),fm(n),n
-         !   write(*,*) 'ipass_calc_updraft1 360, conu(la),conu(lc),l',conu(la),conu(lc),delact,dconudt(la),dconudt(lc),tmp_fact,dt_u_inv,l
-         !end if
-         !if (lc.eq.400) then
-         !   write(*,*) 'naerosol,vaerosol,hygro 400',naerosol(n),vaerosol(n),hygro(n),fn(n),fm(n),n
-         !   write(*,*) 'ipass_calc_updraft1 400, conu(la),conu(lc),l',conu(la),conu(lc),delact,dconudt(la),dconudt(lc),tmp_fact,dt_u_inv,l
-         !end if
 
       end do
    end do   ! "n = 1, nbin"
