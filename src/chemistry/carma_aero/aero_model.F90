@@ -735,8 +735,6 @@ contains
        aerdepwetcw(:,:)          = nan
     endif
 
-       aerdepwetis(:,:)          = 0.0_r8
-
     scavcoefnv(:,:,0) = 0.0_r8 ! below-cloud scavcoef = 0.0 for cloud-borne species
 
     ! Counters for "without" unified convective treatment (i.e. default case)
@@ -774,16 +772,17 @@ contains
              f_act_conv_c = 0.0_r8   ! conv   in-cloud scav OFF (having this on would mean
           end if
 
+          dqdt_tmp_sum(:,:) = 0.0_r8
+          fldcw_sum(:,:) = 0.0_r8
+          fld_sum(:,:) = 0.0_r8
+          icscavt_sum(:,:) = 0.0_r8
+          isscavt_sum(:,:) = 0.0_r8
+          bcscavt_sum(:,:) = 0.0_r8
+          bsscavt_sum(:,:) = 0.0_r8
+          rcscavt_sum(:,:) = 0.0_r8
+          rsscavt_sum(:,:) = 0.0_r8
+
           if (lphase == 1) then ! interstial aerosol
-             dqdt_tmp_sum(:,:) = 0.0_r8
-             fldcw_sum(:,:) = 0.0_r8
-             fld_sum(:,:) = 0.0_r8
-             icscavt_sum(:,:) = 0.0_r8
-             isscavt_sum(:,:) = 0.0_r8
-             bcscavt_sum(:,:) = 0.0_r8
-             bsscavt_sum(:,:) = 0.0_r8
-             rcscavt_sum(:,:) = 0.0_r8
-             rsscavt_sum(:,:) = 0.0_r8
 
              sol_facti(:,:) = 0._r8
              sol_factic = sol_factic_interstitial
