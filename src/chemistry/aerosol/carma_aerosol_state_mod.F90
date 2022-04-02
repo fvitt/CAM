@@ -63,54 +63,54 @@ contains
 
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------
-  subroutine get_ambient_mmr(self,l,m, x)
+  subroutine get_ambient_mmr(self, species_ndx, bin_ndx, mmr)
     class(carma_aerosol_state), intent(in) :: self
-    integer, intent(in) :: l
-    integer, intent(in) :: m
-    real(r8), pointer :: x(:,:)
+    integer, intent(in) :: species_ndx  ! species index
+    integer, intent(in) :: bin_ndx      ! bin index
+    real(r8), pointer :: mmr(:,:)       ! mass mixing ratios
 
-    if (l<1) then
-       call rad_cnst_get_bin_mmr(0, m, 'a', self%state, self%pbuf, x)
+    if (species_ndx<1) then
+       call rad_cnst_get_bin_mmr(0, bin_ndx, 'a', self%state, self%pbuf, mmr)
     else
-       call rad_cnst_get_bin_mmr_by_idx(0, m, l, 'a', self%state, self%pbuf, x)
+       call rad_cnst_get_bin_mmr_by_idx(0, bin_ndx, species_ndx, 'a', self%state, self%pbuf, mmr)
     end if
 
   end subroutine get_ambient_mmr
 
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------
-  subroutine get_cldbrne_mmr(self,l,m, x)
+  subroutine get_cldbrne_mmr(self, species_ndx, bin_ndx, mmr)
     class(carma_aerosol_state), intent(in) :: self
-    integer, intent(in) :: l
-    integer, intent(in) :: m
-    real(r8), pointer :: x(:,:)
+    integer, intent(in) :: species_ndx  ! species index
+    integer, intent(in) :: bin_ndx      ! bin index
+    real(r8), pointer :: mmr(:,:)       ! mass mixing ratios
 
-    if (l<1) then
-       call rad_cnst_get_bin_mmr(0, m, 'c', self%state, self%pbuf, x)
+    if (species_ndx<1) then
+       call rad_cnst_get_bin_mmr(0, bin_ndx, 'c', self%state, self%pbuf, mmr)
     else
-       call rad_cnst_get_bin_mmr_by_idx(0, m, l, 'c', self%state, self%pbuf, x)
+       call rad_cnst_get_bin_mmr_by_idx(0, bin_ndx, species_ndx, 'c', self%state, self%pbuf, mmr)
     end if
 
   end subroutine get_cldbrne_mmr
 
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------
-  subroutine get_ambient_num(self,m, x)
+  subroutine get_ambient_num(self, bin_ndx, num)
     class(carma_aerosol_state), intent(in) :: self
-    integer, intent(in) :: m
-    real(r8), pointer :: x(:,:)
+    integer, intent(in) :: bin_ndx             ! bin index
+    real(r8), pointer :: num(:,:)
 
-    call rad_cnst_get_bin_num(0, m, 'a', self%state, self%pbuf, x)
+    call rad_cnst_get_bin_num(0, bin_ndx, 'a', self%state, self%pbuf, num)
   end subroutine get_ambient_num
 
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------
-  subroutine get_cldbrne_num(self,m, x)
+  subroutine get_cldbrne_num(self, bin_ndx, num)
     class(carma_aerosol_state), intent(in) :: self
-    integer, intent(in) :: m
-    real(r8), pointer :: x(:,:)
+    integer, intent(in) :: bin_ndx             ! bin index
+    real(r8), pointer :: num(:,:)
 
-    call rad_cnst_get_bin_num(0, m, 'c', self%state, self%pbuf, x)
+    call rad_cnst_get_bin_num(0, bin_ndx, 'c', self%state, self%pbuf, num)
   end subroutine get_cldbrne_num
 
   !------------------------------------------------------------------------------

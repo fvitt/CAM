@@ -85,22 +85,23 @@ contains
 
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------
-  subroutine get(self, m,l, density,hygro)
+  subroutine get(self, bin_ndx, species_ndx, density,hygro)
 
     class(carma_aerosol_properties), intent(in) :: self
-    integer, intent(in) :: m,l
+    integer, intent(in) :: bin_ndx             ! bin index
+    integer, intent(in) :: species_ndx         ! species index
     real(r8), optional, intent(out) :: density
     real(r8), optional, intent(out) :: hygro
 
-    call rad_cnst_get_bin_props_by_idx(0, m, l, density_aer=density, hygro_aer=hygro)
+    call rad_cnst_get_bin_props_by_idx(0, bin_ndx, species_ndx, density_aer=density, hygro_aer=hygro)
 
   end subroutine get
 
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------
-  subroutine actfracs(self, m, smc, smax, fn, fm )
+  subroutine actfracs(self, bin_ndx, smc, smax, fn, fm )
     class(carma_aerosol_properties), intent(in) :: self
-    integer, intent(in) :: m
+    integer, intent(in) :: bin_ndx
     real(r8),intent(in) :: smc
     real(r8),intent(in) :: smax
     real(r8),intent(out) :: fn, fm
@@ -117,26 +118,27 @@ contains
 
   !------------------------------------------------------------------------
   !------------------------------------------------------------------------
-  subroutine get_num_names(self, m, name_a, name_c)
+  subroutine get_num_names(self, bin_ndx, name_a, name_c)
     class(carma_aerosol_properties), intent(in) :: self
-    integer, intent(in) :: m
+    integer, intent(in) :: bin_ndx           ! bin number
     character(len=32), intent(out) :: name_a, name_c
 
-    call rad_cnst_get_info_by_bin(0, m, num_name=name_a, num_name_cw=name_c)
+    call rad_cnst_get_info_by_bin(0, bin_ndx, num_name=name_a, num_name_cw=name_c)
 
   end subroutine get_num_names
 
   !------------------------------------------------------------------------
   !------------------------------------------------------------------------
-  subroutine get_mmr_names(self, m,l, name_a, name_c)
+  subroutine get_mmr_names(self, bin_ndx, species_ndx, name_a, name_c)
     class(carma_aerosol_properties), intent(in) :: self
-    integer, intent(in) :: m,l
+    integer, intent(in) :: bin_ndx           ! bin number
+    integer, intent(in) :: species_ndx       ! species number
     character(len=32), intent(out) :: name_a, name_c
 
-    if (l>1) then
-       call rad_cnst_get_info_by_bin_spec(0, m, l-1, spec_name=name_a, spec_name_cw=name_c)
+    if (species_ndx>1) then
+       call rad_cnst_get_info_by_bin_spec(0, bin_ndx, species_ndx-1, spec_name=name_a, spec_name_cw=name_c)
     else
-       call rad_cnst_get_info_by_bin(0, m,  mmr_name=name_a, mmr_name_cw=name_c)
+       call rad_cnst_get_info_by_bin(0, bin_ndx,  mmr_name=name_a, mmr_name_cw=name_c)
     end if
 
   end subroutine get_mmr_names
