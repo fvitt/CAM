@@ -763,7 +763,11 @@ subroutine nucleate_ice_cam_calc( &
                soot_num = num_accum(i,k)*rho(i,k)*1.0e-6_r8
                dmc  = coarse_dust(i,k)*rho(i,k)
                ssmc = coarse_nacl(i,k)*rho(i,k)
-               so4mc = coarse_so4(i,k)*rho(i,k)
+               if (mode_coarse_idx>0) then
+                  so4mc = coarse_so4(i,k)*rho(i,k)
+               else
+                  so4mc = 0._r8
+               end if
 
                if (dmc > 0._r8) then
                   if ( separate_dust ) then
@@ -815,6 +819,8 @@ subroutine nucleate_ice_cam_calc( &
                so4_num_ac = num_accum(i,k)*rho(i,k)*1.0e-6_r8
                if (mode_strat_coarse_idx > 0) then
                   so4_num_st_cr = num_strcrs(i,k)*rho(i,k)*1.0e-6_r8 ! include stratosphere coarse
+               else
+                  so4_num_st_cr = 0._r8
                endif
                so4_num_st_cr_tot = so4_num_cr + so4_num_ac + so4_num_st_cr
 
