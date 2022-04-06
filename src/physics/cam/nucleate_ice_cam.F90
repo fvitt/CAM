@@ -117,7 +117,6 @@ integer :: mode_strat_coarse_idx  = -1  ! index of strat coarse mode
 
 logical  :: separate_dust = .false.
 real(r8) :: sigmag_aitken
-real(r8) :: sigmag_accum
 
 logical :: lq(pcnst) = .false. ! set flags true for constituents with non-zero tendencies
 integer :: cnum_idx, cdst_idx, cso4_idx
@@ -370,7 +369,6 @@ subroutine nucleate_ice_cam_init(mincld_in, bulk_scale_in, pbuf2d)
 
       ! get specific mode properties
       call rad_cnst_get_mode_props(0, mode_aitken_idx, sigmag=sigmag_aitken)
-      call rad_cnst_get_mode_props(0, mode_accum_idx, sigmag=sigmag_accum)
 
       if (prog_modal_aero) then
          call rad_cnst_get_mode_num_idx(mode_coarse_dst_idx, cnum_idx)
@@ -546,6 +544,7 @@ subroutine nucleate_ice_cam_calc( &
    real(r8) :: so4_num_ac
    real(r8) :: so4_num_cr
    real(r8) :: so4_num_st_cr
+   real(r8) :: so4_num_st_cr_tot
    real(r8) :: ramp
    real(r8) :: totalmmr
    real(r8) :: so4mmr
@@ -741,6 +740,8 @@ subroutine nucleate_ice_cam_calc( &
    kloop: do k = top_lev, pver
       iloop: do i = 1, ncol
 
+         so4_num_st_cr_tot = 0._r8
+
          freezing: if (t(i,k) < tmelt - 5._r8) then
 
             ! compute aerosol number for so4, soot, and dust with units #/cm^3
@@ -762,6 +763,7 @@ subroutine nucleate_ice_cam_calc( &
                soot_num = num_accum(i,k)*rho(i,k)*1.0e-6_r8
                dmc  = coarse_dust(i,k)*rho(i,k)
                ssmc = coarse_nacl(i,k)*rho(i,k)
+               so4mc = coarse_so4(i,k)*rho(i,k)
 
                if (dmc > 0._r8) then
                   if ( separate_dust ) then
@@ -771,7 +773,6 @@ subroutine nucleate_ice_cam_calc( &
                   else
                      ! 3-mode -- needs weighting for dust since dust, seasalt,
                      !           and sulfate are combined in the "coarse" mode type
-                     so4mc    = coarse_so4(i,k)*rho(i,k)
                      wght = dmc/(ssmc + dmc + so4mc)
                   endif
                   dst_num = wght * num_coarse(i,k)*rho(i,k)*1.0e-6_r8
@@ -789,7 +790,6 @@ subroutine nucleate_ice_cam_calc( &
                   ! 3-mode -- needs weighting for dust since dust, seasalt,
                   !           and sulfate are combined in the "coarse" mode
                   !           type
-                  so4mc    = coarse_so4(i,k)*rho(i,k)
 
                   if (so4mc > 0._r8) then
                     wght = so4mc/(ssmc + dmc + so4mc)
@@ -811,6 +811,12 @@ subroutine nucleate_ice_cam_calc( &
                   ! all so4 from aitken
                   so4_num  = num_aitken(i,k)*rho(i,k)*1.0e-6_r8
                end if
+
+               so4_num_ac = num_accum(i,k)*rho(i,k)*1.0e-6_r8
+               if (mode_strat_coarse_idx > 0) then
+                  so4_num_st_cr = num_strcrs(i,k)*rho(i,k)*1.0e-6_r8 ! include stratosphere coarse
+               endif
+               so4_num_st_cr_tot = so4_num_cr + so4_num_ac + so4_num_st_cr
 
             else if (clim_carma_aero) then
 
@@ -873,7 +879,7 @@ subroutine nucleate_ice_cam_calc( &
                      soot_num = soot_num + soot_num_bin(m)
                   end if !diam > 0.1microns
                end do
-
+               so4_num_st_cr_tot = so4_num
             else
 
                if (idxsul > 0) then
@@ -994,30 +1000,11 @@ subroutine nucleate_ice_cam_calc( &
             ! nucleation, and wsubi from CLUBB is probably not representative of
             ! wave driven varaibility in the polar stratosphere.
             if (nucleate_ice_use_troplev .and. (clim_modal_aero.or.clim_carma_aero)) then
-               if (clim_modal_aero) then
-                  if ((k < troplev(i)) .and. (nucleate_ice_strat > 0._r8)) then
-                     if (oso4_num > 0._r8) then
-                        so4_num_ac = num_accum(i,k)*rho(i,k)*1.0e-6_r8
-                        if (mode_strat_coarse_idx > 0) then
-                           so4_num_st_cr = num_strcrs(i,k)*rho(i,k)*1.0e-6_r8 ! include stratosphere coarse
-                           dso4_num = max(0._r8, (nucleate_ice_strat * (so4_num_cr + so4_num_ac + so4_num_st_cr)) &
-                                - oso4_num) * 1e6_r8 / rho(i,k)
-                        else
-                           dso4_num = max(0._r8, (nucleate_ice_strat * (so4_num_cr + so4_num_ac)) - oso4_num) * 1e6_r8 / rho(i,k)
-                        endif
-                        naai(i,k) = naai(i,k) + dso4_num
-                        nihf(i,k) = nihf(i,k) + dso4_num
-                     end if
-                  end if
-               elseif (clim_carma_aero) then
-                  if ((k < troplev(i)) .and. (nucleate_ice_strat > 0._r8)) then
-                     if (oso4_num > 0._r8) then
-                        dso4_num = max(0._r8, (nucleate_ice_strat * so4_num - oso4_num)) * 1e6_r8 / rho(i,k)
-                        naai(i,k) = naai(i,k) + dso4_num
-                        nihf(i,k) = nihf(i,k) + dso4_num
-                     end if
-                  end if
-               end if
+               if ((k < troplev(i)) .and. (nucleate_ice_strat > 0._r8) .and. (oso4_num > 0._r8)) then
+                  dso4_num = max(0._r8, (nucleate_ice_strat*so4_num_st_cr_tot - oso4_num) * 1e6_r8 / rho(i,k))
+                  naai(i,k) = naai(i,k) + dso4_num
+                  nihf(i,k) = nihf(i,k) + dso4_num
+               endif
             else
 
               ! This maintains backwards compatibility with the previous version.
