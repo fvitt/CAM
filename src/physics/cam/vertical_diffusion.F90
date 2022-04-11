@@ -651,7 +651,7 @@ subroutine vertical_diffusion_tend( &
   use physics_buffer,     only : physics_buffer_desc, pbuf_get_field, pbuf_set_field
   use physics_types,      only : physics_state, physics_ptend, physics_ptend_init
   use physics_types,      only : set_dry_to_wet, set_wet_to_dry
-  
+
   use camsrfexch,         only : cam_in_t
   use cam_history,        only : outfld
 
@@ -670,6 +670,7 @@ subroutine vertical_diffusion_tend( &
   use physconst,          only : pi
   use pbl_utils,          only : virtem, calc_obklen, calc_ustar
   use upper_bc,           only : ubc_get_vals
+  use upper_bc,           only : ubc_get_flxs
   use coords_1d,          only : Coords1D
 
   ! --------------- !
@@ -846,7 +847,7 @@ subroutine vertical_diffusion_tend( &
 
   ! Assume 'wet' mixing ratios in diffusion code.
   call set_dry_to_wet(state)
-  
+
   rztodt = 1._r8 / ztodt
   lchnk  = state%lchnk
   ncol   = state%ncol
@@ -867,8 +868,10 @@ subroutine vertical_diffusion_tend( &
   tint(:ncol,pver+1) = state%t(:ncol,pver)
 
   ! Get upper boundary values
-  call ubc_get_vals( state%lchnk, ncol, state%pint, state%zi, state%t, state%q, state%omega, state%phis, &
-                     ubc_t, ubc_mmr, ubc_flux )
+  call ubc_get_vals( state%lchnk, ncol, state%pint, state%zi, ubc_t, ubc_mmr )
+  if (waccmx_mode) then
+     call ubc_get_flxs( state%lchnk, ncol, state%pint, state%zi, state%t, state%q, state%phis, ubc_flux )
+  endif
 
   ! Always have a fixed upper boundary T if molecular diffusion is active. Why ?
   ! For WACCM-X, set ubc temperature to extrapolate from next two lower interface level temperatures
@@ -1152,7 +1155,7 @@ subroutine vertical_diffusion_tend( &
           p_dry , state%t      , rhoi_dry,  ztodt         , taux          , &
           tauy          , shflux             , cflux        , &
           kvh           , kvm                , kvq          , cgs           , cgh           , &
-          state%zi      , ksrftms            , dragblj      , & 
+          state%zi      , ksrftms            , dragblj      , &
           qmincg       , fieldlist_dry , fieldlist_molec,&
           u_tmp         , v_tmp              , q_tmp        , s_tmp         ,                 &
           tautmsx_temp  , tautmsy_temp       , dtk_temp     , topflx_temp   , errstring     , &
