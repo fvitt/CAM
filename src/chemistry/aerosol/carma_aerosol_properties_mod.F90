@@ -15,6 +15,7 @@ module carma_aerosol_properties_mod
      private
    contains
      procedure :: get
+     procedure :: amcube
      procedure :: actfracs
      procedure :: get_num_names
      procedure :: get_mmr_names
@@ -36,7 +37,6 @@ contains
     integer :: m, nbins, ncnst_tot
     integer,allocatable :: nspecies(:)
     integer,allocatable :: nmasses(:)
-    real(r8),allocatable :: amcubecoefs(:)
     real(r8),allocatable :: alogsig(:)
     real(r8),allocatable :: f1(:)
     real(r8),allocatable :: f2(:)
@@ -46,7 +46,6 @@ contains
     call rad_cnst_get_info( 0, nbins=nbins)
     allocate( nspecies(nbins) )
     allocate( nmasses(nbins) )
-    allocate( amcubecoefs(nbins) )
     allocate( alogsig(nbins) )
     allocate( f1(nbins) )
     allocate( f2(nbins) )
@@ -59,15 +58,13 @@ contains
        nmasses(m) = nspecies(m) + 1
     end do
 
-    amcubecoefs(:)=3._r8/(4._r8*pi)
     alogsig(:) = log(2._r8)  !!!! ???? IS THIS RIGHT ???? !!!
     f1 = 1._r8
     f2 = 1._r8
 
-    call newobj%initialize(nbins,ncnst_tot,nspecies,nmasses,amcubecoefs,alogsig,f1,f2)
+    call newobj%initialize(nbins,ncnst_tot,nspecies,nmasses,alogsig,f1,f2)
     deallocate(nspecies)
     deallocate(nmasses)
-    deallocate(amcubecoefs)
     deallocate(alogsig)
     deallocate(f1)
     deallocate(f2)
@@ -143,5 +140,18 @@ contains
 
   end subroutine get_mmr_names
 
+  !------------------------------------------------------------------------------
+  ! returns radius^3 (m3) of a given bin number
+  !------------------------------------------------------------------------------
+  pure elemental real(r8) function amcube(self, bin_ndx, volconc, numconc)
+
+    class(carma_aerosol_properties), intent(in) :: self
+    integer, intent(in) :: bin_ndx  ! bin number
+    real(r8), intent(in) :: volconc ! volume conc (m3/m3)
+    real(r8), intent(in) :: numconc ! number conc (1/m3)
+
+    amcube = 3._r8/(4._r8*pi)*volconc/numconc
+
+  end function amcube
 
 end module carma_aerosol_properties_mod

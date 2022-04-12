@@ -1584,7 +1584,7 @@ subroutine ccncalc(aero_state, aero_props, state, cs, ccn)
             hygro)
 
          where(naerosol(:ncol)>1.e-3_r8 .and. hygro(:ncol).gt.1.e-10_r8)
-            amcube(:ncol)=aero_props%amcubecoef(m)*vaerosol(:ncol)/naerosol(:ncol)
+            amcube(:ncol)=aero_props%amcube(m, vaerosol(:ncol), naerosol(:ncol) )
             sm(:ncol)=smcoef(:ncol)/sqrt(hygro(:ncol)*amcube(:ncol)) ! critical supersaturation
          elsewhere
             sm(:ncol)=1._r8 ! value shouldn't matter much since naerosol is small
