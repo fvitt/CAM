@@ -93,8 +93,8 @@ module radiation_data
   integer :: ngas, naer=0
   character(len=64), allocatable :: gasnames(:)
   character(len=64), allocatable :: aernames(:)
- 
-  ! control options  
+
+  ! control options
   logical          :: rad_data_output = .false.
   integer          :: rad_data_histfile_num = 2
   character(len=1) :: rad_data_avgflag = 'I'
@@ -125,10 +125,10 @@ contains
 
     if ( do_fdh ) then
       call pbuf_add_field('tcorr', 'global',  dtype_r8, (/pcols,pver/), tcorr_idx)
-      call pbuf_add_field('qrsin', 'physpkg', dtype_r8, (/pcols,pver/), qrsin_idx) 
-      call pbuf_add_field('qrlin', 'physpkg', dtype_r8, (/pcols,pver/), qrlin_idx) 
-      call pbuf_add_field('tropp', 'physpkg', dtype_r8, (/pcols/),      tropp_idx) 
-    end if 
+      call pbuf_add_field('qrsin', 'physpkg', dtype_r8, (/pcols,pver/), qrsin_idx)
+      call pbuf_add_field('qrlin', 'physpkg', dtype_r8, (/pcols,pver/), qrlin_idx)
+      call pbuf_add_field('tropp', 'physpkg', dtype_r8, (/pcols/),      tropp_idx)
+    end if
 
   end subroutine rad_data_register
 
@@ -192,7 +192,7 @@ contains
     use physics_buffer, only: pbuf_get_index
     use physics_buffer, only: pbuf_set_field
     implicit none
-    
+
     ! args
     type(physics_buffer_desc), pointer :: pbuf2d(:,:)
 
@@ -205,7 +205,7 @@ contains
     character(len=64) :: long_name_description
     character(len=16)  :: microp_scheme  ! microphysics scheme
     character(len=16)  :: rad_scheme
-   
+
     if (.not.enabled) return
 
     call phys_getopts(microp_scheme_out=microp_scheme, radiation_scheme_out=rad_scheme)
@@ -249,7 +249,7 @@ contains
        nmxrgn_ifld = pbuf_get_index('NMXRGN')
        pmxrgn_ifld = pbuf_get_index('PMXRGN')
     endif
-    
+
     if ( do_fdh ) then
        call addfld('rad_TROP_P', horiz_only,  'A','Pa','Pressure at which tropopause is defined for radiation' )
        call addfld('rad_TCORR',  (/ 'lev' /), 'I','K', 'Fixed dynamical heating temperature correction ' )
@@ -263,7 +263,7 @@ contains
 
     ! The code to output the gases assumes that the rad_constituents module has
     ! ordered them in the same way that they are ordered in the "gaslist" array
-    ! in module radconstants, and that there are nradgas of them.  This ordering 
+    ! in module radconstants, and that there are nradgas of them.  This ordering
     ! is performed in the internal init_lists routine in rad_constituents.
     if (ngas /= nradgas) then
        call endrun('rad_data_init: ERROR: ngas /= nradgas')
@@ -314,7 +314,7 @@ contains
          'radiation input: long wave direct albedo weighted by coszen',       flag_xyfill=.true.)
     call addfld (aldif_pos_fldn, horiz_only,   rad_data_avgflag, '1',        &
          'radiation input: long wave difuse albedo weighted by coszen',       flag_xyfill=.true.)
-    
+
     call addfld (lwup_fldn,      horiz_only,   rad_data_avgflag, 'W/m2',     &
          'radiation input: long wave up radiation flux ')
     call addfld (ts_fldn,        horiz_only,   rad_data_avgflag, 'K',        &
@@ -415,7 +415,7 @@ contains
     call add_default (rei_fldn,       rad_data_histfile_num, ' ')
     call add_default (qrs_fldn,       rad_data_histfile_num, ' ')
     call add_default (qrl_fldn,       rad_data_histfile_num, ' ')
-    
+
     if (mg_microphys) then
        call add_default (dei_fldn,       rad_data_histfile_num, ' ')
        call add_default (des_fldn,       rad_data_histfile_num, ' ')
@@ -454,7 +454,7 @@ contains
        call addfld(trim(name), (/ 'lev' /), rad_data_avgflag, 'kg/kg', trim(long_name))
        call add_default (trim(name), rad_data_histfile_num, ' ')
     end do
-    
+
     if (naer > 0) then
 
        do i = 1, naer
@@ -500,7 +500,7 @@ contains
   subroutine rad_data_write(  pbuf, state, cam_in, coszen )
 
     use physics_types,    only: physics_state
-    use camsrfexch,       only: cam_in_t     
+    use camsrfexch,       only: cam_in_t
     use constituents,     only: cnst_get_ind
     use physics_buffer,   only: pbuf_get_field, pbuf_old_tim_idx
     use drv_input_data,   only: drv_input_data_freq
@@ -508,7 +508,7 @@ contains
 
     implicit none
     type(physics_buffer_desc), pointer :: pbuf(:)
-    
+
     type(physics_state), intent(in), target :: state
     type(cam_in_t),      intent(in) :: cam_in
     real(r8),            intent(in) :: coszen(pcols)
@@ -524,7 +524,7 @@ contains
     integer :: ixcldliq              ! cloud liquid water index
     integer :: icol
     integer :: ncol
-    
+
     ! surface albedoes weighted by (positive cosine zenith angle)
     real(r8):: coszrs_pos(pcols)    ! = max(coszrs,0)
     real(r8):: asdir_pos (pcols)    !
@@ -547,7 +547,7 @@ contains
     real(r8), pointer, dimension(:,:,:) :: qaerwat_ptr
 
     if (.not.enabled) return
-    call pbuf_get_field(pbuf, qrs_ifld, qrs )    
+    call pbuf_get_field(pbuf, qrs_ifld, qrs )
     call pbuf_get_field(pbuf, qrl_ifld, qrl )
 
     lchnk = state%lchnk
@@ -555,7 +555,7 @@ contains
 
    ! store temperature correction above tropopause in pbuf for Fixed Dynamical Heating
     if(do_fdh) then
-       
+
        call pbuf_get_field(pbuf, tcorr_idx, tcorr)
        call pbuf_get_field(pbuf, qrsin_idx, qrsin)
        call pbuf_get_field(pbuf, qrlin_idx, qrlin)
@@ -563,7 +563,7 @@ contains
        do k = 1, pver
           do i = 1, ncol
              if ( state%pmid(i,k) < tropp(i)) then
-                tcorr(i,k) = tcorr(i,k) + drv_input_data_freq*(qrs(i,k) - qrsin(i,k) + qrl(i,k) - qrlin(i,k)) /cpair 
+                tcorr(i,k) = tcorr(i,k) + drv_input_data_freq*(qrs(i,k) - qrsin(i,k) + qrl(i,k) - qrlin(i,k)) /cpair
              endif
           enddo
        enddo
@@ -627,29 +627,29 @@ contains
 
     call pbuf_get_field(pbuf, rei_ifld,    ptr )
     call outfld(rei_fldn,    ptr, pcols, lchnk )
-    
+
     if (mg_microphys) then
 
        call pbuf_get_field(pbuf,  dei_ifld, ptr     )
-       call outfld(dei_fldn,      ptr, pcols, lchnk   )       
+       call outfld(dei_fldn,      ptr, pcols, lchnk   )
 
        call pbuf_get_field(pbuf,  des_ifld, ptr     )
-       call outfld(des_fldn,      ptr, pcols, lchnk   )       
+       call outfld(des_fldn,      ptr, pcols, lchnk   )
 
        call pbuf_get_field(pbuf,  mu_ifld, ptr      )
-       call outfld(mu_fldn,       ptr, pcols, lchnk   ) 
+       call outfld(mu_fldn,       ptr, pcols, lchnk   )
 
        call pbuf_get_field(pbuf,  lambdac_ifld, ptr )
-       call outfld(lambdac_fldn,  ptr, pcols, lchnk   )       
+       call outfld(lambdac_fldn,  ptr, pcols, lchnk   )
 
        call pbuf_get_field(pbuf,  iciwp_ifld, ptr   )
-       call outfld(iciwp_fldn,    ptr, pcols, lchnk   )       
+       call outfld(iciwp_fldn,    ptr, pcols, lchnk   )
 
        call pbuf_get_field(pbuf,  iclwp_ifld, ptr   )
-       call outfld(iclwp_fldn,    ptr, pcols, lchnk   )       
+       call outfld(iclwp_fldn,    ptr, pcols, lchnk   )
 
        call pbuf_get_field(pbuf,  icswp_ifld, ptr   )
-       call outfld(icswp_fldn,    ptr, pcols, lchnk   )       
+       call outfld(icswp_fldn,    ptr, pcols, lchnk   )
 
        call pbuf_get_field(pbuf,  cldfsnow_ifld, ptr, start=(/1,1,itim_old/), kount=(/pcols,pver,1/) )
        call outfld(cldfsnow_fldn, ptr, pcols, lchnk   )
@@ -677,7 +677,7 @@ contains
 
     endif
 
-    ! output mixing ratio of rad constituents 
+    ! output mixing ratio of rad constituents
 
     do i = 1, ngas
        name = 'rad_'//gasnames(i)
@@ -689,7 +689,7 @@ contains
        ! bulk aerosol model
        do i = 1, naer
           name = 'rad_'//aernames(i)
-          call rad_cnst_get_aer_mmr(0, i, state, pbuf, mmr)
+          call rad_cnst_get_aer_mmr(0, i, state%q, pbuf, mmr)
           call outfld(trim(name), mmr, pcols, lchnk)
        end do
     endif
@@ -710,7 +710,7 @@ contains
           ! aerosol species loop
           do l = 1, nspec
              call rad_cnst_get_info(0,m,l, spec_name=aername)
-             call rad_cnst_get_aer_mmr(0, m, l, 'a', state, pbuf, mmr)
+             call rad_cnst_get_aer_mmr(0, m, l, 'a', state%q, pbuf, mmr)
              name = 'rad_'//aername
              call outfld(trim(name), mmr, pcols, lchnk)
           enddo
@@ -901,7 +901,7 @@ contains
 
     enddo
 
-    
+
     if (nmodes>0) then
        call get_aeromode_data( indata, dgnumwet_fldn, recno, dgnumwet_ptrs )
        call get_aeromode_data( indata, qaerwat_fldn, recno, qaerwat_ptrs )
@@ -1059,7 +1059,7 @@ contains
 
     !-----------------------------------------------------------------------------
 
-    ! read in mixing ratio of rad constituents 
+    ! read in mixing ratio of rad constituents
 
     do i = 1,ngas
        call read_rad_gas_data(indata, gasnames(i), i, state, pbuf2d, recno )
@@ -1068,7 +1068,7 @@ contains
     do i = 1,naer
        call read_rad_aer_data(indata, aernames(i), i, state, pbuf2d, recno )
     enddo
-    
+
     ! aerosol mode loop
     do m = 1, nmodes
 
@@ -1139,7 +1139,7 @@ contains
     do c = begchunk,endchunk
        ncol = state(c)%ncol
        phys_buffer_chunk => pbuf_get_chunk(pbuf2d, c)
-       call rad_cnst_get_aer_mmr(0, idx, state(c), phys_buffer_chunk, mmr_ptr)
+       call rad_cnst_get_aer_mmr(0, idx, state(c)%q, phys_buffer_chunk, mmr_ptr)
        mmr_ptr(:ncol,:) = mass(:ncol,:,c)
     enddo
 
@@ -1171,7 +1171,7 @@ contains
     do c = begchunk,endchunk
        ncol = state(c)%ncol
        phys_buffer_chunk => pbuf_get_chunk(pbuf2d, c)
-       call rad_cnst_get_aer_mmr(0, mode_idx, spec_idx, 'a', state(c), phys_buffer_chunk, mmr_ptr)
+       call rad_cnst_get_aer_mmr(0, mode_idx, spec_idx, 'a', state(c)%q, phys_buffer_chunk, mmr_ptr)
        mmr_ptr(:ncol,:) = mass(:ncol,:,c)
     enddo
 

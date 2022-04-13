@@ -371,7 +371,7 @@ subroutine dropmixnuc( aero_props, aero_state, &
 
    ! Init pointers to mode number and specie mass mixing ratios in
    ! intersitial and cloud borne phases.
-   call aero_state%get_states( aero_props, raer, qqcw )
+   call aero_state%get_states( aero_props, state%q, raer, qqcw )
 
    called_from_spcam = (present(from_spcam))
 
@@ -552,7 +552,7 @@ subroutine dropmixnuc( aero_props, aero_state, &
             do m = 1, nbin
                call aero_state%loadaer( aero_props, &
                   i, i, k, &
-                  m, cs, phase, na, va, &
+                  m, cs, phase, state%q, na, va, &
                   hy)
                naermod(m)  = na(i)
                vaerosol(m) = va(i)
@@ -640,7 +640,7 @@ subroutine dropmixnuc( aero_props, aero_state, &
                   !   aerosol from layer below
                   call aero_state%loadaer( aero_props, &
                      i, i, kp1,  &
-                     m, cs, phase, na, va,   &
+                     m, cs, phase, state%q, na, va,   &
                      hy)
                   naermod(m)  = na(i)
                   vaerosol(m) = va(i)
@@ -1580,7 +1580,7 @@ subroutine ccncalc(aero_state, aero_props, state, cs, ccn)
 
          call aero_state%loadaer( aero_props, &
             1, ncol, k, &
-            m, cs, phase, naerosol, vaerosol, &
+            m, cs, phase, state%q, naerosol, vaerosol, &
             hygro)
 
          where(naerosol(:ncol)>1.e-3_r8 .and. hygro(:ncol).gt.1.e-10_r8)

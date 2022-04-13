@@ -32,30 +32,33 @@ module aerosol_state_mod
 
      !------------------------------------------------------------------------
      !------------------------------------------------------------------------
-     subroutine aero_get_state_mmr(self, species_ndx, bin_ndx, mmr)
+     subroutine aero_get_state_mmr(self, species_ndx, bin_ndx, cnst_array, mmr)
        import
        class(aerosol_state), intent(in) :: self
        integer, intent(in) :: species_ndx  ! species index
        integer, intent(in) :: bin_ndx      ! bin index
+       real(r8), target, intent(in) :: cnst_array(:,:,:) ! Constituent array
        real(r8), pointer :: mmr(:,:)       ! mass mixing ratios
      end subroutine aero_get_state_mmr
 
      !------------------------------------------------------------------------
      !------------------------------------------------------------------------
-     subroutine aero_get_state_num(self, bin_ndx, num)
+     subroutine aero_get_state_num(self, bin_ndx, cnst_array, num)
        import
        class(aerosol_state), intent(in) :: self
        integer, intent(in) :: bin_ndx      ! bin index
+       real(r8), target, intent(in) :: cnst_array(:,:,:) ! Constituent array
        real(r8), pointer :: num(:,:)       ! number densities
      end subroutine aero_get_state_num
 
      !------------------------------------------------------------------------
      !------------------------------------------------------------------------
-     subroutine aero_get_states( self, aero_props, raer, qqcw )
+     subroutine aero_get_states( self, aero_props, cnst_array, raer, qqcw )
        import
 
        class(aerosol_state), intent(in) :: self
        class(aerosol_properties), intent(in) :: aero_props ! properties of the aerosol model
+       real(r8), target, intent(in) :: cnst_array(:,:,:) ! Constituent array
        type(ptr2d_t), intent(out) :: raer(:) ! state of interstitual aerosols
        type(ptr2d_t), intent(out) :: qqcw(:) ! state of cloud-borne aerosols
 
@@ -68,7 +71,7 @@ contains
   !------------------------------------------------------------------------------
   ! returns aerosol number, volume concentrations, and bulk hygroscopicity
   !------------------------------------------------------------------------------
-  subroutine loadaer1( self, aero_props, istart, istop, k,  m, cs, phase, &
+  subroutine loadaer1( self, aero_props, istart, istop, k,  m, cs, phase, cnst_array, &
                        naerosol, vaerosol, hygro)
 
     use aerosol_properties_mod, only: aerosol_properties
@@ -86,6 +89,7 @@ contains
     integer,  intent(in) :: k           ! level index
     real(r8), intent(in) :: cs(:,:)     ! air density (kg/m3)
     integer,  intent(in) :: phase       ! phase of aerosol: 1 for interstitial, 2 for cloud-borne, 3 for sum
+    real(r8), target, intent(in) :: cnst_array(:,:,:) ! Constituent array
 
     ! output arguments
     real(r8), intent(out) :: naerosol(:)  ! number conc (1/m3)
@@ -108,8 +112,8 @@ contains
 
     do l = 1, aero_props%nspecies(m)
 
-       call self%get_ambient_mmr(l,m, raer)
-       call self%get_cldbrne_mmr(l,m, qqcw)
+       call self%get_ambient_mmr(l,m, cnst_array, raer)
+       call self%get_cldbrne_mmr(l,m, cnst_array, qqcw)
        call aero_props%get(m,l, density=specdens, hygro=spechygro)
 
        if (phase == 3) then
@@ -147,8 +151,8 @@ contains
     end do
 
     ! aerosol number
-    call self%get_ambient_num(m, raer)
-    call self%get_cldbrne_num(m, qqcw)
+    call self%get_ambient_num(m, cnst_array, raer)
+    call self%get_cldbrne_num(m, cnst_array, qqcw)
     if (phase == 3) then
        do i = istart, istop
           naerosol(i) = (raer(i,k) + qqcw(i,k))*cs(i,k)
@@ -177,7 +181,7 @@ contains
 
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------
-  subroutine loadaer2( self, aero_props, i, k, m, cs, phase, &
+  subroutine loadaer2( self, aero_props, i, k, m, cs, phase, cnst_array, &
                        naerosol, vaerosol, hygro )
 
     use aerosol_properties_mod, only: aerosol_properties
@@ -194,6 +198,7 @@ contains
     integer,  intent(in) :: m           ! mode or bin index
     real(r8), intent(in) :: cs          ! air density (kg/m3)
     integer,  intent(in) :: phase       ! phase of aerosol: 1 for interstitial, 2 for cloud-borne, 3 for sum
+    real(r8), target, intent(in) :: cnst_array(:,:,:) ! Constituent array
 
     ! output arguments
     real(r8), intent(out) :: naerosol  ! number conc (1/m3)
@@ -207,7 +212,7 @@ contains
 
     cs_a(i,k) = cs
 
-    call self%loadaer(aero_props, i, i, k, m, cs_a, phase, naerosol_a, vaerosol_a, hygro_a)
+    call self%loadaer(aero_props, i, i, k, m, cs_a, phase, cnst_array, naerosol_a, vaerosol_a, hygro_a)
 
     naerosol = naerosol_a(i)
     vaerosol = vaerosol_a(i)

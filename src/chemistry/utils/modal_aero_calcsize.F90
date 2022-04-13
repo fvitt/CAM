@@ -75,10 +75,10 @@ subroutine modal_aero_calcsize_reg()
   use rad_constituents, only: rad_cnst_get_info
 
   integer :: nmodes
-  
+
   call rad_cnst_get_info(0, nmodes=nmodes)
 
-  call pbuf_add_field('DGNUM', 'global',  dtype_r8, (/pcols, pver, nmodes/), dgnum_idx)    
+  call pbuf_add_field('DGNUM', 'global',  dtype_r8, (/pcols, pver, nmodes/), dgnum_idx)
 
   call pbuf_add_field('HYGRO',     'phys_pkg', dtype_r8, (/pcols,pver,nmodes/), hygro_idx)
   call pbuf_add_field('DRYVOL',    'phys_pkg', dtype_r8, (/pcols,pver,nmodes/), dryvol_idx)
@@ -155,7 +155,7 @@ subroutine modal_aero_calcsize_init(pbuf2d)
    if ( .not. do_adjust_default ) return
 
    !  define history fields for number-adjust source-sink for all modes
-   do n = 1, ntot_amode 
+   do n = 1, ntot_amode
       if (mprognum_amode(n) <= 0) cycle
 
       do jac = 1, 2
@@ -198,7 +198,7 @@ subroutine modal_aero_calcsize_init(pbuf2d)
    ! define history fields for aitken-accum transfer
    do iq = 1, nspecfrm_renamexf(ipair)
 
-      ! jac=1 does interstitial ("_a"); jac=2 does activated ("_c"); 
+      ! jac=1 does interstitial ("_a"); jac=2 does activated ("_c");
       do jac = 1, 2
 
          ! the lspecfrma_renamexf (and lspecfrmc_renamexf) are aitken species
@@ -269,7 +269,7 @@ subroutine modal_aero_calcsize_sub(state, ptend, deltat, pbuf, do_adjust_in, &
 
    !-----------------------------------------------------------------------
    !
-   ! Calculates aerosol size distribution parameters 
+   ! Calculates aerosol size distribution parameters
    !    mprognum_amode >  0
    !       calculate Dgnum from mass, number, and fixed sigmag
    !    mprognum_amode <= 0
@@ -306,7 +306,7 @@ subroutine modal_aero_calcsize_sub(state, ptend, deltat, pbuf, do_adjust_in, &
    real(r8), pointer :: t(:,:)      ! Temperature in Kelvin
    real(r8), pointer :: pmid(:,:)   ! pressure at model levels (Pa)
    real(r8), pointer :: pdel(:,:)   ! pressure thickness of levels
-   real(r8), pointer :: q(:,:,:)    ! Tracer MR array 
+   real(r8), pointer :: q(:,:,:)    ! Tracer MR array
 
    logical,  pointer :: dotend(:)   ! flag for doing tendency
    real(r8), pointer :: dqdt(:,:,:) ! TMR tendency array
@@ -316,7 +316,7 @@ subroutine modal_aero_calcsize_sub(state, ptend, deltat, pbuf, do_adjust_in, &
    integer  :: i, icol_diag, iduma, ipair, iq
    integer  :: ixfer_acc2ait, ixfer_ait2acc
    integer  :: ixfer_acc2ait_sv(pcols,pver), ixfer_ait2acc_sv(pcols,pver)
-   integer  :: j, jac, jsrflx, k 
+   integer  :: j, jac, jsrflx, k
    integer  :: l, l1, la, lc, lna, lnc, lsfrm, lstoo
    integer  :: n, nacc, nait
 
@@ -338,12 +338,12 @@ subroutine modal_aero_calcsize_sub(state, ptend, deltat, pbuf, do_adjust_in, &
    real(r8) :: dqqcwdt(pcols,pver,pcnst)     ! cloudborne TMR tendency array
    real(r8) :: drv_a, drv_c, drv_t           ! dry volume (cm3/mol_air)
    real(r8) :: drv_t0
-   real(r8) :: drv_a_noxf, drv_c_noxf, drv_t_noxf 
+   real(r8) :: drv_a_noxf, drv_c_noxf, drv_t_noxf
    real(r8) :: drv_a_acc, drv_c_acc
    real(r8) :: drv_a_accsv(pcols,pver), drv_c_accsv(pcols,pver)
    real(r8) :: drv_a_aitsv(pcols,pver), drv_c_aitsv(pcols,pver)
    real(r8) :: drv_a_sv(pcols,pver,ntot_amode), drv_c_sv(pcols,pver,ntot_amode)
-   real(r8) :: dryvol_a(pcols,pver)          ! interstital aerosol dry 
+   real(r8) :: dryvol_a(pcols,pver)          ! interstital aerosol dry
    ! volume (cm^3/mol_air)
    real(r8) :: dryvol_c(pcols,pver)          ! activated aerosol dry volume
    real(r8) :: duma, dumb, dumc, dumd        ! work variables
@@ -361,13 +361,13 @@ subroutine modal_aero_calcsize_sub(state, ptend, deltat, pbuf, do_adjust_in, &
    real(r8) :: num_a_accsv(pcols,pver), num_c_accsv(pcols,pver)
    real(r8) :: num_a_aitsv(pcols,pver), num_c_aitsv(pcols,pver)
    real(r8) :: num_a_sv(pcols,pver,ntot_amode), num_c_sv(pcols,pver,ntot_amode)
-   real(r8) :: pdel_fac                      ! 
+   real(r8) :: pdel_fac                      !
    real(r8) :: tadj                          ! adjustment time scale
    real(r8) :: tadjinv                       ! 1/tadj
    real(r8) :: v2ncur_a(pcols,pver,ntot_amode)
    real(r8) :: v2ncur_c(pcols,pver,ntot_amode)
    real(r8) :: v2nyy, v2nxx, v2nzz           ! voltonumblo/hi of current mode
-   real(r8) :: v2nyyrl, v2nxxrl              ! relaxed voltonumblo/hi 
+   real(r8) :: v2nyyrl, v2nxxrl              ! relaxed voltonumblo/hi
    real(r8) :: xfercoef
    real(r8) :: xfercoef_num_acc2ait, xfercoef_vol_acc2ait
    real(r8) :: xfercoef_num_ait2acc, xfercoef_vol_ait2acc
@@ -378,11 +378,11 @@ subroutine modal_aero_calcsize_sub(state, ptend, deltat, pbuf, do_adjust_in, &
    integer, parameter :: nsrflx = 4    ! last dimension of qsrflx
    real(r8) :: qsrflx(pcols,pcnst,nsrflx,2)
    ! process-specific column tracer tendencies
-   ! 3rd index -- 
+   ! 3rd index --
    !    1="standard" number adjust gain;
    !    2="standard" number adjust loss;
    !    3=aitken-->accum renaming; 4=accum-->aitken)
-   ! 4th index -- 
+   ! 4th index --
    !    1="a" species; 2="c" species
    !-----------------------------------------------------------------------
 
@@ -405,7 +405,7 @@ subroutine modal_aero_calcsize_sub(state, ptend, deltat, pbuf, do_adjust_in, &
    pmid => state%pmid
    pdel => state%pdel
    q    => state%q
- 
+
    dotend => ptend%lq
    dqdt   => ptend%q
 
@@ -428,7 +428,7 @@ subroutine modal_aero_calcsize_sub(state, ptend, deltat, pbuf, do_adjust_in, &
    fracadj = deltat*tadjinv
    fracadj = max( 0.0_r8, min( 1.0_r8, fracadj ) )
 
-   
+
    !
    !
    ! the "do 40000" loop does the original (pre jan-2006)
@@ -454,7 +454,7 @@ subroutine modal_aero_calcsize_sub(state, ptend, deltat, pbuf, do_adjust_in, &
          end do
       end do
 
-      ! compute dry volume mixrats = 
+      ! compute dry volume mixrats =
       !      sum_over_components{ component_mass mixrat / density }
       do l1 = 1, nspec_amode(n)
          ! need qmass*dummwdens = (kg/kg-air) * [1/(kg/m3)] = m3/kg-air
@@ -524,12 +524,12 @@ subroutine modal_aero_calcsize_sub(state, ptend, deltat, pbuf, do_adjust_in, &
          !    number towards the primary bounds.
          !
          ! note
-         !    v2nyy = voltonumblo_amode is proportional to dgnumlo**(-3), 
+         !    v2nyy = voltonumblo_amode is proportional to dgnumlo**(-3),
          !            and produces the maximum allowed number for a given volume
-         !    v2nxx = voltonumbhi_amode is proportional to dgnumhi**(-3), 
+         !    v2nxx = voltonumbhi_amode is proportional to dgnumhi**(-3),
          !            and produces the minimum allowed number for a given volume
-         !    v2nxxrl and v2nyyrl are their "relaxed" equivalents.  
-         !            Setting frelaxadj=27=3**3 means that 
+         !    v2nxxrl and v2nyyrl are their "relaxed" equivalents.
+         !            Setting frelaxadj=27=3**3 means that
          !            dgnumlo_relaxed = dgnumlo/3 and dgnumhi_relaxed = dgnumhi*3
          !
          ! if do_aitacc_transfer is .true., then
@@ -540,7 +540,7 @@ subroutine modal_aero_calcsize_sub(state, ptend, deltat, pbuf, do_adjust_in, &
          !OLD  however, do not change the v2nyyrl/v2nxxrl so that
          !OLD      the interstitial<-->activated adjustment is not changed
          !NEW  also change the v2nyyrl/v2nxxrl so that
-         !NEW      the interstitial<-->activated adjustment is turned off 
+         !NEW      the interstitial<-->activated adjustment is turned off
          !
       end if
       frelaxadj = 27.0_r8
@@ -630,7 +630,7 @@ subroutine modal_aero_calcsize_sub(state, ptend, deltat, pbuf, do_adjust_in, &
                      num_c2 = max( drv_c*v2nxxrl, min( drv_c*v2nyyrl,   &
                         num_c1-delnum_a2 ) )
                   end if
-                  ! step3:  num_a,c2 --> num_a,c3 applies stricter bounds to the 
+                  ! step3:  num_a,c2 --> num_a,c3 applies stricter bounds to the
                   !    combined/total number
                   drv_t = drv_a + drv_c
                   num_t2 = num_a2 + num_c2
@@ -738,8 +738,8 @@ subroutine modal_aero_calcsize_sub(state, ptend, deltat, pbuf, do_adjust_in, &
 
    !
    !
-   ! the following section (from here to label 49000) 
-   !    does aitken <--> accum mode transfer 
+   ! the following section (from here to label 49000)
+   !    does aitken <--> accum mode transfer
    !
    ! when the aitken mode mean size is too big, the largest
    !    aitken particles are transferred into the accum mode
@@ -852,8 +852,8 @@ subroutine modal_aero_calcsize_sub(state, ptend, deltat, pbuf, do_adjust_in, &
             ! compute accum --> aitken transfer rates
             ! accum may have some species (seasalt, dust, poa, lll) that are
             !    not in aitken mode
-            ! so first divide the accum drv & num into not-transferred (noxf) species 
-            !    and transferred species, and use the transferred-species 
+            ! so first divide the accum drv & num into not-transferred (noxf) species
+            !    and transferred species, and use the transferred-species
             !    portion in what follows
             ixfer_acc2ait = 0
             xfercoef_num_acc2ait = 0.0_r8
@@ -874,7 +874,7 @@ subroutine modal_aero_calcsize_sub(state, ptend, deltat, pbuf, do_adjust_in, &
                         drv_a_noxf = drv_a_noxf    &
                            + max(0.0_r8,q(i,k,la))*dummwdens
                         lc = lmassptrcw_amode(l1,nacc)
-                        
+
                         fldcw => qqcw_get_field(pbuf,lmassptrcw_amode(l1,nacc),lchnk)
                         drv_c_noxf = drv_c_noxf    &
                            + max(0.0_r8,fldcw(i,k))*dummwdens
@@ -967,7 +967,7 @@ subroutine modal_aero_calcsize_sub(state, ptend, deltat, pbuf, do_adjust_in, &
                      dgncur_a(i,k,n) = dgnum_amode(n)
                      v2ncur_a(i,k,n) = voltonumb_amode(n)
                   end if
-                  
+
                   if (drv_c > 0.0_r8) then
                      if (num_c <= drv_c*voltonumbhi_amode(n)) then
                         dgncur_c(i,k,n) = dgnumhi_amode(n)
@@ -990,7 +990,7 @@ subroutine modal_aero_calcsize_sub(state, ptend, deltat, pbuf, do_adjust_in, &
                !
                ! compute tendency amounts for aitken <--> accum transfer
                !
-               
+
                if ( masterproc ) then
                   if (idiagaa > 0) then
                      do j = 1, 2
@@ -1023,7 +1023,7 @@ subroutine modal_aero_calcsize_sub(state, ptend, deltat, pbuf, do_adjust_in, &
                idiagaa = -1
 
 
-               ! j=1 does aitken-->accum; j=2 does accum-->aitken 
+               ! j=1 does aitken-->accum; j=2 does accum-->aitken
                do  j = 1, 2
 
                   if ((j .eq. 1 .and. ixfer_ait2acc > 0) .or. &
@@ -1038,7 +1038,7 @@ subroutine modal_aero_calcsize_sub(state, ptend, deltat, pbuf, do_adjust_in, &
 
                      do  iq = 1, nspecfrm_renamexf(ipair)
 
-                        ! jac=1 does interstitial ("_a"); jac=2 does activated ("_c"); 
+                        ! jac=1 does interstitial ("_a"); jac=2 does activated ("_c");
                         do  jac = 1, 2
 
                            ! the lspecfrma_renamexf (and lspecfrmc_renamexf) are aitken species
@@ -1096,7 +1096,7 @@ subroutine modal_aero_calcsize_sub(state, ptend, deltat, pbuf, do_adjust_in, &
       end do
 
 
-   end if  !  do_aitacc_transfer 
+   end if  !  do_aitacc_transfer
    lsfrm = -123456789   ! executable statement for debugging
 
 
@@ -1122,8 +1122,8 @@ subroutine modal_aero_calcsize_sub(state, ptend, deltat, pbuf, do_adjust_in, &
 
    ! history fields for number-adjust source-sink for all modes
    if ( .not. do_adjust ) return
-   
-   do n = 1, ntot_amode 
+
+   do n = 1, ntot_amode
       if (mprognum_amode(n) <= 0) cycle
 
       do jac = 1, 2
@@ -1136,7 +1136,7 @@ subroutine modal_aero_calcsize_sub(state, ptend, deltat, pbuf, do_adjust_in, &
          end if
          fieldname = trim(tmpnamea) // '_sfcsiz1'
          call outfld( fieldname, qsrflx(:,l,1,jac), pcols, lchnk)
-         
+
          fieldname = trim(tmpnamea) // '_sfcsiz2'
          call outfld( fieldname, qsrflx(:,l,2,jac), pcols, lchnk)
       end do   ! jac = ...
@@ -1149,7 +1149,7 @@ subroutine modal_aero_calcsize_sub(state, ptend, deltat, pbuf, do_adjust_in, &
 
    do iq = 1, nspecfrm_renamexf(ipair)
 
-      ! jac=1 does interstitial ("_a"); jac=2 does activated ("_c"); 
+      ! jac=1 does interstitial ("_a"); jac=2 does activated ("_c");
       do jac = 1, 2
 
          ! the lspecfrma_renamexf (and lspecfrmc_renamexf) are aitken species
@@ -1162,7 +1162,7 @@ subroutine modal_aero_calcsize_sub(state, ptend, deltat, pbuf, do_adjust_in, &
             lstoo = lspectooc_renamexf(iq,ipair)
          end if
          if ((lsfrm <= 0) .or. (lstoo <= 0)) cycle
-         
+
          if (jac .eq. 1) then
             tmpnamea = cnst_name(lsfrm)
             tmpnameb = cnst_name(lstoo)
@@ -1192,7 +1192,7 @@ subroutine modal_aero_calcsize_sub(state, ptend, deltat, pbuf, do_adjust_in, &
 #endif
 
 end subroutine modal_aero_calcsize_sub
- 
+
 
 !----------------------------------------------------------------------
 
@@ -1202,7 +1202,7 @@ subroutine modal_aero_calcsize_diag(state, pbuf, list_idx_in, dgnum_m, &
 
    !-----------------------------------------------------------------------
    !
-   ! Calculate aerosol size distribution parameters 
+   ! Calculate aerosol size distribution parameters
    !
    ! ***N.B.*** DGNUM for the modes in the climate list are put directly into
    !            the physics buffer.  For diagnostic list calculations use the
@@ -1339,17 +1339,17 @@ subroutine modal_aero_calcsize_diag(state, pbuf, list_idx_in, dgnum_m, &
                                    sigmag=sigmag)
 
       ! get mode number mixing ratio
-      call rad_cnst_get_mode_num(list_idx, n, 'a', state, pbuf, mode_num)
+      call rad_cnst_get_mode_num(list_idx, n, 'a', state%q, pbuf, mode_num)
 
       dgncur_a(:,:) = dgnum
       dryvol_a(:,:) = 0.0_r8
 
-      ! compute dry volume mixrats = 
+      ! compute dry volume mixrats =
       !      sum_over_components{ component_mass mixrat / density }
       call rad_cnst_get_info(list_idx, n, nspec=nspec)
       do l1 = 1, nspec
 
-         call rad_cnst_get_aer_mmr(list_idx, n, l1, 'a', state, pbuf, specmmr)
+         call rad_cnst_get_aer_mmr(list_idx, n, l1, 'a', state%q, pbuf, specmmr)
          call rad_cnst_get_aer_props(list_idx, n, l1, density_aer=specdens)
 
          ! need qmass*dummwdens = (kg/kg-air) * [1/(kg/m3)] = m3/kg-air
@@ -1417,7 +1417,7 @@ subroutine modal_aero_calcdry(state, pbuf, list_idx_in, dgnumdry_m, hygro_m, dry
    real(r8), pointer :: maer(:,:)        ! aerosol wet mass MR (including water) (kg/kg-air)
    real(r8), pointer :: hygro(:,:,:)     ! volume-weighted mean hygroscopicity (--)
    real(r8), pointer :: dryvol(:,:,:)    ! single-particle-mean dry volume (m3)
-   real(r8), pointer :: dryrad(:,:,:)    ! dry volume mean radius of aerosol (m) 
+   real(r8), pointer :: dryrad(:,:,:)    ! dry volume mean radius of aerosol (m)
    real(r8), pointer :: drymass(:,:,:)   ! single-particle-mean dry mass  (kg)
    real(r8), pointer :: so4dryvol(:,:,:) ! single-particle-mean so4 dry volume (m3)
    real(r8), pointer :: naer(:,:,:)      ! aerosol number MR (bounded!) (#/kg-air)
@@ -1507,7 +1507,7 @@ subroutine modal_aero_calcdry(state, pbuf, list_idx_in, dgnumdry_m, hygro_m, dry
       do l = 1, nspec
 
          ! get species interstitial mixing ratio ('a')
-         call rad_cnst_get_aer_mmr(list_idx, m, l, 'a', state, pbuf, raer)
+         call rad_cnst_get_aer_mmr(list_idx, m, l, 'a', state%q, pbuf, raer)
          call rad_cnst_get_aer_props(list_idx, m, l, density_aer=specdens, &
                                      hygro_aer=spechygro, spectype=spectype)
 

@@ -529,13 +529,13 @@ subroutine microp_aero_run ( &
 
    if (clim_modal_aero) then
       ! mode number mixing ratios
-      call rad_cnst_get_mode_num(0, mode_coarse_dst_idx, 'a', state1, pbuf, num_coarse)
+      call rad_cnst_get_mode_num(0, mode_coarse_dst_idx, 'a', state1%q, pbuf, num_coarse)
 
       ! mode specie mass m.r.
-      call rad_cnst_get_aer_mmr(0, mode_coarse_dst_idx, coarse_dust_idx, 'a', state1, pbuf, coarse_dust)
-      call rad_cnst_get_aer_mmr(0, mode_coarse_slt_idx, coarse_nacl_idx, 'a', state1, pbuf, coarse_nacl)
+      call rad_cnst_get_aer_mmr(0, mode_coarse_dst_idx, coarse_dust_idx, 'a', state1%q, pbuf, coarse_dust)
+      call rad_cnst_get_aer_mmr(0, mode_coarse_slt_idx, coarse_nacl_idx, 'a', state1%q, pbuf, coarse_nacl)
       if (mode_coarse_idx>0) then
-         call rad_cnst_get_aer_mmr(0, mode_coarse_idx, coarse_so4_idx, 'a', state1, pbuf, coarse_so4)
+         call rad_cnst_get_aer_mmr(0, mode_coarse_idx, coarse_so4_idx, 'a', state1%q, pbuf, coarse_so4)
       endif
 
    else
@@ -545,7 +545,7 @@ subroutine microp_aero_run ( &
          maerosol(pcols,pver,naer_all))
 
       do m = 1, naer_all
-         call rad_cnst_get_aer_mmr(0, m, state1, pbuf, aer_mmr)
+         call rad_cnst_get_aer_mmr(0, m, state1%q, pbuf, aer_mmr)
          maerosol(:ncol,:,m) = aer_mmr(:ncol,:)*rho(:ncol,:)
 
          if (m .eq. idxsul) then
@@ -652,7 +652,7 @@ subroutine microp_aero_run ( &
       call outfld('LCLOUD', lcldn, pcols, lchnk)
 
       ! create the aerosol state object
-      aero_state_obj => modal_aerosol_state( state1, pbuf, aero_props_obj )
+      aero_state_obj => modal_aerosol_state( pbuf, aero_props_obj )
 
       allocate(factnum(pcols,pver,aero_props_obj%nbins()))
 

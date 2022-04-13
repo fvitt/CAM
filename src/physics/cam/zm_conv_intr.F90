@@ -11,7 +11,7 @@ module zm_conv_intr
    use physconst,    only: cpair
    use ppgrid,       only: pver, pcols, pverp, begchunk, endchunk
    use zm_conv,      only: zm_conv_evap, zm_convr, convtran, momtran
-   
+
    use zm_microphysics,  only: zm_aero_t, zm_conv_t
    use rad_constituents, only: rad_cnst_get_info, rad_cnst_get_mode_num, rad_cnst_get_aer_mmr, &
                                rad_cnst_get_aer_props, rad_cnst_get_mode_props !, &
@@ -233,7 +233,7 @@ subroutine zm_conv_readnl(nlfile)
    call mpi_bcast(zmconv_capelmt,           1, mpi_real8, masterprocid, mpicom, ierr)
    if (ierr /= 0) call endrun("zm_conv_readnl: FATAL: mpi_bcast: zmconv_capelmt")
    call mpi_bcast(zmconv_parcel_pbl,        1, mpi_logical, masterprocid, mpicom, ierr)
-   if (ierr /= 0) call endrun("zm_conv_readnl: FATAL: mpi_bcast: zmconv_parcel_pbl") 
+   if (ierr /= 0) call endrun("zm_conv_readnl: FATAL: mpi_bcast: zmconv_parcel_pbl")
    call mpi_bcast(zmconv_tau,               1, mpi_real8, masterprocid, mpicom, ierr)
    if (ierr /= 0) call endrun("zm_conv_readnl: FATAL: mpi_bcast: zmconv_tau")
 
@@ -623,11 +623,11 @@ subroutine zm_conv_tend(pblh    ,mcon    ,cme     , &
          ! (list 0)
 
          do m = 1, nmodes
-            call rad_cnst_get_mode_num(0, m, 'a', state, pbuf, aero(lchnk)%num_a(m)%val)
+            call rad_cnst_get_mode_num(0, m, 'a', state%q, pbuf, aero(lchnk)%num_a(m)%val)
             call pbuf_get_field(pbuf, dgnum_idx, aero(lchnk)%dgnum(m)%val, start=(/1,1,m/), kount=(/pcols,pver,1/))
 
             do l = 1, aero(lchnk)%nspec(m)
-               call rad_cnst_get_aer_mmr(0, m, l, 'a', state, pbuf, aero(lchnk)%mmr_a(l,m)%val)
+               call rad_cnst_get_aer_mmr(0, m, l, 'a', state%q, pbuf, aero(lchnk)%mmr_a(l,m)%val)
             end do
          end do
 
@@ -637,7 +637,7 @@ subroutine zm_conv_tend(pblh    ,mcon    ,cme     , &
          ! (list 0)
 
          do m = 1, nbulk
-            call rad_cnst_get_aer_mmr(0, m, state, pbuf, aero(lchnk)%mmr_bulk(m)%val)
+            call rad_cnst_get_aer_mmr(0, m, state%q, pbuf, aero(lchnk)%mmr_bulk(m)%val)
          end do
 
       end if

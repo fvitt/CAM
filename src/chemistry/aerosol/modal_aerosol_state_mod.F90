@@ -14,7 +14,6 @@ module modal_aerosol_state_mod
 
   type, extends(aerosol_state) :: modal_aerosol_state
      private
-     type(physics_state), pointer :: state => null()
      type(physics_buffer_desc), pointer :: pbuf(:) => null()
    contains
 
@@ -36,8 +35,7 @@ contains
 
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------
-  function constructor(state,pbuf,props) result(newobj)
-    type(physics_state), target :: state
+  function constructor(pbuf,props) result(newobj)
     type(physics_buffer_desc), pointer :: pbuf(:)
     class(aerosol_properties), intent(in) :: props
 
@@ -45,7 +43,6 @@ contains
 
     allocate(newobj)
 
-    newobj%state => state
     newobj%pbuf => pbuf
 
   end function constructor
@@ -55,58 +52,62 @@ contains
   subroutine destructor(self)
     type(modal_aerosol_state), intent(inout) :: self
 
-    nullify(self%state)
     nullify(self%pbuf)
 
   end subroutine destructor
 
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------
-  subroutine get_ambient_mmr(self, species_ndx, bin_ndx, mmr)
+  subroutine get_ambient_mmr(self, species_ndx, bin_ndx, cnst_array, mmr)
     class(modal_aerosol_state), intent(in) :: self
     integer, intent(in) :: species_ndx  ! species index
     integer, intent(in) :: bin_ndx      ! bin index
+    real(r8), target, intent(in) :: cnst_array(:,:,:) ! Constituent array
     real(r8), pointer :: mmr(:,:)       ! mass mixing ratios
 
-    call rad_cnst_get_aer_mmr(0, bin_ndx, species_ndx, 'a', self%state, self%pbuf, mmr)
+    call rad_cnst_get_aer_mmr(0, bin_ndx, species_ndx, 'a', cnst_array, self%pbuf, mmr)
   end subroutine get_ambient_mmr
 
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------
-  subroutine get_cldbrne_mmr(self, species_ndx, bin_ndx, mmr)
+  subroutine get_cldbrne_mmr(self, species_ndx, bin_ndx, cnst_array, mmr)
     class(modal_aerosol_state), intent(in) :: self
     integer, intent(in) :: species_ndx  ! species index
     integer, intent(in) :: bin_ndx      ! bin index
+    real(r8), target, intent(in) :: cnst_array(:,:,:) ! Constituent array
     real(r8), pointer :: mmr(:,:)       ! mass mixing ratios
 
-    call rad_cnst_get_aer_mmr(0, bin_ndx, species_ndx, 'c', self%state, self%pbuf, mmr)
+    call rad_cnst_get_aer_mmr(0, bin_ndx, species_ndx, 'c', cnst_array, self%pbuf, mmr)
   end subroutine get_cldbrne_mmr
 
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------
-  subroutine get_ambient_num(self, bin_ndx, num)
+  subroutine get_ambient_num(self, bin_ndx, cnst_array, num)
     class(modal_aerosol_state), intent(in) :: self
     integer, intent(in) :: bin_ndx             ! bin index
+    real(r8), target, intent(in) :: cnst_array(:,:,:) ! Constituent array
     real(r8), pointer :: num(:,:)
 
-    call rad_cnst_get_mode_num(0, bin_ndx, 'a', self%state, self%pbuf, num)
+    call rad_cnst_get_mode_num(0, bin_ndx, 'a', cnst_array, self%pbuf, num)
   end subroutine get_ambient_num
 
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------
-  subroutine get_cldbrne_num(self, bin_ndx, num)
+  subroutine get_cldbrne_num(self, bin_ndx, cnst_array, num)
     class(modal_aerosol_state), intent(in) :: self
     integer, intent(in) :: bin_ndx             ! bin index
+    real(r8), target, intent(in) :: cnst_array(:,:,:) ! Constituent array
     real(r8), pointer :: num(:,:)
 
-    call rad_cnst_get_mode_num(0, bin_ndx, 'c', self%state, self%pbuf, num)
+    call rad_cnst_get_mode_num(0, bin_ndx, 'c', cnst_array, self%pbuf, num)
   end subroutine get_cldbrne_num
 
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------
-  subroutine get_states( self, aero_props, raer, qqcw )
+  subroutine get_states( self, aero_props, cnst_array, raer, qqcw )
     class(modal_aerosol_state), intent(in) :: self
     class(aerosol_properties), intent(in) :: aero_props
+    real(r8), target, intent(in) :: cnst_array(:,:,:) ! Constituent array
     type(ptr2d_t), intent(out) :: raer(:)
     type(ptr2d_t), intent(out) :: qqcw(:)
 
@@ -114,12 +115,12 @@ contains
 
     do m = 1, aero_props%nbins()
        mm = aero_props%indexer(m, 0)
-       call self%get_ambient_num(m, raer(mm)%fld)
-       call self%get_cldbrne_num(m, qqcw(mm)%fld)
+       call self%get_ambient_num(m, cnst_array, raer(mm)%fld)
+       call self%get_cldbrne_num(m, cnst_array, qqcw(mm)%fld)
        do l = 1, aero_props%nspecies(m)
           mm = aero_props%indexer(m, l)
-          call self%get_ambient_mmr(l,m, raer(mm)%fld)
-          call self%get_cldbrne_mmr(l,m, qqcw(mm)%fld)
+          call self%get_ambient_mmr(l,m, cnst_array, raer(mm)%fld)
+          call self%get_cldbrne_mmr(l,m, cnst_array, qqcw(mm)%fld)
        end do
     end do
 
