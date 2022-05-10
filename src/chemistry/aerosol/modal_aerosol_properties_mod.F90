@@ -21,8 +21,8 @@ module modal_aerosol_properties_mod
      procedure :: voltonumbhi
      procedure :: amcube
      procedure :: actfracs
-     procedure :: get_num_names
-     procedure :: get_mmr_names
+     procedure :: num_names
+     procedure :: mmr_names
      final :: destructor
   end type modal_aerosol_properties
 
@@ -179,23 +179,23 @@ contains
 
   !------------------------------------------------------------------------
   !------------------------------------------------------------------------
-  subroutine get_num_names(self, bin_ndx, name_a, name_c)
+  subroutine num_names(self, bin_ndx, name_a, name_c)
     class(modal_aerosol_properties), intent(in) :: self
     integer, intent(in) :: bin_ndx           ! bin number
     character(len=32), intent(out) :: name_a, name_c
 
     call rad_cnst_get_info(0,bin_ndx, num_name=name_a, num_name_cw=name_c)
-  end subroutine get_num_names
+  end subroutine num_names
 
   !------------------------------------------------------------------------
   !------------------------------------------------------------------------
-  subroutine get_mmr_names(self, bin_ndx, species_ndx, name_a, name_c)
+  subroutine mmr_names(self, bin_ndx, species_ndx, name_a, name_c)
     class(modal_aerosol_properties), intent(in) :: self
     integer, intent(in) :: bin_ndx           ! bin number
     integer, intent(in) :: species_ndx       ! species number
     character(len=32), intent(out) :: name_a, name_c
 
     call rad_cnst_get_info(0, bin_ndx, species_ndx, spec_name=name_a, spec_name_cw=name_c)
-  end subroutine get_mmr_names
+  end subroutine mmr_names
 
 end module modal_aerosol_properties_mod

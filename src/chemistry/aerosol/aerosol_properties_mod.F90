@@ -7,6 +7,18 @@ module aerosol_properties_mod
 
   public :: aerosol_properties
 
+  !> aerosol_properties defines the configuration of any aerosol package (using
+  !! any aerosol representation) based on user specification. These values are
+  !! set during initialization and do not vary during the simulation.
+  !!
+  !! Each aerosol package (e.g., MAM, CARMA, etc) must extend the abstract
+  !! aerosol_properties class to define the details of their configuration. Any
+  !! package must implement each of the deferred procedures of the abstract
+  !! aerosol_properties class, may include additional private data members and
+  !! type-bound procedures, and may override functions of the abstract class.
+  !!
+  !! Please see the modal_aerosol_properties module for an example of how the
+  !! aerosol_properties class can be extended for a specific aerosol package.
   type, abstract :: aerosol_properties
      private
      integer :: nbins_ = 0
@@ -22,17 +34,17 @@ module aerosol_properties_mod
      procedure :: nbins
      procedure :: ncnst_tot
      procedure :: nspecies
-     procedure,private :: nmassesa
-     procedure,private :: nmassesv
-     generic :: nmasses => nmassesa,nmassesv
+     procedure,private :: n_masses_all_bins
+     procedure,private :: n_masses_per_bin
+     generic :: nmasses => n_masses_all_bins,n_masses_per_bin
      procedure :: indexer
      procedure :: maxsat
      procedure(aero_amcube), deferred :: amcube
      procedure :: alogsig
      procedure(aero_props_get), deferred :: get
      procedure(aero_actfracs), deferred :: actfracs
-     procedure(aero_num_names), deferred :: get_num_names
-     procedure(aero_mmr_names), deferred :: get_mmr_names
+     procedure(aero_num_names), deferred :: num_names
+     procedure(aero_mmr_names), deferred :: mmr_names
 
      procedure :: final=>aero_props_final
   end type aerosol_properties
@@ -114,7 +126,7 @@ contains
     integer, intent(in) :: ncnst              ! total number of constituents
     integer, intent(in) :: nspec(nbin)        ! number of species in each bin
     integer, intent(in) :: nmasses(nbin)      ! number of masses in each bin
-    real(r8),intent(in) :: alogsig(nbin)      ! ??? some log factor of each bin ???
+    real(r8),intent(in) :: alogsig(nbin)      ! natural log of the standard deviation (sigma) of the aerosol bins
     real(r8),intent(in) :: f1(nbin)           ! abdul-razzak functions of width
     real(r8),intent(in) :: f2(nbin)           ! abdul-razzak functions of width
 
@@ -127,6 +139,11 @@ contains
     allocate(self%f2_(nbin))
 
     allocate( self%indexer_(nbin,0:maxval(nmasses)) )
+
+    ! Local indexing compresses the mode and number/mass indices into one index.
+    ! This indexing is used by the pointer arrays used to reference state and pbuf
+    ! fields. We add number = 0, total mass = 1 (if available), and mass from each
+    ! constituency into mm.
 
     self%indexer_ = -1
     mm = 0
@@ -191,23 +208,23 @@ contains
   !------------------------------------------------------------------------------
   ! returns number of species masses in a given bin number
   !------------------------------------------------------------------------------
-  pure function nmassesv(self,bin_ndx) result(val)
+  pure function n_masses_per_bin(self,bin_ndx) result(val)
     class(aerosol_properties), intent(in) :: self
     integer, intent(in) :: bin_ndx           ! bin number
     integer :: val
 
     val = self%nmasses_(bin_ndx)
-  end function nmassesv
+  end function n_masses_per_bin
 
   !------------------------------------------------------------------------------
   ! returns an array of number of species masses for all bins
   !------------------------------------------------------------------------------
-  pure function nmassesa(self) result(arr)
+  pure function n_masses_all_bins(self) result(arr)
     class(aerosol_properties), intent(in) :: self
     integer :: arr(self%nbins_)
 
     arr(:) = self%nmasses_(:)
-  end function nmassesa
+  end function n_masses_all_bins
 
   !------------------------------------------------------------------------------
   ! returns a single index for given bin and species
@@ -239,7 +256,7 @@ contains
   end function ncnst_tot
 
   !------------------------------------------------------------------------------
-  ! returns log of geometric standard deviation of the number distribution for aerosol bin
+  ! returns the natural log of geometric standard deviation of the number distribution for aerosol bin
   !------------------------------------------------------------------------------
   pure real(r8) function alogsig(self, bin_ndx)
     class(aerosol_properties), intent(in) :: self

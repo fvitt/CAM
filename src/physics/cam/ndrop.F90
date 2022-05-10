@@ -115,9 +115,9 @@ subroutine ndrop_init(aero_props)
          end if
 
          if (l == 0) then   ! number
-            call aero_props%get_num_names( m, tmpname, tmpname_cw)
+            call aero_props%num_names( m, tmpname, tmpname_cw)
          else
-            call aero_props%get_mmr_names( m,l, tmpname, tmpname_cw)
+            call aero_props%mmr_names( m,l, tmpname, tmpname_cw)
          end if
 
          fieldname(mm)    = trim(tmpname) // '_mixnuc1'
