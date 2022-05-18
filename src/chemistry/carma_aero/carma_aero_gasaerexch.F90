@@ -81,6 +81,7 @@ contains
     use cam_history,    only: addfld, add_default, fieldname_len, horiz_only
     use constituents,   only: pcnst, cnst_name
     use phys_control,   only: phys_getopts
+    use mo_chem_utls,   only: get_spc_ndx
 
 !-----------------------------------------------------------------------
 ! arguments
@@ -148,15 +149,15 @@ contains
     nsoa_vbs = 0
     do i = 1, pcnst
        if (cnst_name(i)(:4) == 'SOAG') then
-          nsoa_vbs= nsoa_vbs + 1
+          nsoa_vbs = nsoa_vbs + 1
        end if
     end do
     allocate( l_soag(nsoa_vbs) )
     nsoa_vbs = 0
     do i = 1, pcnst
        if (cnst_name(i)(:4) == 'SOAG') then
-          nsoa_vbs= nsoa_vbs + 1
-          l_soag(nsoa_vbs) = i
+          nsoa_vbs = nsoa_vbs + 1
+          l_soag(nsoa_vbs) = get_spc_ndx(cnst_name(i))
        end if
     end do
 
@@ -836,9 +837,9 @@ subroutine carma_aero_soaexch( dtfull, temp, pres, &
 
   ! New SOA properties added by Manish Shrivastava on 09/27/2012
   if (ntot_soaspec ==1) then
-     p0_soa_298(:) = 1.0e-10_r8
+     p0_soa_298(:) = 1.0e-12_r8
      delh_vap_soa(:) = 156.0e3_r8
-     opoa_frac(:) = 0.1_r8
+     opoa_frac(:) = 0.0_r8
   elseif (ntot_soaspec ==2) then
      ! same for anthropogenic and biomass burning species
      p0_soa_298 (1) = 1.0e-10_r8
@@ -973,7 +974,7 @@ subroutine carma_aero_soaexch( dtfull, temp, pres, &
      tmpa = 0.0_r8  ! time integration parameter for all soa species
      do m = 1, nbins
         if ( skip_soamode(m) ) cycle
-        a_ooa_sum_tmp(m) = a_opoa(m) + sum( a_soa(m,1:ntot_soaspec) )
+        a_ooa_sum_tmp(m) = sum( a_soa(m,1:ntot_soaspec) )
      end do
      do ll = 1, ntot_soaspec
         tmpb = 0.0_r8  ! time integration parameter for a single soa species
@@ -1017,7 +1018,7 @@ subroutine carma_aero_soaexch( dtfull, temp, pres, &
               a_soa_tmp(m,ll) = a_soa(m,ll) + beta(m,ll)*del_g_soa_tmp(ll)
            end if
         end do
-        a_ooa_sum_tmp(m) = a_opoa(m) + sum( a_soa_tmp(m,1:ntot_soaspec) )
+        a_ooa_sum_tmp(m) =  sum( a_soa_tmp(m,1:ntot_soaspec) )
         do ll = 1, ntot_soaspec
            ! second ll loop calcs sat & g_star
            if (del_g_soa_tmp(ll) > 0.0_r8) then

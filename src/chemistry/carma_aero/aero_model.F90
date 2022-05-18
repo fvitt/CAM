@@ -233,6 +233,7 @@ contains
 
     use carma_aero_convproc,   only: ma_convproc_init
     use time_manager,    only: is_first_step
+    use constituents,    only: cnst_set_convtran2
 
     ! args
     type(physics_buffer_desc), pointer :: pbuf2d(:,:)
@@ -381,6 +382,7 @@ contains
              bin_cnst_lq(m,l) = .true.
              bin_cnst_idx(m,l) = idxtmp
              lq(idxtmp) = .true.
+             call cnst_set_convtran2(idxtmp, .not.convproc_do_aer)
           else
              bin_cnst_lq(m,l) = .false.
              bin_cnst_idx(m,l) = 0
