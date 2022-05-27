@@ -18,12 +18,14 @@ module solar_euv_data
   public :: solar_euv_init
   public :: solar_euv_advance
   public :: solar_euv_data_etf
+  public :: solar_euv_data_etfdlam
   public :: solar_euv_data_active
 
   real(r8), target, allocatable :: solar_euv_data_etf(:)
+  real(r8), protected, allocatable :: solar_euv_data_etfdlam(:)
   logical, protected :: solar_euv_data_active = .false.
 
-  integer :: nbins
+  integer, public, protected :: nbins
   real(r8), allocatable :: irradi(:,:)
 
   type(file_desc_t) :: file_id
@@ -33,18 +35,20 @@ module solar_euv_data
 
   real(r8), allocatable :: dellam(:)
   real(r8), allocatable :: lambda(:)
-  real(r8), allocatable :: we(:)
+  real(r8), public, protected, allocatable :: we(:)
 
   integer, parameter :: nrecords = 2
   logical, parameter :: debug = .false.
 
   type(time_coordinate) :: time_coord
 
+  logical, public, protected :: use_EUV_lyman_alpha = .false.
+
 contains
 
 !-----------------------------------------------------------------------
 !-----------------------------------------------------------------------
-  subroutine solar_euv_init(filepath, fixed, fixed_ymd, fixed_tod)
+  subroutine solar_euv_init(filepath, fixed, fixed_ymd, fixed_tod, use_EUV_lyman_alpha_in)
 
     use ioFileMod, only : getfil
 
@@ -53,15 +57,18 @@ contains
     logical, intent(in) :: fixed
     integer, intent(in) :: fixed_ymd
     integer, intent(in) :: fixed_tod
+    logical, intent(in) :: use_EUV_lyman_alpha_in
 
     ! local variables
     integer :: astat, dimid, vid
-    character(len=256) :: filen   
+    character(len=256) :: filen
 
     integer :: ierr
 
-    solar_euv_data_active = (filepath.ne.'NONE') 
+    solar_euv_data_active = (filepath.ne.'NONE')
     if ( .not.solar_euv_data_active ) return
+
+    use_EUV_lyman_alpha = use_EUV_lyman_alpha_in
 
     call time_coord%initialize( filepath, fixed=fixed, fixed_ymd=fixed_ymd, fixed_tod=fixed_tod )
 
@@ -73,7 +80,7 @@ contains
     ierr = pio_inq_varid( file_id, 'ssi', ssi_vid )
     ierr = pio_inq_dimid( file_id, 'bin', dimid )
     ierr = pio_inq_dimlen( file_id, dimid, nbins )
-    
+
     allocate(irradi(nbins,nrecords), stat=astat )
     if( astat /= 0 ) then
        write(iulog,*) 'solar_euv_data_init: failed to allocate irradi; error = ',astat
@@ -95,12 +102,20 @@ contains
        write(iulog,*) 'solar_euv_data_init: failed to allocate solar_euv_data_etf; error = ',astat
        call endrun('solar_euv_data_init')
     end if
+    if (use_EUV_lyman_alpha) then
+       allocate(solar_euv_data_etfdlam(nbins), stat=astat )
+       if( astat /= 0 ) then
+          write(iulog,*) 'solar_euv_data_init: failed to allocate solar_euv_data_etfdlam; error = ',astat
+          call endrun('solar_euv_data_init')
+       end if
+    end if
+
 
     ierr = pio_inq_varid( file_id, 'wavelength', vid )
     ierr = pio_get_var( file_id, vid, lambda )
     ierr = pio_inq_varid( file_id, 'band_width', vid  )
     ierr = pio_get_var( file_id, vid, dellam )
-    
+
     allocate(we(nbins+1), stat=astat )
     if( astat /= 0 ) then
        write(iulog,*) 'solar_euv_data_init: failed to allocate we; error = ',astat
@@ -111,7 +126,7 @@ contains
     we(nbins+1) = lambda(nbins)  + 0.5_r8*dellam(nbins)
 
     deallocate(lambda)
-    deallocate(dellam)
+!!$    deallocate(dellam)
 
     ! need to force data loading when the model starts at a time =/ 00:00:00.000
     ! -- may occur in restarts also
@@ -121,7 +136,7 @@ contains
   end subroutine solar_euv_init
 
 !-----------------------------------------------------------------------
-! Reads in the ETF data for the current date.  
+! Reads in the ETF data for the current date.
 !-----------------------------------------------------------------------
   subroutine solar_euv_advance()
 
@@ -151,7 +166,11 @@ contains
 
     delt = time_coord%wghts(2)
 
-    solar_euv_data_etf(:) = irradi(:,1) + delt*( irradi(:,2) - irradi(:,1) )
+    solar_euv_data_etf(:) = irradi(:,1) + delt*( irradi(:,2) - irradi(:,1) ) ! photons/cm2/sec
+
+    if (use_EUV_lyman_alpha) then
+       solar_euv_data_etfdlam(:) = solar_euv_data_etf(:)/dellam(:) ! photons/cm2/sec/nm
+    end if
 
   end subroutine solar_euv_advance
 

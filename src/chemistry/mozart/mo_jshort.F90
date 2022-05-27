@@ -71,6 +71,8 @@
       real(r8), allocatable :: xs_o3b(:)
       real(r8), allocatable :: xs_wl(:,:)
 
+      integer :: n_lyman_alpha_bins = -huge(1)
+
       contains
 
       subroutine jshort_init( xs_coef_file, xs_short_file, sht_indexer )
@@ -80,6 +82,7 @@
 
       use mo_util,        only : rebin
       use solar_irrad_data,  only : data_nbins=>nbins, data_we => we, data_etf => sol_etf
+      use solar_euv_data, only: use_EUV_lyman_alpha, solar_euv_data_nbins=>nbins, solar_euv_data_we=>we
 
       implicit none
 
@@ -138,6 +141,10 @@
 !     ... initialize no photolysis
 !------------------------------------------------------------------------------
       call jno_init
+
+      if (use_EUV_lyman_alpha) then
+         n_lyman_alpha_bins = count(we(:) <= solar_euv_data_we(solar_euv_data_nbins+1))
+      endif
 
       end subroutine jshort_init
 
@@ -497,13 +504,18 @@
 !	... set etfphot if required
 !---------------------------------------------------------------
 
-      use mo_util,        only : rebin
-      use solar_irrad_data,     only : data_nbins=>nbins, data_we => we, data_etf => sol_etf
-
-      implicit none
+      use mo_util, only : rebin
+      use solar_irrad_data,only : data_nbins=>nbins, data_we => we, data_etf => sol_etf
+      use solar_euv_data, only: solar_euv_data_nbins=>nbins, solar_euv_data_we=>we
+      use solar_euv_data, only: solar_euv_data_etfdlam, use_EUV_lyman_alpha
 
       call rebin( data_nbins, nw,      data_we, we,    data_etf, etfphot )
       call rebin( data_nbins, nw_ms93, data_we, we_ms, data_etf, etfphot_ms93 )
+
+      if (use_EUV_lyman_alpha) then
+         call rebin( solar_euv_data_nbins, n_lyman_alpha_bins, solar_euv_data_we, we(:n_lyman_alpha_bins), &
+                     solar_euv_data_etfdlam, etfphot(:n_lyman_alpha_bins) )
+      endif
 
       end subroutine jshort_timestep_init
 
