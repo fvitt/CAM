@@ -3,7 +3,8 @@ module carma_aerosol_state_mod
   use aerosol_state_mod, only: aerosol_state, ptr2d_t
 
   use rad_constituents, only: rad_cnst_get_bin_mmr_by_idx, rad_cnst_get_bin_num, rad_cnst_get_bin_mmr
-  use physics_buffer, only: physics_buffer_desc
+  use rad_constituents, only: rad_cnst_get_info_by_bin
+  use physics_buffer, only: physics_buffer_desc, pbuf_get_field, pbuf_get_index
   use physics_types, only: physics_state
   use aerosol_properties_mod, only: aerosol_properties
 
@@ -24,6 +25,7 @@ module carma_aerosol_state_mod
      procedure :: get_ambient_num
      procedure :: get_cldbrne_num
      procedure :: get_states
+     procedure :: icenuc_size_wght
 
      final :: destructor
 
@@ -138,5 +140,37 @@ contains
     end do
 
   end subroutine get_states
+
+  !------------------------------------------------------------------------------
+  !------------------------------------------------------------------------------
+  subroutine icenuc_size_wght(self, bin_ndx, ncol, nlev, species_type, use_preexisting_ice, wght)
+    class(carma_aerosol_state), intent(in) :: self
+    integer, intent(in) :: bin_ndx                ! bin number
+    integer, intent(in) :: ncol                   ! number of columns
+    integer, intent(in) :: nlev                ! number of vertical levels
+    character(len=*), intent(in) :: species_type  ! species type
+    logical, intent(in) :: use_preexisting_ice ! pre-existing ice flag
+    real(r8), intent(out) :: wght(:,:)
+
+    character(len=32) :: bin_name
+    real(r8), pointer :: dryr(:,:)
+    integer :: i,k
+    real(r8) :: diamdry
+
+    wght = 0._r8
+
+    call rad_cnst_get_info_by_bin(0, bin_ndx, bin_name=bin_name)
+    call pbuf_get_field(self%pbuf, pbuf_get_index(trim(bin_name)//"_dryr"),dryr)
+
+    do k = 1,nlev
+       do i = 1,ncol
+          diamdry = dryr(i,k) * 2.e4_r8  ! diameter in microns (from radius in cm)
+          if (diamdry >= 0.1_r8) then ! size threashold
+             wght(i,k) = 1._r8
+          end if
+       end do
+    end do
+
+  end subroutine icenuc_size_wght
 
 end module carma_aerosol_state_mod

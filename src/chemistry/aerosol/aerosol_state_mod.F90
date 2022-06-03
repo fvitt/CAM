@@ -37,7 +37,10 @@ module aerosol_state_mod
      procedure, private :: loadaer1
      procedure, private :: loadaer2
      generic :: loadaer => loadaer1, loadaer2
-  end type aerosol_state
+     procedure(aero_icenuc_size_wght), deferred :: icenuc_size_wght
+     procedure :: icenuc_type_wght_base
+     procedure :: icenuc_type_wght => icenuc_type_wght_base
+ end type aerosol_state
 
   ! for state fields
   type ptr2d_t
@@ -61,8 +64,9 @@ module aerosol_state_mod
      subroutine aero_get_state_num(self, bin_ndx, num)
        import
        class(aerosol_state), intent(in) :: self
-       integer, intent(in) :: bin_ndx      ! bin index
-       real(r8), pointer :: num(:,:)       ! number densities
+       integer, intent(in) :: bin_ndx     ! bin index
+       real(r8), pointer   :: num(:,:)    ! number densities
+
      end subroutine aero_get_state_num
 
      !------------------------------------------------------------------------
@@ -76,6 +80,20 @@ module aerosol_state_mod
        type(ptr2d_t), intent(out) :: qqcw(:) ! state of cloud-borne aerosols
 
      end subroutine aero_get_states
+
+     !------------------------------------------------------------------------------
+     !------------------------------------------------------------------------------
+     subroutine aero_icenuc_size_wght(self, bin_ndx, ncol, nlev, species_type, use_preexisting_ice, wght)
+       import
+       class(aerosol_state), intent(in) :: self
+       integer, intent(in) :: bin_ndx           ! bin number
+       integer, intent(in) :: ncol                ! number of columns
+       integer, intent(in) :: nlev                ! number of vertical levels
+       character(len=*), intent(in) :: species_type  ! species type
+       logical, intent(in) :: use_preexisting_ice ! pre-existing ice flag
+       real(r8), intent(out) :: wght(:,:)
+
+     end subroutine aero_icenuc_size_wght
 
   end interface
 
@@ -257,5 +275,56 @@ contains
     hygro = hygro_a(i)
 
   end subroutine loadaer2
+
+  !------------------------------------------------------------------------------
+  !------------------------------------------------------------------------------
+  subroutine icenuc_type_wght_base(self, bin_ndx, ncol, nlev, species_type, aero_props, wght)
+
+    use aerosol_properties_mod, only: aerosol_properties
+
+    class(aerosol_state), intent(in) :: self
+    integer, intent(in) :: bin_ndx                ! bin number
+    integer, intent(in) :: ncol
+    integer, intent(in) :: nlev
+    character(len=*), intent(in) :: species_type  ! species type
+    class(aerosol_properties), intent(in) :: aero_props
+
+    real(r8), intent(out) :: wght(:,:)
+
+    real(r8) :: mmr(ncol,nlev)
+    real(r8) :: totalmmr(ncol,nlev)
+    real(r8), pointer :: aer_bin(:,:)
+
+    character(len=32) :: spectype, sptype
+    integer :: l
+
+    wght(:,:) = 0._r8
+    totalmmr(:,:) = 0._r8
+    mmr(:,:)   = 0._r8
+
+    if (species_type=='sulfate_strat') then
+       sptype = 'sulfate'
+    else
+       sptype = species_type
+    end if
+
+    do l = 1, aero_props%nspecies(bin_ndx)
+
+       call self%get_ambient_mmr(l, bin_ndx, aer_bin)
+       call aero_props%species_type(bin_ndx, l, spectype=spectype)
+
+       totalmmr(:ncol,:) = totalmmr(:ncol,:) + aer_bin(:ncol,:)
+
+       if (trim(spectype) == trim(sptype)) then
+          mmr(:ncol,:) = mmr(:ncol,:) + aer_bin(:ncol,:)
+       end if
+
+    end do
+
+    where (totalmmr(:ncol,:) > 0._r8)
+       wght(:ncol,:) = mmr(:ncol,:)/totalmmr(:ncol,:)
+    end where
+
+  end subroutine icenuc_type_wght_base
 
 end module aerosol_state_mod

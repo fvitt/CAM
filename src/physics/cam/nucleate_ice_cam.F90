@@ -36,6 +36,8 @@ use cam_abortutils, only: endrun
 
 use nucleate_ice,   only: nucleati_init, nucleati
 
+use aerosol_properties_mod, only: aerosol_properties
+use aerosol_state_mod, only: aerosol_state
 
 implicit none
 private
@@ -121,6 +123,8 @@ real(r8) :: sigmag_aitken
 logical :: lq(pcnst) = .false. ! set flags true for constituents with non-zero tendencies
 integer :: cnum_idx, cdst_idx, cso4_idx
 
+integer, allocatable :: aer_cnst_idx(:,:)
+
 !===============================================================================
 contains
 !===============================================================================
@@ -181,10 +185,11 @@ end subroutine nucleate_ice_cam_register
 
 !================================================================================================
 
-subroutine nucleate_ice_cam_init(mincld_in, bulk_scale_in, pbuf2d)
+subroutine nucleate_ice_cam_init(aero_props, mincld_in, bulk_scale_in, pbuf2d)
    use phys_control, only: phys_getopts
    use time_manager, only: is_first_step
 
+   class(aerosol_properties), intent(in) :: aero_props
    real(r8), intent(in) :: mincld_in
    real(r8), intent(in) :: bulk_scale_in
 
@@ -208,11 +213,43 @@ subroutine nucleate_ice_cam_init(mincld_in, bulk_scale_in, pbuf2d)
    real(r8), pointer :: num_bin_c(:,:)
    real(r8), pointer :: qqcw(:,:)
 
+   character(len=32)   :: tmpname
+   character(len=32)   :: tmpname_cw
+
    !--------------------------------------------------------------------------------------------
    call phys_getopts(prog_modal_aero_out = prog_modal_aero, history_cesm_forcing_out = history_cesm_forcing)
 
    mincld     = mincld_in
    bulk_scale = bulk_scale_in
+
+   lq(:) = .false.
+
+   if (use_preexisting_ice) then
+
+      allocate(aer_cnst_idx(aero_props%nbins(),0:maxval(aero_props%nmasses())))
+      aer_cnst_idx = -1
+
+      do m = 1, aero_props%nbins()
+         do l = 0, aero_props%nmasses(m)
+
+            if (l == 0) then   ! number
+               call aero_props%num_names( m, tmpname, tmpname_cw)
+            else
+               call aero_props%mmr_names( m,l, tmpname, tmpname_cw)
+            end if
+
+            call cnst_get_ind(tmpname, idxtmp, abort=.false.)
+            aer_cnst_idx(m,l) = idxtmp
+
+            if (idxtmp>0) then
+               lq(idxtmp) = aero_props%icenuc_lq(m,l)
+               if (masterproc) write(iulog,*) 'NUCICE need ptend for '//trim(tmpname)
+            end if
+
+         end do
+      end do
+
+   end if
 
    ! Initialize naai.
    if (is_first_step()) then
@@ -376,8 +413,6 @@ subroutine nucleate_ice_cam_init(mincld_in, bulk_scale_in, pbuf2d)
          if (mode_coarse_idx>0) then
             call rad_cnst_get_mam_mmr_idx(mode_coarse_idx, coarse_so4_idx, cso4_idx)
          end if
-         lq(cnum_idx) = .true.
-         lq(cdst_idx) = .true.
       endif
 
    else if (clim_carma_aero) then
@@ -406,7 +441,6 @@ subroutine nucleate_ice_cam_init(mincld_in, bulk_scale_in, pbuf2d)
             if (idxtmp.gt.0) then
                bin_cnst_lq(m,l) = .true.
                bin_cnst_idx(m,l) = idxtmp
-               lq(idxtmp) = .true.
             else
                bin_cnst_lq(m,l) = .false.
                bin_cnst_idx(m,l) = -1
@@ -454,12 +488,14 @@ end subroutine nucleate_ice_cam_init
 
 !================================================================================================
 
-subroutine nucleate_ice_cam_calc( &
+subroutine nucleate_ice_cam_calc( aero_props, aero_state, &
    state, wsubi, pbuf, dtime, ptend)
 
    use tropopause,     only: tropopause_findChemTrop
 
    ! arguments
+   class(aerosol_properties), intent(in) :: aero_props
+   class(aerosol_state), intent(in) :: aero_state
    type(physics_state), target, intent(in)    :: state
    real(r8),                    intent(in)    :: wsubi(:,:)
    type(physics_buffer_desc),   pointer       :: pbuf(:)
@@ -575,6 +611,15 @@ subroutine nucleate_ice_cam_calc( &
    real(r8) :: nimey(pcols,pver) !output number conc of ice nuclei due to meyers deposition (1/m3)
    real(r8) :: regm(pcols,pver)  !output temperature thershold for nucleation regime
 
+   real(r8) :: size_wghts(pcols,pver)
+   real(r8) :: type_wghts(pcols,pver)
+   real(r8), pointer :: num_col(:,:)
+   real(r8) :: dust_num_col(pcols,pver)
+   real(r8) :: sulf_num_col(pcols,pver)
+   real(r8) :: soot_num_col(pcols,pver)
+   real(r8) :: sulf_num_tot_col(pcols,pver)
+
+   real(r8), parameter :: tolerance = 1.e-12
 
    !-------------------------------------------------------------------------------
 
@@ -736,6 +781,44 @@ subroutine nucleate_ice_cam_calc( &
       end do
    end do
 
+   dust_num_col = 0._r8
+   sulf_num_col = 0._r8
+   sulf_num_tot_col = 0._r8
+   soot_num_col = 0._r8
+
+   do m = 1,aero_props%nbins()
+
+      call aero_state%get_ambient_num( m, num_col)
+
+      do l = 1,aero_props%nspecies(m)
+
+         call aero_props%species_type(m, l, spectype)
+
+         call aero_state%icenuc_size_wght(m, ncol, pver, spectype, use_preexisting_ice, size_wghts)
+
+         call aero_state%icenuc_type_wght(m, ncol, pver, spectype, aero_props, type_wghts)
+
+         call aero_state%get_ambient_num(m, num_col)
+
+         select case ( trim(spectype) )
+         case('dust')
+            dust_num_col(:ncol,:) = dust_num_col(:ncol,:) + &
+                 size_wghts(:ncol,:)*type_wghts(:ncol,:)*num_col(:ncol,:)*rho(:ncol,:)*1.0e-6_r8
+         case('sulfate')
+            sulf_num_col(:ncol,:) = sulf_num_col(:ncol,:) + &
+                 size_wghts(:ncol,:)*type_wghts(:ncol,:)*num_col(:ncol,:)*rho(:ncol,:)*1.0e-6_r8
+         case('black-c')
+            soot_num_col(:ncol,:) = soot_num_col(:ncol,:) + &
+                 size_wghts(:ncol,:)*type_wghts(:ncol,:)*num_col(:ncol,:)*rho(:ncol,:)*1.0e-6_r8
+         end select
+
+      enddo
+
+      call aero_state%icenuc_size_wght(m, ncol, pver, 'sulfate_strat', use_preexisting_ice, size_wghts)
+      call aero_state%icenuc_type_wght(m, ncol, pver, 'sulfate_strat', aero_props, type_wghts)
+      sulf_num_tot_col(:ncol,:) = sulf_num_tot_col(:ncol,:) + size_wghts(:ncol,:)*type_wghts(:ncol,:)*num_col(:ncol,:)*rho(:ncol,:)*1.0e-6_r8
+
+   enddo
 
    kloop: do k = top_lev, pver
       iloop: do i = 1, ncol
@@ -838,7 +921,7 @@ subroutine nucleate_ice_cam_calc( &
 
                   diamdry(m) = dryr(i,k) * 2.e4_r8  ! diameter in microns (from radius in cm)
 
-                  if (diamdry(m) >= 0.1_r8) then
+                  if (diamdry(m) >= 0.1_r8) then ! size threashold
 
                      call rad_cnst_get_bin_num(0, m, 'a', state, pbuf, num_bin)
                      call rad_cnst_get_bin_mmr(0, m, 'a', state, pbuf, mmr_bin)
@@ -910,8 +993,52 @@ subroutine nucleate_ice_cam_calc( &
 
             end if
 
+            if (soot_num>0._r8) then
+               if (abs((soot_num-soot_num_col(i,k))/soot_num)>tolerance) then
+                  write(*,'(a,2e12.4)') 'FVDBG... soot_num,soot_num_col(i,k) : ',soot_num,soot_num_col(i,k)
+               end if
+            else
+               if (abs(soot_num-soot_num_col(i,k))>tolerance) then
+                  write(*,'(a,2e12.4)') 'FVDBG... soot_num,soot_num_col(i,k) : ',soot_num,soot_num_col(i,k)
+               end if
+            end if
+
+            if (dst_num>0._r8) then
+               if (abs((dst_num-dust_num_col(i,k))/dst_num)>tolerance) then
+                  write(*,'(a,2e12.4)') 'FVDBG... dst_num,dust_num_col(i,k) : ',dst_num,dust_num_col(i,k)
+               end if
+            else
+               if (abs(dst_num-dust_num_col(i,k))>tolerance) then
+                  write(*,'(a,2e12.4)') 'FVDBG... dst_num,dust_num_col(i,k) : ',dst_num,dust_num_col(i,k)
+               end if
+            end if
+
+            if (so4_num>0._r8) then
+               if (abs((so4_num-sulf_num_col(i,k))/so4_num)>tolerance) then
+                  write(*,'(a,2e12.4)') 'FVDBG... so4_num,sulf_num_col(i,k) : ',so4_num,sulf_num_col(i,k)
+               end if
+            else
+               if (abs(so4_num-sulf_num_col(i,k))>tolerance) then
+                  write(*,'(a,2e12.4)') 'FVDBG... so4_num,sulf_num_col(i,k) : ',so4_num,sulf_num_col(i,k)
+               end if
+            end if
+
+            if (so4_num_st_cr_tot>0._r8) then
+               if (abs((so4_num_st_cr_tot-sulf_num_tot_col(i,k))/so4_num_st_cr_tot)>tolerance) then
+                  write(*,'(a,2e12.4)') 'FVDBG... so4_num_st_cr_tot,sulf_num_tot_col(i,k) : ',so4_num_st_cr_tot,sulf_num_tot_col(i,k)
+               endif
+            else
+               if (abs(so4_num_st_cr_tot-sulf_num_tot_col(i,k))>tolerance) then
+                  write(*,'(a,2e12.4)') 'FVDBG... so4_num_st_cr_tot,sulf_num_tot_col(i,k) : ',so4_num_st_cr_tot,sulf_num_tot_col(i,k)
+               endif
+            endif
+
             ! *** Turn off soot nucleation ***
             soot_num = 0.0_r8
+
+            so4_num = sulf_num_col(i,k)
+            dst_num = dust_num_col(i,k)
+            so4_num_st_cr_tot=sulf_num_tot_col(i,k)
 
             call nucleati( &
                wsubi(i,k), t(i,k), pmid(i,k), relhum(i,k), icldm(i,k),   &
@@ -941,7 +1068,7 @@ subroutine nucleate_ice_cam_calc( &
 
                binsloop: do m = 1, nbins
 
-                  if (diamdry(m) >= 0.1_r8) then
+                  if (diamdry(m) >= 0.1_r8) then ! microns threshold
                      call rad_cnst_get_bin_num(0, m, 'a', state, pbuf, num_bin)
                      call rad_cnst_get_bin_num(0, m, 'c', state, pbuf, num_bin_c)
                      call rad_cnst_get_bin_mmr(0, m, 'a', state, pbuf, mmr_bin)

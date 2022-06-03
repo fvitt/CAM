@@ -330,7 +330,7 @@ subroutine microp_aero_init(pbuf2d)
       call add_default ('WSUB     ', 1, ' ')
    end if
 
-   call nucleate_ice_cam_init(mincld, bulk_scale, pbuf2d)
+   call nucleate_ice_cam_init(aero_props_obj, mincld, bulk_scale, pbuf2d)
    if (use_hetfrz_classnuc) then
       call hetfrz_classnuc_cam_init(mincld)
    endif
@@ -628,10 +628,17 @@ subroutine microp_aero_run ( &
 
    if (trim(eddy_scheme) == 'CLUBB_SGS') deallocate(tke)
 
+   ! create the aerosol state object
+   if (clim_modal_aero) then
+      aero_state_obj => modal_aerosol_state( state1, pbuf, aero_props_obj )
+   else if (clim_carma_aero) then
+      aero_state_obj => carma_aerosol_state( state1, pbuf, aero_props_obj )
+   end if
+
    !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
    !ICE Nucleation
 
-   call nucleate_ice_cam_calc(state1, wsubi, pbuf, deltatin, ptend_loc)
+   call nucleate_ice_cam_calc(aero_props_obj, aero_state_obj, state1, wsubi, pbuf, deltatin, ptend_loc)
 
    call physics_ptend_sum(ptend_loc, ptend_all, ncol)
    call physics_update(state1, ptend_loc, deltatin)
@@ -668,13 +675,6 @@ subroutine microp_aero_run ( &
       end do
 
       call outfld('LCLOUD', lcldn, pcols, lchnk)
-
-      ! create the aerosol state object
-      if (clim_modal_aero) then
-         aero_state_obj => modal_aerosol_state( state1, pbuf, aero_props_obj )
-      else if (clim_carma_aero) then
-         aero_state_obj => carma_aerosol_state( state1, pbuf, aero_props_obj )
-      end if
 
       allocate(factnum(pcols,pver,aero_props_obj%nbins()))
 

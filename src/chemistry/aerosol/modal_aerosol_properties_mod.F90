@@ -23,6 +23,8 @@ module modal_aerosol_properties_mod
      procedure :: actfracs
      procedure :: num_names
      procedure :: mmr_names
+     procedure :: species_type
+     procedure :: icenuc_lq
      final :: destructor
   end type modal_aerosol_properties
 
@@ -197,5 +199,72 @@ contains
 
     call rad_cnst_get_info(0, bin_ndx, species_ndx, spec_name=name_a, spec_name_cw=name_c)
   end subroutine mmr_names
+
+  !------------------------------------------------------------------------
+  !------------------------------------------------------------------------
+  subroutine species_type(self, bin_ndx, species_ndx, spectype)
+    class(modal_aerosol_properties), intent(in) :: self
+    integer, intent(in) :: bin_ndx           ! bin number
+    integer, intent(in) :: species_ndx       ! species number
+    character(len=32), intent(out) :: spectype ! species type
+
+    call rad_cnst_get_info(0, bin_ndx, species_ndx, spec_type=spectype)
+
+  end subroutine species_type
+
+  !------------------------------------------------------------------------------
+  !------------------------------------------------------------------------------
+  function icenuc_lq(self, bin_ndx, species_ndx) result(lq)
+
+    class(modal_aerosol_properties), intent(in) :: self
+    integer, intent(in) :: bin_ndx           ! bin number
+    integer, intent(in) :: species_ndx       ! species number
+
+    logical :: lq
+
+    character(len=32) :: spectype
+    character(len=32) :: modetype
+    integer :: l
+
+    lq = .false.
+
+    call rad_cnst_get_info(0, bin_ndx, mode_type=modetype)
+    if (.not.(modetype=='coarse' .or. modetype=='coarse_dust')) then
+       return
+    end if
+
+    if (species_ndx==0) then
+       do l = 1, self%nspecies(bin_ndx)
+          call self%species_type( bin_ndx, l, spectype)
+          if (spectype=='dust') lq = .true.
+       end do
+    else
+       call self%species_type( bin_ndx, species_ndx, spectype)
+       if (spectype=='dust') lq = .true.
+    end if
+
+  end function icenuc_lq
+
+  !------------------------------------------------------------------------------
+  !------------------------------------------------------------------------------
+  function icenuc_bin_wght(self, bin_ndx, species_type) result(wght)
+    class(modal_aerosol_properties), intent(in) :: self
+    integer, intent(in) :: bin_ndx                ! bin number
+    character(len=*), intent(in) :: species_type  ! species type
+
+    real(r8) :: wght
+    character(len=32) :: modetype
+
+    call rad_cnst_get_info(0, bin_ndx, mode_type=modetype)
+
+    wght = 0._r8
+
+    if (species_type=='dust') then
+       if (modetype=='coarse' .or. modetype=='coarse_dust') then
+          wght = 1._r8
+       end if
+    end if
+
+  end function icenuc_bin_wght
 
 end module modal_aerosol_properties_mod

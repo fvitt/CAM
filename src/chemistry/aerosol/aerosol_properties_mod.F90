@@ -45,6 +45,8 @@ module aerosol_properties_mod
      procedure(aero_actfracs), deferred :: actfracs
      procedure(aero_num_names), deferred :: num_names
      procedure(aero_mmr_names), deferred :: mmr_names
+     procedure(aero_species_type), deferred :: species_type
+     procedure(aero_icenuc_lq), deferred :: icenuc_lq
 
      procedure :: final=>aero_props_final
   end type aerosol_properties
@@ -63,7 +65,32 @@ module aerosol_properties_mod
        integer, intent(in) :: species_ndx         ! species index
        real(r8), optional, intent(out) :: density ! density (kg/m3)
        real(r8), optional, intent(out) :: hygro   ! hygroscopicity
+
      end subroutine aero_props_get
+
+     !------------------------------------------------------------------------
+     ! returns species name
+     !------------------------------------------------------------------------
+     subroutine aero_species_name(self, bin_ndx, species_ndx, specname)
+       import
+       class(aerosol_properties), intent(in) :: self
+       integer, intent(in) :: bin_ndx           ! bin number
+       integer, intent(in) :: species_ndx       ! species number
+       character(len=32), intent(out) :: specname ! species name
+
+     end subroutine aero_species_name
+
+     !------------------------------------------------------------------------
+     ! returns species type
+     !------------------------------------------------------------------------
+     subroutine aero_species_type(self, bin_ndx, species_ndx, spectype)
+       import
+       class(aerosol_properties), intent(in) :: self
+       integer, intent(in) :: bin_ndx           ! bin number
+       integer, intent(in) :: species_ndx       ! species number
+       character(len=32), intent(out) :: spectype ! species type
+
+     end subroutine aero_species_type
 
      !------------------------------------------------------------------------
      ! returns mass and number activation fractions
@@ -112,6 +139,18 @@ module aerosol_properties_mod
        real(r8), intent(in) :: numconc ! number conc (1/m3)
 
      end function aero_amcube
+
+     !------------------------------------------------------------------------------
+     !------------------------------------------------------------------------------
+     function aero_icenuc_lq(self, bin_ndx, species_ndx) result(lq)
+       import
+       class(aerosol_properties), intent(in) :: self
+       integer, intent(in) :: bin_ndx           ! bin number
+       integer, intent(in) :: species_ndx       ! species number
+
+       logical :: lq
+
+     end function aero_icenuc_lq
 
   end interface
 

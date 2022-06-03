@@ -19,6 +19,8 @@ module carma_aerosol_properties_mod
      procedure :: actfracs
      procedure :: num_names
      procedure :: mmr_names
+     procedure :: species_type
+     procedure :: icenuc_lq
      final :: destructor
   end type carma_aerosol_properties
 
@@ -140,6 +142,18 @@ contains
 
   end subroutine mmr_names
 
+  !------------------------------------------------------------------------
+  !------------------------------------------------------------------------
+  subroutine species_type(self, bin_ndx, species_ndx, spectype)
+    class(carma_aerosol_properties), intent(in) :: self
+    integer, intent(in) :: bin_ndx           ! bin number
+    integer, intent(in) :: species_ndx       ! species number
+    character(len=32), intent(out) :: spectype
+
+    call rad_cnst_get_info_by_bin_spec(0, bin_ndx, species_ndx, spec_type=spectype)
+
+  end subroutine species_type
+
   !------------------------------------------------------------------------------
   ! returns radius^3 (m3) of a given bin number
   !------------------------------------------------------------------------------
@@ -153,5 +167,32 @@ contains
     amcube = 3._r8/(4._r8*pi)*volconc/numconc
 
   end function amcube
+
+  !------------------------------------------------------------------------------
+  !------------------------------------------------------------------------------
+  function icenuc_lq(self, bin_ndx, species_ndx) result(lq)
+
+    class(carma_aerosol_properties), intent(in) :: self
+    integer, intent(in) :: bin_ndx           ! bin number
+    integer, intent(in) :: species_ndx       ! species number
+
+    logical :: lq
+    integer :: l
+
+    character(len=32) :: spectype
+
+    lq = .false.
+
+    if (species_ndx>1) then
+       call self%species_type( bin_ndx, species_ndx-1, spectype)
+       lq = spectype=='dust'
+    else
+       do l = 1, self%nspecies(bin_ndx)
+          call self%species_type( bin_ndx, l, spectype)
+          if (spectype=='dust') lq = .true.
+       end do
+    end if
+
+  end function icenuc_lq
 
 end module carma_aerosol_properties_mod
