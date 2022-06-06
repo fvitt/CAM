@@ -482,6 +482,7 @@ subroutine nucleate_ice_cam_calc( &
 
    character(len=32) :: spectype
    character(len=32) :: bin_name
+   character(len=*), parameter :: routine = 'nucleate_ice_cam_calc'
 
    real(r8), pointer :: t(:,:)          ! input temperature (K)
    real(r8), pointer :: qn(:,:)         ! input water vapor mixing ratio (kg/kg)
@@ -553,6 +554,11 @@ subroutine nucleate_ice_cam_calc( &
    real(r8) :: sootmmr
    real(r8) :: dstmmr
    real(r8) :: amcube
+   !st
+   real(r8) :: tmp1
+   real(r8) :: tmp2
+   real(r8) :: tmp3
+   real(r8) :: bin_mmr_change
 
    real(r8) :: subgrid(pcols,pver)
    real(r8) :: trop_pd(pcols,pver)
@@ -936,43 +942,68 @@ subroutine nucleate_ice_cam_calc( &
                      call rad_cnst_get_bin_mmr(0, m, 'a', state, pbuf, mmr_bin)
                      call rad_cnst_get_bin_mmr(0, m, 'c', state, pbuf, mmr_bin_c)
 
-                     !st only if dust is a specie in this bin, need to know the dust fraction, and only move that part,
-                     !   so multiply by dust_fraction (per bin)
-                     !st analoge from sulfate
+                     if (mmr_bin(i,k)>0._r8) then
 
-                     if  (dst_num >= 1.0e-10_r8 ) then
-                        num_bin(i,k)   = num_bin(i,k)   - (odst_num/dst_num) * wght_dst(m) * icldm(i,k) *  num_bin(i,k)
-                        num_bin_c(i,k) = num_bin_c(i,k) + (odst_num/dst_num) * wght_dst(m) * icldm(i,k) *  num_bin(i,k)
-                        mmr_bin_c(i,k) = mmr_bin_c(i,k) + (odst_num/dst_num) * wght_dst(m) * icldm(i,k)  * mmr_bin(i,k)
-
-                        if (bin_cnst_lq(m,0)) then ! advected species
-                           !need to add mmr_bin changes to tendencies (advected specie)
-                           lptr = bin_cnst_idx(m,0)
-                           ptend%q(i,k,lptr) = - (odst_num / dst_num) * wght_dst(m) * icldm(i,k) * mmr_bin(i,k)  / dtime
-                        else
-                           mmr_bin(i,k)   = mmr_bin(i,k) -  (odst_num/dst_num) *  wght_dst(m) * icldm(i,k)  * mmr_bin(i,k)
-                        endif
-
+                        !st only if dust is a specie in this bin, need to know the dust fraction, and only move that part,
+                        !   so multiply by dust_fraction (per bin)
+                        tmp1 = 0.0_r8
+                        tmp2 = 0.0_r8
+                        tmp3 = 0.0_r8
                         do l = 1, nspec_bin(m)
                            call rad_cnst_get_bin_mmr_by_idx(0, m, l, 'a', state, pbuf, aer_bin)
                            call rad_cnst_get_bin_mmr_by_idx(0, m, l, 'c', state, pbuf, qqcw)
                            call rad_cnst_get_bin_props_by_idx(0, m, l, spectype=spectype)
 
-                           !st for dust: change concentration element (sulfate), numbers,
                            if (trim(spectype) == 'dust') then
-                              if (bin_cnst_lq(m,l)) then ! advected species
-                                 lptr = bin_cnst_idx(m,l)
-                                 ptend%q(i,k,lptr) = - (odst_num / dst_num) * icldm(i,k) * aer_bin(i,k) / dtime
-                              else
-                                 aer_bin(i,k) = aer_bin(i,k) - (odst_num / dst_num ) *icldm(i,k) * aer_bin(i,k)
+                              if  (dst_num >= 1.0e-10_r8 ) then
+                                 tmp1 = (odst_num / dst_num) *icldm(i,k) * aer_bin(i,k)
+                                 if (tmp1 < 0.0_r8) then
+                                    call endrun(routine//': tmp1 cannot be negative')
+                                 end if
+                                 if (bin_cnst_lq(m,l)) then ! advected species
+                                    lptr = bin_cnst_idx(m,l)
+                                    ptend%q(i,k,lptr) = -1._r8 * tmp1 / dtime
+                                 else
+                                    aer_bin(i,k) = aer_bin(i,k) - tmp1
+                                 end if
+                                 qqcw(i,k) = qqcw(i,k) + tmp1
                               end if
-                              qqcw(i,k) = qqcw(i,k) + (odst_num / dst_num) *icldm(i,k) * aer_bin(i,k)
                            end if
-                        end do
-                     end if
 
-                     ! sulfates are currently not done, consistently with MAM
+                           if (trim(spectype) == 'sulfate') then
+                              if  (so4_num >= 1.0e-10_r8 ) then
+                                 tmp2 = (oso4_num / so4_num) *icldm(i,k) * aer_bin(i,k)
+                                 if (tmp2 < 0.0_r8) then
+                                    call endrun(routine//': tmp2 cannot be negative')
+                                 end if
+                                 if (bin_cnst_lq(m,l)) then ! advected species
+                                    lptr = bin_cnst_idx(m,l)
+                                    ptend%q(i,k,lptr) = -1._r8 * tmp2 / dtime
+                                 else
+                                    aer_bin(i,k) = aer_bin(i,k) - tmp2
+                                 end if
+                                 qqcw(i,k) = qqcw(i,k) + tmp2
+                              end if
+                           end if
+                        end do  ! nspec
+
+                        tmp3 = tmp1 + tmp2
+                        bin_mmr_change = tmp3/mmr_bin(i,k)
+
+                        mmr_bin_c(i,k) = mmr_bin_c(i,k) + tmp3
+                        if (bin_cnst_lq(m,0)) then ! advected species
+                           !need to add mmr_bin changes to tendencies (advected specie)
+                           lptr = bin_cnst_idx(m,0)
+                           ptend%q(i,k,lptr) = -1._r8 * tmp3  / dtime
+                        else
+                           mmr_bin(i,k) = mmr_bin(i,k) - tmp3
+                        endif
+
+                        num_bin(i,k)   = num_bin(i,k)   - bin_mmr_change *  num_bin(i,k)
+                        num_bin_c(i,k)   = num_bin_c(i,k)   + bin_mmr_change *  num_bin(i,k)
+                     end if
                   end if  !diamdry > 0.1
+
                end do binsloop
 
             end if carma_aerosols

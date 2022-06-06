@@ -460,9 +460,9 @@ contains
 
        mmr_soa(:) = 0.0_r8
        mmr_core(:) = 0.0_r8
-       delta_soa(:) = 0.0_r8
 
        do ielem = 1, ncore
+          delta_soa(:) = 0.0_r8
 
           call CARMASTATE_GetBin(cstate, icorelem(ielem), ibin, mmr(:), rc)
 
@@ -586,15 +586,15 @@ contains
              if (rc /= RC_OK) call endrun('CARMA_DiagnoseBins::CARMAGROUP_SetBin failed.')
 
           end if  !mxsoa
-          
+
           mmr_core(:) = mmr_core(:) + mmr(:)
 
           !update mmr_total and check that not smaller than core mass
           do n = 1, cstate%f_NZ
              mmr_total(n) = mmr_total(n) + delta_soa(n)
-          end do  !ielem
+          end do
 
-       end do
+       end do  !ielem
 
        !check that not smaller than core mass else set to core mass
        do n = 1, cstate%f_NZ
@@ -602,7 +602,6 @@ contains
              mmr_total(n) = mmr_core(n)
           end if
        end do
-
 
        call CARMASTATE_SetBin(cstate, ienconc, ibin, mmr_total, rc)
        if (rc /= RC_OK) call endrun('CARMA_DiagnoseBins::CARMAGROUP_SetBin failed.')
@@ -861,7 +860,14 @@ contains
 
     ! -------- local variables added for dust and sea-salt model ------------
     real(r8), parameter :: ch = 0.5e-9_r8                     ! dimensional factor & tuning number,
-    real(r8)            :: r(NBIN)                            ! bin center (cm)
+    real(r8)            :: rmass(NBIN)                        ! bin mass (g)
+    real(r8)            :: r                                  ! bin center (cm)
+    real(r8)            :: rdust                              ! dust bin center (cm)
+    real(r8)            :: dustFlux                           ! dust flux (kg/m2/s)
+    real(r8)            :: rsalt                              ! salt bin center (cm)
+    real(r8)            :: drsalt                             ! salt bin width (cm)
+    real(r8)            :: rhop(NBIN)                         ! element density (g/cm3)
+    real(r8)            :: vrfact
     real(r8)            :: uth                                ! threshold wind velocity (m/s)
     real(r8)            :: uv10                               ! 10 m wind speed (m/s)
     real(r8)            :: cd10                               ! 10-m drag coefficient ()
@@ -871,10 +877,9 @@ contains
     real(r8)            :: soilfact(pcols)                    ! soil erosion factor (for debug)
 
 ! ------------ local variables added for organics model ----------------------
-    real(r8)     :: dr(carma%f_NBIN)
-    real(r8)     :: rmass(carma%f_NBIN)
-    real(r8)     :: aeronet(carma%f_NBIN)               ! AERONET DATA, Sep.20, 2002, Jaru Reserve, Brazil (refer to MATICHUK et al., 2008)
-    real(r8)     :: SaltFlux(pcols)                     ! sea salt flux to calculate marine POA
+    real(r8)     :: dr
+    real(r8)     :: aeronet(NBIN)                       ! AERONET DATA, Sep.20, 2002, Jaru Reserve, Brazil (refer to MATICHUK et al., 2008)
+    real(r8)     :: saltFlux(pcols)                     ! sea salt flux to calculate marine POA
     integer      :: LUNOPRT                             ! logical unit number for output
     logical      :: do_print                            ! do print output?
 
@@ -937,7 +942,7 @@ contains
     call CARMAELEMENT_GET(carma, ielem, rc, igroup=igroup, shortname=shortname)
     if (RC < RC_ERROR) return
 
-    call CARMAGROUP_GET(carma, igroup, rc, shortname=shortname, r=r, dr=dr, rmass=rmass)
+    call CARMAGROUP_GET(carma, igroup, rc, shortname=shortname, rmass=rmass)
     if (RC < RC_ERROR) return
 
      !!*******************************************************************************************************
@@ -959,30 +964,44 @@ contains
       call pbuf_get_field(pbuf, oc_srfemis_ndx, OCemis_ptr)
     end if
 
-    if (ielem == I_ELEM_MXOC) then
-       if(carma_BCOCemissions == 'Yu2015')then
+    ! Organic carbon emssions
+    if ((ielem == I_ELEM_MXOC) .or. (ielem == I_ELEM_MXAER)) then
+       if (carma_BCOCemissions == 'Yu2015') then
           do icol = 1,ncol
              smoke(icol) = OCnew(ilat(icol), ilon(icol), mon)*OMtoOCratio
           end do
        elseif(carma_BCOCemissions == 'Specified')then
           smoke(:ncol) = OCemis_ptr(:ncol)
        end if
-!  st  scip Fsub PBAFlux etcfor now
-       surfaceFlux(:ncol) = smoke(:ncol)*aeronet_fraction(ibin)*SmoketoSufaceFlux
 
-    elseif (ielem == I_ELEM_MXBC) then
-       if(carma_BCOCemissions == 'Yu2015')then
+!  st  scip Fsub PBAFlux etcfor now
+       surfaceFlux(:ncol) = surfaceFlux(:ncol) + smoke(:ncol)*aeronet_fraction(ibin)*SmoketoSufaceFlux
+    end if
+
+    ! Black carbon emissions
+    if ((ielem == I_ELEM_MXBC) .or. (ielem == I_ELEM_MXAER)) then
+       if (carma_BCOCemissions == 'Yu2015') then
           do icol = 1,ncol
              smoke(icol) = BCnew(ilat(icol), ilon(icol), mon)
           end do
-       elseif(carma_BCOCemissions == 'Specified')then
+       elseif(carma_BCOCemissions == 'Specified') then
           smoke(:ncol) = BCemis_ptr(:ncol)
        end if
-       surfaceFlux(:ncol) = smoke(:ncol)*aeronet_fraction(ibin)*SmoketoSufaceFlux
 
-    elseif (ielem == I_ELEM_MXDUST) then
+       surfaceFlux(:ncol) = surfaceFlux(:ncol) + smoke(:ncol)*aeronet_fraction(ibin)*SmoketoSufaceFlux
+    end if
 
-    ! st if (shortname .eq. "CRDUST") then  ! done by Pengfei
+    ! Dust emissions
+    if ((ielem == I_ELEM_MXDUST) .or. (ielem == I_ELEM_MXAER)) then
+
+      ! The radius should be determined by the dust density not the group
+      ! density
+      call CARMAELEMENT_Get(carma, I_ELEM_MXDUST, rc, rho=rhop)
+      if (RC < RC_ERROR) return
+
+      ! Calculate the radius assuming that all the mass will be emitted as this
+      ! element.
+      rdust = (3._r8 * rmass(ibin) / 4._r8 / PI / rhop(ibin)) ** (1._r8 / 3._r8)
 
       ! Is this clay or silt?
       !
@@ -992,7 +1011,7 @@ contains
       ! NOTE: For clay bins, use the smallest silt bin to calculate the
       ! mass and then scale that into each clay bin based upon interpolation of
       ! Tegen and Lacis [1996].
-      if (r(ibin) >= rClay) then
+      if (rdust >= rClay) then
         sp         = 0.9_r8 / nSilt
         idustbin   = ibin
       else
@@ -1006,34 +1025,52 @@ contains
         call CARMA_SurfaceWind(carma, icol, ielem, igroup, idustbin, cam_in, uv10, wwd, uth, rc)
 
         ! Is the wind above the threshold for dust production?
-        if (uv10 > uth) then
-          surfaceFlux(icol) = ch * soil_factor(ilat(icol), ilon(icol)) * sp * &
-                              wwd * (uv10 - uth)
+        if (sqrt(wwd) > uth) then
+          dustFlux = ch * soil_factor(ilat(icol), ilon(icol)) * sp * &
+                              wwd * (sqrt(wwd) - uth)
+        else
+          dustFlux = 0._r8
         endif
 
         ! Scale the clay bins based upon the smallest silt bin.
-        surfaceFlux(icol) = clay_mf(ibin) * surfaceFlux(icol)
+        dustFlux = clay_mf(ibin) * dustFlux
 
         ! Save off the soil erosion factor so it can be output.
         soilfact(icol) = soil_factor(ilat(icol), ilon(icol))
+
+        ! Add the dust flux to the accumulated emissions (important for I_ELEM_MXAER)
+        surfaceFlux(icol) = surfaceFlux(icol) + dustFlux
       end do
 
       ! For debug purposes, output the soil erosion factor.
       call outfld('CRSLERFC', soilfact, pcols, lchnk)
+    end if
 
-    ! st elseif (sname_elem .eq. "CRSALT") then ! this is how Pengfei did
-    elseif (ielem == I_ELEM_MXSALT) then
+
+    ! Sea salt emissions
+    if ((ielem == I_ELEM_MXSALT) .or. (ielem == I_ELEM_MXAER)) then
+
+      ! The radius should be determined by the dust density not the group
+      ! density
+      call CARMAELEMENT_Get(carma, I_ELEM_MXSALT, rc, rho=rhop)
+      if (RC < RC_ERROR) return
+
+      ! Calculate the radius assuming that all the mass will be emitted as sea
+      ! salt.
+      vrfact = ((3._r8/2._r8 / PI / (vmrat_MXAER + 1._r8))**(1._r8 / 3._r8)) * ((vmrat_MXAER**(1._r8 / 3._r8)) - 1._r8)
+      rsalt = (3._r8 * rmass(ibin) / 4._r8 / PI / rhop(ibin))**(1._r8 / 3._r8)
+      drsalt = vrfact * ((rmass(ibin)/rhop(ibin))**(1._r8 / 3._r8))
+
+      ! get sea spray aerosol flux first (for ibin; SaltFlux(:ncol) unit:kg/m2/s)
+      call CARMA_SaltFlux(carma, ibin, state, rsalt, drsalt, rmass(ibin), cam_in, saltFlux, rc)
+
+!st  not used currently  but done by Pengfei
        !! introduce marine POA emission, use ChlorophyII-dependent mass contribution of OC
        !! see Gantt et al., 2009
        !! for sub-micron, I use sea salt flux instead of sub-micron marine particles
        !! needed to verify later
        !! Added by Pengfei Yu
        !! Oct.6.2012
-       ! get sea spray aerosol flux first (for ibin; SaltFlux(:ncol) unit:kg/m2/s)
-
-      call CARMA_SaltFlux(carma, ibin, state, r, dr, rmass, cam_in, SaltFlux, rc)
-
-!st  not used currently  but done by Pengfei
        ! get [Chl-a] data
   !!   do icol = 1, ncol
   !!       if (Chla(ilat(icol), ilon(icol)) .lt. 0._r8) then
@@ -1052,54 +1089,7 @@ contains
   !!       !surfaceFlux(:ncol) = SaltFlux(:ncol)*(1._r8-0.0983_r8) - SaltFlux(:ncol) * (Fsub(:ncol)*0.03_r8)
   !!        surfaceFlux(:ncol) = (SaltFlux(:ncol) - SaltFlux(:ncol)*Fsub(:ncol)*0.03_r8)/1.0983_r8
   !!   endif
-       surfaceFlux(:ncol) = SaltFlux(:ncol)
-
-   elseif (ielem == I_ELEM_MXAER) then
-!
-!       ! OC & BC
-        if(carma_BCOCemissions == 'Yu2015')then
-           do icol = 1, ncol
-              smoke(icol) = OCnew(ilat(icol), ilon(icol), mon)*1.8_r8 + BCnew(ilat(icol), ilon(icol), mon)
-           enddo
-        elseif(carma_BCOCemissions == 'Specified')then
-           smoke(:ncol) = OCemis_ptr(:ncol) + BCemis_ptr(:ncol)
-        end if
-!      ! seasalt
-       call CARMA_SaltFlux(carma, ibin, state, r, dr, rmass, cam_in, SaltFlux, rc)
-!
-!      ! dust
-        if (r(ibin) >= rClay) then
-         sp         = 0.9_r8 / nSilt
-         idustbin   = ibin
-        else
-         sp         = 0.1_r8 / nClay
-         idustbin   = nClay + 1
-        end if
-!      ! Process each column.
-
-       do icol = 1,ncol
-!        ! need to use dust element (e.g. density) to calculate surface wind
-!        ! otherwise the winds would be different
-         call CARMA_SurfaceWind(carma, icol, ielem, igroup, idustbin, cam_in, uv10, wwd, uth, rc)
-
-        ! Is the wind above the threshold for dust production?
-        if (uv10 > uth) then
-          surfaceFlux(icol) = ch * soil_factor(ilat(icol), ilon(icol)) * sp * &
-                              wwd * (uv10 - uth)
-        endif
-
-        ! Scale the clay bins based upon the smallest silt bin.
-        surfaceFlux(icol) = clay_mf(ibin) * surfaceFlux(icol)
-
-       end do
-!
-!      ! dust+poa+bc+marinPOA+seasalt+seasalt_sulfate
-      ! marinePOA + sea alt + marineSulfate = SaltFlux
-      !surfaceFlux(:ncol) = surfaceFlux(:ncol) + smoke(:ncol)*fraction*1.9934e-22_r8 + SaltFlux(:ncol) + PBAPFlux(:ncol)
-      surfaceFlux(:ncol) = surfaceFlux(:ncol) + smoke(:ncol)*aeronet_fraction(ibin)*SmoketoSufaceFlux + SaltFlux(:ncol)
-
-    else
-
+      surfaceFlux(:ncol) = surfaceFlux(:ncol) + saltFlux(:ncol)
     end if
 
     return
@@ -1123,9 +1113,8 @@ contains
 
     ! -------- local variables ----------
     integer            :: ibin                                ! CARMA bin index
-    real(r8)           :: r(NBIN),dr(NBIN),rm(NBIN)           ! bin center (cm)
+    real(r8)           :: rdust(NBIN),robc(NBIN),drobc(NBIN),rm(NBIN),rhop(NBIN)       ! bin center (cm)
     integer            :: count_Silt                          ! count number for Silt
-    integer            :: ncore
     integer            :: igroup                              ! the index of the carma aerosol group
     integer            :: ielem                               ! the index of the carma aerosol element
     character(len=32)  :: shortname                           ! the shortname of the element
@@ -1139,6 +1128,7 @@ contains
     real(r8),dimension(aeronet_dim1) :: sizedist_avg
     real(r8),dimension(NBIN) :: sizedist_carmabin
     real(r8) :: rmass(NBIN) !! dry mass
+    real(r8) :: vrfact
 
     real(r8),parameter :: size_aeronet(aeronet_dim1) = (/0.050000_r8,0.065604_r8,0.086077_r8,0.112939_r8,0.148184_r8, &
          0.194429_r8,0.255105_r8,0.334716_r8,0.439173_r8,0.576227_r8,0.756052_r8,0.991996_r8,1.301571_r8,1.707757_r8, &
@@ -1154,17 +1144,24 @@ contains
     ! nClay = 8
     ! nSilt = NBIN - nClay
     do ielem = 1, NELEM
-       ! To get particle radius
-       call CARMAELEMENT_GET(carma, ielem, rc, igroup=igroup, shortname=shortname)
+
+       ! To get particle radius, need to derive from rmass and density of dust.
+       call CARMAELEMENT_GET(carma, ielem, rc, igroup=igroup, shortname=shortname, rho=rhop)
        if (RC < RC_ERROR) return
 
-       call CARMAGROUP_GET(carma, igroup, rc, r=r)
+       call CARMAGROUP_GET(carma, igroup, rc, rmass=rmass)
        if (RC < RC_ERROR) return
 
        if (shortname .eq. "MXDUST") then
+
           count_Silt = 0
           do ibin = 1, NBIN
-             if (r(ibin) >= rclay) then
+
+             ! Calculate the radius assuming that all the mass will be emitted as this
+             ! element.
+             rdust(ibin) = (3._r8 * rmass(ibin) / 4._r8 / PI / rhop(ibin))**(1._r8 / 3._r8)
+
+             if (rdust(ibin) >= rclay) then
                 count_Silt = count_Silt + 1
              else
              end if
@@ -1185,7 +1182,7 @@ contains
        if (RC < RC_ERROR) return
 
        if (shortname .eq. "MXDUST") then
-          call CARMA_ClayMassFraction(carma, igroup, rc)
+          call CARMA_ClayMassFraction(carma, igroup, rdust, rc)
        end if
     end do
 
@@ -1279,36 +1276,43 @@ contains
     sizedist_avg(:) = sizedist_avg(:)*0.25_r8
 
     do igroup = 1,NGROUP
-      call CARMAGROUP_GET(carma, igroup, rc, r=r, dr=dr,ncore=ncore)
-      if(ncore .gt. 0)then
-        if (RC < RC_ERROR) return
+      call CARMAGROUP_GET(carma, igroup, rc, shortname=shortname, rmass=rmass)
+
+
+      if (shortname .eq. "MXAER") then
 
         !interpolate into carma bin
         sizedist_carmabin = 0._r8
 
-        do ibin_local = 1,carma%f_NBIN
-          if(r(ibin_local) .lt. size_aeronet(1)) then
+        do ibin_local = 1, NBIN
+          ! Calculate the radius assuming that all the mass will be emitted as this
+          ! element.
+          vrfact = ((3._r8/2._r8 / PI / (vmrat_MXAER + 1._r8))**(1._r8 / 3._r8)) * ((vmrat_MXAER**(1._r8 / 3._r8)) - 1._r8)
+          robc(ibin_local) = (3._r8 * rmass(ibin_local) / 4._r8 / PI / rho_obc)**(1._r8 / 3._r8)
+          drobc(ibin_local) = vrfact * ((rmass(ibin_local)/rho_obc) **(1._r8 / 3._r8))
+
+          if(robc(ibin_local) .lt. size_aeronet(1)) then
             sizedist_carmabin(ibin_local) = sizedist_avg(1)
           end if
-          if(r(ibin_local) .ge. size_aeronet(aeronet_dim1)) then
+          if(robc(ibin_local) .ge. size_aeronet(aeronet_dim1)) then
             sizedist_carmabin(ibin_local) = sizedist_avg(aeronet_dim1)
           end if
           do isizebin= 1,aeronet_dim1-1
-            if( r(ibin_local) .ge. size_aeronet(isizebin) .and.  r(ibin_local) .lt. size_aeronet(isizebin+1))then
-              sizedist_carmabin(ibin_local) = sizedist_avg(isizebin)*(size_aeronet(isizebin+1)-r(ibin_local))/&
+            if( robc(ibin_local) .ge. size_aeronet(isizebin) .and.  robc(ibin_local) .lt. size_aeronet(isizebin+1))then
+              sizedist_carmabin(ibin_local) = sizedist_avg(isizebin)*(size_aeronet(isizebin+1)-robc(ibin_local))/&
                   (size_aeronet(isizebin+1)-size_aeronet(isizebin))&
-                  +sizedist_avg(isizebin+1)*(r(ibin_local)-size_aeronet(isizebin))&
+                  +sizedist_avg(isizebin+1)*(robc(ibin_local)-size_aeronet(isizebin))&
                   /(size_aeronet(isizebin+1)-size_aeronet(isizebin))
             end if
           end do
         end do
 
         rm(:) = 0._r8
-        do ibin_local = 1, carma%f_NBIN
-          rm(ibin_local) = sizedist_carmabin(ibin_local)*dr(ibin_local)/r(ibin_local)*RHO_obc*1.e-15_r8         ! kg
+        do ibin_local = 1, NBIN
+          rm(ibin_local) = sizedist_carmabin(ibin_local)*drobc(ibin_local)/robc(ibin_local)*RHO_obc*1.e-15_r8         ! kg
         enddo
 
-        do ibin_local = 1, carma%f_NBIN
+        do ibin_local = 1, NBIN
           aeronet_fraction(ibin_local) = rm(ibin_local)/sum(rm(:))
         end do
 
@@ -1336,7 +1340,7 @@ contains
     real(r8),         intent(in)  :: latvals(:) !! lat in degrees (ncol)
     real(r8),         intent(in)  :: lonvals(:) !! lon in degrees (ncol)
     logical,          intent(in)  :: mask(:)    !! Only initialize where .true.
-    real(r8),         intent(out) :: q(:,:)     !! mass mixing ratio (gcol, lev)
+    real(r8),         intent(inout) :: q(:,:)     !! mass mixing ratio (gcol, lev)
     integer,          intent(out) :: rc         !! return code, negative indicates failure
 
     ! Default return code.
@@ -1391,9 +1395,9 @@ contains
     type(carma_type), intent(in)       :: carma                 !! the carma object
     integer, intent(in)                :: ibin                  !! bin index
     type(physics_state), intent(in)    :: state                 !! physics state
-    real(r8), intent(in)               :: r(NBIN)               !! bin center (cm)
-    real(r8), intent(in)               :: dr(NBIN)              !! bin width (cm)
-    real(r8), intent(in)               :: rmass(NBIN)           !! bin mass (g)
+    real(r8), intent(in)               :: r                     !! bin center (cm)
+    real(r8), intent(in)               :: dr                    !! bin width (cm)
+    real(r8), intent(in)               :: rmass                 !! bin mass (g)
     type(cam_in_t), intent(in)         :: cam_in                !! surface inputs
     real(r8), intent(out)              :: SaltFlux(pcols)       !! constituent surface flux (kg/m^2/s)
     integer, intent(out)               :: rc                    !! return code, negative indicates failure
@@ -1527,8 +1531,8 @@ contains
     !**********************************
     ! wet sea salt radius at RH = 80%
     !**********************************
-    r80cm   = (c1 *  (r(ibin)) ** c2 / (c3 * r(ibin) ** c4 - log10(0.8_r8)) + (r(ibin))**3) ** (1._r8/3._r8) ! [cm]
-    rdrycm  = r(ibin)  ! [cm]
+    r80cm   = (c1 *  (r) ** c2 / (c3 * r ** c4 - log10(0.8_r8)) + (r)**3) ** (1._r8/3._r8) ! [cm]
+    rdrycm  = r  ! [cm]
     r80     = r80cm *1.e4_r8    ! [um]
     rdry    = rdrycm*1.e4_r8  ! [um]
 
@@ -1713,10 +1717,10 @@ contains
           end if
 
           ! convert ncflx [#/m^2/s/um] to surfaceFlx [kg/m^2/s]
-          SaltFlux(icol) = ncflx * dr(ibin) * rmass(ibin) * 10._r8      ! *1e4[um/cm] * 1.e-3[kg/g]
+          SaltFlux(icol) = ncflx * dr * rmass * 10._r8      ! *1e4[um/cm] * 1.e-3[kg/g]
 
           !          if (do_print) write(LUNOPRT, *) "ibin = ", ibin, ", igroup = ", igroup
-          !          if (do_print) write(LUNOPRT, *) "dr = ", dr(ibin), ", rmass = ", rmass(ibin)
+          !          if (do_print) write(LUNOPRT, *) "dr = ", dr, ", rmass = ", rmass
           !          if (do_print) write(LUNOPRT, *) "ncflx = " , ncflx, ", SaltFlux = ", SaltFlux(icol)
 
           ! weighted by the ocean fraction
@@ -1833,10 +1837,11 @@ contains
   !!
   !!  @version July-2012
   !!  @author  Lin Su, Pengfei Yu, Chuck Bardeen
-  subroutine CARMA_ClayMassFraction(carma, igroup, rc)
+  subroutine CARMA_ClayMassFraction(carma, igroup, rdust, rc)
 
     type(carma_type), intent(in)         :: carma       !! the carma object
     integer, intent(in)                  :: igroup      !! the carma group index
+    real(r8), intent(in)                 :: rdust(NBIN) !! radius assuming entire particle is dust
     integer, intent(inout)               :: rc          !! return code, negative indicates failure
 
     ! Bins and mass fraction from Tegen and Lacis.
@@ -1858,10 +1863,6 @@ contains
     ! Default return code.
     rc = RC_OK
 
-    ! Interpolate from Tegen and Lacis.
-    call CARMAGROUP_GET(carma, igroup, rc, r=r)
-    if (RC < RC_ERROR) return
-
     ! Figure out how many of the CARMA bins are in each of the Tegen and Lacis
     ! ranges.
     tl_count(:) = 0
@@ -1869,19 +1870,19 @@ contains
     do ibin = 1, NBIN
 
       ! Smaller than the range.
-      if (r(ibin) < tl_rmin(1)) then
+      if (rdust(ibin) < tl_rmin(1)) then
         tl_count(IBELOW) = tl_count(IBELOW) + 1
       end if
 
       ! In the range
       do j = 1, NBIN_TEGEN
-        if (r(ibin) < tl_rmax(j) .and. r(ibin) >= tl_rmin(j)) then
+        if (rdust(ibin) < tl_rmax(j) .and. rdust(ibin) >= tl_rmin(j)) then
           tl_count(j+1) = tl_count(j+1) + 1
         end if
       end do
 
       ! Bigger than the range.
-      if (r(ibin) >= tl_rmax(NBIN_TEGEN)) then
+      if (rdust(ibin) >= tl_rmax(NBIN_TEGEN)) then
         tl_count(IABOVE) = tl_count(IABOVE) + 1
       end if
     end do
@@ -1940,7 +1941,8 @@ contains
     integer,  intent(inout)             :: rc                    !! return code, negative indicates failure
 
     real(r8), parameter                 :: vk = 0.4_r8           ! von Karman constant
-    real(r8)                            :: r(NBIN)               ! CARMA bin center (cm)
+    real(r8)                            :: rmass(NBIN)           ! CARMA bin mass (g)
+    real(r8)                            :: r                     ! CARMA bin center (cm)
     real(r8)                            :: rhop(NBIN)            ! CARMA partile element density (g/cm3)
     real(r8)                            :: uthfact               !
     real(r8), parameter                 :: rhoa = 1.25e-3_r8     ! Air density at surface
@@ -1952,19 +1954,27 @@ contains
 
     ! Calculate the threshold wind speed of each bin [Marticorena and Bergametti,1995]
     ! note that in cgs units --> m/s
-    call CARMAGROUP_GET(carma, igroup, rc, r=r)
+    call CARMAGROUP_GET(carma, igroup, rc, rmass=rmass)
     if (RC < RC_ERROR) return
 
     ! Define particle # concentration element index for current group
     call CARMAELEMENT_Get(carma, ielem, rc, rho=rhop)
     if (RC < RC_ERROR) return
 
-    if (cam_in%soilw(icol) > 0._r8 .AND. cam_in%soilw(icol) < 0.5_r8) then
-       uthfact = 1.2_r8 + 0.2_r8*log10(cam_in%soilw(icol))
-       if (r(ibin) > 2.825e-5_r8) then  ! r(4) = 2.825e-5 cm
-           uth = uthfact * 1.e-2_r8 * 0.13_r8 * sqrt(rhop(ibin)*GRAV*r(ibin)*2._r8/rhoa) &
-                       * sqrt(1._r8 + .006_r8/rhop(ibin)/GRAV/(r(ibin)*2._r8)**2.5_r8) &
-                       / sqrt(1.928_r8*(1331._r8*(r(ibin)*2._r8)**1.56_r8 + .38_r8)**.092_r8 - 1._r8)
+    ! Calculate the radius assuming that all the mass will be emitted as this
+    ! element.
+    r = (3._r8 * rmass(ibin) / 4._r8 / PI / rhop(ibin))**(1._r8 / 3._r8)
+
+    if (cam_in%soilw(icol) >= 0._r8 .AND. cam_in%soilw(icol) < 0.5_r8) then
+
+       ! Prevent small values of soilw from driving uthfact negative, but allow
+       ! for dust emissions even when soilw is 0.
+       uthfact = 1.2_r8 + 0.2_r8*log10(max(0.001, cam_in%soilw(icol)))
+
+       if (r > 2.825e-5_r8) then  ! r(4) = 2.825e-5 cm
+           uth = uthfact * 1.e-2_r8 * 0.13_r8 * sqrt(rhop(ibin)*GRAV*r*2._r8/rhoa) &
+                       * sqrt(1._r8 + .006_r8/rhop(ibin)/GRAV/(r*2._r8)**2.5_r8) &
+                       / sqrt(1.928_r8*(1331._r8*(r*2._r8)**1.56_r8 + .38_r8)**.092_r8 - 1._r8)
        else
            uth = uthfact*1.e-2_r8* 0.13_r8 * sqrt(rhop(ibin)*GRAV*(.75e-4_r8)*2._r8/rhoa)   &
                        * sqrt(1._r8 + .006_r8/rhop(ibin)/GRAV/((.75e-4_r8)*2._r8)**2.5_r8) &
@@ -1976,6 +1986,12 @@ contains
 
     ! Use Weibull with Lansing's estimate for shape.
     call WeibullWind(uv10, uth, 2._r8, wwd)
+
+    ! Set the threshold to the weibull wind value if sol moisture >= 0.5,
+    ! to turn off emissions.
+    if (cam_in%soilw(icol) >= 0.5_r8) then
+      uth = sqrt(wwd)
+    end if
 
     return
   end subroutine CARMA_SurfaceWind
