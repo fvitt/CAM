@@ -1969,7 +1969,7 @@ contains
 
        ! Prevent small values of soilw from driving uthfact negative, but allow
        ! for dust emissions even when soilw is 0.
-       uthfact = 1.2_r8 + 0.2_r8*log10(max(0.001, cam_in%soilw(icol)))
+       uthfact = 1.2_r8 + 0.2_r8*log10(max(0.001_r8, cam_in%soilw(icol)))
 
        if (r > 2.825e-5_r8) then  ! r(4) = 2.825e-5 cm
            uth = uthfact * 1.e-2_r8 * 0.13_r8 * sqrt(rhop(ibin)*GRAV*r*2._r8/rhoa) &
