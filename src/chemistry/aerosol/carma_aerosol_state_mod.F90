@@ -20,12 +20,14 @@ module carma_aerosol_state_mod
      type(physics_buffer_desc), pointer :: pbuf(:) => null()
    contains
 
+     procedure :: ambient_total_bin_mmr
      procedure :: get_ambient_mmr
      procedure :: get_cldbrne_mmr
      procedure :: get_ambient_num
      procedure :: get_cldbrne_num
      procedure :: get_states
-     procedure :: icenuc_size_wght
+     procedure :: icenuc_size_wght1
+     procedure :: icenuc_size_wght2
 
      final :: destructor
 
@@ -62,6 +64,25 @@ contains
     nullify(self%pbuf)
 
   end subroutine destructor
+
+  !------------------------------------------------------------------------
+  !------------------------------------------------------------------------
+  function ambient_total_bin_mmr(self, aero_props, bin_ndx, col_ndx, lyr_ndx) result(mmr_tot)
+    class(carma_aerosol_state), intent(in) :: self
+    class(aerosol_properties), intent(in) :: aero_props
+    integer, intent(in) :: bin_ndx      ! bin index
+    integer, intent(in) :: col_ndx      ! column index
+    integer, intent(in) :: lyr_ndx      ! vertical layer index
+
+    real(r8) :: mmr_tot                 ! mass mixing ratios totaled for all species
+
+    real(r8),pointer :: mmrptr(:,:)
+
+    call rad_cnst_get_bin_mmr(0, bin_ndx, 'a', self%state, self%pbuf, mmrptr)
+
+    mmr_tot = mmrptr(col_ndx,lyr_ndx)
+
+  end function ambient_total_bin_mmr
 
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------
@@ -143,7 +164,7 @@ contains
 
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------
-  subroutine icenuc_size_wght(self, bin_ndx, ncol, nlev, species_type, use_preexisting_ice, wght)
+  subroutine icenuc_size_wght1(self, bin_ndx, ncol, nlev, species_type, use_preexisting_ice, wght)
     class(carma_aerosol_state), intent(in) :: self
     integer, intent(in) :: bin_ndx                ! bin number
     integer, intent(in) :: ncol                   ! number of columns
@@ -171,6 +192,33 @@ contains
        end do
     end do
 
-  end subroutine icenuc_size_wght
+  end subroutine icenuc_size_wght1
+
+  !------------------------------------------------------------------------------
+  !------------------------------------------------------------------------------
+  subroutine icenuc_size_wght2(self, bin_ndx, col_ndx, lyr_ndx, species_type, use_preexisting_ice, wght)
+    class(carma_aerosol_state), intent(in) :: self
+    integer, intent(in) :: bin_ndx                ! bin number
+    integer, intent(in) :: col_ndx                ! column index
+    integer, intent(in) :: lyr_ndx                ! vertical layer index
+    character(len=*), intent(in) :: species_type  ! species type
+    logical, intent(in) :: use_preexisting_ice    ! pre-existing ice flag
+    real(r8), intent(out) :: wght
+
+    character(len=32) :: bin_name
+    real(r8), pointer :: dryr(:,:)
+    real(r8) :: diamdry
+
+    wght = 0._r8
+
+    call rad_cnst_get_info_by_bin(0, bin_ndx, bin_name=bin_name)
+    call pbuf_get_field(self%pbuf, pbuf_get_index(trim(bin_name)//"_dryr"),dryr)
+
+    diamdry = dryr(col_ndx,lyr_ndx) * 2.e4_r8  ! diameter in microns (from radius in cm)
+    if (diamdry >= 0.1_r8) then ! size threashold
+       wght = 1._r8
+    end if
+
+  end subroutine icenuc_size_wght2
 
 end module carma_aerosol_state_mod

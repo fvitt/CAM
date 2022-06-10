@@ -29,6 +29,7 @@ module aerosol_state_mod
      procedure :: number_transported
      procedure :: get_transported
      procedure :: set_transported
+     procedure(aero_get_amb_total_bin_mmr), deferred :: ambient_total_bin_mmr
      procedure(aero_get_state_mmr), deferred :: get_ambient_mmr
      procedure(aero_get_state_mmr), deferred :: get_cldbrne_mmr
      procedure(aero_get_state_num), deferred :: get_ambient_num
@@ -37,7 +38,9 @@ module aerosol_state_mod
      procedure, private :: loadaer1
      procedure, private :: loadaer2
      generic :: loadaer => loadaer1, loadaer2
-     procedure(aero_icenuc_size_wght), deferred :: icenuc_size_wght
+     procedure(aero_icenuc_size_wght1), deferred :: icenuc_size_wght1
+     procedure(aero_icenuc_size_wght2), deferred :: icenuc_size_wght2
+     generic :: icenuc_size_wght => icenuc_size_wght1,icenuc_size_wght2
      procedure :: icenuc_type_wght_base
      procedure :: icenuc_type_wght => icenuc_type_wght_base
  end type aerosol_state
@@ -48,6 +51,20 @@ module aerosol_state_mod
   end type ptr2d_t
 
   interface
+
+     !------------------------------------------------------------------------
+     !------------------------------------------------------------------------
+     function aero_get_amb_total_bin_mmr(self, aero_props, bin_ndx, col_ndx, lyr_ndx) result(mmr_tot)
+       import
+       class(aerosol_state), intent(in) :: self
+       class(aerosol_properties), intent(in) :: aero_props
+       integer, intent(in) :: bin_ndx      ! bin index
+       integer, intent(in) :: col_ndx      ! column index
+       integer, intent(in) :: lyr_ndx      ! vertical layer index
+
+       real(r8) :: mmr_tot                 ! mass mixing ratios totaled for all species
+
+     end function aero_get_amb_total_bin_mmr
 
      !------------------------------------------------------------------------
      !------------------------------------------------------------------------
@@ -83,7 +100,7 @@ module aerosol_state_mod
 
      !------------------------------------------------------------------------------
      !------------------------------------------------------------------------------
-     subroutine aero_icenuc_size_wght(self, bin_ndx, ncol, nlev, species_type, use_preexisting_ice, wght)
+     subroutine aero_icenuc_size_wght1(self, bin_ndx, ncol, nlev, species_type, use_preexisting_ice, wght)
        import
        class(aerosol_state), intent(in) :: self
        integer, intent(in) :: bin_ndx           ! bin number
@@ -93,7 +110,21 @@ module aerosol_state_mod
        logical, intent(in) :: use_preexisting_ice ! pre-existing ice flag
        real(r8), intent(out) :: wght(:,:)
 
-     end subroutine aero_icenuc_size_wght
+     end subroutine aero_icenuc_size_wght1
+
+     !------------------------------------------------------------------------------
+     !------------------------------------------------------------------------------
+     subroutine aero_icenuc_size_wght2(self, bin_ndx, col_ndx, lyr_ndx, species_type, use_preexisting_ice, wght)
+       import
+       class(aerosol_state), intent(in) :: self
+       integer, intent(in) :: bin_ndx                ! bin number
+       integer, intent(in) :: col_ndx                ! column index
+       integer, intent(in) :: lyr_ndx                ! vertical layer index
+       character(len=*), intent(in) :: species_type  ! species type
+       logical, intent(in) :: use_preexisting_ice    ! pre-existing ice flag
+       real(r8), intent(out) :: wght
+
+     end subroutine aero_icenuc_size_wght2
 
   end interface
 

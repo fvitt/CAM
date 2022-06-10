@@ -23,8 +23,11 @@ module modal_aerosol_properties_mod
      procedure :: actfracs
      procedure :: num_names
      procedure :: mmr_names
+     procedure :: amb_num_name
+     procedure :: amb_mmr_name
      procedure :: species_type
-     procedure :: icenuc_lq
+     procedure :: icenuc_num
+     procedure :: icenuc_mmr
      final :: destructor
   end type modal_aerosol_properties
 
@@ -202,6 +205,28 @@ contains
 
   !------------------------------------------------------------------------
   !------------------------------------------------------------------------
+  subroutine amb_num_name(self, bin_ndx, name)
+    class(modal_aerosol_properties), intent(in) :: self
+    integer, intent(in) :: bin_ndx           ! bin number
+    character(len=32), intent(out) :: name   ! constituent name of ambient aerosol number dens
+
+    call rad_cnst_get_info(0,bin_ndx, num_name=name)
+
+  end subroutine amb_num_name
+  !------------------------------------------------------------------------
+  !------------------------------------------------------------------------
+  subroutine amb_mmr_name(self, bin_ndx, species_ndx, name)
+    class(modal_aerosol_properties), intent(in) :: self
+    integer, intent(in) :: bin_ndx           ! bin number
+    integer, intent(in) :: species_ndx       ! species number
+    character(len=32), intent(out) :: name   ! constituent name of ambient aerosol MMR
+
+    call rad_cnst_get_info(0, bin_ndx, species_ndx, spec_name=name)
+
+  end subroutine amb_mmr_name
+
+  !------------------------------------------------------------------------
+  !------------------------------------------------------------------------
   subroutine species_type(self, bin_ndx, species_ndx, spectype)
     class(modal_aerosol_properties), intent(in) :: self
     integer, intent(in) :: bin_ndx           ! bin number
@@ -214,36 +239,56 @@ contains
 
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------
-  function icenuc_lq(self, bin_ndx, species_ndx) result(lq)
-
+  function icenuc_num(self, bin_ndx) result(res)
     class(modal_aerosol_properties), intent(in) :: self
     integer, intent(in) :: bin_ndx           ! bin number
-    integer, intent(in) :: species_ndx       ! species number
 
-    logical :: lq
+    logical :: res
 
     character(len=32) :: spectype
     character(len=32) :: modetype
-    integer :: l
+    integer :: spc_ndx
 
-    lq = .false.
+    res = .false.
 
     call rad_cnst_get_info(0, bin_ndx, mode_type=modetype)
     if (.not.(modetype=='coarse' .or. modetype=='coarse_dust')) then
        return
     end if
 
-    if (species_ndx==0) then
-       do l = 1, self%nspecies(bin_ndx)
-          call self%species_type( bin_ndx, l, spectype)
-          if (spectype=='dust') lq = .true.
-       end do
-    else
+    do spc_ndx = 1, self%nspecies(bin_ndx)
+       call self%species_type( bin_ndx, spc_ndx, spectype)
+       if (spectype=='dust') res = .true.
+    end do
+
+  end function icenuc_num
+
+  !------------------------------------------------------------------------------
+  !------------------------------------------------------------------------------
+  function icenuc_mmr(self, bin_ndx, species_ndx) result(res)
+    class(modal_aerosol_properties), intent(in) :: self
+    integer, intent(in) :: bin_ndx           ! bin number
+    integer, intent(in) :: species_ndx       ! species number
+
+    logical :: res
+
+    character(len=32) :: spectype
+    character(len=32) :: modetype
+
+    res = .false.
+
+    if (species_ndx>0) then
+
+       call rad_cnst_get_info(0, bin_ndx, mode_type=modetype)
+       if (.not.(modetype=='coarse' .or. modetype=='coarse_dust')) then
+          return
+       end if
+
        call self%species_type( bin_ndx, species_ndx, spectype)
-       if (spectype=='dust') lq = .true.
+       if (spectype=='dust') res = .true.
     end if
 
-  end function icenuc_lq
+  end function icenuc_mmr
 
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------

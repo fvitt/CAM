@@ -45,8 +45,11 @@ module aerosol_properties_mod
      procedure(aero_actfracs), deferred :: actfracs
      procedure(aero_num_names), deferred :: num_names
      procedure(aero_mmr_names), deferred :: mmr_names
+     procedure(aero_amb_num_name), deferred :: amb_num_name
+     procedure(aero_amb_mmr_name), deferred :: amb_mmr_name
      procedure(aero_species_type), deferred :: species_type
-     procedure(aero_icenuc_lq), deferred :: icenuc_lq
+     procedure(aero_icenuc_num), deferred :: icenuc_num
+     procedure(aero_icenuc_mmr), deferred :: icenuc_mmr
 
      procedure :: final=>aero_props_final
   end type aerosol_properties
@@ -127,6 +130,26 @@ module aerosol_properties_mod
        character(len=32), intent(out) :: name_c ! constituent name of cloud-borne aerosol MMR
      end subroutine aero_mmr_names
 
+     !------------------------------------------------------------------------
+     !------------------------------------------------------------------------
+     subroutine aero_amb_num_name(self, bin_ndx, name)
+       import
+       class(aerosol_properties), intent(in) :: self
+       integer, intent(in) :: bin_ndx           ! bin number
+       character(len=32), intent(out) :: name  ! constituent name of ambient aerosol number dens
+
+     end subroutine aero_amb_num_name
+     !------------------------------------------------------------------------
+     !------------------------------------------------------------------------
+     subroutine aero_amb_mmr_name(self, bin_ndx, species_ndx, name)
+       import
+       class(aerosol_properties), intent(in) :: self
+       integer, intent(in) :: bin_ndx           ! bin number
+       integer, intent(in) :: species_ndx       ! species number
+       character(len=32), intent(out) :: name   ! constituent name of ambient aerosol MMR
+
+     end subroutine aero_amb_mmr_name
+
      !------------------------------------------------------------------------------
      ! returns radius^3 (m3) of a given bin number
      !------------------------------------------------------------------------------
@@ -142,15 +165,26 @@ module aerosol_properties_mod
 
      !------------------------------------------------------------------------------
      !------------------------------------------------------------------------------
-     function aero_icenuc_lq(self, bin_ndx, species_ndx) result(lq)
+     function aero_icenuc_num(self, bin_ndx) result(res)
+       import
+       class(aerosol_properties), intent(in) :: self
+       integer, intent(in) :: bin_ndx           ! bin number
+
+       logical :: res
+
+     end function aero_icenuc_num
+
+     !------------------------------------------------------------------------------
+     !------------------------------------------------------------------------------
+     function aero_icenuc_mmr(self, bin_ndx, species_ndx) result(res)
        import
        class(aerosol_properties), intent(in) :: self
        integer, intent(in) :: bin_ndx           ! bin number
        integer, intent(in) :: species_ndx       ! species number
 
-       logical :: lq
+       logical :: res
 
-     end function aero_icenuc_lq
+     end function aero_icenuc_mmr
 
   end interface
 
