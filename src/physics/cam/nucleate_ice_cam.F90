@@ -11,7 +11,7 @@ use shr_kind_mod,   only: r8=>shr_kind_r8
 use spmd_utils,     only: masterproc
 use ppgrid,         only: pcols, pver
 use physconst,      only: pi, rair, tmelt
-use constituents,   only: pcnst, cnst_get_ind, cnst_name
+use constituents,   only: pcnst, cnst_get_ind
 use physics_types,  only: physics_state, physics_ptend, physics_ptend_init
 use physics_buffer, only: physics_buffer_desc
 use phys_control,   only: use_hetfrz_classnuc
@@ -23,7 +23,7 @@ use physics_buffer, only: pbuf_add_field, dtype_r8, pbuf_old_tim_idx, &
 use cam_history,    only: addfld, add_default, outfld
 
 use ref_pres,       only: top_lev => trop_cloud_top_lev
-use wv_saturation,  only: qsat_water, svp_water, svp_ice
+use wv_saturation,  only: qsat_water
 
 use cam_logfile,    only: iulog
 use cam_abortutils, only: endrun
