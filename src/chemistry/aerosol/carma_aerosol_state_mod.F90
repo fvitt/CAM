@@ -41,10 +41,9 @@ contains
 
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------
-  function constructor(state,pbuf,props) result(newobj)
+  function constructor(state,pbuf) result(newobj)
     type(physics_state), target, optional :: state
     type(physics_buffer_desc), pointer, optional :: pbuf(:)
-    class(aerosol_properties), intent(in) :: props
 
     type(carma_aerosol_state), pointer :: newobj
 
@@ -66,10 +65,11 @@ contains
   end subroutine destructor
 
   !------------------------------------------------------------------------
+  ! Total aerosol mass mixing ratio for a bin in a given grid box location (column and layer)
   !------------------------------------------------------------------------
   function ambient_total_bin_mmr(self, aero_props, bin_ndx, col_ndx, lyr_ndx) result(mmr_tot)
     class(carma_aerosol_state), intent(in) :: self
-    class(aerosol_properties), intent(in) :: aero_props
+    class(aerosol_properties), intent(in) :: aero_props ! aerosol properties object
     integer, intent(in) :: bin_ndx      ! bin index
     integer, intent(in) :: col_ndx      ! column index
     integer, intent(in) :: lyr_ndx      ! vertical layer index
@@ -85,6 +85,7 @@ contains
   end function ambient_total_bin_mmr
 
   !------------------------------------------------------------------------------
+  ! returns ambient aerosol mass mixing ratio for a given species index and bin index
   !------------------------------------------------------------------------------
   subroutine get_ambient_mmr(self, species_ndx, bin_ndx, mmr)
     class(carma_aerosol_state), intent(in) :: self
@@ -101,6 +102,7 @@ contains
   end subroutine get_ambient_mmr
 
   !------------------------------------------------------------------------------
+  ! returns cloud-borne aerosol number mixing ratio for a given species index and bin index
   !------------------------------------------------------------------------------
   subroutine get_cldbrne_mmr(self, species_ndx, bin_ndx, mmr)
     class(carma_aerosol_state), intent(in) :: self
@@ -117,26 +119,29 @@ contains
   end subroutine get_cldbrne_mmr
 
   !------------------------------------------------------------------------------
+  ! returns ambient aerosol number mixing ratio for a given species index and bin index
   !------------------------------------------------------------------------------
   subroutine get_ambient_num(self, bin_ndx, num)
     class(carma_aerosol_state), intent(in) :: self
-    integer, intent(in) :: bin_ndx             ! bin index
-    real(r8), pointer :: num(:,:)
+    integer, intent(in) :: bin_ndx     ! bin index
+    real(r8), pointer :: num(:,:)      ! number mixing ratios
 
     call rad_cnst_get_bin_num(0, bin_ndx, 'a', self%state, self%pbuf, num)
   end subroutine get_ambient_num
 
   !------------------------------------------------------------------------------
+  ! returns cloud-borne aerosol number mixing ratio for a given species index and bin index
   !------------------------------------------------------------------------------
   subroutine get_cldbrne_num(self, bin_ndx, num)
     class(carma_aerosol_state), intent(in) :: self
-    integer, intent(in) :: bin_ndx             ! bin index
-    real(r8), pointer :: num(:,:)
+    integer, intent(in) :: bin_ndx     ! bin index
+    real(r8), pointer :: num(:,:)      ! number mixing ratios
 
     call rad_cnst_get_bin_num(0, bin_ndx, 'c', self%state, self%pbuf, num)
   end subroutine get_cldbrne_num
 
   !------------------------------------------------------------------------------
+  ! returns interstitual and cloud-borne aerosol states
   !------------------------------------------------------------------------------
   subroutine get_states( self, aero_props, raer, qqcw )
     class(carma_aerosol_state), intent(in) :: self
@@ -163,6 +168,7 @@ contains
   end subroutine get_states
 
   !------------------------------------------------------------------------------
+  ! return aerosol bin size weights for a given bin
   !------------------------------------------------------------------------------
   subroutine icenuc_size_wght1(self, bin_ndx, ncol, nlev, species_type, use_preexisting_ice, wght)
     class(carma_aerosol_state), intent(in) :: self
@@ -195,6 +201,7 @@ contains
   end subroutine icenuc_size_wght1
 
   !------------------------------------------------------------------------------
+  ! return aerosol bin size weights for a given bin, column and verical layer
   !------------------------------------------------------------------------------
   subroutine icenuc_size_wght2(self, bin_ndx, col_ndx, lyr_ndx, species_type, use_preexisting_ice, wght)
     class(carma_aerosol_state), intent(in) :: self

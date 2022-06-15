@@ -192,13 +192,18 @@ subroutine nucleate_ice_cam_init(aero_props, mincld_in, bulk_scale_in, pbuf2d)
 
    if (use_preexisting_ice) then
 
-      allocate(aer_cnst_idx(aero_props%nbins(),0:maxval(aero_props%nmasses())))
+      ! constituent tendencies are calculated only if use_preexisting_ice is TRUE
+      ! set lq for constituent tendencies --
+
+      allocate(aer_cnst_idx(aero_props%nbins(),0:maxval(aero_props%nspecies())))
       aer_cnst_idx = -1
 
       do m = 1, aero_props%nbins()
-         if (aero_props%icenuc_num(m)) then
+         if (aero_props%icenuc_apply_num_tend(m)) then
 
-            if (aero_props%icenuc_mmr(m,0)) then
+            ! constituents of this bin will need to be updated
+
+            if (aero_props%icenuc_apply_mmr_tend(m,0)) then ! species 0 indicates bin MMR
                call aero_props%amb_mmr_name( m, 0, tmpname)
             else
                call aero_props%amb_num_name( m, tmpname)
@@ -210,8 +215,10 @@ subroutine nucleate_ice_cam_init(aero_props, mincld_in, bulk_scale_in, pbuf2d)
                lq(idxtmp) = .true.
             end if
 
+            ! iterate over the species within the bin
             do l = 1, aero_props%nspecies(m)
-               if (aero_props%icenuc_mmr(m,l)) then
+               if (aero_props%icenuc_apply_mmr_tend(m,l)) then
+                  ! this aerosol constituent will need to updated
                   call aero_props%amb_mmr_name( m, l, tmpname)
                   call cnst_get_ind(tmpname, idxtmp, abort=.false.)
                   aer_cnst_idx(m,l) = idxtmp
@@ -568,9 +575,10 @@ subroutine nucleate_ice_cam_calc( aero_props, aero_state, &
 
    if (clim_modal_aero.or.clim_carma_aero) then
 
+      ! collect number densities (#/cm^3) for dust, sulfate, and soot
       do m = 1,aero_props%nbins()
 
-         call aero_state%get_ambient_num( m, num_col)
+         call aero_state%get_ambient_num(m, num_col)
 
          do l = 1,aero_props%nspecies(m)
 
@@ -579,8 +587,6 @@ subroutine nucleate_ice_cam_calc( aero_props, aero_state, &
             call aero_state%icenuc_size_wght(m, ncol, pver, spectype, use_preexisting_ice, size_wghts)
 
             call aero_state%icenuc_type_wght(m, ncol, pver, spectype, aero_props, type_wghts)
-
-            call aero_state%get_ambient_num(m, num_col)
 
             select case ( trim(spectype) )
             case('dust')
@@ -596,6 +602,7 @@ subroutine nucleate_ice_cam_calc( aero_props, aero_state, &
 
          enddo
 
+         ! stratospheric sulfates
          call aero_state%icenuc_size_wght(m, ncol, pver, 'sulfate_strat', use_preexisting_ice, size_wghts)
          call aero_state%icenuc_type_wght(m, ncol, pver, 'sulfate_strat', aero_props, type_wghts)
          sulf_num_tot_col(:ncol,:) = sulf_num_tot_col(:ncol,:) &
@@ -603,6 +610,7 @@ subroutine nucleate_ice_cam_calc( aero_props, aero_state, &
 
       enddo
    else
+      ! for bulk model -- is this ever used in any of our test configurations ??
       dust_num_col(:ncol,:) = naer2(:ncol,:,idxdst1)/25._r8 *1.0e-6_r8 &
                             + naer2(:ncol,:,idxdst2)/25._r8 *1.0e-6_r8 &
                             + naer2(:ncol,:,idxdst3)/25._r8 *1.0e-6_r8 &
@@ -618,17 +626,13 @@ subroutine nucleate_ice_cam_calc( aero_props, aero_state, &
 
          freezing: if (t(i,k) < tmelt - 5._r8) then
 
-            ! compute aerosol number for so4, soot, and dust with units #/cm^3
-            so4_num  = 0._r8
-            soot_num = 0._r8
-            dst_num  = 0._r8
-
-            ! *** Turn off soot nucleation ***
-            soot_num = 0.0_r8
-
+            ! set aerosol number for so4, soot, and dust with units #/cm^3
             so4_num = sulf_num_col(i,k)
             dst_num = dust_num_col(i,k)
             so4_num_st_cr_tot=sulf_num_tot_col(i,k)
+
+            ! *** Turn off soot nucleation ***
+            soot_num = 0.0_r8
 
             call nucleati( &
                wsubi(i,k), t(i,k), pmid(i,k), relhum(i,k), icldm(i,k),   &
@@ -645,9 +649,14 @@ subroutine nucleate_ice_cam_calc( aero_props, aero_state, &
 
             if (use_preexisting_ice) then
 
+               ! compute tendencies for transported aerosol constituents
+               ! and update not-transported constituents
+
                do m = 1, aero_props%nbins()
 
-                  if (aero_props%icenuc_num(m)) then
+                  if (aero_props%icenuc_apply_num_tend(m)) then
+
+                     ! constituents of this bin will need to be updated
 
                      call aero_state%get_ambient_num(m, amb_num)
                      call aero_state%get_cldbrne_num(m, cld_num)
@@ -655,19 +664,23 @@ subroutine nucleate_ice_cam_calc( aero_props, aero_state, &
                      if (amb_num(i,k)>0._r8) then
                         delmmr_sum = 0._r8
 
+                        ! iterate over the species within the bin
                         do l = 1, aero_props%nspecies(m)
-                           if (aero_props%icenuc_mmr(m,l)) then
+                           if (aero_props%icenuc_apply_mmr_tend(m,l)) then
 
                               call aero_props%species_type(m, l, spectype)
                               call aero_state%icenuc_size_wght( m, i,k, spectype, use_preexisting_ice, wght)
 
                               if (wght>0._r8) then
 
+                                 ! this aerosol constituent will need to updated
+
                                  idxtmp = aer_cnst_idx(m,l)
 
                                  call aero_state%get_ambient_mmr(l,m,amb_mmr)
                                  call aero_state%get_cldbrne_mmr(l,m,cld_mmr)
 
+                                 ! determine change in aerosol mass
                                  delmmr = 0._r8
                                  if (trim(spectype)=='dust') then
                                     delmmr = (odst_num / dst_num) * icldm(i,k) * amb_mmr(i,k) * wght
@@ -676,8 +689,10 @@ subroutine nucleate_ice_cam_calc( aero_props, aero_state, &
                                  endif
 
                                  if (idxtmp>0) then
+                                    ! constituent tendency (for transported species)
                                     ptend%q(i,k,idxtmp) = -delmmr/dtime
                                  else
+                                    ! apply change of mass to not-transported species
                                     amb_mmr(i,k) = amb_mmr(i,k) - delmmr
                                  endif
                                  cld_mmr(i,k) = cld_mmr(i,k) + delmmr
@@ -689,9 +704,11 @@ subroutine nucleate_ice_cam_calc( aero_props, aero_state, &
 
                         idxtmp = aer_cnst_idx(m,0)
 
+                        ! total fractional change in bin mass
                         bin_mmr_change = delmmr_sum/aero_state%ambient_total_bin_mmr(aero_props, m, i,k)
 
-                        if (aero_props%icenuc_mmr(m,0)) then
+                        ! determine if there is a bin mass
+                        if (aero_props%icenuc_apply_mmr_tend(m,0)) then
                            call aero_state%get_ambient_mmr(0,m,amb_mmr)
                            call aero_state%get_cldbrne_mmr(0,m,cld_mmr)
 
@@ -702,8 +719,11 @@ subroutine nucleate_ice_cam_calc( aero_props, aero_state, &
                            end if
                            cld_mmr(i,k) = cld_mmr(i,k) + delmmr_sum
 
+                           ! apply the fractional change to bin number
                            amb_num(i,k) = amb_num(i,k) - bin_mmr_change*amb_num(i,k)
                         else
+                           ! if there is no bin mass compute updates/tendencies for bin number
+                           ! -- apply the fractional change to bin number
                            if (idxtmp>0) then
                               ptend%q(i,k,idxtmp) = -bin_mmr_change*amb_num(i,k)/dtime
                            else
@@ -711,6 +731,7 @@ subroutine nucleate_ice_cam_calc( aero_props, aero_state, &
                            end if
                         endif
 
+                        ! apply the fractional change to bin number
                         cld_num(i,k) = cld_num(i,k) + bin_mmr_change*amb_num(i,k)
 
                     end if

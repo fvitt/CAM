@@ -630,9 +630,9 @@ subroutine microp_aero_run ( &
 
    ! create the aerosol state object
    if (clim_modal_aero) then
-      aero_state_obj => modal_aerosol_state( state1, pbuf, aero_props_obj )
+      aero_state_obj => modal_aerosol_state( state1, pbuf )
    else if (clim_carma_aero) then
-      aero_state_obj => carma_aerosol_state( state1, pbuf, aero_props_obj )
+      aero_state_obj => carma_aerosol_state( state1, pbuf )
    end if
 
    !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc

@@ -53,11 +53,12 @@ module aerosol_state_mod
   interface
 
      !------------------------------------------------------------------------
+     ! Total aerosol mass mixing ratio for a bin in a given grid box location (column and layer)
      !------------------------------------------------------------------------
      function aero_get_amb_total_bin_mmr(self, aero_props, bin_ndx, col_ndx, lyr_ndx) result(mmr_tot)
        import
        class(aerosol_state), intent(in) :: self
-       class(aerosol_properties), intent(in) :: aero_props
+       class(aerosol_properties), intent(in) :: aero_props ! aerosol properties object
        integer, intent(in) :: bin_ndx      ! bin index
        integer, intent(in) :: col_ndx      ! column index
        integer, intent(in) :: lyr_ndx      ! vertical layer index
@@ -67,6 +68,7 @@ module aerosol_state_mod
      end function aero_get_amb_total_bin_mmr
 
      !------------------------------------------------------------------------
+     ! returns aerosol mass mixing ratio for a given species index and bin index
      !------------------------------------------------------------------------
      subroutine aero_get_state_mmr(self, species_ndx, bin_ndx, mmr)
        import
@@ -77,6 +79,7 @@ module aerosol_state_mod
      end subroutine aero_get_state_mmr
 
      !------------------------------------------------------------------------
+     ! returns aerosol number mixing ratio for a given species index and bin index
      !------------------------------------------------------------------------
      subroutine aero_get_state_num(self, bin_ndx, num)
        import
@@ -87,6 +90,7 @@ module aerosol_state_mod
      end subroutine aero_get_state_num
 
      !------------------------------------------------------------------------
+     ! returns interstitual and cloud-borne aerosol states
      !------------------------------------------------------------------------
      subroutine aero_get_states( self, aero_props, raer, qqcw )
        import
@@ -99,11 +103,12 @@ module aerosol_state_mod
      end subroutine aero_get_states
 
      !------------------------------------------------------------------------------
+     ! return aerosol bin size weights for a given bin
      !------------------------------------------------------------------------------
      subroutine aero_icenuc_size_wght1(self, bin_ndx, ncol, nlev, species_type, use_preexisting_ice, wght)
        import
        class(aerosol_state), intent(in) :: self
-       integer, intent(in) :: bin_ndx           ! bin number
+       integer, intent(in) :: bin_ndx             ! bin number
        integer, intent(in) :: ncol                ! number of columns
        integer, intent(in) :: nlev                ! number of vertical levels
        character(len=*), intent(in) :: species_type  ! species type
@@ -113,6 +118,7 @@ module aerosol_state_mod
      end subroutine aero_icenuc_size_wght1
 
      !------------------------------------------------------------------------------
+     ! return aerosol bin size weights for a given bin, column and verical layer
      !------------------------------------------------------------------------------
      subroutine aero_icenuc_size_wght2(self, bin_ndx, col_ndx, lyr_ndx, species_type, use_preexisting_ice, wght)
        import
@@ -308,6 +314,7 @@ contains
   end subroutine loadaer2
 
   !------------------------------------------------------------------------------
+  ! returns aerosol type weights for a given aerosol type and bin
   !------------------------------------------------------------------------------
   subroutine icenuc_type_wght_base(self, bin_ndx, ncol, nlev, species_type, aero_props, wght)
 
@@ -315,12 +322,11 @@ contains
 
     class(aerosol_state), intent(in) :: self
     integer, intent(in) :: bin_ndx                ! bin number
-    integer, intent(in) :: ncol
-    integer, intent(in) :: nlev
+    integer, intent(in) :: ncol                   ! number of columns
+    integer, intent(in) :: nlev                   ! number of vertical levels
     character(len=*), intent(in) :: species_type  ! species type
-    class(aerosol_properties), intent(in) :: aero_props
-
-    real(r8), intent(out) :: wght(:,:)
+    class(aerosol_properties), intent(in) :: aero_props ! aerosol properties object
+    real(r8), intent(out) :: wght(:,:)            ! type weights
 
     real(r8) :: mmr(ncol,nlev)
     real(r8) :: totalmmr(ncol,nlev)

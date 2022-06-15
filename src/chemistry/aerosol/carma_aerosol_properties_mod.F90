@@ -22,8 +22,8 @@ module carma_aerosol_properties_mod
      procedure :: amb_num_name
      procedure :: amb_mmr_name
      procedure :: species_type
-     procedure :: icenuc_num
-     procedure :: icenuc_mmr
+     procedure :: icenuc_apply_num_tend
+     procedure :: icenuc_apply_mmr_tend
      final :: destructor
   end type carma_aerosol_properties
 
@@ -100,13 +100,15 @@ contains
   end subroutine get
 
   !------------------------------------------------------------------------------
+  ! returns mass and number activation fractions
   !------------------------------------------------------------------------------
   subroutine actfracs(self, bin_ndx, smc, smax, fn, fm )
     class(carma_aerosol_properties), intent(in) :: self
-    integer, intent(in) :: bin_ndx
-    real(r8),intent(in) :: smc
-    real(r8),intent(in) :: smax
-    real(r8),intent(out) :: fn, fm
+    integer, intent(in) :: bin_ndx   ! bin index
+    real(r8),intent(in) :: smc       ! critical supersaturation for particles of bin radius
+    real(r8),intent(in) :: smax      ! maximum supersaturation for multiple competing aerosols
+    real(r8),intent(out) :: fn       ! activation fraction for aerosol number
+    real(r8),intent(out) :: fm       ! activation fraction for aerosol mass
 
     fn = 0._r8
     fm = 0._r8
@@ -119,23 +121,27 @@ contains
   end subroutine actfracs
 
   !------------------------------------------------------------------------
+  ! returns constituents names of aersol number mixing ratios
   !------------------------------------------------------------------------
   subroutine num_names(self, bin_ndx, name_a, name_c)
     class(carma_aerosol_properties), intent(in) :: self
     integer, intent(in) :: bin_ndx           ! bin number
-    character(len=32), intent(out) :: name_a, name_c
+    character(len=32), intent(out) :: name_a ! constituent name of ambient aerosol number dens
+    character(len=32), intent(out) :: name_c ! constituent name of cloud-borne aerosol number dens
 
     call rad_cnst_get_info_by_bin(0, bin_ndx, num_name=name_a, num_name_cw=name_c)
 
   end subroutine num_names
 
   !------------------------------------------------------------------------
+  ! returns constituents names of aersol mass mixing ratios
   !------------------------------------------------------------------------
   subroutine mmr_names(self, bin_ndx, species_ndx, name_a, name_c)
     class(carma_aerosol_properties), intent(in) :: self
     integer, intent(in) :: bin_ndx           ! bin number
     integer, intent(in) :: species_ndx       ! species number
-    character(len=32), intent(out) :: name_a, name_c
+    character(len=32), intent(out) :: name_a ! constituent name of ambient aerosol MMR
+    character(len=32), intent(out) :: name_c ! constituent name of cloud-borne aerosol MMR
 
     if (species_ndx>1) then
        call rad_cnst_get_info_by_bin_spec(0, bin_ndx, species_ndx-1, spec_name=name_a, spec_name_cw=name_c)
@@ -146,6 +152,7 @@ contains
   end subroutine mmr_names
 
   !------------------------------------------------------------------------
+  ! returns constituent name of ambient aersol number mixing ratios
   !------------------------------------------------------------------------
   subroutine amb_num_name(self, bin_ndx, name)
     class(carma_aerosol_properties), intent(in) :: self
@@ -155,7 +162,9 @@ contains
     call rad_cnst_get_info_by_bin(0, bin_ndx, num_name=name)
 
   end subroutine amb_num_name
+
   !------------------------------------------------------------------------
+  ! returns constituent name of ambient aersol mass mixing ratios
   !------------------------------------------------------------------------
   subroutine amb_mmr_name(self, bin_ndx, species_ndx, name)
     class(carma_aerosol_properties), intent(in) :: self
@@ -172,12 +181,13 @@ contains
   end subroutine amb_mmr_name
 
   !------------------------------------------------------------------------
+  ! returns species type
   !------------------------------------------------------------------------
   subroutine species_type(self, bin_ndx, species_ndx, spectype)
     class(carma_aerosol_properties), intent(in) :: self
     integer, intent(in) :: bin_ndx           ! bin number
     integer, intent(in) :: species_ndx       ! species number
-    character(len=32), intent(out) :: spectype
+    character(len=32), intent(out) :: spectype ! species type
 
     call rad_cnst_get_info_by_bin_spec(0, bin_ndx, species_ndx, spec_type=spectype)
 
@@ -198,8 +208,9 @@ contains
   end function amcube
 
   !------------------------------------------------------------------------------
+  ! returns TRUE if Ice Nucleation tendencies are applied to given aerosol bin number
   !------------------------------------------------------------------------------
-  function icenuc_num(self, bin_ndx) result(res)
+  function icenuc_apply_num_tend(self, bin_ndx) result(res)
     class(carma_aerosol_properties), intent(in) :: self
     integer, intent(in) :: bin_ndx           ! bin number
 
@@ -216,11 +227,12 @@ contains
        if (trim(spectype)=='sulfate') res = .true.
     end do
 
-  end function icenuc_num
+  end function icenuc_apply_num_tend
 
   !------------------------------------------------------------------------------
+  ! returns TRUE if Ice Nucleation tendencies are applied to a given species within a bin
   !------------------------------------------------------------------------------
-  function icenuc_mmr(self, bin_ndx, species_ndx) result(res)
+  function icenuc_apply_mmr_tend(self, bin_ndx, species_ndx) result(res)
     class(carma_aerosol_properties), intent(in) :: self
     integer, intent(in) :: bin_ndx           ! bin number
     integer, intent(in) :: species_ndx       ! species number
@@ -232,13 +244,13 @@ contains
     res = .false.
 
     if (species_ndx==0) then
-       res = self%icenuc_num(bin_ndx)
+       res = self%icenuc_apply_num_tend(bin_ndx)
     else
        call self%species_type( bin_ndx, species_ndx, spectype)
        if (trim(spectype)=='dust') res = .true.
        if (trim(spectype)=='sulfate') res = .true.
     end if
 
-  end function icenuc_mmr
+  end function icenuc_apply_mmr_tend
 
 end module carma_aerosol_properties_mod

@@ -26,8 +26,8 @@ module modal_aerosol_properties_mod
      procedure :: amb_num_name
      procedure :: amb_mmr_name
      procedure :: species_type
-     procedure :: icenuc_num
-     procedure :: icenuc_mmr
+     procedure :: icenuc_apply_num_tend
+     procedure :: icenuc_apply_mmr_tend
      final :: destructor
   end type modal_aerosol_properties
 
@@ -161,14 +161,16 @@ contains
   end function amcube
 
   !------------------------------------------------------------------------------
+  ! returns mass and number activation fractions
   !------------------------------------------------------------------------------
   subroutine actfracs(self, bin_ndx, smc, smax, fn, fm )
     use shr_spfn_mod, only: erf => shr_spfn_erf
     class(modal_aerosol_properties), intent(in) :: self
-    integer, intent(in) :: bin_ndx
-    real(r8),intent(in) :: smc
-    real(r8),intent(in) :: smax
-    real(r8),intent(out) :: fn, fm
+    integer, intent(in) :: bin_ndx   ! bin index
+    real(r8),intent(in) :: smc       ! critical supersaturation for particles of bin radius
+    real(r8),intent(in) :: smax      ! maximum supersaturation for multiple competing aerosols
+    real(r8),intent(out) :: fn       ! activation fraction for aerosol number
+    real(r8),intent(out) :: fm       ! activation fraction for aerosol mass
 
     real(r8) :: x,y
     real(r8), parameter :: twothird = 2._r8/3._r8
@@ -183,27 +185,32 @@ contains
   end subroutine actfracs
 
   !------------------------------------------------------------------------
+  ! returns constituents names of aersol number mixing ratios
   !------------------------------------------------------------------------
   subroutine num_names(self, bin_ndx, name_a, name_c)
     class(modal_aerosol_properties), intent(in) :: self
     integer, intent(in) :: bin_ndx           ! bin number
-    character(len=32), intent(out) :: name_a, name_c
+    character(len=32), intent(out) :: name_a ! constituent name of ambient aerosol number dens
+    character(len=32), intent(out) :: name_c ! constituent name of cloud-borne aerosol number dens
 
     call rad_cnst_get_info(0,bin_ndx, num_name=name_a, num_name_cw=name_c)
   end subroutine num_names
 
   !------------------------------------------------------------------------
+  ! returns constituents names of aersol mass mixing ratios
   !------------------------------------------------------------------------
   subroutine mmr_names(self, bin_ndx, species_ndx, name_a, name_c)
     class(modal_aerosol_properties), intent(in) :: self
     integer, intent(in) :: bin_ndx           ! bin number
     integer, intent(in) :: species_ndx       ! species number
-    character(len=32), intent(out) :: name_a, name_c
+    character(len=32), intent(out) :: name_a ! constituent name of ambient aerosol MMR
+    character(len=32), intent(out) :: name_c ! constituent name of cloud-borne aerosol MMR
 
     call rad_cnst_get_info(0, bin_ndx, species_ndx, spec_name=name_a, spec_name_cw=name_c)
   end subroutine mmr_names
 
   !------------------------------------------------------------------------
+  ! returns constituent name of ambient aersol number mixing ratios
   !------------------------------------------------------------------------
   subroutine amb_num_name(self, bin_ndx, name)
     class(modal_aerosol_properties), intent(in) :: self
@@ -213,7 +220,9 @@ contains
     call rad_cnst_get_info(0,bin_ndx, num_name=name)
 
   end subroutine amb_num_name
+
   !------------------------------------------------------------------------
+  ! returns constituent name of ambient aersol mass mixing ratios
   !------------------------------------------------------------------------
   subroutine amb_mmr_name(self, bin_ndx, species_ndx, name)
     class(modal_aerosol_properties), intent(in) :: self
@@ -226,6 +235,7 @@ contains
   end subroutine amb_mmr_name
 
   !------------------------------------------------------------------------
+  ! returns species type
   !------------------------------------------------------------------------
   subroutine species_type(self, bin_ndx, species_ndx, spectype)
     class(modal_aerosol_properties), intent(in) :: self
@@ -238,8 +248,9 @@ contains
   end subroutine species_type
 
   !------------------------------------------------------------------------------
+  ! returns TRUE if Ice Nucleation tendencies are applied to given aerosol bin number
   !------------------------------------------------------------------------------
-  function icenuc_num(self, bin_ndx) result(res)
+  function icenuc_apply_num_tend(self, bin_ndx) result(res)
     class(modal_aerosol_properties), intent(in) :: self
     integer, intent(in) :: bin_ndx           ! bin number
 
@@ -261,11 +272,12 @@ contains
        if (spectype=='dust') res = .true.
     end do
 
-  end function icenuc_num
+  end function icenuc_apply_num_tend
 
   !------------------------------------------------------------------------------
+  ! returns TRUE if Ice Nucleation tendencies are applied to a given species within a bin
   !------------------------------------------------------------------------------
-  function icenuc_mmr(self, bin_ndx, species_ndx) result(res)
+  function icenuc_apply_mmr_tend(self, bin_ndx, species_ndx) result(res)
     class(modal_aerosol_properties), intent(in) :: self
     integer, intent(in) :: bin_ndx           ! bin number
     integer, intent(in) :: species_ndx       ! species number
@@ -288,28 +300,6 @@ contains
        if (spectype=='dust') res = .true.
     end if
 
-  end function icenuc_mmr
-
-  !------------------------------------------------------------------------------
-  !------------------------------------------------------------------------------
-  function icenuc_bin_wght(self, bin_ndx, species_type) result(wght)
-    class(modal_aerosol_properties), intent(in) :: self
-    integer, intent(in) :: bin_ndx                ! bin number
-    character(len=*), intent(in) :: species_type  ! species type
-
-    real(r8) :: wght
-    character(len=32) :: modetype
-
-    call rad_cnst_get_info(0, bin_ndx, mode_type=modetype)
-
-    wght = 0._r8
-
-    if (species_type=='dust') then
-       if (modetype=='coarse' .or. modetype=='coarse_dust') then
-          wght = 1._r8
-       end if
-    end if
-
-  end function icenuc_bin_wght
+  end function icenuc_apply_mmr_tend
 
 end module modal_aerosol_properties_mod
