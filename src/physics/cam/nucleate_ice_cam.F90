@@ -683,9 +683,13 @@ subroutine nucleate_ice_cam_calc( aero_props, aero_state, &
                                  ! determine change in aerosol mass
                                  delmmr = 0._r8
                                  if (trim(spectype)=='dust') then
-                                    delmmr = (odst_num / dst_num) * icldm(i,k) * amb_mmr(i,k) * wght
+                                    if (dst_num>0._r8) then
+                                       delmmr = (odst_num / dst_num) * icldm(i,k) * amb_mmr(i,k) * wght
+                                    endif
                                  elseif (trim(spectype)=='sulfate') then
-                                    delmmr = (oso4_num / so4_num) * icldm(i,k) * amb_mmr(i,k) * wght
+                                    if (so4_num>0._r8) then
+                                       delmmr = (oso4_num / so4_num) * icldm(i,k) * amb_mmr(i,k) * wght
+                                    endif
                                  endif
 
                                  if (idxtmp>0) then
