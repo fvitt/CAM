@@ -962,7 +962,7 @@ subroutine nucleate_ice_cam_calc( &
                                  end if
                                  if (bin_cnst_lq(m,l)) then ! advected species
                                     lptr = bin_cnst_idx(m,l)
-                                    ptend%q(i,k,lptr) = -1._r8 * tmp1 / dtime
+                                    ptend%q(i,k,lptr) = -tmp1 / dtime
                                  else
                                     aer_bin(i,k) = aer_bin(i,k) - tmp1
                                  end if
@@ -978,7 +978,7 @@ subroutine nucleate_ice_cam_calc( &
                                  end if
                                  if (bin_cnst_lq(m,l)) then ! advected species
                                     lptr = bin_cnst_idx(m,l)
-                                    ptend%q(i,k,lptr) = -1._r8 * tmp2 / dtime
+                                    ptend%q(i,k,lptr) = -tmp2 / dtime
                                  else
                                     aer_bin(i,k) = aer_bin(i,k) - tmp2
                                  end if
@@ -992,15 +992,15 @@ subroutine nucleate_ice_cam_calc( &
 
                         mmr_bin_c(i,k) = mmr_bin_c(i,k) + tmp3
                         if (bin_cnst_lq(m,0)) then ! advected species
-                           !need to add mmr_bin changes to tendencies (advected specie)
+                           !need to add mmr_bin changes to tendencies (advected species)
                            lptr = bin_cnst_idx(m,0)
-                           ptend%q(i,k,lptr) = -1._r8 * tmp3  / dtime
+                           ptend%q(i,k,lptr) = -tmp3 / dtime
                         else
                            mmr_bin(i,k) = mmr_bin(i,k) - tmp3
                         endif
 
-                        num_bin(i,k)   = num_bin(i,k)   - bin_mmr_change *  num_bin(i,k)
-                        num_bin_c(i,k)   = num_bin_c(i,k)   + bin_mmr_change *  num_bin(i,k)
+                        num_bin(i,k)   = num_bin(i,k)   - bin_mmr_change * num_bin(i,k)
+                        num_bin_c(i,k) = num_bin_c(i,k) + bin_mmr_change * num_bin(i,k)
                      end if
                   end if  !diamdry > 0.1
 

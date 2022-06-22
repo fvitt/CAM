@@ -98,7 +98,7 @@ module physics_types
           zi         ! geopotential height above surface at interfaces (m)
 
      real(r8), dimension(:,:),allocatable          :: &
-                           ! Second dimension is (phys_te_idx) CAM physics total energy and 
+                           ! Second dimension is (phys_te_idx) CAM physics total energy and
                            ! (dyn_te_idx) dycore total energy computed in physics
           te_ini,         &! vertically integrated total (kinetic + static) energy of initial state
           te_cur,         &! vertically integrated total (kinetic + static) energy of current state
@@ -355,6 +355,7 @@ contains
          trim(ptend%name)=='aero_model_wetdep' .or. &
          trim(ptend%name)=='convect_shallow (off)' .or. &
          trim(ptend%name)=='convect_shallow' .or. &
+         trim(ptend%name)=='ssatcontrail' .or. &
          trim(ptend%name)=='CARMA (emission)' .or. &
          trim(ptend%name)=='CARMA (wetdep)' .or. &
          trim(ptend%name)=='CARMA' ) then
