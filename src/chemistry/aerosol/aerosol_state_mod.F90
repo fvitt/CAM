@@ -71,7 +71,7 @@ module aerosol_state_mod
      ! returns aerosol mass mixing ratio for a given species index and bin index
      !------------------------------------------------------------------------
      subroutine aero_get_state_mmr(self, species_ndx, bin_ndx, mmr)
-       import
+       import :: aerosol_state, r8
        class(aerosol_state), intent(in) :: self
        integer, intent(in) :: species_ndx  ! species index
        integer, intent(in) :: bin_ndx      ! bin index
@@ -82,18 +82,17 @@ module aerosol_state_mod
      ! returns aerosol number mixing ratio for a given species index and bin index
      !------------------------------------------------------------------------
      subroutine aero_get_state_num(self, bin_ndx, num)
-       import
+       import :: aerosol_state, r8
        class(aerosol_state), intent(in) :: self
        integer, intent(in) :: bin_ndx     ! bin index
        real(r8), pointer   :: num(:,:)    ! number densities
-
      end subroutine aero_get_state_num
 
      !------------------------------------------------------------------------
      ! returns interstitual and cloud-borne aerosol states
      !------------------------------------------------------------------------
      subroutine aero_get_states( self, aero_props, raer, qqcw )
-       import
+       import :: aerosol_state, aerosol_properties, ptr2d_t
 
        class(aerosol_state), intent(in) :: self
        class(aerosol_properties), intent(in) :: aero_props ! properties of the aerosol model
@@ -106,7 +105,7 @@ module aerosol_state_mod
      ! return aerosol bin size weights for a given bin
      !------------------------------------------------------------------------------
      subroutine aero_icenuc_size_wght1(self, bin_ndx, ncol, nlev, species_type, use_preexisting_ice, wght)
-       import
+       import :: aerosol_state, r8
        class(aerosol_state), intent(in) :: self
        integer, intent(in) :: bin_ndx             ! bin number
        integer, intent(in) :: ncol                ! number of columns
@@ -121,7 +120,7 @@ module aerosol_state_mod
      ! return aerosol bin size weights for a given bin, column and verical layer
      !------------------------------------------------------------------------------
      subroutine aero_icenuc_size_wght2(self, bin_ndx, col_ndx, lyr_ndx, species_type, use_preexisting_ice, wght)
-       import
+       import :: aerosol_state, r8
        class(aerosol_state), intent(in) :: self
        integer, intent(in) :: bin_ndx                ! bin number
        integer, intent(in) :: col_ndx                ! column index

@@ -64,20 +64,19 @@ module aerosol_properties_mod
      !  hygroscopicity
      !------------------------------------------------------------------------
      subroutine aero_props_get(self, bin_ndx, species_ndx, density,hygro)
-       import
+       import :: aerosol_properties, r8
        class(aerosol_properties), intent(in) :: self
        integer, intent(in) :: bin_ndx             ! bin index
        integer, intent(in) :: species_ndx         ! species index
        real(r8), optional, intent(out) :: density ! density (kg/m3)
        real(r8), optional, intent(out) :: hygro   ! hygroscopicity
-
      end subroutine aero_props_get
 
      !------------------------------------------------------------------------
      ! returns species name
      !------------------------------------------------------------------------
      subroutine aero_species_name(self, bin_ndx, species_ndx, specname)
-       import
+       import :: aerosol_properties
        class(aerosol_properties), intent(in) :: self
        integer, intent(in) :: bin_ndx           ! bin number
        integer, intent(in) :: species_ndx       ! species number
@@ -89,7 +88,7 @@ module aerosol_properties_mod
      ! returns species type
      !------------------------------------------------------------------------
      subroutine aero_species_type(self, bin_ndx, species_ndx, spectype)
-       import
+       import :: aerosol_properties
        class(aerosol_properties), intent(in) :: self
        integer, intent(in) :: bin_ndx           ! bin number
        integer, intent(in) :: species_ndx       ! species number
@@ -101,7 +100,7 @@ module aerosol_properties_mod
      ! returns mass and number activation fractions
      !------------------------------------------------------------------------
      subroutine aero_actfracs(self, bin_ndx, smc, smax, fn, fm )
-       import
+       import :: aerosol_properties, r8
        class(aerosol_properties), intent(in) :: self
        integer, intent(in) :: bin_ndx   ! bin index
        real(r8),intent(in) :: smc       ! critical supersaturation for particles of bin radius
@@ -115,7 +114,7 @@ module aerosol_properties_mod
      ! returns constituents names of aersol number mixing ratios
      !------------------------------------------------------------------------
      subroutine aero_num_names(self, bin_ndx, name_a, name_c)
-       import
+       import :: aerosol_properties
        class(aerosol_properties), intent(in) :: self
        integer, intent(in) :: bin_ndx           ! bin number
        character(len=32), intent(out) :: name_a ! constituent name of ambient aerosol number dens
@@ -126,7 +125,7 @@ module aerosol_properties_mod
      ! returns constituents names of aersol mass mixing ratios
      !------------------------------------------------------------------------
      subroutine aero_mmr_names(self, bin_ndx, species_ndx, name_a, name_c)
-       import
+       import :: aerosol_properties
        class(aerosol_properties), intent(in) :: self
        integer, intent(in) :: bin_ndx           ! bin number
        integer, intent(in) :: species_ndx       ! species number
@@ -138,7 +137,7 @@ module aerosol_properties_mod
      ! returns constituent name of ambient aersol number mixing ratios
      !------------------------------------------------------------------------
      subroutine aero_amb_num_name(self, bin_ndx, name)
-       import
+       import :: aerosol_properties
        class(aerosol_properties), intent(in) :: self
        integer, intent(in) :: bin_ndx          ! bin number
        character(len=32), intent(out) :: name  ! constituent name of ambient aerosol number dens
@@ -149,7 +148,7 @@ module aerosol_properties_mod
      ! returns constituent name of ambient aersol mass mixing ratios
      !------------------------------------------------------------------------
      subroutine aero_amb_mmr_name(self, bin_ndx, species_ndx, name)
-       import
+       import :: aerosol_properties
        class(aerosol_properties), intent(in) :: self
        integer, intent(in) :: bin_ndx           ! bin number
        integer, intent(in) :: species_ndx       ! species number
@@ -161,7 +160,7 @@ module aerosol_properties_mod
      ! returns radius^3 (m3) of a given bin number
      !------------------------------------------------------------------------------
      pure elemental real(r8) function aero_amcube(self, bin_ndx, volconc, numconc)
-       import
+       import :: aerosol_properties, r8
 
        class(aerosol_properties), intent(in) :: self
        integer, intent(in) :: bin_ndx  ! bin number
@@ -174,7 +173,7 @@ module aerosol_properties_mod
      ! returns TRUE if Ice Nucleation tendencies are applied to given aerosol bin number
      !------------------------------------------------------------------------------
      function aero_icenuc_apply_num_tend(self, bin_ndx) result(res)
-       import
+       import :: aerosol_properties
        class(aerosol_properties), intent(in) :: self
        integer, intent(in) :: bin_ndx  ! bin number
 
@@ -186,7 +185,7 @@ module aerosol_properties_mod
      ! returns TRUE if Ice Nucleation tendencies are applied to a given species within a bin
      !------------------------------------------------------------------------------
      function aero_icenuc_apply_mmr_tend(self, bin_ndx, species_ndx) result(res)
-       import
+       import :: aerosol_properties
        class(aerosol_properties), intent(in) :: self
        integer, intent(in) :: bin_ndx     ! bin number
        integer, intent(in) :: species_ndx ! species number
@@ -200,7 +199,7 @@ module aerosol_properties_mod
 contains
 
   !------------------------------------------------------------------------------
-  ! ojbect initializer
+  ! object initializer
   !------------------------------------------------------------------------------
   subroutine aero_props_init(self, nbin, ncnst, nspec, nmasses, alogsig, f1,f2 )
     class(aerosol_properties), intent(inout) :: self
@@ -248,7 +247,7 @@ contains
   end subroutine aero_props_init
 
   !------------------------------------------------------------------------------
-  ! Ojbect clean
+  ! Object clean
   !------------------------------------------------------------------------------
   subroutine aero_props_final(self)
     class(aerosol_properties), intent(inout) :: self
