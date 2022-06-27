@@ -169,7 +169,6 @@ contains
                        naerosol, vaerosol, hygro)
 
     use aerosol_properties_mod, only: aerosol_properties
-    use modal_aerosol_properties_mod, only: modal_aerosol_properties
 
     ! return aerosol number, volume concentrations, and bulk hygroscopicity
 
@@ -260,15 +259,8 @@ contains
        end do
     end if
 
-    select type(aero_props)
-    type is (modal_aerosol_properties)
-
-       ! adjust number so that dgnumlo < dgnum < dgnumhi not done for bins
-       do i = istart, istop
-          naerosol(i) = max(naerosol(i), vaerosol(i)*aero_props%voltonumbhi(m))
-          naerosol(i) = min(naerosol(i), vaerosol(i)*aero_props%voltonumblo(m))
-       end do
-    end select
+    ! adjust number
+    call aero_props%apply_number_limits( naerosol, vaerosol, istart, istop, m )
 
   end subroutine loadaer1
 
