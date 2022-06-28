@@ -170,8 +170,6 @@ contains
 
     use aerosol_properties_mod, only: aerosol_properties
 
-    ! return aerosol number, volume concentrations, and bulk hygroscopicity
-
     ! input arguments
     class(aerosol_state), intent(in) :: self
     class(aerosol_properties), intent(in) :: aero_props
@@ -265,14 +263,13 @@ contains
   end subroutine loadaer1
 
   !------------------------------------------------------------------------------
+  ! returns aerosol number, volume concentrations, and bulk hygroscopicity
   !------------------------------------------------------------------------------
   subroutine loadaer2( self, aero_props, i, k, m, cs, phase, &
                        naerosol, vaerosol, hygro )
 
     use aerosol_properties_mod, only: aerosol_properties
     use ppgrid, only: pcols, pver
-
-    ! return aerosol number, volume concentrations, and bulk hygroscopicity
 
     ! input arguments
     class(aerosol_state), intent(in) :: self

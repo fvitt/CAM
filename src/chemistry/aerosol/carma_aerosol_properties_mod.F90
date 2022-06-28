@@ -4,6 +4,7 @@ module carma_aerosol_properties_mod
   use aerosol_properties_mod, only: aerosol_properties
   use rad_constituents, only: rad_cnst_get_info, rad_cnst_get_bin_props_by_idx, &
                               rad_cnst_get_info_by_bin, rad_cnst_get_info_by_bin_spec
+  use cam_abortutils, only: endrun
 
   implicit none
 
@@ -46,15 +47,35 @@ contains
     real(r8),allocatable :: alogsig(:)
     real(r8),allocatable :: f1(:)
     real(r8),allocatable :: f2(:)
+    character(len=*),parameter :: prefix = 'carma_aerosol_properties::constructor: '
+    integer :: ierr
 
-    allocate(newobj)
+    allocate(newobj,stat=ierr)
+    if( ierr /= 0 ) then
+       call endrun(prefix//'error allocating newobj')
+    end if
 
     call rad_cnst_get_info( 0, nbins=nbins)
-    allocate( nspecies(nbins) )
-    allocate( nmasses(nbins) )
-    allocate( alogsig(nbins) )
-    allocate( f1(nbins) )
-    allocate( f2(nbins) )
+    allocate( nspecies(nbins),stat=ierr )
+    if( ierr /= 0 ) then
+       call endrun(prefix//'error allocating nspecies')
+    end if
+    allocate( nmasses(nbins),stat=ierr )
+    if( ierr /= 0 ) then
+       call endrun(prefix//'error allocating nmasses')
+    end if
+    allocate( alogsig(nbins),stat=ierr )
+    if( ierr /= 0 ) then
+       call endrun(prefix//'error allocating alogsig')
+    end if
+    allocate( f1(nbins),stat=ierr )
+    if( ierr /= 0 ) then
+       call endrun(prefix//'error allocating f1')
+    end if
+    allocate( f2(nbins),stat=ierr )
+    if( ierr /= 0 ) then
+       call endrun(prefix//'error allocating f2')
+    end if
 
     ncnst_tot = 0
 
