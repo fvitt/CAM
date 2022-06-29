@@ -146,7 +146,7 @@ integer, allocatable :: imx_bl(:)    ! index used to map pure sulfate bin to mix
 integer, allocatable :: imx_mmr_bl(:)    ! index used to map pure sulfate bin to mixed sulfate bin for mmr
 integer, allocatable :: imx_num_bl(:)    ! index used to map pure sulfate bin to mixed sulfate bin for num
 
-type(carma_aerosol_properties), pointer :: aero_props_obj
+type(carma_aerosol_properties), pointer :: aero_props_obj => null()
 
 !=========================================================================================
 contains

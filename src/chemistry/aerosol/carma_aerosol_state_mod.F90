@@ -141,7 +141,7 @@ contains
   end subroutine get_cldbrne_num
 
   !------------------------------------------------------------------------------
-  ! returns interstitual and cloud-borne aerosol states
+  ! returns interstitial and cloud-borne aerosol states
   !------------------------------------------------------------------------------
   subroutine get_states( self, aero_props, raer, qqcw )
     class(carma_aerosol_state), intent(in) :: self

@@ -107,15 +107,18 @@ contains
 
   end subroutine destructor
 
-  !------------------------------------------------------------------------------
-  !------------------------------------------------------------------------------
+  !------------------------------------------------------------------------
+  ! returns aerosol properties:
+  !  density
+  !  hygroscopicity
+  !------------------------------------------------------------------------
   subroutine get(self, bin_ndx, species_ndx, density,hygro)
 
     class(carma_aerosol_properties), intent(in) :: self
     integer, intent(in) :: bin_ndx             ! bin index
     integer, intent(in) :: species_ndx         ! species index
-    real(r8), optional, intent(out) :: density
-    real(r8), optional, intent(out) :: hygro
+    real(r8), optional, intent(out) :: density ! density (kg/m3)
+    real(r8), optional, intent(out) :: hygro   ! hygroscopicity
 
     call rad_cnst_get_bin_props_by_idx(0, bin_ndx, species_ndx, density_aer=density, hygro_aer=hygro)
 
