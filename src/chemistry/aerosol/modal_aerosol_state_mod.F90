@@ -6,6 +6,7 @@ module modal_aerosol_state_mod
   use physics_buffer, only: physics_buffer_desc, pbuf_get_field, pbuf_get_index
   use physics_types, only: physics_state
   use aerosol_properties_mod, only: aerosol_properties
+  use cam_abortutils, only: endrun
 
   implicit none
 
@@ -47,7 +48,13 @@ contains
 
     type(modal_aerosol_state), pointer :: newobj
 
-    allocate(newobj)
+    character(len=*),parameter :: prefix = 'modal_aerosol_state::constructor: '
+    integer :: ierr
+
+    allocate(newobj,stat=ierr)
+    if( ierr /= 0 ) then
+       call endrun(prefix//'error allocating newobj')
+    end if
 
     newobj%state => state
     newobj%pbuf => pbuf

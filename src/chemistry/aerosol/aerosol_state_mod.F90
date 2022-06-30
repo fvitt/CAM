@@ -176,8 +176,8 @@ contains
 
     integer,  intent(in) :: istart      ! start column index (1 <= istart <= istop <= pcols)
     integer,  intent(in) :: istop       ! stop column index
-    integer,  intent(in) :: m           ! mode or bin index
     integer,  intent(in) :: k           ! level index
+    integer,  intent(in) :: m           ! mode or bin index
     real(r8), intent(in) :: cs(:,:)     ! air density (kg/m3)
     integer,  intent(in) :: phase       ! phase of aerosol: 1 for interstitial, 2 for cloud-borne, 3 for sum
 
@@ -264,6 +264,7 @@ contains
 
   !------------------------------------------------------------------------------
   ! returns aerosol number, volume concentrations, and bulk hygroscopicity
+  ! for a single grid box
   !------------------------------------------------------------------------------
   subroutine loadaer2( self, aero_props, i, k, m, cs, phase, &
                        naerosol, vaerosol, hygro )
