@@ -2703,6 +2703,7 @@ end subroutine ma_convproc_tend
 
 !-----------------------------------------------------------------------
 
+   nullify(aero_state_obj)
 
 ! when ipass_calc_updraft == 2, apply the activation tendencies
 !    from pass 1, but multiplied by factor_reduce_actfrac
@@ -3008,6 +3009,7 @@ end subroutine ma_convproc_tend
 
 !-----------------------------------------------------------------------
 
+   nullify(aero_state_obj)
 
 ! when ipass_calc_updraft == 2, apply the activation tendencies
 !    from pass 1, but multiplied by factor_reduce_actfrac
