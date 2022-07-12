@@ -46,6 +46,7 @@ module aerosol_properties_mod
      procedure :: maxsat
      procedure(aero_amcube), deferred :: amcube
      procedure :: alogsig
+     procedure(aero_number_transported), deferred :: number_transported
      procedure(aero_props_get), deferred :: get
      procedure(aero_actfracs), deferred :: actfracs
      procedure(aero_num_names), deferred :: num_names
@@ -61,6 +62,14 @@ module aerosol_properties_mod
   end type aerosol_properties
 
   interface
+
+     !------------------------------------------------------------------------------
+     ! returns number of transported aerosol constituents
+     !------------------------------------------------------------------------------
+     integer function aero_number_transported(self)
+       import :: aerosol_properties
+       class(aerosol_properties), intent(in) :: self
+     end function aero_number_transported
 
      !------------------------------------------------------------------------
      ! returns aerosol properties:
