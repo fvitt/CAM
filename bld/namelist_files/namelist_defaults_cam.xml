@@ -81,7 +81,7 @@
 
 <ncdata dyn="fv"  hgrid="10x15"     nlev="70"  aquaplanet="1" carma="trop_strat_soa1">atm/waccm/ic/aqua_carma_waccm_0002-01-01_10x15_L70_c220325.nc</ncdata>
 <ncdata dyn="fv"  hgrid="1.9x2.5"   nlev="70"                 carma="trop_strat_soa1">atm/cam/inic/fv/FWmaCARMAnudged.f19_f19_mg17.carma_trop_strat.2000.001.cam.i.2001-01-01-00000_c220325.nc</ncdata>
-<ncdata dyn="fv"  hgrid="1.9x2.5"   nlev="70"  aquaplanet="1" carma="trop_strat_soa1">atm/cam/inic/fv/aqua_carma_waccm_0002-01-01_1.9x2.5_L70_c220325.nc</ncdata>
+<ncdata dyn="fv"  hgrid="1.9x2.5"   nlev="70"  aquaplanet="1" carma="trop_strat_soa1">atm/cam/inic/fv/aqua_carma_waccm_0002-01-01_1.9x2.5_L70_c220809.nc</ncdata>
 <ncdata dyn="fv"  hgrid="0.9x1.25"  nlev="70"                 carma="trop_strat_soa1">atm/waccm/ic/FWmaCARMAHIST_f09_spinup01.cam.i.1980-01-01-00000_c220128.nc</ncdata>
 
 <ncdata dyn="fv"  hgrid="0.9x1.25"  nlev="32" chem="trop_strat_mam4_vbs">atm/cam/inic/fv/f.e22.FC2010climo.f09_f09_mg17.cam6_2_022.001.cam.i.0016-01-01-00000_c200610.nc</ncdata>
@@ -2609,6 +2609,9 @@
 <fv_nsplit                  waccm_phys="1"> 8</fv_nsplit>
 <fv_nsplit hgrid="0.9x1.25" waccm_phys="1">16</fv_nsplit>
 <fv_nsplit hgrid="0.47x0.63"    waccmx="1">32</fv_nsplit>
+
+<fv_nspltvrm hgrid="1.9x2.5" waccm_phys="1" aquaplanet="1">4</fv_nspltvrm>
+<fv_nspltrac hgrid="1.9x2.5" waccm_phys="1" aquaplanet="1">4</fv_nspltrac>
 
 <fv_del2coef                >3.e+5</fv_del2coef>
 

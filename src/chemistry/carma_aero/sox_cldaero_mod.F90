@@ -380,7 +380,8 @@ contains
                 ! h2so4 (g) & msa (g)
 
                 !H2SO4 not updated in Pengfei's model
-                !qin(i,k,id_h2so4) = qin(i,k,id_h2so4) - dso4dt_gasuptk * dtime * cldfrc(i,k)
+                !st TEST with H2SO4 uptake
+                qin(i,k,id_h2so4) = qin(i,k,id_h2so4) - dso4dt_gasuptk * dtime * cldfrc(i,k)
                 !qin(i,k,id_h2so4) =  MAX( qin(i,k,id_h2so4),  small_value )
 
                 !st if (id_msa > 0) qin(i,k,id_msa) = qin(i,k,id_msa) - dmsadt_gasuptk * dtime * cldfrc(i,k)
