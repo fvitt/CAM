@@ -961,7 +961,7 @@ sts_nat_sad : &
 !----------------------------------------------------------------------
       real(r8), parameter :: avo_num          = 6.02214e23_r8, &
                              nat_mass_dens    = 1.6_r8, &
-                             nat_part_dens    = 1.0e-2_r8, &
+                             nat_part_dens    = 5.0e-4_r8, &
                              mwnat            = 117._r8, &
                              sigma_nat        = 1.6_r8, &
                              nat_dens_aer     = nat_mass_dens / (mwnat/avo_num), &

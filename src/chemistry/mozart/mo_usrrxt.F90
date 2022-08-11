@@ -646,7 +646,7 @@ contains
 ! 	... reaction probabilities for heterogeneous reactions
 !-----------------------------------------------------------------
     real(r8), parameter :: gamma_n2o5 = 0.10_r8         ! from Jacob, Atm Env, 34, 2131, 2000
-    real(r8), parameter :: gamma_ho2  = 0.20_r8         !
+    real(r8), parameter :: gamma_ho2  = 0.10_r8         !
     real(r8), parameter :: gamma_no2  = 0.0001_r8       !
     real(r8), parameter :: gamma_no3  = 0.001_r8        !
     real(r8), parameter :: gamma_glyoxal  = 2.0e-4_r8   !  Washenfelder et al, JGR, 2011

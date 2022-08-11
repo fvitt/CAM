@@ -15,6 +15,12 @@
 <!-- Surface emissions -->
 <srf_emis_type>INTERP_MISSING_MONTHS</srf_emis_type>
 
+<!-- Ocean emissions -->
+<bubble_mediated_transfer>.FALSE.</bubble_mediated_transfer>
+<ocean_salinity_file>atm/cam/chem/ocnexch/SSS_recooked_0-360_c171120.nc</ocean_salinity_file>
+<csw_specifier> 'DMS -> $INPUTDATA_ROOT/atm/cam/chem/ocnexch/Csw_DMS_Lana2011_f09f09_1750_2100_20200717a.nc' </csw_specifier>
+<csw_time_type>SERIAL</csw_time_type>
+
 <!-- Lower Boundary -->
 <flbc_type>SERIAL</flbc_type>
 <flbc_file>atm/waccm/lb/LBC_17500116-20150116_CMIP6_0p5degLat_c180905.nc</flbc_file>
