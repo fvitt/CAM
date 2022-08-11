@@ -224,8 +224,7 @@
                  *y(k,35) +rxt(k,1)*y(k,81)
          loss(k,22) = (rxt(k,158)* y(k,23) +rxt(k,112)* y(k,56) +rxt(k,121)* y(k,77) &
                   + rxt(k,4) + het_rates(k,38))* y(k,38)
-         prod(k,22) = (.500_r8*rxt(k,264) +rxt(k,127)*y(k,68))*y(k,68) &
-                  +rxt(k,126)*y(k,77)*y(k,77)
+         prod(k,22) =rxt(k,127)*y(k,68)*y(k,68) +rxt(k,126)*y(k,77)*y(k,77)
          loss(k,4) = ( + rxt(k,87) + het_rates(k,39))* y(k,39)
          prod(k,4) =rxt(k,263)*y(k,81)*y(k,65)
          loss(k,29) = (rxt(k,204)* y(k,56) + (rxt(k,210) +rxt(k,211))* y(k,73) &
@@ -487,8 +486,8 @@
                  rxt(k,176)*y(k,44) +rxt(k,179)*y(k,49) +rxt(k,205)*y(k,40) + &
                  rxt(k,237)*y(k,15) +rxt(k,240)*y(k,20))*y(k,77) &
                   + (rxt(k,269)*y(k,49) +rxt(k,275)*y(k,49) +rxt(k,276)*y(k,48) + &
-                 rxt(k,280)*y(k,49) +rxt(k,281)*y(k,48))*y(k,44) +rxt(k,115)*y(k,68) &
-                 *y(k,35) +rxt(k,87)*y(k,39)
+                 rxt(k,280)*y(k,49) +rxt(k,281)*y(k,48))*y(k,44) + (rxt(k,264) + &
+                 rxt(k,115)*y(k,35))*y(k,68) +rxt(k,87)*y(k,39)
       end do
       end subroutine imp_prod_loss
       end module mo_prod_loss

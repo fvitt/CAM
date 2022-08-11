@@ -1007,7 +1007,7 @@ Class List
   usr_SO3_H2O      (355)   SO3 + H2O ->  H2SO4                                                  rate = ** User defined **         (468)
   NH3_OH           (356)   NH3 + OH ->  H2O + NHDEP                                             rate = 1.70E-12*exp(   -710./t)   (469)
   usr_GLYOXAL_aer  (357)   GLYOXAL ->  SOAG0                                                    rate = ** User defined **         (470)
-  usr_HO2_aer      (358)   HO2 ->  0.5*H2O2                                                     rate = ** User defined **         (471)
+  usr_HO2_aer      (358)   HO2 ->  H2O                                                          rate = ** User defined **         (471)
   usr_HONITR_aer   (359)   HONITR ->  HNO3                                                      rate = ** User defined **         (472)
   usr_ISOPNITA_aer (360)   ISOPNITA ->  HNO3                                                    rate = ** User defined **         (473)
   usr_ISOPNITB_aer (361)   ISOPNITB ->  HNO3                                                    rate = ** User defined **         (474)
@@ -1305,7 +1305,7 @@ Extraneous prod/loss species
     d(H2)/dt = j1*H2O  + j33*CH2O  + 1.4400001*j40*CH4  + r11*H*HO2  + r150*O1D*CH4                                     
                 - r1*O1D*H2  - r9*O*H2  - r18*OH*H2  - r53*CL*H2  - r109*F*H2                                           
     d(H2402)/dt =  - j98*H2402  - r105*O1D*H2402                                                                        
-    d(H2O2)/dt = .5*r358*HO2  + r24*M*OH*OH  + r25*HO2*HO2                                                              
+    d(H2O2)/dt = r24*M*OH*OH  + r25*HO2*HO2                                                                             
                   - j4*H2O2  - r10*O*H2O2  - r19*OH*H2O2  - r54*CL*H2O2                                                 
     d(H2SO4)/dt = r355*SO3*H2O                                                                                          
                    - j109*H2SO4                                                                                         
@@ -1715,11 +1715,11 @@ Extraneous prod/loss species
                        - r397*HO2*XYLEO2VBS  - r398*NO*XYLEO2VBS                                                        
     d(XYLOLO2)/dt = .3*r314*XYLOL*OH  + r315*XYLOLOOH*OH                                                                
                      - r312*HO2*XYLOLO2  - r313*NO*XYLOLO2                                                              
-    d(H2O)/dt = .05*j40*CH4  + j109*H2SO4  + r13*H*HO2  + r18*OH*H2  + r19*OH*H2O2  + r20*OH*HO2  + r23*OH*OH           
-                 + r26*HO2NO2*OH  + r48*HNO3*OH  + r72*HCL*OH  + r75*HOCL*OH  + r101*HBR*OH  + r115*CH2BR2*OH           
-                 + r117*CH3BR*OH  + r118*CH3CCL3*OH  + r120*CH3CL*OH  + r125*HCFC22*OH  + r134*CH2O*OH                  
-                 + r140*CH3OOH*OH  + r141*CH4*OH  + r144*HCOOH*OH  + r164*C2H6*OH  + r166*CH3CHO*OH  + r172*CH3COOH*OH  
-                 + r173*CH3COOOH*OH  + r189*C3H7OOH*OH  + r190*C3H8*OH  + r192*CH3COCHO*OH  + r197*POOH*OH              
-                 + r201*ROOH*OH  + r203*CH3COCH3*OH  + .5*r216*MACR*OH  + r356*NH3*OH  + r400*HOCL*HCL                  
+    d(H2O)/dt = .05*j40*CH4  + j109*H2SO4  + r358*HO2  + r13*H*HO2  + r18*OH*H2  + r19*OH*H2O2  + r20*OH*HO2            
+                 + r23*OH*OH  + r26*HO2NO2*OH  + r48*HNO3*OH  + r72*HCL*OH  + r75*HOCL*OH  + r101*HBR*OH                
+                 + r115*CH2BR2*OH  + r117*CH3BR*OH  + r118*CH3CCL3*OH  + r120*CH3CL*OH  + r125*HCFC22*OH                
+                 + r134*CH2O*OH  + r140*CH3OOH*OH  + r141*CH4*OH  + r144*HCOOH*OH  + r164*C2H6*OH  + r166*CH3CHO*OH     
+                 + r172*CH3COOH*OH  + r173*CH3COOOH*OH  + r189*C3H7OOH*OH  + r190*C3H8*OH  + r192*CH3COCHO*OH           
+                 + r197*POOH*OH  + r201*ROOH*OH  + r203*CH3COCH3*OH  + .5*r216*MACR*OH  + r356*NH3*OH  + r400*HOCL*HCL  
                  + r406*HOCL*HCL  + r407*HOBR*HCL  + r411*HOCL*HCL  + r412*HOBR*HCL                                     
                  - j1*H2O  - j2*H2O  - j3*H2O  - r2*O1D*H2O  - r110*F*H2O  - r355*SO3*H2O                               

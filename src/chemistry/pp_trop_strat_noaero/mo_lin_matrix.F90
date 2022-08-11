@@ -208,7 +208,6 @@
          mat(k,1540) = rxt(k,33)
          mat(k,1339) = rxt(k,263)*y(k,52)
          mat(k,466) = -( rxt(k,4) + het_rates(k,74) )
-         mat(k,1630) = .500_r8*rxt(k,471)
          mat(k,76) = -( rxt(k,109) + het_rates(k,75) )
          mat(k,694) = -( rxt(k,99) + het_rates(k,76) )
          mat(k,1931) = -( rxt(k,103) + het_rates(k,80) )
@@ -572,6 +571,7 @@
          mat(k,383) = -( het_rates(k,201) )
          mat(k,2050) = -( rxt(k,1) + rxt(k,2) + rxt(k,3) + het_rates(k,202) )
          mat(k,78) = rxt(k,109)
+         mat(k,1694) = rxt(k,471)
          mat(k,1511) = rxt(k,228)*y(k,39) + rxt(k,230)*y(k,41) + rxt(k,231)*y(k,42) &
                       + rxt(k,233)*y(k,44) + rxt(k,238)*y(k,79) + rxt(k,254)*y(k,52)
       end do

@@ -532,7 +532,7 @@
 *********************************
 *** Tropospheric Aerosol
 *********************************
-[usr_HO2_aer]          HO2  -> 0.5*H2O2
+[usr_HO2_aer]          HO2  -> H2O
 [usr_N2O5_aer]         N2O5  -> 2*HNO3
 [usr_NO2_aer]          NO2  -> 0.5*OH + 0.5*NO + 0.5*HNO3
 [usr_NO3_aer]          NO3  -> HNO3

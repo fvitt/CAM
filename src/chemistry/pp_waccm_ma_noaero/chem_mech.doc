@@ -471,7 +471,7 @@ Class List
   usr_DMS_OH       (170)   DMS + OH ->  0.5*SO2 + 0.5*HO2                                       rate = ** User defined **         (261)
   usr_SO2_OH       (171)   SO2 + OH ->  SO3 + HO2                                               rate = ** User defined **         (262)
   usr_SO3_H2O      (172)   SO3 + H2O ->  H2SO4                                                  rate = ** User defined **         (263)
-  usr_HO2_aer      (173)   HO2 ->  0.5*H2O2                                                     rate = ** User defined **         (264)
+  usr_HO2_aer      (173)   HO2 ->  H2O                                                          rate = ** User defined **         (264)
   usr_N2O5_aer     (174)   N2O5 ->  2*HNO3                                                      rate = ** User defined **         (265)
   usr_NO2_aer      (175)   NO2 ->  0.5*OH + 0.5*NO + 0.5*HNO3                                   rate = ** User defined **         (266)
   usr_NO3_aer      (176)   NO3 ->  HNO3                                                         rate = ** User defined **         (267)
@@ -628,7 +628,7 @@ Extraneous prod/loss species
     d(H2)/dt = j1*H2O  + j21*CH2O  + 1.4400001*j24*CH4  + r22*H*HO2  + r154*O1D*CH4                                     
                 - r3*O1D*H2  - r20*O*H2  - r29*OH*H2  - r66*CL*H2  - r122*F*H2                                          
     d(H2402)/dt =  - j50*H2402  - r118*O1D*H2402                                                                        
-    d(H2O2)/dt = .5*r173*HO2  + r35*M*OH*OH  + r36*HO2*HO2                                                              
+    d(H2O2)/dt = r35*M*OH*OH  + r36*HO2*HO2                                                                             
                   - j4*H2O2  - r21*O*H2O2  - r30*OH*H2O2  - r67*CL*H2O2                                                 
     d(H2SO4)/dt = r172*SO3*H2O                                                                                          
                    - j87*H2SO4                                                                                          
@@ -767,9 +767,9 @@ Extraneous prod/loss species
     d(Op2P)/dt = j71*O  + j72*O  + j77*O2  + j84*O2                                                                     
                   - r194*Op2P  - r196*Op2P  - r219*N2*Op2P  - r220*N2*Op2P  - r217*e*Op2P  - r218*e*Op2P                
                   - r221*O*Op2P                                                                                         
-    d(H2O)/dt = .05*j24*CH4  + j87*H2SO4  + r24*H*HO2  + r29*OH*H2  + r30*OH*H2O2  + r31*OH*HO2  + r34*OH*OH            
-                 + r37*HO2NO2*OH  + r61*HNO3*OH  + r85*HCL*OH  + r88*HOCL*OH  + r114*HBR*OH  + r128*CH2BR2*OH           
-                 + r130*CH3BR*OH  + r131*CH3CCL3*OH  + r133*CH3CL*OH  + r138*HCFC22*OH  + r146*CH2O*OH                  
-                 + r149*CH3OOH*OH  + r150*CH4*OH  + r178*HOCL*HCL  + r184*HOCL*HCL  + r185*HOBR*HCL  + r189*HOCL*HCL    
-                 + r190*HOBR*HCL                                                                                        
+    d(H2O)/dt = .05*j24*CH4  + j87*H2SO4  + r173*HO2  + r24*H*HO2  + r29*OH*H2  + r30*OH*H2O2  + r31*OH*HO2             
+                 + r34*OH*OH  + r37*HO2NO2*OH  + r61*HNO3*OH  + r85*HCL*OH  + r88*HOCL*OH  + r114*HBR*OH                
+                 + r128*CH2BR2*OH  + r130*CH3BR*OH  + r131*CH3CCL3*OH  + r133*CH3CL*OH  + r138*HCFC22*OH                
+                 + r146*CH2O*OH  + r149*CH3OOH*OH  + r150*CH4*OH  + r178*HOCL*HCL  + r184*HOCL*HCL  + r185*HOBR*HCL     
+                 + r189*HOCL*HCL  + r190*HOBR*HCL                                                                       
                  - j1*H2O  - j2*H2O  - j3*H2O  - r4*O1D*H2O  - r123*F*H2O  - r172*SO3*H2O                               
