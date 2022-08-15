@@ -2701,6 +2701,11 @@ end subroutine ma_convproc_tend
 
    type(carma_aerosol_state), pointer :: aero_state_obj
 
+   real(r8) :: cs_a(pcols,pver)    ! air density (kg/m3)
+   real(r8) :: naerosol_a(pcols)  ! number conc (1/m3)
+   real(r8) :: vaerosol_a(pcols)  ! volume conc (m3/m3)
+   real(r8) :: hygro_a(pcols)     ! bulk hygroscopicity of mode
+
 !-----------------------------------------------------------------------
 
    nullify(aero_state_obj)
@@ -2818,8 +2823,12 @@ end subroutine ma_convproc_tend
 
    phase = 1 ! interstitial
    aero_state_obj => carma_aerosol_state(state, pbuf)
+   cs_a(i,k) = rhoair
    do n = 1, nbins
-      call aero_state_obj%loadaer( aero_props_obj, i, k, n, rhoair, phase, naerosol(n), vaerosol(n), hygro(n))
+      call aero_state_obj%loadaer( aero_props_obj, i, i, k, n, cs_a, phase, naerosol_a, vaerosol_a, hygro_a)
+      naerosol(n) = naerosol_a(i)
+      vaerosol(n) = vaerosol_a(i)
+      hygro(n) = hygro_a(i)
    end do
    deallocate(aero_state_obj)
    nullify(aero_state_obj)
@@ -3007,6 +3016,11 @@ end subroutine ma_convproc_tend
 
    type(carma_aerosol_state), pointer :: aero_state_obj
 
+   real(r8) :: cs_a(pcols,pver)    ! air density (kg/m3)
+   real(r8) :: naerosol_a(pcols)  ! number conc (1/m3)
+   real(r8) :: vaerosol_a(pcols)  ! volume conc (m3/m3)
+   real(r8) :: hygro_a(pcols)     ! bulk hygroscopicity of mode
+
 !-----------------------------------------------------------------------
 
    nullify(aero_state_obj)
@@ -3131,8 +3145,12 @@ end subroutine ma_convproc_tend
 
    phase = 1 ! interstitial
    aero_state_obj => carma_aerosol_state(state, pbuf)
+   cs_a(i,k) = rhoair
    do n = 1, nbins
-      call aero_state_obj%loadaer( aero_props_obj, i, k, n, rhoair, phase, naerosol(n), vaerosol(n), hygro(n))
+      call aero_state_obj%loadaer( aero_props_obj, i, i, k, n, cs_a, phase, naerosol_a, vaerosol_a, hygro_a)
+      naerosol(n) = naerosol_a(i)
+      vaerosol(n) = vaerosol_a(i)
+      hygro(n) = hygro_a(i)
    end do
    deallocate(aero_state_obj)
    nullify(aero_state_obj)
