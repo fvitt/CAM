@@ -894,9 +894,7 @@ contains
     real(r8)              :: bndiags(pcols, pver, NBIN, NELEM, NBNDIAGS) ! CARMA bin diagnostic output
     real(r8)              :: newstate(pver)                         ! next state for a physics state field
     real(r8)              :: xc(pver)                               ! x center
-    real(r8)              :: dx(pver)                               ! x width
     real(r8)              :: yc(pver)                               ! y center
-    real(r8)              :: dy(pver)                               ! y width
     real(r8)              :: dz(pver)                               ! z width
     real(r8)              :: satice(pver)                           ! saturation wrt ice
     real(r8)              :: satliq(pver)                           ! saturation wrt liquid
@@ -904,7 +902,6 @@ contains
     real(r8)              :: eqliq(pver)                            ! equil vp wrt liquid
     real(r8)              :: wtpct(pver)                            ! weight percent aerosol composition
     real(r8)              :: time                                   ! the total elapsed time (s)
-    real(r8)              :: dlat                                   ! latitude spacing
     real(r8)              :: r(NBIN)                                ! particle radius (cm)
     real(r8)              :: rmass(NBIN)                            ! particle mass (g)
     real(r8)              :: rrat(NBIN)                             ! particle maximum radius ratio ()
@@ -1049,30 +1046,14 @@ contains
       xc = 255._r8
       yc = 40._r8
 
-      ! Assume resolution is 64x128.
-      if (single_column) then
-        dx = 360._r8 / 128._r8
-        dy = 180._r8 / 64._r8
-      else
-
-        ! Calculate the x and y coordinates, in degrees latitude and longitude.
-        dx = 360._r8 / plon
-        dy = 180._r8 / (plat-1)
-      end if
-
       call CARMASTATE_CreateFromReference(cstate, &
                          carma_ptr, &
                          time, &
                          dt, &
                          pver, &
                          I_HYBRID, &
-                         I_LL, &
                          40._r8, &
                          255._r8, &
-                         xc, &
-                         dx, &
-                         yc, &
-                         dy, &
                          pref_mid_norm, &
                          pref_edge/psurf_ref, &
                          pref_mid(:), &
@@ -1081,43 +1062,12 @@ contains
                          rc, &
                          qh2o=carma_h2o_ref, &
                          qh2so4=carma_h2so4_ref)
-      if (rc < 0) call endrun('carma_timestep_tend::CARMASTATE_CreateFromReference failed.')
+     if (rc < 0) call endrun('carma_timestep_tend::CARMASTATE_CreateFromReference failed.')
     end if
 
 
     ! Process each column.
     do icol = 1, state_loc%ncol
-
-      ! Haven't figured out how to get dimensions for single column. Perhaps should change
-      ! CARMA to work with area rather than dx and dy. For now, just hack something.
-      xc(:) = state_loc%lon(icol) / DEG2RAD
-      yc(:) = state_loc%lat(icol) /  DEG2RAD
-
-      ! Assume resolution is 64x128.
-      if (single_column) then
-        dx = 360._r8 / 128._r8
-        dy = 180._r8 / 64._r8
-      else
-
-        ! Caclulate the x and y coordinates, in degrees latitude and longitude.
-        dx(:) = 360._r8 / plon
-
-        dlat = 180._r8 / (plat-1)
-
-        ! The pole points need special treatment, since the point is not the
-        ! center of the grid box.
-        !
-        ! In single column mode there is just one latitude, so make it global.
-        if (abs(state_loc%lat(icol) /  DEG2RAD) >= (90._r8 - (90._r8 / (plat-1)))) then
-
-          ! Nudge yc toward the equator.
-          yc(:) = yc(:) - sign(0.25_r8,state_loc%lat(icol)) * dlat
-
-          dy(:) = dlat / 2._r8
-        else
-          dy(:) = dlat
-        endif
-      end if
 
       if (is_first_step()) then
         t_ptr(icol,:) = state_loc%t(icol,:)
@@ -1174,13 +1124,8 @@ contains
                              dt, &
                              pver, &
                              I_HYBRID, &
-                             I_LL, &
-                             state_loc%lat(icol) / DEG2RAD, &
-                             state_loc%lon(icol) / DEG2RAD, &
-                             xc, &
-                             dx, &
-                             yc, &
-                             dy, &
+                             state_loc%lat(icol) * RAD2DEG, &
+                             state_loc%lon(icol) * RAD2DEG, &
                              pref_mid_norm, &
                              pref_edge/psurf_ref, &
                              state_loc%pmid(icol, :), &
@@ -1595,7 +1540,6 @@ contains
                          call carma_getcnstforbin(icorelem(icore), ibin, cnst_core)
                          q(icol,iz,cnst_core) = factor * q(icol,iz,cnst_core)
                       end do
-!!$                      q(icol,iz,cnst_conc) = total_core
                    endif
                    if (abort) then
                       call endrun('carma_checkstate -- total_core > q(icol,iz,cnst_conc) -- '//trim(packagename))
@@ -2091,10 +2035,6 @@ contains
 
     ncol = state%ncol
     lchnk = state%lchnk
-
-    call get_lat_all_p(lchnk, ncol, lat)
-    call get_lon_all_p(lchnk, ncol, lon)
-    call get_rlat_all_p(lchnk, ncol, clat)
 
     ! Associate pointers with physics buffer fields
     itim_old = pbuf_old_tim_idx()
