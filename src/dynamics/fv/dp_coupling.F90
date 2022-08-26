@@ -81,9 +81,9 @@ CONTAINS
     use dyn_comp,       only: frontgf_idx, frontga_idx, uzm_idx
     use qbo,            only: qbo_use_forcing
     use phys_control,   only: use_gw_front, use_gw_front_igw, waccmx_is
-    use zonal_mean,     only: zonal_mean_3D
+    use zonal_mean_mod, only: zonal_mean_3D
     use d2a3dikj_mod,   only: d2a3dikj
-    use qneg_module,   only: qneg3
+    use qneg_module,    only: qneg3
 
 !-----------------------------------------------------------------------
     implicit none

@@ -35,6 +35,8 @@ module physpkg
   use modal_aero_calcsize,    only: modal_aero_calcsize_init, modal_aero_calcsize_diag, modal_aero_calcsize_reg
   use modal_aero_wateruptake, only: modal_aero_wateruptake_init, modal_aero_wateruptake_dr, modal_aero_wateruptake_reg
 
+  use zmean_phys_fields
+
   implicit none
   private
   save
@@ -1035,6 +1037,8 @@ contains
     dvcore_idx = pbuf_get_index('DVCORE')
     dtcore_idx = pbuf_get_index('DTCORE')
     dqcore_idx = pbuf_get_index('DQCORE')
+
+    call zmean_phys_fields_init()
 
   end subroutine phys_init
 
@@ -2947,6 +2951,8 @@ subroutine phys_timestep_init(phys_state, cam_in, cam_out, pbuf2d)
   ! Update Nudging values, if needed
   !----------------------------------
   if(Nudge_Model) call nudging_timestep_init(phys_state)
+
+  call zmean_phys_fields_timestep_init(phys_state)
 
 end subroutine phys_timestep_init
 

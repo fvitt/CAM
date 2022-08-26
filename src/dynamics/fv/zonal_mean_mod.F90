@@ -1,4 +1,4 @@
-module zonal_mean
+module zonal_mean_mod
 
 use shr_kind_mod, only: r8 => shr_kind_r8
 use dynamics_vars, only: T_FVDYCORE_GRID
@@ -53,4 +53,4 @@ subroutine zonal_mean_3D(grid, nlev, fld_orig, fld_zm)
 
 end subroutine zonal_mean_3D
 
-end module zonal_mean
+end module zonal_mean_mod
