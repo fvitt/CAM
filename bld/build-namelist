@@ -1573,6 +1573,9 @@ elsif ($carma =~ /trop_strat/) {
     add_default($nl, 'OC_GFEDv3_filename');
   }
 }
+if ($carma ne 'none') {
+  add_default($nl, 'carma_sulfnuc_method', 'val'=>'ZhaoTurco');
+}
 
 # Stratospheric sulfur aerosols
 

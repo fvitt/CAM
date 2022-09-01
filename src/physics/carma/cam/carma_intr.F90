@@ -70,7 +70,7 @@ module carma_intr
   ! Particle Group Statistics
 
   ! Gridbox average
-  integer, parameter             :: NGPDIAGS         = 12         ! Number of particle diagnostics ...
+  integer, parameter             :: NGPDIAGS         = 13         ! Number of particle diagnostics ...
   integer, parameter             :: GPDIAGS_ND       = 1          ! Number density
   integer, parameter             :: GPDIAGS_AD       = 2          ! Surface area density
   integer, parameter             :: GPDIAGS_MD       = 3          ! Mass density
@@ -83,13 +83,15 @@ module carma_intr
   integer, parameter             :: GPDIAGS_VM       = 10         ! Mass Weighted Fall Velocity
   integer, parameter             :: GPDIAGS_PA       = 11         ! Projected Area
   integer, parameter             :: GPDIAGS_AR       = 12         ! Area Ratio
+  integer, parameter             :: GPDIAGS_VR       = 13         ! Volatile Mixing Ratio
 
   ! Particle Bin (Element) Statistics
-  integer, parameter             :: NBNDIAGS         = 4          ! Number of bin surface diagnostics ...
+  integer, parameter             :: NBNDIAGS         = 5          ! Number of bin surface diagnostics ...
   integer, parameter             :: BNDIAGS_TP       = 1          ! Delta Particle Temperature [K]
   integer, parameter             :: BNDIAGS_WETR     = 2          ! wet radius
   integer, parameter             :: BNDIAGS_ND       = 3          ! Number density
   integer, parameter             :: BNDIAGS_RO       = 4          ! particle density
+  integer, parameter             :: BNDIAGS_VR       = 5          ! Volatile Mixing Ratio
 
   ! Surface
   integer, parameter             :: NSBDIAGS         = 2          ! Number of bin surface diagnostics ...
@@ -305,6 +307,7 @@ contains
       write(LUNOPRT,*) '  carma_vf_const      = ', carma_vf_const
       write(LUNOPRT,*) '  cldfrc_incloud      = ', CLDFRC_INCLOUD
       write(LUNOPRT,*) '  carma_rad_feedback  = ', carma_rad_feedback
+      write(LUNOPRT,*) '  carma_sulfnuc_method   = ', carma_sulfnuc_method
       write(LUNOPRT,*) ''
     endif
 
@@ -315,6 +318,7 @@ contains
     ! assumptions made in the CAM energy checking and microphysics code.
     call CARMA_Initialize(carma, &
                           rc, &
+                          nucl_method = carma_sulfnuc_method, &
                           do_coremasscheck = carma_do_coremasscheck, &
                           do_clearsky   = carma_do_clearsky, &
                           do_cnst_rlh   = .true., &
@@ -646,6 +650,7 @@ contains
       call addfld(trim(sname)//'PA', (/ 'lev' /), 'A', 'cm2', trim(sname) // ' projected area')
       call addfld(trim(sname)//'AR', (/ 'lev' /), 'A', '        ', trim(sname) // ' area ratio')
       call addfld(trim(sname)//'VM', (/ 'lev' /), 'A', 'm/s', trim(sname) // ' fall velocity')
+      call addfld(trim(sname)//'VR', (/ 'lev' /), 'A', 'kg/kg', trim(sname) // ' volatile mass mixing ratio')
 
       if (history_carma) then
          call add_default(trim(sname)//'ND', 1, ' ')
@@ -659,6 +664,7 @@ contains
          call add_default(trim(sname)//'PA', 1, ' ')
          call add_default(trim(sname)//'AR', 1, ' ')
          call add_default(trim(sname)//'VM', 1, ' ')
+         call add_default(trim(sname)//'VR', 1, ' ')
 
          if (carma_do_grow) then
             call add_default(trim(sname)//'JN', 1, ' ')
@@ -667,19 +673,21 @@ contains
 
       ! Per bin stats ..
       if (do_drydep) then
-        do ibin = 1, NBIN
-          call addfld(trim(btndname(igroup, ibin))//'VD', horiz_only,    'A', 'm/s', &
-               trim(cnst_name(icnst)) // ' dry deposition velocity')
-        end do
+         do ibin = 1, NBIN
+            call addfld(trim(btndname(igroup, ibin))//'VD', horiz_only,    'A', 'm/s', &
+                 trim(btndname(igroup, ibin)) // ' dry deposition velocity')
+         end do
       end if
 
       do ibin = 1, NBIN
-          call addfld(trim(btndname(igroup, ibin))//'ND', (/ 'lev' /), 'A', '#/cm3', &
-               trim(btndname(igroup, ibin)) // ' number density')
-          call addfld(trim(btndname(igroup, ibin))//'WR', (/ 'lev' /), 'A', 'um', &
-               trim(btndname(igroup, ibin)) // ' wet radius')
-          call addfld(trim(btndname(igroup, ibin))//'RO', (/ 'lev' /), 'A', 'g/cm3', &
-               trim(btndname(igroup, ibin)) // ' wet particle density')
+         call addfld(trim(btndname(igroup, ibin))//'ND', (/ 'lev' /), 'A', '#/cm3', &
+              trim(btndname(igroup, ibin)) // ' number density')
+         call addfld(trim(btndname(igroup, ibin))//'WR', (/ 'lev' /), 'A', 'um', &
+              trim(btndname(igroup, ibin)) // ' wet radius')
+         call addfld(trim(btndname(igroup, ibin))//'RO', (/ 'lev' /), 'A', 'g/cm3', &
+              trim(btndname(igroup, ibin)) // ' wet particle density')
+         call addfld(trim(btndname(igroup, ibin))//'VR', (/ 'lev' /), 'A', 'um', &
+              trim(btndname(igroup, ibin)) // ' volatile mixing ratio')
       end do
 
     end do
@@ -1413,6 +1421,9 @@ contains
             od(:) = od(:) + numberDensity(:) * extinctionCoefficient(:) * dz(:) * 100._r8
           end if
 
+          bndiags(icol,:,ibin,ielem,BNDIAGS_VR) = bndiags(icol,:,ibin,ielem,BNDIAGS_VR) + newstate(:)
+          gpdiags(icol, :, igroup, GPDIAGS_VR) =  gpdiags(icol, :, igroup, GPDIAGS_VR) + newstate(:)
+
           ! Particle temperatures from particle heating.
           if (carma_do_pheat) then
             bndiags(icol, :, ibin, ielem, BNDIAGS_TP) = dtpart(:)
@@ -1879,6 +1890,7 @@ contains
       call outfld(trim(sname)//'PA', gpdiags(:, :, igroup, GPDIAGS_PA), pcols, lchnk)
       call outfld(trim(sname)//'AR', gpdiags(:, :, igroup, GPDIAGS_AR), pcols, lchnk)
       call outfld(trim(sname)//'VM', gpdiags(:, :, igroup, GPDIAGS_VM), pcols, lchnk)
+      call outfld(trim(sname)//'VR', gpdiags(:, :, igroup, GPDIAGS_VR), pcols, lchnk)
 
       if (do_drydep) then
         do ibin = 1, NBIN
@@ -1890,7 +1902,7 @@ contains
         call outfld(trim(btndname(igroup, ibin))//'ND',bndiags(:, :, ibin, ienconc, BNDIAGS_ND), pcols, lchnk)
         call outfld(trim(btndname(igroup, ibin))//'WR',bndiags(:, :, ibin, ienconc, BNDIAGS_WETR), pcols, lchnk)
         call outfld(trim(btndname(igroup, ibin))//'RO',bndiags(:, :, ibin, ienconc, BNDIAGS_RO), pcols, lchnk)
-        !write(*,*) trim(btndname(igroup, ibin))//'WR'
+        call outfld(trim(btndname(igroup, ibin))//'VR',bndiags(:, :, ibin, ienconc, BNDIAGS_VR), pcols, lchnk)
       end do
     end do
 

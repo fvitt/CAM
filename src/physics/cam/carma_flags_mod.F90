@@ -61,6 +61,7 @@ module carma_flags_mod
   real(r8), protected          :: carma_rhcrit      = 1.0_r8    ! Critical relative humidity for liquid clouds
   real(r8), protected          :: carma_vf_const    = 0.0_r8    ! If specified and non-zero, constant fall velocity for all particles [cm/s]
   character(len=32), protected :: carma_model       = "none"    ! String (no spaces) that identifies the model
+  character(len=10), protected :: carma_sulfnuc_method = "none"    ! Nucleation method
 
 contains
 
@@ -126,7 +127,8 @@ contains
       carma_gstickl, &
       carma_cstick, &
       carma_rhcrit, &
-      carma_vf_const
+      carma_vf_const, &
+      carma_sulfnuc_method
 
     if (masterproc) then
        open( newunit=unitn, file=trim(nlfile), status='old' )
@@ -179,6 +181,7 @@ contains
     call mpi_bcast (carma_rhcrit,          1 ,mpi_real8, masterprocid, mpicom, ierr)
     call mpi_bcast (carma_vf_const,        1 ,mpi_real8, masterprocid, mpicom, ierr)
     call mpi_bcast (carma_model, len(carma_model), mpi_character, masterprocid, mpicom, ierr)
+    call mpi_bcast (carma_sulfnuc_method, len(carma_sulfnuc_method), mpi_character, masterprocid, mpicom, ierr)
 
     ! Also cause the CARMA model flags to be read in.
     call carma_model_readnl(nlfile)
