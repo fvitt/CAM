@@ -333,7 +333,7 @@
   </grid>
   <grid name="a%ne30" >
     <mach name="cheyenne">
-      <pes pesize="any" compset="_(CAM50|CAM60)%(CC|WC|CV|CF)">
+      <pes pesize="any" compset="_(CAM50|CAM60)%(CC|WC|CV|CF|CARMA)">
         <comment>none</comment>
         <ntasks>
           <ntasks_atm>-50</ntasks_atm>
