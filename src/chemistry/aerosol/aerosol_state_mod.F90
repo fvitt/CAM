@@ -1,7 +1,5 @@
 module aerosol_state_mod
   use shr_kind_mod, only: r8 => shr_kind_r8
-  use cam_abortutils, only: endrun
-  use cam_logfile, only: iulog
   use aerosol_properties_mod, only: aerosol_properties
 
   implicit none
@@ -47,7 +45,7 @@ module aerosol_state_mod
      real(r8), pointer :: fld(:,:)
   end type ptr2d_t
 
-  interface
+  abstract interface
 
      !------------------------------------------------------------------------
      ! Total aerosol mass mixing ratio for a bin in a given grid box location (column and layer)
@@ -100,7 +98,7 @@ module aerosol_state_mod
 
      !------------------------------------------------------------------------------
      ! sets transported components
-     ! This aerosol model with the state of the transported aerosol constituents
+     ! This updates the aerosol model state from the host transported aerosol constituents array.
      ! (mass mixing ratios or number mixing ratios)
      !------------------------------------------------------------------------------
      subroutine aero_set_transported( self, transported_array )
@@ -111,7 +109,7 @@ module aerosol_state_mod
 
      !------------------------------------------------------------------------------
      ! returns transported components
-     ! This returns to current state of the transported aerosol constituents
+     ! This updates the transported aerosol constituent array to match the aerosol model state.
      ! (mass mixing ratios or number mixing ratios)
      !------------------------------------------------------------------------------
      subroutine aero_get_transported( self, transported_array )
@@ -158,7 +156,7 @@ contains
   ! returns aerosol number, volume concentrations, and bulk hygroscopicity
   !------------------------------------------------------------------------------
   subroutine loadaer( self, aero_props, istart, istop, k,  m, cs, phase, &
-                       naerosol, vaerosol, hygro)
+                       naerosol, vaerosol, hygro, errnum, errstr)
 
     use aerosol_properties_mod, only: aerosol_properties
 
@@ -178,6 +176,9 @@ contains
     real(r8), intent(out) :: vaerosol(:)  ! volume conc (m3/m3)
     real(r8), intent(out) :: hygro(:)     ! bulk hygroscopicity of mode
 
+    integer ,         intent(out) :: errnum
+    character(len=*), intent(out) :: errstr
+
     ! internal
     real(r8), pointer :: raer(:,:) ! interstitial aerosol mass, number mixing ratios
     real(r8), pointer :: qqcw(:,:) ! cloud-borne aerosol mass, number mixing ratios
@@ -186,6 +187,7 @@ contains
     real(r8) :: vol(istart:istop) ! aerosol volume mixing ratio
     integer  :: i, l
     !-------------------------------------------------------------------------------
+    errnum = 0
 
     do i = istart, istop
        vaerosol(i) = 0._r8
@@ -211,8 +213,9 @@ contains
              vol(i) = max(raer(i,k), 0._r8)/specdens
           end do
        else
-          write(iulog,*)'phase = ',phase,' in aerosol_state::loadaer not recognized'
-          call endrun('phase error in aerosol_state::loadaer')
+          errnum = -1
+          write(errstr,*)'phase = ',phase,' in aerosol_state::loadaer not recognized'
+          return
        end if
 
        do i = istart, istop

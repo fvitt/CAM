@@ -14,7 +14,7 @@ module carma_aero_convproc
 !
 !---------------------------------------------------------------------------------
 
-use shr_kind_mod,    only: r8=>shr_kind_r8
+use shr_kind_mod,    only: r8=>shr_kind_r8, shr_kind_cs
 use spmd_utils,      only: masterproc
 use physconst,       only: gravit, rair
 use ppgrid,          only: pver, pcols, pverp
@@ -2706,6 +2706,8 @@ end subroutine ma_convproc_tend
    real(r8) :: vaerosol_a(pcols)  ! volume conc (m3/m3)
    real(r8) :: hygro_a(pcols)     ! bulk hygroscopicity of mode
 
+   integer :: errnum
+   character(len=shr_kind_cs) :: errstr
 !-----------------------------------------------------------------------
 
    nullify(aero_state_obj)
@@ -2825,7 +2827,10 @@ end subroutine ma_convproc_tend
    aero_state_obj => carma_aerosol_state(state, pbuf)
    cs_a(i,k) = rhoair
    do n = 1, nbins
-      call aero_state_obj%loadaer( aero_props_obj, i, i, k, n, cs_a, phase, naerosol_a, vaerosol_a, hygro_a)
+      call aero_state_obj%loadaer( aero_props_obj, i, i, k, n, cs_a, phase, naerosol_a, vaerosol_a, hygro_a, errnum, errstr)
+      if (errnum/=0) then
+         call endrun('ma_activate_convproc : '//trim(errstr))
+      end if
       naerosol(n) = naerosol_a(i)
       vaerosol(n) = vaerosol_a(i)
       hygro(n) = hygro_a(i)
@@ -3021,6 +3026,8 @@ end subroutine ma_convproc_tend
    real(r8) :: vaerosol_a(pcols)  ! volume conc (m3/m3)
    real(r8) :: hygro_a(pcols)     ! bulk hygroscopicity of mode
 
+   integer :: errnum
+   character(len=shr_kind_cs) :: errstr
 !-----------------------------------------------------------------------
 
    nullify(aero_state_obj)
@@ -3147,7 +3154,10 @@ end subroutine ma_convproc_tend
    aero_state_obj => carma_aerosol_state(state, pbuf)
    cs_a(i,k) = rhoair
    do n = 1, nbins
-      call aero_state_obj%loadaer( aero_props_obj, i, i, k, n, cs_a, phase, naerosol_a, vaerosol_a, hygro_a)
+      call aero_state_obj%loadaer( aero_props_obj, i, i, k, n, cs_a, phase, naerosol_a, vaerosol_a, hygro_a, errnum, errstr)
+      if (errnum/=0) then
+         call endrun('ma_activate_convproc_method2 : '//trim(errstr))
+      end if
       naerosol(n) = naerosol_a(i)
       vaerosol(n) = vaerosol_a(i)
       hygro(n) = hygro_a(i)

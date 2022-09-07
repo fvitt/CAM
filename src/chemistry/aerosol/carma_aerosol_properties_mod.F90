@@ -4,7 +4,6 @@ module carma_aerosol_properties_mod
   use aerosol_properties_mod, only: aerosol_properties
   use rad_constituents, only: rad_cnst_get_info, rad_cnst_get_bin_props_by_idx, &
                               rad_cnst_get_info_by_bin, rad_cnst_get_info_by_bin_spec
-  use cam_abortutils, only: endrun
 
   implicit none
 
@@ -48,34 +47,40 @@ contains
     real(r8),allocatable :: alogsig(:)
     real(r8),allocatable :: f1(:)
     real(r8),allocatable :: f2(:)
-    character(len=*),parameter :: prefix = 'carma_aerosol_properties::constructor: '
     integer :: ierr
 
     allocate(newobj,stat=ierr)
     if( ierr /= 0 ) then
-       call endrun(prefix//'error allocating newobj')
+       nullify(newobj)
+       return
     end if
 
     call rad_cnst_get_info( 0, nbins=nbins)
+
     allocate( nspecies(nbins),stat=ierr )
     if( ierr /= 0 ) then
-       call endrun(prefix//'error allocating nspecies')
+       nullify(newobj)
+       return
     end if
     allocate( nmasses(nbins),stat=ierr )
     if( ierr /= 0 ) then
-       call endrun(prefix//'error allocating nmasses')
+       nullify(newobj)
+       return
     end if
     allocate( alogsig(nbins),stat=ierr )
     if( ierr /= 0 ) then
-       call endrun(prefix//'error allocating alogsig')
+       nullify(newobj)
+       return
     end if
     allocate( f1(nbins),stat=ierr )
     if( ierr /= 0 ) then
-       call endrun(prefix//'error allocating f1')
+       nullify(newobj)
+       return
     end if
     allocate( f2(nbins),stat=ierr )
     if( ierr /= 0 ) then
-       call endrun(prefix//'error allocating f2')
+       nullify(newobj)
+       return
     end if
 
     ncnst_tot = 0
@@ -90,7 +95,11 @@ contains
     f1 = 1._r8
     f2 = 1._r8
 
-    call newobj%initialize(nbins,ncnst_tot,nspecies,nmasses,alogsig,f1,f2)
+    call newobj%initialize(nbins,ncnst_tot,nspecies,nmasses,alogsig,f1,f2,ierr)
+    if( ierr /= 0 ) then
+       nullify(newobj)
+       return
+    end if
     deallocate(nspecies)
     deallocate(nmasses)
     deallocate(alogsig)
@@ -133,6 +142,20 @@ contains
     call rad_cnst_get_bin_props_by_idx(0, bin_ndx, species_ndx, density_aer=density, hygro_aer=hygro)
 
   end subroutine get
+
+  !------------------------------------------------------------------------------
+  ! returns radius^3 (m3) of a given bin number
+  !------------------------------------------------------------------------------
+  pure elemental real(r8) function amcube(self, bin_ndx, volconc, numconc)
+
+    class(carma_aerosol_properties), intent(in) :: self
+    integer, intent(in) :: bin_ndx  ! bin number
+    real(r8), intent(in) :: volconc ! volume conc (m3/m3)
+    real(r8), intent(in) :: numconc ! number conc (1/m3)
+
+    amcube = 3._r8/(4._r8*pi)*volconc/numconc
+
+  end function amcube
 
   !------------------------------------------------------------------------------
   ! returns mass and number activation fractions
@@ -227,20 +250,6 @@ contains
     call rad_cnst_get_info_by_bin_spec(0, bin_ndx, species_ndx, spec_type=spectype)
 
   end subroutine species_type
-
-  !------------------------------------------------------------------------------
-  ! returns radius^3 (m3) of a given bin number
-  !------------------------------------------------------------------------------
-  pure elemental real(r8) function amcube(self, bin_ndx, volconc, numconc)
-
-    class(carma_aerosol_properties), intent(in) :: self
-    integer, intent(in) :: bin_ndx  ! bin number
-    real(r8), intent(in) :: volconc ! volume conc (m3/m3)
-    real(r8), intent(in) :: numconc ! number conc (1/m3)
-
-    amcube = 3._r8/(4._r8*pi)*volconc/numconc
-
-  end function amcube
 
   !------------------------------------------------------------------------------
   ! returns TRUE if Ice Nucleation tendencies are applied to given aerosol bin number

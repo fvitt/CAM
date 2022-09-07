@@ -9,10 +9,10 @@ module ndrop
 !            index 0 in all the calls to rad_constituent interfaces.
 !---------------------------------------------------------------------------------
 
-use shr_kind_mod,     only: r8 => shr_kind_r8
+use shr_kind_mod,     only: r8 => shr_kind_r8, shr_kind_cs
 use ppgrid,           only: pcols, pver
 use physconst,        only: pi, rhoh2o, mwh2o, r_universal, rh2o, &
-                            gravit, latvap, cpair, rair, tmelt
+                            gravit, latvap, cpair, rair
 use constituents,     only: pcnst, cnst_get_ind, cnst_name, cnst_spec_class_gas, cnst_species_class
 use physics_types,    only: physics_state, physics_ptend, physics_ptend_init
 use physics_buffer,   only: physics_buffer_desc, pbuf_get_index, pbuf_get_field
@@ -43,6 +43,7 @@ real(r8), parameter :: sq2      = sqrt(2._r8)
 real(r8), parameter :: sq2pi    = sqrt(2._r8*pi)
 real(r8), parameter :: sqpi     = sqrt(pi)
 real(r8), parameter :: surften  = 0.076_r8
+real(r8), parameter :: tmelt    = 273._r8
 
 real(r8) :: aten
 
@@ -312,6 +313,8 @@ subroutine dropmixnuc( aero_props, aero_state, &
    character*200 fieldnamegas
 
    logical  :: called_from_spcam
+   integer :: errnum
+   character(len=shr_kind_cs) :: errstr
    !-------------------------------------------------------------------------------
 
    lchnk = state%lchnk
@@ -552,7 +555,10 @@ subroutine dropmixnuc( aero_props, aero_state, &
                call aero_state%loadaer( aero_props, &
                   i, i, k, &
                   m, cs, phase, na, va, &
-                  hy)
+                  hy, errnum, errstr)
+               if (errnum/=0) then
+                  call endrun('dropmixnuc : '//trim(errstr))
+               end if
                naermod(m)  = na(i)
                vaerosol(m) = va(i)
                hygro(m)    = hy(i)
@@ -640,7 +646,10 @@ subroutine dropmixnuc( aero_props, aero_state, &
                   call aero_state%loadaer( aero_props, &
                      i, i, kp1,  &
                      m, cs, phase, na, va,   &
-                     hy)
+                     hy, errnum, errstr)
+                  if (errnum/=0) then
+                     call endrun('dropmixnuc : '//trim(errstr))
+                  end if
                   naermod(m)  = na(i)
                   vaerosol(m) = va(i)
                   hygro(m)    = hy(i)
@@ -1547,6 +1556,9 @@ subroutine ccncalc(aero_state, aero_props, state, cs, ccn)
    real(r8) smcoef(pcols)
    integer phase ! phase of aerosol
 
+   integer :: errnum
+   character(len=shr_kind_cs) :: errstr
+
    !     mathematical constants
    real(r8), parameter :: super(psat) = supersat(:psat)*0.01_r8
    real(r8), parameter :: smcoefcoef  = 2._r8/sqrt(27._r8)
@@ -1583,7 +1595,10 @@ subroutine ccncalc(aero_state, aero_props, state, cs, ccn)
          call aero_state%loadaer( aero_props, &
             1, ncol, k, &
             m, cs, phase, naerosol, vaerosol, &
-            hygro)
+            hygro, errnum, errstr)
+         if (errnum/=0) then
+            call endrun('ccncalc : '//trim(errstr))
+         end if
 
          where(naerosol(:ncol)>1.e-3_r8 .and. hygro(:ncol)>1.e-10_r8)
             amcube(:ncol)=aero_props%amcube(m, vaerosol(:ncol), naerosol(:ncol) )
