@@ -25,7 +25,9 @@ module carma_aerosol_state_mod
      procedure :: set_transported
      procedure :: ambient_total_bin_mmr
      procedure :: get_ambient_mmr
+     procedure :: get_ambient_total_mmr
      procedure :: get_cldbrne_mmr
+     procedure :: get_cldbrne_total_mmr
      procedure :: get_ambient_num
      procedure :: get_cldbrne_num
      procedure :: get_states
@@ -124,13 +126,21 @@ contains
     integer, intent(in) :: bin_ndx      ! bin index
     real(r8), pointer :: mmr(:,:)       ! mass mixing ratios
 
-    if (species_ndx<1) then
-       call rad_cnst_get_bin_mmr(0, bin_ndx, 'a', self%state, self%pbuf, mmr)
-    else
-       call rad_cnst_get_bin_mmr_by_idx(0, bin_ndx, species_ndx, 'a', self%state, self%pbuf, mmr)
-    end if
+    call rad_cnst_get_bin_mmr_by_idx(0, bin_ndx, species_ndx, 'a', self%state, self%pbuf, mmr)
 
   end subroutine get_ambient_mmr
+
+  !------------------------------------------------------------------------
+  ! returns total ambient aerosol mass mixing ratio for a given bin index
+  !------------------------------------------------------------------------
+  subroutine get_ambient_total_mmr(self, bin_ndx, mmr)
+    class(carma_aerosol_state), intent(in) :: self
+    integer, intent(in) :: bin_ndx      ! bin index
+    real(r8), pointer :: mmr(:,:)       ! mass mixing ratios
+
+    call rad_cnst_get_bin_mmr(0, bin_ndx, 'a', self%state, self%pbuf, mmr)
+
+  end subroutine get_ambient_total_mmr
 
   !------------------------------------------------------------------------------
   ! returns cloud-borne aerosol number mixing ratio for a given species index and bin index
@@ -141,13 +151,21 @@ contains
     integer, intent(in) :: bin_ndx      ! bin index
     real(r8), pointer :: mmr(:,:)       ! mass mixing ratios
 
-    if (species_ndx<1) then
-       call rad_cnst_get_bin_mmr(0, bin_ndx, 'c', self%state, self%pbuf, mmr)
-    else
-       call rad_cnst_get_bin_mmr_by_idx(0, bin_ndx, species_ndx, 'c', self%state, self%pbuf, mmr)
-    end if
+    call rad_cnst_get_bin_mmr_by_idx(0, bin_ndx, species_ndx, 'c', self%state, self%pbuf, mmr)
 
   end subroutine get_cldbrne_mmr
+
+  !------------------------------------------------------------------------
+  ! returns total cloud-borne aerosol mass mixing ratio for a given bin index
+  !------------------------------------------------------------------------
+  subroutine get_cldbrne_total_mmr(self, bin_ndx, mmr)
+    class(carma_aerosol_state), intent(in) :: self
+    integer, intent(in) :: bin_ndx      ! bin index
+    real(r8), pointer :: mmr(:,:)       ! mass mixing ratios
+
+    call rad_cnst_get_bin_mmr(0, bin_ndx, 'c', self%state, self%pbuf, mmr)
+
+  end subroutine get_cldbrne_total_mmr
 
   !------------------------------------------------------------------------------
   ! returns ambient aerosol number mixing ratio for a given species index and bin index
@@ -187,8 +205,8 @@ contains
        call self%get_ambient_num(ibin, raer(indx)%fld)
        call self%get_cldbrne_num(ibin, qqcw(indx)%fld)
        indx = aero_props%indexer(ibin, 1)
-       call self%get_ambient_mmr(0,ibin, raer(indx)%fld)
-       call self%get_cldbrne_mmr(0,ibin, qqcw(indx)%fld)
+       call self%get_ambient_total_mmr(ibin, raer(indx)%fld)
+       call self%get_cldbrne_total_mmr(ibin, qqcw(indx)%fld)
        do ispc = 1, aero_props%nspecies(ibin)
           indx = aero_props%indexer(ibin, ispc+1)
           call self%get_ambient_mmr(ispc,ibin, raer(indx)%fld)

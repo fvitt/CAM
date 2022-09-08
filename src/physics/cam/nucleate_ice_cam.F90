@@ -713,8 +713,8 @@ subroutine nucleate_ice_cam_calc( aero_props, aero_state, &
 
                         ! determine if there is a bin mass
                         if (aero_props%icenuc_apply_mmr_tend(m,0)) then
-                           call aero_state%get_ambient_mmr(0,m,amb_mmr)
-                           call aero_state%get_cldbrne_mmr(0,m,cld_mmr)
+                           call aero_state%get_ambient_total_mmr(m,amb_mmr)
+                           call aero_state%get_cldbrne_total_mmr(m,cld_mmr)
 
                            if (idxtmp>0) then
                               ptend%q(i,k,idxtmp) = -delmmr_sum/dtime

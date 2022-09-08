@@ -24,7 +24,9 @@ module modal_aerosol_state_mod
      procedure :: set_transported
      procedure :: ambient_total_bin_mmr
      procedure :: get_ambient_mmr
+     procedure :: get_ambient_total_mmr
      procedure :: get_cldbrne_mmr
+     procedure :: get_cldbrne_total_mmr
      procedure :: get_ambient_num
      procedure :: get_cldbrne_num
      procedure :: get_states
@@ -131,6 +133,16 @@ contains
     call rad_cnst_get_aer_mmr(0, bin_ndx, species_ndx, 'a', self%state, self%pbuf, mmr)
   end subroutine get_ambient_mmr
 
+  !------------------------------------------------------------------------
+  ! returns total ambient aerosol mass mixing ratio for a given bin index
+  !------------------------------------------------------------------------
+  subroutine get_ambient_total_mmr(self, bin_ndx, mmr)
+    class(modal_aerosol_state), intent(in) :: self
+    integer, intent(in) :: bin_ndx      ! bin index
+    real(r8), pointer :: mmr(:,:)       ! mass mixing ratios
+
+  end subroutine get_ambient_total_mmr
+
   !------------------------------------------------------------------------------
   ! returns cloud-borne aerosol number mixing ratio for a given species index and bin index
   !------------------------------------------------------------------------------
@@ -142,6 +154,16 @@ contains
 
     call rad_cnst_get_aer_mmr(0, bin_ndx, species_ndx, 'c', self%state, self%pbuf, mmr)
   end subroutine get_cldbrne_mmr
+
+  !------------------------------------------------------------------------
+  ! returns total cloud-borne aerosol mass mixing ratio for a given bin index
+  !------------------------------------------------------------------------
+  subroutine get_cldbrne_total_mmr(self, bin_ndx, mmr)
+    class(modal_aerosol_state), intent(in) :: self
+    integer, intent(in) :: bin_ndx      ! bin index
+    real(r8), pointer :: mmr(:,:)       ! mass mixing ratios
+
+  end subroutine get_cldbrne_total_mmr
 
   !------------------------------------------------------------------------------
   ! returns ambient aerosol number mixing ratio for a given species index and bin index
