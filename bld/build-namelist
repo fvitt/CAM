@@ -2710,6 +2710,9 @@ if ($chem =~ /waccm_ma/ or $chem =~ /waccm_tsmlt/) {
     add_default($nl, 'efield_potential_max', 'val'=>'120.D0');
 }
 
+# number of basis functions for m=0 spherical harmonics zonal means
+add_default($nl, 'ZonalNbasis');
+
 # Determine the source of the prescribed GHG values.
 
 my $lbc_file = $nl->get_value('flbc_file');

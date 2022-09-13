@@ -4,25 +4,25 @@ module Zonal_Mean
 ! Purpose: Compute and make use of Zonal Mean values on physgrid
 !
 !    This module implements 3 data structures for the spectral analysis
-!    and synthesis of zonal mean values based on m=0 spherical harmonics. 
+!    and synthesis of zonal mean values based on m=0 spherical harmonics.
 !
-!    ZonalMean_t:    For the analysis/synthsis of zonal mean values 
-!                    on a 2D grid of points distributed over the 
+!    ZonalMean_t:    For the analysis/synthsis of zonal mean values
+!                    on a 2D grid of points distributed over the
 !                    surface of a sphere.
-!    ZonalProfile_t: For the analysis/synthsis of zonal mean values 
-!                    on a meridional grid that spans the latitudes 
+!    ZonalProfile_t: For the analysis/synthsis of zonal mean values
+!                    on a meridional grid that spans the latitudes
 !                    from SP to NP
-!    ZonalAverage_t: To calculate zonal mean values via a simple 
-!                    area weighted bin-averaging of 2D gridpoints 
+!    ZonalAverage_t: To calculate zonal mean values via a simple
+!                    area weighted bin-averaging of 2D gridpoints
 !                    assigned to each latitude band.
 !
-!   NOTE: The weighting of the Zonal Profiles values is scaled such 
+!   NOTE: The weighting of the Zonal Profiles values is scaled such
 !         that ZonalMean_t amplitudes can be used to evaluate values
 !         the ZonalProfile_t grid and vise-versa.
 !
 !         The ZonalMean_t computes global integrals to compute basis
 !         amplitudes. For distributed environments the cost of these
-!         can be reduced using the The ZonalAverage_t data structures. 
+!         can be reduced using the The ZonalAverage_t data structures.
 !
 ! USAGE:
 !
@@ -32,28 +32,28 @@ module Zonal_Mean
 !         =========================================
 !           call ZM%init(nbas)
 !           ------------------
-!               - Initialize the data structure with 'nbas' basis functions 
+!               - Initialize the data structure with 'nbas' basis functions
 !                 for the given physgrid latitudes and areas.
 !
-!               Arguments: 
+!               Arguments:
 !                 integer ,intent(in):: nbas     -Number of m=0 spherical harmonics
-!          
+!
 !           call ZM%calc_amps(Gdata,Bamp)
 !           -----------------------------
 !               - For the initialized ZonalMean_t; Given Gdata() values on the physgrid,
 !                 compute the zonal mean basis amplitudes Bamp().
-!            
+!
 !               Interface: 2D data on the physgrid
-!                 real(r8),intent(in ):: Gdata(pcols,begchunk:endchunk)  
+!                 real(r8),intent(in ):: Gdata(pcols,begchunk:endchunk)
 !                 real(r8),intent(out):: Bamp (nbas)
-!          
+!
 !               Interface: 3D data on the physgrid
-!                 real(r8),intent(in ):: Gdata(pcols,pver,begchunk:endchunk)  
+!                 real(r8),intent(in ):: Gdata(pcols,pver,begchunk:endchunk)
 !                 real(r8),intent(out):: Bamp (nbas,pver)
-!          
+!
 !           call ZM%eval_grid(Bamp,Gdata)
 !           -----------------------------
-!               - For the initialized ZonalMean_t; Given Bamp() zonal mean basis 
+!               - For the initialized ZonalMean_t; Given Bamp() zonal mean basis
 !                 amplitudes, compute the Gdata() values on the physgrid.
 !
 !               Interface: 2D data on the physgrid
@@ -64,36 +64,36 @@ module Zonal_Mean
 !                 real(r8),intent(in ):: Bamp (nbas,pver)
 !                 real(r8),intent(out):: Gdata(pcols,pver,begchunk:endchunk)
 !
-!          
+!
 !    (2) Compute Zonal mean amplitudes and synthesize values on Zonal profile grid
 !
 !         Usage: type(ZonalProfile_t):: ZP
 !         =========================================
 !           call ZP%init(lats,area,nlat,nbas,GEN_GAUSSLATS=.true.)
 !           ------------------------------------------------------
-!               - Initialize the data structure for the given number of 
-!                 latitudes. Either use the given Latitudes and weights, 
-!                 or OPTIONALLY create a profile gridpoints and associated 
+!               - Initialize the data structure for the given number of
+!                 latitudes. Either use the given Latitudes and weights,
+!                 or OPTIONALLY create a profile gridpoints and associated
 !                 area weights from SP to NP. Then initialize 'nbas' basis
 !                 functions for the profile gridpoints.
-!                 If the user supplies the lats/area values, the area values must 
-!                 be correctly scaled such that the global area adds up to 4PI. 
-!                 Otherwise, the ampitudes between ZonalProfile_t and ZonalMean_t 
+!                 If the user supplies the lats/area values, the area values must
+!                 be correctly scaled such that the global area adds up to 4PI.
+!                 Otherwise, the ampitudes between ZonalProfile_t and ZonalMean_t
 !                 are not interchangable.
-!          
-!               Arguments: 
+!
+!               Arguments:
 !                 real(r8),intent(inout):: lats(:) - Latitudes of meridional grid.
 !                 real(r8),intent(inout):: area(:) - Area of each meridional gridpoint.
 !                 integer ,intent(in)   :: nlat    - Number of meridional gridpoints.
 !                 integer ,intent(in)   :: nbas    - Number of m=0 spherical harmonics
-!                 logical ,intent(in),optional:: GEN_GAUSLATS - Flag to generate 
+!                 logical ,intent(in),optional:: GEN_GAUSLATS - Flag to generate
 !                                                               lats/areas values.
 !
 !           call ZP%calc_amps(Zdata,Bamp)
 !           -----------------------------
-!               - Given Zdata() on the Zonal profile grid, compute the 
+!               - Given Zdata() on the Zonal profile grid, compute the
 !                 zonal basis amplitudes Bamp().
-!          
+!
 !               Interface: 1D data on (nlat) grid
 !                 real(r8),intent(in ):: Zdata(nlat) - Meridional Profile data
 !                 real(r8),intent(out):: Bamp (nbas) - Zonal Basis Amplitudes
@@ -110,13 +110,13 @@ module Zonal_Mean
 !               Interface: 1D data on (nlat) grid
 !                 real(r8),intent(in ):: Bamp (nbas) - Zonal Basis Amplitudes
 !                 real(r8),intent(out):: Zdata(nlat) - Meridional Profile data
-!          
+!
 !               Interface: 2D data on (nlat,pver) grid
 !                 real(r8),intent(in ):: Bamp (nbas,pver) - Zonal Basis Amplitudes
 !                 real(r8),intent(out):: Zdata(nlat,pver) - Meridional Profile data
-!          
+!
 !    (3) Compute Zonal mean averages (FASTER/NOT-ACCURATE) on Zonal profile grid
-!        (For the created zonal profile, just bin average area weighted 
+!        (For the created zonal profile, just bin average area weighted
 !         2D/3D physgrid grid values)
 !
 !         Usage: type(ZonalAverage_t):: ZA
@@ -124,18 +124,18 @@ module Zonal_Mean
 !           call ZA%init(lats,area,nlat,GEN_GAUSSLATS=.true.)
 !           --------------------------------------------------
 !               - Given the latitude/area for the nlat meridional gridpopints, initialize
-!                 the ZonalAverage datastruture for computing bin-averaging of physgrid 
-!                 values. It is assumed that the domain of these gridpoints of the 
+!                 the ZonalAverage datastruture for computing bin-averaging of physgrid
+!                 values. It is assumed that the domain of these gridpoints of the
 !                 profile span latitudes from SP to NP.
-!                 The optional GEN_GAUSSLATS flag allows for the generation of Gaussian 
-!                 latitude gridpoints. The generated grid over-writes the given values 
+!                 The optional GEN_GAUSSLATS flag allows for the generation of Gaussian
+!                 latitude gridpoints. The generated grid over-writes the given values
 !                 lats and area passed by the user.
 !
-!               Arguments: 
+!               Arguments:
 !                 real(r8),intent(inout):: lats(nlat) - Latitudes of meridional grid.
 !                 real(r8),intent(inout):: area(nlat) - Area of meridional gridpoints.
 !                 integer    ,intent(in):: nlat       - Number of meridional gridpoints
-!                 logical,intent(in),optional:: GEN_GAUSLATS - Flag to generate 
+!                 logical,intent(in),optional:: GEN_GAUSLATS - Flag to generate
 !                                                              lats/areas values.
 !
 !           call ZA%binAvg(Gdata,Zdata)
@@ -226,10 +226,10 @@ module Zonal_Mean
                                    calc_ZonalProfile_2Damps
      generic,public:: eval_grid => eval_ZonalProfile_1Dgrid, &
                                    eval_ZonalProfile_2Dgrid
-     procedure,private,pass:: calc_ZonalProfile_1Damps 
+     procedure,private,pass:: calc_ZonalProfile_1Damps
      procedure,private,pass:: calc_ZonalProfile_2Damps
-     procedure,private,pass:: eval_ZonalProfile_1Dgrid 
-     procedure,private,pass:: eval_ZonalProfile_2Dgrid 
+     procedure,private,pass:: eval_ZonalProfile_1Dgrid
+     procedure,private,pass:: eval_ZonalProfile_2Dgrid
   end type ZonalProfile_t
 
   type ZonalAverage_t
@@ -246,12 +246,13 @@ module Zonal_Mean
      procedure,private,pass:: calc_ZonalAverage_3DbinAvg
   end type ZonalAverage_t
 
+  real(r8), parameter :: PI2 = 2._r8*atan(1._r8) ! pi/2
 
 contains
     !=======================================================================
     subroutine init_ZonalMean(this,I_nbas)
       !
-      ! init_ZonalMean: Initialize the ZonalMean datastruture for the 
+      ! init_ZonalMean: Initialize the ZonalMean datastruture for the
       !                 given physgrid gridpoints. It is assumed that the domain
       !                 of these gridpoints spans the surface of the sphere.
       !                 The representation of basis functions functions is
@@ -273,11 +274,13 @@ contains
       real(r8),allocatable:: Bnorm(:)
       real(r8),allocatable:: Bcov (:,:)
       real(r8):: area(pcols),rlat
-      real(r8):: PI2
+
       integer :: ii,nn,n2,nb,lchnk,ncols,cc
       integer :: cnum,Cvec_len
 
-      PI2 = 2._r8*atan(1._r8)
+      if (I_nbas<1) then
+         call endrun('ZonalMean%init: ERROR I_nbas must be greater than 0')
+      end if
 
       ! Allocate space
       !-----------------
@@ -308,7 +311,7 @@ contains
       allocate(Bnorm(I_nbas))
       allocate(Bcov (I_nbas,I_nbas))
 
-      ! Save a copy the area weights for each ncol gridpoint 
+      ! Save a copy the area weights for each ncol gridpoint
       ! and convert Latitudes to SP->NP colatitudes in radians
       !-------------------------------------------------------
       do lchnk=begchunk,endchunk
@@ -423,7 +426,7 @@ contains
     !=======================================================================
     subroutine calc_ZonalMean_2Damps(this,I_Gdata,O_Bamp)
       !
-      ! calc_ZonalMean_2Damps: Given 2D data values for the ncol gridpoints, 
+      ! calc_ZonalMean_2Damps: Given 2D data values for the ncol gridpoints,
       !                        compute the zonal mean basis amplitudes.
       !=====================================================================
       !
@@ -478,7 +481,7 @@ contains
     !=======================================================================
     subroutine calc_ZonalMean_3Damps(this,I_Gdata,O_Bamp)
       !
-      ! calc_ZonalMean_3Damps: Given 3D data values for the ncol,nlev gridpoints, 
+      ! calc_ZonalMean_3Damps: Given 3D data values for the ncol,nlev gridpoints,
       !                        compute the zonal mean basis amplitudes.
       !=====================================================================
       !
@@ -508,7 +511,7 @@ contains
         do lchnk=begchunk,endchunk
           ncols = get_ncols_p(lchnk)
           do cc = 1,ncols
-            Csum(1,ns) = Csum(1,ns)                                                    &
+            Csum(1,ns) = Csum(1,ns) &
                        + (I_Gdata(cc,ll,lchnk)*this%basis(cc,lchnk,nn)*this%area(cc,lchnk))
           end do
         end do
@@ -630,19 +633,19 @@ contains
     !=======================================================================
     subroutine init_ZonalProfile(this,IO_lats,IO_area,I_nlat,I_nbas,GEN_GAUSSLATS)
       !
-      ! init_ZonalProfile: Initialize the ZonalProfile datastruture for the 
+      ! init_ZonalProfile: Initialize the ZonalProfile datastruture for the
       !                    given nlat gridpoints. It is assumed that the domain
-      !                    of these gridpoints of the profile span latitudes 
+      !                    of these gridpoints of the profile span latitudes
       !                    from SP to NP.
       !                    The representation of basis functions functions is
       !                    normalized w.r.t integration over the sphere so that
-      !                    when configured for tha same number of basis functions, 
-      !                    the calculated amplitudes are interchangable with 
+      !                    when configured for tha same number of basis functions,
+      !                    the calculated amplitudes are interchangable with
       !                    those for the for the ZonalMean_t class.
-      !        
-      !                    The optional GEN_GAUSSLATS flag allows for the 
+      !
+      !                    The optional GEN_GAUSSLATS flag allows for the
       !                    generation of Gaussian latitudes. The generated grid
-      !                    over-writes the values of IO_lats/IO_area passed by 
+      !                    over-writes the values of IO_lats/IO_area passed by
       !                    the user.
       !=====================================================================
       !
@@ -679,7 +682,7 @@ contains
       allocate(Bcoef(I_nbas))
       allocate(Bcov (I_nbas,I_nbas))
 
-      ! Optionally create the Latitude Gridpoints 
+      ! Optionally create the Latitude Gridpoints
       ! and their associated area weights. Otherwise it
       ! is assumed that the user is supplying them.
       !-----------------------------------------------
@@ -688,8 +691,8 @@ contains
         ! Create a Gaussin grid from SP to NP
         !--------------------------------------
         call dgaqd(I_nlat,Clats,IO_area,ierr)
-    
-        ! Convert generated colatitudes SP->NP to Lats and convert 
+
+        ! Convert generated colatitudes SP->NP to Lats and convert
         ! to degrees and scale the area for global 2D integrals
         !-----------------------------------------------------------
         do nn=1,I_nlat
@@ -704,7 +707,7 @@ contains
         end do
       endif
 
-      ! Copy the area weights for each nlat 
+      ! Copy the area weights for each nlat
       ! gridpoint to the datastructure
       !---------------------------------------
       this%area(1:I_nlat) = IO_area(1:I_nlat)
@@ -727,7 +730,7 @@ contains
         !------------------------------
         call dalfk(nb,0,Bcoef)
 
-        ! Create an un-normalized basis for the 
+        ! Create an un-normalized basis for the
         ! coefs at each nlat gridpoint
         !---------------------------------------
         do ii=1,I_nlat
@@ -773,8 +776,8 @@ contains
     !=======================================================================
     subroutine calc_ZonalProfile_1Damps(this,I_Zdata,O_Bamp)
       !
-      ! calc_ZonalProfile_1Damps: Given 1D data values for the nlat zonal 
-      !                           profiles gridpoints, compute the zonal 
+      ! calc_ZonalProfile_1Damps: Given 1D data values for the nlat zonal
+      !                           profiles gridpoints, compute the zonal
       !                           profile basis amplitudes.
       !=====================================================================
       !
@@ -819,8 +822,8 @@ contains
     !=======================================================================
     subroutine calc_ZonalProfile_2Damps(this,I_Zdata,O_Bamp)
       !
-      ! calc_ZonalProfile_2Damps: Given 2D data values for the nlat,nlev zonal 
-      !                           profiles gridpoints, compute the zonal 
+      ! calc_ZonalProfile_2Damps: Given 2D data values for the nlat,nlev zonal
+      !                           profiles gridpoints, compute the zonal
       !                           profile basis amplitudes.
       !=====================================================================
       !
@@ -937,14 +940,14 @@ contains
     !=======================================================================
     subroutine init_ZonalAverage(this,IO_lats,IO_area,I_nlat,GEN_GAUSSLATS)
       !
-      ! init_ZonalAverage: Initialize the ZonalAverage datastruture for the 
+      ! init_ZonalAverage: Initialize the ZonalAverage datastruture for the
       !                    given nlat gridpoints. It is assumed that the domain
-      !                    of these gridpoints of the profile span latitudes 
+      !                    of these gridpoints of the profile span latitudes
       !                    from SP to NP.
       !
-      !                    The optional GEN_GAUSSLATS flag allows for the 
+      !                    The optional GEN_GAUSSLATS flag allows for the
       !                    generation of Gaussian latitudes. The generated grid
-      !                    over-writes the values of IO_lats/IO_area passed by 
+      !                    over-writes the values of IO_lats/IO_area passed by
       !                    the user.
       !=====================================================================
       !
@@ -963,11 +966,9 @@ contains
       real(r8),allocatable:: BinLat(:)
       real(r8),allocatable:: Asum  (:,:)
       real(r8),allocatable:: Anorm (:)
-      real(r8):: area(pcols),rlat,PI2
+      real(r8):: area(pcols),rlat
       integer :: ii,nn,n2,jj,ierr
       integer :: ncols,lchnk,cc,jlat,nc
-
-      PI2 = 2._r8*atan(1._r8)
 
       ! Allocate space
       !-----------------
@@ -988,7 +989,7 @@ contains
       allocate(Asum  (1,I_nlat))
       allocate(Anorm (I_nlat))
 
-      ! Optionally create the Latitude Gridpoints 
+      ! Optionally create the Latitude Gridpoints
       ! and their associated area weights. Otherwise it
       ! is assumed that the user is supplying them.
       !-----------------------------------------------
@@ -997,8 +998,8 @@ contains
         ! Create a Gaussin grid from SP to NP
         !--------------------------------------
         call dgaqd(this%nlat,Clats,IO_area,ierr)
-    
-        ! Convert generated colatitudes SP->NP to Lats and convert 
+
+        ! Convert generated colatitudes SP->NP to Lats and convert
         ! to degrees and scale the area for global 2D integrals
         !-----------------------------------------------------------
         do nn=1,this%nlat
@@ -1017,7 +1018,7 @@ contains
       !-----------------------------------------------------
       this%area(1:this%nlat) = IO_area(1:this%nlat)
 
-      ! Save a copy the area weights for each 2D gridpoint 
+      ! Save a copy the area weights for each 2D gridpoint
       ! and convert Latitudes to SP->NP colatitudes in radians
       !-------------------------------------------------------
       do lchnk=begchunk,endchunk
@@ -1094,7 +1095,7 @@ contains
     !=======================================================================
     subroutine calc_ZonalAverage_2DbinAvg(this,I_Gdata,O_Zdata)
       !
-      ! calc_ZonalProfile_2DbinAvg: Given 2D data values for ncol gridpoints, 
+      ! calc_ZonalProfile_2DbinAvg: Given 2D data values for ncol gridpoints,
       !                             compute the nlat area weighted binAvg profile
       !=====================================================================
       !
@@ -1144,7 +1145,7 @@ contains
     !=======================================================================
     subroutine calc_ZonalAverage_3DbinAvg(this,I_Gdata,O_Zdata)
       !
-      ! calc_ZonalProfile_3DbinAvg: Given 3D data values for ncol,nlev gridpoints, 
+      ! calc_ZonalProfile_3DbinAvg: Given 3D data values for ncol,nlev gridpoints,
       !                             compute the nlat,nlev area weighted binAvg profile
       !=====================================================================
       !
@@ -1287,7 +1288,7 @@ contains
       !
       !=====================================================================
       !
-      ! Passed Variables 
+      ! Passed Variables
       !------------------
       integer ,intent(in ):: nn
       integer ,intent(in ):: mm
@@ -1339,7 +1340,7 @@ contains
           pm1   = 1.D0
         endif
       endif
-   
+
       t1   = 1.D0/SC20
       nex  = 20
       fden = 2.D0
@@ -1495,8 +1496,8 @@ contains
       ma = iabs(mm)
       if(ma.gt.nn) return
 
-      if(nn.le.0) then 
-        if(ma.le.0) then 
+      if(nn.le.0) then
+        if(ma.le.0) then
           pb = sqrt(.5D0)
           goto 140
         endif
@@ -1580,7 +1581,7 @@ contains
     !=======================================================================
     subroutine Invert_Matrix(I_Mat,Nbas,O_InvMat)
       !
-      ! Invert_Matrix: Given the NbasxNbas matrix, calculate and return 
+      ! Invert_Matrix: Given the NbasxNbas matrix, calculate and return
       !                the inverse of the matrix.
       !====================================================================
       real(r8),parameter:: TINY = 1.d-20
@@ -1663,7 +1664,7 @@ contains
           Psgn = -Psgn
           Rscl(ii_max) = Rscl(jj)
         endif
-  
+
         Indx(jj) = ii_max
         if(jj.ne.Nbas) then
           if(Mwrk(jj,jj).eq.0._r8) Mwrk(jj,jj) = TINY
@@ -1773,7 +1774,7 @@ contains
       !
       !===================================================================
       !
-      ! Passed variables 
+      ! Passed variables
       !-----------------
       integer ,intent(in ):: nlat
       real(r8),intent(out):: theta(nlat)

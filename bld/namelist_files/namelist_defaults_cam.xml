@@ -731,6 +731,15 @@
 <gw_rdg_orostratmin                     > 0.002d0</gw_rdg_orostratmin>
 <gw_rdg_orom2min                        > 0.1d0  </gw_rdg_orom2min>
 
+<!-- number of basis functions for m=0 spherical harmonics zonal means -->
+<ZonalNbasis hgrid="10x15"   >19</ZonalNbasis>
+<ZonalNbasis hgrid="4x5"     >46</ZonalNbasis>
+<ZonalNbasis hgrid="1.9x2.5" >96</ZonalNbasis>
+<ZonalNbasis hgrid="0.9x1.25">192</ZonalNbasis>
+<ZonalNbasis hgrid="ne5np4"  >20</ZonalNbasis>
+<ZonalNbasis hgrid="ne16np4" >60</ZonalNbasis>
+<ZonalNbasis hgrid="ne30np4" >120</ZonalNbasis>
+
 <!-- Dry Convective Adjustment options -->
 <dadadj_niter>15</dadadj_niter>
 <dadadj_niter hgrid="0.47x0.63" waccmx="1">100</dadadj_niter>

@@ -17,35 +17,59 @@ contains
 
     call addfld ( 'Tfld', (/ 'lev' /), 'A', 'K', 'T field')
     call addfld ( 'Tzmn', (/ 'lev' /), 'A', 'K', 'T zonal mean')
+    call addfld ( 'Ufld', (/ 'lev' /), 'A', 'K', 'T field')
+    call addfld ( 'Uzmn', (/ 'lev' /), 'A', 'K', 'T zonal mean')
+    call addfld ( 'Vfld', (/ 'lev' /), 'A', 'K', 'T field')
+    call addfld ( 'Vzmn', (/ 'lev' /), 'A', 'K', 'T zonal mean')
 
   end subroutine zmean_phys_fields_init
 
   subroutine zmean_phys_fields_timestep_init(phys_state)
     type(physics_state), intent(in) :: phys_state(begchunk:endchunk)
 
-    real(r8) :: fld(pcols,pver,begchunk:endchunk)
-    real(r8) :: zmfld(pcols,pver,begchunk:endchunk)
+    real(r8) :: Tfld(pcols,pver,begchunk:endchunk)
+    real(r8) :: Tzmfld(pcols,pver,begchunk:endchunk)
+    real(r8) :: Ufld(pcols,pver,begchunk:endchunk)
+    real(r8) :: Uzmfld(pcols,pver,begchunk:endchunk)
+    real(r8) :: Vfld(pcols,pver,begchunk:endchunk)
+    real(r8) :: Vzmfld(pcols,pver,begchunk:endchunk)
 
     real(r8) :: fld_tmp(pcols,pver)
     integer :: lchnk,ncol, i
 
-    fld(:,:,:) = nan
+    real(r8), parameter :: t0 = 200._r8
 
     do lchnk = begchunk, endchunk
        ncol = phys_state(lchnk)%ncol
        do i = 1,ncol
-          fld(i,:,lchnk) = phys_state(lchnk)%t(i,:)
+          Tfld(i,:,lchnk) = phys_state(lchnk)%t(i,:) - t0
+          Ufld(i,:,lchnk) = phys_state(lchnk)%u(i,:)
+          Vfld(i,:,lchnk) = phys_state(lchnk)%v(i,:)
        end do
     end do
 
-    zmfld = zmean_3d( fld )
+    Tzmfld = zmean_3d( Tfld ) + t0
+    Uzmfld = zmean_3d( Ufld )
+    Vzmfld = zmean_3d( Vfld )
 
     do lchnk = begchunk, endchunk
        ncol = phys_state(lchnk)%ncol
-       fld_tmp(:ncol,:) = fld(:ncol,:,lchnk)
+
+       fld_tmp(:ncol,:) = Tfld(:ncol,:,lchnk) + t0
        call outfld( 'Tfld', fld_tmp(:ncol,:), ncol, lchnk)
-       fld_tmp(:ncol,:) = zmfld(:ncol,:,lchnk)
+       fld_tmp(:ncol,:) = Tzmfld(:ncol,:,lchnk)
        call outfld( 'Tzmn', fld_tmp(:ncol,:), ncol, lchnk)
+
+       fld_tmp(:ncol,:) = Ufld(:ncol,:,lchnk)
+       call outfld( 'Ufld', fld_tmp(:ncol,:), ncol, lchnk)
+       fld_tmp(:ncol,:) = Uzmfld(:ncol,:,lchnk)
+       call outfld( 'Uzmn', fld_tmp(:ncol,:), ncol, lchnk)
+
+       fld_tmp(:ncol,:) = Vfld(:ncol,:,lchnk)
+       call outfld( 'Vfld', fld_tmp(:ncol,:), ncol, lchnk)
+       fld_tmp(:ncol,:) = Vzmfld(:ncol,:,lchnk)
+       call outfld( 'Vzmn', fld_tmp(:ncol,:), ncol, lchnk)
+
     end do
 
   end subroutine zmean_phys_fields_timestep_init

@@ -346,6 +346,15 @@
        </entry>
 
 
+
+<entry id="ZonalNbasis" type="integer" category="zmean_fields"
+       group="zmean_fields_opts" valid_values="" >
+       Number of basis functions or number of m=0 spherical harmonics
+       used to compute zonal means.
+       Default: ???
+       </entry>
+
+
 <!-- Aerosols: Data (CAM version) -->
 
 <entry id="bndtvaer" type="char*256" input_pathname="abs" category="aero_data_cam"
