@@ -199,11 +199,11 @@ subroutine nucleate_ice_cam_init(aero_props, mincld_in, bulk_scale_in, pbuf2d)
       aer_cnst_idx = -1
 
       do m = 1, aero_props%nbins()
-         if (aero_props%icenuc_apply_num_tend(m)) then
+         if (aero_props%icenuc_updates_num(m)) then
 
             ! constituents of this bin will need to be updated
 
-            if (aero_props%icenuc_apply_mmr_tend(m,0)) then ! species 0 indicates bin MMR
+            if (aero_props%icenuc_updates_mmr(m,0)) then ! species 0 indicates bin MMR
                call aero_props%amb_mmr_name( m, 0, tmpname)
             else
                call aero_props%amb_num_name( m, tmpname)
@@ -217,7 +217,7 @@ subroutine nucleate_ice_cam_init(aero_props, mincld_in, bulk_scale_in, pbuf2d)
 
             ! iterate over the species within the bin
             do l = 1, aero_props%nspecies(m)
-               if (aero_props%icenuc_apply_mmr_tend(m,l)) then
+               if (aero_props%icenuc_updates_mmr(m,l)) then
                   ! this aerosol constituent will need to updated
                   call aero_props%amb_mmr_name( m, l, tmpname)
                   call cnst_get_ind(tmpname, idxtmp, abort=.false.)
@@ -654,7 +654,7 @@ subroutine nucleate_ice_cam_calc( aero_props, aero_state, &
 
                do m = 1, aero_props%nbins()
 
-                  if (aero_props%icenuc_apply_num_tend(m)) then
+                  if (aero_props%icenuc_updates_num(m)) then
 
                      ! constituents of this bin will need to be updated
 
@@ -666,7 +666,7 @@ subroutine nucleate_ice_cam_calc( aero_props, aero_state, &
 
                         ! iterate over the species within the bin
                         do l = 1, aero_props%nspecies(m)
-                           if (aero_props%icenuc_apply_mmr_tend(m,l)) then
+                           if (aero_props%icenuc_updates_mmr(m,l)) then
 
                               call aero_props%species_type(m, l, spectype)
                               call aero_state%icenuc_size_wght( m, i,k, spectype, use_preexisting_ice, wght)
@@ -712,7 +712,7 @@ subroutine nucleate_ice_cam_calc( aero_props, aero_state, &
                         bin_mmr_change = delmmr_sum/aero_state%ambient_total_bin_mmr(aero_props, m, i,k)
 
                         ! determine if there is a bin mass
-                        if (aero_props%icenuc_apply_mmr_tend(m,0)) then
+                        if (aero_props%icenuc_updates_mmr(m,0)) then
                            call aero_state%get_ambient_total_mmr(m,amb_mmr)
                            call aero_state%get_cldbrne_total_mmr(m,cld_mmr)
 

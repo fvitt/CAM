@@ -23,8 +23,8 @@ module carma_aerosol_properties_mod
      procedure :: amb_num_name
      procedure :: amb_mmr_name
      procedure :: species_type
-     procedure :: icenuc_apply_num_tend
-     procedure :: icenuc_apply_mmr_tend
+     procedure :: icenuc_updates_num
+     procedure :: icenuc_updates_mmr
      procedure :: apply_number_limits
      final :: destructor
   end type carma_aerosol_properties
@@ -254,7 +254,7 @@ contains
   !------------------------------------------------------------------------------
   ! returns TRUE if Ice Nucleation tendencies are applied to given aerosol bin number
   !------------------------------------------------------------------------------
-  function icenuc_apply_num_tend(self, bin_ndx) result(res)
+  function icenuc_updates_num(self, bin_ndx) result(res)
     class(carma_aerosol_properties), intent(in) :: self
     integer, intent(in) :: bin_ndx           ! bin number
 
@@ -271,12 +271,12 @@ contains
        if (trim(spectype)=='sulfate') res = .true.
     end do
 
-  end function icenuc_apply_num_tend
+  end function icenuc_updates_num
 
   !------------------------------------------------------------------------------
   ! returns TRUE if Ice Nucleation tendencies are applied to a given species within a bin
   !------------------------------------------------------------------------------
-  function icenuc_apply_mmr_tend(self, bin_ndx, species_ndx) result(res)
+  function icenuc_updates_mmr(self, bin_ndx, species_ndx) result(res)
     class(carma_aerosol_properties), intent(in) :: self
     integer, intent(in) :: bin_ndx           ! bin number
     integer, intent(in) :: species_ndx       ! species number
@@ -288,14 +288,14 @@ contains
     res = .false.
 
     if (species_ndx==0) then
-       res = self%icenuc_apply_num_tend(bin_ndx)
+       res = self%icenuc_updates_num(bin_ndx)
     else
        call self%species_type( bin_ndx, species_ndx, spectype)
        if (trim(spectype)=='dust') res = .true.
        if (trim(spectype)=='sulfate') res = .true.
     end if
 
-  end function icenuc_apply_mmr_tend
+  end function icenuc_updates_mmr
 
   !------------------------------------------------------------------------------
   ! apply max / min to number concentration

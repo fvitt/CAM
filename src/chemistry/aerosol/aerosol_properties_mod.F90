@@ -53,8 +53,8 @@ module aerosol_properties_mod
      procedure(aero_amb_num_name), deferred :: amb_num_name
      procedure(aero_amb_mmr_name), deferred :: amb_mmr_name
      procedure(aero_species_type), deferred :: species_type
-     procedure(aero_icenuc_apply_num_tend), deferred :: icenuc_apply_num_tend
-     procedure(aero_icenuc_apply_mmr_tend), deferred :: icenuc_apply_mmr_tend
+     procedure(aero_icenuc_updates_num), deferred :: icenuc_updates_num
+     procedure(aero_icenuc_updates_mmr), deferred :: icenuc_updates_mmr
      procedure(aero_apply_num_limits), deferred :: apply_number_limits
 
      procedure :: final=>aero_props_final
@@ -184,19 +184,19 @@ module aerosol_properties_mod
      !------------------------------------------------------------------------------
      ! returns TRUE if Ice Nucleation tendencies are applied to given aerosol bin number
      !------------------------------------------------------------------------------
-     function aero_icenuc_apply_num_tend(self, bin_ndx) result(res)
+     function aero_icenuc_updates_num(self, bin_ndx) result(res)
        import :: aerosol_properties
        class(aerosol_properties), intent(in) :: self
        integer, intent(in) :: bin_ndx  ! bin number
 
        logical :: res
 
-     end function aero_icenuc_apply_num_tend
+     end function aero_icenuc_updates_num
 
      !------------------------------------------------------------------------------
      ! returns TRUE if Ice Nucleation tendencies are applied to a given species within a bin
      !------------------------------------------------------------------------------
-     function aero_icenuc_apply_mmr_tend(self, bin_ndx, species_ndx) result(res)
+     function aero_icenuc_updates_mmr(self, bin_ndx, species_ndx) result(res)
        import :: aerosol_properties
        class(aerosol_properties), intent(in) :: self
        integer, intent(in) :: bin_ndx     ! bin number
@@ -204,7 +204,7 @@ module aerosol_properties_mod
 
        logical :: res
 
-     end function aero_icenuc_apply_mmr_tend
+     end function aero_icenuc_updates_mmr
 
      !------------------------------------------------------------------------------
      ! apply max / min to number concentration
