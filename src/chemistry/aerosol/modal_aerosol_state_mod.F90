@@ -33,7 +33,6 @@ module modal_aerosol_state_mod
      procedure :: icenuc_size_wght2
      procedure :: icenuc_type_wght
 
-
      final :: destructor
 
   end type modal_aerosol_state

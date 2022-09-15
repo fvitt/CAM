@@ -88,7 +88,7 @@ subroutine cam_init(                                             &
    use cam_pio_utils,    only: init_pio_subsystem
    use cam_instance,     only: inst_suffix
    use cam_snapshot_common, only: cam_snapshot_deactivate
-   use physconst,        only: composition_init
+   use air_composition,  only: air_composition_init
 #if (defined BFB_CAM_SCAM_IOP)
    use history_defaults, only: initialize_iop_history
 #endif
@@ -175,7 +175,7 @@ subroutine cam_init(                                             &
    ! are set in dyn_init
    call chem_surfvals_init()
 
-   call composition_init()
+   call air_composition_init()
    ! initialize ionosphere
    call ionosphere_init()
 
@@ -300,7 +300,7 @@ subroutine cam_run2( cam_out, cam_in )
    !
    call t_barrierf ('sync_stepon_run2', mpicom)
    call t_startf ('stepon_run2')
-   call stepon_run2( phys_state, phys_tend, pbuf2d, dyn_in, dyn_out )
+   call stepon_run2( phys_state, phys_tend, dyn_in, dyn_out )
    call t_stopf  ('stepon_run2')
 
    !

@@ -23,13 +23,14 @@ module microp_aero
 
 use shr_kind_mod,     only: r8=>shr_kind_r8
 use spmd_utils,       only: masterproc
-use ppgrid,           only: pcols, pver, pverp
+use ppgrid,           only: pcols, pver, pverp, begchunk, endchunk
 use ref_pres,         only: top_lev => trop_cloud_top_lev
 use physconst,        only: rair
 use constituents,     only: cnst_get_ind
 use physics_types,    only: physics_state, physics_ptend, physics_ptend_init, physics_ptend_sum, &
                             physics_state_copy, physics_update
-use physics_buffer,   only: physics_buffer_desc, pbuf_get_index, pbuf_old_tim_idx, pbuf_get_field
+use physics_buffer,   only: physics_buffer_desc, pbuf_get_index, pbuf_old_tim_idx, pbuf_get_field, &
+                            pbuf_get_chunk
 use phys_control,     only: phys_getopts, use_hetfrz_classnuc
 use rad_constituents, only: rad_cnst_get_info, rad_cnst_get_aer_mmr, rad_cnst_get_aer_props, &
                             rad_cnst_get_mode_num
@@ -61,6 +62,8 @@ save
 
 public :: microp_aero_init, microp_aero_run, microp_aero_readnl, microp_aero_register
 public :: microp_aero_final
+public :: aerosol_state_object
+public :: aerosol_properties_object
 
 ! Private module data
 character(len=16)   :: eddy_scheme
@@ -128,7 +131,12 @@ integer :: npccn_idx, rndst_idx, nacon_idx
 
 logical  :: separate_dust = .false.
 
+type aero_state_t
+   class(aerosol_state), pointer :: obj=>null()
+end type aero_state_t
+
 class(aerosol_properties), pointer :: aero_props_obj=>null()
+type(aero_state_t), pointer :: aero_state(:) => null()
 
 !=========================================================================================
 contains
@@ -158,7 +166,7 @@ end subroutine microp_aero_register
 
 !=========================================================================================
 
-subroutine microp_aero_init(pbuf2d)
+subroutine microp_aero_init(phys_state,pbuf2d)
 
    !-----------------------------------------------------------------------
    !
@@ -169,6 +177,7 @@ subroutine microp_aero_init(pbuf2d)
    !
    !-----------------------------------------------------------------------
 
+   type(physics_state), pointer       :: phys_state(:)
    type(physics_buffer_desc), pointer :: pbuf2d(:,:)
 
    ! local variables
@@ -179,6 +188,9 @@ subroutine microp_aero_init(pbuf2d)
    character(len=32) :: str32
    character(len=*), parameter :: routine = 'microp_aero_init'
    logical :: history_amwg
+   type(physics_buffer_desc), pointer :: pbuf(:)
+   integer :: c
+
    !-----------------------------------------------------------------------
 
    ! Query the PBL eddy scheme
@@ -224,6 +236,15 @@ subroutine microp_aero_init(pbuf2d)
    if (clim_modal_aero) then
 
       dgnumwet_idx = pbuf_get_index('DGNUMWET')
+
+      allocate(aero_state(begchunk:endchunk))
+      do c = begchunk,endchunk
+         pbuf => pbuf_get_chunk(pbuf2d, c)
+         aero_state(c)%obj => modal_aerosol_state( phys_state(c), pbuf )
+         if (.not.associated(aero_state(c)%obj)) then
+            call endrun('microp_aero_init: construction of modal_aerosol_state object failed')
+         end if
+      end do
 
       ! Init indices for specific modes/species
 
@@ -337,13 +358,44 @@ subroutine microp_aero_init(pbuf2d)
 end subroutine microp_aero_init
 
 !=========================================================================================
+! returns a pointer to an aerosol state object for a given chunk index
+function aerosol_state_object(lchnk) result(obj)
+
+  integer,intent(in) :: lchnk ! local chunk index
+  class(aerosol_state), pointer :: obj ! aerosol state object pointer for local chunk
+
+  obj => aero_state(lchnk)%obj
+
+end function aerosol_state_object
+
+!=========================================================================================
+! returns a pointer to an aerosol properties object
+function aerosol_properties_object() result(obj)
+
+  class(aerosol_properties), pointer :: obj ! aerosol properties object pointer
+
+  obj => aero_props_obj
+
+end function aerosol_properties_object
+
+!=========================================================================================
 
 subroutine microp_aero_final
+
+  integer :: c
 
   if (associated(aero_props_obj)) then
      deallocate(aero_props_obj)
   end if
   nullify(aero_props_obj)
+
+  if (associated(aero_state)) then
+     do c = begchunk,endchunk
+        deallocate(aero_state(c)%obj)
+     end do
+     deallocate(aero_state)
+     nullify(aero_state)
+  end if
 
 end subroutine microp_aero_final
 
@@ -491,11 +543,11 @@ subroutine microp_aero_run ( &
 
    real(r8), allocatable :: factnum(:,:,:) ! activation fraction for aerosol number
 
-   class(aerosol_state), pointer :: aero_state_obj
+   class(aerosol_state), pointer :: aero_state1_obj
 
    !-------------------------------------------------------------------------------
 
-   nullify(aero_state_obj)
+   nullify(aero_state1_obj)
 
    call physics_state_copy(state,state1)
 
@@ -511,6 +563,19 @@ subroutine microp_aero_run ( &
    call pbuf_get_field(pbuf, rndst_idx, rndst)
 
    call physics_ptend_init(ptend_all, state%psetcols, 'microp_aero')
+
+   ! create the aerosol state object
+   if (clim_modal_aero) then
+      aero_state1_obj => modal_aerosol_state( state1, pbuf )
+      if (.not.associated(aero_state1_obj)) then
+         call endrun('microp_aero_run: construction of aero_state1_obj modal_aerosol_state object failed')
+      end if
+   else if (clim_carma_aero) then
+      aero_state1_obj => carma_aerosol_state( state1, pbuf )
+      if (.not.associated(aero_state1_obj)) then
+         call endrun('microp_aero_run: construction of aero_state1_obj carma_aerosol_state object failed')
+      end if
+   end if
 
    if (clim_modal_aero.or.clim_carma_aero) then
 
@@ -630,17 +695,10 @@ subroutine microp_aero_run ( &
 
    if (trim(eddy_scheme) == 'CLUBB_SGS') deallocate(tke)
 
-   ! create the aerosol state object
-   if (clim_modal_aero) then
-      aero_state_obj => modal_aerosol_state( state1, pbuf )
-   else if (clim_carma_aero) then
-      aero_state_obj => carma_aerosol_state( state1, pbuf )
-   end if
-
    !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
    !ICE Nucleation
 
-   call nucleate_ice_cam_calc(aero_props_obj, aero_state_obj, state1, wsubi, pbuf, deltatin, ptend_loc)
+   call nucleate_ice_cam_calc(aero_props_obj, aero_state1_obj, state1, wsubi, pbuf, deltatin, ptend_loc)
 
    call physics_ptend_sum(ptend_loc, ptend_all, ncol)
    call physics_update(state1, ptend_loc, deltatin)
@@ -686,19 +744,19 @@ subroutine microp_aero_run ( &
       ! If not using preexsiting ice, then only use cloudbourne aerosol for the
       ! liquid clouds. This is the same behavior as CAM5.
       if (use_preexisting_ice) then
-         call dropmixnuc( aero_props_obj, aero_state_obj, &
+         call dropmixnuc( aero_props_obj, aero_state1_obj, &
               state1, ptend_loc, deltatin, pbuf, wsub, &
               cldn, cldo, cldliqf, nctend_mixnuc, factnum)
       else
          cldliqf = 1._r8
-         call dropmixnuc( aero_props_obj, aero_state_obj, &
+         call dropmixnuc( aero_props_obj, aero_state1_obj, &
               state1, ptend_loc, deltatin, pbuf, wsub, &
               lcldn, lcldo, cldliqf, nctend_mixnuc, factnum)
       end if
 
       ! destroy the aerosol state object
-      deallocate(aero_state_obj)
-      nullify(aero_state_obj)
+      deallocate(aero_state1_obj)
+      nullify(aero_state1_obj)
 
       npccn(:ncol,:) = nctend_mixnuc(:ncol,:)
 

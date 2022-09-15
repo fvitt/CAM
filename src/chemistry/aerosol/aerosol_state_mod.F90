@@ -40,7 +40,7 @@ module aerosol_state_mod
      generic :: icenuc_size_wght => icenuc_size_wght1,icenuc_size_wght2
      procedure :: icenuc_type_wght_base
      procedure :: icenuc_type_wght => icenuc_type_wght_base
- end type aerosol_state
+  end type aerosol_state
 
   ! for state fields
   type ptr2d_t

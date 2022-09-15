@@ -30,6 +30,8 @@ use cam_abortutils, only: endrun
 
 use nucleate_ice,   only: nucleati_init, nucleati
 
+use phys_control,   only: cam_physpkg_is
+
 use aerosol_properties_mod, only: aerosol_properties
 use aerosol_state_mod, only: aerosol_state
 
@@ -260,10 +262,18 @@ subroutine nucleate_ice_cam_init(aero_props, mincld_in, bulk_scale_in, pbuf2d)
      call endrun(routine//': ERROR qsatfac is required when subgrid = -1 or subgrid_strat = -1')
    end if
 
-   call addfld('NIHF',  (/ 'lev' /), 'A', '1/m3', 'Activated Ice Number Concentation due to homogenous freezing')
-   call addfld('NIDEP', (/ 'lev' /), 'A', '1/m3', 'Activated Ice Number Concentation due to deposition nucleation')
-   call addfld('NIIMM', (/ 'lev' /), 'A', '1/m3', 'Activated Ice Number Concentation due to immersion freezing')
-   call addfld('NIMEY', (/ 'lev' /), 'A', '1/m3', 'Activated Ice Number Concentation due to meyers deposition')
+   if (cam_physpkg_is("cam_dev")) then
+      ! Updates for PUMAS v1.21+
+      call addfld('NIHFTEN',  (/ 'lev' /), 'A', '1/m3/s', 'Activated Ice Number Concentration tendency due to homogenous freezing')
+      call addfld('NIDEPTEN', (/ 'lev' /), 'A', '1/m3/s', 'Activated Ice Number Concentration tendency due to deposition nucleation')
+      call addfld('NIIMMTEN', (/ 'lev' /), 'A', '1/m3/s', 'Activated Ice Number Concentration tendency due to immersion freezing')
+      call addfld('NIMEYTEN', (/ 'lev' /), 'A', '1/m3/s', 'Activated Ice Number Concentration tendency due to meyers deposition')
+   else
+      call addfld('NIHF',  (/ 'lev' /), 'A', '1/m3', 'Activated Ice Number Concentration due to homogenous freezing')
+      call addfld('NIDEP', (/ 'lev' /), 'A', '1/m3', 'Activated Ice Number Concentration due to deposition nucleation')
+      call addfld('NIIMM', (/ 'lev' /), 'A', '1/m3', 'Activated Ice Number Concentration due to immersion freezing')
+      call addfld('NIMEY', (/ 'lev' /), 'A', '1/m3', 'Activated Ice Number Concentration due to meyers deposition')
+   endif
 
    call addfld('NIREGM',(/ 'lev' /), 'A', 'C', 'Ice Nucleation Temperature Threshold for Regime')
    call addfld('NISUBGRID',(/ 'lev' /), 'A', '', 'Ice Nucleation subgrid saturation factor')
@@ -276,14 +286,28 @@ subroutine nucleate_ice_cam_init(aero_props, mincld_in, bulk_scale_in, pbuf2d)
       call addfld('fhom',      (/ 'lev' /), 'A','fraction', 'Fraction of cirrus where homogeneous freezing occur'   )
       call addfld ('WICE',     (/ 'lev' /), 'A','m/s','Vertical velocity Reduction caused by preexisting ice'  )
       call addfld ('WEFF',     (/ 'lev' /), 'A','m/s','Effective Vertical velocity for ice nucleation' )
-      call addfld ('INnso4',   (/ 'lev' /), 'A','1/m3','Number Concentation so4 (in) to ice_nucleation')
-      call addfld ('INnbc',    (/ 'lev' /), 'A','1/m3','Number Concentation bc  (in) to ice_nucleation')
-      call addfld ('INndust',  (/ 'lev' /), 'A','1/m3','Number Concentation dust (in) ice_nucleation')
-      call addfld ('INondust',  (/ 'lev' /), 'A','1/m3','Number Concentation dust (out) from ice_nucleation')
-      call addfld ('INhet',    (/ 'lev' /), 'A','1/m3', &
-                'contribution for in-cloud ice number density increase by het nucleation in ice cloud')
-      call addfld ('INhom',    (/ 'lev' /), 'A','1/m3', &
-                'contribution for in-cloud ice number density increase by hom nucleation in ice cloud')
+
+      if (cam_physpkg_is("cam_dev")) then
+         ! Updates for PUMAS v1.21+
+         call addfld ('INnso4TEN',   (/ 'lev' /), 'A','1/m3/s','Number Concentration tendency so4 (in) to ice_nucleation')
+         call addfld ('INnbcTEN',    (/ 'lev' /), 'A','1/m3/s','Number Concentration tendency bc  (in) to ice_nucleation')
+         call addfld ('INndustTEN',  (/ 'lev' /), 'A','1/m3/s','Number Concentration tendency dust (in) ice_nucleation')
+         call addfld ('INondustTEN',  (/ 'lev' /), 'A','1/m3/s','Number Concentration tendency dust (out) from ice_nucleation')
+         call addfld ('INhetTEN',    (/ 'lev' /), 'A','1/m3/s', &
+              'Tendency for contribution for in-cloud ice number density increase by het nucleation in ice cloud')
+         call addfld ('INhomTEN',    (/ 'lev' /), 'A','1/m3/s', &
+              'Tendency for contribution for in-cloud ice number density increase by hom nucleation in ice cloud')
+      else
+         call addfld ('INnso4',   (/ 'lev' /), 'A','1/m3','Number Concentration so4 (in) to ice_nucleation')
+         call addfld ('INnbc',    (/ 'lev' /), 'A','1/m3','Number Concentration bc  (in) to ice_nucleation')
+         call addfld ('INndust',  (/ 'lev' /), 'A','1/m3','Number Concentration dust (in) ice_nucleation')
+         call addfld ('INondust',  (/ 'lev' /), 'A','1/m3','Number Concentration dust (out) from ice_nucleation')
+         call addfld ('INhet',    (/ 'lev' /), 'A','1/m3', &
+              'contribution for in-cloud ice number density increase by het nucleation in ice cloud')
+         call addfld ('INhom',    (/ 'lev' /), 'A','1/m3', &
+              'contribution for in-cloud ice number density increase by hom nucleation in ice cloud')
+      endif
+
       call addfld ('INFrehom', (/ 'lev' /), 'A','frequency','hom IN frequency ice cloud')
       call addfld ('INFreIN',  (/ 'lev' /), 'A','frequency','frequency of ice nucleation occur')
 
@@ -634,13 +658,28 @@ subroutine nucleate_ice_cam_calc( aero_props, aero_state, &
             ! *** Turn off soot nucleation ***
             soot_num = 0.0_r8
 
-            call nucleati( &
-               wsubi(i,k), t(i,k), pmid(i,k), relhum(i,k), icldm(i,k),   &
-               qc(i,k), qi(i,k), ni(i,k), rho(i,k),                      &
-               so4_num, dst_num, soot_num, subgrid(i,k),                 &
-               naai(i,k), nihf(i,k), niimm(i,k), nidep(i,k), nimey(i,k), &
-               wice(i,k), weff(i,k), fhom(i,k), regm(i,k),               &
-               oso4_num, odst_num, osoot_num)
+            if (cam_physpkg_is("cam_dev")) then
+
+               call nucleati( &
+                    wsubi(i,k), t(i,k), pmid(i,k), relhum(i,k), icldm(i,k),   &
+                    qc(i,k), qi(i,k), ni(i,k), rho(i,k),                      &
+                    so4_num, dst_num, soot_num, subgrid(i,k),                 &
+                    naai(i,k), nihf(i,k), niimm(i,k), nidep(i,k), nimey(i,k), &
+                    wice(i,k), weff(i,k), fhom(i,k), regm(i,k),               &
+                    oso4_num, odst_num, osoot_num, &
+                    call_frm_zm_in = .false., add_preexisting_ice_in = .false.)
+
+            else
+
+               call nucleati( &
+                    wsubi(i,k), t(i,k), pmid(i,k), relhum(i,k), icldm(i,k),   &
+                    qc(i,k), qi(i,k), ni(i,k), rho(i,k),                      &
+                    so4_num, dst_num, soot_num, subgrid(i,k),                 &
+                    naai(i,k), nihf(i,k), niimm(i,k), nidep(i,k), nimey(i,k), &
+                    wice(i,k), weff(i,k), fhom(i,k), regm(i,k),               &
+                    oso4_num, odst_num, osoot_num)
+
+            end if
 
             ! Move aerosol used for nucleation from interstial to cloudborne,
             ! otherwise the same coarse mode aerosols will be available again
@@ -738,7 +777,7 @@ subroutine nucleate_ice_cam_calc( aero_props, aero_state, &
                         ! apply the fractional change to bin number
                         cld_num(i,k) = cld_num(i,k) + bin_mmr_change*amb_num(i,k)
 
-                    end if
+                     end if
 
                   end if
                end do
@@ -770,55 +809,97 @@ subroutine nucleate_ice_cam_calc( aero_props, aero_state, &
                   nihf(i,k) = nihf(i,k) + dso4_num
                endif
             else
+               ! This maintains backwards compatibility with the previous version.
+               if (pmid(i,k) <= 12500._r8 .and. pmid(i,k) > 100._r8 .and. abs(state%lat(i)) >= 60._r8 * pi / 180._r8) then
+                  ramp = 1._r8 - min(1._r8, max(0._r8, (pmid(i,k) - 10000._r8) / 2500._r8))
 
-              ! This maintains backwards compatibility with the previous version.
-              if (pmid(i,k) <= 12500._r8 .and. pmid(i,k) > 100._r8 .and. abs(state%lat(i)) >= 60._r8 * pi / 180._r8) then
-                 ramp = 1._r8 - min(1._r8, max(0._r8, (pmid(i,k) - 10000._r8) / 2500._r8))
-
-                 if (oso4_num > 0._r8) then
-                    dso4_num = (max(oso4_num, ramp * nucleate_ice_strat * so4_num) - oso4_num) * 1e6_r8 / rho(i,k)
-                    naai(i,k) = naai(i,k) + dso4_num
-                    nihf(i,k) = nihf(i,k) + dso4_num
-                 end if
-              end if
+                  if (oso4_num > 0._r8) then
+                     dso4_num = (max(oso4_num, ramp * nucleate_ice_strat * so4_num) - oso4_num) * 1e6_r8 / rho(i,k)
+                     naai(i,k) = naai(i,k) + dso4_num
+                     nihf(i,k) = nihf(i,k) + dso4_num
+                  end if
+               end if
             end if
 
-            naai_hom(i,k) = nihf(i,k)
+            if (cam_physpkg_is("cam_dev")) then
+               !Updates for pumas v1.21+
 
-            ! output activated ice (convert from #/kg -> #/m3)
-            nihf(i,k)     = nihf(i,k) *rho(i,k)
-            niimm(i,k)    = niimm(i,k)*rho(i,k)
-            nidep(i,k)    = nidep(i,k)*rho(i,k)
-            nimey(i,k)    = nimey(i,k)*rho(i,k)
+               naai_hom(i,k) = nihf(i,k)/dtime
+               naai(i,k)= naai(i,k)/dtime
 
-            if (use_preexisting_ice) then
-               INnso4(i,k) =so4_num*1e6_r8  ! (convert from #/cm3 -> #/m3)
-               INnbc(i,k)  =soot_num*1e6_r8
-               INndust(i,k)=dst_num*1e6_r8
-               INondust(i,k)=odst_num*1e6_r8
-               INFreIN(i,k)=1.0_r8          ! 1,ice nucleation occur
-               INhet(i,k) = (niimm(i,k) + nidep(i,k))   ! #/m3, nimey not in cirrus
-               INhom(i,k) = nihf(i,k)                 ! #/m3
-               if (INhom(i,k).gt.1e3_r8)   then ! > 1/L
-                  INFrehom(i,k)=1.0_r8       ! 1, hom freezing occur
+               ! output activated ice (convert from #/kg -> #/m3/s)
+               nihf(i,k)     = nihf(i,k) *rho(i,k)/dtime
+               niimm(i,k)    = niimm(i,k)*rho(i,k)/dtime
+               nidep(i,k)    = nidep(i,k)*rho(i,k)/dtime
+               nimey(i,k)    = nimey(i,k)*rho(i,k)/dtime
+
+               if (use_preexisting_ice) then
+                  INnso4(i,k) =so4_num*1e6_r8/dtime  ! (convert from #/cm3 -> #/m3/s)
+                  INnbc(i,k)  =soot_num*1e6_r8/dtime
+                  INndust(i,k)=dst_num*1e6_r8/dtime
+                  INondust(i,k)=odst_num*1e6_r8/dtime
+                  INFreIN(i,k)=1.0_r8          ! 1,ice nucleation occur
+                  INhet(i,k) = (niimm(i,k) + nidep(i,k))   ! #/m3/s, nimey not in cirrus
+                  INhom(i,k) = nihf(i,k)                 ! #/m3/s
+                  if (INhom(i,k).gt.1e3_r8)   then ! > 1/L
+                     INFrehom(i,k)=1.0_r8       ! 1, hom freezing occur
+                  endif
+
+                  ! exclude  no ice nucleaton
+                  if ((INFrehom(i,k) < 0.5_r8) .and. (INhet(i,k) < 1.0_r8))   then
+                     INnso4(i,k) =0.0_r8
+                     INnbc(i,k)  =0.0_r8
+                     INndust(i,k)=0.0_r8
+                     INondust(i,k)=0.0_r8
+                     INFreIN(i,k)=0.0_r8
+                     INhet(i,k) = 0.0_r8
+                     INhom(i,k) = 0.0_r8
+                     INFrehom(i,k)=0.0_r8
+                     wice(i,k) = 0.0_r8
+                     weff(i,k) = 0.0_r8
+                     fhom(i,k) = 0.0_r8
+                  endif
                endif
 
-               ! exclude  no ice nucleaton
-               if ((INFrehom(i,k) < 0.5_r8) .and. (INhet(i,k) < 1.0_r8))   then
-                  INnso4(i,k) =0.0_r8
-                  INnbc(i,k)  =0.0_r8
-                  INndust(i,k)=0.0_r8
-                  INondust(i,k)=0.0_r8
-                  INFreIN(i,k)=0.0_r8
-                  INhet(i,k) = 0.0_r8
-                  INhom(i,k) = 0.0_r8
-                  INFrehom(i,k)=0.0_r8
-                  wice(i,k) = 0.0_r8
-                  weff(i,k) = 0.0_r8
-                  fhom(i,k) = 0.0_r8
-               endif
-            end if
+            else ! Not cam_dev
 
+               naai_hom(i,k) = nihf(i,k)
+
+               ! output activated ice (convert from #/kg -> #/m3/s)
+               nihf(i,k)     = nihf(i,k) *rho(i,k)
+               niimm(i,k)    = niimm(i,k)*rho(i,k)
+               nidep(i,k)    = nidep(i,k)*rho(i,k)
+               nimey(i,k)    = nimey(i,k)*rho(i,k)
+
+               if (use_preexisting_ice) then
+                  INnso4(i,k) =so4_num*1e6_r8 ! (convert from #/cm3 -> #/m3/s)
+                  INnbc(i,k)  =soot_num*1e6_r8
+                  INndust(i,k)=dst_num*1e6_r8
+                  INondust(i,k)=odst_num*1e6_r8
+                  INFreIN(i,k)=1.0_r8          ! 1,ice nucleation occur
+                  INhet(i,k) = (niimm(i,k) + nidep(i,k))   ! #/m3, nimey not in cirrus
+                  INhom(i,k) = nihf(i,k)                 ! #/m3
+                  if (INhom(i,k).gt.1e3_r8)   then ! > 1/L
+                     INFrehom(i,k)=1.0_r8       ! 1, hom freezing occur
+                  endif
+
+                  ! exclude  no ice nucleaton
+                  if ((INFrehom(i,k) < 0.5_r8) .and. (INhet(i,k) < 1.0_r8))   then
+                     INnso4(i,k) =0.0_r8
+                     INnbc(i,k)  =0.0_r8
+                     INndust(i,k)=0.0_r8
+                     INondust(i,k)=0.0_r8
+                     INFreIN(i,k)=0.0_r8
+                     INhet(i,k) = 0.0_r8
+                     INhom(i,k) = 0.0_r8
+                     INFrehom(i,k)=0.0_r8
+                     wice(i,k) = 0.0_r8
+                     weff(i,k) = 0.0_r8
+                     fhom(i,k) = 0.0_r8
+                  endif
+               end if
+
+            end if ! cam_dev
          end if freezing
       end do iloop
    end do kloop
@@ -829,10 +910,18 @@ subroutine nucleate_ice_cam_calc( aero_props, aero_state, &
            maerosol)
    end if
 
-   call outfld('NIHF',   nihf, pcols, lchnk)
-   call outfld('NIIMM', niimm, pcols, lchnk)
-   call outfld('NIDEP', nidep, pcols, lchnk)
-   call outfld('NIMEY', nimey, pcols, lchnk)
+   if (cam_physpkg_is("cam_dev")) then
+      ! Updates for PUMAS v1.21+
+      call outfld('NIHFTEN',   nihf, pcols, lchnk)
+      call outfld('NIIMMTEN', niimm, pcols, lchnk)
+      call outfld('NIDEPTEN', nidep, pcols, lchnk)
+      call outfld('NIMEYTEN', nimey, pcols, lchnk)
+   else
+      call outfld('NIHF',   nihf, pcols, lchnk)
+      call outfld('NIIMM', niimm, pcols, lchnk)
+      call outfld('NIDEP', nidep, pcols, lchnk)
+      call outfld('NIMEY', nimey, pcols, lchnk)
+   end if
    call outfld('NIREGM', regm, pcols, lchnk)
    call outfld('NISUBGRID', subgrid, pcols, lchnk)
    call outfld('NITROP_PD', trop_pd, pcols, lchnk)
@@ -841,12 +930,22 @@ subroutine nucleate_ice_cam_calc( aero_props, aero_state, &
       call outfld( 'fhom' , fhom, pcols, lchnk)
       call outfld( 'WICE' , wice, pcols, lchnk)
       call outfld( 'WEFF' , weff, pcols, lchnk)
-      call outfld('INnso4  ',INnso4 , pcols,lchnk)
-      call outfld('INnbc   ',INnbc  , pcols,lchnk)
-      call outfld('INndust ',INndust, pcols,lchnk)
-      call outfld('INondust ',INondust, pcols,lchnk)
-      call outfld('INhet   ',INhet  , pcols,lchnk)
-      call outfld('INhom   ',INhom  , pcols,lchnk)
+      if (cam_physpkg_is("cam_dev")) then
+         ! Updates for PUMAS v1.21+
+         call outfld('INnso4TEN',INnso4 , pcols,lchnk)
+         call outfld('INnbcTEN',INnbc  , pcols,lchnk)
+         call outfld('INndustTEN',INndust, pcols,lchnk)
+         call outfld('INondustTEN',INondust, pcols,lchnk)
+         call outfld('INhetTEN',INhet  , pcols,lchnk)
+         call outfld('INhomTEN',INhom  , pcols,lchnk)
+      else
+         call outfld('INnso4  ',INnso4 , pcols,lchnk)
+         call outfld('INnbc   ',INnbc  , pcols,lchnk)
+         call outfld('INndust ',INndust, pcols,lchnk)
+         call outfld('INondust ',INondust, pcols,lchnk)
+         call outfld('INhet   ',INhet  , pcols,lchnk)
+         call outfld('INhom   ',INhom  , pcols,lchnk)
+      end if
       call outfld('INFrehom',INFrehom,pcols,lchnk)
       call outfld('INFreIN ',INFreIN, pcols,lchnk)
    end if

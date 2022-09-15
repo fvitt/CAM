@@ -21,9 +21,11 @@ use shr_spfn_mod,     only: gamma => shr_spfn_gamma
 use wv_saturation,  only: svp_water, svp_ice
 use cam_logfile,       only: iulog
 use cam_abortutils,        only: endrun
-use micro_mg_utils, only:ice_autoconversion, snow_self_aggregation, accrete_cloud_water_snow, &
+use micro_pumas_utils, only:ice_autoconversion, snow_self_aggregation, accrete_cloud_water_snow, &
                          secondary_ice_production, accrete_rain_snow, heterogeneous_rain_freezing, &
                          accrete_cloud_water_rain, self_collection_rain, accrete_cloud_ice_snow
+use microp_aero, only: aerosol_properties_object
+use aerosol_properties_mod, only: aerosol_properties
 
 use modal_aerosol_properties_mod, only: modal_aerosol_properties
 
@@ -621,6 +623,11 @@ subroutine zm_mphy(su,    qu,   mu,   du,   eu,    cmel,  cmei,  zf,   pm,   te,
 
   real(r8)  rmean, beta6, beta66, r6, r6c
   real(r8)  temp1, temp2, temp3, temp4   ! variable to store output which is not required by this routine
+
+  class(aerosol_properties), pointer :: aero_props_obj => null()
+
+! Aerosol properties
+  aero_props_obj => aerosol_properties_object()
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 ! initialization
