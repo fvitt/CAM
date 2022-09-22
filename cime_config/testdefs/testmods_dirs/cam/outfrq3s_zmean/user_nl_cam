@@ -1,0 +1,6 @@
+mfilt=10,10,10,10,10,10,10,10,10
+ndens=1,1,1,1,1,1,1,1,1
+nhtfrq=3,3,3,3,3,3,3,3,3
+inithist='ENDOFRUN'
+fincl2 = 'Tfld','Tzmn','Ufld','Uzmn','Vfld','Vzmn'
+fincl3 = 'THzmean','Uzmean','Vzmean','Wzmean',  'VTHzmean','WTHzmean','UVzmean','UWzmean'
