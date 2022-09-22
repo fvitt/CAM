@@ -1584,7 +1584,7 @@ contains
       ! Invert_Matrix: Given the NbasxNbas matrix, calculate and return
       !                the inverse of the matrix.
       !====================================================================
-      real(r8),parameter:: TINY = 1.d-20
+      real(r8),parameter:: TINY = 1.e-20_r8
       !
       ! Passed Variables
       !------------------
