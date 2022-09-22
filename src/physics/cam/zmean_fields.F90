@@ -1,6 +1,6 @@
 module zmean_fields
   use shr_kind_mod,  only: r8=>SHR_KIND_R8
-  use ppgrid,        only: begchunk, endchunk, pcols, pver
+  use ppgrid,        only: begchunk, endchunk, pcols
   use Zonal_Mean,    only: ZonalMean_t
 
   use namelist_utils,only: find_group_name
@@ -12,12 +12,19 @@ module zmean_fields
 
   implicit none
 
+  private
+  public :: zmean_fields_readnl
+  public :: zmean_fields_init
+  public :: zmean_3d
+
   type(ZonalMean_t) :: ZMobj
 
   integer :: ZonalNbasis = -huge(1)
 
 contains
 
+  !------------------------------------------------------------------------------
+  !------------------------------------------------------------------------------
   subroutine zmean_fields_readnl(nlfile)
     character(len=*), intent(in) :: nlfile
     integer :: ierr, unitn
@@ -48,20 +55,24 @@ contains
 
   end subroutine zmean_fields_readnl
 
+  !------------------------------------------------------------------------------
+  !------------------------------------------------------------------------------
   subroutine zmean_fields_init
 
     call ZMobj%init(ZonalNbasis)
 
   end subroutine zmean_fields_init
 
-  function zmean_3d( fld ) result(fldzm)
+  !------------------------------------------------------------------------------
+  !------------------------------------------------------------------------------
+  function zmean_3d( fld, nlev ) result(fldzm)
 
+    real(r8), intent(in) :: fld(pcols,nlev,begchunk:endchunk)
+    integer, intent(in) :: nlev
 
-    real(r8), intent(in) :: fld(pcols,pver,begchunk:endchunk)
+    real(r8) :: fldzm(pcols,nlev,begchunk:endchunk)
 
-    real(r8) :: fldzm(pcols,pver,begchunk:endchunk)
-
-    real(r8) :: Zonal_Bamp3d(ZonalNbasis,pver)
+    real(r8) :: Zonal_Bamp3d(ZonalNbasis,nlev)
 
     call ZMobj%calc_amps(fld,Zonal_Bamp3d)
     call ZMobj%eval_grid(Zonal_Bamp3d,fldzm)

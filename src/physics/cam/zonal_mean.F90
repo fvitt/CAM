@@ -156,7 +156,7 @@ module Zonal_Mean
   !-----------------
   use shr_kind_mod,    only: r8=>SHR_KIND_R8
   use phys_grid,       only: get_ncols_p, get_rlat_p, get_wght_all_p
-  use ppgrid,          only: begchunk, endchunk, pcols, pver
+  use ppgrid,          only: begchunk, endchunk, pcols
   use shr_reprosum_mod,only: shr_reprosum_calc
   use cam_abortutils,  only: endrun
 #if ( defined SPMD )
@@ -488,7 +488,7 @@ contains
       ! Passed Variables
       !------------------
       class(ZonalMean_t) :: this
-      real(r8),intent(in ):: I_Gdata(pcols,pver,begchunk:endchunk)
+      real(r8),intent(in ):: I_Gdata(:,:,:)
       real(r8),intent(out):: O_Bamp (:,:)
       !
       ! Local Values
@@ -498,24 +498,28 @@ contains
       integer:: ii,nn,n2,ncols,lchnk,cc
       integer:: Nsum,ns,ll
 
-      Nsum = this%nbas*pver
+      integer :: nlev
+
+      nlev = size(I_Gdata,dim=2)
+
+      Nsum = this%nbas*nlev
       allocate(Gcov(Nsum))
       allocate(Csum(1,Nsum))
 
       ! Compute Covariance with input data and basis functions
       !--------------------------------------------------------
-      do ll= 1,pver
-      do nn= 1,this%nbas
-        ns = nn + (ll-1)*this%nbas
-        Csum(1,ns) = 0._r8
-        do lchnk=begchunk,endchunk
-          ncols = get_ncols_p(lchnk)
-          do cc = 1,ncols
-            Csum(1,ns) = Csum(1,ns) &
-                       + (I_Gdata(cc,ll,lchnk)*this%basis(cc,lchnk,nn)*this%area(cc,lchnk))
-          end do
-        end do
-      end do
+      do ll= 1,nlev
+         do nn= 1,this%nbas
+            ns = nn + (ll-1)*this%nbas
+            Csum(1,ns) = 0._r8
+            do lchnk=begchunk,endchunk
+               ncols = get_ncols_p(lchnk)
+               do cc = 1,ncols
+                  Csum(1,ns) = Csum(1,ns) &
+                       + (I_Gdata(cc,ll,lchnk-begchunk+1)*this%basis(cc,lchnk,nn)*this%area(cc,lchnk))
+               end do
+            end do
+         end do
       end do
 
       call shr_reprosum_calc(Csum,Gcov,1,1,Nsum,commid=mpicom)
@@ -523,20 +527,20 @@ contains
       ! Multiply by map to get the amplitudes
       !-------------------------------------------
       do nn=1,this%nbas
-      do ll=1,pver
-        O_Bamp(nn,ll) = 0._r8
-        do n2=1,this%nbas
-          ns = nn + (ll-1)*this%nbas
-          O_Bamp(nn,ll) = O_Bamp(nn,ll) + this%map(n2,nn)*Gcov(ns)
-        end do
-      end do
+         do ll=1,nlev
+            O_Bamp(nn,ll) = 0._r8
+            do n2=1,this%nbas
+               ns = nn + (ll-1)*this%nbas
+               O_Bamp(nn,ll) = O_Bamp(nn,ll) + this%map(n2,nn)*Gcov(ns)
+            end do
+         end do
       end do
 
       ! End Routine
       !------------
       deallocate(Csum)
       deallocate(Gcov)
-      return
+
     end subroutine calc_ZonalMean_3Damps
     !=======================================================================
 
@@ -594,33 +598,36 @@ contains
       !------------------
       class(ZonalMean_t) :: this
       real(r8),intent(in ):: I_Bamp (:,:)
-      real(r8),intent(out):: O_Gdata(pcols,pver,begchunk:endchunk)
+      real(r8),intent(out):: O_Gdata(:,:,:)
       !
       ! Local Values
       !--------------
       integer:: ii,nn,ncols,lchnk,cc
       integer:: ll
 
+      integer :: nlev
+      nlev = size(O_Gdata,dim=2)
+
       ! Construct grid values from basis amplitudes.
       !--------------------------------------------------
       do lchnk=begchunk,endchunk
-        ncols = get_ncols_p(lchnk)
-        do ll = 1,pver
-        do cc = 1,ncols
-          O_Gdata(cc,ll,lchnk) = 0._r8
-        end do
-        end do
+         ncols = get_ncols_p(lchnk)
+         do ll = 1,nlev
+            do cc = 1,ncols
+               O_Gdata(cc,ll,lchnk-begchunk+1) = 0._r8
+            end do
+         end do
       end do
 
       do nn=1,this%nbas
-      do lchnk=begchunk,endchunk
-        ncols = get_ncols_p(lchnk)
-        do ll = 1,pver
-        do cc = 1,ncols
-          O_Gdata(cc,ll,lchnk) = O_Gdata(cc,ll,lchnk) + (I_Bamp(nn,ll)*this%basis(cc,lchnk,nn))
-        end do
-        end do
-      end do
+         do lchnk=begchunk,endchunk
+            ncols = get_ncols_p(lchnk)
+            do ll = 1,nlev
+               do cc = 1,ncols
+                  O_Gdata(cc,ll,lchnk-begchunk+1) = O_Gdata(cc,ll,lchnk-begchunk+1) + (I_Bamp(nn,ll)*this%basis(cc,lchnk,nn))
+               end do
+            end do
+         end do
       end do
 
       ! End Routine
@@ -838,27 +845,31 @@ contains
       real(r8),allocatable:: Gcov(:,:)
       integer:: ii,nn,n2,ll
 
+      integer :: nlev
+
+      nlev = size(I_Zdata,dim=2)
+
       ! Compute Covariance with input data and basis functions
       !--------------------------------------------------------
-      allocate(Gcov(this%nbas,pver))
-      do ll=1,pver
-      do nn=1,this%nbas
-        Gcov(nn,ll) = 0._r8
-        do ii=1,this%nlat
-          Gcov(nn,ll) = Gcov(nn,ll) + (I_Zdata(ii,ll)*this%basis(ii,nn)*this%area(ii))
-        end do
-      end do
+      allocate(Gcov(this%nbas,nlev))
+      do ll=1,nlev
+         do nn=1,this%nbas
+            Gcov(nn,ll) = 0._r8
+            do ii=1,this%nlat
+               Gcov(nn,ll) = Gcov(nn,ll) + (I_Zdata(ii,ll)*this%basis(ii,nn)*this%area(ii))
+            end do
+         end do
       end do
 
       ! Multiply by map to get the amplitudes
       !-------------------------------------------
-      do ll=1,pver
-      do nn=1,this%nbas
-        O_Bamp(nn,ll) = 0._r8
-        do n2=1,this%nbas
-          O_Bamp(nn,ll) = O_Bamp(nn,ll) + this%map(n2,nn)*Gcov(n2,ll)
-        end do
-      end do
+      do ll=1,nlev
+         do nn=1,this%nbas
+            O_Bamp(nn,ll) = 0._r8
+            do n2=1,this%nbas
+               O_Bamp(nn,ll) = O_Bamp(nn,ll) + this%map(n2,nn)*Gcov(n2,ll)
+            end do
+         end do
       end do
 
       ! End Routine
@@ -919,15 +930,19 @@ contains
       !--------------
       integer:: ii,nn,ll
 
+      integer :: nlev
+
+      nlev = size(I_Bamp,dim=2)
+
       ! Construct grid values from basis amplitudes.
       !--------------------------------------------------
-      O_Zdata(1:this%nlat,1:pver) = 0._r8
+      O_Zdata(1:this%nlat,1:nlev) = 0._r8
       do nn=1,this%nbas
-      do ll=1,pver
-      do ii=1,this%nlat
-        O_Zdata(ii,ll) = O_Zdata(ii,ll) + (I_Bamp(nn,ll)*this%basis(ii,nn))
-      end do
-      end do
+         do ll=1,nlev
+            do ii=1,this%nlat
+               O_Zdata(ii,ll) = O_Zdata(ii,ll) + (I_Bamp(nn,ll)*this%basis(ii,nn))
+            end do
+         end do
       end do
 
       ! End Routine
@@ -1152,7 +1167,7 @@ contains
       ! Passed Variables
       !------------------
       class(ZonalAverage_t):: this
-      real(r8),intent(in ):: I_Gdata(pcols,pver,begchunk:endchunk)
+      real(r8),intent(in ):: I_Gdata(:,:,:)
       real(r8),intent(out):: O_Zdata(:,:)
       !
       ! Local Values
@@ -1162,37 +1177,41 @@ contains
       integer:: nn,ncols,lchnk,cc,jlat
       integer:: Nsum,ll,ns
 
+      integer :: nlev
+
+      nlev = size(I_Gdata,dim=2)
+
       ! Initialize Zonal profile
       !---------------------------
-      Nsum = this%nlat*pver
+      Nsum = this%nlat*nlev
       allocate(Gsum(Nsum))
       allocate(Asum(1,Nsum))
       Asum(:,:) = 0._r8
 
-      O_Zdata(1:this%nlat,1:pver) = 0._r8
+      O_Zdata(1:this%nlat,1:nlev) = 0._r8
 
       ! Compute area-weighted sums
       !-----------------------------
       do lchnk=begchunk,endchunk
-        ncols = get_ncols_p(lchnk)
-        do ll = 1,pver
-        do cc = 1,ncols
-          jlat = this%idx_map(cc,lchnk)
-          ns = jlat + (ll-1)*this%nlat
-          Asum(1,ns) = Asum(1,ns) + I_Gdata(cc,ll,lchnk)*this%area_g(cc,lchnk)
-        end do
-        end do
+         ncols = get_ncols_p(lchnk)
+         do ll = 1,nlev
+            do cc = 1,ncols
+               jlat = this%idx_map(cc,lchnk)
+               ns = jlat + (ll-1)*this%nlat
+               Asum(1,ns) = Asum(1,ns) + I_Gdata(cc,ll,lchnk-begchunk+1)*this%area_g(cc,lchnk)
+            end do
+         end do
       end do
 
       call shr_reprosum_calc(Asum,Gsum,1,1,Nsum,commid=mpicom)
 
       ! Divide by area norm to get the averages
       !-----------------------------------------
-      do ll = 1,pver
-      do nn = 1,this%nlat
-        ns = nn + (ll-1)*this%nlat
-        O_Zdata(nn,ll) = Gsum(ns)/this%a_norm(nn)
-      end do
+      do ll = 1,nlev
+         do nn = 1,this%nlat
+            ns = nn + (ll-1)*this%nlat
+            O_Zdata(nn,ll) = Gsum(ns)/this%a_norm(nn)
+         end do
       end do
 
       ! End Routine

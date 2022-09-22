@@ -48,9 +48,9 @@ contains
        end do
     end do
 
-    Tzmfld = zmean_3d( Tfld ) + t0
-    Uzmfld = zmean_3d( Ufld )
-    Vzmfld = zmean_3d( Vfld )
+    Tzmfld = zmean_3d( Tfld, pver ) + t0
+    Uzmfld = zmean_3d( Ufld, pver )
+    Vzmfld = zmean_3d( Vfld, pver )
 
     do lchnk = begchunk, endchunk
        ncol = phys_state(lchnk)%ncol
