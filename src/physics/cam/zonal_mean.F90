@@ -275,7 +275,7 @@ contains
       real(r8),allocatable:: Bcov (:,:)
       real(r8):: area(pcols),rlat
 
-      integer :: ii,nn,n2,nb,lchnk,ncols,cc
+      integer :: nn,n2,nb,lchnk,ncols,cc
       integer :: cnum,Cvec_len
 
       if (I_nbas<1) then
@@ -440,7 +440,7 @@ contains
       !--------------
       real(r8),allocatable:: Csum (:,:)
       real(r8),allocatable:: Gcov (:)
-      integer:: ii,nn,n2,ncols,lchnk,cc
+      integer:: nn,n2,ncols,lchnk,cc
 
       allocate(Gcov(this%nbas))
       allocate(Csum(1,this%nbas))
@@ -495,7 +495,7 @@ contains
       !--------------
       real(r8),allocatable:: Csum (:,:)
       real(r8),allocatable:: Gcov (:)
-      integer:: ii,nn,n2,ncols,lchnk,cc
+      integer:: nn,n2,ncols,lchnk,cc
       integer:: Nsum,ns,ll
 
       integer :: nlev
@@ -560,7 +560,7 @@ contains
       !
       ! Local Values
       !--------------
-      integer:: ii,nn,ncols,lchnk,cc
+      integer:: nn,ncols,lchnk,cc
 
       ! Construct grid values from basis amplitudes.
       !--------------------------------------------------
@@ -602,7 +602,7 @@ contains
       !
       ! Local Values
       !--------------
-      integer:: ii,nn,ncols,lchnk,cc
+      integer:: nn,ncols,lchnk,cc
       integer:: ll
 
       integer :: nlev
@@ -982,8 +982,8 @@ contains
       real(r8),allocatable:: Asum  (:,:)
       real(r8),allocatable:: Anorm (:)
       real(r8):: area(pcols),rlat
-      integer :: ii,nn,n2,jj,ierr
-      integer :: ncols,lchnk,cc,jlat,nc
+      integer :: nn,jj,ierr
+      integer :: ncols,lchnk,cc,jlat
 
       ! Allocate space
       !-----------------
@@ -1508,7 +1508,7 @@ contains
       real(r8):: summ
       real(r8):: cth
 
-      integer:: ma,np1,nmod,mmod,kdo
+      integer:: ma,nmod,mmod,kdo
       integer:: kp1,kk
 
       pb = 0.D0
@@ -1522,7 +1522,6 @@ contains
         endif
       endif
 
-      np1  = nn + 1
       nmod = mod(nn,2)
       mmod = mod(ma,2)
 
@@ -1806,7 +1805,7 @@ contains
       real(r8):: sgnd
       real(r8):: xx,pi,pis2,dtheta,dthalf
       real(r8):: cmax,zprev,zlast,zero,zhold,pb,dpb,dcor,summ,cz
-      integer :: mnlat,ns2,nhalf,idx,nix,it,ii
+      integer :: mnlat,ns2,nhalf,nix,it,ii
 !      real(r8):: DDZEPS  ??
 
       ! check work space length
@@ -1841,7 +1840,6 @@ contains
       mnlat = mod(nlat,2)
       ns2   = nlat/2
       nhalf = (nlat+1)/2
-      idx   = ns2 + 2
 
       call dcpdp(nlat,cz,theta(ns2+1),wts(ns2+1))
 
@@ -2009,10 +2007,9 @@ contains
       !
       ! Local Values
       !--------------
-      real(r8):: fn,cdt,sdt,cth,sth,chh
+      real(r8):: cdt,sdt,cth,sth,chh
       integer :: kdo,kk
 
-      fn = nn
       cdt = dcos(theta+theta)
       sdt = dsin(theta+theta)
       if(mod(nn,2).eq.0) then

@@ -67,8 +67,8 @@ contains
   !------------------------------------------------------------------------------
   function zmean_3d( fld, nlev ) result(fldzm)
 
-    real(r8), intent(in) :: fld(pcols,nlev,begchunk:endchunk)
     integer, intent(in) :: nlev
+    real(r8), intent(in) :: fld(pcols,nlev,begchunk:endchunk)
 
     real(r8) :: fldzm(pcols,nlev,begchunk:endchunk)
 

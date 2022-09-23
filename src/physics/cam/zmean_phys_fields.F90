@@ -37,25 +37,23 @@ contains
     real(r8) :: fld_tmp(pcols,pver)
     integer :: lchnk,ncol, i
 
-    real(r8), parameter :: t0 = 200._r8
-
     do lchnk = begchunk, endchunk
        ncol = phys_state(lchnk)%ncol
        do i = 1,ncol
-          Tfld(i,:,lchnk) = phys_state(lchnk)%t(i,:) - t0
+          Tfld(i,:,lchnk) = phys_state(lchnk)%t(i,:)
           Ufld(i,:,lchnk) = phys_state(lchnk)%u(i,:)
           Vfld(i,:,lchnk) = phys_state(lchnk)%v(i,:)
        end do
     end do
 
-    Tzmfld = zmean_3d( Tfld, pver ) + t0
+    Tzmfld = zmean_3d( Tfld, pver )
     Uzmfld = zmean_3d( Ufld, pver )
     Vzmfld = zmean_3d( Vfld, pver )
 
     do lchnk = begchunk, endchunk
        ncol = phys_state(lchnk)%ncol
 
-       fld_tmp(:ncol,:) = Tfld(:ncol,:,lchnk) + t0
+       fld_tmp(:ncol,:) = Tfld(:ncol,:,lchnk)
        call outfld( 'Tfld', fld_tmp(:ncol,:), ncol, lchnk)
        fld_tmp(:ncol,:) = Tzmfld(:ncol,:,lchnk)
        call outfld( 'Tzmn', fld_tmp(:ncol,:), ncol, lchnk)
