@@ -152,52 +152,25 @@ module Zonal_Mean
 !                 real(r8),intent(out):: Zdata(nlat,pver)
 !
 !======================================================================
-  ! Useful modules
-  !-----------------
+
   use shr_kind_mod,    only: r8=>SHR_KIND_R8
   use phys_grid,       only: get_ncols_p, get_rlat_p, get_wght_all_p
   use ppgrid,          only: begchunk, endchunk, pcols
   use shr_reprosum_mod,only: shr_reprosum_calc
   use cam_abortutils,  only: endrun
-#if ( defined SPMD )
-  use mpishorthand,    only: mpicom
-#endif
+  use spmd_utils,      only: mpicom
 
-  ! Set all Global values and routines to private by default
-  ! and then explicitly set their exposure.
-  !----------------------------------------------------------
   implicit none
   private
-  save
 
   public :: ZonalMean_t
   public :: ZonalProfile_t
   public :: ZonalAverage_t
 
-  private:: init_ZonalMean
-  private:: calc_ZonalMean_2Damps
-  private:: calc_ZonalMean_3Damps
-  private:: eval_ZonalMean_2Dgrid
-  private:: eval_ZonalMean_3Dgrid
-  private:: init_ZonalProfile
-  private:: calc_ZonalProfile_1Damps
-  private:: calc_ZonalProfile_2Damps
-  private:: eval_ZonalProfile_1Dgrid
-  private:: eval_ZonalProfile_2Dgrid
-  private:: init_ZonalAverage
-  private:: calc_ZonalAverage_2DbinAvg
-  private:: calc_ZonalAverage_3DbinAvg
-  private:: dalfk
-  private:: dlfpt
-  private:: Invert_Matrix
-  private:: dgaqd
-  private:: dcpdp
-  private:: dtpdp
-  private:: ddzeps
-
   ! Type definitions
   !-------------------
   type ZonalMean_t
+     private
      integer             :: nbas
      real(r8),allocatable:: area (:,:)
      real(r8),allocatable:: basis(:,:,:)
@@ -215,6 +188,7 @@ module Zonal_Mean
   end type ZonalMean_t
 
   type ZonalProfile_t
+     private
      integer             :: nlat
      integer             :: nbas
      real(r8),allocatable:: area (:)
@@ -233,6 +207,7 @@ module Zonal_Mean
   end type ZonalProfile_t
 
   type ZonalAverage_t
+     private
      integer             :: nlat
      real(r8),allocatable:: area   (:)
      real(r8),allocatable:: a_norm (:)
@@ -365,7 +340,7 @@ contains
         end do
       end do ! nn=1,this%nbas
 
-      call shr_reprosum_calc(Bsum,Bnorm,1,1,this%nbas,gbl_max_nsummands=1,commid=mpicom)
+      call shr_reprosum_calc(Bsum,Bnorm,1,1,this%nbas,commid=mpicom)
 
       do nn=1,this%nbas
         do lchnk=begchunk,endchunk
@@ -394,7 +369,7 @@ contains
       end do
       end do
 
-      call shr_reprosum_calc(Csum,Cvec,1,1,Cvec_len,gbl_max_nsummands=1,commid=mpicom)
+      call shr_reprosum_calc(Csum,Cvec,1,1,Cvec_len,commid=mpicom)
 
       cnum = 0
       do nn= 1,this%nbas
@@ -418,7 +393,7 @@ contains
       deallocate(Bsum )
       deallocate(Bnorm)
       deallocate(Bcov )
-      return
+
     end subroutine init_ZonalMean
     !=======================================================================
 
@@ -473,7 +448,7 @@ contains
       !------------
       deallocate(Csum)
       deallocate(Gcov)
-      return
+
     end subroutine calc_ZonalMean_2Damps
     !=======================================================================
 
@@ -562,27 +537,20 @@ contains
       !--------------
       integer:: nn,ncols,lchnk,cc
 
+      O_Gdata(:,:) = 0._r8
+
       ! Construct grid values from basis amplitudes.
       !--------------------------------------------------
-      do lchnk=begchunk,endchunk
-        ncols = get_ncols_p(lchnk)
-        do cc = 1,ncols
-          O_Gdata(cc,lchnk) = 0._r8
-        end do
-      end do
 
       do nn=1,this%nbas
-      do lchnk=begchunk,endchunk
-        ncols = get_ncols_p(lchnk)
-        do cc = 1,ncols
-          O_Gdata(cc,lchnk) = O_Gdata(cc,lchnk) + (I_Bamp(nn)*this%basis(cc,lchnk,nn))
-        end do
-      end do
+         do lchnk=begchunk,endchunk
+            ncols = get_ncols_p(lchnk)
+            do cc = 1,ncols
+               O_Gdata(cc,lchnk) = O_Gdata(cc,lchnk) + (I_Bamp(nn)*this%basis(cc,lchnk,nn))
+            end do
+         end do
       end do
 
-      ! End Routine
-      !------------
-      return
     end subroutine eval_ZonalMean_2Dgrid
     !=======================================================================
 
@@ -608,16 +576,10 @@ contains
       integer :: nlev
       nlev = size(O_Gdata,dim=2)
 
+      O_Gdata(:,:,:) = 0._r8
+
       ! Construct grid values from basis amplitudes.
       !--------------------------------------------------
-      do lchnk=begchunk,endchunk
-         ncols = get_ncols_p(lchnk)
-         do ll = 1,nlev
-            do cc = 1,ncols
-               O_Gdata(cc,ll,lchnk-begchunk+1) = 0._r8
-            end do
-         end do
-      end do
 
       do nn=1,this%nbas
          do lchnk=begchunk,endchunk
@@ -630,9 +592,6 @@ contains
          end do
       end do
 
-      ! End Routine
-      !------------
-      return
     end subroutine eval_ZonalMean_3Dgrid
     !=======================================================================
 
@@ -775,7 +734,7 @@ contains
       deallocate(Clats)
       deallocate(Bcoef)
       deallocate(Bcov )
-      return
+
     end subroutine init_ZonalProfile
     !=======================================================================
 
@@ -818,10 +777,8 @@ contains
         end do
       end do
 
-      ! End Routine
-      !------------
       deallocate(Gcov)
-      return
+
     end subroutine calc_ZonalProfile_1Damps
     !=======================================================================
 
@@ -871,11 +828,8 @@ contains
             end do
          end do
       end do
-
-      ! End Routine
-      !------------
       deallocate(Gcov)
-      return
+
     end subroutine calc_ZonalProfile_2Damps
     !=======================================================================
 
@@ -906,9 +860,6 @@ contains
       end do
       end do
 
-      ! End Routine
-      !------------
-      return
     end subroutine eval_ZonalProfile_1Dgrid
     !=======================================================================
 
@@ -945,9 +896,6 @@ contains
          end do
       end do
 
-      ! End Routine
-      !------------
-      return
     end subroutine eval_ZonalProfile_2Dgrid
     !=======================================================================
 
@@ -1093,7 +1041,7 @@ contains
         end do
       end do
 
-      call shr_reprosum_calc(Asum,Anorm,1,1,this%nlat,gbl_max_nsummands=1,commid=mpicom)
+      call shr_reprosum_calc(Asum,Anorm,1,1,this%nlat,commid=mpicom)
 
       ! End Routine
       !------------
@@ -1102,7 +1050,7 @@ contains
       deallocate(Glats)
       deallocate(Asum)
       deallocate(Anorm)
-      return
+
     end subroutine init_ZonalAverage
     !=======================================================================
 
@@ -1150,9 +1098,6 @@ contains
         O_Zdata(nn) = O_Zdata(nn)/this%a_norm(nn)
       end do ! nn=1,this%ncol
 
-      ! End Routine
-      !------------
-      return
     end subroutine calc_ZonalAverage_2DbinAvg
     !=======================================================================
 
@@ -1214,9 +1159,6 @@ contains
          end do
       end do
 
-      ! End Routine
-      !------------
-      return
     end subroutine calc_ZonalAverage_3DbinAvg
     !=======================================================================
 
@@ -1327,23 +1269,23 @@ contains
       integer :: ma,nmms2,nex
       integer :: ii,ll
 
-      real(r8),parameter:: SC10=1024.D0
+      real(r8),parameter:: SC10=1024._r8
       real(r8),parameter:: SC20=SC10*SC10
       real(r8),parameter:: SC40=SC20*SC20
 
-      cp(1) = 0.D0
+      cp(1) = 0._r8
       ma = iabs(mm)
       if(ma.gt.nn) return
 
       if((nn-1).lt.0) then
-        cp(1) = sqrt(2.D0)
+        cp(1) = sqrt(2._r8)
         return
       elseif((nn-1).eq.0) then
         if(ma.ne.0) then
-          cp(1) = sqrt(.75D0)
+          cp(1) = sqrt(.75_r8)
           if(mm.eq.-1) cp(1) = -cp(1)
         else
-          cp(1) = sqrt(1.5D0)
+          cp(1) = sqrt(1.5_r8)
         endif
         return
       else
@@ -1351,18 +1293,18 @@ contains
           nmms2 = (nn-ma-1)/2
           fnum  = nn + ma + 2
           fnmh  = nn - ma + 2
-          pm1   = -1.D0
+          pm1   = -1._r8
         else
           nmms2 = (nn-ma)/2
           fnum  = nn + ma + 1
           fnmh  = nn - ma + 1
-          pm1   = 1.D0
+          pm1   = 1._r8
         endif
       endif
 
-      t1   = 1.D0/SC20
+      t1   = 1._r8/SC20
       nex  = 20
-      fden = 2.D0
+      fden = 2._r8
       if(nmms2.ge.1) then
         do ii = 1,nmms2
           t1 = fnum*t1/fden
@@ -1370,27 +1312,27 @@ contains
             t1  = t1/SC40
             nex = nex + 40
           endif
-          fnum = fnum + 2.D0
-          fden = fden + 2.D0
+          fnum = fnum + 2._r8
+          fden = fden + 2._r8
         end do
       endif
 
       if(mod(ma/2,2).ne.0) then
-        t1 = -t1/2.D0**(nn-1-nex)
+        t1 = -t1/2._r8**(nn-1-nex)
       else
-        t1 =  t1/2.D0**(nn-1-nex)
+        t1 =  t1/2._r8**(nn-1-nex)
       endif
-      t2 = 1.D0
+      t2 = 1._r8
       if(ma.ne.0) then
         do ii = 1,ma
           t2   = fnmh*t2/ (fnmh+pm1)
-          fnmh = fnmh + 2.D0
+          fnmh = fnmh + 2._r8
         end do
       endif
 
-      cp2   = t1*sqrt((nn+.5D0)*t2)
+      cp2   = t1*sqrt((nn+.5_r8)*t2)
       fnnp1 = nn*(nn+1)
-      fnmsq = fnnp1 - 2.D0*ma*ma
+      fnmsq = fnnp1 - 2._r8*ma*ma
 
       if((mod(nn,2).eq.0).and.(mod(ma,2).eq.0)) then
         ll = 1+(nn+1)/2
@@ -1405,22 +1347,19 @@ contains
       if(ll.le.1) return
 
       fk = nn
-      a1 = (fk-2.D0)*(fk-1.D0) - fnnp1
-      b1 = 2.D0* (fk*fk-fnmsq)
+      a1 = (fk-2._r8)*(fk-1._r8) - fnnp1
+      b1 = 2._r8* (fk*fk-fnmsq)
       cp(ll-1) = b1*cp(ll)/a1
    30 continue
         ll = ll - 1
         if(ll.le.1) return
-        fk = fk - 2.D0
-        a1 = (fk-2.D0)*(fk-1.D0) - fnnp1
-        b1 = -2.D0*(fk*fk-fnmsq)
-        c1 = (fk+1.D0)*(fk+2.D0) - fnnp1
+        fk = fk - 2._r8
+        a1 = (fk-2._r8)*(fk-1._r8) - fnnp1
+        b1 = -2._r8*(fk*fk-fnmsq)
+        c1 = (fk+1._r8)*(fk+2._r8) - fnnp1
         cp(ll-1) = -(b1*cp(ll)+c1*cp(ll+1))/a1
       goto 30
 
-      ! End Routine
-      !-------------
-      return
     end subroutine dalfk
     !=======================================================================
 
@@ -1511,13 +1450,13 @@ contains
       integer:: ma,nmod,mmod,kdo
       integer:: kp1,kk
 
-      pb = 0.D0
+      pb = 0._r8
       ma = iabs(mm)
       if(ma.gt.nn) return
 
       if(nn.le.0) then
         if(ma.le.0) then
-          pb = sqrt(.5D0)
+          pb = sqrt(.5_r8)
           goto 140
         endif
       endif
@@ -1530,9 +1469,9 @@ contains
           kdo = nn/2 + 1
           cdt = cos(theta+theta)
           sdt = sin(theta+theta)
-          ct  = 1.D0
-          st  = 0.D0
-          summ = .5D0*cp(1)
+          ct  = 1._r8
+          st  = 0._r8
+          summ = .5_r8*cp(1)
           do kp1 = 2,kdo
             cth = cdt*ct - sdt*st
             st  = sdt*ct + cdt*st
@@ -1545,9 +1484,9 @@ contains
         kdo = nn/2
         cdt = cos(theta+theta)
         sdt = sin(theta+theta)
-        ct  = 1.D0
-        st  = 0.D0
-        summ = 0.D0
+        ct  = 1._r8
+        st  = 0._r8
+        summ = 0._r8
         do kk = 1,kdo
           cth = cdt*ct - sdt*st
           st  = sdt*ct + cdt*st
@@ -1564,7 +1503,7 @@ contains
         sdt =  sin(theta+theta)
         ct  =  cos(theta)
         st  = -sin(theta)
-        summ = 0.D0
+        summ = 0._r8
         do kk = 1,kdo
           cth = cdt*ct - sdt*st
           st  = sdt*ct + cdt*st
@@ -1579,7 +1518,7 @@ contains
       sdt =  sin(theta+theta)
       ct  =  cos(theta)
       st  = -sin(theta)
-      summ = 0.D0
+      summ = 0._r8
       do kk = 1,kdo
         cth = cdt*ct - sdt*st
         st  = sdt*ct + cdt*st
@@ -1588,10 +1527,8 @@ contains
       end do
       pb = summ
 
-      ! End Routine
-      !-------------
-  140 continue
-      return
+140   continue
+
     end subroutine dlfpt
     !=======================================================================
 
@@ -1740,9 +1677,6 @@ contains
       deallocate(Rscl)
       deallocate(Indx)
 
-      ! End Routine
-      !--------------
-      return
     end subroutine Invert_Matrix
     !=======================================================================
 
@@ -1806,7 +1740,6 @@ contains
       real(r8):: xx,pi,pis2,dtheta,dthalf
       real(r8):: cmax,zprev,zlast,zero,zhold,pb,dpb,dcor,summ,cz
       integer :: mnlat,ns2,nhalf,nix,it,ii
-!      real(r8):: DDZEPS  ??
 
       ! check work space length
       !------------------------
@@ -1870,13 +1803,13 @@ contains
 
           dcor = pb/dpb
           if(dcor.ne.0._r8) then
-            sgnd = dcor/dabs(dcor)
+            sgnd = dcor/abs(dcor)
           else
             sgnd = 1._r8
           endif
-          dcor = sgnd*min(dabs(dcor),cmax)
+          dcor = sgnd*min(abs(dcor),cmax)
           zero = zero - dcor
-        if(dabs(zero-zlast).gt.eps*dabs(zero)) goto 20
+        if(abs(zero-zlast).gt.eps*abs(zero)) goto 20
 
         theta(nix) = zero
         zhold      = zero
@@ -1914,9 +1847,6 @@ contains
         wts(ii) = 2._r8*wts(ii)/summ
       end do
 
-      ! End Routine
-      !------------
-      return
     end subroutine dgaqd
     !=======================================================================
 
@@ -1981,9 +1911,6 @@ contains
         end do
       endif
 
-      ! End Routine
-      !-------------
-      return
     end subroutine dcpdp
     !=======================================================================
 
@@ -2050,9 +1977,6 @@ contains
         end do
       endif
 
-      ! End Routine
-      !-------------
-      return
     end subroutine dtpdp
     !=======================================================================
 
@@ -2087,23 +2011,23 @@ contains
       !
       ! Passed variables
       !-----------------
-      real(r8):: xx
+      real(r8), intent(in) :: xx
       !
       ! Local Values
       !--------------
-      real(r8):: aa,bb,cc,eps
+      real(r8):: bb,cc,eps
+      real(r8), parameter :: aa = 4._r8/3._r8
 
-      aa = 4._r8/3._r8
-   10 continue
-        bb  = aa - 1._r8
-        cc  = bb + bb + bb
-        eps = abs(cc-1._r8)
-      if(eps.eq.0._r8) goto 10
-      ddzeps = eps*dabs(xx)
+      eps = 0.0_r8
 
-      ! End Function
-      !-------------
-      return
+      do while(eps == 0.0_r8)
+         bb  = aa - 1._r8
+         cc  = bb + bb + bb
+         eps = abs(cc-1._r8)
+      end do
+
+      ddzeps = eps*abs(xx)
+
     end function ddzeps
     !=======================================================================
 
