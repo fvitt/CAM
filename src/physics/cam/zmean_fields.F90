@@ -16,6 +16,7 @@ module zmean_fields
   public :: zmean_fields_readnl
   public :: zmean_fields_init
   public :: zmean_3d
+  public :: zmean_2d
 
   type(ZonalMean_t) :: ZMobj
 
@@ -60,8 +61,23 @@ contains
   subroutine zmean_fields_init
 
     call ZMobj%init(ZonalNbasis)
+   end subroutine zmean_fields_init
 
-  end subroutine zmean_fields_init
+  !------------------------------------------------------------------------------
+  !------------------------------------------------------------------------------
+  function zmean_2d( fld ) result(fldzm)
+
+    real(r8), intent(in) :: fld(pcols,begchunk:endchunk)
+
+    real(r8) :: fldzm(pcols,begchunk:endchunk)
+
+    real(r8) :: Zonal_Bamp2d(ZonalNbasis)
+
+    call ZMobj%calc_amps(fld,Zonal_Bamp2d)
+    call ZMobj%eval_grid(Zonal_Bamp2d,fldzm)
+
+  end function zmean_2d
+
 
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------

@@ -154,11 +154,13 @@ module Zonal_Mean
 !======================================================================
 
   use shr_kind_mod,    only: r8=>SHR_KIND_R8
-  use phys_grid,       only: get_ncols_p, get_rlat_p, get_wght_all_p
+  use phys_grid,       only: get_ncols_p, get_rlat_p, get_wght_all_p, get_nlcols_p
   use ppgrid,          only: begchunk, endchunk, pcols
   use shr_reprosum_mod,only: shr_reprosum_calc
   use cam_abortutils,  only: endrun
   use spmd_utils,      only: mpicom
+
+  use phys_grid,  only: ngcols_p => num_global_phys_cols
 
   implicit none
   private
@@ -253,6 +255,8 @@ contains
       integer :: nn,n2,nb,lchnk,ncols,cc
       integer :: cnum,Cvec_len
 
+      integer :: nlcols, count
+
       if (I_nbas<1) then
          call endrun('ZonalMean%init: ERROR I_nbas must be greater than 0')
       end if
@@ -278,13 +282,18 @@ contains
       end do
       end do
 
+      nlcols = get_nlcols_p()
+
       allocate(Clats(pcols,begchunk:endchunk))
       allocate(Bcoef(I_nbas))
-      allocate(Csum (1,Cvec_len))
+      allocate(Csum (nlcols, Cvec_len))
       allocate(Cvec (Cvec_len))
-      allocate(Bsum (1,I_nbas))
+      allocate(Bsum (nlcols, I_nbas))
       allocate(Bnorm(I_nbas))
       allocate(Bcov (I_nbas,I_nbas))
+
+      Bsum(:,:) = 0._r8
+      Csum(:,:) = 0._r8
 
       ! Save a copy the area weights for each ncol gridpoint
       ! and convert Latitudes to SP->NP colatitudes in radians
@@ -330,17 +339,17 @@ contains
       ! Numerically normalize the basis funnctions
       !--------------------------------------------------------------
       do nn=1,this%nbas
-        Bsum(1,nn) = 0._r8
+        count = 0
         do lchnk=begchunk,endchunk
           ncols = get_ncols_p(lchnk)
           do cc = 1,ncols
-            Bsum(1,nn) = Bsum(1,nn)                                                          &
-                       + (this%basis(cc,lchnk,nn)*this%basis(cc,lchnk,nn)*this%area(cc,lchnk))
+            count=count+1
+            Bsum(count,nn) = this%basis(cc,lchnk,nn)*this%basis(cc,lchnk,nn)*this%area(cc,lchnk)
           end do
         end do
       end do ! nn=1,this%nbas
 
-      call shr_reprosum_calc(Bsum,Bnorm,1,1,this%nbas,commid=mpicom)
+      call shr_reprosum_calc(Bsum, Bnorm, count, nlcols, this%nbas, gbl_count=ngcols_p, commid=mpicom)
 
       do nn=1,this%nbas
         do lchnk=begchunk,endchunk
@@ -356,20 +365,22 @@ contains
       !---------------------------------------------------------------
       cnum = 0
       do nn= 1,this%nbas
-      do n2=nn,I_nbas
-        cnum = cnum + 1
-        Csum(1,cnum) = 0._r8
-        do lchnk=begchunk,endchunk
-          ncols = get_ncols_p(lchnk)
-          do cc = 1,ncols
-            Csum(1,cnum) = Csum(1,cnum)                                                        &
-                         + (this%basis(cc,lchnk,nn)*this%basis(cc,lchnk,n2)*this%area(cc,lchnk))
-          end do
-        end do
-      end do
+         do n2=nn,I_nbas
+            cnum = cnum + 1
+            count = 0
+            do lchnk=begchunk,endchunk
+               ncols = get_ncols_p(lchnk)
+               do cc = 1,ncols
+                  count=count+1
+                  Csum(count,cnum) = this%basis(cc,lchnk,nn)*this%basis(cc,lchnk,n2)*this%area(cc,lchnk)
+
+               end do
+            end do
+
+         end do
       end do
 
-      call shr_reprosum_calc(Csum,Cvec,1,1,Cvec_len,commid=mpicom)
+      call shr_reprosum_calc(Csum, Cvec, count, nlcols, Cvec_len, gbl_count=ngcols_p, commid=mpicom)
 
       cnum = 0
       do nn= 1,this%nbas
@@ -408,32 +419,36 @@ contains
       ! Passed Variables
       !------------------
       class(ZonalMean_t) :: this
-      real(r8),intent(in ):: I_Gdata(pcols,begchunk:endchunk)
-      real(r8),intent(out):: O_Bamp (:)
+      real(r8),intent(in ) :: I_Gdata(pcols,begchunk:endchunk)
+      real(r8),intent(out) :: O_Bamp(:)
       !
       ! Local Values
       !--------------
-      real(r8),allocatable:: Csum (:,:)
-      real(r8),allocatable:: Gcov (:)
-      integer:: nn,n2,ncols,lchnk,cc
+      real(r8),allocatable :: Csum(:,:)
+      real(r8),allocatable :: Gcov(:)
+      integer :: nn,n2,ncols,lchnk,cc
+      integer :: nlcols, count
+
+      nlcols = get_nlcols_p()
 
       allocate(Gcov(this%nbas))
-      allocate(Csum(1,this%nbas))
+      allocate(Csum(nlcols, this%nbas))
+      Csum(:,:) = 0._r8
 
       ! Compute Covariance with input data and basis functions
       !--------------------------------------------------------
       do nn= 1,this%nbas
-        Csum(1,nn) = 0._r8
+        count = 0
         do lchnk=begchunk,endchunk
           ncols = get_ncols_p(lchnk)
           do cc = 1,ncols
-            Csum(1,nn) = Csum(1,nn)                                                    &
-                       + (I_Gdata(cc,lchnk)*this%basis(cc,lchnk,nn)*this%area(cc,lchnk))
+            count=count+1
+            Csum(count,nn) = I_Gdata(cc,lchnk)*this%basis(cc,lchnk,nn)*this%area(cc,lchnk)
           end do
         end do
       end do
 
-      call shr_reprosum_calc(Csum,Gcov,1,1,this%nbas,commid=mpicom)
+      call shr_reprosum_calc(Csum, Gcov, count, nlcols, this%nbas, gbl_count=ngcols_p, commid=mpicom)
 
       ! Multiply by map to get the amplitudes
       !-------------------------------------------
@@ -472,43 +487,48 @@ contains
       real(r8),allocatable:: Gcov (:)
       integer:: nn,n2,ncols,lchnk,cc
       integer:: Nsum,ns,ll
+      integer :: nlcols, count
 
       integer :: nlev
 
       nlev = size(I_Gdata,dim=2)
 
-      Nsum = this%nbas*nlev
-      allocate(Gcov(Nsum))
-      allocate(Csum(1,Nsum))
+      nlcols = get_nlcols_p()
+      allocate(Gcov(this%nbas))
+      allocate(Csum(nlcols, this%nbas))
+
+      Csum(:,:) = 0._r8
+      O_Bamp(:,:) = 0._r8
 
       ! Compute Covariance with input data and basis functions
       !--------------------------------------------------------
       do ll= 1,nlev
+
+         Csum(:,:) = 0._r8
+         Gcov(:) = 0._r8
+
          do nn= 1,this%nbas
-            ns = nn + (ll-1)*this%nbas
-            Csum(1,ns) = 0._r8
+            count = 0
             do lchnk=begchunk,endchunk
                ncols = get_ncols_p(lchnk)
                do cc = 1,ncols
-                  Csum(1,ns) = Csum(1,ns) &
-                       + (I_Gdata(cc,ll,lchnk-begchunk+1)*this%basis(cc,lchnk,nn)*this%area(cc,lchnk))
+                  count=count+1
+                  Csum(count,nn) = I_Gdata(cc,ll,lchnk-begchunk+1)*this%basis(cc,lchnk,nn)*this%area(cc,lchnk)
                end do
             end do
          end do
-      end do
 
-      call shr_reprosum_calc(Csum,Gcov,1,1,Nsum,commid=mpicom)
+         call shr_reprosum_calc(Csum, Gcov, count, nlcols, this%nbas, gbl_count=ngcols_p, commid=mpicom)
 
-      ! Multiply by map to get the amplitudes
-      !-------------------------------------------
-      do nn=1,this%nbas
-         do ll=1,nlev
+         ! Multiply by map to get the amplitudes
+         !-------------------------------------------
+         do nn=1,this%nbas
             O_Bamp(nn,ll) = 0._r8
             do n2=1,this%nbas
-               ns = nn + (ll-1)*this%nbas
-               O_Bamp(nn,ll) = O_Bamp(nn,ll) + this%map(n2,nn)*Gcov(ns)
+               O_Bamp(nn,ll) = O_Bamp(nn,ll) + this%map(n2,nn)*Gcov(n2)
             end do
          end do
+
       end do
 
       ! End Routine
@@ -581,10 +601,10 @@ contains
       ! Construct grid values from basis amplitudes.
       !--------------------------------------------------
 
-      do nn=1,this%nbas
-         do lchnk=begchunk,endchunk
-            ncols = get_ncols_p(lchnk)
-            do ll = 1,nlev
+      do ll = 1,nlev
+         do nn=1,this%nbas
+            do lchnk=begchunk,endchunk
+               ncols = get_ncols_p(lchnk)
                do cc = 1,ncols
                   O_Gdata(cc,ll,lchnk-begchunk+1) = O_Gdata(cc,ll,lchnk-begchunk+1) + (I_Bamp(nn,ll)*this%basis(cc,lchnk,nn))
                end do
@@ -932,6 +952,9 @@ contains
       real(r8):: area(pcols),rlat
       integer :: nn,jj,ierr
       integer :: ncols,lchnk,cc,jlat
+      integer :: nlcols, count
+
+      nlcols = get_nlcols_p()
 
       ! Allocate space
       !-----------------
@@ -949,7 +972,7 @@ contains
       allocate(Clats (I_nlat))
       allocate(BinLat(I_nlat+1))
       allocate(Glats (pcols,begchunk:endchunk))
-      allocate(Asum  (1,I_nlat))
+      allocate(Asum  (nlcols,I_nlat))
       allocate(Anorm (I_nlat))
 
       ! Optionally create the Latitude Gridpoints
@@ -1033,15 +1056,25 @@ contains
       ! Initialize 2D Area sums for each bin
       !--------------------------------------
       Asum(:,:) = 0._r8
+      Anorm(:) = 0._r8
+      count = 0
       do lchnk=begchunk,endchunk
         ncols = get_ncols_p(lchnk)
         do cc = 1,ncols
           jlat = this%idx_map(cc,lchnk)
-          Asum(1,jlat) = Asum(1,jlat) + this%area_g(cc,lchnk)
+          count=count+1
+          Asum(count,jlat) = this%area_g(cc,lchnk)
         end do
       end do
 
-      call shr_reprosum_calc(Asum,Anorm,1,1,this%nlat,commid=mpicom)
+      call shr_reprosum_calc(Asum, Anorm, count, nlcols, I_nlat, gbl_count=ngcols_p, commid=mpicom)
+
+      this%a_norm = Anorm
+
+      if (.not.all(Anorm(:)>0._r8)) then
+         print*, 'ZonalAverage init ERROR: Anorm; ',Anorm(:)
+         call endrun('init_ZonalAverage: error in Anorm')
+      end if
 
       ! End Routine
       !------------
@@ -1072,31 +1105,37 @@ contains
       !--------------
       real(r8),allocatable:: Asum (:,:)
       integer:: nn,ncols,lchnk,cc,jlat
+      integer :: nlcols, count
+
+      nlcols = get_nlcols_p()
+
 
       ! Initialize Zonal profile
       !---------------------------
-      allocate(Asum(1,this%nlat))
+      allocate(Asum(nlcols,this%nlat))
       Asum(:,:) = 0._r8
 
       O_Zdata(1:this%nlat) = 0._r8
 
       ! Compute area-weighted sums
       !-----------------------------
+      count = 0
       do lchnk=begchunk,endchunk
         ncols = get_ncols_p(lchnk)
         do cc = 1,ncols
           jlat = this%idx_map(cc,lchnk)
-          Asum(1,jlat) = Asum(1,jlat) + I_Gdata(cc,lchnk)*this%area_g(cc,lchnk)
+          count=count+1
+          Asum(count,jlat) = I_Gdata(cc,lchnk)*this%area_g(cc,lchnk)
         end do
       end do
 
-      call shr_reprosum_calc(Asum,O_Zdata,1,1,this%nlat,commid=mpicom)
+      call shr_reprosum_calc(Asum,O_Zdata,count, nlcols, this%nlat,gbl_count=ngcols_p, commid=mpicom)
 
       ! Divide by area norm to get the averages
       !-----------------------------------------
       do nn=1,this%nlat
         O_Zdata(nn) = O_Zdata(nn)/this%a_norm(nn)
-      end do ! nn=1,this%ncol
+      end do
 
     end subroutine calc_ZonalAverage_2DbinAvg
     !=======================================================================
@@ -1123,32 +1162,36 @@ contains
       integer:: Nsum,ll,ns
 
       integer :: nlev
+      integer :: nlcols, count
 
       nlev = size(I_Gdata,dim=2)
+      nlcols = get_nlcols_p()
 
       ! Initialize Zonal profile
       !---------------------------
       Nsum = this%nlat*nlev
       allocate(Gsum(Nsum))
-      allocate(Asum(1,Nsum))
+      allocate(Asum(nlcols,Nsum))
       Asum(:,:) = 0._r8
 
       O_Zdata(1:this%nlat,1:nlev) = 0._r8
 
       ! Compute area-weighted sums
       !-----------------------------
-      do lchnk=begchunk,endchunk
-         ncols = get_ncols_p(lchnk)
-         do ll = 1,nlev
+      do ll = 1,nlev
+         count = 0
+         do lchnk=begchunk,endchunk
+            ncols = get_ncols_p(lchnk)
             do cc = 1,ncols
                jlat = this%idx_map(cc,lchnk)
                ns = jlat + (ll-1)*this%nlat
-               Asum(1,ns) = Asum(1,ns) + I_Gdata(cc,ll,lchnk-begchunk+1)*this%area_g(cc,lchnk)
+               count=count+1
+               Asum(count,ns) = I_Gdata(cc,ll,lchnk-begchunk+1)*this%area_g(cc,lchnk)
             end do
          end do
       end do
 
-      call shr_reprosum_calc(Asum,Gsum,1,1,Nsum,commid=mpicom)
+      call shr_reprosum_calc(Asum,Gsum, count, nlcols, Nsum, gbl_count=ngcols_p, commid=mpicom)
 
       ! Divide by area norm to get the averages
       !-----------------------------------------
