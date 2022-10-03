@@ -9,6 +9,7 @@ module zmean_phys_fields
   use zmean_fields, only: zmean_fields_init, zmean_3d, zmean_2d
 
   use Zonal_Mean,   only: ZonalAverage_t
+  use spmd_utils,   only: masterproc
 
   implicit none
 
@@ -17,13 +18,59 @@ module zmean_phys_fields
 
   real(r8) :: zalats(nzalat)
 
-
 contains
 
-  subroutine zmean_phys_fields_init
+  subroutine zmean_phys_fields_reg
 
+    use cam_grid_support, only: horiz_coord_t, horiz_coord_create, iMap, cam_grid_register
+
+    type(horiz_coord_t), pointer :: zalon_coord
+    type(horiz_coord_t), pointer :: zalat_coord
+    integer(iMap),       pointer :: grid_map(:,:)
 
     real(r8) :: area(nzalat)
+    real(r8) :: zalons(1)
+    integer :: j
+
+    integer, parameter :: zmean_phys_decomp = 201 ! Must be unique within CAM
+
+    nullify(zalat_coord)
+    nullify(zalon_coord)
+    nullify(grid_map)
+
+    zalons(1) = 0._r8
+
+    call ZA%init(zalats,area,nzalat,GEN_GAUSSLATS=.true.)
+
+    ! Zonal average grid
+
+    zalat_coord => horiz_coord_create('zalat', '', nzalat, 'latitude',                &
+         'degrees_north', 1, nzalat, zalats)
+    zalon_coord => horiz_coord_create('zalon', '', 1, 'longitude',                &
+         'degrees_east', 1, 1, zalons)
+
+    ! grid decomposition map
+    allocate(grid_map(4,nzalat))
+
+    do j = 1,nzalat
+       grid_map(1,j) = 1
+       grid_map(2,j) = j
+       if (masterproc) then
+          grid_map(3,j) = 1
+          grid_map(4,j) = j
+       else
+          grid_map(3,j) = 0
+          grid_map(4,j) = 0
+       end if
+    end do
+
+    ! register the zonal average grid
+    call cam_grid_register('zavg_phys', zmean_phys_decomp, zalat_coord, &
+         zalon_coord, grid_map, unstruct=.false., zonal_grid=.true.)
+
+  end subroutine zmean_phys_fields_reg
+
+  subroutine zmean_phys_fields_init
 
     call zmean_fields_init
 
@@ -41,7 +88,9 @@ contains
     call addfld ( 'PSzmn', horiz_only, 'A', 'Pa', 'T zonal mean')
     call addfld ( 'PSzavg', horiz_only, 'A','Pa', 'T zonal mean')
 
-    call ZA%init(zalats,area,nzalat,GEN_GAUSSLATS=.true.)
+    call addfld ( 'PS_ZA', horiz_only, 'A','Pa', 'PS zonal mean',gridname='zavg_phys')
+    call addfld ( 'T_ZA', (/ 'lev' /), 'A', 'K', 'T zonal mean', gridname='zavg_phys')
+    call addfld ( 'T_ZA2',(/ 'lev' /), 'A', 'K', 'T zonal mean', gridname='zavg_phys')
 
   end subroutine zmean_phys_fields_init
 
@@ -124,6 +173,12 @@ contains
 
     do k=1,pver
        call ZA%binAvg(Tfld(:,k,:),Tzavg2(:,k))
+    end do
+
+    do j = 1,nzalat
+       call outfld('PS_ZA',PSzavg(j),1,j)
+       call outfld('T_ZA',Tzavg(j,:),1,j)
+       call outfld('T_ZA2',Tzavg2(j,:),1,j)
     end do
 
     do lchnk = begchunk, endchunk

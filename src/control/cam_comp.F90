@@ -92,6 +92,7 @@ subroutine cam_init(                                             &
 #if (defined BFB_CAM_SCAM_IOP)
    use history_defaults, only: initialize_iop_history
 #endif
+   use zmean_phys_fields,only: zmean_phys_fields_reg
 
    ! Arguments
    character(len=cl), intent(in) :: caseid                ! case ID
@@ -167,6 +168,8 @@ subroutine cam_init(                                             &
 
    ! Initialize physics grid decomposition
    call phys_grid_init()
+
+   call zmean_phys_fields_reg()
 
    ! Register advected tracers and physics buffer fields
    call phys_register ()

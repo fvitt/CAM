@@ -2,5 +2,7 @@ mfilt=10,10,10,10,10,10,10,10,10
 ndens=1,1,1,1,1,1,1,1,1
 nhtfrq=3,3,3,3,3,3,3,3,3
 inithist='ENDOFRUN'
-fincl2 = 'Tfld','Tzmn','Ufld','Uzmn','Vfld','Vzmn','PSfld','PSzmn', 'PSzavg', 'Tzmn2', 'Tzavg', 'Tzavg2'
+fincl2 = 'Tfld','Tzmn','Ufld','Uzmn','Vfld','Vzmn','PSfld','PSzmn', 'PSzavg', 'Tzmn2', 'Tzavg', 'Tzavg2',
+         'PS_ZA','T_ZA','T_ZA2'
 fincl3 = 'THzmean','Uzmean','Vzmean','Wzmean',  'VTHzmean','WTHzmean','UVzmean','UWzmean'
+fincl6 = 'PS_ZA','T_ZA','T_ZA2'
