@@ -674,9 +674,12 @@ contains
       !-----------------------------------------------
       if(present(GEN_GAUSSLATS).and.(GEN_GAUSSLATS)) then
 
-        ! Create a Gaussin grid from SP to NP
+        ! Create a Gaussian grid from SP to NP
         !--------------------------------------
         call dgaqd(I_nlat,Clats,IO_area,ierr)
+        if (ierr/=0) then
+           call endrun('init_ZonalProfile: Error creating Gaussian grid')
+        end if
 
         ! Convert generated colatitudes SP->NP to Lats and convert
         ! to degrees and scale the area for global 2D integrals
@@ -984,6 +987,9 @@ contains
         ! Create a Gaussin grid from SP to NP
         !--------------------------------------
         call dgaqd(this%nlat,Clats,IO_area,ierr)
+        if (ierr/=0) then
+           call endrun('init_ZonalAverage: Error creating Gaussian grid')
+        end if
 
         ! Convert generated colatitudes SP->NP to Lats and convert
         ! to degrees and scale the area for global 2D integrals
@@ -1317,7 +1323,7 @@ contains
       real(r8),parameter:: SC40=SC20*SC20
 
       cp(1) = 0._r8
-      ma = iabs(mm)
+      ma = abs(mm)
       if(ma.gt.nn) return
 
       if((nn-1).lt.0) then
@@ -1479,22 +1485,23 @@ contains
       !                        the input parameter n.
       !
       !=====================================================================
-      integer:: nn,mm
-      real(r8):: theta
-      real(r8):: cp(:)
-      real(r8):: pb
-      real(r8):: cdt
-      real(r8):: sdt
-      real(r8):: ct
-      real(r8):: st
-      real(r8):: summ
-      real(r8):: cth
+      integer, intent(in) :: nn,mm
+      real(r8), intent(in) :: theta
+      real(r8), intent(in) :: cp(:)
+      real(r8), intent(out) :: pb
+
+      real(r8) :: cdt
+      real(r8) :: sdt
+      real(r8) :: ct
+      real(r8) :: st
+      real(r8) :: summ
+      real(r8) :: cth
 
       integer:: ma,nmod,mmod,kdo
       integer:: kp1,kk
 
       pb = 0._r8
-      ma = iabs(mm)
+      ma = abs(mm)
       if(ma.gt.nn) return
 
       if(nn.le.0) then
@@ -1771,10 +1778,10 @@ contains
       !
       ! Passed variables
       !-----------------
-      integer ,intent(in ):: nlat
-      real(r8),intent(out):: theta(nlat)
-      real(r8),intent(out):: wts(nlat)
-      integer ,intent(out):: ierr
+      integer ,intent(in ) :: nlat
+      real(r8),intent(out) :: theta(nlat)
+      real(r8),intent(out) :: wts(nlat)
+      integer ,intent(out) :: ierr
       !
       ! Local Values
       !-------------
@@ -1795,13 +1802,13 @@ contains
       ! compute weights and points analytically when nlat=1,2
       !-------------------------------------------------------
       if(nlat.eq.1) then
-        theta(1) = dacos(0._r8)
+        theta(1) = acos(0._r8)
         wts  (1) = 2._r8
         return
       elseif(nlat.eq.2) then
-        xx       = dsqrt(1._r8/3._r8)
-        theta(1) = dacos( xx)
-        theta(2) = dacos(-xx)
+        xx       = sqrt(1._r8/3._r8)
+        theta(1) = acos( xx)
+        theta(2) = acos(-xx)
         wts  (1) = 1._r8
         wts  (2) = 1._r8
         return
@@ -1811,7 +1818,7 @@ contains
       !----------------------
       eps   = sqrt(ddzeps(1._r8))
       eps   = eps*sqrt(eps)
-      pis2  = 2._r8*datan(1._r8)
+      pis2  = 2._r8*atan(1._r8)
       pi    = pis2 + pis2
       mnlat = mod(nlat,2)
       ns2   = nlat/2
@@ -1908,10 +1915,10 @@ contains
       !
       ! Passed variables
       !-----------------
-      integer :: nn
-      real(r8):: cz
-      real(r8):: cp(nn/2+1)
-      real(r8):: dcp(nn/2+1)
+      integer, intent(in) :: nn
+      real(r8), intent(out) :: cz
+      real(r8), intent(out) :: cp(nn/2+1)
+      real(r8), intent(out) :: dcp(nn/2+1)
       !
       ! Local Values
       !--------------
@@ -1967,13 +1974,13 @@ contains
       !
       ! Passed variables
       !------------------
-      integer :: nn
-      real(r8):: theta
-      real(r8):: cz
-      real(r8):: cp (nn/2+1)
-      real(r8):: dcp(nn/2+1)
-      real(r8):: pb
-      real(r8):: dpb
+      integer, intent(in) :: nn
+      real(r8), intent(in) :: theta
+      real(r8), intent(in) :: cz
+      real(r8), intent(in) :: cp (nn/2+1)
+      real(r8), intent(in) :: dcp(nn/2+1)
+      real(r8), intent(out) :: pb
+      real(r8), intent(out) :: dpb
       !
       ! Local Values
       !--------------
