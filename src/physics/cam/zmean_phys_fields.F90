@@ -10,10 +10,11 @@ module zmean_phys_fields
 
   use Zonal_Mean,   only: ZonalAverage_t
   use spmd_utils,   only: masterproc
+  use cam_abortutils,  only: endrun
 
   implicit none
 
-  integer, parameter :: nzalat = 16
+  integer, parameter :: nzalat = 15
   type(ZonalAverage_t) :: ZA
 
   real(r8) :: zalats(nzalat)
@@ -30,7 +31,14 @@ contains
 
     real(r8) :: area(nzalat)
     real(r8) :: zalons(1)
+    real(r8) :: dlatrad, dlatdeg, lat1, lat2
+    real(r8) :: total_area
+    real(r8) :: total_wght
     integer :: j
+
+    real(r8), parameter :: latdeg0 = -90._r8
+    real(r8), parameter :: latrad0 = -pi*0.5_r8
+    real(r8), parameter :: fourpi = pi*4._r8
 
     integer, parameter :: zmean_phys_decomp = 201 ! Must be unique within CAM
 
@@ -40,7 +48,25 @@ contains
 
     zalons(1) = 0._r8
 
-    call ZA%init(zalats,area,nzalat,GEN_GAUSSLATS=.true.)
+    dlatrad = pi/real(nzalat,kind=r8)
+    dlatdeg = 180._r8/real(nzalat,kind=r8)
+    total_area = 0._r8
+    total_wght = 0._r8
+
+    do j = 1,nzalat
+       zalats(j) = latdeg0 + (real(j,kind=r8)-0.5_r8)*dlatdeg
+       lat1 = latrad0 + real(j-1,kind=r8)*dlatrad
+       lat2 = latrad0 + real(j  ,kind=r8)*dlatrad
+       area(j) = 2._r8*pi*(sin(lat2)-sin(lat1))
+       total_area = total_area + area(j)
+       total_wght = total_wght + 0.5_r8*(sin(lat2)-sin(lat1))
+    end do
+
+    if ( abs(1._r8-total_wght)>1.e-12_r8 .or. abs(fourpi-total_area)>1.e-12_r8 ) then
+       call endrun('zmean_phys_fields_reg: problem with area/wght calc')
+    end if
+
+    call ZA%init(zalats,area,nzalat,GEN_GAUSSLATS=.false.)
 
     ! Zonal average grid
 
