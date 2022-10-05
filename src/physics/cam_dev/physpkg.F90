@@ -821,7 +821,7 @@ contains
     call aer_rad_props_init()
 
     ! initialize carma
-    call carma_init()
+    call carma_init(pbuf2d)
 
     ! solar irradiance data modules
     call solar_data_init()
@@ -1549,7 +1549,7 @@ contains
 
     if (carma_do_emission) then
        ! carma emissions
-       call carma_emission_tend (state, ptend, cam_in, ztodt)
+       call carma_emission_tend(state, ptend, cam_in, ztodt, pbuf)
        call physics_update(state, ptend, ztodt, tend)
     end if
 

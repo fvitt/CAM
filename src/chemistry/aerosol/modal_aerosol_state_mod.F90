@@ -1,5 +1,6 @@
 module modal_aerosol_state_mod
   use shr_kind_mod, only: r8 => shr_kind_r8
+  use shr_spfn_mod, only: erf => shr_spfn_erf
   use aerosol_state_mod, only: aerosol_state, ptr2d_t
   use rad_constituents, only: rad_cnst_get_aer_mmr, rad_cnst_get_mode_num, rad_cnst_get_info
   use rad_constituents, only: rad_cnst_get_mode_props
@@ -323,7 +324,7 @@ contains
   !------------------------------------------------------------------------------
   ! returns aerosol type weights for a given aerosol type and bin
   !------------------------------------------------------------------------------
-  subroutine icenuc_type_wght(self, bin_ndx, ncol, nlev, species_type, aero_props, wght)
+  subroutine icenuc_type_wght(self, bin_ndx, ncol, nlev, species_type, aero_props, rho, wght)
 
     use aerosol_properties_mod, only: aerosol_properties
 
@@ -333,7 +334,8 @@ contains
     integer, intent(in) :: nlev                   ! number of vertical levels
     character(len=*), intent(in) :: species_type  ! species type
     class(aerosol_properties), intent(in) :: aero_props ! aerosol properties object
-    real(r8), intent(out) :: wght(:,:)            ! type weights
+    real(r8), intent(in) :: rho(:,:)        ! air density (kg m-3)
+    real(r8), intent(out) :: wght(:,:)           ! type weights
 
     character(len=32) :: modetype
 
@@ -345,13 +347,13 @@ contains
        if (modetype=='coarse_dust') then
           wght(:ncol,:) = 1._r8
        else
-          call self%icenuc_type_wght_base(bin_ndx, ncol, nlev, species_type, aero_props, wght)
+          call self%icenuc_type_wght_base(bin_ndx, ncol, nlev, species_type, aero_props, rho, wght)
        end if
     else if (species_type == 'sulfate_strat') then
        if (modetype=='accum') then
           wght(:ncol,:) = 1._r8
        elseif ( modetype=='coarse' .or. modetype=='coarse_strat') then
-          call self%icenuc_type_wght_base(bin_ndx, ncol, nlev, species_type, aero_props, wght)
+          call self%icenuc_type_wght_base(bin_ndx, ncol, nlev, species_type, aero_props, rho, wght)
        endif
     else
        wght(:ncol,:) = 1._r8

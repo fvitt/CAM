@@ -1990,14 +1990,14 @@ contains
 !-------------------------------------------------------------------------
             if ( carma_hetchem_feedback ) then
               call endrun(subname // ':: ERROR carma_hetchem_feedback namelist variable is obsolete')
-!               sur(:ncol) = strato_sad(:ncol,k)
-!            else
-!               sur(:) = sulfate(:,k)*m(:,k)/avo*wso4 &              ! xform mixing ratio to g/cm3
-!                        / amas &                                    ! xform g/cm3 to num particles/cm3
-!                        * fare &                                    ! xform num particles/cm3 to cm2/cm3
-!                        * xr(:)*xr(:)                               ! humidity factor
+               sur(:ncol) = strato_sad(:ncol,k)
+            else
+               sur(:) = sulfate(:,k)*m(:,k)/avo*wso4 &              ! xform mixing ratio to g/cm3
+                        / amas &                                    ! xform g/cm3 to num particles/cm3
+                        * fare &                                    ! xform num particles/cm3 to cm2/cm3
+                        * xr(:)*xr(:)                               ! humidity factor
             endif
-            sur(:ncol) = sad_trop(:ncol,k)
+!!$            sur(:ncol) = sad_trop(:ncol,k)
 !-----------------------------------------------------------------
 !	... compute the "aerosol" reaction rates
 !-----------------------------------------------------------------

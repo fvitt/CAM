@@ -30,10 +30,10 @@ use cam_abortutils, only: endrun
 
 use nucleate_ice,   only: nucleati_init, nucleati
 
-use phys_control,   only: cam_physpkg_is
-
 use aerosol_properties_mod, only: aerosol_properties
 use aerosol_state_mod, only: aerosol_state
+
+use phys_control,   only: cam_physpkg_is
 
 implicit none
 private
@@ -44,7 +44,6 @@ public :: &
    nucleate_ice_cam_register, &
    nucleate_ice_cam_init,     &
    nucleate_ice_cam_calc
-
 
 ! Namelist variables
 logical, public, protected :: use_preexisting_ice = .false.
@@ -66,20 +65,20 @@ integer :: &
    numice_idx = -1
 
 integer :: &
-   naai_idx,     &
-   naai_hom_idx
+   naai_idx = -1,     &
+   naai_hom_idx = -1
 
 integer :: &
    ast_idx   = -1
 
 integer :: &
-    qsatfac_idx
+    qsatfac_idx = -1
 
 ! Bulk aerosols
 character(len=20), allocatable :: aername(:)
 real(r8), allocatable :: num_to_mass_aer(:)
 
-integer :: naer_all      ! number of aerosols affecting climate
+integer :: naer_all = -1 ! number of aerosols affecting climate
 integer :: idxsul   = -1 ! index in aerosol list for sulfate
 integer :: idxdst1  = -1 ! index in aerosol list for dust1
 integer :: idxdst2  = -1 ! index in aerosol list for dust2
@@ -87,17 +86,9 @@ integer :: idxdst3  = -1 ! index in aerosol list for dust3
 integer :: idxdst4  = -1 ! index in aerosol list for dust4
 integer :: idxbcphi = -1 ! index in aerosol list for Soot (BCPHIL)
 
-! CARMA aerosols
-logical :: clim_carma_aero
-integer, public, protected :: nspec_max = 0
-integer, public, protected :: nbins = 0
-integer, public, protected, allocatable :: nspec_bin(:)
-
-! modal aerosols
-logical :: clim_modal_aero
-logical :: prog_modal_aero
-
-integer :: nmodes = -1
+! MODAL or CARMA aerosols
+logical :: clim_modal_carma = .false.
+logical :: prog_modal_aero = .false.
 
 logical :: lq(pcnst) = .false. ! set flags true for constituents with non-zero tendencies
 
@@ -163,13 +154,13 @@ end subroutine nucleate_ice_cam_register
 
 !================================================================================================
 
-subroutine nucleate_ice_cam_init(aero_props, mincld_in, bulk_scale_in, pbuf2d)
+subroutine nucleate_ice_cam_init(mincld_in, bulk_scale_in, pbuf2d, aero_props)
    use phys_control, only: phys_getopts
    use time_manager, only: is_first_step
 
-   class(aerosol_properties), intent(in) :: aero_props
    real(r8), intent(in) :: mincld_in
    real(r8), intent(in) :: bulk_scale_in
+   class(aerosol_properties), optional, intent(in) :: aero_props
 
    type(physics_buffer_desc), pointer :: pbuf2d(:,:)
 
@@ -177,7 +168,8 @@ subroutine nucleate_ice_cam_init(aero_props, mincld_in, bulk_scale_in, pbuf2d)
    integer :: iaer
    integer :: ierr
    integer :: l, m
-   integer :: idxtmp = -1
+   integer :: idxtmp
+   integer :: nmodes, nbins
 
    character(len=*), parameter :: routine = 'nucleate_ice_cam_init'
    logical :: history_cesm_forcing
@@ -192,7 +184,11 @@ subroutine nucleate_ice_cam_init(aero_props, mincld_in, bulk_scale_in, pbuf2d)
 
    lq(:) = .false.
 
-   if (use_preexisting_ice) then
+   if (prog_modal_aero.and.use_preexisting_ice) then
+
+      if (.not. present(aero_props)) then
+         call endrun(routine//' :  aero_props must be present')
+      end if
 
       ! constituent tendencies are calculated only if use_preexisting_ice is TRUE
       ! set lq for constituent tendencies --
@@ -331,10 +327,9 @@ subroutine nucleate_ice_cam_init(aero_props, mincld_in, bulk_scale_in, pbuf2d)
    ! The modal aerosols can be either prognostic or prescribed.
    call rad_cnst_get_info(0, nmodes=nmodes, nbins=nbins)
 
-   clim_modal_aero = (nmodes > 0)
-   clim_carma_aero = (nbins > 0)
+   clim_modal_carma = (nmodes > 0) .or. (nbins > 0)
 
-   if (.not.(clim_modal_aero.or.clim_carma_aero)) then
+   if (.not. clim_modal_carma) then
 
       ! Props needed for BAM number concentration calcs.
 
@@ -353,7 +348,7 @@ subroutine nucleate_ice_cam_init(aero_props, mincld_in, bulk_scale_in, pbuf2d)
          if (trim(aername(iaer)) == 'DUST2') idxdst2 = iaer
          if (trim(aername(iaer)) == 'DUST3') idxdst3 = iaer
          if (trim(aername(iaer)) == 'DUST4') idxdst4 = iaer
-         if (trim(aername(iaer)) == 'BCPHIL') idxbcphi = iaer
+         if (trim(aername(iaer)) == 'BCPHI') idxbcphi = iaer
       end do
    end if
 
@@ -368,19 +363,19 @@ end subroutine nucleate_ice_cam_init
 
 !================================================================================================
 
-subroutine nucleate_ice_cam_calc( aero_props, aero_state, &
-   state, wsubi, pbuf, dtime, ptend)
+subroutine nucleate_ice_cam_calc( &
+   state, wsubi, pbuf, dtime, ptend, aero_props, aero_state )
 
    use tropopause,     only: tropopause_findChemTrop
 
    ! arguments
-   class(aerosol_properties), intent(in) :: aero_props
-   class(aerosol_state), intent(in) :: aero_state
    type(physics_state), target, intent(in)    :: state
    real(r8),                    intent(in)    :: wsubi(:,:)
    type(physics_buffer_desc),   pointer       :: pbuf(:)
    real(r8),                    intent(in)    :: dtime
    type(physics_ptend),         intent(out)   :: ptend
+   class(aerosol_properties),optional, intent(in) :: aero_props
+   class(aerosol_state),optional, intent(in) :: aero_state
 
    ! local workspace
 
@@ -462,15 +457,14 @@ subroutine nucleate_ice_cam_calc( aero_props, aero_state, &
    real(r8) :: soot_num_col(pcols,pver)
    real(r8) :: sulf_num_tot_col(pcols,pver)
 
-   real(r8), parameter :: tolerance = 1.e-12
-
-   integer :: idxtmp !, num_bin_masses=-huge(1)
+   integer :: idxtmp
    real(r8), pointer :: amb_num(:,:)
    real(r8), pointer :: amb_mmr(:,:)
    real(r8), pointer :: cld_num(:,:)
    real(r8), pointer :: cld_mmr(:,:)
 
-   real(r8) :: delmmr, delmmr_sum, bin_mmr_change
+   real(r8) :: delmmr, delmmr_sum
+   real(r8) :: delnum, delnum_sum
 
    !-------------------------------------------------------------------------------
 
@@ -489,7 +483,7 @@ subroutine nucleate_ice_cam_calc( aero_props, aero_state, &
       end do
    end do
 
-   if (clim_modal_aero.or.clim_carma_aero) then
+   if (clim_modal_carma) then
 
       call physics_ptend_init(ptend, state%psetcols, 'nucleatei', lq=lq)
 
@@ -597,44 +591,18 @@ subroutine nucleate_ice_cam_calc( aero_props, aero_state, &
    sulf_num_tot_col = 0._r8
    soot_num_col = 0._r8
 
-   if (clim_modal_aero.or.clim_carma_aero) then
+   if (clim_modal_carma) then
+
+      if (.not.(present(aero_props).and.present(aero_state))) then
+         call endrun('nucleate_ice_cam_calc: aero_props and aero_state must be present')
+      end if
 
       ! collect number densities (#/cm^3) for dust, sulfate, and soot
-      do m = 1,aero_props%nbins()
+      call aero_state%nuclice_get_numdens( aero_props, use_preexisting_ice, ncol, pver, rho, &
+                                           dust_num_col, sulf_num_col, soot_num_col, sulf_num_tot_col )
 
-         call aero_state%get_ambient_num(m, num_col)
-
-         do l = 1,aero_props%nspecies(m)
-
-            call aero_props%species_type(m, l, spectype)
-
-            call aero_state%icenuc_size_wght(m, ncol, pver, spectype, use_preexisting_ice, size_wghts)
-
-            call aero_state%icenuc_type_wght(m, ncol, pver, spectype, aero_props, type_wghts)
-
-            select case ( trim(spectype) )
-            case('dust')
-               dust_num_col(:ncol,:) = dust_num_col(:ncol,:) &
-                    + size_wghts(:ncol,:)*type_wghts(:ncol,:)*num_col(:ncol,:)*rho(:ncol,:)*1.0e-6_r8
-            case('sulfate')
-               sulf_num_col(:ncol,:) = sulf_num_col(:ncol,:) &
-                    + size_wghts(:ncol,:)*type_wghts(:ncol,:)*num_col(:ncol,:)*rho(:ncol,:)*1.0e-6_r8
-            case('black-c')
-               soot_num_col(:ncol,:) = soot_num_col(:ncol,:) &
-                    + size_wghts(:ncol,:)*type_wghts(:ncol,:)*num_col(:ncol,:)*rho(:ncol,:)*1.0e-6_r8
-            end select
-
-         enddo
-
-         ! stratospheric sulfates
-         call aero_state%icenuc_size_wght(m, ncol, pver, 'sulfate_strat', use_preexisting_ice, size_wghts)
-         call aero_state%icenuc_type_wght(m, ncol, pver, 'sulfate_strat', aero_props, type_wghts)
-         sulf_num_tot_col(:ncol,:) = sulf_num_tot_col(:ncol,:) &
-              + size_wghts(:ncol,:)*type_wghts(:ncol,:)*num_col(:ncol,:)*rho(:ncol,:)*1.0e-6_r8
-
-      enddo
    else
-      ! for bulk model -- is this ever used in any of our test configurations ??
+      ! for bulk model
       dust_num_col(:ncol,:) = naer2(:ncol,:,idxdst1)/25._r8 *1.0e-6_r8 &
                             + naer2(:ncol,:,idxdst2)/25._r8 *1.0e-6_r8 &
                             + naer2(:ncol,:,idxdst3)/25._r8 *1.0e-6_r8 &
@@ -686,7 +654,7 @@ subroutine nucleate_ice_cam_calc( aero_props, aero_state, &
             ! in the next timestep and will supress homogeneous freezing.
 
 
-            if (use_preexisting_ice) then
+            if (prog_modal_aero .and. use_preexisting_ice) then
 
                ! compute tendencies for transported aerosol constituents
                ! and update not-transported constituents
@@ -702,6 +670,7 @@ subroutine nucleate_ice_cam_calc( aero_props, aero_state, &
 
                      if (amb_num(i,k)>0._r8) then
                         delmmr_sum = 0._r8
+                        delnum_sum = 0._r8
 
                         ! iterate over the species within the bin
                         do l = 1, aero_props%nspecies(m)
@@ -721,13 +690,16 @@ subroutine nucleate_ice_cam_calc( aero_props, aero_state, &
 
                                  ! determine change in aerosol mass
                                  delmmr = 0._r8
+                                 delnum = 0._r8
                                  if (trim(spectype)=='dust') then
                                     if (dst_num>0._r8) then
                                        delmmr = (odst_num / dst_num) * icldm(i,k) * amb_mmr(i,k) * wght
+                                       delnum = (odst_num * icldm(i,k)) /rho(i,k)/1e-6_r8
                                     endif
                                  elseif (trim(spectype)=='sulfate') then
                                     if (so4_num>0._r8) then
                                        delmmr = (oso4_num / so4_num) * icldm(i,k) * amb_mmr(i,k) * wght
+                                       delnum = (oso4_num * icldm(i,k)) /rho(i,k)/1e-6_r8
                                     endif
                                  endif
 
@@ -741,14 +713,12 @@ subroutine nucleate_ice_cam_calc( aero_props, aero_state, &
                                  cld_mmr(i,k) = cld_mmr(i,k) + delmmr
 
                                  delmmr_sum = delmmr_sum + delmmr
+                                 delnum_sum = delnum_sum + delnum
                               end if
                            end if
                         end do
 
                         idxtmp = aer_cnst_idx(m,0)
-
-                        ! total fractional change in bin mass
-                        bin_mmr_change = delmmr_sum/aero_state%ambient_total_bin_mmr(aero_props, m, i,k)
 
                         ! determine if there is a bin mass
                         if (aero_props%icenuc_updates_mmr(m,0)) then
@@ -762,20 +732,20 @@ subroutine nucleate_ice_cam_calc( aero_props, aero_state, &
                            end if
                            cld_mmr(i,k) = cld_mmr(i,k) + delmmr_sum
 
-                           ! apply the fractional change to bin number
-                           amb_num(i,k) = amb_num(i,k) - bin_mmr_change*amb_num(i,k)
+                           ! apply the total number change to bin number
+                           amb_num(i,k) = amb_num(i,k) - delnum_sum
                         else
                            ! if there is no bin mass compute updates/tendencies for bin number
-                           ! -- apply the fractional change to bin number
+                           ! -- apply the total number change to bin number
                            if (idxtmp>0) then
-                              ptend%q(i,k,idxtmp) = -bin_mmr_change*amb_num(i,k)/dtime
+                              ptend%q(i,k,idxtmp) = -delnum_sum/dtime
                            else
-                              amb_num(i,k) = amb_num(i,k) - bin_mmr_change*amb_num(i,k)
+                              amb_num(i,k) = amb_num(i,k) - delnum_sum
                            end if
                         endif
 
-                        ! apply the fractional change to bin number
-                        cld_num(i,k) = cld_num(i,k) + bin_mmr_change*amb_num(i,k)
+                        ! apply the total number change to bin number
+                        cld_num(i,k) = cld_num(i,k) + delnum_sum
 
                      end if
 
@@ -802,7 +772,7 @@ subroutine nucleate_ice_cam_calc( aero_props, aero_state, &
             ! particles. It may not represent the proper saturation threshold for
             ! nucleation, and wsubi from CLUBB is probably not representative of
             ! wave driven varaibility in the polar stratosphere.
-            if (nucleate_ice_use_troplev .and. (clim_modal_aero.or.clim_carma_aero)) then
+            if (nucleate_ice_use_troplev .and. clim_modal_carma) then
                if ((k < troplev(i)) .and. (nucleate_ice_strat > 0._r8) .and. (oso4_num > 0._r8)) then
                   dso4_num = max(0._r8, (nucleate_ice_strat*so4_num_st_cr_tot - oso4_num) * 1e6_r8 / rho(i,k))
                   naai(i,k) = naai(i,k) + dso4_num
@@ -904,7 +874,7 @@ subroutine nucleate_ice_cam_calc( aero_props, aero_state, &
       end do iloop
    end do kloop
 
-   if (.not.(clim_modal_aero.or.clim_carma_aero)) then
+   if (.not. clim_modal_carma) then
       deallocate( &
            naer2, &
            maerosol)
