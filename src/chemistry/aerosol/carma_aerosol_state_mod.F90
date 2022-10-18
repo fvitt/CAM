@@ -24,14 +24,13 @@ module carma_aerosol_state_mod
      procedure :: set_transported
      procedure :: ambient_total_bin_mmr
      procedure :: get_ambient_mmr
-     procedure :: get_ambient_total_mmr
      procedure :: get_cldbrne_mmr
-     procedure :: get_cldbrne_total_mmr
      procedure :: get_ambient_num
      procedure :: get_cldbrne_num
      procedure :: get_states
      procedure :: icenuc_size_wght1
      procedure :: icenuc_size_wght2
+     procedure :: update_bin
 
      final :: destructor
 
@@ -129,18 +128,6 @@ contains
 
   end subroutine get_ambient_mmr
 
-  !------------------------------------------------------------------------
-  ! returns total ambient aerosol mass mixing ratio for a given bin index
-  !------------------------------------------------------------------------
-  subroutine get_ambient_total_mmr(self, bin_ndx, mmr)
-    class(carma_aerosol_state), intent(in) :: self
-    integer, intent(in) :: bin_ndx      ! bin index
-    real(r8), pointer :: mmr(:,:)       ! mass mixing ratios
-
-    call rad_cnst_get_bin_mmr(0, bin_ndx, 'a', self%state, self%pbuf, mmr)
-
-  end subroutine get_ambient_total_mmr
-
   !------------------------------------------------------------------------------
   ! returns cloud-borne aerosol number mixing ratio for a given species index and bin index
   !------------------------------------------------------------------------------
@@ -153,18 +140,6 @@ contains
     call rad_cnst_get_bin_mmr_by_idx(0, bin_ndx, species_ndx, 'c', self%state, self%pbuf, mmr)
 
   end subroutine get_cldbrne_mmr
-
-  !------------------------------------------------------------------------
-  ! returns total cloud-borne aerosol mass mixing ratio for a given bin index
-  !------------------------------------------------------------------------
-  subroutine get_cldbrne_total_mmr(self, bin_ndx, mmr)
-    class(carma_aerosol_state), intent(in) :: self
-    integer, intent(in) :: bin_ndx      ! bin index
-    real(r8), pointer :: mmr(:,:)       ! mass mixing ratios
-
-    call rad_cnst_get_bin_mmr(0, bin_ndx, 'c', self%state, self%pbuf, mmr)
-
-  end subroutine get_cldbrne_total_mmr
 
   !------------------------------------------------------------------------------
   ! returns ambient aerosol number mixing ratio for a given species index and bin index
@@ -204,8 +179,8 @@ contains
        call self%get_ambient_num(ibin, raer(indx)%fld)
        call self%get_cldbrne_num(ibin, qqcw(indx)%fld)
        indx = aero_props%indexer(ibin, 1)
-       call self%get_ambient_total_mmr(ibin, raer(indx)%fld)
-       call self%get_cldbrne_total_mmr(ibin, qqcw(indx)%fld)
+       call rad_cnst_get_bin_mmr(0, ibin, 'a', self%state, self%pbuf, raer(indx)%fld)
+       call rad_cnst_get_bin_mmr(0, ibin, 'c', self%state, self%pbuf, qqcw(indx)%fld)
        do ispc = 1, aero_props%nspecies(ibin)
           indx = aero_props%indexer(ibin, ispc+1)
           call self%get_ambient_mmr(ispc,ibin, raer(indx)%fld)
@@ -275,5 +250,44 @@ contains
     end if
 
   end subroutine icenuc_size_wght2
+
+  !------------------------------------------------------------------------------
+  !------------------------------------------------------------------------------
+  subroutine update_bin( self, bin_ndx, col_ndx, lyr_ndx, delmmr_sum, delnum_sum, tnd_ndx, dtime, tend )
+    class(carma_aerosol_state), intent(in) :: self
+    integer, intent(in) :: bin_ndx                ! bin number
+    integer, intent(in) :: col_ndx                ! column index
+    integer, intent(in) :: lyr_ndx                ! vertical layer index
+    real(r8),intent(in) :: delmmr_sum             ! mass mixing ratio change summed over all species in bin
+    real(r8),intent(in) :: delnum_sum             ! number mixing ratio change summed over all species in bin
+    integer, intent(in) :: tnd_ndx                ! tendency index
+    real(r8),intent(in) :: dtime                  ! time step size (sec)
+    real(r8),intent(inout) :: tend(:,:,:)         ! tendency
+
+    real(r8), pointer :: amb_mmr(:,:)
+    real(r8), pointer :: cld_mmr(:,:)
+    real(r8), pointer :: amb_num(:,:)
+    real(r8), pointer :: cld_num(:,:)
+
+    call rad_cnst_get_bin_mmr(0, bin_ndx, 'a', self%state, self%pbuf, amb_mmr)
+    call rad_cnst_get_bin_mmr(0, bin_ndx, 'a', self%state, self%pbuf, cld_mmr)
+
+    call self%get_ambient_num(bin_ndx, amb_num)
+    call self%get_cldbrne_num(bin_ndx, cld_num)
+
+    if (tnd_ndx>0) then
+       tend(col_ndx,lyr_ndx,tnd_ndx) = -delmmr_sum/dtime
+    else
+       amb_mmr(col_ndx,lyr_ndx) = amb_mmr(col_ndx,lyr_ndx) - delmmr_sum
+    end if
+    cld_mmr(col_ndx,lyr_ndx) = cld_mmr(col_ndx,lyr_ndx) + delmmr_sum
+
+    ! apply the total number change to bin number
+    amb_num(col_ndx,lyr_ndx) = amb_num(col_ndx,lyr_ndx) - delnum_sum
+
+    ! apply the total number change to bin number
+    cld_num(col_ndx,lyr_ndx) = cld_num(col_ndx,lyr_ndx) + delnum_sum
+
+  end subroutine update_bin
 
 end module carma_aerosol_state_mod
