@@ -469,8 +469,7 @@ subroutine nucleate_ice_cam_calc( &
    real(r8) :: delmmr, delmmr_sum
    real(r8) :: delnum, delnum_sum
 
-   real(r8), parameter :: per_cm3 = 1.e-6_r8
-   real(r8), parameter :: per_m3 = 1.e6_r8
+   real(r8), parameter :: per_cm3 = 1.e-6_r8 ! factor for m-3 to cm-3 conversions
 
    !-------------------------------------------------------------------------------
 
@@ -700,12 +699,12 @@ subroutine nucleate_ice_cam_calc( &
                                  if (trim(spectype)=='dust') then
                                     if (dst_num>0._r8) then
                                        delmmr = (odst_num / dst_num) * icldm(i,k) * amb_mmr(i,k) * wght
-                                       delnum = (odst_num * icldm(i,k)) /rho(i,k) * per_m3
+                                       delnum = (odst_num * icldm(i,k)) /rho(i,k)/per_cm3
                                     endif
                                  elseif (trim(spectype)=='sulfate') then
                                     if (so4_num>0._r8) then
                                        delmmr = (oso4_num / so4_num) * icldm(i,k) * amb_mmr(i,k) * wght
-                                       delnum = (oso4_num * icldm(i,k)) /rho(i,k) * per_m3
+                                       delnum = (oso4_num * icldm(i,k)) /rho(i,k)/per_cm3
                                     endif
                                  endif
 

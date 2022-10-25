@@ -247,7 +247,7 @@ contains
   end subroutine icenuc_size_wght_arr
 
   !------------------------------------------------------------------------------
-  ! return aerosol bin size weights for a given bin, column and verical layer
+  ! return aerosol bin size weights for a given bin, column and vertical layer
   !------------------------------------------------------------------------------
   subroutine icenuc_size_wght_val(self, bin_ndx, col_ndx, lyr_ndx, species_type, use_preexisting_ice, wght)
     class(modal_aerosol_state), intent(in) :: self
