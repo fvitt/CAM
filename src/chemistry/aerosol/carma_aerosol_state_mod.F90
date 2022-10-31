@@ -6,7 +6,7 @@ module carma_aerosol_state_mod
   use rad_constituents, only: rad_cnst_get_info_by_bin
   use physics_buffer, only: physics_buffer_desc, pbuf_get_field, pbuf_get_index
   use physics_types, only: physics_state
-  use aerosol_properties_mod, only: aerosol_properties
+  use aerosol_properties_mod, only: aerosol_properties, aero_name_len
 
   implicit none
 
@@ -202,7 +202,7 @@ contains
     logical, intent(in) :: use_preexisting_ice ! pre-existing ice flag
     real(r8), intent(out) :: wght(:,:)
 
-    character(len=32) :: bin_name
+    character(len=aero_name_len) :: bin_name
     real(r8), pointer :: dryr(:,:)
     integer :: i,k
     real(r8) :: diamdry
@@ -235,7 +235,7 @@ contains
     logical, intent(in) :: use_preexisting_ice    ! pre-existing ice flag
     real(r8), intent(out) :: wght
 
-    character(len=32) :: bin_name
+    character(len=aero_name_len) :: bin_name
     real(r8), pointer :: dryr(:,:)
     real(r8) :: diamdry
 

@@ -2197,7 +2197,7 @@ if ($phys =~ /cam6/ or $phys =~ /cam_dev/) {
                    'so2_an_srf_file'     => 'SO2',
                    'so2_bb_srf_file'     => 'SO2' );
 
-    if ($chem =~ /_mam4/) {
+    if ($chem =~ /_mam4/ or $chem =~ /_mam5/) {
 
         # Surface emission datasets:
         %species = (%species,

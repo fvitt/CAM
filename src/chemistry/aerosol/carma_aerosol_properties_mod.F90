@@ -1,7 +1,7 @@
 module carma_aerosol_properties_mod
   use shr_kind_mod, only: r8 => shr_kind_r8
   use physconst, only: pi
-  use aerosol_properties_mod, only: aerosol_properties
+  use aerosol_properties_mod, only: aerosol_properties, aero_name_len
   use rad_constituents, only: rad_cnst_get_info, rad_cnst_get_bin_props_by_idx, &
                               rad_cnst_get_info_by_bin, rad_cnst_get_info_by_bin_spec
 
@@ -184,8 +184,8 @@ contains
   subroutine num_names(self, bin_ndx, name_a, name_c)
     class(carma_aerosol_properties), intent(in) :: self
     integer, intent(in) :: bin_ndx           ! bin number
-    character(len=32), intent(out) :: name_a ! constituent name of ambient aerosol number dens
-    character(len=32), intent(out) :: name_c ! constituent name of cloud-borne aerosol number dens
+    character(len=*), intent(out) :: name_a ! constituent name of ambient aerosol number dens
+    character(len=*), intent(out) :: name_c ! constituent name of cloud-borne aerosol number dens
 
     call rad_cnst_get_info_by_bin(0, bin_ndx, num_name=name_a, num_name_cw=name_c)
 
@@ -198,8 +198,8 @@ contains
     class(carma_aerosol_properties), intent(in) :: self
     integer, intent(in) :: bin_ndx           ! bin number
     integer, intent(in) :: species_ndx       ! species number
-    character(len=32), intent(out) :: name_a ! constituent name of ambient aerosol MMR
-    character(len=32), intent(out) :: name_c ! constituent name of cloud-borne aerosol MMR
+    character(len=*), intent(out) :: name_a ! constituent name of ambient aerosol MMR
+    character(len=*), intent(out) :: name_c ! constituent name of cloud-borne aerosol MMR
 
     if (species_ndx>1) then
        call rad_cnst_get_info_by_bin_spec(0, bin_ndx, species_ndx-1, spec_name=name_a, spec_name_cw=name_c)
@@ -215,7 +215,7 @@ contains
   subroutine amb_num_name(self, bin_ndx, name)
     class(carma_aerosol_properties), intent(in) :: self
     integer, intent(in) :: bin_ndx           ! bin number
-    character(len=32), intent(out) :: name   ! constituent name of ambient aerosol number dens
+    character(len=*), intent(out) :: name   ! constituent name of ambient aerosol number dens
 
     call rad_cnst_get_info_by_bin(0, bin_ndx, num_name=name)
 
@@ -228,7 +228,7 @@ contains
     class(carma_aerosol_properties), intent(in) :: self
     integer, intent(in) :: bin_ndx           ! bin number
     integer, intent(in) :: species_ndx       ! species number
-    character(len=32), intent(out) :: name   ! constituent name of ambient aerosol MMR
+    character(len=*), intent(out) :: name   ! constituent name of ambient aerosol MMR
 
     if (species_ndx>0) then
        call rad_cnst_get_info_by_bin_spec(0, bin_ndx, species_ndx, spec_name=name)
@@ -245,7 +245,7 @@ contains
     class(carma_aerosol_properties), intent(in) :: self
     integer, intent(in) :: bin_ndx           ! bin number
     integer, intent(in) :: species_ndx       ! species number
-    character(len=32), intent(out) :: spectype ! species type
+    character(len=*), intent(out) :: spectype ! species type
 
     call rad_cnst_get_info_by_bin_spec(0, bin_ndx, species_ndx, spec_type=spectype)
 
@@ -260,7 +260,7 @@ contains
 
     logical :: res
 
-    character(len=32) :: spectype
+    character(len=aero_name_len) :: spectype
     integer :: spc_ndx
 
     res = .false.
@@ -283,7 +283,7 @@ contains
 
     logical :: res
 
-    character(len=32) :: spectype
+    character(len=aero_name_len) :: spectype
 
     res = .false.
 
