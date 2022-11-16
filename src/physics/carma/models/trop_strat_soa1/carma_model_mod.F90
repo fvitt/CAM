@@ -743,7 +743,6 @@ contains
     real(r8)            :: wwd                                ! raw wind speed (m/s)
     real(r8)            :: sp                                 ! mass fraction for soil factor
     integer             :: idustbin                           ! ibin to use for dust production, smallest silt bin for clay
-    real(r8)            :: soilfact(pcols)                    ! soil erosion factor (for debug)
 
 ! ------------ local variables added for organics model ----------------------
     real(r8)     :: dr
@@ -783,10 +782,6 @@ contains
     ! Determine the latitude and longitude of each column.
     lchnk = state%lchnk
     ncol = state%ncol
-
-    call get_lat_all_p(lchnk, ncol, ilat)
-    call get_lon_all_p(lchnk, ncol, ilon)
-    !call get_rlat_all_p(lchnk, ncol, clat)
 
     ! Add any surface flux here.
     surfaceFlux(:ncol) = 0.0_r8
@@ -836,6 +831,8 @@ contains
     ! Organic carbon emssions
     if ((ielem == I_ELEM_MXOC) .or. (ielem == I_ELEM_MXAER)) then
        if (carma_BCOCemissions == 'Yu2015') then
+          call get_lat_all_p(lchnk, ncol, ilat)
+          call get_lon_all_p(lchnk, ncol, ilon)
           do icol = 1,ncol
              smoke(icol) = OCnew(ilat(icol), ilon(icol), mon)*OMtoOCratio
           end do
@@ -895,7 +892,7 @@ contains
 
         ! Is the wind above the threshold for dust production?
         if (sqrt(wwd) > uth) then
-          dustFlux = ch * soil_factor(ilat(icol), ilon(icol)) * sp * &
+          dustFlux = ch * soil_factor(icol, lchnk) * sp * &
                               wwd * (sqrt(wwd) - uth)
         else
           dustFlux = 0._r8
@@ -904,15 +901,12 @@ contains
         ! Scale the clay bins based upon the smallest silt bin.
         dustFlux = clay_mf(ibin) * dustFlux
 
-        ! Save off the soil erosion factor so it can be output.
-        soilfact(icol) = soil_factor(ilat(icol), ilon(icol))
-
         ! Add the dust flux to the accumulated emissions (important for I_ELEM_MXAER)
         surfaceFlux(icol) = surfaceFlux(icol) + dustFlux
       end do
 
       ! For debug purposes, output the soil erosion factor.
-      call outfld('CRSLERFC', soilfact, pcols, lchnk)
+      call outfld('CRSLERFC', soil_factor(:ncol, lchnk), ncol, lchnk)
     end if
 
 
@@ -1110,16 +1104,6 @@ contains
        call pbuf_set_field(pbuf2d, ipbuf4wtp, 0.0_r8 )
        call pbuf_set_field(pbuf2d, ipbuf4jno2, 0.0_r8 )
     endif
-!!$
-!!$    ! set bin masses (kg)
-!!$    do igroup = 1, NGROUP
-!!$       call CARMAGROUP_Get(carma, igroup, rc, rmass=rmass)
-!!$       if (RC /= RC_OK) return
-!!$       do ibin=1,NBIN
-!!$          ! convert rmass from g to kg
-!!$          call pbuf_set_field(pbuf2d, ipbuf4rmass(ibin,igroup), 1.0e-3_r8*rmass(ibin) )
-!!$       end do
-!!$    end do
 
     sizedist_aeronet(:aeronet_dim1,1) = (/0.000585_r8,0.006080_r8,0.025113_r8,0.052255_r8,0.079131_r8,0.081938_r8, &
          0.035791_r8,0.010982_r8,0.005904_r8,0.007106_r8,0.011088_r8,0.012340_r8,0.010812_r8,0.010423_r8, &
@@ -1267,8 +1251,6 @@ contains
     real(r8), intent(out)              :: SaltFlux(pcols)       !! constituent surface flux (kg/m^2/s)
     integer, intent(out)               :: rc                    !! return code, negative indicates failure
 
-    integer      :: ilat(pcols)              ! latitude index
-    integer      :: ilon(pcols)              ! longitude index
     integer      :: lchnk                   ! chunk identifier
     integer      :: ncol                    ! number of columns in chunk
     integer      :: icol                    ! column index
@@ -1374,9 +1356,6 @@ contains
     lchnk = state%lchnk
     ncol = state%ncol
 
-    call get_lat_all_p(lchnk, ncol, ilat)
-    call get_lon_all_p(lchnk, ncol, ilon)
-
     ! Add any surface flux here.
     SaltFlux(:ncol) = 0.0_r8
 
@@ -1409,7 +1388,7 @@ contains
           !**********************************
           !    WIND for seasalt production
           !**********************************
-          call CARMA_SurfaceWind_salt(icol, ilat(icol), ilon(icol), cam_in, u10in, rc)
+          call CARMA_SurfaceWind_salt(icol, cam_in, u10in, rc)
 
           ! Add any surface flux here.
           ncflx       = 0.0_r8
@@ -1653,13 +1632,11 @@ contains
   !!
   !! @author  Tianyi Fan
   !! @version August-2010
-  subroutine CARMA_SurfaceWind_salt(icol, ilat, ilon, cam_in, u10in, rc)
+  subroutine CARMA_SurfaceWind_salt(icol, cam_in, u10in, rc)
     use camsrfexch, only: cam_in_t
 
     ! in and out field
     integer, intent(in)                 :: icol                  !! column index
-    integer, intent(in)                 :: ilat                  !! latitude index
-    integer, intent(in)                 :: ilon                  !! longitude index
     type(cam_in_t), intent(in)          :: cam_in                !! surface inputs
     real(r8), intent(out)               :: u10in                 !! the 10m wind speed put into the source function
     integer, intent(out)                :: rc                    !! return code, negative indicates failure
@@ -1674,12 +1651,7 @@ contains
     ! calc. the Weibull wind distribution
     u10in = cam_in%u10(icol)
 
-!    ! Use Weibull with prescribed coefficients?
-!    if (carma_do_WeibullK) then
-!      call WeibullWind(u10in, uth_salt, 3.41_r8, uWB341, Weibull_k(ilat, ilon))
-!    else
-      call WeibullWind(u10in, uth_salt, 3.41_r8, uWB341)
-!    end if
+    call WeibullWind(u10in, uth_salt, 3.41_r8, uWB341)
 
     u10in = uWB341 ** (1._r8 / 3.41_r8)
 
@@ -1875,23 +1847,29 @@ contains
 !! st
 !! could use /components/cam/src/chemistry/aerosol/soil_erod_mod.F90 here insted of this routine?
   subroutine CARMA_ReadSoilErosionFactor(rc)
-    use pmgrid,        only: plat, plon
-    use ioFileMod,     only: getfil
+    use ppgrid,             only: begchunk, endchunk, pcols
+    use ioFileMod,     	    only: getfil
+    use interpolate_data,   only: lininterp_init, lininterp, interp_type, lininterp_finish
+    use phys_grid,          only: get_rlon_all_p, get_rlat_all_p, get_ncols_p
     use wrap_nf
-    use interpolate_data,  only : lininterp_init, lininterp, interp_type, lininterp_finish
 
     integer, intent(out)                      :: rc                    !! return code, negative indicates failure
 
     ! local variables
     integer                                   :: idvar, f_nlon, f_nlat, idlat, idlon
     integer                                   :: fid, fid_lon, fid_lat
-    real(r8), allocatable, dimension(:,:)     :: ero_factor, ero_factor1
+    real(r8), allocatable, dimension(:,:)     :: ero_factor
     character(len=256)                        :: ero_file
     real(r8), allocatable, dimension(:)       :: ero_lat               ! latitude dimension
     real(r8), allocatable, dimension(:)       :: ero_lon               ! latitude dimension
-    type (interp_type)                        :: wgt1, wgt2
-    real(r8)                                  :: lat(plat), lon(plon)
-    integer                                   :: i
+    type (interp_type)                        :: lat_wght, lon_wght
+    real(r8)                                  :: lat(pcols)            ! latitude index
+    real(r8)                                  :: lon(pcols)            ! longitude index
+    integer                                   :: i, ii
+    integer                                   :: lchnk                 ! chunk identifier
+    integer                                   :: ncol                  ! number of columns in chunk
+
+    real(r8), parameter   :: zero=0_r8, twopi=2_r8*pi, degs2rads = pi/180._r8
 
     rc = RC_OK
 
@@ -1908,8 +1886,7 @@ contains
     allocate(ero_lat(f_nlat))
     allocate(ero_lon(f_nlon))
     allocate(ero_factor (f_nlon, f_nlat))
-    allocate(ero_factor1(plon, plat))
-    allocate(soil_factor(plat, plon))
+    allocate(soil_factor(pcols, begchunk:endchunk))
 
     ! Read in the tables.
     call wrap_inq_varid(fid, 'new_source', idvar)
@@ -1923,36 +1900,32 @@ contains
     call wrap_inq_varid(fid, 'plon', idlon)
     call wrap_get_var_realx(fid, idlon,  ero_lon)
 
+    ero_lat(:) = ero_lat(:)*degs2rads
+    ero_lon(:) = ero_lon(:)*degs2rads
+
     ! Close the file.
     call wrap_close(fid)
 
-    ! NOTE: Is there a better way to get all of the dimensions
-    ! needed for the model grid? Seems like it shouldn't be hard
-    ! coded here.
-    do i = 1, plat
-       lat(i) = 180._r8 / (plat-1) * (i-1) - 90._r8
+    do lchnk=begchunk, endchunk
+       ncol = get_ncols_p(lchnk)
+
+       call get_rlat_all_p(lchnk, pcols, lat)
+       call get_rlon_all_p(lchnk, pcols, lon)
+
+       call lininterp_init(ero_lon, f_nlon, lon, ncol, 2, lon_wght, zero, twopi)
+       call lininterp_init(ero_lat, f_nlat, lat, ncol, 1, lat_wght)
+
+       call lininterp(ero_factor, f_nlon, f_nlat, soil_factor(1:ncol,lchnk), ncol, lon_wght, lat_wght)
+
+       call lininterp_finish(lon_wght)
+       call lininterp_finish(lat_wght)
     end do
-
-    do i = 1, plon
-       lon(i) = 360._r8 / plon * (i-1)
-    end do
-
-    call lininterp_init(ero_lat, f_nlat, lat, plat, 1, wgt1)
-    call lininterp_init(ero_lon, f_nlon, lon, plon, 1, wgt2)
-    call lininterp(ero_factor, f_nlon, f_nlat, ero_factor1, plon, plat, wgt2, wgt1)
-    call lininterp_finish(wgt1)
-    call lininterp_finish(wgt2)
-
-    soil_factor(:plat, :plon) = transpose(ero_factor1(:plon, :plat))
 
     deallocate(ero_lat)
     deallocate(ero_lon)
     deallocate(ero_factor)
-    deallocate(ero_factor1)
 
-    return
   end subroutine CARMA_ReadSoilErosionFactor
-
 
   !! Calculate the nth mean of u using Weibull wind distribution
   !! considering the threshold wind velocity. This algorithm
@@ -2008,6 +1981,7 @@ contains
                                pio_inq_dimid, pio_inq_varid, &
                                pio_get_var, pio_nowrite, pio_inq_dimlen, &
                                pio_inq_dimlen, pio_closefile
+    use dycore,        only: dycore_is
 
     integer, intent(out)                      :: rc                    !! return code, negative indicates failure
 
@@ -2052,11 +2026,18 @@ contains
     type(file_desc_t) :: fid
     type(var_desc_t) :: idvar, idlat, idlon, idvar_dom, idvar_awb
 
+    real(r8) :: nlats
+
     rc = RC_OK
 
-! get model lat and lon
+    if(dycore_is('UNSTRUCTURED') ) then
+       call endrun('CARMA_InitializeModel: Yu2015 emissions not implemented for unstructured grids' )
+    end if
+
+    ! get model lat and lon
+    nlats = plat-1 ! gnu compiler workaround
     do i = 1, plat
-       lat(i) = 180._r8/(plat-1)*(i-1)-90._r8
+       lat(i) = 180._r8/(nlats)*(i-1)-90._r8
     end do
     do i = 1, plon
        lon(i) = 360._r8/plon*(i-1)
