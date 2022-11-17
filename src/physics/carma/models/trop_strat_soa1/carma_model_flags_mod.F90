@@ -37,6 +37,7 @@ module carma_model_flags_mod
   character(len=256), public, protected :: OC_ship_filename    = 'NONE'
   character(len=256), public, protected :: BC_GFEDv3_filename  = 'NONE'
   character(len=256), public, protected :: OC_GFEDv3_filename  = 'NONE'
+  real(r8), public, protected :: carma_dustemisfactor = 0.5e-9_r8
 
 contains
 
@@ -73,7 +74,8 @@ contains
       BC_ship_filename, &
       OC_ship_filename, &
       BC_GFEDv3_filename, &
-      OC_GFEDv3_filename
+      OC_GFEDv3_filename, &
+      carma_dustemisfactor
 
     if (masterproc) then
        unitn = getunit()
@@ -100,6 +102,7 @@ contains
     call mpibcast(OC_ship_filename,   len(OC_ship_filename), mpichar, 0, mpicom)
     call mpibcast(BC_GFEDv3_filename, len(BC_GFEDv3_filename), mpichar, 0, mpicom)
     call mpibcast(OC_GFEDv3_filename, len(OC_GFEDv3_filename), mpichar, 0, mpicom)
+    call mpibcast(carma_dustemisfactor,1,                      mpir8, 0,mpicom)
 #endif
 
   end subroutine carma_model_readnl

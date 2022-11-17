@@ -4321,6 +4321,13 @@ the dust model.
 Default: set by build-namelist.
 </entry>
 
+<entry id="carma_dustemisfactor" type="real" category="carma"
+       group="carma_model_nl" valid_values="" >
+CARMA dust emissions scaling factor
+Default: 0.5e-9_r8
+</entry>
+
+
 
 <!-- CARMA model - sea salt -->
 

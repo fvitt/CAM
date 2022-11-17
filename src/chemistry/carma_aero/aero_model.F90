@@ -890,7 +890,6 @@ contains
                          solmmr =  solmmr + raer(mm)%fld(i,k)*0.5_r8
                       end if
                       if (trim(spectype) == 'black-c') then
-                         solmmr =  solmmr + raer(mm)%fld(i,k)*0.1_r8
                          specmmr = specmmr + raer(mm)%fld(i,k)
                       end if
                       if (trim(spectype) == 'p-organic') then

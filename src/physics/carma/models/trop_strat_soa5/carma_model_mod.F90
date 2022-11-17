@@ -206,6 +206,7 @@ contains
       if (do_print) write(LUNOPRT,*) 'CARMA ', trim(carma_model), ' specific settings :'
       if (do_print) write(LUNOPRT,*) '  carma_soilerosion_file = ', carma_soilerosion_file
       if (do_print) write(LUNOPRT,*) '  carma_seasalt_emis = ', trim(carma_seasalt_emis)
+      if (do_print) write(LUNOPRT,*) '  carma_dustemisfactor = ', carma_dustemisfactor
     end if
 
     ! Define the Groups
@@ -859,7 +860,7 @@ contains
 
 
     ! -------- local variables added for dust and sea-salt model ------------
-    real(r8), parameter :: ch = 0.5e-9_r8                     ! dimensional factor & tuning number,
+    real(r8)            :: ch                                 ! dimensional factor & tuning number,
     real(r8)            :: rmass(NBIN)                        ! bin mass (g)
     real(r8)            :: r                                  ! bin center (cm)
     real(r8)            :: rdust                              ! dust bin center (cm)
@@ -901,6 +902,7 @@ contains
     ! Default return code.
     rc = RC_OK
     smoke(:) = -huge(1._r8)
+    ch = carma_dustemisfactor
 
     ! Determine the day of year.
     calday = get_curr_calday()
