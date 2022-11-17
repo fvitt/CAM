@@ -22,6 +22,10 @@
 <flbc_type>SERIAL</flbc_type>
 <flbc_file>atm/waccm/lb/LBC_17500116-20150116_CMIP6_0p5degLat_c180905.nc</flbc_file>
 
+<!-- CARMA Dust Emissions Tuning Factor -->
+<carma_dustemisfactor hgrid="1.9x2.5" >0.4D-9</carma_dustemisfactor>
+<carma_dustemisfactor hgrid="0.9x1.25">0.5D-9</carma_dustemisfactor>
+
 <!-- History specifiers -->
 <history_chemistry>.false.</history_chemistry>
 <history_chemspecies_srf>.false.</history_chemspecies_srf>
