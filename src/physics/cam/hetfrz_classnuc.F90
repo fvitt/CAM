@@ -28,7 +28,6 @@ use physconst,     only:  pi
 
 implicit none
 private
-save
 
 public :: hetfrz_classnuc_init, hetfrz_classnuc_calc
 
@@ -66,7 +65,7 @@ real(r8) :: dim_f_imm(pdf_n_theta) = 0.0_r8
 integer  :: iulog
 
 real(r8), parameter :: n1 = 1.e19_r8           ! number of water molecules in contact with unit area of substrate [m-2]
-real(r8), parameter :: kboltz = 1.38e-23_r8
+real(r8), parameter :: kboltz = 1.38e-23_r8    ! Boltzmann constant [J K-1]
 real(r8), parameter :: hplanck = 6.63e-34_r8
 real(r8), parameter :: rhplanck = 1._r8/hplanck
 real(r8), parameter :: amu = 1.66053886e-27_r8
@@ -109,7 +108,7 @@ end subroutine hetfrz_classnuc_init
 
 !===================================================================================================
 
-subroutine hetfrz_classnuc_calc( &
+subroutine hetfrz_classnuc_calc(ntypes, types,&
    deltat, t, p, supersatice,                 &
    fn,                                        &
    r3lx, icnlx,                               &
@@ -120,6 +119,8 @@ subroutine hetfrz_classnuc_calc( &
    total_aer_num, uncoated_aer_num,  &
    total_interstitial_aer_num, total_cloudborne_aer_num, errstring)
 
+   integer, intent(in) :: ntypes
+   character(len=*), intent(in) :: types(ntypes)
    real(r8), intent(in) :: deltat            ! timestep [s]
    real(r8), intent(in) :: t                 ! temperature [K]
    real(r8), intent(in) :: p                 ! pressure [Pa]
@@ -127,25 +128,23 @@ subroutine hetfrz_classnuc_calc( &
    real(r8), intent(in) :: r3lx              ! volume mean drop radius [m]
    real(r8), intent(in) :: icnlx             ! in-cloud droplet concentration [cm-3]
 
- ! Operates on both black-carbon and dust -- can this routine individual aerosol types separately?
+   real(r8), intent(in) :: fn(ntypes)               ! fraction activated [ ] for cloud borne aerosol number
+                                                    ! index values are 1:bc, 2:dust_a1, 3:dust_a3
+   real(r8), intent(in) :: hetraer(ntypes)          ! bc and dust mass mean radius [m]
+   real(r8), intent(in) :: awcam(ntypes)            ! modal added mass [mug m-3]
+   real(r8), intent(in) :: awfacm(ntypes)           ! (OC+BC)/(OC+BC+SO4)
+   real(r8), intent(in) :: dstcoat(ntypes)          ! coated fraction
+   real(r8), intent(in) :: total_aer_num(ntypes)    ! total bc and dust number concentration(interstitial+cloudborne) [#/cm^3]
+   real(r8), intent(in) :: uncoated_aer_num(ntypes) ! uncoated bc and dust number concentration(interstitial)
+   real(r8), intent(in) :: total_interstitial_aer_num(ntypes) ! total bc and dust concentration(interstitial)
+   real(r8), intent(in) :: total_cloudborne_aer_num(ntypes)   ! total bc and dust concentration(cloudborne)
 
-   real(r8), intent(in) :: fn(3)               ! fraction activated [ ] for cloud borne aerosol number
-                                               ! index values are 1:bc, 2:dust_a1, 3:dust_a3
-   real(r8), intent(in) :: hetraer(3)          ! bc and dust mass mean radius [m]
-   real(r8), intent(in) :: awcam(3)            ! modal added mass [mug m-3]
-   real(r8), intent(in) :: awfacm(3)           ! (OC+BC)/(OC+BC+SO4)
-   real(r8), intent(in) :: dstcoat(3)          ! coated fraction
-   real(r8), intent(in) :: total_aer_num(3)    ! total bc and dust number concentration(interstitial+cloudborne) [#/cm^3]
-   real(r8), intent(in) :: uncoated_aer_num(3) ! uncoated bc and dust number concentration(interstitial)
-   real(r8), intent(in) :: total_interstitial_aer_num(3) ! total bc and dust concentration(interstitial)
-   real(r8), intent(in) :: total_cloudborne_aer_num(3)   ! total bc and dust concentration(cloudborne)
-
-   real(r8), intent(out) :: frzbcimm           ! het. frz by BC immersion nucleation [cm-3 s-1]
-   real(r8), intent(out) :: frzduimm           ! het. frz by dust immersion nucleation [cm-3 s-1]
-   real(r8), intent(out) :: frzbccnt           ! het. frz by BC contact nucleation [cm-3 s-1]
-   real(r8), intent(out) :: frzducnt           ! het. frz by dust contact nucleation [cm-3 s-1]
-   real(r8), intent(out) :: frzbcdep           ! het. frz by BC deposition nucleation [cm-3 s-1]
-   real(r8), intent(out) :: frzdudep           ! het. frz by dust deposition nucleation [cm-3 s-1]
+   real(r8), target, intent(out) :: frzbcimm           ! het. frz by BC immersion nucleation [cm-3 s-1]
+   real(r8), target, intent(out) :: frzduimm           ! het. frz by dust immersion nucleation [cm-3 s-1]
+   real(r8), target, intent(out) :: frzbccnt           ! het. frz by BC contact nucleation [cm-3 s-1]
+   real(r8), target, intent(out) :: frzducnt           ! het. frz by dust contact nucleation [cm-3 s-1]
+   real(r8), target, intent(out) :: frzbcdep           ! het. frz by BC deposition nucleation [cm-3 s-1]
+   real(r8), target, intent(out) :: frzdudep           ! het. frz by dust deposition nucleation [cm-3 s-1]
 
    character(len=*), intent(out) :: errstring
 
@@ -158,7 +157,13 @@ subroutine hetfrz_classnuc_calc( &
    real(r8) :: sigma_iv                        ! [J/m2]
    real(r8) :: esice                           ! [Pa]
    real(r8) :: eswtr                           ! [Pa]
-   integer :: i
+
+   real(r8) :: rgimm    ! critical germ size
+   real(r8) :: rgdep
+   real(r8) :: dg0dep   ! homogeneous energy of germ formation
+   real(r8) :: dg0cnt
+   real(r8) :: Adep     ! prefactors
+   real(r8) :: Acnt
 
    !********************************************************
    ! Hoose et al., 2010 fitting parameters
@@ -189,36 +194,40 @@ subroutine hetfrz_classnuc_calc( &
 
    ! form factor
    ! only consider flat surfaces due to uncertainty of curved surfaces
-   real(r8),parameter :: m_dep_bc = COS(theta_dep_bc*pi/180._r8)
-   real(r8),parameter :: f_dep_bc = (2+m_dep_bc)*(1-m_dep_bc)**2/4._r8
-   real(r8),parameter :: f_cnt_bc = f_dep_bc
+   real(r8),parameter :: m_depcnt_bc = COS(theta_dep_bc*pi/180._r8)
+   real(r8),parameter :: f_depcnt_bc = (2+m_depcnt_bc)*(1-m_depcnt_bc)**2/4._r8
 
-   real(r8),parameter :: m_dep_dst = COS(theta_dep_dust*pi/180._r8)
-   real(r8),parameter :: f_dep_dust_a1 = (2+m_dep_dst)*(1-m_dep_dst)**2/4._r8
-   real(r8),parameter :: f_cnt_dust_a1 = f_dep_dust_a1
-
-   real(r8),parameter :: f_dep_dust_a3 = f_dep_dust_a1
-   real(r8),parameter :: f_cnt_dust_a3 = f_dep_dust_a3
+   real(r8),parameter :: m_depcnt_dst = COS(theta_dep_dust*pi/180._r8)
+   real(r8),parameter :: f_depcnt_dust = (2+m_depcnt_dst)*(1-m_depcnt_dst)**2/4._r8
 
    real(r8),parameter :: m_imm_bc = COS(theta_imm_bc*pi/180._r8)
    real(r8),parameter :: f_imm_bc = (2+m_imm_bc)*(1-m_imm_bc)**2/4._r8
 
    real(r8),parameter :: m_imm_dust = COS(theta_imm_dust*pi/180._r8)
-   real(r8),parameter :: f_imm_dust_a1 = (2+m_imm_dust)*(1-m_imm_dust)**2/4._r8
-
-   real(r8),parameter :: f_imm_dust_a3 =f_imm_dust_a1
+   real(r8),parameter :: f_imm_dust = (2+m_imm_dust)*(1-m_imm_dust)**2/4._r8
 
    real(r8) :: f_dep, f_cnt, f_imm
    real(r8) :: dga_dep, dga_imm
-   real(r8) :: ktherm, kcoll
-   real(r8) :: limfac, mradius
+   real(r8) :: limfac
    real(r8) :: frzimm, frzcnt, frzdep
+   real(r8), pointer :: frzimm_ptr, frzcnt_ptr, frzdep_ptr
 
    logical :: pdf_imm
+
+   integer :: ispc
+
+   real(r8) :: ktherm(ntypes), kcoll(ntypes)
+
+   real(r8), parameter :: Ktherm_bc = 4.2_r8   ! black carbon
+   real(r8), parameter :: Ktherm_dst = 0.72_r8 ! clay
 
    !------------------------------------------------------------------------------------------------
 
    errstring = ' '
+
+   nullify(frzimm_ptr)
+   nullify(frzcnt_ptr)
+   nullify(frzdep_ptr)
 
    frzbcimm = 0._r8
    frzbccnt= 0._r8
@@ -229,7 +238,7 @@ subroutine hetfrz_classnuc_calc( &
 
    ! get saturation vapor pressures
    eswtr = svp_water(t)  ! 0 for liquid
-   esice = svp_ice(t)  ! 1 for ice
+   esice = svp_ice(t)    ! 1 for ice
 
    tc = t - tmelt
    rhoice = 916.7_r8-0.175_r8*tc-5.e-4_r8*tc**2
@@ -237,53 +246,88 @@ subroutine hetfrz_classnuc_calc( &
    sigma_iw = (28.5_r8+0.25_r8*tc)*1E-3_r8
    sigma_iv = (76.1_r8-0.155_r8*tc + 28.5_r8+0.25_r8*tc)*1E-3_r8
 
-   do i=1,3
-      if (i==1) then
-         f_dep = f_dep_bc
-         f_cnt = f_cnt_bc
+   ! critical germ size
+   rgimm = 2*vwice*sigma_iw/(kboltz*t*LOG(supersatice))
+
+   ! critical germ size
+   ! assume 98% RH in mixed-phase clouds (Korolev & Isaac, JAS 2006)
+   rgdep=2*vwice*sigma_iv/(kboltz*t*LOG(rhwincloud*supersatice))
+
+   ! homogeneous energy of germ formation
+   dg0dep = 4*pi/3._r8*sigma_iv*rgdep**2
+
+   ! prefactor
+   ! attention: division of small numbers
+   Adep = (rhwincloud*eswtr)**2*(vwice/(mwh2o*amu))/(kboltz*T*nus)*SQRT(sigma_iv/(kboltz*T))
+
+   ! homogeneous energy of germ formation
+   dg0cnt = 4*pi/3._r8*sigma_iv*rgimm**2
+
+   ! prefactor
+   ! attention: division of small numbers
+   Acnt = rhwincloud*eswtr*4*pi/(nus*SQRT(2*pi*mwh2o*amu*kboltz*T))
+
+   do ispc = 1, ntypes
+
+      select case (trim(types(ispc)))
+      case ('black-c')
+         ktherm(ispc) = ktherm_bc
+      case ('dust')
+         ktherm(ispc) = ktherm_dst
+      case default
+         errstring = 'hetfrz_classnuc_calc ERROR: unrecognized aerosol type: '//trim(types(ispc))
+         return
+      end select
+   end do
+
+   call collkernel(t, p, eswtr, rhwincloud, r3lx, hetraer, Ktherm, Kcoll)
+
+   do ispc = 1, ntypes
+
+      select case (trim(types(ispc)))
+      case ('black-c')
+         f_dep = f_depcnt_bc
+         f_cnt = f_depcnt_bc
          f_imm = f_imm_bc
          dga_dep = dga_dep_bc
          dga_imm = dga_imm_bc
          pdf_imm = .false.
-         Ktherm = 4.2_r8
-         limfac = 0.01_r8
-     else if (i==2 .or. i==3) then
-         f_dep = f_dep_dust_a1
-         f_cnt = f_cnt_dust_a1
-         f_imm = f_imm_dust_a1
+         limfac = 0.01_r8 ! Limit to 1% of available potential IN (for BC), no limit for dust
+         frzimm_ptr => frzbcimm
+         frzcnt_ptr => frzbccnt
+         frzdep_ptr => frzbcdep
+      case ('dust')
+         f_dep = f_depcnt_dust
+         f_cnt = f_depcnt_dust
+         f_imm = f_imm_dust
          dga_dep = dga_dep_dust
          dga_imm = dga_imm_dust
          pdf_imm = .true.
-         Ktherm = 0.72_r8
          limfac = 1._r8
-      end if
-
-      mradius = hetraer(i)
-      Kcoll = collkernel(t, p, eswtr, rhwincloud, r3lx, mradius, Ktherm)
+      case default
+         errstring = 'hetfrz_classnuc_calc ERROR: unrecognized aerosol type: '//trim(types(ispc))
+         return
+      end select
 
       call hetfrz_classnuc_calc_rates( f_dep, f_cnt, f_imm, dga_dep, dga_imm, pdf_imm, limfac, &
-           kcoll, mradius, icnlx, r3lx, t, supersatice, sigma_iw, sigma_iv, vwice, eswtr, deltat, &
-           fn(i), awcam(i), awfacm(i), dstcoat(i), &
-           total_aer_num(i), total_interstitial_aer_num(i), total_cloudborne_aer_num(i), uncoated_aer_num(i), &
+           kcoll(ispc), hetraer(ispc), icnlx, r3lx, t, supersatice, sigma_iw, sigma_iv, &
+           rgimm, rgdep, dg0dep, Adep, dg0cnt, Acnt, vwice, eswtr, deltat, &
+           fn(ispc), awcam(ispc), awfacm(ispc), dstcoat(ispc), &
+           total_aer_num(ispc), total_interstitial_aer_num(ispc), total_cloudborne_aer_num(ispc), uncoated_aer_num(ispc), &
            frzimm, frzcnt, frzdep, errstring )
 
       ! accumulate dust and bc frz rates
-      if (i==1) then
-         frzbcimm = frzbcimm + frzimm
-         frzbccnt = frzbccnt + frzcnt
-         frzbcdep = frzbcdep + frzdep
-      else if (i==2 .or. i==3) then
-         frzduimm = frzduimm + frzimm
-         frzducnt = frzducnt + frzcnt
-         frzdudep = frzdudep + frzdep
-      end if
+      frzimm_ptr = frzimm_ptr + frzimm
+      frzcnt_ptr = frzcnt_ptr + frzcnt
+      frzdep_ptr = frzdep_ptr + frzdep
 
    end do
 
  end subroutine  hetfrz_classnuc_calc
 
  subroutine  hetfrz_classnuc_calc_rates( f_dep, f_cnt, f_imm, dga_dep, dga_imm, pdf_imm, limfac, &
-      kcoll, mradius, icnlx, r3lx, t, supersatice, sigma_iw, sigma_iv, vwice, eswtr, deltat, &
+      kcoll, mradius, icnlx, r3lx, t, supersatice, sigma_iw, sigma_iv, &
+      rgimm, rgdep, dg0dep, Adep, dg0cnt, Acnt, vwice, eswtr, deltat, &
       fn, awcam, awfacm, dstcoat, &
       total_aer_num, total_interstitial_aer_num, total_cloudborne_aer_num, uncoated_aer_num, &
       frzimm, frzcnt, frzdep, errstring )
@@ -304,6 +348,13 @@ subroutine hetfrz_classnuc_calc( &
    real(r8), intent(in) :: supersatice                ! supersaturation ratio wrt ice at 100%rh over water [ ]
    real(r8), intent(in) :: sigma_iw                   ! [J/m2]
    real(r8), intent(in) :: sigma_iv                   ! [J/m2]
+   real(r8), intent(in) :: rgimm                      ! critical germ size
+   real(r8), intent(in) :: rgdep                      ! critical germ size
+   real(r8), intent(in) :: dg0dep                     ! homogeneous energy of germ formation
+   real(r8), intent(in) :: Adep                       ! prefactor
+   real(r8), intent(in) :: dg0cnt                     ! homogeneous energy of germ formation
+   real(r8), intent(in) :: Acnt                       ! prefactor
+
    real(r8), intent(in) :: vwice
    real(r8), intent(in) :: eswtr
    real(r8), intent(in) :: deltat                     ! timestep [s]
@@ -326,18 +377,12 @@ subroutine hetfrz_classnuc_calc( &
    real(r8) :: aw                          ! water activity [ ]
    real(r8) :: molal                       ! molality [moles/kg]
 
-   real(r8) :: Acnt
-   real(r8) :: Adep
    real(r8) :: Aimm
    real(r8) :: Jdep
    real(r8) :: Jimm
    real(r8) :: Jcnt
-   real(r8) :: dg0cnt
-   real(r8) :: dg0dep
    real(r8) :: dg0imm
    real(r8) :: rgimm_aer
-   real(r8) :: rgimm
-   real(r8) :: rgdep
    real(r8) :: sum_imm
    real(r8) :: dim_Jimm(pdf_n_theta)
 
@@ -377,8 +422,6 @@ subroutine hetfrz_classnuc_calc( &
    frzcnt = 0._r8
    frzdep = 0._r8
 
-   ! critical germ size
-   rgimm = 2*vwice*sigma_iw/(kboltz*t*LOG(supersatice))
    ! take solute effect into account
    rgimm_aer = rgimm
 
@@ -387,54 +430,46 @@ subroutine hetfrz_classnuc_calc( &
    do_frz = aw*supersatice > 1._r8
    if (do_frz) then
       rgimm_aer = 2*vwice*sigma_iw/(kboltz*t*LOG(aw*supersatice))
-   endif
-   if (.not.do_frz) return
-
-   do_imm = t <= 263.15_r8 .and. do_frz
-
-   ! homogeneous energy of germ formation
-   dg0imm = 4*pi/3._r8*sigma_iw*rgimm_aer**2
-
-   ! prefactor
-   Aimm = n1*((vwice*rhplanck)/(rgimm_aer**3)*SQRT(3._r8/pi*kboltz*T*dg0imm))
-
-   ! nucleation rate per particle
-
-   if (pdf_imm) then
-      dim_Jimm(:) = 0._r8
-      do i = i1,i2
-         ! 1/sqrt(f)
-         dim_Jimm(i) = Aimm*mradius**2/SQRT(dim_f_imm(i))*EXP((-dga_imm-dim_f_imm(i)*dg0imm)/(kboltz*T))
-         dim_Jimm(i) = max(dim_Jimm(i), 0._r8)
-      end do
-
-      sum_imm  = 0._r8
-      do i = i1,i2-1
-         sum_imm = sum_imm + 0.5_r8*((pdf_imm_theta(i  )*exp(-dim_Jimm(i  )*deltat)+ &
-                                      pdf_imm_theta(i+1)*exp(-dim_Jimm(i+1)*deltat)))*pdf_d_theta
-      end do
-      if (sum_imm > 0.99_r8) then
-         sum_imm = 1.0_r8
-      end if
    else
-     Jimm = Aimm*mradius**2/SQRT(f_imm)*EXP(( -dga_imm - f_imm*dg0imm )/(kboltz*T))
-     sum_imm = exp(-Jimm*deltat) ! pdf_imm_in == false for BC
-   end if
+      return
+   endif
 
+   do_imm = t <= 263.15_r8
+
+   if (do_imm) then
+      ! homogeneous energy of germ formation
+      dg0imm = 4*pi/3._r8*sigma_iw*rgimm_aer**2
+
+      ! prefactor
+      Aimm = n1*((vwice*rhplanck)/(rgimm_aer**3)*SQRT(3._r8/pi*kboltz*T*dg0imm))
+
+      ! nucleation rate per particle
+
+      if (pdf_imm) then
+         dim_Jimm(:) = 0._r8
+         do i = i1,i2
+            ! 1/sqrt(f)
+            dim_Jimm(i) = Aimm*mradius**2/SQRT(dim_f_imm(i))*EXP((-dga_imm-dim_f_imm(i)*dg0imm)/(kboltz*T))
+            dim_Jimm(i) = max(dim_Jimm(i), 0._r8)
+         end do
+
+         sum_imm  = 0._r8
+         do i = i1,i2-1
+            sum_imm = sum_imm + 0.5_r8*((pdf_imm_theta(i  )*exp(-dim_Jimm(i  )*deltat)+ &
+                 pdf_imm_theta(i+1)*exp(-dim_Jimm(i+1)*deltat)))*pdf_d_theta
+         end do
+         if (sum_imm > 0.99_r8) then
+            sum_imm = 1.0_r8
+         end if
+      else
+         Jimm = Aimm*mradius**2/SQRT(f_imm)*EXP(( -dga_imm - f_imm*dg0imm )/(kboltz*T))
+         sum_imm = exp(-Jimm*deltat)
+      end if
+   end if
 
    !!! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
    !   Deposition nucleation
    !!! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-   ! critical germ size
-   ! assume 98% RH in mixed-phase clouds (Korolev & Isaac, JAS 2006)
-   rgdep=2*vwice*sigma_iv/(kboltz*t*LOG(rhwincloud*supersatice))
-
-   ! homogeneous energy of germ formation
-   dg0dep = 4*pi/3._r8*sigma_iv*rgdep**2
-
-   ! prefactor
-   ! attention: division of small numbers
-   Adep = (rhwincloud*eswtr)**2*(vwice/(mwh2o*amu))/(kboltz*T*nus)*SQRT(sigma_iv/(kboltz*T))
 
    ! nucleation rate per particle
    if (rgdep > 0) then
@@ -447,24 +482,11 @@ subroutine hetfrz_classnuc_calc( &
    ! contact nucleation
    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-   ! homogeneous energy of germ formation
-   dg0cnt = 4*pi/3._r8*sigma_iv*rgimm**2
-
-   ! prefactor
-   ! attention: division of small numbers
-   Acnt = rhwincloud*eswtr*4*pi/(nus*SQRT(2*pi*mwh2o*amu*kboltz*T))
-
    ! nucleation rate per particle
-   Jcnt = Acnt*mradius**2  *EXP((-dga_dep-f_cnt*dg0cnt)/(kboltz*T))*Kcoll        *icnlx
+   Jcnt = Acnt*mradius**2*EXP((-dga_dep-f_cnt*dg0cnt)/(kboltz*T))*Kcoll*icnlx
 
    ! Limit to 1% of available potential IN (for BC), no limit for dust
-   if (.not.tot_in) then
-      if (do_imm) then
-         frzimm = MIN(limfac*total_cloudborne_aer_num /deltat, total_cloudborne_aer_num/deltat*(1._r8-sum_imm))
-      end if
-      frzdep = MIN(limfac*uncoated_aer_num/deltat, uncoated_aer_num/deltat*(1._r8-exp(-Jdep*deltat)))
-      frzcnt = MIN(limfac*uncoated_aer_num/deltat, uncoated_aer_num/deltat*(1._r8-exp(-Jcnt*deltat)))
-   else
+   if (tot_in) then
       if (do_imm) then
          frzimm = MIN(limfac*fn*total_aer_num/deltat, fn*total_aer_num/deltat*(1._r8-sum_imm))
       end if
@@ -472,6 +494,12 @@ subroutine hetfrz_classnuc_calc( &
                    (1._r8-fn)*(1._r8-dstcoat)*total_aer_num/deltat*(1._r8-exp(-Jdep*deltat)))
       frzcnt = MIN(limfac*(1._r8-fn)*(1._r8-dstcoat)*total_aer_num/deltat, &
                    (1._r8-fn)*(1._r8-dstcoat)*total_aer_num/deltat*(1._r8-exp(-Jcnt*deltat)))
+   else
+      if (do_imm) then
+         frzimm = MIN(limfac*total_cloudborne_aer_num /deltat, total_cloudborne_aer_num/deltat*(1._r8-sum_imm))
+      end if
+      frzdep = MIN(limfac*uncoated_aer_num/deltat, uncoated_aer_num/deltat*(1._r8-exp(-Jdep*deltat)))
+      frzcnt = MIN(limfac*uncoated_aer_num/deltat, uncoated_aer_num/deltat*(1._r8-exp(-Jcnt*deltat)))
    end if
 
    if (frzcnt <= -1._r8) then
@@ -493,17 +521,16 @@ end subroutine  hetfrz_classnuc_calc_rates
 ! Modifications: Yong Wang and Xiaohong Liu, UWyo, 12/2012
 !-----------------------------------------------------------------------
 
-function collkernel( t, pres, eswtr, rhwincloud, r3lx,  rad, Ktherm ) result( Kcoll )
+subroutine collkernel( temp, pres, eswtr, rhwincloud, r3lx,  rad, Ktherm, Kcoll )
 
-   real(r8), intent(in) :: t                ! temperature [K]
-   real(r8), intent(in) :: pres             ! pressure [Pa]
-   real(r8), intent(in) :: eswtr            ! saturation vapor pressure of water [Pa]
-   real(r8), intent(in) :: r3lx             ! volume mean drop radius [m]
-   real(r8), intent(in) :: rhwincloud       ! in-cloud relative humidity over water [ ]
-   real(r8), intent(in) :: rad              ! aerosol radius [m]
-   real(r8), intent(in) :: Ktherm           ! thermal conductivity of aerosol [J/(m s K)]
-
-   real(r8) :: Kcoll       ! collision kernel [cm3 s-1]
+   real(r8), intent(in) :: temp       ! temperature [K]
+   real(r8), intent(in) :: pres       ! pressure [Pa]
+   real(r8), intent(in) :: eswtr      ! saturation vapor pressure of water [Pa]
+   real(r8), intent(in) :: r3lx       ! volume mean drop radius [m]
+   real(r8), intent(in) :: rhwincloud ! in-cloud relative humidity over water [ ]
+   real(r8), intent(in) :: rad(:)     ! aerosol radius [m]
+   real(r8), intent(in) :: Ktherm(:)  ! thermal conductivity of aerosol [J/(m s K)]
+   real(r8), intent(out) :: Kcoll(:)  ! collision kernel [cm3 s-1]
 
    ! local variables
    real(r8) :: a, b, c, a_f, b_f, c_f, f
@@ -527,19 +554,23 @@ function collkernel( t, pres, eswtr, rhwincloud, r3lx,  rad, Ktherm ) result( Kc
    real(r8) :: Tdiff_cotton ! temperature difference between droplet and environment [K]
    real(r8) :: K_brownian,K_thermo_cotton,K_diffusio_cotton   ! collision kernels [m3 s-1]
 
+   integer :: ntot, idx
+
    !------------------------------------------------------------------------------------------------
 
-   Kcoll = 0._r8
+   ntot = size(ktherm)
 
-   tc     = t - tmelt
+   Kcoll(:) = 0._r8
+
+   tc = temp - tmelt
    kboltz = 1.38065e-23_r8
 
    ! air viscosity for tc<0, from depvel_part.F90
    viscos_air = (1.718_r8+0.0049_r8*tc-1.2e-5_r8*tc*tc)*1.e-5_r8
    ! air density
-   rho_air = pres/(rair*t)
+   rho_air = pres/(rair*temp)
    ! mean free path: Seinfeld & Pandis 8.6
-   lambda = 2*viscos_air/(pres*SQRT(8/(pi*rair*t)))
+   lambda = 2*viscos_air/(pres*SQRT(8/(pi*rair*temp)))
    ! latent heat of vaporization, varies with T
    latvap = 1000*(-0.0000614342_r8*tc**3 + 0.00158927_r8*tc**2 - 2.36418_r8*tc + 2500.79_r8)
    ! droplet terminal velocity after Chen & Liu, QJRMS 2004
@@ -555,42 +586,45 @@ function collkernel( t, pres, eswtr, rhwincloud, r3lx,  rad, Ktherm ) result( Kc
    ! Reynolds number
    Re = 2*vterm*r3lx*rho_air/viscos_air
    ! thermal conductivity of air: Seinfeld & Pandis eq. 15.75
-   Ktherm_air = 1.e-3_r8*(4.39_r8+0.071_r8*t)  !J/(m s K)
+   Ktherm_air = 1.e-3_r8*(4.39_r8+0.071_r8*temp)  !J/(m s K)
    ! Prandtl number
    Pr = viscos_air*cpair/Ktherm_air
    ! water vapor diffusivity: Pruppacher & Klett 13-3
-   Dvap = 0.211e-4_r8*(t/273.15_r8)*(101325._r8/pres)
+   Dvap = 0.211e-4_r8*(temp/273.15_r8)*(101325._r8/pres)
    ! G-factor = rhoh2o*Xi in Rogers & Yau, p. 104
-   G = rhoh2o/((latvap/(rh2o*t) - 1)*latvap*rhoh2o/(Ktherm_air*t) &
-       + rhoh2o*rh2o*t/(Dvap*eswtr))
+   G = rhoh2o/((latvap/(rh2o*temp) - 1)*latvap*rhoh2o/(Ktherm_air*temp) &
+       + rhoh2o*rh2o*temp/(Dvap*eswtr))
 
-   ! Knudsen number (Seinfeld & Pandis 8.1)
-   Kn = lambda/rad
-   ! aerosol diffusivity
-   Daer = kboltz*t*(1 + Kn)/(6*pi*rad*viscos_air)
-   ! Schmidt number
-   Sc = viscos_air/(Daer*rho_air)
+   do idx = 1,ntot
+      ! Knudsen number (Seinfeld & Pandis 8.1)
+      Kn = lambda/rad(idx)
+      ! aerosol diffusivity
+      Daer = kboltz*temp*(1 + Kn)/(6*pi*rad(idx)*viscos_air)
 
-   ! Young (1974) first equ. on page 771
-   K_brownian = 4*pi*r3lx*Daer*(1 + 0.3_r8*Re**0.5_r8*Sc**0.33_r8)
+      ! Schmidt number
+      Sc = viscos_air/(Daer*rho_air)
 
-   ! thermal conductivities from Seinfeld & Pandis, Table 8.6
-   ! form factor
-   f_t = 0.4_r8*(1._r8 + 1.45_r8*Kn + 0.4_r8*Kn*EXP(-1._r8/Kn))      &
-        *(Ktherm_air + 2.5_r8*Kn*Ktherm)                      &
-        /((1._r8 + 3._r8*Kn)*(2._r8*Ktherm_air + 5._r8*Kn*Ktherm+Ktherm))
+      ! Young (1974) first equ. on page 771
+      K_brownian = 4*pi*r3lx*Daer*(1 + 0.3_r8*Re**0.5_r8*Sc**0.33_r8)
 
-   ! calculate T-Tc as in Cotton et al.
-   Tdiff_cotton = -G*(rhwincloud - 1._r8)*latvap/Ktherm_air
-   Q_heat = Ktherm_air/r3lx*(1._r8 + 0.3_r8*Re**0.5_r8*Pr**0.33_r8)*Tdiff_cotton
-   K_thermo_cotton = 4._r8*pi*r3lx*r3lx*f_t*Q_heat/pres
-   K_diffusio_cotton = -(1._r8/f_t)*(rh2o*t/latvap)*K_thermo_cotton
-   Kcoll = 1.e6_r8*(K_brownian + K_thermo_cotton + K_diffusio_cotton)  ! convert m3/s -> cm3/s
+      ! thermal conductivities from Seinfeld & Pandis, Table 8.6
+      ! form factor
+      f_t = 0.4_r8*(1._r8 + 1.45_r8*Kn + 0.4_r8*Kn*EXP(-1._r8/Kn))      &
+           *(Ktherm_air + 2.5_r8*Kn*Ktherm(idx))                      &
+           /((1._r8 + 3._r8*Kn)*(2._r8*Ktherm_air + 5._r8*Kn*Ktherm(idx)+Ktherm(idx)))
 
-   ! set K to 0 if negative
-   if (Kcoll < 0._r8) Kcoll = 0._r8
+      ! calculate T-Tc as in Cotton et al.
+      Tdiff_cotton = -G*(rhwincloud - 1._r8)*latvap/Ktherm_air
+      Q_heat = Ktherm_air/r3lx*(1._r8 + 0.3_r8*Re**0.5_r8*Pr**0.33_r8)*Tdiff_cotton
+      K_thermo_cotton = 4._r8*pi*r3lx*r3lx*f_t*Q_heat/pres
+      K_diffusio_cotton = -(1._r8/f_t)*(rh2o*temp/latvap)*K_thermo_cotton
+      Kcoll(idx) = 1.e6_r8*(K_brownian + K_thermo_cotton + K_diffusio_cotton)  ! convert m3/s -> cm3/s
 
-end function collkernel
+      ! set K to 0 if negative
+      if (Kcoll(idx) < 0._r8) Kcoll(idx) = 0._r8
+   end do
+
+end subroutine collkernel
 
 !===================================================================================================
 

@@ -3529,7 +3529,7 @@ subroutine rad_cnst_get_bin_props(list_idx, bin_idx, opticstype, &
    extpsw, abspsw, asmpsw, absplw, corefrac, nfrac, &
    wgtpct, nwtp, bcdust, nbcdust, kap, nkap, relh, nrelh, &
    sw_hygro_ext_wtp, sw_hygro_ssa_wtp, sw_hygro_asm_wtp, lw_hygro_ext_wtp, &
-   sw_hygro_coreshell_ext, sw_hygro_coreshell_ssa, sw_hygro_coreshell_asm, lw_hygro_coreshell_ext )
+   sw_hygro_coreshell_ext, sw_hygro_coreshell_ssa, sw_hygro_coreshell_asm, lw_hygro_coreshell_ext, dryrad )
 
    ! Return requested properties for the bin from the specified
    ! climate or diagnostic list.
@@ -3565,6 +3565,7 @@ subroutine rad_cnst_get_bin_props(list_idx, bin_idx, opticstype, &
    integer,   optional, intent(out) :: nbcdust
    integer,   optional, intent(out) :: nkap
    integer,   optional, intent(out) :: nrelh
+   real(r8),  optional, intent(out) :: dryrad
 
    ! Local variables
    integer :: id
@@ -3612,6 +3613,7 @@ subroutine rad_cnst_get_bin_props(list_idx, bin_idx, opticstype, &
    if (present(nbcdust))                call physprop_get(id, nbcdust=nbcdust)
    if (present(nkap))                   call physprop_get(id, nkap=nkap)
    if (present(nrelh))                  call physprop_get(id, nrelh=nrelh)
+   if (present(dryrad))                 call physprop_get(id, dryrad_aer=dryrad)
 
 end subroutine rad_cnst_get_bin_props
 

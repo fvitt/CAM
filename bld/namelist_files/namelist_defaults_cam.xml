@@ -89,12 +89,12 @@
 <ncdata dyn="fv"  hgrid="10x15"     nlev="26"  aquaplanet="1"  ic_ymd="101" >atm/cam/inic/fv/aqua_0000-01-01_10x15_L26_c161230.nc</ncdata>
 
 <ncdata dyn="fv"  hgrid="0.9x1.25"  nlev="30"  aquaplanet="1"  ic_ymd="101" >atm/cam/inic/fv/aqua_0006-01-01_0.9x1.25_L30_c161020.nc</ncdata>
-<ncdata dyn="fv"  hgrid="1.9x2.5"   nlev="30"  aquaplanet="1"  ic_ymd="101" >atm/cam/inic/fv/aqua_0006-01-01_1.9x2.5_L30_c161020.nc</ncdata>
-<ncdata dyn="fv"  hgrid="10x15"     nlev="30"  aquaplanet="1"  ic_ymd="101" >atm/cam/inic/fv/aqua_0000-01-01_10x15_L30_c170103.nc</ncdata>
+<ncdata dyn="fv"  hgrid="1.9x2.5"   nlev="30"  aquaplanet="1"  ic_ymd="101" >atm/cam/inic/fv/QPC5_f19_spinup.cam.i.0002-01-01-00000.nc</ncdata>
+<ncdata dyn="fv"  hgrid="10x15"     nlev="30"  aquaplanet="1"  ic_ymd="101" >atm/cam/inic/fv/QPC5_f10_spinup01.cam.i.0002-01-01-00000.nc</ncdata>
 
 <ncdata dyn="fv"  hgrid="0.9x1.25"  nlev="32"  aquaplanet="1"  ic_ymd="101" >atm/cam/inic/fv/aqua_0006-01-01_0.9x1.25_L32_c161020.nc</ncdata>
 <ncdata dyn="fv"  hgrid="1.9x2.5"   nlev="32"  aquaplanet="1"  ic_ymd="101" >atm/cam/inic/fv/aqua_0006-01-01_1.9x2.5_L32_c161020.nc</ncdata>
-<ncdata dyn="fv"  hgrid="10x15"     nlev="32"  aquaplanet="1"  ic_ymd="101" >atm/cam/inic/fv/aqua_0000-01-01_10x15_L32_c170103.nc</ncdata>
+<ncdata dyn="fv"  hgrid="10x15"     nlev="32"  aquaplanet="1"  ic_ymd="101" >atm/cam/inic/fv/aqua_cam6_1Jan_10x15_L32_c220914.nc</ncdata>
 
 <ncdata dyn="fv"  hgrid="0.9x1.25"  nlev="30"  chem="trop_mozart" ic_ymd="19900101" >atm/cam/inic/fv/cami-chem_1990-01-01_0.9x1.25_L30_c080724.nc</ncdata>
 <ncdata dyn="fv"  hgrid="1.9x2.5"   nlev="26"  chem="trop_mozart" ic_ymd="19900101" >atm/cam/inic/fv/cami-chem_1990-01-01_1.9x2.5_L26_c080114.nc</ncdata>
@@ -2116,6 +2116,7 @@
 <nucleate_ice_subgrid_strat microphys="mg3"            >1.2D0</nucleate_ice_subgrid_strat>
 
 <use_hetfrz_classnuc               >.false.</use_hetfrz_classnuc>
+<use_hetfrz_classnuc phys="cam5"   >.true.</use_hetfrz_classnuc>
 <use_hetfrz_classnuc phys="cam6"   >.true.</use_hetfrz_classnuc>
 <use_hetfrz_classnuc phys="cam_dev">.true.</use_hetfrz_classnuc>
 

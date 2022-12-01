@@ -3,7 +3,7 @@ module carma_aerosol_properties_mod
   use physconst, only: pi
   use aerosol_properties_mod, only: aerosol_properties, aero_name_len
   use rad_constituents, only: rad_cnst_get_info, rad_cnst_get_bin_props_by_idx, &
-                              rad_cnst_get_info_by_bin, rad_cnst_get_info_by_bin_spec
+                              rad_cnst_get_info_by_bin, rad_cnst_get_info_by_bin_spec, rad_cnst_get_bin_props
 
   implicit none
 
@@ -26,6 +26,7 @@ module carma_aerosol_properties_mod
      procedure :: icenuc_updates_num
      procedure :: icenuc_updates_mmr
      procedure :: apply_number_limits
+     procedure :: hetfrz_bin
      final :: destructor
   end type carma_aerosol_properties
 
@@ -309,5 +310,34 @@ contains
     integer,  intent(in) :: m               ! mode or bin index
 
   end subroutine apply_number_limits
+
+  !------------------------------------------------------------------------------
+  ! returns TRUE if bin provides heterogeneous freezing nuclei
+  !------------------------------------------------------------------------------
+  function hetfrz_bin(self, bin_ndx) result(res)
+    class(carma_aerosol_properties), intent(in) :: self
+    integer, intent(in) :: bin_ndx  ! bin number
+
+    logical :: res
+
+    real(r8) :: dryrad
+    integer :: ispc
+    character(len=aero_name_len) :: species_type
+
+    res = .false.
+    dryrad = -huge(1._r8)
+
+    do ispc = 1, self%nspecies(bin_ndx)
+       call self%species_type(bin_ndx, ispc, species_type)
+       if ( trim(species_type)=='black-c' .or. trim(species_type)=='dust' ) then
+          res = .true.
+       end if
+    end do
+
+    call rad_cnst_get_bin_props(0, bin_ndx, dryrad=dryrad)
+
+    res = res .and. dryrad > 0.5e-6_r8 ! > 0.5 microns
+
+  end function hetfrz_bin
 
 end module carma_aerosol_properties_mod

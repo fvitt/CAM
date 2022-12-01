@@ -1628,6 +1628,9 @@ subroutine hygroscopic_coreshell_optics_init(phys_prop, nc_id)
    ! read refractive index data if available
    call refindex_aer_init(phys_prop, nc_id)
 
+   ! read bulk aero props
+   call bulk_props_init(phys_prop, nc_id)
+
 end subroutine hygroscopic_coreshell_optics_init
 
 !================================================================================================
