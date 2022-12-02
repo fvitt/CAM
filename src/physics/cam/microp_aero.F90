@@ -611,7 +611,7 @@ subroutine microp_aero_run ( &
 
    ! save copy of cloud borne aerosols for use in heterogeneous freezing
    if (use_hetfrz_classnuc) then
-      call hetfrz_classnuc_cam_save_cbaero(state1, pbuf,  aero_props_obj, aero_state1_obj)
+      call hetfrz_classnuc_cam_save_cbaero(state1, aero_props_obj, aero_state1_obj)
    end if
 
    ! initialize time-varying parameters

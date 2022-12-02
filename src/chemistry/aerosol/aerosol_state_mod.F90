@@ -497,8 +497,6 @@ contains
     real(r8),pointer :: pom_mmr(:,:)
     real(r8),pointer :: aer_mmr(:,:)
 
-    real(r8) :: aer_numdens(ncol,nlev)
-
     integer :: sulf_ndx
     integer :: soa_ndx
     integer :: pom_ndx

@@ -13,7 +13,7 @@ use physconst,      only: rair, cpair, rh2o, rhoh2o, mwh2o, tmelt, pi
 use constituents,   only: cnst_get_ind
 use physics_types,  only: physics_state
 use physics_buffer, only: physics_buffer_desc, pbuf_get_index, pbuf_old_tim_idx, pbuf_get_field
-use phys_control,   only: phys_getopts, use_hetfrz_classnuc
+use phys_control,   only: use_hetfrz_classnuc
 use physics_buffer, only: pbuf_add_field, dtype_r8, pbuf_old_tim_idx, &
                           pbuf_get_index, pbuf_get_field
 use cam_history,    only: addfld, add_default, outfld, fieldname_len
@@ -150,16 +150,11 @@ subroutine hetfrz_classnuc_cam_init(mincld_in, aero_props)
    class(aerosol_properties), intent(in) :: aero_props
 
    ! local variables
-   integer  :: istat
-
-
-   integer :: cnt, ibin, ispc
+   integer :: istat, cnt, ibin, ispc
    character(len=4) :: str4
    character(len=32) :: str32
    character(len=32) :: species_type
    character(len=*), parameter :: routine = 'hetfrz_classnuc_cam_init'
-
-   real(r8) :: dgnum, dgnumlo, dgnumhi
 
    !--------------------------------------------------------------------------------------------
 
@@ -172,7 +167,6 @@ subroutine hetfrz_classnuc_cam_init(mincld_in, aero_props)
             call aero_props%species_type(ibin,ispc, species_type)
             if ( trim(species_type)=='black-c' .or. trim(species_type)=='dust' ) then
                cnt = cnt+1
-               if (masterproc) write(iulog,*) 'FVDBG ibin,ispc,species_type: ',ibin,ispc,species_type
             end if
          end do
       end if
@@ -390,16 +384,6 @@ subroutine hetfrz_classnuc_cam_calc( aero_props, aero_state, &
 
    real(r8) :: lcldm(pcols,pver)
 
-   real(r8) :: awcam(pcols,pver,3)
-   real(r8) :: awfacm(pcols,pver,3)
-   real(r8) :: hetraer(pcols,pver,3)
-   real(r8) :: dstcoat(pcols,pver,3)
-   real(r8) :: total_interstitial_aer_num(pcols,pver,3)
-   real(r8) :: total_cloudborne_aer_num(pcols,pver,3)
-   real(r8) :: total_aer_num(pcols,pver,3)
-   real(r8) :: coated_aer_num(pcols,pver,3)
-   real(r8) :: uncoated_aer_num(pcols,pver,3)
-
    real(r8) :: esi(pcols), esl(pcols)
    real(r8) :: con1, r3lx, supersatice
 
@@ -420,8 +404,6 @@ subroutine hetfrz_classnuc_cam_calc( aero_props, aero_state, &
    real(r8) :: numice10s_imm_dst(pcols,pver)
    real(r8) :: numice10s_imm_bc(pcols,pver)
 
-   real(r8) :: na500(pcols,pver)
-   real(r8) :: tot_na500(pcols,pver)
    real(r8) :: coated(pcols,pver,tot_num_bins)
    real(r8) :: aer_radius(pcols,pver,tot_num_bins)
    real(r8) :: aer_awcam(pcols,pver,tot_num_bins)
@@ -462,10 +444,12 @@ subroutine hetfrz_classnuc_cam_calc( aero_props, aero_state, &
       end do
    end do
 
-
    do i = 1,tot_num_bins
+
       call aero_state%get_amb_species_numdens( indices(i)%bin_ndx, ncol, pver, types(i), aero_props, rho, amb_aer_num(:,:,i))
+
       tot_aer_num(:ncol,:,i) = cld_aer_num(:ncol,:,i,lchnk) + amb_aer_num(:ncol,:,i)
+
       call outfld(tot_dens_hnames(i), tot_aer_num(:,:,i), pcols, lchnk)
       call outfld(amb_dens_hnames(i), amb_aer_num(:,:,i), pcols, lchnk)
       call outfld(cld_dens_hnames(i), cld_aer_num(:,:,i,lchnk), pcols, lchnk)
@@ -475,11 +459,11 @@ subroutine hetfrz_classnuc_cam_calc( aero_props, aero_state, &
 
       call outfld(coated_frac_hnames(i), coated(:,:,i), pcols, lchnk)
 
-      where(coated(:,:,i)>1._r8)
-         coated(:,:,i) = 1._r8
+      where(coated(:ncol,:,i)>1._r8)
+         coated(:ncol,:,i) = 1._r8
       end where
-      where(coated(:,:,i) < 0.001_r8)
-         coated(:,:,i) = 0.001_r8
+      where(coated(:ncol,:,i) < 0.001_r8)
+         coated(:ncol,:,i) = 0.001_r8
       end where
 
       coated_amb_aer_num(:ncol,:,i) = amb_aer_num(:ncol,:,i)*coated(:ncol,:,i)
@@ -492,26 +476,13 @@ subroutine hetfrz_classnuc_cam_calc( aero_props, aero_state, &
       call aero_state%mass_factors(indices(i)%bin_ndx, types(i), ncol, pver, aero_props, rho, aer_awcam(:,:,i), aer_awfacm(:,:,i))
       call outfld(amass_hnames(i), aer_awcam(:,:,i), pcols, lchnk)
       call outfld(awfacm_hnames(i), aer_awfacm(:,:,i), pcols, lchnk)
+      
+      fn_cld_aer_num(:ncol,:) = tot_aer_num(:ncol,:,i)*factnum(:ncol,:,indices(i)%bin_ndx)
+      call outfld(cldfn_dens_hnames(i), fn_cld_aer_num(:ncol,:), pcols, lchnk)
 
-      fn_cld_aer_num(ncol:,:) = tot_aer_num(ncol:,:,i)*factnum(ncol:,:,indices(i)%bin_ndx)
-      call outfld(cldfn_dens_hnames(i), fn_cld_aer_num(ncol:,:), pcols, lchnk)
-
-      fraction_activated(ncol:,:,i) = factnum(ncol:,:,indices(i)%bin_ndx)
+      fraction_activated(:ncol,:,i) = factnum(:ncol,:,indices(i)%bin_ndx)
 
    end do
-
-   ! Init top levels of outputs of get_aer_num
-   total_aer_num              = 0._r8
-   coated_aer_num             = 0._r8
-   uncoated_aer_num           = 0._r8
-   total_interstitial_aer_num = 0._r8
-   total_cloudborne_aer_num   = 0._r8
-   hetraer                    = 0._r8
-   awcam                      = 0._r8
-   awfacm                     = 0._r8
-   dstcoat                    = 0._r8
-   na500                      = 0._r8
-   tot_na500                  = 0._r8
 
    ! frzimm, frzcnt, frzdep are the outputs of this parameterization used by the microphysics
    call pbuf_get_field(pbuf, frzimm_idx, frzimm)
@@ -654,21 +625,17 @@ end subroutine hetfrz_classnuc_cam_calc
 
 !====================================================================================================
 
-subroutine hetfrz_classnuc_cam_save_cbaero(state, pbuf, aero_props, aero_state)
+subroutine hetfrz_classnuc_cam_save_cbaero(state, aero_props, aero_state)
 
    ! Save the required cloud borne aerosol constituents.
    type(physics_state),         intent(in)    :: state
-   type(physics_buffer_desc),   pointer       :: pbuf(:)
    class(aerosol_properties),optional, intent(in) :: aero_props
    class(aerosol_state),optional, intent(in) :: aero_state
 
    ! local variables
    integer :: k, i, lchnk, ncol
-   real(r8), pointer :: ptr2d(:,:)
 
    real(r8) :: rho(pcols,pver)          ! air density (kg m-3)
-   real(r8) :: numdens(pcols,pver)
-
 
    !-------------------------------------------------------------------------------
 

@@ -21,7 +21,7 @@ module hetfrz_classnuc
 !-----------------------------------------------------------------------
 
 use shr_kind_mod,  only: r8 => shr_kind_r8
-use wv_saturation, only: svp_water, svp_ice
+use wv_saturation, only: svp_water
 use shr_spfn_mod,  only: erf => shr_spfn_erf
 
 use physconst,     only:  pi
@@ -155,7 +155,6 @@ subroutine hetfrz_classnuc_calc(ntypes, types,&
    real(r8) :: rhoice
    real(r8) :: sigma_iw                        ! [J/m2]
    real(r8) :: sigma_iv                        ! [J/m2]
-   real(r8) :: esice                           ! [Pa]
    real(r8) :: eswtr                           ! [Pa]
 
    real(r8) :: rgimm    ! critical germ size
@@ -236,9 +235,8 @@ subroutine hetfrz_classnuc_calc(ntypes, types,&
    frzducnt= 0._r8
    frzdudep = 0._r8
 
-   ! get saturation vapor pressures
+   ! get saturation vapor pressure
    eswtr = svp_water(t)  ! 0 for liquid
-   esice = svp_ice(t)    ! 1 for ice
 
    tc = t - tmelt
    rhoice = 916.7_r8-0.175_r8*tc-5.e-4_r8*tc**2
@@ -310,8 +308,8 @@ subroutine hetfrz_classnuc_calc(ntypes, types,&
       end select
 
       call hetfrz_classnuc_calc_rates( f_dep, f_cnt, f_imm, dga_dep, dga_imm, pdf_imm, limfac, &
-           kcoll(ispc), hetraer(ispc), icnlx, r3lx, t, supersatice, sigma_iw, sigma_iv, &
-           rgimm, rgdep, dg0dep, Adep, dg0cnt, Acnt, vwice, eswtr, deltat, &
+           kcoll(ispc), hetraer(ispc), icnlx, r3lx, t, supersatice, sigma_iw, &
+           rgimm, rgdep, dg0dep, Adep, dg0cnt, Acnt, vwice, deltat, &
            fn(ispc), awcam(ispc), awfacm(ispc), dstcoat(ispc), &
            total_aer_num(ispc), total_interstitial_aer_num(ispc), total_cloudborne_aer_num(ispc), uncoated_aer_num(ispc), &
            frzimm, frzcnt, frzdep, errstring )
@@ -326,8 +324,8 @@ subroutine hetfrz_classnuc_calc(ntypes, types,&
  end subroutine  hetfrz_classnuc_calc
 
  subroutine  hetfrz_classnuc_calc_rates( f_dep, f_cnt, f_imm, dga_dep, dga_imm, pdf_imm, limfac, &
-      kcoll, mradius, icnlx, r3lx, t, supersatice, sigma_iw, sigma_iv, &
-      rgimm, rgdep, dg0dep, Adep, dg0cnt, Acnt, vwice, eswtr, deltat, &
+      kcoll, mradius, icnlx, r3lx, t, supersatice, sigma_iw, &
+      rgimm, rgdep, dg0dep, Adep, dg0cnt, Acnt, vwice, deltat, &
       fn, awcam, awfacm, dstcoat, &
       total_aer_num, total_interstitial_aer_num, total_cloudborne_aer_num, uncoated_aer_num, &
       frzimm, frzcnt, frzdep, errstring )
@@ -347,7 +345,6 @@ subroutine hetfrz_classnuc_calc(ntypes, types,&
    real(r8), intent(in) :: t                          ! temperature [K]
    real(r8), intent(in) :: supersatice                ! supersaturation ratio wrt ice at 100%rh over water [ ]
    real(r8), intent(in) :: sigma_iw                   ! [J/m2]
-   real(r8), intent(in) :: sigma_iv                   ! [J/m2]
    real(r8), intent(in) :: rgimm                      ! critical germ size
    real(r8), intent(in) :: rgdep                      ! critical germ size
    real(r8), intent(in) :: dg0dep                     ! homogeneous energy of germ formation
@@ -356,7 +353,6 @@ subroutine hetfrz_classnuc_calc(ntypes, types,&
    real(r8), intent(in) :: Acnt                       ! prefactor
 
    real(r8), intent(in) :: vwice
-   real(r8), intent(in) :: eswtr
    real(r8), intent(in) :: deltat                     ! timestep [s]
    real(r8), intent(in) :: fn                         ! fraction activated [ ] for cloud borne aerosol number
    real(r8), intent(in) :: awcam                      ! modal added mass [mug m-3]
