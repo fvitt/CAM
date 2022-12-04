@@ -592,32 +592,36 @@ subroutine collkernel( temp, pres, eswtr, rhwincloud, r3lx,  rad, Ktherm, Kcoll 
        + rhoh2o*rh2o*temp/(Dvap*eswtr))
 
    do idx = 1,ntot
-      ! Knudsen number (Seinfeld & Pandis 8.1)
-      Kn = lambda/rad(idx)
-      ! aerosol diffusivity
-      Daer = kboltz*temp*(1 + Kn)/(6*pi*rad(idx)*viscos_air)
+      if (rad(idx)>0._r8) then
+         ! Knudsen number (Seinfeld & Pandis 8.1)
+         Kn = lambda/rad(idx)
+         ! aerosol diffusivity
+         Daer = kboltz*temp*(1 + Kn)/(6*pi*rad(idx)*viscos_air)
 
-      ! Schmidt number
-      Sc = viscos_air/(Daer*rho_air)
+         ! Schmidt number
+         Sc = viscos_air/(Daer*rho_air)
 
-      ! Young (1974) first equ. on page 771
-      K_brownian = 4*pi*r3lx*Daer*(1 + 0.3_r8*Re**0.5_r8*Sc**0.33_r8)
+         ! Young (1974) first equ. on page 771
+         K_brownian = 4*pi*r3lx*Daer*(1 + 0.3_r8*Re**0.5_r8*Sc**0.33_r8)
 
-      ! thermal conductivities from Seinfeld & Pandis, Table 8.6
-      ! form factor
-      f_t = 0.4_r8*(1._r8 + 1.45_r8*Kn + 0.4_r8*Kn*EXP(-1._r8/Kn))      &
-           *(Ktherm_air + 2.5_r8*Kn*Ktherm(idx))                      &
-           /((1._r8 + 3._r8*Kn)*(2._r8*Ktherm_air + 5._r8*Kn*Ktherm(idx)+Ktherm(idx)))
+         ! thermal conductivities from Seinfeld & Pandis, Table 8.6
+         ! form factor
+         f_t = 0.4_r8*(1._r8 + 1.45_r8*Kn + 0.4_r8*Kn*EXP(-1._r8/Kn))      &
+              *(Ktherm_air + 2.5_r8*Kn*Ktherm(idx))                      &
+              /((1._r8 + 3._r8*Kn)*(2._r8*Ktherm_air + 5._r8*Kn*Ktherm(idx)+Ktherm(idx)))
 
-      ! calculate T-Tc as in Cotton et al.
-      Tdiff_cotton = -G*(rhwincloud - 1._r8)*latvap/Ktherm_air
-      Q_heat = Ktherm_air/r3lx*(1._r8 + 0.3_r8*Re**0.5_r8*Pr**0.33_r8)*Tdiff_cotton
-      K_thermo_cotton = 4._r8*pi*r3lx*r3lx*f_t*Q_heat/pres
-      K_diffusio_cotton = -(1._r8/f_t)*(rh2o*temp/latvap)*K_thermo_cotton
-      Kcoll(idx) = 1.e6_r8*(K_brownian + K_thermo_cotton + K_diffusio_cotton)  ! convert m3/s -> cm3/s
+         ! calculate T-Tc as in Cotton et al.
+         Tdiff_cotton = -G*(rhwincloud - 1._r8)*latvap/Ktherm_air
+         Q_heat = Ktherm_air/r3lx*(1._r8 + 0.3_r8*Re**0.5_r8*Pr**0.33_r8)*Tdiff_cotton
+         K_thermo_cotton = 4._r8*pi*r3lx*r3lx*f_t*Q_heat/pres
+         K_diffusio_cotton = -(1._r8/f_t)*(rh2o*temp/latvap)*K_thermo_cotton
+         Kcoll(idx) = 1.e6_r8*(K_brownian + K_thermo_cotton + K_diffusio_cotton)  ! convert m3/s -> cm3/s
 
-      ! set K to 0 if negative
-      if (Kcoll(idx) < 0._r8) Kcoll(idx) = 0._r8
+         ! set K to 0 if negative
+         if (Kcoll(idx) < 0._r8) Kcoll(idx) = 0._r8
+      else
+         Kcoll(idx) = 0._r8
+      endif
    end do
 
 end subroutine collkernel

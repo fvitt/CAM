@@ -560,7 +560,11 @@ contains
 
     tmp1(:ncol,:) = vol_shell(:ncol,:)*(radius(:ncol,:)*2._r8)*fac_volsfc
     tmp2(:ncol,:) = max(6.0_r8*dr_so4_monolayers_dust*vol_core(:ncol,:), 0.0_r8)
-    frac(:ncol,:) = tmp1(:ncol,:)/tmp2(:ncol,:)
+    where(tmp1(:ncol,:)>0._r8 .and. tmp2(:ncol,:)>0._r8)
+       frac(:ncol,:) = tmp1(:ncol,:)/tmp2(:ncol,:)
+    elsewhere
+       frac(:ncol,:) = 0._r8
+    end where
 
   end function coated_frac
 
@@ -594,7 +598,12 @@ contains
     call self%get_amb_species_numdens(bin_ndx, ncol, nlev, species_type, aero_props, rho, aer_numdens)
 
     aer_massdens(:ncol,:) = aer_mmr(:ncol,:)*rho(:ncol,:)
-    radius(:ncol,:) = (3._r8/(4*pi*specdens)*aer_massdens(:ncol,:)/(aer_numdens(:ncol,:)*1.0e6_r8))**(1._r8/3._r8) ! cm
+
+    where(aer_massdens(:ncol,:)>0._r8 .and. aer_numdens(:ncol,:)>0._r8)
+       radius(:ncol,:) = (3._r8/(4*pi*specdens)*aer_massdens(:ncol,:)/(aer_numdens(:ncol,:)*1.0e6_r8))**(1._r8/3._r8) ! cm
+    elsewhere
+       radius(:ncol,:) = 0._r8
+    end where
 
   end function mass_mean_radius
 
@@ -642,9 +651,17 @@ contains
     call self%get_amb_species_numdens(bin_ndx, ncol, nlev, species_type, aero_props, rho, aer_numdens)
     call self%get_ambient_num(bin_ndx, bin_num)
 
-    awcam(:ncol,:) = (aer_numdens(:ncol,:)*1.e6_r8)/bin_num(:ncol,:) * (tot1_mmr(:ncol,:)) *1.0e9_r8 ! [mug m-3]
+    where(bin_num(:ncol,:)>0._r8)
+       awcam(:ncol,:) = (aer_numdens(:ncol,:)*1.e6_r8)/bin_num(:ncol,:) * (tot1_mmr(:ncol,:)) *1.0e9_r8 ! [mug m-3]
+    elsewhere
+       awcam(:ncol,:) = 0._r8
+    end where
 
-    awfacm(:ncol,:) = tot2_mmr(:ncol,:) / tot1_mmr(:ncol,:)
+    where(tot1_mmr(:ncol,:)>0)
+       awfacm(:ncol,:) = tot2_mmr(:ncol,:) / tot1_mmr(:ncol,:)
+    elsewhere
+       awcam(:ncol,:) = 0._r8
+    end where
 
   end subroutine mass_factors
 
