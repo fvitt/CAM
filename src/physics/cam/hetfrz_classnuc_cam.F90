@@ -162,14 +162,11 @@ subroutine hetfrz_classnuc_cam_init(mincld_in, aero_props)
 
    cnt = 0
    do ibin = 1, aero_props%nbins()
-      if (aero_props%hetfrz_bin(ibin)) then
-         do ispc = 1, aero_props%nspecies(ibin)
-            call aero_props%species_type(ibin,ispc, species_type)
-            if ( trim(species_type)=='black-c' .or. trim(species_type)=='dust' ) then
-               cnt = cnt+1
-            end if
-         end do
-      end if
+      do ispc = 1, aero_props%nspecies(ibin)
+         if (aero_props%hetfrz_species(ibin,ispc)) then
+            cnt = cnt+1
+         end if
+      end do
    end do
 
    tot_num_bins = cnt
@@ -213,55 +210,54 @@ subroutine hetfrz_classnuc_cam_init(mincld_in, aero_props)
 
    cnt = 0
    do ibin = 1, aero_props%nbins()
-      if (aero_props%hetfrz_bin(ibin)) then
 
-         do ispc = 1, aero_props%nspecies(ibin)
-            call aero_props%species_type(ibin,ispc, species_type)
-            if ( trim(species_type)=='black-c' .or. trim(species_type)=='dust' ) then
-               cnt = cnt+1
-               indices(cnt)%bin_ndx = ibin
-               indices(cnt)%spc_ndx = ispc
-               types(cnt) = trim(species_type)
-               write(str4,'(I4)') ibin
-               str32 =  trim(species_type)//trim(adjustl(str4))
+      do ispc = 1, aero_props%nspecies(ibin)
+         if (aero_props%hetfrz_species(ibin,ispc)) then
+            call aero_props%species_type(ibin, ispc, species_type)
+            cnt = cnt+1
+            indices(cnt)%bin_ndx = ibin
+            indices(cnt)%spc_ndx = ispc
+            types(cnt) = trim(species_type)
+            write(str4,'(I4)') ibin
+            str32 =  trim(species_type)//trim(adjustl(str4))
 
-               cldfn_dens_hnames(cnt) = trim(str32)//'_cld_fn'
-               tot_dens_hnames(cnt) = trim(str32)//'_tot_num'
-               cld_dens_hnames(cnt) = trim(str32)//'_cld_num'
-               amb_dens_hnames(cnt) = trim(str32)//'_amb_num'
-               coated_dens_hnames(cnt) = trim(str32)//'_coated'
-               uncoated_dens_hnames(cnt) = trim(str32)//'_uncoated'
-               coated_frac_hnames(cnt) = trim(str32)//'_coated_frac'
-               radius_hnames(cnt) = trim(str32)//'_radius'
-               amass_hnames(cnt) = trim(str32)//'_amass'
-               awfacm_hnames(cnt) = trim(str32)//'_awfacm'
+            cldfn_dens_hnames(cnt) = trim(str32)//'_cld_fn'
+            tot_dens_hnames(cnt) = trim(str32)//'_tot_num'
+            cld_dens_hnames(cnt) = trim(str32)//'_cld_num'
+            amb_dens_hnames(cnt) = trim(str32)//'_amb_num'
+            coated_dens_hnames(cnt) = trim(str32)//'_coated'
+            uncoated_dens_hnames(cnt) = trim(str32)//'_uncoated'
+            coated_frac_hnames(cnt) = trim(str32)//'_coated_frac'
+            radius_hnames(cnt) = trim(str32)//'_radius'
+            amass_hnames(cnt) = trim(str32)//'_amass'
+            awfacm_hnames(cnt) = trim(str32)//'_awfacm'
 
-               call addfld(tot_dens_hnames(cnt),(/ 'lev' /), 'A', '#/cm3', &
-                    'total '//trim(str32)//' number density' )
-               call addfld(cld_dens_hnames(cnt),(/ 'lev' /), 'A', '#/cm3', &
-                    'cloud borne '//trim(str32)//' number density' )
-               call addfld(cldfn_dens_hnames(cnt),(/ 'lev' /), 'A', '#/cm3', &
-                    'cloud borne '//trim(str32)//' number density derived from fn' )
-               call addfld(amb_dens_hnames(cnt),(/ 'lev' /), 'A', '#/cm3', &
-                    'ambient '//trim(str32)//' number density' )
-               call addfld(coated_dens_hnames(cnt),(/ 'lev' /), 'A', '#/cm3', &
-                    'coated '//trim(str32)//' number density' )
-               call addfld(uncoated_dens_hnames(cnt),(/ 'lev' /), 'A', '#/cm3', &
-                    'uncoated '//trim(str32)//' number density' )
-               call addfld(coated_frac_hnames(cnt),(/ 'lev' /), 'A', '#/cm3', &
-                    'coated '//trim(str32)//' fraction' )
-               call addfld(radius_hnames(cnt),(/ 'lev' /), 'A', 'm', &
-                    'ambient '//trim(str32)//' radius' )
-               call addfld(amass_hnames(cnt),(/ 'lev' /), 'A', ' ', &
-                    trim(str32)//' added mass' )
-               call addfld(awfacm_hnames(cnt),(/ 'lev' /), 'A', ' ', &
-                    trim(str32)//' awfacm fraction' )
+            call addfld(tot_dens_hnames(cnt),(/ 'lev' /), 'A', '#/cm3', &
+                 'total '//trim(str32)//' number density' )
+            call addfld(cld_dens_hnames(cnt),(/ 'lev' /), 'A', '#/cm3', &
+                 'cloud borne '//trim(str32)//' number density' )
+            call addfld(cldfn_dens_hnames(cnt),(/ 'lev' /), 'A', '#/cm3', &
+                 'cloud borne '//trim(str32)//' number density derived from fn' )
+            call addfld(amb_dens_hnames(cnt),(/ 'lev' /), 'A', '#/cm3', &
+                 'ambient '//trim(str32)//' number density' )
+            call addfld(coated_dens_hnames(cnt),(/ 'lev' /), 'A', '#/cm3', &
+                 'coated '//trim(str32)//' number density' )
+            call addfld(uncoated_dens_hnames(cnt),(/ 'lev' /), 'A', '#/cm3', &
+                 'uncoated '//trim(str32)//' number density' )
+            call addfld(coated_frac_hnames(cnt),(/ 'lev' /), 'A', '#/cm3', &
+                 'coated '//trim(str32)//' fraction' )
+            call addfld(radius_hnames(cnt),(/ 'lev' /), 'A', 'microns', &
+                 'ambient '//trim(str32)//' radius' )
+            call addfld(amass_hnames(cnt),(/ 'lev' /), 'A', ' ', &
+                 trim(str32)//' added mass' )
+            call addfld(awfacm_hnames(cnt),(/ 'lev' /), 'A', ' ', &
+                 trim(str32)//' awfacm fraction' )
 
-            end if
-         end do
+         end if
+      end do
 
-      end if
    end do
+
 
    mincld = mincld_in
 
@@ -455,6 +451,7 @@ subroutine hetfrz_classnuc_cam_calc( aero_props, aero_state, &
       call outfld(cld_dens_hnames(i), cld_aer_num(:,:,i,lchnk), pcols, lchnk)
 
       aer_radius(:ncol,:,i) = aero_state%mass_mean_radius( indices(i)%bin_ndx, indices(i)%spc_ndx,  ncol, pver, aero_props, rho )
+
       coated(:ncol,:,i) = aero_state%coated_frac( indices(i)%bin_ndx, types(i), ncol, pver, aero_props, rho, aer_radius(:,:,i) )
 
       call outfld(coated_frac_hnames(i), coated(:,:,i), pcols, lchnk)
@@ -471,7 +468,7 @@ subroutine hetfrz_classnuc_cam_calc( aero_props, aero_state, &
 
       call outfld(coated_dens_hnames(i), coated_amb_aer_num(:,:,i), pcols, lchnk)
       call outfld(uncoated_dens_hnames(i), uncoated_amb_aer_num(:,:,i), pcols, lchnk)
-      call outfld(radius_hnames(i), aer_radius(:,:,i), pcols, lchnk)
+      call outfld(radius_hnames(i), aer_radius(:,:,i)*1.0e6_r8, pcols, lchnk)
 
       call aero_state%mass_factors(indices(i)%bin_ndx, types(i), ncol, pver, aero_props, rho, aer_awcam(:,:,i), aer_awfacm(:,:,i))
       call outfld(amass_hnames(i), aer_awcam(:,:,i), pcols, lchnk)
