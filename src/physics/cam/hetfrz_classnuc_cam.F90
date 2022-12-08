@@ -258,7 +258,6 @@ subroutine hetfrz_classnuc_cam_init(mincld_in, aero_props)
 
    end do
 
-
    mincld = mincld_in
 
    call cnst_get_ind('CLDLIQ', cldliq_idx)
@@ -468,7 +467,7 @@ subroutine hetfrz_classnuc_cam_calc( aero_props, aero_state, &
 
       call outfld(coated_dens_hnames(i), coated_amb_aer_num(:,:,i), pcols, lchnk)
       call outfld(uncoated_dens_hnames(i), uncoated_amb_aer_num(:,:,i), pcols, lchnk)
-      call outfld(radius_hnames(i), aer_radius(:,:,i)*1.0e6_r8, pcols, lchnk)
+      call outfld(radius_hnames(i), aer_radius(:ncol,:,i)*1.0e6_r8, ncol, lchnk)
 
       call aero_state%mass_factors(indices(i)%bin_ndx, types(i), ncol, pver, aero_props, rho, aer_awcam(:,:,i), aer_awfacm(:,:,i))
       call outfld(amass_hnames(i), aer_awcam(:,:,i), pcols, lchnk)
