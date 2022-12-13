@@ -1240,6 +1240,7 @@ if ($carma ne 'none') {
   add_default($nl, 'carma_model',       'val'=>$carma);
   add_default($nl, 'carma_flag',        'val'=>'.true.');
   add_default($nl, 'history_carma',     'val'=>'.true.');
+  add_default($nl, 'carma_sulfnuc_method','val'=>'ZhaoTurco');
 }
 if ($carma eq 'bc_strat') {
   add_default($nl, 'carma_do_drydep',   'val'=>'.true.');
@@ -1572,9 +1573,6 @@ elsif ($carma =~ /trop_strat/) {
     add_default($nl, 'BC_GFEDv3_filename');
     add_default($nl, 'OC_GFEDv3_filename');
   }
-}
-if ($carma ne 'none') {
-  add_default($nl, 'carma_sulfnuc_method', 'val'=>'ZhaoTurco');
 }
 
 # Stratospheric sulfur aerosols

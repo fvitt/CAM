@@ -61,7 +61,7 @@ module carma_flags_mod
   real(r8), protected          :: carma_rhcrit      = 1.0_r8    ! Critical relative humidity for liquid clouds
   real(r8), protected          :: carma_vf_const    = 0.0_r8    ! If specified and non-zero, constant fall velocity for all particles [cm/s]
   character(len=32), protected :: carma_model       = "none"    ! String (no spaces) that identifies the model
-  character(len=10), protected :: carma_sulfnuc_method = "none"    ! Nucleation method
+  character(len=10), protected :: carma_sulfnuc_method = "none" ! Sulfate Nucleation method
 
 contains
 

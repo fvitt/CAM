@@ -318,7 +318,7 @@ contains
     ! assumptions made in the CAM energy checking and microphysics code.
     call CARMA_Initialize(carma, &
                           rc, &
-                          !nucl_method = carma_sulfnuc_method, &
+                          sulfnucl_method = carma_sulfnuc_method, &
                           do_coremasscheck = carma_do_coremasscheck, &
                           do_clearsky   = carma_do_clearsky, &
                           do_cnst_rlh   = .true., &
