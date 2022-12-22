@@ -312,7 +312,8 @@ contains
   end subroutine apply_number_limits
 
   !------------------------------------------------------------------------------
-  ! returns TRUE if bin provides heterogeneous freezing nuclei
+  ! returns TRUE if species `spc_ndx` in aerosol subset `bin_ndx` contributes to
+  ! the particles' ability to act as heterogeneous freezing nuclei
   !------------------------------------------------------------------------------
   function hetfrz_species(self, bin_ndx, spc_ndx) result(res)
     class(carma_aerosol_properties), intent(in) :: self
