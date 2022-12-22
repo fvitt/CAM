@@ -461,7 +461,7 @@ subroutine hetfrz_classnuc_cam_calc( aero_props, aero_state, &
       call outfld(awfacm_hnames(i), aer_awfacm(:,:,i), pcols, lchnk)
 
       fn_cld_aer_num(:ncol,:) = tot_aer_num(:ncol,:,i)*factnum(:ncol,:,indices(i)%bin_ndx)
-      call outfld(cldfn_dens_hnames(i), fn_cld_aer_num(:ncol,:), pcols, lchnk)
+      call outfld(cldfn_dens_hnames(i), fn_cld_aer_num, pcols, lchnk)
 
       fraction_activated(:ncol,:,i) = factnum(:ncol,:,indices(i)%bin_ndx)
 

@@ -43,8 +43,6 @@ module carma_model_mod
   use time_manager,   only: is_first_step
   use cam_logfile,    only: iulog
 
-  use cam_history,  only: addfld, outfld, add_default
-
   implicit none
 
   private
@@ -355,10 +353,6 @@ contains
          !write(*,*) trim(sname)//outputbin//"_kappa"
          call pbuf_add_field(trim(sname)//outputbin//"_wetr",'global', dtype_r8, (/pcols, pver/), ipbuf4wetr(ibin,igroup))
          call pbuf_add_field(trim(sname)//outputbin//"_dryr",'global', dtype_r8, (/pcols, pver/), ipbuf4dryr(ibin,igroup))
-
-         call addfld(trim(sname)//outputbin//"_dryr", (/ 'lev' /), 'A', 'cm', 'Dry radius')
-         call add_default(trim(sname)//outputbin//"_dryr", 2, ' ')
-
          call pbuf_add_field(trim(sname)//outputbin//"_rmass",'global', dtype_r8, (/pcols/), ipbuf4rmass(ibin,igroup))
          call pbuf_add_field(trim(sname)//outputbin//"_sad", 'global', dtype_r8, (/pcols, pver/), ipbuf4sad(ibin,igroup))
          if (igroup==I_GRP_MXAER) then
@@ -592,7 +586,7 @@ contains
              if (rc /= RC_OK) call endrun('CARMA_DiagnoseBins::CARMAGROUP_SetBin failed.')
 
           end if  !mxsoa
-
+          
           mmr_core(:) = mmr_core(:) + mmr(:)
 
           !update mmr_total and check that not smaller than core mass
@@ -667,7 +661,6 @@ contains
     integer                              :: ibin, igroup, igas, icomposition
     integer                              :: icorelem(NELEM), ncore,ienconc,icore
     character(len=8)                     :: sname                 !! short (CAM) name
-    character(len=2)                     :: outputbin
 
     real(r8), pointer, dimension(:,:)    :: sadsulf_ptr           !! Total surface area density pointer (cm2/cm3)
     real(r8), pointer, dimension(:,:)    :: reffaer_ptr           !! Total effective radius pointer (cm) for history output
@@ -814,10 +807,6 @@ contains
 
         !write(*,*) 'CARMA igroup, ibin, rmass(ibin), rhop_dry',igroup, ibin, rmass(ibin), rhop_dry(:cstate%f_NZ)
         !write(*,*) 'CARMA dryr igroup, ibin',igroup, ibin, dryr_ptr(icol, :cstate%f_NZ)
-
-        write (outputbin, "(I2.2)") ibin
-
-        call outfld(trim(sname)//outputbin//"_dryr", dryr_ptr, pcols, state%lchnk)
 
       end do !NBIN
     end do !NGROUP
