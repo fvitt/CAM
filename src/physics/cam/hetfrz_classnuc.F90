@@ -38,6 +38,9 @@ real(r8) :: rhoh2o
 real(r8) :: mwh2o
 real(r8) :: tmelt
 
+real(r8) :: bc_limfac = -huge(1._r8)
+real(r8) :: dust_limfac = -huge(1._r8)
+
 !*****************************************************************************
 !                PDF theta model
 !*****************************************************************************
@@ -78,7 +81,7 @@ contains
 
 subroutine hetfrz_classnuc_init( &
    rair_in, cpair_in, rh2o_in, rhoh2o_in, mwh2o_in, &
-   tmelt_in, iulog_in)
+   tmelt_in, iulog_in, bc_limfac_in, dust_limfac_in)
 
    real(r8), intent(in) :: rair_in
    real(r8), intent(in) :: cpair_in
@@ -87,6 +90,8 @@ subroutine hetfrz_classnuc_init( &
    real(r8), intent(in) :: mwh2o_in
    real(r8), intent(in) :: tmelt_in
    integer,  intent(in) :: iulog_in
+   real(r8), intent(in) :: bc_limfac_in
+   real(r8), intent(in) :: dust_limfac_in
 
    rair   = rair_in
    cpair  = cpair_in
@@ -95,6 +100,9 @@ subroutine hetfrz_classnuc_init( &
    mwh2o  = mwh2o_in
    tmelt  = tmelt_in
    iulog  = iulog_in
+
+   bc_limfac = bc_limfac_in
+   dust_limfac = dust_limfac_in
 
    ! Initialize all the PDF theta variables:
    if (pdf_imm_in) then
@@ -287,7 +295,7 @@ subroutine hetfrz_classnuc_calc(ntypes, types,&
          dga_dep = dga_dep_bc
          dga_imm = dga_imm_bc
          pdf_imm = .false.
-         limfac = 0.01_r8 ! Limit to 1% of available potential IN (for BC), no limit for dust
+         limfac = bc_limfac
          frzimm_ptr => frzbcimm
          frzcnt_ptr => frzbccnt
          frzdep_ptr => frzbcdep
@@ -298,7 +306,7 @@ subroutine hetfrz_classnuc_calc(ntypes, types,&
          dga_dep = dga_dep_dust
          dga_imm = dga_imm_dust
          pdf_imm = .true.
-         limfac = 1._r8
+         limfac = dust_limfac
       case default
          errstring = 'hetfrz_classnuc_calc ERROR: unrecognized aerosol type: '//trim(types(ispc))
          return
