@@ -13,7 +13,8 @@ module mo_neu_wetdep
   use spmd_utils,       only : masterproc
   use cam_abortutils,   only : endrun
   use shr_drydep_mod,   only : n_species_table, species_name_table, dheff
-  use gas_wetdep_opts,  only : gas_wetdep_method, gas_wetdep_list, gas_wetdep_cnt
+  use gas_wetdep_opts,  only : gas_wetdep_method, gas_wetdep_list, gas_wetdep_cnt, gas_wetdep_do_aq_nox
+  use physconst,        only : mwdry, mwh2o, pstd
 !
   implicit none
 !
@@ -27,8 +28,10 @@ module mo_neu_wetdep
   real(r8),allocatable, dimension(:) :: mol_weight
   logical ,allocatable, dimension(:) :: ice_uptake
   integer                     :: index_cldice,index_cldliq,nh3_ndx,co2_ndx,so2_ndx
-  logical                     :: debug   = .false.
+  logical,parameter           :: debug = .false.
   integer                     :: hno3_ndx = 0
+  integer                     :: no_ndx = 0
+  integer                     :: no2_ndx = 0
 !
 ! diagnostics
 !
@@ -41,6 +44,7 @@ module mo_neu_wetdep
   logical :: do_neu_wetdep
 !
   real(r8), parameter  :: TICE=263._r8
+  real(r8), parameter  :: pstd_hpa = pstd / 100._r8
 
 contains
 
@@ -72,15 +76,15 @@ subroutine neu_wetdep_init
 !
 ! find mapping to heff table
 !
-  if ( debug ) then
-    print '(a,i4)','gas_wetdep_cnt=',gas_wetdep_cnt
-    print '(a,i4)','n_species_table=',n_species_table
+  if ( debug .and. masterproc ) then
+    write(iulog,'(a,i4)') 'gas_wetdep_cnt=',gas_wetdep_cnt
+    write(iulog,'(a,i4)') 'n_species_table=',n_species_table
   end if
   mapping_to_heff = -99
   do m=1,gas_wetdep_cnt
 !
     test_name = gas_wetdep_list(m)
-    if ( debug ) print '(i4,a)',m,trim(test_name)
+    if ( debug .and. masterproc ) write(iulog,'(i4,a)') m,trim(test_name)
 !
 ! mapping based on the MOZART4 wet removal subroutine;
 ! this might need to be redone (JFL: Sep 2010)
@@ -111,16 +115,16 @@ subroutine neu_wetdep_init
 !
     do l = 1,n_species_table
 !
-!      if ( debug ) print '(i4,a)',l,trim(species_name_table(l))
+!      if ( debug .and. masterproc ) write(iulog,'(i4,a)') l,trim(species_name_table(l))
 !
        if( trim(test_name) == trim( species_name_table(l) ) ) then
           mapping_to_heff(m)  = l
-          if ( debug ) print '(a,a,i4)','mapping to heff of ',trim(species_name_table(l)),l
+          if ( debug .and. masterproc ) write(iulog,'(a,a,i4)') 'mapping to heff of ',trim(species_name_table(l)),l
           exit
        end if
     end do
     if ( mapping_to_heff(m) == -99 ) then
-      if (masterproc) print *,'problem with mapping_to_heff of ',trim(test_name)
+      if (masterproc) write(iulog,*) 'problem with mapping_to_heff of ',trim(test_name)
 !      call endrun()
     end if
 !
@@ -138,10 +142,20 @@ subroutine neu_wetdep_init
     if ( trim(test_name) == 'SO2' ) then
       so2_ndx = m
     end if
+    if ( trim(gas_wetdep_list(m)) == 'NO' ) then
+      no_ndx = m
+    end if
+    if ( trim(gas_wetdep_list(m)) == 'NO2' ) then
+      no2_ndx = m
+    end if
 !
   end do
 
-   if (any ( mapping_to_heff(:) == -99 ))  call endrun('mo_neu_wet->depwetdep_init: unmapped species error' )
+  if (gas_wetdep_do_aq_nox .and. ( no_ndx<1 .or. no2_ndx<1 )) then
+    call endrun('mo_neu_wet->depwetdep_init: gas_wetdep_do_aq_nox requires NO and NO2 in wetdep list' )
+  end if
+
+  if (any ( mapping_to_heff(:) == -99 ))  call endrun('mo_neu_wet->depwetdep_init: unmapped species error' )
 !
   if ( debug .and. masterproc ) then
     write(iulog, '(a,i4)') 'co2_ndx',co2_ndx
@@ -206,6 +220,14 @@ subroutine neu_wetdep_init
     end if
   end if
 !
+  ! For NOx aqueous chemistry
+  if (gas_wetdep_do_aq_nox) then
+    call addfld     ('OHEFF_NO',(/ 'lev' /), 'A','M atm-1','Original Henry Law, NO')
+    call addfld     ('OHEFF_NO2',(/ 'lev' /), 'A','M atm-1','Original Henry Law, NO2')
+    call addfld     ('WDAQ_NO2',(/ 'lev' /), 'A','M','Aqueous 2NO2 Reaction Amount')
+    call addfld     ('WDAQ_NONO2',(/ 'lev' /), 'A','M','Aqueous NO+NO2 Reaction Amount')
+  end if
+
   return
 !
 end subroutine neu_wetdep_init
@@ -261,12 +283,17 @@ subroutine neu_wetdep_tend(lchnk,ncol,mmr,pmid,pdel,zint,tfld,delt, &
   real(r8)                  :: e298, dhr
   real(r8), dimension(ncol) :: dk1s,dk2s,wrk
   real(r8) :: lats(pcols)
-
-  real(r8), parameter :: rad2deg = 180._r8/pi
-
 !
-! from cam/src/physics/cam/stratiform.F90
-!
+! For Aqueous NOx
+  real(r8), parameter            :: k1 = 1.e8_r8   ! From Lee and Schwartz (1981) (M-1 s-1)
+  real(r8), parameter            :: k2 = 7.e2_r8   ! From Lee and Schwartz (1981) (M-1 s-1)
+  real(r8), parameter            :: tc1 = 0.7_r8 * 3600._r8 ! Cloud droplet lifetime (s) Kasting, 1985
+  real(r8), dimension(ncol,pver) :: pno            ! Pno (atm)
+  real(r8), dimension(ncol,pver) :: pno2           ! Pno2 (atm)
+  real(r8), dimension(ncol,pver) :: r1             ! R1 Aqueous rate (M s-1)
+  real(r8), dimension(ncol,pver) :: r2             ! R2 Aqueous rate (M s-1)
+  real(r8), dimension(ncol,pver) :: heff_no        ! Original Henry's Law Value for NO (M atm-1)
+  real(r8), dimension(ncol,pver) :: heff_no2       ! Original Henry's Law Value for NO2 (M atm-1)
 
   if (.not.do_neu_wetdep) return
 !
@@ -380,6 +407,43 @@ subroutine neu_wetdep_tend(lchnk,ncol,mmr,pmid,pdel,zint,tfld,delt, &
       end if
 !
     end do
+
+    ! CGB: Add aqueous chemistry for NO and NO2. This increases removal in
+    ! high NOx environments, particularly if HNO3 removal is suppressed.
+    !
+    ! This implements R1 and R2 from Lee and Schwartz (1981) following the
+    ! approach of Eqs. 3, 8, and 11 by adjusting the Henry's Law coefficient to
+    ! account for the extra dissolution of NO and NO2.
+    !
+    ! R1 : 2NO2(g) + H2O(l) -> 2H+ + NO3- + NO2-
+    ! R2 : NO(g) + NO2(g) + H2O(l) -> 2H+ + 2NO2-
+    !
+    ! Eq 3  : R1(aq) = k1 * Hno2*2 * pn2o^2
+    ! Eq 11 : R2(aq) = k2 * Hno * Hno2 * pno * pno2
+    !
+    ! Eq 8  : R1(g) = L * R * T * k1 * Hno2^2 * pno2^2
+    !
+    ! NOTE: Kastings (1985) assumes an average lifetime of a cloud drop of 0.7 hours
+    ! (from Pruppacher and Klett, 1978), which is close to a 30 minute timestep. Lee
+    ! and Schwartz assumed a liquid cloud lifetime of 7 hours.
+    if (gas_wetdep_do_aq_nox) then
+
+      ! Get partial pressures in atm.
+      pno(:,k) = (trc_mass(:,k,no_ndx)/mass_in_layer(:,k))*(mwdry/mol_weight(no_ndx))*(p(:,k)/pstd_hpa)
+      pno2(:,k) = (trc_mass(:,k,no2_ndx)/mass_in_layer(:,k))*(mwdry/mol_weight(no2_ndx))*(p(:,k)/pstd_hpa)
+
+      ! Calculate aqueous reaction rates
+      r1(:,k) = k1 * (heff(:,k,no2_ndx)**2) * (pno2(:,k)**2) * tc1
+      r2(:,k) = k2 * heff(:,k,no_ndx) * pno(:,k) * heff(:,k,no2_ndx) * pno2(:,k) * tc1
+
+      ! Recalculate the effective Henry's Law coefficient including
+      ! the aqueous reactions.
+      heff_no(:,k) = heff(:,k,no_ndx)
+      heff_no2(:,k) = heff(:,k,no2_ndx)
+      heff(:,k,no_ndx) = heff(:,k,no_ndx) + r2(:,k) / pno(:,k)
+      heff(:,k,no2_ndx) = heff(:,k,no2_ndx) + (2._r8 * r1(:,k) + r2(:,k)) / pno2(:,k)
+    end if
+
   end do
 !
   if ( debug .and. masterproc ) then
@@ -421,17 +485,6 @@ subroutine neu_wetdep_tend(lchnk,ncol,mmr,pmid,pdel,zint,tfld,delt, &
   dtwr(1:ncol,:,:) = wd_mmr(1:ncol,:,:) - dtwr(1:ncol,:,:)
   dtwr(1:ncol,:,:) = dtwr(1:ncol,:,:) / delt
 
-! polarward of 60S, 60N and <200hPa set to zero!
-  call get_rlat_all_p(lchnk, pcols, lats )
-  do k = 1, pver
-    do i= 1, ncol
-      if ( abs( lats(i)*rad2deg ) > 60._r8 ) then
-        if ( pmid(i,k) < 20000._r8) then
-           dtwr(i,k,:) = 0._r8
-        endif
-      endif
-    end do
-  end do
 !
 ! output tendencies
 !
@@ -466,6 +519,14 @@ subroutine neu_wetdep_tend(lchnk,ncol,mmr,pmid,pdel,zint,tfld,delt, &
     call outfld('QT_EVAP_HNO3', qt_evap, ncol, lchnk )
   end if
 !
+  if (gas_wetdep_do_aq_nox) then
+    ! Flip k values for output.
+    call outfld('OHEFF_NO', heff_no(:,pver:1:-1), ncol, lchnk)
+    call outfld('OHEFF_NO2', heff_no2(:,pver:1:-1), ncol, lchnk)
+    call outfld('WDAQ_NO2', r1(:,pver:1:-1), ncol, lchnk)
+    call outfld('WDAQ_NONO2',r2(:,pver:1:-1), ncol, lchnk)
+  end if
+
   return
 end subroutine neu_wetdep_tend
 
@@ -1540,14 +1601,15 @@ upper_level : &
       subroutine DISGAS (CLWX,CFX,MOLMASS,HSTAR,TM,PR,QM,QT,QTDIS)
 !---------------------------------------------------------------------
       implicit none
-      real(r8), intent(in) :: CLWX,CFX    !cloud water,cloud fraction
-      real(r8), intent(in) :: MOLMASS     !molecular mass of tracer
-      real(r8), intent(in) :: HSTAR       !Henry's Law coeffs A*exp(-B/T)
+      real(r8), intent(in) :: CLWX        !cloud water (kg/kg)
+      real(r8), intent(in) :: CFX         !cloud fraction
+      real(r8), intent(in) :: MOLMASS     !molecular mass of tracer (g/mol)
+      real(r8), intent(in) :: HSTAR       !Henry's Law coeffs A*exp(-B/T) (mol/L/atm)
       real(r8), intent(in) :: TM          !temperature of box (K)
       real(r8), intent(in) :: PR          !pressure of box (hPa)
       real(r8), intent(in) :: QM          !air mass in box (kg)
       real(r8), intent(in) :: QT          !tracer in box (kg)
-      real(r8), intent(out) :: QTDIS      !tracer dissolved in aqueous phase
+      real(r8), intent(out) :: QTDIS      !tracer dissolved in aqueous phase (kg)
 
       real(r8)  MUEMP
       real(r8), parameter :: INV298 = 1._r8/298._r8
@@ -1556,17 +1618,22 @@ upper_level : &
 !---Next calculate rate of uptake of tracer
 
 !---effective Henry's Law constant: H* = moles-T / liter-precip / press(atm-T)
-!---p(atm of tracer-T) = (QT/QM) * (.029/MolWt-T) * pressr(hPa)/1000
+!---p(atm of tracer-T) = (QT/QM) * (MolWt-DryAir/MolWt-T) * pressr(hPa)/Pstd
+!---in-cloud water (liter-precip) = CLWX / CFX * QM / density_of_water (kg/liter)
+!---QTDIS (kg) = HSTAR * p(atm of tracer-T) * (in-cloud water) * MolWt-T / 1000. (g/kg)
+!---NOTE: MolWt-T cancels out since it is used in determining both the partial pressure
+!---and the mass of disolved gas.
+!---NOTE: Density of water is assumed to be 1 (kg/liter)
 !---limit temperature effects to T above freezing
 !----MU from fit to Kaercher and Voigt (2006)
 
       if(TM .ge. TICE) then
-         QTDIS=(HSTAR*(QT/(QM*CFX))*0.029_r8*(PR/1.0e3_r8))*(CLWX*QM)
+         QTDIS=(HSTAR*(QT/QM)*(mwdry)*(PR/pstd_hpa))*(CLWX/CFX*QM)/1.0e3_r8
       elseif (TM .le. TMIX) then
          MUEMP=exp(-14.2252_r8+(1.55704e-1_r8*TM)-(7.1929e-4_r8*(TM**2.0_r8)))
-         QTDIS=MUEMP*(MOLMASS/18._r8)*(CLWX*QM)
+         QTDIS=MUEMP*(MOLMASS/mwh2o)*(CLWX*QM)
       else
-       QTDIS=RETEFF*((HSTAR*(QT/(QM*CFX))*0.029_r8*(PR/1.0e3_r8))*(CLWX*QM))
+       QTDIS=RETEFF*((HSTAR*(QT/QM)*mwdry*(PR/pstd_hpa))*(CLWX/CFX*QM))/1.0e3_r8
       endif
 
       return
@@ -1632,11 +1699,10 @@ upper_level : &
 !-----------------------------------------------------------------------
       implicit none
       real(r8), intent(in)  :: RWASH   ! precip leaving bottom of box (kg/s)
-      real(r8), intent(in)  :: BOXF   ! fraction of box with washout
+      real(r8), intent(in)  :: BOXF    ! fraction of box with washout
       real(r8), intent(in)  :: DTSCAV  ! time step (s)
-      real(r8), intent(in)  :: QTRTOP  ! tracer-T in rain entering top of box
-!                                              over time step (kg)
-      real(r8), intent(in)  :: HSTAR ! Henry's Law coeffs A*exp(-B/T)
+      real(r8), intent(in)  :: QTRTOP  ! tracer-T in rain entering top of box over time step (kg)
+      real(r8), intent(in)  :: HSTAR   ! Henry's Law coeffs A*exp(-B/T) (mol/L/atm)
       real(r8), intent(in)  :: TM      ! temperature of box (K)
       real(r8), intent(in)  :: PR      ! pressure of box (hPa)
       real(r8), intent(in)  :: QT      ! tracer in box (kg)
@@ -1648,7 +1714,12 @@ upper_level : &
       real(r8)            :: FWASH, QTMAX, QTDIF
 
 !---effective Henry's Law constant: H* = moles-T / liter-precip / press(atm-T)
-!---p(atm of tracer-T) = (QT/QM) * (.029/MolWt-T) * pressr(hPa)/1000
+!---p(atm of tracer-T) = (QT/QM) * (MolWt-DryAir/MolWt-T) * pressr(hPa)/Pstd
+!---precip-rate (liter-precip/s) = RWASH / BOXF / density_of_water (kg/liter)
+!---QTMAX = HSTAR * p(atm of tracer-T) * (precip-rate) * DTSCAV * MolWt-T / 1000. (g/kg)
+!---NOTE: MolWt-T cancels out since it is used in determining both the partial pressure
+!---and the mass of washed out gas.
+!---NOTE: Density of precip is assumed to be 1 (kg/liter)
 !---limit temperature effects to T above freezing
 
 !
@@ -1663,7 +1734,7 @@ upper_level : &
       end if
 
 !---effective washout frequency (1/s):
-        FWASH = (RWASH*HSTAR*29.e-6_r8*PR)/(QM*BOXF)
+        FWASH = (HSTAR*(1._r8/QM)*(mwdry)*(PR/pstd_hpa))*(RWASH/BOXF) * 1.0e-3_r8
 !---equilib amount of T (kg) in rain thru bottom of box over time step
         QTMAX = QT*FWASH*DTSCAV
       if (QTMAX .gt. QTRTOP) then

@@ -16,6 +16,7 @@ module gas_wetdep_opts
   character(len=16), protected :: gas_wetdep_list(pcnst) = ' '
   character(len=3), protected :: gas_wetdep_method = 'MOZ'
   integer,          protected :: gas_wetdep_cnt = 0
+  logical,          protected :: gas_wetdep_do_aq_nox = .false.
 
 contains
 
