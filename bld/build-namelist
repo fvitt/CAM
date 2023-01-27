@@ -1520,7 +1520,7 @@ elsif ($carma =~ /trop_strat/) {
   add_default($nl, 'carma_do_drydep',   'val'=>'.true.');
   add_default($nl, 'carma_do_optics',   'val'=>'.false.');
   add_default($nl, 'carma_do_vtran',    'val'=>'.true.');
-  add_default($nl, 'carma_do_wetdep',   'val'=>'.true.');
+  add_default($nl, 'carma_do_wetdep',   'val'=>'.false.');
   add_default($nl, 'carma_soilerosion_file');
   add_default($nl, 'carma_fields',      'val'=>'Sl_soilw');
   add_default($nl, 'carma_do_vdiff',    'val'=>'.true.');
