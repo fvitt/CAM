@@ -8,11 +8,11 @@ module qbo
 ! Author: Katja Matthes
 ! Date: February 2005
 !
-! implementation into WACCM standard version, K. Matthes, October 2005 
+! implementation into WACCM standard version, K. Matthes, October 2005
 ! 3 possibilities:
 ! default: no QBO relaxation
 ! options: 1. cyclic QBO time series, currently a 28month sequence available: qbocyclic28months.nc
-!          2. observed QBO time series, currently CCMVal QBO series, extended: qboseries_ext.nc 
+!          2. observed QBO time series, currently CCMVal QBO series, extended: qboseries_ext.nc
 !          3. fixed QBOe or QBOw phase, currently : qboeast.nc, qbowest.nc
 !
 !--------------------------------------------------------------------
@@ -20,7 +20,7 @@ module qbo
 !
 ! Now accepts alternative input in the form of Fourier coefficients.
 ! In this case, the QBO wind is calculated from the expression
-! u_qbo(k,n) = ubar_qbo(k) + sum_n[fcos_qbo(k,n) * cos(ffreq_qbo(n)*(cday-cday_ref)) 
+! u_qbo(k,n) = ubar_qbo(k) + sum_n[fcos_qbo(k,n) * cos(ffreq_qbo(n)*(cday-cday_ref))
 !                                + fsin_qbo(k,n) * sin(ffreq_qbo(n)*(cday-cday_ref))]
 ! where cday is day of model run
 !       cday_ref is a reference date so that historical data line up correctly
@@ -31,13 +31,14 @@ module qbo
 
   use shr_kind_mod,   only: r8 => shr_kind_r8
   use spmd_utils,     only: masterproc
-  use ppgrid,         only: pcols, pver
+  use ppgrid,         only: pcols, pver, begchunk, endchunk
   use time_manager,   only: get_curr_date, get_curr_calday
   use phys_grid,      only: get_rlat_p
   use physics_types,  only: physics_state, physics_ptend, physics_ptend_init
-  use cam_abortutils, only: endrun  
+  use cam_abortutils, only: endrun
   use cam_logfile,    only: iulog
   use bnddyi_mod,     only: bnddyi
+  use zonal_mean_mod, only: ZonalMean_t
 
   implicit none
 
@@ -81,12 +82,13 @@ module qbo
   real(r8),allocatable :: fcos_qbo(:,:)          ! qbo cosine coefficients(pver,coefsiz)
   real(r8),allocatable :: fsin_qbo(:,:)          ! qbo sine coefficients(pver,coefsiz)
   real(r8),allocatable :: ffreq_qbo(:)           ! frequencies for expanding qbo coefficients (coefsiz)
-
-  ! Index into physics buffer for zonal mean zonal wind
-  integer              :: uzm_idx = -1
+                                                            ! .FALSE.=> data file has fft coefficients
+  real(r8),allocatable :: uzm(:,:,:)
+  type(ZonalMean_t) :: ZMobj
+  integer :: nzmbas = -huge(1)
 
 !
-! Options for controlling QBO relaxation 
+! Options for controlling QBO relaxation
 !
   character(len=256)   :: qbo_forcing_file = ""
   logical,public       :: qbo_use_forcing  = .FALSE.        ! .TRUE. => this package is active
@@ -94,7 +96,6 @@ module qbo
 
   logical              :: has_monthly_data = .TRUE.         ! .TRUE. => data file has monthly winds
                                                             ! .FALSE.=> data file has fft coefficients
-
 
 contains
 
@@ -112,7 +113,9 @@ contains
     integer :: unitn, ierr
     character(len=*), parameter :: subname = 'qbo_readnl'
 
-    namelist /qbo_nl/ qbo_use_forcing, qbo_forcing_file, qbo_cyclic
+    integer :: qbo_zm_nbas = -huge(1)
+
+    namelist /qbo_nl/ qbo_use_forcing, qbo_forcing_file, qbo_cyclic, qbo_zm_nbas
 
     if (masterproc) then
        unitn = getunit()
@@ -138,7 +141,12 @@ contains
     call mpibcast (qbo_forcing_file,  len(qbo_forcing_file ), mpichar, 0, mpicom)
     call mpibcast (qbo_use_forcing,   1,                      mpilog,  0, mpicom)
     call mpibcast (qbo_cyclic,        1,                      mpilog,  0, mpicom)
+    call mpibcast (qbo_zm_nbas,       1,                      mpiint,  0, mpicom)
 #endif
+
+    if (qbo_use_forcing) then
+       nzmbas = qbo_zm_nbas
+    end if
 
   end subroutine qbo_readnl
 
@@ -166,7 +174,7 @@ contains
 
     integer  :: yr, mon, day       ! components of a date
     integer  :: ncsec              ! current time of day [seconds]
-    integer  :: ncid               ! netcdf ID for input dataset 
+    integer  :: ncid               ! netcdf ID for input dataset
     integer  :: astat              ! allocate status
 
     integer  :: k,kk               ! vertical interpolation indexes
@@ -205,6 +213,8 @@ contains
        return
     end if
 
+    call ZMobj%init(nzmbas)
+
     call phys_getopts(history_waccm_out=history_waccm)
 
 !---------------------------------------------------------------------
@@ -217,7 +227,7 @@ contains
        call wrap_open( qbo_forcing_file, NF90_NOERR, ncid )
        write(iulog,*) 'qbo_init: successfully opened ',trim(qbo_forcing_file)
 !---------------------------------------------------------------------
-! Figure out if the file contains qbo winds by month or fft coefficients 
+! Figure out if the file contains qbo winds by month or fft coefficients
 !   by looking for the variable DATE
 !---------------------------------------------------------------------
        call wrap_inq_varid( ncid, 'date' , dateid, abort=.false.  )
@@ -287,7 +297,7 @@ contains
 
        delt = get_step_size()
        if( qbo_cyclic ) then
-          qbo_mons = timesiz 
+          qbo_mons = timesiz
           qbo_days = qbo_mons*qbo_dypm
        end if
 
@@ -607,7 +617,7 @@ master_proc : &
 !---------------------------------------------------------------------
 ! Initialize output buffer for two fields: QBO forcing wind and wind tendency of qbo relaxation
 !----------------------------------------------------------------------
-! 
+!
 !----------------------------------------------------------------------
     call addfld ('QBOTEND',(/ 'lev' /), 'A','M/S/S','Wind tendency from QBO relaxation')
     call addfld ('QBO_U0', (/ 'lev' /), 'A','M/S','Specified wind used for QBO')
@@ -618,9 +628,13 @@ master_proc : &
     end if
 
 !----------------------------------------------------------------------
-! Get zonal mean zonal wind index in pbuf.
+! allocate array for zonal mean zonal wind
 !----------------------------------------------------------------------
-    uzm_idx = pbuf_get_index("UZM")
+
+    allocate(uzm(pcols,pver,begchunk:endchunk), stat=astat)
+    if( astat /= 0 ) then
+       call endrun('qbo_init: failed to allocate uzm; error = ',astat)
+    end if
 
     if (masterproc) write(iulog,*) 'end of qbo_init'
 
@@ -628,17 +642,19 @@ master_proc : &
 
 !================================================================================================
 
-  subroutine qbo_timestep_init
-!----------------------------------------------------------------------- 
-! 
-! Purpose: Interpolate QBO zonal wind to current time
-! 
-! Method: Linear interpolation between dates on QBO file, 
-!         vertically and horizontally
-! 
-! Author: 
-! 
+  subroutine qbo_timestep_init(phys_state)
+
 !-----------------------------------------------------------------------
+!
+! Purpose: Interpolate QBO zonal wind to current time
+!
+! Method: Linear interpolation between dates on QBO file,
+!         vertically and horizontally
+!
+! Author:
+!
+!-----------------------------------------------------------------------
+    type(physics_state), intent(in) :: phys_state(begchunk:endchunk)
 
 !-----------------------------------------------------------------------
 ! Local variables
@@ -663,134 +679,146 @@ master_proc : &
 
     logical  :: new_interval        ! flag for new time interval
 
-has_qbo_forcing : &
-    if( qbo_use_forcing ) then
+    integer  :: lchnk               ! column chunk index
+    integer  :: ncol                ! number of columns per chunk
+    real(r8) :: u(pcols,pver,begchunk:endchunk)
+    real(r8) :: Zonal_Bamp3d(nzmbas,pver)
+
+    if (.not. qbo_use_forcing ) return
+
+    do lchnk = begchunk,endchunk
+       ncol = phys_state(lchnk)%ncol
+       u(:ncol,:,lchnk) = phys_state(lchnk)%u(:ncol,:)
+    end do
+
+    call ZMobj%calc_amps(u,Zonal_Bamp3d)
+    call ZMobj%eval_grid(Zonal_Bamp3d,uzm)
+
 !-----------------------------------------------------------------------
 ! Get current day of year and date
 !-----------------------------------------------------------------------
-       caldayl = get_curr_calday( -delt )
-       call get_curr_date( yrl, monl, dayl, ncsecl, -delt )
-       calday  = get_curr_calday()
-       call get_curr_date( yr, mon, day, ncsec )
-       ncdate = yr*10000 + mon*100 + day
+    caldayl = get_curr_calday( -delt )
+    call get_curr_date( yrl, monl, dayl, ncsecl, -delt )
+    calday  = get_curr_calday()
+    call get_curr_date( yr, mon, day, ncsec )
+    ncdate = yr*10000 + mon*100 + day
 #ifdef QBO_DIAGS
-       write(iulog,*) 'qbo_timestep_init: calday = ', calday
-       write(iulog,*) 'qbo_timestep_init: ncdate = ', ncdate
+    write(iulog,*) 'qbo_timestep_init: calday = ', calday
+    write(iulog,*) 'qbo_timestep_init: ncdate = ', ncdate
 #endif
 
 !-----------------------------------------------------------------------
 ! Set current day in run or in qbo cycle
 !-----------------------------------------------------------------------
-       cday  = calday + yr*365._r8
-       cdayl = caldayl + yrl*365._r8
+    cday  = calday + yr*365._r8
+    cdayl = caldayl + yrl*365._r8
 #ifdef QBO_DIAGS
-       write(iulog,*) 'qbo_timestep_init: cday = ', cday
+    write(iulog,*) 'qbo_timestep_init: cday = ', cday
 #endif
 
-       if( has_monthly_data ) then
+    if( has_monthly_data ) then
 !-----------------------------------------------------------------------
 ! Time interpolation for cases with monthly input data
 !-----------------------------------------------------------------------
-          if( .not. qbo_cyclic ) then
+       if( .not. qbo_cyclic ) then
+          new_interval = cday > cdayp
+       else
+          cday  = mod( cday,qbo_days )
+          cdayl = mod( cdayl,qbo_days )
+          if( cday > cdayl ) then
              new_interval = cday > cdayp
           else
-             cday  = mod( cday,qbo_days )
-             cdayl = mod( cdayl,qbo_days )
-             if( cday > cdayl ) then
-                new_interval = cday > cdayp
-             else
-                new_interval = .true.
-             end if
+             new_interval = .true.
           end if
+       end if
 #ifdef QBO_DIAGS
-          write(iulog,*) 'qbo_timestep_init: cday = ', cday
+       write(iulog,*) 'qbo_timestep_init: cday = ', cday
 #endif
 !-----------------------------------------------------------------------
 ! If model time is past current forward timeslice, then switch to next one.
-! If qbo_cyclic = .true. interpolation between end and beginning of data (np == 1).  
+! If qbo_cyclic = .true. interpolation between end and beginning of data (np == 1).
 ! Note that np is never 1 when qbo_cyclic is .false.
 !-----------------------------------------------------------------------
-next_interval : &
-          if( new_interval ) then
+       next_interval : if( new_interval ) then
 
 !-----------------------------------------------------------------------
 ! Increment index of future time sample
 !-----------------------------------------------------------------------
-             if( qbo_cyclic ) then
-                np1 = mod( np,qbo_mons ) + 1
-             else
-                np1 = np + 1
-             end if
-             if( np1 > timesiz ) then
-                call endrun ('QBO_TIMESTEP_INIT: Attempt to go past end of QBO data')
-             end if
+          if( qbo_cyclic ) then
+             np1 = mod( np,qbo_mons ) + 1
+          else
+             np1 = np + 1
+          end if
+          if( np1 > timesiz ) then
+             call endrun ('QBO_TIMESTEP_INIT: Attempt to go past end of QBO data')
+          end if
 !-----------------------------------------------------------------------
 ! Set indexes into u table
 !-----------------------------------------------------------------------
-             nm = np
-             np = np1
+          nm = np
+          np = np1
 #ifdef QBO_DIAGS
-             write(iulog,*) 'qbo_timestep_init: nm,np = ', nm,np
-             write(iulog,*) 'qbo_timestep_init: date_qbo(np), secd_qbo(np) = ', date_qbo(np), secd_qbo(np)
+          write(iulog,*) 'qbo_timestep_init: nm,np = ', nm,np
+          write(iulog,*) 'qbo_timestep_init: date_qbo(np), secd_qbo(np) = ', date_qbo(np), secd_qbo(np)
 #endif
 
 !-----------------------------------------------------------------------
 ! Set past and future days for data, generate day for cyclic data
 !-----------------------------------------------------------------------
-             cdaym = cdayp
-             if( qbo_cyclic ) then
-                cdayp = np * qbo_dypm
-             else
-                call bnddyi( date_qbo(np), secd_qbo(np), cdayp )
-                yr = date_qbo(np)/10000
-                cdayp = cdayp + yr*365._r8
-             end if
-#ifdef QBO_DIAGS
-             write(iulog,*) 'qbo_timestep_init: cdaym,cdayp = ', cdaym,cdayp
-#endif
-             if( np /= 1 .and. cday > cdayp ) then
-                write(iulog,*) 'qbo_timestep_init: Input qbo for date',date_qbo(np),' sec ',secd_qbo(np), &
-                  'does not exceed model date',ncdate,' sec ',ncsec,' Stopping.'
-                call endrun
-             end if
-          end if next_interval
-
-!-----------------------------------------------------------------------
-! Determine time interpolation factors.  Account for December-January 
-! interpolation if dataset is being cycled.
-!-----------------------------------------------------------------------
-          if( qbo_cyclic .and. np == 1 ) then                   ! Dec-Jan interpolation
-             deltat = cdayp + qbo_days - cdaym
-             if (cday > cdayp) then                         ! We are in December
-                fact1 = (cdayp + qbo_days - cday)/deltat
-                fact2 = (cday - cdaym)/deltat
-             else                                           ! We are in January
-                fact1 = (cdayp - cday)/deltat
-                fact2 = (cday + qbo_days - cdaym)/deltat
-             end if
+          cdaym = cdayp
+          if( qbo_cyclic ) then
+             cdayp = np * qbo_dypm
           else
-             deltat = cdayp - cdaym
-             fact1 = (cdayp - cday )/deltat
-             fact2 = (cday  - cdaym)/deltat
+             call bnddyi( date_qbo(np), secd_qbo(np), cdayp )
+             yr = date_qbo(np)/10000
+             cdayp = cdayp + yr*365._r8
           end if
 #ifdef QBO_DIAGS
-          write(iulog,*) 'qbo_timestep_init: fact1,fact2 = ', fact1, fact2
+          write(iulog,*) 'qbo_timestep_init: cdaym,cdayp = ', cdaym,cdayp
+#endif
+          if( np /= 1 .and. cday > cdayp ) then
+             write(iulog,*) 'qbo_timestep_init: Input qbo for date',date_qbo(np),' sec ',secd_qbo(np), &
+                  'does not exceed model date',ncdate,' sec ',ncsec,' Stopping.'
+             call endrun
+          end if
+       end if next_interval
+
+!-----------------------------------------------------------------------
+! Determine time interpolation factors.  Account for December-January
+! interpolation if dataset is being cycled.
+!-----------------------------------------------------------------------
+       if( qbo_cyclic .and. np == 1 ) then                   ! Dec-Jan interpolation
+          deltat = cdayp + qbo_days - cdaym
+          if (cday > cdayp) then                         ! We are in December
+             fact1 = (cdayp + qbo_days - cday)/deltat
+             fact2 = (cday - cdaym)/deltat
+          else                                           ! We are in January
+             fact1 = (cdayp - cday)/deltat
+             fact2 = (cday + qbo_days - cdaym)/deltat
+          end if
+       else
+          deltat = cdayp - cdaym
+          fact1 = (cdayp - cday )/deltat
+          fact2 = (cday  - cdaym)/deltat
+       end if
+#ifdef QBO_DIAGS
+       write(iulog,*) 'qbo_timestep_init: fact1,fact2 = ', fact1, fact2
 #endif
 
 !-----------------------------------------------------------------------
 ! Time interpolation
 !-----------------------------------------------------------------------
-          do k = ktop, kbot
-             u_tstep(k) = u_qbo(k,nm)*fact1 + u_qbo(k,np)*fact2
-          end do
-          if( ktop > 1 ) then
-             u_tstep(ktop-1) = u_tstep(ktop)
-          end if
-          if( kbot < pver ) then
-             u_tstep(kbot+1) = u_tstep(kbot)
-          end if
+       do k = ktop, kbot
+          u_tstep(k) = u_qbo(k,nm)*fact1 + u_qbo(k,np)*fact2
+       end do
+       if( ktop > 1 ) then
+          u_tstep(ktop-1) = u_tstep(ktop)
+       end if
+       if( kbot < pver ) then
+          u_tstep(kbot+1) = u_tstep(kbot)
+       end if
 
-       else
+    else
 
 !-----------------------------------------------------------------------
 ! Wind at this timestep for fft input data
@@ -799,39 +827,37 @@ next_interval : &
 ! Set past and future days for data, generate winds for current day from fft data
 !-----------------------------------------------------------------------
 
+       do k = ktop, kbot
+          u_tstep(k) =  ubar_qbo(k)
+       end do
+       do n=1,coefsiz
+          ccc = cos(ffreq_qbo(n)*(cday-cday_ref))
+          sss = sin(ffreq_qbo(n)*(cday-cday_ref))
           do k = ktop, kbot
-             u_tstep(k) =  ubar_qbo(k)
+             u_tstep(k) =  u_tstep(k) + fcos_qbo(k,n)*ccc + fsin_qbo(k,n)*sss
           end do
-          do n=1,coefsiz
-             ccc = cos(ffreq_qbo(n)*(cday-cday_ref))
-             sss = sin(ffreq_qbo(n)*(cday-cday_ref))
-             do k = ktop, kbot
-                u_tstep(k) =  u_tstep(k) + fcos_qbo(k,n)*ccc + fsin_qbo(k,n)*sss
-             end do
-          end do
-          if( ktop > 1 ) then
-             u_tstep(ktop-1) = u_tstep(ktop)
-          end if
-          if( kbot < pver ) then
-             u_tstep(kbot+1) = u_tstep(kbot)
-          end if
+       end do
+       if( ktop > 1 ) then
+          u_tstep(ktop-1) = u_tstep(ktop)
        end if
+       if( kbot < pver ) then
+          u_tstep(kbot+1) = u_tstep(kbot)
+       end if
+    end if
 
 #ifdef QBO_DIAGS
-       write(iulog,*) 'qbo_timestep_init: u_tstep ', u_tstep(ktop:kbot)
+    write(iulog,*) 'qbo_timestep_init: u_tstep ', u_tstep(ktop:kbot)
 #endif
-
-    end if has_qbo_forcing
 
   end subroutine qbo_timestep_init
 
 !================================================================================================
 
-    subroutine qbo_relax( state, pbuf, ptend )
-      use physics_buffer, only: physics_buffer_desc, pbuf_get_field
-      use cam_history,    only: outfld
+  subroutine qbo_relax( state, pbuf, ptend )
+    use physics_buffer, only: physics_buffer_desc, pbuf_get_field
+    use cam_history,    only: outfld
 !------------------------------------------------------------------------
-! relax zonal mean wind towards qbo sequence 
+! relax zonal mean wind towards qbo sequence
 !------------------------------------------------------------------------
 
 !--------------------------------------------------------------------------------
@@ -855,22 +881,16 @@ next_interval : &
     real(r8)                           :: rlat                 ! latitudes in radians for present chunk
     real(r8)                           :: crelax               ! relaxation constant
 
-    real(r8), parameter                :: tconst = 10._r8      ! relaxation time constant in days     
+    real(r8), parameter                :: tconst = 10._r8      ! relaxation time constant in days
     real(r8), parameter                :: tconst1 = tconst * 86400._r8
     real(r8)                           :: qbo_u0(pcols,pver)   ! QBO wind used for driving parameterization
 
-    ! Zonal mean zonal wind from pbuf.
-    real(r8), pointer                  :: uzm(:,:)
+    if(.not. qbo_use_forcing ) return
 
-   lchnk = state%lchnk
-   ncol  = state%ncol
+    lchnk = state%lchnk
+    ncol  = state%ncol
 
-   call physics_ptend_init(ptend, state%psetcols, 'qbo', lu=.true.)
-
-has_qbo_forcing : &
-   if( qbo_use_forcing ) then
-
-    call pbuf_get_field(pbuf, uzm_idx, uzm)
+    call physics_ptend_init(ptend, state%psetcols, 'qbo', lu=.true.)
 
     kl          = max( 1,ktop-1 )
     ku          = min( pver,kbot+1 )
@@ -889,7 +909,7 @@ has_qbo_forcing : &
       u     = u_tstep(k)
       do i = 1,ncol
 !--------------------------------------------------------------------------------
-! determine relaxation constant 
+! determine relaxation constant
 !--------------------------------------------------------------------------------
          crelax = tauxi(i)*tauzz
          if( crelax /= 0._r8 ) then
@@ -898,9 +918,9 @@ has_qbo_forcing : &
 ! do relaxation of zonal mean wind
 !--------------------------------------------------------------------------------
 
-         if(u < 50.0_r8) then
-            ptend%u(i,k) = crelax * (u - uzm(i,k))
-         end if
+            if(u < 50.0_r8) then
+               ptend%u(i,k) = crelax * (u - uzm(i,k,lchnk))
+            end if
          end if
 !--------------------------------------------------------------------------------
 ! variable representing QBO wind
@@ -920,9 +940,8 @@ has_qbo_forcing : &
 !output specified QBO wind to h0 output file
 !--------------------------------------------------------------------------------
     call outfld( 'QBO_U0', qbo_u0, pcols, lchnk )
-   end if has_qbo_forcing
 
-   end subroutine qbo_relax
+  end subroutine qbo_relax
 
 !================================================================================================
 
@@ -946,7 +965,7 @@ has_qbo_forcing : &
 !       ... function declaration
 !------------------------------------------------------------------------
     real(r8)              :: taux    ! relaxation constant in latitude
-    
+
 
     alat = abs( rlat )
     if( alat <= .035_r8 ) then
@@ -966,7 +985,7 @@ has_qbo_forcing : &
 !------------------------------------------------------------------------
        taux = 0._r8
     end if
- 
+
   end function taux
 
 end module qbo

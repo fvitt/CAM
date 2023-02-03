@@ -2950,7 +2950,7 @@ subroutine phys_timestep_init(phys_state, cam_in, cam_out, pbuf2d)
   !----------------------------------------------------------------------
   ! update QBO data for this time step
   !----------------------------------------------------------------------
-  call qbo_timestep_init
+  call qbo_timestep_init(phys_state)
 
   call iondrag_timestep_init()
 
