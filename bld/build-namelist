@@ -3468,12 +3468,28 @@ if ($waccm_phys or
     add_default($nl, 'use_gw_convect_dp', 'val'=>'.true.');
     my $hdepth_scaling = '0.25D0' ;
     my $qbo_forcing = '.false.';
+    my $qbo_nbas;
+    # turn on QBO nudging only for coarse grids
     if ($dyn eq 'fv') {
-	my $nlon = $cfg->get('nlon');
-	my $nlat = $cfg->get('nlat');
-        # turn on QBO nudging only for coarse FV grids
+        my $nlon = $cfg->get('nlon');
+        my $nlat = $cfg->get('nlat');
         if ($nlat <= 96 and $nlon <= 144) {
-	    $qbo_forcing = '.true.';
+            $qbo_forcing = '.true.';
+            $qbo_nbas = 2*$nlat;
+        }
+    } elsif ($dyn eq 'se') {
+        my $csne = $cfg->get('csne');
+        my $csnp = $cfg->get('csnp');
+        if ($csne < 20) {
+            $qbo_forcing = '.true.';
+            $qbo_nbas = 4*$csne*($csnp-1);
+        }
+    } elsif ($dyn eq 'mpas') {
+        my $hgrid = $cfg->get('hgrid');
+        (my $res) = $hgrid =~ /(\d+)/; # km
+        if ($res > 200) {
+            $qbo_forcing = '.true.';
+            $qbo_nbas = int(40075/$res);
         }
     }
     add_default($nl, 'qbo_use_forcing','val'=>$qbo_forcing);
@@ -3481,6 +3497,7 @@ if ($waccm_phys or
        $hdepth_scaling = '1.D0' ;
        add_default($nl, 'qbo_cyclic','val'=>'.false.');
        add_default($nl, 'qbo_forcing_file');
+       add_default($nl, 'qbo_zm_nbas','val'=>$qbo_nbas);
     }
     add_default($nl, 'gw_qbo_hdepth_scaling', 'val'=>$hdepth_scaling);
     add_default($nl, 'gw_top_taper');
