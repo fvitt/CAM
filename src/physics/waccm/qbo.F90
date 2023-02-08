@@ -52,6 +52,7 @@ module qbo
   public               :: qbo_init               ! initialize qbo package
   public               :: qbo_timestep_init      ! interpolate to current time
   public               :: qbo_relax              ! relax zonal mean wind
+  public               :: qbo_final              ! finalize qbo package
 
 !---------------------------------------------------------------------
 ! Private module data
@@ -82,17 +83,15 @@ module qbo
   real(r8),allocatable :: fcos_qbo(:,:)          ! qbo cosine coefficients(pver,coefsiz)
   real(r8),allocatable :: fsin_qbo(:,:)          ! qbo sine coefficients(pver,coefsiz)
   real(r8),allocatable :: ffreq_qbo(:)           ! frequencies for expanding qbo coefficients (coefsiz)
-                                                            ! .FALSE.=> data file has fft coefficients
   real(r8),allocatable :: uzm(:,:,:)
   type(ZonalMean_t) :: ZMobj
-  integer :: nzmbas = -huge(1)
-
 !
 ! Options for controlling QBO relaxation
 !
   character(len=256)   :: qbo_forcing_file = ""
   logical,public       :: qbo_use_forcing  = .FALSE.        ! .TRUE. => this package is active
   logical              :: qbo_cyclic       = .FALSE.        ! .TRUE. => assume cyclic qbo data
+  integer              :: qbo_zm_nbas = -huge(1)
 
   logical              :: has_monthly_data = .TRUE.         ! .TRUE. => data file has monthly winds
                                                             ! .FALSE.=> data file has fft coefficients
@@ -104,8 +103,7 @@ contains
   subroutine qbo_readnl(nlfile)
 
     use namelist_utils,  only: find_group_name
-    use units,           only: getunit, freeunit
-    use mpishorthand
+    use spmd_utils,  only: masterproc, mpi_character, mpi_integer, mpi_logical, masterprocid, mpicom, mpi_success
 
     character(len=*), intent(in) :: nlfile  ! filepath for file containing namelist input
 
@@ -113,13 +111,10 @@ contains
     integer :: unitn, ierr
     character(len=*), parameter :: subname = 'qbo_readnl'
 
-    integer :: qbo_zm_nbas = -huge(1)
-
     namelist /qbo_nl/ qbo_use_forcing, qbo_forcing_file, qbo_cyclic, qbo_zm_nbas
 
     if (masterproc) then
-       unitn = getunit()
-       open( unitn, file=trim(nlfile), status='old' )
+       open( newunit=unitn, file=trim(nlfile), status='old' )
        call find_group_name(unitn, 'qbo_nl', status=ierr)
        if (ierr == 0) then
           read(unitn, qbo_nl, iostat=ierr)
@@ -128,7 +123,6 @@ contains
           end if
        end if
        close(unitn)
-       call freeunit(unitn)
 
        ! Check to make sure forcing file was set if qbo forcing is on.
        if (qbo_use_forcing .and. trim(qbo_forcing_file) == "") then
@@ -137,21 +131,18 @@ contains
        end if
     end if
 
-#ifdef SPMD
-    call mpibcast (qbo_forcing_file,  len(qbo_forcing_file ), mpichar, 0, mpicom)
-    call mpibcast (qbo_use_forcing,   1,                      mpilog,  0, mpicom)
-    call mpibcast (qbo_cyclic,        1,                      mpilog,  0, mpicom)
-    call mpibcast (qbo_zm_nbas,       1,                      mpiint,  0, mpicom)
-#endif
-
-    if (qbo_use_forcing) then
-       nzmbas = qbo_zm_nbas
-    end if
+    call MPI_bcast(qbo_forcing_file,  len(qbo_forcing_file ),  mpi_character, masterprocid, mpicom, ierr)
+    if (ierr /= mpi_success) call endrun(subname//': MPI_BCAST ERROR: qbo_forcing_file')
+    call MPI_bcast(qbo_use_forcing, 1,  mpi_logical, masterprocid, mpicom, ierr)
+    if (ierr /= mpi_success) call endrun(subname//': MPI_BCAST ERROR: qbo_use_forcing')
+    call MPI_bcast(qbo_cyclic, 1,  mpi_logical, masterprocid, mpicom, ierr)
+    if (ierr /= mpi_success) call endrun(subname//': MPI_BCAST ERROR: qbo_cyclic')
+    call MPI_bcast(qbo_zm_nbas, 1,  mpi_integer, masterprocid, mpicom, ierr)
+    if (ierr /= mpi_success) call endrun(subname//': MPI_BCAST ERROR: qbo_zm_nbas')
 
   end subroutine qbo_readnl
 
 !================================================================================================
-
 
   subroutine qbo_init
 !---------------------------------------------------------------------
@@ -213,7 +204,7 @@ contains
        return
     end if
 
-    call ZMobj%init(nzmbas)
+    call ZMobj%init(qbo_zm_nbas)
 
     call phys_getopts(history_waccm_out=history_waccm)
 
@@ -682,7 +673,7 @@ master_proc : &
     integer  :: lchnk               ! column chunk index
     integer  :: ncol                ! number of columns per chunk
     real(r8) :: u(pcols,pver,begchunk:endchunk)
-    real(r8) :: Zonal_Bamp3d(nzmbas,pver)
+    real(r8) :: Zonal_Bamp3d(qbo_zm_nbas,pver)
 
     if (.not. qbo_use_forcing ) return
 
@@ -941,51 +932,57 @@ master_proc : &
 !--------------------------------------------------------------------------------
     call outfld( 'QBO_U0', qbo_u0, pcols, lchnk )
 
+  contains
+
+    function taux( rlat )
+      !------------------------------------------------------------------------
+      ! calculates relaxation constant in latitude
+      !------------------------------------------------------------------------
+
+      !------------------------------------------------------------------------
+      !       ... dummy arguments
+      !------------------------------------------------------------------------
+      real(r8), intent(in)  :: rlat    ! latitude in radians for present chunk
+
+      !------------------------------------------------------------------------
+      !       ... local variables
+      !------------------------------------------------------------------------
+      real(r8), parameter   :: factor = 1._r8/(2._r8*0.174532925_r8*0.174532925_r8)
+      real(r8)              :: alat    ! abs rlat
+
+      !------------------------------------------------------------------------
+      !       ... function declaration
+      !------------------------------------------------------------------------
+      real(r8)              :: taux    ! relaxation constant in latitude
+
+
+      alat = abs( rlat )
+      if( alat <= .035_r8 ) then
+         !------------------------------------------------------------------------
+         ! rlat=0.035 (latitude in radians): rlat*180/pi=2 degrees, around equator full relaxation
+         !------------------------------------------------------------------------
+         taux = 1._r8
+      else if( alat <= .384_r8)  then
+         !------------------------------------------------------------------------
+         ! from 6 to 22 degrees latitude weakening of relaxation with Gaussian distribution
+         ! half width=10° =>  in radians: 0.174532925
+         !------------------------------------------------------------------------
+         taux = exp( rlat*rlat*factor )
+      else
+         !------------------------------------------------------------------------
+         ! other latitudes no relaxation
+         !------------------------------------------------------------------------
+         taux = 0._r8
+      end if
+
+    end function taux
+
   end subroutine qbo_relax
 
 !================================================================================================
-
-  function taux( rlat )
-!------------------------------------------------------------------------
-! calculates relaxation constant in latitude
-!------------------------------------------------------------------------
-
-!------------------------------------------------------------------------
-!       ... dummy arguments
-!------------------------------------------------------------------------
-    real(r8), intent(in)  :: rlat    ! latitude in radians for present chunk
-
-!------------------------------------------------------------------------
-!       ... local variables
-!------------------------------------------------------------------------
-    real(r8), parameter   :: factor = 1._r8/(2._r8*0.174532925_r8*0.174532925_r8)
-    real(r8)              :: alat    ! abs rlat
-
-!------------------------------------------------------------------------
-!       ... function declaration
-!------------------------------------------------------------------------
-    real(r8)              :: taux    ! relaxation constant in latitude
-
-
-    alat = abs( rlat )
-    if( alat <= .035_r8 ) then
-!------------------------------------------------------------------------
-! rlat=0.035 (latitude in radians): rlat*180/pi=2 degrees, around equator full relaxation
-!------------------------------------------------------------------------
-       taux = 1._r8
-    else if( alat <= .384_r8)  then
-!------------------------------------------------------------------------
-! from 6 to 22 degrees latitude weakening of relaxation with Gaussian distribution
-! half width=10° =>  in radians: 0.174532925
-!------------------------------------------------------------------------
-       taux = exp( rlat*rlat*factor )
-    else
-!------------------------------------------------------------------------
-! other latitudes no relaxation
-!------------------------------------------------------------------------
-       taux = 0._r8
-    end if
-
-  end function taux
+  subroutine qbo_final
+    call ZMobj%final()
+    if (allocated(uzm)) deallocate(uzm)
+  end subroutine qbo_final
 
 end module qbo

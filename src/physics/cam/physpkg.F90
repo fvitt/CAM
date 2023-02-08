@@ -1309,6 +1309,7 @@ contains
     use microp_aero, only : microp_aero_final
     use phys_grid_ctem, only : phys_grid_ctem_final
     use nudging, only: Nudge_Model, nudging_final
+    use qbo, only: qbo_final
 
     !-----------------------------------------------------------------------
     !
@@ -1333,6 +1334,7 @@ contains
     call microp_aero_final()
     call phys_grid_ctem_final()
     if(Nudge_Model) call nudging_final()
+    call qbo_final()
 
   end subroutine phys_final
 
