@@ -15,6 +15,9 @@ module carma_flags_mod
   implicit none
   public
 
+  integer, parameter           :: carma_maxdiags = 100
+  integer, protected           :: carma_ndiagpkgs  ! Number of diags_packages listed
+  integer, protected           :: carma_ndebugpkgs  ! Number of diags_packages listed
 
   ! Namelist flags
   !
@@ -37,6 +40,8 @@ module carma_flags_mod
   logical, protected           :: carma_rad_feedback= .false.   ! If .true. then CARMA sulfate mass mixing ratio & effective radius used in radiation
   logical, protected           :: carma_do_explised = .false.   ! If .true. then do sedimentation with substepping
   logical, protected           :: carma_do_incloud  = .false.   ! If .true. then do incloud particle calculations
+  logical, protected           :: carma_do_budget_diags  = .false.   ! If .true. then do budget diagnostics
+  logical, protected           :: carma_do_package_diags = .false.   ! If .true. then do package diagnostics
   logical, protected           :: carma_do_grow     = .false.   ! If .true. then do growth
   logical, protected           :: carma_do_optics   = .false.   ! If .true. then do optical properties file
   logical, protected           :: carma_do_partialinit= .false. ! If .true. then do initialization of coagulation to a reference state (requires fixedinit)
@@ -47,6 +52,7 @@ module carma_flags_mod
   logical, protected           :: carma_do_wetdep   = .false.   ! If .true. then do wet deposition
   logical, protected           :: carma_do_vdiff    = .false.   ! If .true. then do vertical brownian diffusion
   logical, protected           :: carma_do_vtran    = .false.   ! If .true. then do vertical transport
+  integer, protected           :: carma_diags_file  = 0         ! Default file for diagnostic output
   integer, protected           :: carma_maxsubsteps = 1         ! Maximum number of time substeps allowed
   integer, protected           :: carma_minsubsteps = 1         ! Minimum number of time substeps allowed
   integer, protected           :: carma_maxretries  = 8         ! Maximum number of time substeps allowed
@@ -62,6 +68,9 @@ module carma_flags_mod
   real(r8), protected          :: carma_vf_const    = 0.0_r8    ! If specified and non-zero, constant fall velocity for all particles [cm/s]
   character(len=32), protected :: carma_model       = "none"    ! String (no spaces) that identifies the model
   character(len=10), protected :: carma_sulfnuc_method = "none" ! Sulfate Nucleation method
+  character(len=32), protected :: carma_diags_packages(carma_maxdiags) = " " ! Names of physics packages for which diagnostic output is desired
+  character(len=12), protected :: carma_debug_packages(carma_maxdiags) = " " ! Names of physics packages for which debug output is desired
+
 
 contains
 
@@ -85,7 +94,7 @@ contains
 
     ! local vars
 
-    integer :: unitn, ierr
+    integer :: unitn, ierr, i
 
     ! read namelist for CARMA
     namelist /carma_nl/ &
@@ -104,6 +113,8 @@ contains
       carma_rad_feedback, &
       carma_do_explised, &
       carma_do_incloud, &
+      carma_do_budget_diags, &
+      carma_do_package_diags, &
       carma_do_grow, &
       carma_do_optics, &
       carma_do_partialinit, &
@@ -128,7 +139,12 @@ contains
       carma_cstick, &
       carma_rhcrit, &
       carma_vf_const, &
-      carma_sulfnuc_method
+      carma_sulfnuc_method, &
+      carma_do_budget_diags, &
+      carma_do_package_diags, &      
+      carma_diags_packages, &
+      carma_debug_packages, &
+      carma_diags_file 
 
     if (masterproc) then
        open( newunit=unitn, file=trim(nlfile), status='old' )
@@ -156,6 +172,8 @@ contains
     call mpi_bcast (carma_hetchem_feedback,1 ,mpi_logical, masterprocid, mpicom, ierr)
     call mpi_bcast (carma_rad_feedback,    1 ,mpi_logical, masterprocid, mpicom, ierr)
     call mpi_bcast (carma_do_explised,     1 ,mpi_logical, masterprocid, mpicom, ierr)
+    call mpi_bcast (carma_do_budget_diags, 1 ,mpi_logical, masterprocid, mpicom, ierr)
+    call mpi_bcast (carma_do_package_diags,1 ,mpi_logical, masterprocid, mpicom, ierr)
     call mpi_bcast (carma_do_incloud,      1 ,mpi_logical, masterprocid, mpicom, ierr)
     call mpi_bcast (carma_do_grow,         1 ,mpi_logical, masterprocid, mpicom, ierr)
     call mpi_bcast (carma_do_optics,       1 ,mpi_logical, masterprocid, mpicom, ierr)
@@ -167,6 +185,7 @@ contains
     call mpi_bcast (carma_do_wetdep,       1 ,mpi_logical, masterprocid, mpicom, ierr)
     call mpi_bcast (carma_do_vdiff,        1 ,mpi_logical, masterprocid, mpicom, ierr)
     call mpi_bcast (carma_do_vtran,        1 ,mpi_logical, masterprocid, mpicom, ierr)
+    call mpi_bcast (carma_diags_file,      1 ,mpi_integer, masterprocid, mpicom, ierr)
     call mpi_bcast (carma_maxsubsteps,     1 ,mpi_integer, masterprocid, mpicom, ierr)
     call mpi_bcast (carma_minsubsteps,     1 ,mpi_integer, masterprocid, mpicom, ierr)
     call mpi_bcast (carma_maxretries,      1 ,mpi_integer, masterprocid, mpicom, ierr)
@@ -182,6 +201,22 @@ contains
     call mpi_bcast (carma_vf_const,        1 ,mpi_real8, masterprocid, mpicom, ierr)
     call mpi_bcast (carma_model, len(carma_model), mpi_character, masterprocid, mpicom, ierr)
     call mpi_bcast (carma_sulfnuc_method, len(carma_sulfnuc_method), mpi_character, masterprocid, mpicom, ierr)
+    call mpibcast  (carma_diags_packages, len(carma_diags_packages(1))*carma_maxdiags, mpi_character, 0, mpicom)
+    call mpibcast  (carma_debug_packages, len(carma_debug_packages(1))*carma_maxdiags, mpi_character, 0, mpicom)
+
+    carma_ndiagpkgs = 0
+    do i = 1, carma_maxdiags
+       if (len_trim(carma_diags_packages(i)) > 0) then
+          carma_ndiagpkgs = carma_ndiagpkgs + 1
+       endif
+    enddo
+
+    carma_ndebugpkgs = 0
+    do i = 1, carma_maxdiags
+       if (len_trim(carma_debug_packages(i)) > 0) then
+          carma_ndebugpkgs = carma_ndebugpkgs + 1
+       endif
+    enddo
 
     ! Also cause the CARMA model flags to be read in.
     call carma_model_readnl(nlfile)

@@ -608,7 +608,6 @@ contains
     integer :: strt_loop, end_loop, stride_loop !loop indices for the lphase loop
     integer :: l ! index for aerosol number / chem-mass / water-mass
     real(r8) :: dqdt_tmp(pcols,pver) ! temporary array to hold tendency for 1 species
-    real(r8) :: dqdt_tmp_sum(pcols,pver) ! temporary array to hold sum of tendency for all species
     real(r8) :: icscavt_sum(pcols,pver) ! temporary array to hold sum of tendency for all species
     real(r8) :: isscavt_sum(pcols,pver) ! temporary array to hold sum of tendency for all species
     real(r8) :: bcscavt_sum(pcols,pver) ! temporary array to hold sum of tendency for all species
@@ -774,7 +773,6 @@ contains
              f_act_conv_c = 0.0_r8   ! conv   in-cloud scav OFF (having this on would mean
           end if
 
-          dqdt_tmp_sum(:,:) = 0.0_r8
           fldcw_sum(:,:) = 0.0_r8
           fld_sum(:,:) = 0.0_r8
           icscavt_sum(:,:) = 0.0_r8
@@ -999,40 +997,58 @@ contains
                    ! make sure raer values are not negative, adjust dqdt_tmp accordingly
                    do k= 1,pver
                       do i= 1,ncol
-                         if ( (dqdt_tmp(i,k).lt.0.0_r8) .and. (raer(mm)%fld(i,k).eq.0.0_r8) )  then
-                            dqdt_tmp(i,k) = 0.0_r8
-                         else
-                            if ( (raer(mm)%fld(i,k) + dqdt_tmp(i,k) * dt) .lt. 0.0_r8 )   then
-                               dqdt_tmp(i,k) = raer(mm)%fld(i,k) / dt
+
+                         ! some CARMA interstitial species are not advected
+                         if (bin_cnst_lq(m,l)) then
+                            ! advected species, updated with ptend
+                            !
+                            ! NOTE: Need to take into account the tendency accumulated
+                            ! so far as raer is the original state.
+                            if ((raer(mm)%fld(i,k) + (ptend%q(i,k,lpr) + dqdt_tmp(i,k)) * dt) .lt. 0.0_r8) then
+                               dqdt_tmp(i,k) = - raer(mm)%fld(i,k) / dt - ptend%q(i,k,lpr)
                             end if
-                         end if
+                        else
+                            ! pbuf species, updated directly
+                            if (((raer(mm)%fld(i,k) + dqdt_tmp(i,k)) * dt) .lt. 0.0_r8) then
+                               dqdt_tmp(i,k) = - raer(mm)%fld(i,k) / dt
+                            end if
+                        end if
                       end do
                    end do
 
                    ! some CARMA interstetial species are not advected, check:
-                   if (bin_cnst_lq(m,l)) then ! advected species
+                   if (bin_cnst_lq(m,l)) then
+                      ! advected species, updated with ptend
                       ptend%q(1:ncol,:,lpr) = ptend%q(1:ncol,:,lpr) + dqdt_tmp(1:ncol,:)
                       fld_sum(1:ncol,:)  = fld_sum(1:ncol,:) + raer(mm)%fld(1:ncol,:) + dqdt_tmp(1:ncol,:) * dt
                    else
+                      ! pbuf species, updated directly
                       raer(mm)%fld(1:ncol,:) = max(raer(mm)%fld(1:ncol,:) + dqdt_tmp(1:ncol,:) * dt, 0.0_r8)
                       fld_sum(1:ncol,:) = fld_sum(1:ncol,:) + raer(mm)%fld(1:ncol,:)
                    end if
 
-                   dqdt_tmp_sum(1:ncol,:) = dqdt_tmp_sum(1:ncol,:) + dqdt_tmp(1:ncol,:)
-
-
+                ! NOTE: For a flexible interface, you should not assume that mmr is advected
+                ! and num is not advected. Removing the concentration element will cause both
+                ! of these to be non-advected.
                 else if (l == nspec(m) + 1) then   !mmr is advected and number is  not advected
 
                    if (bin_cnst_lq(m,l)) then ! adveced species
-                      ptend%q(1:ncol,:,lpr) = ptend%q(1:ncol,:,lpr) + dqdt_tmp_sum(1:ncol,:)
+                      dqdt_tmp(1:ncol,:) = (fld_sum(1:ncol,:) - raer(mm)%fld(1:ncol,:)) / dt
+                      ptend%q(1:ncol,:,lpr) = dqdt_tmp(1:ncol,:)
+                   else
+                      dqdt_tmp(1:ncol,:) = (raer(mm)%fld(1:ncol,:) - fld_sum(1:ncol,:)) / dt
+                      raer(mm)%fld(1:ncol,:) = fld_sum(1:ncol,:)
                    end if
-                   dqdt_tmp(:ncol,:) = dqdt_tmp_sum(:ncol,:)
 
                 else if (l == nspec(m) + 2) then   !num fraction is assuming dN/N = dM/M
 
-                   raer(mm)%fld(:ncol,:) = fld_sum(:ncol,:) / rmass(m)
-                   dqdt_tmp(:ncol,:) = dqdt_tmp_sum(:ncol,:)
-
+                   if (bin_cnst_lq(m,l)) then ! adveced species
+                      dqdt_tmp(1:ncol,:) = (fld_sum(1:ncol,:) / rmass(m) - raer(mm)%fld(1:ncol,:)) / dt
+                      ptend%q(1:ncol,:,lpr) = dqdt_tmp(1:ncol,:)
+                   else
+                      dqdt_tmp(1:ncol,:) = (fld_sum(1:ncol,:) / rmass(m) - raer(mm)%fld(1:ncol,:)) / dt
+                      raer(mm)%fld(1:ncol,:) = fld_sum(1:ncol,:) / rmass(m)
+                   end if
                 end if   ! nspec
 
                 call outfld( trim(fieldname(mm))//'SIS', isscavt, pcols, lchnk)
@@ -1205,12 +1221,8 @@ contains
 
                       do k= 1,pver
                          do i= 1,ncol
-                            if ( (dqdt_tmp(i,k).lt.0.0_r8) .and. (qqcw(mm)%fld(i,k).eq.0.0_r8) )  then
-                               dqdt_tmp(i,k) = 0.0_r8
-                            else
-                               if ( (qqcw(mm)%fld(i,k) + dqdt_tmp(i,k) * dt) .lt. 0.0_r8 )   then
-                                  dqdt_tmp(i,k) = qqcw(mm)%fld(i,k) / dt
-                               end if
+                            if ( (qqcw(mm)%fld(i,k) + dqdt_tmp(i,k) * dt) .lt. 0.0_r8 )   then
+                               dqdt_tmp(i,k) = - qqcw(mm)%fld(i,k) / dt
                             end if
                          end do
                       end do
@@ -1220,7 +1232,6 @@ contains
                       do k= 1,pver
                          do i= 1,ncol
                             qqcw(mm)%fld(i,k) = max(qqcw(mm)%fld(i,k) + dqdt_tmp(i,k) * dt, 0.0_r8)
-                            dqdt_tmp_sum(i,k) = dqdt_tmp_sum(i,k) + dqdt_tmp(i,k)
                             fldcw_sum(i,k) = fldcw_sum(i,k) + qqcw(mm)%fld(i,k)
                          end do
                       end do
@@ -1233,15 +1244,9 @@ contains
 
                    else if (l == nspec(m) + 1) then     !mmr and number are not advected
 
-                      do k= 1,pver
-                         do i= 1,ncol
-                            qqcw(mm)%fld(i,k) = max(qqcw(mm)%fld(i,k) + dqdt_tmp_sum(i,k) * dt, 0.0_r8)
-                            if (fldcw_sum(i,k) /= qqcw(mm)%fld(i,k))  then
-                               qqcw(mm)%fld(i,k) = fldcw_sum(i,k)
-                            end if
-                         end do
-                      end do
-                      dqdt_tmp(:ncol,:) = dqdt_tmp_sum(:ncol,:)
+                      dqdt_tmp(:ncol,:) = (fldcw_sum(:ncol,:) - qqcw(mm)%fld(:ncol,:)) / dt
+                      qqcw(mm)%fld(:ncol,:) = fldcw_sum(:ncol,:)
+
                       icscavt(:ncol,:) = icscavt_sum(:ncol,:)
                       isscavt(:ncol,:) = isscavt_sum(:ncol,:)
                       bcscavt(:ncol,:) = bcscavt_sum(:ncol,:)
@@ -1251,8 +1256,9 @@ contains
 
                    else if (l == nspec(m) + 2) then    !num fraction is assuming dN/N = dM/M
 
+                      dqdt_tmp(:ncol,:) = (fldcw_sum(:ncol,:) / rmass(m) - qqcw(mm)%fld(:ncol,:)) / dt
                       qqcw(mm)%fld(:ncol,:) = fldcw_sum(:ncol,:) / rmass(m)
-                      dqdt_tmp(:ncol,:) = dqdt_tmp_sum(:ncol,:)
+
                       icscavt(:ncol,:) = icscavt_sum(:ncol,:)
                       isscavt(:ncol,:) = isscavt_sum(:ncol,:)
                       bcscavt(:ncol,:) = bcscavt_sum(:ncol,:)
@@ -1775,9 +1781,7 @@ contains
        do l = 1, nspec(m) + 2 ! for sulfate only
           mm = bin_idx(m, l)
           qqcw(mm)%fld(:ncol,:) = vmrcw(:ncol,:,mm)
-          if (l == nspec(m) + 1) then   ! mmr
-           call outfld( trim(fieldname_cw(mm)), qqcw(mm)%fld(:ncol,:), ncol, lchnk)
-          end if
+          call outfld( trim(fieldname_cw(mm)), qqcw(mm)%fld(:ncol,:), ncol, lchnk)
        end do
     end do
 

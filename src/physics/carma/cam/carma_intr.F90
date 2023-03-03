@@ -56,10 +56,16 @@ module carma_intr
   public carma_timestep_init            ! initialize timestep dependent variables
   public carma_timestep_tend            ! interface to tendency computation
   public carma_accumulate_stats         ! collect stats from all MPI tasks
-  public carma_checkstate		! check if the coremass exceeding the total
+  public carma_checkstate_local         ! check if the coremass exceeding the total, in the column
+  public carma_checkstate_global        ! check if the coremass exceeding the total, globally
+  public carma_calculate_globalmassfactor ! determine mass factors needed for carma_checkstate_global
+
 
   ! Other Microphysics
   public carma_emission_tend            ! calculate tendency from emission source function
+  public carma_calculate_cloudborne_diagnostics ! calculate model specific budget diagnostics for cloudborne aerosols
+  public carma_output_cloudborne_diagnostics ! output model specific budget diagnostics for cloudborne aerosols
+  public carma_output_budget_diagnostics ! calculate and output model specific aerosol budget terms
   public carma_wetdep_tend              ! calculate tendency from wet deposition
   public :: carma_restart_init
   public :: carma_restart_write
@@ -164,6 +170,12 @@ module carma_intr
   real(kind=f)          :: step_nstep        = 0._f
   real(kind=f)          :: step_nsubstep     = 0._f
   real(kind=f)          :: step_nretry       = 0._f
+
+  ! Scaling factors used to conserve the mass of the condensing gases in groups
+  ! with core masses. This is for use after advection where errors in
+  ! tracer/tracer relationships can introduce negative values for the condensing
+  ! elements.
+  real (r8)             :: carma_massscalefactor(NGROUP, NBIN)
 
 
 contains
@@ -543,6 +555,7 @@ contains
     integer           :: maxbin       ! last prognostic bin
     logical           :: is_cloud     ! is the group a cloud?
     logical           :: do_drydep    ! is dry deposition enabled?
+    integer           :: ncore        ! number of core elements in the group
 
     integer                    :: i
     integer                    :: ier
@@ -555,7 +568,7 @@ contains
     logical                    :: history_carma
     logical                    :: history_carma_srf_flx
 
-    aero_check_routine=>carma_checkstate
+    aero_check_routine=>carma_checkstate_local
 
 1   format(a6,4x,a11,4x,a11,4x,a11)
 2   format(i6,4x,3(1pe11.3,4x))
@@ -631,7 +644,7 @@ contains
     end do
 
     do igroup = 1, NGROUP
-      call CARMAGROUP_Get(carma, igroup, rc, shortname=sname, is_cloud=is_cloud, do_drydep=do_drydep)
+      call CARMAGROUP_Get(carma, igroup, rc, shortname=sname, is_cloud=is_cloud, do_drydep=do_drydep, ncore=ncore)
       if (rc < 0) call endrun('carma_init::CARMAGROUP_GetGroup failed.')
 
       ! Gridbox average
@@ -688,6 +701,22 @@ contains
               trim(btndname(igroup, ibin)) // ' wet particle density')
          call addfld(trim(btndname(igroup, ibin))//'VR', (/ 'lev' /), 'A', 'um', &
               trim(btndname(igroup, ibin)) // ' volatile mixing ratio')
+
+
+         if ((carma_ndebugpkgs > 0) .and. (ncore > 0)) then
+          call addfld(trim(btndname(igroup, ibin))//'LCFM', horiz_only,  'A', 'kg/m2', trim(btndname(igroup, ibin)) // ' CARMA local mass fixer fail mass ')
+          call addfld(trim(btndname(igroup, ibin))//'LCFP', horiz_only,  'A', 'probability', trim(btndname(igroup, ibin)) // ' CARMA mass local fail PDF')
+          call addfld(trim(btndname(igroup, ibin))//'LCR', (/ 'lev' /),  'A', 'kg/kg', trim(btndname(igroup, ibin)) // ' CARMA local mass fix MMR')
+          call addfld(trim(btndname(igroup, ibin))//'LCP', (/ 'lev' /),  'A', 'probability', trim(btndname(igroup, ibin)) // ' CARMA local fix PDF')
+
+          if (carma_diags_file > 0) then
+            call add_default(trim(btndname(igroup, ibin))//'LCFM', carma_diags_file, ' ')
+            call add_default(trim(btndname(igroup, ibin))//'LCFP', carma_diags_file, ' ')
+            call add_default(trim(btndname(igroup, ibin))//'LCR', carma_diags_file, ' ')
+            call add_default(trim(btndname(igroup, ibin))//'LCP', carma_diags_file, ' ')
+          end if
+         end if
+
       end do
 
     end do
@@ -1320,7 +1349,7 @@ contains
 
         do ibin = 1, NBIN
           call CARMASTATE_GetBin(cstate, ielem, ibin, newstate(:), rc, &
-                 numberDensity=numberDensity, nucleationRate=nucleationRate, r_wet=r_wet, rhop_wet=rhop_wet, surface=dd, vd=vd, vf=vf, dtpart=dtpart)
+                 numberDensity=numberDensity, nucleationRate=nucleationRate, r_wet=r_wet, rhop_wet=rhop_wet, sedimentationflux=dd, vd=vd, vf=vf, dtpart=dtpart)
           if (rc < 0) call endrun('carma_timestep_tend::CARMASTATE_GetBin failed.')
 
           ! For prognostic groups, set the tendency from the corresponding constituents.
@@ -1336,7 +1365,7 @@ contains
               ptend%q(icol, :, icnst) = (newstate(:) - state_loc%q(icol, :, icnst)) / dt
 
               if (grp_do_drydep) then
-                sbdiags(icol, ibin, ielem, SBDIAGS_DD) = dd / dt
+                sbdiags(icol, ibin, ielem, SBDIAGS_DD) = dd
                 sbdiags(icol, ibin, ielem, SBDIAGS_VD) = - vd / 100._r8
               end if
             end if
@@ -1497,73 +1526,486 @@ contains
 
 
     ! Output diagnostic fields.
-    call carma_output_diagnostics(state_loc, ptend, gpdiags, sbdiags, gsdiags, spdiags, bndiags)
+    call carma_output_diagnostics(state_loc, ptend, pbuf, cam_in, gpdiags, sbdiags, gsdiags, spdiags, bndiags)
 
   end subroutine carma_timestep_tend
 
-  subroutine carma_checkstate(q, ncol, nlev, packagename, fix, logmsg, abort)
+  !! Check the CARMA aerosol to make sure that for each aerosol the
+  !! concentration element mass is equal to or greater than the sum of
+  !! the core element mass. The condensing gas in the particle is the
+  !! difference between the concentration element mass and the sum of
+  !! the core masses, so it should never be negative.
+  !!
+  !! These situation can either be repaired or reported, and the run
+  !! can either be aborted or left to continue. To repair, the mass of
+  !! the concentration element is set to be the sum of the core masses
+  !! (i.e. the condensing gas has a mass of zero). This is most likely
+  !! to happen when the masses are small.
+  !!
+  !! NOTE: After advection we are seeing a large tendency from fixing
+  !! the negative values. SO instead of just zeroing out the negative
+  !! value, and attempt will be made to move mass within the column to
+  !! conserve the sulfate.
+  !!
+  !! NOTE: I would like to pass in state, but there is a circular
+  !! dependency with physics types in aero_check_mod.F90.
+  !!
+  !! @author  Yunqian Zhu, Francis Vitt, Chuck Bardeen
+  !! @version February-2023
+  subroutine carma_checkstate_local(pdel, q, lchnk, ncol, nlev, packagename, fix, logmsg, abort)
+    use physconst,     only: gravit
+    use cam_history,   only: outfld
 
-    real(r8), intent(inout) :: q(:,:,:)
-    integer, intent(in) :: ncol, nlev
-    character(len=*), intent(in) :: packagename
-    logical, intent(in) :: fix
-    logical, intent(in) :: logmsg
-    logical, intent(in) :: abort
+    real(r8), intent(in)    :: pdel(:,:)    !! pressure difference in vertical (Pa)
+    real(r8), intent(inout) :: q(:,:,:)     !! constituent array (kg/kg)
+    integer, intent(in)     :: lchnk        !! chunk identifier from state
+    integer, intent(in)     :: ncol         !! number of columns
+    integer, intent(in)     :: nlev         !! number of levels
+    character(len=*), intent(in) :: packagename  !! name of the physics package
+    logical, intent(in)     :: fix          !! fix any errors detected
+    logical, intent(in)     :: logmsg       !! report an errors detected to the log
+    logical, intent(in)     :: abort        !! abort the run if any errors are detected
 
-    integer         :: icorelem(NELEM)
-    integer         :: igroup,ienconc,ncore,ibin,iz,icore, icol
-    integer         :: cnst_conc,cnst_core
-    real(r8)        :: total_core
+    integer         :: icorelem(NELEM)      !! List of core element numbers for the group
+    integer         :: igroup,ienconc,ncore,ibin,iz,icore,icol,ipkg
+    integer         :: cnst_conc            !! Constituent index for concentration element
+    integer         :: cnst_core            !! Constituent index for a core mass
+    real(r8)        :: total_core(pver)     !! Total mmr for the core masses (kg/kg)
+    real(r8)        :: amass(pcols, pver)   !! Air mass (kg)
+    real(r8)        :: concgas_mmr(pver)    !! mmr for concentration element - sum(core_mass) (kg/kg)
+    real(r8)        :: total_mass           !! Total positive masses for concgas (kg/m2)
+    real(r8)        :: missing_mass         !! Total negative masses for concgas (kg/m2)
+    real(r8)        :: failMass(pcols, NBIN)      !! Amount of the column mass shortfall if the error can't be fixed
+    real(r8)        :: failPdf(pcols, NBIN)       !! 2D PDF of whether the error coulnd't be fixed
+    real(r8)        :: fixMmr(pcols, pver, NBIN)  !! Size of the negative mmr that will be fixed
+    real(r8)        :: fixPdf(pcols, pver, NBIN)  !! 3D PDF of where fixes were needed
+    logical         :: isDbgPkg             !! Indicator of whether to output debug information
+    character(len=16) :: binname
+
     character(len=CARMA_SHORT_NAME_LEN) :: shortname
 
     integer               :: rc
     integer               :: LUNOPRT              ! logical unit number for output
     logical               :: do_print             ! do print output?
     real(r8), parameter   :: small = tiny(1._r8)
-    real(r8) :: factor
+    real(r8)              :: factor
+
+    ! Determine if debug information is to be output for this package.
+    isDbgPkg = .false.
+    do ipkg = 1, carma_ndebugpkgs
+      if (trim(packagename) .eq. trim(carma_debug_packages(ipkg))) then
+        isDbgPkg = .true.
+        exit
+      end if
+    end do
+
+    ! Initialize the diagnostics.
+    failMass(:,:) = 0._r8
+    failPdf(:,:)  = 0._r8
+    fixMmr(:,:,:)   = 0._r8
+    fixPdf(:,:,:)   = 0._r8
 
     call CARMA_Get(carma, rc, do_print=do_print, LUNOPRT=LUNOPRT)
+    if (rc < 0) call endrun('carma_checkstate_local::CARMA_Get failed.')
 
-    grp_loop: do igroup = 1, NGROUP
+    ! Calculate the airmass at each level.
+    amass(:,:) = pdel(:,:) / gravit
 
-       call CARMAGROUP_Get(carma, igroup, rc, shortname=shortname, ienconc=ienconc, ncore=ncore, icorelem=icorelem)
+    ! Loop over the column first, since we want to try to conserve mass within the
+    ! column.
+    do icol = 1, ncol
 
-       bin_loop: do ibin = 1, NBIN
-          call carma_getcnstforbin(ienconc, ibin, cnst_conc)
+      ! Find out the total amount of the concentration mass and the amount needed to
+      ! fill in any negative values.
+      !
+      ! NOTE: Can we get away with doing this a bin at a time or do we need to
+      ! pool the mass from all bins?
+      do igroup = 1, NGROUP
 
-          ver_loop: do iz = 1, nlev
-             col_loop: do icol = 1, ncol
-                total_core = 0._r8
-                do icore = 1, NCORE
-                   call carma_getcnstforbin(icorelem(icore), ibin, cnst_core)
-                   total_core = total_core + q(icol,iz,cnst_core)
+        call CARMAGROUP_Get(carma, igroup, rc, shortname=shortname, ienconc=ienconc, ncore=ncore, icorelem=icorelem)
+        if (rc < 0) call endrun('carma_checkstate_local::CARMAGROUP_Get failed.')
+
+        ! We only need to do this where there are core masses.
+        if (ncore .gt. 0) then
+
+          do ibin = 1, NBIN
+
+            ! Find the concentration element.
+            call carma_getcnstforbin(ienconc, ibin, cnst_conc)
+
+            ! Find the total of the core masses
+            total_core(:) = 0._r8
+
+            do icore = 1, ncore
+              call carma_getcnstforbin(icorelem(icore), ibin, cnst_core)
+              total_core(:) = total_core(:) + q(icol,:,cnst_core)
+            end do
+
+            ! Are there any places where the sum of the core masses is
+            ! greater than the concentration element?
+            if (any(total_core(:) > q(icol,:,cnst_conc))) then
+
+              ! Log a message if requested.
+              if (logmsg) then
+                 do iz = 1, nlev
+                   if (total_core(iz) > q(icol,iz,cnst_conc)) then
+                     write(LUNOPRT,*) 'carma_checkstate: WARNING - '//trim(packagename)
+                     write(LUNOPRT,*) 'iz ', iz, 'total_core ',total_core(iz),', totalmass ', q(icol,iz,cnst_conc), &
+                        ' diff:', q(icol,iz,cnst_conc) - total_core(iz)
+                   end if
+                 end do
+              endif
+
+              ! Abort the run if requested.
+              if (abort) then
+                 call endrun('carma_checkstate: ERROR -- total_core > q(icol,iz,cnst_conc) -- '//trim(packagename))
+              end if
+
+              ! Collect up the information need to fix if requested.
+              if (fix) then
+
+                ! Determine the total mass and the missing mass.
+                total_mass = 0._r8
+                missing_mass = 0._r8
+
+                do iz = 1, nlev
+                  concgas_mmr(iz) = q(icol,iz,cnst_conc) - total_core(iz)
+                  if (concgas_mmr(iz) > 0._r8) then
+                    total_mass = total_mass + amass(icol,iz) * concgas_mmr(iz)
+                  else if (concgas_mmr(iz) < 0._r8) then
+                    missing_mass = missing_mass - amass(icol,iz) * concgas_mmr(iz)
+                  end if
                 end do
 
-                chck_fail: if(total_core > q(icol,iz,cnst_conc))then
-                   if (logmsg) then
-                      write(LUNOPRT,*) 'carma_checkstate: ERROR - '//trim(packagename)
-                      write(LUNOPRT,*) 'total_core ',total_core,', totalmass ',q(icol,iz,cnst_conc), &
-                           ' diff:', total_core - q(icol,iz,cnst_conc)
-                   endif
-                   if (fix) then
-                      factor = (1._r8-small) * q(icol,iz,cnst_conc) / total_core
-                      do icore = 1, NCORE
-                         call carma_getcnstforbin(icorelem(icore), ibin, cnst_core)
-                         q(icol,iz,cnst_core) = factor * q(icol,iz,cnst_core)
-                      end do
-                   endif
-                   if (abort) then
-                      call endrun('carma_checkstate -- total_core > q(icol,iz,cnst_conc) -- '//trim(packagename))
-                   end if
-                end if chck_fail
-             end do col_loop
-          end do ver_loop
+                ! Is there enough mass to fill in the holes?
+                if (total_mass >= missing_mass) then
 
-       end do bin_loop
-    end do grp_loop
+                  ! Do we need to add any fudge factor to this for
+                  ! roundoff, ...?
+                  factor = (total_mass - missing_mass) / total_mass
 
-  end subroutine carma_checkstate
+                  do iz = 1, nlev
 
+                    ! Scale the positive concentration mass by enough to fill
+                    ! the gaps.
+                    if (concgas_mmr(iz) > 0._r8) then
+
+                      q(icol,iz,cnst_conc) = total_core(iz) + factor * concgas_mmr(iz)
+
+                    ! Fill the negative values with zero.
+                    else if (concgas_mmr(iz) < 0._r8) then
+
+                      q(icol,iz,cnst_conc) = total_core(iz)
+
+                      ! If we are collecting diagnostics for this package, then output
+                      ! that a fix happened and the amount of the fix.
+                      if (isDbgPkg) then
+                        fixMmr(icol,iz,ibin) = concgas_mmr(iz)
+                        fixPdf(icol,iz,ibin)  = 1._r8
+                      end if
+                    end if
+                  end do
+                else
+
+                  ! If we are collecting diagnostics for this package, then output
+                  ! that a failure happened and the amount of the shortfall.
+                  !
+                  ! NOTE: Could make this a 3D field like the fix side, but
+                  ! lets start out with 2D and see if we need the extra info.
+                  if (isDbgPkg) then
+                    failMass(icol,ibin) = total_mass - missing_mass
+                    failPdf(icol,ibin)  = 1._r8
+                  end if
+
+!                  write(*,*) 'carma_checkstate: ERROR -- Not enough mass available to fix shortfall -- '//trim(packagename)
+!                  write(*,*) 'bin=', ibin, ', total_mass=', total_mass, ', missing_mass=', missing_mass
+
+!                  write(*,*) '     iz            conc_mmr        core_mass_mmr'
+!                  do iz = nlev, 1, -1
+!                    if (q(icol,iz,cnst_conc) >= total_core(iz)) then
+!                      write(*,*) '    ', iz, q(icol,iz,cnst_conc), total_core(iz)
+!                    else
+!                      write(*,*) ' ** ', iz, q(icol,iz,cnst_conc), total_core(iz)
+!                    end if
+!                  end do
+
+                  ! Since there isn't enough mass in the column to fix the negative values, just
+                  ! zero out the column and see if it will get better.
+                  q(icol,:,cnst_conc) = total_core(:)
+
+!                  call endrun('carma_checkstate: ERROR -- Not enough mass available to fix shortfall.  -- '//trim(packagename))
+                end if
+              end if
+            end if
+          end do
+        end if
+      end do
+    end do
+
+    if (isDbgPkg) then
+      do igroup = 1, NGROUP
+
+        call CARMAGROUP_Get(carma, igroup, rc, shortname=shortname, ncore=ncore)
+        if (rc < 0) call endrun('carma_checkstate_local::CARMAGROUP_Get failed.')
+
+        ! We only need to do this where there are core masses.
+        if (ncore .gt. 0) then
+          do ibin = 1, NBIN
+            call outfld(trim(binname)//'LCFM', failMass(:ncol, ibin), ncol, lchnk)
+            call outfld(trim(binname)//'LCFP', failPdf(:ncol, ibin), ncol, lchnk)
+
+            call outfld(trim(binname)//'LCR',  fixMmr(:ncol, :, ibin), ncol, lchnk)
+            call outfld(trim(binname)//'LCP',  fixPdf(:ncol, :, ibin), ncol, lchnk)
+          end do
+        end if
+      end do
+    end if
+
+    return
+  end subroutine carma_checkstate_local
+
+  !! Determine scale factors to be used to adjust the mass of the
+  !! concentration element following advection to remove and negative
+  !! values for the condensing gas.
+  !!
+  !! This is done by calculating the global burden of condensing gases (per bin)
+  !! as well as the burden associated with negative values. These values are
+  !! because of failures to maintain tracer/tracer relationships during
+  !! advection. These scaling factors will be used in carma_checkstate_global().
+  !!
+  !! NOTE: To get a global value, this code has to use MPI to collect information
+  !! from other tasks. Currently, we are synchronizing twice in succession for
+  !! bin. If we can sum arrays, then we could combine this into one or two
+  !! synchronizations. Since they are all in succession, it may not have that much
+  !! of a performance impact to do it one at a time.
+  !!
+  !! @author  Chuck Bardeen
+  !! @version February-2023
+  subroutine carma_calculate_globalmassfactor(state)
+    use physconst,  only: gravit
+    use ppgrid,     only: begchunk, endchunk
+    use phys_grid,  only: get_ncols_p, get_wght_p
+#if ( defined SPMD )
+    use mpishorthand
+#endif
+
+    type(physics_state), intent(in), dimension(begchunk:endchunk) :: state  !! All the chunks in this task.
+
+    integer         :: icorelem(NELEM)      !! List of core element numbers for the group
+    integer         :: igroup,ienconc,ncore,ibin,iz,icore,icol,lchnk,ncol
+    integer         :: cnst_conc            !! Constituent index for concentration element
+    integer         :: cnst_core            !! Constituent index for a core mass
+    integer         :: istat                !! I/O status
+    real(r8)        :: total_core(pver)     !! Total mmr for the core masses (kg/kg)
+    real(r8)        :: amass(pcols, pver)   !! Air mass (kg)
+    real(r8)        :: concgas_mmr          !! mmr for concentration element - sum(core_mass) (kg/kg)
+    real(r8)        :: total_mass           !! Total positive masses for concgas (kg/m2)
+    real(r8)        :: missing_mass         !! Total negative masses for concgas (kg/m2)
+    real(r8)        :: global_total         !! Global total positive masses for concgas (kg/m2)
+    real(r8)        :: global_missing       !! Global total negative masses for concgas (kg/m2)
+    real(r8)        :: wght                 !! Weighting factor proportional to the column surface area (sums to 4*pi)
+    integer         :: rc                   !! return code
+    integer         :: LUNOPRT              !! logical unit number for output
+    logical         :: do_print             !! do print output?
+    integer         :: ncols                !! columns in a chunk
+
+    call CARMA_Get(carma, rc, do_print=do_print, LUNOPRT=LUNOPRT)
+    if (rc < 0) call endrun('carma_calculate_globalmassfactor::CARMA_Get failed.')
+
+    ! Scale factors are 1 unless otherwise indicated. The are only needed
+    ! for groups with core masses.
+    carma_massscalefactor(:, :) = 1._r8
+
+    ! Find out the total mass the condensing gas and the amount needed to
+    ! fill in any negative values.
+    do igroup = 1, NGROUP
+
+      call CARMAGROUP_Get(carma, igroup, rc, ienconc=ienconc, ncore=ncore, icorelem=icorelem)
+      if (rc < 0) call endrun('carma_calculate_globalmassfactor::CARMAGROUP_Get failed.')
+
+      ! We only need to do this where there are core masses.
+      if (ncore .gt. 0) then
+
+        ! Each bin is its own set of tracers and its own burdens. Thus it has its own
+        ! scaling factors to conserve mass.
+        do ibin = 1, NBIN
+
+          ! Find the concentration element.
+          call carma_getcnstforbin(ienconc, ibin, cnst_conc)
+
+          ! Determine the total condensing mass, both the positive values only
+          ! (total_mass) and the negative values only (missing_mass).
+          total_mass = 0._r8
+          missing_mass = 0._r8
+
+          ! Loop over each chunk in this task.
+          do lchnk = begchunk, endchunk
+
+            ! Calculate the airmass at each level.
+            amass(:,:) = state(lchnk)%pdel(:,:) / gravit
+
+            ! Loop over each column in the chunk.
+            do icol = 1, state(lchnk)%ncol
+
+              wght = get_wght_p(lchnk, icol)
+
+              ! Find the total of the core masses
+              total_core(:) = 0._r8
+
+              do icore = 1, ncore
+                call carma_getcnstforbin(icorelem(icore), ibin, cnst_core)
+                total_core(:) = total_core(:) + state(lchnk)%q(icol,:,cnst_core)
+              end do
+
+              ! Determine the total mass and the missing mass of the condensing gas.
+              do iz = 1, pver
+                concgas_mmr = state(lchnk)%q(icol,iz,cnst_conc) - total_core(iz)
+                if (concgas_mmr > 0._r8) then
+                  total_mass = total_mass + amass(icol,iz) * concgas_mmr * wght
+                else if (concgas_mmr < 0._r8) then
+                  missing_mass = missing_mass - amass(icol,iz) * concgas_mmr * wght
+                end if
+              end do
+            end do
+          end do
+
+          ! Need to calculate a global total by summing with other tasks.
+          !
+          ! NOTE: The weighting factor increases the sum by a factor of 4*pi,
+          ! but since we are taking a ratio to get a scaling factor, we can
+          ! ignore this scaling.
+#ifdef SPMD
+          call mpi_allreduce(total_mass, global_total, 1, mpir8, mpi_sum, mpicom, istat)
+
+          if (istat /= MPI_SUCCESS) then
+             if (do_print) write(LUNOPRT,*) 'carma_calculate_globalmassfactor: MPI_ALLREDUCE for global_total failed; error = ',istat
+             call endrun
+          end if
+
+          call mpi_allreduce(missing_mass, global_missing, 1, mpir8, mpi_sum, mpicom, istat)
+
+          if (istat /= MPI_SUCCESS) then
+             if (do_print) write(LUNOPRT,*) 'carma_calculate_globalmassfactor: MPI_ALLREDUCE for global_missing failed; error = ',istat
+             call endrun
+          end if
+#else
+          global_total = total_mass
+          global_missing = missing_mass
+#endif
+
+          ! Now calculate a scaling factor to be used to reduce the positive
+          ! sulfate to conserve mass when the negative values are removed.
+          if (global_total > 0._r8) then
+            carma_massscalefactor(igroup, ibin) = min(1._r8, max(0._r8, (global_total - global_missing) / global_total))
+          end if
+
+          ! For debug ...
+!          if (masterproc) then
+!            write(*,*) 'carma cgmf : igroup=', igroup, ', ibin=', ibin
+!            write(*,*) 'carma cgmf : global_total=', global_total
+!            write(*,*) 'carma cgmf : global_missing=', global_missing
+!            write(*,*) 'carma cgmf : scale factor=', carma_massscalefactor(igroup, ibin)
+!          end if
+        end do
+      end if
+    end do
+
+    return
+  end subroutine carma_calculate_globalmassfactor
+
+  !! Check the CARMA aerosol to make sure that for each aerosol the
+  !! concentration element mass is equal to or greater than the sum of
+  !! the core element mass. The condensing gas in the particle is the
+  !! difference between the concentration element mass and the sum of
+  !! the core masses, so it should never be negative.
+  !!
+  !! These situation can either be repaired or reported, and the run
+  !! can either be aborted or left to continue. To repair, the mass of
+  !! the concentration element is set to be the sum of the core masses
+  !! (i.e. the condensing gas has a mass of zero). This is most likely
+  !! to happen when the masses are small.
+  !!
+  !! NOTE: This is for after advection where we are seeing a large tendency
+  !! from just fixing the negative values. So instead of just zeroing out
+  !! the negative we will adjust the postive values so as to conserve the
+  !! global burden. The relies on the routine carma_calc_globalmassfactor().
+  !!
+  !! @author  Chuck Bardeen
+  !! @version February-2023
+  subroutine carma_checkstate_global(state, ptend, dt)
+    use physconst,     only: gravit
+
+    type(physics_state), intent(in)     :: state        !! Physics state variables - before CARMA
+    type(physics_ptend), intent(inout)  :: ptend        !! indivdual parameterization tendencies
+    real(r8)                            :: dt           !! timestep (s)
+
+    integer         :: icorelem(NELEM)      !! List of core element numbers for the group
+    integer         :: igroup,ienconc,ncore,ibin,iz,icore, icol
+    integer         :: cnst_conc            !! Constituent index for concentration element
+    integer         :: cnst_core            !! Constituent index for a core mass
+    real(r8)        :: total_core(pver)     !! Total mmr for the core masses (kg/kg)
+    real(r8)        :: concgas_mmr          !! mmr for (concentration element - sum(core_mass)) (kg/kg)
+
+    integer               :: rc
+    real(r8), parameter   :: small = tiny(1._r8)
+
+    call physics_ptend_init(ptend,state%psetcols, 'CARMA (checkstate)', lq=lq_carma)
+
+    ! Loop over the column first, since we want to try to conserve mass within the
+    ! column.
+    do icol = 1, state%ncol
+
+      ! Find the groups with core mass, where tracer/tracer errors from advection
+      ! code create mass conserrvation errors in the condensate.
+      do igroup = 1, NGROUP
+
+        call CARMAGROUP_Get(carma, igroup, rc, ienconc=ienconc, ncore=ncore, icorelem=icorelem)
+        if (rc < 0) call endrun('carma_checkstate_global::CARMAGROUP_Get failed.')
+
+        ! We only need to do this where there are core masses.
+        if (ncore .gt. 0) then
+
+          do ibin = 1, NBIN
+
+            ! Find the concentration element.
+            call carma_getcnstforbin(ienconc, ibin, cnst_conc)
+
+            ! Find the total of the core masses
+            total_core(:) = 0._r8
+
+            do icore = 1, ncore
+              call carma_getcnstforbin(icorelem(icore), ibin, cnst_core)
+              total_core(:) = total_core(:) + state%q(icol,:,cnst_core)
+            end do
+
+            ! Adjust the condensing gas in the column.
+            do iz = 1, pver
+
+              ! Scale the positive concentration mass the global scaling factor
+              ! to conserve mass of condensate.
+              concgas_mmr = state%q(icol,iz,cnst_conc) - total_core(iz)
+              if (concgas_mmr > 0._r8) then
+                ptend%q(icol,iz,cnst_conc) = ((total_core(iz) + carma_massscalefactor(igroup, ibin) * concgas_mmr) - state%q(icol,iz,cnst_conc)) / dt
+
+              ! Remove the negative values by setting the concentration element
+              ! to be the sum of the core masses.
+              else if (concgas_mmr < 0._r8) then
+                ptend%q(icol,iz,cnst_conc) = (total_core(iz) - state%q(icol,iz,cnst_conc)) / dt
+              end if
+            end do
+          end do
+        end if
+      end do
+    end do
+
+    return
+  end subroutine carma_checkstate_global
+
+  !! Get the index for the constituents array for the specified bin
+  !! of the specified element.
+  !!
+  !! @author  Yunqian Zhu, Francis Vitt
+  !! @version September-2022
   subroutine carma_getcnstforbin(ielem, ibin, icnst)
     implicit none
 
@@ -1574,6 +2016,10 @@ contains
     return
   end subroutine carma_getcnstforbin
 
+  !! Collect CARMA substep statistics from all MPI tasks.
+  !!
+  !! @author  Chuck Bardeen
+  !! @version May-2009
   subroutine carma_accumulate_stats()
 #if ( defined SPMD )
     use mpishorthand
@@ -1732,19 +2178,122 @@ contains
     return
   end subroutine carma_init_cnst
 
+  !! Calculate amounts of cloudborne aerosols for use in budget diagnostics. This should
+  !! be called before the timestep, and the results passed to CARMA_output_cloudborne_diagnostics()
+  !! after the timestep to calculate the tendencies and write them out the the history files.
+  !!
+  !! NOTE: The exact fields that are calculated are determined by the particular CARMA model.
+  !!
+  !! @author  Chuck Bardeen
+  !! @version January-2023
+  subroutine carma_calculate_cloudborne_diagnostics(state, pbuf, aerclddiag)
+
+    implicit none
+
+    type(physics_state), intent(in)    :: state          !! Physics state variables - before CARMA
+    type(physics_buffer_desc), pointer :: pbuf(:)        !! physics buffer
+    real(r8), intent(out)              :: aerclddiag(pcols, MAXCLDAERDIAG)  !! previous cloudborne diagnostics
+
+    integer            :: rc
+
+    call CARMA_CalculateCloudborneDiagnostics(carma, state, pbuf, aerclddiag, rc)
+
+    return
+  end subroutine carma_calculate_cloudborne_diagnostics
+
+
+  !! Output cloudborne aerosol budget tendencies to the history files for physics packages
+  !! other than CARMA that may be affecting the CARMA aerosols. Since cloudborne aerosols
+  !! are not in the physics_state, you must call CARMA_calculate_cloudborne_diagnostics()
+  !! before the timestep tend to capture the prior state. This call will calculate the
+  !! final state and output the difference as a tendency. This may be useful for
+  !! debugging and for calculating aerosol budgets.
+  !!
+  !! @author  Chuck Bardeen
+  !! @version January-2023
+  subroutine carma_output_cloudborne_diagnostics(state, pbuf, pname, dt, oldaerclddiag)
+
+    implicit none
+
+    type(physics_state), intent(in)    :: state          !! Physics state variables - before CARMA
+    type(physics_buffer_desc), pointer :: pbuf(:)        !! physics buffer
+    character(*), intent(in)           :: pname          !! short name of the physics package
+    real(r8), intent(in)               :: dt             !! timestep (s)
+    real(r8), intent(in)               :: oldaerclddiag(pcols, MAXCLDAERDIAG)  !! previous cloudborne diagnostics
+
+    integer            :: rc
+    integer            :: i
+
+    ! Check to make sure the the package is in the packages list.
+    do i = 1, carma_ndiagpkgs
+      if (trim(carma_diags_packages(i)) .eq. trim(pname)) then
+
+        ! Allow models to output their own diagnostics related to aerosol
+        ! budgets related to physics packages other than CARMA
+        call CARMA_OutputCloudborneDiagnostics(carma, state, pbuf, dt, pname, oldaerclddiag, rc)
+        exit
+      end if
+    end do
+
+    return
+  end subroutine carma_output_cloudborne_diagnostics
+
+
+
+  !! Output budget tendencies to the history files for physics packages
+  !! other than CARMA that may be affecting the CARMA aerosols. This can be
+  !! called for any physics package that is using ptend to modify the CARMA
+  !! aerosol, and may be useful for debugging and for calculating aerosol budgets.
+  !!
+  !! All the columns in the chunk should be output at the same time.
+  !!
+  !! @author  Chuck Bardeen
+  !! @version January-2023
+  subroutine carma_output_budget_diagnostics(state, ptend, old_cflux, cflux, dt, pname)
+
+    implicit none
+
+    type(physics_state), intent(in)    :: state          !! Physics state variables - before CARMA
+    type(physics_ptend), intent(in)    :: ptend          !! indivdual parameterization tendencies
+    real(r8)                           :: old_cflux(pcols,pcnst)  !! cam_in%clfux from before the timestep_tend
+    real(r8)                           :: cflux(pcols,pcnst)  !! cam_in%clfux from after the timestep_tend
+    real(r8), intent(in)               :: dt             !! timestep (s)
+    character(*), intent(in)           :: pname          !! short name of the physics package
+
+    integer            :: rc
+
+    integer            :: i
+
+    ! Check to make sure the the package is in the packages list.
+    do i = 1, carma_ndiagpkgs
+      if (trim(carma_diags_packages(i)) .eq. trim(pname)) then
+
+        ! Allow models to output their own diagnostics related to aerosol
+        ! budgets related to physics packages other than CARMA
+        call carma_OutputBudgetDiagnostics(carma, icnst4elem, icnst4gas, state, ptend, old_cflux, cflux, dt, pname, rc)
+        exit
+      end if
+    end do
+
+    return
+  end subroutine carma_output_budget_diagnostics
+
 
   !! Outputs tracer tendencies and diagnositc fields to the history files.
   !! All the columns in the chunk should be output at the same time.
   !!
   !! @author  Chuck Bardeen
   !! @version May-2009
-  subroutine carma_output_diagnostics(state, ptend, gpdiags, sbdiags, gsdiags, spdiags, bndiags)
+  subroutine carma_output_diagnostics(state, ptend, pbuf, cam_in, gpdiags, sbdiags, gsdiags, spdiags, bndiags)
     use cam_history, only: outfld
+    use camsrfexch,       only: cam_in_t
 
     implicit none
 
     type(physics_state), intent(in)   :: state          !! Physics state variables - before CARMA
     type(physics_ptend), intent(in)   :: ptend          !! indivdual parameterization tendencies
+    type(physics_buffer_desc), pointer :: pbuf(:)        !! physics buffer
+    type(cam_in_t), intent(in)         :: cam_in         !! surface inputs
     real(r8), intent(in), dimension(pcols, pver, NGROUP, NGPDIAGS) :: gpdiags  !! CARMA group diagnostic output
     real(r8), intent(in), dimension(pcols, NBIN, NELEM,  NSBDIAGS) :: sbdiags  !! CARMA surface bin diagnostic output
     real(r8), intent(in), dimension(pcols, pver, NGAS,   NGSDIAGS) :: gsdiags  !! CARMA gas diagnostic output
@@ -1868,6 +2417,9 @@ contains
     if (carma_do_thermo) then
        call outfld('CRTT', ptend%s(:, :) / cpair, pcols, lchnk)
     end if
+
+    ! Allow models to output their own diagnostics
+    call carma_OutputDiagnostics(carma, icnst4elem, state, ptend, pbuf, cam_in, rc)
 
     return
   end subroutine carma_output_diagnostics

@@ -55,6 +55,10 @@ module carma_model_mod
   public CARMA_EmitParticle
   public CARMA_InitializeModel
   public CARMA_InitializeParticle
+  public CARMA_CalculateCloudborneDiagnostics
+  public CARMA_OutputCloudborneDiagnostics
+  public CARMA_OutputBudgetDiagnostics
+  public CARMA_OutputDiagnostics
   public CARMA_WetDeposition
   public CARMA_SaltFlux
 
@@ -151,6 +155,8 @@ module carma_model_mod
   integer      :: ipbuf4dryr(NBIN,NGROUP) = -1 ! aerosol dry radius per bin
   integer      :: ipbuf4rmass(NBIN,NGROUP) = -1 ! aerosol mass per bin
   integer      :: ipbuf4soa(NBIN) = -1
+  integer      :: ipbuf4soacm(NBIN) = -1
+  integer      :: ipbuf4soapt(NBIN) = -1
   integer      :: ipbuf4jno2 = -1
   real(kind=f) :: aeronet_fraction(NBIN)  !! fraction of BC dV/dlnr in each bin (100%)
 
@@ -330,6 +336,8 @@ contains
          call pbuf_add_field(trim(sname)//outputbin//"_sad", 'global', dtype_r8, (/pcols, pver/), ipbuf4sad(ibin,igroup))
          if (igroup==I_GRP_MXAER) then
            call pbuf_add_field("DQDT_MXSOA"//outputbin,'global',dtype_r8,(/pcols,pver/), ipbuf4soa(ibin))
+           call pbuf_add_field("MXSOA"//outputbin//"CM",'physpkg',dtype_r8,(/pcols,pver/), ipbuf4soacm(ibin))
+           call pbuf_add_field("MXSOA"//outputbin//"PT",'physpkg',dtype_r8,(/pcols,pver/), ipbuf4soapt(ibin))
          end if
       end do
    end do
@@ -403,6 +411,8 @@ contains
     character(len=8)                     :: shortname                !! short (CAM) name
     real(r8), pointer, dimension(:,:)    :: dqdt_soa              !! soa tendency due to gas-aerosol exchange  kg/kg/s
     real(r8), pointer, dimension(:,:)    :: jno2_rate             !! jno2 tendency due to gas-aerosol exchange  kg/kg/s
+    real(r8), pointer, dimension(:,:)    :: soacm                 !! aerosol tendency due to gas-aerosol exchange  kg/kg/s
+    real(r8), pointer, dimension(:,:)    :: soapt                 !! aerosol tendency due to no2 photolysis  kg/kg/s
     real(r8)                             :: mmr_total(cstate%f_NZ)!! mass mixing ratio of a group (kg/kg)
     real(r8)                             :: mmr_core(cstate%f_NZ)!! mass mixing ratio of the core (kg/kg)
     real(r8)                             :: mmr_soa(cstate%f_NZ)  !! mass mixing ratio of soa element (kg/kg)
@@ -419,64 +429,65 @@ contains
     ! get SOA tendency pbuf field for the mixed group and every bin
 
     igroup = I_GRP_MXAER
-
-    call CARMAGROUP_Get(carma, igroup, rc, ienconc=ienconc,ncore=ncore,icorelem=icorelem)
+    call CARMAGROUP_Get(carma, igroup, rc, ienconc=ienconc, ncore=ncore, icorelem=icorelem)
+    if (rc /= RC_OK) call endrun('CARMA_DiagnoseBins::CARMAGROUP_Get failed.')
 
     do ibin = 1, NBIN
 
-       call CARMASTATE_GetBin(cstate, ienconc, ibin, mmr_total(:), rc)
-       if (rc /= RC_OK) call endrun('CARMA_DiagnoseBins::CARMASTATE_GetBin failed.')
+      ! Get the mass of the concentration element.
+      call CARMASTATE_GetBin(cstate, ienconc, ibin, mmr_total(:), rc)
+      if (rc /= RC_OK) call endrun('CARMA_DiagnoseBins::CARMASTATE_GetBin failed.')
 
-       mmr_soa(:) = 0.0_r8
-       mmr_core(:) = 0.0_r8
+      ! Iterate over the core elements, looking for the SOA element. Once found,
+      ! determine the new SOA taking into account both the addition of condensed
+      ! SOA and the loss of photolyzed SOA.
+      !
+      ! Both the total mass and the SOA mass need to be adjusted for the SOA change.
+      do ielem = 1, ncore
 
-       do ielem = 1, ncore
-          delta_soa(:) = 0.0_r8
+        call CARMASTATE_GetBin(cstate, icorelem(ielem), ibin, mmr(:), rc)
+        if (rc /= RC_OK) call endrun('CARMA_DiagnoseBins::CARMASTATE_GetBin failed.')
 
-          call CARMASTATE_GetBin(cstate, icorelem(ielem), ibin, mmr(:), rc)
+        call CARMAELEMENT_GET(carma, icorelem(ielem), rc, icomposition=icomposition)
+        if (rc /= RC_OK) call endrun('CARMA_DiagnoseBins::CARMAELEMENT_Get failed.')
 
-          call CARMAELEMENT_GET(carma, icorelem(ielem), rc, igroup=igroup, shortname=snamecore, icomposition=icomposition)
+        ! Only need to make adjustments for the SOA.
+        if (icomposition == I_SOA) then
+          call pbuf_get_field(pbuf, ipbuf4soa(ibin), dqdt_soa)     ! surface area density
 
-          if (icomposition==I_SOA) then
-             call pbuf_get_field(pbuf, ipbuf4soa(ibin), dqdt_soa)     ! surface area density
-             ielem_soa = ielem
-             mmr_soa = mmr
+          ! Add that soa tendency from chemistry to the aerosol.
+          !
+          !   NOTE: dqdt is in kg/kg/s
+          mmr_soa(:) = mmr(:) + dqdt_soa(icol,:) * dt
 
-             !add soa tendency to mmr_soa  ; dqdt = kg/kg/s
+          ! Save the chemistry tendency so it can by output in the diagnostics.
+          call pbuf_get_field(pbuf, ipbuf4soacm(ibin), soacm)
+          soacm(icol,:) = dqdt_soa(icol,:)
 
-             mmr_soa(:) = mmr_soa(:) + dqdt_soa(icol,:) * dt
+          ! Save the NO2 photolysis tendency so it can by output in the diagnostics.
+          !
+          ! NOTE: Simone, what is the 0.0004_r8??
+          call pbuf_get_field(pbuf, ipbuf4soapt(ibin), soapt)
+          soapt(icol,:) = - 0.0004_r8 * jno2_rate(icol,:) * mmr_soa(:)
 
-             ! substract photolysis rates
-             mmr_soa(:) = mmr_soa(:) - 0.0004_r8*jno2_rate(icol,:)*mmr_soa(:) * dt
+          ! Now adjust the SOA for the loss by the photolysis rate provided by the
+          ! chemistry.
+          mmr_soa(:) = max(0.0_r8, mmr_soa(:) + soapt(icol,:) * dt)
 
-             mmr_soa(:) = max(mmr_soa(:),0.0_r8)
+          ! Adjust the total MMR.
+          mmr_total(:) = mmr_total(:) + (mmr_soa(:) - mmr(:))
 
-             delta_soa(:) = mmr_soa(:) - mmr(:)
+          ! Save out these new values for SOA and total MMR.
+          call CARMASTATE_SetBin(cstate, icorelem(ielem), ibin, mmr_soa, rc)
+          if (rc /= RC_OK) call endrun('CARMA_DiagnoseBins::CARMAGROUP_SetBin failed.')
 
-             ! set mmr to new mmr
+          call CARMASTATE_SetBin(cstate, ienconc, ibin, mmr_total, rc)
+          if (rc /= RC_OK) call endrun('CARMA_DiagnoseBins::CARMAGROUP_SetBin failed.')
 
-             mmr(:) = mmr_soa(:)
-
-          end if  !mxsoa
-          mmr_core(:) = mmr_core(:) + mmr(:)
-
-       end do  !ielem
-
-       !update mmr_total and check that not smaller than core mass
-       do n = 1, cstate%f_NZ
-          mmr_total(n) = mmr_total(n) + delta_soa(n)
-          if (mmr_total(n) .lt.  mmr_core(n))  then
-             mmr_total(n) = mmr_core(n)
-          end if
-       end do
-
-       call CARMASTATE_SetBin(cstate, icorelem(ielem_soa), ibin, mmr_soa, rc)
-       if (rc /= RC_OK) call endrun('CARMA_DiagnoseBins::CARMAGROUP_SetBin failed.')
-
-       call CARMASTATE_SetBin(cstate, ienconc, ibin, mmr_total, rc)
-       if (rc /= RC_OK) call endrun('CARMA_DiagnoseBins::CARMAGROUP_SetBin failed.')
-
-    end do  !ibin
+          exit
+        end if  !mxsoa
+      end do  !ielem
+    end do  !nbin
 
   end subroutine CARMA_DiagnoseBins
 
@@ -890,7 +901,7 @@ contains
       ! Process each column.
       do icol = 1,ncol
 
-        call CARMA_SurfaceWind(carma, icol, ielem, igroup, idustbin, cam_in, uv10, wwd, uth, rc)
+        call CARMA_SurfaceWind(carma, icol, I_ELEM_MXDUST, igroup, idustbin, cam_in, uv10, wwd, uth, rc)
 
         ! Is the wind above the threshold for dust production?
         if (sqrt(wwd) > uth) then
@@ -967,7 +978,7 @@ contains
   !! @author  Chuck Bardeen
   !! @version May-2009
   subroutine CARMA_InitializeModel(carma, lq_carma, pbuf2d, rc)
-    use cam_history,  only: addfld,  horiz_only
+    use cam_history,  only: addfld,  horiz_only, add_default
     use constituents, only: pcnst
 
     type(carma_type), intent(in)       :: carma                 !! the carma object
@@ -986,7 +997,7 @@ contains
     integer            :: LUNOPRT                             ! logical unit number for output
     logical            :: do_print                            ! do print output?
 
-    integer :: idata,isizebin,ibin_local
+    integer :: i, idata,isizebin,ibin_local
     integer,parameter :: aeronet_dim1 = 22
     integer,parameter :: aeronet_dim2 = 4
     real(r8),dimension(aeronet_dim1,aeronet_dim2) :: sizedist_aeronet
@@ -994,6 +1005,7 @@ contains
     real(r8),dimension(NBIN) :: sizedist_carmabin
     real(r8) :: rmass(NBIN) !! dry mass
     real(r8) :: vrfact
+    character(len=16)    :: binname      !! names bins
 
     real(r8),parameter :: size_aeronet(aeronet_dim1) = (/0.050000_r8,0.065604_r8,0.086077_r8,0.112939_r8,0.148184_r8, &
          0.194429_r8,0.255105_r8,0.334716_r8,0.439173_r8,0.576227_r8,0.756052_r8,0.991996_r8,1.301571_r8,1.707757_r8, &
@@ -1169,6 +1181,98 @@ contains
 
       end if
     end do
+        ! Provide diagnostics on the SOA tendencies that affect MXAER.
+    do ibin = 1, NBIN
+      write(binname, '(A, I2.2)') "MXSOA", ibin
+
+      call addfld(trim(binname)//"CM", (/ 'lev' /), 'A', 'kg/kg/s', 'MXAER SOA gas condensation tendency')
+      call addfld(trim(binname)//"PT", (/ 'lev' /), 'A', 'kg/kg/s', 'MXAER SOA photolysis tendency')
+    end do
+
+    ! Provide diagnostics for SO4 tendencies from other physics packages
+    !
+    ! NOTE: This can be useful for determining an SO4 budget and for debugging
+    ! SO4 conservation.
+    if (carma_do_budget_diags) then
+
+      call addfld("SO4PRBD", horiz_only, 'A', 'kg/m2', 'CARMA, Interstitial SO4 pure burden')
+      if (carma_diags_file > 0) call add_default("SO4PRBD", carma_diags_file, ' ')
+      call addfld("SO4MXBD", horiz_only, 'A', 'kg/m2', 'CARMA, Interstitial SO4 mix burden')
+      if (carma_diags_file > 0) call add_default("SO4MXBD", carma_diags_file, ' ')
+      call addfld("SO4PRCLDBD", horiz_only, 'A', 'kg/m2', 'CARMA, Cloudborne SO4 pure burden')
+      if (carma_diags_file > 0) call add_default("SO4PRCLDBD", carma_diags_file, ' ')
+      call addfld("SO4MXCLDBD", horiz_only, 'A', 'kg/m2', 'CARMA, Cloudborne SO4 mix burden')
+
+      if (carma_diags_file > 0) call add_default("SO4MXCLDBD", carma_diags_file, ' ')
+      call addfld("SO4PRSF", horiz_only, 'A', 'kg/m2', 'CARMA, Interstitial SO4 pure surface flux')
+      if (carma_diags_file > 0) call add_default("SO4PRSF", carma_diags_file, ' ')
+      call addfld("SO4MXSF", horiz_only, 'A', 'kg/m2', 'CARMA, Interstitial SO4 mix surface flux')
+      if (carma_diags_file > 0) call add_default("SO4MXSF", carma_diags_file, ' ')
+
+      call addfld("H2SO4BD", horiz_only, 'A', 'kg/m2', 'CARMA, H2SO4 burden')
+      if (carma_diags_file > 0) call add_default("H2SO4BD", carma_diags_file, ' ')
+      call addfld("SO2BD", horiz_only, 'A', 'kg/m2', 'CARMA, SO2 burden')
+      if (carma_diags_file > 0) call add_default("SO2BD", carma_diags_file, ' ')
+
+      call addfld("MXBCBD", horiz_only, 'A', 'kg/m2', 'CARMA, Interstitial BC mix burden')
+      if (carma_diags_file > 0) call add_default("MXBCBD", carma_diags_file, ' ')
+      call addfld("MXDUSTBD", horiz_only, 'A', 'kg/m2', 'CARMA, Interstitial Dust mix burden')
+      if (carma_diags_file > 0) call add_default("MXDUSTBD", carma_diags_file, ' ')
+      call addfld("MXOCBD", horiz_only, 'A', 'kg/m2', 'CARMA, Interstitial OC mix burden')
+      if (carma_diags_file > 0) call add_default("MXOCBD", carma_diags_file, ' ')
+      call addfld("MXSALTBD", horiz_only, 'A', 'kg/m2', 'CARMA, Interstitial Sea Salt mix burden')
+      if (carma_diags_file > 0) call add_default("MXSALTBD", carma_diags_file, ' ')
+      call addfld("MXSOABD", horiz_only, 'A', 'kg/m2', 'CARMA, Interstitial SOA mix burden')
+      if (carma_diags_file > 0) call add_default("MXSOABD", carma_diags_file, ' ')
+
+      call addfld("MXBCCLDBD", horiz_only, 'A', 'kg/m2', 'CARMA, Cloudborne BC mix burden')
+      if (carma_diags_file > 0) call add_default("MXBCCLDBD", carma_diags_file, ' ')
+      call addfld("MXDUSTCLDBD", horiz_only, 'A', 'kg/m2', 'CARMA, Cloudborne Dust mix burden')
+      if (carma_diags_file > 0) call add_default("MXDUSTCLDBD", carma_diags_file, ' ')
+      call addfld("MXOCCLDBD", horiz_only, 'A', 'kg/m2', 'CARMA, Cloudborne OC mix burden')
+      if (carma_diags_file > 0) call add_default("MXOCCLDBD", carma_diags_file, ' ')
+      call addfld("MXSALTCLDBD", horiz_only, 'A', 'kg/m2', 'CARMA, Cloudborne Sea Salt mix burden')
+      if (carma_diags_file > 0) call add_default("MXSALTCLDBD", carma_diags_file, ' ')
+      call addfld("MXSOACLDBD", horiz_only, 'A', 'kg/m2', 'CARMA, Cloudborne SOA mix burden')
+      if (carma_diags_file > 0) call add_default("MXSOACLDBD", carma_diags_file, ' ')
+    end if
+
+    if (carma_do_package_diags) then
+
+      ! Iterate of the packages that have be instrumented. These should match the calls
+      ! in physpkg.f90.
+      do i = 1, carma_ndiagpkgs
+        call addfld("SO4PRBD_"//trim(carma_diags_packages(i)), horiz_only, 'A', 'kg/m2', trim(carma_diags_packages(i))//', SO4 pure burden')
+        if (carma_diags_file > 0) call add_default("SO4PRBD_"//trim(carma_diags_packages(i)), carma_diags_file, ' ')
+        call addfld("SO4MXBD_"//trim(carma_diags_packages(i)), horiz_only, 'A', 'kg/m2', trim(carma_diags_packages(i))//', SO4 mixed burden')
+        if (carma_diags_file > 0) call add_default("SO4MXBD_"//trim(carma_diags_packages(i)), carma_diags_file, ' ')
+
+        call addfld("SO4PRSF_"//trim(carma_diags_packages(i)), horiz_only, 'A', 'kg/m2/s', trim(carma_diags_packages(i))//', Surface Flux, SO4 pure tendency')
+        if (carma_diags_file > 0) call add_default("SO4PRSF_"//trim(carma_diags_packages(i)), carma_diags_file, ' ')
+        call addfld("SO4MXSF_"//trim(carma_diags_packages(i)), horiz_only, 'A', 'kg/m2/s', trim(carma_diags_packages(i))//', Surface Flux, SO4 mix tendency')
+        if (carma_diags_file > 0) call add_default("SO4MXSF_"//trim(carma_diags_packages(i)), carma_diags_file, ' ')
+
+        call addfld("SO4PRTC_"//trim(carma_diags_packages(i)), horiz_only, 'A', 'kg/m2/s', trim(carma_diags_packages(i))//', SO4 pure tendency')
+        if (carma_diags_file > 0) call add_default("SO4PRTC_"//trim(carma_diags_packages(i)), carma_diags_file, ' ')
+        call addfld("SO4MXTC_"//trim(carma_diags_packages(i)), horiz_only, 'A', 'kg/m2/s', trim(carma_diags_packages(i))//', SO4 mixed tendency')
+        if (carma_diags_file > 0) call add_default("SO4MXTC_"//trim(carma_diags_packages(i)), carma_diags_file, ' ')
+
+        call addfld("SO4PRCLDBD_"//trim(carma_diags_packages(i)), horiz_only, 'A', 'kg/m2', trim(carma_diags_packages(i))//', Cloudborne SO4 pure burden')
+        if (carma_diags_file > 0) call add_default("SO4PRCLDBD_"//trim(carma_diags_packages(i)), carma_diags_file, ' ')
+        call addfld("SO4MXCLDBD_"//trim(carma_diags_packages(i)), horiz_only, 'A', 'kg/m2', trim(carma_diags_packages(i))//', Cloudborne SO4 mixed burden')
+        if (carma_diags_file > 0) call add_default("SO4MXCLDBD_"//trim(carma_diags_packages(i)), carma_diags_file, ' ')
+
+        call addfld("SO4PRCLDTC_"//trim(carma_diags_packages(i)), horiz_only, 'A', 'kg/m2/s', trim(carma_diags_packages(i))//', Cloudborne SO4 pure tendency')
+        if (carma_diags_file > 0) call add_default("SO4PRCLDTC_"//trim(carma_diags_packages(i)), carma_diags_file, ' ')
+        call addfld("SO4MXCLDTC_"//trim(carma_diags_packages(i)), horiz_only, 'A', 'kg/m2/s', trim(carma_diags_packages(i))//', Cloudborne SO4 mixed tendency')
+        if (carma_diags_file > 0) call add_default("SO4MXCLDTC_"//trim(carma_diags_packages(i)), carma_diags_file, ' ')
+
+        call addfld("H2SO4TC_"//trim(carma_diags_packages(i)), horiz_only, 'A', 'kg/m2/s', trim(carma_diags_packages(i))//', H2SO4 total tendency')
+        if (carma_diags_file > 0) call add_default("H2SO4TC_"//trim(carma_diags_packages(i)), carma_diags_file, ' ')
+        call addfld("SO2TC_"//trim(carma_diags_packages(i)), horiz_only, 'A', 'kg/m2/s', trim(carma_diags_packages(i))//', SO2 total tendency')
+        if (carma_diags_file > 0) call add_default("SO2TC_"//trim(carma_diags_packages(i)), carma_diags_file, ' ')
+      end do
+    end if
 
     return
   end subroutine CARMA_InitializeModel
@@ -1203,6 +1307,467 @@ contains
 
     return
   end subroutine CARMA_InitializeParticle
+
+  !! Called at the end of the timestep after all the columns have been processed to
+  !! to allow additional diagnostics that have been stored in pbuf to be output.
+  !!
+  !! NOTE: This is just keeping track of the changes in the interstitial aerosol,
+  !! and does not keep track of the aerosol that flows out the top or bottom of the
+  !! model or that moves into cloudborne aerosol.
+  !!
+  !! NOTE: Output occurs a chunk at a time.
+  !!
+  !!  @version January-2023
+  !!  @author  Chuck Bardeen
+  subroutine CARMA_CalculateCloudborneDiagnostics(carma, state, pbuf, aerclddiag, rc)
+    use cam_history, only: outfld
+
+    type(carma_type), intent(in)         :: carma        !! the carma object
+    type(physics_state), intent(in)      :: state        !! Physics state variables - before pname
+    type(physics_buffer_desc), pointer, intent(in)   :: pbuf(:)      !! physics buffer
+    real(r8), intent(out)                :: aerclddiag(pcols,MAXCLDAERDIAG) !! the total cloudborne aerosols, supports up to MAXCLDAERDIAG different values
+    integer, intent(out)                 :: rc           !! return code, negative indicates failure
+
+    integer                              :: ncols        !! number of columns in the chunk
+    integer                              :: icol         !! column index
+    integer                              :: ibin         !! bin index
+    integer                              :: ienconc      !! concentration element index
+    integer                              :: ncore        !! number of cores
+    integer                              :: icorelem(NELEM) !! core element index
+    real(r8)                             :: mair(pcols,pver)   !! Mass of air column (kg/m2)
+    real(r8)                             :: pureso4(pcols,pver) !! Burden pure sulfate (kg/m2)
+    real(r8)                             :: mixso4(pcols,pver)  !! Burden mix sulfate (kg/m2)
+    real(r8)                             :: bdbc(pcols,pver)    !! Burden BC sulfate (kg/m2)
+    real(r8)                             :: bddust(pcols,pver)  !! Burden Dust sulfate (kg/m2)
+    real(r8)                             :: bdoc(pcols,pver)    !! Burden OC sulfate (kg/m2)
+    real(r8)                             :: bdsalt(pcols,pver)  !! Burden Salt sulfate (kg/m2)
+    real(r8)                             :: bdsoa(pcols,pver)   !! Burden SOA sulfate (kg/m2)
+    real(r8), pointer, dimension(:,:)    :: mmr                 !! cloudbourne aerosol mmr  (kg/kg)
+    character(len=16)                    :: shortname
+    character(len=16)                    :: binname
+    character(len=16)                    :: concname
+    integer                              :: mmr_ndx
+    integer                              :: i
+
+    ! Default return code.
+    rc = RC_OK
+
+    pureso4(:,:)     = 0._r8
+    mixso4(:,:)      = 0._r8
+    aerclddiag(:, :) = 0._r8
+    bdbc(:, :)       = 0._r8
+    bddust(:, :)     = 0._r8
+    bdoc(:, :)       = 0._r8
+    bdsalt(:, :)     = 0._r8
+    bdsoa(:, :)      = 0._r8
+
+    ! Get the air mass in the column
+    !
+    ! NOTE convert GRAV from cm/s2 to m/s2.
+    ncols = state%ncol
+    mair(:ncols,:) = state%pdel(:ncols,:) / (GRAV / 100._r8)
+
+    ! For PRSUL, is just the tendency for the concentration element.
+    call CARMAGROUP_Get(carma, I_GRP_PRSUL, rc, ienconc=ienconc)
+    call CARMAELEMENT_Get(carma, ienconc, rc, shortname=shortname)
+
+    do ibin = 1, nbin
+
+      write(binname, '(A, I2.2)') "CLD"//trim(shortname), ibin
+      mmr_ndx = pbuf_get_index(binname)
+      call pbuf_get_field(pbuf, mmr_ndx, mmr)
+
+      pureso4(:ncols,:) = pureso4(:ncols,:) + mmr(:ncols,:) * mair(:ncols,:)
+    end do
+
+    ! For MXAER, it is the difference in mass between the concentration element
+    ! and the sum of the core masses.
+    call CARMAGROUP_Get(carma, I_GRP_MXAER, rc, ienconc=ienconc, ncore=ncore, icorelem=icorelem)
+    call CARMAELEMENT_Get(carma, ienconc, rc, shortname=concname)
+
+    do ibin = 1, nbin
+
+      write(binname, '(A, I2.2)') "CLD"//trim(concname), ibin
+      mmr_ndx = pbuf_get_index(binname)
+      call pbuf_get_field(pbuf, mmr_ndx, mmr)
+
+      mixso4(:ncols,:) = mixso4(:ncols,:) + mmr(:ncols,:) * mair(:ncols,:)
+
+      do i = 1, ncore
+        call CARMAELEMENT_Get(carma, icorelem(i), rc, shortname=shortname)
+
+        write(binname, '(A, I2.2)') "CLD"//trim(shortname), ibin
+        mmr_ndx = pbuf_get_index(binname)
+        call pbuf_get_field(pbuf, mmr_ndx, mmr)
+
+        if (shortname .eq. "MXBC") then
+          bdbc(:ncols, :) = bdbc(:ncols, :) + mmr(:ncols,:) * mair(:ncols,:)
+        else if (shortname .eq. "MXDUST") then
+          bddust(:ncols, :) = bddust(:ncols, :) + mmr(:ncols,:) * mair(:ncols,:)
+        else if (shortname .eq. "MXOC") then
+          bdoc(:ncols, :) = bdoc(:ncols, :) + mmr(:ncols,:) * mair(:ncols,:)
+        else if (shortname .eq. "MXSALT") then
+          bdsalt(:ncols, :) = bdsalt(:ncols, :) + mmr(:ncols,:) * mair(:ncols,:)
+        else if (shortname .eq. "MXSOA") then
+          bdsoa(:ncols, :) = bdsoa(:ncols, :) + mmr(:ncols,:) * mair(:ncols,:)
+        end if
+
+        mixso4(:ncols,:) = mixso4(:ncols,:) - mmr(:ncols,:) * mair(:ncols,:)
+      end do
+    end do
+
+    do icol = 1, ncols
+      aerclddiag(icol, 1) = sum(pureso4(icol,:))
+      aerclddiag(icol, 2) = sum(mixso4(icol,:))
+      aerclddiag(icol, 3) = sum(bdbc(icol,:))
+      aerclddiag(icol, 4) = sum(bddust(icol,:))
+      aerclddiag(icol, 5) = sum(bdoc(icol,:))
+      aerclddiag(icol, 6) = sum(bdsalt(icol,:))
+      aerclddiag(icol, 7) = sum(bdsoa(icol,:))
+    end do
+
+    return
+  end subroutine CARMA_CalculateCloudborneDiagnostics
+
+
+  !! Called at the end of the timestep after all the columns have been processed to
+  !! to allow additional diagnostics that have been stored in pbuf to be output.
+  !!
+  !! NOTE: This is just keeping track of the changes in the interstitial aerosol,
+  !! and does not keep track of the aerosol that flows out the top or bottom of the
+  !! model or that moves into cloudborne aerosol.
+  !!
+  !! NOTE: Output occurs a chunk at a time.
+  !!
+  !!  @version January-2023
+  !!  @author  Chuck Bardeen
+  subroutine CARMA_OutputBudgetDiagnostics(carma, icnst4elem, icnst4gas, state, ptend, old_cflux, cflux, dt, pname, rc)
+    use cam_history,  only: outfld
+    use constituents, only: pcnst, cnst_get_ind
+
+    type(carma_type), intent(in)         :: carma        !! the carma object
+    integer, intent(in)                  :: icnst4elem(NELEM, NBIN) !! constituent index for a carma element
+    integer, intent(in)                  :: icnst4gas(NGAS)         !! constituent index for a carma gas
+    type(physics_state), intent(in)      :: state        !! Physics state variables - before pname
+    type(physics_ptend), intent(in)      :: ptend        !! indivdual parameterization tendencies
+    real(r8)                             :: old_cflux(pcols,pcnst)  !! cam_in%clfux from before the timestep_tend
+    real(r8)                             :: cflux(pcols,pcnst)  !! cam_in%clfux from after the timestep_tend
+    real(r8), intent(in)                 :: dt           !! timestep (s)
+    character(*), intent(in)             :: pname        !! short name of the physics package
+    integer, intent(out)                 :: rc           !! return code, negative indicates failure
+
+    integer                              :: icol         !! column index
+    integer                              :: ibin         !! bin index
+    integer                              :: i
+    integer                              :: icnst        !! constituent index
+    integer                              :: ienconc      !! concentration element index
+    integer                              :: ncore        !! number of cores
+    integer                              :: icorelem(NELEM) !! core element index
+    real(r8)                             :: mair(pver)   !! Mass of air column (kg/m2)
+    real(r8)                             :: puretend(pcols) !! Tendency pure sulfate (kg/m2/s)
+    real(r8)                             :: mixtend(pcols)  !! Tendency mix sulfate (kg/m2/s)
+    real(r8)                             :: bdprso4(pcols)  !! Burden pure sulfate (kg/m2)
+    real(r8)                             :: bdmxso4(pcols)  !! Burden mixed sulfate (kg/m2)
+    real(r8)                             :: cprflux(pcols)  !! Surface Flux tendency, pure sulfate (kg/m2/s)
+    real(r8)                             :: cmxflux(pcols)  !! Surface Flux tendency, mix sulfate (kg/m2/s)
+    real(r8)                             :: gastend(pcols)  !! Tendency H2SO4 gas (kg/m2/s)
+    real(r8)                             :: so2tend(pcols)  !! Tendency SO2 gas (kg/m2/s)
+    real(r8)                             :: tottend(pver)   !! Total Tendency mix sulfate (kg/m2/s)
+
+    ! Default return code.
+    rc = RC_OK
+
+    puretend(:) = 0._r8
+    mixtend(:)  = 0._r8
+    gastend(:)  = 0._r8
+    so2tend(:)  = 0._r8
+    cprflux(:)  = 0._r8
+    cmxflux(:)  = 0._r8
+
+    bdmxso4(:)  = 0._r8
+    bdprso4(:)  = 0._r8
+
+    ! Add up the sulfate tendencies.
+    do icol = 1, state%ncol
+
+      ! Get the air mass in the column
+      !
+      ! NOTE convert GRAV from cm/s2 to m/s2.
+      mair(:) = state%pdel(icol,:) / (GRAV / 100._r8)
+
+      do ibin = 1, nbin
+
+        ! For PRSUL, is just the tendency for the concentration element.
+        call CARMAGROUP_Get(carma, I_GRP_PRSUL, rc, ienconc=ienconc)
+        icnst = icnst4elem(ienconc, ibin)
+
+        if (ptend%lq(icnst)) then
+          puretend(icol) = puretend(icol) + sum(ptend%q(icol,:,icnst) * mair(:))
+        end if
+        bdprso4(icol) = bdprso4(icol) + sum(state%q(icol,:,icnst) * mair(:))
+
+        cprflux = cprflux(icol) + (cflux(icol,icnst) - old_cflux(icol,icnst))
+
+        ! For MXAER, it is the difference in mass between the concentration element
+        ! and the sum of the core masses.
+        call CARMAGROUP_Get(carma, I_GRP_MXAER, rc, ienconc=ienconc, ncore=ncore, icorelem=icorelem)
+        icnst = icnst4elem(ienconc, ibin)
+
+        tottend(:) = 0._r8
+        if (ptend%lq(icnst)) then
+          tottend(:) = ptend%q(icol, :, icnst) * mair(:)
+        end if
+        bdmxso4(icol) = bdmxso4(icol) + sum(state%q(icol,:,icnst) * mair(:))
+
+        cmxflux(icol) = cmxflux(icol) + (cflux(icol,icnst) - old_cflux(icol,icnst))
+
+        do i = 1, ncore
+          icnst = icnst4elem(icorelem(i), ibin)
+          if (ptend%lq(icnst)) then
+            tottend(:) = tottend(:) - ptend%q(icol,:,icnst) * mair(:)
+          end if
+          bdmxso4(icol) = bdmxso4(icol) - sum(state%q(icol,:,icnst) * mair(:))
+          cmxflux(icol) = cmxflux(icol) - (cflux(icol,icnst) - old_cflux(icol,icnst))
+        end do
+
+        mixtend(icol) = mixtend(icol) + sum(tottend(:))
+      end do
+
+      ! Calculate the H2SO4 change.
+      icnst = icnst4gas(I_GAS_H2SO4)
+      if (ptend%lq(icnst)) then
+        gastend(icol) = sum(ptend%q(icol,:,icnst) * mair(:))
+      end if
+
+      ! Also do SO2
+      call cnst_get_ind("SO2", icnst)
+      if (ptend%lq(icnst)) then
+        so2tend(icol) = sum(ptend%q(icol,:,icnst) * mair(:))
+      end if
+
+    end do
+
+    if (carma_do_package_diags) then
+       ! Output the total sulfate and H2SO4 tendencies for this physics package.
+       call outfld("SO4PRTC_"//trim(pname), puretend(:), pcols, state%lchnk)
+       call outfld("SO4MXTC_"//trim(pname), mixtend(:), pcols, state%lchnk)
+       call outfld("H2SO4TC_"//trim(pname), gastend(:), pcols, state%lchnk)
+       call outfld("SO2TC_"//trim(pname), so2tend(:), pcols, state%lchnk)
+       call outfld("SO4PRSF_"//trim(pname), cprflux(:), pcols, state%lchnk)
+       call outfld("SO4MXSF_"//trim(pname), cmxflux(:), pcols, state%lchnk)
+       call outfld("SO4PRBD_"//trim(pname), bdprso4(:), pcols, state%lchnk)
+       call outfld("SO4MXBD_"//trim(pname), bdmxso4(:), pcols, state%lchnk)
+    endif
+
+    return
+  end subroutine CARMA_OutputBudgetDiagnostics
+
+
+  !! Called at the end of the timestep after all the columns have been processed to
+  !! to allow additional diagnostics that have been stored in pbuf to be output.
+  !!
+  !! NOTE: This is just keeping track of the changes in the interstitial aerosol,
+  !! and does not keep track of the aerosol that flows out the top or bottom of the
+  !! model or that moves into cloudborne aerosol.
+  !!
+  !! NOTE: Output occurs a chunk at a time.
+  !!
+  !!  @version January-2023
+  !!  @author  Chuck Bardeen
+  subroutine CARMA_OutputCloudborneDiagnostics(carma, state, pbuf, dt, pname, oldaerclddiag, rc)
+    use cam_history, only: outfld
+
+    type(carma_type), intent(in)         :: carma        !! the carma object
+    type(physics_state), intent(in)      :: state        !! Physics state variables - before CARMA
+    type(physics_buffer_desc), pointer, intent(in)   :: pbuf(:)      !! physics buffer
+    real(r8), intent(in)                 :: dt           !! timestep (s)
+    character(*), intent(in)             :: pname        !! short name of the physics package
+    real(r8), intent(in )                :: oldaerclddiag(pcols,MAXCLDAERDIAG) !! the before timestep cloudborne aerosol diags
+    integer, intent(out)                 :: rc           !! return code, negative indicates failure
+
+    real(r8)             :: aerclddiag(pcols,MAXCLDAERDIAG) !! the after timestep cloudborne aerosol diags
+
+    ! Default return code.
+    rc = RC_OK
+
+    ! Get the current diagnostics for the cloudborne aerosols.
+    call CARMA_CalculateCloudborneDiagnostics(carma, state, pbuf, aerclddiag, rc)
+
+    ! Output the total sulfate and H2SO4 tendencies for this physics package.
+    call outfld("SO4PRCLDTC_"//trim(pname), (aerclddiag(:,1) - oldaerclddiag(:,1)) / dt, pcols, state%lchnk)
+    call outfld("SO4MXCLDTC_"//trim(pname), (aerclddiag(:,2) - oldaerclddiag(:,2)) / dt, pcols, state%lchnk)
+
+    ! To be similar to interstitial, where the burden is calculated from the
+      ! state before the tendencies are applied, report the old burden not the
+      ! current burden.
+  !    call outfld("SO4PRCLDBD_"//trim(pname), aerclddiag(:,1), pcols, state%lchnk)
+  !    call outfld("SO4MXCLDBD_"//trim(pname), aerclddiag(:,2), pcols, state%lchnk)
+      call outfld("SO4PRCLDBD_"//trim(pname), oldaerclddiag(:,1), pcols, state%lchnk)
+      call outfld("SO4MXCLDBD_"//trim(pname), oldaerclddiag(:,2), pcols, state%lchnk)
+
+    return
+  end subroutine CARMA_OutputCloudborneDiagnostics
+
+
+  !! Called at the end of the timestep after all the columns have been processed to
+  !! to allow additional diagnostics that have been stored in pbuf to be output.
+  !!
+  !! NOTE: Output occurs a chunk at a time.
+  !!
+  !!  @version January-2023
+  !!  @author  Chuck Bardeen
+  subroutine CARMA_OutputDiagnostics(carma, icnst4elem, state, ptend, pbuf, cam_in, rc)
+    use cam_history,   only: outfld
+    use constituents,  only: pcnst, cnst_get_ind
+    use camsrfexch,    only: cam_in_t
+
+    type(carma_type), intent(in)         :: carma        !! the carma object
+    integer, intent(in)                  :: icnst4elem(NELEM, NBIN) !! constituent index for a carma element
+    type(physics_state), intent(in)      :: state        !! Physics state variables - before CARMA
+    type(physics_ptend), intent(in)      :: ptend        !! indivdual parameterization tendencies
+    type(physics_buffer_desc), pointer, intent(in)   :: pbuf(:)  !! physics buffer
+    type(cam_in_t), intent(in)           :: cam_in       !! surface inputs
+    integer, intent(out)                 :: rc           !! return code, negative indicates failure
+
+    integer                              :: icol         !! column index
+    integer                              :: ibin         !! bin index
+    real(r8), pointer, dimension(:,:)    :: soacm        !! aerosol tendency due to gas-aerosol exchange  kg/kg/s
+    real(r8), pointer, dimension(:,:)    :: soapt        !! aerosol tendency due to no2 photolysis  kg/kg/s
+    character(len=16)                    :: binname      !! names bins
+    real(r8)                             :: aerclddiag(pcols,MAXCLDAERDIAG) !! the before timestep cloudborne aerosol diags
+    integer                              :: i
+    integer                              :: icnst        !! constituent index
+    integer                              :: ienconc      !! concentration element index
+    integer                              :: ncore        !! number of cores
+    integer                              :: icorelem(NELEM) !! core element index
+    real(r8)                             :: mair(pver)   !! Mass of air column (kg/m2)
+    real(r8)                             :: pureso4(pcols) !! pure sulfate (kg/m2)
+    real(r8)                             :: mixso4(pcols)  !! mix sulfate (kg/m2)
+    real(r8)                             :: cprflux(pcols) !! Surface Flux pure sulfate (kg/m2/s)
+    real(r8)                             :: cmxflux(pcols) !! Surface Flux mix sulfate (kg/m2/s)
+    real(r8)                             :: h2so4(pcols)   !! H2SO4 gas (kg/m2)
+    real(r8)                             :: so2(pcols)     !! SO2 gas (kg/m2)
+    real(r8)                             :: bdbc(pcols)    !! Burden BC sulfate (kg/m2)
+    real(r8)                             :: bddust(pcols)  !! Burden dust (kg/m2)
+    real(r8)                             :: bdoc(pcols)    !! Burden OC sulfate (kg/m2)
+    real(r8)                             :: bdsalt(pcols)  !! Burden SALT sulfate (kg/m2)
+    real(r8)                             :: bdsoa(pcols)   !! Burden SOA sulfate (kg/m2)
+    character(len=16)                    :: shortname
+
+    ! Default return code.
+    rc = RC_OK
+
+    ! Provide diagnostics on the SOA tendencies that affect MXSOA.
+    do ibin = 1, NBIN
+      write(binname, '(A, I2.2)') "MXSOA", ibin
+
+      call pbuf_get_field(pbuf, ipbuf4soacm(ibin), soacm)
+      call outfld(trim(binname)//'CM', soacm(:, :), pcols, state%lchnk)
+
+      call pbuf_get_field(pbuf, ipbuf4soapt(ibin), soapt)
+      call outfld(trim(binname)//'PT', soapt(:, :), pcols, state%lchnk)
+    end do
+
+
+    ! Output the cloudborne SO4 burdens.
+    call CARMA_CalculateCloudborneDiagnostics(carma, state, pbuf, aerclddiag, rc)
+    call outfld("SO4PRCLDBD", aerclddiag(:,1), pcols, state%lchnk)
+    call outfld("SO4MXCLDBD", aerclddiag(:,2), pcols, state%lchnk)
+    call outfld("MXBCCLDBD", aerclddiag(:,3), pcols, state%lchnk)
+    call outfld("MXDUSTCLDBD", aerclddiag(:,4), pcols, state%lchnk)
+    call outfld("MXOCCLDBD", aerclddiag(:,5), pcols, state%lchnk)
+    call outfld("MXSALTCLDBD", aerclddiag(:,6), pcols, state%lchnk)
+    call outfld("MXSOACLDBD", aerclddiag(:,7), pcols, state%lchnk)
+
+
+    ! Output the interstitial SO4 burdens.
+    pureso4(:) = 0._r8
+    mixso4(:)  = 0._r8
+    cprflux(:) = 0._r8
+    cmxflux(:) = 0._r8
+    h2so4(:)   = 0._r8
+    so2(:)     = 0._r8
+    bdbc(:)    = 0._r8
+    bddust(:)  = 0._r8
+    bdoc(:)    = 0._r8
+    bdsalt(:)  = 0._r8
+    bdsoa(:)   = 0._r8
+
+    ! Add up the sulfate tendencies.
+    do icol = 1, state%ncol
+
+      ! Get the air mass in the column
+      !
+      ! NOTE convert GRAV from cm/s2 to m/s2.
+      mair(:) = state%pdel(icol,:) / (GRAV / 100._r8)
+
+      do ibin = 1, nbin
+
+        ! For PRSUL, is just the tendency for the concentration element.
+        call CARMAGROUP_Get(carma, I_GRP_PRSUL, rc, ienconc=ienconc)
+        icnst = icnst4elem(ienconc, ibin)
+
+        pureso4(icol) = pureso4(icol) + sum(state%q(icol,:,icnst) * mair(:))
+
+        cprflux = cprflux + cam_in%cflx(icol,icnst)
+
+        ! For MXAER, it is the difference in mass between the concentration element
+        ! and the sum of the core masses.
+        call CARMAGROUP_Get(carma, I_GRP_MXAER, rc, ienconc=ienconc, ncore=ncore, icorelem=icorelem)
+        icnst = icnst4elem(ienconc, ibin)
+
+        mixso4(icol) = mixso4(icol) + sum(state%q(icol, :, icnst) * mair(:))
+
+        cmxflux(icol) = cmxflux(icol) + cam_in%cflx(icol,icnst)
+
+        do i = 1, ncore
+          icnst = icnst4elem(icorelem(i), ibin)
+          mixso4(icol) = mixso4(icol) - sum(state%q(icol,:,icnst) * mair(:))
+          cmxflux(icol) = cmxflux(icol) - cam_in%cflx(icol,icnst)
+
+          call CARMAELEMENT_Get(carma, icorelem(i), rc, shortname=shortname)
+          if (shortname .eq. "MXBC") then
+            bdbc(icol) = bdbc(icol) + sum(state%q(icol,:,icnst) * mair(:))
+          else if (shortname .eq. "MXDUST") then
+            bddust(icol) = bddust(icol) + sum(state%q(icol,:,icnst) * mair(:))
+          else if (shortname .eq. "MXOC") then
+            bdoc(icol) = bdoc(icol) + sum(state%q(icol,:,icnst) * mair(:))
+          else if (shortname .eq. "MXSALT") then
+            bdsalt(icol) = bdsalt(icol) + sum(state%q(icol,:,icnst) * mair(:))
+          else if (shortname .eq. "MXSOA") then
+            bdsoa(icol) = bdsoa(icol) + sum(state%q(icol,:,icnst) * mair(:))
+          end if
+
+        end do
+      end do
+
+      ! Calculate the H2SO4 burden.
+      call cnst_get_ind("H2SO4", icnst)
+      h2so4(icol) = sum(state%q(icol,:,icnst) * mair(:))
+
+      ! Calculate the SO2 burden.
+      call cnst_get_ind("SO2", icnst)
+      so2(icol) = sum(state%q(icol,:,icnst) * mair(:))
+    end do
+
+    if (carma_do_budget_diags) then
+       ! Output the total aerosol and gas burdens and the aerosol fluxes.
+       call outfld("SO4PRBD", pureso4(:), pcols, state%lchnk)
+       call outfld("SO4MXBD", mixso4(:), pcols, state%lchnk)
+       call outfld("SO4PRSF", cprflux(:), pcols, state%lchnk)
+       call outfld("SO4MXSF", cmxflux(:), pcols, state%lchnk)
+       call outfld("H2SO4BD", h2so4(:), pcols, state%lchnk)
+       call outfld("SO2BD", so2(:), pcols, state%lchnk)
+       call outfld("MXBCBD", bdbc(:), pcols, state%lchnk)
+       call outfld("MXDUSTBD", bddust(:), pcols, state%lchnk)
+       call outfld("MXOCBD", bdoc(:), pcols, state%lchnk)
+       call outfld("MXSALTBD", bdsalt(:), pcols, state%lchnk)
+       call outfld("MXSOABD", bdsoa(:), pcols, state%lchnk)
+    endif
+
+    return
+  end subroutine CARMA_OutputDiagnostics
+
 
 
   !!  Called after wet deposition has been performed. Allows the specific model to add

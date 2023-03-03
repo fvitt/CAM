@@ -105,8 +105,7 @@ module carma_constants_mod
   !! For degree/degree/hybrid coordinates, the metric is on the
   !! order of 1e20.
 ! real(kind=f), parameter :: SMALL_PC = 1e-50_f
-! real(kind=f), parameter :: SMALL_PC = FEW_PC * 1e20 * 1e-30 ! with xmet,ymet=1 this needs to change
-  real(kind=f), parameter :: SMALL_PC = FEW_PC * 1.e-30_f ! ??
+  real(kind=f), parameter :: SMALL_PC = FEW_PC * 1.e-30_f
 
   !!  Define core fraction (for core mass and second moment) used
   !!  when particle number concentrations are limited to SMALL_PC
@@ -121,9 +120,9 @@ module carma_constants_mod
   !! NWAVE should be the total number of bands CAM supports.
   integer, public, parameter      :: NWAVE           = nlwbands+nswbands ! Number of wavelength bands
 
-
-
-
+  !! The maximum number of diagnostic values that can be returned by
+  !! CARMA_CalculateCloudborneDiagnostics
+  integer, public, parameter      :: MAXCLDAERDIAG = 16
 
   !! These are constants per CARMA's definition, but are set dynamically in CAM and thus
   !! can not be set as constants. They must be initialized as variables in carma_init.
@@ -150,4 +149,4 @@ module carma_constants_mod
   real(kind=f)            :: RKAPPA
 
 
-end module
+end module carma_constants_mod

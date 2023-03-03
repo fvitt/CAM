@@ -359,10 +359,10 @@ contains
          trim(ptend%name)=='CARMA (emission)' .or. &
          trim(ptend%name)=='CARMA (wetdep)' .or. &
          trim(ptend%name)=='CARMA' ) then
-       call aero_check_errors( state%q, ncol, pver, ptend%name, fix=.true., logmsg=.false., abort=.false. ) ! update sulfate and num concentration in pbuf when fix=True (all bins)
+       call aero_check_errors( state%pdel, state%q, state%lchnk, state%ncol, pver, trim(ptend%name), fix=.true., logmsg=.false., abort=.false. )
     else if (state_debug_checks) then
-       call aero_check_errors( state%q, ncol, pver, ptend%name, fix=.false., logmsg=.true., abort=.true. )
-    endif
+       call aero_check_errors( state%pdel, state%q, state%lchnk, state%ncol, pver, trim(ptend%name), fix=.false., logmsg=.true., abort=.true. )
+   endif
 
     !------------------------------------------------------------------------
     ! This is a temporary fix for the large H, H2 in WACCM-X

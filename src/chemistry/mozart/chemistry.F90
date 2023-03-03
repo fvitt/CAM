@@ -1291,7 +1291,7 @@ end function chem_is_active
 !-----------------------------------------------------------------------
     call t_startf( 'chemdr' )
     do k = 1,pver
-       cldw(:ncol,k) = state%q(:ncol,k,ixcldliq) + state%q(:ncol,k,ixcldice)
+       cldw(:ncol,k) = state%q(:ncol,k,ixcldliq)
        if (ixndrop>0) &
             ncldwtr(:ncol,k) = state%q(:ncol,k,ixndrop)
     end do

@@ -4037,6 +4037,41 @@ CARMA particles.
 Default: FALSE
 </entry>
 
+<entry id="carma_do_budget_diags" type="logical" category="carma"
+       group="carma_nl" valid_values="" >
+Flag indicating that model specific budget diagnostics should be
+generated.
+Default: FALSE
+</entry>
+
+<entry id="carma_do_package_diags" type="logical" category="carma"
+       group="carma_nl" valid_values="" >
+Flag indicating that model specific budget diagnostics should be
+generated per physics package for the packages listed in
+carma_diag_packages.
+Default: FALSE
+</entry>
+
+<entry id="carma_diags_packages" type="char*12(100)" category="carma"
+       group="carma_nl" valid_values="" >
+List of physics packages for which diagnostic output is desired.
+Default: NONE
+</entry>
+
+<entry id="carma_debug_packages" type="char*32(100)" category="carma"
+       group="carma_nl" valid_values="" >
+List of physics packages for which debug output from the local carma
+state checker is desired.
+Default: NONE
+</entry>
+
+<entry id="carma_diags_file" type="integer" category="carma"
+       group="carma_nl" valid_values="" >
+When > 0, indicates the history file to be used by default for
+diagnostic output. A value of 1 indicated the h0 file.
+Default: 0
+</entry>
+
 <entry id="carma_rad_feedback" type="logical" category="carma"
        group="carma_nl" valid_values="" >
 Flag indicating that CARMA sulfate mass mixing ratio will be used
