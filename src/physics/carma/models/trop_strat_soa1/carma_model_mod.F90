@@ -1667,18 +1667,18 @@ contains
       call pbuf_get_field(pbuf, ipbuf4soapt(ibin), soapt)
       call outfld(trim(binname)//'PT', soapt(:, :), pcols, state%lchnk)
     end do
-
-
-    ! Output the cloudborne SO4 burdens.
-    call CARMA_CalculateCloudborneDiagnostics(carma, state, pbuf, aerclddiag, rc)
-    call outfld("SO4PRCLDBD", aerclddiag(:,1), pcols, state%lchnk)
-    call outfld("SO4MXCLDBD", aerclddiag(:,2), pcols, state%lchnk)
-    call outfld("MXBCCLDBD", aerclddiag(:,3), pcols, state%lchnk)
-    call outfld("MXDUSTCLDBD", aerclddiag(:,4), pcols, state%lchnk)
-    call outfld("MXOCCLDBD", aerclddiag(:,5), pcols, state%lchnk)
-    call outfld("MXSALTCLDBD", aerclddiag(:,6), pcols, state%lchnk)
-    call outfld("MXSOACLDBD", aerclddiag(:,7), pcols, state%lchnk)
-
+    
+    if (carma_do_budget_diags) then
+       ! Output the cloudborne SO4 burdens.
+       call CARMA_CalculateCloudborneDiagnostics(carma, state, pbuf, aerclddiag, rc)
+       call outfld("SO4PRCLDBD", aerclddiag(:,1), pcols, state%lchnk)
+       call outfld("SO4MXCLDBD", aerclddiag(:,2), pcols, state%lchnk)
+       call outfld("MXBCCLDBD", aerclddiag(:,3), pcols, state%lchnk)
+       call outfld("MXDUSTCLDBD", aerclddiag(:,4), pcols, state%lchnk)
+       call outfld("MXOCCLDBD", aerclddiag(:,5), pcols, state%lchnk)
+       call outfld("MXSALTCLDBD", aerclddiag(:,6), pcols, state%lchnk)
+       call outfld("MXSOACLDBD", aerclddiag(:,7), pcols, state%lchnk)
+    endif
 
     ! Output the interstitial SO4 burdens.
     pureso4(:) = 0._r8
