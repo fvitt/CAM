@@ -1307,6 +1307,7 @@ contains
     use carma_intr, only : carma_final
     use wv_saturation, only : wv_sat_final
     use microp_aero, only : microp_aero_final
+    use aerosol_optics_cam, only : aerosol_optics_cam_final
 
     !-----------------------------------------------------------------------
     !
@@ -1331,6 +1332,7 @@ contains
     call microp_aero_final()
 
     call microp_aero_final()
+    call aerosol_optics_cam_final()
 
   end subroutine phys_final
 

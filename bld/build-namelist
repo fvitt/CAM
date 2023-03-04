@@ -1037,6 +1037,7 @@ if ($aer_model eq 'mam' ) {
 
   # water refractive index properties needed for modal optics calculations
   add_default($nl, 'water_refindex_file');
+  add_default($nl, 'aerwat_refindex_file');
 
 } else {
 

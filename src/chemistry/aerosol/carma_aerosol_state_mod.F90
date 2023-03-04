@@ -23,7 +23,8 @@ module carma_aerosol_state_mod
      procedure :: get_transported
      procedure :: set_transported
      procedure :: ambient_total_bin_mmr
-     procedure :: get_ambient_mmr
+     procedure :: get_ambient_mmr0
+     procedure :: get_ambient_mmrl
      procedure :: get_cldbrne_mmr
      procedure :: get_ambient_num
      procedure :: get_cldbrne_num
@@ -32,6 +33,9 @@ module carma_aerosol_state_mod
      procedure :: icenuc_size_wght_val
      procedure :: update_bin
      procedure :: hetfrz_size_wght
+     procedure :: hygroscopicity
+     procedure :: water_uptake
+     procedure :: wgtpct
 
      final :: destructor
 
@@ -119,7 +123,7 @@ contains
   !------------------------------------------------------------------------------
   ! returns ambient aerosol mass mixing ratio for a given species index and bin index
   !------------------------------------------------------------------------------
-  subroutine get_ambient_mmr(self, species_ndx, bin_ndx, mmr)
+  subroutine get_ambient_mmr0(self, species_ndx, bin_ndx, mmr)
     class(carma_aerosol_state), intent(in) :: self
     integer, intent(in) :: species_ndx  ! species index
     integer, intent(in) :: bin_ndx      ! bin index
@@ -127,7 +131,18 @@ contains
 
     call rad_cnst_get_bin_mmr_by_idx(0, bin_ndx, species_ndx, 'a', self%state, self%pbuf, mmr)
 
-  end subroutine get_ambient_mmr
+  end subroutine get_ambient_mmr0
+
+  subroutine get_ambient_mmrl(self, list_ndx, species_ndx, bin_ndx, mmr)
+    class(carma_aerosol_state), intent(in) :: self
+    integer, intent(in) :: list_ndx     ! rad climate list index
+    integer, intent(in) :: species_ndx  ! species index
+    integer, intent(in) :: bin_ndx      ! bin index
+    real(r8), pointer :: mmr(:,:)       ! mass mixing ratios
+
+    call rad_cnst_get_bin_mmr_by_idx(list_ndx, bin_ndx, species_ndx, 'a', self%state, self%pbuf, mmr)
+
+  end subroutine get_ambient_mmrl
 
   !------------------------------------------------------------------------------
   ! returns cloud-borne aerosol number mixing ratio for a given species index and bin index
@@ -319,5 +334,52 @@ contains
     end where
 
   end function hetfrz_size_wght
+
+  !------------------------------------------------------------------------------
+  !------------------------------------------------------------------------------
+  function hygroscopicity(self, list_ndx, bin_ndx) result(kappa)
+    class(carma_aerosol_state), intent(in) :: self
+    integer, intent(in) :: list_ndx            ! rad climate list number
+    integer, intent(in) :: bin_ndx             ! bin number
+
+    real(r8), pointer :: kappa(:,:)
+
+    character(len=aero_name_len) :: bin_name
+
+    nullify(kappa)
+
+    call rad_cnst_get_info_by_bin(list_ndx, bin_ndx, bin_name=bin_name)
+    call pbuf_get_field(self%pbuf, pbuf_get_index(trim(bin_name)//"_kappa"),kappa)
+
+  end function hygroscopicity
+
+  !------------------------------------------------------------------------------
+  !------------------------------------------------------------------------------
+  subroutine water_uptake(self, aero_props, list_idx, bin_idx, ncol, nlev, dgnumwet, qaerwat)
+
+    class(carma_aerosol_state), intent(in) :: self
+    class(aerosol_properties), intent(in) :: aero_props
+    integer, intent(in) :: list_idx            ! rad climate/diags list number
+    integer, intent(in) :: bin_idx
+    integer, intent(in) :: ncol
+    integer, intent(in) :: nlev
+    real(r8), pointer :: dgnumwet(:,:)
+    real(r8), pointer :: qaerwat(:,:)
+
+    nullify(dgnumwet)
+    nullify(qaerwat)
+
+  end subroutine water_uptake
+
+  !------------------------------------------------------------------------------
+  !------------------------------------------------------------------------------
+  function wgtpct(self) result(wtp)
+    class(carma_aerosol_state), intent(in) :: self
+    real(r8), pointer :: wtp(:,:)
+
+    call pbuf_get_field(self%pbuf, pbuf_get_index('WTP'), wtp)
+
+  end function wgtpct
+
 
 end module carma_aerosol_state_mod

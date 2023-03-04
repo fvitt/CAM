@@ -3446,7 +3446,7 @@ end subroutine rad_cnst_get_bin_props_by_idx
 
 !================================================================================================
 
-subroutine rad_cnst_get_mode_props(list_idx, mode_idx, &
+subroutine rad_cnst_get_mode_props(list_idx, mode_idx, opticstype, &
    extpsw, abspsw, asmpsw, absplw, refrtabsw, &
    refitabsw, refrtablw, refitablw, ncoef, prefr, &
    prefi, sigmag, dgnum, dgnumlo, dgnumhi, &
@@ -3461,6 +3461,7 @@ subroutine rad_cnst_get_mode_props(list_idx, mode_idx, &
    integer,             intent(in)  :: list_idx  ! index of the climate or a diagnostic list
    integer,             intent(in)  :: mode_idx  ! mode index
 
+   character(len=ot_length), optional, intent(out) :: opticstype
    real(r8),  optional, pointer     :: extpsw(:,:,:,:)
    real(r8),  optional, pointer     :: abspsw(:,:,:,:)
    real(r8),  optional, pointer     :: asmpsw(:,:,:,:)
@@ -3501,6 +3502,7 @@ subroutine rad_cnst_get_mode_props(list_idx, mode_idx, &
    ! Get the physprop index for the requested mode
    id = mlist%idx_props(mode_idx)
 
+   if (present(opticstype))  call physprop_get(id, opticstype=opticstype)
    if (present(extpsw))      call physprop_get(id, extpsw=extpsw)
    if (present(abspsw))      call physprop_get(id, abspsw=abspsw)
    if (present(asmpsw))      call physprop_get(id, asmpsw=asmpsw)

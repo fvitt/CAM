@@ -28,7 +28,9 @@ module aerosol_state_mod
      procedure(aero_get_transported), deferred :: get_transported
      procedure(aero_set_transported), deferred :: set_transported
      procedure(aero_get_amb_total_bin_mmr), deferred :: ambient_total_bin_mmr
-     procedure(aero_get_state_mmr), deferred :: get_ambient_mmr
+     procedure(aero_get_state_mmr), deferred :: get_ambient_mmr0
+     procedure(aero_get_list_mmr), deferred :: get_ambient_mmrl
+     generic :: get_ambient_mmr=>get_ambient_mmr0,get_ambient_mmrl
      procedure(aero_get_state_mmr), deferred :: get_cldbrne_mmr
      procedure(aero_get_state_num), deferred :: get_ambient_num
      procedure(aero_get_state_num), deferred :: get_cldbrne_num
@@ -47,6 +49,9 @@ module aerosol_state_mod
      procedure :: mass_mean_radius
      procedure :: watact_mfactor
      procedure(aero_hetfrz_size_wght), deferred :: hetfrz_size_wght
+     procedure(aero_hygroscopicity), deferred :: hygroscopicity
+     procedure(aero_water_uptake), deferred :: water_uptake
+     procedure(aero_wgtpct), deferred :: wgtpct
   end type aerosol_state
 
   ! for state fields
@@ -85,6 +90,15 @@ module aerosol_state_mod
        integer, intent(in) :: bin_ndx      ! bin index
        real(r8), pointer :: mmr(:,:)       ! mass mixing ratios
      end subroutine aero_get_state_mmr
+
+     subroutine aero_get_list_mmr(self, list_ndx, species_ndx, bin_ndx, mmr)
+       import :: aerosol_state, r8
+       class(aerosol_state), intent(in) :: self
+       integer, intent(in) :: list_ndx     ! rad climate list index
+       integer, intent(in) :: species_ndx  ! species index
+       integer, intent(in) :: bin_ndx      ! bin index
+       real(r8), pointer :: mmr(:,:)       ! mass mixing ratios
+     end subroutine aero_get_list_mmr
 
      !------------------------------------------------------------------------
      ! returns aerosol number mixing ratio for a given species index and bin index
@@ -192,6 +206,43 @@ module aerosol_state_mod
        real(r8) :: wght(ncol,nlev)
 
      end function aero_hetfrz_size_wght
+
+     !------------------------------------------------------------------------------
+     !------------------------------------------------------------------------------
+     function aero_hygroscopicity(self, list_ndx, bin_ndx) result(kappa)
+       import :: aerosol_state, r8
+       class(aerosol_state), intent(in) :: self
+       integer, intent(in) :: list_ndx            ! rad climate list number
+       integer, intent(in) :: bin_ndx             ! bin number
+
+       real(r8), pointer :: kappa(:,:)
+
+     end function aero_hygroscopicity
+
+     !------------------------------------------------------------------------------
+     !------------------------------------------------------------------------------
+     subroutine aero_water_uptake(self, aero_props, list_idx, bin_idx, ncol, nlev, dgnumwet, qaerwat)
+       import :: aerosol_state, aerosol_properties, r8
+
+       class(aerosol_state), intent(in) :: self
+       class(aerosol_properties), intent(in) :: aero_props
+       integer, intent(in) :: list_idx            ! rad climate/diags list number
+       integer, intent(in) :: bin_idx
+       integer, intent(in) :: ncol
+       integer, intent(in) :: nlev
+       real(r8), pointer :: dgnumwet(:,:)
+       real(r8), pointer :: qaerwat(:,:)
+
+     end subroutine aero_water_uptake
+
+     !------------------------------------------------------------------------------
+     !------------------------------------------------------------------------------
+     function aero_wgtpct(self) result(wtp)
+       import :: aerosol_state, r8
+       class(aerosol_state), intent(in) :: self
+       real(r8), pointer :: wtp(:,:)
+
+     end function aero_wgtpct
 
   end interface
 

@@ -111,6 +111,10 @@ subroutine coreshell_aer_opt_init()
    call addfld ('EXTINCTUV', (/ 'lev' /), 'A','/m', 'Aerosol extinction 350 nm', flag_xyfill=.true.)
    call addfld ('EXTINCTNIR', (/ 'lev' /), 'A','/m', 'Aerosol extinction 1020 nm', flag_xyfill=.true.)
    call addfld ('ABSORB', (/ 'lev' /), 'A','/m', 'Aerosol absorption', flag_xyfill=.true.)
+   call addfld ('LWMMR', (/ 'lev' /), 'A',' ', 'LW Aero Opt Dep')
+   call addfld ('LWAOD', (/ 'lev' /), 'A',' ', 'LW Aero Opt Dep')
+   call add_default('LWAOD',2,' ')
+   call add_default('LWMMR',2,' ')
 
    call addfld ('AODVIS', horiz_only, 'A','1','Aerosol optical depth 550 nm', flag_xyfill=.true.)
    call addfld ('AODVISst', horiz_only, 'A','1','Stratospheric aerosol optical depth 550 nm', flag_xyfill=.true.)
@@ -282,20 +286,6 @@ subroutine coreshell_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
    lchnk = state%lchnk
    ncol  = state%ncol
 
-! CGB - NOTE: this needs to add to the accumulated optical depth and
-! not overwrite it.
-   ! initialize output variables
-   tauxar(:ncol,:,:) = 0._r8
-   wa(:ncol,:,:)     = 0._r8
-   ga(:ncol,:,:)     = 0._r8
-   fa(:ncol,:,:)     = 0._r8
-
-! zero'th layer does not contain aerosol
-!   tauxar(1:ncol,0,:)  = 0._r8
-!   wa(1:ncol,0,:)      = 0.925_r8
-!   ga(1:ncol,0,:)      = 0.850_r8
-!   fa(1:ncol,0,:)      = 0.7225_r8
-
    mass(:ncol,:)        = state%pdeldry(:ncol,:)*rga
    air_density(:ncol,:) = state%pmid(:ncol,:)/(rair*state%t(:ncol,:))
 
@@ -386,7 +376,7 @@ subroutine coreshell_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
      case('zero')
           ! zero aerosols types have no optical effect, so do nothing.
      case default
-          call endrun('aer_rad_props_sw: unsupported opticstype: '//trim(opticstype))
+          call endrun('coreshell_aero_sw: unsupported opticstype: '//trim(opticstype))
      end select
 
      do isw = 1, nswbands
@@ -462,7 +452,7 @@ subroutine coreshell_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
 !                  particlerfi(:ncol)    = vol(:ncol) * aimag(specrefindex(isw))
 !                  particlehygro(:ncol)  = vol(:ncol) * hygro_aer
               else
-                 call endrun("coreshell_aer_opt: Unknown spectype "//trim(spectype))
+                 call endrun("coreshell_aero_sw: Unknown specmorph "//trim(specmorph))
               end if
 
            end do ! species loop
@@ -552,7 +542,7 @@ subroutine coreshell_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
                  pabs(i) = (1._r8 - table_interp( tbl_wgtpct, h_ssa_wtp(:,isw), wgtpct(i,k) ) ) * pext(i)
                  pasm(i) = table_interp( tbl_wgtpct, h_asm_wtp(:,isw), wgtpct(i,k) )
               case default
-                 call endrun('aer_rad_props_sw: unsupported opticstype: '//trim(opticstype))
+                 call endrun('coreshell_aero_sw: unsupported opticstype: '//trim(opticstype))
               end select
 
               specpext(i) = pext(i)
@@ -801,6 +791,8 @@ subroutine coreshell_aero_lw(list_idx, state, pbuf, tauxar)
    integer :: nrelh, nbcdust, nkap
    integer :: nwtp
 
+   real(r8) :: lwmmr(pcols,pver)
+
    real(r8), pointer, dimension(:,:) :: crkappa   ! kappa
    real(r8), pointer, dimension(:,:) :: wgtpct  ! weight percent
    real(r8), pointer, dimension(:,:) :: cldn
@@ -832,7 +824,7 @@ subroutine coreshell_aero_lw(list_idx, state, pbuf, tauxar)
    lchnk = state%lchnk
    ncol  = state%ncol
 
-   tauxar = 0._r8
+   lwmmr = 0._r8
 
    ! initialize output variables
 
@@ -903,7 +895,7 @@ subroutine coreshell_aero_lw(list_idx, state, pbuf, tauxar)
             wgtpct(:ncol,:) = maxval(tbl_wgtpct)
          end where
       case default
-         call endrun('aer_rad_props_lw: unsupported opticstype: '//trim(opticstype))
+         call endrun('coreshell_aero_lw: unsupported opticstype: '//trim(opticstype))
       end select
 
       do ilw = 1, nlwbands
@@ -951,7 +943,7 @@ subroutine coreshell_aero_lw(list_idx, state, pbuf, tauxar)
                ! from multiple components.
                call rad_cnst_get_bin_props_by_idx(list_idx, m, l, density_aer=specdens, &
                                            refindex_aer_lw=specrefindex, spectype=spectype, &
-                                           hygro_aer=hygro_aer)
+                                           specmorph=specmorph, hygro_aer=hygro_aer)
 
                vol(:ncol)      = specmmr(:ncol,k) / specdens
                dryvol(:ncol)   = dryvol(:ncol) + vol(:ncol)
@@ -969,14 +961,14 @@ subroutine coreshell_aero_lw(list_idx, state, pbuf, tauxar)
                   corerfr(:ncol)    = corerfr(:ncol) + vol(:ncol) * real(specrefindex(ilw))
                   corerfi(:ncol)    = corerfi(:ncol) + vol(:ncol) * aimag(specrefindex(ilw))
                   corehygro(:ncol)  = corehygro(:ncol) + vol(:ncol) * hygro_aer
-               end if
-
-               if (trim(specmorph) == 'shell') then
+               else if (trim(specmorph) == 'shell') then
                   shellmmr(:ncol)    = shellmmr(:ncol) + specmmr(:ncol,k)
                   shellvol(:ncol)    = shellvol(:ncol) + vol(:ncol)
                   shellrfr(:ncol)    = shellrfr(:ncol) + vol(:ncol) * real(specrefindex(ilw))
                   shellrfi(:ncol)    = shellrfi(:ncol) + vol(:ncol) * aimag(specrefindex(ilw))
                   shellhygro(:ncol)  = shellhygro(:ncol) + vol(:ncol) * hygro_aer
+               else
+                 call endrun("coreshell_aero_lw: Unknown specmorph "//trim(specmorph))
                end if
 
                !if (trim(specmorph) == 'particle') then
@@ -1062,7 +1054,7 @@ subroutine coreshell_aero_lw(list_idx, state, pbuf, tauxar)
                case('hygroscopic_wtp')
                   pabs(i) =  table_interp( tbl_wgtpct, lw_hygro_abs_wtp(:,ilw), wgtpct(i,k) )
                case default
-                  call endrun('aer_rad_props_lw: unsupported opticstype: '//trim(opticstype))
+                  call endrun('coreshell_aero_lw: unsupported opticstype: '//trim(opticstype))
                end select
             end do
 
@@ -1070,7 +1062,8 @@ subroutine coreshell_aero_lw(list_idx, state, pbuf, tauxar)
             do i = 1, ncol
                pabs(i)   = pabs(i)*totalmmr(i)
                pabs(i)   = max(0._r8,pabs(i))
-               dopaer(i) = pabs(i)*totalmmr(i)*mass(i,k)
+               dopaer(i) = pabs(i)*mass(i,k)
+               lwmmr(i,k)= lwmmr(i,k)+totalmmr(i)
             end do
 
             do i = 1, ncol
@@ -1118,6 +1111,10 @@ subroutine coreshell_aero_lw(list_idx, state, pbuf, tauxar)
       end do  ! nlwbands
 
    end do ! m = 1, nmodes
+
+   call outfld('LWMMR',lwmmr, pcols, lchnk)
+
+   call outfld('LWAOD', tauxar(:,:,1), pcols, lchnk)
 
 end subroutine coreshell_aero_lw
 

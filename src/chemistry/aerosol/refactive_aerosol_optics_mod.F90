@@ -1,0 +1,466 @@
+module refactive_aerosol_optics_mod
+  use shr_kind_mod, only: r8 => shr_kind_r8
+  use aerosol_optics_mod, only: aerosol_optics
+  use physconst,  only: rhoh2o
+  use aerosol_state_mod, only: aerosol_state
+  use aerosol_properties_mod, only: aerosol_properties
+
+  implicit none
+
+  type, extends(aerosol_optics) :: refactive_aerosol_optics
+
+     integer :: ibin, ilist
+     class(aerosol_state), pointer :: aero_state
+     class(aerosol_properties), pointer :: aero_props
+
+     real(r8), allocatable :: watervol(:,:)
+     real(r8), allocatable :: wetvol(:,:)
+     real(r8), allocatable :: cheb(:,:,:)
+     real(r8), allocatable :: radsurf(:,:)    ! aerosol surface mode radius
+     real(r8), allocatable :: logradsurf(:,:) ! log(aerosol surface mode radius)
+
+     real(r8), pointer :: extpsw(:,:,:,:) => null() ! specific extinction
+     real(r8), pointer :: abspsw(:,:,:,:) => null() ! specific absorption
+     real(r8), pointer :: asmpsw(:,:,:,:) => null() ! asymmetry factor
+     real(r8), pointer :: absplw(:,:,:,:) => null() ! specific absorption
+
+     real(r8), pointer :: refrtabsw(:,:) => null()  ! table of real refractive indices for aerosols
+     real(r8), pointer :: refitabsw(:,:) => null()  ! table of imag refractive indices for aerosols
+     real(r8), pointer :: refrtablw(:,:) => null()  ! table of real refractive indices for aerosols
+     real(r8), pointer :: refitablw(:,:) => null()  ! table of imag refractive indices for aerosols
+
+     ! refractive index for water read in read_water_refindex
+     complex(r8), pointer :: crefwsw(:) => null() ! complex refractive index for water visible
+     complex(r8), pointer :: crefwlw(:) => null() ! complex refractive index for water infrared
+
+   contains
+
+     procedure :: sw_props
+     procedure :: lw_props
+
+     final :: destructor
+
+  end type refactive_aerosol_optics
+
+  interface refactive_aerosol_optics
+     procedure :: constructor
+  end interface refactive_aerosol_optics
+
+  ! Dimension sizes in coefficient arrays used to parameterize aerosol radiative properties
+  ! in terms of refractive index and wet radius
+  integer, parameter :: ncoef=5, prefr=7, prefi=10
+
+  real(r8), parameter :: xrmin=log(0.01e-6_r8)
+  real(r8), parameter :: xrmax=log(25.e-6_r8)
+
+contains
+
+  function constructor(aero_props, aero_state, ilist, ibin, ncol, nlev, nsw, nlw, crefwsw, crefwlw) &
+       result(newobj)
+
+    class(aerosol_properties),intent(in), target :: aero_props
+    class(aerosol_state),intent(in), target :: aero_state
+    integer, intent(in) :: ilist
+    integer, intent(in) :: ibin
+
+    integer, intent(in) :: ncol, nlev, nsw, nlw
+
+    complex(r8), intent(in), target :: crefwsw(nsw) ! complex refractive index for water visible
+    complex(r8), intent(in), target :: crefwlw(nlw) ! complex refractive index for water infrared
+
+    type(refactive_aerosol_optics), pointer :: newobj
+
+    integer :: ierr, icol, ilev, ispec, nspec
+    real(r8) :: vol(ncol)       ! volume concentration of aerosol specie (m3/kg)
+    real(r8) :: dryvol(ncol)    ! volume concentration of aerosol mode (m3/kg)
+    real(r8) :: specdens              ! species density (kg/m3)
+    real(r8), pointer :: specmmr(:,:) ! species mass mixing ratio
+!    real(r8) :: sigma_logr_aer        ! geometric standard deviation of number distribution
+    real(r8) :: logsigma        ! geometric standard deviation of number distribution
+
+    real(r8), pointer :: dgnumwet(:,:)   ! aerosol wet number mode diameter (m)
+    real(r8), pointer :: qaerwat(:,:)    ! aerosol water (g/g)
+
+    allocate(newobj, stat=ierr)
+    if (ierr/=0) then
+       nullify(newobj)
+       return
+    end if
+
+    allocate(newobj%watervol(ncol,nlev),stat=ierr)
+    if (ierr/=0) then
+       nullify(newobj)
+       return
+    end if
+    allocate(newobj%wetvol(ncol,nlev),stat=ierr)
+    if (ierr/=0) then
+       nullify(newobj)
+       return
+    end if
+    allocate(newobj%cheb(ncoef,ncol,nlev),stat=ierr)
+    if (ierr/=0) then
+       nullify(newobj)
+       return
+    end if
+    allocate(newobj%radsurf(ncol,nlev),stat=ierr)
+    if (ierr/=0) then
+       nullify(newobj)
+       return
+    end if
+    allocate(newobj%logradsurf(ncol,nlev),stat=ierr)
+    if (ierr/=0) then
+       nullify(newobj)
+       return
+    end if
+
+    call aero_state%water_uptake(aero_props, ilist, ibin,  ncol, nlev, dgnumwet, qaerwat)
+
+    nspec = aero_props%nspecies(ibin)
+
+    logsigma=aero_props%alogsig(ibin) ! list numb ????
+
+    ! calc size parameter for all columns
+    call modal_size_parameters(ncol, nlev, logsigma, dgnumwet, newobj%radsurf, newobj%logradsurf, newobj%cheb)
+
+    do ilev = 1, nlev
+       dryvol(:ncol) = 0._r8
+       do ispec = 1, nspec
+          call aero_state%get_ambient_mmr(ilist,ispec,ibin,specmmr)
+          call aero_props%get(ibin, ispec, list_ndx=ilist, density=specdens)
+
+          do icol = 1, ncol
+             vol(icol) = specmmr(icol,ilev)/specdens
+             dryvol(icol) = dryvol(icol) + vol(icol)
+
+             newobj%watervol(icol,ilev) = qaerwat(icol,ilev)/rhoh2o
+             newobj%wetvol(icol,ilev) = newobj%watervol(icol,ilev) + dryvol(icol)
+             if (newobj%watervol(icol,ilev) < 0._r8) then
+                newobj%watervol(icol,ilev) = 0._r8
+                newobj%wetvol(icol,ilev) = dryvol(icol)
+             end if
+          end do
+       end do
+    end do
+
+    ! get mode properties
+    call aero_props%optics_params(ilist, ibin, &
+         refrtabsw=newobj%refrtabsw, refitabsw=newobj%refitabsw, &
+         refrtablw=newobj%refrtablw, refitablw=newobj%refitablw,&
+         extpsw=newobj%extpsw, abspsw=newobj%abspsw, asmpsw=newobj%asmpsw, &
+         absplw=newobj%absplw)
+
+    newobj%aero_state => aero_state
+    newobj%aero_props => aero_props
+    newobj%ilist = ilist
+    newobj%ibin = ibin
+    newobj%crefwlw => crefwlw
+    newobj%crefwsw => crefwsw
+
+  end function constructor
+
+
+  subroutine sw_props(self, ncol, ilev, iwav, pext, palb, pasm)
+
+    class(refactive_aerosol_optics), intent(in) :: self
+    integer, intent(in) :: ncol
+    integer, intent(in) :: ilev
+    integer, intent(in) :: iwav
+    real(r8),intent(out) :: pext(ncol)
+    real(r8),intent(out) :: palb(ncol)
+    real(r8),intent(out) :: pasm(ncol)
+
+    real(r8) :: refr(ncol)      ! real part of refractive index
+    real(r8) :: refi(ncol)      ! imaginary part of refractive index
+    integer  :: itab(ncol), jtab(ncol)
+    real(r8) :: ttab(ncol), utab(ncol)
+    real(r8) :: cext(ncol,ncoef), cabs(ncol,ncoef), casm(ncol,ncoef)
+    real(r8) :: pabs(ncol)
+
+    real(r8) :: vol(ncol)
+    complex(r8) :: crefin(ncol) ! complex refractive index
+    real(r8), pointer :: specmmr(:,:) ! species mass mixing ratio
+    complex(r8), pointer :: specrefindex(:)     ! species refractive index
+    integer :: icol,icoef, ispec
+    real(r8) :: specdens              ! species density (kg/m3)
+
+    ! form bulk refractive index
+    crefin(:ncol) = (0._r8, 0._r8)
+
+    do ispec = 1, self%aero_props%nspecies(self%ibin)
+
+       call self%aero_state%get_ambient_mmr(self%ilist,ispec,self%ibin,specmmr)
+       call self%aero_props%get(self%ibin, ispec, list_ndx=self%ilist, density=specdens, &
+            refindex_sw=specrefindex)
+
+       do icol = 1, ncol
+          vol(icol) = specmmr(icol,ilev)/specdens
+          crefin(icol) = crefin(icol) + vol(icol)*specrefindex(iwav)
+       end do
+    end do
+
+    do icol = 1, ncol
+       crefin(icol) = crefin(icol) + self%watervol(icol,ilev)*self%crefwsw(iwav)
+       crefin(icol) = crefin(icol)/max(self%wetvol(icol,ilev),1.e-60_r8)
+       refr(icol) = real(crefin(icol))
+       refi(icol) = abs(aimag(crefin(icol)))
+    end do
+
+    ! interpolate coefficients linear in refractive index
+    ! first call calcs itab,jtab,ttab,utab
+    itab(:ncol) = 0
+    call binterp(self%extpsw(:,:,:,iwav), ncol, ncoef, prefr, prefi, &
+         refr, refi, self%refrtabsw(:,iwav), self%refitabsw(:,iwav), &
+         itab, jtab, ttab, utab, cext)
+    call binterp(self%abspsw(:,:,:,iwav), ncol, ncoef, prefr, prefi, &
+         refr, refi, self%refrtabsw(:,iwav), self%refitabsw(:,iwav), &
+         itab, jtab, ttab, utab, cabs)
+    call binterp(self%asmpsw(:,:,:,iwav), ncol, ncoef, prefr, prefi, &
+         refr, refi, self%refrtabsw(:,iwav), self%refitabsw(:,iwav), &
+         itab, jtab, ttab, utab, casm)
+
+    do icol = 1,ncol
+
+       if (self%logradsurf(icol,ilev) <= xrmax) then
+          pext(icol) = 0.5_r8*cext(icol,1)
+          do icoef = 2, ncoef
+             pext(icol) = pext(icol) + self%cheb(icoef,icol,ilev)*cext(icol,icoef)
+          enddo
+          pext(icol) = exp(pext(icol))
+       else
+          pext(icol) = 1.5_r8/(self%radsurf(icol,ilev)*rhoh2o) ! geometric optics
+       endif
+
+       ! convert from m2/kg water to m2/kg aerosol
+       pext(icol) = pext(icol)*self%wetvol(icol,ilev)*rhoh2o
+       pabs(icol) = 0.5_r8*cabs(icol,1)
+       pasm(icol) = 0.5_r8*casm(icol,1)
+       do icoef = 2, ncoef
+          pabs(icol) = pabs(icol) + self%cheb(icoef,icol,ilev)*cabs(icol,icoef)
+          pasm(icol) = pasm(icol) + self%cheb(icoef,icol,ilev)*casm(icol,icoef)
+       enddo
+       pabs(icol) = pabs(icol)*self%wetvol(icol,ilev)*rhoh2o
+       pabs(icol) = max(0._r8,pabs(icol))
+       pabs(icol) = min(pext(icol),pabs(icol))
+
+       palb(icol) = 1._r8-pabs(icol)/max(pext(icol),1.e-40_r8)
+       palb(icol) = 1._r8-pabs(icol)/max(pext(icol),1.e-40_r8)
+
+    end do
+
+
+  end subroutine sw_props
+
+  subroutine lw_props(self, ncol, ilev, iwav, pabs)
+
+    class(refactive_aerosol_optics), intent(in) :: self
+    integer, intent(in) :: ncol
+    integer, intent(in) :: ilev
+    integer, intent(in) :: iwav
+    real(r8),intent(out) :: pabs(ncol)
+
+    real(r8) :: refr(ncol)      ! real part of refractive index
+    real(r8) :: refi(ncol)      ! imaginary part of refractive index
+    integer  :: itab(ncol), jtab(ncol)
+    real(r8) :: ttab(ncol), utab(ncol)
+    real(r8) :: cabs(ncol,ncoef)
+
+    real(r8) :: vol(ncol)
+    complex(r8) :: crefin(ncol) ! complex refractive index
+    real(r8), pointer :: specmmr(:,:) ! species mass mixing ratio
+    complex(r8), pointer :: specrefindex(:)     ! species refractive index
+
+    integer :: icol,icoef, ispec
+    real(r8) :: specdens              ! species density (kg/m3)
+
+    ! form bulk refractive index. Use volume mixing for infrared
+    crefin(:ncol) = (0._r8, 0._r8)
+
+    do ispec = 1, self%aero_props%nspecies(self%ibin)
+
+       call self%aero_state%get_ambient_mmr(self%ilist,ispec,self%ibin,specmmr)
+       call self%aero_props%get(self%ibin, ispec, list_ndx=self%ilist, density=specdens, &
+            refindex_lw=specrefindex)
+
+       do icol = 1, ncol
+          vol(icol) = specmmr(icol,ilev)/specdens
+          crefin(icol) = crefin(icol) + vol(icol)*specrefindex(iwav)
+       end do
+    end do
+
+    do icol = 1, ncol
+       crefin(icol) = crefin(icol) + self%watervol(icol,ilev)*self%crefwlw(iwav)
+       if (self%wetvol(icol,ilev) > 1.e-40_r8) then
+          crefin(icol) = crefin(icol)/self%wetvol(icol,ilev)
+       end if
+       refr(icol) = real(crefin(icol))
+       refi(icol) = aimag(crefin(icol))
+    end do
+
+    ! interpolate coefficients linear in refractive index
+    ! first call calcs itab,jtab,ttab,utab
+    itab(:ncol) = 0
+    call binterp(self%absplw(:,:,:,iwav), ncol, ncoef, prefr, prefi, &
+         refr, refi, self%refrtablw(:,iwav), self%refitablw(:,iwav), &
+         itab, jtab, ttab, utab, cabs)
+
+    do icol = 1,ncol
+       pabs(icol) = 0.5_r8*cabs(icol,1)
+       do icoef = 2, ncoef
+          pabs(icol) = pabs(icol) + self%cheb(icoef,icol,ilev)*cabs(icol,icoef)
+       end do
+       pabs(icol) = pabs(icol)*self%wetvol(icol,ilev)*rhoh2o
+       pabs(icol) = max(0._r8,pabs(icol))
+    end do
+
+  end subroutine lw_props
+
+
+  !------------------------------------------------------------------------------
+  !------------------------------------------------------------------------------
+  subroutine destructor(self)
+
+    type(refactive_aerosol_optics), intent(inout) :: self
+
+    deallocate(self%watervol)
+    deallocate(self%wetvol)
+    deallocate(self%cheb)
+    deallocate(self%radsurf)
+    deallocate(self%logradsurf)
+
+    nullify(self%aero_state)
+    nullify(self%aero_props)
+    nullify(self%crefwsw)
+    nullify(self%crefwlw)
+    nullify(self%extpsw)
+    nullify(self%abspsw)
+    nullify(self%asmpsw)
+    nullify(self%absplw)
+    nullify(self%refrtabsw)
+    nullify(self%refitabsw)
+    nullify(self%refrtablw)
+    nullify(self%refitablw)
+
+  end subroutine destructor
+
+
+  ! Private routines
+  !===============================================================================
+
+  !===============================================================================
+
+  subroutine modal_size_parameters(ncol,nlev, alnsg_amode, dgnumwet, radsurf, logradsurf, cheb)
+
+    integer,  intent(in)  :: ncol,nlev
+    real(r8), intent(in)  :: alnsg_amode  ! geometric standard deviation of number distribution
+    real(r8), intent(in)  :: dgnumwet(:,:)   ! aerosol wet number mode diameter (m)
+    real(r8), intent(out) :: radsurf(:,:)    ! aerosol surface mode radius
+    real(r8), intent(out) :: logradsurf(:,:) ! log(aerosol surface mode radius)
+    real(r8), intent(out) :: cheb(:,:,:)
+
+    integer  :: i, k, nc
+!    real(r8) :: alnsg_amode
+    real(r8) :: explnsigma
+    real(r8) :: xrad(ncol) ! normalized aerosol radius
+
+    !-------------------------------------------------------------------------------
+
+!    alnsg_amode = log(sigma_logr_aer)
+    explnsigma = exp(2.0_r8*alnsg_amode*alnsg_amode)
+
+    !    do k = top_lev, pver
+    do k = 1, nlev
+       do i = 1, ncol
+          ! convert from number mode diameter to surface area
+          radsurf(i,k) = 0.5_r8*dgnumwet(i,k)*explnsigma
+          logradsurf(i,k) = log(radsurf(i,k))
+          ! normalize size parameter
+          xrad(i) = max(logradsurf(i,k),xrmin)
+          xrad(i) = min(xrad(i),xrmax)
+          xrad(i) = (2._r8*xrad(i)-xrmax-xrmin)/(xrmax-xrmin)
+          ! chebyshev polynomials
+          cheb(1,i,k) = 1._r8
+          cheb(2,i,k) = xrad(i)
+          do nc = 3, ncoef
+             cheb(nc,i,k) = 2._r8*xrad(i)*cheb(nc-1,i,k)-cheb(nc-2,i,k)
+          end do
+       end do
+    end do
+
+  end subroutine modal_size_parameters
+
+!===============================================================================
+  subroutine binterp(table,ncol,km,im,jm,x,y,xtab,ytab,ix,jy,t,u,out)
+
+    !     bilinear interpolation of table
+    !
+    real(r8),intent(in) :: table(km,im,jm)
+    integer, intent(in) :: ncol,km,im,jm
+    real(r8),intent(in) :: x(ncol),y(ncol), xtab(im),ytab(jm)
+    integer,intent(inout) :: ix(ncol), jy(ncol)
+    real(r8),intent(inout) :: t(ncol), u(ncol)
+    real(r8),intent(out) :: out(ncol,km)
+
+
+    integer :: i,j,k,ic,ip1, ixc,jyc, jp1, ip1m(ncol),jp1m(ncol)
+    real(r8) :: dx,dy,tu(ncol),tuc(ncol),tcu(ncol),tcuc(ncol)
+
+    if(ix(1).gt.0) go to 30
+    if(im.gt.1)then
+       do ic=1,ncol
+          do i=1,im
+             if(x(ic).lt.xtab(i))go to 10
+          enddo
+10        ix(ic)=max0(i-1,1)
+          ip1=min(ix(ic)+1,im)
+          dx=(xtab(ip1)-xtab(ix(ic)))
+          if(abs(dx).gt.1.e-20_r8)then
+             t(ic)=(x(ic)-xtab(ix(ic)))/dx
+          else
+             t(ic)=0._r8
+          endif
+       end do
+    else
+       ix(:ncol)=1
+       t(:ncol)=0._r8
+    endif
+    if(jm.gt.1)then
+       do ic=1,ncol
+          do j=1,jm
+             if(y(ic).lt.ytab(j))go to 20
+          enddo
+20        jy(ic)=max0(j-1,1)
+          jp1=min(jy(ic)+1,jm)
+          dy=(ytab(jp1)-ytab(jy(ic)))
+          if(abs(dy).gt.1.e-20_r8)then
+             u(ic)=(y(ic)-ytab(jy(ic)))/dy
+          else
+             u(ic)=0._r8
+          endif
+       end do
+    else
+       jy(:ncol)=1
+       u(:ncol)=0._r8
+    endif
+30  continue
+    do ic=1,ncol
+       tu(ic)=t(ic)*u(ic)
+       tuc(ic)=t(ic)-tu(ic)
+       tcuc(ic)=1._r8-tuc(ic)-u(ic)
+       tcu(ic)=u(ic)-tu(ic)
+       jp1m(ic)=min(jy(ic)+1,jm)
+       ip1m(ic)=min(ix(ic)+1,im)
+    enddo
+    do ic=1,ncol
+       jyc=jy(ic)
+       ixc=ix(ic)
+       jp1=jp1m(ic)
+       ip1=ip1m(ic)
+       do k=1,km
+          out(ic,k) = tcuc(ic) * table(k,ixc,jyc) + tuc(ic) * table(k,ip1,jyc) + &
+               tu(ic) * table(k,ip1,jp1) + tcu(ic) * table(k,ixc,jp1)
+       end do
+    end do
+    return
+  end subroutine binterp
+
+end module refactive_aerosol_optics_mod

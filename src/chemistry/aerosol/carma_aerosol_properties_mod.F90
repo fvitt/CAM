@@ -27,6 +27,8 @@ module carma_aerosol_properties_mod
      procedure :: icenuc_updates_mmr
      procedure :: apply_number_limits
      procedure :: hetfrz_species
+     procedure :: optics_params
+
      final :: destructor
   end type carma_aerosol_properties
 
@@ -132,17 +134,158 @@ contains
   !  density
   !  hygroscopicity
   !------------------------------------------------------------------------
-  subroutine get(self, bin_ndx, species_ndx, density,hygro)
+  subroutine get(self, bin_ndx, species_ndx, list_ndx, density, hygro, spectype, refindex_sw, refindex_lw, specmorph)
 
     class(carma_aerosol_properties), intent(in) :: self
     integer, intent(in) :: bin_ndx             ! bin index
     integer, intent(in) :: species_ndx         ! species index
+    integer, optional, intent(in) :: list_ndx
     real(r8), optional, intent(out) :: density ! density (kg/m3)
     real(r8), optional, intent(out) :: hygro   ! hygroscopicity
+    character(len=*), optional, intent(out) :: spectype   !
+    complex(r8), pointer, optional, intent(out) :: refindex_sw(:)   !
+    complex(r8), pointer, optional, intent(out) :: refindex_lw(:)   !
+    character(len=*), optional, intent(out) :: specmorph
 
-    call rad_cnst_get_bin_props_by_idx(0, bin_ndx, species_ndx, density_aer=density, hygro_aer=hygro)
+    integer :: ilist
+
+    if (present(list_ndx)) then
+       ilist = list_ndx
+    else
+       ilist = 0
+    end if
+
+    if (present(density)) then
+       call rad_cnst_get_bin_props_by_idx(ilist, bin_ndx, species_ndx, density_aer=density)
+    end if
+    if (present(hygro)) then
+       call rad_cnst_get_bin_props_by_idx(ilist, bin_ndx, species_ndx, hygro_aer=hygro)
+    end if
+    if (present(spectype)) then
+       call rad_cnst_get_bin_props_by_idx(ilist, bin_ndx, species_ndx, spectype=spectype)
+    end if
+    if (present(refindex_sw)) then
+       call rad_cnst_get_bin_props_by_idx(ilist, bin_ndx, species_ndx, refindex_aer_sw=refindex_sw)
+    end if
+    if (present(refindex_lw)) then
+       call rad_cnst_get_bin_props_by_idx(ilist, bin_ndx, species_ndx, refindex_aer_lw=refindex_lw)
+    end if
+    if (present(specmorph)) then
+       call rad_cnst_get_bin_props_by_idx(ilist, bin_ndx, species_ndx, specmorph=specmorph)
+    end if
 
   end subroutine get
+
+  !------------------------------------------------------------------------
+  !------------------------------------------------------------------------
+  subroutine optics_params(self, list_ndx, bin_ndx, opticstype, extpsw, abspsw, asmpsw, absplw, &
+       refrtabsw, refitabsw, refrtablw, refitablw, ncoef, prefr, prefi, sw_hygro_ext_wtp, &
+       sw_hygro_ssa_wtp, sw_hygro_asm_wtp, lw_hygro_ext_wtp, wgtpct, nwtp, &
+       sw_hygro_coreshell_ext, sw_hygro_coreshell_ssa, sw_hygro_coreshell_asm, lw_hygro_coreshell_ext, &
+       corefrac, bcdust, kap, relh, nbcdust, nkap, nrelh, nfrac )
+
+    class(carma_aerosol_properties), intent(in) :: self
+    integer, intent(in) :: bin_ndx             ! bin index
+    integer, intent(in) :: list_ndx            ! rad climate/diags list
+
+    character(len=*), optional, intent(out) :: opticstype
+
+    ! refactive
+    real(r8),  optional, pointer     :: extpsw(:,:,:,:)
+    real(r8),  optional, pointer     :: abspsw(:,:,:,:)
+    real(r8),  optional, pointer     :: asmpsw(:,:,:,:)
+    real(r8),  optional, pointer     :: absplw(:,:,:,:)
+    real(r8),  optional, pointer     :: refrtabsw(:,:)
+    real(r8),  optional, pointer     :: refitabsw(:,:)
+    real(r8),  optional, pointer     :: refrtablw(:,:)
+    real(r8),  optional, pointer     :: refitablw(:,:)
+    integer,   optional, intent(out) :: ncoef
+    integer,   optional, intent(out) :: prefr
+    integer,   optional, intent(out) :: prefi
+
+    ! hygrowghtpct
+    real(r8),  optional, pointer     :: sw_hygro_ext_wtp(:,:)
+    real(r8),  optional, pointer     :: sw_hygro_ssa_wtp(:,:)
+    real(r8),  optional, pointer     :: sw_hygro_asm_wtp(:,:)
+    real(r8),  optional, pointer     :: lw_hygro_ext_wtp(:,:)
+    real(r8),  optional, pointer     :: wgtpct(:)
+    integer,   optional, intent(out) :: nwtp
+
+    ! hygrocoreshell
+    real(r8),  optional, pointer     :: sw_hygro_coreshell_ext(:,:,:,:,:)
+    real(r8),  optional, pointer     :: sw_hygro_coreshell_ssa(:,:,:,:,:)
+    real(r8),  optional, pointer     :: sw_hygro_coreshell_asm(:,:,:,:,:)
+    real(r8),  optional, pointer     :: lw_hygro_coreshell_ext(:,:,:,:,:)
+    real(r8),  optional, pointer     :: corefrac(:)
+    real(r8),  optional, pointer     :: bcdust(:)
+    real(r8),  optional, pointer     :: kap(:)
+    real(r8),  optional, pointer     :: relh(:)
+    integer,   optional, intent(out) :: nbcdust
+    integer,   optional, intent(out) :: nkap
+    integer,   optional, intent(out) :: nrelh
+    integer,   optional, intent(out) :: nfrac
+
+    if (present(opticstype)) then
+       call rad_cnst_get_bin_props(list_ndx,bin_ndx, opticstype=opticstype)
+    end if
+
+    if (present(sw_hygro_ext_wtp)) then
+       call rad_cnst_get_bin_props(list_ndx,bin_ndx, sw_hygro_ext_wtp=sw_hygro_ext_wtp )
+    end if
+    if (present(sw_hygro_ssa_wtp)) then
+       call rad_cnst_get_bin_props(list_ndx,bin_ndx, sw_hygro_ssa_wtp=sw_hygro_ssa_wtp )
+    end if
+    if (present(sw_hygro_asm_wtp)) then
+       call rad_cnst_get_bin_props(list_ndx,bin_ndx, sw_hygro_asm_wtp=sw_hygro_asm_wtp )
+    end if
+    if (present(lw_hygro_ext_wtp)) then
+       call rad_cnst_get_bin_props(list_ndx,bin_ndx, lw_hygro_ext_wtp=lw_hygro_ext_wtp )
+    end if
+    if (present(wgtpct)) then
+       call rad_cnst_get_bin_props(list_ndx,bin_ndx, wgtpct=wgtpct )
+    end if
+    if (present(nwtp)) then
+       call rad_cnst_get_bin_props(list_ndx,bin_ndx, nwtp=nwtp)
+    end if
+
+    if (present(sw_hygro_coreshell_ext)) then
+       call rad_cnst_get_bin_props(list_ndx,bin_ndx, sw_hygro_coreshell_ext=sw_hygro_coreshell_ext )
+    end if
+    if (present(sw_hygro_coreshell_ssa)) then
+       call rad_cnst_get_bin_props(list_ndx,bin_ndx, sw_hygro_coreshell_ssa=sw_hygro_coreshell_ssa )
+    end if
+    if (present(sw_hygro_coreshell_asm)) then
+       call rad_cnst_get_bin_props(list_ndx,bin_ndx, sw_hygro_coreshell_asm=sw_hygro_coreshell_asm )
+    end if
+    if (present(lw_hygro_coreshell_ext)) then
+       call rad_cnst_get_bin_props(list_ndx,bin_ndx, lw_hygro_coreshell_ext=lw_hygro_coreshell_ext )
+    end if
+    if (present(corefrac)) then
+       call rad_cnst_get_bin_props(list_ndx,bin_ndx, corefrac=corefrac )
+    end if
+    if (present(bcdust)) then
+       call rad_cnst_get_bin_props(list_ndx,bin_ndx, bcdust=bcdust )
+    end if
+    if (present(kap)) then
+       call rad_cnst_get_bin_props(list_ndx,bin_ndx, kap=kap )
+    end if
+    if (present(relh)) then
+       call rad_cnst_get_bin_props(list_ndx,bin_ndx, relh=relh )
+    end if
+    if (present(nbcdust)) then
+       call rad_cnst_get_bin_props(list_ndx,bin_ndx, nbcdust=nbcdust )
+    end if
+    if (present(nkap)) then
+       call rad_cnst_get_bin_props(list_ndx,bin_ndx, nkap=nkap )
+    end if
+    if (present(nrelh)) then
+       call rad_cnst_get_bin_props(list_ndx,bin_ndx, nrelh=nrelh )
+    end if
+    if (present(nfrac)) then
+       call rad_cnst_get_bin_props(list_ndx,bin_ndx, nfrac=nfrac )
+    end if
+
+  end subroutine optics_params
 
   !------------------------------------------------------------------------------
   ! returns radius^3 (m3) of a given bin number

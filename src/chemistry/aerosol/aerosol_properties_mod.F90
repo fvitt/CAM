@@ -61,6 +61,7 @@ module aerosol_properties_mod
      procedure(aero_hetfrz_species), deferred :: hetfrz_species
      procedure :: soa_equivso4_factor ! SOA Hygroscopicity / Sulfate Hygroscopicity
      procedure :: pom_equivso4_factor ! POM Hygroscopicity / Sulfate Hygroscopicity
+     procedure(aero_optics_params), deferred :: optics_params
 
      procedure :: final=>aero_props_final
   end type aerosol_properties
@@ -82,14 +83,74 @@ module aerosol_properties_mod
      !  density
      !  hygroscopicity
      !------------------------------------------------------------------------
-     subroutine aero_props_get(self, bin_ndx, species_ndx, density, hygro)
+     subroutine aero_props_get(self, bin_ndx, species_ndx, list_ndx, density, hygro, spectype, refindex_sw, refindex_lw, specmorph)
        import :: aerosol_properties, r8
        class(aerosol_properties), intent(in) :: self
        integer, intent(in) :: bin_ndx             ! bin index
        integer, intent(in) :: species_ndx         ! species index
+       integer, optional, intent(in) :: list_ndx
        real(r8), optional, intent(out) :: density ! density (kg/m3)
        real(r8), optional, intent(out) :: hygro   ! hygroscopicity
+       character(len=*), optional, intent(out) :: spectype   !
+       complex(r8), pointer, optional, intent(out) :: refindex_sw(:)   !
+       complex(r8), pointer, optional, intent(out) :: refindex_lw(:)   !
+       character(len=*), optional, intent(out) :: specmorph
+
      end subroutine aero_props_get
+
+     !------------------------------------------------------------------------
+     !------------------------------------------------------------------------
+     subroutine aero_optics_params(self, list_ndx, bin_ndx, opticstype, extpsw, abspsw, asmpsw, absplw, &
+          refrtabsw, refitabsw, refrtablw, refitablw, ncoef, prefr, prefi, sw_hygro_ext_wtp, &
+          sw_hygro_ssa_wtp, sw_hygro_asm_wtp, lw_hygro_ext_wtp, wgtpct, nwtp, &
+          sw_hygro_coreshell_ext, sw_hygro_coreshell_ssa, sw_hygro_coreshell_asm, lw_hygro_coreshell_ext, &
+          corefrac, bcdust, kap, relh, nbcdust, nkap, nrelh, nfrac )
+
+       import :: aerosol_properties, r8
+
+       class(aerosol_properties), intent(in) :: self
+       integer, intent(in) :: bin_ndx             ! bin index
+       integer, intent(in) :: list_ndx            ! rad climate/diags list
+
+
+       character(len=*), optional, intent(out) :: opticstype
+
+       ! refactive
+       real(r8),  optional, pointer     :: extpsw(:,:,:,:)
+       real(r8),  optional, pointer     :: abspsw(:,:,:,:)
+       real(r8),  optional, pointer     :: asmpsw(:,:,:,:)
+       real(r8),  optional, pointer     :: absplw(:,:,:,:)
+       real(r8),  optional, pointer     :: refrtabsw(:,:)
+       real(r8),  optional, pointer     :: refitabsw(:,:)
+       real(r8),  optional, pointer     :: refrtablw(:,:)
+       real(r8),  optional, pointer     :: refitablw(:,:)
+       integer,   optional, intent(out) :: ncoef
+       integer,   optional, intent(out) :: prefr
+       integer,   optional, intent(out) :: prefi
+
+       ! hygrowghtpct
+       real(r8),  optional, pointer     :: sw_hygro_ext_wtp(:,:)
+       real(r8),  optional, pointer     :: sw_hygro_ssa_wtp(:,:)
+       real(r8),  optional, pointer     :: sw_hygro_asm_wtp(:,:)
+       real(r8),  optional, pointer     :: lw_hygro_ext_wtp(:,:)
+       real(r8),  optional, pointer     :: wgtpct(:)
+       integer,   optional, intent(out) :: nwtp
+
+       ! hygrocoreshell
+       real(r8),  optional, pointer     :: sw_hygro_coreshell_ext(:,:,:,:,:)
+       real(r8),  optional, pointer     :: sw_hygro_coreshell_ssa(:,:,:,:,:)
+       real(r8),  optional, pointer     :: sw_hygro_coreshell_asm(:,:,:,:,:)
+       real(r8),  optional, pointer     :: lw_hygro_coreshell_ext(:,:,:,:,:)
+       real(r8),  optional, pointer     :: corefrac(:)
+       real(r8),  optional, pointer     :: bcdust(:)
+       real(r8),  optional, pointer     :: kap(:)
+       real(r8),  optional, pointer     :: relh(:)
+       integer,   optional, intent(out) :: nbcdust
+       integer,   optional, intent(out) :: nkap
+       integer,   optional, intent(out) :: nrelh
+       integer,   optional, intent(out) :: nfrac
+
+     end subroutine aero_optics_params
 
      !------------------------------------------------------------------------
      ! returns species type

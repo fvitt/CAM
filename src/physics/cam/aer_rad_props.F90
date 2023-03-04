@@ -17,6 +17,7 @@ use rad_constituents, only: rad_cnst_get_info, rad_cnst_get_aer_mmr, &
 use wv_saturation,    only: qsat
 use modal_aer_opt,    only: modal_aero_sw, modal_aero_lw
 use coreshell_aer_opt,only: coreshell_aero_sw, coreshell_aero_lw
+use aerosol_optics_cam,only: aerosol_optics_cam_init, aerosol_optics_cam_sw, aerosol_optics_cam_lw
 use cam_history,      only: fieldname_len, addfld, outfld, add_default, horiz_only
 use cam_history_support, only : fillvalue
 ! Placed here due to PGI bug.
@@ -102,6 +103,7 @@ subroutine aer_rad_props_init()
       end do
     endif
 
+    call aerosol_optics_cam_init()
 
    deallocate(aernames)
 
@@ -130,6 +132,11 @@ subroutine aer_rad_props_sw(list_idx, state, pbuf,  nnite, idxnite, &
    real(r8), intent(out) :: tau_w_f(pcols,0:pver,nswbands) ! aerosol forward scattered fraction * tau * w
 
    ! Local variables
+
+   real(r8) :: tau_test    (pcols,0:pver,nswbands)
+   real(r8) :: tau_w_test  (pcols,0:pver,nswbands)
+   real(r8) :: tau_w_g_test(pcols,0:pver,nswbands)
+   real(r8) :: tau_w_f_test(pcols,0:pver,nswbands)
 
    integer :: ncol
    integer :: lchnk
@@ -230,6 +237,8 @@ subroutine aer_rad_props_sw(list_idx, state, pbuf,  nnite, idxnite, &
       call coreshell_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
                          tau, tau_w, tau_w_g, tau_w_f)
    end if
+   call aerosol_optics_cam_sw(list_idx, state, pbuf, nnite, idxnite, &
+                         tau_test, tau_w_test, tau_w_g_test, tau_w_f_test)
 
    call tropopause_find(state, troplev)
 
@@ -330,6 +339,8 @@ subroutine aer_rad_props_lw(list_idx, state, pbuf,  odap_aer)
 
    ! Local variables
 
+   real(r8) :: odap_aer_test(pcols,pver,nlwbands)
+
    integer :: bnd_idx     ! LW band index
    integer :: i           ! column index
    integer :: k           ! lev index
@@ -385,6 +396,7 @@ subroutine aer_rad_props_lw(list_idx, state, pbuf,  odap_aer)
    if (nbins > 0) then
       call coreshell_aero_lw(list_idx, state, pbuf, odap_aer)
    end if
+   call aerosol_optics_cam_lw(list_idx, state, pbuf, odap_aer_test)
 
    ! Contributions from bulk aerosols.
    if (numaerosols > 0) then
