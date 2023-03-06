@@ -19,6 +19,10 @@ module refactive_aerosol_optics_mod
      real(r8), allocatable :: radsurf(:,:)    ! aerosol surface mode radius
      real(r8), allocatable :: logradsurf(:,:) ! log(aerosol surface mode radius)
 
+     ! refractive index for water read in read_water_refindex
+     complex(r8), allocatable :: crefwsw(:) ! complex refractive index for water visible
+     complex(r8), allocatable :: crefwlw(:) ! complex refractive index for water infrared
+
      real(r8), pointer :: extpsw(:,:,:,:) => null() ! specific extinction
      real(r8), pointer :: abspsw(:,:,:,:) => null() ! specific absorption
      real(r8), pointer :: asmpsw(:,:,:,:) => null() ! asymmetry factor
@@ -28,10 +32,6 @@ module refactive_aerosol_optics_mod
      real(r8), pointer :: refitabsw(:,:) => null()  ! table of imag refractive indices for aerosols
      real(r8), pointer :: refrtablw(:,:) => null()  ! table of real refractive indices for aerosols
      real(r8), pointer :: refitablw(:,:) => null()  ! table of imag refractive indices for aerosols
-
-     ! refractive index for water read in read_water_refindex
-     complex(r8), pointer :: crefwsw(:) => null() ! complex refractive index for water visible
-     complex(r8), pointer :: crefwlw(:) => null() ! complex refractive index for water infrared
 
    contains
 
@@ -62,11 +62,9 @@ contains
     class(aerosol_state),intent(in), target :: aero_state
     integer, intent(in) :: ilist
     integer, intent(in) :: ibin
-
     integer, intent(in) :: ncol, nlev, nsw, nlw
-
-    complex(r8), intent(in), target :: crefwsw(nsw) ! complex refractive index for water visible
-    complex(r8), intent(in), target :: crefwlw(nlw) ! complex refractive index for water infrared
+    complex(r8), intent(in) :: crefwsw(nsw) ! complex refractive index for water visible
+    complex(r8), intent(in) :: crefwlw(nlw) ! complex refractive index for water infrared
 
     type(refactive_aerosol_optics), pointer :: newobj
 
@@ -113,6 +111,20 @@ contains
        return
     end if
 
+    allocate(newobj%crefwlw(nlw),stat=ierr)
+    if (ierr/=0) then
+       nullify(newobj)
+       return
+    end if
+    newobj%crefwlw(:) = crefwlw(:)
+
+    allocate(newobj%crefwsw(nsw),stat=ierr)
+    if (ierr/=0) then
+       nullify(newobj)
+       return
+    end if
+    newobj%crefwsw(:) = crefwsw(:)
+
     call aero_state%water_uptake(aero_props, ilist, ibin,  ncol, nlev, dgnumwet, qaerwat)
 
     nspec = aero_props%nspecies(ibin)
@@ -153,9 +165,7 @@ contains
     newobj%aero_props => aero_props
     newobj%ilist = ilist
     newobj%ibin = ibin
-    newobj%crefwlw => crefwlw
-    newobj%crefwsw => crefwsw
-
+    
   end function constructor
 
 
@@ -326,11 +336,11 @@ contains
     deallocate(self%cheb)
     deallocate(self%radsurf)
     deallocate(self%logradsurf)
+    deallocate(self%crefwsw)
+    deallocate(self%crefwlw)
 
     nullify(self%aero_state)
     nullify(self%aero_props)
-    nullify(self%crefwsw)
-    nullify(self%crefwlw)
     nullify(self%extpsw)
     nullify(self%abspsw)
     nullify(self%asmpsw)
@@ -393,8 +403,8 @@ contains
 
     !     bilinear interpolation of table
     !
-    real(r8),intent(in) :: table(km,im,jm)
     integer, intent(in) :: ncol,km,im,jm
+    real(r8),intent(in) :: table(km,im,jm)
     real(r8),intent(in) :: x(ncol),y(ncol), xtab(im),ytab(jm)
     integer,intent(inout) :: ix(ncol), jy(ncol)
     real(r8),intent(inout) :: t(ncol), u(ncol)
