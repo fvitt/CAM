@@ -536,9 +536,6 @@ contains
           call CARMASTATE_SetBin(cstate, icorelem(ielem), ibin, mmr_soa, rc)
           if (rc /= RC_OK) call endrun('CARMA_DiagnoseBins::CARMAGROUP_SetBin failed.')
 
-          call CARMASTATE_SetBin(cstate, ienconc, ibin, mmr_total, rc)
-          if (rc /= RC_OK) call endrun('CARMA_DiagnoseBins::CARMAGROUP_SetBin failed.')
-
         end if  !mxsoa1
 
         if (icomposition == I_SOA2) then
@@ -568,9 +565,6 @@ contains
 
           ! Save out these new values for SOA and total MMR.
           call CARMASTATE_SetBin(cstate, icorelem(ielem), ibin, mmr_soa, rc)
-          if (rc /= RC_OK) call endrun('CARMA_DiagnoseBins::CARMAGROUP_SetBin failed.')
-
-          call CARMASTATE_SetBin(cstate, ienconc, ibin, mmr_total, rc)
           if (rc /= RC_OK) call endrun('CARMA_DiagnoseBins::CARMAGROUP_SetBin failed.')
 
         end if  !mxsoa2
@@ -604,9 +598,6 @@ contains
           call CARMASTATE_SetBin(cstate, icorelem(ielem), ibin, mmr_soa, rc)
           if (rc /= RC_OK) call endrun('CARMA_DiagnoseBins::CARMAGROUP_SetBin failed.')
 
-          call CARMASTATE_SetBin(cstate, ienconc, ibin, mmr_total, rc)
-          if (rc /= RC_OK) call endrun('CARMA_DiagnoseBins::CARMAGROUP_SetBin failed.')
-
         end if  !mxsoa3
 
         if (icomposition == I_SOA4) then
@@ -636,9 +627,6 @@ contains
 
           ! Save out these new values for SOA and total MMR.
           call CARMASTATE_SetBin(cstate, icorelem(ielem), ibin, mmr_soa, rc)
-          if (rc /= RC_OK) call endrun('CARMA_DiagnoseBins::CARMAGROUP_SetBin failed.')
-
-          call CARMASTATE_SetBin(cstate, ienconc, ibin, mmr_total, rc)
           if (rc /= RC_OK) call endrun('CARMA_DiagnoseBins::CARMAGROUP_SetBin failed.')
 
         end if  !mxsoa4
@@ -672,11 +660,12 @@ contains
           call CARMASTATE_SetBin(cstate, icorelem(ielem), ibin, mmr_soa, rc)
           if (rc /= RC_OK) call endrun('CARMA_DiagnoseBins::CARMAGROUP_SetBin failed.')
 
-          call CARMASTATE_SetBin(cstate, ienconc, ibin, mmr_total, rc)
-          if (rc /= RC_OK) call endrun('CARMA_DiagnoseBins::CARMAGROUP_SetBin failed.')
-
         end if  !mxsoa5
        end do  !ielem
+
+       call CARMASTATE_SetBin(cstate, ienconc, ibin, mmr_total, rc)
+       if (rc /= RC_OK) call endrun('CARMA_DiagnoseBins::CARMAGROUP_SetBin failed.')
+
     end do  !ibin
 
   end subroutine CARMA_DiagnoseBins
@@ -1908,31 +1897,34 @@ contains
 
     ! Provide diagnostics on the SOA tendencies that affect MXSOA.
     do ibin = 1, NBIN
-      write(binname, '(A, I2.2)') "MXSOA1", ibin
-      write(binname, '(A, I2.2)') "MXSOA2", ibin
-      write(binname, '(A, I2.2)') "MXSOA3", ibin
-      write(binname, '(A, I2.2)') "MXSOA4", ibin
-      write(binname, '(A, I2.2)') "MXSOA5", ibin
 
+      write(binname, '(A, I2.2)') "MXSOA1", ibin
       call pbuf_get_field(pbuf, ipbuf4soacm1(ibin), soacm1)
       call outfld(trim(binname)//'CM', soacm1(:, :), pcols, state%lchnk)
-      call pbuf_get_field(pbuf, ipbuf4soacm2(ibin), soacm2)
-      call outfld(trim(binname)//'CM', soacm2(:, :), pcols, state%lchnk)
-      call pbuf_get_field(pbuf, ipbuf4soacm3(ibin), soacm3)
-      call outfld(trim(binname)//'CM', soacm3(:, :), pcols, state%lchnk)
-      call pbuf_get_field(pbuf, ipbuf4soacm4(ibin), soacm4)
-      call outfld(trim(binname)//'CM', soacm4(:, :), pcols, state%lchnk)
-      call pbuf_get_field(pbuf, ipbuf4soacm5(ibin), soacm5)
-      call outfld(trim(binname)//'CM', soacm5(:, :), pcols, state%lchnk)
-
       call pbuf_get_field(pbuf, ipbuf4soapt1(ibin), soapt1)
       call outfld(trim(binname)//'PT', soapt1(:, :), pcols, state%lchnk)
+
+      write(binname, '(A, I2.2)') "MXSOA2", ibin
+      call pbuf_get_field(pbuf, ipbuf4soacm2(ibin), soacm2)
+      call outfld(trim(binname)//'CM', soacm2(:, :), pcols, state%lchnk)
       call pbuf_get_field(pbuf, ipbuf4soapt2(ibin), soapt2)
       call outfld(trim(binname)//'PT', soapt2(:, :), pcols, state%lchnk)
+
+      write(binname, '(A, I2.2)') "MXSOA3", ibin
+      call pbuf_get_field(pbuf, ipbuf4soacm3(ibin), soacm3)
+      call outfld(trim(binname)//'CM', soacm3(:, :), pcols, state%lchnk)
       call pbuf_get_field(pbuf, ipbuf4soapt3(ibin), soapt3)
       call outfld(trim(binname)//'PT', soapt3(:, :), pcols, state%lchnk)
+
+      write(binname, '(A, I2.2)') "MXSOA4", ibin
+      call pbuf_get_field(pbuf, ipbuf4soacm4(ibin), soacm4)
+      call outfld(trim(binname)//'CM', soacm4(:, :), pcols, state%lchnk)
       call pbuf_get_field(pbuf, ipbuf4soapt4(ibin), soapt4)
       call outfld(trim(binname)//'PT', soapt4(:, :), pcols, state%lchnk)
+
+      write(binname, '(A, I2.2)') "MXSOA5", ibin
+      call pbuf_get_field(pbuf, ipbuf4soacm5(ibin), soacm5)
+      call outfld(trim(binname)//'CM', soacm5(:, :), pcols, state%lchnk)
       call pbuf_get_field(pbuf, ipbuf4soapt5(ibin), soapt5)
       call outfld(trim(binname)//'PT', soapt5(:, :), pcols, state%lchnk)
     end do
@@ -2036,7 +2028,6 @@ contains
     end do
 
     if (carma_do_budget_diags) then
-
        ! Output the total aerosol and gas burdens and the aerosol fluxes.
        call outfld("SO4PRBD", pureso4(:), pcols, state%lchnk)
        call outfld("SO4MXBD", mixso4(:), pcols, state%lchnk)
@@ -2053,7 +2044,7 @@ contains
        call outfld("MXSOA3BD", bdsoa3(:), pcols, state%lchnk)
        call outfld("MXSOA4BD", bdsoa4(:), pcols, state%lchnk)
        call outfld("MXSOA5BD", bdsoa5(:), pcols, state%lchnk)
-    end if
+    endif
 
     return
   end subroutine CARMA_OutputDiagnostics

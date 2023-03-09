@@ -483,12 +483,8 @@ subroutine ma_convproc_intr( state, ptend, pbuf, ztodt,             &
    integer  :: l, ll, lchnk
    integer  :: lpr
    integer  :: n, ncol
-   integer  :: k, i 
-   character(len=32) :: bin_name
 
    real(r8) :: dqdt(pcols,pver,ncnst_tot)
-   real(r8) :: dqdt_sum(pcols,pver)
-   real(r8) :: fld_sum(pcols,pver)
    real(r8) :: dt
    real(r8) :: qa(pcols,pver,ncnst_tot), qb(pcols,pver,ncnst_tot)
    real(r8) :: qsrflx(pcols,ncnst_tot,nsrflx)
@@ -496,9 +492,6 @@ subroutine ma_convproc_intr( state, ptend, pbuf, ztodt,             &
    real(r8) :: sflxid(pcols,ncnst_tot)
    real(r8) :: sflxec(pcols,ncnst_tot)
    real(r8) :: sflxed(pcols,ncnst_tot)
-
-   real(r8), pointer :: rmass_ptr(:)     ! CARMA rmass
-   real(r8), allocatable :: rmass(:)     ! CARMA rmass
 
    logical  :: dotend(ncnst_tot)  ! will be all CARMA aerosols so will be set to .true. for all aerosols in ma_convproc_sh_intr
    !-------------------------------------------------------------------------------------------------
@@ -519,13 +512,8 @@ subroutine ma_convproc_intr( state, ptend, pbuf, ztodt,             &
    sflxed(:,:) = 0.0_r8
 
    allocate(raer(ncnst_tot))
-   allocate ( rmass(nbins) )
 
    do n = 1, nbins      ! main loop over aerosol bins
-      call rad_cnst_get_info_by_bin(0, n, bin_name=bin_name)
-      call pbuf_get_field(pbuf, pbuf_get_index(trim(bin_name)//"_rmass"),rmass_ptr)
-      rmass(n) =  rmass_ptr(1)
-
       call rad_cnst_get_info_by_bin(0, n, nspec=nspec(n))
       do ll = 1, nspec(n) + 2
          l = bin_idx(n, ll)
@@ -553,6 +541,20 @@ subroutine ma_convproc_intr( state, ptend, pbuf, ztodt,             &
 
       end do
 
+      ! prepare for deep conv processing
+      !st not done because calcaersize and mz_aero_wet_intr was not applied for CARMA
+
+      !st do l = 1, pcnst
+      !st    if ( ptend%lq(l) ) then
+      !st       ! calc new q (after calcaersize and mz_aero_wet_intr)
+      !st       qa(1:ncol,:,l) = state%q(1:ncol,:,l) + dt*ptend%q(1:ncol,:,l)
+      !st       qb(1:ncol,:,l) = max( 0.0_r8, qa(1:ncol,:,l) )
+      !st    else
+      !st       ! use old q
+      !st       qb(1:ncol,:,l) = state%q(1:ncol,:,l)
+      !st    end if
+      !st end do
+
    end do    !nbins
    dqdt(:,:,:) = 0.0_r8
    qsrflx(:,:,:) = 0.0_r8
@@ -569,63 +571,24 @@ subroutine ma_convproc_intr( state, ptend, pbuf, ztodt,             &
          ! apply deep conv processing tendency and prepare for shallow conv processing
          !st do l = 1, pcnst  ! mm in aero_model
          do n = 1, nbins      ! main loop over aerosol bins
-            dqdt_sum(:,:) = 0.0_r8
-            fld_sum(:,:) = 0.0_r8
             do ll = 1, nspec(n) + 2
                l = bin_idx(n, ll)
                lpr = bin_cnst_idx(n,ll)
 
                if ( .not. dotend(l) ) cycle
 
-               if (l <= nspec(n)) then
-                ! make sure raer values are not negative, adjust dqdt_tmp accordingly
-                   do k= 1,pver
-                      do i= 1,ncol
-                         if ( (dqdt(i,k,l).lt.0.0_r8) .and. (qb(i,k,l).eq.0.0_r8) )  then
-                            dqdt(i,k,l) = 0.0_r8
-                         else
-                            if ( (qb(i,k,l) + dqdt(i,k,l) * dt) .lt. 0.0_r8 )   then
-                               dqdt(i,k,l) = -1.0_r8 * qb(i,k,l) / dt
-                            end if
-                         end if
-                      end do
-                   end do
+               ! calc new q (after ma_convproc_dp_intr)
+               qa(1:ncol,:,l) = qb(1:ncol,:,l) + dt*dqdt(1:ncol,:,l)
+               qb(1:ncol,:,l) = max( 0.0_r8, qa(1:ncol,:,l) )
 
-                ! calc new q (after ma_convproc_dp_intr)
-                qa(1:ncol,:,l) = qb(1:ncol,:,l) + dt*dqdt(1:ncol,:,l)
-                !this part is not needed any more
-                qb(1:ncol,:,l) = max( 0.0_r8, qa(1:ncol,:,l) )
+               if ( apply_convproc_tend_to_ptend ) then
+                  ! add dqdt onto ptend%q and set ptend%lq   and set pbuf variable if not transported
+                  if (bin_cnst_lq(n,ll)) then ! adveced species
+                     ptend%q(1:ncol,:,lpr) = ptend%q(1:ncol,:,lpr) + dqdt(1:ncol,:,l)
+                  else
+                     raer(l)%fld(1:ncol,:) = max( 0.0_r8, raer(l)%fld(1:ncol,:) + dqdt(1:ncol,:,l) * dt )
+                  end if
 
-                if ( apply_convproc_tend_to_ptend ) then
-                   ! add dqdt onto ptend%q and set ptend%lq   and set pbuf variable if not transported
-                   if (bin_cnst_lq(n,ll)) then ! adveced species
-                      ptend%q(1:ncol,:,lpr) = ptend%q(1:ncol,:,lpr) + dqdt(1:ncol,:,l)
-                      fld_sum(1:ncol,:)  = fld_sum(1:ncol,:) + raer(l)%fld(1:ncol,:) + dqdt(1:ncol,:,l) * dt
-                   else
-                      raer(l)%fld(1:ncol,:) = max( 0.0_r8, raer(l)%fld(1:ncol,:) + dqdt(1:ncol,:,l) * dt )
-                      fld_sum(1:ncol,:)  = fld_sum(1:ncol,:) + raer(l)%fld(1:ncol,:)
-                   end if
-                 dqdt_sum(1:ncol,:) = dqdt_sum(1:ncol,:) + dqdt(1:ncol,:,l)
-                end if
-
-               else if (l == nspec(n) + 1) then   !mmr is advected and number is  not advected
-                qa(1:ncol,:,l) = qb(1:ncol,:,l) + dt*dqdt_sum(1:ncol,:)
-                qb(1:ncol,:,l) = max( 0.0_r8, qa(1:ncol,:,l) )
-                if ( apply_convproc_tend_to_ptend ) then
-                   ! add dqdt onto ptend%q and set ptend%lq   and set pbuf variable if not transported
-                    if (bin_cnst_lq(n,ll)) then ! advected species
-                      ptend%q(1:ncol,:,lpr) = ptend%q(1:ncol,:,lpr) + dqdt_sum(1:ncol,:)
-                   else
-                      raer(l)%fld(1:ncol,:) = max( 0.0_r8, raer(l)%fld(1:ncol,:) + dqdt_sum(1:ncol,:) * dt )
-                   end if
-                end if
-
-               else if (l == nspec(n) + 2) then   !num fraction is assuming dN/N = dM/M
-
-                qb(1:ncol,:,l) = fld_sum(1:ncol,:) / rmass(n)
-                if ( apply_convproc_tend_to_ptend ) then
-                   raer(l)%fld(:ncol,:) = fld_sum(:ncol,:) / rmass(n)
-                end if
                end if
 
                !st done for all CARMA aerosols
@@ -651,72 +614,41 @@ subroutine ma_convproc_intr( state, ptend, pbuf, ztodt,             &
             state, pbuf, dt,                          &
             qb, dqdt, dotend, nsrflx, qsrflx, dcondt_resusp3d )
 
+         ! apply shallow conv processing tendency
+         !st do l = 1, pcnst  ! mm in aero_model
+         !st do l = 1, pcnst
          do n = 1, nbins      ! main loop over aerosol bins
-            dqdt_sum(:,:) = 0.0_r8
-            fld_sum(:,:) = 0.0_r8
             do ll = 1, nspec(n) + 2
                l = bin_idx(n, ll)
                lpr = bin_cnst_idx(n,ll)
 
                if ( .not. dotend(l) ) cycle
 
-               if (l <= nspec(n)) then
+               ! calc new q (after ma_convproc_sh_intr)
+               qa(1:ncol,:,l) = qb(1:ncol,:,l) + dt*dqdt(1:ncol,:,l)
+               qb(1:ncol,:,l) = max( 0.0_r8, qa(1:ncol,:,l) )
 
-                ! make sure raer values are not negative, adjust dqdt_tmp accordingly
-                   do k= 1,pver
-                      do i= 1,ncol
-                         if ( (dqdt(i,k,l).lt.0.0_r8) .and. (qb(i,k,l).eq.0.0_r8) )  then
-                            dqdt(i,k,l) = 0.0_r8
-                         else
-                            if ( (qb(i,k,l) + dqdt(i,k,l) * dt) .lt. 0.0_r8 )   then
-                               dqdt(i,k,l) = -1.0_r8 * qb(i,k,l) / dt
-                            end if
-                         end if
-                      end do
-                   end do
+               if ( apply_convproc_tend_to_ptend ) then
+                  ! add dqdt onto ptend%q and set ptend%lq   and set pbuf variable if not transported
+                  if (bin_cnst_lq(n,ll)) then ! advected species
+                     ptend%q(1:ncol,:,lpr) = ptend%q(1:ncol,:,lpr) + dqdt(1:ncol,:,l)
+                  else
+                     raer(l)%fld(1:ncol,:) = max( 0.0_r8, raer(l)%fld(1:ncol,:) + dqdt(1:ncol,:,1) * dt )
+                  end if
 
-                ! calc new q (after ma_convproc_sh_intr)
-                qa(1:ncol,:,l) = qb(1:ncol,:,l) + dt*dqdt(1:ncol,:,l)
-                qb(1:ncol,:,l) = max( 0.0_r8, qa(1:ncol,:,l) )
-
-                if ( apply_convproc_tend_to_ptend ) then
-                   ! add dqdt onto ptend%q and set ptend%lq   and set pbuf variable if not transported
-                    if (bin_cnst_lq(n,ll)) then ! advected species
-                      ptend%q(1:ncol,:,lpr) = ptend%q(1:ncol,:,lpr) + dqdt(1:ncol,:,l)
-                      fld_sum(1:ncol,:)  = fld_sum(1:ncol,:) + raer(l)%fld(1:ncol,:) + dqdt(1:ncol,:,l) * dt
-                   else
-                      raer(l)%fld(1:ncol,:) = max( 0.0_r8, raer(l)%fld(1:ncol,:) + dqdt(1:ncol,:,l) * dt )
-                      fld_sum(1:ncol,:)  = fld_sum(1:ncol,:) + raer(l)%fld(1:ncol,:)
-                   end if
-                end if
-                dqdt_sum(1:ncol,:) = dqdt_sum(1:ncol,:) + dqdt(1:ncol,:,l)
-
-               else if (l == nspec(n) + 1) then   !mmr is advected and number is  not advected
-                qa(1:ncol,:,l) = qb(1:ncol,:,l) + dt*dqdt_sum(1:ncol,:)
-                qb(1:ncol,:,l) = max( 0.0_r8, qa(1:ncol,:,l) )
-                if ( apply_convproc_tend_to_ptend ) then
-                   ! add dqdt onto ptend%q and set ptend%lq   and set pbuf variable if not transported
-                    if (bin_cnst_lq(n,ll)) then ! advected species
-                      ptend%q(1:ncol,:,lpr) = ptend%q(1:ncol,:,lpr) + dqdt_sum(1:ncol,:)
-                   else
-                      raer(l)%fld(1:ncol,:) = max( 0.0_r8, raer(l)%fld(1:ncol,:) + dqdt_sum(1:ncol,:) * dt )
-                   end if
-                end if
-
-               else if (l == nspec(n) + 2) then   !num fraction is assuming dN/N = dM/M
-
-                qb(1:ncol,:,l) = fld_sum(1:ncol,:) / rmass(n)
-                if ( apply_convproc_tend_to_ptend ) then
-                   raer(l)%fld(:ncol,:) = fld_sum(:ncol,:) / rmass(n)
-                end if
                end if
 
-
+               !st done for all CARMA aerosols
+               !st if ((cnst_species_class(l) == cnst_spec_class_aerosol) .or. &
+               !st     (cnst_species_class(l) == cnst_spec_class_gas    )) then
                sflxic(1:ncol,l) = sflxic(1:ncol,l) + qsrflx(1:ncol,l,4)
                sflxec(1:ncol,l) = sflxec(1:ncol,l) + qsrflx(1:ncol,l,5)
+               !st end if
 
+               !st if (cnst_species_class(l) == cnst_spec_class_aerosol) then
                aerdepwetis(1:ncol,l) = aerdepwetis(1:ncol,l) &
                                      + qsrflx(1:ncol,l,4) + qsrflx(1:ncol,l,5)
+               !st end if
 
             end do
          end do

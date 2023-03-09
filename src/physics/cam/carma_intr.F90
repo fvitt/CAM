@@ -38,13 +38,20 @@ module carma_intr
   public carma_timestep_init            ! initialize timestep dependent variables
   public carma_timestep_tend            ! interface to tendency computation
   public carma_accumulate_stats         ! collect stats from all MPI tasks
+  public carma_checkstate_global        ! check if the coremass exceeding the total, globally
+  public carma_calculate_globalmassfactor ! determine mass factors needed for carma_checkstate_global
 
   ! Other Microphysics
   public carma_emission_tend            ! calculate tendency from emission source function
+  public carma_calculate_cloudborne_diagnostics ! calculate model specific budget diagnostics for cloudborne aerosols
+  public carma_output_cloudborne_diagnostics ! output model specific budget diagnostics for cloudborne aerosols
+  public carma_output_budget_diagnostics ! calculate and output model specific aerosol budget terms
   public carma_wetdep_tend              ! calculate tendency from wet deposition
   public :: carma_restart_init
   public :: carma_restart_write
   public :: carma_restart_read
+  
+  integer, parameter, public  ::     MAXCLDAERDIAG = 16
 
 contains
 
@@ -136,6 +143,27 @@ contains
   end subroutine carma_timestep_tend
 
 
+  subroutine carma_calculate_globalmassfactor(state)
+    use ppgrid,     only: begchunk, endchunk
+    
+    type(physics_state), intent(in), dimension(begchunk:endchunk) :: state  !! All the chunks in this task.
+    return
+  end subroutine carma_calculate_globalmassfactor
+
+
+  subroutine carma_checkstate_global(state, ptend, dt)
+    use physconst,     only: gravit
+    
+    type(physics_state), intent(in)     :: state        !! Physics state variables - before CARMA
+    type(physics_ptend), intent(inout)  :: ptend        !! indivdual parameterization tendencies
+    real(r8), intent(in)                :: dt           !! timestep (s)
+
+    call physics_ptend_init(ptend,state%psetcols,'none') !Initialize an empty ptend for use with physics_update
+    
+    return
+  end subroutine carma_checkstate_global
+
+
   subroutine carma_init_cnst(name, latvals, lonvals, mask, q)
     implicit none
 
@@ -152,6 +180,48 @@ contains
     return
   end subroutine carma_init_cnst
 
+
+  subroutine carma_calculate_cloudborne_diagnostics(state, pbuf, aerclddiag)
+
+    implicit none
+
+    type(physics_state), intent(in)    :: state          !! Physics state variables - before CARMA
+    type(physics_buffer_desc), pointer :: pbuf(:)        !! physics buffer
+    real(r8), intent(out)              :: aerclddiag(pcols, MAXCLDAERDIAG)  !! previous cloudborne diagnostics
+
+    return
+  end subroutine carma_calculate_cloudborne_diagnostics
+
+
+  subroutine carma_output_cloudborne_diagnostics(state, pbuf, pname, dt, oldaerclddiag)
+
+    implicit none
+
+    type(physics_state), intent(in)    :: state          !! Physics state variables - before CARMA
+    type(physics_buffer_desc), pointer :: pbuf(:)        !! physics buffer
+    character(*), intent(in)           :: pname          !! short name of the physics package
+    real(r8), intent(in)               :: dt             !! timestep (s)
+    real(r8), intent(in)               :: oldaerclddiag(pcols, MAXCLDAERDIAG)  !! previous cloudborne diagnostics
+
+    return
+  end subroutine carma_output_cloudborne_diagnostics
+
+
+  subroutine carma_output_budget_diagnostics(state, ptend, old_cflux, cflux, dt, pname)
+
+    implicit none
+
+    type(physics_state), intent(in)    :: state          !! Physics state variables - before CARMA
+    type(physics_ptend), intent(in)    :: ptend          !! indivdual parameterization tendencies
+    real(r8)                           :: old_cflux(pcols,pcnst)  !! cam_in%clfux from before the timestep_tend
+    real(r8)                           :: cflux(pcols,pcnst)  !! cam_in%clfux from after the timestep_tend
+    real(r8), intent(in)               :: dt             !! timestep (s)
+    character(*), intent(in)           :: pname          !! short name of the physics package
+
+
+    return
+  end subroutine carma_output_budget_diagnostics
+  
 
   subroutine carma_emission_tend(state, ptend, cam_in, dt, pbuf)
     use camsrfexch,       only: cam_in_t

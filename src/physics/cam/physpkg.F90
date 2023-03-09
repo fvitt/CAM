@@ -1366,8 +1366,8 @@ contains
     use dyn_tests_utils,    only: vc_dycore
     use aero_model,         only: aero_model_drydep
     use carma_intr,         only: carma_emission_tend, carma_timestep_tend, carma_output_budget_diagnostics, &
-                                  carma_output_cloudborne_diagnostics, carma_calculate_cloudborne_diagnostics
-    use carma_constants_mod,only: MAXCLDAERDIAG
+                                  carma_output_cloudborne_diagnostics, carma_calculate_cloudborne_diagnostics, &
+                                  MAXCLDAERDIAG
     use carma_flags_mod,    only: carma_do_aerosol, carma_do_emission
     use check_energy,       only: check_energy_chng, calc_te_and_aam_budgets
     use check_energy,       only: check_tracers_data, check_tracers_init, check_tracers_chng
@@ -1500,12 +1500,8 @@ contains
     end do
     
     ! Add a diagnostic term for the aerosol emissions coupled from the surface.
-    old_cflux = 0._r8
-    call carma_calculate_cloudborne_diagnostics(state, pbuf, aerclddiag)
     lq_none(:) = .false.
     call physics_ptend_init(ptend,state%psetcols, 'surf_emissions', lq=lq_none)
-    call carma_output_budget_diagnostics(state, ptend, old_cflux, cam_in%cflx, ztodt, "SURFACE")
-    call carma_output_cloudborne_diagnostics(state, pbuf, "SURFACE", ztodt, aerclddiag)
     
 
     ! emissions of aerosols and gas-phase chemistry constituents at surface
@@ -1764,9 +1760,6 @@ contains
                     fh2o, surfric, obklen, flx_heat)
     end if
 
-    old_cflux = cam_in%cflx
-    call carma_calculate_cloudborne_diagnostics(state, pbuf, aerclddiag)
-
     call gw_tend(state, pbuf, ztodt, ptend, cam_in, flx_heat)
 
     if ( (trim(cam_take_snapshot_after) == "gw_tend") .and.                   &
@@ -1779,8 +1772,6 @@ contains
     if ( ptend%lv ) then
       call outfld( 'VTEND_GWDTOT', ptend%v, pcols, lchnk)
     end if
-    call carma_output_budget_diagnostics(state, ptend, old_cflux, cam_in%cflx, ztodt, "GWAVE")
-    call carma_output_cloudborne_diagnostics(state, pbuf, "GWAVE", ztodt, aerclddiag)
     call physics_update(state, ptend, ztodt, tend)
 
     if (trim(cam_take_snapshot_after) == "gw_tend") then
@@ -1888,8 +1879,6 @@ contains
     ! Update Nudging values, if needed
     !----------------------------------
     if((Nudge_Model).and.(Nudge_ON)) then
-      old_cflux = cam_in%cflx
-      call carma_calculate_cloudborne_diagnostics(state, pbuf, aerclddiag)
 
       call nudging_timestep_tend(state,ptend)
       if ( ptend%lu ) then
@@ -1899,8 +1888,6 @@ contains
         call outfld( 'VTEND_NDG', ptend%v, pcols, lchnk)
       end if
 
-      call carma_output_budget_diagnostics(state, ptend, old_cflux, cam_in%cflx, ztodt, "NUDGE")
-      call carma_output_cloudborne_diagnostics(state, pbuf, "NUDGE", ztodt, aerclddiag)
       call physics_update(state,ptend,ztodt,tend)
       call check_energy_chng(state, tend, "nudging", nstep, ztodt, zero, zero, zero, zero)
     endif
@@ -1940,9 +1927,6 @@ contains
     tmp_q     (:ncol,:pver) = state%q(:ncol,:pver,1)
     tmp_cldliq(:ncol,:pver) = state%q(:ncol,:pver,ixcldliq)
     tmp_cldice(:ncol,:pver) = state%q(:ncol,:pver,ixcldice)
-
-    old_cflux = cam_in%cflx
-    call carma_calculate_cloudborne_diagnostics(state, pbuf, aerclddiag)
 
     ! for dry mixing ratio dycore, physics_dme_adjust is called for energy diagnostic purposes only.
     ! So, save off tracers
@@ -1985,8 +1969,6 @@ contains
     endif
 
     call physics_ptend_init(ptend,state%psetcols,'CHKDMEADJ')
-    call carma_output_budget_diagnostics(state, ptend, old_cflux, cam_in%cflx, ztodt, "DMEADJ")
-    call carma_output_cloudborne_diagnostics(state, pbuf, "DMEADJ", ztodt, aerclddiag)
 
 
 !!!   REMOVE THIS CALL, SINCE ONLY Q IS BEING ADJUSTED. WON'T BALANCE ENERGY. TE IS SAVED BEFORE THIS
@@ -2080,8 +2062,7 @@ contains
     use aero_model,      only: aero_model_wetdep
     use carma_intr,      only: carma_wetdep_tend, carma_timestep_tend, carma_output_budget_diagnostics, &
                                carma_output_cloudborne_diagnostics, carma_calculate_cloudborne_diagnostics, &
-                               carma_checkstate_global
-    use carma_constants_mod,only: MAXCLDAERDIAG
+                               carma_checkstate_global, MAXCLDAERDIAG
     use carma_flags_mod, only: carma_do_detrain, carma_do_cldice, carma_do_cldliq,  carma_do_wetdep
     use radiation,       only: radiation_tend
     use cloud_diagnostics, only: cloud_diagnostics_calc
@@ -2288,14 +2269,9 @@ contains
     call calc_te_and_aam_budgets(state, 'phBF')
     call calc_te_and_aam_budgets(state, 'dyBF',vc=vc_dycore)
     if (.not.dycore_is('EUL')) then
-       old_cflux = cam_in%cflx
-       call carma_calculate_cloudborne_diagnostics(state, pbuf, aerclddiag)
       
        call check_energy_fix(state, ptend, nstep, flx_heat)
       
-       call carma_output_budget_diagnostics(state, ptend, old_cflux, cam_in%cflx, ztodt, "EFIX")
-       call carma_output_cloudborne_diagnostics(state, pbuf, "EFIX", ztodt, aerclddiag)
-
        call physics_update(state, ptend, ztodt, tend)
        call carma_fix_pbuf( state, pbuf )
        call check_energy_chng(state, tend, "chkengyfix", nstep, ztodt, zero, zero, zero, flx_heat)
@@ -2364,17 +2340,12 @@ contains
            flx_heat, cmfmc, cmfcme, pflx, zdu, rliq, rice, dlf, dlf2, rliq2, det_s, det_ice, net_flx)
     end if
 
-    old_cflux = cam_in%cflx
-    call carma_calculate_cloudborne_diagnostics(state, pbuf, aerclddiag)
-
     call dadadj_tend(ztodt, state, ptend)
 
     if ( (trim(cam_take_snapshot_after) == "dadadj_tend") .and. &
          (trim(cam_take_snapshot_before) == trim(cam_take_snapshot_after))) then
             call cam_snapshot_ptend_outfld(ptend, lchnk)
     end if
-    call carma_output_budget_diagnostics(state, ptend, old_cflux, cam_in%cflx, ztodt, "DRYADJ")
-    call carma_output_cloudborne_diagnostics(state, pbuf, "DRYADJ", ztodt, aerclddiag)
     call physics_update(state, ptend, ztodt, tend)
     call carma_fix_pbuf( state, pbuf )
 
@@ -2397,9 +2368,6 @@ contains
            flx_heat, cmfmc, cmfcme, pflx, zdu, rliq, rice, dlf, dlf2, rliq2, det_s, det_ice, net_flx)
     end if
 
-    old_cflux = cam_in%cflx
-    call carma_calculate_cloudborne_diagnostics(state, pbuf, aerclddiag)
-
     call convect_deep_tend(  &
          cmfmc,      cmfcme,             &
          pflx,    zdu,       &
@@ -2418,8 +2386,6 @@ contains
     if ( ptend%lv ) then
       call outfld( 'VTEND_DCONV', ptend%v, pcols, lchnk)
     end if
-    call carma_output_budget_diagnostics(state, ptend, old_cflux, cam_in%cflx, ztodt, "DEEP")
-    call carma_output_cloudborne_diagnostics(state, pbuf, "DEEP", ztodt, aerclddiag)
     call physics_update(state, ptend, ztodt, tend)
     call carma_fix_pbuf( state, pbuf )
 
@@ -2469,16 +2435,11 @@ contains
            flx_heat, cmfmc, cmfcme, pflx, zdu, rliq, rice, dlf, dlf2, rliq2, det_s, det_ice, net_flx)
     end if
 
-    old_cflux = cam_in%cflx
-    call carma_calculate_cloudborne_diagnostics(state, pbuf, aerclddiag)
-
     call convect_shallow_tend (ztodt   , cmfmc, &
          dlf        , dlf2   ,  rliq   , rliq2, &
          state      , ptend  ,  pbuf, cam_in)
     call t_stopf ('convect_shallow_tend')
 
-    call carma_output_budget_diagnostics(state, ptend, old_cflux, cam_in%cflx, ztodt, "SHALLOW")
-    call carma_output_cloudborne_diagnostics(state, pbuf, "SHALLOW", ztodt, aerclddiag)
     call physics_update(state, ptend, ztodt, tend)
 
     if ( (trim(cam_take_snapshot_after) == "convect_shallow_tend") .and. &
@@ -2649,9 +2610,6 @@ contains
                      flx_heat, cmfmc, cmfcme, pflx, zdu, rliq, rice, dlf, dlf2, rliq2, det_s, det_ice, net_flx)
              end if
 
-             old_cflux = cam_in%cflx
-             call carma_calculate_cloudborne_diagnostics(state, pbuf, aerclddiag)
-
              call clubb_tend_cam(state, ptend, pbuf, cld_macmic_ztodt,&
                 cmfmc, cam_in, macmic_it, cld_macmic_num_steps, &
                 dlf, det_s, det_ice)
@@ -2664,8 +2622,6 @@ contains
              ! These need to be reported before the scaling as they are based
              ! on the substep size not ztodt.
              write(pname, '(A, I2.2)') "CLUBB", macmic_it     
-             call carma_output_budget_diagnostics(state, ptend, old_cflux, cam_in%cflx, ztodt/cld_macmic_num_steps, pname)
-             call carma_output_cloudborne_diagnostics(state, pbuf, pname, ztodt/cld_macmic_num_steps, aerclddiag)
 
              ! Unfortunately, physics_update does not know what time period
              ! "tend" is supposed to cover, and therefore can't update it
@@ -2894,11 +2850,7 @@ contains
        call carma_output_cloudborne_diagnostics(state, pbuf, "WETDEPA", ztodt, aerclddiag)
        call physics_update(state, ptend, ztodt, tend)
 
-       old_cflux = cam_in%cflx
-       call carma_calculate_cloudborne_diagnostics(state, pbuf, aerclddiag)
        call carma_fix_pbuf( state, pbuf )
-       call carma_output_budget_diagnostics(state, ptend, old_cflux, cam_in%cflx, ztodt, "CRFIXW")
-       call carma_output_cloudborne_diagnostics(state, pbuf, "CRFIXW", ztodt, aerclddiag)
 
        if (trim(cam_take_snapshot_after) == "aero_model_wetdep") then
           call cam_snapshot_all_outfld_tphysbc(cam_snapshot_after_num, state, tend, cam_in, cam_out, pbuf, &
@@ -2923,11 +2875,7 @@ contains
        end if
 
        call t_startf ('convect_deep_tend2')
-       old_cflux = cam_in%cflx
-       call carma_calculate_cloudborne_diagnostics(state, pbuf, aerclddiag)
        call convect_deep_tend_2( state,   ptend,  ztodt,  pbuf )
-       call carma_output_budget_diagnostics(state, ptend, old_cflux, cam_in%cflx, ztodt, "DEEP2")
-       call carma_output_cloudborne_diagnostics(state, pbuf, "DEEP2", ztodt, aerclddiag)
        call physics_update(state, ptend, ztodt, tend)
        call carma_fix_pbuf( state, pbuf )
        call t_stopf ('convect_deep_tend2')

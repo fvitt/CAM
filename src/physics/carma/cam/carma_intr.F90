@@ -11,7 +11,8 @@ module carma_intr
 
   use carma_precision_mod
   use carma_enums_mod
-  use carma_constants_mod, only : GRAV, REARTH, WTMOL_AIR, WTMOL_H2O, R_AIR, CP, RKAPPA
+  use carma_constants_mod, only : GRAV, REARTH, WTMOL_AIR, WTMOL_H2O, R_AIR, CP, RKAPPA, &
+                                  MAXCLDAERDIAG_private=>MAXCLDAERDIAG
   use carma_types_mod
   use carma_flags_mod
   use carma_model_mod
@@ -70,6 +71,12 @@ module carma_intr
   public :: carma_restart_init
   public :: carma_restart_write
   public :: carma_restart_read
+  
+  ! NOTE: This is required by physpkg.F90, since the carma_intr.F90 stub in physics/cam
+  ! does not have access to carma_constant.F90, but needs to also provide a defintion
+  ! for MAXCLDAERDIAG. Thus the definition of this variable needs to come from
+  ! carma_intr.F90.
+  integer, public, parameter     :: MAXCLDAERDIAG = MAXCLDAERDIAG_private 
 
   ! Private data
 
@@ -1593,7 +1600,8 @@ contains
     ! Determine if debug information is to be output for this package.
     isDbgPkg = .false.
     do ipkg = 1, carma_ndebugpkgs
-      if (trim(packagename) .eq. trim(carma_debug_packages(ipkg))) then
+      if ((trim(packagename) .eq. trim(carma_debug_packages(ipkg))) .or. &
+        (trim(carma_debug_packages(ipkg)) .eq. "all")) then
         isDbgPkg = .true.
         exit
       end if

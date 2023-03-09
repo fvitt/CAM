@@ -1,11 +1,13 @@
 module aero_check_mod
   use shr_kind_mod,   only: r8 => shr_kind_r8
-
+  
   implicit none
 
   private
   public :: aero_check_routine
   public :: aero_check_errors
+
+  logical, public, parameter     :: aero_check_abort_on_fail = .false.
 
   !! NOTE: I would like to pass in state, but there is a circular
   !! dependency with physics types.
