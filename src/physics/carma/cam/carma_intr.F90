@@ -1807,7 +1807,7 @@ contains
     real(r8)        :: concgas_mmr          !! mmr for concentration element - sum(core_mass) (kg/kg)
     real(r8)        :: total_mass(pcols,begchunk:endchunk)           !! Total positive masses for concgas (kg/m2)
     real(r8)        :: missing_mass(pcols,begchunk:endchunk)         !! Total negative masses for concgas (kg/m2)
-    real(r8)        :: wrk(1)
+    real(r8)        :: wrk1(1), wrk2(1)
     real(r8)        :: global_total         !! Global total positive masses for concgas (kg/m2)
     real(r8)        :: global_missing       !! Global total negative masses for concgas (kg/m2)
     real(r8)        :: wght                 !! Weighting factor proportional to the column surface area (sums to 4*pi)
@@ -1871,9 +1871,9 @@ contains
               do iz = 1, pver
                 concgas_mmr = state(lchnk)%q(icol,iz,cnst_conc) - total_core(iz)
                 if (concgas_mmr > 0._r8) then
-                  total_mass(icol,lchnk) = amass(icol,iz) * concgas_mmr * wght
+                  total_mass(icol,lchnk) = total_mass(icol,lchnk) + amass(icol,iz) * concgas_mmr * wght
                 else if (concgas_mmr < 0._r8) then
-                  missing_mass(icol,lchnk) = -amass(icol,iz) * concgas_mmr * wght
+                  missing_mass(icol,lchnk) = missing_mass(icol,lchnk) - amass(icol,iz) * concgas_mmr * wght
                 end if
               end do
             end do
@@ -1885,10 +1885,10 @@ contains
           ! but since we are taking a ratio to get a scaling factor, we can
           ! ignore this scaling.
 
-          call shr_reprosum_calc( total_mass, wrk,kk,kk,1, commid=mpicom)
-          global_total = wrk(1)
-          call shr_reprosum_calc( missing_mass, wrk,kk,kk,1, commid=mpicom)
-          global_missing = wrk(1)
+          call shr_reprosum_calc( total_mass, wrk1,kk,kk,1, commid=mpicom)
+          global_total = wrk1(1)
+          call shr_reprosum_calc( missing_mass, wrk2,kk,kk,1, commid=mpicom)
+          global_missing = wrk2(1)
 
           ! Now calculate a scaling factor to be used to reduce the positive
           ! sulfate to conserve mass when the negative values are removed.
