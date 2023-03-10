@@ -24,7 +24,8 @@ module carma_intr
   use carma_mod
 
   use shr_kind_mod,   only: r8 => shr_kind_r8
-  use spmd_utils,     only: masterproc
+  use spmd_utils,     only: masterproc, mpicom
+  use shr_reprosum_mod, only : shr_reprosum_calc
   use pmgrid,         only: plat, plev, plevp, plon
   use ppgrid,         only: pcols, pver, pverp
   use ref_pres,       only: pref_mid, pref_edge, pref_mid_norm, psurf_ref
@@ -71,7 +72,7 @@ module carma_intr
   public :: carma_restart_init
   public :: carma_restart_write
   public :: carma_restart_read
-  
+
   ! NOTE: This is required by physpkg.F90, since the carma_intr.F90 stub in physics/cam
   ! does not have access to carma_constant.F90, but needs to also provide a defintion
   ! for MAXCLDAERDIAG. Thus the definition of this variable needs to come from
@@ -1793,9 +1794,6 @@ contains
     use physconst,  only: gravit
     use ppgrid,     only: begchunk, endchunk
     use phys_grid,  only: get_ncols_p, get_wght_p
-#if ( defined SPMD )
-    use mpishorthand
-#endif
 
     type(physics_state), intent(in), dimension(begchunk:endchunk) :: state  !! All the chunks in this task.
 
@@ -1807,8 +1805,9 @@ contains
     real(r8)        :: total_core(pver)     !! Total mmr for the core masses (kg/kg)
     real(r8)        :: amass(pcols, pver)   !! Air mass (kg)
     real(r8)        :: concgas_mmr          !! mmr for concentration element - sum(core_mass) (kg/kg)
-    real(r8)        :: total_mass           !! Total positive masses for concgas (kg/m2)
-    real(r8)        :: missing_mass         !! Total negative masses for concgas (kg/m2)
+    real(r8)        :: total_mass(pcols,begchunk:endchunk)           !! Total positive masses for concgas (kg/m2)
+    real(r8)        :: missing_mass(pcols,begchunk:endchunk)         !! Total negative masses for concgas (kg/m2)
+    real(r8)        :: wrk(1)
     real(r8)        :: global_total         !! Global total positive masses for concgas (kg/m2)
     real(r8)        :: global_missing       !! Global total negative masses for concgas (kg/m2)
     real(r8)        :: wght                 !! Weighting factor proportional to the column surface area (sums to 4*pi)
@@ -1816,6 +1815,9 @@ contains
     integer         :: LUNOPRT              !! logical unit number for output
     logical         :: do_print             !! do print output?
     integer         :: ncols                !! columns in a chunk
+    integer         :: kk
+
+    kk = pcols*(endchunk-begchunk+1)
 
     call CARMA_Get(carma, rc, do_print=do_print, LUNOPRT=LUNOPRT)
     if (rc < 0) call endrun('carma_calculate_globalmassfactor::CARMA_Get failed.')
@@ -1869,9 +1871,9 @@ contains
               do iz = 1, pver
                 concgas_mmr = state(lchnk)%q(icol,iz,cnst_conc) - total_core(iz)
                 if (concgas_mmr > 0._r8) then
-                  total_mass = total_mass + amass(icol,iz) * concgas_mmr * wght
+                  total_mass(icol,lchnk) = amass(icol,iz) * concgas_mmr * wght
                 else if (concgas_mmr < 0._r8) then
-                  missing_mass = missing_mass - amass(icol,iz) * concgas_mmr * wght
+                  missing_mass(icol,lchnk) = -amass(icol,iz) * concgas_mmr * wght
                 end if
               end do
             end do
@@ -1882,24 +1884,11 @@ contains
           ! NOTE: The weighting factor increases the sum by a factor of 4*pi,
           ! but since we are taking a ratio to get a scaling factor, we can
           ! ignore this scaling.
-#ifdef SPMD
-          call mpi_allreduce(total_mass, global_total, 1, mpir8, mpi_sum, mpicom, istat)
 
-          if (istat /= MPI_SUCCESS) then
-             if (do_print) write(LUNOPRT,*) 'carma_calculate_globalmassfactor: MPI_ALLREDUCE for global_total failed; error = ',istat
-             call endrun
-          end if
-
-          call mpi_allreduce(missing_mass, global_missing, 1, mpir8, mpi_sum, mpicom, istat)
-
-          if (istat /= MPI_SUCCESS) then
-             if (do_print) write(LUNOPRT,*) 'carma_calculate_globalmassfactor: MPI_ALLREDUCE for global_missing failed; error = ',istat
-             call endrun
-          end if
-#else
-          global_total = total_mass
-          global_missing = missing_mass
-#endif
+          call shr_reprosum_calc( total_mass, wrk,kk,kk,1, commid=mpicom)
+          global_total = wrk(1)
+          call shr_reprosum_calc( missing_mass, wrk,kk,kk,1, commid=mpicom)
+          global_missing = wrk(1)
 
           ! Now calculate a scaling factor to be used to reduce the positive
           ! sulfate to conserve mass when the negative values are removed.
