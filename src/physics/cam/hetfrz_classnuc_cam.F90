@@ -242,6 +242,10 @@ subroutine hetfrz_classnuc_cam_init(mincld_in)
    call addfld('dst1uc_num',    (/ 'lev' /), 'A', '#/cm3', 'uncoated dst1 number')
    call addfld('dst3uc_num',    (/ 'lev' /), 'A', '#/cm3', 'uncoated dst3 number')
 
+   call addfld('bc_a1_rad',     (/ 'lev' /), 'A', 'm', 'bc radius')
+   call addfld('dst_a1_rad',    (/ 'lev' /), 'A', 'm', 'dst1 radius')
+   call addfld('dst_a3_rad',    (/ 'lev' /), 'A', 'm', 'dst3 radius')
+
    call addfld('bc_a1_num',     (/ 'lev' /), 'A', '#/cm3', 'interstitial bc number')
    call addfld('dst_a1_num',    (/ 'lev' /), 'A', '#/cm3', 'interstitial dst1 number')
    call addfld('dst_a3_num',    (/ 'lev' /), 'A', '#/cm3', 'interstitial dst3 number')
@@ -255,6 +259,10 @@ subroutine hetfrz_classnuc_cam_init(mincld_in)
 
    call addfld('na500',         (/ 'lev' /), 'A', '#/cm3', 'interstitial aerosol number with D>500 nm')
    call addfld('totna500',      (/ 'lev' /), 'A', '#/cm3', 'total aerosol number with D>500 nm')
+
+   call addfld('FRZIMM', (/ 'lev' /), 'A', ' ','debug diag')
+   call addfld('FRZCNT', (/ 'lev' /), 'A', ' ','debug diag')
+   call addfld('FRZDEP', (/ 'lev' /), 'A', ' ','debug diag')
 
    call addfld('FREQIMM', (/ 'lev' /), 'A', 'fraction', 'Fractional occurance of immersion  freezing')
    call addfld('FREQCNT', (/ 'lev' /), 'A', 'fraction', 'Fractional occurance of contact    freezing')
@@ -296,6 +304,32 @@ subroutine hetfrz_classnuc_cam_init(mincld_in)
                'Ice Number Concentration due to imm freezing by dst in Mixed Clouds during 10-s period')
    call addfld('NUMIMM10sBC', (/ 'lev' /), 'A', '#/m3', &
                'Ice Number Concentration due to imm freezing by bc in Mixed Clouds during 10-s period')
+
+      call add_default('bc_num', 4, ' ')
+      call add_default('dst1_num', 4, ' ')
+      call add_default('dst3_num', 4, ' ')
+      call add_default('bcc_num', 4, ' ')
+      call add_default('dst1c_num', 4, ' ')
+      call add_default('dst3c_num', 4, ' ')
+      call add_default('bcuc_num', 4, ' ')
+      call add_default('dst1uc_num', 4, ' ')
+      call add_default('dst3uc_num', 4, ' ')
+
+      call add_default('bc_a1_rad', 4, ' ')
+      call add_default('dst_a1_rad', 4, ' ')
+      call add_default('dst_a3_rad', 4, ' ')
+
+      call add_default('bc_a1_num', 4, ' ')
+      call add_default('dst_a1_num', 4, ' ')
+      call add_default('dst_a3_num', 4, ' ')
+
+      call add_default('bc_c1_num', 4, ' ')
+      call add_default('dst_c1_num', 4, ' ')
+      call add_default('dst_c3_num', 4, ' ')
+
+      call add_default('fn_bc_c1_num', 4, ' ')
+      call add_default('fn_dst_c1_num', 4, ' ')
+      call add_default('fn_dst_c3_num', 4, ' ')
 
    if (hist_hetfrz_classnuc) then
 
@@ -572,7 +606,7 @@ subroutine hetfrz_classnuc_cam_init(mincld_in)
    call rad_cnst_get_aer_props(0, mode_idx(soa_accum), spec_idx(soa_accum), density_aer=specdens_soa)
    call rad_cnst_get_aer_props(0, mode_idx(pom_accum), spec_idx(pom_accum), density_aer=specdens_pom)
 
-   call hetfrz_classnuc_init(rair, cpair, rh2o, rhoh2o, mwh2o, tmelt, pi, iulog, &
+   call hetfrz_classnuc_init(rair, cpair, rh2o, rhoh2o, mwh2o, tmelt, iulog, &
                              hetfrz_bc_scalfac, hetfrz_dust_scalfac )
 
 end subroutine hetfrz_classnuc_cam_init
@@ -734,6 +768,10 @@ subroutine hetfrz_classnuc_cam_calc( &
    call outfld('dst1uc_num',    uncoated_aer_num(:,:,2), pcols, lchnk)
    call outfld('dst3uc_num',    uncoated_aer_num(:,:,3), pcols, lchnk)
 
+   call outfld('bc_a1_rad',     hetraer(:,:,1), pcols, lchnk)
+   call outfld('dst_a1_rad',    hetraer(:,:,2), pcols, lchnk)
+   call outfld('dst_a3_rad',    hetraer(:,:,3), pcols, lchnk)
+
    call outfld('bc_a1_num',     total_interstitial_aer_num(:,:,1), pcols, lchnk)
    call outfld('dst_a1_num',    total_interstitial_aer_num(:,:,2), pcols, lchnk)
    call outfld('dst_a3_num',    total_interstitial_aer_num(:,:,3), pcols, lchnk)
@@ -818,7 +856,7 @@ subroutine hetfrz_classnuc_cam_calc( &
                fn,  r3lx,  ncic*rho(i,k)*1.0e-6_r8,  frzbcimm(i,k),  frzduimm(i,k),   &
                frzbccnt(i,k),  frzducnt(i,k),  frzbcdep(i,k),  frzdudep(i,k),  hetraer(i,k,:), &
                awcam(i,k,:), awfacm(i,k,:), dstcoat(i,k,:), total_aer_num(i,k,:),  &
-               coated_aer_num(i,k,:), uncoated_aer_num(i,k,:), total_interstitial_aer_num(i,k,:), &
+               uncoated_aer_num(i,k,:), total_interstitial_aer_num(i,k,:), &
                total_cloudborne_aer_num(i,k,:), errstring)
 
             call handle_errmsg(errstring, subname="hetfrz_classnuc_calc")
@@ -858,6 +896,10 @@ subroutine hetfrz_classnuc_cam_calc( &
          numice10s_imm_bc(i,k) = frzbcimm(i,k)*1.0e6_r8*deltatin*(10._r8/deltatin)
       end do
    end do
+
+   call outfld('FRZIMM', frzimm, pcols, lchnk)
+   call outfld('FRZCNT', frzcnt, pcols, lchnk)
+   call outfld('FRZDEP', frzdep, pcols, lchnk)
 
    call outfld('FREQIMM', freqimm, pcols, lchnk)
    call outfld('FREQCNT', freqcnt, pcols, lchnk)
