@@ -24,7 +24,7 @@ use shr_kind_mod,  only: r8 => shr_kind_r8
 use wv_saturation, only: svp_water
 use shr_spfn_mod,  only: erf => shr_spfn_erf
 
-use physconst,     only: pi, pstd
+use physconst,     only: pi, amu, pstd
 
 implicit none
 private
@@ -35,7 +35,6 @@ real(r8), parameter :: boltz = 1.38e-23_r8
 
 real(r8), parameter :: planck = 6.63e-34_r8
 real(r8), parameter :: rhplanck = 1._r8/planck
-real(r8), parameter :: amu = 1.66053886e-27_r8
 real(r8), parameter :: Mwso4 = 96.06_r8
 
 real(r8) :: rair
