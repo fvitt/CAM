@@ -443,6 +443,7 @@ subroutine hetfrz_classnuc_calc(ntypes, types,&
    ! if aw*Si<=1, the freezing point depression is strong enough to prevent freezing
 
    do_frz = aw*supersatice > 1._r8
+
    if (do_frz) then
       rgimm_aer = 2*vwice*sigma_iw/(boltz*T*LOG(aw*supersatice))
    else
@@ -571,6 +572,7 @@ subroutine collkernel( temp, pres, eswtr, rhwincloud, r3lx,  rad, Ktherm, Kcoll 
    integer :: ntot, idx
 
    !------------------------------------------------------------------------------------------------
+   real(r8), parameter :: kboltz = 1.38065e-23_r8
 
    ntot = size(ktherm)
 
@@ -613,7 +615,7 @@ subroutine collkernel( temp, pres, eswtr, rhwincloud, r3lx,  rad, Ktherm, Kcoll 
          ! Knudsen number (Seinfeld & Pandis 8.1)
          Kn = lambda/rad(idx)
          ! aerosol diffusivity
-         Daer = boltz*temp*(1 + Kn)/(6*pi*rad(idx)*viscos_air)
+         Daer = kboltz*temp*(1 + Kn)/(6*pi*rad(idx)*viscos_air)
 
          ! Schmidt number
          Sc = viscos_air/(Daer*rho_air)
