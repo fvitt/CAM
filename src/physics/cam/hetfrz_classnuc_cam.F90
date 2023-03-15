@@ -310,64 +310,82 @@ subroutine hetfrz_classnuc_cam_init(mincld_in)
    call addfld('hetfrz_fn1',(/ 'lev' /), 'A', ' ','hetfrz debug field')
    call addfld('hetfrz_fn2',(/ 'lev' /), 'A', ' ','hetfrz debug field')
    call addfld('hetfrz_fn3',(/ 'lev' /), 'A', ' ','hetfrz debug field')
+   call addfld('hetfrz_fn4',(/ 'lev' /), 'A', ' ','hetfrz debug field')
    call addfld('hetfrz_r3lx',(/ 'lev' /), 'A', ' ','hetfrz debug field')
    call addfld('hetfrz_icnlx',(/ 'lev' /), 'A', ' ','hetfrz debug field')
    call addfld('hetfrz_radius1',(/ 'lev' /), 'A', ' ','hetfrz debug field')
    call addfld('hetfrz_radius2',(/ 'lev' /), 'A', ' ','hetfrz debug field')
    call addfld('hetfrz_radius3',(/ 'lev' /), 'A', ' ','hetfrz debug field')
+   call addfld('hetfrz_radius4',(/ 'lev' /), 'A', ' ','hetfrz debug field')
    call addfld('hetfrz_awcam1',(/ 'lev' /), 'A', ' ','hetfrz debug field')
    call addfld('hetfrz_awcam2',(/ 'lev' /), 'A', ' ','hetfrz debug field')
    call addfld('hetfrz_awcam3',(/ 'lev' /), 'A', ' ','hetfrz debug field')
+   call addfld('hetfrz_awcam4',(/ 'lev' /), 'A', ' ','hetfrz debug field')
    call addfld('hetfrz_awfacm1',(/ 'lev' /), 'A', ' ','hetfrz debug field')
    call addfld('hetfrz_awfacm2',(/ 'lev' /), 'A', ' ','hetfrz debug field')
    call addfld('hetfrz_awfacm3',(/ 'lev' /), 'A', ' ','hetfrz debug field')
+   call addfld('hetfrz_awfacm4',(/ 'lev' /), 'A', ' ','hetfrz debug field')
    call addfld('hetfrz_dstcoat1',(/ 'lev' /), 'A', ' ','hetfrz debug field')
    call addfld('hetfrz_dstcoat2',(/ 'lev' /), 'A', ' ','hetfrz debug field')
    call addfld('hetfrz_dstcoat3',(/ 'lev' /), 'A', ' ','hetfrz debug field')
+   call addfld('hetfrz_dstcoat4',(/ 'lev' /), 'A', ' ','hetfrz debug field')
    call addfld('hetfrz_totaernum1',(/ 'lev' /), 'A', ' ','hetfrz debug field')
    call addfld('hetfrz_totaernum2',(/ 'lev' /), 'A', ' ','hetfrz debug field')
    call addfld('hetfrz_totaernum3',(/ 'lev' /), 'A', ' ','hetfrz debug field')
+   call addfld('hetfrz_totaernum4',(/ 'lev' /), 'A', ' ','hetfrz debug field')
    call addfld('hetfrz_uncoatednum1',(/ 'lev' /), 'A', ' ','hetfrz debug field')
    call addfld('hetfrz_uncoatednum2',(/ 'lev' /), 'A', ' ','hetfrz debug field')
    call addfld('hetfrz_uncoatednum3',(/ 'lev' /), 'A', ' ','hetfrz debug field')
+   call addfld('hetfrz_uncoatednum4',(/ 'lev' /), 'A', ' ','hetfrz debug field')
    call addfld('hetfrz_totinum1',(/ 'lev' /), 'A', ' ','hetfrz debug field')
    call addfld('hetfrz_totinum2',(/ 'lev' /), 'A', ' ','hetfrz debug field')
    call addfld('hetfrz_totinum3',(/ 'lev' /), 'A', ' ','hetfrz debug field')
+   call addfld('hetfrz_totinum4',(/ 'lev' /), 'A', ' ','hetfrz debug field')
    call addfld('hetfrz_totcnum1',(/ 'lev' /), 'A', ' ','hetfrz debug field')
    call addfld('hetfrz_totcnum2',(/ 'lev' /), 'A', ' ','hetfrz debug field')
    call addfld('hetfrz_totcnum3',(/ 'lev' /), 'A', ' ','hetfrz debug field')
+   call addfld('hetfrz_totcnum4',(/ 'lev' /), 'A', ' ','hetfrz debug field')
 
 
    call add_default('hetfrz_supersatice', 3, ' ')
    call add_default('hetfrz_fn1', 3, ' ')
    call add_default('hetfrz_fn2', 3, ' ')
    call add_default('hetfrz_fn3', 3, ' ')
+   call add_default('hetfrz_fn4', 3, ' ')
    call add_default('hetfrz_r3lx', 3, ' ')
    call add_default('hetfrz_icnlx', 3, ' ')
    call add_default('hetfrz_radius1', 3, ' ')
    call add_default('hetfrz_radius2', 3, ' ')
    call add_default('hetfrz_radius3', 3, ' ')
+   call add_default('hetfrz_radius4', 3, ' ')
    call add_default('hetfrz_awcam1', 3, ' ')
    call add_default('hetfrz_awcam2', 3, ' ')
    call add_default('hetfrz_awcam3', 3, ' ')
+   call add_default('hetfrz_awcam4', 3, ' ')
    call add_default('hetfrz_awfacm1', 3, ' ')
    call add_default('hetfrz_awfacm2', 3, ' ')
    call add_default('hetfrz_awfacm3', 3, ' ')
+   call add_default('hetfrz_awfacm4', 3, ' ')
    call add_default('hetfrz_dstcoat1', 3, ' ')
    call add_default('hetfrz_dstcoat2', 3, ' ')
    call add_default('hetfrz_dstcoat3', 3, ' ')
+   call add_default('hetfrz_dstcoat4', 3, ' ')
    call add_default('hetfrz_totaernum1', 3, ' ')
    call add_default('hetfrz_totaernum2', 3, ' ')
    call add_default('hetfrz_totaernum3', 3, ' ')
+   call add_default('hetfrz_totaernum4', 3, ' ')
    call add_default('hetfrz_uncoatednum1', 3, ' ')
    call add_default('hetfrz_uncoatednum2', 3, ' ')
    call add_default('hetfrz_uncoatednum3', 3, ' ')
+   call add_default('hetfrz_uncoatednum4', 3, ' ')
    call add_default('hetfrz_totinum1', 3, ' ')
    call add_default('hetfrz_totinum2', 3, ' ')
    call add_default('hetfrz_totinum3', 3, ' ')
+   call add_default('hetfrz_totinum4', 3, ' ')
    call add_default('hetfrz_totcnum1', 3, ' ')
    call add_default('hetfrz_totcnum2', 3, ' ')
    call add_default('hetfrz_totcnum3', 3, ' ')
+   call add_default('hetfrz_totcnum4', 3, ' ')
 
    if (hist_hetfrz_classnuc) then
 
@@ -678,18 +696,18 @@ subroutine hetfrz_classnuc_cam_calc( &
 
    real(r8), pointer :: ptr2d(:,:)
 
-   real(r8) :: fn(3)
-   real(r8) :: awcam(pcols,pver,3)
-   real(r8) :: awfacm(pcols,pver,3)
-   real(r8) :: hetraer(pcols,pver,3)
-   real(r8) :: dstcoat(pcols,pver,3)
-   real(r8) :: total_interstitial_aer_num(pcols,pver,3)
-   real(r8) :: total_cloudborne_aer_num(pcols,pver,3)
-   real(r8) :: total_aer_num(pcols,pver,3)
-   real(r8) :: coated_aer_num(pcols,pver,3)
-   real(r8) :: uncoated_aer_num(pcols,pver,3)
+   real(r8) :: fn(4)
+   real(r8) :: awcam(pcols,pver,4)
+   real(r8) :: awfacm(pcols,pver,4)
+   real(r8) :: hetraer(pcols,pver,4)
+   real(r8) :: dstcoat(pcols,pver,4)
+   real(r8) :: total_interstitial_aer_num(pcols,pver,4)
+   real(r8) :: total_cloudborne_aer_num(pcols,pver,4)
+   real(r8) :: total_aer_num(pcols,pver,4)
+   real(r8) :: coated_aer_num(pcols,pver,4)
+   real(r8) :: uncoated_aer_num(pcols,pver,4)
 
-   real(r8) :: fn_cloudborne_aer_num(pcols,pver,3)
+   real(r8) :: fn_cloudborne_aer_num(pcols,pver,4)
 
    real(r8) :: esi(pcols), esl(pcols)
    real(r8) :: con1, r3lx, supersatice
@@ -715,7 +733,7 @@ subroutine hetfrz_classnuc_cam_calc( &
 
 
    real(r8) :: supersatice_tmp(pcols,pver)
-   real(r8) :: fn_tmp(pcols,pver,3)
+   real(r8) :: fn_tmp(pcols,pver,4)
    real(r8) :: r3lx_tmp(pcols,pver)
    real(r8) :: icnlx_tmp(pcols,pver)
 
@@ -797,6 +815,7 @@ subroutine hetfrz_classnuc_cam_calc( &
          if (nmodes == MAM3_nmodes .or. nmodes == MAM4_nmodes) then
             fn_cloudborne_aer_num(i,k,2) = total_aer_num(i,k,2)*factnum(i,k,mode_accum_idx)  ! dst_a1
             fn_cloudborne_aer_num(i,k,3) = total_aer_num(i,k,3)*factnum(i,k,mode_coarse_idx) ! dst_a3
+            fn_cloudborne_aer_num(i,k,4) = total_aer_num(i,k,4)*factnum(i,k,mode_pcarbon_idx) ! bc_a4
          else if (nmodes == MAM7_nmodes) then
             fn_cloudborne_aer_num(i,k,2) = total_aer_num(i,k,2)*factnum(i,k,mode_finedust_idx)
             fn_cloudborne_aer_num(i,k,3) = total_aer_num(i,k,3)*factnum(i,k,mode_coardust_idx)
@@ -894,6 +913,7 @@ subroutine hetfrz_classnuc_cam_calc( &
             if (nmodes == MAM3_nmodes .or. nmodes == MAM4_nmodes .or. nmodes == MAM5_nmodes) then
                 fn(2) = factnum(i,k,mode_accum_idx)  ! dust_a1 accumulation mode
                 fn(3) = factnum(i,k,mode_coarse_idx) ! dust_a3 coarse mode
+                fn(4) = factnum(i,k,mode_pcarbon_idx) ! dust_a3 coarse mode
             else if (nmodes == MAM7_nmodes) then
                 fn(2) = factnum(i,k,mode_finedust_idx)
                 fn(3) = factnum(i,k,mode_coardust_idx)
@@ -905,7 +925,7 @@ subroutine hetfrz_classnuc_cam_calc( &
             icnlx_tmp(i,k) = ncic*rho(i,k)*1.0e-6_r8
 
                                            !  12345678   12345678   12345678
-            call hetfrz_classnuc_calc( 3, (/ 'black-c ','dust    ','dust    ' /),&
+            call hetfrz_classnuc_calc( 4, (/ 'black-c ','dust    ','dust    ', 'black-c '/),&
                deltatin,  t(i,k),  pmid(i,k),  supersatice,   &
                fn,  r3lx,  ncic*rho(i,k)*1.0e-6_r8,  frzbcimm(i,k),  frzduimm(i,k),   &
                frzbccnt(i,k),  frzducnt(i,k),  frzbcdep(i,k),  frzdudep(i,k),  hetraer(i,k,:), &
@@ -955,40 +975,49 @@ subroutine hetfrz_classnuc_cam_calc( &
    call outfld('hetfrz_fn1', fn_tmp(:ncol,:,1), ncol, lchnk)
    call outfld('hetfrz_fn2', fn_tmp(:ncol,:,2), ncol, lchnk)
    call outfld('hetfrz_fn3', fn_tmp(:ncol,:,3), ncol, lchnk)
+   call outfld('hetfrz_fn4', fn_tmp(:ncol,:,4), ncol, lchnk)
    call outfld('hetfrz_r3lx', r3lx_tmp(:ncol,:), ncol, lchnk)
    call outfld('hetfrz_icnlx', icnlx_tmp(:ncol,:), ncol, lchnk)
 
    call outfld('hetfrz_radius1', hetraer(:ncol,:,1), ncol, lchnk)
    call outfld('hetfrz_radius2', hetraer(:ncol,:,2), ncol, lchnk)
    call outfld('hetfrz_radius3', hetraer(:ncol,:,3), ncol, lchnk)
+   call outfld('hetfrz_radius4', hetraer(:ncol,:,4), ncol, lchnk)
 
    call outfld('hetfrz_awcam1', awcam(:ncol,:,1), ncol, lchnk)
    call outfld('hetfrz_awcam2', awcam(:ncol,:,2), ncol, lchnk)
    call outfld('hetfrz_awcam3', awcam(:ncol,:,3), ncol, lchnk)
+   call outfld('hetfrz_awcam4', awcam(:ncol,:,4), ncol, lchnk)
 
    call outfld('hetfrz_awfacm1', awfacm(:ncol,:,1), ncol, lchnk)
    call outfld('hetfrz_awfacm2', awfacm(:ncol,:,2), ncol, lchnk)
    call outfld('hetfrz_awfacm3', awfacm(:ncol,:,3), ncol, lchnk)
+   call outfld('hetfrz_awfacm4', awfacm(:ncol,:,4), ncol, lchnk)
 
    call outfld('hetfrz_dstcoat1', dstcoat(:ncol,:,1), ncol, lchnk)
    call outfld('hetfrz_dstcoat2', dstcoat(:ncol,:,2), ncol, lchnk)
    call outfld('hetfrz_dstcoat3', dstcoat(:ncol,:,3), ncol, lchnk)
+   call outfld('hetfrz_dstcoat4', dstcoat(:ncol,:,4), ncol, lchnk)
 
    call outfld('hetfrz_totaernum1', total_aer_num(:ncol,:,1), ncol, lchnk)
    call outfld('hetfrz_totaernum2', total_aer_num(:ncol,:,2), ncol, lchnk)
    call outfld('hetfrz_totaernum3', total_aer_num(:ncol,:,3), ncol, lchnk)
+   call outfld('hetfrz_totaernum4', total_aer_num(:ncol,:,4), ncol, lchnk)
 
    call outfld('hetfrz_uncoatednum1', uncoated_aer_num(:ncol,:,1), ncol, lchnk)
    call outfld('hetfrz_uncoatednum2', uncoated_aer_num(:ncol,:,2), ncol, lchnk)
    call outfld('hetfrz_uncoatednum3', uncoated_aer_num(:ncol,:,3), ncol, lchnk)
+   call outfld('hetfrz_uncoatednum4', uncoated_aer_num(:ncol,:,4), ncol, lchnk)
 
    call outfld('hetfrz_totinum1', total_interstitial_aer_num(:ncol,:,1), ncol, lchnk)
    call outfld('hetfrz_totinum2', total_interstitial_aer_num(:ncol,:,2), ncol, lchnk)
    call outfld('hetfrz_totinum3', total_interstitial_aer_num(:ncol,:,3), ncol, lchnk)
+   call outfld('hetfrz_totinum4', total_interstitial_aer_num(:ncol,:,4), ncol, lchnk)
 
    call outfld('hetfrz_totcnum1', total_cloudborne_aer_num(:ncol,:,1), ncol, lchnk)
    call outfld('hetfrz_totcnum2', total_cloudborne_aer_num(:ncol,:,2), ncol, lchnk)
    call outfld('hetfrz_totcnum3', total_cloudborne_aer_num(:ncol,:,3), ncol, lchnk)
+   call outfld('hetfrz_totcnum4', total_cloudborne_aer_num(:ncol,:,4), ncol, lchnk)
 
    call outfld('FRZIMM', frzimm, pcols, lchnk)
    call outfld('FRZCNT', frzcnt, pcols, lchnk)
@@ -1055,15 +1084,15 @@ subroutine get_aer_num(ii, kk, ncnst, aer, aer_cb, rhoair,&
    ! module variables local to this module.
 
    ! output
-   real(r8), intent(out) :: total_aer_num(3)            ! #/cm^3
-   real(r8), intent(out) :: total_interstial_aer_num(3) ! #/cm^3
-   real(r8), intent(out) :: total_cloudborne_aer_num(3) ! #/cm^3
-   real(r8), intent(out) :: coated_aer_num(3)           ! #/cm^3
-   real(r8), intent(out) :: uncoated_aer_num(3)         ! #/cm^3
-   real(r8), intent(out) :: hetraer(3)                  ! BC and Dust mass mean radius [m]
-   real(r8), intent(out) :: awcam(3)                    ! modal added mass [mug m-3]
-   real(r8), intent(out) :: awfacm(3)                   ! (OC+BC)/(OC+BC+SO4)
-   real(r8), intent(out) :: dstcoat(3)                  ! coated fraction
+   real(r8), intent(out) :: total_aer_num(4)            ! #/cm^3
+   real(r8), intent(out) :: total_interstial_aer_num(4) ! #/cm^3
+   real(r8), intent(out) :: total_cloudborne_aer_num(4) ! #/cm^3
+   real(r8), intent(out) :: coated_aer_num(4)           ! #/cm^3
+   real(r8), intent(out) :: uncoated_aer_num(4)         ! #/cm^3
+   real(r8), intent(out) :: hetraer(4)                  ! BC and Dust mass mean radius [m]
+   real(r8), intent(out) :: awcam(4)                    ! modal added mass [mug m-3]
+   real(r8), intent(out) :: awfacm(4)                   ! (OC+BC)/(OC+BC+SO4)
+   real(r8), intent(out) :: dstcoat(4)                  ! coated fraction
    real(r8), intent(out) :: na500                  ! #/cm^3 interstitial aerosol number with D>500 nm (#/cm^3)
    real(r8), intent(out) :: tot_na500              ! #/cm^3 total aerosol number with D>500 nm (#/cm^3)
 
@@ -1077,9 +1106,9 @@ subroutine get_aer_num(ii, kk, ncnst, aer, aer_cb, rhoair,&
    real(r8), parameter :: spechygro_pom = 0.1_r8            ! POM hygroscopicity
    real(r8), parameter :: soa_equivso4_factor = spechygro_soa/spechygro_so4
    real(r8), parameter :: pom_equivso4_factor = spechygro_pom/spechygro_so4
-   real(r8) :: vol_shell(3)
-   real(r8) :: vol_core(3)
-   real(r8) :: fac_volsfc_dust_a1, fac_volsfc_dust_a3, fac_volsfc_bc
+   real(r8) :: vol_shell(4)
+   real(r8) :: vol_core(4)
+   real(r8) :: fac_volsfc_dust_a1, fac_volsfc_dust_a3, fac_volsfc_bc, fac_volsfc_bc_a1,  fac_volsfc_bc_a4
    real(r8) :: tmp1, tmp2
    real(r8) :: bc_num                     ! bc number in accumulation mode for MAM3
                                           ! bc number in accumulation and primary carbon mode for MAM7 and MAM4
@@ -1096,7 +1125,7 @@ subroutine get_aer_num(ii, kk, ncnst, aer, aer_cb, rhoair,&
    real(r8) :: dmc_imm, ssmc_imm, so4_imm
    real(r8) :: as_bc, as_pom, as_ss
    real(r8) :: bc4_num
-   real(r8) :: r_bc                         ! model radii of BC modes [m]
+   real(r8) :: r_bc, r_bc4                         ! model radii of BC modes [m]
    real(r8) :: r_dust_a1, r_dust_a3         ! model radii of dust modes [m]
 
    integer :: i
@@ -1162,12 +1191,11 @@ subroutine get_aer_num(ii, kk, ncnst, aer, aer_cb, rhoair,&
 
       if (nmodes == MAM4_nmodes .or. nmodes == MAM5_nmodes) then
          if (num_to_mass_in) then
-            bc_num = bc_num+(aer(ii,kk,bc_pcarbon)) * bc_num_to_mass*1.0e-6_r8 ! #/cm^3
+            bc4_num = bc_num+(aer(ii,kk,bc_pcarbon)) * bc_num_to_mass*1.0e-6_r8 ! #/cm^3
          else
             as_bc  = aer(ii,kk,bc_pcarbon)
             as_pom = aer(ii,kk,pom_pcarbon)
             bc4_num = as_bc/(as_bc+as_pom)*aer(ii,kk,num_pcarbon)*1.0e-6_r8 ! #/cm^3
-            bc_num = bc_num + bc4_num
          end if
       end if
    else if (nmodes == MAM7_nmodes) then
@@ -1233,10 +1261,12 @@ subroutine get_aer_num(ii, kk, ncnst, aer, aer_cb, rhoair,&
    total_interstial_aer_num(1) = bc_num
    total_interstial_aer_num(2) = dst1_num
    total_interstial_aer_num(3) = dst3_num
+   total_interstial_aer_num(4) = bc4_num
 
    total_cloudborne_aer_num(1) = bc_num_imm
    total_cloudborne_aer_num(2) = dst1_num_imm
    total_cloudborne_aer_num(3) = dst3_num_imm
+   total_cloudborne_aer_num(4) = 0.0_r8
 
    !*****************************************************************************
    ! calculate mass mean radius
@@ -1246,34 +1276,37 @@ subroutine get_aer_num(ii, kk, ncnst, aer, aer_cb, rhoair,&
 
       if (nmodes == MAM3_nmodes) then
 
-        if (aer(ii,kk,bc_accum)*1.0e-3_r8 > 1.0e-30_r8 .and. bc_num > 1.0e-3_r8) then
+!!$        if (aer(ii,kk,bc_accum)*1.0e-3_r8 > 1.0e-30_r8 .and. bc_num > 1.0e-3_r8) then
            r_bc = ( 3._r8/(4*pi*specdens_bc)*aer(ii,kk,bc_accum)/(bc_num*1.0e6_r8) )**(1._r8/3._r8)
-        else
-           r_bc = 0.04e-6_r8
-        end if
+!!$        else
+!!$           r_bc = 0.04e-6_r8
+!!$        end if
 
       else
-        if ((aer(ii,kk,bc_accum)+aer(ii,kk,bc_pcarbon))*1.0e-3_r8 > 1.0e-30_r8 &
-            .and. bc_num > 1.0e-3_r8) then
-            r_bc = ( 3._r8/(4*pi*specdens_bc)*(aer(ii,kk,bc_accum)+aer(ii,kk,bc_pcarbon))/ &
+!!$        if ((aer(ii,kk,bc_accum)+aer(ii,kk,bc_pcarbon))*1.0e-3_r8 > 1.0e-30_r8 &
+!!$            .and. bc_num > 1.0e-3_r8) then
+            r_bc = ( 3._r8/(4*pi*specdens_bc)*(aer(ii,kk,bc_accum))/ &
                     (bc_num*1.0e6_r8) )**(1._r8/3._r8)
-        else
-            r_bc = 0.067e-6_r8 ! from emission size
-        end if
+            r_bc4 = ( 3._r8/(4*pi*specdens_bc)*(aer(ii,kk,bc_pcarbon))/ &
+                    (bc4_num*1.0e6_r8) )**(1._r8/3._r8)
+!!$        else
+!!$            r_bc = 0.067e-6_r8 ! from emission size
+!!$            r_bc4 = 0.067e-6_r8 ! from emission size
+!!$        end if
 
       end if
 
-      if (aer(ii,kk,dst_accum)*1.0e-3_r8 > 1.0e-30_r8 .and. dst1_num > 1.0e-3_r8) then
+!!$      if (aer(ii,kk,dst_accum)*1.0e-3_r8 > 1.0e-30_r8 .and. dst1_num > 1.0e-3_r8) then
          r_dust_a1 = ( 3._r8/(4*pi*specdens_dust)*aer(ii,kk,dst_accum)/(dst1_num*1.0e6_r8) )**(1._r8/3._r8)
-      else
-         r_dust_a1 = 0.258e-6_r8
-      end if
+!!$      else
+!!$         r_dust_a1 = 0.258e-6_r8
+!!$      end if
 
-      if (aer(ii,kk,dst_coarse)*1.0e-3_r8 > 1.0e-30_r8 .and. dst3_num > 1.0e-3_r8) then
+!!$      if (aer(ii,kk,dst_coarse)*1.0e-3_r8 > 1.0e-30_r8 .and. dst3_num > 1.0e-3_r8) then
          r_dust_a3 = ( 3._r8/(4*pi*specdens_dust)*aer(ii,kk,dst_coarse)/(dst3_num*1.0e6_r8) )**(1._r8/3._r8)
-      else
-         r_dust_a3 = 1.576e-6_r8
-      end if
+!!$      else
+!!$         r_dust_a3 = 1.576e-6_r8
+!!$      end if
 
    else if (nmodes == MAM7_nmodes) then
 
@@ -1301,6 +1334,7 @@ subroutine get_aer_num(ii, kk, ncnst, aer, aer_cb, rhoair,&
    hetraer(1) = r_bc
    hetraer(2) = r_dust_a1
    hetraer(3) = r_dust_a3
+   hetraer(4) = r_bc4
 
    !*****************************************************************************
    !                calculate coated fraction
@@ -1308,9 +1342,10 @@ subroutine get_aer_num(ii, kk, ncnst, aer, aer_cb, rhoair,&
 
    if (nmodes == MAM3_nmodes .or. nmodes == MAM4_nmodes .or. nmodes == MAM5_nmodes) then
 
-      fac_volsfc_bc      = exp(2.5_r8*alnsg_mode_accum**2)
+      fac_volsfc_bc_a1   = exp(2.5_r8*alnsg_mode_accum**2)
       fac_volsfc_dust_a1 = exp(2.5_r8*alnsg_mode_accum**2)
       fac_volsfc_dust_a3 = exp(2.5_r8*alnsg_mode_coarse**2)
+      fac_volsfc_bc_a4   = exp(2.5_r8*alnsg_mode_pcarbon**2)
 
       vol_shell(2) = ( aer(ii,kk,so4_accum)/specdens_so4 + &
                        aer(ii,kk,pom_accum)*pom_equivso4_factor/specdens_pom + &
@@ -1330,20 +1365,19 @@ subroutine get_aer_num(ii, kk, ncnst, aer, aer_cb, rhoair,&
       !   But ratio1/ratio2 == tmp1/tmp2, and coding below avoids possible overflow
 
       ! bc
-      if (nmodes == MAM3_nmodes) then
+!!$      if (nmodes == MAM3_nmodes) then
         vol_shell(1) = vol_shell(2)
         vol_core(1) = aer(ii,kk,bc_accum)/(specdens_bc*rhoair)
-        tmp1 = vol_shell(1)*(r_bc*2._r8)*fac_volsfc_bc
+        tmp1 = vol_shell(1)*(r_bc*2._r8)*fac_volsfc_bc_a1
         tmp2 = max(6.0_r8*dr_so4_monolayers_dust*vol_core(1), 0.0_r8)
         dstcoat(1) = tmp1/tmp2
-      else
-        fac_volsfc_bc      = exp(2.5_r8*alnsg_mode_pcarbon**2)
-        vol_shell(1) = ( aer(ii,kk,pom_pcarbon)*pom_equivso4_factor/specdens_pom )/rhoair
-        vol_core(1)  = aer(ii,kk,bc_pcarbon)/(specdens_bc*rhoair)
-        tmp1 = vol_shell(1)*(r_bc*2._r8)*fac_volsfc_bc
-        tmp2 = max(6.0_r8*dr_so4_monolayers_dust*vol_core(1), 0.0_r8)
-        dstcoat(1) = tmp1/tmp2
-      end if
+!!$      else
+        vol_shell(4) = ( aer(ii,kk,pom_pcarbon)*pom_equivso4_factor/specdens_pom )/rhoair
+        vol_core(4)  = aer(ii,kk,bc_pcarbon)/(specdens_bc*rhoair)
+        tmp1 = vol_shell(4)*(r_bc*2._r8)*fac_volsfc_bc_a4
+        tmp2 = max(6.0_r8*dr_so4_monolayers_dust*vol_core(4), 0.0_r8)
+        dstcoat(4) = tmp1/tmp2
+!!$      end if
 
       ! dust_a1
       tmp1 = vol_shell(2)*(r_dust_a1*2._r8)*fac_volsfc_dust_a1
@@ -1362,7 +1396,7 @@ subroutine get_aer_num(ii, kk, ncnst, aer, aer_cb, rhoair,&
       ! for BC, only consider primary carbon mode,
       ! because most of particles in this mode are uncoated
       ! and nearly all particles in accumulation mode are coated
-      fac_volsfc_bc      = exp(2.5_r8*alnsg_mode_pcarbon**2)
+      fac_volsfc_bc     = exp(2.5_r8*alnsg_mode_pcarbon**2)
 
       vol_shell(1) = ( aer(ii,kk,pom_pcarbon)*pom_equivso4_factor/specdens_pom )/rhoair
       vol_core(1)  = aer(ii,kk,bc_pcarbon)/(specdens_bc*rhoair)
@@ -1395,22 +1429,24 @@ subroutine get_aer_num(ii, kk, ncnst, aer, aer_cb, rhoair,&
    if (dstcoat(3) > 1._r8)    dstcoat(3) = 1._r8
    if (dstcoat(3) < 0.001_r8) dstcoat(3) = 0.001_r8
 
-   do i = 1, 3
+   do i = 1, 4
+      if (dstcoat(i) > 1._r8)    dstcoat(i) = 1._r8
+      if (dstcoat(i) < 0.001_r8) dstcoat(I) = 0.001_r8
       total_aer_num(i)    = total_interstial_aer_num(i) + total_cloudborne_aer_num(i)
       coated_aer_num(i)   = total_interstial_aer_num(i)*dstcoat(i)
       uncoated_aer_num(i) = total_interstial_aer_num(i)*(1._r8-dstcoat(i))
    end do
 
-   if (nmodes == MAM4_nmodes .or. nmodes == MAM7_nmodes .or. nmodes == MAM5_nmodes) then
-      if (num_to_mass_in) then
-         coated_aer_num(1)   = (aer(ii,kk,bc_pcarbon)*bc_num_to_mass*1.0e-6_r8)*dstcoat(1)+ &
-                               (aer(ii,kk,bc_accum)*bc_num_to_mass*1.0e-6_r8)
-         uncoated_aer_num(1) = (aer(ii,kk,bc_pcarbon)*bc_num_to_mass*1.0e-6_r8)*(1._r8-dstcoat(1))
-      else
-         coated_aer_num(1)   = bc4_num*dstcoat(1) +  bc_num
-         uncoated_aer_num(1) = bc4_num*(1._r8-dstcoat(1))
-      end if
-   end if
+!!$   if (nmodes == MAM4_nmodes .or. nmodes == MAM7_nmodes .or. nmodes == MAM5_nmodes) then
+!!$      if (num_to_mass_in) then
+!!$         coated_aer_num(1)   = (aer(ii,kk,bc_pcarbon)*bc_num_to_mass*1.0e-6_r8)*dstcoat(1)+ &
+!!$                               (aer(ii,kk,bc_accum)*bc_num_to_mass*1.0e-6_r8)
+!!$         uncoated_aer_num(1) = (aer(ii,kk,bc_pcarbon)*bc_num_to_mass*1.0e-6_r8)*(1._r8-dstcoat(1))
+!!$      else
+!!$         coated_aer_num(1)   = bc4_num*dstcoat(1) +  bc_num
+!!$         uncoated_aer_num(1) = bc4_num*(1._r8-dstcoat(1))
+!!$      end if
+!!$   end if
 
    if (nmodes == MAM3_nmodes .or. nmodes == MAM4_nmodes .or. nmodes == MAM5_nmodes) then
       dst1_scale = 0.488_r8    ! scaled for D>0.5-1 um from 0.1-1 um
@@ -1492,6 +1528,9 @@ subroutine get_aer_num(ii, kk, ncnst, aer, aer_cb, rhoair,&
          awcam(3) = 0._r8
       end if
       awfacm(3) = 0._r8
+
+      awcam(4) = 0._r8
+      awfacm(4) = 0._r8
 
    end if
 
