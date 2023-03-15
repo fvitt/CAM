@@ -1374,7 +1374,7 @@ subroutine get_aer_num(ii, kk, ncnst, aer, aer_cb, rhoair,&
 !!$      else
         vol_shell(4) = ( aer(ii,kk,pom_pcarbon)*pom_equivso4_factor/specdens_pom )/rhoair
         vol_core(4)  = aer(ii,kk,bc_pcarbon)/(specdens_bc*rhoair)
-        tmp1 = vol_shell(4)*(r_bc*2._r8)*fac_volsfc_bc_a4
+        tmp1 = vol_shell(4)*(r_bc4*2._r8)*fac_volsfc_bc_a4
         tmp2 = max(6.0_r8*dr_so4_monolayers_dust*vol_core(4), 0.0_r8)
         dstcoat(4) = tmp1/tmp2
 !!$      end if
@@ -1421,13 +1421,13 @@ subroutine get_aer_num(ii, kk, ncnst, aer, aer_cb, rhoair,&
       dstcoat(3) = tmp1/tmp2
 
    end if
-
-   if (dstcoat(1) > 1._r8)    dstcoat(1) = 1._r8
-   if (dstcoat(1) < 0.001_r8) dstcoat(1) = 0.001_r8
-   if (dstcoat(2) > 1._r8)    dstcoat(2) = 1._r8
-   if (dstcoat(2) < 0.001_r8) dstcoat(2) = 0.001_r8
-   if (dstcoat(3) > 1._r8)    dstcoat(3) = 1._r8
-   if (dstcoat(3) < 0.001_r8) dstcoat(3) = 0.001_r8
+!!$
+!!$   if (dstcoat(1) > 1._r8)    dstcoat(1) = 1._r8
+!!$   if (dstcoat(1) < 0.001_r8) dstcoat(1) = 0.001_r8
+!!$   if (dstcoat(2) > 1._r8)    dstcoat(2) = 1._r8
+!!$   if (dstcoat(2) < 0.001_r8) dstcoat(2) = 0.001_r8
+!!$   if (dstcoat(3) > 1._r8)    dstcoat(3) = 1._r8
+!!$   if (dstcoat(3) < 0.001_r8) dstcoat(3) = 0.001_r8
 
    do i = 1, 4
       if (dstcoat(i) > 1._r8)    dstcoat(i) = 1._r8
