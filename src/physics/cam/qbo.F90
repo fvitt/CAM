@@ -13,6 +13,7 @@ public               :: qbo_readnl             ! read namelist
 public               :: qbo_init               ! initialize qbo package
 public               :: qbo_timestep_init      ! interpolate to current time
 public               :: qbo_relax              ! relax zonal mean wind
+public               :: qbo_final              ! finalize qbo package
 
 logical, public, parameter :: qbo_use_forcing  = .FALSE.
 
@@ -32,7 +33,11 @@ subroutine qbo_init
 
 end subroutine qbo_init
 
-subroutine qbo_timestep_init
+subroutine qbo_timestep_init(phys_state)
+  use physics_types, only: physics_state
+  use ppgrid, only: begchunk, endchunk
+
+  type(physics_state), intent(in) :: phys_state(begchunk:endchunk)
 
   ! Stub; do nothing.
 
@@ -53,5 +58,8 @@ subroutine qbo_relax( state, pbuf, ptend )
   call physics_ptend_init(ptend, state%psetcols, 'qbo (stub)')
 
 end subroutine qbo_relax
+
+subroutine qbo_final
+end subroutine qbo_final
 
 end module qbo

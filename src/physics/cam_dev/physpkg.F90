@@ -1248,6 +1248,7 @@ contains
     use carma_intr,     only: carma_final
     use wv_saturation,  only: wv_sat_final
     use microp_aero,    only: microp_aero_final
+    use qbo, only: qbo_final
 
     !-----------------------------------------------------------------------
     !
@@ -1270,6 +1271,7 @@ contains
     call carma_final
     call wv_sat_final
     call microp_aero_final()
+    call qbo_final()
 
   end subroutine phys_final
 
@@ -2882,7 +2884,7 @@ subroutine phys_timestep_init(phys_state, cam_in, cam_out, pbuf2d)
   !----------------------------------------------------------------------
   ! update QBO data for this time step
   !----------------------------------------------------------------------
-  call qbo_timestep_init
+  call qbo_timestep_init(phys_state)
 
   call iondrag_timestep_init()
 
