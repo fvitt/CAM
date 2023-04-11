@@ -1,4 +1,4 @@
-module refactive_aerosol_optics_mod
+module refractive_aerosol_optics_mod
   use shr_kind_mod, only: r8 => shr_kind_r8
   use aerosol_optics_mod, only: aerosol_optics
   use physconst,  only: rhoh2o
@@ -7,7 +7,7 @@ module refactive_aerosol_optics_mod
 
   implicit none
 
-  type, extends(aerosol_optics) :: refactive_aerosol_optics
+  type, extends(aerosol_optics) :: refractive_aerosol_optics
 
      integer :: ibin, ilist
      class(aerosol_state), pointer :: aero_state
@@ -40,11 +40,11 @@ module refactive_aerosol_optics_mod
 
      final :: destructor
 
-  end type refactive_aerosol_optics
+  end type refractive_aerosol_optics
 
-  interface refactive_aerosol_optics
+  interface refractive_aerosol_optics
      procedure :: constructor
-  end interface refactive_aerosol_optics
+  end interface refractive_aerosol_optics
 
   ! Dimension sizes in coefficient arrays used to parameterize aerosol radiative properties
   ! in terms of refractive index and wet radius
@@ -66,7 +66,7 @@ contains
     complex(r8), intent(in) :: crefwsw(nsw) ! complex refractive index for water visible
     complex(r8), intent(in) :: crefwlw(nlw) ! complex refractive index for water infrared
 
-    type(refactive_aerosol_optics), pointer :: newobj
+    type(refractive_aerosol_optics), pointer :: newobj
 
     integer :: ierr, icol, ilev, ispec, nspec
     real(r8) :: vol(ncol)       ! volume concentration of aerosol specie (m3/kg)
@@ -171,7 +171,7 @@ contains
 
   subroutine sw_props(self, ncol, ilev, iwav, pext, palb, pasm)
 
-    class(refactive_aerosol_optics), intent(in) :: self
+    class(refractive_aerosol_optics), intent(in) :: self
     integer, intent(in) :: ncol
     integer, intent(in) :: ilev
     integer, intent(in) :: iwav
@@ -262,7 +262,7 @@ contains
 
   subroutine lw_props(self, ncol, ilev, iwav, pabs)
 
-    class(refactive_aerosol_optics), intent(in) :: self
+    class(refractive_aerosol_optics), intent(in) :: self
     integer, intent(in) :: ncol
     integer, intent(in) :: ilev
     integer, intent(in) :: iwav
@@ -329,7 +329,7 @@ contains
   !------------------------------------------------------------------------------
   subroutine destructor(self)
 
-    type(refactive_aerosol_optics), intent(inout) :: self
+    type(refractive_aerosol_optics), intent(inout) :: self
 
     deallocate(self%watervol)
     deallocate(self%wetvol)
@@ -473,4 +473,4 @@ contains
     return
   end subroutine binterp
 
-end module refactive_aerosol_optics_mod
+end module refractive_aerosol_optics_mod

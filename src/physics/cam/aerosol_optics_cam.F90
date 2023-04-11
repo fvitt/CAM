@@ -21,7 +21,7 @@ module aerosol_optics_cam
   use carma_aerosol_state_mod,only: carma_aerosol_state
 
   use aerosol_optics_mod,     only: aerosol_optics
-  use refactive_aerosol_optics_mod, only: refactive_aerosol_optics
+  use refractive_aerosol_optics_mod, only: refractive_aerosol_optics
   use hygrocoreshell_aerosol_optics_mod, only: hygrocoreshell_aerosol_optics
   use hygrowghtpct_aerosol_optics_mod, only: hygrowghtpct_aerosol_optics
 
@@ -35,7 +35,14 @@ module aerosol_optics_cam
   public :: aerosol_optics_cam_sw
   public :: aerosol_optics_cam_lw
 
-  class(aerosol_properties), pointer :: aero_props => null()
+  type aero_props_t
+     class(aerosol_properties), pointer :: obj => null()
+  end type aero_props_t
+  type aero_state_t
+     class(aerosol_state), pointer :: obj => null()
+  end type aero_state_t
+
+  type(aero_props_t), allocatable :: aero_props(:)
 
   ! refractive index for water read in read_water_refindex
   complex(r8) :: crefwsw(nswbands) = -huge(1._r8) ! complex refractive index for water visible
@@ -44,6 +51,7 @@ module aerosol_optics_cam
 
   logical :: carma_active = .false.
   logical :: modal_active = .false.
+  integer :: num_aero_models = 0
 
 contains
 
@@ -95,16 +103,37 @@ contains
   subroutine aerosol_optics_cam_init
     use rad_constituents, only: rad_cnst_get_info
 
-    integer :: nmodes=0, nbins=0
+    character(len=*), parameter :: prefix = 'aerosol_optics_cam_sw: '
+    integer :: nmodes=0, nbins=0, iaermod, istat
+
+    num_aero_models = 0
 
     call rad_cnst_get_info(0, nmodes=nmodes, nbins=nbins)
-    carma_active = nbins>0
     modal_active = nmodes>0
+    carma_active = nbins>0
 
     if (modal_active) then
-       aero_props => modal_aerosol_properties()
+       num_aero_models = num_aero_models+1
+    end if
+    if (carma_active) then
+       num_aero_models = num_aero_models+1
+    end if
+
+    if (num_aero_models>0) then
+       allocate(aero_props(num_aero_models), stat=istat)
+       if (istat/=0) then
+          call endrun(prefix//'array allocation error: aero_props')
+       end if
+    end if
+
+    iaermod = 0
+
+    if (modal_active) then
+       iaermod = iaermod+1
+       aero_props(iaermod)%obj => modal_aerosol_properties()
     else if (carma_active) then
-       aero_props => carma_aerosol_properties()
+       iaermod = iaermod+1
+       aero_props(iaermod)%obj => carma_aerosol_properties()
     end if
 
     if (aerwat_refindex_file/='NONE') then
@@ -115,8 +144,18 @@ contains
 
   !===============================================================================
   subroutine aerosol_optics_cam_final
-    deallocate(aero_props)
-    nullify(aero_props)
+
+    integer :: iaermod
+
+    do iaermod = 1,num_aero_models
+       deallocate(aero_props(iaermod)%obj)
+       nullify(aero_props(iaermod)%obj)
+    end do
+
+    if (allocated(aero_props)) then
+       deallocate(aero_props)
+    endif
+
   end subroutine aerosol_optics_cam_final
 
   !===============================================================================
@@ -146,7 +185,8 @@ contains
     integer :: iwav, ilev
     integer :: ncol, icol, istat
 
-    class(aerosol_state), pointer :: aero_state
+    type(aero_state_t), allocatable :: aero_state(:)
+
     class(aerosol_optics), pointer :: aero_optics
 
     real(r8) :: dopaer(pcols)
@@ -161,20 +201,24 @@ contains
     real(r8) :: satq(pcols,pver)     ! saturation specific humidity
 
     character(len=32) :: opticstype
+    integer :: iaermod
 
-    nullify(aero_state)
     nullify(aero_optics)
 
-    if (.not.associated(aero_props)) return
+    if (num_aero_models<1) return
 
-    if (modal_active) then
-       aero_state => modal_aerosol_state( state, pbuf )
-    else if (carma_active) then
-       aero_state => carma_aerosol_state( state, pbuf )
+    allocate(aero_state(num_aero_models), stat=istat)
+    if (istat/=0) then
+       call endrun(prefix//'array allocation error: aero_state')
     end if
 
-    if (.not.associated(aero_state)) then
-       call endrun(prefix//'aero_state not associated')
+    iaermod = 0
+    if (modal_active) then
+       iaermod = iaermod+1
+       aero_state(iaermod)%obj => modal_aerosol_state( state, pbuf )
+    else if (carma_active) then
+       iaermod = iaermod+1
+       aero_state(iaermod)%obj => carma_aerosol_state( state, pbuf )
     end if
 
     ncol = state%ncol
@@ -194,60 +238,66 @@ contains
        call endrun(prefix//'array allocation error: pasm')
     end if
 
-    nbins=aero_props%nbins()
+    do iaermod = 1,num_aero_models
 
+       nbins=aero_props(iaermod)%obj%nbins()
 
-    do ibin = 1, nbins
+       do ibin = 1, nbins
 
-       call aero_props%optics_params(list_idx, ibin, opticstype=opticstype)
+          call aero_props(iaermod)%obj%optics_params(list_idx, ibin, opticstype=opticstype)
 
-       select case (trim(opticstype))
-       case('modal') ! refactive method
-          aero_optics=>refactive_aerosol_optics(aero_props, aero_state, list_idx, ibin, ncol, pver, nswbands, nlwbands, crefwsw, crefwlw)
-       case('hygroscopic_coreshell')
-          ! calculate relative humidity for table lookup into rh grid
-          call qsat(state%t(:ncol,:), state%pmid(:ncol,:), sate(:ncol,:), satq(:ncol,:), ncol, pver)
-          relh(:ncol,:) = state%q(1:ncol,:,1) / satq(:ncol,:)
-          relh(:ncol,:) = max(1.e-20_r8,relh(:ncol,:))
-          aero_optics=>hygrocoreshell_aerosol_optics(aero_props, aero_state, list_idx, ibin, ncol, pver, relh(:ncol,:))
-       case('hygroscopic_wtp')
-          aero_optics=>hygrowghtpct_aerosol_optics(aero_props, aero_state, list_idx, ibin, ncol, pver)
-       case default
-          call endrun(prefix//'optics method not recognized')
-       end select
+          select case (trim(opticstype))
+          case('modal') ! refractive method
+             aero_optics=>refractive_aerosol_optics(aero_props(iaermod)%obj, aero_state(iaermod)%obj, list_idx, ibin, ncol, pver, nswbands, nlwbands, crefwsw, crefwlw)
+          case('hygroscopic_coreshell')
+             ! calculate relative humidity for table lookup into rh grid
+             call qsat(state%t(:ncol,:), state%pmid(:ncol,:), sate(:ncol,:), satq(:ncol,:), ncol, pver)
+             relh(:ncol,:) = state%q(1:ncol,:,1) / satq(:ncol,:)
+             relh(:ncol,:) = max(1.e-20_r8,relh(:ncol,:))
+             aero_optics=>hygrocoreshell_aerosol_optics(aero_props(iaermod)%obj, aero_state(iaermod)%obj, list_idx, ibin, ncol, pver, relh(:ncol,:))
+          case('hygroscopic_wtp')
+             aero_optics=>hygrowghtpct_aerosol_optics(aero_props(iaermod)%obj, aero_state(iaermod)%obj, list_idx, ibin, ncol, pver)
+          case default
+             call endrun(prefix//'optics method not recognized')
+          end select
 
-       if (associated(aero_optics)) then
-          do iwav = 1, nswbands
+          if (associated(aero_optics)) then
+             do iwav = 1, nswbands
 
-             do ilev = 1, pver
+                do ilev = 1, pver
 
-                call aero_optics%sw_props(ncol, ilev, iwav, pext, palb, pasm )
+                   call aero_optics%sw_props(ncol, ilev, iwav, pext, palb, pasm )
 
-                do icol = 1,ncol
-                   dopaer(icol) = pext(icol)*mass(icol,ilev)
-                   tauxar(icol,ilev,iwav) = tauxar(icol,ilev,iwav) + dopaer(icol)
-                   wa(icol,ilev,iwav) = wa(icol,ilev,iwav) + dopaer(icol)*palb(icol)
-                   ga(icol,ilev,iwav) = ga(icol,ilev,iwav) + dopaer(icol)*palb(icol)*pasm(icol)
-                   fa(icol,ilev,iwav) = fa(icol,ilev,iwav) + dopaer(icol)*palb(icol)*pasm(icol)*pasm(icol)
+                   do icol = 1,ncol
+                      dopaer(icol) = pext(icol)*mass(icol,ilev)
+                      tauxar(icol,ilev,iwav) = tauxar(icol,ilev,iwav) + dopaer(icol)
+                      wa(icol,ilev,iwav) = wa(icol,ilev,iwav) + dopaer(icol)*palb(icol)
+                      ga(icol,ilev,iwav) = ga(icol,ilev,iwav) + dopaer(icol)*palb(icol)*pasm(icol)
+                      fa(icol,ilev,iwav) = fa(icol,ilev,iwav) + dopaer(icol)*palb(icol)*pasm(icol)*pasm(icol)
+                   end do
+
                 end do
-
              end do
-          end do
-       else
-          call endrun(prefix//'aero_optics object pointer not associated')
-       end if
+          else
+             call endrun(prefix//'aero_optics object pointer not associated')
+          end if
 
-       deallocate(aero_optics)
-       nullify(aero_optics)
+          deallocate(aero_optics)
+          nullify(aero_optics)
 
+       end do
     end do
 
     deallocate(pext)
     deallocate(palb)
     deallocate(pasm)
 
+    do iaermod = 1,num_aero_models
+       deallocate(aero_state(iaermod)%obj)
+       nullify(aero_state(iaermod)%obj)
+    end do
+
     deallocate(aero_state)
-    nullify(aero_state)
 
   end subroutine aerosol_optics_cam_sw
 
@@ -263,7 +313,6 @@ contains
 
     real(r8), intent(inout) :: tauxar(pcols,pver,nlwbands) ! layer absorption optical depth
 
-    class(aerosol_state), pointer :: aero_state_obj
 
     real(r8) :: dopaer(pcols)
     real(r8) :: mass(pcols,pver)
@@ -277,7 +326,8 @@ contains
     integer :: iwav, ilev
     integer :: ncol, icol, istat
 
-    class(aerosol_state), pointer :: aero_state
+    type(aero_state_t), allocatable :: aero_state(:)
+
     class(aerosol_optics), pointer :: aero_optics
 
     real(r8), allocatable :: pabs(:)
@@ -287,20 +337,22 @@ contains
     real(r8) :: satq(pcols,pver)     ! saturation specific humidity
 
     character(len=32) :: opticstype
+    integer :: iaermod
 
-    nullify(aero_state)
     nullify(aero_optics)
 
-    if (.not.associated(aero_props)) return
-
-    if (modal_active) then
-       aero_state => modal_aerosol_state( state, pbuf )
-    else if (carma_active) then
-       aero_state => carma_aerosol_state( state, pbuf )
+    allocate(aero_state(num_aero_models), stat=istat)
+    if (istat/=0) then
+       call endrun(prefix//'array allocation error: aero_state')
     end if
 
-    if (.not.associated(aero_state)) then
-       call endrun(prefix//'aero_state not associated')
+    iaermod = 0
+    if (modal_active) then
+       iaermod = iaermod+1
+       aero_state(iaermod)%obj => modal_aerosol_state( state, pbuf )
+    else if (carma_active) then
+       iaermod = iaermod+1
+       aero_state(iaermod)%obj => carma_aerosol_state( state, pbuf )
     end if
 
     ncol = state%ncol
@@ -312,52 +364,63 @@ contains
        call endrun(prefix//'array allocation error: pabs')
     end if
 
-    nbins=aero_props%nbins()
+    do iaermod = 1,num_aero_models
 
-    do ibin = 1, nbins
+       nbins=aero_props(iaermod)%obj%nbins()
 
-       call aero_props%optics_params(list_idx, ibin, opticstype=opticstype)
+       do ibin = 1, nbins
 
-       select case (trim(opticstype))
-       case('modal') ! refactive method
-          aero_optics=>refactive_aerosol_optics(aero_props, aero_state, list_idx, ibin, ncol, pver, nswbands, nlwbands, crefwsw, crefwlw)
-       case('hygroscopic_coreshell')
-          ! calculate relative humidity for table lookup into rh grid
-          call qsat(state%t(:ncol,:), state%pmid(:ncol,:), sate(:ncol,:), satq(:ncol,:), ncol, pver)
-          relh(:ncol,:) = state%q(1:ncol,:,1) / satq(:ncol,:)
-          relh(:ncol,:) = max(1.e-20_r8,relh(:ncol,:))
-          aero_optics=>hygrocoreshell_aerosol_optics(aero_props, aero_state, list_idx, ibin, ncol, pver, relh(:ncol,:))
-       case('hygroscopic_wtp')
-          aero_optics=>hygrowghtpct_aerosol_optics(aero_props, aero_state, list_idx, ibin, ncol, pver)
-       case default
-          call endrun(prefix//'optics method not recognized')
-       end select
+          call aero_props(iaermod)%obj%optics_params(list_idx, ibin, opticstype=opticstype)
 
-       if (associated(aero_optics)) then
+          select case (trim(opticstype))
+          case('modal') ! refractive method
+             aero_optics=>refractive_aerosol_optics(aero_props(iaermod)%obj, aero_state(iaermod)%obj, list_idx, ibin, ncol, pver, nswbands, nlwbands, crefwsw, crefwlw)
+          case('hygroscopic_coreshell')
+             ! calculate relative humidity for table lookup into rh grid
+             call qsat(state%t(:ncol,:), state%pmid(:ncol,:), sate(:ncol,:), satq(:ncol,:), ncol, pver)
+             relh(:ncol,:) = state%q(1:ncol,:,1) / satq(:ncol,:)
+             relh(:ncol,:) = max(1.e-20_r8,relh(:ncol,:))
+             aero_optics=>hygrocoreshell_aerosol_optics(aero_props(iaermod)%obj, aero_state(iaermod)%obj, list_idx, ibin, ncol, pver, relh(:ncol,:))
+          case('hygroscopic_wtp')
+             aero_optics=>hygrowghtpct_aerosol_optics(aero_props(iaermod)%obj, aero_state(iaermod)%obj, list_idx, ibin, ncol, pver)
+          case default
+             call endrun(prefix//'optics method not recognized')
+          end select
 
-          do iwav = 1, nswbands
+          if (associated(aero_optics)) then
 
-             do ilev = 1, pver
-                call aero_optics%lw_props(ncol, ilev, iwav, pabs )
+             do iwav = 1, nswbands
 
-                do icol = 1, ncol
-                   dopaer(icol) = pabs(icol)*mass(icol,ilev)
-                   tauxar(icol,ilev,iwav) = tauxar(icol,ilev,iwav) + dopaer(icol)
+                do ilev = 1, pver
+                   call aero_optics%lw_props(ncol, ilev, iwav, pabs )
+
+                   do icol = 1, ncol
+                      dopaer(icol) = pabs(icol)*mass(icol,ilev)
+                      tauxar(icol,ilev,iwav) = tauxar(icol,ilev,iwav) + dopaer(icol)
+                   end do
+
                 end do
 
              end do
 
-          end do
+          else
+             call endrun(prefix//'aero_optics object pointer not associated')
+          end if
 
-       else
-          call endrun(prefix//'aero_optics object pointer not associated')
-       end if
+          deallocate(aero_optics)
+          nullify(aero_optics)
 
-       nullify(aero_optics)
-
+       end do
     end do
 
     deallocate(pabs)
+
+    do iaermod = 1,num_aero_models
+       deallocate(aero_state(iaermod)%obj)
+       nullify(aero_state(iaermod)%obj)
+    end do
+
+    deallocate(aero_state)
 
   end subroutine aerosol_optics_cam_lw
 
