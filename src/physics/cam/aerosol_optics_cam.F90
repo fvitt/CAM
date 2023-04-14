@@ -2,15 +2,18 @@ module aerosol_optics_cam
   use shr_kind_mod, only: r8 => shr_kind_r8
   use shr_kind_mod, only: cl => shr_kind_cl
   use cam_logfile,  only: iulog
-  use radconstants, only: nswbands, nlwbands
+  use radconstants, only: nswbands, nlwbands, idx_sw_diag, idx_uv_diag, idx_nir_diag
+  use radconstants, only: ot_length, get_lw_spectral_boundaries
   use physics_types,only: physics_state
   use physics_buffer,only: physics_buffer_desc
   use ppgrid, only: pcols, pver
   use physconst, only: rga
   use cam_abortutils, only: endrun
   use spmd_utils, only : masterproc
-  use radconstants, only: nswbands, nlwbands
   use wv_saturation, only: qsat
+  use rad_constituents,  only: n_diag, rad_cnst_get_call_list
+  use cam_history,       only: addfld, add_default, outfld, horiz_only
+  use cam_history_support, only: fillvalue
 
   use aerosol_properties_mod, only: aerosol_properties
   use modal_aerosol_properties_mod, only: modal_aerosol_properties
@@ -52,6 +55,10 @@ module aerosol_optics_cam
   logical :: carma_active = .false.
   logical :: modal_active = .false.
   integer :: num_aero_models = 0
+  integer :: iviswav = -1
+  integer :: lw10um_indx = -1
+
+  character(len=4) :: diag(0:n_diag) = (/'    ','_d1 ','_d2 ','_d3 ','_d4 ','_d5 ', '_d6 ','_d7 ','_d8 ','_d9 ','_d10'/)
 
 contains
 
@@ -104,7 +111,10 @@ contains
     use rad_constituents, only: rad_cnst_get_info
 
     character(len=*), parameter :: prefix = 'aerosol_optics_cam_sw: '
-    integer :: nmodes=0, nbins=0, iaermod, istat
+    integer :: nmodes=0, nbins=0, iaermod, istat, ilist, i
+
+    logical :: call_list(0:n_diag)
+    real(r8) :: lwavlen_lo(nlwbands), lwavlen_hi(nlwbands)
 
     num_aero_models = 0
 
@@ -140,6 +150,34 @@ contains
        call read_water_refindex(aerwat_refindex_file)
     end if
 
+    call get_lw_spectral_boundaries(lwavlen_lo, lwavlen_hi, units='um')
+    do i = 1,nlwbands
+       if ((lwavlen_lo(i)<=10._r8) .and. (lwavlen_hi(i)>=10._r8)) then
+          lw10um_indx = i
+       end if
+    end do
+    call rad_cnst_get_call_list(call_list)
+
+    call addfld ('AODVIStest', horiz_only, 'A','1','Aerosol optical depth 550 nm', flag_xyfill=.true.)
+    call addfld ('AODTOTtest', horiz_only, 'A','1','Aerosol optical depth summed over all sw wavelenghts', flag_xyfill=.true.)
+
+    if (lw10um_indx>0) then
+       call addfld('AODABSLWtest', (/ 'lev' /), 'A','/m','Aerosol long-wave absorption optical depth at 10 microns')
+    end if
+    call addfld ('TOTABSLWtest', (/ 'lev' /), 'A',' ', 'LW Aero total abs')
+
+    do ilist = 1, n_diag
+       if (call_list(ilist)) then
+          call addfld ('AODVIStest'//diag(ilist),   horiz_only,  'A','  ',  'Aerosol optical depth 550 nm', flag_xyfill=.true.)
+          call addfld ('AODTOTtest'//diag(ilist), horiz_only, 'A','1','Aerosol optical depth summed over all sw wavelenghts', flag_xyfill=.true.)
+
+          if (lw10um_indx>0) then
+             call addfld('AODABSLWtest'//diag(ilist), (/ 'lev' /), 'A','/m','Aerosol long-wave absorption optical depth at 10 microns')
+          end if
+          call addfld ('TOTABSLWtest'//diag(ilist), (/ 'lev' /), 'A',' ', 'LW Aero total abs')
+       end if
+    end do
+
   end subroutine aerosol_optics_cam_init
 
   !===============================================================================
@@ -159,8 +197,7 @@ contains
   end subroutine aerosol_optics_cam_final
 
   !===============================================================================
-  subroutine aerosol_optics_cam_sw(list_idx, state, pbuf, nnite, idxnite, &
-       tauxar, wa, ga, fa)
+  subroutine aerosol_optics_cam_sw(list_idx, state, pbuf, nnite, idxnite, tauxar, wa, ga, fa)
 
     ! calculates aerosol sw radiative properties
 
@@ -200,10 +237,17 @@ contains
     real(r8) :: sate(pcols,pver)     ! saturation vapor pressure
     real(r8) :: satq(pcols,pver)     ! saturation specific humidity
 
-    character(len=32) :: opticstype
+    character(len=ot_length) :: opticstype
     integer :: iaermod
 
+    real(r8) :: aodvis(pcols)
+    real(r8) :: aodtot(pcols)
+
     nullify(aero_optics)
+
+    aodvis = 0._r8
+    aodtot = 0._r8
+    tauxar = 0._r8
 
     if (num_aero_models<1) return
 
@@ -248,15 +292,18 @@ contains
 
           select case (trim(opticstype))
           case('modal') ! refractive method
-             aero_optics=>refractive_aerosol_optics(aero_props(iaermod)%obj, aero_state(iaermod)%obj, list_idx, ibin, ncol, pver, nswbands, nlwbands, crefwsw, crefwlw)
+             aero_optics=>refractive_aerosol_optics(aero_props(iaermod)%obj, aero_state(iaermod)%obj, list_idx, ibin, &
+                                                    ncol, pver, nswbands, nlwbands, crefwsw, crefwlw)
           case('hygroscopic_coreshell')
              ! calculate relative humidity for table lookup into rh grid
              call qsat(state%t(:ncol,:), state%pmid(:ncol,:), sate(:ncol,:), satq(:ncol,:), ncol, pver)
              relh(:ncol,:) = state%q(1:ncol,:,1) / satq(:ncol,:)
              relh(:ncol,:) = max(1.e-20_r8,relh(:ncol,:))
-             aero_optics=>hygrocoreshell_aerosol_optics(aero_props(iaermod)%obj, aero_state(iaermod)%obj, list_idx, ibin, ncol, pver, relh(:ncol,:))
+             aero_optics=>hygrocoreshell_aerosol_optics(aero_props(iaermod)%obj, aero_state(iaermod)%obj, list_idx, &
+                                                        ibin, ncol, pver, relh(:ncol,:))
           case('hygroscopic_wtp')
-             aero_optics=>hygrowghtpct_aerosol_optics(aero_props(iaermod)%obj, aero_state(iaermod)%obj, list_idx, ibin, ncol, pver)
+             aero_optics=>hygrowghtpct_aerosol_optics(aero_props(iaermod)%obj, aero_state(iaermod)%obj, list_idx, &
+                                                      ibin, ncol, pver)
           case default
              call endrun(prefix//'optics method not recognized')
           end select
@@ -274,6 +321,12 @@ contains
                       wa(icol,ilev,iwav) = wa(icol,ilev,iwav) + dopaer(icol)*palb(icol)
                       ga(icol,ilev,iwav) = ga(icol,ilev,iwav) + dopaer(icol)*palb(icol)*pasm(icol)
                       fa(icol,ilev,iwav) = fa(icol,ilev,iwav) + dopaer(icol)*palb(icol)*pasm(icol)*pasm(icol)
+
+                      if (iwav==idx_sw_diag) then
+                         aodvis(icol) = aodvis(icol) + dopaer(icol)
+                      end if
+                      aodtot(icol) = aodtot(icol) + dopaer(icol)
+
                    end do
 
                 end do
@@ -287,6 +340,14 @@ contains
 
        end do
     end do
+
+    do icol = 1, nnite
+       aodvis(idxnite(icol)) = fillvalue
+       aodtot(idxnite(icol)) = fillvalue
+    end do
+
+    call outfld('AODVIStest'//diag(list_idx),  aodvis,  pcols, state%lchnk)
+    call outfld('AODTOTtest'//diag(list_idx),  aodtot,  pcols, state%lchnk)
 
     deallocate(pext)
     deallocate(palb)
@@ -339,6 +400,10 @@ contains
     character(len=32) :: opticstype
     integer :: iaermod
 
+    real(r8) :: lwabs(pcols,pver)
+    lwabs = 0._r8
+    tauxar = 0._r8
+
     nullify(aero_optics)
 
     allocate(aero_state(num_aero_models), stat=istat)
@@ -389,7 +454,7 @@ contains
 
           if (associated(aero_optics)) then
 
-             do iwav = 1, nswbands
+             do iwav = 1, nlwbands
 
                 do ilev = 1, pver
                    call aero_optics%lw_props(ncol, ilev, iwav, pabs )
@@ -397,6 +462,7 @@ contains
                    do icol = 1, ncol
                       dopaer(icol) = pabs(icol)*mass(icol,ilev)
                       tauxar(icol,ilev,iwav) = tauxar(icol,ilev,iwav) + dopaer(icol)
+                      lwabs(icol,ilev) = lwabs(icol,ilev) + pabs(icol)
                    end do
 
                 end do
@@ -412,6 +478,12 @@ contains
 
        end do
     end do
+
+    call outfld('TOTABSLWtest'//diag(list_idx),  lwabs(:,:), pcols, state%lchnk)
+
+    if (lw10um_indx>0) then
+       call outfld('AODABSLWtest'//diag(list_idx), tauxar(:,:,lw10um_indx), pcols, state%lchnk)
+    end if
 
     deallocate(pabs)
 

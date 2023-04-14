@@ -7,6 +7,9 @@ module refractive_aerosol_optics_mod
 
   implicit none
 
+  private
+  public :: refractive_aerosol_optics
+
   type, extends(aerosol_optics) :: refractive_aerosol_optics
 
      integer :: ibin, ilist
@@ -55,6 +58,8 @@ module refractive_aerosol_optics_mod
 
 contains
 
+  !------------------------------------------------------------------------------
+  !------------------------------------------------------------------------------
   function constructor(aero_props, aero_state, ilist, ibin, ncol, nlev, nsw, nlw, crefwsw, crefwlw) &
        result(newobj)
 
@@ -73,7 +78,6 @@ contains
     real(r8) :: dryvol(ncol)    ! volume concentration of aerosol mode (m3/kg)
     real(r8) :: specdens              ! species density (kg/m3)
     real(r8), pointer :: specmmr(:,:) ! species mass mixing ratio
-!    real(r8) :: sigma_logr_aer        ! geometric standard deviation of number distribution
     real(r8) :: logsigma        ! geometric standard deviation of number distribution
 
     real(r8), pointer :: dgnumwet(:,:)   ! aerosol wet number mode diameter (m)
@@ -165,10 +169,11 @@ contains
     newobj%aero_props => aero_props
     newobj%ilist = ilist
     newobj%ibin = ibin
-    
+
   end function constructor
 
-
+  !------------------------------------------------------------------------------
+  !------------------------------------------------------------------------------
   subroutine sw_props(self, ncol, ilev, iwav, pext, palb, pasm)
 
     class(refractive_aerosol_optics), intent(in) :: self
@@ -188,25 +193,10 @@ contains
 
     real(r8) :: vol(ncol)
     complex(r8) :: crefin(ncol) ! complex refractive index
-    real(r8), pointer :: specmmr(:,:) ! species mass mixing ratio
-    complex(r8), pointer :: specrefindex(:)     ! species refractive index
-    integer :: icol,icoef, ispec
+    integer :: icol,icoef
     real(r8) :: specdens              ! species density (kg/m3)
 
-    ! form bulk refractive index
-    crefin(:ncol) = (0._r8, 0._r8)
-
-    do ispec = 1, self%aero_props%nspecies(self%ibin)
-
-       call self%aero_state%get_ambient_mmr(self%ilist,ispec,self%ibin,specmmr)
-       call self%aero_props%get(self%ibin, ispec, list_ndx=self%ilist, density=specdens, &
-            refindex_sw=specrefindex)
-
-       do icol = 1, ncol
-          vol(icol) = specmmr(icol,ilev)/specdens
-          crefin(icol) = crefin(icol) + vol(icol)*specrefindex(iwav)
-       end do
-    end do
+    crefin(:ncol) = self%aero_state%refractive_index_sw(ncol, ilev, self%ilist, self%ibin, iwav, self%aero_props)
 
     do icol = 1, ncol
        crefin(icol) = crefin(icol) + self%watervol(icol,ilev)*self%crefwsw(iwav)
@@ -257,9 +247,10 @@ contains
 
     end do
 
-
   end subroutine sw_props
 
+  !------------------------------------------------------------------------------
+  !------------------------------------------------------------------------------
   subroutine lw_props(self, ncol, ilev, iwav, pabs)
 
     class(refractive_aerosol_optics), intent(in) :: self
@@ -274,28 +265,11 @@ contains
     real(r8) :: ttab(ncol), utab(ncol)
     real(r8) :: cabs(ncol,ncoef)
 
-    real(r8) :: vol(ncol)
     complex(r8) :: crefin(ncol) ! complex refractive index
-    real(r8), pointer :: specmmr(:,:) ! species mass mixing ratio
-    complex(r8), pointer :: specrefindex(:)     ! species refractive index
-
-    integer :: icol,icoef, ispec
+    integer :: icol, icoef
     real(r8) :: specdens              ! species density (kg/m3)
 
-    ! form bulk refractive index. Use volume mixing for infrared
-    crefin(:ncol) = (0._r8, 0._r8)
-
-    do ispec = 1, self%aero_props%nspecies(self%ibin)
-
-       call self%aero_state%get_ambient_mmr(self%ilist,ispec,self%ibin,specmmr)
-       call self%aero_props%get(self%ibin, ispec, list_ndx=self%ilist, density=specdens, &
-            refindex_lw=specrefindex)
-
-       do icol = 1, ncol
-          vol(icol) = specmmr(icol,ilev)/specdens
-          crefin(icol) = crefin(icol) + vol(icol)*specrefindex(iwav)
-       end do
-    end do
+    crefin(:ncol) = self%aero_state%refractive_index_lw(ncol, ilev, self%ilist, self%ibin, iwav, self%aero_props)
 
     do icol = 1, ncol
        crefin(icol) = crefin(icol) + self%watervol(icol,ilev)*self%crefwlw(iwav)
@@ -368,13 +342,11 @@ contains
     real(r8), intent(out) :: cheb(:,:,:)
 
     integer  :: i, k, nc
-!    real(r8) :: alnsg_amode
     real(r8) :: explnsigma
     real(r8) :: xrad(ncol) ! normalized aerosol radius
 
     !-------------------------------------------------------------------------------
 
-!    alnsg_amode = log(sigma_logr_aer)
     explnsigma = exp(2.0_r8*alnsg_amode*alnsg_amode)
 
     !    do k = top_lev, pver

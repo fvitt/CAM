@@ -52,7 +52,9 @@ module aerosol_state_mod
      procedure(aero_hygroscopicity), deferred :: hygroscopicity
      procedure(aero_water_uptake), deferred :: water_uptake
      procedure(aero_wgtpct), deferred :: wgtpct
-  end type aerosol_state
+     procedure :: refractive_index_sw
+     procedure :: refractive_index_lw
+ end type aerosol_state
 
   ! for state fields
   type ptr2d_t
@@ -751,5 +753,75 @@ contains
     wact_factor(:ncol,:) = awcam(:ncol,:)*(1._r8-awfacm(:ncol,:))
 
   end subroutine watact_mfactor
+
+  !------------------------------------------------------------------------------
+  !------------------------------------------------------------------------------
+  function refractive_index_sw(self, ncol, ilev, ilist, ibin, iwav, aero_props) result(crefin)
+
+    class(aerosol_state), intent(in) :: self
+    integer, intent(in) :: ncol
+    integer, intent(in) :: ilev
+    integer, intent(in) :: ilist
+    integer, intent(in) :: ibin
+    integer, intent(in) :: iwav
+    class(aerosol_properties), intent(in) :: aero_props ! aerosol properties object
+
+    complex(r8) :: crefin(ncol) ! complex refractive index
+
+    real(r8), pointer :: specmmr(:,:) ! species mass mixing ratio
+    complex(r8), pointer :: specrefindex(:)     ! species refractive index
+    real(r8) :: specdens              ! species density (kg/m3)
+    integer :: ispec, icol
+    real(r8) :: vol(ncol)
+
+    crefin(:ncol) = (0._r8, 0._r8)
+
+    do ispec = 1, aero_props%nspecies(ibin)
+
+       call self%get_ambient_mmr(ilist,ispec,ibin,specmmr)
+       call aero_props%get(ibin, ispec, list_ndx=ilist, density=specdens,  refindex_sw=specrefindex)
+
+       do icol = 1, ncol
+          vol(icol) = specmmr(icol,ilev)/specdens
+          crefin(icol) = crefin(icol) + vol(icol)*specrefindex(iwav)
+       end do
+    end do
+
+  end function refractive_index_sw
+
+  !------------------------------------------------------------------------------
+  !------------------------------------------------------------------------------
+  function refractive_index_lw(self, ncol, ilev, ilist, ibin, iwav, aero_props) result(crefin)
+
+    class(aerosol_state), intent(in) :: self
+    integer, intent(in) :: ncol
+    integer, intent(in) :: ilev
+    integer, intent(in) :: ilist
+    integer, intent(in) :: ibin
+    integer, intent(in) :: iwav
+    class(aerosol_properties), intent(in) :: aero_props ! aerosol properties object
+
+    complex(r8) :: crefin(ncol) ! complex refractive index
+
+    real(r8), pointer :: specmmr(:,:) ! species mass mixing ratio
+    complex(r8), pointer :: specrefindex(:)     ! species refractive index
+    real(r8) :: specdens              ! species density (kg/m3)
+    integer :: ispec, icol
+    real(r8) :: vol(ncol)
+
+    crefin(:ncol) = (0._r8, 0._r8)
+
+    do ispec = 1, aero_props%nspecies(ibin)
+
+       call self%get_ambient_mmr(ilist,ispec,ibin,specmmr)
+       call aero_props%get(ibin, ispec, list_ndx=ilist, density=specdens,  refindex_lw=specrefindex)
+
+       do icol = 1, ncol
+          vol(icol) = specmmr(icol,ilev)/specdens
+          crefin(icol) = crefin(icol) + vol(icol)*specrefindex(iwav)
+       end do
+    end do
+
+  end function refractive_index_lw
 
 end module aerosol_state_mod

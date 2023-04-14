@@ -7,6 +7,9 @@ module hygrocoreshell_aerosol_optics_mod
 
   implicit none
 
+  private
+  public :: hygrocoreshell_aerosol_optics
+
   type, extends(aerosol_optics) :: hygrocoreshell_aerosol_optics
 
      real(r8), allocatable :: totalmmr(:,:)
@@ -40,6 +43,8 @@ module hygrocoreshell_aerosol_optics_mod
 
 contains
 
+  !------------------------------------------------------------------------------
+  !------------------------------------------------------------------------------
  function constructor(aero_props, aero_state, ilist, ibin, ncol, nlev, relhum) result(newobj)
 
     class(aerosol_properties),intent(in) :: aero_props
@@ -188,7 +193,6 @@ contains
        newobj%corefrac = maxval(newobj%tbl_corefrac)
     end where
 
-    !! need not need this in old code ... ???
     where (newobj%bcdust < minval(newobj%tbl_bcdust))
        newobj%bcdust = minval(newobj%tbl_bcdust)
     end where
@@ -205,6 +209,8 @@ contains
 
   end function constructor
 
+  !------------------------------------------------------------------------------
+  !------------------------------------------------------------------------------
   subroutine sw_props(self, ncol, ilev, iwav, pext, palb, pasm)
 
     class(hygrocoreshell_aerosol_optics), intent(in) :: self
@@ -245,6 +251,8 @@ contains
 
   end subroutine sw_props
 
+  !------------------------------------------------------------------------------
+  !------------------------------------------------------------------------------
   subroutine lw_props(self, ncol, ilev, iwav, pabs)
 
     class(hygrocoreshell_aerosol_optics), intent(in) :: self

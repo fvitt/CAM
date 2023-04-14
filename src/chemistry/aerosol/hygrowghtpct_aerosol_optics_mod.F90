@@ -8,6 +8,9 @@ module hygrowghtpct_aerosol_optics_mod
 
   implicit none
 
+  private
+  public :: hygrowghtpct_aerosol_optics
+
   type, extends(aerosol_optics) :: hygrowghtpct_aerosol_optics
 
      real(r8), allocatable :: totalmmr(:,:)
@@ -35,6 +38,8 @@ module hygrowghtpct_aerosol_optics_mod
 
 contains
 
+  !------------------------------------------------------------------------------
+  !------------------------------------------------------------------------------
   function constructor(aero_props, aero_state, ilist, ibin, ncol, nlev) result(newobj)
 
     class(aerosol_properties),intent(in) :: aero_props
@@ -100,6 +105,8 @@ contains
 
   end function constructor
 
+  !------------------------------------------------------------------------------
+  !------------------------------------------------------------------------------
   subroutine sw_props(self, ncol, ilev, iwav, pext, palb, pasm)
 
     class(hygrowghtpct_aerosol_optics), intent(in) :: self
@@ -131,6 +138,8 @@ contains
 
   end subroutine sw_props
 
+  !------------------------------------------------------------------------------
+  !------------------------------------------------------------------------------
   subroutine lw_props(self, ncol, ilev, iwav, pabs)
 
     class(hygrowghtpct_aerosol_optics), intent(in) :: self

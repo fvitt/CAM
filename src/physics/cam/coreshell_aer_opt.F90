@@ -26,7 +26,7 @@ use constituents,      only: pcnst
 use spmd_utils,        only: masterproc
 use physconst,         only: rhoh2o, rga, rair
 use radconstants,      only: nswbands, nlwbands, idx_sw_diag, idx_uv_diag, idx_nir_diag
-use radconstants,      only: ot_length
+use radconstants,      only: ot_length, get_lw_spectral_boundaries
 use rad_constituents,  only: n_diag, rad_cnst_get_call_list, rad_cnst_get_info, rad_cnst_get_info_by_bin, &
                              rad_cnst_get_bin_mmr_by_idx, rad_cnst_get_bin_props_by_idx, &
                              rad_cnst_get_bin_props
@@ -61,6 +61,7 @@ character(shr_kind_cl)      :: modal_optics_file = unset_str   ! full pathname f
 character(len=4) :: diag(0:n_diag) = (/'    ','_d1 ','_d2 ','_d3 ','_d4 ','_d5 ', &
                                        '_d6 ','_d7 ','_d8 ','_d9 ','_d10'/)
 
+integer :: lw10um_indx = -1
 
 !===============================================================================
 CONTAINS
@@ -81,6 +82,7 @@ subroutine coreshell_aer_opt_init()
    character(len=128) :: lngname
 
    character(len=*), parameter :: routine='coreshell_aer_opt_init'
+   real(r8) :: lwavlen_lo(nlwbands), lwavlen_hi(nlwbands)
 
    !----------------------------------------------------------------------------
 
@@ -113,8 +115,6 @@ subroutine coreshell_aer_opt_init()
    call addfld ('ABSORB', (/ 'lev' /), 'A','/m', 'Aerosol absorption', flag_xyfill=.true.)
    call addfld ('LWMMR', (/ 'lev' /), 'A',' ', 'LW Aero Opt Dep')
    call addfld ('LWAOD', (/ 'lev' /), 'A',' ', 'LW Aero Opt Dep')
-   call add_default('LWAOD',2,' ')
-   call add_default('LWMMR',2,' ')
 
    call addfld ('AODVIS', horiz_only, 'A','1','Aerosol optical depth 550 nm', flag_xyfill=.true.)
    call addfld ('AODVISst', horiz_only, 'A','1','Stratospheric aerosol optical depth 550 nm', flag_xyfill=.true.)
@@ -124,6 +124,19 @@ subroutine coreshell_aer_opt_init()
    call addfld ('AODNIRst', horiz_only, 'A','1','Stratospheric aerosol optical depth 1020 nm', flag_xyfill=.true.)
    call addfld ('AODABS', horiz_only, 'A','1','Aerosol absorption optical depth 550 nm', flag_xyfill=.true.)
    call addfld ('SSAVIS', horiz_only, 'A','1','Aerosol singel-scatter albedo', flag_xyfill=.true.)
+
+   call addfld ('AODTOT', horiz_only, 'A','1','Aerosol optical depth summed over all sw wavelenghts', flag_xyfill=.true.)
+
+   call get_lw_spectral_boundaries(lwavlen_lo, lwavlen_hi, units='um')
+   do i = 1,nlwbands
+      if ((lwavlen_lo(i)<=10._r8) .and. (lwavlen_hi(i)>=10._r8)) then
+         lw10um_indx = i
+      end if
+   end do
+   if (lw10um_indx>0) then
+      call addfld('AODABSLW', (/ 'lev' /), 'A','/m','Aerosol long-wave absorption optical depth at 10 microns')
+  end if
+   call addfld ('TOTABSLW', (/ 'lev' /), 'A',' ', 'LW Aero total abs')
 
 end subroutine coreshell_aer_opt_init
 
@@ -216,6 +229,7 @@ subroutine coreshell_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
    real(r8) :: extinctnir(pcols,pver)
    real(r8) :: extinctuv(pcols,pver)
    real(r8) :: absorb(pcols,pver)
+   real(r8) :: aodtot(pcols)               ! extinction optical depth
    real(r8) :: aodvis(pcols)               ! extinction optical depth
    real(r8) :: aodvisst(pcols)             ! stratospheric extinction optical depth
    real(r8) :: aodabs(pcols)               ! absorption optical depth
@@ -292,6 +306,7 @@ subroutine coreshell_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
    ! diagnostics for visible band summed over modes
    extinct(1:ncol,:)     = 0.0_r8
    absorb(1:ncol,:)      = 0.0_r8
+   aodtot(1:ncol)        = 0.0_r8
    aodvis(1:ncol)        = 0.0_r8
    aodvisst(1:ncol)      = 0.0_r8
    aodabs(1:ncol)        = 0.0_r8
@@ -555,6 +570,8 @@ subroutine coreshell_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
               palb(i) = 1._r8-pabs(i)/max(pext(i),1.e-40_r8)
 
               dopaer(i) = pext(i)*mass(i,k)
+
+              aodtot(i) = aodtot(i) + dopaer(i)
            end do
 
            if (savaeruv) then
@@ -662,19 +679,21 @@ subroutine coreshell_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
 
   end do ! nbins
 
-  ! Output visible band diagnostics for quantities summed over the bins
-  ! These fields are put out for diagnostic lists as well as the climate list.
-  ! do i = 1, nnite
-  !    extinct(idxnite(i),:) = fillvalue
-  !    absorb(idxnite(i),:)  = fillvalue
-  !    aodvis(idxnite(i))    = fillvalue
-  !    aodabs(idxnite(i))    = fillvalue
-  !    aodvisst(idxnite(i))  = fillvalue
-  ! end do
+   !Output visible band diagnostics for quantities summed over the bins
+   !These fields are put out for diagnostic lists as well as the climate list.
+   do i = 1, nnite
+      extinct(idxnite(i),:) = fillvalue
+      absorb(idxnite(i),:)  = fillvalue
+      aodvis(idxnite(i))    = fillvalue
+      aodtot(idxnite(i))    = fillvalue
+      aodabs(idxnite(i))    = fillvalue
+      aodvisst(idxnite(i))  = fillvalue
+   end do
 
   call outfld('EXTINCT'//diag(list_idx),  extinct, pcols, lchnk)
   call outfld('ABSORB'//diag(list_idx),   absorb,  pcols, lchnk)
   call outfld('AODVIS'//diag(list_idx),   aodvis,  pcols, lchnk)
+  call outfld('AODTOT'//diag(list_idx),   aodtot,  pcols, lchnk)
   call outfld('AODABS'//diag(list_idx),   aodabs,  pcols, lchnk)
   call outfld('AODVISst'//diag(list_idx), aodvisst,pcols, lchnk)
 
@@ -792,6 +811,7 @@ subroutine coreshell_aero_lw(list_idx, state, pbuf, tauxar)
    integer :: nwtp
 
    real(r8) :: lwmmr(pcols,pver)
+   real(r8) :: lwabs(pcols,pver)
 
    real(r8), pointer, dimension(:,:) :: crkappa   ! kappa
    real(r8), pointer, dimension(:,:) :: wgtpct  ! weight percent
@@ -825,6 +845,7 @@ subroutine coreshell_aero_lw(list_idx, state, pbuf, tauxar)
    ncol  = state%ncol
 
    lwmmr = 0._r8
+   lwabs = 0._r8
 
    ! initialize output variables
 
@@ -953,7 +974,7 @@ subroutine coreshell_aero_lw(list_idx, state, pbuf, tauxar)
                   if (trim(spectype) == 'dust') then
                      coredustmmr(:ncol)    = coredustmmr(:ncol) + specmmr(:ncol,k)
                   end if
-                  if (trim(spectype) == 'bc') then
+                  if (trim(spectype) == 'black-c') then
                      corebcmmr(:ncol)    = corebcmmr(:ncol) + specmmr(:ncol,k)
                   end if
                   coremmr(:ncol)    = coremmr(:ncol) + specmmr(:ncol,k)
@@ -1064,6 +1085,7 @@ subroutine coreshell_aero_lw(list_idx, state, pbuf, tauxar)
                pabs(i)   = max(0._r8,pabs(i))
                dopaer(i) = pabs(i)*mass(i,k)
                lwmmr(i,k)= lwmmr(i,k)+totalmmr(i)
+               lwabs(i,k) = lwabs(i,k) + pabs(i)
             end do
 
             do i = 1, ncol
@@ -1115,6 +1137,12 @@ subroutine coreshell_aero_lw(list_idx, state, pbuf, tauxar)
    call outfld('LWMMR',lwmmr, pcols, lchnk)
 
    call outfld('LWAOD', tauxar(:,:,1), pcols, lchnk)
+
+   call outfld('TOTABSLW', lwabs(:,:), pcols, lchnk)
+
+   if (lw10um_indx>0) then
+      call outfld('AODABSLW', tauxar(:,:,lw10um_indx), pcols, lchnk)
+   end if
 
 end subroutine coreshell_aero_lw
 
