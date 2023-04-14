@@ -52,7 +52,7 @@ contains
     type(hygrowghtpct_aerosol_optics), pointer :: newobj
 
     integer :: ierr, nspec
-    integer :: ilev, ispec, icol
+    integer :: ispec
 
     real(r8), pointer :: specmmr(:,:)   ! species mass mixing ratio
     real(r8), pointer :: wgtpct_in(:,:) !  weight precent of H2SO4/H2O solution

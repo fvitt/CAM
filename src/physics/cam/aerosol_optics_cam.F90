@@ -55,7 +55,6 @@ module aerosol_optics_cam
   logical :: carma_active = .false.
   logical :: modal_active = .false.
   integer :: num_aero_models = 0
-  integer :: iviswav = -1
   integer :: lw10um_indx = -1
 
   character(len=4) :: diag(0:n_diag) = (/'    ','_d1 ','_d2 ','_d3 ','_d4 ','_d5 ', '_d6 ','_d7 ','_d8 ','_d9 ','_d10'/)
@@ -214,9 +213,6 @@ contains
     real(r8), intent(inout) :: fa(pcols,0:pver,nswbands)     ! forward scattered fraction
 
     character(len=*), parameter :: prefix = 'aerosol_optics_cam_sw: '
-
-    integer :: errcode
-    character(len=cl) :: errmsg
 
     integer :: ibin, nbins
     integer :: iwav, ilev
@@ -379,9 +375,6 @@ contains
     real(r8) :: mass(pcols,pver)
 
     character(len=*), parameter :: prefix = 'aerosol_optics_cam_lw: '
-
-    integer :: errcode
-    character(len=cl) :: errmsg
 
     integer :: ibin, nbins
     integer :: iwav, ilev

@@ -41,13 +41,6 @@ module aerosol_optics_mod
 
      end subroutine aeropts_lw_props
 
-     subroutine aeropts_destroy(self)
-       import :: aerosol_optics
-       class(aerosol_optics), intent(inout) :: self
-     end subroutine aeropts_destroy
-
   end interface
-
-contains
 
 end module aerosol_optics_mod

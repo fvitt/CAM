@@ -191,10 +191,8 @@ contains
     real(r8) :: cext(ncol,ncoef), cabs(ncol,ncoef), casm(ncol,ncoef)
     real(r8) :: pabs(ncol)
 
-    real(r8) :: vol(ncol)
     complex(r8) :: crefin(ncol) ! complex refractive index
     integer :: icol,icoef
-    real(r8) :: specdens              ! species density (kg/m3)
 
     crefin(:ncol) = self%aero_state%refractive_index_sw(ncol, ilev, self%ilist, self%ibin, iwav, self%aero_props)
 
@@ -267,7 +265,6 @@ contains
 
     complex(r8) :: crefin(ncol) ! complex refractive index
     integer :: icol, icoef
-    real(r8) :: specdens              ! species density (kg/m3)
 
     crefin(:ncol) = self%aero_state%refractive_index_lw(ncol, ilev, self%ilist, self%ibin, iwav, self%aero_props)
 
