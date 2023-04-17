@@ -189,6 +189,7 @@ subroutine modal_aer_opt_init()
    call addfld ('ABSORB',     (/ 'lev' /), 'A','/m','Aerosol absorption, day only',                          &
                 flag_xyfill=.true.)
    call addfld ('AODTOT', horiz_only, 'A','1','Aerosol optical depth summed over all sw wavelenghts', flag_xyfill=.true.)
+   call addfld ('AODTOTdn', horiz_only, 'A','1','Aerosol optical depth summed over all sw wavelenghts')
    call addfld ('AODVIS',     horiz_only,  'A','  ','Aerosol optical depth 550 nm, day only',                &
                 flag_xyfill=.true.)
    call addfld ('AODVISst',   horiz_only,  'A','  ','Stratospheric aerosol optical depth 550 nm, day only',  &
@@ -1090,6 +1091,7 @@ subroutine modal_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
    call outfld('ABSORBdn'//diag(list_idx),   absorb,  pcols, lchnk)
    call outfld('AODVISdn'//diag(list_idx),   aodvis,  pcols, lchnk)
    call outfld('AODABSdn'//diag(list_idx),   aodabs,  pcols, lchnk)
+   call outfld('AODTOTdn'//diag(list_idx),   aodtot,  pcols, lchnk)
    call outfld('AODVISstdn'//diag(list_idx), aodvisst,pcols, lchnk)
    call outfld('EXTxASYMdn'//diag(list_idx), asymext, pcols, lchnk)
 

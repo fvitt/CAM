@@ -107,17 +107,17 @@ contains
 
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------
-  subroutine sw_props(self, ncol, ilev, iwav, pext, palb, pasm)
+  subroutine sw_props(self, ncol, ilev, iwav, pext, pabs, palb, pasm)
 
     class(hygrowghtpct_aerosol_optics), intent(in) :: self
     integer, intent(in) :: ncol
     integer, intent(in) :: ilev
     integer, intent(in) :: iwav
     real(r8),intent(out) :: pext(ncol)
+    real(r8),intent(out) :: pabs(ncol)
     real(r8),intent(out) :: palb(ncol)
     real(r8),intent(out) :: pasm(ncol)
 
-    real(r8) :: pabs(ncol)
     integer :: icol
 
     do icol = 1, ncol

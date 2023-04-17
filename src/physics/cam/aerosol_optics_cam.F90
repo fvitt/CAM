@@ -7,7 +7,7 @@ module aerosol_optics_cam
   use physics_types,only: physics_state
   use physics_buffer,only: physics_buffer_desc
   use ppgrid, only: pcols, pver
-  use physconst, only: rga
+  use physconst, only: rga, rair
   use cam_abortutils, only: endrun
   use spmd_utils, only : masterproc
   use wv_saturation, only: qsat
@@ -157,23 +157,60 @@ contains
     end do
     call rad_cnst_get_call_list(call_list)
 
-    call addfld ('AODVIStest', horiz_only, 'A','1','Aerosol optical depth 550 nm', flag_xyfill=.true.)
-    call addfld ('AODTOTtest', horiz_only, 'A','1','Aerosol optical depth summed over all sw wavelenghts', flag_xyfill=.true.)
-
-    if (lw10um_indx>0) then
-       call addfld('AODABSLWtest', (/ 'lev' /), 'A','/m','Aerosol long-wave absorption optical depth at 10 microns')
-    end if
-    call addfld ('TOTABSLWtest', (/ 'lev' /), 'A',' ', 'LW Aero total abs')
-
-    do ilist = 1, n_diag
+    do ilist = 0, n_diag
        if (call_list(ilist)) then
-          call addfld ('AODVIStest'//diag(ilist),   horiz_only,  'A','  ',  'Aerosol optical depth 550 nm', flag_xyfill=.true.)
-          call addfld ('AODTOTtest'//diag(ilist), horiz_only, 'A','1','Aerosol optical depth summed over all sw wavelenghts', flag_xyfill=.true.)
+          call addfld ('EXTINCTtest'//diag(ilist),    (/ 'lev' /), 'A','/m',&
+               'Aerosol extinction 550 nm, day only', flag_xyfill=.true.)
+          call addfld ('EXTINCTUVtest'//diag(ilist),  (/ 'lev' /), 'A','/m',&
+               'Aerosol extinction 350 nm, day only', flag_xyfill=.true.)
+          call addfld ('EXTINCTNIRtest'//diag(ilist), (/ 'lev' /), 'A','/m',&
+               'Aerosol extinction 1020 nm, day only', flag_xyfill=.true.)
+          call addfld ('ABSORBtest'//diag(ilist),     (/ 'lev' /), 'A','/m',&
+               'Aerosol absorption, day only', flag_xyfill=.true.)
+          call addfld ('AODVIStest'//diag(ilist),   horiz_only,  'A','  ', &
+               'Aerosol optical depth 550 nm', flag_xyfill=.true.)
+          call addfld ('AODUVtest'//diag(ilist),      horiz_only,  'A','  ', &
+               'Aerosol optical depth 350 nm, day only', flag_xyfill=.true.)
+          call addfld ('AODNIRtest'//diag(ilist),     horiz_only,  'A','  ', &
+               'Aerosol optical depth 1020 nm, day only',flag_xyfill=.true.)
+          call addfld ('AODABStest'//diag(ilist),     horiz_only,  'A','  ', &
+               'Aerosol absorption optical depth 550 nm, day only', flag_xyfill=.true.)
+          call addfld ('AODxASYMtest'//diag(ilist),   horiz_only,  'A','  ', &
+               'Aerosol optical depth 550 * asymmetry factor, day only', flag_xyfill=.true.)
+          call addfld ('EXTxASYMtest'//diag(ilist),   (/ 'lev' /), 'A','  ', &
+               'extinction 550 nm * asymmetry factor, day only',  flag_xyfill=.true.)
+          call addfld ('AODTOTtest'//diag(ilist), horiz_only, 'A','1',&
+               'Aerosol optical depth summed over all sw wavelenghts', flag_xyfill=.true.)
+
+          call addfld ('EXTINCTdntest'//diag(ilist),    (/ 'lev' /), 'A','/m',&
+               'Aerosol extinction 550 nm, day only')
+          call addfld ('EXTINCTUVdntest'//diag(ilist),  (/ 'lev' /), 'A','/m',&
+               'Aerosol extinction 350 nm, day only')
+          call addfld ('EXTINCTNIRdntest'//diag(ilist), (/ 'lev' /), 'A','/m',&
+               'Aerosol extinction 1020 nm, day only')
+          call addfld ('ABSORBdntest'//diag(ilist),     (/ 'lev' /), 'A','/m',&
+               'Aerosol absorption, day only')
+          call addfld ('AODVISdntest'//diag(ilist),   horiz_only,  'A','  ', &
+               'Aerosol optical depth 550 nm')
+          call addfld ('AODUVdntest'//diag(ilist),      horiz_only,  'A','  ', &
+               'Aerosol optical depth 350 nm, day only')
+          call addfld ('AODNIRdntest'//diag(ilist),     horiz_only,  'A','  ', &
+               'Aerosol optical depth 1020 nm, day only',flag_xyfill=.true.)
+          call addfld ('AODABSdntest'//diag(ilist),     horiz_only,  'A','  ', &
+               'Aerosol absorption optical depth 550 nm, day only')
+          call addfld ('AODxASYMdntest'//diag(ilist),   horiz_only,  'A','  ', &
+               'Aerosol optical depth 550 * asymmetry factor, day only')
+          call addfld ('EXTxASYMdntest'//diag(ilist),   (/ 'lev' /), 'A','  ', &
+               'extinction 550 nm * asymmetry factor, day only',  flag_xyfill=.true.)
+          call addfld ('AODTOTdntest'//diag(ilist), horiz_only, 'A','1',&
+               'Aerosol optical depth summed over all sw wavelenghts')
 
           if (lw10um_indx>0) then
-             call addfld('AODABSLWtest'//diag(ilist), (/ 'lev' /), 'A','/m','Aerosol long-wave absorption optical depth at 10 microns')
+             call addfld('AODABSLWtest'//diag(ilist), (/ 'lev' /), 'A','/m',&
+                  'Aerosol long-wave absorption optical depth at 10 microns')
           end if
-          call addfld ('TOTABSLWtest'//diag(ilist), (/ 'lev' /), 'A',' ', 'LW Aero total abs')
+          call addfld ('TOTABSLWtest'//diag(ilist), (/ 'lev' /), 'A',' ', &
+               'LW Aero total abs')
        end if
     end do
 
@@ -216,7 +253,8 @@ contains
 
     integer :: ibin, nbins
     integer :: iwav, ilev
-    integer :: ncol, icol, istat
+    integer :: icol, istat
+    integer :: lchnk, ncol
 
     type(aero_state_t), allocatable :: aero_state(:)
 
@@ -224,8 +262,10 @@ contains
 
     real(r8) :: dopaer(pcols)
     real(r8) :: mass(pcols,pver)
+    real(r8) :: air_density(pcols,pver)
 
     real(r8), allocatable :: pext(:)
+    real(r8), allocatable :: pabs(:)
     real(r8), allocatable :: palb(:)
     real(r8), allocatable :: pasm(:)
 
@@ -236,14 +276,41 @@ contains
     character(len=ot_length) :: opticstype
     integer :: iaermod
 
-    real(r8) :: aodvis(pcols)
+    real(r8) :: aodvis(pcols)              ! extinction optical depth in vis
+    real(r8) :: aoduv(pcols)               ! extinction optical depth in uv
+    real(r8) :: aodnir(pcols)              ! extinction optical depth in nir
+    real(r8) :: absorb(pcols,pver)
+    real(r8) :: aodabs(pcols)              ! absorption optical depth
+
     real(r8) :: aodtot(pcols)
+
+    real(r8) :: extinct(pcols,pver)
+    real(r8) :: extinctnir(pcols,pver)
+    real(r8) :: extinctuv(pcols,pver)
+
+    real(r8) :: asymvis(pcols)              ! asymmetry factor * optical depth
+    real(r8) :: asymext(pcols,pver)         ! asymmetry factor * extinction
+
+    lchnk = state%lchnk
+    ncol  = state%ncol
 
     nullify(aero_optics)
 
+    mass(:ncol,:)        = state%pdeldry(:ncol,:)*rga
+    air_density(:ncol,:) = state%pmid(:ncol,:)/(rair*state%t(:ncol,:))
+
     aodvis = 0._r8
+    aodnir = 0._r8
+    aoduv = 0._r8
+    aodabs = 0._r8
+    absorb = 0._r8
     aodtot = 0._r8
     tauxar = 0._r8
+    extinct = 0._r8
+    extinctnir = 0._r8
+    extinctuv = 0._r8
+    asymvis = 0.0_r8
+    asymext = 0.0_r8
 
     if (num_aero_models<1) return
 
@@ -261,13 +328,13 @@ contains
        aero_state(iaermod)%obj => carma_aerosol_state( state, pbuf )
     end if
 
-    ncol = state%ncol
-
-    mass(:ncol,:) = state%pdeldry(:ncol,:)*rga
-
     allocate(pext(ncol), stat=istat)
     if (istat/=0) then
        call endrun(prefix//'array allocation error: pext')
+    end if
+    allocate(pabs(ncol), stat=istat)
+    if (istat/=0) then
+       call endrun(prefix//'array allocation error: pabs')
     end if
     allocate(palb(ncol), stat=istat)
     if (istat/=0) then
@@ -309,7 +376,7 @@ contains
 
                 do ilev = 1, pver
 
-                   call aero_optics%sw_props(ncol, ilev, iwav, pext, palb, pasm )
+                   call aero_optics%sw_props(ncol, ilev, iwav, pext, pabs, palb, pasm )
 
                    do icol = 1,ncol
                       dopaer(icol) = pext(icol)*mass(icol,ilev)
@@ -318,9 +385,21 @@ contains
                       ga(icol,ilev,iwav) = ga(icol,ilev,iwav) + dopaer(icol)*palb(icol)*pasm(icol)
                       fa(icol,ilev,iwav) = fa(icol,ilev,iwav) + dopaer(icol)*palb(icol)*pasm(icol)*pasm(icol)
 
-                      if (iwav==idx_sw_diag) then
+                      if (iwav==idx_uv_diag) then
+                         aoduv(icol) = aoduv(icol) + dopaer(icol)
+                         extinctuv(icol,ilev) = extinctuv(icol,ilev) + dopaer(icol)*air_density(icol,ilev)/mass(icol,ilev)
+                      else if (iwav==idx_sw_diag) then ! vis
                          aodvis(icol) = aodvis(icol) + dopaer(icol)
+                         aodabs(icol) = aodabs(icol) + pabs(icol)*mass(icol,ilev)
+                         extinct(icol,ilev) = extinct(icol,ilev) + dopaer(icol)*air_density(icol,ilev)/mass(icol,ilev)
+                         absorb(icol,ilev)  = absorb(icol,ilev) + pabs(icol)*air_density(icol,ilev)
+                         asymvis(icol)      = asymvis(icol) + dopaer(icol)*pasm(icol)
+                         asymext(icol,ilev) = asymext(icol,ilev) + dopaer(icol)*pasm(icol)*air_density(icol,ilev)/mass(icol,ilev)
+                      else if (iwav==idx_nir_diag) then
+                         aodnir(icol) = aodnir(icol) + dopaer(icol)
+                         extinctnir(icol,ilev) = extinctnir(icol,ilev) + dopaer(icol)*air_density(icol,ilev)/mass(icol,ilev)
                       end if
+
                       aodtot(icol) = aodtot(icol) + dopaer(icol)
 
                    end do
@@ -337,15 +416,46 @@ contains
        end do
     end do
 
+    call outfld('AODUVdntest'//diag(list_idx),  aoduv,  pcols, lchnk)
+    call outfld('AODVISdntest'//diag(list_idx), aodvis, pcols, lchnk)
+    call outfld('AODNIRdntest'//diag(list_idx), aodnir, pcols, lchnk)
+    call outfld('AODABSdntest'//diag(list_idx), aodabs, pcols, lchnk)
+    call outfld('AODTOTdntest'//diag(list_idx), aodtot, pcols, lchnk)
+    call outfld('EXTINCTUVdntest'//diag(list_idx),  extinctuv,  pcols, lchnk)
+    call outfld('EXTINCTNIRdntest'//diag(list_idx), extinctnir, pcols, lchnk)
+    call outfld('EXTINCTdntest'//diag(list_idx),  extinct,  pcols, lchnk)
+    call outfld('ABSORBdntest'//diag(list_idx),   absorb,  pcols, lchnk)
+    call outfld('EXTxASYMdntest'//diag(list_idx), asymext, pcols, lchnk)
+    call outfld('AODxASYMdntest'//diag(list_idx), asymvis, pcols, lchnk)
+
     do icol = 1, nnite
        aodvis(idxnite(icol)) = fillvalue
+       aodnir(idxnite(icol)) = fillvalue
+       aoduv(idxnite(icol)) = fillvalue
+       aodabs(idxnite(icol)) = fillvalue
        aodtot(idxnite(icol)) = fillvalue
+       extinct(idxnite(icol),:) = fillvalue
+       extinctnir(idxnite(icol),:) = fillvalue
+       extinctuv(idxnite(icol),:) = fillvalue
+       absorb(idxnite(icol),:)  = fillvalue
+       asymext(idxnite(icol),:) = fillvalue
+       asymvis(idxnite(icol)) = fillvalue
     end do
 
-    call outfld('AODVIStest'//diag(list_idx),  aodvis,  pcols, state%lchnk)
-    call outfld('AODTOTtest'//diag(list_idx),  aodtot,  pcols, state%lchnk)
+    call outfld('AODUVtest'//diag(list_idx),  aoduv,  pcols, lchnk)
+    call outfld('AODVIStest'//diag(list_idx), aodvis, pcols, lchnk)
+    call outfld('AODNIRtest'//diag(list_idx), aodnir, pcols, lchnk)
+    call outfld('AODABStest'//diag(list_idx), aodabs, pcols, lchnk)
+    call outfld('AODTOTtest'//diag(list_idx), aodtot, pcols, lchnk)
+    call outfld('EXTINCTUVtest'//diag(list_idx),  extinctuv,  pcols, lchnk)
+    call outfld('EXTINCTNIRtest'//diag(list_idx), extinctnir, pcols, lchnk)
+    call outfld('EXTINCTtest'//diag(list_idx),  extinct,  pcols, lchnk)
+    call outfld('ABSORBtest'//diag(list_idx),   absorb,  pcols, lchnk)
+    call outfld('EXTxASYMtest'//diag(list_idx), asymext, pcols, lchnk)
+    call outfld('AODxASYMtest'//diag(list_idx), asymvis, pcols, lchnk)
 
     deallocate(pext)
+    deallocate(pabs)
     deallocate(palb)
     deallocate(pasm)
 

@@ -17,7 +17,7 @@ module aerosol_optics_mod
 
   abstract interface
 
-     subroutine aeropts_sw_props(self, ncol, ilev, iwav, pext, palb, pasm)
+     subroutine aeropts_sw_props(self, ncol, ilev, iwav, pext, pabs, palb, pasm)
        import :: aerosol_optics, r8
 
        class(aerosol_optics), intent(in) :: self
@@ -25,6 +25,7 @@ module aerosol_optics_mod
        integer, intent(in) :: ilev
        integer, intent(in) :: iwav
        real(r8),intent(out) :: pext(ncol)
+       real(r8),intent(out) :: pabs(ncol)
        real(r8),intent(out) :: palb(ncol)
        real(r8),intent(out) :: pasm(ncol)
 
