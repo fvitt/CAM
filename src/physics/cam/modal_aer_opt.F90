@@ -244,42 +244,42 @@ subroutine modal_aer_opt_init()
       write(lngname,'(a,i1)') 'Aerosol burden, day only, mode ', m
       call addfld (fldname, horiz_only, 'A', 'kg/m2', lngname, flag_xyfill=.true.)
       if (m>3 .and. history_aero_optics) then
-         call add_default (fldname, 1, ' ')
+         call add_default (fldname, 2, ' ')
       endif
 
       write(fldname,'(a,i1)') 'AODMODE', m
       write(lngname,'(a,i1)') 'Aerosol optical depth, day only, 550 nm mode ', m
       call addfld (fldname, horiz_only, 'A', '  ', lngname, flag_xyfill=.true.)
       if (m>3 .and. history_aero_optics) then
-         call add_default (fldname, 1, ' ')
+         call add_default (fldname, 2, ' ')
       endif
 
       write(fldname,'(a,i1)') 'AODDUST', m
       write(lngname,'(a,i1,a)') 'Aerosol optical depth, day only, 550 nm mode ',m,' from dust'
       call addfld (fldname, horiz_only, 'A', '  ', lngname, flag_xyfill=.true.)
       if (m>3 .and. history_aero_optics) then
-         call add_default (fldname, 1, ' ')
+         call add_default (fldname, 2, ' ')
       endif
 
       write(fldname,'(a,i1)') 'BURDENdn', m
       write(lngname,'(a,i1)') 'Aerosol burden, day night, mode ', m
       call addfld (fldname, horiz_only, 'A', 'kg/m2', lngname, flag_xyfill=.true.)
       if (m>3 .and. history_aero_optics) then
-         call add_default (fldname, 1, ' ')
+         call add_default (fldname, 2, ' ')
       endif
 
       write(fldname,'(a,i1)') 'AODdnMODE', m
       write(lngname,'(a,i1)') 'Aerosol optical depth 550 nm, day night, mode ', m
       call addfld (fldname, horiz_only, 'A', '  ', lngname, flag_xyfill=.true.)
       if (m>3 .and. history_aero_optics) then
-         call add_default (fldname, 1, ' ')
+         call add_default (fldname, 2, ' ')
       endif
 
       write(fldname,'(a,i1)') 'AODdnDUST', m
       write(lngname,'(a,i1,a)') 'Aerosol optical depth 550 nm, day night, mode ',m,' from dust'
       call addfld (fldname, horiz_only, 'A', '  ', lngname, flag_xyfill=.true.)
       if (m>3 .and. history_aero_optics) then
-         call add_default (fldname, 1, ' ')
+         call add_default (fldname, 2, ' ')
       endif
 
    enddo
@@ -344,80 +344,80 @@ subroutine modal_aer_opt_init()
 
 
    if (history_amwg) then
-      call add_default ('AODDUST1'     , 1, ' ')
-      call add_default ('AODDUST3'     , 1, ' ')
-      call add_default ('AODDUST'      , 1, ' ')
-      call add_default ('AODVIS'       , 1, ' ')
+      call add_default ('AODDUST1'     , 2, ' ')
+      call add_default ('AODDUST3'     , 2, ' ')
+      call add_default ('AODDUST'      , 2, ' ')
+      call add_default ('AODVIS'       , 2, ' ')
    end if
 
    if (history_dust) then
-      call add_default ('AODDUST1'     , 1, ' ')
-      call add_default ('AODDUST2'     , 1, ' ')
-      call add_default ('AODDUST3'     , 1, ' ')
+      call add_default ('AODDUST1'     , 2, ' ')
+      call add_default ('AODDUST2'     , 2, ' ')
+      call add_default ('AODDUST3'     , 2, ' ')
    end if
 
    if (history_aero_optics) then
-      call add_default ('AODDUST1'     , 1, ' ')
-      call add_default ('AODDUST3'     , 1, ' ')
-      call add_default ('ABSORB'       , 1, ' ')
-      call add_default ('AODMODE1'     , 1, ' ')
-      call add_default ('AODMODE2'     , 1, ' ')
-      call add_default ('AODMODE3'     , 1, ' ')
-      call add_default ('AODVIS'       , 1, ' ')
-      call add_default ('AODUV'        , 1, ' ')
-      call add_default ('AODNIR'       , 1, ' ')
-      call add_default ('AODABS'       , 1, ' ')
-      call add_default ('AODABSBC'     , 1, ' ')
-      call add_default ('AODDUST'      , 1, ' ')
-      call add_default ('AODSO4'       , 1, ' ')
-      call add_default ('AODPOM'       , 1, ' ')
-      call add_default ('AODSOA'       , 1, ' ')
-      call add_default ('AODBC'        , 1, ' ')
-      call add_default ('AODSS'        , 1, ' ')
-      call add_default ('BURDEN1'      , 1, ' ')
-      call add_default ('BURDEN2'      , 1, ' ')
-      call add_default ('BURDEN3'      , 1, ' ')
-      call add_default ('BURDENDUST'   , 1, ' ')
-      call add_default ('BURDENSO4'    , 1, ' ')
-      call add_default ('BURDENPOM'    , 1, ' ')
-      call add_default ('BURDENSOA'    , 1, ' ')
-      call add_default ('BURDENBC'     , 1, ' ')
-      call add_default ('BURDENSEASALT', 1, ' ')
-      call add_default ('SSAVIS'       , 1, ' ')
-      call add_default ('EXTINCT'      , 1, ' ')
-      call add_default ('AODxASYM'     , 1, ' ')
-      call add_default ('EXTxASYM'     , 1, ' ')
+      call add_default ('AODDUST1'     , 2, ' ')
+      call add_default ('AODDUST3'     , 2, ' ')
+      call add_default ('ABSORB'       , 2, ' ')
+      call add_default ('AODMODE1'     , 2, ' ')
+      call add_default ('AODMODE2'     , 2, ' ')
+      call add_default ('AODMODE3'     , 2, ' ')
+      call add_default ('AODVIS'       , 2, ' ')
+      call add_default ('AODUV'        , 2, ' ')
+      call add_default ('AODNIR'       , 2, ' ')
+      call add_default ('AODABS'       , 2, ' ')
+      call add_default ('AODABSBC'     , 2, ' ')
+      call add_default ('AODDUST'      , 2, ' ')
+      call add_default ('AODSO4'       , 2, ' ')
+      call add_default ('AODPOM'       , 2, ' ')
+      call add_default ('AODSOA'       , 2, ' ')
+      call add_default ('AODBC'        , 2, ' ')
+      call add_default ('AODSS'        , 2, ' ')
+      call add_default ('BURDEN1'      , 2, ' ')
+      call add_default ('BURDEN2'      , 2, ' ')
+      call add_default ('BURDEN3'      , 2, ' ')
+      call add_default ('BURDENDUST'   , 2, ' ')
+      call add_default ('BURDENSO4'    , 2, ' ')
+      call add_default ('BURDENPOM'    , 2, ' ')
+      call add_default ('BURDENSOA'    , 2, ' ')
+      call add_default ('BURDENBC'     , 2, ' ')
+      call add_default ('BURDENSEASALT', 2, ' ')
+      call add_default ('SSAVIS'       , 2, ' ')
+      call add_default ('EXTINCT'      , 2, ' ')
+      call add_default ('AODxASYM'     , 2, ' ')
+      call add_default ('EXTxASYM'     , 2, ' ')
 
-      call add_default ('AODdnDUST1'     , 1, ' ')
-      call add_default ('AODdnDUST3'     , 1, ' ')
-      call add_default ('ABSORBdn'       , 1, ' ')
-      call add_default ('AODdnMODE1'     , 1, ' ')
-      call add_default ('AODdnMODE2'     , 1, ' ')
-      call add_default ('AODdnMODE3'     , 1, ' ')
-      call add_default ('AODVISdn'       , 1, ' ')
-      call add_default ('AODUVdn'        , 1, ' ')
-      call add_default ('AODNIRdn'       , 1, ' ')
-      call add_default ('AODABSdn'       , 1, ' ')
-      call add_default ('AODABSBCdn'     , 1, ' ')
-      call add_default ('AODDUSTdn'      , 1, ' ')
-      call add_default ('AODSO4dn'       , 1, ' ')
-      call add_default ('AODPOMdn'       , 1, ' ')
-      call add_default ('AODSOAdn'       , 1, ' ')
-      call add_default ('AODBCdn'        , 1, ' ')
-      call add_default ('AODSSdn'        , 1, ' ')
-      call add_default ('BURDENdn1'      , 1, ' ')
-      call add_default ('BURDENdn2'      , 1, ' ')
-      call add_default ('BURDENdn3'      , 1, ' ')
-      call add_default ('BURDENDUSTdn'   , 1, ' ')
-      call add_default ('BURDENSO4dn'    , 1, ' ')
-      call add_default ('BURDENPOMdn'    , 1, ' ')
-      call add_default ('BURDENSOAdn'    , 1, ' ')
-      call add_default ('BURDENBCdn'     , 1, ' ')
-      call add_default ('BURDENSEASALTdn', 1, ' ')
-      call add_default ('SSAVISdn'       , 1, ' ')
-      call add_default ('EXTINCTdn'      , 1, ' ')
-      call add_default ('AODxASYMdn'     , 1, ' ')
-      call add_default ('EXTxASYMdn'     , 1, ' ')
+      call add_default ('AODdnDUST1'     , 2, ' ')
+      call add_default ('AODdnDUST3'     , 2, ' ')
+      call add_default ('ABSORBdn'       , 2, ' ')
+      call add_default ('AODdnMODE1'     , 2, ' ')
+      call add_default ('AODdnMODE2'     , 2, ' ')
+      call add_default ('AODdnMODE3'     , 2, ' ')
+      call add_default ('AODVISdn'       , 2, ' ')
+      call add_default ('AODUVdn'        , 2, ' ')
+      call add_default ('AODNIRdn'       , 2, ' ')
+      call add_default ('AODABSdn'       , 2, ' ')
+      call add_default ('AODABSBCdn'     , 2, ' ')
+      call add_default ('AODDUSTdn'      , 2, ' ')
+      call add_default ('AODSO4dn'       , 2, ' ')
+      call add_default ('AODPOMdn'       , 2, ' ')
+      call add_default ('AODSOAdn'       , 2, ' ')
+      call add_default ('AODBCdn'        , 2, ' ')
+      call add_default ('AODSSdn'        , 2, ' ')
+      call add_default ('BURDENdn1'      , 2, ' ')
+      call add_default ('BURDENdn2'      , 2, ' ')
+      call add_default ('BURDENdn3'      , 2, ' ')
+      call add_default ('BURDENDUSTdn'   , 2, ' ')
+      call add_default ('BURDENSO4dn'    , 2, ' ')
+      call add_default ('BURDENPOMdn'    , 2, ' ')
+      call add_default ('BURDENSOAdn'    , 2, ' ')
+      call add_default ('BURDENBCdn'     , 2, ' ')
+      call add_default ('BURDENSEASALTdn', 2, ' ')
+      call add_default ('SSAVISdn'       , 2, ' ')
+      call add_default ('EXTINCTdn'      , 2, ' ')
+      call add_default ('AODxASYMdn'     , 2, ' ')
+      call add_default ('EXTxASYMdn'     , 2, ' ')
   end if
 
    do ilist = 1, n_diag
@@ -450,11 +450,11 @@ subroutine modal_aer_opt_init()
               'extinction 550 nm * asymmetry factor, day only',   flag_xyfill=.true.)
 
          if (history_aero_optics) then
-            call add_default ('EXTINCT'//diag(ilist), 1, ' ')
-            call add_default ('ABSORB'//diag(ilist),  1, ' ')
-            call add_default ('AODVIS'//diag(ilist),  1, ' ')
-            call add_default ('AODVISst'//diag(ilist),  1, ' ')
-            call add_default ('AODABS'//diag(ilist),  1, ' ')
+            call add_default ('EXTINCT'//diag(ilist), 2, ' ')
+            call add_default ('ABSORB'//diag(ilist),  2, ' ')
+            call add_default ('AODVIS'//diag(ilist),  2, ' ')
+            call add_default ('AODVISst'//diag(ilist),  2, ' ')
+            call add_default ('AODABS'//diag(ilist),  2, ' ')
          end if
 
       end if
