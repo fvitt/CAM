@@ -15,8 +15,7 @@ use constituents,      only: pcnst
 use spmd_utils,        only: masterproc
 use ref_pres,          only: top_lev => clim_modal_aero_top_lev
 use physconst,         only: rhoh2o, rga, rair
-use radconstants,      only: nswbands, nlwbands, idx_sw_diag, idx_uv_diag, idx_nir_diag
-use radconstants,      only: get_lw_spectral_boundaries
+use radconstants,      only: nswbands, nlwbands, idx_sw_diag, idx_uv_diag, idx_nir_diag, get_lw_spectral_boundaries
 use rad_constituents,  only: n_diag, rad_cnst_get_call_list, rad_cnst_get_info, rad_cnst_get_aer_mmr, &
                              rad_cnst_get_aer_props, rad_cnst_get_mode_props
 use physics_types,     only: physics_state
@@ -54,17 +53,16 @@ integer, parameter :: ncoef=5, prefr=7, prefi=10
 real(r8) :: xrmin, xrmax
 
 ! refractive index for water read in read_water_refindex
-complex(r8) :: crefwsw(nswbands) ! complex refractive index for water visible
-complex(r8) :: crefwlw(nlwbands) ! complex refractive index for water infrared
+complex(r8) :: crefwsw(nswbands) = -huge(1._r8) ! complex refractive index for water visible
+complex(r8) :: crefwlw(nlwbands) = -huge(1._r8) ! complex refractive index for water infrared
 
 ! physics buffer indices
 integer :: dgnumwet_idx = -1
 integer :: qaerwat_idx  = -1
+integer :: lw10um_indx = -1
 
 character(len=4) :: diag(0:n_diag) = (/'    ','_d1 ','_d2 ','_d3 ','_d4 ','_d5 ', &
                                        '_d6 ','_d7 ','_d8 ','_d9 ','_d10'/)
-
-integer :: lw10um_indx = -1
 
 !===============================================================================
 CONTAINS
@@ -130,6 +128,7 @@ subroutine modal_aer_opt_init()
    character(len=*), parameter :: routine='modal_aer_opt_init'
    character(len=10) :: fldname
    character(len=128) :: lngname
+
    real(r8) :: lwavlen_lo(nlwbands), lwavlen_hi(nlwbands)
 
    !----------------------------------------------------------------------------
@@ -189,6 +188,8 @@ subroutine modal_aer_opt_init()
                 flag_xyfill=.true.)
    call addfld ('ABSORB',     (/ 'lev' /), 'A','/m','Aerosol absorption, day only',                          &
                 flag_xyfill=.true.)
+   call addfld ('AODTOT', horiz_only, 'A','1','Aerosol optical depth summed over all sw wavelenghts', flag_xyfill=.true.)
+   call addfld ('AODTOTdn', horiz_only, 'A','1','Aerosol optical depth summed over all sw wavelenghts')
    call addfld ('AODVIS',     horiz_only,  'A','  ','Aerosol optical depth 550 nm, day only',                &
                 flag_xyfill=.true.)
    call addfld ('AODVISst',   horiz_only,  'A','  ','Stratospheric aerosol optical depth 550 nm, day only',  &
@@ -466,10 +467,9 @@ subroutine modal_aer_opt_init()
       end if
    end do
    if (lw10um_indx>0) then
-      call addfld('AODABSLW', (/ 'lev' /), 'A','/m','Aerosol long-wave absorption optical depth at 10 microns', &
-                  flag_xyfill=.true.)
-      call add_default('AODABSLW',2,' ')
-  end if
+      call addfld('AODABSLW', (/ 'lev' /), 'A','/m','Aerosol long-wave absorption optical depth at 10 microns')
+   end if
+   call addfld ('TOTABSLW', (/ 'lev' /), 'A',' ', 'LW Aero total abs')
 
 end subroutine modal_aer_opt_init
 
@@ -561,6 +561,7 @@ subroutine modal_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
    real(r8) :: extinctuv(pcols,pver)
    real(r8) :: absorb(pcols,pver)
    real(r8) :: aodvis(pcols)               ! extinction optical depth
+   real(r8) :: aodtot(pcols)               ! extinction optical depth
    real(r8) :: aodvisst(pcols)             ! stratospheric extinction optical depth
    real(r8) :: aodabs(pcols)               ! absorption optical depth
    real(r8) :: asymvis(pcols)              ! asymmetry factor * optical depth
@@ -637,6 +638,7 @@ subroutine modal_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
    extinct(1:ncol,:)     = 0.0_r8
    absorb(1:ncol,:)      = 0.0_r8
    aodvis(1:ncol)        = 0.0_r8
+   aodtot(1:ncol)        = 0.0_r8
    aodvisst(1:ncol)      = 0.0_r8
    aodabs(1:ncol)        = 0.0_r8
    burdendust(:ncol)     = 0.0_r8
@@ -885,6 +887,8 @@ subroutine modal_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
                palb(i) = 1._r8-pabs(i)/max(pext(i),1.e-40_r8)
 
                dopaer(i) = pext(i)*mass(i,k)
+
+               aodtot(i) = aodtot(i) + dopaer(i)
             end do
 
             if (savaeruv) then
@@ -1087,12 +1091,14 @@ subroutine modal_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
    call outfld('ABSORBdn'//diag(list_idx),   absorb,  pcols, lchnk)
    call outfld('AODVISdn'//diag(list_idx),   aodvis,  pcols, lchnk)
    call outfld('AODABSdn'//diag(list_idx),   aodabs,  pcols, lchnk)
+   call outfld('AODTOTdn'//diag(list_idx),   aodtot,  pcols, lchnk)
    call outfld('AODVISstdn'//diag(list_idx), aodvisst,pcols, lchnk)
    call outfld('EXTxASYMdn'//diag(list_idx), asymext, pcols, lchnk)
 
    do i = 1, nnite
       extinct(idxnite(i),:) = fillvalue
       absorb(idxnite(i),:)  = fillvalue
+      aodtot(idxnite(i))    = fillvalue
       aodvis(idxnite(i))    = fillvalue
       aodabs(idxnite(i))    = fillvalue
       aodvisst(idxnite(i))  = fillvalue
@@ -1102,6 +1108,7 @@ subroutine modal_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
    call outfld('EXTINCT'//diag(list_idx),  extinct, pcols, lchnk)
    call outfld('ABSORB'//diag(list_idx),   absorb,  pcols, lchnk)
    call outfld('AODVIS'//diag(list_idx),   aodvis,  pcols, lchnk)
+   call outfld('AODTOT'//diag(list_idx),   aodtot,  pcols, lchnk)
    call outfld('AODABS'//diag(list_idx),   aodabs,  pcols, lchnk)
    call outfld('AODVISst'//diag(list_idx), aodvisst,pcols, lchnk)
    call outfld('EXTxASYM'//diag(list_idx), asymext, pcols, lchnk)
@@ -1268,7 +1275,14 @@ subroutine modal_aero_lw(list_idx, state, pbuf, tauxar)
    real(r8) :: volf             ! volume fraction of insoluble aerosol
 
    character(len=*), parameter :: subname = 'modal_aero_lw'
+
+   real(r8) :: radsurf(pcols,pver)    ! aerosol surface mode radius
+   real(r8) :: logradsurf(pcols,pver) ! log(aerosol surface mode radius)
+
+   real(r8) :: lwabs(pcols,pver)
    !----------------------------------------------------------------------------
+
+   lwabs = 0.0_r8
 
    lchnk = state%lchnk
    ncol  = state%ncol
@@ -1318,26 +1332,28 @@ subroutine modal_aero_lw(list_idx, state, pbuf, tauxar)
       call rad_cnst_get_info(list_idx, m, nspec=nspec)
 
       ! calc size parameter for all columns
-      ! this is the same calculation that's done in modal_size_parameters, but there
-      ! some intermediate results are saved and the chebyshev polynomials are stored
-      ! in a array with different index order.  Could be unified.
-      do k = top_lev, pver
-         do i = 1, ncol
-            alnsg_amode = log( sigma_logr_aer )
-            ! convert from number diameter to surface area
-            xrad(i) = log(0.5_r8*dgnumwet(i,k)) + 2.0_r8*alnsg_amode*alnsg_amode
-            ! normalize size parameter
-            xrad(i) = max(xrad(i), xrmin)
-            xrad(i) = min(xrad(i), xrmax)
-            xrad(i) = (2*xrad(i)-xrmax-xrmin)/(xrmax-xrmin)
-            ! chebyshev polynomials
-            cheby(1,i,k) = 1.0_r8
-            cheby(2,i,k) = xrad(i)
-            do nc = 3, ncoef
-               cheby(nc,i,k) = 2.0_r8*xrad(i)*cheby(nc-1,i,k)-cheby(nc-2,i,k)
-            end do
-         end do
-      end do
+      call modal_size_parameters(ncol, sigma_logr_aer, dgnumwet, radsurf, logradsurf, cheby)
+!!$      ! calc size parameter for all columns
+!!$      ! this is the same calculation that's done in modal_size_parameters, but there
+!!$      ! some intermediate results are saved and the chebyshev polynomials are stored
+!!$      ! in a array with different index order.  Could be unified.
+!!$      do k = top_lev, pver
+!!$         do i = 1, ncol
+!!$            alnsg_amode = log( sigma_logr_aer )
+!!$            ! convert from number diameter to surface area
+!!$            xrad(i) = log(0.5_r8*dgnumwet(i,k)) + 2.0_r8*alnsg_amode*alnsg_amode
+!!$            ! normalize size parameter
+!!$            xrad(i) = max(xrad(i), xrmin)
+!!$            xrad(i) = min(xrad(i), xrmax)
+!!$            xrad(i) = (2*xrad(i)-xrmax-xrmin)/(xrmax-xrmin)
+!!$            ! chebyshev polynomials
+!!$            cheby(1,i,k) = 1.0_r8
+!!$            cheby(2,i,k) = xrad(i)
+!!$            do nc = 3, ncoef
+!!$               cheby(nc,i,k) = 2.0_r8*xrad(i)*cheby(nc-1,i,k)-cheby(nc-2,i,k)
+!!$            end do
+!!$         end do
+!!$      end do
 
       do ilw = 1, nlwbands
 
@@ -1393,6 +1409,7 @@ subroutine modal_aero_lw(list_idx, state, pbuf, tauxar)
                pabs(i)   = pabs(i)*wetvol(i)*rhoh2o
                pabs(i)   = max(0._r8,pabs(i))
                dopaer(i) = pabs(i)*mass(i,k)
+               lwabs(i,k) = lwabs(i,k) + pabs(i)
             end do
 
             do i = 1, ncol
@@ -1455,6 +1472,8 @@ subroutine modal_aero_lw(list_idx, state, pbuf, tauxar)
       deallocate(so4dryvol_m)
       deallocate(naer_m)
    end if
+
+   call outfld('TOTABSLW', lwabs(:,:), pcols, lchnk)
 
    if (lw10um_indx>0) then
       call outfld('AODABSLW', tauxar(:,:,lw10um_indx), pcols, lchnk)
