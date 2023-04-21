@@ -101,8 +101,6 @@ subroutine coreshell_aer_opt_readnl(nlfile)
    call mpibcast(water_refindex_file, len(water_refindex_file), mpichar, 0, mpicom)
 #endif
 
-   print*,'FVDBG.coreshell_aer_opt_readnl...water_refindex_file: '//trim(water_refindex_file)
-
  end subroutine coreshell_aer_opt_readnl
 
 !===============================================================================
@@ -682,7 +680,7 @@ subroutine coreshell_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
 
       call rad_cnst_get_info_by_bin(list_idx, m, bin_name=bin_name)
       call pbuf_get_field(pbuf, pbuf_get_index(trim(bin_name)//"_wetr"),wetr)
-!!$      call pbuf_get_field(pbuf, pbuf_get_index(trim(bin_name)//"_dryr"),dryr)
+      call pbuf_get_field(pbuf, pbuf_get_index(trim(bin_name)//"_dryr"),dryr)
 
       burden(:) = 0._r8
       aodbin(:) = 0.0_r8
@@ -775,6 +773,27 @@ subroutine coreshell_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
            dryvol(:ncol) = 0._r8
            crefin(:ncol) = 0._r8
 
+           dustvol(:ncol) = 0._r8
+
+           scatdust(:ncol)     = 0._r8
+           absdust(:ncol)      = 0._r8
+           hygrodust(:ncol)    = 0._r8
+           scatso4(:ncol)      = 0._r8
+           absso4(:ncol)       = 0._r8
+           hygroso4(:ncol)     = 0._r8
+           scatbc(:ncol)       = 0._r8
+           absbc(:ncol)        = 0._r8
+           hygrobc(:ncol)      = 0._r8
+           scatpom(:ncol)      = 0._r8
+           abspom(:ncol)       = 0._r8
+           hygropom(:ncol)     = 0._r8
+           scatsoa(:ncol)      = 0._r8
+           abssoa(:ncol)       = 0._r8
+           hygrosoa(:ncol)     = 0._r8
+           scatseasalt(:ncol)  = 0._r8
+           absseasalt(:ncol)   = 0._r8
+           hygroseasalt(:ncol) = 0._r8
+
            ! aerosol species loop
            do l = 1, nspec
               call rad_cnst_get_bin_mmr_by_idx(list_idx, m, l, 'a', state, pbuf, specmmr)
@@ -787,7 +806,6 @@ subroutine coreshell_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
                    specmorph=specmorph, hygro_aer=hygro_aer)
 
               vol(:ncol)      = specmmr(:ncol,k) / specdens
-              dryvol(:ncol)   = dryvol(:ncol) + vol(:ncol)
               crefin(:ncol)   = crefin(:ncol) + vol(:ncol) * specrefindex(isw)
 
               if (savaervis) then
@@ -960,7 +978,6 @@ subroutine coreshell_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
               pabs(i) = min(pext(i),pabs(i))
 
               palb(i) = 1._r8-pabs(i)/max(pext(i),1.e-40_r8)
-              palb(i) = 1._r8-pabs(i)/max(pext(i),1.e-40_r8)
 
               dopaer(i) = pext(i)*mass(i,k)
 
@@ -991,12 +1008,15 @@ subroutine coreshell_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
            ! sum over layers
            if (savaervis) then
 
-!!$              dryvol(:ncol) = four_thirds_pi * (dryr(:ncol,k)**3)
+              dryvol(:ncol) = four_thirds_pi * (dryr(:ncol,k)**3)
               wetvol(:ncol) = four_thirds_pi * (wetr(:ncol,k)**3)
               watervol(:ncol) = wetvol(:ncol)-dryvol(:ncol)
 
               ! aerosol extinction (/m)
               do i = 1, ncol
+
+                 watervol(i) = max(0._r8,watervol(i))
+
                  extinct(i,k) = extinct(i,k) + dopaer(i)*air_density(i,k)/mass(i,k)
                  absorb(i,k)  = absorb(i,k) + pabs(i)*air_density(i,k)
                  aodvis(i)    = aodvis(i) + dopaer(i)
