@@ -1030,7 +1030,7 @@ subroutine coreshell_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
                     aodvisst(i) = aodvisst(i) + dopaer(i)
                  end if
 
-                 if (wetvol(i) > 1.e-40_r8) then
+                 if (wetvol(i) > 1.e-40_r8 .and. vol(i) > 0._r8) then
 
                     dustaodbin(i) = dustaodbin(i) + dopaer(i)*dustvol(i)/wetvol(i)
 
