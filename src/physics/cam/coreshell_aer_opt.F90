@@ -334,9 +334,6 @@ subroutine coreshell_aer_opt_init()
       call add_default ('AODSOA'       , 1, ' ')
       call add_default ('AODBC'        , 1, ' ')
       call add_default ('AODSS'        , 1, ' ')
-      call add_default ('BURDEN1'      , 1, ' ')
-      call add_default ('BURDEN2'      , 1, ' ')
-      call add_default ('BURDEN3'      , 1, ' ')
       call add_default ('BURDENDUST'   , 1, ' ')
       call add_default ('BURDENSO4'    , 1, ' ')
       call add_default ('BURDENPOM'    , 1, ' ')
@@ -360,9 +357,6 @@ subroutine coreshell_aer_opt_init()
       call add_default ('AODSOAdn'       , 1, ' ')
       call add_default ('AODBCdn'        , 1, ' ')
       call add_default ('AODSSdn'        , 1, ' ')
-      call add_default ('BURDENdn1'      , 1, ' ')
-      call add_default ('BURDENdn2'      , 1, ' ')
-      call add_default ('BURDENdn3'      , 1, ' ')
       call add_default ('BURDENDUSTdn'   , 1, ' ')
       call add_default ('BURDENSO4dn'    , 1, ' ')
       call add_default ('BURDENPOMdn'    , 1, ' ')
@@ -557,6 +551,8 @@ subroutine coreshell_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
    real(r8) :: aodbin(pcols)
    real(r8) :: dustaodbin(pcols)          ! dust aod in aerosol bin
    real(r8) :: aodabsbc(pcols)             ! absorption optical depth of BC
+   real(r8) :: asymvis(pcols)              ! asymmetry factor * optical depth
+   real(r8) :: asymext(pcols,pver)         ! asymmetry factor * extinction
 
    real(r8) :: wetvol(pcols)
    real(r8) :: watervol(pcols)
@@ -642,6 +638,8 @@ subroutine coreshell_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
    aodabs(1:ncol)        = 0.0_r8
    aodbin(1:ncol)        = 0.0_r8
    ssavis(1:ncol)        = 0.0_r8
+   asymvis(1:ncol)       = 0.0_r8
+   asymext(1:ncol,:)     = 0.0_r8
 
    ! diags for other bands
    extinctuv(1:ncol,:)   = 0.0_r8
@@ -683,7 +681,6 @@ subroutine coreshell_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
       call rad_cnst_get_info_by_bin(list_idx, m, bin_name=bin_name)
       call pbuf_get_field(pbuf, pbuf_get_index(trim(bin_name)//"_wetr"),wetr)
       call pbuf_get_field(pbuf, pbuf_get_index(trim(bin_name)//"_dryr"),dryr)
-
 
       burden(:) = 0._r8
       aodbin(:) = 0.0_r8
@@ -776,6 +773,27 @@ subroutine coreshell_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
            dryvol(:ncol) = 0._r8
            crefin(:ncol) = 0._r8
 
+           dustvol(:ncol) = 0._r8
+
+           scatdust(:ncol)     = 0._r8
+           absdust(:ncol)      = 0._r8
+           hygrodust(:ncol)    = 0._r8
+           scatso4(:ncol)      = 0._r8
+           absso4(:ncol)       = 0._r8
+           hygroso4(:ncol)     = 0._r8
+           scatbc(:ncol)       = 0._r8
+           absbc(:ncol)        = 0._r8
+           hygrobc(:ncol)      = 0._r8
+           scatpom(:ncol)      = 0._r8
+           abspom(:ncol)       = 0._r8
+           hygropom(:ncol)     = 0._r8
+           scatsoa(:ncol)      = 0._r8
+           abssoa(:ncol)       = 0._r8
+           hygrosoa(:ncol)     = 0._r8
+           scatseasalt(:ncol)  = 0._r8
+           absseasalt(:ncol)   = 0._r8
+           hygroseasalt(:ncol) = 0._r8
+
            ! aerosol species loop
            do l = 1, nspec
               call rad_cnst_get_bin_mmr_by_idx(list_idx, m, l, 'a', state, pbuf, specmmr)
@@ -788,7 +806,6 @@ subroutine coreshell_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
                    specmorph=specmorph, hygro_aer=hygro_aer)
 
               vol(:ncol)      = specmmr(:ncol,k) / specdens
-              dryvol(:ncol)   = dryvol(:ncol) + vol(:ncol)
               crefin(:ncol)   = crefin(:ncol) + vol(:ncol) * specrefindex(isw)
 
               if (savaervis) then
@@ -961,7 +978,6 @@ subroutine coreshell_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
               pabs(i) = min(pext(i),pabs(i))
 
               palb(i) = 1._r8-pabs(i)/max(pext(i),1.e-40_r8)
-              palb(i) = 1._r8-pabs(i)/max(pext(i),1.e-40_r8)
 
               dopaer(i) = pext(i)*mass(i,k)
 
@@ -998,13 +1014,18 @@ subroutine coreshell_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
 
               ! aerosol extinction (/m)
               do i = 1, ncol
+
+                 watervol(i) = max(0._r8,watervol(i))
+
                  extinct(i,k) = extinct(i,k) + dopaer(i)*air_density(i,k)/mass(i,k)
                  absorb(i,k)  = absorb(i,k) + pabs(i)*air_density(i,k)
                  aodvis(i)    = aodvis(i) + dopaer(i)
                  aodabs(i)    = aodabs(i) + pabs(i)*mass(i,k)
-                 aodbin(i)   = aodbin(i) + dopaer(i)
+                 aodbin(i)    = aodbin(i) + dopaer(i)
                  aodbin(i)    = aodbin(i) + dopaer(i)
                  ssavis(i)    = ssavis(i) + dopaer(i)*palb(i)
+                 asymvis(i)   = asymvis(i) + dopaer(i)*pasm(i)
+                 asymext(i,k) = asymext(i,k) + dopaer(i)*pasm(i)*air_density(i,k)/mass(i,k)
                  if (k.le.troplev(i)) then
                     aodvisst(i) = aodvisst(i) + dopaer(i)
                  end if
@@ -1150,7 +1171,17 @@ subroutine coreshell_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
         call outfld(trim(outname), aodbin, pcols, lchnk)
      end if
 
-  end do ! nbins
+   end do ! nbins
+
+
+   call outfld('EXTINCTdn'//diag(list_idx),  extinct, pcols, lchnk)
+   call outfld('ABSORBdn'//diag(list_idx),   absorb,  pcols, lchnk)
+   call outfld('AODVISdn'//diag(list_idx),   aodvis,  pcols, lchnk)
+   call outfld('AODABSdn'//diag(list_idx),   aodabs,  pcols, lchnk)
+   call outfld('AODTOTdn'//diag(list_idx), aodtot,  pcols, lchnk)
+   call outfld('AODVISstdn'//diag(list_idx), aodvisst,pcols, lchnk)
+   call outfld('EXTxASYMdn'//diag(list_idx), asymext, pcols, lchnk)
+
 
    !Output visible band diagnostics for quantities summed over the bins
    !These fields are put out for diagnostic lists as well as the climate list.
@@ -1161,45 +1192,108 @@ subroutine coreshell_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
       aodtot(idxnite(i))    = fillvalue
       aodabs(idxnite(i))    = fillvalue
       aodvisst(idxnite(i))  = fillvalue
+      asymext(idxnite(i),:) = fillvalue
    end do
 
-  call outfld('EXTINCT'//diag(list_idx),  extinct, pcols, lchnk)
-  call outfld('ABSORB'//diag(list_idx),   absorb,  pcols, lchnk)
-  call outfld('AODVIS'//diag(list_idx),   aodvis,  pcols, lchnk)
-  call outfld('AODTOT'//diag(list_idx),   aodtot,  pcols, lchnk)
-  call outfld('AODABS'//diag(list_idx),   aodabs,  pcols, lchnk)
-  call outfld('AODVISst'//diag(list_idx), aodvisst,pcols, lchnk)
+   call outfld('EXTINCT'//diag(list_idx),  extinct, pcols, lchnk)
+   call outfld('ABSORB'//diag(list_idx),   absorb,  pcols, lchnk)
+   call outfld('AODVIS'//diag(list_idx),   aodvis,  pcols, lchnk)
+   call outfld('AODTOT'//diag(list_idx),   aodtot,  pcols, lchnk)
+   call outfld('AODABS'//diag(list_idx),   aodabs,  pcols, lchnk)
+   call outfld('AODVISst'//diag(list_idx), aodvisst,pcols, lchnk)
+   call outfld('EXTxASYM'//diag(list_idx), asymext, pcols, lchnk)
 
-  ! These diagnostics are output only for climate list
-  if (list_idx == 0) then
-     do i = 1, ncol
-        if (aodvis(i) > 1.e-10_r8) then
-           ssavis(i) = ssavis(i)/aodvis(i)
-        else
-           ssavis(i) = 0.925_r8
-        endif
-     end do
+   ! These diagnostics are output only for climate list
+   if (list_idx == 0) then
+      do i = 1, ncol
+         if (aodvis(i) > 1.e-10_r8) then
+            ssavis(i) = ssavis(i)/aodvis(i)
+         else
+            ssavis(i) = 0.925_r8
+         endif
+      end do
 
-     ! do i = 1, nnite
-     !    ssavis(idxnite(i))     = fillvalue
-     !    aoduv(idxnite(i))      = fillvalue
-     !    aodnir(idxnite(i))     = fillvalue
-     !    aoduvst(idxnite(i))    = fillvalue
-     !    aodnirst(idxnite(i))   = fillvalue
-     !    extinctuv(idxnite(i),:)  = fillvalue
-     !    extinctnir(idxnite(i),:) = fillvalue
-     !  end do
+      call outfld('SSAVISdn',        ssavis,        pcols, lchnk)
+      call outfld('AODxASYMdn',      asymvis,       pcols, lchnk)
 
-     call outfld('SSAVIS',        ssavis,        pcols, lchnk)
+      call outfld('EXTINCTUVdn',     extinctuv,     pcols, lchnk)
+      call outfld('EXTINCTNIRdn',    extinctnir,    pcols, lchnk)
+      call outfld('AODUVdn',         aoduv,         pcols, lchnk)
+      call outfld('AODNIRdn',        aodnir,        pcols, lchnk)
+      call outfld('AODUVstdn',       aoduvst,       pcols, lchnk)
+      call outfld('AODNIRstdn',      aodnirst,      pcols, lchnk)
 
-     call outfld('EXTINCTUV',     extinctuv,     pcols, lchnk)
-     call outfld('EXTINCTNIR',    extinctnir,    pcols, lchnk)
-     call outfld('AODUV',         aoduv,         pcols, lchnk)
-     call outfld('AODNIR',        aodnir,        pcols, lchnk)
-     call outfld('AODUVst',       aoduvst,       pcols, lchnk)
-     call outfld('AODNIRst',      aodnirst,      pcols, lchnk)
+      call outfld('BURDENDUSTdn',    burdendust,    pcols, lchnk)
+      call outfld('BURDENSO4dn' ,    burdenso4,     pcols, lchnk)
+      call outfld('BURDENPOMdn' ,    burdenpom,     pcols, lchnk)
+      call outfld('BURDENSOAdn' ,    burdensoa,     pcols, lchnk)
+      call outfld('BURDENBCdn'  ,    burdenbc,      pcols, lchnk)
+      call outfld('BURDENSEASALTdn', burdenseasalt, pcols, lchnk)
 
-  end if
+      call outfld('AODABSBCdn',      aodabsbc,      pcols, lchnk)
+
+      call outfld('AODDUSTdn',       dustaod,       pcols, lchnk)
+      call outfld('AODSO4dn',        so4aod,        pcols, lchnk)
+      call outfld('AODPOMdn',        pomaod,        pcols, lchnk)
+      call outfld('AODSOAdn',        soaaod,        pcols, lchnk)
+      call outfld('AODBCdn',         bcaod,         pcols, lchnk)
+      call outfld('AODSSdn',         seasaltaod,    pcols, lchnk)
+
+
+      do i = 1, nnite
+         ssavis(idxnite(i))     = fillvalue
+         asymvis(idxnite(i))    = fillvalue
+
+         aoduv(idxnite(i))      = fillvalue
+         aodnir(idxnite(i))     = fillvalue
+         aoduvst(idxnite(i))    = fillvalue
+         aodnirst(idxnite(i))   = fillvalue
+         extinctuv(idxnite(i),:)  = fillvalue
+         extinctnir(idxnite(i),:) = fillvalue
+
+         burdendust(idxnite(i)) = fillvalue
+         burdenso4(idxnite(i))  = fillvalue
+         burdenpom(idxnite(i))  = fillvalue
+         burdensoa(idxnite(i))  = fillvalue
+         burdenbc(idxnite(i))   = fillvalue
+         burdenseasalt(idxnite(i)) = fillvalue
+
+         aodabsbc(idxnite(i))   = fillvalue
+
+         dustaod(idxnite(i))    = fillvalue
+         so4aod(idxnite(i))     = fillvalue
+         pomaod(idxnite(i))     = fillvalue
+         soaaod(idxnite(i))     = fillvalue
+         bcaod(idxnite(i))      = fillvalue
+         seasaltaod(idxnite(i)) = fillvalue
+       end do
+
+      call outfld('SSAVIS',        ssavis,        pcols, lchnk)
+      call outfld('AODxASYM',      asymvis,       pcols, lchnk)
+
+      call outfld('EXTINCTUV',     extinctuv,     pcols, lchnk)
+      call outfld('EXTINCTNIR',    extinctnir,    pcols, lchnk)
+      call outfld('AODUV',         aoduv,         pcols, lchnk)
+      call outfld('AODNIR',        aodnir,        pcols, lchnk)
+      call outfld('AODUVst',       aoduvst,       pcols, lchnk)
+      call outfld('AODNIRst',      aodnirst,      pcols, lchnk)
+
+      call outfld('BURDENDUST',    burdendust,    pcols, lchnk)
+      call outfld('BURDENSO4' ,    burdenso4,     pcols, lchnk)
+      call outfld('BURDENPOM' ,    burdenpom,     pcols, lchnk)
+      call outfld('BURDENSOA' ,    burdensoa,     pcols, lchnk)
+      call outfld('BURDENBC'  ,    burdenbc,      pcols, lchnk)
+      call outfld('BURDENSEASALT', burdenseasalt, pcols, lchnk)
+
+      call outfld('AODABSBC',      aodabsbc,      pcols, lchnk)
+
+      call outfld('AODDUST',       dustaod,       pcols, lchnk)
+      call outfld('AODSO4',        so4aod,        pcols, lchnk)
+      call outfld('AODPOM',        pomaod,        pcols, lchnk)
+      call outfld('AODSOA',        soaaod,        pcols, lchnk)
+      call outfld('AODBC',         bcaod,         pcols, lchnk)
+      call outfld('AODSS',         seasaltaod,    pcols, lchnk)
+   end if
 
 end subroutine coreshell_aero_sw
 
