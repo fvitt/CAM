@@ -101,6 +101,11 @@ subroutine coreshell_aer_opt_readnl(nlfile)
    call mpibcast(water_refindex_file, len(water_refindex_file), mpichar, 0, mpicom)
 #endif
 
+    if (masterproc) then
+       write(iulog,*) subname,': water_refindex_file = ',trim(water_refindex_file)
+    end if
+
+
  end subroutine coreshell_aer_opt_readnl
 
 !===============================================================================
@@ -820,31 +825,31 @@ subroutine coreshell_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
                     hygrodust(:ncol)  = vol(:ncol)*hygro_aer
                  end if
                  if (trim(spectype) == 'sulfate') then
-                    burdenso4(:ncol) = burdendust(:ncol) + specmmr(:ncol,k)*mass(:ncol,k)
+                    burdenso4(:ncol) = burdenso4(:ncol) + specmmr(:ncol,k)*mass(:ncol,k)
                     scatso4(:ncol)   = vol(:ncol)*specrefr
                     absso4(:ncol)    =-vol(:ncol)*specrefi
                     hygroso4(:ncol)  = vol(:ncol)*hygro_aer
                  end if
                  if (trim(spectype) == 'black-c') then
-                    burdenbc(:ncol) = burdendust(:ncol) + specmmr(:ncol,k)*mass(:ncol,k)
+                    burdenbc(:ncol) = burdenbc(:ncol) + specmmr(:ncol,k)*mass(:ncol,k)
                     scatbc(:ncol)   = vol(:ncol)*specrefr
                     absbc(:ncol)    =-vol(:ncol)*specrefi
                     hygrobc(:ncol)  = vol(:ncol)*hygro_aer
                  end if
                  if (trim(spectype) == 'p-organic') then
-                    burdenpom(:ncol) = burdendust(:ncol) + specmmr(:ncol,k)*mass(:ncol,k)
+                    burdenpom(:ncol) = burdenpom(:ncol) + specmmr(:ncol,k)*mass(:ncol,k)
                     scatpom(:ncol)   = vol(:ncol)*specrefr
                     abspom(:ncol)    =-vol(:ncol)*specrefi
                     hygropom(:ncol)  = vol(:ncol)*hygro_aer
                  end if
                  if (trim(spectype) == 's-organic') then
-                    burdensoa(:ncol) = burdendust(:ncol) + specmmr(:ncol,k)*mass(:ncol,k)
+                    burdensoa(:ncol) = burdensoa(:ncol) + specmmr(:ncol,k)*mass(:ncol,k)
                     scatsoa(:ncol)   = vol(:ncol)*specrefr
                     abssoa(:ncol)    =-vol(:ncol)*specrefi
                     hygrosoa(:ncol)  = vol(:ncol)*hygro_aer
                  end if
                  if (trim(spectype) == 'seasalt') then
-                    burdenseasalt(:ncol) = burdendust(:ncol) + specmmr(:ncol,k)*mass(:ncol,k)
+                    burdenseasalt(:ncol) = burdenseasalt(:ncol) + specmmr(:ncol,k)*mass(:ncol,k)
                     scatseasalt(:ncol)   = vol(:ncol)*specrefr
                     absseasalt(:ncol)    =-vol(:ncol)*specrefi
                     hygroseasalt(:ncol)  = vol(:ncol)*hygro_aer
@@ -1021,7 +1026,6 @@ subroutine coreshell_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
                  absorb(i,k)  = absorb(i,k) + pabs(i)*air_density(i,k)
                  aodvis(i)    = aodvis(i) + dopaer(i)
                  aodabs(i)    = aodabs(i) + pabs(i)*mass(i,k)
-                 aodbin(i)    = aodbin(i) + dopaer(i)
                  aodbin(i)    = aodbin(i) + dopaer(i)
                  ssavis(i)    = ssavis(i) + dopaer(i)*palb(i)
                  asymvis(i)   = asymvis(i) + dopaer(i)*pasm(i)
