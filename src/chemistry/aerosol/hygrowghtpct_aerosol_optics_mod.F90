@@ -124,7 +124,7 @@ contains
 
        pext(icol) = table_interp( self%tbl_wgtpct, self%sw_hygro_ext_wtp(:,iwav), self%wgtpct(icol,ilev) )
        pabs(icol) = (1._r8 - table_interp( self%tbl_wgtpct, self%sw_hygro_ssa_wtp(:,iwav), self%wgtpct(icol,ilev) ) ) * pext(icol)
-       pasm = table_interp( self%tbl_wgtpct, self%sw_hygro_asm_wtp(:,iwav), self%wgtpct(icol,ilev) )
+       pasm(icol) = table_interp( self%tbl_wgtpct, self%sw_hygro_asm_wtp(:,iwav), self%wgtpct(icol,ilev) )
 
        pext(icol) = pext(icol)*self%totalmmr(icol,ilev)
        pabs(icol) = pabs(icol)*self%totalmmr(icol,ilev)

@@ -1540,6 +1540,7 @@ elsif ($carma =~ /trop_strat/) {
   add_default($nl, 'rad_climate');
   add_default($nl, 'carma_do_emission', 'val'=>'.true.');
   add_default($nl, 'water_refindex_file');
+  add_default($nl, 'aerwat_refindex_file');
 
   # emissions
   add_default($nl, 'carma_BCOCemissions','val'=>'Specified');

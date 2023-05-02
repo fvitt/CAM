@@ -54,6 +54,9 @@ module aerosol_state_mod
      procedure(aero_wgtpct), deferred :: wgtpct
      procedure :: refractive_index_sw
      procedure :: refractive_index_lw
+     procedure(aero_volume), deferred :: dry_volume
+     procedure(aero_volume), deferred :: wet_volume
+     procedure(aero_volume), deferred :: water_volume
  end type aerosol_state
 
   ! for state fields
@@ -245,6 +248,23 @@ module aerosol_state_mod
        real(r8), pointer :: wtp(:,:)
 
      end function aero_wgtpct
+
+     !------------------------------------------------------------------------------
+     !------------------------------------------------------------------------------
+     function aero_volume(self, aero_props, list_idx, bin_idx, ncol, nlev) result(vol)
+       import :: aerosol_state, aerosol_properties, r8
+
+       class(aerosol_state), intent(in) :: self
+       class(aerosol_properties), intent(in) :: aero_props
+
+       integer, intent(in) :: list_idx            ! rad climate/diags list number
+       integer, intent(in) :: bin_idx
+       integer, intent(in) :: ncol
+       integer, intent(in) :: nlev
+
+       real(r8) :: vol(ncol,nlev)
+
+     end function aero_volume
 
   end interface
 

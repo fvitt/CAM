@@ -7,6 +7,7 @@ module modal_aerosol_state_mod
   use physics_buffer, only: physics_buffer_desc, pbuf_get_field, pbuf_get_index
   use physics_types, only: physics_state
   use aerosol_properties_mod, only: aerosol_properties, aero_name_len
+  use physconst,  only: rhoh2o
 
   implicit none
 
@@ -37,6 +38,9 @@ module modal_aerosol_state_mod
      procedure :: hygroscopicity
      procedure :: water_uptake
      procedure :: wgtpct
+     procedure :: dry_volume
+     procedure :: wet_volume
+     procedure :: water_volume
 
      final :: destructor
 
@@ -503,5 +507,81 @@ contains
     nullify(wtp)
 
   end function wgtpct
+
+  !------------------------------------------------------------------------------
+  !------------------------------------------------------------------------------
+  function dry_volume(self, aero_props, list_idx, bin_idx, ncol, nlev) result(vol)
+
+    class(modal_aerosol_state), intent(in) :: self
+    class(aerosol_properties), intent(in) :: aero_props
+
+    integer, intent(in) :: list_idx            ! rad climate/diags list number
+    integer, intent(in) :: bin_idx
+    integer, intent(in) :: ncol
+    integer, intent(in) :: nlev
+
+    real(r8) :: vol(ncol,nlev)        ! m3/kg
+
+    real(r8), pointer :: mmr(:,:)
+    real(r8) :: specdens              ! species density (kg/m3)
+
+    integer :: ispec
+
+    vol(:,:) = 0._r8
+
+    do ispec = 1, aero_props%nspecies(bin_idx)
+       call self%get_ambient_mmr(list_idx, ispec, bin_idx, mmr)
+       call aero_props%get(bin_idx, ispec, list_ndx=list_idx, density=specdens)
+       vol(:ncol,:) = vol(:ncol,:) + mmr(:ncol,:)/specdens
+    end do
+
+  end function dry_volume
+
+  !------------------------------------------------------------------------------
+  !------------------------------------------------------------------------------
+  function wet_volume(self, aero_props, list_idx, bin_idx, ncol, nlev) result(vol)
+
+    class(modal_aerosol_state), intent(in) :: self
+    class(aerosol_properties), intent(in) :: aero_props
+
+    integer, intent(in) :: list_idx            ! rad climate/diags list number
+    integer, intent(in) :: bin_idx
+    integer, intent(in) :: ncol
+    integer, intent(in) :: nlev
+
+    real(r8) :: vol(ncol,nlev)
+
+    real(r8) :: dryvol(ncol,nlev)
+    real(r8) :: watervol(ncol,nlev)
+
+    dryvol = self%dry_volume(aero_props, list_idx, bin_idx, ncol, nlev)
+    watervol = self%water_volume(aero_props, list_idx, bin_idx, ncol, nlev)
+
+    vol = watervol + dryvol
+
+  end function wet_volume
+
+  !------------------------------------------------------------------------------
+  !------------------------------------------------------------------------------
+  function water_volume(self, aero_props, list_idx, bin_idx, ncol, nlev) result(vol)
+
+    class(modal_aerosol_state), intent(in) :: self
+    class(aerosol_properties), intent(in) :: aero_props
+
+    integer, intent(in) :: list_idx            ! rad climate/diags list number
+    integer, intent(in) :: bin_idx
+    integer, intent(in) :: ncol
+    integer, intent(in) :: nlev
+
+    real(r8) :: vol(ncol,nlev)
+
+    real(r8),pointer :: dgnumwet(:,:)
+    real(r8),pointer :: qaerwat(:,:)
+
+    call self%water_uptake(aero_props, list_idx, bin_idx, ncol, nlev, dgnumwet, qaerwat)
+
+    vol(:ncol,:nlev) = qaerwat(:ncol,:nlev)/rhoh2o
+
+  end function water_volume
 
 end module modal_aerosol_state_mod

@@ -235,7 +235,7 @@ contains
             self%relh(icol,ilev), self%corefrac(icol,ilev), self%bcdust(icol,ilev), self%kappa(icol,ilev) ) ) &
             * pext(icol)
 
-       pasm = table_interp( self%tbl_relh, self%tbl_corefrac, self%tbl_bcdust, self%tbl_kap, &
+       pasm(icol) = table_interp( self%tbl_relh, self%tbl_corefrac, self%tbl_bcdust, self%tbl_kap, &
             self%sw_hygro_coreshell_asm(:,iwav,:,:,:), &
             self%relh(icol,ilev), self%corefrac(icol,ilev), self%bcdust(icol,ilev), self%kappa(icol,ilev) )
 

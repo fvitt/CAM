@@ -8,6 +8,8 @@ module carma_aerosol_state_mod
   use physics_types, only: physics_state
   use aerosol_properties_mod, only: aerosol_properties, aero_name_len
 
+  use physconst, only: pi
+
   implicit none
 
   private
@@ -36,6 +38,9 @@ module carma_aerosol_state_mod
      procedure :: hygroscopicity
      procedure :: water_uptake
      procedure :: wgtpct
+     procedure :: dry_volume
+     procedure :: wet_volume
+     procedure :: water_volume
 
      final :: destructor
 
@@ -44,6 +49,8 @@ module carma_aerosol_state_mod
   interface carma_aerosol_state
      procedure :: constructor
   end interface carma_aerosol_state
+
+  real(r8), parameter :: four_thirds_pi = pi * 4._r8 / 3._r8
 
 contains
 
@@ -381,5 +388,86 @@ contains
 
   end function wgtpct
 
+  !------------------------------------------------------------------------------
+  !------------------------------------------------------------------------------
+  function dry_volume(self, aero_props, list_idx, bin_idx, ncol, nlev) result(vol)
+
+    class(carma_aerosol_state), intent(in) :: self
+    class(aerosol_properties), intent(in) :: aero_props
+
+    integer, intent(in) :: list_idx            ! rad climate/diags list number
+    integer, intent(in) :: bin_idx
+    integer, intent(in) :: ncol
+    integer, intent(in) :: nlev
+
+    real(r8) :: vol(ncol,nlev)        ! m3/kg
+
+    real(r8), pointer :: dryr(:,:)
+    character(len=32) :: bin_name
+
+    vol = 0._r8
+
+    call rad_cnst_get_info_by_bin(list_idx, bin_idx, bin_name=bin_name)
+
+    call pbuf_get_field(self%pbuf, pbuf_get_index(trim(bin_name)//"_dryr"),dryr)
+
+    vol(:ncol,:) = four_thirds_pi * (dryr(:ncol,:)**3)
+
+  end function dry_volume
+
+  !------------------------------------------------------------------------------
+  !------------------------------------------------------------------------------
+  function wet_volume(self, aero_props, list_idx, bin_idx, ncol, nlev) result(vol)
+
+    class(carma_aerosol_state), intent(in) :: self
+    class(aerosol_properties), intent(in) :: aero_props
+
+    integer, intent(in) :: list_idx            ! rad climate/diags list number
+    integer, intent(in) :: bin_idx
+    integer, intent(in) :: ncol
+    integer, intent(in) :: nlev
+
+    real(r8) :: vol(ncol,nlev)
+
+    real(r8), pointer :: wetr(:,:)
+    character(len=32) :: bin_name
+
+    vol = 0._r8
+
+    call rad_cnst_get_info_by_bin(list_idx, bin_idx, bin_name=bin_name)
+
+    call pbuf_get_field(self%pbuf, pbuf_get_index(trim(bin_name)//"_wetr"),wetr)
+
+    vol(:ncol,:) = four_thirds_pi * (wetr(:ncol,:)**3)
+
+  end function wet_volume
+
+  !------------------------------------------------------------------------------
+  !------------------------------------------------------------------------------
+  function water_volume(self, aero_props, list_idx, bin_idx, ncol, nlev) result(vol)
+
+    class(carma_aerosol_state), intent(in) :: self
+    class(aerosol_properties), intent(in) :: aero_props
+
+    integer, intent(in) :: list_idx            ! rad climate/diags list number
+    integer, intent(in) :: bin_idx
+    integer, intent(in) :: ncol
+    integer, intent(in) :: nlev
+
+    real(r8) :: vol(ncol,nlev)
+
+    real(r8) :: wetvol(ncol,nlev)
+    real(r8) :: dryvol(ncol,nlev)
+
+    wetvol = self%wet_volume(aero_props, list_idx, bin_idx, ncol, nlev)
+    dryvol = self%dry_volume(aero_props, list_idx, bin_idx, ncol, nlev)
+
+    vol(:ncol,:) = wetvol(:ncol,:) - dryvol(:ncol,:)
+
+    where (vol<0._r8)
+       vol = 0._r8
+    end where
+
+  end function water_volume
 
 end module carma_aerosol_state_mod
