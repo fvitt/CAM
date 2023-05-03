@@ -126,7 +126,7 @@ subroutine modal_aer_opt_init()
    integer :: errcode
 
    character(len=*), parameter :: routine='modal_aer_opt_init'
-   character(len=10) :: fldname
+   character(len=12) :: fldname
    character(len=128) :: lngname
 
    real(r8) :: lwavlen_lo(nlwbands), lwavlen_hi(nlwbands)
@@ -240,43 +240,43 @@ subroutine modal_aer_opt_init()
 
    do m = 1, nmodes
 
-      write(fldname,'(a,i1)') 'BURDEN', m
-      write(lngname,'(a,i1)') 'Aerosol burden, day only, mode ', m
+      write(fldname,'(a,i2.2)') 'BURDEN', m
+      write(lngname,'(a,i2.2)') 'Aerosol burden, day only, mode ', m
       call addfld (fldname, horiz_only, 'A', 'kg/m2', lngname, flag_xyfill=.true.)
       if (m>3 .and. history_aero_optics) then
          call add_default (fldname, 1, ' ')
       endif
 
-      write(fldname,'(a,i1)') 'AODMODE', m
-      write(lngname,'(a,i1)') 'Aerosol optical depth, day only, 550 nm mode ', m
+      write(fldname,'(a,i2.2)') 'AOD', m
+      write(lngname,'(a,i2.2)') 'Aerosol optical depth, day only, 550 nm mode ', m
       call addfld (fldname, horiz_only, 'A', '  ', lngname, flag_xyfill=.true.)
       if (m>3 .and. history_aero_optics) then
          call add_default (fldname, 1, ' ')
       endif
 
-      write(fldname,'(a,i1)') 'AODDUST', m
-      write(lngname,'(a,i1,a)') 'Aerosol optical depth, day only, 550 nm mode ',m,' from dust'
+      write(fldname,'(a,i2.2)') 'AODDUST', m
+      write(lngname,'(a,i2.2,a)') 'Aerosol optical depth, day only, 550 nm mode ',m,' from dust'
       call addfld (fldname, horiz_only, 'A', '  ', lngname, flag_xyfill=.true.)
       if (m>3 .and. history_aero_optics) then
          call add_default (fldname, 1, ' ')
       endif
 
-      write(fldname,'(a,i1)') 'BURDENdn', m
-      write(lngname,'(a,i1)') 'Aerosol burden, day night, mode ', m
+      write(fldname,'(a,i2.2)') 'BURDENdn', m
+      write(lngname,'(a,i2.2)') 'Aerosol burden, day night, mode ', m
       call addfld (fldname, horiz_only, 'A', 'kg/m2', lngname, flag_xyfill=.true.)
       if (m>3 .and. history_aero_optics) then
          call add_default (fldname, 1, ' ')
       endif
 
-      write(fldname,'(a,i1)') 'AODdnMODE', m
-      write(lngname,'(a,i1)') 'Aerosol optical depth 550 nm, day night, mode ', m
+      write(fldname,'(a,i2.2)') 'AODdn', m
+      write(lngname,'(a,i2.2)') 'Aerosol optical depth 550 nm, day night, mode ', m
       call addfld (fldname, horiz_only, 'A', '  ', lngname, flag_xyfill=.true.)
       if (m>3 .and. history_aero_optics) then
          call add_default (fldname, 1, ' ')
       endif
 
-      write(fldname,'(a,i1)') 'AODdnDUST', m
-      write(lngname,'(a,i1,a)') 'Aerosol optical depth 550 nm, day night, mode ',m,' from dust'
+      write(fldname,'(a,i2.2)') 'AODdnDUST', m
+      write(lngname,'(a,i2.2,a)') 'Aerosol optical depth 550 nm, day night, mode ',m,' from dust'
       call addfld (fldname, horiz_only, 'A', '  ', lngname, flag_xyfill=.true.)
       if (m>3 .and. history_aero_optics) then
          call add_default (fldname, 1, ' ')
@@ -344,25 +344,25 @@ subroutine modal_aer_opt_init()
 
 
    if (history_amwg) then
-      call add_default ('AODDUST1'     , 1, ' ')
-      call add_default ('AODDUST3'     , 1, ' ')
+      call add_default ('AODDUST01'     , 1, ' ')
+      call add_default ('AODDUST03'     , 1, ' ')
       call add_default ('AODDUST'      , 1, ' ')
       call add_default ('AODVIS'       , 1, ' ')
    end if
 
    if (history_dust) then
-      call add_default ('AODDUST1'     , 1, ' ')
-      call add_default ('AODDUST2'     , 1, ' ')
-      call add_default ('AODDUST3'     , 1, ' ')
+      call add_default ('AODDUST01'     , 1, ' ')
+      call add_default ('AODDUST02'     , 1, ' ')
+      call add_default ('AODDUST03'     , 1, ' ')
    end if
 
    if (history_aero_optics) then
-      call add_default ('AODDUST1'     , 1, ' ')
-      call add_default ('AODDUST3'     , 1, ' ')
+      call add_default ('AODDUST01'     , 1, ' ')
+      call add_default ('AODDUST03'     , 1, ' ')
       call add_default ('ABSORB'       , 1, ' ')
-      call add_default ('AODMODE1'     , 1, ' ')
-      call add_default ('AODMODE2'     , 1, ' ')
-      call add_default ('AODMODE3'     , 1, ' ')
+      call add_default ('AOD01'     , 1, ' ')
+      call add_default ('AOD02'     , 1, ' ')
+      call add_default ('AOD03'     , 1, ' ')
       call add_default ('AODVIS'       , 1, ' ')
       call add_default ('AODUV'        , 1, ' ')
       call add_default ('AODNIR'       , 1, ' ')
@@ -374,9 +374,9 @@ subroutine modal_aer_opt_init()
       call add_default ('AODSOA'       , 1, ' ')
       call add_default ('AODBC'        , 1, ' ')
       call add_default ('AODSS'        , 1, ' ')
-      call add_default ('BURDEN1'      , 1, ' ')
-      call add_default ('BURDEN2'      , 1, ' ')
-      call add_default ('BURDEN3'      , 1, ' ')
+      call add_default ('BURDEN01'      , 1, ' ')
+      call add_default ('BURDEN02'      , 1, ' ')
+      call add_default ('BURDEN03'      , 1, ' ')
       call add_default ('BURDENDUST'   , 1, ' ')
       call add_default ('BURDENSO4'    , 1, ' ')
       call add_default ('BURDENPOM'    , 1, ' ')
@@ -388,12 +388,12 @@ subroutine modal_aer_opt_init()
       call add_default ('AODxASYM'     , 1, ' ')
       call add_default ('EXTxASYM'     , 1, ' ')
 
-      call add_default ('AODdnDUST1'     , 1, ' ')
-      call add_default ('AODdnDUST3'     , 1, ' ')
+      call add_default ('AODdnDUST01'     , 1, ' ')
+      call add_default ('AODdnDUST03'     , 1, ' ')
       call add_default ('ABSORBdn'       , 1, ' ')
-      call add_default ('AODdnMODE1'     , 1, ' ')
-      call add_default ('AODdnMODE2'     , 1, ' ')
-      call add_default ('AODdnMODE3'     , 1, ' ')
+      call add_default ('AODdn01'     , 1, ' ')
+      call add_default ('AODdn02'     , 1, ' ')
+      call add_default ('AODdn03'     , 1, ' ')
       call add_default ('AODVISdn'       , 1, ' ')
       call add_default ('AODUVdn'        , 1, ' ')
       call add_default ('AODNIRdn'       , 1, ' ')
@@ -405,9 +405,9 @@ subroutine modal_aer_opt_init()
       call add_default ('AODSOAdn'       , 1, ' ')
       call add_default ('AODBCdn'        , 1, ' ')
       call add_default ('AODSSdn'        , 1, ' ')
-      call add_default ('BURDENdn1'      , 1, ' ')
-      call add_default ('BURDENdn2'      , 1, ' ')
-      call add_default ('BURDENdn3'      , 1, ' ')
+      call add_default ('BURDENdn01'      , 1, ' ')
+      call add_default ('BURDENdn02'      , 1, ' ')
+      call add_default ('BURDENdn03'      , 1, ' ')
       call add_default ('BURDENDUSTdn'   , 1, ' ')
       call add_default ('BURDENSO4dn'    , 1, ' ')
       call add_default ('BURDENPOMdn'    , 1, ' ')
@@ -1043,13 +1043,13 @@ subroutine modal_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
       ! be necessary to provide output for the rad_diag lists.
       if (list_idx == 0) then
 
-         write(outname,'(a,i1)') 'BURDENdn', m
+         write(outname,'(a,i2.2)') 'BURDENdn', m
          call outfld(trim(outname), burden, pcols, lchnk)
 
-         write(outname,'(a,i1)') 'AODdnMODE', m
+         write(outname,'(a,i2.2)') 'AODdn', m
          call outfld(trim(outname), aodmode, pcols, lchnk)
 
-         write(outname,'(a,i1)') 'AODdnDUST', m
+         write(outname,'(a,i2.2)') 'AODdnDUST', m
          call outfld(trim(outname), dustaodmode, pcols, lchnk)
 
          do i = 1, nnite
@@ -1058,13 +1058,13 @@ subroutine modal_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
             dustaodmode(idxnite(i)) = fillvalue
          end do
 
-         write(outname,'(a,i1)') 'BURDEN', m
+         write(outname,'(a,i2.2)') 'BURDEN', m
          call outfld(trim(outname), burden, pcols, lchnk)
 
-         write(outname,'(a,i1)') 'AODMODE', m
+         write(outname,'(a,i2.2)') 'AOD', m
          call outfld(trim(outname), aodmode, pcols, lchnk)
 
-         write(outname,'(a,i1)') 'AODDUST', m
+         write(outname,'(a,i2.2)') 'AODDUST', m
          call outfld(trim(outname), dustaodmode, pcols, lchnk)
 
       end if

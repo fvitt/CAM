@@ -221,7 +221,7 @@ subroutine coreshell_aer_opt_init()
          call add_default (fldname, 1, ' ')
       end if
 
-      write(fldname,'(a,i2.2)') 'AODBIN', m
+      write(fldname,'(a,i2.2)') 'AOD', m
       write(lngname,'(a,i2)') 'Aerosol optical depth, day only, 550 nm bin ', m
       call addfld (fldname, horiz_only, 'A', '  ', lngname, flag_xyfill=.true.)
       if (history_aero_optics) then
@@ -242,7 +242,7 @@ subroutine coreshell_aer_opt_init()
          call add_default (fldname, 1, ' ')
       end if
 
-      write(fldname,'(a,i2.2)') 'AODdnBIN', m
+      write(fldname,'(a,i2.2)') 'AODdn', m
       write(lngname,'(a,i2)') 'Aerosol optical depth 550 nm, day night, bin ', m
       call addfld (fldname, horiz_only, 'A', '  ', lngname, flag_xyfill=.true.)
       if (history_aero_optics) then
@@ -1152,7 +1152,7 @@ subroutine coreshell_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
         write(outname,'(a,i2.2)') 'BURDENdn', m
         call outfld(trim(outname), burden, pcols, lchnk)
 
-        write(outname,'(a,i2.2)') 'AODdnBIN', m
+        write(outname,'(a,i2.2)') 'AODdn', m
         call outfld(trim(outname), aodbin, pcols, lchnk)
 
         write(outname,'(a,i2.2)') 'AODdnDUST', m
@@ -1171,7 +1171,7 @@ subroutine coreshell_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
         write(outname,'(a,i2.2)') 'AODDUST', m
         call outfld(trim(outname), dustaodbin, pcols, lchnk)
 
-        write(outname,'(a,i2.2)') 'AODBIN', m
+        write(outname,'(a,i2.2)') 'AOD', m
         call outfld(trim(outname), aodbin, pcols, lchnk)
      end if
 
