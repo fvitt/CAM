@@ -414,8 +414,6 @@ contains
    call addfld ('SSAVISdntest',        horiz_only, 'A','  ',    'Aerosol single-scatter albedo, day night',                  &
         flag_xyfill=.true.)
 
-
-
   end subroutine aerosol_optics_cam_init
 
   !===============================================================================
@@ -668,24 +666,7 @@ contains
 
                    call aero_optics%sw_props(ncol, ilev, iwav, pext, pabs, palb, pasm )
 
-                   scatdust(:ncol)  = 0._r8
-                   absdust(:ncol)   = 0._r8
-                   hygrodust(:ncol) = 0._r8
-                   scatsulf(:ncol)  = 0._r8
-                   abssulf(:ncol)   = 0._r8
-                   hygrosulf(:ncol) = 0._r8
-                   scatbc(:ncol)    = 0._r8
-                   absbc(:ncol)     = 0._r8
-                   hygrobc(:ncol)   = 0._r8
-                   scatpom(:ncol)   = 0._r8
-                   abspom(:ncol)    = 0._r8
-                   hygropom(:ncol)  = 0._r8
-                   scatsoa(:ncol)   = 0._r8
-                   abssoa(:ncol)    = 0._r8
-                   hygrosoa(:ncol)  = 0._r8
-                   scatsslt(:ncol)  = 0._r8
-                   abssslt(:ncol)   = 0._r8
-                   hygrosslt(:ncol) = 0._r8
+                   call init_diags
 
                    Column: do icol = 1,ncol
                       dopaer(icol) = pext(icol)*mass(icol,ilev)
@@ -694,136 +675,7 @@ contains
                       ga(icol,ilev,iwav) = ga(icol,ilev,iwav) + dopaer(icol)*palb(icol)*pasm(icol)
                       fa(icol,ilev,iwav) = fa(icol,ilev,iwav) + dopaer(icol)*palb(icol)*pasm(icol)*pasm(icol)
 
-                      if (iwav==idx_uv_diag) then
-                         aoduv(icol) = aoduv(icol) + dopaer(icol)
-                         extinctuv(icol,ilev) = extinctuv(icol,ilev) + dopaer(icol)*air_density(icol,ilev)/mass(icol,ilev)
-                      else if (iwav==idx_sw_diag) then ! vis
-                         aodvis(icol) = aodvis(icol) + dopaer(icol)
-                         aodabs(icol) = aodabs(icol) + pabs(icol)*mass(icol,ilev)
-                         extinct(icol,ilev) = extinct(icol,ilev) + dopaer(icol)*air_density(icol,ilev)/mass(icol,ilev)
-                         absorb(icol,ilev)  = absorb(icol,ilev) + pabs(icol)*air_density(icol,ilev)
-                         ssavis(icol)       = ssavis(icol) + dopaer(icol)*palb(icol)
-                         asymvis(icol)      = asymvis(icol) + dopaer(icol)*pasm(icol)
-                         asymext(icol,ilev) = asymext(icol,ilev) + dopaer(icol)*pasm(icol)*air_density(icol,ilev)/mass(icol,ilev)
-
-                         aodbin(icol) = aodbin(icol) + dopaer(icol)
-
-                         if (ilev.le.troplev(icol)) then
-                            aodvisst(icol) = aodvisst(icol) + dopaer(icol)
-                         end if
-
-                      ! loop over species ...
-
-                         do ispec = 1, aeroprops%nspecies(ibin)
-                            call aeroprops%get(ibin, ispec, list_ndx=list_idx, density=specdens, &
-                                 spectype=spectype, refindex_sw=specrefindex, hygro=hygro_aer)
-                            call aerostate%get_ambient_mmr(list_idx, ispec, ibin, specmmr)
-
-                            burden(icol) = burden(icol) + specmmr(icol,ilev)*mass(icol,ilev)
-
-                            vol(icol) = specmmr(icol,ilev)/specdens
-
-                            select case ( trim(spectype) )
-                            case('dust')
-                               dustvol(icol) = vol(icol)
-                               burdendust(icol) = burdendust(icol) + specmmr(icol,ilev)*mass(icol,ilev)
-                               scatdust(icol) = vol(icol) * specrefindex(iwav)%re
-                               absdust(icol)  =-vol(icol) * specrefindex(iwav)%im
-                               hygrodust(icol)= vol(icol)*hygro_aer
-                            case('black-c')
-                               burdenbc(icol) = burdenbc(icol) + specmmr(icol,ilev)*mass(icol,ilev)
-                               scatbc(icol) = vol(icol) * specrefindex(iwav)%re
-                               absbc(icol)  =-vol(icol) * specrefindex(iwav)%im
-                               hygrobc(icol)= vol(icol)*hygro_aer
-                            case('sulfate')
-                               burdenso4(icol) = burdenso4(icol) + specmmr(icol,ilev)*mass(icol,ilev)
-                               scatsulf(icol) = vol(icol) * specrefindex(iwav)%re
-                               abssulf(icol)  =-vol(icol) * specrefindex(iwav)%im
-                               hygrosulf(icol)= vol(icol)*hygro_aer
-                            case('p-organic')
-                               burdenpom(icol) = burdenpom(icol) + specmmr(icol,ilev)*mass(icol,ilev)
-                               scatpom(icol) = vol(icol) * specrefindex(iwav)%re
-                               abspom(icol)  =-vol(icol) * specrefindex(iwav)%im
-                               hygropom(icol)= vol(icol)*hygro_aer
-                            case('s-organic')
-                               burdensoa(icol) = burdensoa(icol) + specmmr(icol,ilev)*mass(icol,ilev)
-                               scatsoa(icol) = vol(icol) * specrefindex(iwav)%re
-                               abssoa(icol) = -vol(icol) * specrefindex(iwav)%im
-                               hygrosoa(icol)= vol(icol)*hygro_aer
-                            case('seasalt')
-                               burdenseasalt(icol) = burdenseasalt(icol) + specmmr(icol,ilev)*mass(icol,ilev)
-                               scatsslt(icol) = vol(icol) * specrefindex(iwav)%re
-                               abssslt(icol) = -vol(icol) * specrefindex(iwav)%im
-                               hygrosslt(icol)= vol(icol)*hygro_aer
-                           end select
-                         end do
-
-                         if (wetvol(icol,ilev) > 1.e-40_r8) then
-
-                            dustaodbin(icol) = dustaodbin(icol) + dopaer(icol)*dustvol(icol)/wetvol(icol,ilev)
-
-                            ! partition optical depth into contributions from each constituent
-                            ! assume contribution is proportional to refractive index X volume
-
-                            scath2o = watervol(icol,ilev)*crefwsw(iwav)%re
-                            absh2o = -watervol(icol,ilev)*crefwsw(iwav)%im
-                            sumscat = scatsulf(icol) + scatpom(icol) + scatsoa(icol) + scatbc(icol) + &
-                                      scatdust(icol) + scatsslt(icol) + scath2o
-                            sumabs  = abssulf(icol) + abspom(icol) + abssoa(icol) + absbc(icol) + &
-                                      absdust(icol) + abssslt(icol) + absh2o
-                            sumhygro = hygrosulf(icol) + hygropom(icol) + hygrosoa(icol) + hygrobc(icol) + &
-                                       hygrodust(icol) + hygrosslt(icol)
-
-                            scatdust(icol) = (scatdust(icol) + scath2o*hygrodust(icol)/sumhygro)/sumscat
-                            absdust(icol)  = (absdust(icol) + absh2o*hygrodust(icol)/sumhygro)/sumabs
-
-                            scatsulf(icol) = (scatsulf(icol) + scath2o*hygrosulf(icol)/sumhygro)/sumscat
-                            abssulf(icol)  = (abssulf(icol) + absh2o*hygrosulf(icol)/sumhygro)/sumabs
-
-                            scatpom(icol) = (scatpom(icol) + scath2o*hygropom(icol)/sumhygro)/sumscat
-                            abspom(icol)  = (abspom(icol) + absh2o*hygropom(icol)/sumhygro)/sumabs
-
-                            scatsoa(icol) = (scatsoa(icol) + scath2o*hygrosoa(icol)/sumhygro)/sumscat
-                            abssoa(icol)  = (abssoa(icol) + absh2o*hygrosoa(icol)/sumhygro)/sumabs
-
-                            scatbc(icol)= (scatbc(icol) + scath2o*hygrobc(icol)/sumhygro)/sumscat
-                            absbc(icol)  = (absbc(icol) +  absh2o*hygrobc(icol)/sumhygro)/sumabs
-
-                            scatsslt(icol) = (scatsslt(icol) + scath2o*hygrosslt(icol)/sumhygro)/sumscat
-                            abssslt(icol)  = (abssslt(icol) + absh2o*hygrosslt(icol)/sumhygro)/sumabs
-
-
-                            aodabsbc(icol) = aodabsbc(icol) + absbc(icol)*dopaer(icol)*(1.0_r8-palb(icol))
-
-
-
-                            aodc          = (absdust(icol)*(1.0_r8 - palb(icol)) + palb(icol)*scatdust(icol))*dopaer(icol)
-                            dustaod(icol) = dustaod(icol) + aodc
-
-                            aodc          = (abssulf(icol)*(1.0_r8 - palb(icol)) + palb(icol)*scatsulf(icol))*dopaer(icol)
-                            sulfaod(icol) = sulfaod(icol) + aodc
-
-                            aodc          = (abspom(icol)*(1.0_r8 - palb(icol)) + palb(icol)*scatpom(icol))*dopaer(icol)
-                            pomaod(icol)  = pomaod(icol) + aodc
-
-                            aodc          = (abssoa(icol)*(1.0_r8 - palb(icol)) + palb(icol)*scatsoa(icol))*dopaer(icol)
-                            soaaod(icol)  = soaaod(icol) + aodc
-
-                            aodc          = (absbc(icol)*(1.0_r8 - palb(icol)) + palb(icol)*scatbc(icol))*dopaer(icol)
-                            bcaod(icol)   = bcaod(icol) + aodc
-
-                            aodc          = (abssslt(icol)*(1.0_r8 - palb(icol)) + palb(icol)*scatsslt(icol))*dopaer(icol)
-                            ssltaod(icol) = ssltaod(icol) + aodc
-
-
-                         end if
-
-                      else if (iwav==idx_nir_diag) then
-                         aodnir(icol) = aodnir(icol) + dopaer(icol)
-                         extinctnir(icol,ilev) = extinctnir(icol,ilev) + dopaer(icol)*air_density(icol,ilev)/mass(icol,ilev)
-                      end if
-
-                      aodtot(icol) = aodtot(icol) + dopaer(icol)
+                      call update_diags
 
                    end do column
 
@@ -837,142 +689,12 @@ contains
           deallocate(aero_optics)
           nullify(aero_optics)
 
-          if (list_idx == 0) then
-
-             call outfld(burdendn_fields(iaermod)%name(ibin), burden, pcols, lchnk)
-             call outfld(aoddustdn_fields(iaermod)%name(ibin), dustaodbin, pcols, lchnk)
-             call outfld(aodbindn_fields(iaermod)%name(ibin),      aodbin, pcols, lchnk)
-
-             do icol = 1, nnite
-                burden(idxnite(icol))  = fillvalue
-                aodbin(idxnite(icol)) = fillvalue
-                dustaodbin(idxnite(icol)) = fillvalue
-             end do
-
-             call outfld(burden_fields(iaermod)%name(ibin), burden, pcols, lchnk)
-             call outfld(aoddust_fields(iaermod)%name(ibin), dustaodbin, pcols, lchnk)
-             call outfld(aodbin_fields(iaermod)%name(ibin),      aodbin, pcols, lchnk)
-
-          endif
+          call output_bin_diags
 
        end do binloop
     end do aeromodel
 
-    call outfld('AODUVdntest'//diag(list_idx),  aoduv,  pcols, lchnk)
-    call outfld('AODVISdntest'//diag(list_idx), aodvis, pcols, lchnk)
-    call outfld('AODABSdntest'//diag(list_idx),     aodabs,  pcols, lchnk)
-
-    call outfld('AODNIRdntest'//diag(list_idx), aodnir, pcols, lchnk)
-    call outfld('AODABSdntest'//diag(list_idx), aodabs, pcols, lchnk)
-    call outfld('AODTOTdntest'//diag(list_idx), aodtot, pcols, lchnk)
-    call outfld('EXTINCTUVdntest'//diag(list_idx),  extinctuv,  pcols, lchnk)
-    call outfld('EXTINCTNIRdntest'//diag(list_idx), extinctnir, pcols, lchnk)
-    call outfld('EXTINCTdntest'//diag(list_idx),  extinct,  pcols, lchnk)
-    call outfld('ABSORBdntest'//diag(list_idx),   absorb,  pcols, lchnk)
-    call outfld('EXTxASYMdntest'//diag(list_idx), asymext, pcols, lchnk)
-    call outfld('AODxASYMdntest'//diag(list_idx), asymvis, pcols, lchnk)
-
-    call outfld('AODVISstdntest'//diag(list_idx), aodvisst,pcols, lchnk)
-
-    do icol = 1, nnite
-       aodvis(idxnite(icol)) = fillvalue
-       aodnir(idxnite(icol)) = fillvalue
-       aoduv(idxnite(icol)) = fillvalue
-       aodabs(idxnite(icol)) = fillvalue
-       aodtot(idxnite(icol)) = fillvalue
-       extinct(idxnite(icol),:) = fillvalue
-       extinctnir(idxnite(icol),:) = fillvalue
-       extinctuv(idxnite(icol),:) = fillvalue
-       absorb(idxnite(icol),:)  = fillvalue
-       asymext(idxnite(icol),:) = fillvalue
-       asymvis(idxnite(icol)) = fillvalue
-       aodabs(idxnite(icol))    = fillvalue
-       aodvisst(idxnite(icol))  = fillvalue
-    end do
-
-    call outfld('AODUVtest'//diag(list_idx),  aoduv,  pcols, lchnk)
-    call outfld('AODVIStest'//diag(list_idx), aodvis, pcols, lchnk)
-    call outfld('AODABStest'//diag(list_idx), aodabs,  pcols, lchnk)
-    call outfld('AODNIRtest'//diag(list_idx), aodnir, pcols, lchnk)
-    call outfld('AODABStest'//diag(list_idx), aodabs, pcols, lchnk)
-    call outfld('AODTOTtest'//diag(list_idx), aodtot, pcols, lchnk)
-    call outfld('EXTINCTUVtest'//diag(list_idx),  extinctuv,  pcols, lchnk)
-    call outfld('EXTINCTNIRtest'//diag(list_idx), extinctnir, pcols, lchnk)
-    call outfld('EXTINCTtest'//diag(list_idx),  extinct,  pcols, lchnk)
-    call outfld('ABSORBtest'//diag(list_idx),   absorb,  pcols, lchnk)
-    call outfld('EXTxASYMtest'//diag(list_idx), asymext, pcols, lchnk)
-    call outfld('AODxASYMtest'//diag(list_idx), asymvis, pcols, lchnk)
-    call outfld('AODVISsttest'//diag(list_idx), aodvisst,pcols, lchnk)
-
-    ! These diagnostics are output only for climate list
-    if (list_idx == 0) then
-       do icol = 1, ncol
-          if (aodvis(icol) > 1.e-10_r8) then
-             ssavis(icol) = ssavis(icol)/aodvis(icol)
-          else
-             ssavis(icol) = 0.925_r8
-          endif
-       end do
-       call outfld('SSAVISdntest',        ssavis,        pcols, lchnk)
-
-       call outfld('BURDENDUSTdntest',    burdendust,    pcols, lchnk)
-       call outfld('BURDENSO4dntest' ,    burdenso4,     pcols, lchnk)
-       call outfld('BURDENPOMdntest' ,    burdenpom,     pcols, lchnk)
-       call outfld('BURDENSOAdntest' ,    burdensoa,     pcols, lchnk)
-       call outfld('BURDENBCdntest'  ,    burdenbc,      pcols, lchnk)
-       call outfld('BURDENSEASALTdntest', burdenseasalt, pcols, lchnk)
-
-       call outfld('AODABSBCdntest',      aodabsbc,      pcols, lchnk)
-
-       call outfld('AODDUSTdntest',       dustaod,       pcols, lchnk)
-       call outfld('AODSO4dntest',        sulfaod,       pcols, lchnk)
-       call outfld('AODPOMdntest',        pomaod,        pcols, lchnk)
-       call outfld('AODSOAdntest',        soaaod,        pcols, lchnk)
-       call outfld('AODBCdntest',         bcaod,         pcols, lchnk)
-       call outfld('AODSSdntest',         ssltaod,       pcols, lchnk)
-
-
-       do icol = 1, nnite
-
-          ssavis(idxnite(icol))     = fillvalue
-          asymvis(idxnite(icol))    = fillvalue
-
-          burdendust(idxnite(icol)) = fillvalue
-          burdenso4(idxnite(icol))  = fillvalue
-          burdenpom(idxnite(icol))  = fillvalue
-          burdensoa(idxnite(icol))  = fillvalue
-          burdenbc(idxnite(icol))   = fillvalue
-          burdenseasalt(idxnite(icol)) = fillvalue
-          aodabsbc(idxnite(icol)) = fillvalue
-
-          dustaod(idxnite(icol))    = fillvalue
-          sulfaod(idxnite(icol))     = fillvalue
-          pomaod(idxnite(icol))     = fillvalue
-          soaaod(idxnite(icol))     = fillvalue
-          bcaod(idxnite(icol))      = fillvalue
-          ssltaod(idxnite(icol)) = fillvalue
-
-       end do
-
-       call outfld('AODxASYMtest',      asymvis,       pcols, lchnk)
-
-       call outfld('BURDENDUSTtest',    burdendust,    pcols, lchnk)
-       call outfld('BURDENSO4test' ,    burdenso4,     pcols, lchnk)
-       call outfld('BURDENPOMtest' ,    burdenpom,     pcols, lchnk)
-       call outfld('BURDENSOAtest' ,    burdensoa,     pcols, lchnk)
-       call outfld('BURDENBCtest'  ,    burdenbc,      pcols, lchnk)
-       call outfld('BURDENSEASALTtest', burdenseasalt, pcols, lchnk)
-
-       call outfld('AODABSBCtest',      aodabsbc,      pcols, lchnk)
-
-       call outfld('AODDUSTtest',       dustaod,       pcols, lchnk)
-       call outfld('AODSO4test',        sulfaod,       pcols, lchnk)
-       call outfld('AODPOMtest',        pomaod,        pcols, lchnk)
-       call outfld('AODSOAtest',        soaaod,        pcols, lchnk)
-       call outfld('AODBCtest',         bcaod,         pcols, lchnk)
-       call outfld('AODSStest',         ssltaod,       pcols, lchnk)
-
-    end if
+    call output_tot_diags
 
     deallocate(pext)
     deallocate(pabs)
@@ -985,6 +707,308 @@ contains
     end do
 
     deallocate(aero_state)
+
+  contains
+
+    !===============================================================================
+    subroutine init_diags
+      scatdust(:ncol)  = 0._r8
+      absdust(:ncol)   = 0._r8
+      hygrodust(:ncol) = 0._r8
+      scatsulf(:ncol)  = 0._r8
+      abssulf(:ncol)   = 0._r8
+      hygrosulf(:ncol) = 0._r8
+      scatbc(:ncol)    = 0._r8
+      absbc(:ncol)     = 0._r8
+      hygrobc(:ncol)   = 0._r8
+      scatpom(:ncol)   = 0._r8
+      abspom(:ncol)    = 0._r8
+      hygropom(:ncol)  = 0._r8
+      scatsoa(:ncol)   = 0._r8
+      abssoa(:ncol)    = 0._r8
+      hygrosoa(:ncol)  = 0._r8
+      scatsslt(:ncol)  = 0._r8
+      abssslt(:ncol)   = 0._r8
+      hygrosslt(:ncol) = 0._r8
+    end subroutine init_diags
+
+    !===============================================================================
+    subroutine update_diags
+
+      if (iwav==idx_uv_diag) then
+         aoduv(icol) = aoduv(icol) + dopaer(icol)
+         extinctuv(icol,ilev) = extinctuv(icol,ilev) + dopaer(icol)*air_density(icol,ilev)/mass(icol,ilev)
+      else if (iwav==idx_sw_diag) then ! vis
+         aodvis(icol) = aodvis(icol) + dopaer(icol)
+         aodabs(icol) = aodabs(icol) + pabs(icol)*mass(icol,ilev)
+         extinct(icol,ilev) = extinct(icol,ilev) + dopaer(icol)*air_density(icol,ilev)/mass(icol,ilev)
+         absorb(icol,ilev)  = absorb(icol,ilev) + pabs(icol)*air_density(icol,ilev)
+         ssavis(icol)       = ssavis(icol) + dopaer(icol)*palb(icol)
+         asymvis(icol)      = asymvis(icol) + dopaer(icol)*pasm(icol)
+         asymext(icol,ilev) = asymext(icol,ilev) + dopaer(icol)*pasm(icol)*air_density(icol,ilev)/mass(icol,ilev)
+
+         aodbin(icol) = aodbin(icol) + dopaer(icol)
+
+         if (ilev.le.troplev(icol)) then
+            aodvisst(icol) = aodvisst(icol) + dopaer(icol)
+         end if
+
+         ! loop over species ...
+
+         do ispec = 1, aeroprops%nspecies(ibin)
+            call aeroprops%get(ibin, ispec, list_ndx=list_idx, density=specdens, &
+                 spectype=spectype, refindex_sw=specrefindex, hygro=hygro_aer)
+            call aerostate%get_ambient_mmr(list_idx, ispec, ibin, specmmr)
+
+            burden(icol) = burden(icol) + specmmr(icol,ilev)*mass(icol,ilev)
+
+            vol(icol) = specmmr(icol,ilev)/specdens
+
+            select case ( trim(spectype) )
+            case('dust')
+               dustvol(icol) = vol(icol)
+               burdendust(icol) = burdendust(icol) + specmmr(icol,ilev)*mass(icol,ilev)
+               scatdust(icol) = vol(icol) * specrefindex(iwav)%re
+               absdust(icol)  =-vol(icol) * specrefindex(iwav)%im
+               hygrodust(icol)= vol(icol)*hygro_aer
+            case('black-c')
+               burdenbc(icol) = burdenbc(icol) + specmmr(icol,ilev)*mass(icol,ilev)
+               scatbc(icol) = vol(icol) * specrefindex(iwav)%re
+               absbc(icol)  =-vol(icol) * specrefindex(iwav)%im
+               hygrobc(icol)= vol(icol)*hygro_aer
+            case('sulfate')
+               burdenso4(icol) = burdenso4(icol) + specmmr(icol,ilev)*mass(icol,ilev)
+               scatsulf(icol) = vol(icol) * specrefindex(iwav)%re
+               abssulf(icol)  =-vol(icol) * specrefindex(iwav)%im
+               hygrosulf(icol)= vol(icol)*hygro_aer
+            case('p-organic')
+               burdenpom(icol) = burdenpom(icol) + specmmr(icol,ilev)*mass(icol,ilev)
+               scatpom(icol) = vol(icol) * specrefindex(iwav)%re
+               abspom(icol)  =-vol(icol) * specrefindex(iwav)%im
+               hygropom(icol)= vol(icol)*hygro_aer
+            case('s-organic')
+               burdensoa(icol) = burdensoa(icol) + specmmr(icol,ilev)*mass(icol,ilev)
+               scatsoa(icol) = vol(icol) * specrefindex(iwav)%re
+               abssoa(icol) = -vol(icol) * specrefindex(iwav)%im
+               hygrosoa(icol)= vol(icol)*hygro_aer
+            case('seasalt')
+               burdenseasalt(icol) = burdenseasalt(icol) + specmmr(icol,ilev)*mass(icol,ilev)
+               scatsslt(icol) = vol(icol) * specrefindex(iwav)%re
+               abssslt(icol) = -vol(icol) * specrefindex(iwav)%im
+               hygrosslt(icol)= vol(icol)*hygro_aer
+            end select
+         end do
+
+         if (wetvol(icol,ilev) > 1.e-40_r8) then
+
+            dustaodbin(icol) = dustaodbin(icol) + dopaer(icol)*dustvol(icol)/wetvol(icol,ilev)
+
+            ! partition optical depth into contributions from each constituent
+            ! assume contribution is proportional to refractive index X volume
+
+            scath2o = watervol(icol,ilev)*crefwsw(iwav)%re
+            absh2o = -watervol(icol,ilev)*crefwsw(iwav)%im
+            sumscat = scatsulf(icol) + scatpom(icol) + scatsoa(icol) + scatbc(icol) + &
+                 scatdust(icol) + scatsslt(icol) + scath2o
+            sumabs  = abssulf(icol) + abspom(icol) + abssoa(icol) + absbc(icol) + &
+                 absdust(icol) + abssslt(icol) + absh2o
+            sumhygro = hygrosulf(icol) + hygropom(icol) + hygrosoa(icol) + hygrobc(icol) + &
+                 hygrodust(icol) + hygrosslt(icol)
+
+            scatdust(icol) = (scatdust(icol) + scath2o*hygrodust(icol)/sumhygro)/sumscat
+            absdust(icol)  = (absdust(icol) + absh2o*hygrodust(icol)/sumhygro)/sumabs
+
+            scatsulf(icol) = (scatsulf(icol) + scath2o*hygrosulf(icol)/sumhygro)/sumscat
+            abssulf(icol)  = (abssulf(icol) + absh2o*hygrosulf(icol)/sumhygro)/sumabs
+
+            scatpom(icol) = (scatpom(icol) + scath2o*hygropom(icol)/sumhygro)/sumscat
+            abspom(icol)  = (abspom(icol) + absh2o*hygropom(icol)/sumhygro)/sumabs
+
+            scatsoa(icol) = (scatsoa(icol) + scath2o*hygrosoa(icol)/sumhygro)/sumscat
+            abssoa(icol)  = (abssoa(icol) + absh2o*hygrosoa(icol)/sumhygro)/sumabs
+
+            scatbc(icol)= (scatbc(icol) + scath2o*hygrobc(icol)/sumhygro)/sumscat
+            absbc(icol)  = (absbc(icol) +  absh2o*hygrobc(icol)/sumhygro)/sumabs
+
+            scatsslt(icol) = (scatsslt(icol) + scath2o*hygrosslt(icol)/sumhygro)/sumscat
+            abssslt(icol)  = (abssslt(icol) + absh2o*hygrosslt(icol)/sumhygro)/sumabs
+
+
+            aodabsbc(icol) = aodabsbc(icol) + absbc(icol)*dopaer(icol)*(1.0_r8-palb(icol))
+
+
+
+            aodc          = (absdust(icol)*(1.0_r8 - palb(icol)) + palb(icol)*scatdust(icol))*dopaer(icol)
+            dustaod(icol) = dustaod(icol) + aodc
+
+            aodc          = (abssulf(icol)*(1.0_r8 - palb(icol)) + palb(icol)*scatsulf(icol))*dopaer(icol)
+            sulfaod(icol) = sulfaod(icol) + aodc
+
+            aodc          = (abspom(icol)*(1.0_r8 - palb(icol)) + palb(icol)*scatpom(icol))*dopaer(icol)
+            pomaod(icol)  = pomaod(icol) + aodc
+
+            aodc          = (abssoa(icol)*(1.0_r8 - palb(icol)) + palb(icol)*scatsoa(icol))*dopaer(icol)
+            soaaod(icol)  = soaaod(icol) + aodc
+
+            aodc          = (absbc(icol)*(1.0_r8 - palb(icol)) + palb(icol)*scatbc(icol))*dopaer(icol)
+            bcaod(icol)   = bcaod(icol) + aodc
+
+            aodc          = (abssslt(icol)*(1.0_r8 - palb(icol)) + palb(icol)*scatsslt(icol))*dopaer(icol)
+            ssltaod(icol) = ssltaod(icol) + aodc
+
+         end if
+      else if (iwav==idx_nir_diag) then
+         aodnir(icol) = aodnir(icol) + dopaer(icol)
+         extinctnir(icol,ilev) = extinctnir(icol,ilev) + dopaer(icol)*air_density(icol,ilev)/mass(icol,ilev)
+      end if
+
+      aodtot(icol) = aodtot(icol) + dopaer(icol)
+
+    end subroutine update_diags
+
+    !===============================================================================
+    subroutine output_bin_diags
+
+      if (list_idx == 0) then
+
+         call outfld(burdendn_fields(iaermod)%name(ibin), burden, pcols, lchnk)
+         call outfld(aoddustdn_fields(iaermod)%name(ibin), dustaodbin, pcols, lchnk)
+         call outfld(aodbindn_fields(iaermod)%name(ibin),      aodbin, pcols, lchnk)
+
+         do icol = 1, nnite
+            burden(idxnite(icol))  = fillvalue
+            aodbin(idxnite(icol)) = fillvalue
+            dustaodbin(idxnite(icol)) = fillvalue
+         end do
+
+         call outfld(burden_fields(iaermod)%name(ibin), burden, pcols, lchnk)
+         call outfld(aoddust_fields(iaermod)%name(ibin), dustaodbin, pcols, lchnk)
+         call outfld(aodbin_fields(iaermod)%name(ibin),      aodbin, pcols, lchnk)
+
+      endif
+
+    end subroutine output_bin_diags
+
+    !===============================================================================
+    subroutine output_tot_diags
+
+      call outfld('AODUVdntest'//diag(list_idx),  aoduv,  pcols, lchnk)
+      call outfld('AODVISdntest'//diag(list_idx), aodvis, pcols, lchnk)
+      call outfld('AODABSdntest'//diag(list_idx),     aodabs,  pcols, lchnk)
+
+      call outfld('AODNIRdntest'//diag(list_idx), aodnir, pcols, lchnk)
+      call outfld('AODABSdntest'//diag(list_idx), aodabs, pcols, lchnk)
+      call outfld('AODTOTdntest'//diag(list_idx), aodtot, pcols, lchnk)
+      call outfld('EXTINCTUVdntest'//diag(list_idx),  extinctuv,  pcols, lchnk)
+      call outfld('EXTINCTNIRdntest'//diag(list_idx), extinctnir, pcols, lchnk)
+      call outfld('EXTINCTdntest'//diag(list_idx),  extinct,  pcols, lchnk)
+      call outfld('ABSORBdntest'//diag(list_idx),   absorb,  pcols, lchnk)
+      call outfld('EXTxASYMdntest'//diag(list_idx), asymext, pcols, lchnk)
+      call outfld('AODxASYMdntest'//diag(list_idx), asymvis, pcols, lchnk)
+
+      call outfld('AODVISstdntest'//diag(list_idx), aodvisst,pcols, lchnk)
+
+      do icol = 1, nnite
+         aodvis(idxnite(icol)) = fillvalue
+         aodnir(idxnite(icol)) = fillvalue
+         aoduv(idxnite(icol)) = fillvalue
+         aodabs(idxnite(icol)) = fillvalue
+         aodtot(idxnite(icol)) = fillvalue
+         extinct(idxnite(icol),:) = fillvalue
+         extinctnir(idxnite(icol),:) = fillvalue
+         extinctuv(idxnite(icol),:) = fillvalue
+         absorb(idxnite(icol),:)  = fillvalue
+         asymext(idxnite(icol),:) = fillvalue
+         asymvis(idxnite(icol)) = fillvalue
+         aodabs(idxnite(icol))    = fillvalue
+         aodvisst(idxnite(icol))  = fillvalue
+      end do
+
+      call outfld('AODUVtest'//diag(list_idx),  aoduv,  pcols, lchnk)
+      call outfld('AODVIStest'//diag(list_idx), aodvis, pcols, lchnk)
+      call outfld('AODABStest'//diag(list_idx), aodabs,  pcols, lchnk)
+      call outfld('AODNIRtest'//diag(list_idx), aodnir, pcols, lchnk)
+      call outfld('AODABStest'//diag(list_idx), aodabs, pcols, lchnk)
+      call outfld('AODTOTtest'//diag(list_idx), aodtot, pcols, lchnk)
+      call outfld('EXTINCTUVtest'//diag(list_idx),  extinctuv,  pcols, lchnk)
+      call outfld('EXTINCTNIRtest'//diag(list_idx), extinctnir, pcols, lchnk)
+      call outfld('EXTINCTtest'//diag(list_idx),  extinct,  pcols, lchnk)
+      call outfld('ABSORBtest'//diag(list_idx),   absorb,  pcols, lchnk)
+      call outfld('EXTxASYMtest'//diag(list_idx), asymext, pcols, lchnk)
+      call outfld('AODxASYMtest'//diag(list_idx), asymvis, pcols, lchnk)
+      call outfld('AODVISsttest'//diag(list_idx), aodvisst,pcols, lchnk)
+
+      ! These diagnostics are output only for climate list
+      if (list_idx == 0) then
+         do icol = 1, ncol
+            if (aodvis(icol) > 1.e-10_r8) then
+               ssavis(icol) = ssavis(icol)/aodvis(icol)
+            else
+               ssavis(icol) = 0.925_r8
+            endif
+         end do
+         call outfld('SSAVISdntest',        ssavis,        pcols, lchnk)
+
+         call outfld('BURDENDUSTdntest',    burdendust,    pcols, lchnk)
+         call outfld('BURDENSO4dntest' ,    burdenso4,     pcols, lchnk)
+         call outfld('BURDENPOMdntest' ,    burdenpom,     pcols, lchnk)
+         call outfld('BURDENSOAdntest' ,    burdensoa,     pcols, lchnk)
+         call outfld('BURDENBCdntest'  ,    burdenbc,      pcols, lchnk)
+         call outfld('BURDENSEASALTdntest', burdenseasalt, pcols, lchnk)
+
+         call outfld('AODABSBCdntest',      aodabsbc,      pcols, lchnk)
+
+         call outfld('AODDUSTdntest',       dustaod,       pcols, lchnk)
+         call outfld('AODSO4dntest',        sulfaod,       pcols, lchnk)
+         call outfld('AODPOMdntest',        pomaod,        pcols, lchnk)
+         call outfld('AODSOAdntest',        soaaod,        pcols, lchnk)
+         call outfld('AODBCdntest',         bcaod,         pcols, lchnk)
+         call outfld('AODSSdntest',         ssltaod,       pcols, lchnk)
+
+
+         do icol = 1, nnite
+
+            ssavis(idxnite(icol))     = fillvalue
+            asymvis(idxnite(icol))    = fillvalue
+
+            burdendust(idxnite(icol)) = fillvalue
+            burdenso4(idxnite(icol))  = fillvalue
+            burdenpom(idxnite(icol))  = fillvalue
+            burdensoa(idxnite(icol))  = fillvalue
+            burdenbc(idxnite(icol))   = fillvalue
+            burdenseasalt(idxnite(icol)) = fillvalue
+            aodabsbc(idxnite(icol)) = fillvalue
+
+            dustaod(idxnite(icol))    = fillvalue
+            sulfaod(idxnite(icol))     = fillvalue
+            pomaod(idxnite(icol))     = fillvalue
+            soaaod(idxnite(icol))     = fillvalue
+            bcaod(idxnite(icol))      = fillvalue
+            ssltaod(idxnite(icol)) = fillvalue
+
+         end do
+
+         call outfld('AODxASYMtest',      asymvis,       pcols, lchnk)
+
+         call outfld('BURDENDUSTtest',    burdendust,    pcols, lchnk)
+         call outfld('BURDENSO4test' ,    burdenso4,     pcols, lchnk)
+         call outfld('BURDENPOMtest' ,    burdenpom,     pcols, lchnk)
+         call outfld('BURDENSOAtest' ,    burdensoa,     pcols, lchnk)
+         call outfld('BURDENBCtest'  ,    burdenbc,      pcols, lchnk)
+         call outfld('BURDENSEASALTtest', burdenseasalt, pcols, lchnk)
+
+         call outfld('AODABSBCtest',      aodabsbc,      pcols, lchnk)
+
+         call outfld('AODDUSTtest',       dustaod,       pcols, lchnk)
+         call outfld('AODSO4test',        sulfaod,       pcols, lchnk)
+         call outfld('AODPOMtest',        pomaod,        pcols, lchnk)
+         call outfld('AODSOAtest',        soaaod,        pcols, lchnk)
+         call outfld('AODBCtest',         bcaod,         pcols, lchnk)
+         call outfld('AODSStest',         ssltaod,       pcols, lchnk)
+
+      end if
+
+    end subroutine output_tot_diags
 
   end subroutine aerosol_optics_cam_sw
 
