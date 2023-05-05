@@ -799,7 +799,7 @@ contains
             end select
          end do
 
-         if (wetvol(icol,ilev) > 1.e-40_r8) then
+         if (wetvol(icol,ilev)>1.e-40_r8 .and. vol(icol)>0._r8) then
 
             dustaodbin(icol) = dustaodbin(icol) + dopaer(icol)*dustvol(icol)/wetvol(icol,ilev)
 
