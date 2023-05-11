@@ -388,6 +388,11 @@ subroutine coreshell_aer_opt_init()
          call addfld ('AODABS'//diag(ilist),   horiz_only,  'A','  ', &
               'Aerosol absorption optical depth 550 nm', flag_xyfill=.true.)
 
+         call addfld ('AODTOT'//diag(ilist), horiz_only, 'A','1', &
+              'Aerosol optical depth summed over all sw wavelenghts', flag_xyfill=.true.)
+         call addfld ('AODTOTdn'//diag(ilist), horiz_only, 'A','1', &
+              'Aerosol optical depth summed over all sw wavelenghts')
+
          call addfld ('EXTINCTdn'//diag(ilist),    (/ 'lev' /), 'A','/m',&
               'Aerosol extinction 550 nm, day night', flag_xyfill=.true.)
          call addfld ('ABSORBdn'//diag(ilist),     (/ 'lev' /), 'A','/m',&
@@ -1034,7 +1039,7 @@ subroutine coreshell_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
                     aodvisst(i) = aodvisst(i) + dopaer(i)
                  end if
 
-                 if (wetvol(i) > 1.e-40_r8) then
+                 if (wetvol(i) > 1.e-40_r8 .and. vol(i)>0._r8) then
 
                     dustaodbin(i) = dustaodbin(i) + dopaer(i)*dustvol(i)/wetvol(i)
 
