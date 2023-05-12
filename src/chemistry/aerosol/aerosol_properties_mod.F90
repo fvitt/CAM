@@ -36,11 +36,11 @@ module aerosol_properties_mod
    contains
      procedure :: initialize => aero_props_init
      procedure,private :: nbins_0list
-     procedure(aero_nbins_rlist),private, deferred :: nbins_rlist
+     procedure(aero_nbins_rlist), deferred :: nbins_rlist
      generic :: nbins => nbins_0list,nbins_rlist
      procedure :: ncnst_tot
      procedure,private :: nspecies_per_bin
-     procedure(aero_nspecies_rlist),private, deferred :: nspecies_per_bin_rlist
+     procedure(aero_nspecies_rlist), deferred :: nspecies_per_bin_rlist
      procedure,private :: nspecies_all_bins
      generic :: nspecies => nspecies_all_bins,nspecies_per_bin,nspecies_per_bin_rlist
      procedure,private :: n_masses_all_bins
