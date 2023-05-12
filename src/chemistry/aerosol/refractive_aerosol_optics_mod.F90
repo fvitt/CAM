@@ -80,8 +80,8 @@ contains
     real(r8), pointer :: specmmr(:,:) ! species mass mixing ratio
     real(r8) :: logsigma        ! geometric standard deviation of number distribution
 
-    real(r8), pointer :: dgnumwet(:,:)   ! aerosol wet number mode diameter (m)
-    real(r8), pointer :: qaerwat(:,:)    ! aerosol water (g/g)
+    real(r8) :: dgnumwet(ncol,nlev)   ! aerosol wet number mode diameter (m)
+    real(r8) :: qaerwat(ncol,nlev)    ! aerosol water (g/g)
 
     allocate(newobj, stat=ierr)
     if (ierr/=0) then
@@ -131,9 +131,9 @@ contains
 
     call aero_state%water_uptake(aero_props, ilist, ibin,  ncol, nlev, dgnumwet, qaerwat)
 
-    nspec = aero_props%nspecies(ibin)
+    nspec = aero_props%nspecies(ilist,ibin)
 
-    logsigma=aero_props%alogsig(ibin) ! list numb ????
+    logsigma=aero_props%alogsig(ilist,ibin)
 
     ! calc size parameter for all columns
     call modal_size_parameters(ncol, nlev, logsigma, dgnumwet, newobj%radsurf, newobj%logradsurf, newobj%cheb)

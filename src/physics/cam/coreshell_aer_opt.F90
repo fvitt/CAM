@@ -403,12 +403,15 @@ subroutine coreshell_aer_opt_init()
          call addfld ('EXTxASYM'//diag(ilist),   (/ 'lev' /), 'A','  ',&
               'extinction 550 nm * asymmetry factor, day only',   flag_xyfill=.true.)
 
+         call addfld ('AODTOT'//diag(ilist), horiz_only, 'A','1','Aerosol optical depth summed over all sw wavelenghts', flag_xyfill=.true.)
+         call addfld ('AODTOTdn'//diag(ilist), horiz_only, 'A','1','Aerosol optical depth summed over all sw wavelenghts')
+
          if (history_aero_optics) then
-            call add_default ('EXTINCT'//diag(ilist), 1, ' ')
-            call add_default ('ABSORB'//diag(ilist),  1, ' ')
-            call add_default ('AODVIS'//diag(ilist),  1, ' ')
-            call add_default ('AODVISst'//diag(ilist),  1, ' ')
-            call add_default ('AODABS'//diag(ilist),  1, ' ')
+            call add_default ('EXTINCT'//diag(ilist), 2, ' ')
+            call add_default ('ABSORB'//diag(ilist),  2, ' ')
+            call add_default ('AODVIS'//diag(ilist),  2, ' ')
+            call add_default ('AODVISst'//diag(ilist),  2, ' ')
+            call add_default ('AODABS'//diag(ilist),  2, ' ')
          end if
 
       end if
@@ -620,6 +623,14 @@ subroutine coreshell_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
    nullify(tbl_bcdust)
    nullify(tbl_kap)
    nullify(tbl_relh)
+
+   nullify(specmmr)
+   nullify(specrefindex)
+
+   nullify(tbl_corefrac)
+   nullify(extpsw)
+   nullify(abspsw)
+   nullify(asmpsw)
 
    lchnk = state%lchnk
    ncol  = state%ncol

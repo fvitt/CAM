@@ -235,8 +235,8 @@ module aerosol_state_mod
        integer, intent(in) :: bin_idx
        integer, intent(in) :: ncol
        integer, intent(in) :: nlev
-       real(r8), pointer :: dgnumwet(:,:)
-       real(r8), pointer :: qaerwat(:,:)
+       real(r8),intent(out) :: dgnumwet(ncol,nlev)
+       real(r8),intent(out) :: qaerwat(ncol,nlev)
 
      end subroutine aero_water_uptake
 
@@ -796,7 +796,7 @@ contains
 
     crefin(:ncol) = (0._r8, 0._r8)
 
-    do ispec = 1, aero_props%nspecies(ibin)
+    do ispec = 1, aero_props%nspecies(ilist,ibin)
 
        call self%get_ambient_mmr(ilist,ispec,ibin,specmmr)
        call aero_props%get(ibin, ispec, list_ndx=ilist, density=specdens,  refindex_sw=specrefindex)
@@ -831,7 +831,7 @@ contains
 
     crefin(:ncol) = (0._r8, 0._r8)
 
-    do ispec = 1, aero_props%nspecies(ibin)
+    do ispec = 1, aero_props%nspecies(ilist,ibin)
 
        call self%get_ambient_mmr(ilist,ispec,ibin,specmmr)
        call aero_props%get(ibin, ispec, list_ndx=ilist, density=specdens,  refindex_lw=specrefindex)

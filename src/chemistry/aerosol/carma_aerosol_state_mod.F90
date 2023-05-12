@@ -370,11 +370,11 @@ contains
     integer, intent(in) :: bin_idx
     integer, intent(in) :: ncol
     integer, intent(in) :: nlev
-    real(r8), pointer :: dgnumwet(:,:)
-    real(r8), pointer :: qaerwat(:,:)
+    real(r8),intent(out) :: dgnumwet(ncol,nlev)
+    real(r8),intent(out) :: qaerwat(ncol,nlev)
 
-    nullify(dgnumwet)
-    nullify(qaerwat)
+    dgnumwet = -huge(1._r8)
+    qaerwat = -huge(1._r8)
 
   end subroutine water_uptake
 

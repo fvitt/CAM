@@ -418,7 +418,7 @@ subroutine modal_aer_opt_init()
       call add_default ('EXTINCTdn'      , 1, ' ')
       call add_default ('AODxASYMdn'     , 1, ' ')
       call add_default ('EXTxASYMdn'     , 1, ' ')
-  end if
+   end if
 
    do ilist = 1, n_diag
       if (call_list(ilist)) then
@@ -433,6 +433,11 @@ subroutine modal_aer_opt_init()
               'Stratospheric aerosol optical depth 550 nm', flag_xyfill=.true.)
          call addfld ('AODABS'//diag(ilist),   horiz_only,  'A','  ', &
               'Aerosol absorption optical depth 550 nm', flag_xyfill=.true.)
+
+         call addfld ('AODTOT'//diag(ilist), horiz_only, 'A','1', &
+              'Aerosol optical depth summed over all sw wavelenghts', flag_xyfill=.true.)
+         call addfld ('AODTOTdn'//diag(ilist), horiz_only, 'A','1', &
+              'Aerosol optical depth summed over all sw wavelenghts')
 
          call addfld ('EXTINCTdn'//diag(ilist),    (/ 'lev' /), 'A','/m',&
               'Aerosol extinction 550 nm, day night', flag_xyfill=.true.)
@@ -450,11 +455,11 @@ subroutine modal_aer_opt_init()
               'extinction 550 nm * asymmetry factor, day only',   flag_xyfill=.true.)
 
          if (history_aero_optics) then
-            call add_default ('EXTINCT'//diag(ilist), 1, ' ')
-            call add_default ('ABSORB'//diag(ilist),  1, ' ')
-            call add_default ('AODVIS'//diag(ilist),  1, ' ')
-            call add_default ('AODVISst'//diag(ilist),  1, ' ')
-            call add_default ('AODABS'//diag(ilist),  1, ' ')
+            call add_default ('EXTINCT'//diag(ilist), 2, ' ')
+            call add_default ('ABSORB'//diag(ilist),  2, ' ')
+            call add_default ('AODVIS'//diag(ilist),  2, ' ')
+            call add_default ('AODVISst'//diag(ilist),  2, ' ')
+            call add_default ('AODABS'//diag(ilist),  2, ' ')
          end if
 
       end if

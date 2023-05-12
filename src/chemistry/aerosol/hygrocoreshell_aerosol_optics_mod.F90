@@ -108,7 +108,7 @@ contains
        return
     end if
 
-    nspec = aero_props%nspecies(ibin)
+    nspec = aero_props%nspecies(ilist,ibin)
 
     coremmr(:,:) = 0._r8
     coredustmmr(:,:) = 0._r8

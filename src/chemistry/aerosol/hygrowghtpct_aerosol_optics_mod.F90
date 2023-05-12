@@ -87,9 +87,10 @@ contains
        newobj%wgtpct = maxval(newobj%tbl_wgtpct)
     end where
 
-    nspec = aero_props%nspecies(ibin)
+    nspec = aero_props%nspecies(ilist, ibin)
 
     newobj%totalmmr(:,:) = 0._r8
+
     do ispec = 1,nspec
 
        call aero_state%get_ambient_mmr(ilist,ispec,ibin,specmmr)

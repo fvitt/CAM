@@ -28,6 +28,9 @@ module carma_aerosol_properties_mod
      procedure :: apply_number_limits
      procedure :: hetfrz_species
      procedure :: optics_params
+     procedure :: nbins_rlist
+     procedure :: nspecies_per_bin_rlist
+     procedure :: alogsig_rlist
 
      final :: destructor
   end type carma_aerosol_properties
@@ -475,5 +478,47 @@ contains
     end if
 
   end function hetfrz_species
+
+  !------------------------------------------------------------------------------
+  ! returns the total number of bins for a given radiation list index
+  !------------------------------------------------------------------------------
+  function nbins_rlist(self, list_ndx)  result(res)
+    class(carma_aerosol_properties), intent(in) :: self
+    integer, intent(in) :: list_ndx  ! radiation list number
+
+    integer :: res
+
+    call rad_cnst_get_info(list_ndx, nbins=res)
+
+  end function nbins_rlist
+
+  !------------------------------------------------------------------------------
+  ! returns number of species in a bin for a given radiation list index
+  !------------------------------------------------------------------------------
+  function nspecies_per_bin_rlist(self, list_ndx,  bin_ndx)  result(res)
+    class(carma_aerosol_properties), intent(in) :: self
+    integer, intent(in) :: list_ndx ! radiation list number
+    integer, intent(in) :: bin_ndx  ! bin number
+
+    integer :: res
+
+    call rad_cnst_get_info_by_bin(list_ndx, bin_ndx, nspec=res)
+
+  end function nspecies_per_bin_rlist
+
+  !------------------------------------------------------------------------------
+  ! returns the natural log of geometric standard deviation of the number
+  ! distribution for radiation list number and aerosol bin
+  !------------------------------------------------------------------------------
+  function alogsig_rlist(self, list_ndx,  bin_ndx)  result(res)
+    class(carma_aerosol_properties), intent(in) :: self
+    integer, intent(in) :: list_ndx ! radiation list number
+    integer, intent(in) :: bin_ndx  ! bin number
+
+    real(r8) :: res
+
+    res = self%alogsig(bin_ndx)
+
+  end function alogsig_rlist
 
 end module carma_aerosol_properties_mod

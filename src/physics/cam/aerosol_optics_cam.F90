@@ -240,6 +240,15 @@ contains
           end if
           call addfld ('TOTABSLWtest'//diag(ilist), (/ 'lev' /), 'A',' ', &
                'LW Aero total abs')
+
+          if (history_aero_optics) then
+             call add_default ('EXTINCTtest'//diag(ilist), 2, ' ')
+             call add_default ('ABSORBtest'//diag(ilist),  2, ' ')
+             call add_default ('AODVIStest'//diag(ilist),  2, ' ')
+             call add_default ('AODVISsttest'//diag(ilist),  2, ' ')
+             call add_default ('AODABStest'//diag(ilist),  2, ' ')
+          end if
+
        end if
     end do
 
@@ -627,7 +636,7 @@ contains
        aeroprops => aero_props(iaermod)%obj
        aerostate => aero_state(iaermod)%obj
 
-       nbins=aero_props(iaermod)%obj%nbins()
+       nbins=aeroprops%nbins(list_idx)
 
        binloop: do ibin = 1, nbins
 
@@ -668,7 +677,7 @@ contains
 
                    call init_diags
 
-                   Column: do icol = 1,ncol
+                   column: do icol = 1,ncol
                       dopaer(icol) = pext(icol)*mass(icol,ilev)
                       tauxar(icol,ilev,iwav) = tauxar(icol,ilev,iwav) + dopaer(icol)
                       wa(icol,ilev,iwav) = wa(icol,ilev,iwav) + dopaer(icol)*palb(icol)
@@ -755,7 +764,7 @@ contains
 
          ! loop over species ...
 
-         do ispec = 1, aeroprops%nspecies(ibin)
+         do ispec = 1, aeroprops%nspecies(list_idx,ibin)
             call aeroprops%get(ibin, ispec, list_ndx=list_idx, density=specdens, &
                  spectype=spectype, refindex_sw=specrefindex, hygro=hygro_aer)
             call aerostate%get_ambient_mmr(list_idx, ispec, ibin, specmmr)
@@ -1037,6 +1046,8 @@ contains
     type(aero_state_t), allocatable :: aero_state(:)
 
     class(aerosol_optics), pointer :: aero_optics
+    class(aerosol_state),      pointer :: aerostate
+    class(aerosol_properties), pointer :: aeroprops
 
     real(r8), allocatable :: pabs(:)
 
@@ -1076,45 +1087,48 @@ contains
        call endrun(prefix//'array allocation error: pabs')
     end if
 
-    do iaermod = 1,num_aero_models
+    aeromodel: do iaermod = 1,num_aero_models
 
-       nbins=aero_props(iaermod)%obj%nbins()
+       aeroprops => aero_props(iaermod)%obj
+       aerostate => aero_state(iaermod)%obj
 
-       do ibin = 1, nbins
+       nbins=aero_props(iaermod)%obj%nbins(list_idx)
 
-          call aero_props(iaermod)%obj%optics_params(list_idx, ibin, opticstype=opticstype)
+       binloop: do ibin = 1, nbins
+
+          call aeroprops%optics_params(list_idx, ibin, opticstype=opticstype)
 
           select case (trim(opticstype))
           case('modal') ! refractive method
-             aero_optics=>refractive_aerosol_optics(aero_props(iaermod)%obj, aero_state(iaermod)%obj, list_idx, ibin, ncol, pver, nswbands, nlwbands, crefwsw, crefwlw)
+             aero_optics=>refractive_aerosol_optics(aeroprops, aerostate, list_idx, ibin, ncol, pver, nswbands, nlwbands, crefwsw, crefwlw)
           case('hygroscopic_coreshell')
              ! calculate relative humidity for table lookup into rh grid
              call qsat(state%t(:ncol,:), state%pmid(:ncol,:), sate(:ncol,:), satq(:ncol,:), ncol, pver)
              relh(:ncol,:) = state%q(1:ncol,:,1) / satq(:ncol,:)
              relh(:ncol,:) = max(1.e-20_r8,relh(:ncol,:))
-             aero_optics=>hygrocoreshell_aerosol_optics(aero_props(iaermod)%obj, aero_state(iaermod)%obj, list_idx, ibin, ncol, pver, relh(:ncol,:))
+             aero_optics=>hygrocoreshell_aerosol_optics(aeroprops, aerostate, list_idx, ibin, ncol, pver, relh(:ncol,:))
           case('hygroscopic_wtp')
-             aero_optics=>hygrowghtpct_aerosol_optics(aero_props(iaermod)%obj, aero_state(iaermod)%obj, list_idx, ibin, ncol, pver)
+             aero_optics=>hygrowghtpct_aerosol_optics(aeroprops, aerostate, list_idx, ibin, ncol, pver)
           case default
              call endrun(prefix//'optics method not recognized')
           end select
 
           if (associated(aero_optics)) then
 
-             do iwav = 1, nlwbands
+             wavelength: do iwav = 1, nlwbands
 
-                do ilev = 1, pver
+                vertical: do ilev = 1, pver
                    call aero_optics%lw_props(ncol, ilev, iwav, pabs )
 
-                   do icol = 1, ncol
+                   column: do icol = 1, ncol
                       dopaer(icol) = pabs(icol)*mass(icol,ilev)
                       tauxar(icol,ilev,iwav) = tauxar(icol,ilev,iwav) + dopaer(icol)
                       lwabs(icol,ilev) = lwabs(icol,ilev) + pabs(icol)
-                   end do
+                   end do column
 
-                end do
+                end do vertical
 
-             end do
+             end do wavelength
 
           else
              call endrun(prefix//'aero_optics object pointer not associated')
@@ -1123,8 +1137,8 @@ contains
           deallocate(aero_optics)
           nullify(aero_optics)
 
-       end do
-    end do
+       end do binloop
+    end do aeromodel
 
     call outfld('TOTABSLWtest'//diag(list_idx),  lwabs(:,:), pcols, state%lchnk)
 

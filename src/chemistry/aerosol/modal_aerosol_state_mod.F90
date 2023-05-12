@@ -442,8 +442,9 @@ contains
     integer, intent(in) :: bin_idx
     integer, intent(in) :: ncol
     integer, intent(in) :: nlev
-    real(r8), pointer :: dgnumwet(:,:)
-    real(r8), pointer :: qaerwat(:,:)
+
+    real(r8),intent(out) :: dgnumwet(ncol,nlev)
+    real(r8),intent(out) :: qaerwat(ncol,nlev)
 
     integer :: istat, nmodes
     real(r8), pointer :: dgnumdry_m(:,:,:) ! number mode dry diameter for all modes
@@ -463,6 +464,10 @@ contains
        ! water uptake and wet radius for the climate list has already been calculated
        call pbuf_get_field(self%pbuf, pbuf_get_index('DGNUMWET'), dgnumwet_m)
        call pbuf_get_field(self%pbuf, pbuf_get_index('QAERWAT'),  qaerwat_m)
+
+       dgnumwet(:ncol,:nlev) = dgnumwet_m(:ncol,:nlev,bin_idx)
+       qaerwat (:ncol,:nlev) =  qaerwat_m(:ncol,:nlev,bin_idx)
+
     else
        ! If doing a diagnostic calculation then need to calculate the wet radius
        ! and water uptake for the diagnostic modes
@@ -472,8 +477,8 @@ contains
                 dryrad_m(ncol,nlev,nmodes),    drymass_m(ncol,nlev,nmodes),  &
                 so4dryvol_m(ncol,nlev,nmodes), naer_m(ncol,nlev,nmodes), stat=istat)
        if (istat > 0) then
-          nullify(dgnumwet)
-          nullify(qaerwat)
+          dgnumwet = -huge(1._r8)
+          qaerwat = -huge(1._r8)
           return
        end if
        call modal_aero_calcsize_diag(self%state, self%pbuf, list_idx, dgnumdry_m, hygro_m, &
@@ -481,6 +486,10 @@ contains
        call modal_aero_wateruptake_dr(self%state, self%pbuf, list_idx, dgnumdry_m, dgnumwet_m, &
                                       qaerwat_m, wetdens_m,  hygro_m, dryvol_m, dryrad_m, &
                                       drymass_m, so4dryvol_m, naer_m)
+
+       dgnumwet(:ncol,:nlev) = dgnumwet_m(:ncol,:nlev,bin_idx)
+       qaerwat (:ncol,:nlev) =  qaerwat_m(:ncol,:nlev,bin_idx)
+
        deallocate(dgnumdry_m)
        deallocate(dgnumwet_m)
        deallocate(qaerwat_m)
@@ -493,8 +502,6 @@ contains
        deallocate(naer_m)
     endif
 
-    dgnumwet => dgnumwet_m(:,:,bin_idx)
-    qaerwat  => qaerwat_m(:,:,bin_idx)
 
   end subroutine water_uptake
 
@@ -529,7 +536,7 @@ contains
 
     vol(:,:) = 0._r8
 
-    do ispec = 1, aero_props%nspecies(bin_idx)
+    do ispec = 1, aero_props%nspecies(list_idx,bin_idx)
        call self%get_ambient_mmr(list_idx, ispec, bin_idx, mmr)
        call aero_props%get(bin_idx, ispec, list_ndx=list_idx, density=specdens)
        vol(:ncol,:) = vol(:ncol,:) + mmr(:ncol,:)/specdens
@@ -575,8 +582,8 @@ contains
 
     real(r8) :: vol(ncol,nlev)
 
-    real(r8),pointer :: dgnumwet(:,:)
-    real(r8),pointer :: qaerwat(:,:)
+    real(r8) :: dgnumwet(ncol,nlev)
+    real(r8) :: qaerwat(ncol,nlev)
 
     call self%water_uptake(aero_props, list_idx, bin_idx, ncol, nlev, dgnumwet, qaerwat)
 

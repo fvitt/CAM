@@ -35,18 +35,23 @@ module aerosol_properties_mod
      real(r8) :: pom_equivso4_factor_ = -huge(1._r8)
    contains
      procedure :: initialize => aero_props_init
-     procedure :: nbins
+     procedure,private :: nbins_0list
+     procedure(aero_nbins_rlist),private, deferred :: nbins_rlist
+     generic :: nbins => nbins_0list,nbins_rlist
      procedure :: ncnst_tot
      procedure,private :: nspecies_per_bin
+     procedure(aero_nspecies_rlist),private, deferred :: nspecies_per_bin_rlist
      procedure,private :: nspecies_all_bins
-     generic :: nspecies => nspecies_all_bins,nspecies_per_bin
+     generic :: nspecies => nspecies_all_bins,nspecies_per_bin,nspecies_per_bin_rlist
      procedure,private :: n_masses_all_bins
      procedure,private :: n_masses_per_bin
      generic :: nmasses => n_masses_all_bins,n_masses_per_bin
      procedure :: indexer
      procedure :: maxsat
      procedure(aero_amcube), deferred :: amcube
-     procedure :: alogsig
+     procedure :: alogsig0
+     procedure(aero_alogsig_rlist), deferred :: alogsig_rlist
+     generic :: alogsig =>  alogsig0,alogsig_rlist
      procedure(aero_number_transported), deferred :: number_transported
      procedure(aero_props_get), deferred :: get
      procedure(aero_actfracs), deferred :: actfracs
@@ -290,7 +295,46 @@ module aerosol_properties_mod
 
      end function aero_hetfrz_species
 
-   end interface
+     !------------------------------------------------------------------------------
+     ! returns the total number of bins for a given radiation list index
+     !------------------------------------------------------------------------------
+     function aero_nbins_rlist(self, list_ndx)  result(res)
+       import :: aerosol_properties
+       class(aerosol_properties), intent(in) :: self
+       integer, intent(in) :: list_ndx  ! radiation list number
+
+       integer :: res
+
+     end function aero_nbins_rlist
+
+     !------------------------------------------------------------------------------
+     ! returns number of species in a bin for a given radiation list index
+     !------------------------------------------------------------------------------
+     function aero_nspecies_rlist(self, list_ndx,  bin_ndx)  result(res)
+       import :: aerosol_properties
+       class(aerosol_properties), intent(in) :: self
+       integer, intent(in) :: list_ndx ! radiation list number
+       integer, intent(in) :: bin_ndx  ! bin number
+
+       integer :: res
+
+     end function aero_nspecies_rlist
+
+     !------------------------------------------------------------------------------
+     ! returns the natural log of geometric standard deviation of the number
+     ! distribution for radiation list number and aerosol bin
+     !------------------------------------------------------------------------------
+     function aero_alogsig_rlist(self, list_ndx,  bin_ndx)  result(res)
+       import :: aerosol_properties, r8
+       class(aerosol_properties), intent(in) :: self
+       integer, intent(in) :: list_ndx ! radiation list number
+       integer, intent(in) :: bin_ndx  ! bin number
+
+       real(r8) :: res
+
+     end function aero_alogsig_rlist
+
+  end interface
 
 contains
 
@@ -482,11 +526,12 @@ contains
   !------------------------------------------------------------------------------
   ! returns the total number of bins
   !------------------------------------------------------------------------------
-  pure integer function nbins(self)
+  pure function nbins_0list(self) result(nbins)
     class(aerosol_properties), intent(in) :: self
+    integer :: nbins
 
     nbins = self%nbins_
-  end function nbins
+  end function nbins_0list
 
   !------------------------------------------------------------------------------
   ! returns number of constituents (or elements) totaled across all bins
@@ -500,12 +545,12 @@ contains
   !------------------------------------------------------------------------------
   ! returns the natural log of geometric standard deviation of the number distribution for aerosol bin
   !------------------------------------------------------------------------------
-  pure real(r8) function alogsig(self, bin_ndx)
+  pure real(r8) function alogsig0(self, bin_ndx)
     class(aerosol_properties), intent(in) :: self
     integer, intent(in) :: bin_ndx           ! bin number
 
-    alogsig = self%alogsig_(bin_ndx)
-  end function alogsig
+    alogsig0 = self%alogsig_(bin_ndx)
+  end function alogsig0
 
   !------------------------------------------------------------------------------
   ! returns maximum supersaturation
