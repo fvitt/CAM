@@ -756,6 +756,8 @@ contains
     !===============================================================================
     subroutine update_diags
 
+      integer :: ispec
+
       if (iwav==idx_uv_diag) then
          aoduv(icol) = aoduv(icol) + dopaer(icol)
          extinctuv(icol,ilev) = extinctuv(icol,ilev) + dopaer(icol)*air_density(icol,ilev)/mass(icol,ilev)
@@ -899,6 +901,8 @@ contains
     !===============================================================================
     subroutine output_bin_diags
 
+      integer :: icol
+
       if (list_idx == 0) then
 
          call outfld(burdendn_fields(iaermod)%name(ibin), burden, pcols, lchnk)
@@ -921,6 +925,8 @@ contains
 
     !===============================================================================
     subroutine output_tot_diags
+
+      integer :: icol
 
       call outfld('AODUVdn'//diag(list_idx),  aoduv,  pcols, lchnk)
       call outfld('AODVISdn'//diag(list_idx), aodvis, pcols, lchnk)
