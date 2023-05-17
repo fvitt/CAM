@@ -464,7 +464,6 @@
 <mam7_mode7_file rad="rrtmg">atm/cam/physprops/mam7_mode7_rrtmg_c120904.nc</mam7_mode7_file>
 
 <water_refindex_file>atm/cam/physprops/water_refindex_rrtmg_c080910.nc</water_refindex_file>
-<aerwat_refindex_file>atm/cam/physprops/water_refindex_rrtmg_c080910.nc</aerwat_refindex_file>
 
 <modal_accum_coarse_exch               >.false.</modal_accum_coarse_exch>
 <modal_accum_coarse_exch phys="cam6"   >.true.</modal_accum_coarse_exch>

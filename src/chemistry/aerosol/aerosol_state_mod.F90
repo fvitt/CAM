@@ -96,10 +96,14 @@ module aerosol_state_mod
        real(r8), pointer :: mmr(:,:)       ! mass mixing ratios
      end subroutine aero_get_state_mmr
 
+     !------------------------------------------------------------------------
+     ! returns aerosol mass mixing ratio for a given species index, bin index
+     ! and raditaion climate or diagnsotic list number
+     !------------------------------------------------------------------------
      subroutine aero_get_list_mmr(self, list_ndx, species_ndx, bin_ndx, mmr)
        import :: aerosol_state, r8
        class(aerosol_state), intent(in) :: self
-       integer, intent(in) :: list_ndx     ! rad climate list index
+       integer, intent(in) :: list_ndx     ! rad climate/diagnostic list index
        integer, intent(in) :: species_ndx  ! species index
        integer, intent(in) :: bin_ndx      ! bin index
        real(r8), pointer :: mmr(:,:)       ! mass mixing ratios
@@ -213,34 +217,39 @@ module aerosol_state_mod
      end function aero_hetfrz_size_wght
 
      !------------------------------------------------------------------------------
+     ! returns hygroscopicity for a given radiation diagnostic list number and
+     ! bin number
      !------------------------------------------------------------------------------
      function aero_hygroscopicity(self, list_ndx, bin_ndx) result(kappa)
        import :: aerosol_state, r8
        class(aerosol_state), intent(in) :: self
-       integer, intent(in) :: list_ndx            ! rad climate list number
-       integer, intent(in) :: bin_ndx             ! bin number
+       integer, intent(in) :: list_ndx     ! rad climate/diagnostic list index
+       integer, intent(in) :: bin_ndx      ! bin number
 
        real(r8), pointer :: kappa(:,:)
 
      end function aero_hygroscopicity
 
      !------------------------------------------------------------------------------
+     ! returns aerosol wet diameter and aerosol water concentration for a given
+     ! radiation diagnostic list number and bin number
      !------------------------------------------------------------------------------
      subroutine aero_water_uptake(self, aero_props, list_idx, bin_idx, ncol, nlev, dgnumwet, qaerwat)
        import :: aerosol_state, aerosol_properties, r8
 
        class(aerosol_state), intent(in) :: self
        class(aerosol_properties), intent(in) :: aero_props
-       integer, intent(in) :: list_idx            ! rad climate/diags list number
-       integer, intent(in) :: bin_idx
-       integer, intent(in) :: ncol
-       integer, intent(in) :: nlev
-       real(r8),intent(out) :: dgnumwet(ncol,nlev)
-       real(r8),intent(out) :: qaerwat(ncol,nlev)
+       integer, intent(in) :: list_idx             ! rad climate/diags list number
+       integer, intent(in) :: bin_idx              ! bin number
+       integer, intent(in) :: ncol                 ! number of columns
+       integer, intent(in) :: nlev                 ! number of levels
+       real(r8),intent(out) :: dgnumwet(ncol,nlev) ! aerosol wet diameter (m)
+       real(r8),intent(out) :: qaerwat(ncol,nlev)  ! aerosol water concentration (g/g)
 
      end subroutine aero_water_uptake
 
      !------------------------------------------------------------------------------
+     ! aerosol weight precent of H2SO4/H2O solution
      !------------------------------------------------------------------------------
      function aero_wgtpct(self) result(wtp)
        import :: aerosol_state, r8
@@ -250,19 +259,19 @@ module aerosol_state_mod
      end function aero_wgtpct
 
      !------------------------------------------------------------------------------
+     ! aerosol volume interface
      !------------------------------------------------------------------------------
      function aero_volume(self, aero_props, list_idx, bin_idx, ncol, nlev) result(vol)
        import :: aerosol_state, aerosol_properties, r8
 
        class(aerosol_state), intent(in) :: self
        class(aerosol_properties), intent(in) :: aero_props
+       integer, intent(in) :: list_idx  ! rad climate/diags list number
+       integer, intent(in) :: bin_idx   ! bin number
+       integer, intent(in) :: ncol      ! number of columns
+       integer, intent(in) :: nlev      ! number of levels
 
-       integer, intent(in) :: list_idx            ! rad climate/diags list number
-       integer, intent(in) :: bin_idx
-       integer, intent(in) :: ncol
-       integer, intent(in) :: nlev
-
-       real(r8) :: vol(ncol,nlev)
+       real(r8) :: vol(ncol,nlev)       ! m3/kg
 
      end function aero_volume
 
@@ -775,15 +784,16 @@ contains
   end subroutine watact_mfactor
 
   !------------------------------------------------------------------------------
+  ! aerosol short wave refactive index
   !------------------------------------------------------------------------------
   function refractive_index_sw(self, ncol, ilev, ilist, ibin, iwav, aero_props) result(crefin)
 
     class(aerosol_state), intent(in) :: self
-    integer, intent(in) :: ncol
-    integer, intent(in) :: ilev
-    integer, intent(in) :: ilist
-    integer, intent(in) :: ibin
-    integer, intent(in) :: iwav
+    integer, intent(in) :: ncol   ! number of columes
+    integer, intent(in) :: ilev   ! level index
+    integer, intent(in) :: ilist  ! radiation diagnostics list index
+    integer, intent(in) :: ibin   ! bin index
+    integer, intent(in) :: iwav   ! wave length index
     class(aerosol_properties), intent(in) :: aero_props ! aerosol properties object
 
     complex(r8) :: crefin(ncol) ! complex refractive index
@@ -810,15 +820,16 @@ contains
   end function refractive_index_sw
 
   !------------------------------------------------------------------------------
+  ! aerosol long wave refactive index
   !------------------------------------------------------------------------------
   function refractive_index_lw(self, ncol, ilev, ilist, ibin, iwav, aero_props) result(crefin)
 
     class(aerosol_state), intent(in) :: self
-    integer, intent(in) :: ncol
-    integer, intent(in) :: ilev
-    integer, intent(in) :: ilist
-    integer, intent(in) :: ibin
-    integer, intent(in) :: iwav
+    integer, intent(in) :: ncol   ! number of columes
+    integer, intent(in) :: ilev   ! level index
+    integer, intent(in) :: ilist  ! radiation diagnostics list index
+    integer, intent(in) :: ibin   ! bin index
+    integer, intent(in) :: iwav   ! wave length index
     class(aerosol_properties), intent(in) :: aero_props ! aerosol properties object
 
     complex(r8) :: crefin(ncol) ! complex refractive index

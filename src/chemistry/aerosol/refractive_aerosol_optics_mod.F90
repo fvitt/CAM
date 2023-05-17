@@ -10,15 +10,18 @@ module refractive_aerosol_optics_mod
   private
   public :: refractive_aerosol_optics
 
+  !> refractive_aerosol_optics
+  !! Table look up implementation of aerosol_optics to parameterize aerosol radiative properties in terms of
+  !! surface mode wet radius and wet refractive index using chebychev polynomials
   type, extends(aerosol_optics) :: refractive_aerosol_optics
 
      integer :: ibin, ilist
-     class(aerosol_state), pointer :: aero_state
-     class(aerosol_properties), pointer :: aero_props
+     class(aerosol_state), pointer :: aero_state      ! aerosol_state object
+     class(aerosol_properties), pointer :: aero_props ! aerosol_properties object
 
-     real(r8), allocatable :: watervol(:,:)
-     real(r8), allocatable :: wetvol(:,:)
-     real(r8), allocatable :: cheb(:,:,:)
+     real(r8), allocatable :: watervol(:,:)   ! volume concentration of water in each mode (m3/kg)
+     real(r8), allocatable :: wetvol(:,:)     ! volume concentration of wet mode (m3/kg)
+     real(r8), allocatable :: cheb(:,:,:)     ! chebychef polynomials
      real(r8), allocatable :: radsurf(:,:)    ! aerosol surface mode radius
      real(r8), allocatable :: logradsurf(:,:) ! log(aerosol surface mode radius)
 
@@ -51,7 +54,7 @@ module refractive_aerosol_optics_mod
 
   ! Dimension sizes in coefficient arrays used to parameterize aerosol radiative properties
   ! in terms of refractive index and wet radius
-  integer, parameter :: ncoef=5, prefr=7, prefi=10
+  integer, parameter :: ncoef=5, prefr=7, prefi=10  !??? get from aerosol properties ????
 
   real(r8), parameter :: xrmin=log(0.01e-6_r8)
   real(r8), parameter :: xrmax=log(25.e-6_r8)
@@ -63,11 +66,14 @@ contains
   function constructor(aero_props, aero_state, ilist, ibin, ncol, nlev, nsw, nlw, crefwsw, crefwlw) &
        result(newobj)
 
-    class(aerosol_properties),intent(in), target :: aero_props
-    class(aerosol_state),intent(in), target :: aero_state
-    integer, intent(in) :: ilist
-    integer, intent(in) :: ibin
-    integer, intent(in) :: ncol, nlev, nsw, nlw
+    class(aerosol_properties),intent(in), target :: aero_props   ! aerosol_properties object
+    class(aerosol_state),intent(in), target :: aero_state        ! aerosol_state object
+    integer, intent(in) :: ilist  ! climate or a diagnostic list number
+    integer, intent(in) :: ibin   ! bin number
+    integer, intent(in) :: ncol   ! number of columns
+    integer, intent(in) :: nlev   ! number of levels
+    integer, intent(in) :: nsw    ! number of short wave lengths
+    integer, intent(in) :: nlw    ! number of long wave lengths
     complex(r8), intent(in) :: crefwsw(nsw) ! complex refractive index for water visible
     complex(r8), intent(in) :: crefwlw(nlw) ! complex refractive index for water infrared
 
@@ -173,17 +179,18 @@ contains
   end function constructor
 
   !------------------------------------------------------------------------------
+  ! returns short wave aerosol optics properties
   !------------------------------------------------------------------------------
   subroutine sw_props(self, ncol, ilev, iwav, pext, pabs, palb, pasm)
 
     class(refractive_aerosol_optics), intent(in) :: self
-    integer, intent(in) :: ncol
-    integer, intent(in) :: ilev
-    integer, intent(in) :: iwav
-    real(r8),intent(out) :: pext(ncol)
-    real(r8),intent(out) :: pabs(ncol)
-    real(r8),intent(out) :: palb(ncol)
-    real(r8),intent(out) :: pasm(ncol)
+    integer, intent(in) :: ncol        ! number of columns
+    integer, intent(in) :: ilev        ! vertical level index
+    integer, intent(in) :: iwav        ! wave length index
+    real(r8),intent(out) :: pext(ncol) ! parameterized specific extinction (m2/kg)
+    real(r8),intent(out) :: pabs(ncol) ! parameterized specific absorption (m2/kg)
+    real(r8),intent(out) :: palb(ncol) ! parameterized asymmetry factor
+    real(r8),intent(out) :: pasm(ncol) ! parameterized single scattering albedo
 
     real(r8) :: refr(ncol)      ! real part of refractive index
     real(r8) :: refi(ncol)      ! imaginary part of refractive index
@@ -248,14 +255,15 @@ contains
   end subroutine sw_props
 
   !------------------------------------------------------------------------------
+  ! returns long wave aerosol optics properties
   !------------------------------------------------------------------------------
   subroutine lw_props(self, ncol, ilev, iwav, pabs)
 
     class(refractive_aerosol_optics), intent(in) :: self
-    integer, intent(in) :: ncol
-    integer, intent(in) :: ilev
-    integer, intent(in) :: iwav
-    real(r8),intent(out) :: pabs(ncol)
+    integer, intent(in) :: ncol        ! number of columns
+    integer, intent(in) :: ilev        ! vertical level index
+    integer, intent(in) :: iwav        ! wave length index
+    real(r8),intent(out) :: pabs(ncol) ! parameterized specific absorption (m2/kg)
 
     real(r8) :: refr(ncol)      ! real part of refractive index
     real(r8) :: refi(ncol)      ! imaginary part of refractive index

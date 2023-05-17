@@ -136,19 +136,24 @@ contains
   ! returns aerosol properties:
   !  density
   !  hygroscopicity
+  !  species type
+  !  short wave species refractive indices
+  !  long wave species refractive indices
+  !  species morphology
   !------------------------------------------------------------------------
-  subroutine get(self, bin_ndx, species_ndx, list_ndx, density, hygro, spectype, refindex_sw, refindex_lw, specmorph)
+  subroutine get(self, bin_ndx, species_ndx, list_ndx, density, hygro, &
+                 spectype, specmorph, refindex_sw, refindex_lw)
 
     class(carma_aerosol_properties), intent(in) :: self
     integer, intent(in) :: bin_ndx             ! bin index
     integer, intent(in) :: species_ndx         ! species index
-    integer, optional, intent(in) :: list_ndx
+    integer, optional, intent(in) :: list_ndx  ! climate or a diagnostic list number
     real(r8), optional, intent(out) :: density ! density (kg/m3)
     real(r8), optional, intent(out) :: hygro   ! hygroscopicity
-    character(len=*), optional, intent(out) :: spectype   !
-    complex(r8), pointer, optional, intent(out) :: refindex_sw(:)   !
-    complex(r8), pointer, optional, intent(out) :: refindex_lw(:)   !
-    character(len=*), optional, intent(out) :: specmorph
+    character(len=*), optional, intent(out) :: spectype  ! species type
+    character(len=*), optional, intent(out) :: specmorph ! species morphology
+    complex(r8), pointer, optional, intent(out) :: refindex_sw(:) ! short wave species refractive indices
+    complex(r8), pointer, optional, intent(out) :: refindex_lw(:) ! long wave species refractive indices
 
     integer :: ilist
 
@@ -180,12 +185,13 @@ contains
   end subroutine get
 
   !------------------------------------------------------------------------
+  ! returns optics type and table parameters
   !------------------------------------------------------------------------
   subroutine optics_params(self, list_ndx, bin_ndx, opticstype, extpsw, abspsw, asmpsw, absplw, &
        refrtabsw, refitabsw, refrtablw, refitablw, ncoef, prefr, prefi, sw_hygro_ext_wtp, &
        sw_hygro_ssa_wtp, sw_hygro_asm_wtp, lw_hygro_ext_wtp, wgtpct, nwtp, &
        sw_hygro_coreshell_ext, sw_hygro_coreshell_ssa, sw_hygro_coreshell_asm, lw_hygro_coreshell_ext, &
-       corefrac, bcdust, kap, relh, nbcdust, nkap, nrelh, nfrac )
+       corefrac, bcdust, kap, relh, nfrac, nbcdust, nkap, nrelh )
 
     class(carma_aerosol_properties), intent(in) :: self
     integer, intent(in) :: bin_ndx             ! bin index
@@ -193,40 +199,40 @@ contains
 
     character(len=*), optional, intent(out) :: opticstype
 
-    ! refactive
-    real(r8),  optional, pointer     :: extpsw(:,:,:,:)
-    real(r8),  optional, pointer     :: abspsw(:,:,:,:)
-    real(r8),  optional, pointer     :: asmpsw(:,:,:,:)
-    real(r8),  optional, pointer     :: absplw(:,:,:,:)
-    real(r8),  optional, pointer     :: refrtabsw(:,:)
-    real(r8),  optional, pointer     :: refitabsw(:,:)
-    real(r8),  optional, pointer     :: refrtablw(:,:)
-    real(r8),  optional, pointer     :: refitablw(:,:)
-    integer,   optional, intent(out) :: ncoef
-    integer,   optional, intent(out) :: prefr
-    integer,   optional, intent(out) :: prefi
+    ! refactive index table parameters
+    real(r8),  optional, pointer     :: extpsw(:,:,:,:) ! specific extinction
+    real(r8),  optional, pointer     :: abspsw(:,:,:,:) ! specific absorption
+    real(r8),  optional, pointer     :: asmpsw(:,:,:,:) ! asymmetry factor
+    real(r8),  optional, pointer     :: absplw(:,:,:,:) ! specific absorption
+    real(r8),  optional, pointer     :: refrtabsw(:,:)  ! table of real refractive indices for aerosols
+    real(r8),  optional, pointer     :: refitabsw(:,:)  ! table of imaginary refractive indices for aerosols
+    real(r8),  optional, pointer     :: refrtablw(:,:)  ! table of real refractive indices for aerosols
+    real(r8),  optional, pointer     :: refitablw(:,:)  ! table of imaginary refractive indices for aerosols
+    integer,   optional, intent(out) :: ncoef  ! number of chebychev polynomials
+    integer,   optional, intent(out) :: prefr  ! number of real refractive indices in table
+    integer,   optional, intent(out) :: prefi  ! number of imaginary refractive indices in table
 
-    ! hygrowghtpct
-    real(r8),  optional, pointer     :: sw_hygro_ext_wtp(:,:)
-    real(r8),  optional, pointer     :: sw_hygro_ssa_wtp(:,:)
-    real(r8),  optional, pointer     :: sw_hygro_asm_wtp(:,:)
-    real(r8),  optional, pointer     :: lw_hygro_ext_wtp(:,:)
-    real(r8),  optional, pointer     :: wgtpct(:)
-    integer,   optional, intent(out) :: nwtp
+    ! hygrowghtpct table parameters
+    real(r8),  optional, pointer     :: sw_hygro_ext_wtp(:,:) ! short wave extinction table
+    real(r8),  optional, pointer     :: sw_hygro_ssa_wtp(:,:) ! short wave single-scatter albedo table
+    real(r8),  optional, pointer     :: sw_hygro_asm_wtp(:,:) ! short wave asymmetry table
+    real(r8),  optional, pointer     :: lw_hygro_ext_wtp(:,:) ! long wave absorption table
+    real(r8),  optional, pointer     :: wgtpct(:)   ! weight precent of H2SO4/H2O solution
+    integer,   optional, intent(out) :: nwtp        ! number of weight precent values
 
-    ! hygrocoreshell
-    real(r8),  optional, pointer     :: sw_hygro_coreshell_ext(:,:,:,:,:)
-    real(r8),  optional, pointer     :: sw_hygro_coreshell_ssa(:,:,:,:,:)
-    real(r8),  optional, pointer     :: sw_hygro_coreshell_asm(:,:,:,:,:)
-    real(r8),  optional, pointer     :: lw_hygro_coreshell_ext(:,:,:,:,:)
-    real(r8),  optional, pointer     :: corefrac(:)
-    real(r8),  optional, pointer     :: bcdust(:)
-    real(r8),  optional, pointer     :: kap(:)
-    real(r8),  optional, pointer     :: relh(:)
-    integer,   optional, intent(out) :: nbcdust
-    integer,   optional, intent(out) :: nkap
-    integer,   optional, intent(out) :: nrelh
-    integer,   optional, intent(out) :: nfrac
+    ! hygrocoreshell table parameters
+    real(r8),  optional, pointer     :: sw_hygro_coreshell_ext(:,:,:,:,:) ! short wave extinction table
+    real(r8),  optional, pointer     :: sw_hygro_coreshell_ssa(:,:,:,:,:) ! short wave single-scatter albedo table
+    real(r8),  optional, pointer     :: sw_hygro_coreshell_asm(:,:,:,:,:) ! short wave asymmetry table
+    real(r8),  optional, pointer     :: lw_hygro_coreshell_ext(:,:,:,:,:) ! long wave absorption table
+    real(r8),  optional, pointer     :: corefrac(:) ! core fraction dimension values
+    real(r8),  optional, pointer     :: bcdust(:)   ! bc/(bc + dust) fraction dimension values
+    real(r8),  optional, pointer     :: kap(:)      ! hygroscopicity dimension values
+    real(r8),  optional, pointer     :: relh(:)     ! relative humidity dimension values
+    integer,   optional, intent(out) :: nfrac       ! core fraction dimension size
+    integer,   optional, intent(out) :: nbcdust     ! bc/(bc + dust) fraction dimension size
+    integer,   optional, intent(out) :: nkap        ! hygroscopicity dimension size
+    integer,   optional, intent(out) :: nrelh       ! relative humidity dimension size
 
     if (present(opticstype)) then
        call rad_cnst_get_bin_props(list_ndx,bin_ndx, opticstype=opticstype)

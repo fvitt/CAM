@@ -140,6 +140,10 @@ contains
     call rad_cnst_get_aer_mmr(0, bin_ndx, species_ndx, 'a', self%state, self%pbuf, mmr)
   end subroutine get_ambient_mmr0
 
+  !------------------------------------------------------------------------------
+  ! returns ambient aerosol mass mixing ratio for a given radiation diagnostics
+  ! list index, species index and bin index
+  !------------------------------------------------------------------------------
   subroutine get_ambient_mmrl(self, list_ndx, species_ndx, bin_ndx, mmr)
     class(modal_aerosol_state), intent(in) :: self
     integer, intent(in) :: list_ndx     ! rad climate list index
@@ -418,6 +422,8 @@ contains
   end function hetfrz_size_wght
 
   !------------------------------------------------------------------------------
+  ! returns hygroscopicity for a given radiation diagnostic list number and
+  ! bin number
   !------------------------------------------------------------------------------
   function hygroscopicity(self, list_ndx, bin_ndx) result(kappa)
     class(modal_aerosol_state), intent(in) :: self
@@ -431,6 +437,8 @@ contains
   end function hygroscopicity
 
   !------------------------------------------------------------------------------
+  ! returns aerosol wet diameter and aerosol water concentration for a given
+  ! radiation diagnostic list number and bin number
   !------------------------------------------------------------------------------
   subroutine water_uptake(self, aero_props, list_idx, bin_idx, ncol, nlev, dgnumwet, qaerwat)
     use modal_aero_wateruptake, only: modal_aero_wateruptake_dr
@@ -438,13 +446,12 @@ contains
 
     class(modal_aerosol_state), intent(in) :: self
     class(aerosol_properties), intent(in) :: aero_props
-    integer, intent(in) :: list_idx            ! rad climate/diags list number
-    integer, intent(in) :: bin_idx
-    integer, intent(in) :: ncol
-    integer, intent(in) :: nlev
-
-    real(r8),intent(out) :: dgnumwet(ncol,nlev)
-    real(r8),intent(out) :: qaerwat(ncol,nlev)
+    integer, intent(in) :: list_idx             ! rad climate/diags list number
+    integer, intent(in) :: bin_idx              ! bin number
+    integer, intent(in) :: ncol                 ! number of columns
+    integer, intent(in) :: nlev                 ! number of levels
+    real(r8),intent(out) :: dgnumwet(ncol,nlev) ! aerosol wet diameter (m)
+    real(r8),intent(out) :: qaerwat(ncol,nlev)  ! aerosol water concentration (g/g)
 
     integer :: istat, nmodes
     real(r8), pointer :: dgnumdry_m(:,:,:) ! number mode dry diameter for all modes
@@ -506,28 +513,30 @@ contains
   end subroutine water_uptake
 
   !------------------------------------------------------------------------------
+  ! aerosol weight precent of H2SO4/H2O solution
   !------------------------------------------------------------------------------
   function wgtpct(self) result(wtp)
     class(modal_aerosol_state), intent(in) :: self
-    real(r8), pointer :: wtp(:,:)
+    real(r8), pointer :: wtp(:,:) ! weight precent of H2SO4/H2O solution
 
     nullify(wtp)
 
   end function wgtpct
 
   !------------------------------------------------------------------------------
+  ! aerosol dry volume (m3/kg) for given radiation diagnostic list number and bin number
   !------------------------------------------------------------------------------
   function dry_volume(self, aero_props, list_idx, bin_idx, ncol, nlev) result(vol)
 
     class(modal_aerosol_state), intent(in) :: self
     class(aerosol_properties), intent(in) :: aero_props
 
-    integer, intent(in) :: list_idx            ! rad climate/diags list number
-    integer, intent(in) :: bin_idx
-    integer, intent(in) :: ncol
-    integer, intent(in) :: nlev
+    integer, intent(in) :: list_idx  ! rad climate/diags list number
+    integer, intent(in) :: bin_idx   ! bin number
+    integer, intent(in) :: ncol      ! number of columns
+    integer, intent(in) :: nlev      ! number of levels
 
-    real(r8) :: vol(ncol,nlev)        ! m3/kg
+    real(r8) :: vol(ncol,nlev)       ! m3/kg
 
     real(r8), pointer :: mmr(:,:)
     real(r8) :: specdens              ! species density (kg/m3)
@@ -545,18 +554,19 @@ contains
   end function dry_volume
 
   !------------------------------------------------------------------------------
+  ! aerosol wet volume (m3/kg) for given radiation diagnostic list number and bin number
   !------------------------------------------------------------------------------
   function wet_volume(self, aero_props, list_idx, bin_idx, ncol, nlev) result(vol)
 
     class(modal_aerosol_state), intent(in) :: self
     class(aerosol_properties), intent(in) :: aero_props
 
-    integer, intent(in) :: list_idx            ! rad climate/diags list number
-    integer, intent(in) :: bin_idx
-    integer, intent(in) :: ncol
-    integer, intent(in) :: nlev
+    integer, intent(in) :: list_idx  ! rad climate/diags list number
+    integer, intent(in) :: bin_idx   ! bin number
+    integer, intent(in) :: ncol      ! number of columns
+    integer, intent(in) :: nlev      ! number of levels
 
-    real(r8) :: vol(ncol,nlev)
+    real(r8) :: vol(ncol,nlev)       ! m3/kg
 
     real(r8) :: dryvol(ncol,nlev)
     real(r8) :: watervol(ncol,nlev)
@@ -569,18 +579,19 @@ contains
   end function wet_volume
 
   !------------------------------------------------------------------------------
+  ! aerosol water volume (m3/kg) for given radiation diagnostic list number and bin number
   !------------------------------------------------------------------------------
   function water_volume(self, aero_props, list_idx, bin_idx, ncol, nlev) result(vol)
 
     class(modal_aerosol_state), intent(in) :: self
     class(aerosol_properties), intent(in) :: aero_props
 
-    integer, intent(in) :: list_idx            ! rad climate/diags list number
-    integer, intent(in) :: bin_idx
-    integer, intent(in) :: ncol
-    integer, intent(in) :: nlev
+    integer, intent(in) :: list_idx  ! rad climate/diags list number
+    integer, intent(in) :: bin_idx   ! bin number
+    integer, intent(in) :: ncol      ! number of columns
+    integer, intent(in) :: nlev      ! number of levels
 
-    real(r8) :: vol(ncol,nlev)
+    real(r8) :: vol(ncol,nlev)       ! m3/kg
 
     real(r8) :: dgnumwet(ncol,nlev)
     real(r8) :: qaerwat(ncol,nlev)

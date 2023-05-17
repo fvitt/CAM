@@ -52,7 +52,7 @@ module aerosol_optics_cam
   ! refractive index for water read in read_water_refindex
   complex(r8) :: crefwsw(nswbands) = -huge(1._r8) ! complex refractive index for water visible
   complex(r8) :: crefwlw(nlwbands) = -huge(1._r8) ! complex refractive index for water infrared
-  character(len=cl) :: aerwat_refindex_file = 'NONE' ! full pathname for water refractive index dataset
+  character(len=cl) :: water_refindex_file = 'NONE' ! full pathname for water refractive index dataset
 
   logical :: carma_active = .false.
   logical :: modal_active = .false.
@@ -87,7 +87,7 @@ contains
     ! ===================
     ! Namelist definition
     ! ===================
-    namelist /aerosol_optics_nl/ aerwat_refindex_file
+    namelist /aerosol_optics_nl/ water_refindex_file
 
     ! =============
     ! Read namelist
@@ -107,13 +107,13 @@ contains
     ! ============================
     ! Broadcast namelist variables
     ! ============================
-    call mpi_bcast(aerwat_refindex_file, len(aerwat_refindex_file),  mpi_character, masterprocid, mpicom, ierr)
+    call mpi_bcast(water_refindex_file, len(water_refindex_file),  mpi_character, masterprocid, mpicom, ierr)
     if (ierr/=mpi_success) then
-       call endrun(subname // ':: ERROR mpi_bcast '//trim(aerwat_refindex_file))
+       call endrun(subname // ':: ERROR mpi_bcast '//trim(water_refindex_file))
     end if
 
     if (masterproc) then
-       write(iulog,*) subname,': aerwat_refindex_file = ',trim(aerwat_refindex_file)
+       write(iulog,*) subname,': water_refindex_file = ',trim(water_refindex_file)
     end if
 
   end subroutine aerosol_optics_cam_readnl
@@ -169,8 +169,8 @@ contains
        aero_props(iaermod)%obj => carma_aerosol_properties()
     end if
 
-    if (aerwat_refindex_file/='NONE') then
-       call getfil(aerwat_refindex_file, locfile)
+    if (water_refindex_file/='NONE') then
+       call getfil(water_refindex_file, locfile)
        call read_water_refindex(locfile)
     end if
 

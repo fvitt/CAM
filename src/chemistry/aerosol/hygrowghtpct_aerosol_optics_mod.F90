@@ -11,17 +11,20 @@ module hygrowghtpct_aerosol_optics_mod
   private
   public :: hygrowghtpct_aerosol_optics
 
+  !> hygrowghtpct_aerosol_optics
+  !! Table look up implementation of aerosol_optics to parameterize aerosol
+  !! radiative properties in terms of weight precent of H2SO4/H2O solution
   type, extends(aerosol_optics) :: hygrowghtpct_aerosol_optics
 
-     real(r8), allocatable :: totalmmr(:,:)
-     real(r8), allocatable :: wgtpct(:,:)
+     real(r8), allocatable :: totalmmr(:,:) ! total mmr of the aerosol
+     real(r8), allocatable :: wgtpct(:,:)   ! weight precent of H2SO4/H2O solution
 
-     real(r8), pointer :: tbl_wgtpct(:)
+     real(r8), pointer :: sw_hygro_ext_wtp(:,:) ! short wave extinction table
+     real(r8), pointer :: sw_hygro_ssa_wtp(:,:) ! short wave single-scatter albedo table
+     real(r8), pointer :: sw_hygro_asm_wtp(:,:) ! short wave asymmetry table
+     real(r8), pointer :: lw_hygro_abs_wtp(:,:) ! long wave absorption table
 
-     real(r8), pointer :: sw_hygro_ext_wtp(:,:)
-     real(r8), pointer :: sw_hygro_ssa_wtp(:,:)
-     real(r8), pointer :: sw_hygro_asm_wtp(:,:)
-     real(r8), pointer :: lw_hygro_abs_wtp(:,:)
+     real(r8), pointer :: tbl_wgtpct(:) ! weight precent dimenstion values
 
    contains
 
@@ -42,12 +45,12 @@ contains
   !------------------------------------------------------------------------------
   function constructor(aero_props, aero_state, ilist, ibin, ncol, nlev) result(newobj)
 
-    class(aerosol_properties),intent(in) :: aero_props
-    class(aerosol_state),intent(in) :: aero_state
-    integer, intent(in) :: ilist
-    integer, intent(in) :: ibin
-    integer, intent(in) :: ncol, nlev
-
+    class(aerosol_properties),intent(in) :: aero_props ! aerosol_properties object
+    class(aerosol_state),intent(in) :: aero_state      ! aerosol_state object
+    integer, intent(in) :: ilist  ! climate or a diagnostic list number
+    integer, intent(in) :: ibin   ! bin number
+    integer, intent(in) :: ncol   ! number of columns
+    integer, intent(in) :: nlev   ! number of levels
 
     type(hygrowghtpct_aerosol_optics), pointer :: newobj
 
@@ -107,17 +110,18 @@ contains
   end function constructor
 
   !------------------------------------------------------------------------------
+  ! returns short wave aerosol optics properties
   !------------------------------------------------------------------------------
   subroutine sw_props(self, ncol, ilev, iwav, pext, pabs, palb, pasm)
 
     class(hygrowghtpct_aerosol_optics), intent(in) :: self
-    integer, intent(in) :: ncol
-    integer, intent(in) :: ilev
-    integer, intent(in) :: iwav
-    real(r8),intent(out) :: pext(ncol)
-    real(r8),intent(out) :: pabs(ncol)
-    real(r8),intent(out) :: palb(ncol)
-    real(r8),intent(out) :: pasm(ncol)
+    integer, intent(in) :: ncol        ! number of columns
+    integer, intent(in) :: ilev        ! vertical level index
+    integer, intent(in) :: iwav        ! wave length index
+    real(r8),intent(out) :: pext(ncol) ! parameterized specific extinction (m2/kg)
+    real(r8),intent(out) :: pabs(ncol) ! parameterized specific absorption (m2/kg)
+    real(r8),intent(out) :: palb(ncol) ! parameterized asymmetry factor
+    real(r8),intent(out) :: pasm(ncol) ! parameterized single scattering albedo
 
     integer :: icol
 
@@ -140,14 +144,15 @@ contains
   end subroutine sw_props
 
   !------------------------------------------------------------------------------
+  ! returns long wave aerosol optics properties
   !------------------------------------------------------------------------------
   subroutine lw_props(self, ncol, ilev, iwav, pabs)
 
     class(hygrowghtpct_aerosol_optics), intent(in) :: self
-    integer, intent(in) :: ncol
-    integer, intent(in) :: ilev
-    integer, intent(in) :: iwav
-    real(r8),intent(out) :: pabs(ncol)
+    integer, intent(in) :: ncol        ! number of columns
+    integer, intent(in) :: ilev        ! vertical level index
+    integer, intent(in) :: iwav        ! wave length index
+    real(r8),intent(out) :: pabs(ncol) ! parameterized specific absorption (m2/kg)
 
     integer :: icol
 
