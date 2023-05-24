@@ -67,6 +67,7 @@ module aerosol_properties_mod
      procedure :: soa_equivso4_factor ! SOA Hygroscopicity / Sulfate Hygroscopicity
      procedure :: pom_equivso4_factor ! POM Hygroscopicity / Sulfate Hygroscopicity
      procedure(aero_optics_params), deferred :: optics_params
+     procedure(aero_bin_name), deferred :: bin_name
 
      procedure :: final=>aero_props_final
   end type aerosol_properties
@@ -338,6 +339,19 @@ module aerosol_properties_mod
        real(r8) :: res
 
      end function aero_alogsig_rlist
+
+     !------------------------------------------------------------------------------
+     ! returns name for a given radiation list number and aerosol bin
+     !------------------------------------------------------------------------------
+     function aero_bin_name(self, list_ndx,  bin_ndx) result(name)
+       import :: aerosol_properties, r8
+       class(aerosol_properties), intent(in) :: self
+       integer, intent(in) :: list_ndx ! radiation list number
+       integer, intent(in) :: bin_ndx  ! bin number
+
+       character(len=32) name
+
+     end function aero_bin_name
 
   end interface
 

@@ -31,6 +31,7 @@ module carma_aerosol_properties_mod
      procedure :: nbins_rlist
      procedure :: nspecies_per_bin_rlist
      procedure :: alogsig_rlist
+     procedure :: bin_name
 
      final :: destructor
   end type carma_aerosol_properties
@@ -526,5 +527,19 @@ contains
     res = self%alogsig(bin_ndx)
 
   end function alogsig_rlist
+
+  !------------------------------------------------------------------------------
+  ! returns name for a given radiation list number and aerosol bin
+  !------------------------------------------------------------------------------
+  function bin_name(self, list_ndx,  bin_ndx) result(name)
+    class(carma_aerosol_properties), intent(in) :: self
+    integer, intent(in) :: list_ndx ! radiation list number
+    integer, intent(in) :: bin_ndx  ! bin number
+
+    character(len=32) name
+
+    call rad_cnst_get_info_by_bin(list_ndx, bin_ndx, bin_name=name)
+
+  end function bin_name
 
 end module carma_aerosol_properties_mod
