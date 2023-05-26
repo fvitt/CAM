@@ -276,14 +276,14 @@ subroutine modal_aer_opt_init()
       fldname = 'AODdn_'//trim(modename)
       write(lngname,'(a,i2.2)') 'Aerosol optical depth 550 nm, day night, mode ', m
       call addfld (fldname, horiz_only, 'A', '  ', lngname, flag_xyfill=.true.)
-      if (m>3 .and. history_aero_optics) then
+      if (history_aero_optics) then
          call add_default (fldname, 1, ' ')
       endif
 
       write(fldname,'(a,i2.2)') 'AODdnDUST', m
       write(lngname,'(a,i2.2,a)') 'Aerosol optical depth 550 nm, day night, mode ',m,' from dust'
       call addfld (fldname, horiz_only, 'A', '  ', lngname, flag_xyfill=.true.)
-      if (history_aero_optics) then
+      if (m>3 .and. history_aero_optics) then
          call add_default (fldname, 1, ' ')
       endif
 
