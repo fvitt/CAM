@@ -126,8 +126,9 @@ subroutine modal_aer_opt_init()
    integer :: errcode
 
    character(len=*), parameter :: routine='modal_aer_opt_init'
-   character(len=12) :: fldname
+   character(len=32) :: fldname
    character(len=128) :: lngname
+   character(len=32) :: modename
 
    real(r8) :: lwavlen_lo(nlwbands), lwavlen_hi(nlwbands)
 
@@ -240,6 +241,8 @@ subroutine modal_aer_opt_init()
 
    do m = 1, nmodes
 
+      call rad_cnst_get_info(0,m, mode_type=modename)
+
       write(fldname,'(a,i2.2)') 'BURDEN', m
       write(lngname,'(a,i2.2)') 'Aerosol burden, day only, mode ', m
       call addfld (fldname, horiz_only, 'A', 'kg/m2', lngname, flag_xyfill=.true.)
@@ -247,10 +250,11 @@ subroutine modal_aer_opt_init()
          call add_default (fldname, 1, ' ')
       endif
 
-      write(fldname,'(a,i2.2)') 'AOD', m
+      !write(fldname,'(a,i2.2)') 'AOD', m
+      fldname = 'AOD_'//trim(modename)
       write(lngname,'(a,i2.2)') 'Aerosol optical depth, day only, 550 nm mode ', m
       call addfld (fldname, horiz_only, 'A', '  ', lngname, flag_xyfill=.true.)
-      if (m>3 .and. history_aero_optics) then
+      if (history_aero_optics) then
          call add_default (fldname, 1, ' ')
       endif
 
@@ -268,7 +272,8 @@ subroutine modal_aer_opt_init()
          call add_default (fldname, 1, ' ')
       endif
 
-      write(fldname,'(a,i2.2)') 'AODdn', m
+      !write(fldname,'(a,i2.2)') 'AODdn', m
+      fldname = 'AODdn_'//trim(modename)
       write(lngname,'(a,i2.2)') 'Aerosol optical depth 550 nm, day night, mode ', m
       call addfld (fldname, horiz_only, 'A', '  ', lngname, flag_xyfill=.true.)
       if (m>3 .and. history_aero_optics) then
@@ -278,7 +283,7 @@ subroutine modal_aer_opt_init()
       write(fldname,'(a,i2.2)') 'AODdnDUST', m
       write(lngname,'(a,i2.2,a)') 'Aerosol optical depth 550 nm, day night, mode ',m,' from dust'
       call addfld (fldname, horiz_only, 'A', '  ', lngname, flag_xyfill=.true.)
-      if (m>3 .and. history_aero_optics) then
+      if (history_aero_optics) then
          call add_default (fldname, 1, ' ')
       endif
 
@@ -342,7 +347,6 @@ subroutine modal_aer_opt_init()
    call addfld ('SSAVISdn',        horiz_only, 'A','  ',    'Aerosol single-scatter albedo, day night',                  &
         flag_xyfill=.true.)
 
-
    if (history_amwg) then
       call add_default ('AODDUST01'     , 1, ' ')
       call add_default ('AODDUST03'     , 1, ' ')
@@ -360,9 +364,6 @@ subroutine modal_aer_opt_init()
       call add_default ('AODDUST01'     , 1, ' ')
       call add_default ('AODDUST03'     , 1, ' ')
       call add_default ('ABSORB'       , 1, ' ')
-      call add_default ('AOD01'     , 1, ' ')
-      call add_default ('AOD02'     , 1, ' ')
-      call add_default ('AOD03'     , 1, ' ')
       call add_default ('AODVIS'       , 1, ' ')
       call add_default ('AODUV'        , 1, ' ')
       call add_default ('AODNIR'       , 1, ' ')
@@ -391,9 +392,6 @@ subroutine modal_aer_opt_init()
       call add_default ('AODdnDUST01'     , 1, ' ')
       call add_default ('AODdnDUST03'     , 1, ' ')
       call add_default ('ABSORBdn'       , 1, ' ')
-      call add_default ('AODdn01'     , 1, ' ')
-      call add_default ('AODdn02'     , 1, ' ')
-      call add_default ('AODdn03'     , 1, ' ')
       call add_default ('AODVISdn'       , 1, ' ')
       call add_default ('AODUVdn'        , 1, ' ')
       call add_default ('AODNIRdn'       , 1, ' ')
@@ -613,6 +611,7 @@ subroutine modal_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
 
 
    character(len=32) :: outname
+   character(len=32) :: modename
 
    ! debug output
    integer, parameter :: nerrmax_dopaer=1000
@@ -889,7 +888,6 @@ subroutine modal_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
                pabs(i) = min(pext(i),pabs(i))
 
                palb(i) = 1._r8-pabs(i)/max(pext(i),1.e-40_r8)
-               palb(i) = 1._r8-pabs(i)/max(pext(i),1.e-40_r8)
 
                dopaer(i) = pext(i)*mass(i,k)
 
@@ -1048,10 +1046,13 @@ subroutine modal_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
       ! be necessary to provide output for the rad_diag lists.
       if (list_idx == 0) then
 
+         call rad_cnst_get_info(0,m, mode_type=modename)
+
          write(outname,'(a,i2.2)') 'BURDENdn', m
          call outfld(trim(outname), burden, pcols, lchnk)
 
-         write(outname,'(a,i2.2)') 'AODdn', m
+         !write(outname,'(a,i2.2)') 'AODdn', m
+         outname = 'AODdn_'//trim(modename)
          call outfld(trim(outname), aodmode, pcols, lchnk)
 
          write(outname,'(a,i2.2)') 'AODdnDUST', m
@@ -1066,7 +1067,8 @@ subroutine modal_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
          write(outname,'(a,i2.2)') 'BURDEN', m
          call outfld(trim(outname), burden, pcols, lchnk)
 
-         write(outname,'(a,i2.2)') 'AOD', m
+         !write(outname,'(a,i2.2)') 'AOD', m
+         outname = 'AOD_'//trim(modename)
          call outfld(trim(outname), aodmode, pcols, lchnk)
 
          write(outname,'(a,i2.2)') 'AODDUST', m
