@@ -69,9 +69,15 @@ module carma_model_mod
   integer, public, parameter      :: NSOLUTE  = 0               !! Number of particle solutes
   integer, public, parameter      :: NGAS     = 2               !! Number of gases
 
+  ! NOTE: This is for now, when Pengfei has only defined sulfates at one weight percent. In the future,
+  ! we may want to expand this to match NMIE_WTP and/or NMIE_RH
+  integer, public, parameter      :: NREFIDX  = 1               !! Number of refractive indices per element
+
   ! These need to be defined, but are only used when the particles are radiatively active.
   integer, public, parameter      :: NMIE_RH  = 10              !! Number of relative humidities for mie calculations
-  real(kind=f), public            :: mie_rh(NMIE_RH)
+  real(kind=f), public            :: mie_rh(NMIE_RH) = (/ 0.1_f, 0.3_f, 0.5_f, 0.7_f, 0.8_f, 0.85_f, 0.9_f, 0.92_f, 0.93_f, 0.95_f /)
+  integer, public, parameter        :: NMIE_WTP = 13              !! Number of weight percents for mie calculations
+  real(kind=f), public                  :: mie_wtp(NMIE_WTP) = (/ 0.1_f, 0.3_f, 0.5_f, 0.7_f, 0.8_f, 0.83_f, 0.86_f, 0.9_f, 0.92_f, 0.94_f, 0.96_f, 0.98_f, 1._f/)
 
   ! Defines whether the groups should undergo deep convection in phase 1 or phase 2.
   ! Water vapor and cloud particles are convected in phase 1, while all other constituents
@@ -162,6 +168,54 @@ module carma_model_mod
 
   integer :: bc_srfemis_ndx=-1, oc_srfemis_ndx=-1
 
+  ! define refractive indices dependon composition and wavelength
+  !
+  ! NOTE: It would be better to read this out of files, but this is how Pengfei set it up, so we
+  ! will use this for now.  
+  !real(kind=f), public :: shellreal(NWAVE)    = (/1.890_f,1.913_f,1.932_f,1.568_f,1.678_f,1.758_f,1.855_f,1.597_f,1.147_f,1.261_f,&
+  !                1.424_f,1.352_f,1.379_f,1.385_f,1.385_f,1.367_f,&
+  !            1.367_f,1.315_f,1.358_f,1.380_f,1.393_f,1.405_f,1.412_f,1.422_f,1.428_f,1.430_f,&
+  !            1.422_f,1.468_f,1.484_f,1.164_f/)
+  !
+  !real(kind=f), public :: shellimag(NWAVE)    = (/0.220_f,0.152_f,0.085_f,0.223_f,0.195_f,0.441_f,0.696_f,0.695_f,0.459_f,0.161_f,&
+  !                0.172_f,0.144_f,0.120_f,0.122_f,0.126_f,0.158_f,&
+  !            0.158_f,0.057_f,0.003_f,0.001_f,0.001_f,0.000_f,0.000_f,0.000_f,0.000_f,0.000_f,&
+  !            0.000_f,0.000_f,0.000_f,0.551_f/)
+ 
+  real(kind=f), public :: shellreal(NWAVE)    = (/ 1.89_f, 1.912857_f, 1.932063_f, 1.586032_f, &
+               1.677979_f, 1.757825_f, 1.855336_f, 1.596767_f, 1.146559_f, 1.261314_f, 1.424219_f, &
+               1.351645_f, 1.378697_f, 1.385_f, 1.385_f, 1.366909_f, 1.366909_f, 1.314577_f, &
+               1.357978_f, 1.380309_f, 1.392645_f, 1.404506_f, 1.412181_f, 1.421632_f, &
+               1.427968_f, 1.430335_f, 1.441641_f, 1.467642_f, 1.484_f, 1.164128_f /)
+
+  real(kind=f), public :: shellimag(NWAVE)    = (/ 0.22_f, 0.15185711_f, 0.08457167_f, 0.22250789_f, 0.19499999_f, &
+              0.44068847_f, 0.69594361_f, 0.69466153_f, 0.45876573_f, 0.16060575_f, &
+              0.1715766_f , 0.14352135_f, 0.12025213_f, 0.12222873_f, 0.12581848_f, 0.15793008_f, &
+              1.57930076e-01_f, 5.66869128e-02_f, 2.88634387e-03_f, 1.49071286e-03_f, &
+              5.30385233e-04_f, 1.02977119e-04_f, 1.61967358e-05_f, 1.75122678e-06_f, &
+              2.21435655e-08_f, 9.99999994e-09_f, 9.99999994e-09_f, 9.99999994e-09_f, &
+              9.99999994e-09_f, 5.51133746e-01_f /)
+
+  real(kind=f), public :: corerealdst(NWAVE)  = (/2.340_f,2.904_f,1.748_f,1.508_f,1.911_f,1.822_f,2.917_f,1.557_f,1.242_f,1.447_f,&
+                  1.432_f,1.473_f,1.495_f,1.500_f,1.500_f,1.510_f,&
+              1.510_f,1.520_f,1.523_f,1.529_f,1.530_f,1.530_f,1.530_f,1.530_f,1.530_f,1.530_f,&
+              1.530_f,1.530_f,1.530_f,1.180_f/)
+
+  real(kind=f), public :: corerealbc (NWAVE)  = (/2.690_f,2.501_f,2.398_f,2.332_f,2.287_f,2.234_f,2.198_f,2.166_f,2.114_f,2.054_f,&
+                  2.028_f,1.977_f,1.948_f,1.933_f,1.921_f,1.877_f,&
+              1.877_f,1.832_f,1.813_f,1.802_f,1.791_f,1.768_f,1.761_f,1.760_f,1.750_f,1.750_f,&
+              1.750_f,1.741_f,1.620_f,2.124_f/)
+
+  real(kind=f), public :: coreimagdst(NWAVE)  = (/0.700_f,0.857_f,0.462_f,0.263_f,0.319_f,0.260_f,0.650_f,0.373_f,0.093_f,0.105_f,&
+                  0.061_f,0.025_f,0.011_f,0.008_f,0.007_f,0.018_f,&
+              0.018_f,0.028_f,0.012_f,0.008_f,0.007_f,0.006_f,0.005_f,0.004_f,0.004_f,0.006_f,&
+              0.014_f,0.024_f,0.030_f,0.101_f/)
+
+  real(kind=f), public :: coreimagbc(NWAVE)   = (/1.000_f,0.884_f,0.825_f,0.791_f,0.764_f,0.734_f,0.714_f,0.696_f,0.668_f,0.644_f,&
+                  0.624_f,0.604_f,0.593_f,0.586_f,0.580_f,0.556_f,&
+              0.556_f,0.527_f,0.503_f,0.492_f,0.481_f,0.458_f,0.451_f,0.440_f,0.430_f,0.443_f,&
+              0.461_f,0.470_f,0.450_f,0.674_f/)
+
 contains
 
   !! Defines all the CARMA components (groups, elements, solutes and gases) and process
@@ -181,9 +235,7 @@ contains
     integer                            :: LUNOPRT              ! logical unit number for output
     character(len=2)                   :: outputname,outputbin
     logical                            :: do_print             ! do print output?
-    complex(kind=f)                    :: refidx(NWAVE)        ! refractice indices
-    complex(kind=f)                    :: refidxS(NWAVE)       ! refractice indices for Shell
-    complex(kind=f)                    :: refidxC(NWAVE)       ! refractice indices for Core
+    complex(kind=f)                    :: refidx(NWAVE, NREFIDX) ! refractice indices
 
     integer                            :: igroup,ibin
     character(len=8)                   :: sname                ! short (CAM) name
@@ -217,8 +269,8 @@ contains
 
     call CARMAGROUP_Create(carma, I_GRP_PRSUL, "sulfate", rmin_PRSUL, vmrat_PRSUL, I_SPHERE, 1._f, .false., &
                            rc, irhswell=I_WTPCT_H2SO4, do_wetdep=.false., do_drydep=.true., solfac=0.3_f, &
-                           scavcoef=0.1_f, is_sulfate=.true., shortname="PRSUL", &
-                           imiertn=I_MIERTN_TOON1981)
+                           scavcoef=0.1_f, is_sulfate=.true., shortname="PRSUL", do_mie=.true., &
+                           imiertn=I_MIERTN_TOON1981, iopticstype = I_OPTICS_SULFATE)
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddGroup failed.')
 
 
@@ -231,7 +283,9 @@ contains
 
     call CARMAGROUP_Create(carma, I_GRP_MXAER, "mixed aerosol", rmin_MXAER, vmrat_MXAER, I_SPHERE, 1._f, .false., &
                            rc, do_wetdep=.false., do_drydep=.true., solfac=0.2_f, &
-                           scavcoef=0.1_f, shortname="MXAER", refidx=refidx, irhswell=I_PETTERS, imiertn=I_MIERTN_TOON1981,neutral_volfrc=-1._f)
+                           scavcoef=0.1_f, shortname="MXAER", irhswell=I_PETTERS, do_mie=.true., imiertn=I_MIERTN_TOON1981, &
+                           iopticstype = I_OPTICS_MIXED_YU_H2O, &
+                           neutral_volfrc=-1._f)
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddGroup failed.')
 
 
@@ -239,12 +293,13 @@ contains
     !
     ! NOTE: For CAM, the optional shortname needs to be provided for the group. These names
     ! should be 6 characters or less and without spaces.
+    refidx(:,1) = CMPLX(shellreal(:), shellimag(:), kind=f)
     call CARMAELEMENT_Create(carma, I_ELEM_PRSUL, I_GRP_PRSUL, "Sulfate", &
-                             RHO_SULFATE, I_VOLATILE, I_H2SO4, rc, shortname="PRSUL")
+                             RHO_SULFATE, I_VOLATILE, I_H2SO4, rc, shortname="PRSUL", refidx=refidx)
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddElement failed.')
 
     call CARMAELEMENT_Create(carma, I_ELEM_MXAER,  I_GRP_MXAER, "Sulfate in mixed sulfate", &
-                             RHO_SULFATE, I_VOLATILE, I_H2SO4, rc,  kappa=Kappa_SULF, shortname="MXAER")
+                             RHO_SULFATE, I_VOLATILE, I_H2SO4, rc,  kappa=Kappa_SULF, shortname="MXAER", refidx=refidx)
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddElement failed.')
 
     call CARMAELEMENT_Create(carma, I_ELEM_MXOC,   I_GRP_MXAER, "organic carbon", &
@@ -254,13 +309,15 @@ contains
     call CARMAELEMENT_Create(carma, I_ELEM_MXSOA,   I_GRP_MXAER, "secondary organic aerosol", &
                              RHO_obc, I_COREMASS, I_SOA, rc, kappa=Kappa_SOA, shortname="MXSOA")
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddElement failed.')
-
+ 
+    refidx(:,1) = CMPLX(corerealbc(:), coreimagbc(:), kind=f)
     call CARMAELEMENT_Create(carma, I_ELEM_MXBC,   I_GRP_MXAER, "black carbon", &
-                             RHO_obc, I_COREMASS, I_BC, rc, kappa=Kappa_BC, shortname="MXBC")
+                             RHO_obc, I_COREMASS, I_BC, rc, kappa=Kappa_BC, shortname="MXBC", refidx=refidx)
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddElement failed.')
 
+    refidx(:,1) = CMPLX(corerealdst(:), coreimagdst(:), kind=f)
     call CARMAELEMENT_Create(carma, I_ELEM_MXDUST, I_GRP_MXAER, "dust", &
-                             RHO_DUST, I_COREMASS, I_DUST, rc,  kappa=Kappa_DUST, shortname="MXDUST")
+                             RHO_DUST, I_COREMASS, I_DUST, rc,  kappa=Kappa_DUST, shortname="MXDUST", refidx=refidx)
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddElement failed.')
 
     call CARMAELEMENT_Create(carma, I_ELEM_MXSALT, I_GRP_MXAER, "SALT in mixed sulfate", &
