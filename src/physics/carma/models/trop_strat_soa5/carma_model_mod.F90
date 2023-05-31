@@ -68,16 +68,18 @@ module carma_model_mod
   integer, public, parameter      :: NBIN     = 20              !! Number of particle bins
   integer, public, parameter      :: NSOLUTE  = 0               !! Number of particle solutes
   integer, public, parameter      :: NGAS     = 2               !! Number of gases
-  
+
   ! NOTE: This is for now, when Pengfei has only defined sulfates at one weight percent. In the future,
   ! we may want to expand this to match NMIE_WTP and/or NMIE_RH
   integer, public, parameter      :: NREFIDX  = 1               !! Number of refractive indices per element
 
   ! These need to be defined, but are only used when the particles are radiatively active.
-  integer, public, parameter      :: NMIE_RH  = 10              !! Number of relative humidities for mie calculations
-  real(kind=f), public            :: mie_rh(NMIE_RH) = (/ 0.1_f, 0.3_f, 0.5_f, 0.7_f, 0.8_f, 0.85_f, 0.9_f, 0.92_f, 0.93_f, 0.95_f /)
-  integer, public, parameter	    :: NMIE_WTP = 13              !! Number of weight percents for mie calculations
-  real(kind=f), public		        :: mie_wtp(NMIE_WTP) = (/ 0.1_f, 0.3_f, 0.5_f, 0.7_f, 0.8_f, 0.83_f, 0.86_f, 0.9_f, 0.92_f, 0.94_f, 0.96_f, 0.98_f, 1._f/)
+  integer, public, parameter :: NMIE_RH  = 10              !! Number of relative humidities for mie calculations
+  real(kind=f), public       :: mie_rh(NMIE_RH) = (/ 0.1_f, 0.3_f, 0.5_f, 0.7_f, 0.8_f, 0.85_f, &
+                                                     0.9_f, 0.92_f, 0.93_f, 0.95_f /)
+  integer, public, parameter :: NMIE_WTP = 13              !! Number of weight percents for mie calculations
+  real(kind=f), public       :: mie_wtp(NMIE_WTP) = (/ 0.1_f, 0.3_f, 0.5_f, 0.7_f, 0.8_f, 0.83_f, &
+                                                       0.86_f, 0.9_f, 0.92_f, 0.94_f, 0.96_f, 0.98_f, 1._f/)
 
   ! Defines whether the groups should undergo deep convection in phase 1 or phase 2.
   ! Water vapor and cloud particles are convected in phase 1, while all other constituents
@@ -187,7 +189,7 @@ module carma_model_mod
   real(kind=f) :: aeronet_fraction(NBIN)  !! fraction of BC dV/dlnr in each bin (100%)
 
   integer :: bc_srfemis_ndx=-1, oc_srfemis_ndx=-1
-  
+
   ! define refractive indices dependon composition and wavelength
   !
   ! NOTE: It would be better to read this out of files, but this is how Pengfei set it up, so we
@@ -196,15 +198,15 @@ module carma_model_mod
   ! NOTE: Rather than using the values from Pengfei for the sulfate, use the values from MAM. They
   ! have more precision and differ in the imaginary part below 2 um where Pengfei's are truncated at 0.
   ! The MAM values are consistent with OPAC and truncate at 1e-8. 
-!  real(kind=f), public :: shellreal(NWAVE)    = (/1.890_f,1.913_f,1.932_f,1.568_f,1.678_f,1.758_f,1.855_f,1.597_f,1.147_f,1.261_f,&
-!                  1.424_f,1.352_f,1.379_f,1.385_f,1.385_f,1.367_f,&
-!              1.367_f,1.315_f,1.358_f,1.380_f,1.393_f,1.405_f,1.412_f,1.422_f,1.428_f,1.430_f,&
-!              1.422_f,1.468_f,1.484_f,1.164_f/)
-              
-!  real(kind=f), public :: shellimag(NWAVE)    = (/0.220_f,0.152_f,0.085_f,0.223_f,0.195_f,0.441_f,0.696_f,0.695_f,0.459_f,0.161_f,&
-!                  0.172_f,0.144_f,0.120_f,0.122_f,0.126_f,0.158_f,&
-!              0.158_f,0.057_f,0.003_f,0.001_f,0.001_f,0.000_f,0.000_f,0.000_f,0.000_f,0.000_f,&
-!              0.000_f,0.000_f,0.000_f,0.551_f/)
+  !real(kind=f), public :: shellreal(NWAVE)    = (/1.890_f,1.913_f,1.932_f,1.568_f,1.678_f,1.758_f,1.855_f,1.597_f,1.147_f,1.261_f,&
+  !                1.424_f,1.352_f,1.379_f,1.385_f,1.385_f,1.367_f,&
+  !            1.367_f,1.315_f,1.358_f,1.380_f,1.393_f,1.405_f,1.412_f,1.422_f,1.428_f,1.430_f,&
+  !            1.422_f,1.468_f,1.484_f,1.164_f/)
+  !
+  !real(kind=f), public :: shellimag(NWAVE)    = (/0.220_f,0.152_f,0.085_f,0.223_f,0.195_f,0.441_f,0.696_f,0.695_f,0.459_f,0.161_f,&
+  !                0.172_f,0.144_f,0.120_f,0.122_f,0.126_f,0.158_f,&
+  !            0.158_f,0.057_f,0.003_f,0.001_f,0.001_f,0.000_f,0.000_f,0.000_f,0.000_f,0.000_f,&
+  !            0.000_f,0.000_f,0.000_f,0.551_f/)
 
   real(kind=f), public :: shellreal(NWAVE)    = (/ 1.89_f, 1.912857_f, 1.932063_f, 1.586032_f, &
                1.677979_f, 1.757825_f, 1.855336_f, 1.596767_f, 1.146559_f, 1.261314_f, 1.424219_f, &
@@ -219,12 +221,12 @@ module carma_model_mod
               5.30385233e-04_f, 1.02977119e-04_f, 1.61967358e-05_f, 1.75122678e-06_f, &
               2.21435655e-08_f, 9.99999994e-09_f, 9.99999994e-09_f, 9.99999994e-09_f, &
               9.99999994e-09_f, 5.51133746e-01_f /)
-          
+
   real(kind=f), public :: corerealdst(NWAVE)  = (/2.340_f,2.904_f,1.748_f,1.508_f,1.911_f,1.822_f,2.917_f,1.557_f,1.242_f,1.447_f,&
                   1.432_f,1.473_f,1.495_f,1.500_f,1.500_f,1.510_f,&
               1.510_f,1.520_f,1.523_f,1.529_f,1.530_f,1.530_f,1.530_f,1.530_f,1.530_f,1.530_f,&
               1.530_f,1.530_f,1.530_f,1.180_f/)
-             
+
   real(kind=f), public :: corerealbc (NWAVE)  = (/2.690_f,2.501_f,2.398_f,2.332_f,2.287_f,2.234_f,2.198_f,2.166_f,2.114_f,2.054_f,&
                   2.028_f,1.977_f,1.948_f,1.933_f,1.921_f,1.877_f,&
               1.877_f,1.832_f,1.813_f,1.802_f,1.791_f,1.768_f,1.761_f,1.760_f,1.750_f,1.750_f,&
@@ -239,7 +241,6 @@ module carma_model_mod
                   0.624_f,0.604_f,0.593_f,0.586_f,0.580_f,0.556_f,&
               0.556_f,0.527_f,0.503_f,0.492_f,0.481_f,0.458_f,0.451_f,0.440_f,0.430_f,0.443_f,&
               0.461_f,0.470_f,0.450_f,0.674_f/)
-
 
 contains
 
@@ -552,10 +553,11 @@ contains
 
     do ibin = 1, NBIN
 
-       call CARMASTATE_GetBin(cstate, ienconc, ibin, mmr_total(:), rc)
-       if (rc /= RC_OK) call endrun('CARMA_DiagnoseBins::CARMASTATE_GetBin failed.')
+      ! Get the mass of the concentration element.
+      call CARMASTATE_GetBin(cstate, ienconc, ibin, mmr_total(:), rc)
+      if (rc /= RC_OK) call endrun('CARMA_DiagnoseBins::CARMASTATE_GetBin failed.')
 
-       ! Iterate over the core elements, looking for the SOA element. Once found,
+      ! Iterate over the core elements, looking for the SOA element. Once found,
       ! determine the new SOA taking into account both the addition of condensed
       ! SOA and the loss of photolyzed SOA.
       !
@@ -946,8 +948,7 @@ contains
     use ppgrid,        only: pcols, pver
     use physics_types, only: physics_state
     use phys_grid,     only: get_lon_all_p, get_lat_all_p
-    use time_manager,  only: get_curr_date, get_perp_date, get_curr_calday, &
-                             is_perpetual
+    use time_manager,  only: get_curr_date, get_perp_date, is_perpetual
     use camsrfexch,    only: cam_in_t
     use cam_history,   only: outfld
 
@@ -969,7 +970,6 @@ contains
     integer      :: lchnk                   ! chunk identifier
     integer      :: ncol                    ! number of columns in chunk
     integer      :: icol                    ! column index
-    real(r8)     :: calday                  ! current calendar day
     integer      :: yr                      ! year
     integer      :: mon                     ! month
     integer      :: day                     ! day of month
@@ -1009,24 +1009,12 @@ contains
                                                             ! (12 g/mol)/avocadro constant (6e-23 #/mol) *10
     real(r8), pointer :: BCemis_ptr(:), OCemis_ptr(:)
 
-!   currently not used
-!   real(r8)     :: MPOAFlux(pcols)             ! marine POA flux
-!   real(r8)     :: Fsub(pcols)                 ! marine Chlorophy11-dependent mass contribution of sub-micron organics
-!   real(r8)     :: sub_micron(pcols)                   ! total sub-micron sea spray particles
-!   real(r8)     :: PBAPFlux(pcols)                             ! Primary biological aerosol particles
-!   real(r8)     :: spor_mon_N(12) = (/0.5_r8,0.5_r8,0.5_r8,1.5_r8,1.5_r8,1.5_r8,1.5_r8,1.5_r8,1.5_r8,0.5_r8,0.5_r8,0.5_r8/)
-!   real(r8)     :: spor_mon_S(12) = (/1.5_r8,1.5_r8,1.5_r8,0.5_r8,0.5_r8,0.5_r8,0.5_r8,0.5_r8,0.5_r8,1.5_r8,1.5_r8,1.5_r8/)
-!   real(r8)     :: Spbin                                               ! fraction of emission for each bin
-!   real(r8)     :: Rrh(pcols)                                  ! RH effect for spore emission
-!   real(r8)     :: sporemass                   ! spore mass per particle
-
     ! Default return code.
     rc = RC_OK
     smoke(:) = -huge(1._r8)
     ch = carma_dustemisfactor
 
     ! Determine the day of year.
-    calday = get_curr_calday()
     if ( is_perpetual() ) then
       call get_perp_date(yr, mon, day, ncsec)
     else
@@ -1592,7 +1580,6 @@ contains
   !!  @version January-2023
   !!  @author  Chuck Bardeen
   subroutine CARMA_CalculateCloudborneDiagnostics(carma, state, pbuf, aerclddiag, rc)
-    use cam_history, only: outfld
 
     type(carma_type), intent(in)         :: carma        !! the carma object
     type(physics_state), intent(in)      :: state        !! Physics state variables - before pname
@@ -1699,6 +1686,7 @@ contains
         else if (shortname .eq. "MXSOA5") then
           bdsoa5(:ncols, :) = bdsoa5(:ncols, :) + mmr(:ncols,:) * mair(:ncols,:)
         end if
+
         mixso4(:ncols,:) = mixso4(:ncols,:) - mmr(:ncols,:) * mair(:ncols,:)
       end do
     end do
@@ -1837,15 +1825,18 @@ contains
       end if
 
     end do
-    ! Output the total sulfate and H2SO4 tendencies for this physics package.
-    call outfld("SO4PRTC_"//trim(pname), puretend(:), pcols, state%lchnk)
-    call outfld("SO4MXTC_"//trim(pname), mixtend(:), pcols, state%lchnk)
-    call outfld("H2SO4TC_"//trim(pname), gastend(:), pcols, state%lchnk)
-    call outfld("SO2TC_"//trim(pname), so2tend(:), pcols, state%lchnk)
-    call outfld("SO4PRSF_"//trim(pname), cprflux(:), pcols, state%lchnk)
-    call outfld("SO4MXSF_"//trim(pname), cmxflux(:), pcols, state%lchnk)
-    call outfld("SO4PRBD_"//trim(pname), bdprso4(:), pcols, state%lchnk)
-    call outfld("SO4MXBD_"//trim(pname), bdmxso4(:), pcols, state%lchnk)
+
+    if (carma_do_package_diags) then
+       ! Output the total sulfate and H2SO4 tendencies for this physics package.
+       call outfld("SO4PRTC_"//trim(pname), puretend(:), pcols, state%lchnk)
+       call outfld("SO4MXTC_"//trim(pname), mixtend(:), pcols, state%lchnk)
+       call outfld("H2SO4TC_"//trim(pname), gastend(:), pcols, state%lchnk)
+       call outfld("SO2TC_"//trim(pname), so2tend(:), pcols, state%lchnk)
+       call outfld("SO4PRSF_"//trim(pname), cprflux(:), pcols, state%lchnk)
+       call outfld("SO4MXSF_"//trim(pname), cmxflux(:), pcols, state%lchnk)
+       call outfld("SO4PRBD_"//trim(pname), bdprso4(:), pcols, state%lchnk)
+       call outfld("SO4MXBD_"//trim(pname), bdmxso4(:), pcols, state%lchnk)
+    endif
 
     return
   end subroutine CARMA_OutputBudgetDiagnostics
@@ -1888,8 +1879,8 @@ contains
     ! To be similar to interstitial, where the burden is calculated from the
     ! state before the tendencies are applied, report the old burden not the
     ! current burden.
-!    call outfld("SO4PRCLDBD_"//trim(pname), aerclddiag(:,1), pcols, state%lchnk)
-!    call outfld("SO4MXCLDBD_"//trim(pname), aerclddiag(:,2), pcols, state%lchnk)
+    ! call outfld("SO4PRCLDBD_"//trim(pname), aerclddiag(:,1), pcols, state%lchnk)
+    ! call outfld("SO4MXCLDBD_"//trim(pname), aerclddiag(:,2), pcols, state%lchnk)
     call outfld("SO4PRCLDBD_"//trim(pname), oldaerclddiag(:,1), pcols, state%lchnk)
     call outfld("SO4MXCLDBD_"//trim(pname), oldaerclddiag(:,2), pcols, state%lchnk)
 
@@ -1906,7 +1897,7 @@ contains
   !!  @author  Chuck Bardeen
   subroutine CARMA_OutputDiagnostics(carma, icnst4elem, state, ptend, pbuf, cam_in, rc)
     use cam_history,   only: outfld
-    use constituents,  only: pcnst, cnst_get_ind
+    use constituents,  only: cnst_get_ind
     use camsrfexch,    only: cam_in_t
 
     type(carma_type), intent(in)         :: carma        !! the carma object
@@ -2148,7 +2139,6 @@ contains
   subroutine CARMA_SaltFlux(carma, ibin, state, r, dr, rmass, cam_in, SaltFlux, rc)
     use ppgrid,        only: pcols
     use physics_types, only: physics_state
-    use phys_grid,     only: get_lon_all_p, get_lat_all_p
     use camsrfexch,    only: cam_in_t
 
     type(carma_type), intent(in)       :: carma                 !! the carma object
@@ -2161,7 +2151,6 @@ contains
     real(r8), intent(out)              :: SaltFlux(pcols)       !! constituent surface flux (kg/m^2/s)
     integer, intent(out)               :: rc                    !! return code, negative indicates failure
 
-    integer      :: lchnk                   ! chunk identifier
     integer      :: ncol                    ! number of columns in chunk
     integer      :: icol                    ! column index
 
@@ -2262,8 +2251,6 @@ contains
     ! Default return code.
     rc = RC_OK
 
-    ! Determine the latitude and longitude of each column.
-    lchnk = state%lchnk
     ncol = state%ncol
 
     ! Add any surface flux here.
@@ -2605,7 +2592,6 @@ contains
     integer             :: ind_low(NBIN_TEGEN+2)
     integer             :: j                    ! local index number
     integer             :: ibin                 ! carma bin index
-    real(r8)            :: r(carma%f_NBIN)      ! CARMA bin center (cm)
 
     ! Default return code.
     rc = RC_OK
@@ -2775,7 +2761,7 @@ contains
     type (interp_type)                        :: lat_wght, lon_wght
     real(r8)                                  :: lat(pcols)            ! latitude index
     real(r8)                                  :: lon(pcols)            ! longitude index
-    integer                                   :: i, ii
+    integer                                   :: i
     integer                                   :: lchnk                 ! chunk identifier
     integer                                   :: ncol                  ! number of columns in chunk
 

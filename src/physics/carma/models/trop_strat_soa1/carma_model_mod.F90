@@ -74,10 +74,12 @@ module carma_model_mod
   integer, public, parameter      :: NREFIDX  = 1               !! Number of refractive indices per element
 
   ! These need to be defined, but are only used when the particles are radiatively active.
-  integer, public, parameter      :: NMIE_RH  = 10              !! Number of relative humidities for mie calculations
-  real(kind=f), public            :: mie_rh(NMIE_RH) = (/ 0.1_f, 0.3_f, 0.5_f, 0.7_f, 0.8_f, 0.85_f, 0.9_f, 0.92_f, 0.93_f, 0.95_f /)
-  integer, public, parameter        :: NMIE_WTP = 13              !! Number of weight percents for mie calculations
-  real(kind=f), public                  :: mie_wtp(NMIE_WTP) = (/ 0.1_f, 0.3_f, 0.5_f, 0.7_f, 0.8_f, 0.83_f, 0.86_f, 0.9_f, 0.92_f, 0.94_f, 0.96_f, 0.98_f, 1._f/)
+  integer, public, parameter :: NMIE_RH  = 10              !! Number of relative humidities for mie calculations
+  real(kind=f), public       :: mie_rh(NMIE_RH) = (/ 0.1_f, 0.3_f, 0.5_f, 0.7_f, 0.8_f, 0.85_f, &
+                                                     0.9_f, 0.92_f, 0.93_f, 0.95_f /)
+  integer, public, parameter :: NMIE_WTP = 13              !! Number of weight percents for mie calculations
+  real(kind=f), public       :: mie_wtp(NMIE_WTP) = (/ 0.1_f, 0.3_f, 0.5_f, 0.7_f, 0.8_f, 0.83_f, &
+                                                       0.86_f, 0.9_f, 0.92_f, 0.94_f, 0.96_f, 0.98_f, 1._f/)
 
   ! Defines whether the groups should undergo deep convection in phase 1 or phase 2.
   ! Water vapor and cloud particles are convected in phase 1, while all other constituents
@@ -171,7 +173,11 @@ module carma_model_mod
   ! define refractive indices dependon composition and wavelength
   !
   ! NOTE: It would be better to read this out of files, but this is how Pengfei set it up, so we
-  ! will use this for now.  
+  ! will use this for now.
+  !
+  ! NOTE: Rather than using the values from Pengfei for the sulfate, use the values from MAM. They
+  ! have more precision and differ in the imaginary part below 2 um where Pengfei's are truncated at 0.
+  ! The MAM values are consistent with OPAC and truncate at 1e-8.
   !real(kind=f), public :: shellreal(NWAVE)    = (/1.890_f,1.913_f,1.932_f,1.568_f,1.678_f,1.758_f,1.855_f,1.597_f,1.147_f,1.261_f,&
   !                1.424_f,1.352_f,1.379_f,1.385_f,1.385_f,1.367_f,&
   !            1.367_f,1.315_f,1.358_f,1.380_f,1.393_f,1.405_f,1.412_f,1.422_f,1.428_f,1.430_f,&
@@ -181,7 +187,7 @@ module carma_model_mod
   !                0.172_f,0.144_f,0.120_f,0.122_f,0.126_f,0.158_f,&
   !            0.158_f,0.057_f,0.003_f,0.001_f,0.001_f,0.000_f,0.000_f,0.000_f,0.000_f,0.000_f,&
   !            0.000_f,0.000_f,0.000_f,0.551_f/)
- 
+
   real(kind=f), public :: shellreal(NWAVE)    = (/ 1.89_f, 1.912857_f, 1.932063_f, 1.586032_f, &
                1.677979_f, 1.757825_f, 1.855336_f, 1.596767_f, 1.146559_f, 1.261314_f, 1.424219_f, &
                1.351645_f, 1.378697_f, 1.385_f, 1.385_f, 1.366909_f, 1.366909_f, 1.314577_f, &
@@ -309,7 +315,7 @@ contains
     call CARMAELEMENT_Create(carma, I_ELEM_MXSOA,   I_GRP_MXAER, "secondary organic aerosol", &
                              RHO_obc, I_COREMASS, I_SOA, rc, kappa=Kappa_SOA, shortname="MXSOA")
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddElement failed.')
- 
+
     refidx(:,1) = CMPLX(corerealbc(:), coreimagbc(:), kind=f)
     call CARMAELEMENT_Create(carma, I_ELEM_MXBC,   I_GRP_MXAER, "black carbon", &
                              RHO_obc, I_COREMASS, I_BC, rc, kappa=Kappa_BC, shortname="MXBC", refidx=refidx)
@@ -464,8 +470,6 @@ contains
     real(r8), intent(inout), optional     :: snow_str(pcols)  !! [Total] sfc flux of snow from stratiform (m/s)
 
     ! local variables
-    character(len=8)                     :: snamecore                !! short (CAM) name
-    character(len=8)                     :: shortname                !! short (CAM) name
     real(r8), pointer, dimension(:,:)    :: dqdt_soa              !! soa tendency due to gas-aerosol exchange  kg/kg/s
     real(r8), pointer, dimension(:,:)    :: jno2_rate             !! jno2 tendency due to gas-aerosol exchange  kg/kg/s
     real(r8), pointer, dimension(:,:)    :: soacm                 !! aerosol tendency due to gas-aerosol exchange  kg/kg/s
@@ -762,8 +766,7 @@ contains
     use ppgrid,        only: pcols, pver
     use physics_types, only: physics_state
     use phys_grid,     only: get_lon_all_p, get_lat_all_p
-    use time_manager,  only: get_curr_date, get_perp_date, get_curr_calday, &
-                             is_perpetual
+    use time_manager,  only: get_curr_date, get_perp_date, is_perpetual
     use camsrfexch,    only: cam_in_t
     use cam_history,   only: outfld
 
@@ -785,7 +788,6 @@ contains
     integer      :: lchnk                   ! chunk identifier
     integer      :: ncol                    ! number of columns in chunk
     integer      :: icol                    ! column index
-    real(r8)     :: calday                  ! current calendar day
     integer      :: yr                      ! year
     integer      :: mon                     ! month
     integer      :: day                     ! day of month
@@ -825,24 +827,12 @@ contains
                                                             ! (12 g/mol)/avocadro constant (6e-23 #/mol) *10
     real(r8), pointer :: BCemis_ptr(:), OCemis_ptr(:)
 
-!   currently not used
-!   real(r8)     :: MPOAFlux(pcols)             ! marine POA flux
-!   real(r8)     :: Fsub(pcols)                 ! marine Chlorophy11-dependent mass contribution of sub-micron organics
-!   real(r8)     :: sub_micron(pcols)                   ! total sub-micron sea spray particles
-!   real(r8)     :: PBAPFlux(pcols)                             ! Primary biological aerosol particles
-!   real(r8)     :: spor_mon_N(12) = (/0.5_r8,0.5_r8,0.5_r8,1.5_r8,1.5_r8,1.5_r8,1.5_r8,1.5_r8,1.5_r8,0.5_r8,0.5_r8,0.5_r8/)
-!   real(r8)     :: spor_mon_S(12) = (/1.5_r8,1.5_r8,1.5_r8,0.5_r8,0.5_r8,0.5_r8,0.5_r8,0.5_r8,0.5_r8,1.5_r8,1.5_r8,1.5_r8/)
-!   real(r8)     :: Spbin                                               ! fraction of emission for each bin
-!   real(r8)     :: Rrh(pcols)                                  ! RH effect for spore emission
-!   real(r8)     :: sporemass                   ! spore mass per particle
-
     ! Default return code.
     rc = RC_OK
     smoke(:) = -huge(1._r8)
     ch = carma_dustemisfactor
 
     ! Determine the day of year.
-    calday = get_curr_calday()
     if ( is_perpetual() ) then
       call get_perp_date(yr, mon, day, ncsec)
     else
@@ -1377,7 +1367,6 @@ contains
   !!  @version January-2023
   !!  @author  Chuck Bardeen
   subroutine CARMA_CalculateCloudborneDiagnostics(carma, state, pbuf, aerclddiag, rc)
-    use cam_history, only: outfld
 
     type(carma_type), intent(in)         :: carma        !! the carma object
     type(physics_state), intent(in)      :: state        !! Physics state variables - before pname
@@ -1655,12 +1644,12 @@ contains
     call outfld("SO4MXCLDTC_"//trim(pname), (aerclddiag(:,2) - oldaerclddiag(:,2)) / dt, pcols, state%lchnk)
 
     ! To be similar to interstitial, where the burden is calculated from the
-      ! state before the tendencies are applied, report the old burden not the
-      ! current burden.
-  !    call outfld("SO4PRCLDBD_"//trim(pname), aerclddiag(:,1), pcols, state%lchnk)
-  !    call outfld("SO4MXCLDBD_"//trim(pname), aerclddiag(:,2), pcols, state%lchnk)
-      call outfld("SO4PRCLDBD_"//trim(pname), oldaerclddiag(:,1), pcols, state%lchnk)
-      call outfld("SO4MXCLDBD_"//trim(pname), oldaerclddiag(:,2), pcols, state%lchnk)
+    ! state before the tendencies are applied, report the old burden not the
+    ! current burden.
+    ! call outfld("SO4PRCLDBD_"//trim(pname), aerclddiag(:,1), pcols, state%lchnk)
+    ! call outfld("SO4MXCLDBD_"//trim(pname), aerclddiag(:,2), pcols, state%lchnk)
+    call outfld("SO4PRCLDBD_"//trim(pname), oldaerclddiag(:,1), pcols, state%lchnk)
+    call outfld("SO4MXCLDBD_"//trim(pname), oldaerclddiag(:,2), pcols, state%lchnk)
 
     return
   end subroutine CARMA_OutputCloudborneDiagnostics
@@ -1675,7 +1664,7 @@ contains
   !!  @author  Chuck Bardeen
   subroutine CARMA_OutputDiagnostics(carma, icnst4elem, state, ptend, pbuf, cam_in, rc)
     use cam_history,   only: outfld
-    use constituents,  only: pcnst, cnst_get_ind
+    use constituents,  only: cnst_get_ind
     use camsrfexch,    only: cam_in_t
 
     type(carma_type), intent(in)         :: carma        !! the carma object
@@ -1862,7 +1851,6 @@ contains
   subroutine CARMA_SaltFlux(carma, ibin, state, r, dr, rmass, cam_in, SaltFlux, rc)
     use ppgrid,        only: pcols
     use physics_types, only: physics_state
-    use phys_grid,     only: get_lon_all_p, get_lat_all_p
     use camsrfexch,    only: cam_in_t
 
     type(carma_type), intent(in)       :: carma                 !! the carma object
@@ -1875,7 +1863,6 @@ contains
     real(r8), intent(out)              :: SaltFlux(pcols)       !! constituent surface flux (kg/m^2/s)
     integer, intent(out)               :: rc                    !! return code, negative indicates failure
 
-    integer      :: lchnk                   ! chunk identifier
     integer      :: ncol                    ! number of columns in chunk
     integer      :: icol                    ! column index
 
@@ -1976,8 +1963,6 @@ contains
     ! Default return code.
     rc = RC_OK
 
-    ! Determine the latitude and longitude of each column.
-    lchnk = state%lchnk
     ncol = state%ncol
 
     ! Add any surface flux here.
@@ -2319,7 +2304,6 @@ contains
     integer             :: ind_low(NBIN_TEGEN+2)
     integer             :: j                    ! local index number
     integer             :: ibin                 ! carma bin index
-    real(r8)            :: r(carma%f_NBIN)      ! CARMA bin center (cm)
 
     ! Default return code.
     rc = RC_OK
@@ -2489,7 +2473,7 @@ contains
     type (interp_type)                        :: lat_wght, lon_wght
     real(r8)                                  :: lat(pcols)            ! latitude index
     real(r8)                                  :: lon(pcols)            ! longitude index
-    integer                                   :: i, ii
+    integer                                   :: i
     integer                                   :: lchnk                 ! chunk identifier
     integer                                   :: ncol                  ! number of columns in chunk
 

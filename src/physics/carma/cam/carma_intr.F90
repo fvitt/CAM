@@ -26,16 +26,13 @@ module carma_intr
   use shr_kind_mod,   only: r8 => shr_kind_r8
   use spmd_utils,     only: masterproc, mpicom
   use shr_reprosum_mod, only : shr_reprosum_calc
-  use pmgrid,         only: plat, plev, plevp, plon
   use ppgrid,         only: pcols, pver, pverp
   use ref_pres,       only: pref_mid, pref_edge, pref_mid_norm, psurf_ref
   use physics_types,  only: physics_state, physics_ptend, physics_ptend_init, &
                             set_dry_to_wet, physics_state_copy
-  use phys_grid,      only: get_lat_all_p
-  use physconst,      only: avogad, cpair
+  use physconst,      only: cpair
   use constituents,   only: pcnst, cnst_add, cnst_get_ind, &
-                            cnst_name, cnst_longname, cnst_type
-  use chem_surfvals,  only: chem_surfvals_get
+                            cnst_name, cnst_longname
   use cam_abortutils, only: endrun
   use physics_buffer, only: physics_buffer_desc, pbuf_add_field, pbuf_old_tim_idx, &
                             pbuf_get_index, pbuf_get_field, dtype_r8, pbuf_set_field
@@ -204,8 +201,7 @@ contains
   !! @author Chuck Bardeen
   !! @version May-2009
   subroutine carma_register
-    use radconstants,    only : nswbands, nlwbands, &
-         get_sw_spectral_boundaries, get_lw_spectral_boundaries
+    use radconstants,    only : nlwbands, get_sw_spectral_boundaries, get_lw_spectral_boundaries
     use cam_logfile,     only : iulog
     use cam_control_mod, only : initial_run
     use physconst,    only: gravit, p_rearth=>rearth, mwdry, mwh2o
@@ -543,7 +539,6 @@ contains
   !! @version May 2009
   subroutine carma_init(pbuf2d)
     use cam_history,  only: addfld, add_default, horiz_only
-    use ioFileMod,    only : getfil
     use wrap_nf
     use time_manager, only: is_first_step
     use phys_control, only: phys_getopts
@@ -551,7 +546,6 @@ contains
 
     type(physics_buffer_desc), pointer :: pbuf2d(:,:)
 
-    integer           :: iz           ! vertical index
     integer           :: ielem        ! element index
     integer           :: ibin         ! bin index
     integer           :: igas         ! gas index
@@ -565,14 +559,6 @@ contains
     logical           :: do_drydep    ! is dry deposition enabled?
     integer           :: ncore        ! number of core elements in the group
 
-    integer                    :: i
-    integer                    :: ier
-    integer                    :: ncid, dimid_lev, lev, vid_T
-    logical                    :: lexist
-    character(len=256)         :: locfn
-    integer                    :: nlev
-    integer                    :: LUNOPRT              ! logical unit number for output
-    logical                    :: do_print             ! do print output?
     logical                    :: history_carma
     logical                    :: history_carma_srf_flx
 
@@ -894,9 +880,8 @@ contains
   !! @version May-2009
   subroutine carma_timestep_tend(state, cam_in, cam_out, ptend, dt, pbuf, dlf, rliq, prec_str, snow_str, &
     prec_sed, snow_sed, ustar, obklen)
-    use time_manager,     only: get_nstep, get_step_size, is_first_step
+    use time_manager,     only: get_nstep, is_first_step
     use camsrfexch,       only: cam_in_t, cam_out_t
-    use scamMod,          only: single_column
     use planck,           only: planckIntensity
 
     implicit none
@@ -922,13 +907,11 @@ contains
     type(carmastate_type) :: cstate                                 ! the carma state object
     integer               :: igroup                                 ! group index
     integer               :: ielem                                  ! element index
-    integer               :: ielem_nd                               ! index of numder density element in group
     integer               :: ibin                                   ! bin index
     integer               :: igas                                   ! gas index
     integer               :: icol                                   ! column index
     integer               :: icnst                                  ! constituent index
     integer               :: icnst_q                                ! H2O constituent index
-    integer               :: ncol                                   ! number of columns
     integer               :: rc                                     ! CARMA return code
     integer               :: cnsttype                               ! constituent type
     integer               :: maxbin                                 ! last prognostic bin
@@ -938,8 +921,6 @@ contains
     real(r8)              :: sbdiags(pcols, NBIN, NELEM,  NSBDIAGS) ! CARMA surface bin diagnostic output
     real(r8)              :: bndiags(pcols, pver, NBIN, NELEM, NBNDIAGS) ! CARMA bin diagnostic output
     real(r8)              :: newstate(pver)                         ! next state for a physics state field
-    real(r8)              :: xc(pver)                               ! x center
-    real(r8)              :: yc(pver)                               ! y center
     real(r8)              :: dz(pver)                               ! z width
     real(r8)              :: satice(pver)                           ! saturation wrt ice
     real(r8)              :: satliq(pver)                           ! saturation wrt liquid
@@ -951,7 +932,6 @@ contains
     real(r8)              :: rmass(NBIN)                            ! particle mass (g)
     real(r8)              :: rrat(NBIN)                             ! particle maximum radius ratio ()
     real(r8)              :: arat(NBIN)                             ! particle area ration ()
-    real(r8)              :: rhoelem                                ! element density (g)
     real(r8)              :: nd(pver)                               ! number density (cm-3)
     real(r8)              :: ad(pver)                               ! area density (um2/cm3)
     real(r8)              :: md(pver)                               ! mass density (g cm-3)
@@ -986,9 +966,6 @@ contains
     real(r8), pointer, dimension(:,:) :: tnd_qsnow    ! external tendency on snow mass (kg/kg/s)
     real(r8), pointer, dimension(:,:) :: tnd_nsnow    ! external tendency on snow number(#/kg/s)
     real(r8), pointer, dimension(:,:) :: re_ice       ! ice effective radius (m)
-    integer               :: lchnk                                  ! chunk identifier
-    real(r8)              :: coremmr(pver)
-    real(r8)              :: ttlmmr(pver)
     integer               :: iz
     real(r8)              :: cldfrc(pver)                           ! cloud fraction [fraction]
     real(r8)              :: rhcrit(pver)                           ! relative humidity for onset of liquid clouds [fraction]
@@ -1010,7 +987,6 @@ contains
     real(kind=f)          :: zsubsteps(pver)
     logical               :: is_cloud                               ! is the group a cloud?
     logical               :: is_ice                                 ! is the group ice?
-    integer               :: ienconc
     logical               :: grp_do_drydep                          ! is dry depostion enabled for group?
     logical               :: do_drydep                              ! is dry depostion enabled?
     logical               :: do_detrain                             ! do convective detrainment?
@@ -1050,8 +1026,6 @@ contains
     call cnst_get_ind('Q', icnst_q)
 
     ! Get pointers into pbuf ...
-    lchnk = state_loc%lchnk
-
     call pbuf_get_field(pbuf, ipbuf4t, t_ptr)
 
     ! If doing particle heating, then get pointers to the spectral flux data provided
@@ -1086,11 +1060,6 @@ contains
     if (rc < 0) call endrun('carma_timestep_tend::CARMA_Get failed.')
 
     if (carma_do_fixedinit) then
-
-      ! The latitude and longitude are arbitrary, but the dimensions need to be correct.
-      xc = 255._r8
-      yc = 40._r8
-
       call CARMASTATE_CreateFromReference(cstate, &
                          carma_ptr, &
                          time, &
@@ -1793,15 +1762,14 @@ contains
   subroutine carma_calculate_globalmassfactor(state)
     use physconst,  only: gravit
     use ppgrid,     only: begchunk, endchunk
-    use phys_grid,  only: get_ncols_p, get_wght_p
+    use phys_grid,  only: get_wght_p
 
     type(physics_state), intent(in), dimension(begchunk:endchunk) :: state  !! All the chunks in this task.
 
     integer         :: icorelem(NELEM)      !! List of core element numbers for the group
-    integer         :: igroup,ienconc,ncore,ibin,iz,icore,icol,lchnk,ncol
+    integer         :: igroup,ienconc,ncore,ibin,iz,icore,icol,lchnk
     integer         :: cnst_conc            !! Constituent index for concentration element
     integer         :: cnst_core            !! Constituent index for a core mass
-    integer         :: istat                !! I/O status
     real(r8)        :: total_core(pver)     !! Total mmr for the core masses (kg/kg)
     real(r8)        :: amass(pcols, pver)   !! Air mass (kg)
     real(r8)        :: concgas_mmr          !! mmr for concentration element - sum(core_mass) (kg/kg)
@@ -1814,7 +1782,6 @@ contains
     integer         :: rc                   !! return code
     integer         :: LUNOPRT              !! logical unit number for output
     logical         :: do_print             !! do print output?
-    integer         :: ncols                !! columns in a chunk
     integer         :: kk
 
     kk = pcols*(endchunk-begchunk+1)
@@ -1930,7 +1897,6 @@ contains
   !! @author  Chuck Bardeen
   !! @version February-2023
   subroutine carma_checkstate_global(state, ptend, dt)
-    use physconst,     only: gravit
 
     type(physics_state), intent(in)     :: state        !! Physics state variables - before CARMA
     type(physics_ptend), intent(inout)  :: ptend        !! indivdual parameterization tendencies
@@ -2305,7 +2271,6 @@ contains
     integer           :: ienconc   ! element index for group's concentration element
     integer           :: icnst     ! constituent index
     integer           :: lchnk     ! chunk identifier
-    integer           :: ncol      ! number of columns
     integer           :: rc        ! CARMA return code
     character(len=8)  :: sname     ! short (CAM) name
     integer           :: cnsttype  ! constituent type
@@ -2318,7 +2283,6 @@ contains
 
     ! Check each column int the chunk.
     lchnk = state%lchnk
-    ncol  = state%ncol
 
     ! Output step diagnostics.
     if (carma_do_substep) then
@@ -2421,7 +2385,6 @@ contains
     return
   end subroutine carma_output_diagnostics
 
-
   !! Calculate the emissions for CARMA aerosols. This is taken from
   !! the routine aerosol_emis_intr in aerosol_intr.F90 and dust_emis_intr in
   !! dust_intr.F90 by Phil Rasch.
@@ -2442,7 +2405,6 @@ contains
 
     integer      :: lchnk                   ! chunk identifier
     integer      :: ncol                    ! number of columns in chunk
-    integer      :: icol                    ! column index
     integer      :: igroup                  ! group index
     integer      :: ielem                   ! element index
     integer      :: ibin                    ! bin index
@@ -2520,7 +2482,6 @@ contains
   subroutine carma_wetdep_tend(state, ptend, dt,  pbuf, dlf, cam_out)
     use cam_history,   only: outfld
     use phys_control,  only: cam_physpkg_is
-    use phys_grid,     only: get_lat_all_p, get_lon_all_p, get_rlat_all_p
     use wetdep,        only: clddiag, wetdepa_v1, wetdepa_v2
     use camsrfexch,       only: cam_out_t
     use physconst,     only: gravit
@@ -2543,9 +2504,6 @@ contains
     integer                             :: igroup                 ! group index
     integer                             :: ibin                   ! bin index
     integer                             :: icnst                  ! constituent index
-    integer                             :: lat(pcols)             ! latitude indices
-    real(r8)                            :: clat(pcols)            ! latitudes
-    integer                             :: lon(pcols)             ! longtitude indices
     real(r8)                            :: conicw(pcols,pver)     ! convective in-cloud water
     real(r8)                            :: cmfdqr(pcols,pver)     ! convective production of rain
     real(r8)                            :: cldc(pcols,pver)       ! convective cloud fraction, currently empty
@@ -2570,7 +2528,7 @@ contains
     integer                             :: maxbin
 
     ! physics buffer
-    integer itim_old, ifld
+    integer itim_old
     real(r8), pointer, dimension(:,:)   :: cldn                   ! cloud fraction
     real(r8), pointer, dimension(:,:)   :: cme
     real(r8), pointer, dimension(:,:)   :: prain
@@ -2780,8 +2738,6 @@ contains
     logical                             :: do_mie
     integer                             :: cnsttype               ! constituent type
     integer                             :: opticsType
-    integer                             :: ret
-
 
     ! Assume success.
     rc = 0
@@ -3153,7 +3109,7 @@ contains
                      carma%f_group(igroup)%f_imiertn, &
                      rwet, &
                      carma%f_wave(iwave), &
-                     carma%f_group(igroup)%f_nmon(ibin), &
+                     real(carma%f_group(igroup)%f_nmon(ibin),kind=f), &
                      carma%f_group(igroup)%f_df(ibin), &
                      carma%f_group(igroup)%f_rmon, &
                      carma%f_group(igroup)%f_falpha, &
@@ -3237,15 +3193,16 @@ contains
     !! style table. The CAM optics code will interpolate based upon the current core/shell
     !! mass ratio from a table built using the specified core/shell.
     integer, parameter                  :: ncoreshellratio  = 9               !! Number of core/shell ratio for mie calculations
-    integer, parameter	                :: ndstbcratio = 8
-    integer, parameter	                :: nkap = 9
+    integer, parameter                  :: ndstbcratio = 8
+    integer, parameter                  :: nkap = 9
 
-    real(kind=f)                        :: coreshellratio(ncoreshellratio) = (/ 0.001_f, 0.00237_f, 0.00562_f, 0.01333_f, 0.03162_f, 0.07499_f, 0.17782_f, 0.42169_f, 1.0_f /) 
-    real(kind=f)		                    :: dstbcratio(ndstbcratio) = (/ 0.01_f, 0.025_f, 0.063_f, 0.1_f, 0.3_f, 0.5_f, 0.7_f, 0.9_f/) 
-    real(kind=f)		                    :: kap(nkap) = (/ 0.1_f, 0.2_f, 0.3_f, 0.4_f, 0.5_f, 0.7_f, 0.9_f, 1.1_f, 1.2_f/)
+    real(kind=f), parameter :: coreshellratio(ncoreshellratio) = (/ 0.001_f, 0.00237_f, 0.00562_f, 0.01333_f, &
+                                                                    0.03162_f, 0.07499_f, 0.17782_f, 0.42169_f, 1.0_f /) 
+    real(kind=f), parameter :: dstbcratio(ndstbcratio) = (/ 0.01_f, 0.025_f, 0.063_f, 0.1_f, 0.3_f, 0.5_f, 0.7_f, 0.9_f/)
+    real(kind=f), parameter :: kap(nkap) = (/ 0.1_f, 0.2_f, 0.3_f, 0.4_f, 0.5_f, 0.7_f, 0.9_f, 1.1_f, 1.2_f/)
 
     ! Local variables
-    integer                             :: ibin, iwave, irh, icsr, idb, ikap, iwtp, icore, ncore
+    integer                             :: ibin, iwave, irh, icsr, idb, ikap, icore, ncore
     integer                             :: icorelem(NELEM)
     integer                             :: irhswell
     integer                             :: imiertn
@@ -3259,17 +3216,17 @@ contains
     complex(kind=f)                     :: refidxB(NWAVE, NREFIDX)
     complex(kind=f)                     :: refidxD(NWAVE, NREFIDX)
     complex(kind=f)                     :: refidxC
-    real(kind=f)			                  :: coreimagidx  
+    !real(kind=f) :: coreimagidx  
     character(len=CARMA_NAME_LEN)       :: name
     character(len=CARMA_SHORT_NAME_LEN) :: shortname
     logical                             :: do_mie
     integer                             :: fid
-    integer                             :: rhdim, lwdim, swdim, lwswdim, csrdim, dstbcrdim, kapdim, wtpdim
-    integer                             :: rhvar, lwvar, swvar, lwswvar, csr_var, dstbcr_var, kap_var, wtp_var
+    integer                             :: rhdim, lwdim, swdim, csrdim, dstbcrdim, kapdim
+    integer                             :: rhvar, lwvar, swvar, csr_var, dstbcr_var, kap_var
     integer                             :: abs_lw_coreshell_var, qabs_lw_coreshell_var
-    integer                             :: ext_sw_coreshell_var, ssa_sw_coreshell_var, asm_sw_coreshell_var, qext_sw_coreshell_var
-    integer                             :: abs_lw_var, qabs_lw_var, rwetvar
-    integer                             :: ext_sw_var, ssa_sw_var, asm_sw_var
+    integer                             :: ext_sw_coreshell_var, ssa_sw_coreshell_var
+    integer                             :: asm_sw_coreshell_var, qext_sw_coreshell_var
+    integer                             :: rwetvar
     integer                             :: omdim, andim, namedim
     integer                             :: omvar, anvar, namevar
     integer                             :: dimids(5)
@@ -3280,16 +3237,12 @@ contains
     real(kind=f)                        :: qext_sw_coreshell(NMIE_RH, nswbands, ncoreshellratio, ndstbcratio, nkap)
     real(kind=f)                        :: ssa_sw_coreshell(NMIE_RH, nswbands, ncoreshellratio, ndstbcratio, nkap)
     real(kind=f)                        :: asm_sw_coreshell(NMIE_RH, nswbands, ncoreshellratio, ndstbcratio, nkap)
-    real(kind=f)                        :: abs_lw(NMIE_RH, nlwbands)
-    real(kind=f)                        :: ext_sw(NMIE_RH, nswbands)
-    real(kind=f)                        :: ssa_sw(NMIE_RH, nswbands)
-    real(kind=f)                        :: asm_sw(NMIE_RH, nswbands)
-    real(kind=f)                        :: rwetbin(NMIE_RH)	
+    real(kind=f)                        :: rwetbin(NMIE_RH)     
     character(len=8)                    :: c_name                   ! constituent name
     character(len=32)                   :: aer_name                 ! long enough for both aername and name
     character(len=255)                  :: filepath
     real(kind=f)                        :: rwet
-    real(kind=f)                        :: rcore		! CORE radius used in MIE calculation       
+    real(kind=f)                        :: rcore                ! CORE radius used in MIE calculation       
     real(kind=f)                        :: Qext
     real(kind=f)                        :: Qsca
     real(kind=f)                        :: asym
@@ -3300,7 +3253,6 @@ contains
     integer                             :: maxbin                 ! last prognostic bin
     integer                             :: LUNOPRT              ! logical unit number for output
     logical                             :: do_print             ! do print output?
-    integer                             :: opticsType
     integer                             :: ret
 
 
@@ -3412,7 +3364,8 @@ contains
         call wrap_put_att_text(fid, abs_lw_coreshell_var, 'units', 'meter^2 kilogram^-1')
         call wrap_put_att_text(fid, qabs_lw_coreshell_var,'units', '-')
 
-        ! Define 3-dimension (:nrh,:nswbands,:ncoreshellratio) SW optics properties: ext_sw_coreshell, qext_sw_coreshell, ssa_sw_coreshell, asm_sw_coreshell        
+        ! Define 3-dimension (:nrh,:nswbands,:ncoreshellratio) SW optics properties:
+        !  ext_sw_coreshell, qext_sw_coreshell, ssa_sw_coreshell, asm_sw_coreshell        
         dimids(1) = rhdim
         dimids(2) = swdim
         dimids(3) = csrdim
@@ -3447,12 +3400,6 @@ contains
         call wrap_put_att_text(fid, lw_r_refidx_var, 'long_name', 'real refractive index of aerosol - longwave') 
         call wrap_put_att_text(fid, lw_i_refidx_var, 'long_name', 'imaginary refractive index of aerosol - longwave') 
            
-!            ! Define refractive index varible
-!        ! Added by Pengfei Yu Sep.16,2011
-!        call wrap_def_dim(fid, 'lwsw', NWAVE, lwswdim)
-!            dimids(1) = lwswdim
-!            call wrap_def_var(fid, 'lwsw', NF_DOUBLE, 1, dimids(1), lwswvar)   
-            
         ! Define fields that define the aerosol properties.
         call wrap_def_dim(fid, 'opticsmethod_len',  32, omdim)
         dimids(1) = omdim
@@ -3579,7 +3526,7 @@ contains
                            imiertn, &
                            rwet, &
                            wave(iwave), &
-                           0, &
+                           0._f, &
                            3.0_f, &
                            0.0_f, &
                            1.0_f, &
@@ -3599,14 +3546,16 @@ contains
                   if (iwave <= nlwbands) then
               
                     ! Longwave just needs absorption: abs_lw.
-                    qabs_lw_coreshell(irh, iwave, icsr, idb, ikap) = (Qext - Qsca)                            ! absorption per particle
-                    abs_lw_coreshell (irh, iwave, icsr, idb, ikap) = (Qext - Qsca) * PI * (rwet * 1e-2_f)**2 / (rmass(ibin) * 1e-3_f)
+                    qabs_lw_coreshell(irh, iwave, icsr, idb, ikap) = (Qext - Qsca) ! absorption per particle
+                    abs_lw_coreshell (irh, iwave, icsr, idb, ikap) = (Qext - Qsca) * PI * (rwet * 1e-2_f)**2 &
+                                                                      / (rmass(ibin) * 1e-3_f)
                   else
                
                     ! Shortwave needs extinction, single scattering albedo and asymmetry factor:
                     ! ext_sw, qext_sw, ssa_sw and asm_sw.
-                    qext_sw_coreshell(irh, iwave - nlwbands, icsr, idb, ikap) = Qext                          ! extinction per particle
-                    ext_sw_coreshell (irh, iwave - nlwbands, icsr, idb, ikap) = Qext * PI * (rwet * 1e-2_f)**2 / (rmass(ibin) * 1e-3_f)
+                    qext_sw_coreshell(irh, iwave - nlwbands, icsr, idb, ikap) = Qext ! extinction per particle
+                    ext_sw_coreshell (irh, iwave - nlwbands, icsr, idb, ikap) = Qext * PI * (rwet * 1e-2_f)**2 &
+                                                                                / (rmass(ibin) * 1e-3_f)
                     ssa_sw_coreshell (irh, iwave - nlwbands, icsr, idb, ikap) = Qsca / Qext
                     asm_sw_coreshell (irh, iwave - nlwbands, icsr, idb, ikap) = asym
                   end if
@@ -3664,7 +3613,6 @@ contains
     return
   end subroutine CARMA_CreateOpticsFile_MixedYu
   
-  
   !! This routine creates files containing optical properties for the mixed group
   !! following Yu et al. (2015), except that it includes water vapor in the shell.
   !! The difference between the wet and dry radius is assumed to be water valor and
@@ -3716,7 +3664,7 @@ contains
                      
 
     ! Local variables
-    integer                             :: ibin, iwave, irh, icsr, idb, ikap, iwtp, icore, ncore
+    integer                             :: ibin, iwave, irh, icsr, idb, ikap, icore, ncore
     integer                             :: icorelem(NELEM)
     integer                             :: irhswell
     integer                             :: imiertn
@@ -3732,17 +3680,16 @@ contains
     complex(kind=f)                     :: refidxW(NWAVE)
     complex(kind=f)                     :: refidxC
     complex(kind=f)                     :: refidxSH
-    real(kind=f)			                  :: coreimagidx  
+    !real(kind=f) :: coreimagidx  
     character(len=CARMA_NAME_LEN)       :: name
     character(len=CARMA_SHORT_NAME_LEN) :: shortname
     logical                             :: do_mie
     integer                             :: fid
-    integer                             :: rhdim, lwdim, swdim, lwswdim, csrdim, dstbcrdim, kapdim, wtpdim
-    integer                             :: rhvar, lwvar, swvar, lwswvar, csr_var, dstbcr_var, kap_var, wtp_var
+    integer                             :: rhdim, lwdim, swdim, csrdim, dstbcrdim, kapdim
+    integer                             :: rhvar, lwvar, swvar, csr_var, dstbcr_var, kap_var
     integer                             :: abs_lw_coreshell_var, qabs_lw_coreshell_var
     integer                             :: ext_sw_coreshell_var, ssa_sw_coreshell_var, asm_sw_coreshell_var, qext_sw_coreshell_var
-    integer                             :: abs_lw_var, qabs_lw_var, rwetvar
-    integer                             :: ext_sw_var, ssa_sw_var, asm_sw_var
+    integer                             :: rwetvar
     integer                             :: omdim, andim, namedim
     integer                             :: omvar, anvar, namevar
     integer                             :: dimids(5)
@@ -3753,10 +3700,6 @@ contains
     real(kind=f)                        :: qext_sw_coreshell(NMIE_RH, nswbands, ncoreshellratio, ndstbcratio, nkap)
     real(kind=f)                        :: ssa_sw_coreshell(NMIE_RH, nswbands, ncoreshellratio, ndstbcratio, nkap)
     real(kind=f)                        :: asm_sw_coreshell(NMIE_RH, nswbands, ncoreshellratio, ndstbcratio, nkap)
-    real(kind=f)                        :: abs_lw(NMIE_RH, nlwbands)
-    real(kind=f)                        :: ext_sw(NMIE_RH, nswbands)
-    real(kind=f)                        :: ssa_sw(NMIE_RH, nswbands)
-    real(kind=f)                        :: asm_sw(NMIE_RH, nswbands)
     real(kind=f)                        :: rwetbin(NMIE_RH)	
     character(len=8)                    :: c_name                   ! constituent name
     character(len=32)                   :: aer_name                 ! long enough for both aername and name
@@ -3773,7 +3716,6 @@ contains
     integer                             :: maxbin                 ! last prognostic bin
     integer                             :: LUNOPRT              ! logical unit number for output
     logical                             :: do_print             ! do print output?
-    integer                             :: opticsType
     integer                             :: ret
     real(kind=f)                        :: volwater
     real(kind=f)                        :: volsulfate
@@ -3889,7 +3831,8 @@ contains
         call wrap_put_att_text(fid, abs_lw_coreshell_var, 'units', 'meter^2 kilogram^-1')
         call wrap_put_att_text(fid, qabs_lw_coreshell_var,'units', '-')
 
-        ! Define 3-dimension (:nrh,:nswbands,:ncoreshellratio) SW optics properties: ext_sw_coreshell, qext_sw_coreshell, ssa_sw_coreshell, asm_sw_coreshell        
+        ! Define 3-dimension (:nrh,:nswbands,:ncoreshellratio) SW optics properties:
+        !    ext_sw_coreshell, qext_sw_coreshell, ssa_sw_coreshell, asm_sw_coreshell
         dimids(1) = rhdim
         dimids(2) = swdim
         dimids(3) = csrdim
@@ -3923,12 +3866,6 @@ contains
         call wrap_put_att_text(fid, sw_i_refidx_var, 'long_name', 'imaginary refractive index of aerosol - shortwave') 
         call wrap_put_att_text(fid, lw_r_refidx_var, 'long_name', 'real refractive index of aerosol - longwave') 
         call wrap_put_att_text(fid, lw_i_refidx_var, 'long_name', 'imaginary refractive index of aerosol - longwave') 
-           
-!            ! Define refractive index varible
-!        ! Added by Pengfei Yu Sep.16,2011
-!        call wrap_def_dim(fid, 'lwsw', NWAVE, lwswdim)
-!            dimids(1) = lwswdim
-!            call wrap_def_var(fid, 'lwsw', NF_DOUBLE, 1, dimids(1), lwswvar)   
             
         ! Define fields that define the aerosol properties.
         call wrap_def_dim(fid, 'opticsmethod_len',  32, omdim)
@@ -4068,7 +4005,7 @@ contains
                            imiertn, &
                            rwet, &
                            wave(iwave), &
-                           0, &
+                           0._f, &
                            3.0_f, &
                            0.0_f, &
                            1.0_f, &
@@ -4170,7 +4107,7 @@ contains
     integer, intent(out)                :: rc            !! return code, negative indicates failure
 
     ! Local variables
-    integer                             :: ibin, iwave, irh, iwtp
+    integer                             :: ibin, iwave, iwtp
     integer                             :: irhswell
     integer                             :: imiertn
     integer                             :: ienconc
@@ -4180,22 +4117,16 @@ contains
     complex(kind=f)                     :: refidx(NWAVE, NREFIDX)
     character(len=CARMA_NAME_LEN)       :: name
     character(len=CARMA_SHORT_NAME_LEN) :: shortname
-    logical                             :: do_mie
     integer                             :: fid
     integer                             :: rhdim, lwdim, swdim, wtpdim
     integer                             :: rhvar, lwvar, swvar, wtp_var
-    integer                             :: abs_lw_var, qabs_lw_var, rwetvar
-    integer				                      :: abs_lw_wtp_var, qabs_lw_wtp_var
-    integer                             :: ext_sw_var, ssa_sw_var, asm_sw_var
+    integer                             :: rwetvar
+    integer				:: abs_lw_wtp_var, qabs_lw_wtp_var
     integer                             :: ext_sw_wtp_var, ssa_sw_wtp_var, asm_sw_wtp_var, qext_sw_wtp_var	
     integer                             :: omdim, andim, namedim
     integer                             :: omvar, anvar, namevar
     integer                             :: dimids(2)
     integer                             :: denvar, slogvar, dryrvar, rminvar, rmaxvar, hygrovar, ntmvar
-    real(kind=f)                        :: abs_lw(NMIE_RH, nlwbands)
-    real(kind=f)                        :: ext_sw(NMIE_RH, nswbands)
-    real(kind=f)                        :: ssa_sw(NMIE_RH, nswbands)
-    real(kind=f)                        :: asm_sw(NMIE_RH, nswbands)
     real(kind=f)                        :: abs_lw_wtp(NMIE_WTP, nlwbands)
     real(kind=f)                        :: qabs_lw_wtp(NMIE_WTP, nlwbands)
     real(kind=f)                        :: ext_sw_wtp(NMIE_WTP, nswbands)
@@ -4215,7 +4146,6 @@ contains
     integer                             :: maxbin                 ! last prognostic bin
     integer                             :: LUNOPRT              ! logical unit number for output
     logical                             :: do_print             ! do print output?
-    integer                             :: opticsType
     integer                             :: ret
 
 
@@ -4434,7 +4364,7 @@ contains
                      imiertn, &
                      rwet, &
                      wave(iwave), &
-                     0, &
+                     0._f, &
                      3.0_f, &
                      0.0_f, &
                      1.0_f, &
@@ -4549,7 +4479,7 @@ contains
 
 
     ! Local variables
-    integer                             :: ibin, iwave, irh, iwtp
+    integer                             :: ibin, iwave, iwtp
     integer                             :: irhswell
     integer                             :: imiertn
     integer                             :: ienconc
@@ -4561,22 +4491,16 @@ contains
     complex(kind=f)                     :: refidxW(NWAVE)
     character(len=CARMA_NAME_LEN)       :: name
     character(len=CARMA_SHORT_NAME_LEN) :: shortname
-    logical                             :: do_mie
     integer                             :: fid
     integer                             :: rhdim, lwdim, swdim, wtpdim
     integer                             :: rhvar, lwvar, swvar, wtp_var
-    integer                             :: abs_lw_var, qabs_lw_var, rwetvar
+    integer                             :: rwetvar
     integer				                      :: abs_lw_wtp_var, qabs_lw_wtp_var
-    integer                             :: ext_sw_var, ssa_sw_var, asm_sw_var
     integer                             :: ext_sw_wtp_var, ssa_sw_wtp_var, asm_sw_wtp_var, qext_sw_wtp_var	
     integer                             :: omdim, andim, namedim
     integer                             :: omvar, anvar, namevar
     integer                             :: dimids(2)
     integer                             :: denvar, slogvar, dryrvar, rminvar, rmaxvar, hygrovar, ntmvar
-    real(kind=f)                        :: abs_lw(NMIE_RH, nlwbands)
-    real(kind=f)                        :: ext_sw(NMIE_RH, nswbands)
-    real(kind=f)                        :: ssa_sw(NMIE_RH, nswbands)
-    real(kind=f)                        :: asm_sw(NMIE_RH, nswbands)
     real(kind=f)                        :: abs_lw_wtp(NMIE_WTP, nlwbands)
     real(kind=f)                        :: qabs_lw_wtp(NMIE_WTP, nlwbands)
     real(kind=f)                        :: ext_sw_wtp(NMIE_WTP, nswbands)
@@ -4596,7 +4520,6 @@ contains
     integer                             :: maxbin                 ! last prognostic bin
     integer                             :: LUNOPRT              ! logical unit number for output
     logical                             :: do_print             ! do print output?
-    integer                             :: opticsType
     integer                             :: ret
     real(kind=f)                        :: volwater
     real(kind=f)                        :: volsulfate
@@ -4833,7 +4756,7 @@ contains
                      imiertn, &
                      rwet, &
                      wave(iwave), &
-                     0, &
+                     0._f, &
                      3.0_f, &
                      0.0_f, &
                      1.0_f, &
