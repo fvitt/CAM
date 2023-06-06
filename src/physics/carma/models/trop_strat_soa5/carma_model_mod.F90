@@ -75,11 +75,11 @@ module carma_model_mod
 
   ! These need to be defined, but are only used when the particles are radiatively active.
   integer, public, parameter :: NMIE_RH  = 10              !! Number of relative humidities for mie calculations
-  real(kind=f), public       :: mie_rh(NMIE_RH) = (/ 0.1_f, 0.3_f, 0.5_f, 0.7_f, 0.8_f, 0.85_f, &
-                                                     0.9_f, 0.92_f, 0.93_f, 0.95_f /)
+  real(kind=f), public, parameter :: mie_rh(NMIE_RH) = (/ 0.1_f, 0.3_f, 0.5_f, 0.7_f, 0.8_f, 0.85_f, &
+                                                          0.9_f, 0.92_f, 0.93_f, 0.95_f /)
   integer, public, parameter :: NMIE_WTP = 13              !! Number of weight percents for mie calculations
-  real(kind=f), public       :: mie_wtp(NMIE_WTP) = (/ 0.1_f, 0.3_f, 0.5_f, 0.7_f, 0.8_f, 0.83_f, &
-                                                       0.86_f, 0.9_f, 0.92_f, 0.94_f, 0.96_f, 0.98_f, 1._f/)
+  real(kind=f), public , parameter :: mie_wtp(NMIE_WTP) = (/ 0.1_f, 0.3_f, 0.5_f, 0.7_f, 0.8_f, 0.83_f, &
+                                                            0.86_f, 0.9_f, 0.92_f, 0.94_f, 0.96_f, 0.98_f, 1._f/)
 
   ! Defines whether the groups should undergo deep convection in phase 1 or phase 2.
   ! Water vapor and cloud particles are convected in phase 1, while all other constituents
@@ -197,7 +197,7 @@ module carma_model_mod
   !
   ! NOTE: Rather than using the values from Pengfei for the sulfate, use the values from MAM. They
   ! have more precision and differ in the imaginary part below 2 um where Pengfei's are truncated at 0.
-  ! The MAM values are consistent with OPAC and truncate at 1e-8. 
+  ! The MAM values are consistent with OPAC and truncate at 1e-8.
   !real(kind=f), public :: shellreal(NWAVE)    = (/1.890_f,1.913_f,1.932_f,1.568_f,1.678_f,1.758_f,1.855_f,1.597_f,1.147_f,1.261_f,&
   !                1.424_f,1.352_f,1.379_f,1.385_f,1.385_f,1.367_f,&
   !            1.367_f,1.315_f,1.358_f,1.380_f,1.393_f,1.405_f,1.412_f,1.422_f,1.428_f,1.430_f,&
@@ -208,13 +208,13 @@ module carma_model_mod
   !            0.158_f,0.057_f,0.003_f,0.001_f,0.001_f,0.000_f,0.000_f,0.000_f,0.000_f,0.000_f,&
   !            0.000_f,0.000_f,0.000_f,0.551_f/)
 
-  real(kind=f), public :: shellreal(NWAVE)    = (/ 1.89_f, 1.912857_f, 1.932063_f, 1.586032_f, &
+  real(kind=f), public, parameter :: shellreal(NWAVE)    = (/ 1.89_f, 1.912857_f, 1.932063_f, 1.586032_f, &
                1.677979_f, 1.757825_f, 1.855336_f, 1.596767_f, 1.146559_f, 1.261314_f, 1.424219_f, &
                1.351645_f, 1.378697_f, 1.385_f, 1.385_f, 1.366909_f, 1.366909_f, 1.314577_f, &
                1.357978_f, 1.380309_f, 1.392645_f, 1.404506_f, 1.412181_f, 1.421632_f, &
                1.427968_f, 1.430335_f, 1.441641_f, 1.467642_f, 1.484_f, 1.164128_f /)
 
-  real(kind=f), public :: shellimag(NWAVE)    = (/ 0.22_f, 0.15185711_f, 0.08457167_f, 0.22250789_f, 0.19499999_f, &
+  real(kind=f), public, parameter :: shellimag(NWAVE)    = (/ 0.22_f, 0.15185711_f, 0.08457167_f, 0.22250789_f, 0.19499999_f, &
               0.44068847_f, 0.69594361_f, 0.69466153_f, 0.45876573_f, 0.16060575_f, &
               0.1715766_f , 0.14352135_f, 0.12025213_f, 0.12222873_f, 0.12581848_f, 0.15793008_f, &
               1.57930076e-01_f, 5.66869128e-02_f, 2.88634387e-03_f, 1.49071286e-03_f, &
@@ -222,23 +222,27 @@ module carma_model_mod
               2.21435655e-08_f, 9.99999994e-09_f, 9.99999994e-09_f, 9.99999994e-09_f, &
               9.99999994e-09_f, 5.51133746e-01_f /)
 
-  real(kind=f), public :: corerealdst(NWAVE)  = (/2.340_f,2.904_f,1.748_f,1.508_f,1.911_f,1.822_f,2.917_f,1.557_f,1.242_f,1.447_f,&
-                  1.432_f,1.473_f,1.495_f,1.500_f,1.500_f,1.510_f,&
-              1.510_f,1.520_f,1.523_f,1.529_f,1.530_f,1.530_f,1.530_f,1.530_f,1.530_f,1.530_f,&
-              1.530_f,1.530_f,1.530_f,1.180_f/)
+  real(kind=f), public, parameter :: corerealdst(NWAVE)  = &
+             (/2.340_f,2.904_f,1.748_f,1.508_f,1.911_f,1.822_f,2.917_f,1.557_f,1.242_f,1.447_f,&
+               1.432_f,1.473_f,1.495_f,1.500_f,1.500_f,1.510_f,&
+               1.510_f,1.520_f,1.523_f,1.529_f,1.530_f,1.530_f,1.530_f,1.530_f,1.530_f,1.530_f,&
+               1.530_f,1.530_f,1.530_f,1.180_f/)
 
-  real(kind=f), public :: corerealbc (NWAVE)  = (/2.690_f,2.501_f,2.398_f,2.332_f,2.287_f,2.234_f,2.198_f,2.166_f,2.114_f,2.054_f,&
-                  2.028_f,1.977_f,1.948_f,1.933_f,1.921_f,1.877_f,&
+  real(kind=f), public, parameter :: corerealbc (NWAVE)  = &
+            (/2.690_f,2.501_f,2.398_f,2.332_f,2.287_f,2.234_f,2.198_f,2.166_f,2.114_f,2.054_f,&
+              2.028_f,1.977_f,1.948_f,1.933_f,1.921_f,1.877_f,&
               1.877_f,1.832_f,1.813_f,1.802_f,1.791_f,1.768_f,1.761_f,1.760_f,1.750_f,1.750_f,&
               1.750_f,1.741_f,1.620_f,2.124_f/)
 
-  real(kind=f), public :: coreimagdst(NWAVE)  = (/0.700_f,0.857_f,0.462_f,0.263_f,0.319_f,0.260_f,0.650_f,0.373_f,0.093_f,0.105_f,&
-                  0.061_f,0.025_f,0.011_f,0.008_f,0.007_f,0.018_f,&
-              0.018_f,0.028_f,0.012_f,0.008_f,0.007_f,0.006_f,0.005_f,0.004_f,0.004_f,0.006_f,&
-              0.014_f,0.024_f,0.030_f,0.101_f/)
+  real(kind=f), public, parameter :: coreimagdst(NWAVE)  = &
+             (/0.700_f,0.857_f,0.462_f,0.263_f,0.319_f,0.260_f,0.650_f,0.373_f,0.093_f,0.105_f,&
+               0.061_f,0.025_f,0.011_f,0.008_f,0.007_f,0.018_f,&
+               0.018_f,0.028_f,0.012_f,0.008_f,0.007_f,0.006_f,0.005_f,0.004_f,0.004_f,0.006_f,&
+               0.014_f,0.024_f,0.030_f,0.101_f/)
 
-  real(kind=f), public :: coreimagbc(NWAVE)   = (/1.000_f,0.884_f,0.825_f,0.791_f,0.764_f,0.734_f,0.714_f,0.696_f,0.668_f,0.644_f,&
-                  0.624_f,0.604_f,0.593_f,0.586_f,0.580_f,0.556_f,&
+  real(kind=f), public, parameter :: coreimagbc(NWAVE)   = &
+            (/1.000_f,0.884_f,0.825_f,0.791_f,0.764_f,0.734_f,0.714_f,0.696_f,0.668_f,0.644_f,&
+              0.624_f,0.604_f,0.593_f,0.586_f,0.580_f,0.556_f,&
               0.556_f,0.527_f,0.503_f,0.492_f,0.481_f,0.458_f,0.451_f,0.440_f,0.430_f,0.443_f,&
               0.461_f,0.470_f,0.450_f,0.674_f/)
 

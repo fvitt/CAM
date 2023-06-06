@@ -2718,7 +2718,7 @@ contains
   !! allows various mixing approaches to be used to determine the refractive index
   !! for the particle as a whole.
   !!
-  !! The I_OPTICS_MIXED_YU2105 and I_OPTICS_SULFATE_YU2015 optics methods are 
+  !! The I_OPTICS_MIXED_YU2105 and I_OPTICS_SULFATE_YU2015 optics methods are
   !! designed to trop_strat models as define in the Yu et al. (2015) paper. The
   !! other optics types can be applied more generically to a number of different
   !! aerosol/cloud models.
@@ -2758,7 +2758,7 @@ contains
         ! coefficients, while others are lookup tables designed around multiple
         ! dimensions.
         select case (opticsType)
-        
+
           ! This is for fixed composition, but the particle may swell in response
           ! to changes in RH. Only one refractive index specified at the group level.
           !
@@ -2767,7 +2767,7 @@ contains
           case (I_OPTICS_FIXED)
             call CARMA_CreateOpticsFile_Fixed(carma, igroup, rc)
             if (rc < 0) call endrun('carma_CreateOpticsFile::CreateOpticsFile_Fixed failed.')
-          
+
           ! This is for the mixed aerosol group as implemented by Yu et al. (2015),
           ! and is specific to the aerosol defintion in that model. There are multiple
           ! elements, some grouped in the core and others in the shell. The refractive
@@ -2777,10 +2777,10 @@ contains
           case(I_OPTICS_MIXED_YU2015)
             call CARMA_CreateOpticsFile_MixedYu(carma, igroup, rc)
             if (rc < 0) call endrun('carma_CreateOpticsFile::CreateOpticsFile_MixedYu failed.')
-            
+
           ! This is for the pure sulfate group as implemented by Yu et al. (2015).
           ! The particle may swell, but the refractive index is fixed regardless
-          ! of the weight percent of H21SO4 in the particle. 
+          ! of the weight percent of H21SO4 in the particle.
           case(I_OPTICS_SULFATE_YU2015)
             call CARMA_CreateOpticsFile_SulfateYu(carma, igroup, rc)
             if (rc < 0) call endrun('carma_CreateOpticsFile::CreateOpticsFile_SulfateYu failed.')
@@ -2794,7 +2794,7 @@ contains
           ! This is similar to Yu (2015) in that handles mixed particles treated as
           ! core shell particles; however the dimensions of the lookup table are the
           ! the radii and the refractive indicies, so it can be used with various
-          ! aerosol configurations (not just as in the Yu(2015)). 
+          ! aerosol configurations (not just as in the Yu(2015)).
           case(I_OPTICS_MIXED_CORESHELL)
             call endrun('carma_CreateOpticsFile mixed_coreshell has not been implemented.')
 
@@ -2808,7 +2808,7 @@ contains
           ! is used instead of volume mixing.
           case(I_OPTICS_MIXED_MAXWELL)
             call endrun('carma_CreateOpticsFile mixed_maxwell has not been implemented.')
-            
+
           ! This is for a pure sulfate group where the table is based upon weight
           ! percent; however, unlike sulfate_Yu, the refractive index of the sulfate
           ! changes with the weight percent of H2SO4.
@@ -2818,15 +2818,15 @@ contains
 
           case default
             call endrun('carma_CreateOpticsFile:: Unknown optics type.')
-            
+
         end select
       end if
-    end do          
+    end do
 
     return
   end subroutine CARMA_CreateOpticsFile
-  
-  
+
+
     !! This routine creates files containing optical properties for each radiatively
   !! active particle type. These optical properties are used by the RRTMG radiation
   !! code to include the impact of CARMA particles in the radiative transfer
@@ -3172,8 +3172,8 @@ contains
 
     return
   end subroutine CARMA_CreateOpticsFile_Fixed
-  
-  
+
+
   !! This routine creates files containing optical properties for the mixed group
   !! following Yu et al. (2015). These optical properties are used by the RRTMG radiation
   !! code to include the impact of CARMA particles in the radiative transfer
@@ -3197,7 +3197,7 @@ contains
     integer, parameter                  :: nkap = 9
 
     real(kind=f), parameter :: coreshellratio(ncoreshellratio) = (/ 0.001_f, 0.00237_f, 0.00562_f, 0.01333_f, &
-                                                                    0.03162_f, 0.07499_f, 0.17782_f, 0.42169_f, 1.0_f /) 
+                                                                    0.03162_f, 0.07499_f, 0.17782_f, 0.42169_f, 1.0_f /)
     real(kind=f), parameter :: dstbcratio(ndstbcratio) = (/ 0.01_f, 0.025_f, 0.063_f, 0.1_f, 0.3_f, 0.5_f, 0.7_f, 0.9_f/)
     real(kind=f), parameter :: kap(nkap) = (/ 0.1_f, 0.2_f, 0.3_f, 0.4_f, 0.5_f, 0.7_f, 0.9_f, 1.1_f, 1.2_f/)
 
@@ -3216,7 +3216,7 @@ contains
     complex(kind=f)                     :: refidxB(NWAVE, NREFIDX)
     complex(kind=f)                     :: refidxD(NWAVE, NREFIDX)
     complex(kind=f)                     :: refidxC
-    !real(kind=f) :: coreimagidx  
+    !real(kind=f) :: coreimagidx
     character(len=CARMA_NAME_LEN)       :: name
     character(len=CARMA_SHORT_NAME_LEN) :: shortname
     logical                             :: do_mie
@@ -3237,12 +3237,12 @@ contains
     real(kind=f)                        :: qext_sw_coreshell(NMIE_RH, nswbands, ncoreshellratio, ndstbcratio, nkap)
     real(kind=f)                        :: ssa_sw_coreshell(NMIE_RH, nswbands, ncoreshellratio, ndstbcratio, nkap)
     real(kind=f)                        :: asm_sw_coreshell(NMIE_RH, nswbands, ncoreshellratio, ndstbcratio, nkap)
-    real(kind=f)                        :: rwetbin(NMIE_RH)     
+    real(kind=f)                        :: rwetbin(NMIE_RH)
     character(len=8)                    :: c_name                   ! constituent name
     character(len=32)                   :: aer_name                 ! long enough for both aername and name
     character(len=255)                  :: filepath
     real(kind=f)                        :: rwet
-    real(kind=f)                        :: rcore                ! CORE radius used in MIE calculation       
+    real(kind=f)                        :: rcore                ! CORE radius used in MIE calculation
     real(kind=f)                        :: Qext
     real(kind=f)                        :: Qsca
     real(kind=f)                        :: asym
@@ -3269,45 +3269,45 @@ contains
                         rlow=rlow, rup=rup, rmass=rmass, irhswell=irhswell, imiertn=imiertn, &
                         ienconc=ienconc, ncore=ncore, icorelem=icorelem, cnsttype=cnsttype, maxbin=maxbin)
     if (rc < 0) call endrun('carma_CreateOpticsFile::CARMAGROUP_Get failed.')
-    
-    ! The concentration element has the sulfate refractive index.  
+
+    ! The concentration element has the sulfate refractive index.
     call CARMAELEMENT_Get(carma, ienconc, rc, rho=rho, refidx=refidxS)
     if (rc < 0) call endrun('carma_CreateOpticsFile::CARMAELEMENT_Get failed.')
-    
+
     ! Need to find the dust and black carbon refractive indicies for the core.
     do icore = 1, ncore
       call CARMAELEMENT_Get(carma, icorelem(icore), rc, icomposition=ccomp, refidx=refidx)
       if (rc < 0) call endrun('carma_CreateOpticsFile::CARMAELEMENT_Get failed.')
-      
+
       if (ccomp == I_BC) then
         refidxB = refidx
       else if (ccomp == I_DUST) then
         refidxD = refidx
       end if
     end do
-      
-      
+
+
     ! A file needs to be created for each bin.
     do ibin = 1, NBIN
-        
+
       ! Bins past maxbin are treated as diagnostic even if the group
       ! is prognostic and thus are not advected in the paerent model.
       if (ibin <= maxbin) then
 
         write(c_name, '(A, I2.2)') trim(shortname), ibin
-      
+
         ! Construct the path to the file. Each model will have its own subdirectory
         ! where the optical property files are stored.
         filepath = trim(carma_model) // '_' // trim(c_name) // '_rrtmg.nc'
-        
+
         if (do_print) write(LUNOPRT,*) 'Creating CARMA optics file ... ', trim(filepath)
 
         ! Create the file.
         call wrap_create(filepath, NF90_CLOBBER, fid)
-        
+
         ncsr = ncoreshellratio
         ndbr = ndstbcratio
-              
+
         ! Define the dimensions: rh, lwbands, swbands
         call wrap_def_dim(fid, 'rh_idx',  NMIE_RH,  rhdim)
         call wrap_def_dim(fid, 'lw_band', nlwbands, lwdim)
@@ -3323,7 +3323,7 @@ contains
 
         dimids(1) = lwdim
         call wrap_def_var(fid, 'lw_band', NF90_DOUBLE, 1, dimids(1), lwvar)
-        
+
         dimids(1) = swdim
         call wrap_def_var(fid, 'sw_band', NF90_DOUBLE, 1, dimids(1), swvar)
 
@@ -3332,24 +3332,24 @@ contains
         dimids(1) = dstbcrdim
         call wrap_def_var(fid, 'dstbcratio', NF90_DOUBLE, 1, dimids(1), dstbcr_var)
         dimids(1) = kapdim
-        call wrap_def_var(fid, 'kap', NF90_DOUBLE, 1, dimids(1), kap_var)     
+        call wrap_def_var(fid, 'kap', NF90_DOUBLE, 1, dimids(1), kap_var)
 
 
-        call wrap_put_att_text(fid, rhvar, 'units', 'fraction') 
-        call wrap_put_att_text(fid, rwetvar, 'units', 'cm') 
-        call wrap_put_att_text(fid, lwvar, 'units', 'm') 
+        call wrap_put_att_text(fid, rhvar, 'units', 'fraction')
+        call wrap_put_att_text(fid, rwetvar, 'units', 'cm')
+        call wrap_put_att_text(fid, lwvar, 'units', 'm')
         call wrap_put_att_text(fid, swvar, 'units', 'm')
 
         call wrap_put_att_text(fid, csr_var,'units', 'fraction')
         call wrap_put_att_text(fid, dstbcr_var,'units', 'fraction')
         call wrap_put_att_text(fid, kap_var,'units', 'unitless')
-        call wrap_put_att_text(fid, csr_var,'long_name', 'coreshell ratio') 
+        call wrap_put_att_text(fid, csr_var,'long_name', 'coreshell ratio')
         call wrap_put_att_text(fid, dstbcr_var,'long_name', 'dust-bc ratio')
         call wrap_put_att_text(fid, kap_var,'long_name', 'kappa value')
- 
+
         call wrap_put_att_text(fid, rhvar, 'long_name', 'relative humidity')
-        call wrap_put_att_text(fid, rwetvar, 'long_name', 'wet radius') 
-        call wrap_put_att_text(fid, lwvar, 'long_name', 'longwave bands') 
+        call wrap_put_att_text(fid, rwetvar, 'long_name', 'wet radius')
+        call wrap_put_att_text(fid, lwvar, 'long_name', 'longwave bands')
         call wrap_put_att_text(fid, swvar, 'long_name', 'shortwave bands')
 
         ! Define 3-dimension (:nrh,:nswbands,:ncoreshellratio) LW optics properties: abs_lw_coreshell, qabs_lw_coreshell
@@ -3360,12 +3360,12 @@ contains
         dimids(5) = kapdim
         call wrap_def_var(fid, 'abs_lw_coreshell', NF90_DOUBLE, 5, dimids(1:5), abs_lw_coreshell_var)
         call wrap_def_var(fid, 'qabs_lw_coreshell',NF90_DOUBLE, 5, dimids(1:5), qabs_lw_coreshell_var)
-            
+
         call wrap_put_att_text(fid, abs_lw_coreshell_var, 'units', 'meter^2 kilogram^-1')
         call wrap_put_att_text(fid, qabs_lw_coreshell_var,'units', '-')
 
         ! Define 3-dimension (:nrh,:nswbands,:ncoreshellratio) SW optics properties:
-        !  ext_sw_coreshell, qext_sw_coreshell, ssa_sw_coreshell, asm_sw_coreshell        
+        !  ext_sw_coreshell, qext_sw_coreshell, ssa_sw_coreshell, asm_sw_coreshell
         dimids(1) = rhdim
         dimids(2) = swdim
         dimids(3) = csrdim
@@ -3375,31 +3375,31 @@ contains
         call wrap_def_var(fid, 'qext_sw_coreshell',NF90_DOUBLE, 5, dimids(1:5), qext_sw_coreshell_var)
         call wrap_def_var(fid, 'ssa_sw_coreshell', NF90_DOUBLE, 5, dimids(1:5), ssa_sw_coreshell_var)
         call wrap_def_var(fid, 'asm_sw_coreshell', NF90_DOUBLE, 5, dimids(1:5), asm_sw_coreshell_var)
-        
-        call wrap_put_att_text(fid, ssa_sw_coreshell_var, 'units', 'fraction') 
+
+        call wrap_put_att_text(fid, ssa_sw_coreshell_var, 'units', 'fraction')
         call wrap_put_att_text(fid, ext_sw_coreshell_var, 'units', 'meter^2 kilogram^-1')
-        call wrap_put_att_text(fid, qext_sw_coreshell_var,'units', '-') 
-        call wrap_put_att_text(fid, asm_sw_coreshell_var, 'units', '-') 
-            
+        call wrap_put_att_text(fid, qext_sw_coreshell_var,'units', '-')
+        call wrap_put_att_text(fid, asm_sw_coreshell_var, 'units', '-')
+
         ! Define the variables for the refractive indicies.
         dimids(1) = swdim
         call wrap_def_var(fid, 'refindex_real_aer_sw', NF90_DOUBLE, 1, dimids(1), sw_r_refidx_var)
         call wrap_def_var(fid, 'refindex_im_aer_sw',   NF90_DOUBLE, 1, dimids(1), sw_i_refidx_var)
-        
+
         dimids(1) = lwdim
         call wrap_def_var(fid, 'refindex_real_aer_lw', NF90_DOUBLE, 1, dimids(1), lw_r_refidx_var)
         call wrap_def_var(fid, 'refindex_im_aer_lw',   NF90_DOUBLE, 1, dimids(1), lw_i_refidx_var)
 
-        call wrap_put_att_text(fid, sw_r_refidx_var, 'units', '-') 
-        call wrap_put_att_text(fid, sw_i_refidx_var, 'units', '-') 
-        call wrap_put_att_text(fid, lw_r_refidx_var, 'units', '-') 
-        call wrap_put_att_text(fid, lw_i_refidx_var, 'units', '-') 
+        call wrap_put_att_text(fid, sw_r_refidx_var, 'units', '-')
+        call wrap_put_att_text(fid, sw_i_refidx_var, 'units', '-')
+        call wrap_put_att_text(fid, lw_r_refidx_var, 'units', '-')
+        call wrap_put_att_text(fid, lw_i_refidx_var, 'units', '-')
 
-        call wrap_put_att_text(fid, sw_r_refidx_var, 'long_name', 'real refractive index of aerosol - shortwave') 
-        call wrap_put_att_text(fid, sw_i_refidx_var, 'long_name', 'imaginary refractive index of aerosol - shortwave') 
-        call wrap_put_att_text(fid, lw_r_refidx_var, 'long_name', 'real refractive index of aerosol - longwave') 
-        call wrap_put_att_text(fid, lw_i_refidx_var, 'long_name', 'imaginary refractive index of aerosol - longwave') 
-           
+        call wrap_put_att_text(fid, sw_r_refidx_var, 'long_name', 'real refractive index of aerosol - shortwave')
+        call wrap_put_att_text(fid, sw_i_refidx_var, 'long_name', 'imaginary refractive index of aerosol - shortwave')
+        call wrap_put_att_text(fid, lw_r_refidx_var, 'long_name', 'real refractive index of aerosol - longwave')
+        call wrap_put_att_text(fid, lw_i_refidx_var, 'long_name', 'imaginary refractive index of aerosol - longwave')
+
         ! Define fields that define the aerosol properties.
         call wrap_def_dim(fid, 'opticsmethod_len',  32, omdim)
         dimids(1) = omdim
@@ -3420,31 +3420,31 @@ contains
         call wrap_def_var(fid, 'radmax_aer',         NF90_DOUBLE, 0, dimids(1), rmaxvar)
         call wrap_def_var(fid, 'hygroscopicity',     NF90_DOUBLE, 0, dimids(1), hygrovar)
         call wrap_def_var(fid, 'num_to_mass_ratio',  NF90_DOUBLE, 0, dimids(1), ntmvar)
-        
-        call wrap_put_att_text(fid, denvar,   'units', 'kg m^-3') 
-        call wrap_put_att_text(fid, slogvar,  'units', '-') 
-        call wrap_put_att_text(fid, dryrvar,  'units', 'm') 
-        call wrap_put_att_text(fid, rminvar,  'units', 'm') 
-        call wrap_put_att_text(fid, rmaxvar,  'units', 'm') 
-        call wrap_put_att_text(fid, hygrovar, 'units', '-') 
-        call wrap_put_att_text(fid, ntmvar,   'units', 'kg^-1') 
 
-        call wrap_put_att_text(fid, denvar,   'long_name', 'aerosol material density') 
-        call wrap_put_att_text(fid, slogvar,  'long_name', 'geometric standard deviation of aerosol') 
-        call wrap_put_att_text(fid, dryrvar,  'long_name', 'dry number mode radius of aerosol') 
-        call wrap_put_att_text(fid, rminvar,  'long_name', 'minimum dry radius of aerosol for bin') 
-        call wrap_put_att_text(fid, rmaxvar,  'long_name', 'maximum dry radius of aerosol for bin') 
-        call wrap_put_att_text(fid, hygrovar, 'long_name', 'hygroscopicity of aerosol') 
-        call wrap_put_att_text(fid, ntmvar,   'long_name', 'ratio of number to mass of aerosol') 
+        call wrap_put_att_text(fid, denvar,   'units', 'kg m^-3')
+        call wrap_put_att_text(fid, slogvar,  'units', '-')
+        call wrap_put_att_text(fid, dryrvar,  'units', 'm')
+        call wrap_put_att_text(fid, rminvar,  'units', 'm')
+        call wrap_put_att_text(fid, rmaxvar,  'units', 'm')
+        call wrap_put_att_text(fid, hygrovar, 'units', '-')
+        call wrap_put_att_text(fid, ntmvar,   'units', 'kg^-1')
 
-        ! End the defintion phase of the netcdf file.      
+        call wrap_put_att_text(fid, denvar,   'long_name', 'aerosol material density')
+        call wrap_put_att_text(fid, slogvar,  'long_name', 'geometric standard deviation of aerosol')
+        call wrap_put_att_text(fid, dryrvar,  'long_name', 'dry number mode radius of aerosol')
+        call wrap_put_att_text(fid, rminvar,  'long_name', 'minimum dry radius of aerosol for bin')
+        call wrap_put_att_text(fid, rmaxvar,  'long_name', 'maximum dry radius of aerosol for bin')
+        call wrap_put_att_text(fid, hygrovar, 'long_name', 'hygroscopicity of aerosol')
+        call wrap_put_att_text(fid, ntmvar,   'long_name', 'ratio of number to mass of aerosol')
+
+        ! End the defintion phase of the netcdf file.
         call wrap_enddef(fid)
 
         ! Write out the dimensions.
         call wrap_put_var_realx(fid, rhvar, mie_rh(:NMIE_RH))
         call wrap_put_var_realx(fid, lwvar, wave(:nlwbands) * 1e-2_f)
         call wrap_put_var_realx(fid, swvar, wave(nlwbands+1:) * 1e-2_f)
- 
+
         call wrap_put_var_realx(fid, csr_var,coreshellratio(:ncsr))
         call wrap_put_var_realx(fid, dstbcr_var,dstbcratio(:ndstbcratio))
         call wrap_put_var_realx(fid, kap_var,kap(:nkap))
@@ -3453,8 +3453,8 @@ contains
         call wrap_put_var_realx(fid, sw_r_refidx_var, real(refidxS(nlwbands+1:, 1)))
         call wrap_put_var_realx(fid, sw_i_refidx_var, aimag(refidxS(nlwbands+1:, 1)))
         call wrap_put_var_realx(fid, lw_r_refidx_var, real(refidxS(:nlwbands, 1)))
-        call wrap_put_var_realx(fid, lw_i_refidx_var, aimag(refidxS(:nlwbands, 1)))           
-  
+        call wrap_put_var_realx(fid, lw_i_refidx_var, aimag(refidxS(:nlwbands, 1)))
+
         ! Pad the names out with spaces.
         aer_name = '                                '
         aer_name(1:len(trim(c_name))) = c_name
@@ -3464,10 +3464,10 @@ contains
         call wrap_put_vara_text(fid, namevar, start_text, count_text, (/ aer_name /))
         count_text(1) = 20
         call wrap_put_vara_text(fid, anvar, start_text, count_text, (/ aer_name /))
-             
+
         count_text(1) = len('hygroscopic_coreshell           ')
         call wrap_put_vara_text(fid, omvar, start_text, count_text, (/ 'hygroscopic_coreshell           ' /))
-          
+
         call wrap_put_var_realx(fid, denvar,   (/ rho(ibin) * 1e-3_f / 1e-6_f /))
         call wrap_put_var_realx(fid, slogvar,  (/ 0._f /))
         call wrap_put_var_realx(fid, dryrvar,  (/ r(ibin) * 1e-2_f /))
@@ -3480,13 +3480,13 @@ contains
         ! Since other aerosols in CAM may use ext_sw rather than ext_sw_coreshell
         ! Modified by Pengfei Yu
         ! April.1, 2012
-        
+
         !--------------------------- for 5-D core-shell optical properties ----------------------------
-            
+
         ! Iterate over a range of relative humidities, since the particle may swell
         ! with relative humidity which will change its optical properties.
         do irh = 1, NMIE_RH
-            
+
           do ikap = 1, nkap
 
             ! Determine the wet radius.
@@ -3495,33 +3495,33 @@ contains
 
             ! Calculate at each wavelength.
             do iwave = 1, NWAVE
-         
+
               ! For now just assume BC/OC constant 15%
               ! rcore = r(ibin)*(0.15**(1./3))
-              ! Using Mie code, consider core/shell ratio        
+              ! Using Mie code, consider core/shell ratio
               do icsr = 1, ncsr
                 if (ncsr > 1) then
                   rcore = r(ibin)*(coreshellratio(icsr)**(1./3))
                 else
                   rcore = 0.0_f
                 endif
-    
+
                 ! Using Mie code, assume the particle is CORE-SHELL
                 ! By: Pengfei Yu
                 ! Mar.22, 2012
-                 
+
                 !write(*,*) 'before call mie-3D, icsr = ', icsr, ' ;iwave = ', iwave, ' ;irh = ', irh
                 !write(*,*) 'ibin = ', ibin, ' ;rcore = ', rcore, ' ;csratio = ', coreshellratio(icsr)
-                 
+
                 do idb = 1, ndbr
-                 
+
                   ! NOTE: This is not the best way to combine the dust and BC refractive indices
                   ! for the core. Volume mixing should be used for both the real and imaginary
                   ! parts, not just the imaginary.
 !                  coreimagidx = dstbcratio(idb) * aimag(refidxB(iwave,1)) + (1._f - dstbcratio(idb)) * aimag(refidxD(iwave,1))
 !                  refidxC = cmplx((real(refidxD(iwave,1)) + real(refidxB(iwave,1))) / 2._f, coreimagidx)
                   refidxC = dstbcratio(idb) * refidxB(iwave,1) + (1._f - dstbcratio(idb)) * refidxD(iwave,1)
-                                  
+
                   call mie(carma, &
                            imiertn, &
                            rwet, &
@@ -3538,19 +3538,19 @@ contains
                            asym, &
                            rc)
                   if (rc < 0) call endrun('carma_CreateOpticsFile::mie failed.')
-        
+
                   ! Calculate  the shortwave and longwave properties?
                   !
                   ! NOTE: miess is in cgs units, but the optics file needs to be in mks
                   ! units, so perform the necessary conversions.
                   if (iwave <= nlwbands) then
-              
+
                     ! Longwave just needs absorption: abs_lw.
                     qabs_lw_coreshell(irh, iwave, icsr, idb, ikap) = (Qext - Qsca) ! absorption per particle
                     abs_lw_coreshell (irh, iwave, icsr, idb, ikap) = (Qext - Qsca) * PI * (rwet * 1e-2_f)**2 &
                                                                       / (rmass(ibin) * 1e-3_f)
                   else
-               
+
                     ! Shortwave needs extinction, single scattering albedo and asymmetry factor:
                     ! ext_sw, qext_sw, ssa_sw and asm_sw.
                     qext_sw_coreshell(irh, iwave - nlwbands, icsr, idb, ikap) = Qext ! extinction per particle
@@ -3566,20 +3566,20 @@ contains
         end do     ! irh
 
         call wrap_put_var_realx(fid, rwetvar, rwetbin(:))
-        
+
         ! Write out the longwave fields.
         ret = nf90_put_var(fid, abs_lw_coreshell_var, abs_lw_coreshell (:, :, :, :, :))
         if (ret /= NF90_NOERR) then
            write(iulog,*)'CARMA_CreateOpticsFile_MixedYu: error writing varid =', abs_lw_coreshell_var
            call handle_error(ret)
         end if
-        
+
         ret = nf90_put_var(fid, qabs_lw_coreshell_var,  qabs_lw_coreshell(:, :, :, :, :))
         if (ret /= NF90_NOERR) then
            write(iulog,*)'CARMA_CreateOpticsFile_MixedYu: error writing varid =', qabs_lw_coreshell_var
            call handle_error(ret)
         end if
-            
+
         ! Write out the shortwave fields.
         ret = nf90_put_var(fid, ext_sw_coreshell_var,   ext_sw_coreshell (:, :, :, :, :))
         if (ret /= NF90_NOERR) then
@@ -3607,12 +3607,12 @@ contains
 
         ! Close the file.
         call wrap_close(fid)
-      end if  
+      end if
     end do
 
     return
   end subroutine CARMA_CreateOpticsFile_MixedYu
-  
+
   !! This routine creates files containing optical properties for the mixed group
   !! following Yu et al. (2015), except that it includes water vapor in the shell.
   !! The difference between the wet and dry radius is assumed to be water valor and
@@ -3640,8 +3640,8 @@ contains
     integer, parameter	                :: ndstbcratio = 8
     integer, parameter	                :: nkap = 9
 
-    real(kind=f)                        :: coreshellratio(ncoreshellratio) = (/ 0.001_f, 0.00237_f, 0.00562_f, 0.01333_f, 0.03162_f, 0.07499_f, 0.17782_f, 0.42169_f, 1.0_f /) 
-    real(kind=f)		                    :: dstbcratio(ndstbcratio) = (/ 0.01_f, 0.025_f, 0.063_f, 0.1_f, 0.3_f, 0.5_f, 0.7_f, 0.9_f/) 
+    real(kind=f)                        :: coreshellratio(ncoreshellratio) = (/ 0.001_f, 0.00237_f, 0.00562_f, 0.01333_f, 0.03162_f, 0.07499_f, 0.17782_f, 0.42169_f, 1.0_f /)
+    real(kind=f)		                    :: dstbcratio(ndstbcratio) = (/ 0.01_f, 0.025_f, 0.063_f, 0.1_f, 0.3_f, 0.5_f, 0.7_f, 0.9_f/)
     real(kind=f)		                    :: kap(nkap) = (/ 0.1_f, 0.2_f, 0.3_f, 0.4_f, 0.5_f, 0.7_f, 0.9_f, 1.1_f, 1.2_f/)
 
     ! Refractive index for water.
@@ -3660,8 +3660,8 @@ contains
         2.35527521e-04_f, 1.71196912e-04_f, 2.43626002e-05_f, 3.12758360e-06_f, &
         3.74323598e-08_f, 1.63841034e-09_f, 2.49434956e-09_f, 1.52413800e-08_f, &
         3.35000010e-08_f, 3.43825518e-02_f /)
-   
-                     
+
+
 
     ! Local variables
     integer                             :: ibin, iwave, irh, icsr, idb, ikap, icore, ncore
@@ -3680,7 +3680,7 @@ contains
     complex(kind=f)                     :: refidxW(NWAVE)
     complex(kind=f)                     :: refidxC
     complex(kind=f)                     :: refidxSH
-    !real(kind=f) :: coreimagidx  
+    !real(kind=f) :: coreimagidx
     character(len=CARMA_NAME_LEN)       :: name
     character(len=CARMA_SHORT_NAME_LEN) :: shortname
     logical                             :: do_mie
@@ -3700,12 +3700,12 @@ contains
     real(kind=f)                        :: qext_sw_coreshell(NMIE_RH, nswbands, ncoreshellratio, ndstbcratio, nkap)
     real(kind=f)                        :: ssa_sw_coreshell(NMIE_RH, nswbands, ncoreshellratio, ndstbcratio, nkap)
     real(kind=f)                        :: asm_sw_coreshell(NMIE_RH, nswbands, ncoreshellratio, ndstbcratio, nkap)
-    real(kind=f)                        :: rwetbin(NMIE_RH)	
+    real(kind=f)                        :: rwetbin(NMIE_RH)
     character(len=8)                    :: c_name                   ! constituent name
     character(len=32)                   :: aer_name                 ! long enough for both aername and name
     character(len=255)                  :: filepath
     real(kind=f)                        :: rwet
-    real(kind=f)                        :: rcore		! CORE radius used in MIE calculation       
+    real(kind=f)                        :: rcore		! CORE radius used in MIE calculation
     real(kind=f)                        :: Qext
     real(kind=f)                        :: Qsca
     real(kind=f)                        :: asym
@@ -3734,47 +3734,47 @@ contains
                         rlow=rlow, rup=rup, rmass=rmass, irhswell=irhswell, imiertn=imiertn, &
                         ienconc=ienconc, ncore=ncore, icorelem=icorelem, cnsttype=cnsttype, maxbin=maxbin)
     if (rc < 0) call endrun('carma_CreateOpticsFile::CARMAGROUP_Get failed.')
-    
-    ! The concentration element has the sulfate refractive index.  
+
+    ! The concentration element has the sulfate refractive index.
     call CARMAELEMENT_Get(carma, ienconc, rc, rho=rho, refidx=refidxS)
     if (rc < 0) call endrun('carma_CreateOpticsFile::CARMAELEMENT_Get failed.')
-    
+
     ! Need to find the dust and black carbon refractive indicies for the core.
     do icore = 1, ncore
       call CARMAELEMENT_Get(carma, icorelem(icore), rc, icomposition=ccomp, refidx=refidx)
       if (rc < 0) call endrun('carma_CreateOpticsFile::CARMAELEMENT_Get failed.')
-      
+
       if (ccomp == I_BC) then
         refidxB = refidx
       else if (ccomp == I_DUST) then
         refidxD = refidx
       end if
     end do
-    
+
     ! Combine the pieces of the water refractive index.
     refidxW(:) = CMPLX(waterreal(:), waterimag(:), kind=f)
-            
+
     ! A file needs to be created for each bin.
     do ibin = 1, NBIN
-        
+
       ! Bins past maxbin are treated as diagnostic even if the group
       ! is prognostic and thus are not advected in the paerent model.
       if (ibin <= maxbin) then
 
         write(c_name, '(A, I2.2)') trim(shortname), ibin
-      
+
         ! Construct the path to the file. Each model will have its own subdirectory
         ! where the optical property files are stored.
         filepath = trim(carma_model) // '_' // trim(c_name) // '_rrtmg.nc'
-        
+
         if (do_print) write(LUNOPRT,*) 'Creating CARMA optics file ... ', trim(filepath)
 
         ! Create the file.
         call wrap_create(filepath, NF90_CLOBBER, fid)
-        
+
         ncsr = ncoreshellratio
         ndbr = ndstbcratio
-              
+
         ! Define the dimensions: rh, lwbands, swbands
         call wrap_def_dim(fid, 'rh_idx',  NMIE_RH,  rhdim)
         call wrap_def_dim(fid, 'lw_band', nlwbands, lwdim)
@@ -3790,7 +3790,7 @@ contains
 
         dimids(1) = lwdim
         call wrap_def_var(fid, 'lw_band', NF90_DOUBLE, 1, dimids(1), lwvar)
-        
+
         dimids(1) = swdim
         call wrap_def_var(fid, 'sw_band', NF90_DOUBLE, 1, dimids(1), swvar)
 
@@ -3799,24 +3799,24 @@ contains
         dimids(1) = dstbcrdim
         call wrap_def_var(fid, 'dstbcratio', NF90_DOUBLE, 1, dimids(1), dstbcr_var)
         dimids(1) = kapdim
-        call wrap_def_var(fid, 'kap', NF90_DOUBLE, 1, dimids(1), kap_var)     
+        call wrap_def_var(fid, 'kap', NF90_DOUBLE, 1, dimids(1), kap_var)
 
 
-        call wrap_put_att_text(fid, rhvar, 'units', 'fraction') 
-        call wrap_put_att_text(fid, rwetvar, 'units', 'cm') 
-        call wrap_put_att_text(fid, lwvar, 'units', 'm') 
+        call wrap_put_att_text(fid, rhvar, 'units', 'fraction')
+        call wrap_put_att_text(fid, rwetvar, 'units', 'cm')
+        call wrap_put_att_text(fid, lwvar, 'units', 'm')
         call wrap_put_att_text(fid, swvar, 'units', 'm')
 
         call wrap_put_att_text(fid, csr_var,'units', 'fraction')
         call wrap_put_att_text(fid, dstbcr_var,'units', 'fraction')
         call wrap_put_att_text(fid, kap_var,'units', 'unitless')
-        call wrap_put_att_text(fid, csr_var,'long_name', 'coreshell ratio') 
+        call wrap_put_att_text(fid, csr_var,'long_name', 'coreshell ratio')
         call wrap_put_att_text(fid, dstbcr_var,'long_name', 'dust-bc ratio')
         call wrap_put_att_text(fid, kap_var,'long_name', 'kappa value')
- 
+
         call wrap_put_att_text(fid, rhvar, 'long_name', 'relative humidity')
-        call wrap_put_att_text(fid, rwetvar, 'long_name', 'wet radius') 
-        call wrap_put_att_text(fid, lwvar, 'long_name', 'longwave bands') 
+        call wrap_put_att_text(fid, rwetvar, 'long_name', 'wet radius')
+        call wrap_put_att_text(fid, lwvar, 'long_name', 'longwave bands')
         call wrap_put_att_text(fid, swvar, 'long_name', 'shortwave bands')
 
         ! Define 3-dimension (:nrh,:nswbands,:ncoreshellratio) LW optics properties: abs_lw_coreshell, qabs_lw_coreshell
@@ -3827,7 +3827,7 @@ contains
         dimids(5) = kapdim
         call wrap_def_var(fid, 'abs_lw_coreshell', NF90_DOUBLE, 5, dimids(1:5), abs_lw_coreshell_var)
         call wrap_def_var(fid, 'qabs_lw_coreshell',NF90_DOUBLE, 5, dimids(1:5), qabs_lw_coreshell_var)
-            
+
         call wrap_put_att_text(fid, abs_lw_coreshell_var, 'units', 'meter^2 kilogram^-1')
         call wrap_put_att_text(fid, qabs_lw_coreshell_var,'units', '-')
 
@@ -3842,31 +3842,31 @@ contains
         call wrap_def_var(fid, 'qext_sw_coreshell',NF90_DOUBLE, 5, dimids(1:5), qext_sw_coreshell_var)
         call wrap_def_var(fid, 'ssa_sw_coreshell', NF90_DOUBLE, 5, dimids(1:5), ssa_sw_coreshell_var)
         call wrap_def_var(fid, 'asm_sw_coreshell', NF90_DOUBLE, 5, dimids(1:5), asm_sw_coreshell_var)
-        
-        call wrap_put_att_text(fid, ssa_sw_coreshell_var, 'units', 'fraction') 
+
+        call wrap_put_att_text(fid, ssa_sw_coreshell_var, 'units', 'fraction')
         call wrap_put_att_text(fid, ext_sw_coreshell_var, 'units', 'meter^2 kilogram^-1')
-        call wrap_put_att_text(fid, qext_sw_coreshell_var,'units', '-') 
-        call wrap_put_att_text(fid, asm_sw_coreshell_var, 'units', '-') 
-            
+        call wrap_put_att_text(fid, qext_sw_coreshell_var,'units', '-')
+        call wrap_put_att_text(fid, asm_sw_coreshell_var, 'units', '-')
+
         ! Define the variables for the refractive indicies.
         dimids(1) = swdim
         call wrap_def_var(fid, 'refindex_real_aer_sw', NF90_DOUBLE, 1, dimids(1), sw_r_refidx_var)
         call wrap_def_var(fid, 'refindex_im_aer_sw',   NF90_DOUBLE, 1, dimids(1), sw_i_refidx_var)
-        
+
         dimids(1) = lwdim
         call wrap_def_var(fid, 'refindex_real_aer_lw', NF90_DOUBLE, 1, dimids(1), lw_r_refidx_var)
         call wrap_def_var(fid, 'refindex_im_aer_lw',   NF90_DOUBLE, 1, dimids(1), lw_i_refidx_var)
 
-        call wrap_put_att_text(fid, sw_r_refidx_var, 'units', '-') 
-        call wrap_put_att_text(fid, sw_i_refidx_var, 'units', '-') 
-        call wrap_put_att_text(fid, lw_r_refidx_var, 'units', '-') 
-        call wrap_put_att_text(fid, lw_i_refidx_var, 'units', '-') 
+        call wrap_put_att_text(fid, sw_r_refidx_var, 'units', '-')
+        call wrap_put_att_text(fid, sw_i_refidx_var, 'units', '-')
+        call wrap_put_att_text(fid, lw_r_refidx_var, 'units', '-')
+        call wrap_put_att_text(fid, lw_i_refidx_var, 'units', '-')
 
-        call wrap_put_att_text(fid, sw_r_refidx_var, 'long_name', 'real refractive index of aerosol - shortwave') 
-        call wrap_put_att_text(fid, sw_i_refidx_var, 'long_name', 'imaginary refractive index of aerosol - shortwave') 
-        call wrap_put_att_text(fid, lw_r_refidx_var, 'long_name', 'real refractive index of aerosol - longwave') 
-        call wrap_put_att_text(fid, lw_i_refidx_var, 'long_name', 'imaginary refractive index of aerosol - longwave') 
-            
+        call wrap_put_att_text(fid, sw_r_refidx_var, 'long_name', 'real refractive index of aerosol - shortwave')
+        call wrap_put_att_text(fid, sw_i_refidx_var, 'long_name', 'imaginary refractive index of aerosol - shortwave')
+        call wrap_put_att_text(fid, lw_r_refidx_var, 'long_name', 'real refractive index of aerosol - longwave')
+        call wrap_put_att_text(fid, lw_i_refidx_var, 'long_name', 'imaginary refractive index of aerosol - longwave')
+
         ! Define fields that define the aerosol properties.
         call wrap_def_dim(fid, 'opticsmethod_len',  32, omdim)
         dimids(1) = omdim
@@ -3887,31 +3887,31 @@ contains
         call wrap_def_var(fid, 'radmax_aer',         NF90_DOUBLE, 0, dimids(1), rmaxvar)
         call wrap_def_var(fid, 'hygroscopicity',     NF90_DOUBLE, 0, dimids(1), hygrovar)
         call wrap_def_var(fid, 'num_to_mass_ratio',  NF90_DOUBLE, 0, dimids(1), ntmvar)
-        
-        call wrap_put_att_text(fid, denvar,   'units', 'kg m^-3') 
-        call wrap_put_att_text(fid, slogvar,  'units', '-') 
-        call wrap_put_att_text(fid, dryrvar,  'units', 'm') 
-        call wrap_put_att_text(fid, rminvar,  'units', 'm') 
-        call wrap_put_att_text(fid, rmaxvar,  'units', 'm') 
-        call wrap_put_att_text(fid, hygrovar, 'units', '-') 
-        call wrap_put_att_text(fid, ntmvar,   'units', 'kg^-1') 
 
-        call wrap_put_att_text(fid, denvar,   'long_name', 'aerosol material density') 
-        call wrap_put_att_text(fid, slogvar,  'long_name', 'geometric standard deviation of aerosol') 
-        call wrap_put_att_text(fid, dryrvar,  'long_name', 'dry number mode radius of aerosol') 
-        call wrap_put_att_text(fid, rminvar,  'long_name', 'minimum dry radius of aerosol for bin') 
-        call wrap_put_att_text(fid, rmaxvar,  'long_name', 'maximum dry radius of aerosol for bin') 
-        call wrap_put_att_text(fid, hygrovar, 'long_name', 'hygroscopicity of aerosol') 
-        call wrap_put_att_text(fid, ntmvar,   'long_name', 'ratio of number to mass of aerosol') 
+        call wrap_put_att_text(fid, denvar,   'units', 'kg m^-3')
+        call wrap_put_att_text(fid, slogvar,  'units', '-')
+        call wrap_put_att_text(fid, dryrvar,  'units', 'm')
+        call wrap_put_att_text(fid, rminvar,  'units', 'm')
+        call wrap_put_att_text(fid, rmaxvar,  'units', 'm')
+        call wrap_put_att_text(fid, hygrovar, 'units', '-')
+        call wrap_put_att_text(fid, ntmvar,   'units', 'kg^-1')
 
-        ! End the defintion phase of the netcdf file.      
+        call wrap_put_att_text(fid, denvar,   'long_name', 'aerosol material density')
+        call wrap_put_att_text(fid, slogvar,  'long_name', 'geometric standard deviation of aerosol')
+        call wrap_put_att_text(fid, dryrvar,  'long_name', 'dry number mode radius of aerosol')
+        call wrap_put_att_text(fid, rminvar,  'long_name', 'minimum dry radius of aerosol for bin')
+        call wrap_put_att_text(fid, rmaxvar,  'long_name', 'maximum dry radius of aerosol for bin')
+        call wrap_put_att_text(fid, hygrovar, 'long_name', 'hygroscopicity of aerosol')
+        call wrap_put_att_text(fid, ntmvar,   'long_name', 'ratio of number to mass of aerosol')
+
+        ! End the defintion phase of the netcdf file.
         call wrap_enddef(fid)
 
         ! Write out the dimensions.
         call wrap_put_var_realx(fid, rhvar, mie_rh(:NMIE_RH))
         call wrap_put_var_realx(fid, lwvar, wave(:nlwbands) * 1e-2_f)
         call wrap_put_var_realx(fid, swvar, wave(nlwbands+1:) * 1e-2_f)
- 
+
         call wrap_put_var_realx(fid, csr_var,coreshellratio(:ncsr))
         call wrap_put_var_realx(fid, dstbcr_var,dstbcratio(:ndstbcratio))
         call wrap_put_var_realx(fid, kap_var,kap(:nkap))
@@ -3920,8 +3920,8 @@ contains
         call wrap_put_var_realx(fid, sw_r_refidx_var, real(refidxS(nlwbands+1:, 1)))
         call wrap_put_var_realx(fid, sw_i_refidx_var, aimag(refidxS(nlwbands+1:, 1)))
         call wrap_put_var_realx(fid, lw_r_refidx_var, real(refidxS(:nlwbands, 1)))
-        call wrap_put_var_realx(fid, lw_i_refidx_var, aimag(refidxS(:nlwbands, 1)))           
-  
+        call wrap_put_var_realx(fid, lw_i_refidx_var, aimag(refidxS(:nlwbands, 1)))
+
         ! Pad the names out with spaces.
         aer_name = '                                '
         aer_name(1:len(trim(c_name))) = c_name
@@ -3931,10 +3931,10 @@ contains
         call wrap_put_vara_text(fid, namevar, start_text, count_text, (/ aer_name /))
         count_text(1) = 20
         call wrap_put_vara_text(fid, anvar, start_text, count_text, (/ aer_name /))
-             
+
         count_text(1) = len('hygroscopic_coreshell           ')
         call wrap_put_vara_text(fid, omvar, start_text, count_text, (/ 'hygroscopic_coreshell           ' /))
-          
+
         call wrap_put_var_realx(fid, denvar,   (/ rho(ibin) * 1e-3_f / 1e-6_f /))
         call wrap_put_var_realx(fid, slogvar,  (/ 0._f /))
         call wrap_put_var_realx(fid, dryrvar,  (/ r(ibin) * 1e-2_f /))
@@ -3947,13 +3947,13 @@ contains
         ! Since other aerosols in CAM may use ext_sw rather than ext_sw_coreshell
         ! Modified by Pengfei Yu
         ! April.1, 2012
-        
+
         !--------------------------- for 5-D core-shell optical properties ----------------------------
-            
+
         ! Iterate over a range of relative humidities, since the particle may swell
         ! with relative humidity which will change its optical properties.
         do irh = 1, NMIE_RH
-            
+
           do ikap = 1, nkap
 
             ! Determine the wet radius.
@@ -3962,17 +3962,17 @@ contains
 
             ! Calculate at each wavelength.
             do iwave = 1, NWAVE
-         
+
               ! For now just assume BC/OC constant 15%
               ! rcore = r(ibin)*(0.15**(1./3))
-              ! Using Mie code, consider core/shell ratio        
+              ! Using Mie code, consider core/shell ratio
               do icsr = 1, ncsr
                 if (ncsr > 1) then
                   rcore = r(ibin)*(coreshellratio(icsr)**(1./3))
                 else
                   rcore = 0.0_f
                 endif
-                
+
                 ! This is not in Yu (2015), but rather than using the refractive
                 ! index of H2SO4 for the shell, do a volume mix of water and H2SO4
                 ! for the refractive index of the shell.
@@ -3984,23 +3984,23 @@ contains
                 else
                   refidxSH = refidxS(iwave, 1)
                 end if
-    
+
                 ! Using Mie code, assume the particle is CORE-SHELL
                 ! By: Pengfei Yu
                 ! Mar.22, 2012
-                 
+
                 !write(*,*) 'before call mie-3D, icsr = ', icsr, ' ;iwave = ', iwave, ' ;irh = ', irh
                 !write(*,*) 'ibin = ', ibin, ' ;rcore = ', rcore, ' ;csratio = ', coreshellratio(icsr)
-                 
+
                 do idb = 1, ndbr
-                 
+
                   ! NOTE: This is not the best way to combine the dust and BC refractive indices
                   ! for the core. Volume mixing should be used for both the real and imaginary
                   ! parts, not just the imaginary.
 !                  coreimagidx = dstbcratio(idb) * aimag(refidxB(iwave,1)) + (1._f - dstbcratio(idb)) * aimag(refidxD(iwave,1))
 !                  refidxC = cmplx((real(refidxD(iwave,1)) + real(refidxB(iwave,1))) / 2._f, coreimagidx)
                   refidxC = dstbcratio(idb) * refidxB(iwave,1) + (1._f - dstbcratio(idb)) * refidxD(iwave,1)
-                                  
+
                   call mie(carma, &
                            imiertn, &
                            rwet, &
@@ -4017,18 +4017,18 @@ contains
                            asym, &
                            rc)
                   if (rc < 0) call endrun('carma_CreateOpticsFile::mie failed.')
-        
+
                   ! Calculate  the shortwave and longwave properties?
                   !
                   ! NOTE: miess is in cgs units, but the optics file needs to be in mks
                   ! units, so perform the necessary conversions.
                   if (iwave <= nlwbands) then
-              
+
                     ! Longwave just needs absorption: abs_lw.
                     qabs_lw_coreshell(irh, iwave, icsr, idb, ikap) = (Qext - Qsca)                            ! absorption per particle
                     abs_lw_coreshell (irh, iwave, icsr, idb, ikap) = (Qext - Qsca) * PI * (rwet * 1e-2_f)**2 / (rmass(ibin) * 1e-3_f)
                   else
-               
+
                     ! Shortwave needs extinction, single scattering albedo and asymmetry factor:
                     ! ext_sw, qext_sw, ssa_sw and asm_sw.
                     qext_sw_coreshell(irh, iwave - nlwbands, icsr, idb, ikap) = Qext                          ! extinction per particle
@@ -4043,20 +4043,20 @@ contains
         end do     ! irh
 
         call wrap_put_var_realx(fid, rwetvar, rwetbin(:))
-        
+
         ! Write out the longwave fields.
         ret = nf90_put_var(fid, abs_lw_coreshell_var, abs_lw_coreshell (:, :, :, :, :))
         if (ret /= NF90_NOERR) then
            write(iulog,*)'CARMA_CreateOpticsFile_MixedYu: error writing varid =', abs_lw_coreshell_var
            call handle_error(ret)
         end if
-        
+
         ret = nf90_put_var(fid, qabs_lw_coreshell_var,  qabs_lw_coreshell(:, :, :, :, :))
         if (ret /= NF90_NOERR) then
            write(iulog,*)'CARMA_CreateOpticsFile_MixedYu: error writing varid =', qabs_lw_coreshell_var
            call handle_error(ret)
         end if
-            
+
         ! Write out the shortwave fields.
         ret = nf90_put_var(fid, ext_sw_coreshell_var,   ext_sw_coreshell (:, :, :, :, :))
         if (ret /= NF90_NOERR) then
@@ -4084,7 +4084,7 @@ contains
 
         ! Close the file.
         call wrap_close(fid)
-      end if  
+      end if
     end do
 
     return
@@ -4122,7 +4122,7 @@ contains
     integer                             :: rhvar, lwvar, swvar, wtp_var
     integer                             :: rwetvar
     integer				:: abs_lw_wtp_var, qabs_lw_wtp_var
-    integer                             :: ext_sw_wtp_var, ssa_sw_wtp_var, asm_sw_wtp_var, qext_sw_wtp_var	
+    integer                             :: ext_sw_wtp_var, ssa_sw_wtp_var, asm_sw_wtp_var, qext_sw_wtp_var
     integer                             :: omdim, andim, namedim
     integer                             :: omvar, anvar, namevar
     integer                             :: dimids(2)
@@ -4165,56 +4165,56 @@ contains
     ! Get the necessary element properties.
     call CARMAELEMENT_Get(carma, ienconc, rc, rho=rho, refidx=refidx)
     if (rc < 0) call endrun('carma_CreateOpticsFile::CARMAELEMENT_Get failed.')
-      
+
     ! A file needs to be created for each bin.
     do ibin = 1, NBIN
-        
+
       ! Bins past maxbin are treated as diagnostic even if the group
       ! is prognostic and thus are not advected in the paerent model.
       if (ibin <= maxbin) then
-    
+
         write(c_name, '(A, I2.2)') trim(shortname), ibin
-      
+
         ! Construct the path to the file. Each model will have its own subdirectory
         ! where the optical property files are stored.
         filepath = trim(carma_model) // '_' // trim(c_name) // '_rrtmg.nc'
-        
+
         if (do_print) write(LUNOPRT,*) 'Creating CARMA optics file ... ', trim(filepath)
 
         ! Create the file.
         call wrap_create(filepath, NF90_CLOBBER, fid)
-        
+
         ! Define the dimensions: rh, lwbands, swbands
         call wrap_def_dim(fid, 'rh_idx',  NMIE_RH,  rhdim)
         call wrap_def_dim(fid, 'lw_band', nlwbands, lwdim)
         call wrap_def_dim(fid, 'sw_band', nswbands, swdim)
 
         call wrap_def_dim(fid, 'wgtpct', NMIE_WTP, wtpdim)
-        
+
         dimids(1) = rhdim
         call wrap_def_var(fid, 'rh',  NF90_DOUBLE, 1, dimids(1), rhvar)
         call wrap_def_var(fid, 'rwet',NF90_DOUBLE, 1, dimids(1), rwetvar)
 
         dimids(1) = lwdim
         call wrap_def_var(fid, 'lw_band', NF90_DOUBLE, 1, dimids(1), lwvar)
-        
+
         dimids(1) = swdim
         call wrap_def_var(fid, 'sw_band', NF90_DOUBLE, 1, dimids(1), swvar)
 
         dimids(1) = wtpdim
         call wrap_def_var(fid, 'wgtpct', NF90_DOUBLE, 1, dimids(1), wtp_var)
 
-        call wrap_put_att_text(fid, rhvar, 'units', 'fraction') 
-        call wrap_put_att_text(fid, rwetvar, 'units', 'cm') 
-        call wrap_put_att_text(fid, lwvar, 'units', 'm') 
+        call wrap_put_att_text(fid, rhvar, 'units', 'fraction')
+        call wrap_put_att_text(fid, rwetvar, 'units', 'cm')
+        call wrap_put_att_text(fid, lwvar, 'units', 'm')
         call wrap_put_att_text(fid, swvar, 'units', 'm')
 
         call wrap_put_att_text(fid, wtp_var,'units', 'unitless')
         call wrap_put_att_text(fid, wtp_var,'long_name', 'weight percent')
- 
+
         call wrap_put_att_text(fid, rhvar, 'long_name', 'relative humidity')
-        call wrap_put_att_text(fid, rwetvar, 'long_name', 'wet radius') 
-        call wrap_put_att_text(fid, lwvar, 'long_name', 'longwave bands') 
+        call wrap_put_att_text(fid, rwetvar, 'long_name', 'wet radius')
+        call wrap_put_att_text(fid, lwvar, 'long_name', 'longwave bands')
         call wrap_put_att_text(fid, swvar, 'long_name', 'shortwave bands')
 
         ! Define the variables: abs_lw, ext_sw, ssa_sw, asm_sw
@@ -4223,9 +4223,9 @@ contains
         dimids(2) = lwdim
         call wrap_def_var(fid, 'abs_lw_wtp', NF90_DOUBLE, 2, dimids(1:2), abs_lw_wtp_var)
         call wrap_def_var(fid, 'qabs_lw_wtp',NF90_DOUBLE, 2, dimids(1:2), qabs_lw_wtp_var)
-        
+
         call wrap_put_att_text(fid, abs_lw_wtp_var, 'units', 'meter^2 kilogram^-1')
-        call wrap_put_att_text(fid, qabs_lw_wtp_var,'units', '-') 
+        call wrap_put_att_text(fid, qabs_lw_wtp_var,'units', '-')
 
         ! Define 2-dimension (:nrh,:nswbands) optics properties: ext_sw, qext_sw, ssa_sw, asm_sw
         dimids(1) = wtpdim
@@ -4234,32 +4234,32 @@ contains
         call wrap_def_var(fid, 'qext_sw_wtp',NF90_DOUBLE, 2, dimids(1:2), qext_sw_wtp_var)
         call wrap_def_var(fid, 'ssa_sw_wtp', NF90_DOUBLE, 2, dimids(1:2), ssa_sw_wtp_var)
         call wrap_def_var(fid, 'asm_sw_wtp', NF90_DOUBLE, 2, dimids(1:2), asm_sw_wtp_var)
-        
+
         call wrap_put_att_text(fid, ssa_sw_wtp_var, 'units', 'fraction')
-        call wrap_put_att_text(fid, qext_sw_wtp_var,'units', '-')  
-        call wrap_put_att_text(fid, ext_sw_wtp_var, 'units', 'meter^2 kilogram^-1') 
-        call wrap_put_att_text(fid, asm_sw_wtp_var, 'units', '-') 
-            
+        call wrap_put_att_text(fid, qext_sw_wtp_var,'units', '-')
+        call wrap_put_att_text(fid, ext_sw_wtp_var, 'units', 'meter^2 kilogram^-1')
+        call wrap_put_att_text(fid, asm_sw_wtp_var, 'units', '-')
+
         ! Define the variables for the refractive indicies.
         dimids(1) = swdim
         call wrap_def_var(fid, 'refindex_real_aer_sw', NF90_DOUBLE, 1, dimids(1), sw_r_refidx_var)
         call wrap_def_var(fid, 'refindex_im_aer_sw',   NF90_DOUBLE, 1, dimids(1), sw_i_refidx_var)
-        
+
         dimids(1) = lwdim
         call wrap_def_var(fid, 'refindex_real_aer_lw', NF90_DOUBLE, 1, dimids(1), lw_r_refidx_var)
         call wrap_def_var(fid, 'refindex_im_aer_lw',   NF90_DOUBLE, 1, dimids(1), lw_i_refidx_var)
 
-        call wrap_put_att_text(fid, sw_r_refidx_var, 'units', '-') 
-        call wrap_put_att_text(fid, sw_i_refidx_var, 'units', '-') 
-        call wrap_put_att_text(fid, lw_r_refidx_var, 'units', '-') 
-        call wrap_put_att_text(fid, lw_i_refidx_var, 'units', '-') 
+        call wrap_put_att_text(fid, sw_r_refidx_var, 'units', '-')
+        call wrap_put_att_text(fid, sw_i_refidx_var, 'units', '-')
+        call wrap_put_att_text(fid, lw_r_refidx_var, 'units', '-')
+        call wrap_put_att_text(fid, lw_i_refidx_var, 'units', '-')
 
-        call wrap_put_att_text(fid, sw_r_refidx_var, 'long_name', 'real refractive index of aerosol - shortwave') 
-        call wrap_put_att_text(fid, sw_i_refidx_var, 'long_name', 'imaginary refractive index of aerosol - shortwave') 
-        call wrap_put_att_text(fid, lw_r_refidx_var, 'long_name', 'real refractive index of aerosol - longwave') 
-        call wrap_put_att_text(fid, lw_i_refidx_var, 'long_name', 'imaginary refractive index of aerosol - longwave') 
-       
-        
+        call wrap_put_att_text(fid, sw_r_refidx_var, 'long_name', 'real refractive index of aerosol - shortwave')
+        call wrap_put_att_text(fid, sw_i_refidx_var, 'long_name', 'imaginary refractive index of aerosol - shortwave')
+        call wrap_put_att_text(fid, lw_r_refidx_var, 'long_name', 'real refractive index of aerosol - longwave')
+        call wrap_put_att_text(fid, lw_i_refidx_var, 'long_name', 'imaginary refractive index of aerosol - longwave')
+
+
         ! Define fields that define the aerosol properties.
         call wrap_def_dim(fid, 'opticsmethod_len',  32, omdim)
         dimids(1) = omdim
@@ -4280,24 +4280,24 @@ contains
         call wrap_def_var(fid, 'radmax_aer',         NF90_DOUBLE, 0, dimids(1), rmaxvar)
         call wrap_def_var(fid, 'hygroscopicity',     NF90_DOUBLE, 0, dimids(1), hygrovar)
         call wrap_def_var(fid, 'num_to_mass_ratio',  NF90_DOUBLE, 0, dimids(1), ntmvar)
-        
-        call wrap_put_att_text(fid, denvar,   'units', 'kg m^-3') 
-        call wrap_put_att_text(fid, slogvar,  'units', '-') 
-        call wrap_put_att_text(fid, dryrvar,  'units', 'm') 
-        call wrap_put_att_text(fid, rminvar,  'units', 'm') 
-        call wrap_put_att_text(fid, rmaxvar,  'units', 'm') 
-        call wrap_put_att_text(fid, hygrovar, 'units', '-') 
-        call wrap_put_att_text(fid, ntmvar,   'units', 'kg^-1') 
 
-        call wrap_put_att_text(fid, denvar,   'long_name', 'aerosol material density') 
-        call wrap_put_att_text(fid, slogvar,  'long_name', 'geometric standard deviation of aerosol') 
-        call wrap_put_att_text(fid, dryrvar,  'long_name', 'dry number mode radius of aerosol') 
-        call wrap_put_att_text(fid, rminvar,  'long_name', 'minimum dry radius of aerosol for bin') 
-        call wrap_put_att_text(fid, rmaxvar,  'long_name', 'maximum dry radius of aerosol for bin') 
-        call wrap_put_att_text(fid, hygrovar, 'long_name', 'hygroscopicity of aerosol') 
-        call wrap_put_att_text(fid, ntmvar,   'long_name', 'ratio of number to mass of aerosol') 
+        call wrap_put_att_text(fid, denvar,   'units', 'kg m^-3')
+        call wrap_put_att_text(fid, slogvar,  'units', '-')
+        call wrap_put_att_text(fid, dryrvar,  'units', 'm')
+        call wrap_put_att_text(fid, rminvar,  'units', 'm')
+        call wrap_put_att_text(fid, rmaxvar,  'units', 'm')
+        call wrap_put_att_text(fid, hygrovar, 'units', '-')
+        call wrap_put_att_text(fid, ntmvar,   'units', 'kg^-1')
 
-        ! End the defintion phase of the netcdf file.      
+        call wrap_put_att_text(fid, denvar,   'long_name', 'aerosol material density')
+        call wrap_put_att_text(fid, slogvar,  'long_name', 'geometric standard deviation of aerosol')
+        call wrap_put_att_text(fid, dryrvar,  'long_name', 'dry number mode radius of aerosol')
+        call wrap_put_att_text(fid, rminvar,  'long_name', 'minimum dry radius of aerosol for bin')
+        call wrap_put_att_text(fid, rmaxvar,  'long_name', 'maximum dry radius of aerosol for bin')
+        call wrap_put_att_text(fid, hygrovar, 'long_name', 'hygroscopicity of aerosol')
+        call wrap_put_att_text(fid, ntmvar,   'long_name', 'ratio of number to mass of aerosol')
+
+        ! End the defintion phase of the netcdf file.
         call wrap_enddef(fid)
 
         ! Write out the dimensions.
@@ -4311,8 +4311,8 @@ contains
         call wrap_put_var_realx(fid, sw_r_refidx_var, real(refidx(nlwbands+1:, 1)))
         call wrap_put_var_realx(fid, sw_i_refidx_var, aimag(refidx(nlwbands+1:, 1)))
         call wrap_put_var_realx(fid, lw_r_refidx_var, real(refidx(:nlwbands, 1)))
-        call wrap_put_var_realx(fid, lw_i_refidx_var, aimag(refidx(:nlwbands, 1)))           
-  
+        call wrap_put_var_realx(fid, lw_i_refidx_var, aimag(refidx(:nlwbands, 1)))
+
         ! Pad the names out with spaces.
         aer_name = '                                '
         aer_name(1:len(trim(c_name))) = c_name
@@ -4325,7 +4325,7 @@ contains
 
         count_text(1) = len('hygroscopic_wtp                 ')
         call wrap_put_vara_text(fid, omvar, start_text, count_text, (/ 'hygroscopic_wtp                 ' /))
-          
+
         call wrap_put_var_realx(fid, denvar,   (/ rho(ibin) * 1e-3_f / 1e-6_f /))
         call wrap_put_var_realx(fid, slogvar,  (/ 0._f /))
         call wrap_put_var_realx(fid, dryrvar,  (/ r(ibin) * 1e-2_f /))
@@ -4338,22 +4338,22 @@ contains
         ! Since other aerosols in CAM may use ext_sw rather than ext_sw_coreshell
         ! Modified by Pengfei Yu
         ! April.1, 2012
-        
+
         ! calculate qext and ext for pure sulfate dependent on weight percent
         ! ideally qext is based on (wgt,temp,wave), however Beyer et al. (1996) Figure 5
         ! shows sulfate density is roughly 0.006 g/cm3/k, I negelet temp dimension, assuming temp = 270 K
         ! In code, sulfate density is precisely calculated to determine wet raidus
         do iwtp = 1, NMIE_WTP
-        
+
           ! NOTE: Weight percent is normal a result of the getwetr calculation. To build the
           ! table based upon weight percent, we need to pass in the desired value and a
-          ! reference temperature. In that case, the RH is ignored. 
+          ! reference temperature. In that case, the RH is ignored.
           call getwetr(carma, igroup, mie_rh(1), r(ibin), rwet, rho(ibin), rhopwet, rc, wgtpct=mie_wtp(iwtp)*100._f, temp=270._f)
           if (rc < 0) call endrun('carma_CreateOpticsFile::wetr failed.')
-              
+
           ! Calculate at each wavelength.
           do iwave = 1, NWAVE
-        
+
             ! Using Mie code, calculate the optical properties: extinction coefficient,
             ! single scattering albedo and asymmetry factor.
             ! Assume the particle is homogeneous (no core).
@@ -4375,19 +4375,19 @@ contains
                      Qsca, &
                      asym, &
                      rc)
-            if (rc < 0) call endrun('carma_CreateOpticsFile::mie failed.')                      
-              
+            if (rc < 0) call endrun('carma_CreateOpticsFile::mie failed.')
+
             ! Calculate  the shortwave and longwave properties?
             !
             ! NOTE: miess is in cgs units, but the optics file needs to be in mks
             ! units, so perform the necessary conversions.
             if (iwave <= nlwbands) then
-      
+
               ! Longwave just needs absorption: abs_lw.
               qabs_lw_wtp(iwtp, iwave) = (Qext - Qsca)                           ! absorption per particle
               abs_lw_wtp (iwtp, iwave) = (Qext - Qsca) * PI * (rwet * 1e-2_f)**2 / (rmass(ibin) * 1e-3_f)
             else
-       
+
               ! Shortwave needs extinction, single scattering albedo and asymmetry factor:
               ! ext_sw, ssa_sw and asm_sw.
               qext_sw_wtp(iwtp, iwave - nlwbands) = Qext                             ! extinction per particle
@@ -4438,7 +4438,7 @@ contains
 
         ! Close the file.
         call wrap_close(fid)
-      end if  
+      end if
     end do
 
     return
@@ -4496,7 +4496,7 @@ contains
     integer                             :: rhvar, lwvar, swvar, wtp_var
     integer                             :: rwetvar
     integer				                      :: abs_lw_wtp_var, qabs_lw_wtp_var
-    integer                             :: ext_sw_wtp_var, ssa_sw_wtp_var, asm_sw_wtp_var, qext_sw_wtp_var	
+    integer                             :: ext_sw_wtp_var, ssa_sw_wtp_var, asm_sw_wtp_var, qext_sw_wtp_var
     integer                             :: omdim, andim, namedim
     integer                             :: omvar, anvar, namevar
     integer                             :: dimids(2)
@@ -4542,59 +4542,59 @@ contains
     ! Get the necessary element properties.
     call CARMAELEMENT_Get(carma, ienconc, rc, rho=rho, refidx=refidxS)
     if (rc < 0) call endrun('carma_CreateOpticsFile::CARMAELEMENT_Get failed.')
-      
+
     ! Combine the pieces of the water refractive index.
     refidxW(:) = CMPLX(waterreal(:), waterimag(:), kind=f)
 
     ! A file needs to be created for each bin.
     do ibin = 1, NBIN
-        
+
       ! Bins past maxbin are treated as diagnostic even if the group
       ! is prognostic and thus are not advected in the paerent model.
       if (ibin <= maxbin) then
-    
+
         write(c_name, '(A, I2.2)') trim(shortname), ibin
-      
+
         ! Construct the path to the file. Each model will have its own subdirectory
         ! where the optical property files are stored.
         filepath = trim(carma_model) // '_' // trim(c_name) // '_rrtmg.nc'
-        
+
         if (do_print) write(LUNOPRT,*) 'Creating CARMA optics file ... ', trim(filepath)
 
         ! Create the file.
         call wrap_create(filepath, NF90_CLOBBER, fid)
-        
+
         ! Define the dimensions: rh, lwbands, swbands
         call wrap_def_dim(fid, 'rh_idx',  NMIE_RH,  rhdim)
         call wrap_def_dim(fid, 'lw_band', nlwbands, lwdim)
         call wrap_def_dim(fid, 'sw_band', nswbands, swdim)
 
         call wrap_def_dim(fid, 'wgtpct', NMIE_WTP, wtpdim)
-        
+
         dimids(1) = rhdim
         call wrap_def_var(fid, 'rh',  NF90_DOUBLE, 1, dimids(1), rhvar)
         call wrap_def_var(fid, 'rwet',NF90_DOUBLE, 1, dimids(1), rwetvar)
 
         dimids(1) = lwdim
         call wrap_def_var(fid, 'lw_band', NF90_DOUBLE, 1, dimids(1), lwvar)
-        
+
         dimids(1) = swdim
         call wrap_def_var(fid, 'sw_band', NF90_DOUBLE, 1, dimids(1), swvar)
 
         dimids(1) = wtpdim
         call wrap_def_var(fid, 'wgtpct', NF90_DOUBLE, 1, dimids(1), wtp_var)
 
-        call wrap_put_att_text(fid, rhvar, 'units', 'fraction') 
-        call wrap_put_att_text(fid, rwetvar, 'units', 'cm') 
-        call wrap_put_att_text(fid, lwvar, 'units', 'm') 
+        call wrap_put_att_text(fid, rhvar, 'units', 'fraction')
+        call wrap_put_att_text(fid, rwetvar, 'units', 'cm')
+        call wrap_put_att_text(fid, lwvar, 'units', 'm')
         call wrap_put_att_text(fid, swvar, 'units', 'm')
 
         call wrap_put_att_text(fid, wtp_var,'units', 'unitless')
         call wrap_put_att_text(fid, wtp_var,'long_name', 'weight percent')
- 
+
         call wrap_put_att_text(fid, rhvar, 'long_name', 'relative humidity')
-        call wrap_put_att_text(fid, rwetvar, 'long_name', 'wet radius') 
-        call wrap_put_att_text(fid, lwvar, 'long_name', 'longwave bands') 
+        call wrap_put_att_text(fid, rwetvar, 'long_name', 'wet radius')
+        call wrap_put_att_text(fid, lwvar, 'long_name', 'longwave bands')
         call wrap_put_att_text(fid, swvar, 'long_name', 'shortwave bands')
 
         ! Define the variables: abs_lw, ext_sw, ssa_sw, asm_sw
@@ -4603,9 +4603,9 @@ contains
         dimids(2) = lwdim
         call wrap_def_var(fid, 'abs_lw_wtp', NF90_DOUBLE, 2, dimids(1:2), abs_lw_wtp_var)
         call wrap_def_var(fid, 'qabs_lw_wtp',NF90_DOUBLE, 2, dimids(1:2), qabs_lw_wtp_var)
-        
+
         call wrap_put_att_text(fid, abs_lw_wtp_var, 'units', 'meter^2 kilogram^-1')
-        call wrap_put_att_text(fid, qabs_lw_wtp_var,'units', '-') 
+        call wrap_put_att_text(fid, qabs_lw_wtp_var,'units', '-')
 
         ! Define 2-dimension (:nrh,:nswbands) optics properties: ext_sw, qext_sw, ssa_sw, asm_sw
         dimids(1) = wtpdim
@@ -4614,32 +4614,32 @@ contains
         call wrap_def_var(fid, 'qext_sw_wtp',NF90_DOUBLE, 2, dimids(1:2), qext_sw_wtp_var)
         call wrap_def_var(fid, 'ssa_sw_wtp', NF90_DOUBLE, 2, dimids(1:2), ssa_sw_wtp_var)
         call wrap_def_var(fid, 'asm_sw_wtp', NF90_DOUBLE, 2, dimids(1:2), asm_sw_wtp_var)
-        
+
         call wrap_put_att_text(fid, ssa_sw_wtp_var, 'units', 'fraction')
-        call wrap_put_att_text(fid, qext_sw_wtp_var,'units', '-')  
-        call wrap_put_att_text(fid, ext_sw_wtp_var, 'units', 'meter^2 kilogram^-1') 
-        call wrap_put_att_text(fid, asm_sw_wtp_var, 'units', '-') 
-            
+        call wrap_put_att_text(fid, qext_sw_wtp_var,'units', '-')
+        call wrap_put_att_text(fid, ext_sw_wtp_var, 'units', 'meter^2 kilogram^-1')
+        call wrap_put_att_text(fid, asm_sw_wtp_var, 'units', '-')
+
         ! Define the variables for the refractive indicies.
         dimids(1) = swdim
         call wrap_def_var(fid, 'refindex_real_aer_sw', NF90_DOUBLE, 1, dimids(1), sw_r_refidx_var)
         call wrap_def_var(fid, 'refindex_im_aer_sw',   NF90_DOUBLE, 1, dimids(1), sw_i_refidx_var)
-        
+
         dimids(1) = lwdim
         call wrap_def_var(fid, 'refindex_real_aer_lw', NF90_DOUBLE, 1, dimids(1), lw_r_refidx_var)
         call wrap_def_var(fid, 'refindex_im_aer_lw',   NF90_DOUBLE, 1, dimids(1), lw_i_refidx_var)
 
-        call wrap_put_att_text(fid, sw_r_refidx_var, 'units', '-') 
-        call wrap_put_att_text(fid, sw_i_refidx_var, 'units', '-') 
-        call wrap_put_att_text(fid, lw_r_refidx_var, 'units', '-') 
-        call wrap_put_att_text(fid, lw_i_refidx_var, 'units', '-') 
+        call wrap_put_att_text(fid, sw_r_refidx_var, 'units', '-')
+        call wrap_put_att_text(fid, sw_i_refidx_var, 'units', '-')
+        call wrap_put_att_text(fid, lw_r_refidx_var, 'units', '-')
+        call wrap_put_att_text(fid, lw_i_refidx_var, 'units', '-')
 
-        call wrap_put_att_text(fid, sw_r_refidx_var, 'long_name', 'real refractive index of aerosol - shortwave') 
-        call wrap_put_att_text(fid, sw_i_refidx_var, 'long_name', 'imaginary refractive index of aerosol - shortwave') 
-        call wrap_put_att_text(fid, lw_r_refidx_var, 'long_name', 'real refractive index of aerosol - longwave') 
-        call wrap_put_att_text(fid, lw_i_refidx_var, 'long_name', 'imaginary refractive index of aerosol - longwave') 
-       
-        
+        call wrap_put_att_text(fid, sw_r_refidx_var, 'long_name', 'real refractive index of aerosol - shortwave')
+        call wrap_put_att_text(fid, sw_i_refidx_var, 'long_name', 'imaginary refractive index of aerosol - shortwave')
+        call wrap_put_att_text(fid, lw_r_refidx_var, 'long_name', 'real refractive index of aerosol - longwave')
+        call wrap_put_att_text(fid, lw_i_refidx_var, 'long_name', 'imaginary refractive index of aerosol - longwave')
+
+
         ! Define fields that define the aerosol properties.
         call wrap_def_dim(fid, 'opticsmethod_len',  32, omdim)
         dimids(1) = omdim
@@ -4660,24 +4660,24 @@ contains
         call wrap_def_var(fid, 'radmax_aer',         NF90_DOUBLE, 0, dimids(1), rmaxvar)
         call wrap_def_var(fid, 'hygroscopicity',     NF90_DOUBLE, 0, dimids(1), hygrovar)
         call wrap_def_var(fid, 'num_to_mass_ratio',  NF90_DOUBLE, 0, dimids(1), ntmvar)
-        
-        call wrap_put_att_text(fid, denvar,   'units', 'kg m^-3') 
-        call wrap_put_att_text(fid, slogvar,  'units', '-') 
-        call wrap_put_att_text(fid, dryrvar,  'units', 'm') 
-        call wrap_put_att_text(fid, rminvar,  'units', 'm') 
-        call wrap_put_att_text(fid, rmaxvar,  'units', 'm') 
-        call wrap_put_att_text(fid, hygrovar, 'units', '-') 
-        call wrap_put_att_text(fid, ntmvar,   'units', 'kg^-1') 
 
-        call wrap_put_att_text(fid, denvar,   'long_name', 'aerosol material density') 
-        call wrap_put_att_text(fid, slogvar,  'long_name', 'geometric standard deviation of aerosol') 
-        call wrap_put_att_text(fid, dryrvar,  'long_name', 'dry number mode radius of aerosol') 
-        call wrap_put_att_text(fid, rminvar,  'long_name', 'minimum dry radius of aerosol for bin') 
-        call wrap_put_att_text(fid, rmaxvar,  'long_name', 'maximum dry radius of aerosol for bin') 
-        call wrap_put_att_text(fid, hygrovar, 'long_name', 'hygroscopicity of aerosol') 
-        call wrap_put_att_text(fid, ntmvar,   'long_name', 'ratio of number to mass of aerosol') 
+        call wrap_put_att_text(fid, denvar,   'units', 'kg m^-3')
+        call wrap_put_att_text(fid, slogvar,  'units', '-')
+        call wrap_put_att_text(fid, dryrvar,  'units', 'm')
+        call wrap_put_att_text(fid, rminvar,  'units', 'm')
+        call wrap_put_att_text(fid, rmaxvar,  'units', 'm')
+        call wrap_put_att_text(fid, hygrovar, 'units', '-')
+        call wrap_put_att_text(fid, ntmvar,   'units', 'kg^-1')
 
-        ! End the defintion phase of the netcdf file.      
+        call wrap_put_att_text(fid, denvar,   'long_name', 'aerosol material density')
+        call wrap_put_att_text(fid, slogvar,  'long_name', 'geometric standard deviation of aerosol')
+        call wrap_put_att_text(fid, dryrvar,  'long_name', 'dry number mode radius of aerosol')
+        call wrap_put_att_text(fid, rminvar,  'long_name', 'minimum dry radius of aerosol for bin')
+        call wrap_put_att_text(fid, rmaxvar,  'long_name', 'maximum dry radius of aerosol for bin')
+        call wrap_put_att_text(fid, hygrovar, 'long_name', 'hygroscopicity of aerosol')
+        call wrap_put_att_text(fid, ntmvar,   'long_name', 'ratio of number to mass of aerosol')
+
+        ! End the defintion phase of the netcdf file.
         call wrap_enddef(fid)
 
         ! Write out the dimensions.
@@ -4691,8 +4691,8 @@ contains
         call wrap_put_var_realx(fid, sw_r_refidx_var, real(refidxS(nlwbands+1:, 1)))
         call wrap_put_var_realx(fid, sw_i_refidx_var, aimag(refidxS(nlwbands+1:, 1)))
         call wrap_put_var_realx(fid, lw_r_refidx_var, real(refidxS(:nlwbands, 1)))
-        call wrap_put_var_realx(fid, lw_i_refidx_var, aimag(refidxS(:nlwbands, 1)))           
-  
+        call wrap_put_var_realx(fid, lw_i_refidx_var, aimag(refidxS(:nlwbands, 1)))
+
         ! Pad the names out with spaces.
         aer_name = '                                '
         aer_name(1:len(trim(c_name))) = c_name
@@ -4705,7 +4705,7 @@ contains
 
         count_text(1) = len('hygroscopic_wtp                 ')
         call wrap_put_vara_text(fid, omvar, start_text, count_text, (/ 'hygroscopic_wtp                 ' /))
-          
+
         call wrap_put_var_realx(fid, denvar,   (/ rho(ibin) * 1e-3_f / 1e-6_f /))
         call wrap_put_var_realx(fid, slogvar,  (/ 0._f /))
         call wrap_put_var_realx(fid, dryrvar,  (/ r(ibin) * 1e-2_f /))
@@ -4718,19 +4718,19 @@ contains
         ! Since other aerosols in CAM may use ext_sw rather than ext_sw_coreshell
         ! Modified by Pengfei Yu
         ! April.1, 2012
-        
+
         ! calculate qext and ext for pure sulfate dependent on weight percent
         ! ideally qext is based on (wgt,temp,wave), however Beyer et al. (1996) Figure 5
         ! shows sulfate density is roughly 0.006 g/cm3/k, I negelet temp dimension, assuming temp = 270 K
         ! In code, sulfate density is precisely calculated to determine wet raidus
         do iwtp = 1, NMIE_WTP
-        
+
           ! NOTE: Weight percent is normal a result of the getwetr calculation. To build the
           ! table based upon weight percent, we need to pass in the desired value and a
-          ! reference temperature. In that case, the RH is ignored. 
+          ! reference temperature. In that case, the RH is ignored.
           call getwetr(carma, igroup, mie_rh(1), r(ibin), rwet, rho(ibin), rhopwet, rc, wgtpct=mie_wtp(iwtp)*100._f, temp=270._f)
           if (rc < 0) call endrun('carma_CreateOpticsFile::wetr failed.')
-              
+
           ! This is not in Yu (2015), but rather than using the refractive
           ! index of H2SO4 for the shell, do a volume mix of water and H2SO4
           ! for the refractive index of the shell.
@@ -4740,12 +4740,12 @@ contains
           if (volshell > 0._f) then
             refidx(:) = (volwater / volshell) * refidxW(:) + (volsulfate / volshell) * refidxS(:, 1)
           else
-            refidx(:) = refidxS(:, 1)          
+            refidx(:) = refidxS(:, 1)
           end if
 
           ! Calculate at each wavelength.
           do iwave = 1, NWAVE
-        
+
             ! Using Mie code, calculate the optical properties: extinction coefficient,
             ! single scattering albedo and asymmetry factor.
             ! Assume the particle is homogeneous (no core).
@@ -4767,19 +4767,19 @@ contains
                      Qsca, &
                      asym, &
                      rc)
-            if (rc < 0) call endrun('carma_CreateOpticsFile::mie failed.')                      
-              
+            if (rc < 0) call endrun('carma_CreateOpticsFile::mie failed.')
+
             ! Calculate  the shortwave and longwave properties?
             !
             ! NOTE: miess is in cgs units, but the optics file needs to be in mks
             ! units, so perform the necessary conversions.
             if (iwave <= nlwbands) then
-      
+
               ! Longwave just needs absorption: abs_lw.
               qabs_lw_wtp(iwtp, iwave) = (Qext - Qsca)                           ! absorption per particle
               abs_lw_wtp (iwtp, iwave) = (Qext - Qsca) * PI * (rwet * 1e-2_f)**2 / (rmass(ibin) * 1e-3_f)
             else
-       
+
               ! Shortwave needs extinction, single scattering albedo and asymmetry factor:
               ! ext_sw, ssa_sw and asm_sw.
               qext_sw_wtp(iwtp, iwave - nlwbands) = Qext                             ! extinction per particle
@@ -4830,12 +4830,12 @@ contains
 
         ! Close the file.
         call wrap_close(fid)
-      end if  
+      end if
     end do
 
     return
   end subroutine CARMA_CreateOpticsFile_Sulfate
-  
+
 
   !! Calculate the aerodynamic resistance for dry deposition.
   !!
