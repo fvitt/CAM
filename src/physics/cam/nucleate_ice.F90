@@ -262,8 +262,11 @@ subroutine nucleati(  &
                   nihf = 0._r8
                   n1   = niimm + nidep
 
-                  osoot_num = soot_num * (niimm + nidep) / (soot_num + dst_num)
-                  odst_num  = dst_num  * (niimm + nidep) / (soot_num + dst_num)
+                  if ( (soot_num+dst_num) > 0._r8)   then
+                     osoot_num = soot_num * (niimm + nidep) / (soot_num + dst_num)
+                     odst_num  = dst_num  * (niimm + nidep) / (soot_num + dst_num)
+                  end if
+
                endif
 
             ! homogeneous nucleation only
@@ -324,8 +327,10 @@ subroutine nucleati(  &
                      oso4_num  = nihf
                   endif
 
-                  osoot_num = soot_num * (niimm + nidep) / (soot_num + dst_num)
-                  odst_num  = dst_num  * (niimm + nidep) / (soot_num + dst_num)
+                  if ( (soot_num+dst_num) > 0._r8)   then
+                     osoot_num = soot_num * (niimm + nidep) / (soot_num + dst_num)
+                     odst_num  = dst_num  * (niimm + nidep) / (soot_num + dst_num)
+                  end if
 
                   nihf      = nihf      * fhom * ((regm - tc) / 5._r8)**2
                   oso4_num  = oso4_num  * fhom * ((regm - tc) / 5._r8)**2

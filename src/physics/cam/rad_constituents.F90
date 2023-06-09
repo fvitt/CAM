@@ -3446,7 +3446,7 @@ end subroutine rad_cnst_get_bin_props_by_idx
 
 !================================================================================================
 
-subroutine rad_cnst_get_mode_props(list_idx, mode_idx, &
+subroutine rad_cnst_get_mode_props(list_idx, mode_idx, opticstype, &
    extpsw, abspsw, asmpsw, absplw, refrtabsw, &
    refitabsw, refrtablw, refitablw, ncoef, prefr, &
    prefi, sigmag, dgnum, dgnumlo, dgnumhi, &
@@ -3461,6 +3461,7 @@ subroutine rad_cnst_get_mode_props(list_idx, mode_idx, &
    integer,             intent(in)  :: list_idx  ! index of the climate or a diagnostic list
    integer,             intent(in)  :: mode_idx  ! mode index
 
+   character(len=ot_length), optional, intent(out) :: opticstype
    real(r8),  optional, pointer     :: extpsw(:,:,:,:)
    real(r8),  optional, pointer     :: abspsw(:,:,:,:)
    real(r8),  optional, pointer     :: asmpsw(:,:,:,:)
@@ -3501,6 +3502,7 @@ subroutine rad_cnst_get_mode_props(list_idx, mode_idx, &
    ! Get the physprop index for the requested mode
    id = mlist%idx_props(mode_idx)
 
+   if (present(opticstype))  call physprop_get(id, opticstype=opticstype)
    if (present(extpsw))      call physprop_get(id, extpsw=extpsw)
    if (present(abspsw))      call physprop_get(id, abspsw=abspsw)
    if (present(asmpsw))      call physprop_get(id, asmpsw=asmpsw)
@@ -3529,7 +3531,7 @@ subroutine rad_cnst_get_bin_props(list_idx, bin_idx, opticstype, &
    extpsw, abspsw, asmpsw, absplw, corefrac, nfrac, &
    wgtpct, nwtp, bcdust, nbcdust, kap, nkap, relh, nrelh, &
    sw_hygro_ext_wtp, sw_hygro_ssa_wtp, sw_hygro_asm_wtp, lw_hygro_ext_wtp, &
-   sw_hygro_coreshell_ext, sw_hygro_coreshell_ssa, sw_hygro_coreshell_asm, lw_hygro_coreshell_ext )
+   sw_hygro_coreshell_ext, sw_hygro_coreshell_ssa, sw_hygro_coreshell_asm, lw_hygro_coreshell_ext, dryrad )
 
    ! Return requested properties for the bin from the specified
    ! climate or diagnostic list.
@@ -3565,6 +3567,7 @@ subroutine rad_cnst_get_bin_props(list_idx, bin_idx, opticstype, &
    integer,   optional, intent(out) :: nbcdust
    integer,   optional, intent(out) :: nkap
    integer,   optional, intent(out) :: nrelh
+   real(r8),  optional, intent(out) :: dryrad
 
    ! Local variables
    integer :: id
@@ -3612,6 +3615,7 @@ subroutine rad_cnst_get_bin_props(list_idx, bin_idx, opticstype, &
    if (present(nbcdust))                call physprop_get(id, nbcdust=nbcdust)
    if (present(nkap))                   call physprop_get(id, nkap=nkap)
    if (present(nrelh))                  call physprop_get(id, nrelh=nrelh)
+   if (present(dryrad))                 call physprop_get(id, dryrad_aer=dryrad)
 
 end subroutine rad_cnst_get_bin_props
 

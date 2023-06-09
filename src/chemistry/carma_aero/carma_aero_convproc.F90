@@ -14,7 +14,7 @@ module carma_aero_convproc
 !
 !---------------------------------------------------------------------------------
 
-use shr_kind_mod,    only: r8=>shr_kind_r8
+use shr_kind_mod,    only: r8=>shr_kind_r8, shr_kind_cs
 use spmd_utils,      only: masterproc
 use physconst,       only: gravit, rair
 use ppgrid,          only: pver, pcols, pverp
@@ -32,6 +32,10 @@ use cam_abortutils,  only: endrun
 use rad_constituents,only: rad_cnst_get_info, rad_cnst_get_info_by_bin, rad_cnst_get_info_by_bin_spec, &
                            rad_cnst_get_bin_props_by_idx, rad_cnst_get_bin_mmr_by_idx, rad_cnst_get_bin_mmr, &
                            rad_cnst_get_bin_num
+
+use carma_aerosol_properties_mod, only: carma_aerosol_properties
+use carma_aerosol_state_mod, only: carma_aerosol_state
+
 implicit none
 private
 save
@@ -142,6 +146,7 @@ integer, allocatable :: imx_bl(:)    ! index used to map pure sulfate bin to mix
 integer, allocatable :: imx_mmr_bl(:)    ! index used to map pure sulfate bin to mixed sulfate bin for mmr
 integer, allocatable :: imx_num_bl(:)    ! index used to map pure sulfate bin to mixed sulfate bin for num
 
+type(carma_aerosol_properties), pointer :: aero_props_obj => null()
 
 !=========================================================================================
 contains
@@ -439,6 +444,8 @@ subroutine ma_convproc_init
          npass_calc_updraft
 
    end if
+
+   aero_props_obj => carma_aerosol_properties()
 
 end subroutine ma_convproc_init
 
@@ -2612,7 +2619,7 @@ end subroutine ma_convproc_tend
 !
 !-----------------------------------------------------------------------
 
-   use ndrop_carma, only: activate_carma, loadaer
+   use ndrop, only: activate_aerosol
    use ppgrid,          only: pcols
 
    implicit none
@@ -2674,9 +2681,18 @@ end subroutine ma_convproc_tend
    real(r8) :: specdens              ! specie density from physprops files
    real(r8) :: spechygro             ! hygroscopicity from physprops files
 
+   type(carma_aerosol_state), pointer :: aero_state_obj
 
+   real(r8) :: cs_a(pcols,pver)    ! air density (kg/m3)
+   real(r8) :: naerosol_a(pcols)  ! number conc (1/m3)
+   real(r8) :: vaerosol_a(pcols)  ! volume conc (m3/m3)
+   real(r8) :: hygro_a(pcols)     ! bulk hygroscopicity of mode
+
+   integer :: errnum
+   character(len=shr_kind_cs) :: errstr
 !-----------------------------------------------------------------------
 
+   nullify(aero_state_obj)
 
 ! when ipass_calc_updraft == 2, apply the activation tendencies
 !    from pass 1, but multiplied by factor_reduce_actfrac
@@ -2790,17 +2806,27 @@ end subroutine ma_convproc_tend
    wmaxf = wbar
 
    phase = 1 ! interstitial
+   aero_state_obj => carma_aerosol_state(state, pbuf)
+   cs_a(i,k) = rhoair
    do n = 1, nbins
-      call loadaer( state, pbuf, i, k, n, rhoair, phase, naerosol(n), vaerosol(n), hygro(n))
+      call aero_state_obj%loadaer( aero_props_obj, i, i, k, n, cs_a, phase, naerosol_a, vaerosol_a, hygro_a, errnum, errstr)
+      if (errnum/=0) then
+         call endrun('ma_activate_convproc : '//trim(errstr))
+      end if
+      naerosol(n) = naerosol_a(i)
+      vaerosol(n) = vaerosol_a(i)
+      hygro(n) = hygro_a(i)
    end do
+   deallocate(aero_state_obj)
+   nullify(aero_state_obj)
 
-   call activate_carma(                                                    &
+   call activate_aerosol(                                                    &
          wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,                    &
-         naerosol, nbins, vaerosol, hygro,                            &
+         naerosol, nbins, vaerosol, hygro, aero_props_obj,                 &
          fn, fm, fluxn, fluxm, flux_fullact                                )
 
 
- !write(lun, '(a,i3,2f6.3, 1p,2(2x,3e10.2), 0p,3(2x,3f6.3) )' ) &
+!write(lun, '(a,i3,2f6.3, 1p,2(2x,3e10.2), 0p,3(2x,3f6.3) )' ) &
          !'activate1: k,w,qn,qm,hy,fn,fm', k, wup, wbar, &
          !naerosol(1:n)/rhoair, vaerosol(1:n)*1.8e3_r8/rhoair, &
          !hygro(1:n), fn(1:n), fm(1:n)
@@ -2903,7 +2929,7 @@ end subroutine ma_convproc_tend
 !
 !-----------------------------------------------------------------------
 
-   use ndrop_carma, only: activate_carma, loadaer
+   use ndrop, only: activate_aerosol
    use ppgrid,          only: pcols
 
    !st use modal_aero_data, only:  lmassptr_amode, lmassptrcw_amode, &
@@ -2975,8 +3001,18 @@ end subroutine ma_convproc_tend
 
    character(len=32) :: spectype
 
+   type(carma_aerosol_state), pointer :: aero_state_obj
+
+   real(r8) :: cs_a(pcols,pver)    ! air density (kg/m3)
+   real(r8) :: naerosol_a(pcols)  ! number conc (1/m3)
+   real(r8) :: vaerosol_a(pcols)  ! volume conc (m3/m3)
+   real(r8) :: hygro_a(pcols)     ! bulk hygroscopicity of mode
+
+   integer :: errnum
+   character(len=shr_kind_cs) :: errstr
 !-----------------------------------------------------------------------
 
+   nullify(aero_state_obj)
 
 ! when ipass_calc_updraft == 2, apply the activation tendencies
 !    from pass 1, but multiplied by factor_reduce_actfrac
@@ -3070,15 +3106,25 @@ end subroutine ma_convproc_tend
    wmaxf = wbar
 
    phase = 1 ! interstitial
-!   do n = 1, nbins
-!      call loadaer( state, pbuf, i, k, n, rhoair, phase, naerosol(n), vaerosol(n), hygro(n))
-!   end do
+   aero_state_obj => carma_aerosol_state(state, pbuf)
+   cs_a(i,k) = rhoair
+   do n = 1, nbins
+      call aero_state_obj%loadaer( aero_props_obj, i, i, k, n, cs_a, phase, naerosol_a, vaerosol_a, hygro_a, errnum, errstr)
+      if (errnum/=0) then
+         call endrun('ma_activate_convproc_method2 : '//trim(errstr))
+      end if
+      naerosol(n) = naerosol_a(i)
+      vaerosol(n) = vaerosol_a(i)
+      hygro(n) = hygro_a(i)
+   end do
+   deallocate(aero_state_obj)
+   nullify(aero_state_obj)
 
    if (k == kactfirst) then
 
-      call activate_carma(                                                 &
+      call activate_aerosol(                                                 &
          wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,                    &
-         naerosol, nbins, vaerosol, hygro,                            &
+         naerosol, nbins, vaerosol, hygro, aero_props_obj,                 &
          fn, fm, fluxn, fluxm, flux_fullact                                )
 
 
@@ -3086,9 +3132,9 @@ end subroutine ma_convproc_tend
 ! above cloud base - do secondary activation with prescribed supersat
 ! that is constant with height
       smax_prescribed = method2_activate_smaxmax
-      call activate_carma(                                                 &
+      call activate_aerosol(                                                 &
          wbar, sigw, wdiab, wminf, wmaxf, tair, rhoair,                    &
-         naerosol, nbins, vaerosol, hygro,                            &
+         naerosol, nbins, vaerosol, hygro, aero_props_obj,                 &
          fn, fm, fluxn, fluxm, flux_fullact, smax_prescribed               )
    end if
 

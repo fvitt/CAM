@@ -39,7 +39,6 @@ use nucleate_ice_cam, only: use_preexisting_ice, nucleate_ice_cam_readnl, nuclea
                             nucleate_ice_cam_init, nucleate_ice_cam_calc
 
 use ndrop,            only: ndrop_init, dropmixnuc
-use ndrop_carma,      only: ndrop_carma_init, dropmixnuc_carma
 use ndrop_bam,        only: ndrop_bam_init, ndrop_bam_run, ndrop_bam_ccn
 
 use hetfrz_classnuc_cam, only: hetfrz_classnuc_cam_readnl, hetfrz_classnuc_cam_register, hetfrz_classnuc_cam_init, &
@@ -51,9 +50,11 @@ use cam_abortutils,       only: endrun
 
 use aerosol_properties_mod, only: aerosol_properties
 use modal_aerosol_properties_mod, only: modal_aerosol_properties
+use carma_aerosol_properties_mod, only: carma_aerosol_properties
 
 use aerosol_state_mod, only: aerosol_state
 use modal_aerosol_state_mod, only: modal_aerosol_state
+use carma_aerosol_state_mod, only: carma_aerosol_state
 
 implicit none
 private
@@ -222,17 +223,19 @@ subroutine microp_aero_init(phys_state,pbuf2d)
 
    ast_idx = pbuf_get_index('AST')
 
-   if (clim_modal_aero) then
-
+   if (clim_modal_aero .or. clim_carma_aero) then
       cldo_idx = pbuf_get_index('CLDO')
-      dgnumwet_idx = pbuf_get_index('DGNUMWET')
-
-      aero_props_obj => modal_aerosol_properties()
-      if (.not.associated(aero_props_obj)) then
-         call endrun('ma_convproc_init: construction of modal_aerosol_properties object failed')
+      if (clim_modal_aero) then
+         aero_props_obj => modal_aerosol_properties()
+      else if (clim_carma_aero) then
+         aero_props_obj => carma_aerosol_properties()
       end if
       call ndrop_init(aero_props_obj)
-      call nucleate_ice_cam_init(mincld, bulk_scale, pbuf2d, aero_props=aero_props_obj)
+   end if
+
+   if (clim_modal_aero) then
+
+      dgnumwet_idx = pbuf_get_index('DGNUMWET')
 
       allocate(aero_state(begchunk:endchunk))
       do c = begchunk,endchunk
@@ -314,8 +317,6 @@ subroutine microp_aero_init(phys_state,pbuf2d)
       end if
 
    elseif (clim_carma_aero) then
-      cldo_idx = pbuf_get_index('CLDO')
-      call ndrop_carma_init()
    else
 
       ! Props needed for BAM number concentration calcs.
@@ -338,7 +339,6 @@ subroutine microp_aero_init(phys_state,pbuf2d)
       end do
 
       call ndrop_bam_init()
-      call nucleate_ice_cam_init(mincld, bulk_scale, pbuf2d)
 
    end if
 
@@ -351,6 +351,11 @@ subroutine microp_aero_init(phys_state,pbuf2d)
       call add_default ('WSUB     ', 1, ' ')
    end if
 
+   if (associated(aero_props_obj)) then
+      call nucleate_ice_cam_init(mincld, bulk_scale, pbuf2d, aero_props=aero_props_obj)
+   else
+      call nucleate_ice_cam_init(mincld, bulk_scale, pbuf2d)
+   end if
    if (use_hetfrz_classnuc) then
       if (associated(aero_props_obj)) then
          call hetfrz_classnuc_cam_init(mincld, aero_props_obj)
@@ -568,17 +573,28 @@ subroutine microp_aero_run ( &
 
    call physics_ptend_init(ptend_all, state%psetcols, 'microp_aero')
 
+   ! create the aerosol state object
    if (clim_modal_aero) then
-      ! create an aerosol state object specifically for cam state1
       aero_state1_obj => modal_aerosol_state( state1, pbuf )
       if (.not.associated(aero_state1_obj)) then
          call endrun('microp_aero_run: construction of aero_state1_obj modal_aerosol_state object failed')
       end if
+   else if (clim_carma_aero) then
+      aero_state1_obj => carma_aerosol_state( state1, pbuf )
+      if (.not.associated(aero_state1_obj)) then
+         call endrun('microp_aero_run: construction of aero_state1_obj carma_aerosol_state object failed')
+      end if
+   end if
+
+   if (clim_modal_aero.or.clim_carma_aero) then
 
       itim_old = pbuf_old_tim_idx()
 
       call pbuf_get_field(pbuf, ast_idx,  cldn, start=(/1,1,itim_old/), kount=(/pcols,pver,1/) )
       call pbuf_get_field(pbuf, cldo_idx, cldo, start=(/1,1,itim_old/), kount=(/pcols,pver,1/) )
+   end if
+
+   if (clim_modal_aero) then
       call pbuf_get_field(pbuf, dgnumwet_idx, dgnumwet)
    end if
 
@@ -867,12 +883,9 @@ subroutine microp_aero_run ( &
       deallocate(factnum)
    end if
 
-   if (associated(aero_state1_obj)) then
-      ! destroy the aerosol state object
-      deallocate(aero_state1_obj)
-      nullify(aero_state1_obj)
-   endif
-
+   ! destroy the aerosol state object
+   deallocate(aero_state1_obj)
+   nullify(aero_state1_obj)
  end subroutine microp_aero_run
 
 !=========================================================================================
