@@ -141,10 +141,10 @@ contains
       carma_vf_const, &
       carma_sulfnuc_method, &
       carma_do_budget_diags, &
-      carma_do_package_diags, &      
+      carma_do_package_diags, &
       carma_diags_packages, &
       carma_debug_packages, &
-      carma_diags_file 
+      carma_diags_file
 
     if (masterproc) then
        open( newunit=unitn, file=trim(nlfile), status='old' )
@@ -199,10 +199,10 @@ contains
     call mpi_bcast (carma_cstick,          1 ,mpi_real8, masterprocid, mpicom, ierr)
     call mpi_bcast (carma_rhcrit,          1 ,mpi_real8, masterprocid, mpicom, ierr)
     call mpi_bcast (carma_vf_const,        1 ,mpi_real8, masterprocid, mpicom, ierr)
-    call mpi_bcast (carma_model, len(carma_model), mpi_character, masterprocid, mpicom, ierr)
-    call mpi_bcast (carma_sulfnuc_method, len(carma_sulfnuc_method), mpi_character, masterprocid, mpicom, ierr)
-    call mpibcast  (carma_diags_packages, len(carma_diags_packages(1))*carma_maxdiags, mpi_character, 0, mpicom)
-    call mpibcast  (carma_debug_packages, len(carma_debug_packages(1))*carma_maxdiags, mpi_character, 0, mpicom)
+    call mpi_bcast (carma_model,          len(carma_model),                            mpi_character, masterprocid, mpicom, ierr)
+    call mpi_bcast (carma_sulfnuc_method, len(carma_sulfnuc_method),                   mpi_character, masterprocid, mpicom, ierr)
+    call mpi_bcast (carma_diags_packages, len(carma_diags_packages(1))*carma_maxdiags, mpi_character, masterprocid, mpicom, ierr)
+    call mpi_bcast (carma_debug_packages, len(carma_debug_packages(1))*carma_maxdiags, mpi_character, masterprocid, mpicom, ierr)
 
     carma_ndiagpkgs = 0
     do i = 1, carma_maxdiags

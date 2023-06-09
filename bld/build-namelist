@@ -2412,7 +2412,7 @@ if (($chem =~ /_mam4/ or $chem =~ /_mam5/) and ($phys =~ /cam6/ or $phys =~ /cam
 
     # Vertical emission datasets:
     %species = ('so2_cv_ext_file'    => 'SO2');
-    if ($chem =~ /_mam4/) {
+    if ($chem =~ /_mam4/ or $chem =~ /_mam5/) {
             %species = (%species,
                         'so4_a1_an_ext_file' => 'so4_a1',
                         'so4_a1_cv_ext_file' => 'so4_a1',
@@ -2427,7 +2427,7 @@ if (($chem =~ /_mam4/ or $chem =~ /_mam5/) and ($phys =~ /cam6/ or $phys =~ /cam
         %species = (%species,
                     'no2_ar_ext_file'    => 'NO2',
                     'so2_ar_ext_file'    => 'SO2' );
-        if ($chem =~ /_mam4/) {
+        if ($chem =~ /_mam4/ or $chem =~ /_mam5/) {
             %species = (%species,
                         'bc_a4_ar_ext_file'  => 'bc_a4',
                         'num_a4_ar_ext_file' => 'num_a4' );
