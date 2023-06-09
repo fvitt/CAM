@@ -39,6 +39,7 @@ use nucleate_ice_cam, only: use_preexisting_ice, nucleate_ice_cam_readnl, nuclea
                             nucleate_ice_cam_init, nucleate_ice_cam_calc
 
 use ndrop,            only: ndrop_init, dropmixnuc
+use ndrop_carma,      only: ndrop_carma_init, dropmixnuc_carma
 use ndrop_bam,        only: ndrop_bam_init, ndrop_bam_run, ndrop_bam_ccn
 
 use hetfrz_classnuc_cam, only: hetfrz_classnuc_cam_readnl, hetfrz_classnuc_cam_register, hetfrz_classnuc_cam_init, &
@@ -110,6 +111,9 @@ integer :: idxdst2  = -1 ! index in aerosol list for dust2
 integer :: idxdst3  = -1 ! index in aerosol list for dust3
 integer :: idxdst4  = -1 ! index in aerosol list for dust4
 
+! carma aerosols
+logical :: clim_carma_aero
+
 ! modal aerosols
 logical :: clim_modal_aero
 
@@ -178,6 +182,7 @@ subroutine microp_aero_init(phys_state,pbuf2d)
    ! local variables
    integer  :: iaer, ierr
    integer  :: m, n, nmodes, nspec
+   integer :: nbins
 
    character(len=32) :: str32
    character(len=*), parameter :: routine = 'microp_aero_init'
@@ -211,8 +216,9 @@ subroutine microp_aero_init(phys_state,pbuf2d)
 
    ! clim_modal_aero determines whether modal aerosols are used in the climate calculation.
    ! The modal aerosols can be either prognostic or prescribed.
-   call rad_cnst_get_info(0, nmodes=nmodes)
+   call rad_cnst_get_info(0, nmodes=nmodes, nbins=nbins)
    clim_modal_aero = (nmodes > 0)
+   clim_carma_aero = (nbins> 0)
 
    ast_idx = pbuf_get_index('AST')
 
@@ -307,6 +313,9 @@ subroutine microp_aero_init(phys_state,pbuf2d)
          call endrun(routine//': ERROR required mode-species type not found')
       end if
 
+   elseif (clim_carma_aero) then
+      cldo_idx = pbuf_get_index('CLDO')
+      call ndrop_carma_init()
    else
 
       ! Props needed for BAM number concentration calcs.
@@ -698,9 +707,9 @@ subroutine microp_aero_run ( &
    !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
    ! Droplet Activation
 
-   if (clim_modal_aero) then
+   if (clim_modal_aero .or. clim_carma_aero) then
 
-      ! for modal aerosol
+      ! for modal or carma aerosol
 
       ! partition cloud fraction into liquid water part
       lcldn = 0._r8
@@ -854,7 +863,7 @@ subroutine microp_aero_run ( &
 
    end if
 
-   if (clim_modal_aero) then
+   if (clim_modal_aero.or.clim_carma_aero) then
       deallocate(factnum)
    end if
 

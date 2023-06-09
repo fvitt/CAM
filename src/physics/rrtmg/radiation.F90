@@ -353,6 +353,7 @@ end function radiation_nextsw_cday
 !================================================================================================
 
 subroutine radiation_init(pbuf2d)
+  use coreshell_aer_opt, only: coreshell_aer_opt_init
 
    ! Initialize the radiation parameterization, add fields to the history buffer
 
@@ -372,7 +373,7 @@ subroutine radiation_init(pbuf2d)
    type(physics_buffer_desc), pointer :: pbuf2d(:,:)
 
    ! local variables
-   integer :: icall, nmodes
+   integer :: icall, nmodes, nbins
    logical :: active_calls(0:N_DIAG)
    integer :: nstep                       ! current timestep number
    logical :: history_amwg                ! output the variables used by the AMWG diag package
@@ -419,8 +420,9 @@ subroutine radiation_init(pbuf2d)
 
    ! Determine whether modal aerosols are affecting the climate, and if so
    ! then initialize the modal aerosol optics module
-   call rad_cnst_get_info(0, nmodes=nmodes)
+   call rad_cnst_get_info(0, nmodes=nmodes, nbins=nbins)
    if (nmodes > 0) call modal_aer_opt_init()
+   if (nbins > 0) call coreshell_aer_opt_init()
 
    ! "irad_always" is number of time steps to execute radiation continuously from start of
    ! initial OR restart run
@@ -1564,4 +1566,3 @@ end subroutine calc_col_mean
 !===============================================================================
 
 end module radiation
-

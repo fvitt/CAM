@@ -226,9 +226,11 @@ subroutine nucleati(  &
 
          if ( ((tc.le.0.0_r8).and.(tc.ge.-37.0_r8).and.(qc.lt.1.e-12_r8)).or.(tc.le.-37.0_r8)) then
 
-            A = -1.4938_r8 * log(soot_num+dst_num) + 12.884_r8
-            B = -10.41_r8  * log(soot_num+dst_num) - 67.69_r8
-            regm = A * log(wbar1) + B
+            if ( (soot_num+dst_num) > 0._r8)   then
+               A = -1.4938_r8 * log(soot_num+dst_num) + 12.884_r8
+               B = -10.41_r8  * log(soot_num+dst_num) - 67.69_r8
+               regm = A * log(wbar1) + B
+            end if
 
             ! heterogeneous nucleation only
             if (tc .gt. regm .or. so4_num < 1.0e-10_r8) then
@@ -582,4 +584,3 @@ subroutine frachom(Tmean,RHimean,detaT,fhom)
 end subroutine frachom
 
 end module nucleate_ice
-

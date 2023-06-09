@@ -65,6 +65,7 @@ subroutine read_namelist(nlfilename, single_column, scmlat, scmlon)
    use rad_constituents,    only: rad_cnst_readnl
    use radiation_data,      only: rad_data_readnl
    use modal_aer_opt,       only: modal_aer_opt_readnl
+   use coreshell_aer_opt,   only: coreshell_aer_opt_readnl
    use clubb_intr,          only: clubb_readnl
    use chemistry,           only: chem_readnl
    use prescribed_volcaero, only: prescribed_volcaero_readnl
@@ -100,6 +101,7 @@ subroutine read_namelist(nlfilename, single_column, scmlat, scmlon)
    use cam_budget,          only: cam_budget_readnl
    use phys_grid_ctem,      only: phys_grid_ctem_readnl
    use mo_lightning,        only: lightning_readnl
+   use surface_emissions_mod, only: surface_emissions_readnl
 
    !---------------------------Arguments-----------------------------------
 
@@ -166,6 +168,7 @@ subroutine read_namelist(nlfilename, single_column, scmlat, scmlon)
    call rad_cnst_readnl(nlfilename)
    call rad_data_readnl(nlfilename)
    call modal_aer_opt_readnl(nlfilename)
+   call coreshell_aer_opt_readnl(nlfilename)
    call chem_readnl(nlfilename)
    call lightning_readnl(nlfilename)
    call prescribed_volcaero_readnl(nlfilename)
@@ -201,6 +204,7 @@ subroutine read_namelist(nlfilename, single_column, scmlat, scmlon)
    call qneg_readnl(nlfilename)
    call cam_budget_readnl(nlfilename)
    call phys_grid_ctem_readnl(nlfilename)
+   call surface_emissions_readnl(nlfilename)
 
 end subroutine read_namelist
 

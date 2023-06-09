@@ -1503,7 +1503,8 @@ subroutine zm_mphy(su,    qu,   mu,   du,   eu,    cmel,  cmei,  zf,   pm,   te,
                        aero%nbulk, maerosol, dum2)
 
                     dum2l(i,k) = dum2
-
+                 else
+                    call endrun('zm_mphy: aero%scheme is not recognized!')
                  end if
 
               else
