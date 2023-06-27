@@ -3207,7 +3207,6 @@ contains
     integer                             :: irhswell
     integer                             :: imiertn
     integer                             :: ienconc
-    integer                             :: ccomp
     real(kind=f)                        :: rho(NBIN), rhopwet
     real(kind=f)                        :: r(NBIN), rmass(NBIN), rlow(NBIN), rup(NBIN)
     real(kind=f)                        :: wave(NWAVE)
@@ -3255,7 +3254,7 @@ contains
     logical                             :: do_print             ! do print output?
     integer                             :: ret
 
-
+    character(len=32) :: elementname
 
     ! Assume success.
     rc = 0
@@ -3276,12 +3275,12 @@ contains
 
     ! Need to find the dust and black carbon refractive indicies for the core.
     do icore = 1, ncore
-      call CARMAELEMENT_Get(carma, icorelem(icore), rc, icomposition=ccomp, refidx=refidx)
+      call CARMAELEMENT_Get(carma, icorelem(icore), rc, shortname=elementname, refidx=refidx)
       if (rc < 0) call endrun('carma_CreateOpticsFile::CARMAELEMENT_Get failed.')
 
-      if (ccomp == I_BC) then
+      if (trim(elementname) == 'MXBC') then
         refidxB = refidx
-      else if (ccomp == I_DUST) then
+      else if (trim(elementname) == 'MXDUST') then
         refidxD = refidx
       end if
     end do
@@ -3669,7 +3668,6 @@ contains
     integer                             :: irhswell
     integer                             :: imiertn
     integer                             :: ienconc
-    integer                             :: ccomp
     real(kind=f)                        :: rho(NBIN), rhopwet
     real(kind=f)                        :: r(NBIN), rmass(NBIN), rlow(NBIN), rup(NBIN)
     real(kind=f)                        :: wave(NWAVE)
@@ -3721,6 +3719,7 @@ contains
     real(kind=f)                        :: volsulfate
     real(kind=f)                        :: volshell
 
+    character(len=32) :: elementname
 
     ! Assume success.
     rc = 0
@@ -3741,12 +3740,12 @@ contains
 
     ! Need to find the dust and black carbon refractive indicies for the core.
     do icore = 1, ncore
-      call CARMAELEMENT_Get(carma, icorelem(icore), rc, icomposition=ccomp, refidx=refidx)
+      call CARMAELEMENT_Get(carma, icorelem(icore), rc, shortname=elementname, refidx=refidx)
       if (rc < 0) call endrun('carma_CreateOpticsFile::CARMAELEMENT_Get failed.')
 
-      if (ccomp == I_BC) then
+      if (trim(elementname) == 'MXBC') then
         refidxB = refidx
-      else if (ccomp == I_DUST) then
+      else if (trim(elementname) == 'MXDUST') then
         refidxD = refidx
       end if
     end do
