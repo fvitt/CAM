@@ -33,15 +33,13 @@ contains
     use mo_chem_utls, only : get_spc_ndx, get_inv_ndx
     use spmd_utils,   only : masterproc
     use phys_control, only : phys_getopts
-    use carma_intr,   only : carma_is_active
+    use carma_flags_mod, only : carma_do_cloudborne
     use sox_cldaero_mod, only : sox_cldaero_init
 
     logical :: modal_aerosols
-    logical :: carma_aerosols
 
     call phys_getopts( prog_modal_aero_out=modal_aerosols )
-    carma_aerosols = carma_is_active()
-    cloud_borne = modal_aerosols .or. carma_aerosols
+    cloud_borne = modal_aerosols .or. carma_do_cloudborne
 
     !-----------------------------------------------------------------
     !       ... get species indicies

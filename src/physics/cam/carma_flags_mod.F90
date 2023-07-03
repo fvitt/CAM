@@ -31,6 +31,7 @@ module carma_flags_mod
   logical, protected           :: carma_do_cldice   = .false.   ! If .true. then do cloud ice
   logical, protected           :: carma_do_cldliq   = .false.   ! If .true. then do cloud liquid
   logical, protected           :: carma_do_clearsky = .false.   ! If .true. then do clear sky particle calculations
+  logical, protected           :: carma_do_cloudborne = .false. ! If .true. then do then the carma groups can be cloudborne
   logical, protected           :: carma_do_coag     = .false.   ! If .true. then do coagulation
   logical, protected           :: carma_do_detrain  = .false.   ! If .true. then do detrain
   logical, protected           :: carma_do_drydep   = .false.   ! If .true. then do dry deposition
@@ -104,6 +105,7 @@ contains
       carma_do_cldliq, &
       carma_do_cldice, &
       carma_do_clearsky, &
+      carma_do_cloudborne, &
       carma_do_coag, &
       carma_do_detrain, &
       carma_do_drydep, &
@@ -141,10 +143,10 @@ contains
       carma_vf_const, &
       carma_sulfnuc_method, &
       carma_do_budget_diags, &
-      carma_do_package_diags, &      
+      carma_do_package_diags, &
       carma_diags_packages, &
       carma_debug_packages, &
-      carma_diags_file 
+      carma_diags_file
 
     if (masterproc) then
        open( newunit=unitn, file=trim(nlfile), status='old' )
@@ -164,6 +166,7 @@ contains
     call mpi_bcast (carma_do_cldliq,       1 ,mpi_logical, masterprocid, mpicom, ierr)
     call mpi_bcast (carma_do_cldice,       1 ,mpi_logical, masterprocid, mpicom, ierr)
     call mpi_bcast (carma_do_clearsky,     1 ,mpi_logical, masterprocid, mpicom, ierr)
+    call mpi_bcast (carma_do_cloudborne,   1 ,mpi_logical, masterprocid, mpicom, ierr)
     call mpi_bcast (carma_do_coag,         1 ,mpi_logical, masterprocid, mpicom, ierr)
     call mpi_bcast (carma_do_detrain,      1 ,mpi_logical, masterprocid, mpicom, ierr)
     call mpi_bcast (carma_do_drydep,       1 ,mpi_logical, masterprocid, mpicom, ierr)

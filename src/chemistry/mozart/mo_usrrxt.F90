@@ -793,11 +793,11 @@ contains
     reff_trop(:,:) = 0._r8
 
     if( usr_NO2_aer_ndx > 0 .or. usr_NO3_aer_ndx > 0 .or. usr_N2O5_aer_ndx > 0 .or. usr_HO2_aer_ndx > 0 ) then
-
+! CGB, put back in for old CARMA sulfate model.
 ! sad_trop should be set outside of usrrxt ??
       if( carma_hetchem_feedback ) then
-!          sad_trop(:ncol,:pver)=strato_sad(:ncol,:pver)
-        call endrun(subname // ':: ERROR carma_hetchem_feedback namelist variable is obsolete')
+          sad_trop(:ncol,:pver)=strato_sad(:ncol,:pver)
+!        call endrun(subname // ':: ERROR carma_hetchem_feedback namelist variable is obsolete')
       else
 
         call aero_model_surfarea( &
@@ -1989,8 +1989,9 @@ contains
 ! 	... estimate sulfate particles surface area (cm2/cm3) in each grid
 !-------------------------------------------------------------------------
             if ( carma_hetchem_feedback ) then
-              call endrun(subname // ':: ERROR carma_hetchem_feedback namelist variable is obsolete')
-!               sur(:ncol) = strato_sad(:ncol,k)
+! CGB - put it back for old CARMA sulfate model
+!              call endrun(subname // ':: ERROR carma_hetchem_feedback namelist variable is obsolete')
+               sur(:ncol) = strato_sad(:ncol,k)
 !            else
 !               sur(:) = sulfate(:,k)*m(:,k)/avo*wso4 &              ! xform mixing ratio to g/cm3
 !                        / amas &                                    ! xform g/cm3 to num particles/cm3

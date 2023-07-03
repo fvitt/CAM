@@ -3974,6 +3974,14 @@ carma_do_incloud is true.
 Default: FALSE
 </entry>
 
+<entry id="carma_do_cloudborne" type="logical" category="carma"
+       group="carma_nl" valid_values="" >
+Flag indicating whether CARMA aerosol should be allowed to become
+cloudborne. It is actually CAM and not CARMA that moves aerosol
+between cloudborne and interstitial.
+Default: FALSE
+</entry>
+
 <entry id="carma_do_coag" type="logical" category="carma"
        group="carma_nl" valid_values="" >
 Flag indicating whether the coagulation process is enabled for
