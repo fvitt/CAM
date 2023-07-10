@@ -33,6 +33,8 @@ use cam_abortutils,    only: endrun
 use modal_aero_wateruptake, only: modal_aero_wateruptake_dr
 use modal_aero_calcsize,    only: modal_aero_calcsize_diag
 
+use table_interp_mod, only: table_interp
+
 implicit none
 private
 save
@@ -548,8 +550,6 @@ subroutine modal_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
    real(r8) :: watervol(pcols) ! volume concentration of water in each mode (m3/kg)
    real(r8) :: wetvol(pcols)   ! volume concentration of wet mode (m3/kg)
 
-   integer  :: itab(pcols), jtab(pcols)
-   real(r8) :: ttab(pcols), utab(pcols)
    real(r8) :: cext(pcols,ncoef), cabs(pcols,ncoef), casm(pcols,ncoef)
    real(r8) :: pext(pcols)     ! parameterized specific extinction (m2/kg)
    real(r8) :: specpext(pcols) ! specific extinction (m2/kg)
@@ -840,24 +840,31 @@ subroutine modal_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
                ! volume mixing
                crefin(i) = crefin(i) + watervol(i)*crefwsw(isw)
                crefin(i) = crefin(i)/max(wetvol(i),1.e-60_r8)
-               refr(i)   = real(crefin(i))
-               refi(i)   = abs(aimag(crefin(i)))
+
+               refr(i) = real(crefin(i))
+               refr(i) = max(refr(i),minval(refrtabsw(:,isw)))
+               refr(i) = min(refr(i),maxval(refrtabsw(:,isw)))
+
+               refi(i) = abs(aimag(crefin(i)))
+               refi(i) = max(refi(i),minval(refitabsw(:,isw)))
+               refi(i) = min(refi(i),maxval(refitabsw(:,isw)))
+
             end do
 
             ! call t_startf('binterp')
 
             ! interpolate coefficients linear in refractive index
-            ! first call calcs itab,jtab,ttab,utab
-            itab(:ncol) = 0
-            call binterp(extpsw(:,:,:,isw), ncol, ncoef, prefr, prefi, &
-                         refr, refi, refrtabsw(:,isw), refitabsw(:,isw), &
-                         itab, jtab, ttab, utab, cext)
-            call binterp(abspsw(:,:,:,isw), ncol, ncoef, prefr, prefi, &
-                         refr, refi, refrtabsw(:,isw), refitabsw(:,isw), &
-                         itab, jtab, ttab, utab, cabs)
-            call binterp(asmpsw(:,:,:,isw), ncol, ncoef, prefr, prefi, &
-                         refr, refi, refrtabsw(:,isw), refitabsw(:,isw), &
-                         itab, jtab, ttab, utab, casm)
+            do i = 1, ncol
+               do nc = 1, ncoef
+                  cext(i,nc) = table_interp( refrtabsw(:,isw), refitabsw(:,isw), &
+                                             extpsw(nc,:,:,isw), refr(i), refi(i) )
+                  cabs(i,nc) = table_interp( refrtabsw(:,isw), refitabsw(:,isw), &
+                                             abspsw(nc,:,:,isw), refr(i), refi(i) )
+                  casm(i,nc) = table_interp( refrtabsw(:,isw), refitabsw(:,isw), &
+                                             asmpsw(nc,:,:,isw), refr(i), refi(i) )
+               end do
+            end do
+
 
             ! call t_stopf('binterp')
 
@@ -1271,8 +1278,6 @@ subroutine modal_aero_lw(list_idx, state, pbuf, tauxar)
    real(r8), pointer :: refitablw(:,:) ! table of imag refractive indices for aerosols
    real(r8), pointer :: absplw(:,:,:,:) ! specific absorption
 
-   integer  :: itab(pcols), jtab(pcols)
-   real(r8) :: ttab(pcols), utab(pcols)
    real(r8) :: cabs(pcols,ncoef)
    real(r8) :: pabs(pcols)      ! parameterized specific absorption (m2/kg)
    real(r8) :: dopaer(pcols)    ! aerosol optical depth in layer
@@ -1340,27 +1345,6 @@ subroutine modal_aero_lw(list_idx, state, pbuf, tauxar)
 
       ! calc size parameter for all columns
       call modal_size_parameters(ncol, sigma_logr_aer, dgnumwet, radsurf, logradsurf, cheby)
-!!$      ! calc size parameter for all columns
-!!$      ! this is the same calculation that's done in modal_size_parameters, but there
-!!$      ! some intermediate results are saved and the chebyshev polynomials are stored
-!!$      ! in a array with different index order.  Could be unified.
-!!$      do k = top_lev, pver
-!!$         do i = 1, ncol
-!!$            alnsg_amode = log( sigma_logr_aer )
-!!$            ! convert from number diameter to surface area
-!!$            xrad(i) = log(0.5_r8*dgnumwet(i,k)) + 2.0_r8*alnsg_amode*alnsg_amode
-!!$            ! normalize size parameter
-!!$            xrad(i) = max(xrad(i), xrmin)
-!!$            xrad(i) = min(xrad(i), xrmax)
-!!$            xrad(i) = (2*xrad(i)-xrmax-xrmin)/(xrmax-xrmin)
-!!$            ! chebyshev polynomials
-!!$            cheby(1,i,k) = 1.0_r8
-!!$            cheby(2,i,k) = xrad(i)
-!!$            do nc = 3, ncoef
-!!$               cheby(nc,i,k) = 2.0_r8*xrad(i)*cheby(nc-1,i,k)-cheby(nc-2,i,k)
-!!$            end do
-!!$         end do
-!!$      end do
 
       do ilw = 1, nlwbands
 
@@ -1396,16 +1380,24 @@ subroutine modal_aero_lw(list_idx, state, pbuf, tauxar)
 
                crefin(i) = crefin(i) + watervol(i)*crefwlw(ilw)
                if (wetvol(i) > 1.e-40_r8) crefin(i) = crefin(i)/wetvol(i)
+
                refr(i) = real(crefin(i))
+               refr(i) = max(refr(i),minval(refrtablw(:,ilw)))
+               refr(i) = min(refr(i),maxval(refrtablw(:,ilw)))
+
                refi(i) = aimag(crefin(i))
+               refi(i) = max(refi(i),minval(refitablw(:,ilw)))
+               refi(i) = min(refi(i),maxval(refitablw(:,ilw)))
+
             end do
 
             ! interpolate coefficients linear in refractive index
-            ! first call calcs itab,jtab,ttab,utab
-            itab(:ncol) = 0
-            call binterp(absplw(:,:,:,ilw), ncol, ncoef, prefr, prefi, &
-                         refr, refi, refrtablw(:,ilw), refitablw(:,ilw), &
-                         itab, jtab, ttab, utab, cabs)
+            do i = 1, ncol
+               do nc = 1, ncoef
+                  cabs(i,nc) = table_interp( refrtablw(:,ilw), refitablw(:,ilw), &
+                                             absplw(nc,:,:,ilw), refr(i), refi(i) )
+               end do
+            end do
 
             ! parameterized optical properties
             do i = 1, ncol
@@ -1592,76 +1584,5 @@ subroutine modal_size_parameters(ncol, sigma_logr_aer, dgnumwet, radsurf, lograd
    end do
 
 end subroutine modal_size_parameters
-
-!===============================================================================
-
-    subroutine binterp(table,ncol,km,im,jm,x,y,xtab,ytab,ix,jy,t,u,out)
-
-        !     bilinear interpolation of table
-        !
-        implicit none
-        integer im,jm,km,ncol
-        real(r8) table(km,im,jm),xtab(im),ytab(jm),out(pcols,km)
-        integer i,ix(pcols),ip1,j,jy(pcols),jp1,k,ic,ip1m(pcols),jp1m(pcols),ixc,jyc
-        real(r8) x(pcols),dx,t(pcols),y(pcols),dy,u(pcols),tu(pcols),tuc(pcols),tcu(pcols),tcuc(pcols)
-
-        if(ix(1).gt.0) go to 30
-        if(im.gt.1)then
-            do ic=1,ncol
-                do i=1,im
-                    if(x(ic).lt.xtab(i))go to 10
-                enddo
-                10 ix(ic)=max0(i-1,1)
-                ip1=min(ix(ic)+1,im)
-                dx=(xtab(ip1)-xtab(ix(ic)))
-                if(abs(dx).gt.1.e-20_r8)then
-                    t(ic)=(x(ic)-xtab(ix(ic)))/dx
-                else
-                    t(ic)=0._r8
-                endif
-            end do
-        else
-            ix(:ncol)=1
-            t(:ncol)=0._r8
-        endif
-        if(jm.gt.1)then
-            do ic=1,ncol
-                do j=1,jm
-                    if(y(ic).lt.ytab(j))go to 20
-                enddo
-                20 jy(ic)=max0(j-1,1)
-                jp1=min(jy(ic)+1,jm)
-                dy=(ytab(jp1)-ytab(jy(ic)))
-                if(abs(dy).gt.1.e-20_r8)then
-                    u(ic)=(y(ic)-ytab(jy(ic)))/dy
-                else
-                    u(ic)=0._r8
-                endif
-            end do
-        else
-            jy(:ncol)=1
-            u(:ncol)=0._r8
-        endif
-        30 continue
-        do ic=1,ncol
-            tu(ic)=t(ic)*u(ic)
-            tuc(ic)=t(ic)-tu(ic)
-            tcuc(ic)=1._r8-tuc(ic)-u(ic)
-            tcu(ic)=u(ic)-tu(ic)
-            jp1m(ic)=min(jy(ic)+1,jm)
-            ip1m(ic)=min(ix(ic)+1,im)
-        enddo
-        do ic=1,ncol
-            jyc=jy(ic)
-            ixc=ix(ic)
-            jp1=jp1m(ic)
-            ip1=ip1m(ic)
-            do k=1,km
-                out(ic,k) = tcuc(ic) * table(k,ixc,jyc) + tuc(ic) * table(k,ip1,jyc) + &
-                              tu(ic) * table(k,ip1,jp1) + tcu(ic) * table(k,ixc,jp1)
-            end do
-        end do
-        return
-    end subroutine binterp
 
 end module modal_aer_opt
