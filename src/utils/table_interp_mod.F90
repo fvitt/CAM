@@ -7,7 +7,8 @@ module table_interp_mod
   private
   public :: table_interp
   public :: table_interp_wghts
-  public :: table_interp_setwghts
+  public :: table_interp_alowghts
+  public :: table_interp_updwghts
   public :: table_interp_delwghts
 
   interface table_interp
@@ -26,7 +27,7 @@ contains
   !--------------------------------------------------------------------------
   !--------------------------------------------------------------------------
 
-  function interp2d( ncoef,ncol,nxs,nys, xwghts,ywghts, tbl ) result(res)
+  pure function interp2d( ncoef,ncol,nxs,nys, xwghts,ywghts, tbl ) result(res)
 
     integer, intent(in)  :: ncoef,ncol,nxs,nys
     real(r8), intent(in) :: tbl(ncoef,nxs,nys)
@@ -56,16 +57,13 @@ contains
   !--------------------------------------------------------------------------
   !--------------------------------------------------------------------------
 
-  subroutine table_interp_setwghts( ngrid, xgrid, ncols, xcols, wghts )
-    integer,  intent(in) :: ngrid
-    real(r8), intent(in) :: xgrid(ngrid)
+  subroutine table_interp_alowghts( ncols, wghts )
     integer,  intent(in) :: ncols
-    real(r8), intent(in) :: xcols(ncols)
     type(table_interp_wghts), intent(out) :: wghts
 
-    integer :: i, ierr
+    integer :: ierr
 
-    character(len=*), parameter :: prefix = 'table_interp_setwghts: '
+    character(len=*), parameter :: prefix = 'table_interp_alowghts: '
 
     allocate(wghts%w1(ncols), stat=ierr)
     if( ierr /= 0 ) then
@@ -84,6 +82,19 @@ contains
        call endrun(prefix//'failed to allocate wghts%ix2')
     end if
 
+  end subroutine table_interp_alowghts
+
+  !--------------------------------------------------------------------------
+  !--------------------------------------------------------------------------
+
+  subroutine table_interp_updwghts( ngrid, xgrid, ncols, xcols, wghts )
+    integer,  intent(in) :: ngrid
+    real(r8), intent(in) :: xgrid(ngrid)
+    integer,  intent(in) :: ncols
+    real(r8), intent(in) :: xcols(ncols)
+    type(table_interp_wghts), intent(inout) :: wghts
+
+    integer :: i
 
     do i = 1,ncols
        wghts%ix2(i) = find_index(ngrid,xgrid,xcols(i))
@@ -94,7 +105,7 @@ contains
                     /(xgrid(wghts%ix2(i))-xgrid(wghts%ix1(i)))
     end do
 
-  end subroutine table_interp_setwghts
+  end subroutine table_interp_updwghts
 
   !--------------------------------------------------------------------------
   !--------------------------------------------------------------------------
