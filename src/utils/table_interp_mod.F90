@@ -1,6 +1,3 @@
-!--------------------------------------------------------------------------
-! linearly interpolate 1-d, 2-d, 3-d, and 4-d look up tables
-!--------------------------------------------------------------------------
 module table_interp_mod
   use shr_kind_mod, only: r8=>shr_kind_r8
   use cam_abortutils, only: endrun
@@ -9,134 +6,126 @@ module table_interp_mod
 
   private
   public :: table_interp
+  public :: table_interp_wghts
+  public :: table_interp_setwghts
+  public :: table_interp_delwghts
 
   interface table_interp
-     module procedure table_interp_1d
-     module procedure table_interp_2d
-     module procedure table_interp_3d
-     module procedure table_interp_4d
+     module procedure interp2d
   end interface table_interp
+
+  type :: table_interp_wghts
+     real(r8), pointer :: w1(:) => null()
+     real(r8), pointer :: w2(:) => null()
+     integer, pointer :: ix1(:) => null()
+     integer, pointer :: ix2(:) => null()
+  end type table_interp_wghts
 
 contains
 
   !--------------------------------------------------------------------------
   !--------------------------------------------------------------------------
-  function table_interp_4d( ws,xs,ys,zs, f, w,x,y,z ) result(g)
 
-    real(r8), intent(in) :: ws(:), xs(:), ys(:), zs(:)
-    real(r8), intent(in) :: f(:,:,:,:)
-    real(r8), intent(in) :: w,x,y,z
+  function interp2d( ncoef,ncol,nxs,nys, xwghts,ywghts, tbl ) result(res)
 
-    real(r8) :: g
+    integer, intent(in)  :: ncoef,ncol,nxs,nys
+    real(r8), intent(in) :: tbl(ncoef,nxs,nys)
+    type(table_interp_wghts), intent(in) :: xwghts
+    type(table_interp_wghts), intent(in) :: ywghts
 
-    real(r8) :: gs(2)
-    integer :: iz
+    real(r8) :: res(ncoef,ncol)
 
-    iz = find_index( zs, z, dimname='Z' )
+    real(r8) :: fx(ncoef,2)
 
-    gs(1) = table_interp_3d( ws,xs,ys, f(:,:,:,iz-1), w,x,y )
-    gs(2) = table_interp_3d( ws,xs,ys, f(:,:,:,iz  ), w,x,y )
+    integer :: i
 
-    g = table_interp_1d( zs(iz-1:iz), gs, z)
+    do i = 1,ncol
 
-  end function table_interp_4d
+       fx(:,1) = xwghts%w1(i)*tbl(:,xwghts%ix1(i),ywghts%ix1(i)) &
+               + xwghts%w2(i)*tbl(:,xwghts%ix2(i),ywghts%ix1(i))
+       fx(:,2) = xwghts%w1(i)*tbl(:,xwghts%ix1(i),ywghts%ix2(i)) &
+               + xwghts%w2(i)*tbl(:,xwghts%ix2(i),ywghts%ix2(i))
 
-  !--------------------------------------------------------------------------
-  !--------------------------------------------------------------------------
-  function table_interp_3d( ws,xs,ys, f, w,x,y ) result(g)
+       res(:,i) = ywghts%w1(i)*fx(:,1) + ywghts%w2(i)*fx(:,2)
 
-    real(r8), intent(in) :: ws(:), xs(:), ys(:)
-    real(r8), intent(in) :: f(:,:,:)
-    real(r8), intent(in) :: w,x,y
+    end do
 
-    real(r8) :: g
 
-    real(r8) :: gs(2)
-    integer :: iy
-
-    iy = find_index( ys, y, dimname='Y' )
-
-    gs(1) = table_interp_2d( ws,xs, f(:,:,iy-1), w,x )
-    gs(2) = table_interp_2d( ws,xs, f(:,:,iy  ), w,x )
-
-    g = table_interp_1d( ys(iy-1:iy), gs, y)
-
-  end function table_interp_3d
+  end function interp2d
 
   !--------------------------------------------------------------------------
   !--------------------------------------------------------------------------
-  function table_interp_2d( ws,xs, f, w,x ) result(g)
 
-    real(r8), intent(in) :: ws(:), xs(:)
-    real(r8), intent(in) :: f(:,:)
-    real(r8), intent(in) :: w,x
+  subroutine table_interp_setwghts( ngrid, xgrid, ncols, xcols, wghts )
+    integer,  intent(in) :: ngrid
+    real(r8), intent(in) :: xgrid(ngrid)
+    integer,  intent(in) :: ncols
+    real(r8), intent(in) :: xcols(ncols)
+    type(table_interp_wghts), intent(out) :: wghts
 
-    real(r8) :: g
+    integer :: i, ierr
 
-    real(r8) :: gs(2)
-    integer :: ix
+    character(len=*), parameter :: prefix = 'table_interp_setwghts: '
 
-    ix = find_index( xs, x, dimname='X' )
+    allocate(wghts%w1(ncols), stat=ierr)
+    if( ierr /= 0 ) then
+       call endrun(prefix//'failed to allocate wghts%w1')
+    end if
+    allocate(wghts%w2(ncols), stat=ierr)
+    if( ierr /= 0 ) then
+       call endrun(prefix//'failed to allocate wghts%w2')
+    end if
+    allocate(wghts%ix1(ncols), stat=ierr)
+    if( ierr /= 0 ) then
+       call endrun(prefix//'failed to allocate wghts%ix1')
+    end if
+    allocate(wghts%ix2(ncols), stat=ierr)
+    if( ierr /= 0 ) then
+       call endrun(prefix//'failed to allocate wghts%ix2')
+    end if
 
-    gs(1) = table_interp_1d( ws, f(:,ix-1), w)
-    gs(2) = table_interp_1d( ws, f(:,ix  ), w)
 
-    g = table_interp_1d( xs(ix-1:ix), gs, x)
+    do i = 1,ncols
+       wghts%ix2(i) = find_index(ngrid,xgrid,xcols(i))
+       wghts%ix1(i) = wghts%ix2(i) - 1
+       wghts%w1(i) = (xgrid(wghts%ix2(i))-xcols(i)) &
+                    /(xgrid(wghts%ix2(i))-xgrid(wghts%ix1(i)))
+       wghts%w2(i) = (xcols(i)-xgrid(wghts%ix1(i))) &
+                    /(xgrid(wghts%ix2(i))-xgrid(wghts%ix1(i)))
+    end do
 
-  end function table_interp_2d
+  end subroutine table_interp_setwghts
 
   !--------------------------------------------------------------------------
-  ! Linearly intperpolates f at value w given the f known at ws
-  !
-  ! It is assumed that w is monotonically increasing and that
-  ! min(ws) <= w <= max(ws) (no extrapolation).
   !--------------------------------------------------------------------------
-  function table_interp_1d( ws, f, w ) result(g)
 
-    real(r8), intent(in) :: ws(:)
-    real(r8), intent(in) :: f(:)
-    real(r8), intent(in) :: w
+  subroutine table_interp_delwghts( wghts )
+    type(table_interp_wghts), intent(inout) :: wghts
 
-    real(r8) :: g
+    deallocate(wghts%w1)
+    nullify(wghts%w1)
+    deallocate(wghts%w2)
+    nullify(wghts%w2)
+    deallocate(wghts%ix1)
+    nullify(wghts%ix1)
+    deallocate(wghts%ix2)
+    nullify(wghts%ix2)
 
-    integer :: iw
-
-    iw = find_index( ws, w, dimname='W' )
-
-    g = f(iw-1) + (w-ws(iw-1))*(f(iw)-f(iw-1))/(ws(iw)-ws(iw-1))
-
-  end function table_interp_1d
+  end subroutine table_interp_delwghts
 
   ! private methods
   !--------------------------------------------------------------------------
   !--------------------------------------------------------------------------
-  function find_index( values, vx, dimname ) result(ndx)
-    real(r8), intent(in) :: values(:)
+
+  pure function find_index( nvals, vals, vx ) result(ndx)
+    integer,  intent(in) :: nvals
+    real(r8), intent(in) :: vals(nvals)
     real(r8), intent(in) :: vx
-    character(len=*),intent(in) :: dimname
 
     integer :: ndx
 
-    integer  :: nn, i
-
-    ndx = -huge(1)
-
-    nn = size(values)
-
-    do i = 2,nn
-       if (.not.(values(i) > values(i-1))) then
-          call endrun('table_interp_mod: '//dimname &
-               //' values must be monotonically increasing')
-       end if
-    end do
-
-    if ((vx < values(1)) .or. (vx > values(nn))) then
-       call endrun('table_interp_mod: extrapolation is not allowed in the ' &
-            //dimname//' dimension')
-    end if
-
-    find_ndx: do ndx = 1, nn-1
-       if (values(ndx)>vx) exit find_ndx
+    find_ndx: do ndx = 1, nvals-1
+       if (vals(ndx)>vx) exit find_ndx
     end do find_ndx
 
   end function find_index

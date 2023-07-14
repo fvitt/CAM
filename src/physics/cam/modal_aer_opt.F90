@@ -33,7 +33,7 @@ use cam_abortutils,    only: endrun
 use modal_aero_wateruptake, only: modal_aero_wateruptake_dr
 use modal_aero_calcsize,    only: modal_aero_calcsize_diag
 
-use table_interp_mod, only: table_interp
+use table_interp_mod, only: table_interp, table_interp_wghts, table_interp_setwghts, table_interp_delwghts
 
 implicit none
 private
@@ -550,7 +550,7 @@ subroutine modal_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
    real(r8) :: watervol(pcols) ! volume concentration of water in each mode (m3/kg)
    real(r8) :: wetvol(pcols)   ! volume concentration of wet mode (m3/kg)
 
-   real(r8) :: cext(pcols,ncoef), cabs(pcols,ncoef), casm(pcols,ncoef)
+   real(r8) :: cext(ncoef,pcols), cabs(ncoef,pcols), casm(ncoef,pcols)
    real(r8) :: pext(pcols)     ! parameterized specific extinction (m2/kg)
    real(r8) :: specpext(pcols) ! specific extinction (m2/kg)
    real(r8) :: dopaer(pcols)   ! aerosol optical depth in layer
@@ -618,6 +618,10 @@ subroutine modal_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
    integer  :: nerr_dopaer = 0
    real(r8) :: volf            ! volume fraction of insoluble aerosol
    character(len=*), parameter :: subname = 'modal_aero_sw'
+
+   type(table_interp_wghts) :: wghtsr
+   type(table_interp_wghts) :: wghtsi
+
    !----------------------------------------------------------------------------
 
    lchnk = state%lchnk
@@ -854,17 +858,16 @@ subroutine modal_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
             ! call t_startf('binterp')
 
             ! interpolate coefficients linear in refractive index
-            do i = 1, ncol
-               do nc = 1, ncoef
-                  cext(i,nc) = table_interp( refrtabsw(:,isw), refitabsw(:,isw), &
-                                             extpsw(nc,:,:,isw), refr(i), refi(i) )
-                  cabs(i,nc) = table_interp( refrtabsw(:,isw), refitabsw(:,isw), &
-                                             abspsw(nc,:,:,isw), refr(i), refi(i) )
-                  casm(i,nc) = table_interp( refrtabsw(:,isw), refitabsw(:,isw), &
-                                             asmpsw(nc,:,:,isw), refr(i), refi(i) )
-               end do
-            end do
 
+            call table_interp_setwghts( prefr, refrtabsw(:,isw), ncol, refr(:ncol), wghtsr )
+            call table_interp_setwghts( prefi, refitabsw(:,isw), ncol, refi(:ncol), wghtsi )
+
+            cext(:,:ncol)= table_interp( ncoef,ncol, prefr,prefi, wghtsr,wghtsi, extpsw(:,:,:,isw))
+            cabs(:,:ncol)= table_interp( ncoef,ncol, prefr,prefi, wghtsr,wghtsi, abspsw(:,:,:,isw))
+            casm(:,:ncol)= table_interp( ncoef,ncol, prefr,prefi, wghtsr,wghtsi, asmpsw(:,:,:,isw))
+
+            call table_interp_delwghts( wghtsr )
+            call table_interp_delwghts( wghtsi )
 
             ! call t_stopf('binterp')
 
@@ -872,9 +875,9 @@ subroutine modal_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
             do i=1,ncol
 
                if (logradsurf(i,k) .le. xrmax) then
-                  pext(i) = 0.5_r8*cext(i,1)
+                  pext(i) = 0.5_r8*cext(1,i)
                   do nc = 2, ncoef
-                     pext(i) = pext(i) + cheb(nc,i,k)*cext(i,nc)
+                     pext(i) = pext(i) + cheb(nc,i,k)*cext(nc,i)
                   enddo
                   pext(i) = exp(pext(i))
                else
@@ -884,11 +887,11 @@ subroutine modal_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
                ! convert from m2/kg water to m2/kg aerosol
                specpext(i) = pext(i)
                pext(i) = pext(i)*wetvol(i)*rhoh2o
-               pabs(i) = 0.5_r8*cabs(i,1)
-               pasm(i) = 0.5_r8*casm(i,1)
+               pabs(i) = 0.5_r8*cabs(1,i)
+               pasm(i) = 0.5_r8*casm(1,i)
                do nc = 2, ncoef
-                  pabs(i) = pabs(i) + cheb(nc,i,k)*cabs(i,nc)
-                  pasm(i) = pasm(i) + cheb(nc,i,k)*casm(i,nc)
+                  pabs(i) = pabs(i) + cheb(nc,i,k)*cabs(nc,i)
+                  pasm(i) = pasm(i) + cheb(nc,i,k)*casm(nc,i)
                enddo
                pabs(i) = pabs(i)*wetvol(i)*rhoh2o
                pabs(i) = max(0._r8,pabs(i))
@@ -1013,7 +1016,7 @@ subroutine modal_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
                   ! write(iulog,*) 'itab,jtab,ttab,utab=',itab(i),jtab(i),ttab(i),utab(i)
                   write(iulog,*) 'k=', k, ' pext=', pext(i), ' specext=', specpext(i)
                   write(iulog,*) 'wetvol=', wetvol(i), ' dryvol=', dryvol(i), ' watervol=', watervol(i)
-                  ! write(iulog,*) 'cext=',(cext(i,l),l=1,ncoef)
+                  ! write(iulog,*) 'cext=',(cext(l,i),l=1,ncoef)
                   ! write(iulog,*) 'crefin=',crefin(i)
                   write(iulog,*) 'nspec=', nspec
                   ! write(iulog,*) 'cheb=', (cheb(nc,m,i,k),nc=2,ncoef)
@@ -1278,7 +1281,7 @@ subroutine modal_aero_lw(list_idx, state, pbuf, tauxar)
    real(r8), pointer :: refitablw(:,:) ! table of imag refractive indices for aerosols
    real(r8), pointer :: absplw(:,:,:,:) ! specific absorption
 
-   real(r8) :: cabs(pcols,ncoef)
+   real(r8) :: cabs(ncoef,pcols)
    real(r8) :: pabs(pcols)      ! parameterized specific absorption (m2/kg)
    real(r8) :: dopaer(pcols)    ! aerosol optical depth in layer
 
@@ -1292,6 +1295,10 @@ subroutine modal_aero_lw(list_idx, state, pbuf, tauxar)
    real(r8) :: logradsurf(pcols,pver) ! log(aerosol surface mode radius)
 
    real(r8) :: lwabs(pcols,pver)
+
+   type(table_interp_wghts) :: wghtsr
+   type(table_interp_wghts) :: wghtsi
+
    !----------------------------------------------------------------------------
 
    lwabs = 0.0_r8
@@ -1392,18 +1399,20 @@ subroutine modal_aero_lw(list_idx, state, pbuf, tauxar)
             end do
 
             ! interpolate coefficients linear in refractive index
-            do i = 1, ncol
-               do nc = 1, ncoef
-                  cabs(i,nc) = table_interp( refrtablw(:,ilw), refitablw(:,ilw), &
-                                             absplw(nc,:,:,ilw), refr(i), refi(i) )
-               end do
-            end do
+
+            call table_interp_setwghts( prefr, refrtablw(:,ilw), ncol, refr(:ncol), wghtsr )
+            call table_interp_setwghts( prefi, refitablw(:,ilw), ncol, refi(:ncol), wghtsi )
+
+            cabs(:,:ncol)= table_interp( ncoef,ncol, prefr,prefi, wghtsr,wghtsi, absplw(:,:,:,ilw))
+
+            call table_interp_delwghts( wghtsr )
+            call table_interp_delwghts( wghtsi )
 
             ! parameterized optical properties
             do i = 1, ncol
-               pabs(i) = 0.5_r8*cabs(i,1)
+               pabs(i) = 0.5_r8*cabs(1,i)
                do nc = 2, ncoef
-                  pabs(i) = pabs(i) + cheby(nc,i,k)*cabs(i,nc)
+                  pabs(i) = pabs(i) + cheby(nc,i,k)*cabs(nc,i)
                end do
                pabs(i)   = pabs(i)*wetvol(i)*rhoh2o
                pabs(i)   = max(0._r8,pabs(i))
@@ -1427,7 +1436,7 @@ subroutine modal_aero_lw(list_idx, state, pbuf, tauxar)
                   write(iulog,*) 'k=',k,' pabs=', pabs(i)
                   write(iulog,*) 'wetvol=',wetvol(i),' dryvol=',dryvol(i),     &
                      ' watervol=',watervol(i)
-                  write(iulog,*) 'cabs=', (cabs(i,l),l=1,ncoef)
+                  write(iulog,*) 'cabs=', (cabs(l,i),l=1,ncoef)
                   write(iulog,*) 'crefin=', crefin(i)
                   write(iulog,*) 'nspec=', nspec
                   do l = 1,nspec
