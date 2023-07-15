@@ -7,19 +7,17 @@ module table_interp_mod
   private
   public :: table_interp
   public :: table_interp_wghts
-  public :: table_interp_alowghts
   public :: table_interp_updwghts
-  public :: table_interp_delwghts
 
   interface table_interp
      module procedure interp2d
   end interface table_interp
 
   type :: table_interp_wghts
-     real(r8), pointer :: w1(:) => null()
-     real(r8), pointer :: w2(:) => null()
-     integer, pointer :: ix1(:) => null()
-     integer, pointer :: ix2(:) => null()
+     real(r8) :: wt1
+     real(r8) :: wt2
+     integer  :: ix1
+     integer  :: ix2
   end type table_interp_wghts
 
 contains
@@ -31,8 +29,8 @@ contains
 
     integer, intent(in)  :: ncoef,ncol,nxs,nys
     real(r8), intent(in) :: tbl(ncoef,nxs,nys)
-    type(table_interp_wghts), intent(in) :: xwghts
-    type(table_interp_wghts), intent(in) :: ywghts
+    type(table_interp_wghts), intent(in) :: xwghts(ncol)
+    type(table_interp_wghts), intent(in) :: ywghts(ncol)
 
     real(r8) :: res(ncoef,ncol)
 
@@ -42,12 +40,12 @@ contains
 
     do i = 1,ncol
 
-       fx(:,1) = xwghts%w1(i)*tbl(:,xwghts%ix1(i),ywghts%ix1(i)) &
-               + xwghts%w2(i)*tbl(:,xwghts%ix2(i),ywghts%ix1(i))
-       fx(:,2) = xwghts%w1(i)*tbl(:,xwghts%ix1(i),ywghts%ix2(i)) &
-               + xwghts%w2(i)*tbl(:,xwghts%ix2(i),ywghts%ix2(i))
+       fx(:,1) = xwghts(i)%wt1*tbl(:,xwghts(i)%ix1,ywghts(i)%ix1) &
+               + xwghts(i)%wt2*tbl(:,xwghts(i)%ix2,ywghts(i)%ix1)
+       fx(:,2) = xwghts(i)%wt1*tbl(:,xwghts(i)%ix1,ywghts(i)%ix2) &
+               + xwghts(i)%wt2*tbl(:,xwghts(i)%ix2,ywghts(i)%ix2)
 
-       res(:,i) = ywghts%w1(i)*fx(:,1) + ywghts%w2(i)*fx(:,2)
+       res(:,i) = ywghts(i)%wt1*fx(:,1) + ywghts(i)%wt2*fx(:,2)
 
     end do
 
@@ -57,72 +55,24 @@ contains
   !--------------------------------------------------------------------------
   !--------------------------------------------------------------------------
 
-  subroutine table_interp_alowghts( ncols, wghts )
-    integer,  intent(in) :: ncols
-    type(table_interp_wghts), intent(out) :: wghts
-
-    integer :: ierr
-
-    character(len=*), parameter :: prefix = 'table_interp_alowghts: '
-
-    allocate(wghts%w1(ncols), stat=ierr)
-    if( ierr /= 0 ) then
-       call endrun(prefix//'failed to allocate wghts%w1')
-    end if
-    allocate(wghts%w2(ncols), stat=ierr)
-    if( ierr /= 0 ) then
-       call endrun(prefix//'failed to allocate wghts%w2')
-    end if
-    allocate(wghts%ix1(ncols), stat=ierr)
-    if( ierr /= 0 ) then
-       call endrun(prefix//'failed to allocate wghts%ix1')
-    end if
-    allocate(wghts%ix2(ncols), stat=ierr)
-    if( ierr /= 0 ) then
-       call endrun(prefix//'failed to allocate wghts%ix2')
-    end if
-
-  end subroutine table_interp_alowghts
-
-  !--------------------------------------------------------------------------
-  !--------------------------------------------------------------------------
-
   subroutine table_interp_updwghts( ngrid, xgrid, ncols, xcols, wghts )
     integer,  intent(in) :: ngrid
     real(r8), intent(in) :: xgrid(ngrid)
     integer,  intent(in) :: ncols
     real(r8), intent(in) :: xcols(ncols)
-    type(table_interp_wghts), intent(inout) :: wghts
+    type(table_interp_wghts), intent(inout) :: wghts(ncols)
 
     integer :: i
 
     do i = 1,ncols
-       wghts%ix2(i) = find_index(ngrid,xgrid,xcols(i))
-       wghts%ix1(i) = wghts%ix2(i) - 1
-       wghts%w1(i) = (xgrid(wghts%ix2(i))-xcols(i)) &
-                    /(xgrid(wghts%ix2(i))-xgrid(wghts%ix1(i)))
-       wghts%w2(i) = (xcols(i)-xgrid(wghts%ix1(i))) &
-                    /(xgrid(wghts%ix2(i))-xgrid(wghts%ix1(i)))
+       wghts(i)%ix2 = find_index(ngrid,xgrid,xcols(i))
+       wghts(i)%ix1 = wghts(i)%ix2 - 1
+       wghts(i)%wt1 = (xgrid(wghts(i)%ix2)-xcols(i)) &
+                    /(xgrid(wghts(i)%ix2)-xgrid(wghts(i)%ix1))
+       wghts(i)%wt2 = 1._8 - wghts(i)%wt1
     end do
 
   end subroutine table_interp_updwghts
-
-  !--------------------------------------------------------------------------
-  !--------------------------------------------------------------------------
-
-  subroutine table_interp_delwghts( wghts )
-    type(table_interp_wghts), intent(inout) :: wghts
-
-    deallocate(wghts%w1)
-    nullify(wghts%w1)
-    deallocate(wghts%w2)
-    nullify(wghts%w2)
-    deallocate(wghts%ix1)
-    nullify(wghts%ix1)
-    deallocate(wghts%ix2)
-    nullify(wghts%ix2)
-
-  end subroutine table_interp_delwghts
 
   ! private methods
   !--------------------------------------------------------------------------

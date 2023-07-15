@@ -34,7 +34,6 @@ use modal_aero_wateruptake, only: modal_aero_wateruptake_dr
 use modal_aero_calcsize,    only: modal_aero_calcsize_diag
 
 use table_interp_mod, only: table_interp, table_interp_wghts, table_interp_updwghts
-use table_interp_mod, only: table_interp_alowghts, table_interp_delwghts
 
 implicit none
 private
@@ -620,8 +619,8 @@ subroutine modal_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
    real(r8) :: volf            ! volume fraction of insoluble aerosol
    character(len=*), parameter :: subname = 'modal_aero_sw'
 
-   type(table_interp_wghts) :: wghtsr
-   type(table_interp_wghts) :: wghtsi
+   type(table_interp_wghts) :: wghtsr(state%ncol)
+   type(table_interp_wghts) :: wghtsi(state%ncol)
 
    !----------------------------------------------------------------------------
 
@@ -701,9 +700,6 @@ subroutine modal_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
                                      qaerwat_m, wetdens_m,  hygro_m, dryvol_m, dryrad_m, &
                                      drymass_m, so4dryvol_m, naer_m)
    endif
-
-   call table_interp_alowghts( ncol, wghtsr )
-   call table_interp_alowghts( ncol, wghtsi )
 
    do m = 1, nmodes
 
@@ -1089,9 +1085,6 @@ subroutine modal_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
 
    end do ! nmodes
 
-   call table_interp_delwghts( wghtsr )
-   call table_interp_delwghts( wghtsi )
-
    if (list_idx > 0) then
       deallocate(dgnumdry_m)
       deallocate(dgnumwet_m)
@@ -1300,8 +1293,8 @@ subroutine modal_aero_lw(list_idx, state, pbuf, tauxar)
 
    real(r8) :: lwabs(pcols,pver)
 
-   type(table_interp_wghts) :: wghtsr
-   type(table_interp_wghts) :: wghtsi
+   type(table_interp_wghts) :: wghtsr(state%ncol)
+   type(table_interp_wghts) :: wghtsi(state%ncol)
 
    !----------------------------------------------------------------------------
 
@@ -1341,9 +1334,6 @@ subroutine modal_aero_lw(list_idx, state, pbuf, tauxar)
                                      qaerwat_m, wetdens_m,  hygro_m, dryvol_m, dryrad_m, &
                                      drymass_m, so4dryvol_m, naer_m)
    endif
-
-   call table_interp_alowghts( ncol, wghtsr )
-   call table_interp_alowghts( ncol, wghtsi )
 
    do m = 1, nmodes
 
@@ -1471,9 +1461,6 @@ subroutine modal_aero_lw(list_idx, state, pbuf, tauxar)
       end do  ! nlwbands
 
    end do ! m = 1, nmodes
-
-   call table_interp_delwghts( wghtsr )
-   call table_interp_delwghts( wghtsi )
 
    if (list_idx > 0) then
       deallocate(dgnumdry_m)
