@@ -4,7 +4,7 @@ module hygrowghtpct_aerosol_optics_mod
   use aerosol_optics_mod, only: aerosol_optics
   use aerosol_state_mod, only: aerosol_state
   use aerosol_properties_mod, only: aerosol_properties
-  use table_interp_mod, only: table_interp
+  use table_interp_mod, only: table_interp, table_interp_wghts, table_interp_calcwghts
 
   implicit none
 
@@ -25,6 +25,8 @@ module hygrowghtpct_aerosol_optics_mod
      real(r8), pointer :: lw_hygro_abs_wtp(:,:) ! long wave absorption table
 
      real(r8), pointer :: tbl_wgtpct(:) ! weight precent dimenstion values
+
+     integer :: nwtp ! weight precent dimenstion size
 
    contains
 
@@ -80,7 +82,7 @@ contains
 
     wgtpct_in => aero_state%wgtpct()
 
-    call aero_props%optics_params(ilist, ibin, wgtpct=newobj%tbl_wgtpct)
+    call aero_props%optics_params(ilist, ibin, wgtpct=newobj%tbl_wgtpct, nwtp=newobj%nwtp)
 
     newobj%wgtpct(:ncol,:) = wgtpct_in(:ncol,:)
     where ( newobj%wgtpct < minval(newobj%tbl_wgtpct) )
@@ -124,12 +126,14 @@ contains
     real(r8),intent(out) :: pasm(ncol) ! parameterized single scattering albedo
 
     integer :: icol
+    type(table_interp_wghts) :: wghts(ncol)
+
+    wghts = table_interp_calcwghts( self%nwtp, self%tbl_wgtpct, ncol, self%wgtpct(:ncol,ilev) )
+    pext = table_interp( ncol, self%nwtp, wghts, self%sw_hygro_ext_wtp(:,iwav) )
+    pabs = (1._r8 - table_interp( ncol, self%nwtp, wghts, self%sw_hygro_ssa_wtp(:,iwav)))*pext
+    pasm = table_interp( ncol, self%nwtp, wghts, self%sw_hygro_asm_wtp(:,iwav) )
 
     do icol = 1, ncol
-
-       pext(icol) = table_interp( self%tbl_wgtpct, self%sw_hygro_ext_wtp(:,iwav), self%wgtpct(icol,ilev) )
-       pabs(icol) = (1._r8 - table_interp( self%tbl_wgtpct, self%sw_hygro_ssa_wtp(:,iwav), self%wgtpct(icol,ilev) ) ) * pext(icol)
-       pasm(icol) = table_interp( self%tbl_wgtpct, self%sw_hygro_asm_wtp(:,iwav), self%wgtpct(icol,ilev) )
 
        pext(icol) = pext(icol)*self%totalmmr(icol,ilev)
        pabs(icol) = pabs(icol)*self%totalmmr(icol,ilev)
@@ -155,10 +159,14 @@ contains
     real(r8),intent(out) :: pabs(ncol) ! parameterized specific absorption (m2/kg)
 
     integer :: icol
+    type(table_interp_wghts) :: wghts(ncol)
+
+    wghts = table_interp_calcwghts( self%nwtp, self%tbl_wgtpct, ncol, self%wgtpct(:ncol,ilev) )
+
+    pabs = table_interp( ncol, self%nwtp, wghts, self%lw_hygro_abs_wtp(:,iwav) )
 
     do icol = 1, ncol
 
-       pabs(icol) = table_interp( self%tbl_wgtpct, self%lw_hygro_abs_wtp(:,iwav), self%wgtpct(icol,ilev) )
        pabs(icol) = pabs(icol)*self%totalmmr(icol,ilev)
        pabs(icol) = max(0._r8,pabs(icol))
 

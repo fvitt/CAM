@@ -3,7 +3,7 @@ module hygrocoreshell_aerosol_optics_mod
   use aerosol_optics_mod, only: aerosol_optics
   use aerosol_state_mod, only: aerosol_state
   use aerosol_properties_mod, only: aerosol_properties
-  use table_interp_mod, only: table_interp
+  use table_interp_mod, only: table_interp, table_interp_wghts, table_interp_calcwghts
 
   implicit none
 
@@ -31,6 +31,11 @@ module hygrocoreshell_aerosol_optics_mod
      real(r8), pointer :: tbl_bcdust(:) => null()   ! bc/(bc + dust) fraction dimension values
      real(r8), pointer :: tbl_kap(:) => null()      ! hygroscopicity dimension values
      real(r8), pointer :: tbl_relh(:) => null()     ! relative humidity dimension values
+
+     integer :: nfrac = -1    ! core fraction dimension size
+     integer :: nbcdust = -1  ! bc/(bc + dust) fraction dimension size
+     integer :: nkap = -1     ! hygroscopicity dimension size
+     integer :: nrelh = -1    ! relative humidity dimension size
 
    contains
 
@@ -172,8 +177,9 @@ contains
 
     call aero_props%optics_params(ilist, ibin, &
          corefrac=newobj%tbl_corefrac, kap=newobj%tbl_kap, &
-         bcdust=newobj%tbl_bcdust, relh=newobj%tbl_relh)
-
+         bcdust=newobj%tbl_bcdust, relh=newobj%tbl_relh, &
+         nfrac=newobj%nfrac, nbcdust=newobj%nbcdust, &
+         nkap=newobj%nkap, nrelh=newobj%nrelh)
 
     where ( newobj%kappa < minval(newobj%tbl_kap) )
        newobj%kappa = minval(newobj%tbl_kap)
@@ -230,20 +236,21 @@ contains
 
     integer :: icol
 
+    type(table_interp_wghts) :: rhwghts(ncol)
+    type(table_interp_wghts) :: cfwghts(ncol)
+    type(table_interp_wghts) :: bcwghts(ncol)
+    type(table_interp_wghts) :: kpwghts(ncol)
+
+    rhwghts = table_interp_calcwghts( self%nrelh, self%tbl_relh, ncol, self%relh(:ncol,ilev) )
+    cfwghts = table_interp_calcwghts( self%nfrac, self%tbl_corefrac, ncol, self%corefrac(:ncol,ilev) )
+    bcwghts = table_interp_calcwghts( self%nbcdust, self%tbl_bcdust, ncol, self%bcdust(:ncol,ilev) )
+    kpwghts = table_interp_calcwghts( self%nkap, self%tbl_kap, ncol, self%kappa(:ncol,ilev) )
+
+    pext = table_interp( ncol, self%nrelh,self%nfrac,self%nbcdust,self%nkap,  rhwghts,cfwghts,bcwghts,kpwghts, self%sw_hygro_coreshell_ext(:,iwav,:,:,:))
+    pabs = (1._r8-table_interp( ncol, self%nrelh,self%nfrac,self%nbcdust,self%nkap,  rhwghts,cfwghts,bcwghts,kpwghts, self%sw_hygro_coreshell_ssa(:,iwav,:,:,:)))*pext
+    pasm = table_interp( ncol, self%nrelh,self%nfrac,self%nbcdust,self%nkap,  rhwghts,cfwghts,bcwghts,kpwghts, self%sw_hygro_coreshell_asm(:,iwav,:,:,:))
+
     do icol = 1, ncol
-
-       pext(icol) = table_interp( self%tbl_relh, self%tbl_corefrac, self%tbl_bcdust, self%tbl_kap, &
-            self%sw_hygro_coreshell_ext(:,iwav,:,:,:), &
-            self%relh(icol,ilev), self%corefrac(icol,ilev), self%bcdust(icol,ilev), self%kappa(icol,ilev) )
-
-       pabs(icol) = (1._r8 - table_interp( self%tbl_relh, self%tbl_corefrac, self%tbl_bcdust, self%tbl_kap, &
-            self%sw_hygro_coreshell_ssa(:,iwav,:,:,:), &
-            self%relh(icol,ilev), self%corefrac(icol,ilev), self%bcdust(icol,ilev), self%kappa(icol,ilev) ) ) &
-            * pext(icol)
-
-       pasm(icol) = table_interp( self%tbl_relh, self%tbl_corefrac, self%tbl_bcdust, self%tbl_kap, &
-            self%sw_hygro_coreshell_asm(:,iwav,:,:,:), &
-            self%relh(icol,ilev), self%corefrac(icol,ilev), self%bcdust(icol,ilev), self%kappa(icol,ilev) )
 
        pext(icol) = pext(icol)*self%totalmmr(icol,ilev)
        pabs(icol) = pabs(icol)*self%totalmmr(icol,ilev)
@@ -270,12 +277,19 @@ contains
 
     integer :: icol
 
+    type(table_interp_wghts) :: rhwghts(ncol)
+    type(table_interp_wghts) :: cfwghts(ncol)
+    type(table_interp_wghts) :: bcwghts(ncol)
+    type(table_interp_wghts) :: kpwghts(ncol)
+
+    rhwghts = table_interp_calcwghts( self%nrelh, self%tbl_relh, ncol, self%relh(:ncol,ilev) )
+    cfwghts = table_interp_calcwghts( self%nfrac, self%tbl_corefrac, ncol, self%corefrac(:ncol,ilev) )
+    bcwghts = table_interp_calcwghts( self%nbcdust, self%tbl_bcdust, ncol, self%bcdust(:ncol,ilev) )
+    kpwghts = table_interp_calcwghts( self%nkap, self%tbl_kap, ncol, self%kappa(:ncol,ilev) )
+
+    pabs = table_interp( ncol, self%nrelh,self%nfrac,self%nbcdust,self%nkap,  rhwghts,cfwghts,bcwghts,kpwghts, self%lw_hygro_coreshell_abs(:,iwav,:,:,:))
+
     do icol = 1, ncol
-
-       pabs(icol) = table_interp( self%tbl_relh, self%tbl_corefrac,  self%tbl_bcdust, self%tbl_kap, &
-            self%lw_hygro_coreshell_abs(:,iwav,:,:,:), &
-            self%relh(icol,ilev), self%corefrac(icol,ilev), self%bcdust(icol,ilev), self%kappa(icol,ilev) )
-
        pabs(icol) = pabs(icol)*self%totalmmr(icol,ilev)
        pabs(icol) = max(0._r8,pabs(icol))
     end do

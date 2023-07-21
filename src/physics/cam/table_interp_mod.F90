@@ -1,142 +1,190 @@
-!--------------------------------------------------------------------------
-! linearly interpolate 1-d, 2-d, 3-d, and 4-d look up tables
-!--------------------------------------------------------------------------
+!----------------------------------------------------------------------------
+! Utility module used for interpolation of aerosol optics table
+!----------------------------------------------------------------------------
 module table_interp_mod
   use shr_kind_mod, only: r8=>shr_kind_r8
-  use cam_abortutils, only: endrun
 
   implicit none
 
   private
   public :: table_interp
+  public :: table_interp_wghts
+  public :: table_interp_calcwghts
 
+  ! overload the interpolation routines
   interface table_interp
-     module procedure table_interp_1d
-     module procedure table_interp_2d
-     module procedure table_interp_3d
-     module procedure table_interp_4d
+     module procedure interp1d
+     module procedure interp2d
+     module procedure interp4d
   end interface table_interp
+
+  ! interpolation weights and indices
+  type :: table_interp_wghts
+     real(r8) :: wt1
+     real(r8) :: wt2
+     integer  :: ix1
+     integer  :: ix2
+  end type table_interp_wghts
 
 contains
 
   !--------------------------------------------------------------------------
+  ! 1-D interpolation
   !--------------------------------------------------------------------------
-  function table_interp_4d( ws,xs,ys,zs, f, w,x,y,z ) result(g)
+  pure function interp1d( ncol, nxs, xwghts, tbl ) result(res)
 
-    real(r8), intent(in) :: ws(:), xs(:), ys(:), zs(:)
-    real(r8), intent(in) :: f(:,:,:,:)
-    real(r8), intent(in) :: w,x,y,z
+    integer, intent(in)  :: ncol                         ! number of model columns
+    integer, intent(in)  :: nxs                          ! table size
+    real(r8), intent(in) :: tbl(nxs)                     ! table values to be interpolated
+    type(table_interp_wghts), intent(in) :: xwghts(ncol) ! interpolation weights and indices
 
-    real(r8) :: g
+    real(r8) :: res(ncol)
 
-    real(r8) :: gs(2)
-    integer :: iz
+    integer :: i
 
-    iz = find_index( zs, z, dimname='Z' )
+    do i = 1,ncol
 
-    gs(1) = table_interp_3d( ws,xs,ys, f(:,:,:,iz-1), w,x,y )
-    gs(2) = table_interp_3d( ws,xs,ys, f(:,:,:,iz  ), w,x,y )
+       res(i) = xwghts(i)%wt1*tbl(xwghts(i)%ix1) &
+              + xwghts(i)%wt2*tbl(xwghts(i)%ix2)
 
-    g = table_interp_1d( zs(iz-1:iz), gs, z)
+    end do
 
-  end function table_interp_4d
-
-  !--------------------------------------------------------------------------
-  !--------------------------------------------------------------------------
-  function table_interp_3d( ws,xs,ys, f, w,x,y ) result(g)
-
-    real(r8), intent(in) :: ws(:), xs(:), ys(:)
-    real(r8), intent(in) :: f(:,:,:)
-    real(r8), intent(in) :: w,x,y
-
-    real(r8) :: g
-
-    real(r8) :: gs(2)
-    integer :: iy
-
-    iy = find_index( ys, y, dimname='Y' )
-
-    gs(1) = table_interp_2d( ws,xs, f(:,:,iy-1), w,x )
-    gs(2) = table_interp_2d( ws,xs, f(:,:,iy  ), w,x )
-
-    g = table_interp_1d( ys(iy-1:iy), gs, y)
-
-  end function table_interp_3d
+  end function interp1d
 
   !--------------------------------------------------------------------------
+  ! 2-D interpolation
   !--------------------------------------------------------------------------
-  function table_interp_2d( ws,xs, f, w,x ) result(g)
+  pure function interp2d( ncoef, ncol, nxs, nys, xwghts, ywghts, tbl ) result(res)
 
-    real(r8), intent(in) :: ws(:), xs(:)
-    real(r8), intent(in) :: f(:,:)
-    real(r8), intent(in) :: w,x
+    integer, intent(in)  :: ncoef                        ! number chebyshev coefficients
+    integer, intent(in)  :: ncol                         ! number of model columns
+    integer, intent(in)  :: nxs                          ! table x-dimension size
+    integer, intent(in)  :: nys                          ! table y-dimension size
+    real(r8), intent(in) :: tbl(ncoef,nxs,nys)           ! table values to be interpolated
+    type(table_interp_wghts), intent(in) :: xwghts(ncol) ! x interpolation weights and indices
+    type(table_interp_wghts), intent(in) :: ywghts(ncol) ! y interpolation weights and indices
 
-    real(r8) :: g
+    real(r8) :: res(ncoef,ncol)
 
-    real(r8) :: gs(2)
-    integer :: ix
+    real(r8) :: fx(ncoef,2)
 
-    ix = find_index( xs, x, dimname='X' )
+    integer :: i
 
-    gs(1) = table_interp_1d( ws, f(:,ix-1), w)
-    gs(2) = table_interp_1d( ws, f(:,ix  ), w)
+    do i = 1,ncol
 
-    g = table_interp_1d( xs(ix-1:ix), gs, x)
+       ! interp x dir
+       fx(:,1) = xwghts(i)%wt1*tbl(:,xwghts(i)%ix1,ywghts(i)%ix1) & ! @ y1
+               + xwghts(i)%wt2*tbl(:,xwghts(i)%ix2,ywghts(i)%ix1)
+       fx(:,2) = xwghts(i)%wt1*tbl(:,xwghts(i)%ix1,ywghts(i)%ix2) & ! @ y2
+               + xwghts(i)%wt2*tbl(:,xwghts(i)%ix2,ywghts(i)%ix2)
 
-  end function table_interp_2d
+       ! interp y dir
+       res(:,i) = ywghts(i)%wt1*fx(:,1) + ywghts(i)%wt2*fx(:,2)
+
+    end do
+
+  end function interp2d
 
   !--------------------------------------------------------------------------
-  ! Linearly intperpolates f at value w given the f known at ws
-  !
-  ! It is assumed that w is monotonically increasing and that
-  ! min(ws) <= w <= max(ws) (no extrapolation).
+  ! 4-D interpolation
   !--------------------------------------------------------------------------
-  function table_interp_1d( ws, f, w ) result(g)
+  pure function interp4d( ncol, nxs, nys, nzs, nts, xwghts, ywghts, zwghts, twghts, tbl ) result(res)
 
-    real(r8), intent(in) :: ws(:)
-    real(r8), intent(in) :: f(:)
-    real(r8), intent(in) :: w
+    integer, intent(in)  :: ncol                         ! number of model columns
+    integer, intent(in)  :: nxs                          ! table x-dimension size
+    integer, intent(in)  :: nys                          ! table y-dimension size
+    integer, intent(in)  :: nzs                          ! table z-dimension size
+    integer, intent(in)  :: nts                          ! table t-dimension size
+    real(r8), intent(in) :: tbl(nxs,nys,nzs,nts)         ! table values to be interpolated
+    type(table_interp_wghts), intent(in) :: xwghts(ncol) ! x interpolation weights and indices
+    type(table_interp_wghts), intent(in) :: ywghts(ncol) ! y interpolation weights and indices
+    type(table_interp_wghts), intent(in) :: zwghts(ncol) ! z interpolation weights and indices
+    type(table_interp_wghts), intent(in) :: twghts(ncol) ! t interpolation weights and indices
 
-    real(r8) :: g
+    real(r8) :: res(ncol)
 
-    integer :: iw
+    real(r8) :: fx(8)
+    real(r8) :: fy(4)
+    real(r8) :: fz(2)
 
-    iw = find_index( ws, w, dimname='W' )
+    integer :: i
 
-    g = f(iw-1) + (w-ws(iw-1))*(f(iw)-f(iw-1))/(ws(iw)-ws(iw-1))
+    do i = 1,ncol
 
-  end function table_interp_1d
+       ! interp x dir
+       fx(1) = xwghts(i)%wt1*tbl(xwghts(i)%ix1,ywghts(i)%ix1,zwghts(i)%ix1,twghts(i)%ix1) & ! @ y1, z1, t1
+             + xwghts(i)%wt2*tbl(xwghts(i)%ix2,ywghts(i)%ix1,zwghts(i)%ix1,twghts(i)%ix1)
+       fx(2) = xwghts(i)%wt1*tbl(xwghts(i)%ix1,ywghts(i)%ix2,zwghts(i)%ix1,twghts(i)%ix1) & ! @ y2, z1, t1
+             + xwghts(i)%wt2*tbl(xwghts(i)%ix2,ywghts(i)%ix2,zwghts(i)%ix1,twghts(i)%ix1)
+
+       fx(3) = xwghts(i)%wt1*tbl(xwghts(i)%ix1,ywghts(i)%ix1,zwghts(i)%ix2,twghts(i)%ix1) & ! @ y1, z2, t1
+             + xwghts(i)%wt2*tbl(xwghts(i)%ix2,ywghts(i)%ix1,zwghts(i)%ix2,twghts(i)%ix1)
+       fx(4) = xwghts(i)%wt1*tbl(xwghts(i)%ix1,ywghts(i)%ix2,zwghts(i)%ix2,twghts(i)%ix1) & ! @ y2, z2, t1
+             + xwghts(i)%wt2*tbl(xwghts(i)%ix2,ywghts(i)%ix2,zwghts(i)%ix2,twghts(i)%ix1)
+
+       fx(5) = xwghts(i)%wt1*tbl(xwghts(i)%ix1,ywghts(i)%ix1,zwghts(i)%ix1,twghts(i)%ix2) & ! @ y1, z1, t2
+             + xwghts(i)%wt2*tbl(xwghts(i)%ix2,ywghts(i)%ix1,zwghts(i)%ix1,twghts(i)%ix2)
+       fx(6) = xwghts(i)%wt1*tbl(xwghts(i)%ix1,ywghts(i)%ix2,zwghts(i)%ix1,twghts(i)%ix2) & ! @ y2, z1, t2
+             + xwghts(i)%wt2*tbl(xwghts(i)%ix2,ywghts(i)%ix2,zwghts(i)%ix1,twghts(i)%ix2)
+
+       fx(7) = xwghts(i)%wt1*tbl(xwghts(i)%ix1,ywghts(i)%ix1,zwghts(i)%ix2,twghts(i)%ix2) & ! @ y1, z2, t2
+             + xwghts(i)%wt2*tbl(xwghts(i)%ix2,ywghts(i)%ix1,zwghts(i)%ix2,twghts(i)%ix2)
+       fx(8) = xwghts(i)%wt1*tbl(xwghts(i)%ix1,ywghts(i)%ix2,zwghts(i)%ix2,twghts(i)%ix2) & ! @ y2, z2, t2
+             + xwghts(i)%wt2*tbl(xwghts(i)%ix2,ywghts(i)%ix2,zwghts(i)%ix2,twghts(i)%ix2)
+
+       ! interp y dir
+       fy(1) = ywghts(i)%wt1*fx(1) + ywghts(i)%wt2*fx(2) ! @ z1, t1
+       fy(2) = ywghts(i)%wt1*fx(3) + ywghts(i)%wt2*fx(4) ! @ z2, t1
+       fy(3) = ywghts(i)%wt1*fx(5) + ywghts(i)%wt2*fx(6) ! @ z1, t2
+       fy(4) = ywghts(i)%wt1*fx(7) + ywghts(i)%wt2*fx(8) ! @ z2, t2
+
+       ! interp z dir
+       fz(1) = zwghts(i)%wt1*fy(1) + zwghts(i)%wt2*fy(2) ! @ t1
+       fz(2) = zwghts(i)%wt1*fy(3) + zwghts(i)%wt2*fy(4) ! @ t2
+
+       ! interp t dir
+       res(i) = twghts(i)%wt1*fz(1) + twghts(i)%wt2*fz(2)
+
+    end do
+
+  end function interp4d
+
+  !--------------------------------------------------------------------------
+  !--------------------------------------------------------------------------
+  pure function table_interp_calcwghts( ngrid, xgrid, ncols, xcols) result(wghts )
+
+    integer,  intent(in) :: ngrid        ! number of grid point values
+    real(r8), intent(in) :: xgrid(ngrid) ! grid point values
+    integer,  intent(in) :: ncols        ! number of model columns
+    real(r8), intent(in) :: xcols(ncols) ! values at the model columns
+
+    type(table_interp_wghts) :: wghts(ncols) ! interpolations weights at the model columns
+
+    integer :: i
+
+    do i = 1,ncols
+       wghts(i)%ix2 = find_index(ngrid,xgrid,xcols(i))
+       wghts(i)%ix1 = wghts(i)%ix2 - 1
+       wghts(i)%wt1 = (xgrid(wghts(i)%ix2)-xcols(i)) &
+                     /(xgrid(wghts(i)%ix2)-xgrid(wghts(i)%ix1))
+       wghts(i)%wt2 = 1._8 - wghts(i)%wt1
+    end do
+
+  end function table_interp_calcwghts
 
   ! private methods
   !--------------------------------------------------------------------------
   !--------------------------------------------------------------------------
-  function find_index( values, vx, dimname ) result(ndx)
-    real(r8), intent(in) :: values(:)
+
+  pure function find_index( nvals, vals, vx ) result(ndx)
+    integer,  intent(in) :: nvals
+    real(r8), intent(in) :: vals(nvals)
     real(r8), intent(in) :: vx
-    character(len=*),intent(in) :: dimname
 
     integer :: ndx
 
-    integer  :: nn, i
-
-    ndx = -huge(1)
-
-    nn = size(values)
-
-    do i = 2,nn
-       if (.not.(values(i) > values(i-1))) then
-          call endrun('table_interp_mod: '//dimname &
-               //' values must be monotonically increasing')
-       end if
-    end do
-
-    if ((vx < values(1)) .or. (vx > values(nn))) then
-       call endrun('table_interp_mod: extrapolation is not allowed in the ' &
-            //dimname//' dimension')
-    end if
-
-    find_ndx: do ndx = 1, nn-1
-       if (values(ndx)>vx) exit find_ndx
+    find_ndx: do ndx = 1, nvals-1
+       if (vals(ndx)>vx) exit find_ndx
     end do find_ndx
 
   end function find_index
