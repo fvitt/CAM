@@ -33,7 +33,7 @@ use cam_abortutils,    only: endrun
 use modal_aero_wateruptake, only: modal_aero_wateruptake_dr
 use modal_aero_calcsize,    only: modal_aero_calcsize_diag
 
-use table_interp_mod, only: table_interp, table_interp_wghts, table_interp_updwghts
+use table_interp_mod, only: table_interp, table_interp_wghts, table_interp_calcwghts
 
 implicit none
 private
@@ -859,8 +859,8 @@ subroutine modal_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
 
             ! interpolate coefficients linear in refractive index
 
-            call table_interp_updwghts( prefr, refrtabsw(:,isw), ncol, refr(:ncol), wghtsr )
-            call table_interp_updwghts( prefi, refitabsw(:,isw), ncol, refi(:ncol), wghtsi )
+            wghtsr = table_interp_calcwghts( prefr, refrtabsw(:,isw), ncol, refr(:ncol) )
+            wghtsi = table_interp_calcwghts( prefi, refitabsw(:,isw), ncol, refi(:ncol) )
 
             cext(:,:ncol)= table_interp( ncoef,ncol, prefr,prefi, wghtsr,wghtsi, extpsw(:,:,:,isw))
             cabs(:,:ncol)= table_interp( ncoef,ncol, prefr,prefi, wghtsr,wghtsi, abspsw(:,:,:,isw))
@@ -1397,8 +1397,8 @@ subroutine modal_aero_lw(list_idx, state, pbuf, tauxar)
 
             ! interpolate coefficients linear in refractive index
 
-            call table_interp_updwghts( prefr, refrtablw(:,ilw), ncol, refr(:ncol), wghtsr )
-            call table_interp_updwghts( prefi, refitablw(:,ilw), ncol, refi(:ncol), wghtsi )
+            wghtsr = table_interp_calcwghts( prefr, refrtablw(:,ilw), ncol, refr(:ncol) )
+            wghtsi = table_interp_calcwghts( prefi, refitablw(:,ilw), ncol, refi(:ncol) )
 
             cabs(:,:ncol)= table_interp( ncoef,ncol, prefr,prefi, wghtsr,wghtsi, absplw(:,:,:,ilw))
 
