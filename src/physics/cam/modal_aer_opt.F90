@@ -41,7 +41,7 @@ save
 
 public :: modal_aer_opt_readnl, modal_aer_opt_init, modal_aero_sw, modal_aero_lw
 
-
+real(r8), parameter :: rh2odens = 1._r8/rhoh2o
 character(len=*), parameter :: unset_str = 'UNSET'
 
 ! Namelist variables:
@@ -621,8 +621,6 @@ subroutine modal_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
 
    type(table_interp_wghts) :: wghtsr(state%ncol)
    type(table_interp_wghts) :: wghtsi(state%ncol)
-
-   real(r8), parameter :: rh2odens = 1._r8/rhoh2o
 
    !----------------------------------------------------------------------------
 
@@ -1374,7 +1372,7 @@ subroutine modal_aero_lw(list_idx, state, pbuf, tauxar)
             end do
 
             do i = 1, ncol
-               watervol(i) = qaerwat(i,k)/rhoh2o
+               watervol(i) = qaerwat(i,k)*rh2odens
                wetvol(i)   = watervol(i) + dryvol(i)
                if (watervol(i) < 0.0_r8) then
                   if (abs(watervol(i)) .gt. 1.e-1_r8*wetvol(i)) then
