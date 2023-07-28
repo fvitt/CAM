@@ -622,6 +622,8 @@ subroutine modal_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
    type(table_interp_wghts) :: wghtsr(state%ncol)
    type(table_interp_wghts) :: wghtsi(state%ncol)
 
+   real(r8), parameter :: rh2odens = 1._r8/rhoh2o
+
    !----------------------------------------------------------------------------
 
    lchnk = state%lchnk
@@ -830,7 +832,7 @@ subroutine modal_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
             end do ! species loop
 
             do i = 1, ncol
-               watervol(i) = qaerwat(i,k)/rhoh2o
+               watervol(i) = qaerwat(i,k)*rh2odens
                wetvol(i) = watervol(i) + dryvol(i)
                if (watervol(i) < 0._r8) then
                   if (abs(watervol(i)) .gt. 1.e-1_r8*wetvol(i)) then
