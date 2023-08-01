@@ -2,7 +2,7 @@
  nhtfrq         = 0,-24,-6,-3,-1,1,-24,-120,-240
 
  fincl1         = 'ABSORB', 'ACBZO2', 'ACTREL', 'ALKNIT', 'ALKO2', 'ALKOOH', 'AOA1', 'AOA_NH', 'AODABSdn',
-         'AODBCdn', 'AODdnDUST1', 'AODdnDUST2', 'AODdnDUST3', 'AODdnMODE1', 'AODdnMODE2', 'AODdnMODE3', 'AODDUST2', 'AODDUST',
+         'AODBCdn', 'AODdnDUST01', 'AODdnDUST02', 'AODdnDUST03', 'AODdn_aitken', 'AODdn_accum', 'AODdn_coarse', 'AODDUST02', 'AODDUST',
          'AODNIRstdn', 'AODPOMdn', 'AODSO4dn', 'AODSOAdn', 'AODSSdn', 'AODUVdn', 'AODUVstdn', 'AODVIS', 'AODVISdn',
          'AODVISstdn', 'AQ_SO2', 'AREA', 'AREI', 'AREL', 'bc_a1', 'bc_a1DDF', 'bc_a1SFWET', 'bc_a4',
          'bc_a4_CLXF', 'bc_a4DDF', 'bc_a4SFWET', 'BCARY', 'bc_c1', 'bc_c1DDF', 'bc_c1SFWET', 'bc_c4', 'bc_c4DDF',
@@ -94,7 +94,7 @@
          'WD_CH2O', 'WD_CH3CHO', 'WD_CH3CN', 'WD_CH3COCH3', 'WD_CH3COCHO', 'WD_CH3COOH', 'WD_CH3COOOH', 'WD_CH3OH', 'WD_CH3OOH',
          'WD_CLONO2', 'WD_COF2', 'WD_COFCL', 'WD_EOOH', 'WD_GLYALD', 'WD_H2O2', 'WD_H2SO4', 'WD_HBR', 'WD_HCL',
          'WD_HCN', 'WD_HCOOH', 'WD_HF', 'WD_HNO3', 'WD_HO2NO2', 'WD_HOBR', 'WD_HOCL', 'WD_HONITR', 'WD_HPALD',
-         'WD_HYAC', 'WD_HYDRALD', 'WD_IEPOX', 'WD_ISOPNITA', 'WD_ISOPNITB', 'WD_ISOPNO3', 'WD_ISOPNOOH', 'WD_ISOPOOH', 'WD_IVOC',
+         'WD_HYAC', 'WD_HYDRALD', 'WD_IEPOX', 'WD_ISOPNITA', 'WD_ISOPNITB', 'WD_ISOP', 'WD_ISOPNOOH', 'WD_ISOPOOH', 'WD_IVOC',
          'WD_MACR', 'WD_MACROOH', 'WD_MEKOOH', 'WD_MVK', 'WD_NC4CH2OH', 'WD_NC4CHO', 'WD_NDEP', 'WD_NH3', 'WD_NH4',
          'WD_NHDEP', 'WD_NOA', 'WD_NTERPOOH', 'WD_ONITR', 'WD_PHENOOH', 'WD_POOH', 'WD_ROOH', 'WD_SO2', 'WD_SOAG0',
          'WD_SOAG1', 'WD_SOAG2', 'WD_SOAG3', 'WD_SOAG4', 'WD_SVOC', 'WD_TERP2OOH', 'WD_TERPNIT', 'WD_TERPOOH', 'WD_TERPROD1',
