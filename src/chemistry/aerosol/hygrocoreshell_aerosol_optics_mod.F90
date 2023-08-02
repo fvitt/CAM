@@ -181,35 +181,7 @@ contains
          nfrac=newobj%nfrac, nbcdust=newobj%nbcdust, &
          nkap=newobj%nkap, nrelh=newobj%nrelh)
 
-    where ( newobj%kappa < minval(newobj%tbl_kap) )
-       newobj%kappa = minval(newobj%tbl_kap)
-    end where
-    where ( newobj%kappa > maxval(newobj%tbl_kap) )
-       newobj%kappa = maxval(newobj%tbl_kap)
-    end where
-
     newobj%relh(:ncol,:) = relhum(:ncol,:)
-
-    where ( newobj%relh < minval(newobj%tbl_relh) )
-       newobj%relh = minval(newobj%tbl_relh)
-    end where
-    where ( newobj%relh > maxval(newobj%tbl_relh) )
-       newobj%relh = maxval(newobj%tbl_relh)
-    end where
-
-    where (newobj%corefrac < minval(newobj%tbl_corefrac))
-       newobj%corefrac = minval(newobj%tbl_corefrac)
-    end where
-    where (newobj%corefrac > maxval(newobj%tbl_corefrac))
-       newobj%corefrac = maxval(newobj%tbl_corefrac)
-    end where
-
-    where (newobj%bcdust < minval(newobj%tbl_bcdust))
-       newobj%bcdust = minval(newobj%tbl_bcdust)
-    end where
-    where (newobj%bcdust > maxval(newobj%tbl_bcdust))
-       newobj%bcdust = maxval(newobj%tbl_bcdust)
-    end where
 
     ! long wave optical properties table
     call aero_props%optics_params(ilist, ibin,  &

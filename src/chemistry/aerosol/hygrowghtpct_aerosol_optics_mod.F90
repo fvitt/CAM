@@ -85,12 +85,6 @@ contains
     call aero_props%optics_params(ilist, ibin, wgtpct=newobj%tbl_wgtpct, nwtp=newobj%nwtp)
 
     newobj%wgtpct(:ncol,:) = wgtpct_in(:ncol,:)
-    where ( newobj%wgtpct < minval(newobj%tbl_wgtpct) )
-       newobj%wgtpct = minval(newobj%tbl_wgtpct)
-    end where
-    where ( newobj%wgtpct > maxval(newobj%tbl_wgtpct) )
-       newobj%wgtpct = maxval(newobj%tbl_wgtpct)
-    end where
 
     nspec = aero_props%nspecies(ilist, ibin)
 

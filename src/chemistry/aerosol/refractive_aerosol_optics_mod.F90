@@ -23,7 +23,7 @@ module refractive_aerosol_optics_mod
 
      real(r8), allocatable :: watervol(:,:)   ! volume concentration of water in each mode (m3/kg)
      real(r8), allocatable :: wetvol(:,:)     ! volume concentration of wet mode (m3/kg)
-     real(r8), allocatable :: cheb(:,:,:)     ! chebychef polynomials
+     real(r8), allocatable :: cheb(:,:,:)     ! chebychev polynomials
      real(r8), allocatable :: radsurf(:,:)    ! aerosol surface mode radius
      real(r8), allocatable :: logradsurf(:,:) ! log(aerosol surface mode radius)
 
@@ -43,7 +43,7 @@ module refractive_aerosol_optics_mod
 
      ! Dimension sizes in coefficient arrays used to parameterize aerosol radiative properties
      ! in terms of refractive index and wet radius
-     integer :: ncoef = -1  ! number of chebychef coeficients
+     integer :: ncoef = -1  ! number of chebychev coeficients
      integer :: prefr = -1  ! number of real refractive indices
      integer :: prefi = -1  ! number of imaginary refractive indices
 
@@ -85,7 +85,7 @@ contains
     type(refractive_aerosol_optics), pointer :: newobj
 
     integer :: ierr, icol, ilev, ispec, nspec
-    real(r8) :: vol(ncol)             ! volume concentration of aerosol specie (m3/kg)
+    real(r8) :: vol(ncol)             ! volume concentration of aerosol species (m3/kg)
     real(r8) :: dryvol(ncol)          ! volume concentration of aerosol mode (m3/kg)
     real(r8) :: specdens              ! species density (kg/m3)
     real(r8), pointer :: specmmr(:,:) ! species mass mixing ratio
@@ -93,6 +93,8 @@ contains
 
     real(r8) :: dgnumwet(ncol,nlev)   ! aerosol wet number mode diameter (m)
     real(r8) :: qaerwat(ncol,nlev)    ! aerosol water (g/g)
+
+    real(r8), parameter :: rh2odens = 1._r8/rhoh2o
 
     allocate(newobj, stat=ierr)
     if (ierr/=0) then
@@ -167,7 +169,7 @@ contains
              vol(icol) = specmmr(icol,ilev)/specdens
              dryvol(icol) = dryvol(icol) + vol(icol)
 
-             newobj%watervol(icol,ilev) = qaerwat(icol,ilev)/rhoh2o
+             newobj%watervol(icol,ilev) = qaerwat(icol,ilev)*rh2odens
              newobj%wetvol(icol,ilev) = newobj%watervol(icol,ilev) + dryvol(icol)
              if (newobj%watervol(icol,ilev) < 0._r8) then
                 newobj%watervol(icol,ilev) = 0._r8
@@ -213,15 +215,8 @@ contains
     do icol = 1, ncol
        crefin(icol) = crefin(icol) + self%watervol(icol,ilev)*self%crefwsw(iwav)
        crefin(icol) = crefin(icol)/max(self%wetvol(icol,ilev),1.e-60_r8)
-
        refr(icol) = real(crefin(icol))
-       refr(icol) = max(refr(icol),minval(self%refrtabsw(:,iwav)))
-       refr(icol) = min(refr(icol),maxval(self%refrtabsw(:,iwav)))
-
        refi(icol) = abs(aimag(crefin(icol)))
-       refi(icol) = max(refi(icol),minval(self%refitabsw(:,iwav)))
-       refi(icol) = min(refi(icol),maxval(self%refitabsw(:,iwav)))
-
     end do
 
     ! interpolate coefficients linear in refractive index
@@ -293,12 +288,7 @@ contains
        end if
 
        refr(icol) = real(crefin(icol))
-       refr(icol) = max(refr(icol),minval(self%refrtablw(:,iwav)))
-       refr(icol) = min(refr(icol),maxval(self%refrtablw(:,iwav)))
-
        refi(icol) = aimag(crefin(icol))
-       refi(icol) = max(refi(icol),minval(self%refitablw(:,iwav)))
-       refi(icol) = min(refi(icol),maxval(self%refitablw(:,iwav)))
 
     end do
 
