@@ -2202,7 +2202,7 @@ if ($chem eq 'trop_mam3') {
 }
 
 # CMIP6 emissions
-if (($chem =~ /_mam4/ or $chem =~ /_mam5/) and ($phys =~ /cam6/ or $phys =~ /cam_dev/)) {
+if ($phys =~ /cam6/ or $phys =~ /cam_dev/) {
 
     # OASISS (ocean) DMS emissions
     if (!$aqua_mode and !$scam) {
@@ -2223,37 +2223,40 @@ if (($chem =~ /_mam4/ or $chem =~ /_mam5/) and ($phys =~ /cam6/ or $phys =~ /cam
         }
     }
 
-    my %species;
+    my %species = ('dms_bb_srf_file'     => 'DMS',
+                   'so2_ag_sh_file'      => 'SO2',
+                   'so2_an_srf_file'     => 'SO2',
+                   'so2_bb_srf_file'     => 'SO2');
 
-    # Surface emission datasets:
-    %species = ('dms_bb_srf_file'     => 'DMS',
-                'so2_ag_sh_file'      => 'SO2',
-                'so2_an_srf_file'     => 'SO2',
-                'so2_bb_srf_file'     => 'SO2',
-                'so4_a1_an_srf_file'  => 'so4_a1',
-                'so4_a1_bb_srf_file'  => 'so4_a1',
-                'so4_a2_an_srf_file'  => 'so4_a2',
-                'num_a1_sh_srf_file'  => 'num_a1',
-                'num_a1_bb_srf_file'  => 'num_a1',
-                'num_a2_an_srf_file'  => 'num_a2',
-                'bc_a4_an_srf_file'   => 'bc_a4',
-                'bc_a4_bb_srf_file'   => 'bc_a4',
-                'num_a4_bc_srf_file'  => 'num_a4',
-                'num_a4_oc_srf_file'  => 'num_a4',
-                'num_a4_bb_srf_file'  => 'num_a4',
-                'num_pom_bb_srf_file' => 'num_a4' );
-    if ((not defined $nl->get_value('csw_specifier')) or (not $nl->get_value('csw_specifier') ~~ /DMS/)) {
+    if ($chem =~ /_mam4/ or $chem =~ /_mam5/) {
+
+      # Surface emission datasets:
       %species = (%species,
-                'dms_ot_srf_file'     => 'DMS' );
-    }
-    if ($chem =~ /_vbsext/) {
-      %species = (%species,
-                'pom_a4_an_srf_file'  => 'pomff1_a4',
-                'pom_a4_bb_srf_file'  => 'pombb1_a4' );
-    } else {
-      %species = (%species,
-                'pom_a4_an_srf_file'  => 'pom_a4',
-                'pom_a4_bb_srf_file'  => 'pom_a4' );
+                  'so4_a1_an_srf_file'  => 'so4_a1',
+                  'so4_a1_bb_srf_file'  => 'so4_a1',
+                  'so4_a2_an_srf_file'  => 'so4_a2',
+                  'num_a1_sh_srf_file'  => 'num_a1',
+                  'num_a1_bb_srf_file'  => 'num_a1',
+                  'num_a2_an_srf_file'  => 'num_a2',
+                  'bc_a4_an_srf_file'   => 'bc_a4',
+                  'bc_a4_bb_srf_file'   => 'bc_a4',
+                  'num_a4_bc_srf_file'  => 'num_a4',
+                  'num_a4_oc_srf_file'  => 'num_a4',
+                  'num_a4_bb_srf_file'  => 'num_a4',
+                  'num_pom_bb_srf_file' => 'num_a4' );
+      if ((not defined $nl->get_value('csw_specifier')) or (not $nl->get_value('csw_specifier') ~~ /DMS/)) {
+        %species = (%species,
+                    'dms_ot_srf_file'     => 'DMS' );
+      }
+      if ($chem =~ /_vbsext/) {
+        %species = (%species,
+                    'pom_a4_an_srf_file'  => 'pomff1_a4',
+                    'pom_a4_bb_srf_file'  => 'pombb1_a4' );
+      } else {
+        %species = (%species,
+                    'pom_a4_an_srf_file'  => 'pom_a4',
+                  'pom_a4_bb_srf_file'  => 'pom_a4' );
+      }
     }
 
     # for old simple SOA schemes (without SOAE)
