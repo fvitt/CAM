@@ -29,7 +29,8 @@ module carma_model_flags_mod
   logical, public, protected :: carma_do_WeibullK   = .false.  ! if .true. then use calculated Weibull K, [Monahan, 2006]
   character(len=32), public, protected  :: carma_seasalt_emis  = 'Gong'   ! the source function scheme, either "Gong", "Martensson",
                                                                           ! "Clarke",  "Caffrey", "CMS", "CONST", or "NONE"
-  character(len=32), public, protected  :: carma_BCOCemissions  = 'Yu2015'
+  character(len=32), public, protected  :: carma_BCOCemissions = 'Yu2015'
+  character(len=32), public, protected  :: carma_SO4elevemis   = 'NONE'
   character(len=256), public, protected :: carma_soilerosion_file  = 'NONE'
   character(len=256), public, protected :: BC_GAINS_filename   = 'NONE'
   character(len=256), public, protected :: OC_GAINS_filename   = 'NONE'

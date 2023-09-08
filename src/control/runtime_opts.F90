@@ -97,6 +97,7 @@ subroutine read_namelist(nlfilename, single_column, scmlat, scmlon)
    use qneg_module,         only: qneg_readnl
    use lunar_tides,         only: lunar_tides_readnl
    use surface_emissions_mod, only: surface_emissions_readnl
+   use elevated_emissions_mod, only: elevated_emissions_readnl
 
    !---------------------------Arguments-----------------------------------
 
@@ -195,6 +196,7 @@ subroutine read_namelist(nlfilename, single_column, scmlat, scmlon)
    call ionosphere_readnl(nlfilename)
    call qneg_readnl(nlfilename)
    call surface_emissions_readnl(nlfilename)
+   call elevated_emissions_readnl(nlfilename)
 
 end subroutine read_namelist
 

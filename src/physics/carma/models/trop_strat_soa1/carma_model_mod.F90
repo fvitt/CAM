@@ -18,6 +18,7 @@
 !! @version April-2020
 !! @author  Simone Tilmes, Lin Su, Pengfei Yu, Chuck Bardeen
 !!  changes to pervious version: rename PURSULF to PRSULF to be easier read in in CAM
+!!  Simone Tilmes Aug5 2023: add Ilaria's diagnostic changes and dust, bc, oc deposition fluxes
 
 module carma_model_mod
 
@@ -167,8 +168,12 @@ module carma_model_mod
   integer      :: ipbuf4soapt(NBIN) = -1
   integer      :: ipbuf4jno2 = -1
   real(kind=f) :: aeronet_fraction(NBIN)  !! fraction of BC dV/dlnr in each bin (100%)
+  real(kind=f) :: so4inj_dist(NBIN)       !! SO4 injection distribution across bins using a log normal distr. using r=0.95 and sigma =1.5
+  real(kind=f) :: so4inj_dist1(NBIN)      !! SO4 injection distribution across bins using a log normal distr. using r=0.95 and sigma =1.5
 
   integer :: bc_srfemis_ndx=-1, oc_srfemis_ndx=-1
+  integer :: so4_elevemis_ndx=-1
+  integer :: carma_dustmap(NBIN)        !! mapping of the CARMA dust bins to the surface dust bins.
 
   ! define refractive indices dependon composition and wavelength
   !
@@ -225,14 +230,14 @@ module carma_model_mod
               0.624_f,0.604_f,0.593_f,0.586_f,0.580_f,0.556_f,&
               0.556_f,0.527_f,0.503_f,0.492_f,0.481_f,0.458_f,0.451_f,0.440_f,0.430_f,0.443_f,&
               0.461_f,0.470_f,0.450_f,0.674_f/)
-              
+
   real(kind=f), public, parameter :: waterreal(NWAVE)    = &
    (/ 1.532_f, 1.523857_f, 1.420063_f, 1.274308_f, &
       1.161387_f, 1.142222_f, 1.232189_f, 1.266436_f, 1.295687_f, 1.320659_f, 1.341516_f, &
       1.315192_f, 1.330235_f, 1.339058_f, 1.350425_f, 1.408042_f, 1.408042_f, 1.324462_f, &
       1.276726_f, 1.301847_f, 1.312051_f, 1.321301_f, 1.322836_f, 1.326836_f, 1.330968_f, &
       1.33367_f, 1.339547_f, 1.348521_f, 1.362_f, 1.290783_f /)
-      
+
   real(kind=f), public, parameter :: waterimag(NWAVE)    = &
    (/ 0.336_f, 0.36000001_f, 0.42623809_f, 0.40341724_f, &
       0.32062717_f, 0.11484398_f, 0.04710282_f, 0.03901278_f, 0.03373134_f, 0.03437707_f, &
@@ -242,7 +247,7 @@ module carma_model_mod
       3.74323598e-08_f, 1.63841034e-09_f, 2.49434956e-09_f, 1.52413800e-08_f, &
       3.35000010e-08_f, 3.43825518e-02_f /)
 
-              
+
 
 contains
 
@@ -621,8 +626,9 @@ contains
     real(r8)                             :: wtpct(cstate%f_NZ)    !! sulfate weight percent
     real(r8)                             :: rmass(NBIN)           !! dry mass
     real(r8)                             :: rhop_dry(cstate%f_NZ) !! dry particle density [g/cm3]
+    real(r8)                             :: sflx                  !! surface flux (kg/m2/s)
 
-    integer                              :: ibin, igroup, igas, icomposition
+    integer                              :: ibin, igroup, igas, icomposition, ielem
     integer                              :: icorelem(NELEM), ncore,ienconc,icore
     character(len=8)                     :: sname                 !! short (CAM) name
 
@@ -775,6 +781,45 @@ contains
       end do !NBIN
     end do !NGROUP
 
+    !----------------- Zhu 2022 05 21 ---------------------
+    ! Add the sedimentation and dry deposition fluxes to the hydrophilic black carbon.
+    !
+    ! NOTE: Don't give the surface model negative values for the surface fluxes.
+    ielem = I_ELEM_MXBC
+    do ibin = 1, NBIN
+
+      call CARMASTATE_GetBin(cstate, ielem, ibin, mmr, rc, sedimentationFlux=sflx)
+      if (rc < 0) call endrun('CARMA_DiagnoseBulk::CARMA_GetBin failed.')
+
+      cam_out%bcphidry(icol) = cam_out%bcphidry(icol) + max(sflx, 0._r8)
+    end do
+    ielem = I_ELEM_MXOC
+    do ibin = 1, NBIN
+
+      call CARMASTATE_GetBin(cstate, ielem, ibin, mmr, rc, sedimentationFlux=sflx)
+      if (rc < 0) call endrun('CARMA_DiagnoseBulk::CARMA_GetBin failed.')
+
+      cam_out%ocphidry(icol) = cam_out%ocphidry(icol) + max(sflx, 0._r8)
+    end do
+
+    ielem = I_ELEM_MXDUST
+    do ibin = 1, NBIN
+
+       call CARMASTATE_GetBin(cstate, ielem, ibin, mmr, rc, sedimentationFlux=sflx)
+       if (rc < 0) call endrun('CARMA_DiagnoseBulk::CARMA_GetBin failed.')
+
+       if (carma_dustmap(ibin) == 1) then
+          cam_out%dstdry1(icol) = cam_out%dstdry1(icol) + max(sflx, 0._r8)
+       else if (carma_dustmap(ibin) == 2) then
+          cam_out%dstdry2(icol) = cam_out%dstdry2(icol) + max(sflx, 0._r8)
+       else if (carma_dustmap(ibin) == 3) then
+          cam_out%dstdry3(icol) = cam_out%dstdry3(icol) + max(sflx, 0._r8)
+       else if (carma_dustmap(ibin) == 4) then
+          cam_out%dstdry4(icol) = cam_out%dstdry4(icol) + max(sflx, 0._r8)
+       end if
+    end do
+    !----------------- Zhu 2022 05 21 ---------------------
+
     return
   end subroutine CARMAMODEL_DiagnoseBulk
 
@@ -811,11 +856,15 @@ contains
     integer      :: lchnk                   ! chunk identifier
     integer      :: ncol                    ! number of columns in chunk
     integer      :: icol                    ! column index
+    integer      :: p                       ! plev index
     integer      :: yr                      ! year
     integer      :: mon                     ! month
     integer      :: day                     ! day of month
     integer      :: ncsec                   ! time of day (seconds)
     real(r8)     :: smoke(pcols)            ! smoke emission flux (molecues/cm2/s)
+    real(r8)     :: rhoa(pcols,pver)        ! density of air  g/cm3
+    real(r8)     :: so4_inj(pcols,pver)     ! so4 emission flux (molecues/cm3/s)
+    real(r8)     :: so4_tendency_factor(pcols,pver)     ! Convertion factor from molec/cm3/s to kg/kg/s
     integer      :: igroup                  ! the index of the carma aerosol group
     character(len=32) :: shortname          ! the shortname of the group
 
@@ -849,10 +898,12 @@ contains
     real(r8),parameter :: SmoketoSufaceFlux = 1.9934e-22_r8 ! SmoketoSufaceFlux = BC molecular weight
                                                             ! (12 g/mol)/avocadro constant (6e-23 #/mol) *10
     real(r8), pointer :: BCemis_ptr(:), OCemis_ptr(:)
+    real(r8), pointer :: SO4elevemis_ptr(:,:)
 
     ! Default return code.
     rc = RC_OK
     smoke(:) = -huge(1._r8)
+    so4_inj(:,:) = -huge(1._r8)
     ch = carma_dustemisfactor
 
     ! Determine the day of year.
@@ -910,6 +961,9 @@ contains
       call pbuf_get_field(pbuf, bc_srfemis_ndx, BCemis_ptr)
       call pbuf_get_field(pbuf, oc_srfemis_ndx, OCemis_ptr)
     end if
+    if(carma_SO4elevemis== 'Specified')then
+      call pbuf_get_field(pbuf, so4_elevemis_ndx, SO4elevemis_ptr)
+    end if
 
     ! Organic carbon emssions
     if ((ielem == I_ELEM_MXOC) .or. (ielem == I_ELEM_MXAER)) then
@@ -938,6 +992,42 @@ contains
        end if
 
        surfaceFlux(:ncol) = surfaceFlux(:ncol) + smoke(:ncol)*aeronet_fraction(ibin)*SmoketoSufaceFlux
+    end if
+
+    if(carma_SO4elevemis == 'Specified') then
+       ! Sulfate emissions
+       if (ielem == I_ELEM_PRSUL)  then
+          ! convert from #/kg to kg/kg  = 1.e-3 *  mw/avog (6e-23)    !kg/kg
+          ! convert from #/cm3/s to kg/kg/s = 1.e3 * density of air * mw / avog
+          !AVG: molec/mol R_AIR: units?
+          !rhoa
+          !number Density
+          !rhoa(:ncol,:) = 10._r8 * state%pmid(:ncol,:) / (R_AIR * state%t(:ncol,:))
+          !pmid is in Pa (Pa->dynes (factor of 10.), T (K), -> g/cm3
+
+          !so4_tendency_factor(:ncol,:) = rhoa(:ncol,:) * WTMOL_H2SO4 / AVG  !molec/cm3/s to kg/kg
+
+          so4_inj(:ncol,:) = SO4elevemis_ptr(:ncol,:)
+
+
+          ! set so4_inj larger 0. because of potential negative missing values
+          do icol = 1,ncol
+             do p = 1,pver
+                rhoa(icol,p) = 10._r8 * state%pmid(icol,p) / (R_AIR * state%t(icol,p))
+                !pmid is in Pa (Pa->dynes (factor of 10.), T (K), -> g/cm3
+                !emis = molec/cm3/s
+                !rhoa = g/cm3
+                !mw = g/mol
+                !avg =  molec/mol
+                !so4_tendency_factor(icol,p) = rhoa(icol,p) * WTMOL_H2SO4 / AVG  !molec/cm3/s to kg/kg
+                so4_tendency_factor(icol,p) =  WTMOL_H2SO4 / AVG / rhoa(icol,p)  !molec/cm3/s to kg/kg
+                so4_inj(icol,p) = max(0._r8,so4_inj(icol,p))
+                if (so4_inj(icol,p).gt.0._r8) then
+                   tendency(icol,p) = so4_inj(icol,p)*so4inj_dist(ibin)*so4_tendency_factor(icol,p)
+                end if
+             end do
+          end do
+       end if
     end if
 
     ! Dust emissions
@@ -1059,7 +1149,7 @@ contains
 
     ! -------- local variables ----------
     integer            :: ibin                                ! CARMA bin index
-    real(r8)           :: rdust(NBIN),robc(NBIN),drobc(NBIN),rm(NBIN),rhop(NBIN)       ! bin center (cm)
+    real(r8)           :: r(NBIN), dr(NBIN), rdust(NBIN),robc(NBIN),drobc(NBIN),rm(NBIN),rhop(NBIN)       ! bin center (cm)
     integer            :: count_Silt                          ! count number for Silt
     integer            :: igroup                              ! the index of the carma aerosol group
     integer            :: ielem                               ! the index of the carma aerosol element
@@ -1075,6 +1165,8 @@ contains
     real(r8),dimension(NBIN) :: sizedist_carmabin
     real(r8) :: rmass(NBIN) !! dry mass
     real(r8) :: vrfact
+    real(r8) :: rgeo
+    real(r8) :: siglog, siglogsq, sq2pi
     character(len=16)    :: binname      !! names bins
 
     real(r8),parameter :: size_aeronet(aeronet_dim1) = (/0.050000_r8,0.065604_r8,0.086077_r8,0.112939_r8,0.148184_r8, &
@@ -1083,6 +1175,31 @@ contains
 
     ! Default return code.
     rc = RC_OK
+
+    ! ----------------- Zhu 2022 5 21 ------------------
+    ! Create a mapping of the CARMA dust bins to the dust sizes assumed at the
+    ! surface. The sizes of the dust bins at the surface are from Mahowald et al.
+    ! [2006].
+    !
+    !   1 :  0.1 - 1.0 um
+    !   2 :  1.0 - 2.5 um
+    !   3 :  2.5 - 5.0 um
+    !   4 :  5.0 - 10.0 um
+    call CARMAGROUP_GET(carma, I_GRP_MXAER, rc, r=r)
+    if (RC < RC_ERROR) return
+
+    ! should it be wet radius or dry radius?
+    do i = 1, NBIN
+      if (r(i) .le. 1e-4_f) then
+        carma_dustmap(i)  = 1
+      else if (r(i) .le. 2.5e-4_f) then
+        carma_dustmap(i) = 2
+      else if (r(i) .le. 5e-4_f) then
+        carma_dustmap(i) = 3
+      else
+        carma_dustmap(i) = 4
+      end if
+    end do
 
     ! Determine how many clay and how many silt bins there are, based
     ! upon the bin definitions and rClay.
@@ -1156,6 +1273,11 @@ contains
     if(carma_BCOCemissions == 'Specified')then
        bc_srfemis_ndx = pbuf_get_index("BC_srfemis")
        oc_srfemis_ndx = pbuf_get_index("OC_srfemis")
+    end if
+
+    ! prescribed sulfate emissions for stratospheric aerosol injections
+    if(carma_SO4elevemis == 'Specified')then
+       so4_elevemis_ndx = pbuf_get_index("SO4_elevemis")
     end if
 
     if (is_first_step()) then
@@ -1251,12 +1373,37 @@ contains
 
       end if
     end do
-        ! Provide diagnostics on the SOA tendencies that affect MXAER.
-    do ibin = 1, NBIN
-      write(binname, '(A, I2.2)') "MXSOA", ibin
 
-      call addfld(trim(binname)//"CM", (/ 'lev' /), 'A', 'kg/kg/s', 'MXAER SOA gas condensation tendency')
-      call addfld(trim(binname)//"PT", (/ 'lev' /), 'A', 'kg/kg/s', 'MXAER SOA photolysis tendency')
+    ! Produce lognormal size distribtuion for sulfate emissions (SO4 geoengienering experiments)
+
+    ! Define specific for SO4 injection, e.g.,mean dry radius: 0.095, sigma = 1.5
+    so4inj_dist(:) = 0.0_r8
+    so4inj_dist1(:) = 0.0_r8
+    rgeo=0.095e-4_f                    ! mean radius for aerosol injections in cm
+    siglog=log(1.5_r8)    ! assumed log normal distribtuion around mean radius for aerosol injections
+    siglogsq=siglog**2_f
+    sq2pi = sqrt(2._r8*pi)
+    !aer_Vrat =  vmrat_PRSUL
+
+    call CARMAGROUP_GET(carma, I_GRP_PRSUL, rc, r=r, dr=dr, shortname=shortname, rmass=rmass)
+
+    !interpolate into carma bin
+
+    do ibin_local = 1, NBIN
+       ! Size Distribution-Parameter: log-normal distribution applied using Seinfeld and Pandis (2016)
+       so4inj_dist1(ibin_local)=dr(ibin_local)/(r(ibin_local)*sq2pi*siglog)*exp(-(((log(r(ibin_local)/rgeo))**2._r8)/(2._r8*siglogsq)))
+       so4inj_dist(ibin_local)=dr(ibin_local)/(r(ibin_local)*sq2pi*siglog)*exp(-(((log(r(ibin_local)/rgeo))**2._r8)/(2._r8*siglogsq)))
+       so4inj_dist1(ibin_local) = so4inj_dist1(ibin_local) *rmass(ibin_local)
+    end do
+    so4inj_dist(:) = so4inj_dist(:) / sum(so4inj_dist)
+    so4inj_dist1(:) = so4inj_dist1(:) / sum(so4inj_dist1)
+
+    ! Provide diagnostics on the SOA tendencies that affect MXAER.
+    do ibin = 1, NBIN
+       write(binname, '(A, I2.2)') "MXSOA", ibin
+
+       call addfld(trim(binname)//"CM", (/ 'lev' /), 'A', 'kg/kg/s', 'MXAER SOA gas condensation tendency')
+       call addfld(trim(binname)//"PT", (/ 'lev' /), 'A', 'kg/kg/s', 'MXAER SOA photolysis tendency')
     end do
 
     ! Provide diagnostics for SO4 tendencies from other physics packages
@@ -1344,6 +1491,15 @@ contains
       end do
     end if
 
+   ! Provide diagnostics for Mass mixing ration summed over the bins
+    call addfld("SO4PRMR", (/ 'lev' /), 'A', 'kg/kg', 'SO4 pure mass mixing ratio')
+    call addfld("MXSO4MR", (/ 'lev' /), 'A', 'kg/kg', 'SO4 mixed mass mixing ratio')
+    call addfld("MXBCMR", (/ 'lev' /), 'A', 'kg/kg', 'BC mixed mass mixing ratio')
+    call addfld("MXDUSTMR", (/ 'lev' /), 'A', 'kg/kg', 'DUST mixed mass mixing ratio')
+    call addfld("MXOCMR", (/ 'lev' /), 'A', 'kg/kg', 'OC mixed mass mixing ratio')
+    call addfld("MXSALTMR", (/ 'lev' /), 'A', 'kg/kg', 'SALT mixed mass mixing ratio')
+    call addfld("MXSOAMR", (/ 'lev' /), 'A', 'kg/kg', 'SOA mixed mass mixing ratio')
+
     return
   end subroutine CARMAMODEL_InitializeModel
 
@@ -1379,10 +1535,10 @@ contains
   end subroutine CARMAMODEL_InitializeParticle
 
 
-  !! This routine is an extension of CARMA_CreateOpticsFile() that allows for 
+  !! This routine is an extension of CARMA_CreateOpticsFile() that allows for
   !! model specific tables to be created in addition to the model independent
   !! methods that are in carma_intr.F90.
-  !!  
+  !!
   !! The opticsType that is specified for the group determines how the optical
   !! properties will be generated for that group. Each group can use a different
   !! optics method if needed. Refractive indices need for these calculation are
@@ -3046,6 +3202,13 @@ contains
     real(r8)                             :: bdoc(pcols)    !! Burden OC sulfate (kg/m2)
     real(r8)                             :: bdsalt(pcols)  !! Burden SALT sulfate (kg/m2)
     real(r8)                             :: bdsoa(pcols)   !! Burden SOA sulfate (kg/m2)
+    real(r8)                             :: pureso4mr(pcols,pver) !! Mixing ratio pure sulfate (kg/kg)
+    real(r8)                             :: mixso4mr(pcols,pver)  !! Mixing ratio mix sulfate (kg/kg)
+    real(r8)                             :: bcmr(pcols,pver)      !! Mixing ratio BC sulfate (kg/kg)
+    real(r8)                             :: dustmr(pcols,pver)    !! Mixing ratio dust (kg/kg)
+    real(r8)                             :: ocmr(pcols,pver)      !! Mixing ratio OC sulfate (kg/kg)
+    real(r8)                             :: saltmr(pcols,pver)    !! Mixing ratio SALT sulfate (kg/kg)
+    real(r8)                             :: soamr(pcols,pver)     !! Mixing ratio SOA sulfate (kg/kg)
     character(len=16)                    :: shortname
 
     ! Default return code.
@@ -3087,6 +3250,15 @@ contains
     bdsalt(:)  = 0._r8
     bdsoa(:)   = 0._r8
 
+    ! Output the mixing ratio
+    pureso4mr(:,:) = 0._r8
+    mixso4mr(:,:)  = 0._r8
+    bcmr(:,:)      = 0._r8
+    dustmr(:,:)    = 0._r8
+    ocmr(:,:)      = 0._r8
+    saltmr(:,:)    = 0._r8
+    soamr(:,:)     = 0._r8
+
     ! Add up the sulfate tendencies.
     do icol = 1, state%ncol
 
@@ -3101,6 +3273,7 @@ contains
         call CARMAGROUP_Get(carma, I_GRP_PRSUL, rc, ienconc=ienconc)
         icnst = icnst4elem(ienconc, ibin)
 
+        pureso4mr(icol,:) = pureso4mr(icol,:) + state%q(icol,:,icnst)
         pureso4(icol) = pureso4(icol) + sum(state%q(icol,:,icnst) * mair(:))
 
         cprflux = cprflux + cam_in%cflx(icol,icnst)
@@ -3110,6 +3283,7 @@ contains
         call CARMAGROUP_Get(carma, I_GRP_MXAER, rc, ienconc=ienconc, ncore=ncore, icorelem=icorelem)
         icnst = icnst4elem(ienconc, ibin)
 
+        mixso4mr(icol,:) = mixso4mr(icol,:) + state%q(icol, :, icnst)
         mixso4(icol) = mixso4(icol) + sum(state%q(icol, :, icnst) * mair(:))
 
         cmxflux(icol) = cmxflux(icol) + cam_in%cflx(icol,icnst)
@@ -3121,14 +3295,19 @@ contains
 
           call CARMAELEMENT_Get(carma, icorelem(i), rc, shortname=shortname)
           if (shortname .eq. "MXBC") then
+            bcmr(icol,:) = bcmr(icol,:) + state%q(icol,:,icnst)
             bdbc(icol) = bdbc(icol) + sum(state%q(icol,:,icnst) * mair(:))
           else if (shortname .eq. "MXDUST") then
+            dustmr(icol,:) = dustmr(icol,:) + state%q(icol,:,icnst)
             bddust(icol) = bddust(icol) + sum(state%q(icol,:,icnst) * mair(:))
           else if (shortname .eq. "MXOC") then
+            ocmr(icol,:) = ocmr(icol,:) + state%q(icol,:,icnst)
             bdoc(icol) = bdoc(icol) + sum(state%q(icol,:,icnst) * mair(:))
           else if (shortname .eq. "MXSALT") then
+            saltmr(icol,:) = saltmr(icol,:) + state%q(icol,:,icnst)
             bdsalt(icol) = bdsalt(icol) + sum(state%q(icol,:,icnst) * mair(:))
           else if (shortname .eq. "MXSOA") then
+            soamr(icol,:) = soamr(icol,:) + state%q(icol,:,icnst)
             bdsoa(icol) = bdsoa(icol) + sum(state%q(icol,:,icnst) * mair(:))
           end if
 
@@ -3158,6 +3337,15 @@ contains
        call outfld("MXSALTBD", bdsalt(:), pcols, state%lchnk)
        call outfld("MXSOABD", bdsoa(:), pcols, state%lchnk)
     endif
+
+    ! Output the total aerosol mixing ratio
+    call outfld("SO4PRMR", pureso4mr(:,:), pcols, state%lchnk)
+    call outfld("MXSO4MR", mixso4mr(:,:), pcols, state%lchnk)
+    call outfld("MXBCMR", bcmr(:,:), pcols, state%lchnk)
+    call outfld("MXDUSTMR", dustmr(:,:), pcols, state%lchnk)
+    call outfld("MXOCMR", ocmr(:,:), pcols, state%lchnk)
+    call outfld("MXSALTMR", saltmr(:,:), pcols, state%lchnk)
+    call outfld("MXSOAMR", soamr(:,:), pcols, state%lchnk)
 
     return
   end subroutine CARMAMODEL_OutputDiagnostics
@@ -3987,7 +4175,7 @@ contains
     rc = RC_OK
 
     if(dycore_is('UNSTRUCTURED') ) then
-       call endrun('CARMA_InitializeModel: Yu2015 emissions not implemented for unstructured grids' )
+       call endrun('CARMAMODEL_BCOCRead: Yu2015 emissions not implemented for unstructured grids' )
     end if
 
     ! get model lat and lon

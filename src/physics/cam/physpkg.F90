@@ -154,6 +154,7 @@ contains
     use spcam_drivers,      only: spcam_register
     use offline_driver,     only: offline_driver_reg
     use surface_emissions_mod, only: surface_emissions_reg
+    use elevated_emissions_mod, only: elevated_emissions_reg
 
     !---------------------------Local variables-----------------------------
     !
@@ -261,6 +262,7 @@ contains
        endif
 
        call surface_emissions_reg()
+       call elevated_emissions_reg()
 
        ! register chemical constituents including aerosols ...
        call chem_register()
@@ -769,6 +771,7 @@ contains
     use cam_history,        only: addfld, register_vector_field, add_default
     use phys_control,       only: phys_getopts
     use surface_emissions_mod, only: surface_emissions_init
+    use elevated_emissions_mod, only: elevated_emissions_init
 
     ! Input/output arguments
     type(physics_state), pointer       :: phys_state(:)
@@ -848,6 +851,7 @@ contains
     ! initialize carma
     call carma_init(pbuf2d)
     call surface_emissions_init(pbuf2d)
+    call elevated_emissions_init(pbuf2d)
 
     ! solar irradiance data modules
     call solar_data_init()
@@ -1446,7 +1450,7 @@ contains
     real(r8), pointer, dimension(:,:) :: ducore
     real(r8), pointer, dimension(:,:) :: dvcore
     real(r8), pointer, dimension(:,:) :: ast     ! relative humidity cloud fraction
-    
+
     ! CARMA diagnostics
     real(r8)   :: aerclddiag(pcols,MAXCLDAERDIAG) !! the cloudborne aerosol diags snapshot
     real(r8)   :: old_cflux(pcols,pcnst)  !! cam_in%clfux from before the timestep_tend
@@ -1498,11 +1502,11 @@ contains
             + cam_out%precl(i))*latvap*rhoh2o &
             + (cam_out%precsc(i) + cam_out%precsl(i))*latice*rhoh2o
     end do
-    
+
     ! Add a diagnostic term for the aerosol emissions coupled from the surface.
     lq_none(:) = .false.
     call physics_ptend_init(ptend,state%psetcols, 'surf_emissions', lq=lq_none)
-    
+
 
     ! emissions of aerosols and gas-phase chemistry constituents at surface
 
@@ -1520,7 +1524,7 @@ contains
     call physics_ptend_init(ptend,state%psetcols, 'chem_emissions', lq=lq_none)
     call carma_output_budget_diagnostics(state, ptend, old_cflux, cam_in%cflx, ztodt, "CHEMEMIS")
     call carma_output_cloudborne_diagnostics(state, pbuf, "CHEMEMIS", ztodt, aerclddiag)
-    
+
     if (trim(cam_take_snapshot_after) == "chem_emissions") then
        call cam_snapshot_all_outfld_tphysac(cam_snapshot_after_num, state, tend, cam_in, cam_out, pbuf,&
                     fh2o, surfric, obklen, flx_heat)
@@ -2085,6 +2089,7 @@ contains
     use ssatcontrail,       only: ssatcontrail_d0
     use dyn_tests_utils, only: vc_dycore
     use surface_emissions_mod,only: surface_emissions_set
+    use elevated_emissions_mod,only: elevated_emissions_set
 
     ! Arguments
 
@@ -2190,7 +2195,7 @@ contains
     real(r8) :: zero_tracers(pcols,pcnst)
 
     logical   :: lq(pcnst)
-    
+
     ! For aerosol budget diagnostics
     character(len=16)    :: pname      !! package name
     real(r8)             :: aerclddiag(pcols, MAXCLDAERDIAG) !! the cloudborne aerosol diags snapshot
@@ -2269,9 +2274,9 @@ contains
     call calc_te_and_aam_budgets(state, 'phBF')
     call calc_te_and_aam_budgets(state, 'dyBF',vc=vc_dycore)
     if (.not.dycore_is('EUL')) then
-      
+
        call check_energy_fix(state, ptend, nstep, flx_heat)
-      
+
        call physics_update(state, ptend, ztodt, tend)
        call carma_fix_pbuf( state, pbuf )
        call check_energy_chng(state, tend, "chkengyfix", nstep, ztodt, zero, zero, zero, flx_heat)
@@ -2312,22 +2317,24 @@ contains
     ! relationships.
     !===================================================
     call t_startf('carma_mass_fixer')
-    
+
     old_cflux = cam_in%cflx
     call carma_calculate_cloudborne_diagnostics(state, pbuf, aerclddiag)
-    
+
     call carma_checkstate_global(state, ptend, ztodt)
-  
+
     call carma_output_budget_diagnostics(state, ptend, old_cflux, cam_in%cflx, ztodt, "CRGFIX")
     call carma_output_cloudborne_diagnostics(state, pbuf, "CRGFIX", ztodt, aerclddiag)
 
     call physics_update(state, ptend, ztodt, tend)
     call carma_fix_pbuf( state, pbuf )
-    
+
     call t_stopf('carma_mass_fixer')
-    
-    
+
+
     call surface_emissions_set( lchnk, ncol, pbuf )
+
+    call elevated_emissions_set( lchnk, ncol, pbuf )
 
     !
     !===================================================
@@ -2621,7 +2628,7 @@ contains
 
              ! These need to be reported before the scaling as they are based
              ! on the substep size not ztodt.
-             write(pname, '(A, I2.2)') "CLUBB", macmic_it     
+             write(pname, '(A, I2.2)') "CLUBB", macmic_it
 
              ! Unfortunately, physics_update does not know what time period
              ! "tend" is supposed to cover, and therefore can't update it
@@ -2761,7 +2768,7 @@ contains
 
           ! These need to be reported before the scaling as they are based
           ! on the substep size not ztodt.
-          write(pname, '(A, I2.2)') "MICROP", macmic_it     
+          write(pname, '(A, I2.2)') "MICROP", macmic_it
           call carma_output_budget_diagnostics(state, ptend, old_cflux, cam_in%cflx, ztodt/cld_macmic_num_steps, pname)
           call carma_output_cloudborne_diagnostics(state, pbuf, pname, ztodt/cld_macmic_num_steps, aerclddiag)
 
@@ -2996,6 +3003,7 @@ subroutine phys_timestep_init(phys_state, cam_in, cam_out, pbuf2d)
   use nudging,             only: Nudge_Model, nudging_timestep_init
   use waccmx_phys_intr,    only: waccmx_phys_ion_elec_temp_timestep_init
   use surface_emissions_mod,only: surface_emissions_adv
+  use elevated_emissions_mod,only: elevated_emissions_adv
 
   implicit none
 
@@ -3017,6 +3025,7 @@ subroutine phys_timestep_init(phys_state, cam_in, cam_out, pbuf2d)
   ! Chemistry surface values
   call chem_surfvals_set()
   call surface_emissions_adv(pbuf2d, phys_state)
+  call elevated_emissions_adv(pbuf2d, phys_state)
 
   ! Solar irradiance
   call solar_data_advance()

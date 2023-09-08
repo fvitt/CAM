@@ -80,7 +80,7 @@
 <ncdata dyn="fv"  hgrid="1.9x2.5"   nlev="32"  aquaplanet="1" carma="trop_strat_soa5">atm/cam/inic/fv/aqua_carma_trop_strat_0002-01-01_1.9x2.5_L32_c220304.nc</ncdata>
 
 <ncdata dyn="fv"  hgrid="10x15"     nlev="70"  aquaplanet="1" carma="trop_strat_soa1">atm/waccm/ic/aqua_carma_waccm_0002-01-01_10x15_L70_c220325.nc</ncdata>
-<ncdata dyn="fv"  hgrid="1.9x2.5"   nlev="70"                 carma="trop_strat_soa1">atm/cam/inic/fv/FWmaCARMAnudged.f19_f19_mg17.carma_trop_strat.2000.001.cam.i.2001-01-01-00000_c220325.nc</ncdata>
+<ncdata dyn="fv"  hgrid="1.9x2.5"   nlev="70"                 carma="trop_strat_soa1">atm/cam/inic/fv/FWmaCARMAHIST.f19_f19_mg17.carma_trop_strat14.1990_2000.dust_bc_oc_surface_coupling.cam.i.1991-01-01-00000_c230908.nc</ncdata>
 <ncdata dyn="fv"  hgrid="1.9x2.5"   nlev="70"  aquaplanet="1" carma="trop_strat_soa1">atm/cam/inic/fv/aqua_carma_waccm_0002-01-01_1.9x2.5_L70_c220809.nc</ncdata>
 <ncdata dyn="fv"  hgrid="0.9x1.25"  nlev="70"                 carma="trop_strat_soa1">atm/waccm/ic/FWmaCARMAHIST_f09_spinup01.cam.i.1980-01-01-00000_c220128.nc</ncdata>
 
