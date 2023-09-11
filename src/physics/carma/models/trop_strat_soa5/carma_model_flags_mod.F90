@@ -69,6 +69,7 @@ contains
       carma_do_WeibullK, &
       carma_seasalt_emis, &
       carma_BCOCemissions, &
+      carma_SO4elevemis, &
       carma_soilerosion_file, &
       BC_GAINS_filename, &
       OC_GAINS_filename, &
@@ -96,7 +97,8 @@ contains
     call mpibcast(carma_soilerosion_file,      len(carma_soilerosion_file),       mpichar, 0, mpicom)
     call mpibcast(carma_do_WeibullK,   1,                       mpilog,  0, mpicom)
     call mpibcast(carma_seasalt_emis, len(carma_seasalt_emis), mpichar, 0, mpicom)
-    call mpibcast(carma_BCOCemissions, len(carma_BCOCemissions), mpichar, 0, mpicom)
+    call mpibcast(carma_BCOCemissions,len(carma_BCOCemissions), mpichar, 0, mpicom)
+    call mpibcast(carma_SO4elevemis,  len(carma_SO4elevemis), mpichar, 0, mpicom)
     call mpibcast(BC_GAINS_filename,  len(BC_GAINS_filename), mpichar, 0, mpicom)
     call mpibcast(OC_GAINS_filename,  len(OC_GAINS_filename), mpichar, 0, mpicom)
     call mpibcast(BC_ship_filename,   len(BC_ship_filename), mpichar, 0, mpicom)
