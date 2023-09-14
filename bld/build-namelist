@@ -3140,7 +3140,7 @@ add_default($nl, 'microp_aero_wsubi_min');
 
 # Ice nucleation options
 if (!$simple_phys) {
-    if ($chem =~ /_mam/) {
+    if ($chem =~ /_mam/ or $carma =~ /trop_strat/) {
         add_default($nl, 'use_hetfrz_classnuc');
     } else {
         add_default($nl, 'use_hetfrz_classnuc', 'val'=>'.false.');

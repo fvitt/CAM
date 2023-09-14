@@ -179,12 +179,18 @@ subroutine nucleate_ice_cam_init(mincld_in, bulk_scale_in, pbuf2d, aero_props)
    !--------------------------------------------------------------------------------------------
    call phys_getopts(prog_modal_aero_out = prog_modal_aero, history_cesm_forcing_out = history_cesm_forcing)
 
+   ! clim_modal_aero determines whether modal or carma aerosols are used in the climate calculation.
+   ! The modal aerosols can be either prognostic or prescribed.
+   call rad_cnst_get_info(0, nmodes=nmodes, nbins=nbins)
+
+   clim_modal_carma = (nmodes > 0) .or. (nbins > 0)
+
    mincld     = mincld_in
    bulk_scale = bulk_scale_in
 
    lq(:) = .false.
 
-   if (prog_modal_aero.and.use_preexisting_ice) then
+   if (clim_modal_carma.and.use_preexisting_ice) then
 
       if (.not. present(aero_props)) then
          call endrun(routine//' :  aero_props must be present')
@@ -325,12 +331,6 @@ subroutine nucleate_ice_cam_init(mincld_in, bulk_scale_in, pbuf2d, aero_props)
          call add_default ('INFreIN ', 1, ' ')
       end if
    end if
-
-   ! clim_modal_aero determines whether modal or carma aerosols are used in the climate calculation.
-   ! The modal aerosols can be either prognostic or prescribed.
-   call rad_cnst_get_info(0, nmodes=nmodes, nbins=nbins)
-
-   clim_modal_carma = (nmodes > 0) .or. (nbins > 0)
 
    if (.not. clim_modal_carma) then
 
@@ -659,7 +659,7 @@ subroutine nucleate_ice_cam_calc( &
             ! in the next timestep and will supress homogeneous freezing.
 
 
-            if (prog_modal_aero .and. use_preexisting_ice) then
+            if (clim_modal_carma .and. use_preexisting_ice) then
 
                ! compute tendencies for transported aerosol constituents
                ! and update not-transported constituents

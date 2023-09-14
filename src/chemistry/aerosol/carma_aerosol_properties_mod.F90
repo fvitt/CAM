@@ -495,10 +495,6 @@ contains
     class(carma_aerosol_properties), intent(in) :: self
     integer, intent(in) :: bin_ndx           ! bin number
 
-    character(len=aero_name_len) :: mode_name
-
-    call rad_cnst_get_info(0, bin_ndx, mode_type=mode_name)
-
     soluble = .true.
 
   end function soluble

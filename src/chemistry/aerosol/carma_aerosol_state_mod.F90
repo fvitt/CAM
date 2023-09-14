@@ -297,7 +297,7 @@ contains
     real(r8), pointer :: cld_num(:,:)
 
     call rad_cnst_get_bin_mmr(0, bin_ndx, 'a', self%state, self%pbuf, amb_mmr)
-    call rad_cnst_get_bin_mmr(0, bin_ndx, 'a', self%state, self%pbuf, cld_mmr)
+    call rad_cnst_get_bin_mmr(0, bin_ndx, 'c', self%state, self%pbuf, cld_mmr)
 
     call self%get_ambient_num(bin_ndx, amb_num)
     call self%get_cldbrne_num(bin_ndx, cld_num)
