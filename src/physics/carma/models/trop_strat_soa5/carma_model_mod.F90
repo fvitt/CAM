@@ -3499,6 +3499,7 @@ contains
 
         do i = 1, ncore
           icnst = icnst4elem(icorelem(i), ibin)
+          mixso4mr(icol,:) = mixso4mr(icol,:) - state%q(icol,:,icnst)
           mixso4(icol) = mixso4(icol) - sum(state%q(icol,:,icnst) * mair(:))
           cmxflux(icol) = cmxflux(icol) - cam_in%cflx(icol,icnst)
 
