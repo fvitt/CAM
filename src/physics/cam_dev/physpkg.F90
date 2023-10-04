@@ -33,6 +33,7 @@ module physpkg
 
   use modal_aero_calcsize,    only: modal_aero_calcsize_init, modal_aero_calcsize_diag, modal_aero_calcsize_reg
   use modal_aero_wateruptake, only: modal_aero_wateruptake_init, modal_aero_wateruptake_dr, modal_aero_wateruptake_reg
+  use carma_fixer_mod, only: carma_fix_pbuf
 
   implicit none
   private
@@ -151,6 +152,7 @@ contains
     use dyn_comp,           only: dyn_register
     use offline_driver,     only: offline_driver_reg
     use hemco_interface,    only: HCOI_Chunk_Init
+    use surface_emissions_mod, only: surface_emissions_reg
 
     !---------------------------Local variables-----------------------------
     !
@@ -257,6 +259,8 @@ contains
           call modal_aero_calcsize_reg()
           call modal_aero_wateruptake_reg()
        endif
+
+       call surface_emissions_reg()
 
        ! register chemical constituents including aerosols ...
        call chem_register()
@@ -768,6 +772,7 @@ contains
     use cam_history,        only: addfld, register_vector_field, add_default
     use cam_budget,         only: cam_budget_init
     use phys_grid_ctem,     only: phys_grid_ctem_init
+    use surface_emissions_mod, only: surface_emissions_init
 
     ! Input/output arguments
     type(physics_state), pointer       :: phys_state(:)
@@ -842,7 +847,8 @@ contains
     call aer_rad_props_init()
 
     ! initialize carma
-    call carma_init()
+    call carma_init(pbuf2d)
+    call surface_emissions_init(pbuf2d)
 
     ! solar irradiance data modules
     call solar_data_init()
@@ -1604,7 +1610,7 @@ contains
 
     if (carma_do_emission) then
        ! carma emissions
-       call carma_emission_tend (state, ptend, cam_in, ztodt)
+       call carma_emission_tend (state, ptend, cam_in, ztodt, pbuf)
        call physics_update(state, ptend, ztodt, tend)
     end if
 
@@ -2506,6 +2512,7 @@ contains
     use cam_snapshot,    only: cam_snapshot_all_outfld_tphysbc
     use cam_snapshot_common, only: cam_snapshot_ptend_outfld
     use dyn_tests_utils, only: vc_dycore
+    use surface_emissions_mod,only: surface_emissions_set
 
     ! Arguments
 
@@ -2720,6 +2727,9 @@ contains
     end if
 
     call t_stopf('energy_fixer')
+
+    call surface_emissions_set( lchnk, ncol, pbuf )
+
     !
     !===================================================
     ! Dry adjustment
@@ -2916,6 +2926,7 @@ subroutine phys_timestep_init(phys_state, cam_in, cam_out, pbuf2d)
   use nudging,             only: Nudge_Model, nudging_timestep_init
   use waccmx_phys_intr,    only: waccmx_phys_ion_elec_temp_timestep_init
   use phys_grid_ctem,      only: phys_grid_ctem_diags
+  use surface_emissions_mod,only: surface_emissions_adv
 
   implicit none
 
@@ -2936,6 +2947,7 @@ subroutine phys_timestep_init(phys_state, cam_in, cam_out, pbuf2d)
 
   ! Chemistry surface values
   call chem_surfvals_set()
+  call surface_emissions_adv(pbuf2d, phys_state)
 
   ! Solar irradiance
   call solar_data_advance()

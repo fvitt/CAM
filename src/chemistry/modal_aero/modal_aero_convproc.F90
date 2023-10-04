@@ -1094,6 +1094,8 @@ subroutine ma_convproc_tend(                                           &
    real(r8) wup(pver)            ! working updraft velocity (m/s)
    real(r8) zmagl(pver)          ! working height above surface (m)
    real(r8) zkm                  ! working height above surface (km)
+   real(r8) conu2(pcols,pver,pcnst_extd)
+   real(r8) dcondt2(pcols,pver,pcnst_extd)
 
    character(len=16) :: cnst_name_extd(pcnst_extd)
 
@@ -1132,6 +1134,9 @@ subroutine ma_convproc_tend(                                           &
    xx_kcldbase(:) = 0.0_r8
 
    wup(:) = 0.0_r8
+
+   dcondt2(:,:,:) = 0.0_r8
+   conu2(:,:,:) = 0.0_r8
 
 ! set doconvproc_extd (extended array) values
 ! inititialize aqfrac to 1.0 for activated aerosol species, 0.0 otherwise
@@ -1612,6 +1617,7 @@ k_loop_main_bb: &
                      conu(m,k) = conu(m,k) + dconudt_wetdep(m,k)
                      dconudt_wetdep(m,k) = dconudt_wetdep(m,k) / dt_u(k)
                   end if
+                  conu2(icol,k,m) = conu(m,k)
                enddo
             end if
 
@@ -1775,6 +1781,7 @@ k_loop_main_cc: &
             end if
 
             end if   ! "(doconvproc_extd(m))"
+            dcondt2(icol,k,m) = dcondt(m,k)
          end do      ! "m = 2,ncnst_extd"
       end do k_loop_main_cc ! "k = ktop, kbot"
 
@@ -2114,6 +2121,18 @@ k_loop_main_cc: &
 
 
    end do i_loop_main_aa  ! of the main "do i = il1g, il2g" loop
+
+   do n = 1, ntot_amode
+      do ll = 0, nspec_amode(n)
+         if (ll == 0) then
+            l = numptr_amode(n)
+         else
+            l = lmassptr_amode(ll,n)
+         end if
+         call outfld( trim(cnst_name(l))//'WETC', dcondt2(:,:,l), pcols, lchnk )
+         call outfld( trim(cnst_name(l))//'CONU', conu2(:,:,l), pcols, lchnk )
+      end do
+   end do
 
    return
 end subroutine ma_convproc_tend

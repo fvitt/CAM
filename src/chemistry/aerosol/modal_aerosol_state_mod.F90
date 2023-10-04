@@ -40,6 +40,7 @@ module modal_aerosol_state_mod
      procedure :: dry_volume
      procedure :: wet_volume
      procedure :: water_volume
+     procedure :: wgtpct
 
      final :: destructor
 
@@ -594,5 +595,16 @@ contains
     end where
 
   end function water_volume
+
+  !------------------------------------------------------------------------------
+  ! aerosol weight precent of H2SO4/H2O solution
+  !------------------------------------------------------------------------------
+  function wgtpct(self) result(wtp)
+    class(modal_aerosol_state), intent(in) :: self
+    real(r8), pointer :: wtp(:,:) ! weight precent of H2SO4/H2O solution
+
+    nullify(wtp)
+
+  end function wgtpct
 
 end module modal_aerosol_state_mod
