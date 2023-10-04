@@ -1977,7 +1977,7 @@ contains
            rhodryaero = specdens
         end if
        end do
-       dg0_base = 2._r8 * (0.75*rmass(m) / pi  / (1.0e-3_r8*rhodryaero)) **(0.33_r8)    ! specdens kg/m3 to g/cm3, convert from radiust to diameter
+       dg0_base = 2._r8 * (0.75_r8*rmass(m) / pi  / (1.0e-3_r8*rhodryaero)) **(0.33_r8)    ! specdens kg/m3 to g/cm3, convert from radiust to diameter
 
            !sigmag = sigmag_amode(mode)
            !dg0_base = dcen_sect(m,n)*exp( -1.5*((log(sigmag))**2) )
@@ -2110,7 +2110,7 @@ contains
            rhodryaero = specdens
         end if
     end do
-    dg0_base = 2._r8 * (0.75*rmass(m) / pi  / (1.0e-3_r8*rhodryaero)) **(0.33_r8)    ! specdens kg/m3 to g/cm3, convert from radiust to diameter
+    dg0_base = 2._r8 * (0.75_r8*rmass(m) / pi  / (1.0e-3_r8*rhodryaero)) **(0.33_r8)    ! specdens kg/m3 to g/cm3, convert from radiust to diameter
     !rg0_base = (0.75*rmass(m) / pi  / (1.0e-3_r8*specdens)) **(0.33_r8)    ! specdens kg/m3 to g/cm3
 
     do k = 1, pver
