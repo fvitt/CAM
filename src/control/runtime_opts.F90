@@ -105,6 +105,7 @@ subroutine read_namelist(nlfilename, single_column, scmlat, scmlon)
    use phys_grid_ctem,      only: phys_grid_ctem_readnl
    use mo_lightning,        only: lightning_readnl
    use surface_emissions_mod, only: surface_emissions_readnl
+   use elevated_emissions_mod, only: elevated_emissions_readnl
 
    !---------------------------Arguments-----------------------------------
 
@@ -211,6 +212,7 @@ subroutine read_namelist(nlfilename, single_column, scmlat, scmlon)
    call cam_budget_readnl(nlfilename)
    call phys_grid_ctem_readnl(nlfilename)
    call surface_emissions_readnl(nlfilename)
+   call elevated_emissions_readnl(nlfilename)
 
 end subroutine read_namelist
 

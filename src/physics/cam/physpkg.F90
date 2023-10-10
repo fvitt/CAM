@@ -162,6 +162,7 @@ contains
     use hemco_interface,    only: HCOI_Chunk_Init
     use upper_bc,           only: ubc_fixed_conc
     use surface_emissions_mod, only: surface_emissions_reg
+    use elevated_emissions_mod, only: elevated_emissions_reg
 
     !---------------------------Local variables-----------------------------
     !
@@ -273,6 +274,7 @@ contains
        endif
 
        call surface_emissions_reg()
+       call elevated_emissions_reg()
 
        ! register chemical constituents including aerosols ...
        call chem_register()
@@ -790,6 +792,7 @@ contains
     use phys_grid_ctem,     only: phys_grid_ctem_init
     use cam_budget,         only: cam_budget_init
     use surface_emissions_mod, only: surface_emissions_init
+    use elevated_emissions_mod, only: elevated_emissions_init
 
     ! Input/output arguments
     type(physics_state), pointer       :: phys_state(:)
@@ -868,6 +871,7 @@ contains
     ! initialize carma
     call carma_init(pbuf2d)
     call surface_emissions_init(pbuf2d)
+    call elevated_emissions_init(pbuf2d)
 
     ! solar irradiance data modules
     call solar_data_init()
@@ -2148,6 +2152,7 @@ contains
     use ssatcontrail,       only: ssatcontrail_d0
     use dyn_tests_utils, only: vc_dycore
     use surface_emissions_mod,only: surface_emissions_set
+    use elevated_emissions_mod,only: elevated_emissions_set
 
     ! Arguments
 
@@ -2409,6 +2414,8 @@ contains
 
 
     call surface_emissions_set( lchnk, ncol, pbuf )
+
+    call elevated_emissions_set( lchnk, ncol, pbuf )
 
     !
     !===================================================
@@ -3082,6 +3089,7 @@ subroutine phys_timestep_init(phys_state, cam_in, cam_out, pbuf2d)
   use waccmx_phys_intr,    only: waccmx_phys_ion_elec_temp_timestep_init
   use phys_grid_ctem,      only: phys_grid_ctem_diags
   use surface_emissions_mod,only: surface_emissions_adv
+  use elevated_emissions_mod,only: elevated_emissions_adv
 
   implicit none
 
@@ -3103,6 +3111,7 @@ subroutine phys_timestep_init(phys_state, cam_in, cam_out, pbuf2d)
   ! Chemistry surface values
   call chem_surfvals_set()
   call surface_emissions_adv(pbuf2d, phys_state)
+  call elevated_emissions_adv(pbuf2d, phys_state)
 
   ! Solar irradiance
   call solar_data_advance()
