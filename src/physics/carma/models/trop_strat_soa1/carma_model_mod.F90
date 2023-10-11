@@ -151,18 +151,6 @@ module carma_model_mod
   real(kind=f), public, parameter     :: vmrat_MXAER    = 2.2588_f    !2.4610_f        ! volume ratio
 
 ! Physics buffer index for sulfate surface area density
-  integer      :: ipbuf4sadsulf = -1 ! total aerosol surface area density over all groups (cm2/cm3)
-  integer      :: ipbuf4wtp = -1 ! sulfate weight percent H2SO4 composition
-  integer      :: ipbuf4reffaer = -1 ! total aerosol effective radius over all groups (cm)
-  integer      :: ipbuf4reff(NGROUP) = -1 ! aerosol effective radius per group (m)
-  integer      :: ipbuf4numnkg(NGROUP) = -1 ! aerosol number density (#/kg air)
-  integer      :: ipbuf4sad(NBIN,NGROUP) = -1 ! aerosol surface area density per bin (cm2/cm3)
-  integer      :: ipbuf4elem1mr(NBIN,NGROUP) = -1
-  integer      :: ipbuf4binnkg(NBIN,NGROUP) = -1
-  integer      :: ipbuf4kappa(NBIN,NGROUP) = -1 ! hygroscopicity factor per bin
-  integer      :: ipbuf4wetr(NBIN,NGROUP) = -1 ! aerosol wet radius per bin
-  integer      :: ipbuf4dryr(NBIN,NGROUP) = -1 ! aerosol dry radius per bin
-  integer      :: ipbuf4rmass(NBIN,NGROUP) = -1 ! aerosol mass per bin
   integer      :: ipbuf4soa(NBIN) = -1
   integer      :: ipbuf4soacm(NBIN) = -1
   integer      :: ipbuf4soapt(NBIN) = -1
@@ -328,11 +316,11 @@ contains
     ! should be 6 characters or less and without spaces.
     refidx(:,1) = CMPLX(shellreal(:), shellimag(:), kind=f)
     call CARMAELEMENT_Create(carma, I_ELEM_PRSUL, I_GRP_PRSUL, "Sulfate", &
-                             RHO_SULFATE, I_VOLATILE, I_H2SO4, rc, shortname="PRSUL", refidx=refidx)
+                             RHO_SULFATE, I_VOLATILE, I_H2SO4, rc, shortname="PRSULF", refidx=refidx)
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddElement failed.')
 
     call CARMAELEMENT_Create(carma, I_ELEM_MXAER,  I_GRP_MXAER, "Sulfate in mixed sulfate", &
-                             RHO_SULFATE, I_VOLATILE, I_H2SO4, rc,  kappa=Kappa_SULF, shortname="MXAER", refidx=refidx)
+                             RHO_SULFATE, I_VOLATILE, I_H2SO4, rc,  kappa=Kappa_SULF, shortname="MXSULF", refidx=refidx)
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddElement failed.')
 
     call CARMAELEMENT_Create(carma, I_ELEM_MXOC,   I_GRP_MXAER, "organic carbon", &
@@ -400,31 +388,9 @@ contains
       if (rc < 0) call endrun('carma_register::CARMAGROUP_Get failed.')
       !write(*,*) "igroup",igroup,"sname",sname
 
-      ! effective radius. ERMIXAER
-      call pbuf_add_field('ER'//trim(sname), 'global', dtype_r8, (/pcols, pver/), ipbuf4reff(igroup))
-      !write(*,*) "'ER'//trim(sname)",'ER'//trim(sname)
-
-      ! number density #/kg  NBMXAER
-      call pbuf_add_field('NB'//trim(sname), 'global', dtype_r8, (/pcols, pver/), ipbuf4numnkg(igroup))
-      !write(*,*) "'NB'//trim(sname)",'NB'//trim(sname)
-
       ! sulfate mass and number density for each bin
       ! e.g. CRSULF01 first element mass mixing ratio; NBMXAER01 #/kg
       do ibin=1,NBIN
-         write (outputbin, "(I2.2)") ibin
-         write (outputname,"(A2)") trim(sname)
-         if (trim(sname)//outputbin .ne. outputname//"SULF"//outputbin) then
-            !write(*,*) "sname//outputbin",trim(sname)//outputbin
-            call pbuf_add_field(outputname//"SULF"//outputbin,'global', dtype_r8, (/pcols, pver/), ipbuf4elem1mr(ibin,igroup))
-            !write(*,*) outputname//"SULF"//outputbin,"   ", trim(sname)//outputbin
-         end if
-         call pbuf_add_field("NB"//trim(sname)//outputbin,'global', dtype_r8, (/pcols, pver/), ipbuf4binnkg(ibin,igroup))
-         call pbuf_add_field(trim(sname)//outputbin//"_kappa",'global', dtype_r8, (/pcols, pver/), ipbuf4kappa(ibin,igroup))
-         !write(*,*) trim(sname)//outputbin//"_kappa"
-         call pbuf_add_field(trim(sname)//outputbin//"_wetr",'global', dtype_r8, (/pcols, pver/), ipbuf4wetr(ibin,igroup))
-         call pbuf_add_field(trim(sname)//outputbin//"_dryr",'global', dtype_r8, (/pcols, pver/), ipbuf4dryr(ibin,igroup))
-         call pbuf_add_field(trim(sname)//outputbin//"_rmass",'global', dtype_r8, (/pcols/), ipbuf4rmass(ibin,igroup))
-         call pbuf_add_field(trim(sname)//outputbin//"_sad", 'global', dtype_r8, (/pcols, pver/), ipbuf4sad(ibin,igroup))
          if (igroup==I_GRP_MXAER) then
            call pbuf_add_field("DQDT_MXSOA"//outputbin,'global',dtype_r8,(/pcols,pver/), ipbuf4soa(ibin))
            call pbuf_add_field("MXSOA"//outputbin//"CM",'physpkg',dtype_r8,(/pcols,pver/), ipbuf4soacm(ibin))
@@ -433,12 +399,6 @@ contains
       end do
    end do
 
-    ! total surface area density (cm2/cm3)
-    call pbuf_add_field('SADSULF', 'global', dtype_r8, (/pcols, pver/), ipbuf4sadsulf)
-    ! total effective radius (cm) for REFF_AERO history output
-    call pbuf_add_field('REFFAER', 'global', dtype_r8, (/pcols, pver/), ipbuf4reffaer)
-    ! weight percent H2SO4
-    call pbuf_add_field('WTP','global', dtype_r8, (/pcols, pver/), ipbuf4wtp)
     ! no2 photolysis rate constant (/sec)
     call pbuf_add_field('JNO2', 'global', dtype_r8, (/pcols,pver/), ipbuf4jno2)
 
@@ -502,7 +462,6 @@ contains
     real(r8), pointer, dimension(:,:)    :: jno2_rate             !! jno2 tendency due to gas-aerosol exchange  kg/kg/s
     real(r8), pointer, dimension(:,:)    :: soacm                 !! aerosol tendency due to gas-aerosol exchange  kg/kg/s
     real(r8), pointer, dimension(:,:)    :: soapt                 !! aerosol tendency due to no2 photolysis  kg/kg/s
-    real(r8)                             :: mmr_total(cstate%f_NZ)!! mass mixing ratio of a group (kg/kg)
     real(r8)                             :: mmr_core(cstate%f_NZ)!! mass mixing ratio of the core (kg/kg)
     real(r8)                             :: mmr_soa(cstate%f_NZ)  !! mass mixing ratio of soa element (kg/kg)
     real(r8)                             :: mmr(cstate%f_NZ)      !! mass mixing ratio per bin (kg/kg)
@@ -523,15 +482,9 @@ contains
 
     do ibin = 1, NBIN
 
-      ! Get the mass of the concentration element.
-      call CARMASTATE_GetBin(cstate, ienconc, ibin, mmr_total(:), rc)
-      if (rc /= RC_OK) call endrun('CARMA_DiagnoseBins::CARMASTATE_GetBin failed.')
-
       ! Iterate over the core elements, looking for the SOA element. Once found,
       ! determine the new SOA taking into account both the addition of condensed
       ! SOA and the loss of photolyzed SOA.
-      !
-      ! Both the total mass and the SOA mass need to be adjusted for the SOA change.
       do ielem = 1, ncore
 
         call CARMASTATE_GetBin(cstate, icorelem(ielem), ibin, mmr(:), rc)
@@ -563,14 +516,8 @@ contains
           ! chemistry.
           mmr_soa(:) = max(0.0_r8, mmr_soa(:) + soapt(icol,:) * dt)
 
-          ! Adjust the total MMR.
-          mmr_total(:) = mmr_total(:) + (mmr_soa(:) - mmr(:))
-
-          ! Save out these new values for SOA and total MMR.
+          ! Save out these new values for SOA.
           call CARMASTATE_SetBin(cstate, icorelem(ielem), ibin, mmr_soa, rc)
-          if (rc /= RC_OK) call endrun('CARMA_DiagnoseBins::CARMAGROUP_SetBin failed.')
-
-          call CARMASTATE_SetBin(cstate, ienconc, ibin, mmr_total, rc)
           if (rc /= RC_OK) call endrun('CARMA_DiagnoseBins::CARMAGROUP_SetBin failed.')
 
           exit
@@ -614,7 +561,6 @@ contains
     real(r8)                             :: totreff(cstate%f_NZ)  !! total volume density, used to calculate total effective radius (cm) for history output
     real(r8)                             :: reff(cstate%f_NZ)     !! wet effective radius (m)
     real(r8)                             :: mmr(cstate%f_NZ)      !! mass mixing ratio per bin (kg/kg)
-    real(r8)                             :: mmr_total(cstate%f_NZ)!! mass mixing ratio of a group (kg/kg)
     real(r8)                             :: coremmr(cstate%f_NZ)  !! mmr of all the core
     real(r8)                             :: mmr_gas(cstate%f_NZ)  !! gas mass mixing ratio (kg/kg)
     real(r8)                             :: numnkg(cstate%f_NZ)   !! total number density (#/kg)
@@ -633,152 +579,18 @@ contains
 
     real(r8), pointer, dimension(:,:)    :: sadsulf_ptr           !! Total surface area density pointer (cm2/cm3)
     real(r8), pointer, dimension(:,:)    :: reffaer_ptr           !! Total effective radius pointer (cm) for history output
-    real(r8), pointer, dimension(:,:)    :: wtp_ptr		  !! weight percent pointer
+    real(r8), pointer, dimension(:,:)    :: wtp_ptr               !! weight percent pointer
     real(r8), pointer, dimension(:,:)    :: sad_ptr               !! Surface area density pointer
     real(r8), pointer, dimension(:,:)    :: reff_ptr              !! Effective radius pointer
     real(r8), pointer, dimension(:,:)    :: numnkg_ptr            !! Each group number density pointer
     real(r8), pointer, dimension(:,:)    :: binnkg_ptr            !! Each bin number density pointer
     real(r8), pointer, dimension(:,:)    :: elem1mr_ptr           !! First element mmr pointer
-    real(r8), pointer, dimension(:,:)    :: kappa_ptr		  !! kappa pointer
-    real(r8), pointer, dimension(:,:)    :: wetr_ptr           !! wet radius pointer
-    real(r8), pointer, dimension(:,:)    :: dryr_ptr             !! dry radius
+    real(r8), pointer, dimension(:,:)    :: kappa_ptr             !! kappa pointer
+    real(r8), pointer, dimension(:,:)    :: wetr_ptr              !! wet radius pointer
+    real(r8), pointer, dimension(:,:)    :: dryr_ptr              !! dry radius
 
     ! Default return code.
     rc = RC_OK
-
-    ! Get the air density
-    call CARMASTATE_GetState(cstate, rc, rhoa_wet=rhoa_wet)
-
-    totad(:) = 0.0_r8   ! total aerosol surface area density (cm2/cm3)
-    totreff(:) = 0.0_r8 ! total volume density, used to calculate total effective radius (cm) for REFF_AERO history output
-
-    ! calculated SAD, RE, and number density (#/kg) for each group
-    do igroup = 1, NGROUP
-
-      ad(:)  = 0.0_r8     ! wet aerosol surface area density (cm2/cm3)
-      reff(:)  = 0.0_r8    ! effective radius (m)
-      numnkg(:) = 0.0_r8    ! number density (#/kg)
-
-      call CARMAGROUP_Get(carma, igroup, rc, ienconc=ienconc,ncore=ncore,icorelem=icorelem, rmass=rmass)
-      do ibin = 1, NBIN
-
-        call CARMASTATE_GetBin(cstate, ienconc, ibin, mmr_total(:), rc, &
-                             numberDensity=numberDensity, r_wet=r_wet)
-        if (rc < 0) call endrun('CARMA_DiagnoseBulk::CARMASTATE_GetBin failed.')
-
-	if (ncore .ne. 0)then
-          do icore = 1,ncore
-            call CARMASTATE_GetBin(cstate, icorelem(icore), ibin, mmr(:), rc)
-	    call CARMAELEMENT_Get(carma, icorelem(icore), rc, icomposition=icomposition)
-          end do
-        end if
-
-        ! Calculate the total densities.
-        ! NOTE: Calculate AD in cm2/cm3.
-        if (numberDensity(1) /= CAM_FILL) then
-          ad(:)  = ad(:)  + numberDensity(:) * (r_wet(:)**2)
-          reff(:) = reff(:) + numberDensity(:) * (r_wet(:)**3)
-        end if
-      end do
-
-      totreff(:) = totreff(:) + reff(:) ! volume density in cm3
-      reff(:) = reff(:) / ad(:) ! wet effective radius in cm
-      reff(:) = reff(:) / 100.0_r8 ! cm -> m
-
-      ad(:) = ad(:) * 4.0_r8 * PI ! surface area density in cm2/cm3
-
-      ! airdensity from carma state
-      ! convert the number density from #/cm3 to #/kg
-      ! number Density #/cm3; rhoa_wet kg/m3
-      numnkg(:) = 1.e6_r8*numberDensity(:)/rhoa_wet(:)    !#/kg
-
-      call pbuf_get_field(pbuf, ipbuf4reff(igroup), reff_ptr)   ! effective radius m
-      call pbuf_get_field(pbuf, ipbuf4numnkg(igroup), numnkg_ptr) ! number density #/kg
-
-      ! put variables in physics buffer
-      reff_ptr(icol, :cstate%f_NZ) = reff(:cstate%f_NZ)
-      numnkg_ptr(icol, :cstate%f_NZ)= numnkg(:cstate%f_NZ)
-
-      !calculate the surface area density including all bins (cm2/cm3)
-      totad(:) = totad(:)+ad(:)
-
-    end do
-
-    totreff(:) = 4.0_r8 * PI * totreff(:) / totad(:) ! cm
-
-    call pbuf_get_field(pbuf, ipbuf4sadsulf, sadsulf_ptr)     ! surface area density (cm2/cm3)
-    sadsulf_ptr(icol, :cstate%f_NZ)  = totad(:cstate%f_NZ)
-
-    call pbuf_get_field(pbuf, ipbuf4reffaer, reffaer_ptr)     ! effective radius (cm)
-    reffaer_ptr(icol, :cstate%f_NZ)  = totreff(:cstate%f_NZ)
-
-    do igas = 1,NGAS
-      if(igas .eq. I_GAS_H2SO4)then ! only output the sulfate weight percent
-        call CARMASTATE_GetGas(cstate, igas, mmr_gas(:), rc, wtpct=wtpct)
-        call pbuf_get_field(pbuf, ipbuf4wtp, wtp_ptr)
-        wtp_ptr(icol, :cstate%f_NZ)  = wtpct(:cstate%f_NZ)
-      end if
-    end do
-
-    ! add new CRSULF element that is only the sulfur part from MIXAER:
-    ! calculate CRSULF mass mixing ratio : MXAER minus CROC+CRBC+CRBC+CRDUST+CRSALT (+SUM(CRSOA*)
-
-    do igroup = 1, NGROUP
-      call CARMAGROUP_Get(carma, igroup, rc, shortname=sname,ienconc=ienconc,ncore=ncore,icorelem=icorelem, rmass=rmass)
-      !write(*,*) "igroup",igroup,"ncore",ncore,"ienconc",ienconc,"icorelem",icorelem
-      do ibin = 1, NBIN
-
-        elem1mr(:) = 0._r8
-        binnkg(:) = 0._r8
-	coremmr(:) = 0._r8
-
-        call CARMASTATE_GetBin(cstate, ienconc, ibin, mmr_total(:), rc, numberDensity=numberDensity, kappa=kappa, r_wet=r_wet,rhop_dry=rhop_dry)
-
-        if (ncore .ne. 0)then
-          do icore = 1,ncore
-            call CARMASTATE_GetBin(cstate, icorelem(icore), ibin, mmr(:), rc)
-            coremmr(:) = coremmr(:) + mmr(:)
-          end do
-
-          if (any(coremmr(:) .gt. mmr_total(:))) then
-            where(coremmr(:) .gt. mmr_total(:)) mmr_total = coremmr
-	    call CARMASTATE_SetBin(cstate, ienconc, ibin, mmr_total(:), rc)
-            call CARMASTATE_GetBin(cstate, ienconc, ibin, mmr_total(:), rc, numberDensity=numberDensity, r_wet=r_wet,rhop_dry=rhop_dry)
-          end if
-	  elem1mr(:) = mmr_total(:)-coremmr(:)
-          elem1mr(:) = max(elem1mr(:),0._f)
-
-          call pbuf_get_field(pbuf, ipbuf4elem1mr(ibin,igroup), elem1mr_ptr)
-	  elem1mr_ptr(icol, :cstate%f_NZ) = elem1mr(:cstate%f_NZ)
-	else
-	  elem1mr(:) = mmr_total(:)
-	  call pbuf_get_field(pbuf, ipbuf4elem1mr(ibin,igroup), elem1mr_ptr)
-          elem1mr_ptr(icol, :cstate%f_NZ) = elem1mr(:cstate%f_NZ)
-	end if
-        binnkg(:) = 1.e6_r8*numberDensity(:)/rhoa_wet(:)     !#/kg
-
-        call pbuf_get_field(pbuf, ipbuf4binnkg(ibin,igroup), binnkg_ptr)
-	call pbuf_get_field(pbuf, ipbuf4kappa(ibin,igroup), kappa_ptr)
-
-        binnkg_ptr(icol, :cstate%f_NZ) = binnkg(:cstate%f_NZ)
-	kappa_ptr(icol, :cstate%f_NZ) = kappa(:cstate%f_NZ)
-
-	call pbuf_get_field(pbuf, ipbuf4wetr(ibin,igroup), wetr_ptr)
-	call pbuf_get_field(pbuf, ipbuf4dryr(ibin,igroup), dryr_ptr)
-	call pbuf_get_field(pbuf, ipbuf4sad(ibin,igroup), sad_ptr)
-
-	wetr_ptr(icol, :cstate%f_NZ) = r_wet(:cstate%f_NZ)
-        !dryr_ptr(icol, :cstate%f_NZ) = (rmass(ibin)/(4._f/3._f*PI*rhop_dry(:cstate%f_NZ)))**(1._f/3._f) !cm
-        ! r = (mass / rho / 4 * 3 / PI)^(1/3)
-        dryr_ptr(icol, :cstate%f_NZ) = (rmass(ibin)/rhop_dry(:cstate%f_NZ) / 4._f * 3._f / PI)**(1._f/3._f) !cm
-
-        sad_ptr(icol, :cstate%f_NZ) = 4.0_r8 * PI * numberDensity(:cstate%f_NZ) * (r_wet(:cstate%f_NZ)**2) !cm2/cm3
-
-        !write(*,*) 'CARMA igroup, ibin, rmass(ibin), rhop_dry',igroup, ibin, rmass(ibin), rhop_dry(:cstate%f_NZ)
-        !write(*,*) 'CARMA dryr igroup, ibin',igroup, ibin, dryr_ptr(icol, :cstate%f_NZ)
-
-      end do !NBIN
-    end do !NGROUP
 
     return
   end subroutine CARMAMODEL_DiagnoseBulk
@@ -926,7 +738,7 @@ contains
     end if
 
     ! Organic carbon emssions
-    if ((ielem == I_ELEM_MXOC) .or. (ielem == I_ELEM_MXAER)) then
+    if (ielem == I_ELEM_MXOC) then
        if (carma_BCOCemissions == 'Yu2015') then
           call get_lat_all_p(lchnk, ncol, ilat)
           call get_lon_all_p(lchnk, ncol, ilon)
@@ -942,7 +754,7 @@ contains
     end if
 
     ! Black carbon emissions
-    if ((ielem == I_ELEM_MXBC) .or. (ielem == I_ELEM_MXAER)) then
+    if (ielem == I_ELEM_MXBC) then
        if (carma_BCOCemissions == 'Yu2015') then
           do icol = 1,ncol
              smoke(icol) = BCnew(ilat(icol), ilon(icol), mon)
@@ -991,7 +803,7 @@ contains
     end if
 
     ! Dust emissions
-    if ((ielem == I_ELEM_MXDUST) .or. (ielem == I_ELEM_MXAER)) then
+    if (ielem == I_ELEM_MXDUST) then
 
       ! The radius should be determined by the dust density not the group
       ! density
@@ -1044,7 +856,7 @@ contains
 
 
     ! Sea salt emissions
-    if ((ielem == I_ELEM_MXSALT) .or. (ielem == I_ELEM_MXAER)) then
+    if (ielem == I_ELEM_MXSALT) then
 
       ! The radius should be determined by the dust density not the group
       ! density
@@ -1216,33 +1028,16 @@ contains
     end if
 
     if (is_first_step()) then
+
        ! Initialize physics buffer fields
        do igroup = 1, NGROUP
-          call pbuf_set_field(pbuf2d, ipbuf4reff(igroup), 0.0_r8 )
-          call pbuf_set_field(pbuf2d, ipbuf4numnkg(igroup), 0.0_r8 )
-
-          call CARMAGROUP_Get(carma, igroup, rc, rmass=rmass)
-          if (RC /= RC_OK) return
-
-          do ibin=1,NBIN
-             if (ipbuf4elem1mr(ibin,igroup)>0) then
-                call pbuf_set_field(pbuf2d, ipbuf4elem1mr(ibin,igroup), 0.0_r8 )
-             endif
-             call pbuf_set_field(pbuf2d, ipbuf4binnkg(ibin,igroup), 0.0_r8 )
-             call pbuf_set_field(pbuf2d, ipbuf4kappa(ibin,igroup), 0.0_r8 )
-             call pbuf_set_field(pbuf2d, ipbuf4wetr(ibin,igroup), 0.0_r8 )
-             call pbuf_set_field(pbuf2d, ipbuf4dryr(ibin,igroup), 0.0_r8 )
-             call pbuf_set_field(pbuf2d, ipbuf4sad(ibin,igroup), 0.0_r8 )
-             call pbuf_set_field(pbuf2d, ipbuf4rmass(ibin,igroup), 1.0e-3_r8*rmass(ibin) ) ! convert rmass from g to kg
+          do ibin = 1, NBIN
              if (igroup==I_GRP_MXAER) then
                 call pbuf_set_field(pbuf2d, ipbuf4soa(ibin), 0.0_r8 )
              end if
           end do
        end do
 
-       call pbuf_set_field(pbuf2d, ipbuf4sadsulf, 0.0_r8 )
-       call pbuf_set_field(pbuf2d, ipbuf4reffaer, 0.0_r8 )
-       call pbuf_set_field(pbuf2d, ipbuf4wtp, 0.0_r8 )
        call pbuf_set_field(pbuf2d, ipbuf4jno2, 0.0_r8 )
     endif
 
@@ -2896,8 +2691,6 @@ contains
         else if (shortname .eq. "MXSOA") then
           bdsoa(:ncols, :) = bdsoa(:ncols, :) + mmr(:ncols,:) * mair(:ncols,:)
         end if
-
-        mixso4(:ncols,:) = mixso4(:ncols,:) - mmr(:ncols,:) * mair(:ncols,:)
       end do
     end do
 
@@ -3011,8 +2804,6 @@ contains
           if (ptend%lq(icnst)) then
             tottend(:) = tottend(:) - ptend%q(icol,:,icnst) * mair(:)
           end if
-          bdmxso4(icol) = bdmxso4(icol) - sum(state%q(icol,:,icnst) * mair(:))
-          cmxflux(icol) = cmxflux(icol) - (cflux(icol,icnst) - old_cflux(icol,icnst))
         end do
 
         mixtend(icol) = mixtend(icol) + sum(tottend(:))
@@ -3225,9 +3016,6 @@ contains
 
         do i = 1, ncore
           icnst = icnst4elem(icorelem(i), ibin)
-          mixso4mr(icol,:) = mixso4mr(icol,:) - state%q(icol,:,icnst)
-          mixso4(icol) = mixso4(icol) - sum(state%q(icol,:,icnst) * mair(:))
-          cmxflux(icol) = cmxflux(icol) - cam_in%cflx(icol,icnst)
 
           call CARMAELEMENT_Get(carma, icorelem(i), rc, shortname=shortname)
           if (shortname .eq. "MXBC") then
@@ -3928,7 +3716,7 @@ contains
 !! could use /components/cam/src/chemistry/aerosol/soil_erod_mod.F90 here insted of this routine?
   subroutine CARMAMODEL_ReadSoilErosionFactor(rc)
     use ppgrid,             only: begchunk, endchunk, pcols
-    use ioFileMod,     	    only: getfil
+    use ioFileMod,          only: getfil
     use interpolate_data,   only: lininterp_init, lininterp, interp_type, lininterp_finish
     use phys_grid,          only: get_rlon_all_p, get_rlat_all_p, get_ncols_p
     use wrap_nf
