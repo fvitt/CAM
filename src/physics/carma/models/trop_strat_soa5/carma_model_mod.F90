@@ -427,6 +427,7 @@ contains
       ! sulfate mass and number density for each bin
       ! e.g. CRSULF01 first element mass mixing ratio; NBMXAER01 #/kg
       do ibin=1,NBIN
+         write (outputbin, "(I2.2)") ibin
          if (igroup==I_GRP_MXAER) then
            call pbuf_add_field("DQDT_MXSOA1"//outputbin,'global',dtype_r8,(/pcols,pver/), ipbuf4soa1(ibin))
            call pbuf_add_field("DQDT_MXSOA2"//outputbin,'global',dtype_r8,(/pcols,pver/), ipbuf4soa2(ibin))

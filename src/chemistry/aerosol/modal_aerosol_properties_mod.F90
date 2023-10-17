@@ -36,6 +36,7 @@ module modal_aerosol_properties_mod
      procedure :: soluble
      procedure :: min_mass_mean_rad
      procedure :: bin_name
+     procedure :: scav_radius
 
      final :: destructor
   end type modal_aerosol_properties
@@ -664,5 +665,16 @@ contains
     call rad_cnst_get_info(list_ndx, bin_ndx, mode_type=name)
 
   end function bin_name
+
+  !------------------------------------------------------------------------------
+  ! returns scavenging radius (cm) for a given aerosol bin number
+  !------------------------------------------------------------------------------
+  function scav_radius(self, bin_ndx) result(radius)
+    class(modal_aerosol_properties), intent(in) :: self
+    integer, intent(in) :: bin_ndx  ! bin number
+
+    real(r8) :: radius
+
+  end function scav_radius
 
 end module modal_aerosol_properties_mod

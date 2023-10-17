@@ -427,16 +427,15 @@ contains
   ! returns hygroscopicity for a given radiation diagnostic list number and
   ! bin number
   !------------------------------------------------------------------------------
-  function hygroscopicity(self, list_ndx, bin_ndx) result(kappa)
+  subroutine hygroscopicity(self, list_ndx, bin_ndx, kappa)
     class(modal_aerosol_state), intent(in) :: self
     integer, intent(in) :: list_ndx        ! rad climate list number
     integer, intent(in) :: bin_ndx         ! bin number
+    real(r8), intent(out) :: kappa(:,:)    ! hygroscopicity (ncol,nlev)
 
-    real(r8), pointer :: kappa(:,:)        ! hygroscopicity (ncol,nlev)
+    kappa = -huge(1._r8)
 
-    nullify(kappa)
-
-  end function hygroscopicity
+  end subroutine hygroscopicity
 
   !------------------------------------------------------------------------------
   ! returns aerosol wet diameter and aerosol water concentration for a given

@@ -146,7 +146,7 @@ module carma_intr
 
   ! Defaults not in the namelist
   character(len=10), parameter   :: carma_mixtype     = 'wet'     ! mixing ratio type for CARMA constituents
-  integer                        :: LUNOPRT           = -1        ! lun for output
+  integer                        :: LUNOPRT           = 6         ! lun for output
 
   ! Constituent Mappings
   integer                        :: icnst4elem(NELEM, NBIN)       ! constituent index for a carma element
@@ -296,7 +296,6 @@ contains
 
     ! Create the CARMA object that will contain all the information about the
     ! how CARMA is configured.
-
     call CARMA_Create(carma, NBIN, NELEM, NGROUP, NSOLUTE, NGAS, NWAVE, rc, &
          LUNOPRT=LUNOPRT, wave=wave, dwave=dwave, do_wave_emit=do_wave_emit, NREFIDX=NREFIDX)
     if (rc < 0) call endrun('carma_register::CARMA_Create failed.')
@@ -3728,7 +3727,7 @@ contains
     ncol = state%ncol
 
     ! Check the group and bin ranges
-    if ((ielem < 1) .or. (ielem .gt. NGROUP)) then
+    if ((ielem < 1) .or. (ielem .gt. NELEM)) then
       write(LUNOPRT, *) 'carma_get_bin:: ERROR - Invalid element id, ', ielem
       rc = RC_ERROR
       return
@@ -3977,7 +3976,7 @@ contains
     type(physics_state), intent(in)   :: state                 !! physics state variables
     integer, intent(in)               :: igroup                !! group index
     integer, intent(in)               :: ibin                  !! bin index
-    real(r8), intent(out)             :: kappa(pcols,pver)     !! kappa value for the entire particle
+    real(r8), intent(out)             :: kappa(:,:)     !! kappa value for the entire particle
     integer, intent(out)              :: rc                    !! return code
 
     real(r8)                          :: totmmr(pcols,pver)    ! total mmr (kg/kg)
@@ -4027,8 +4026,8 @@ contains
     end do
 
     ! Figure out the average kappa.q
-    where (totmmr .gt. 0._r8)
-      kappa = kappa / totmmr
+    where (totmmr(:ncol,:) .gt. 0._r8)
+      kappa(:ncol,:) = kappa(:ncol,:) / totmmr(:ncol,:)
     end where
 
     return
@@ -4424,4 +4423,15 @@ contains
 
   end subroutine carma_get_bin_rmass
 
+!!$  subroutine carma_get_wtpct
+!!$
+!!$    real(r8)                             :: mmr_gas(pver)  !! gas mass mixing ratio (kg/kg)
+!!$
+!!$    do igas = 1,NGAS
+!!$       if(igas .eq. I_GAS_H2SO4)then ! only output the sulfate weight percent
+!!$          call CARMASTATE_GetGas(cstate, igas, mmr_gas(:), rc, wtpct=wtpct)
+!!$       end if
+!!$    end do
+!!$
+!!$  end subroutine carma_get_wtpct
 end module carma_intr

@@ -34,6 +34,7 @@ module carma_aerosol_properties_mod
      procedure :: soluble
      procedure :: min_mass_mean_rad
      procedure :: bin_name
+     procedure :: scav_radius
 
      final :: destructor
   end type carma_aerosol_properties
@@ -96,8 +97,8 @@ contains
 
     do m = 1, nbins
        call rad_cnst_get_info_by_bin(0, m, nspec=nspecies(m))
-       ncnst_tot = ncnst_tot + nspecies(m) + 2
-       nmasses(m) = nspecies(m) + 1
+       ncnst_tot = ncnst_tot + nspecies(m) + 1
+       nmasses(m) = nspecies(m)
     end do
 
     alogsig(:) = log(2._r8)  !!!! ???? IS THIS RIGHT ???? !!!
@@ -352,11 +353,7 @@ contains
     character(len=*), intent(out) :: name_a ! constituent name of ambient aerosol MMR
     character(len=*), intent(out) :: name_c ! constituent name of cloud-borne aerosol MMR
 
-    if (species_ndx>1) then
-       call rad_cnst_get_info_by_bin_spec(0, bin_ndx, species_ndx-1, spec_name=name_a, spec_name_cw=name_c)
-    else
-       call rad_cnst_get_info_by_bin(0, bin_ndx,  mmr_name=name_a, mmr_name_cw=name_c)
-    end if
+    call rad_cnst_get_info_by_bin_spec(0, bin_ndx, species_ndx, spec_name=name_a, spec_name_cw=name_c)
 
   end subroutine mmr_names
 
@@ -381,11 +378,7 @@ contains
     integer, intent(in) :: species_ndx       ! species number
     character(len=*), intent(out) :: name   ! constituent name of ambient aerosol MMR
 
-    if (species_ndx>0) then
-       call rad_cnst_get_info_by_bin_spec(0, bin_ndx, species_ndx, spec_name=name)
-    else
-       call rad_cnst_get_info_by_bin(0, bin_ndx,  mmr_name=name)
-    end if
+    call rad_cnst_get_info_by_bin_spec(0, bin_ndx, species_ndx, spec_name=name)
 
   end subroutine amb_mmr_name
 
@@ -438,9 +431,7 @@ contains
 
     res = .false.
 
-    if (species_ndx==0) then
-       res = self%icenuc_updates_num(bin_ndx)
-    else
+    if (species_ndx>0) then
        call self%species_type( bin_ndx, species_ndx, spectype)
        if (trim(spectype)=='dust') res = .true.
        if (trim(spectype)=='sulfate') res = .true.
@@ -563,5 +554,43 @@ contains
     call rad_cnst_get_info_by_bin(list_ndx, bin_ndx, bin_name=name)
 
   end function bin_name
+
+  !------------------------------------------------------------------------------
+  ! returns scavenging radius (cm) for a given aerosol bin number
+  !------------------------------------------------------------------------------
+  function scav_radius(self, bin_ndx) result(radius)
+
+    use carma_model_mod, only: NBIN
+    use carma_intr, only :carma_get_bin_rmass
+
+    class(carma_aerosol_properties), intent(in) :: self
+    integer, intent(in) :: bin_ndx  ! bin number
+
+    real(r8) :: radius ! cm
+
+    real(r8) :: mass   ! the bin mass (g)
+    real(r8) :: rho    ! density (kg/m3)
+    integer :: igroup, ibin, rc, ispec
+    character(len=32) :: spectype
+
+    ibin = bin_ndx
+    igroup = 1
+    if (bin_ndx>NBIN) then
+       igroup = 2
+       ibin = ibin-NBIN
+    end if
+
+    call carma_get_bin_rmass(igroup, ibin, mass, rc)
+
+    do ispec = 1, self%nspecies(bin_ndx)
+       call self%species_type(bin_ndx,ispec, spectype)
+       if (trim(spectype) == 'sulfate') then
+          call self%get(bin_ndx,ispec,density=rho)
+       end if
+    end do
+
+    radius = (0.75*mass / pi  / (1.0e-3_r8*rho)) **(0.33_r8)    ! specdens kg/m3 to g/cm3, convert from radiust to diameter
+
+  end function scav_radius
 
 end module carma_aerosol_properties_mod

@@ -220,15 +220,15 @@ module aerosol_state_mod
      ! returns hygroscopicity for a given radiation diagnostic list number and
      ! bin number
      !------------------------------------------------------------------------------
-     function aero_hygroscopicity(self, list_ndx, bin_ndx) result(kappa)
+     subroutine aero_hygroscopicity(self, list_ndx, bin_ndx, kappa)
        import :: aerosol_state, r8
        class(aerosol_state), intent(in) :: self
        integer, intent(in) :: list_ndx     ! rad climate/diagnostic list index
        integer, intent(in) :: bin_ndx      ! bin number
 
-       real(r8), pointer :: kappa(:,:)     ! hygroscopicity (ncol,nlev)
+       real(r8), intent(out) :: kappa(:,:)              ! hygroscopicity (ncol,nlev)
 
-     end function aero_hygroscopicity
+     end subroutine aero_hygroscopicity
 
      !------------------------------------------------------------------------------
      ! returns aerosol wet diameter and aerosol water concentration for a given

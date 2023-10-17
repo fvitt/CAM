@@ -80,11 +80,12 @@ contains
        return
     end if
 
-    wgtpct_in => aero_state%wgtpct()
-
+!!$    wgtpct_in => aero_state%wgtpct()
+!! *** NEED TO FIX ***
     call aero_props%optics_params(ilist, ibin, wgtpct=newobj%tbl_wgtpct, nwtp=newobj%nwtp)
 
-    newobj%wgtpct(:ncol,:) = wgtpct_in(:ncol,:)
+!!$    newobj%wgtpct(:ncol,:) = wgtpct_in(:ncol,:)
+    newobj%wgtpct(:ncol,:) = 0._r8
 
     nspec = aero_props%nspecies(ilist, ibin)
 

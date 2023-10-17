@@ -2,13 +2,16 @@ module carma_aerosol_state_mod
   use shr_kind_mod, only: r8 => shr_kind_r8
   use aerosol_state_mod, only: aerosol_state, ptr2d_t
 
-  use rad_constituents, only: rad_cnst_get_bin_mmr_by_idx, rad_cnst_get_bin_num, rad_cnst_get_bin_mmr
+  use rad_constituents, only: rad_cnst_get_bin_mmr_by_idx, rad_cnst_get_bin_num !, rad_cnst_get_bin_mmr
   use rad_constituents, only: rad_cnst_get_info_by_bin
   use physics_buffer, only: physics_buffer_desc, pbuf_get_field, pbuf_get_index
   use physics_types, only: physics_state
   use aerosol_properties_mod, only: aerosol_properties, aero_name_len
 
   use physconst, only: pi
+  use carma_intr, only: carma_get_total_mmr, carma_get_dry_radius, carma_get_number, carma_get_number_cld
+  use carma_intr, only: carma_get_group_by_name, carma_get_kappa, carma_get_dry_radius, carma_get_wet_radius
+  use ppgrid, only: begchunk, endchunk, pcols, pver
 
   implicit none
 
@@ -119,11 +122,22 @@ contains
 
     real(r8) :: mmr_tot                 ! mass mixing ratios totaled for all species
 
-    real(r8),pointer :: mmrptr(:,:)
+    real(r8) :: totmmr(pcols,pver)
+    character(len=aero_name_len) :: bin_name, shortname
+    integer :: igroup, ibin, rc, nchr
 
-    call rad_cnst_get_bin_mmr(0, bin_ndx, 'a', self%state, self%pbuf, mmrptr)
+    call rad_cnst_get_info_by_bin(0, bin_ndx, bin_name=bin_name)
 
-    mmr_tot = mmrptr(col_ndx,lyr_ndx)
+    nchr = len_trim(bin_name)-2
+    shortname = bin_name(:nchr)
+
+    call  carma_get_group_by_name(shortname, igroup, rc)
+
+    read(bin_name(nchr+1:),*) ibin
+
+    call carma_get_total_mmr(self%state, igroup, ibin, totmmr, rc)
+
+    mmr_tot = totmmr(col_ndx,lyr_ndx)
 
   end function ambient_total_bin_mmr
 
@@ -176,7 +190,27 @@ contains
     integer, intent(in) :: bin_ndx     ! bin index
     real(r8), pointer :: num(:,:)      ! number mixing ratios
 
+    character(len=aero_name_len) :: bin_name, shortname
+    integer :: igroup, ibin, rc, nchr, ncol
+    real(r8) :: nmr(pcols,pver)
+
+    ncol = self%state%ncol
+
+    call rad_cnst_get_info_by_bin(0, bin_ndx, bin_name=bin_name)
+
+    nchr = len_trim(bin_name)-2
+    shortname = bin_name(:nchr)
+
+    call carma_get_group_by_name(shortname, igroup, rc)
+
+    read(bin_name(nchr+1:),*) ibin
+
     call rad_cnst_get_bin_num(0, bin_ndx, 'a', self%state, self%pbuf, num)
+
+    call carma_get_number(self%state, igroup, ibin, nmr, rc)
+
+    num(:ncol,:) = nmr(:ncol,:)
+
   end subroutine get_ambient_num
 
   !------------------------------------------------------------------------------
@@ -187,7 +221,27 @@ contains
     integer, intent(in) :: bin_ndx     ! bin index
     real(r8), pointer :: num(:,:)      ! number mixing ratios
 
+    character(len=aero_name_len) :: bin_name, shortname
+    integer :: igroup, ibin, rc, nchr, ncol
+    real(r8) :: nmr(pcols,pver)
+
+    ncol = self%state%ncol
+
+    call rad_cnst_get_info_by_bin(0, bin_ndx, bin_name=bin_name)
+
+    nchr = len_trim(bin_name)-2
+    shortname = bin_name(:nchr)
+
+    call  carma_get_group_by_name(shortname, igroup, rc)
+
+    read(bin_name(nchr+1:),*) ibin
+
     call rad_cnst_get_bin_num(0, bin_ndx, 'c', self%state, self%pbuf, num)
+
+    call carma_get_number_cld(self%pbuf, igroup, ibin,  ncol, pver, nmr, rc)
+
+    num(:ncol,:) = nmr(:ncol,:)
+
   end subroutine get_cldbrne_num
 
   !------------------------------------------------------------------------------
@@ -205,11 +259,8 @@ contains
        indx = aero_props%indexer(ibin, 0)
        call self%get_ambient_num(ibin, raer(indx)%fld)
        call self%get_cldbrne_num(ibin, qqcw(indx)%fld)
-       indx = aero_props%indexer(ibin, 1)
-       call rad_cnst_get_bin_mmr(0, ibin, 'a', self%state, self%pbuf, raer(indx)%fld)
-       call rad_cnst_get_bin_mmr(0, ibin, 'c', self%state, self%pbuf, qqcw(indx)%fld)
        do ispc = 1, aero_props%nspecies(ibin)
-          indx = aero_props%indexer(ibin, ispc+1)
+          indx = aero_props%indexer(ibin, ispc)
           call self%get_ambient_mmr(ispc,ibin, raer(indx)%fld)
           call self%get_cldbrne_mmr(ispc,ibin, qqcw(indx)%fld)
        end do
@@ -229,19 +280,27 @@ contains
     logical, intent(in) :: use_preexisting_ice ! pre-existing ice flag
     real(r8), intent(out) :: wght(:,:)
 
-    character(len=aero_name_len) :: bin_name
-    real(r8), pointer :: dryr(:,:)
+    character(len=aero_name_len) :: bin_name, shortname
+    real(r8) :: rdry(ncol,nlev), rhopdry(ncol,nlev)
     integer :: i,k
     real(r8) :: diamdry
+    integer :: igroup, ibin, rc, nchr
 
     wght = 0._r8
 
     call rad_cnst_get_info_by_bin(0, bin_ndx, bin_name=bin_name)
-    call pbuf_get_field(self%pbuf, pbuf_get_index(trim(bin_name)//"_dryr"),dryr)
+
+    nchr = len_trim(bin_name)-2
+    shortname = bin_name(:nchr)
+    call  carma_get_group_by_name(shortname, igroup, rc)
+
+    read(bin_name(nchr+1:),*) ibin
+
+    call carma_get_dry_radius(self%state, igroup, ibin, rdry, rhopdry, rc) ! m, kg/m3
 
     do k = 1,nlev
        do i = 1,ncol
-          diamdry = dryr(i,k) * 2.e4_r8  ! diameter in microns (from radius in cm)
+          diamdry = rdry(i,k) * 2.e4_r8 * 1.e6_r8 ! diameter in microns (from radius in m)
           if (diamdry >= 0.1_r8) then ! size threashold
              wght(i,k) = 1._r8
           end if
@@ -262,19 +321,11 @@ contains
     logical, intent(in) :: use_preexisting_ice    ! pre-existing ice flag
     real(r8), intent(out) :: wght
 
-    character(len=aero_name_len) :: bin_name
-    real(r8), pointer :: dryr(:,:)
-    real(r8) :: diamdry
+    real(r8) :: wght_arr(pcols,pver)
 
-    wght = 0._r8
+    call self%icenuc_size_wght(bin_ndx, self%state%ncol, pver, species_type, use_preexisting_ice, wght_arr)
 
-    call rad_cnst_get_info_by_bin(0, bin_ndx, bin_name=bin_name)
-    call pbuf_get_field(self%pbuf, pbuf_get_index(trim(bin_name)//"_dryr"),dryr)
-
-    diamdry = dryr(col_ndx,lyr_ndx) * 2.e4_r8  ! diameter in microns (from radius in cm)
-    if (diamdry >= 0.1_r8) then ! size threashold
-       wght = 1._r8
-    end if
+    wght = wght_arr(col_ndx,lyr_ndx)
 
   end subroutine icenuc_size_wght_val
 
@@ -291,23 +342,11 @@ contains
     real(r8),intent(in) :: dtime                  ! time step size (sec)
     real(r8),intent(inout) :: tend(:,:,:)         ! tendency
 
-    real(r8), pointer :: amb_mmr(:,:)
-    real(r8), pointer :: cld_mmr(:,:)
     real(r8), pointer :: amb_num(:,:)
     real(r8), pointer :: cld_num(:,:)
 
-    call rad_cnst_get_bin_mmr(0, bin_ndx, 'a', self%state, self%pbuf, amb_mmr)
-    call rad_cnst_get_bin_mmr(0, bin_ndx, 'c', self%state, self%pbuf, cld_mmr)
-
     call self%get_ambient_num(bin_ndx, amb_num)
     call self%get_cldbrne_num(bin_ndx, cld_num)
-
-    if (tnd_ndx>0) then
-       tend(col_ndx,lyr_ndx,tnd_ndx) = -delmmr_sum/dtime
-    else
-       amb_mmr(col_ndx,lyr_ndx) = amb_mmr(col_ndx,lyr_ndx) - delmmr_sum
-    end if
-    cld_mmr(col_ndx,lyr_ndx) = cld_mmr(col_ndx,lyr_ndx) + delmmr_sum
 
     ! apply the total number change to bin number
     amb_num(col_ndx,lyr_ndx) = amb_num(col_ndx,lyr_ndx) - delnum_sum
@@ -329,20 +368,32 @@ contains
 
     real(r8) :: wght(ncol,nlev)
 
-    character(len=aero_name_len) :: bin_name
-    real(r8), pointer :: dryr(:,:)
-    real(r8) :: diamdry(ncol,nlev)
+    character(len=aero_name_len) :: bin_name, shortname
+    real(r8) :: rdry(ncol,nlev), rhopdry(ncol,nlev)
+    integer :: i,k
+    real(r8) :: diamdry
+    integer :: igroup, ibin, rc, nchr
 
-    wght(:,:) = 0._r8
+    wght = 0._r8
 
     call rad_cnst_get_info_by_bin(0, bin_ndx, bin_name=bin_name)
-    call pbuf_get_field(self%pbuf, pbuf_get_index(trim(bin_name)//"_dryr"),dryr)
 
-    diamdry(:ncol,:) = dryr(:ncol,:) * 2.e4_r8  ! diameter in microns (from radius in cm)
+    nchr = len_trim(bin_name)-2
+    shortname = bin_name(:nchr)
+    call  carma_get_group_by_name(shortname, igroup, rc)
 
-    where (diamdry >= 0.5_r8)
-       wght = 1._r8
-    end where
+    read(bin_name(nchr+1:),*) ibin
+
+    call carma_get_dry_radius(self%state, igroup, ibin, rdry, rhopdry, rc) ! m, kg/m3
+
+    do k = 1,nlev
+       do i = 1,ncol
+          diamdry = rdry(i,k) * 2.e4_r8 * 1.e6_r8 ! diameter in microns (from radius in m)
+          if (diamdry >= 0.1_r8) then ! size threashold
+             wght(i,k) = 1._r8
+          end if
+       end do
+    end do
 
   end function hetfrz_size_wght
 
@@ -350,21 +401,27 @@ contains
   ! returns hygroscopicity for a given radiation diagnostic list number and
   ! bin number
   !------------------------------------------------------------------------------
-  function hygroscopicity(self, list_ndx, bin_ndx) result(kappa)
+  subroutine hygroscopicity(self, list_ndx, bin_ndx, kappa)
     class(carma_aerosol_state), intent(in) :: self
     integer, intent(in) :: list_ndx        ! rad climate list number
     integer, intent(in) :: bin_ndx         ! bin number
+    real(r8), intent(out) :: kappa(:,:)    ! hygroscopicity (ncol,nlev)
 
-    real(r8), pointer :: kappa(:,:)        ! hygroscopicity (ncol,nlev)
+    character(len=aero_name_len) :: bin_name, shortname
+    integer :: igroup, ibin, rc, nchr, ncol
 
-    character(len=aero_name_len) :: bin_name
+    call rad_cnst_get_info_by_bin(0, bin_ndx, bin_name=bin_name)
 
-    nullify(kappa)
+    nchr = len_trim(bin_name)-2
+    shortname = bin_name(:nchr)
 
-    call rad_cnst_get_info_by_bin(list_ndx, bin_ndx, bin_name=bin_name)
-    call pbuf_get_field(self%pbuf, pbuf_get_index(trim(bin_name)//"_kappa"),kappa)
+    call carma_get_group_by_name(shortname, igroup, rc)
 
-  end function hygroscopicity
+    read(bin_name(nchr+1:),*) ibin
+
+    call carma_get_kappa(self%state, igroup, ibin, kappa, rc)
+
+  end subroutine hygroscopicity
 
   !------------------------------------------------------------------------------
   ! returns aerosol wet diameter and aerosol water concentration for a given
@@ -392,9 +449,9 @@ contains
   function wgtpct(self) result(wtp)
     class(carma_aerosol_state), intent(in) :: self
     real(r8), pointer :: wtp(:,:) ! weight precent of H2SO4/H2O solution
-
-    call pbuf_get_field(self%pbuf, pbuf_get_index('WTP'), wtp)
-
+! ****** NEED TO IMPLEMENT ******
+!!$    call pbuf_get_field(self%pbuf, pbuf_get_index('WTP'), wtp)
+    nullify(wtp)
   end function wgtpct
 
   !------------------------------------------------------------------------------
@@ -412,17 +469,26 @@ contains
 
     real(r8) :: vol(ncol,nlev)       ! m3/kg
 
+    real(r8)                          :: raddry(pcols,pver)   !! dry radius (m)
+    real(r8)                          :: rhodry(pcols,pver)   !! dry density (kg/m3)
 
-    real(r8), pointer :: dryr(:,:)
-    character(len=32) :: bin_name
+    character(len=aero_name_len) :: bin_name, shortname
+    integer :: igroup, ibin, rc, nchr
+
+    call rad_cnst_get_info_by_bin(0, bin_idx, bin_name=bin_name)
+
+    nchr = len_trim(bin_name)-2
+    shortname = bin_name(:nchr)
+
+    call  carma_get_group_by_name(shortname, igroup, rc)
+
+    read(bin_name(nchr+1:),*) ibin
 
     vol = 0._r8
 
-    call rad_cnst_get_info_by_bin(list_idx, bin_idx, bin_name=bin_name)
+    call carma_get_dry_radius(self%state, igroup, ibin, raddry, rhodry, rc)
 
-    call pbuf_get_field(self%pbuf, pbuf_get_index(trim(bin_name)//"_dryr"),dryr)
-
-    vol(:ncol,:) = four_thirds_pi * (dryr(:ncol,:)**3)
+    vol(:ncol,:) = four_thirds_pi * (raddry(:ncol,:)**3) ! ???? units = m3/kg ????
 
   end function dry_volume
 
@@ -441,16 +507,26 @@ contains
 
     real(r8) :: vol(ncol,nlev)       ! m3/kg
 
-    real(r8), pointer :: wetr(:,:)
-    character(len=32) :: bin_name
+    real(r8)                          :: radwet(pcols,pver)   !! wet radius (m)
+    real(r8)                          :: rhowet(pcols,pver)   !! wet density (kg/m3)
+
+    character(len=aero_name_len) :: bin_name, shortname
+    integer :: igroup, ibin, rc, nchr
+
+    call rad_cnst_get_info_by_bin(0, bin_idx, bin_name=bin_name)
+
+    nchr = len_trim(bin_name)-2
+    shortname = bin_name(:nchr)
+
+    call  carma_get_group_by_name(shortname, igroup, rc)
+
+    read(bin_name(nchr+1:),*) ibin
 
     vol = 0._r8
 
-    call rad_cnst_get_info_by_bin(list_idx, bin_idx, bin_name=bin_name)
+    call carma_get_wet_radius(self%state, igroup, ibin, radwet, rhowet, rc)
 
-    call pbuf_get_field(self%pbuf, pbuf_get_index(trim(bin_name)//"_wetr"),wetr)
-
-    vol(:ncol,:) = four_thirds_pi * (wetr(:ncol,:)**3)
+    vol(:ncol,:) = four_thirds_pi * (radwet(:ncol,:)**3) ! ???? units = m3/kg ????
 
   end function wet_volume
 

@@ -69,7 +69,6 @@ contains
     integer :: ierr, nspec
     integer :: ilev, ispec, icol
 
-    real(r8), pointer :: kappa_ptr(:,:) ! hygroscopicity
     real(r8), pointer :: specmmr(:,:)   ! species mass mixing ratio
 
     real(r8) :: coremmr(ncol,nlev)
@@ -172,8 +171,7 @@ contains
        end do
     end do
 
-    kappa_ptr => aero_state%hygroscopicity(ilist, ibin)
-    newobj%kappa(:ncol,:) = kappa_ptr(:ncol,:)
+    call aero_state%hygroscopicity(ilist, ibin, newobj%kappa)
 
     call aero_props%optics_params(ilist, ibin, &
          corefrac=newobj%tbl_corefrac, kap=newobj%tbl_kap, &

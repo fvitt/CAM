@@ -30,8 +30,7 @@ use cam_history,     only: outfld, addfld, add_default, horiz_only
 use cam_logfile,     only: iulog
 use cam_abortutils,  only: endrun
 use rad_constituents,only: rad_cnst_get_info, rad_cnst_get_info_by_bin, rad_cnst_get_info_by_bin_spec, &
-                           rad_cnst_get_bin_props_by_idx, rad_cnst_get_bin_mmr_by_idx, rad_cnst_get_bin_mmr, &
-                           rad_cnst_get_bin_num
+                           rad_cnst_get_bin_props_by_idx, rad_cnst_get_bin_mmr_by_idx
 
 use carma_aerosol_properties_mod, only: carma_aerosol_properties
 use carma_aerosol_state_mod, only: carma_aerosol_state
@@ -273,17 +272,11 @@ subroutine ma_convproc_init
 
       ii = 0
       do m = 1, nbins
-        do l = 1, nspec(m) + 2    ! do through nspec plus mmr and number
+        do l = 1, nspec(m)
             ii = ii + 1
             bin_idx(m,l) = ii
 
-            if (l <= nspec(m) ) then   ! species
-               call rad_cnst_get_info_by_bin_spec(0, m, l, spec_name=fieldname(ii), spec_name_cw=fieldname_cw(ii))
-            else if (l == nspec(m) + 1) then   ! bin mmr
-               call rad_cnst_get_info_by_bin(0, m, mmr_name=fieldname(ii), mmr_name_cw=fieldname_cw(ii))
-            else if (l == nspec(m) + 2) then   ! bin num dens
-               call rad_cnst_get_info_by_bin(0, m, num_name=fieldname(ii), num_name_cw=fieldname_cw(ii))
-            end if
+            call rad_cnst_get_info_by_bin_spec(0, m, l, spec_name=fieldname(ii), spec_name_cw=fieldname_cw(ii))
 
             call addfld (trim(fieldname(ii))//'SFSEC', &
                  horiz_only,  'A','kg/m2/s','Wet deposition flux (precip evap, convective) at surface')
@@ -324,7 +317,7 @@ subroutine ma_convproc_init
          if (m.lt.nbins) then
             call rad_cnst_get_info_by_bin(0, m+1, bin_name=bin_name_l)
          end if
-         do l = 1, nspec(m) + 2    ! do through nspec plus mmr and number
+         do l = 1, nspec(m)
             ii = bin_idx(m,l)
             ibl(ii) = ii
 
@@ -532,13 +525,8 @@ subroutine ma_convproc_intr( state, ptend, pbuf, ztodt,             &
          if (ll <= nspec(n)) then
              call rad_cnst_get_bin_mmr_by_idx(0, n, ll, 'a', state, pbuf, raer(l)%fld)
          end if
-         if (ll == nspec(n)+1) then ! mmr
-              call rad_cnst_get_bin_mmr(0, n, 'a', state, pbuf, raer(l)%fld)
-         end if
-         if (ll == nspec(n)+2) then ! number
-              call rad_cnst_get_bin_num(0, n, 'a', state, pbuf, raer(l)%fld)
-         end if
-        ! calc new raer(l) if from state, add ptend
+
+         ! calc new raer(l) if from state, add ptend
          if (bin_cnst_lq(n,ll)) then ! advected species, non advective species have been updated
             qa(:ncol,:,l) = raer(l)%fld(1:ncol,:) + dt*ptend%q(1:ncol,:,lpr)
             qb(:ncol,:,l) = max( 0.0_r8, qa(1:ncol,:,l) )
