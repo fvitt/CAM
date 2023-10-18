@@ -58,9 +58,9 @@ contains
 
     integer :: ierr, nspec
     integer :: ispec
+    integer :: i,k
 
     real(r8), pointer :: specmmr(:,:)   ! species mass mixing ratio
-    real(r8), pointer :: wgtpct_in(:,:) !  weight precent of H2SO4/H2O solution
 
     allocate(newobj, stat=ierr)
     if (ierr/=0) then
@@ -79,13 +79,14 @@ contains
        nullify(newobj)
        return
     end if
+    ! copy weight precent of H2SO4/H2O solution from aerosol state object
+    do k = 1,nlev
+       do i = 1,ncol
+          newobj%wgtpct(i,k) = aero_state%wgtpct(i,k)
+       end do
+    end do
 
-!!$    wgtpct_in => aero_state%wgtpct()
-!! *** NEED TO FIX ***
     call aero_props%optics_params(ilist, ibin, wgtpct=newobj%tbl_wgtpct, nwtp=newobj%nwtp)
-
-!!$    newobj%wgtpct(:ncol,:) = wgtpct_in(:ncol,:)
-    newobj%wgtpct(:ncol,:) = 0._r8
 
     nspec = aero_props%nspecies(ilist, ibin)
 

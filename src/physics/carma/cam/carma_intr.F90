@@ -26,7 +26,7 @@ module carma_intr
   use shr_kind_mod,   only: r8 => shr_kind_r8
   use spmd_utils,     only: masterproc, mpicom
   use shr_reprosum_mod, only : shr_reprosum_calc
-  use ppgrid,         only: pcols, pver, pverp
+  use ppgrid,         only: pcols, pver, pverp, begchunk,endchunk
   use ref_pres,       only: pref_mid, pref_edge, pref_mid_norm, psurf_ref
   use physics_types,  only: physics_state, physics_ptend, physics_ptend_init, &
                             set_dry_to_wet, physics_state_copy
@@ -89,7 +89,6 @@ module carma_intr
   public carma_get_wet_radius
   public carma_get_bin_rmass
   public carma_set_bin
-
 
   ! NOTE: This is required by physpkg.F90, since the carma_intr.F90 stub in physics/cam
   ! does not have access to carma_constant.F90, but needs to also provide a defintion
@@ -203,6 +202,8 @@ module carma_intr
   ! elements.
   real (r8)             :: carma_massscalefactor(NGROUP, NBIN)
 
+  ! sulfate weight percent -- updated in carma_timestep_tend
+  real(r8), allocatable, public, protected :: carma_sulfate_wght_pct(:,:,:)
 
 contains
 
@@ -579,6 +580,7 @@ contains
 
     logical                    :: history_carma
     logical                    :: history_carma_srf_flx
+    integer :: astat
 
     aero_check_routine=>carma_checkstate_local
 
@@ -805,6 +807,14 @@ contains
     call CARMAMODEL_InitializeModel(carma, lq_carma, pbuf2d, rc)
     if (rc < 0) call endrun('carma_init::CARMA_InitializeModel failed.')
 
+    ! allocate sulfate weight percent array
+    allocate(carma_sulfate_wght_pct(pcols,pver,begchunk:endchunk),stat=astat)
+    if( astat /= 0 ) then
+       write(iulog,*) 'carma_init: failed to allocate carma_sulfate_wght_pct, error = ',astat
+       call endrun
+    end if
+    carma_sulfate_wght_pct(:,:,:) = -huge(1._r8)
+
     return
   end subroutine carma_init
 
@@ -853,6 +863,8 @@ contains
     ! Do a model specific initialization.
     call CARMA_Destroy(carma, rc)
     if (rc < 0) call endrun('carma_final::CARMA_Destroy failed.')
+
+    deallocate(carma_sulfate_wght_pct)
 
     return
   end subroutine carma_final
@@ -1458,7 +1470,7 @@ contains
         call pbuf_get_field(pbuf, ipbuf4satl(igas), satl_ptr)
 
         call CARMASTATE_GetGas(cstate, igas, newstate(:), rc, satice=satice, satliq=satliq, &
-         eqice=eqice, eqliq=eqliq, wtpct=wtpct)
+             eqice=eqice, eqliq=eqliq, wtpct=wtpct)
         if (rc < 0) call endrun('carma_timestep_tend::CARMASTATE_GetGas failed.')
 
         icnst = icnst4gas(igas)
@@ -1521,9 +1533,11 @@ contains
     call CARMASTATE_Destroy(cstate, rc)
     if (rc < 0) call endrun('carma_timestep_tend::CARMASTATE_Destroy failed.')
 
-
     ! Output diagnostic fields.
     call carma_output_diagnostics(state_loc, ptend, pbuf, cam_in, gpdiags, sbdiags, gsdiags, spdiags, bndiags)
+
+    ! save sulfate weight percent
+    carma_sulfate_wght_pct(:state%ncol,:,state%lchnk) = gsdiags(:state%ncol,:,I_GAS_H2SO4,GSDIAGS_WT)
 
   end subroutine carma_timestep_tend
 
@@ -4423,15 +4437,4 @@ contains
 
   end subroutine carma_get_bin_rmass
 
-!!$  subroutine carma_get_wtpct
-!!$
-!!$    real(r8)                             :: mmr_gas(pver)  !! gas mass mixing ratio (kg/kg)
-!!$
-!!$    do igas = 1,NGAS
-!!$       if(igas .eq. I_GAS_H2SO4)then ! only output the sulfate weight percent
-!!$          call CARMASTATE_GetGas(cstate, igas, mmr_gas(:), rc, wtpct=wtpct)
-!!$       end if
-!!$    end do
-!!$
-!!$  end subroutine carma_get_wtpct
 end module carma_intr
