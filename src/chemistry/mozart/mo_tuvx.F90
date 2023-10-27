@@ -261,7 +261,7 @@ contains
     if( is_initialized ) return
     is_initialized = .true.
 
-    call die_msg( 121631567, "TUV-x is not yet ready for use in CAM" )
+    !call die_msg( 121631567, "TUV-x is not yet ready for use in CAM" )
 
     if( is_main_task ) write(iulog,*) "Beginning TUV-x Initialization"
 
