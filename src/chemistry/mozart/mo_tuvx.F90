@@ -2,15 +2,21 @@
 ! Wrapper for TUV-x photolysis rate constant calculator
 !----------------------------------------------------------------------
 module mo_tuvx
+ use cam_abortutils, only : endrun
 
   use musica_map,              only : map_t
   use musica_string,           only : string_t
-  use ppgrid,                  only : pver                ! number of vertical layers
+  use ppgrid,                  only : pver, pverp                ! number of vertical layers
+  use ppgrid,                  only : begchunk, endchunk, pcols
   use shr_kind_mod,            only : r8 => shr_kind_r8, cl=>shr_kind_cl
   use tuvx_core,               only : core_t
   use tuvx_grid_from_host,     only : grid_updater_t
   use tuvx_profile_from_host,  only : profile_updater_t
   use tuvx_radiator_from_host, only : radiator_updater_t
+  use spmd_utils,     only : masterproc
+  use cam_logfile,    only : iulog ! log file output unit
+  use actinic_flux_mod, only: sw_actinic_fluxes
+  use actinic_flux_mod, only: lw_actinic_fluxes
 
   implicit none
 
@@ -106,7 +112,7 @@ module mo_tuvx
     real(r8), allocatable    :: wavelength_edges_(:)      ! TUV-x wavelength bin edges (nm)
     real(r8), allocatable    :: wavelength_values_(:)     ! Working array for interface values
                                                           !   on the TUV-x wavelength grid
-    real(r8), allocatable    :: wavelength_mid_values_(:) ! Working array for mid-point values
+    real(r8), allocatable    :: wavelength_mid_values_(:) ! Working array for mid-point values -- POORLY NAMED -- mid_point_etf
                                                           !   on the TUV-x wavelength grid
     real(r8), allocatable    :: optical_depth_(:,:,:)            ! (column, vertical level, wavelength) [unitless]
     real(r8), allocatable    :: single_scattering_albedo_(:,:,:) ! (column, vertical level, wavelength) [unitless]
@@ -126,6 +132,9 @@ module mo_tuvx
   ! namelist options
   character(len=cl) :: tuvx_config_path = 'NONE'  ! absolute path to TUVX configuration file
   logical, protected :: tuvx_active = .false.
+
+  integer :: nw_short = -1
+  integer :: nw_long = -1
 
 !================================================================================================
 contains
@@ -216,6 +225,7 @@ contains
 #ifdef HAVE_MPI
     use mpi
 #endif
+    use cam_abortutils, only : endrun
     use cam_logfile,             only : iulog ! log file output unit
     use mo_chem_utls,            only : get_spc_ndx, get_inv_ndx
     use mo_jeuv,                 only : neuv ! number of extreme-UV rates
@@ -256,6 +266,8 @@ contains
     logical :: disable_aerosols, disable_clouds
     type(string_t) :: required_keys(1), optional_keys(2)
     logical, save :: is_initialized = .false.
+
+    integer :: astat, n_tuvx_bins, i
 
     if( .not. tuvx_active ) return
     if( is_initialized ) return
@@ -383,6 +395,8 @@ contains
                                    tuvx%n_special_rates_ ) )
       deallocate( height )
 
+      n_tuvx_bins = size(tuvx%wavelength_mid_values_)
+
     end associate
     end do
     deallocate( cam_grids     )
@@ -420,6 +434,15 @@ contains
     call initialize_diagnostics( tuvx_ptrs( 1 ) )
 
     if( is_main_task ) call log_initialization( )
+
+    allocate(sw_actinic_fluxes(nw_short,pcols,pver,begchunk:endchunk), stat=astat)
+    if (astat/=0) then
+       call endrun('tuvx_init: Error allocating sw_actinic_fluxes array')
+    endif
+    allocate(lw_actinic_fluxes(nw_long,pcols,pver,begchunk:endchunk), stat=astat)
+    if (astat/=0) then
+       call endrun('tuvx_init: Error allocating lw_actinic_fluxes array')
+    endif
 
   end subroutine tuvx_init
 
@@ -465,6 +488,7 @@ contains
     use spmd_utils,       only : main_task => masterprocid, &
                                  is_main_task => masterproc, &
                                  mpicom
+    use tuvx_solver, only : radiation_field_t
 
     type(physics_state),       target,  intent(in)    :: state
     type(physics_buffer_desc), pointer, intent(inout) :: pbuf(:)
@@ -489,9 +513,13 @@ contains
     real(r8), intent(inout) :: photolysis_rates(ncol,pver,phtcnt) ! photolysis rate
                                                                   !   constants (1/s)
 
+    integer :: i_wave
     integer  :: i_col   ! column index
     integer  :: i_level ! vertical level index
     real(r8) :: sza     ! solar zenith angle [degrees]
+
+    type(radiation_field_t) :: field
+    real(r8), allocatable :: actinicFlux(:,:)
 
     if( .not. tuvx_active ) return
 
@@ -534,6 +562,33 @@ contains
                              earth_sun_distance = earth_sun_distance, &
                              photolysis_rate_constants = &
                              tuvx%photo_rates_(i_col,:,1:tuvx%n_photo_rates_) )
+        field = tuvx%core_%get_radiation_field()
+
+        actinicFlux = transpose( field%fdr_ + field%fup_ + field%fdn_ )
+        where( actinicFlux < 0.0_r8 )
+           actinicFlux = 0.0_r8
+        end where
+
+        if (any(actinicFlux<0.0_r8)) then
+           write(*,*) 'FVDBG negative actinicFlux : '
+
+           do i_level = 1,pverp
+              do i_wave = 1,tuvx%n_photo_rates_
+                 if (actinicFlux(i_wave,i_level)<0.0_r8) then
+                    write(*,*) 'FVDBG negative actinicFlux : ',actinicFlux(i_wave,i_level),' i_wave,i_level: ',i_wave,i_level
+                 end if
+              end do
+           end do
+
+           call endrun('FVDBG.ERROR....actinicFlux<0.0')
+        end if
+
+        do i_level = 1,pver
+           sw_actinic_fluxes(:,i_col,i_level,lchnk) = actinicFlux(1:nw_short, i_level+1) &
+                                                    * tuvx%wavelength_mid_values_(1:nw_short)
+           lw_actinic_fluxes(:,i_col,i_level,lchnk) = actinicFlux(nw_short+1:,i_level+1) &
+                                                    * tuvx%wavelength_mid_values_(nw_short+1:)
+        enddo
 
         ! ==============================
         ! Calculate the extreme-UV rates
@@ -1116,6 +1171,14 @@ contains
     allocate( this%wavelength_mid_values_( wavelength%size( )     ) )
     this%wavelength_edges_(:) = wavelength%edge_(:)
 
+    nw_short = count(wavelength%mid_<200._r8)
+    nw_long  = count(wavelength%mid_>200._r8)
+
+!    if (masterproc) then
+!       write(iulog,*) 'FVDBG*.... wavelength%mid_ : ',wavelength%mid_
+!       write(iulog,*) 'FVDBG*.... nw_short, nw_long : ', nw_short, nw_long
+!    end if
+
     ! ==============================
     ! optical property working array
     ! ==============================
@@ -1335,6 +1398,7 @@ contains
     !================================================
     et_flux_orig(:) = sol_etf(:)
     n_tuvx_bins = size(this%wavelength_mid_values_)
+
     call rebin( nbins, n_tuvx_bins, we, this%wavelength_edges_, et_flux_orig, &
                 this%wavelength_mid_values_ )
 

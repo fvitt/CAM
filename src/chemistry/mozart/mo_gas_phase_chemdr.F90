@@ -10,6 +10,7 @@ module mo_gas_phase_chemdr
   use phys_control,     only : phys_getopts
   use carma_flags_mod,  only : carma_hetchem_feedback
   use chem_prod_loss_diags, only: chem_prod_loss_diags_init, chem_prod_loss_diags_out
+    use cam_abortutils,    only : endrun
 
   implicit none
   save
@@ -815,7 +816,7 @@ contains
     call shr_orb_decl( calday, eccen, mvelpp, lambm0, obliqr  , &
          delta, esfact )
 
- !   if (tuvx_active) then
+    if (tuvx_active) then
       !-----------------------------------------------------------------
       !	... get calculated photolysis rates from TUV-x
       !-----------------------------------------------------------------
@@ -823,7 +824,13 @@ contains
                                  tfld, ts, invariants, vmr, col_delta, &
                                  asdir, zen_angle, esfact, pdel, cldfr,&
                                  cwat, reaction_rates(:,:,1:phtcnt) )
-reaction_rates(:,:,1:phtcnt)=0._r8
+
+      if (any(reaction_rates(1:ncol,:,1:phtcnt)<0._r8)) then
+         call endrun('FVDBG.ERROR... chemdr neg J rates')
+      end if
+
+      reaction_rates(:,:,1:phtcnt)=0._r8
+    endif
  !   else
       !-----------------------------------------------------------------
       !	... lookup the photolysis rates from table
