@@ -11,7 +11,7 @@ module carma_aerosol_state_mod
   use physconst, only: pi
   use carma_intr, only: carma_get_total_mmr, carma_get_dry_radius, carma_get_number, carma_get_number_cld
   use carma_intr, only: carma_get_group_by_name, carma_get_kappa, carma_get_dry_radius, carma_get_wet_radius
-  use carma_intr, only: carma_sulfate_wght_pct
+  use carma_intr, only: carma_get_wght_pct
   use ppgrid, only: begchunk, endchunk, pcols, pver
 
   implicit none
@@ -452,7 +452,7 @@ contains
     integer, intent(in) ::  icol,ilev
     real(r8) :: wtp  ! weight precent of H2SO4/H2O solution for given icol, ilev
 
-    wtp = carma_sulfate_wght_pct(icol,ilev, self%state%lchnk)
+    wtp = carma_get_wght_pct(icol,ilev,self%state)
 
   end function wgtpct
 

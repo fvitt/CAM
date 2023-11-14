@@ -38,6 +38,8 @@ module carma_intr
                             pbuf_get_index, pbuf_get_field, dtype_r8, pbuf_set_field
   use pio,            only: var_desc_t
 
+  use wv_sat_methods, only: wv_sat_qsat_water
+
   implicit none
 
   private
@@ -89,6 +91,7 @@ module carma_intr
   public carma_get_wet_radius
   public carma_get_bin_rmass
   public carma_set_bin
+  public :: carma_get_wght_pct
 
   ! NOTE: This is required by physpkg.F90, since the carma_intr.F90 stub in physics/cam
   ! does not have access to carma_constant.F90, but needs to also provide a defintion
@@ -201,9 +204,6 @@ module carma_intr
   ! tracer/tracer relationships can introduce negative values for the condensing
   ! elements.
   real (r8)             :: carma_massscalefactor(NGROUP, NBIN)
-
-  ! sulfate weight percent -- updated in carma_timestep_tend
-  real(r8), allocatable, public, protected :: carma_sulfate_wght_pct(:,:,:)
 
 contains
 
@@ -807,14 +807,6 @@ contains
     call CARMAMODEL_InitializeModel(carma, lq_carma, pbuf2d, rc)
     if (rc < 0) call endrun('carma_init::CARMA_InitializeModel failed.')
 
-    ! allocate sulfate weight percent array
-    allocate(carma_sulfate_wght_pct(pcols,pver,begchunk:endchunk),stat=astat)
-    if( astat /= 0 ) then
-       write(iulog,*) 'carma_init: failed to allocate carma_sulfate_wght_pct, error = ',astat
-       call endrun
-    end if
-    carma_sulfate_wght_pct(:,:,:) = -huge(1._r8)
-
     return
   end subroutine carma_init
 
@@ -863,8 +855,6 @@ contains
     ! Do a model specific initialization.
     call CARMA_Destroy(carma, rc)
     if (rc < 0) call endrun('carma_final::CARMA_Destroy failed.')
-
-    deallocate(carma_sulfate_wght_pct)
 
     return
   end subroutine carma_final
@@ -1535,9 +1525,6 @@ contains
 
     ! Output diagnostic fields.
     call carma_output_diagnostics(state_loc, ptend, pbuf, cam_in, gpdiags, sbdiags, gsdiags, spdiags, bndiags)
-
-    ! save sulfate weight percent
-    carma_sulfate_wght_pct(:state%ncol,:,state%lchnk) = gsdiags(:state%ncol,:,I_GAS_H2SO4,GSDIAGS_WT)
 
   end subroutine carma_timestep_tend
 
@@ -3837,6 +3824,8 @@ contains
 
     totvol(:ncol, :) = 0._r8
     totmmr(:ncol, :) = 0._r8
+    rhopdry(:ncol, :)= 0._r8
+    rdry(:ncol, :)   = 0._r8
 
     do i = 1, nelems
       ielem = ielems(i)
@@ -3852,12 +3841,16 @@ contains
     end do
 
     ! Add checks for totvol = 0 and nmr = 0
-    rhopdry(:ncol, :) = totmmr(:ncol, :) / totvol(:ncol, :)
+    where(totvol(:ncol, :)>0._r8)
+       rhopdry(:ncol, :) = totmmr(:ncol, :) / totvol(:ncol, :)
+    end where
 
     call carma_get_number(state, igroup, ibin, nmr, rc)
     if (rc < 0) return
 
-    rdry(:ncol, :) = ((3._r8 * totvol(:ncol, :) / nmr(:ncol, :)) / (4._r8 * PI)) ** (1._r8 / 3._r8)
+    where(nmr(:ncol, :)>0._r8)
+       rdry(:ncol, :) = ((3._r8 * totvol(:ncol, :) / nmr(:ncol, :)) / (4._r8 * PI)) ** (1._r8 / 3._r8)
+    end where
 
     return
   end subroutine carma_get_dry_radius
@@ -4262,7 +4255,6 @@ contains
   !! @author  Chuck Bardeen
   !! @version Aug 2023
   subroutine carma_get_wet_radius(state, igroup, ibin, rwet, rhopwet, rc)
-    use wv_sat_methods, only          : wv_sat_qsat_water
     use wetr, only                    : getwetr
 
     implicit none
@@ -4297,13 +4289,19 @@ contains
     if ((igroup < 1) .or. (igroup .gt. NGROUP)) then
       write(LUNOPRT, *) 'carma_get_total_mmr:: ERROR - Invalid group id, ', igroup
       rc = RC_ERROR
-      return
+      !return
+    end if
+    if (rc/=RC_OK) then
+       call endrun('carma_get_wet_radius ERROR1: rc = ',rc)
     end if
 
     if ((ibin < 1) .or. (ibin .gt. NBIN)) then
       write(LUNOPRT, *) 'carma_get_total_mmr:: ERROR - Invalid bin id, ', ibin
       rc = RC_ERROR
-      return
+      !return
+    end if
+    if (rc/=RC_OK) then
+       call endrun('carma_get_wet_radius ERROR2: rc = ',rc)
     end if
 
     ! Get the constiuent index for water vapor (Q)
@@ -4314,13 +4312,19 @@ contains
     ! some code that is in rhopart to use getwetr properly. There may be a
     ! better way to do this, but for now we will duplicate the code.
     call carma_get_dry_radius(state, igroup, ibin, rdry, rhopdry, rc)
-    if (rc < 0) return
+    !if (rc < 0) return
+    if (rc/=RC_OK) then
+       call endrun('carma_get_wet_radius ERROR3: rc = ',rc)
+    end if
 
     ! Calculate the dry air density at each level, using the ideal gas law.
     rhoa(:ncol, :) = (state%pmid(:ncol, :) * 10._r8) / (R_AIR * state%t(:ncol, :)) / 1.e3_r8 * 1.e6_r8
 
     call CARMAGROUP_Get(carma, igroup, rc, irhswell=irhswell)
-    if (rc < 0) return
+    !if (rc < 0) return
+    if (rc/=RC_OK) then
+       call endrun('carma_get_wet_radius ERROR4: rc = ',rc)
+    end if
 
     do icol = 1, ncol
       do iz = 1, pver
@@ -4337,12 +4341,19 @@ contains
         if (irhswell == I_WTPCT_H2SO4) then
 
           ! Should r be rdry and is rhop aready known?
-          call getwetr(carma, igroup, relhum, rdry(icol, iz) * 1e4_r8, rwet(icol, iz), &
-                       rhopdry(icol, iz) * 1.e3_r8 / 1.e6_r8, rhopwet(icol,iz), rc, &
-                       h2o_mass=state%q(icol,iz,iq) * rhoa(icol, iz) * 1.e3_r8 / 1.e6_r8, &
-                       h2o_vp=es * 10._r8 / 1.e4_r8, temp=state%t(icol,iz))
-          if (rc < 0) return
-
+          if (rdry(icol, iz)>0._r8 .and. rhopdry(icol, iz)>0._r8) then
+             call getwetr(carma, igroup, relhum, rdry(icol, iz) * 1e4_r8, rwet(icol, iz), &
+                  rhopdry(icol, iz) * 1.e3_r8 / 1.e6_r8, rhopwet(icol,iz), rc, &
+                  h2o_mass=state%q(icol,iz,iq) * rhoa(icol, iz) * 1.e3_r8 / 1.e6_r8, &
+                  h2o_vp=es * 10._r8 / 1.e4_r8, temp=state%t(icol,iz))
+             !if (rc < 0) return
+             if (rc/=RC_OK) then
+                call endrun('carma_get_wet_radius ERROR5: rc = ',rc) ! <======
+             end if
+          else
+             rhopwet(icol,iz) = 0._r8
+             rwet(icol, iz) = 0._r8
+          end if
         else if (irhswell == I_PETTERS) then
           call carma_get_kappa(state, igroup, ibin, kappa, rc)
           if (rc < 0) return
@@ -4351,12 +4362,19 @@ contains
                        rhopdry(icol, iz) * 1.e3_r8 / 1.e6_r8, rhopwet(icol,iz), rc, &
                        h2o_mass=state%q(icol,iz,iq) * rhoa(icol, iz) * 1.e3_r8 / 1.e6_r8, &
                        h2o_vp=es * 10._r8 / 1.e4_r8, temp=state%t(icol,iz), kappa=kappa(icol,iz))
-          if (rc < 0) return
+          !if (rc < 0) return
+          if (rc/=RC_OK) then
+             call endrun('carma_get_wet_radius ERROR6: rc = ',rc)
+          end if
 
         else ! I_GERBER and I_FITZGERALD
           call getwetr(carma, igroup, relhum, rdry(icol, iz) * 1e4_r8, rwet(icol, iz), &
                        rhopdry(icol, iz) * 1.e3_r8 / 1.e6_r8, rhopwet(icol,iz), rc)
-          if (rc < 0) return
+          !if (rc < 0) return
+          if (rc/=RC_OK) then
+             call endrun('carma_get_wet_radius ERROR7: rc = ',rc)
+          end if
+
         end if
       end do
     end do
@@ -4364,6 +4382,10 @@ contains
     ! Convert rwet and rhopwet to mks units
     rwet(:ncol,:) = rwet(:ncol,:)  / 1.e4_r8
     rhopwet(:ncol,:) = rhopwet(:ncol,:)  / 1.e3_r8 * 1.e6_r8
+
+    if (rc/=RC_OK) then
+       call endrun('carma_get_wet_radius ERROR8: rc = ',rc)
+    end if
 
     return
   end subroutine
@@ -4436,5 +4458,41 @@ contains
     mass = rmass(ibin)
 
   end subroutine carma_get_bin_rmass
+
+  function carma_get_wght_pct(icol,ilev,state) result(wtpct)
+    use sulfate_utils, only: wtpct_tabaz
+
+    integer, intent(in) ::  icol,ilev
+    type(physics_state), intent(in)    :: state          !! Physics state variables - before CARMA
+
+    real(r8) :: wtpct
+
+    integer :: rc !! return code
+
+    real(r8) :: pvapl, es, qs, gc_cgs, rhoa
+
+    rc = RC_OK
+
+    ! Get relative humidity and vapor pressure
+
+    call wv_sat_qsat_water(state%t(icol,ilev), state%pmid(icol,ilev), es, qs)
+
+    ! seems like this is used in rwet calcuation to get pvapl water vapor pressure
+
+    pvapl = es * 10._r8 / 1.e4_r8
+
+    ! need water vapor and gc_ptr is used above
+
+    rhoa = (state%pmid(icol,ilev) * 10._r8) / (R_AIR * state%t(icol,ilev)) / 1.e3_r8 * 1.e6_r8 ! units ???
+
+    gc_cgs = state%q(icol,ilev,icnst4gas(carma%f_igash2o) ) * rhoa ! grams/cm3 ???
+
+    wtpct = wtpct_tabaz(carma, state%t(icol,ilev), gc_cgs, pvapl, rc)
+
+    if (rc/=RC_OK) then
+       call endrun('carma_get_wght_pct: rc = ',rc)
+    end if
+
+  end function carma_get_wght_pct
 
 end module carma_intr

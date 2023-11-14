@@ -561,7 +561,8 @@ contains
   function scav_radius(self, bin_ndx) result(radius)
 
     use carma_model_mod, only: NBIN
-    use carma_intr, only :carma_get_bin_rmass
+    use carma_intr, only: carma_get_bin_rmass
+    use carma_intr, only: carma_get_group_by_name
 
     class(carma_aerosol_properties), intent(in) :: self
     integer, intent(in) :: bin_ndx  ! bin number
@@ -570,15 +571,20 @@ contains
 
     real(r8) :: mass   ! the bin mass (g)
     real(r8) :: rho    ! density (kg/m3)
-    integer :: igroup, ibin, rc, ispec
+    integer :: ispec
     character(len=32) :: spectype
 
-    ibin = bin_ndx
-    igroup = 1
-    if (bin_ndx>NBIN) then
-       igroup = 2
-       ibin = ibin-NBIN
-    end if
+    character(len=aero_name_len) :: bin_name, shortname
+    integer :: igroup, ibin, rc, nchr
+
+    call rad_cnst_get_info_by_bin(0, bin_ndx, bin_name=bin_name)
+
+    nchr = len_trim(bin_name)-2
+    shortname = bin_name(:nchr)
+
+    call carma_get_group_by_name(shortname, igroup, rc)
+
+    read(bin_name(nchr+1:),*) ibin
 
     call carma_get_bin_rmass(igroup, ibin, mass, rc)
 
