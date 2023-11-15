@@ -25,6 +25,9 @@ module aero_model
   use mo_setsox,         only: setsox, has_sox
   use carma_aerosol_properties_mod, only: carma_aerosol_properties
 
+  use carma_intr, only: carma_get_group_by_name, carma_get_dry_radius, carma_get_wet_radius, carma_get_bin_rmass, carma_get_total_mmr
+  use aerosol_properties_mod, only: aero_name_len
+
   implicit none
   private
 
@@ -83,7 +86,7 @@ module aero_model
 
   ! ptr2d_t is used to create arrays of pointers to 2D fields
   type ptr2d_t
-    real(r8), pointer :: fld(:,:)
+    real(r8), pointer :: fld(:,:) => null()
   end type ptr2d_t
 
   logical :: lq(pcnst) = .false. ! set flags true for constituents with non-zero tendencies
@@ -351,11 +354,11 @@ contains
     !st enddo count_species
 
     ! add plus one to include number, total mmr and nspec
-    nspec_max = maxval(nspec) + 2
+    nspec_max = maxval(nspec)
 
-    ncnst_tot = nspec(1) + 2
+    ncnst_tot = nspec(1)
     do m = 2, nbins
-      ncnst_tot = ncnst_tot + nspec(m) + 2
+      ncnst_tot = ncnst_tot + nspec(m)
     end do
     ncnst_extd = 2*ncnst_tot
 
@@ -368,7 +371,7 @@ contains
 
     ii = 0
     do m = 1, nbins
-      do l = 1, nspec(m) + 1  ! loop through nspec plus number
+      do l = 1, nspec(m) ! loop through species
          ii = ii + 1
          bin_idx(m,l) = ii
 
@@ -566,7 +569,6 @@ contains
     use carma_aero_convproc,   only: deepconv_wetdep_history, ma_convproc_intr, convproc_do_evaprain_atonce
     use time_manager,          only: is_first_step
 
-
     ! args
 
     type(physics_state), intent(in)    :: state       ! Physics state variables
@@ -677,9 +679,6 @@ contains
 
     real(r8), pointer :: fracis(:,:,:)   ! fraction of transported species that are insoluble
 
-    real(r8), pointer :: dryr(:,:)   ! CARMA dry radius in cm
-    real(r8), pointer :: wetr(:,:)   ! CARMA wet radius in cm
-    real(r8), pointer :: rmass_ptr(:)     ! CARMA rmass
     real(r8), allocatable :: rmass(:)     ! CARMA rmass
 
     type(wetdep_inputs_t) :: dep_inputs
@@ -687,7 +686,12 @@ contains
     real(r8) :: dcondt_resusp3d(ncnst_extd,pcols, pver)
 
     character(len=32) :: spectype
-    character(len=32) :: bin_name
+    character(len=*), parameter :: subname = 'aero_model_wetdep'
+    character(len=aero_name_len) :: bin_name, shortname
+    integer :: igroup, ibin, rc, nchr
+    real(r8) :: rho(pcols,pver)
+    real(r8) :: rdry(pcols,pver)
+    real(r8) :: rwet(pcols,pver)
 
     lchnk = state%lchnk
     ncol  = state%ncol
@@ -695,7 +699,7 @@ contains
     dcondt_resusp3d(:,:,:) = 0._r8
 
     call physics_ptend_init(ptend, state%psetcols, 'aero_model_wetdep', lq=lq)
-return
+
 !st  CARMA is doing water uptake (in the CARMA code), we leave this out here
     ! Do calculations of mode radius and water uptake if:
     ! 1) modal aerosols are affecting the climate, or
@@ -713,6 +717,10 @@ return
     allocate( &
       raer(ncnst_tot),                &
       qqcw(ncnst_tot)                 )
+
+    do m = 1,ncnst_tot
+       nullify(qqcw(m)%fld)
+    end do
 
     call pbuf_get_field(pbuf, fracis_idx, fracis, start=(/1,1,1/), kount=(/pcols, pver, pcnst/) )
 
@@ -757,10 +765,35 @@ return
        ! taken here from CARMA pbuf field
        ! get bin info general for each bin
        call rad_cnst_get_info_by_bin(0, m, bin_name=bin_name)
-       call pbuf_get_field(pbuf, pbuf_get_index(trim(bin_name)//"_dryr"),dryr)
-       call pbuf_get_field(pbuf, pbuf_get_index(trim(bin_name)//"_wetr"),wetr)
-       call pbuf_get_field(pbuf, pbuf_get_index(trim(bin_name)//"_rmass"),rmass_ptr)
-       rmass(m) =  rmass_ptr(1)
+
+       nchr = len_trim(bin_name)-2
+       shortname = bin_name(:nchr)
+
+       call carma_get_group_by_name(shortname, igroup, rc)
+
+       read(bin_name(nchr+1:),*) ibin
+
+       !call pbuf_get_field(pbuf, pbuf_get_index(trim(bin_name)//"_dryr"),dryr)
+       call carma_get_dry_radius(state, igroup, ibin, rdry, rho, rc)
+       if (rc/=0) then
+          call endrun(subname//': ERROR in carma_get_dry_radius')
+       end if
+       !call pbuf_get_field(pbuf, pbuf_get_index(trim(bin_name)//"_wetr"),wetr)
+       call carma_get_wet_radius(state, igroup, ibin, rwet, rho, rc)
+       if (rc/=0) then
+          call endrun(subname//': ERROR in carma_get_wet_radius(')
+       end if
+
+       !call pbuf_get_field(pbuf, pbuf_get_index(trim(bin_name)//"_rmass"),rmass_ptr)
+       call carma_get_bin_rmass(igroup, ibin, rmass(m), rc)
+       if (rc/=0) then
+          call endrun(subname//': ERROR in carma_get_bin_rmass')
+       end if
+
+       call carma_get_total_mmr(state, igroup, ibin, totalmmr, rc)
+       if (rc/=0) then
+          call endrun(subname//': ERROR in carma_get_total_mmr')
+       end if
 
        do lphase = strt_loop,end_loop, stride_loop ! loop over interstitial (1) and cloud-borne (2) forms
           ! Init pointers to mode number and specie mass mixing ratios in
@@ -794,7 +827,7 @@ return
                 sol_factic = 0.0_r8
              end if
 
-             call carma_aero_bcscavcoef_get( m, ncol, isprx, wetr, dryr,&
+             call carma_aero_bcscavcoef_get( m, ncol, isprx, rwet, rdry,&
                   scavcoefnv(:,:,1), scavcoefnv(:,:,2), pbuf )
 
           !alternative function to drive  scavcoefnv for CARMA  using Pengfei's method
@@ -864,9 +897,7 @@ return
 
              ! derive sol_factb for CARMA  specific for bins and phase
              sol_factb(:ncol,:)=0._r8
-             ! get total mass (per bin)
-             l = nspec(m) + 1
-             mm = bin_idx(m, l)
+
              do l = 1, nspec(m)
                 mm = bin_idx(m, l)
                 call rad_cnst_get_bin_mmr_by_idx(0, m, l, 'a', state, pbuf, raer(mm)%fld)
@@ -922,7 +953,7 @@ return
           end if
 
           !load mmr and number   specie loop starts
-          do l = 1, nspec(m) + 2  ! loop over different npsec plus over total mmr and number
+          do l = 1, nspec(m) ! loop over species
              mm = bin_idx(m,l)
              lpr = bin_cnst_idx(m,l)
              if (l <= nspec(m)) then
@@ -1017,28 +1048,6 @@ return
                       fld_sum(1:ncol,:) = fld_sum(1:ncol,:) + raer(mm)%fld(1:ncol,:)
                    end if
 
-                ! NOTE: For a flexible interface, you should not assume that mmr is advected
-                ! and num is not advected. Removing the concentration element will cause both
-                ! of these to be non-advected.
-                else if (l == nspec(m) + 1) then   !mmr is advected and number is  not advected
-
-                   if (bin_cnst_lq(m,l)) then ! adveced species
-                      dqdt_tmp(1:ncol,:) = (fld_sum(1:ncol,:) - raer(mm)%fld(1:ncol,:)) / dt
-                      ptend%q(1:ncol,:,lpr) = dqdt_tmp(1:ncol,:)
-                   else
-                      dqdt_tmp(1:ncol,:) = (raer(mm)%fld(1:ncol,:) - fld_sum(1:ncol,:)) / dt
-                      raer(mm)%fld(1:ncol,:) = fld_sum(1:ncol,:)
-                   end if
-
-                else if (l == nspec(m) + 2) then   !num fraction is assuming dN/N = dM/M
-
-                   if (bin_cnst_lq(m,l)) then ! adveced species
-                      dqdt_tmp(1:ncol,:) = (fld_sum(1:ncol,:) / rmass(m) - raer(mm)%fld(1:ncol,:)) / dt
-                      ptend%q(1:ncol,:,lpr) = dqdt_tmp(1:ncol,:)
-                   else
-                      dqdt_tmp(1:ncol,:) = (fld_sum(1:ncol,:) / rmass(m) - raer(mm)%fld(1:ncol,:)) / dt
-                      raer(mm)%fld(1:ncol,:) = fld_sum(1:ncol,:) / rmass(m)
-                   end if
                 end if   ! nspec
 
                 call outfld( trim(fieldname(mm))//'SIS', isscavt, pcols, lchnk)
@@ -1232,30 +1241,6 @@ return
                       rcscavt_sum(:ncol,:) = rcscavt_sum(:ncol,:) + rcscavt(:ncol,:)
                       rsscavt_sum(:ncol,:) = rsscavt_sum(:ncol,:) + rsscavt(:ncol,:)
 
-                   else if (l == nspec(m) + 1) then     !mmr and number are not advected
-
-                      dqdt_tmp(:ncol,:) = (fldcw_sum(:ncol,:) - qqcw(mm)%fld(:ncol,:)) / dt
-                      qqcw(mm)%fld(:ncol,:) = fldcw_sum(:ncol,:)
-
-                      icscavt(:ncol,:) = icscavt_sum(:ncol,:)
-                      isscavt(:ncol,:) = isscavt_sum(:ncol,:)
-                      bcscavt(:ncol,:) = bcscavt_sum(:ncol,:)
-                      bsscavt(:ncol,:) = bsscavt_sum(:ncol,:)
-                      rcscavt(:ncol,:) = rcscavt_sum(:ncol,:)
-                      rsscavt(:ncol,:) = rsscavt_sum(:ncol,:)
-
-                   else if (l == nspec(m) + 2) then    !num fraction is assuming dN/N = dM/M
-
-                      dqdt_tmp(:ncol,:) = (fldcw_sum(:ncol,:) / rmass(m) - qqcw(mm)%fld(:ncol,:)) / dt
-                      qqcw(mm)%fld(:ncol,:) = fldcw_sum(:ncol,:) / rmass(m)
-
-                      icscavt(:ncol,:) = icscavt_sum(:ncol,:)
-                      isscavt(:ncol,:) = isscavt_sum(:ncol,:)
-                      bcscavt(:ncol,:) = bcscavt_sum(:ncol,:)
-                      bsscavt(:ncol,:) = bsscavt_sum(:ncol,:)
-                      rcscavt(:ncol,:) = rcscavt_sum(:ncol,:)
-                      rsscavt(:ncol,:) = rsscavt_sum(:ncol,:)
-
                    end if   ! nspec
 
                    sflx(:)=0._r8
@@ -1312,7 +1297,7 @@ return
                 endif
              endif
 
-          enddo ! l= 0, nspec(m)+2
+          enddo ! l= 0, nspec
        enddo ! lphase = 1, 2
     enddo ! m = 1, nbins
 
@@ -1328,7 +1313,7 @@ return
           do m = 1, nbins! main loop over aerosol modes
              do lphase = strt_loop,end_loop, stride_loop
                 ! loop over interstitial (1) and cloud-borne (2) forms
-                do l = 1, nspec(m) + 2
+                do l = 1, nspec(m)
                    mm = bin_idx(m, l)
                    lc = mm + ncnst_tot
                    ! lphase=1 consider interstitial areosols, lphase=2 consider cloud-borne aerosols
@@ -2057,19 +2042,29 @@ return
     real(r8) dumdgratio, xgrow, dumfhi, dumflo, scavimpvol, scavimpnum, dg0_base, specdens, rhodryaero
 
     character(len=32) :: spectype
-    character(len=32) :: bin_name
+    character(len=aero_name_len) :: bin_name, shortname
+    integer :: igroup, ibin, rc, nchr
 
     real(r8), allocatable :: rmass(:)     ! CARMA rmass
-    real(r8), pointer :: rmass_ptr(:)   ! CARMA rmass fixed per bin
+    character(len=*), parameter :: subname = 'carma_aero_bcscavcoef_get'
 
     allocate ( rmass(nbins) )
     ! bin model: main loop over aerosol bins
 
     ! get bin info
      call rad_cnst_get_info_by_bin(0, m, bin_name=bin_name)
-     call pbuf_get_field(pbuf, pbuf_get_index(trim(bin_name)//"_rmass"),rmass_ptr)
-     rmass(m) = rmass_ptr(1)
 
+     nchr = len_trim(bin_name)-2
+     shortname = bin_name(:nchr)
+
+     call carma_get_group_by_name(shortname, igroup, rc)
+
+     read(bin_name(nchr+1:),*) ibin
+
+     call carma_get_bin_rmass(igroup, ibin, rmass(m), rc)
+     if (rc/=0) then
+        call endrun(subname//': ERROR in carma_get_bin_rmass')
+     end if
 
     ! get rmass and specdens for sulfate
     do l = 1, nspec(m)

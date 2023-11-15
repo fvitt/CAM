@@ -250,11 +250,11 @@ subroutine ma_convproc_init
          call rad_cnst_get_info_by_bin(0, m, nspec=nspec(m))
       end do
       ! add plus one to include number, total mmr and nspec
-      nspec_max = maxval(nspec) + 2
+      nspec_max = maxval(nspec)
 
       ncnst_tot = 0
       do m = 1, nbins
-        ncnst_tot = ncnst_tot + nspec(m) + 2
+        ncnst_tot = ncnst_tot + nspec(m)
       end do
       ncnst_extd = 2*ncnst_tot
       pcnst_extd = 2*ncnst_tot
@@ -515,7 +515,7 @@ subroutine ma_convproc_intr( state, ptend, pbuf, ztodt,             &
 
    do n = 1, nbins      ! main loop over aerosol bins
       call rad_cnst_get_info_by_bin(0, n, nspec=nspec(n))
-      do ll = 1, nspec(n) + 2
+      do ll = 1, nspec(n)
          l = bin_idx(n, ll)
          lpr = bin_cnst_idx(n,ll)
 
@@ -566,7 +566,7 @@ subroutine ma_convproc_intr( state, ptend, pbuf, ztodt,             &
          ! apply deep conv processing tendency and prepare for shallow conv processing
          !st do l = 1, pcnst  ! mm in aero_model
          do n = 1, nbins      ! main loop over aerosol bins
-            do ll = 1, nspec(n) + 2
+            do ll = 1, nspec(n)
                l = bin_idx(n, ll)
                lpr = bin_cnst_idx(n,ll)
 
@@ -613,7 +613,7 @@ subroutine ma_convproc_intr( state, ptend, pbuf, ztodt,             &
          !st do l = 1, pcnst  ! mm in aero_model
          !st do l = 1, pcnst
          do n = 1, nbins      ! main loop over aerosol bins
-            do ll = 1, nspec(n) + 2
+            do ll = 1, nspec(n)
                l = bin_idx(n, ll)
                lpr = bin_cnst_idx(n,ll)
 
@@ -653,7 +653,7 @@ subroutine ma_convproc_intr( state, ptend, pbuf, ztodt,             &
 
    if (convproc_do_aer .and. apply_convproc_tend_to_ptend ) then
       do n = 1, nbins      ! main loop over aerosol bins
-         do ll = 1, nspec(n) + 2
+         do ll = 1, nspec(n)
             l = bin_idx(n, ll)
 
             call outfld( trim(fieldname(l))//'SFWET', aerdepwetis(:,l), pcols, lchnk )
@@ -1340,7 +1340,7 @@ subroutine ma_convproc_tend(                                           &
    !st enddo ! n
 
    do n = 1, nbins      ! main loop over aerosol bins
-         do ll = 1, nspec(n) + 2
+         do ll = 1, nspec(n)
             l = bin_idx(n, ll)
             la = l
             lc = l + ncnst_tot
@@ -1358,7 +1358,7 @@ subroutine ma_convproc_tend(                                           &
    !end do
 
    do n = 1, nbins
-     do ll = 1, nspec(n) + 2
+     do ll = 1, nspec(n)
         l = bin_idx(n,ll)
         la = l
         lc = l + ncnst_tot
@@ -2142,7 +2142,7 @@ k_loop_main_cc: &
 !    are combined (in the next code block) before being passed back (in qsrflx)
 !
       do n = 1, nbins
-        do ll = 1, nspec(n) + 2
+        do ll = 1, nspec(n)
            l = bin_idx(n,ll)
            la = l
            lc = l + ncnst_tot
@@ -2209,7 +2209,7 @@ k_loop_main_cc: &
             do k = 10, pver
                tmpveca(:) = 0.0_r8
                do ll = 1, nspec(n)
-                   l = bin_idx(n,ll)
+                  l = bin_idx(n,ll)
                   if (j == 1) then
                      l = bin_idx(n,nspec(n)+2)
                      la = l
@@ -2331,7 +2331,7 @@ k_loop_main_cc: &
    end do i_loop_main_aa  ! of the main "do i = il1g, il2g" loop
 
    do n = 1, nbins
-      do ll = 1, nspec(n) + 2
+      do ll = 1, nspec(n)
          l = bin_idx(n,ll)
          la = l
          lc = l + ncnst_tot
@@ -2689,7 +2689,7 @@ end subroutine ma_convproc_tend
 
    dt_u_inv = 1.0_r8/dt_u
    do n = 1, nbins
-      do ll = 1, nspec(n) + 2
+      do ll = 1, nspec(n)
          l = bin_idx(n,ll)
 
          !st if (ll == 0) then
@@ -2840,16 +2840,12 @@ end subroutine ma_convproc_tend
    dt_u_inv = 1.0_r8/dt_u
 
    do n = 1, nbins
-      do ll = 1, nspec(n) + 2
+      do ll = 1, nspec(n)
          l = bin_idx(n,ll)
          la = l
          lc = l + ncnst_tot
 
-         if (ll == nspec(n) + 2) then
-            tmp_fact = fn(n)
-         else
-            tmp_fact = fm(n)
-         end if
+         tmp_fact = fm(n)
 
          if ( (method_reduce_actfrac == 1)      .and. &
               (factor_reduce_actfrac >= 0.0_r8) .and. &
@@ -3009,7 +3005,7 @@ end subroutine ma_convproc_tend
 
    dt_u_inv = 1.0_r8/dt_u
    do n = 1, nbins
-      do ll = 1, nspec(n) + 2
+      do ll = 1, nspec(n)
          l = bin_idx(n,ll)
          la = l
          lc = l + ncnst_tot
@@ -3068,22 +3064,6 @@ end subroutine ma_convproc_tend
          hygro(n) = tmpb/tmpa
       end if
 
-! total mass not needed
-! load a (or a+cw) total mmr  and bound it
-!      l = bin_idx(n,nspec(n)+1)
-!      tmpa = max( conu(l), 0.0_r8 )
-!      if ( use_cwaer_for_activate_maxsat ) &
-!      tmpa = tmpa + max( conu(l+ncnst_tot), 0.0_r8 )
-!      maerosol(n) = tmpa * rhoair
-!      maerosol(n) = max( vaerosol(n),maerosol(n))
-
-! load a (or a+cw) number and bound it
-      l = bin_idx(n,nspec(n)+2)
-      tmpa = max( conu(l), 0.0_r8 )
-      if ( use_cwaer_for_activate_maxsat ) &
-      tmpa = tmpa + max( conu(l+ncnst_tot), 0.0_r8 )
-!      naerosol(n) = tmpa * 1000.0_r8 * rhoair
-      naerosol(n) = tmpa * rhoair
    end do
 
 ! call Razzak-Ghan activation routine with single updraft
@@ -3157,16 +3137,11 @@ end subroutine ma_convproc_tend
    dt_u_inv = 1.0_r8/dt_u
 
    do n = 1, nbins
-      do ll = 1, nspec(n) + 2
+      do ll = 1, nspec(n)
          l = bin_idx(n,ll)
          la = l
          lc = l + ncnst_tot
-
-         if (ll == nspec(n) + 2) then
-            tmp_fact = fn(n)
-         else
-            tmp_fact = fm(n)
-         end if
+         tmp_fact = fm(n)
 
          if ( (method_reduce_actfrac == 1)      .and. &
               (factor_reduce_actfrac >= 0.0_r8) .and. &
@@ -3268,7 +3243,7 @@ end subroutine ma_convproc_tend
 !st
      do n = 1, nbins
 
-        do ll = 1, nspec(n) + 2
+        do ll = 1, nspec(n)
            l = bin_idx(n,ll)
            la = l
            lc = l + ncnst_tot
