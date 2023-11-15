@@ -91,7 +91,9 @@ module carma_intr
   public carma_get_wet_radius
   public carma_get_bin_rmass
   public carma_set_bin
+  public carma_get_sad
   public :: carma_get_wght_pct
+  public :: carma_effecitive_radius
 
   ! NOTE: This is required by physpkg.F90, since the carma_intr.F90 stub in physics/cam
   ! does not have access to carma_constant.F90, but needs to also provide a defintion
@@ -4246,6 +4248,37 @@ contains
 
   end subroutine carma_get_total_mmr_cld
 
+  subroutine carma_get_sad(state, igroup, ibin, sad, rc)
+    type(physics_state), intent(in)   :: state                 !! physics state variables
+    integer, intent(in)               :: igroup                !! group index
+    integer, intent(in)               :: ibin                  !! bin index
+    real(r8), intent(out)             :: sad(pcols,pver)       !! surface area dens (cm2/cm3)
+    integer, intent(out)              :: rc                    !! return code
+
+    real(r8) :: nmr(pcols,pver)       !! number mixing ratio (#/kg)
+    real(r8) :: rwet(pcols,pver)      !! wet radius (m)
+    real(r8) :: rhopwet(pcols,pver)   !! wet density (kg/m3)
+    real(r8) :: rhoa(pcols,pver)      !! air density (kg/m3)
+    real(r8) :: ndens(pcols,pver)     !! number density (#/m3)
+
+    integer :: ncol
+
+    rc = RC_OK
+
+    call carma_get_wet_radius(state, igroup, ibin, rwet, rhopwet, rc)
+    call carma_get_number(state, igroup, ibin, nmr, rc)
+
+    ncol = state%ncol
+
+    rhoa(:ncol,:) = (state%pmid(:ncol,:) * 10._r8) / (R_AIR * state%t(:ncol,:)) / 1.e3_r8 * 1.e6_r8 ! air density (kg/m3)
+
+    ndens(:ncol,:) = nmr(:ncol,:) * rhoa(:ncol,:) ! #/m3
+
+    sad(:ncol,:) = 4.0_r8 * PI * ndens(:ncol,:) * (rwet(:ncol,:)**2) * 1.e-2_r8 ! cm2/cm3
+
+  end subroutine carma_get_sad
+
+
   !! Find the wet radius and wet density for the group and bin specified.
   !!
   !! NOTE: Groups can be configured with different methods to determine the wet
@@ -4483,9 +4516,9 @@ contains
 
     ! need water vapor and gc_ptr is used above
 
-    rhoa = (state%pmid(icol,ilev) * 10._r8) / (R_AIR * state%t(icol,ilev)) / 1.e3_r8 * 1.e6_r8 ! units ???
+    rhoa = (state%pmid(icol,ilev) * 10._r8) / (R_AIR * state%t(icol,ilev))  ! grams/cm3 ???
 
-    gc_cgs = state%q(icol,ilev,icnst4gas(carma%f_igash2o) ) * rhoa ! grams/cm3 ???
+    gc_cgs = state%q(icol,ilev,icnst4gas(carma%f_igash2o) ) * rhoa  ! grams/cm3 ???
 
     wtpct = wtpct_tabaz(carma, state%t(icol,ilev), gc_cgs, pvapl, rc)
 
@@ -4494,5 +4527,33 @@ contains
     end if
 
   end function carma_get_wght_pct
+
+  function carma_effecitive_radius(state) result(rad)
+
+    type(physics_state), intent(in)   :: state                 !! physics state variables
+    real(r8) :: rad(pcols,pver) ! effective radius (cm)
+
+    integer :: igroup, ibin, rc, ncol
+    real(r8) :: rwet(pcols,pver)     !! wet radius (m)
+    real(r8) :: rho(pcols,pver)      !!  density (kg/m3)
+
+    rc = RC_OK
+    rad(:,:) = 0.0_r8
+    ncol = state%ncol
+
+    do igroup = 1, NGROUP
+       do ibin = 1, NBIN
+
+          call carma_get_wet_radius(state, igroup, ibin, rwet, rho, rc)
+          if (rc/=RC_OK) then
+             call endrun('carma_effecitive_radius -- carma_get_wet_radius ERROR: rc = ',rc)
+          end if
+
+          rad(:ncol,:) = rad(:ncol,:) + rwet(:ncol,:)*100._r8 ! cm
+
+       end do
+    end do
+
+  end function carma_effecitive_radius
 
 end module carma_intr

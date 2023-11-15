@@ -25,7 +25,9 @@ module aero_model
   use mo_setsox,         only: setsox, has_sox
   use carma_aerosol_properties_mod, only: carma_aerosol_properties
 
-  use carma_intr, only: carma_get_group_by_name, carma_get_dry_radius, carma_get_wet_radius, carma_get_bin_rmass, carma_get_total_mmr
+  use carma_intr, only: carma_get_group_by_name, carma_get_dry_radius, carma_get_wet_radius, carma_get_bin_rmass
+  use carma_intr, only: carma_get_total_mmr, carma_get_sad
+
   use aerosol_properties_mod, only: aero_name_len
 
   implicit none
@@ -773,18 +775,14 @@ contains
 
        read(bin_name(nchr+1:),*) ibin
 
-       !call pbuf_get_field(pbuf, pbuf_get_index(trim(bin_name)//"_dryr"),dryr)
        call carma_get_dry_radius(state, igroup, ibin, rdry, rho, rc)
        if (rc/=0) then
           call endrun(subname//': ERROR in carma_get_dry_radius')
        end if
-       !call pbuf_get_field(pbuf, pbuf_get_index(trim(bin_name)//"_wetr"),wetr)
        call carma_get_wet_radius(state, igroup, ibin, rwet, rho, rc)
        if (rc/=0) then
           call endrun(subname//': ERROR in carma_get_wet_radius(')
        end if
-
-       !call pbuf_get_field(pbuf, pbuf_get_index(trim(bin_name)//"_rmass"),rmass_ptr)
        call carma_get_bin_rmass(igroup, ibin, rmass(m), rc)
        if (rc/=0) then
           call endrun(subname//': ERROR in carma_get_bin_rmass')
@@ -1777,6 +1775,7 @@ return
   !=============================================================================
   subroutine surf_area_dens( state, pbuf, ncol, mmr, beglev, endlev, sad, reff, sfc, dm_aer )
     use mo_constants, only: pi
+    use carma_intr,   only: carma_effecitive_radius
 
     ! dummy args
     type(physics_state),    intent(in) :: state           ! Physics state variables
@@ -1791,25 +1790,30 @@ return
     real(r8), optional, intent(out) :: dm_aer(:,:,:) ! diameter per bin
 
     ! local vars
-    real(r8), pointer, dimension(:,:) :: reffaer ! bulk effective radius in cm
+    real(r8) :: reffaer(pcols,pver) ! bulk effective radius in cm
+
     real(r8), pointer, dimension(:,:) :: cmass,tmass ! carma element chemical and total mass
     real(r8) :: sad_bin(pcols,pver,nbins)
-    integer  :: err, icol, ilev, ibin, ispec, reff_pbf_ndx
+    integer  :: err, icol, ilev, ibin, ispec !!, reff_pbf_ndx
     real(r8) :: chm_mass, tot_mass
-    character(len=32) :: bin_name   ! CARMA bin name
     character(len=32) :: spectype
-    real(r8), pointer :: wetr(:,:)  ! CARMA bin wet radius in cm
-    real(r8), pointer :: sad_carma(:,:)  ! CARMA bin wet surface area density in cm2/cm3
+    real(r8) :: wetr(pcols,pver)      ! CARMA bin wet radius in cm
+    real(r8) :: wetrho(pcols,pver)    ! CARMA bin wet density
+    real(r8) :: sad_carma(pcols,pver) ! CARMA bin wet surface area density in cm2/cm3
     real(r8), pointer :: aer_bin_mmr(:,:)
+
+    character(len=aero_name_len) :: bin_name, shortname
+    integer :: igroup, indxbin, rc, nchr
+
     sad = 0._r8
     reff = 0._r8
-return
+
     !
     ! Compute surface aero for each bin.
     ! Total over all bins as the surface area for chemical reactions.
     !
-    reff_pbf_ndx = pbuf_get_index("REFFAER",errcode=err) ! CARMA aerosol effective radius
-    call pbuf_get_field(pbuf, reff_pbf_ndx, reffaer )
+
+    reffaer = carma_effecitive_radius(state)
 
     sad = 0._r8
     sad_bin = 0._r8
@@ -1817,8 +1821,18 @@ return
 
     do ibin=1,nbins ! loop over aerosol bins
       call rad_cnst_get_info_by_bin(0, ibin, bin_name=bin_name)
-      call pbuf_get_field(pbuf, pbuf_get_index(trim(bin_name)//"_sad"),sad_carma)
-      call pbuf_get_field(pbuf, pbuf_get_index(trim(bin_name)//"_wetr"),wetr)
+
+      nchr = len_trim(bin_name)-2
+      shortname = bin_name(:nchr)
+
+      call carma_get_group_by_name(shortname, igroup, rc)
+
+      read(bin_name(nchr+1:),*) indxbin
+
+      call carma_get_wet_radius(state, igroup, indxbin, wetr, wetrho, rc) ! m
+      wetr(:ncol,:) = wetr(:ncol,:) * 1.e2_r8 ! cm
+      call carma_get_sad(state, igroup, indxbin, sad_carma, rc)
+
       if (present(dm_aer)) then
          dm_aer(:ncol,:,ibin) = 2._r8 * wetr(:ncol,:) ! convert wet radius (cm) to wet diameter (cm)
       endif
