@@ -79,11 +79,11 @@ contains
        call rad_cnst_get_info_by_bin(0, m, nspec=nspec(m))
     end do
     ! add plus one to include number, total mmr and nspec
-    nspec_max = maxval(nspec) + 2
+    nspec_max = maxval(nspec)
 
-    ncnst_tot = nspec(1) + 2
+    ncnst_tot = nspec(1)
     do m = 2, nbins
-      ncnst_tot = ncnst_tot + nspec(m) + 2
+      ncnst_tot = ncnst_tot + nspec(m)
     end do
 
    allocate(  bin_idx(nbins,nspec_max) )
@@ -95,7 +95,7 @@ contains
    ! for CARMA we add number = 0, total mass = 1, and mass from each constituence into mm.
    ii = 0
    do m = 1, nbins
-      do l = 1, nspec(m) + 2    ! do through nspec plus mmr and number
+      do l = 1, nspec(m)    ! loop through species
          ii = ii + 1
          bin_idx(m,l) = ii
       end do
@@ -168,13 +168,18 @@ contains
 !----------------------------------------------------------------------------------
 ! Update the mixing ratios
 !----------------------------------------------------------------------------------
-  subroutine sox_cldaero_update( &
+  subroutine sox_cldaero_update( state, &
        pbuf, ncol, lchnk, loffset, dtime, mbar, pdel, press, tfld, cldnum, cldfrc, cfact, xlwc, &
        delso4_hprxn, xh2so4, xso4, xso4_init, nh3g, hno3g, xnh3, xhno3, xnh4c,  xno3c, xmsa, xso2, xh2o2, qcw, qin, &
        aqso4, aqh2so4, aqso4_h2o2, aqso4_o3, aqso4_h2o2_3d, aqso4_o3_3d)
 
+    use aerosol_properties_mod, only: aero_name_len
+    use physics_types,     only: physics_state
+    use carma_intr, only: carma_get_group_by_name, carma_get_dry_radius
+
     ! args
 
+    type(physics_state),    intent(in)    :: state     ! Physics state variables
     type(physics_buffer_desc), pointer :: pbuf(:)
     integer,  intent(in) :: ncol
     integer,  intent(in) :: lchnk ! chunk id
@@ -216,11 +221,9 @@ contains
     real(r8), intent(out), optional :: aqso4_h2o2_3d(:,:)                ! SO4 aqueous phase chemistry due to H2O2 (kg/m2)
     real(r8), intent(out), optional :: aqso4_o3_3d(:,:)                  ! SO4 aqueous phase chemistry due to O3 (kg/m2)
 
-    real(r8), pointer :: dryr(:,:)   ! CARMA dry radius in cm
-
-
     ! local vars ...
-
+    real(r8) :: dryr(pcols,pver)   ! CARMA dry radius in cm
+    real(r8) :: rho(pcols,pver)   !
     real(r8) :: dryr_n(nbins,ncol,pver)   ! CARMA dry radius in cm
     real(r8) :: dqdt_aqso4(ncol,pver,ncnst_tot), &
          dqdt_aqh2so4(ncol,pver,ncnst_tot), &
@@ -247,8 +250,11 @@ contains
     real(r8) :: wt_sum
     real(r8) :: specmw_so4_amode
 
-    character(len=32) :: bin_name
     character(len=32) :: spectype
+
+    character(len=*), parameter :: subname = 'sox_cldaero_update'
+    character(len=aero_name_len) :: bin_name, shortname
+    integer :: igroup, ibin, rc, nchr
 
     ! make sure dqdt is zero initially, for budgets
     dqdt_aqso4(:,:,:) = 0.0_r8
@@ -265,7 +271,25 @@ contains
 
     do n = 1, nbins
        call rad_cnst_get_info_by_bin(0, n, nspec=nspec(n), bin_name=bin_name)
-       call pbuf_get_field(pbuf, pbuf_get_index(trim(bin_name)//"_dryr"),dryr)
+
+
+       nchr = len_trim(bin_name)-2
+       shortname = bin_name(:nchr)
+
+       call carma_get_group_by_name(shortname, igroup, rc)
+       if (rc/=0) then
+          call endrun(subname//': ERROR in carma_get_group_by_name')
+       end if
+
+       read(bin_name(nchr+1:),*) ibin
+
+       call carma_get_dry_radius(state, igroup, ibin, dryr, rho, rc)
+       if (rc/=0) then
+          call endrun(subname//': ERROR in carma_get_dry_radius')
+       end if
+
+       dryr = dryr*1.e2_r8 ! cm
+
        if (index(bin_name,'MXAER')>0) then
           dryr_n(n,:ncol,:) = dryr(:ncol,:)
        end if

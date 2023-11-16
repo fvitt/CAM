@@ -1478,20 +1478,21 @@ contains
     real(r8) ::  mw_carma(ncnst_tot)
     real(r8), pointer :: fldcw(:,:)
     real(r8), pointer :: sulfeq(:,:,:)
-    real(r8), pointer :: dryr(:,:)   ! CARMA dry radius in cm
-    real(r8), pointer :: wetr(:,:)   ! CARMA wet radius in cm
-    real(r8), pointer :: rmass_ptr(:)     ! CARMA rmass
+    real(r8) :: wetr(pcols,pver)   ! CARMA wet radius in cm
+    real(r8) :: wetrho(pcols,pver)   ! CARMA wet dens
     real(r8), allocatable :: rmass(:)     ! CARMA rmass
 
     real(r8) :: old_total_mass
     real(r8) :: new_total_mass
     real(r8) :: old_total_number
 
-
-    character(len=32) :: bin_name
     character(len=32) :: spectype
     logical :: is_spcam_m2005
-return
+
+    character(len=aero_name_len) :: bin_name, shortname
+    integer :: igroup, ibin, rc, nchr
+    character(len=*), parameter :: subname = 'aero_model_gasaerexch'
+
 !
 ! ... initialize nh3
 !
@@ -1538,15 +1539,33 @@ return
        ! Need to add new code that recalcuates dryr and wetr
        ! get bin info
        call rad_cnst_get_info_by_bin(0, m, nspec=nspec(m), bin_name=bin_name)
-       call pbuf_get_field(pbuf, pbuf_get_index(trim(bin_name)//"_wetr"),wetr)
-       call pbuf_get_field(pbuf, pbuf_get_index(trim(bin_name)//"_rmass"),rmass_ptr)
-       rmass(m) =  rmass_ptr(1)
+
+       nchr = len_trim(bin_name)-2
+       shortname = bin_name(:nchr)
+
+       call carma_get_group_by_name(shortname, igroup, rc)
+       if (rc/=0) then
+          call endrun(subname//': ERROR in carma_get_group_by_name')
+       end if
+
+       read(bin_name(nchr+1:),*) ibin
+
+       call carma_get_wet_radius(state, igroup, ibin, wetr, wetrho, rc) ! m
+       if (rc/=0) then
+          call endrun(subname//': ERROR in carma_get_wet_radius')
+       end if
+       wetr(:ncol,:) = wetr(:ncol,:) * 1.e2_r8 ! cm
+
+       call carma_get_bin_rmass(igroup, ibin, rmass(m), rc) ! grams
+       if (rc/=0) then
+          call endrun(subname//': ERROR in carma_get_bin_rmass')
+       end if
 
        wetr_n(:,:,m) = wetr(:,:)
 
        ! Init pointers to mode number and specie mass mixing ratios in
        ! intersitial and cloud borne phases.
-       do l = 1, nspec(m) + 2
+       do l = 1, nspec(m)
           mm = bin_idx(m, l)
           if (l <= nspec(m)) then
              call rad_cnst_get_bin_props_by_idx(0, m, l,spectype=spectype)
@@ -1592,7 +1611,7 @@ return
     ! write(iulog,*) 'start has_sox'
 
     if( has_sox ) then
-         call setsox(   &
+         call setsox( state,  &
               pbuf,     &
               ncol,     &
               lchnk,    &
@@ -1718,33 +1737,9 @@ return
        end do
     end do
 
-    ! adjust total mass and number
-    old_total_mass = 0.0_r8
-    new_total_mass = 0.0_r8
-    old_total_number = 0.0_r8
-    do m = 1, nbins
-       do k=1,pver
-         do i=1,ncol
-             l = nspec(m) + 1
-             mm = bin_idx(m, l)
-             if (delta_so4mass(i,k,mm) .gt. 0.0_r8) then
-               call rad_cnst_get_bin_props_by_idx(0, m, l,spectype=spectype)
-               old_total_mass = vmrcw(i,k,mm)
-               vmrcw(i,k,mm) = vmrcw(i,k,mm) + delta_so4mass(i,k,mm)
-               new_total_mass = vmrcw(i,k,mm)
-               !  rmass is used to scale number
-               l = nspec(m) + 2
-               mm = bin_idx(m, l)
-               old_total_number = vmrcw(i,k,mm)
-               vmrcw(i,k,mm) = new_total_mass / rmass(m)
-            end if
-           enddo
-        enddo
-     enddo
-
     ! Is the loop here needed?
     do m = 1, nbins
-       do l = 1, nspec(m) + 2 ! for sulfate only
+       do l = 1, nspec(m) ! for sulfate only
           mm = bin_idx(m, l)
           qqcw(mm)%fld(:ncol,:) = vmrcw(:ncol,:,mm)
           call outfld( trim(fieldname_cw(mm)), qqcw(mm)%fld(:ncol,:), ncol, lchnk)
@@ -2439,15 +2434,8 @@ return
              end do
              vmr_total(:ncol,:) = vmr_total(:ncol,:) +  vmr(:ncol,:,mm)
        end do
-       ! calculate mmr
-       l =nspec(m) + 1
-       mm = bin_idx(m, l)
-       vmr(:ncol,:,mm) = vmr_total(:ncol,:)
-       ! calculate number
-       l =nspec(m) + 2
-       mm = bin_idx(m, l)
-       vmr(:ncol,:,mm) = vmr_total(:ncol,:) / rmass(m)
     end do
+
   end subroutine mmr2vmr_carma
     !=============================================================================
 
@@ -2485,14 +2473,6 @@ return
              end do
              vmr_total(:ncol,:) = vmr_total(:ncol,:) +  vmr(:ncol,:,mm)
        end do
-       ! calculate mmr
-       l =nspec(m) + 1
-       mm = bin_idx(m, l)
-       vmr(:ncol,:,mm) = vmr_total(:ncol,:)
-       ! calculate number
-       l =nspec(m) + 2
-       mm = bin_idx(m, l)
-       vmr(:ncol,:,mm) = vmr_total(:ncol,:) / rmass(m)
     end do
 
    end subroutine vmr2mmr_carma

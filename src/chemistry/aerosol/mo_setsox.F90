@@ -3,6 +3,7 @@ module mo_setsox
   use shr_kind_mod, only : r8 => shr_kind_r8
   use cam_logfile,  only : iulog
   use physics_buffer,only: physics_buffer_desc, pbuf_get_index, pbuf_add_field, dtype_r8
+  use physics_types,     only: physics_state
 
   implicit none
 
@@ -132,7 +133,7 @@ contains
 
 !-----------------------------------------------------------------------
 !-----------------------------------------------------------------------
-  subroutine setsox( &
+  subroutine setsox( state, &
        pbuf,   &
        ncol,   &
        lchnk,  &
@@ -211,6 +212,7 @@ contains
     real(r8),         intent(out), optional :: aqso4_h2o2_3d(:, :)  ! 3D SO4 aqueous phase chemistry due to H2O2 (kg/m2)
     real(r8),         intent(out), optional :: aqso4_o3_3d(:, :)    ! 3D SO4 aqueous phase chemistry due to O3 (kg/m2)
 
+    type(physics_state),    intent(in)    :: state     ! Physics state variables
 
     type(physics_buffer_desc), pointer :: pbuf(:)
 
@@ -862,7 +864,7 @@ contains
        end do col_loop1
     end do ver_loop1
 
-    call sox_cldaero_update( &
+    call sox_cldaero_update( state, &
           pbuf, ncol, lchnk, loffset, dtime, mbar, pdel, press, tfld, cldnum, cldfrc, cfact, cldconc%xlwc, &
           xdelso4hp, xh2so4, xso4, xso4_init, nh3g, hno3g, xnh3, xhno3, xnh4c,  xno3c, xmsa, xso2, xh2o2, qcw, qin, &
           aqso4, aqh2so4, aqso4_h2o2, aqso4_o3, aqso4_h2o2_3d=aqso4_h2o2_3d, aqso4_o3_3d=aqso4_o3_3d )

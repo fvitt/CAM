@@ -4477,7 +4477,7 @@ contains
 
     integer, intent(in)               :: igroup                !! group index
     integer, intent(in)               :: ibin                  !! bin index
-    real(r8),intent(out)              :: mass
+    real(r8),intent(out)              :: mass ! grams ???
     integer, intent(out)              :: rc                    !! return code
 
     real(r8)                          :: rmass(carma%f_NBIN)   ! the bin mass (g)
@@ -4485,7 +4485,7 @@ contains
     ! default return code
     rc = RC_OK
 
-    call CARMAGROUP_Get(carma, igroup, rc, rmass=rmass)
+    call CARMAGROUP_Get(carma, igroup, rc, rmass=rmass) ! grams
     if (rc /= RC_OK) return
 
     mass = rmass(ibin)
