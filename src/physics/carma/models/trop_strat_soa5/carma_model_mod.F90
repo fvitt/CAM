@@ -18,7 +18,7 @@
 !! @version April-2020
 !! @author  Simone Tilmes, Lin Su, Pengfei Yu, Chuck Bardeen
 !!  changes to pervious version: rename PURSULF to PRSULF to be easier read in in CAM
-!!  Simone Tilmes Aug5 2023: add Ilaria's diagnostic changes
+!!  Simone Tilmes Aug5 2023: add Ilaria's diagnostic changes and dust, bc, oc deposition fluxes
 
 module carma_model_mod
 
@@ -806,8 +806,9 @@ contains
     real(r8)                             :: wtpct(cstate%f_NZ)    !! sulfate weight percent
     real(r8)                             :: rmass(NBIN)           !! dry mass
     real(r8)                             :: rhop_dry(cstate%f_NZ) !! dry particle density [g/cm3]
+    real(r8)                             :: sflx                  !! surface flux (kg/m2/s)
 
-    integer                              :: ibin, igroup, igas, icomposition
+    integer                              :: ibin, igroup, igas, icomposition, ielem
     integer                              :: icorelem(NELEM), ncore,ienconc,icore
     character(len=8)                     :: sname                 !! short (CAM) name
 
@@ -959,6 +960,45 @@ contains
 
       end do !NBIN
     end do !NGROUP
+
+    !----------------- Zhu 2022 05 21 ---------------------
+    ! Add the sedimentation and dry deposition fluxes to the hydrophilic black carbon.
+    !
+    ! NOTE: Don't give the surface model negative values for the surface fluxes.
+    ielem = I_ELEM_MXBC
+    do ibin = 1, NBIN
+
+      call CARMASTATE_GetBin(cstate, ielem, ibin, mmr, rc, sedimentationFlux=sflx)
+      if (rc < 0) call endrun('CARMA_DiagnoseBulk::CARMA_GetBin failed.')
+
+      cam_out%bcphidry(icol) = cam_out%bcphidry(icol) + max(sflx, 0._r8)
+    end do
+    ielem = I_ELEM_MXOC
+    do ibin = 1, NBIN
+
+      call CARMASTATE_GetBin(cstate, ielem, ibin, mmr, rc, sedimentationFlux=sflx)
+      if (rc < 0) call endrun('CARMA_DiagnoseBulk::CARMA_GetBin failed.')
+
+      cam_out%ocphidry(icol) = cam_out%ocphidry(icol) + max(sflx, 0._r8)
+    end do
+
+    ielem = I_ELEM_MXDUST
+    do ibin = 1, NBIN
+
+       call CARMASTATE_GetBin(cstate, ielem, ibin, mmr, rc, sedimentationFlux=sflx)
+       if (rc < 0) call endrun('CARMA_DiagnoseBulk::CARMA_GetBin failed.')
+
+       if (carma_dustmap(ibin) == 1) then
+          cam_out%dstdry1(icol) = cam_out%dstdry1(icol) + max(sflx, 0._r8)
+       else if (carma_dustmap(ibin) == 2) then
+          cam_out%dstdry2(icol) = cam_out%dstdry2(icol) + max(sflx, 0._r8)
+       else if (carma_dustmap(ibin) == 3) then
+          cam_out%dstdry3(icol) = cam_out%dstdry3(icol) + max(sflx, 0._r8)
+       else if (carma_dustmap(ibin) == 4) then
+          cam_out%dstdry4(icol) = cam_out%dstdry4(icol) + max(sflx, 0._r8)
+       end if
+    end do
+    !----------------- Zhu 2022 05 21 ---------------------
 
     return
   end subroutine CARMAMODEL_DiagnoseBulk
@@ -1315,6 +1355,31 @@ contains
 
     ! Default return code.
     rc = RC_OK
+
+    ! ----------------- Zhu 2022 5 21 ------------------
+    ! Create a mapping of the CARMA dust bins to the dust sizes assumed at the
+    ! surface. The sizes of the dust bins at the surface are from Mahowald et al.
+    ! [2006].
+    !
+    !   1 :  0.1 - 1.0 um
+    !   2 :  1.0 - 2.5 um
+    !   3 :  2.5 - 5.0 um
+    !   4 :  5.0 - 10.0 um
+    call CARMAGROUP_GET(carma, I_GRP_MXAER, rc, r=r)
+    if (RC < RC_ERROR) return
+
+    ! should it be wet radius or dry radius?
+    do i = 1, NBIN
+      if (r(i) .le. 1e-4_f) then
+        carma_dustmap(i)  = 1
+      else if (r(i) .le. 2.5e-4_f) then
+        carma_dustmap(i) = 2
+      else if (r(i) .le. 5e-4_f) then
+        carma_dustmap(i) = 3
+      else
+        carma_dustmap(i) = 4
+      end if
+    end do
 
     ! Determine how many clay and how many silt bins there are, based
     ! upon the bin definitions and rClay.

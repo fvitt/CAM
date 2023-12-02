@@ -519,7 +519,9 @@ subroutine coreshell_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
    real(r8) :: bcdustmmr(pcols)  ! total mmr of dust + bc aerosol
    real(r8) :: corefrac(pcols)   ! mass fraction that is core
    real(r8) :: bcdust(pcols)     ! mass fraction of bc vs (bc + dust)
-   real(r8) :: dryvol(pcols)     ! dry volume
+   real(r8) :: dryvol_m3(pcols)  ! dry volume (m3)
+   real(r8) :: dryvol(pcols)     ! dry volume density (m3/kg)
+   real(r8) :: wet_dry_frac(pcols) ! wet/dry fraction
 
    ! Diagnostics
    real(r8) :: extinct(pcols,pver)
@@ -564,7 +566,8 @@ subroutine coreshell_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
    real(r8) :: asymvis(pcols)              ! asymmetry factor * optical depth
    real(r8) :: asymext(pcols,pver)         ! asymmetry factor * extinction
 
-   real(r8) :: wetvol(pcols)
+   real(r8) :: wetvol(pcols)     ! wet volume density (m3/kg)
+   real(r8) :: wetvol_m3(pcols)  ! wet volume (m3)
    real(r8) :: watervol(pcols)
    real(r8), pointer :: wetr(:,:)
    real(r8), pointer :: dryr(:,:)
@@ -816,6 +819,7 @@ subroutine coreshell_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
                    specmorph=specmorph, hygro_aer=hygro_aer)
 
               vol(:ncol)      = specmmr(:ncol,k) / specdens
+              dryvol(:ncol)   = dryvol(:ncol) + vol(:ncol)
               crefin(:ncol)   = crefin(:ncol) + vol(:ncol) * specrefindex(isw)
 
               if (savaervis) then
@@ -1018,9 +1022,15 @@ subroutine coreshell_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
            ! sum over layers
            if (savaervis) then
 
-              dryvol(:ncol) = four_thirds_pi * (dryr(:ncol,k)**3)
-              wetvol(:ncol) = four_thirds_pi * (wetr(:ncol,k)**3)
+              dryvol_m3(:ncol) = four_thirds_pi * (dryr(:ncol,k)**3)
+              wetvol_m3(:ncol) = four_thirds_pi * (wetr(:ncol,k)**3)
               watervol(:ncol) = wetvol(:ncol)-dryvol(:ncol)
+              where (dryvol_m3(:ncol)>0._r8)
+                 wet_dry_frac(:ncol) = wetvol_m3(:ncol)/dryvol_m3(:ncol)
+              elsewhere
+                 wet_dry_frac(:ncol) = 0.0_r8
+              end where
+              wetvol(:ncol) = dryvol(:ncol)*wet_dry_frac(:ncol)
 
               ! aerosol extinction (/m)
               do i = 1, ncol
