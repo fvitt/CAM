@@ -4314,7 +4314,6 @@ contains
 
     ncol = state%ncol
 
-
     ! Check the group and bin ranges
     if ((igroup < 1) .or. (igroup .gt. NGROUP)) then
       write(LUNOPRT, *) 'carma_get_total_mmr:: ERROR - Invalid group id, ', igroup
@@ -4357,56 +4356,55 @@ contains
     end if
 
     do icol = 1, ncol
-      do iz = 1, pver
+       do iz = 1, pver
+          if (rdry(icol, iz)>0._r8) then
+             ! Get relative humidity and vapor pressure
+             call wv_sat_qsat_water(state%t(icol,iz), state%pmid(icol,iz), es, qs)
+             relhum = state%q(icol,iz,iq) / qs
 
-       ! Get relative humidity and vapor pressure
-       call wv_sat_qsat_water(state%t(icol,iz), state%pmid(icol,iz), es, qs)
-       relhum = state%q(icol,iz,iq) / qs
+             ! If humidity affects the particle, then determine the equilbirium
+             ! radius and density based upon the relative humidity.
+             !
+             ! NOTE: getwetr is in cgs units, so some conversions are needed from the
+             ! mks values
+             if (irhswell == I_WTPCT_H2SO4) then
 
-        ! If humidity affects the particle, then determine the equilbirium
-        ! radius and density based upon the relative humidity.
-        !
-        ! NOTE: getwetr is in cgs units, so some conversions are needed from the
-        ! mks values
-        if (irhswell == I_WTPCT_H2SO4) then
+                ! Should r be rdry and is rhop aready known?
+                call getwetr(carma, igroup, relhum, rdry(icol, iz) * 1e4_r8, rwet(icol, iz), &
+                     rhopdry(icol, iz) * 1.e3_r8 / 1.e6_r8, rhopwet(icol,iz), rc, &
+                     h2o_mass=state%q(icol,iz,iq) * rhoa(icol, iz) * 1.e3_r8 / 1.e6_r8, &
+                     h2o_vp=es * 10._r8 / 1.e4_r8, temp=state%t(icol,iz))
+                !if (rc < 0) return
+                if (rc/=RC_OK) then
+                   call endrun('carma_get_wet_radius ERROR5: rc = ',rc) ! <======
+                end if
+             else if (irhswell == I_PETTERS) then
+                call carma_get_kappa(state, igroup, ibin, kappa, rc)
+                if (rc < 0) return
 
-          ! Should r be rdry and is rhop aready known?
-          if (rdry(icol, iz)>0._r8 .and. rhopdry(icol, iz)>0._r8) then
-             call getwetr(carma, igroup, relhum, rdry(icol, iz) * 1e4_r8, rwet(icol, iz), &
-                  rhopdry(icol, iz) * 1.e3_r8 / 1.e6_r8, rhopwet(icol,iz), rc, &
-                  h2o_mass=state%q(icol,iz,iq) * rhoa(icol, iz) * 1.e3_r8 / 1.e6_r8, &
-                  h2o_vp=es * 10._r8 / 1.e4_r8, temp=state%t(icol,iz))
-             !if (rc < 0) return
-             if (rc/=RC_OK) then
-                call endrun('carma_get_wet_radius ERROR5: rc = ',rc) ! <======
+                call getwetr(carma, igroup, relhum, rdry(icol, iz) * 1e4_r8, rwet(icol, iz), &
+                     rhopdry(icol, iz) * 1.e3_r8 / 1.e6_r8, rhopwet(icol,iz), rc, &
+                     h2o_mass=state%q(icol,iz,iq) * rhoa(icol, iz) * 1.e3_r8 / 1.e6_r8, &
+                     h2o_vp=es * 10._r8 / 1.e4_r8, temp=state%t(icol,iz), kappa=kappa(icol,iz))
+                !if (rc < 0) return
+                if (rc/=RC_OK) then
+                   call endrun('carma_get_wet_radius ERROR6: rc = ',rc)
+                end if
+
+             else ! I_GERBER and I_FITZGERALD
+                call getwetr(carma, igroup, relhum, rdry(icol, iz) * 1e4_r8, rwet(icol, iz), &
+                     rhopdry(icol, iz) * 1.e3_r8 / 1.e6_r8, rhopwet(icol,iz), rc)
+                !if (rc < 0) return
+                if (rc/=RC_OK) then
+                   call endrun('carma_get_wet_radius ERROR7: rc = ',rc)
+                end if
+
              end if
           else
              rhopwet(icol,iz) = 0._r8
              rwet(icol, iz) = 0._r8
           end if
-        else if (irhswell == I_PETTERS) then
-          call carma_get_kappa(state, igroup, ibin, kappa, rc)
-          if (rc < 0) return
-
-          call getwetr(carma, igroup, relhum, rdry(icol, iz) * 1e4_r8, rwet(icol, iz), &
-                       rhopdry(icol, iz) * 1.e3_r8 / 1.e6_r8, rhopwet(icol,iz), rc, &
-                       h2o_mass=state%q(icol,iz,iq) * rhoa(icol, iz) * 1.e3_r8 / 1.e6_r8, &
-                       h2o_vp=es * 10._r8 / 1.e4_r8, temp=state%t(icol,iz), kappa=kappa(icol,iz))
-          !if (rc < 0) return
-          if (rc/=RC_OK) then
-             call endrun('carma_get_wet_radius ERROR6: rc = ',rc)
-          end if
-
-        else ! I_GERBER and I_FITZGERALD
-          call getwetr(carma, igroup, relhum, rdry(icol, iz) * 1e4_r8, rwet(icol, iz), &
-                       rhopdry(icol, iz) * 1.e3_r8 / 1.e6_r8, rhopwet(icol,iz), rc)
-          !if (rc < 0) return
-          if (rc/=RC_OK) then
-             call endrun('carma_get_wet_radius ERROR7: rc = ',rc)
-          end if
-
-        end if
-      end do
+       end do
     end do
 
     ! Convert rwet and rhopwet to mks units
