@@ -563,7 +563,6 @@ contains
     use wrap_nf
     use time_manager, only: is_first_step
     use phys_control, only: phys_getopts
-    use aero_check_mod, only: aero_check_routine
 
     type(physics_buffer_desc), pointer :: pbuf2d(:,:)
 
@@ -583,8 +582,6 @@ contains
     logical                    :: history_carma
     logical                    :: history_carma_srf_flx
     integer :: astat
-
-    aero_check_routine=>carma_checkstate_local
 
 1   format(a6,4x,a11,4x,a11,4x,a11)
 2   format(i6,4x,3(1pe11.3,4x))
@@ -4536,23 +4533,33 @@ contains
     integer :: igroup, ibin, rc, ncol
     real(r8) :: rwet(pcols,pver)     !! wet radius (m)
     real(r8) :: rho(pcols,pver)      !!  density (kg/m3)
+    real(r8) :: nmr(pcols,pver)      !! num/kg
+    real(r8) :: rtmp3(pcols,pver)
+    real(r8) :: rtmp2(pcols,pver)
 
     rc = RC_OK
-    rad(:,:) = 0.0_r8
+
+    rtmp2(:,:) = 0.0_r8
+    rtmp3(:,:) = 0.0_r8
+
     ncol = state%ncol
 
     do igroup = 1, NGROUP
        do ibin = 1, NBIN
 
+          call carma_get_number(state, igroup, ibin, nmr, rc)
           call carma_get_wet_radius(state, igroup, ibin, rwet, rho, rc)
           if (rc/=RC_OK) then
              call endrun('carma_effecitive_radius -- carma_get_wet_radius ERROR: rc = ',rc)
           end if
 
-          rad(:ncol,:) = rad(:ncol,:) + rwet(:ncol,:)*100._r8 ! cm
+          rtmp3(:ncol,:) = rtmp3(:ncol,:) + nmr(:ncol,:)*(rwet(:ncol,:)**3)
+          rtmp2(:ncol,:) = rtmp2(:ncol,:) + nmr(:ncol,:)*(rwet(:ncol,:)**2)
 
        end do
     end do
+
+    rad(:ncol,:) = (rtmp3(:ncol,:)/rtmp2(:ncol,:))*100._r8 ! cm
 
   end function carma_effecitive_radius
 

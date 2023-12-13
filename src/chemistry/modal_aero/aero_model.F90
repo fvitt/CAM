@@ -1867,7 +1867,7 @@ contains
     ! aqueous chemistry ...
 
       if( has_sox ) then
-         call setsox(   &
+         call setsox( state, &
               pbuf,     &
               ncol,     &
               lchnk,    &

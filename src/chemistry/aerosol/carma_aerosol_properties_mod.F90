@@ -560,7 +560,6 @@ contains
   !------------------------------------------------------------------------------
   function scav_radius(self, bin_ndx) result(radius)
 
-    use carma_model_mod, only: NBIN
     use carma_intr, only: carma_get_bin_rmass
     use carma_intr, only: carma_get_group_by_name
 

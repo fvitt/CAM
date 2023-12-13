@@ -36,7 +36,6 @@ module physpkg
 
   use modal_aero_calcsize,    only: modal_aero_calcsize_init, modal_aero_calcsize_diag, modal_aero_calcsize_reg
   use modal_aero_wateruptake, only: modal_aero_wateruptake_init, modal_aero_wateruptake_dr, modal_aero_wateruptake_reg
-  use carma_fixer_mod, only: carma_fix_pbuf
 
   implicit none
   private
@@ -2345,7 +2344,6 @@ contains
        call check_energy_fix(state, ptend, nstep, flx_heat)
 
        call physics_update(state, ptend, ztodt, tend)
-       call carma_fix_pbuf( state, pbuf )
        call check_energy_chng(state, tend, "chkengyfix", nstep, ztodt, zero, zero, zero, flx_heat)
        call outfld( 'EFIX', flx_heat    , pcols, lchnk   )
     end if
@@ -2408,7 +2406,6 @@ contains
     call carma_output_cloudborne_diagnostics(state, pbuf, "CRGFIX", ztodt, aerclddiag)
 
     call physics_update(state, ptend, ztodt, tend)
-    call carma_fix_pbuf( state, pbuf )
 
     call t_stopf('carma_mass_fixer')
 
@@ -2435,7 +2432,6 @@ contains
             call cam_snapshot_ptend_outfld(ptend, lchnk)
     end if
     call physics_update(state, ptend, ztodt, tend)
-    call carma_fix_pbuf( state, pbuf )
 
     if (trim(cam_take_snapshot_after) == "dadadj_tend") then
        call cam_snapshot_all_outfld_tphysbc(cam_snapshot_after_num, state, tend, cam_in, cam_out, pbuf, &
@@ -2475,7 +2471,6 @@ contains
       call outfld( 'VTEND_DCONV', ptend%v, pcols, lchnk)
     end if
     call physics_update(state, ptend, ztodt, tend)
-    call carma_fix_pbuf( state, pbuf )
 
     if (trim(cam_take_snapshot_after) == "convect_deep_tend") then
        call cam_snapshot_all_outfld_tphysbc(cam_snapshot_after_num, state, tend, cam_in, cam_out, pbuf, &
@@ -2541,7 +2536,6 @@ contains
       call outfld( 'VTEND_SHCONV', ptend%v, pcols, lchnk)
     end if
     call physics_update(state, ptend, ztodt, tend)
-    call carma_fix_pbuf( state, pbuf )
 
     if (trim(cam_take_snapshot_after) == "convect_shallow_tend") then
        call cam_snapshot_all_outfld_tphysbc(cam_snapshot_after_num, state, tend, cam_in, cam_out, pbuf, &
@@ -2581,7 +2575,6 @@ contains
        call carma_output_budget_diagnostics(state, ptend, old_cflux, cam_in%cflx, ztodt, "CRTEND")
        call carma_output_cloudborne_diagnostics(state, pbuf, "CRTEND", ztodt, aerclddiag)
        call physics_update(state, ptend, ztodt, tend)
-       call carma_fix_pbuf( state, pbuf )
 
        ! Before the detrainment, the reserved condensate is all liquid, but if CARMA is doing
        ! detrainment, then the reserved condensate is snow.
@@ -2869,7 +2862,6 @@ contains
              call cam_snapshot_ptend_outfld(ptend, lchnk)
           end if
           call physics_update (state, ptend, ztodt, tend)
-          call carma_fix_pbuf( state, pbuf )
 
           if (trim(cam_take_snapshot_after) == "microp_section") then
              call cam_snapshot_all_outfld_tphysbc(cam_snapshot_after_num, state, tend, cam_in, cam_out, pbuf, &
@@ -2943,8 +2935,6 @@ contains
        call carma_output_cloudborne_diagnostics(state, pbuf, "WETDEPA", ztodt, aerclddiag)
        call physics_update(state, ptend, ztodt, tend)
 
-       call carma_fix_pbuf( state, pbuf )
-
        if (trim(cam_take_snapshot_after) == "aero_model_wetdep") then
           call cam_snapshot_all_outfld_tphysbc(cam_snapshot_after_num, state, tend, cam_in, cam_out, pbuf, &
                   flx_heat, cmfmc, cmfcme, pflx, zdu, rliq, rice, dlf, dlf2, rliq2, det_s, det_ice, net_flx)
@@ -2963,14 +2953,12 @@ contains
           call carma_output_budget_diagnostics(state, ptend, old_cflux, cam_in%cflx, ztodt, "WETDEPC")
           call carma_output_cloudborne_diagnostics(state, pbuf, "WETDEPC", ztodt, aerclddiag)
           call physics_update(state, ptend, ztodt, tend)
-          call carma_fix_pbuf( state, pbuf )
           call t_stopf ('carma_wetdep_tend')
        end if
 
        call t_startf ('convect_deep_tend2')
        call convect_deep_tend_2( state,   ptend,  ztodt,  pbuf )
        call physics_update(state, ptend, ztodt, tend)
-       call carma_fix_pbuf( state, pbuf )
        call t_stopf ('convect_deep_tend2')
 
        ! check tracer integrals

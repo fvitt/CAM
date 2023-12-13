@@ -213,7 +213,6 @@ contains
     use cam_thermo,      only: cam_thermo_dry_air_update ! Routine which updates physconst variables (WACCM-X)
     use air_composition, only: dry_air_species_num
     use qneg_module   ,  only: qneg3
-    use aero_check_mod,  only: aero_check_errors, aero_check_abort_on_fail
 
 !------------------------------Arguments--------------------------------
     type(physics_ptend), intent(inout)  :: ptend   ! Parameterization tendencies
@@ -332,50 +331,6 @@ contains
        end if
 
     end do
-
-
-    ! If requested, log and report any physics package that cause an error in the
-    ! aerosol representation. Otherwise, fix the problems silently and continue.
-    !
-    ! NOTE: Skip chkenergyfix, since this comes before carma_checkstate_global,
-    ! which corrects for errors introduced by advection, which are global and require
-    ! a different fixer. All other errors should be introduced in the column physics,
-    ! and thus should be able to be resolved by the column fixer (or they are bugs).
-    if (aero_check_abort_on_fail .and. (trim(ptend%name)/='chkenergyfix')) then
-       call aero_check_errors( state%pdel, state%q, state%lchnk, state%ncol, pver, trim(ptend%name), fix=.false., logmsg=.true., abort=.true. )
-
-    ! Other physics packages should not cause tracer/tracer errors.
-    !
-    ! Why is there this long list? Is every package really creating problems? Some of
-    ! them don't even have aerosol tendencies.
-    !
-    else if ( trim(ptend%name)=='dadadj' .or. &
-         trim(ptend%name)=='zm_convr' .or. &
-         trim(ptend%name)=='zm_conv_tend' .or. &
-         trim(ptend%name)=='zm_conv_evap' .or. &
-         trim(ptend%name)=='momtran' .or. &
-         trim(ptend%name)=='clubb' .or. &
-         trim(ptend%name)=='nucleatei' .or. &
-         trim(ptend%name)=='ndrop_carma' .or. &
-         trim(ptend%name)=='cldwat' .or. &
-         trim(ptend%name)=='micro_mg' .or. &
-         trim(ptend%name)=='convtran2' .or. &
-         trim(ptend%name)=='radheat' .or. &
-         trim(ptend%name)=='vertical diffusion' .or. &
-         trim(ptend%name)=='rayleigh friction' .or. &
-         trim(ptend%name)=='Gravity wave drag' .or. &
-         trim(ptend%name)=='nudging' .or. &
-         trim(ptend%name)=='qbo' .or. &
-         trim(ptend%name)=='aoa_tracers' .or. &
-         trim(ptend%name)=='aero_model_wetdep' .or. &
-         trim(ptend%name)=='convect_shallow (off)' .or. &
-         trim(ptend%name)=='convect_shallow' .or. &
-         trim(ptend%name)=='ssatcontrail' .or. &
-         trim(ptend%name)=='CARMA (emission)' .or. &
-         trim(ptend%name)=='CARMA (wetdep)' .or. &
-         trim(ptend%name)=='CARMA' ) then
-       call aero_check_errors( state%pdel, state%q, state%lchnk, state%ncol, pver, trim(ptend%name), fix=.true., logmsg=.false., abort=.false. )
-    end if
 
     !------------------------------------------------------------------------
     ! This is a temporary fix for the large H, H2 in WACCM-X
