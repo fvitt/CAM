@@ -2084,6 +2084,8 @@ contains
     use ssatcontrail,       only: ssatcontrail_d0
     use dyn_tests_utils, only: vc_dycore
 
+    use aerosol_watsiz_mod
+
     ! Arguments
 
     real(r8), intent(in) :: ztodt                          ! 2 delta t (model time increment)

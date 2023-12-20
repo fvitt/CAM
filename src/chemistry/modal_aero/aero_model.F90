@@ -75,7 +75,8 @@ module aero_model
 
   ! variables for table lookup of aerosol impaction/interception scavenging rates
   integer, parameter :: nimptblgrow_mind=-7, nimptblgrow_maxd=12
-  real(r8) :: dlndg_nimptblgrow
+  real(r8), parameter :: dlndg_nimptblgrow = log( 1.25_r8 )
+
   real(r8),allocatable :: scavimptblnum(:,:)
   real(r8),allocatable :: scavimptblvol(:,:)
 
@@ -100,7 +101,7 @@ module aero_model
   integer :: nwetdep = 0
   integer,allocatable :: wetdep_indices(:)
   logical :: drydep_lq(pcnst)
-  logical :: wetdep_lq(pcnst)
+  logical, public, protected :: wetdep_lq(pcnst)
 
   logical :: modal_accum_coarse_exch = .false.
 
@@ -456,6 +457,7 @@ contains
             trim(wetdep_list(m))//' bc wet deposition')
        call addfld (trim(wetdep_list(m))//'SBS',(/ 'lev' /), 'A',unit_basename//'/kg/s ', &
             trim(wetdep_list(m))//' bs wet deposition')
+       call addfld (trim(wetdep_list(m))//'INS',(/ 'lev' /), 'A',unit_basename//'/kg/s ','insol frac')
 
        if ( history_aerosol .or. history_chemistry ) then
           call add_default (trim(wetdep_list(m))//'SFWET', 1, ' ')
@@ -503,6 +505,18 @@ contains
                trim(cnst_name_cw(n))//' in cloud water')
           call addfld (trim(cnst_name_cw(n))//'SFWET', horiz_only,  'A', unit_basename//'/m2/s ', &
                trim(cnst_name_cw(n))//' wet deposition flux at surface')
+
+          call addfld (trim(cnst_name_cw(n))//'WET',(/ 'lev' /), 'A',unit_basename//'/kg/s ','wet deposition tendency')
+          call addfld (trim(cnst_name_cw(n))//'SIC',(/ 'lev' /), 'A',unit_basename//'/kg/s ', &
+               trim(cnst_name_cw(m))//' ic wet deposition')
+          call addfld (trim(cnst_name_cw(n))//'SIS',(/ 'lev' /), 'A',unit_basename//'/kg/s ', &
+               trim(cnst_name_cw(m))//' is wet deposition')
+          call addfld (trim(cnst_name_cw(n))//'SBC',(/ 'lev' /), 'A',unit_basename//'/kg/s ', &
+               trim(cnst_name_cw(m))//' bc wet deposition')
+          call addfld (trim(cnst_name_cw(n))//'SBS',(/ 'lev' /), 'A',unit_basename//'/kg/s ', &
+               trim(cnst_name_cw(m))//' bs wet deposition')
+          call addfld (trim(cnst_name_cw(n))//'INS',(/ 'lev' /), 'A',unit_basename//'/kg/s ','insol frac')
+
           call addfld (trim(cnst_name_cw(n))//'SFSIC', horiz_only,  'A', unit_basename//'/m2/s ', &
                trim(cnst_name_cw(n))//' wet deposition flux (incloud, convective) at surface')
           call addfld (trim(cnst_name_cw(n))//'SFSIS', horiz_only,  'A', unit_basename//'/m2/s ', &
@@ -1075,21 +1089,21 @@ contains
     dcondt_resusp3d(:,:,:) = 0._r8
 
     call physics_ptend_init(ptend, state%psetcols, 'aero_model_wetdep', lq=wetdep_lq)
-
-    ! Do calculations of mode radius and water uptake if:
-    ! 1) modal aerosols are affecting the climate, or
-    ! 2) prognostic modal aerosols are enabled
-
-    call t_startf('calcsize')
-    ! for prognostic modal aerosols the transfer of mass between aitken and accumulation
-    ! modes is done in conjunction with the dry radius calculation
-    call modal_aero_calcsize_sub(state, ptend, dt, pbuf)
-    call t_stopf('calcsize')
-
-    call t_startf('wateruptake')
-    call modal_aero_wateruptake_dr(state, pbuf)
-    call t_stopf('wateruptake')
-
+!!$
+!!$    ! Do calculations of mode radius and water uptake if:
+!!$    ! 1) modal aerosols are affecting the climate, or
+!!$    ! 2) prognostic modal aerosols are enabled
+!!$
+!!$    call t_startf('calcsize')
+!!$    ! for prognostic modal aerosols the transfer of mass between aitken and accumulation
+!!$    ! modes is done in conjunction with the dry radius calculation
+!!$    call modal_aero_calcsize_sub(state, ptend, dt, pbuf)
+!!$    call t_stopf('calcsize')
+!!$
+!!$    call t_startf('wateruptake')
+!!$    call modal_aero_wateruptake_dr(state, pbuf)
+!!$    call t_stopf('wateruptake')
+!!$
     if (nwetdep<1) return
 
     call wetdep_inputs_set( state, pbuf, dep_inputs )
@@ -1130,8 +1144,8 @@ contains
        if ((lcoardust > 0) .and. (lcoarnacl > 0)) then
           do k = 1, pver
              do i = 1, ncol
-                tmpdust = max( 0.0_r8, state%q(i,k,lcoardust) + ptend%q(i,k,lcoardust)*dt )
-                tmpnacl = max( 0.0_r8, state%q(i,k,lcoarnacl) + ptend%q(i,k,lcoarnacl)*dt )
+                tmpdust = max( 0.0_r8, state%q(i,k,lcoardust) ) ! + ptend%q(i,k,lcoardust)*dt )
+                tmpnacl = max( 0.0_r8, state%q(i,k,lcoarnacl) ) ! + ptend%q(i,k,lcoarnacl)*dt )
                 if ((tmpdust+tmpnacl) > 1.0e-30_r8) then
                    ! sol_factic_coarse(i,k) = (0.2_r8*tmpdust + 0.4_r8*tmpnacl)/(tmpdust+tmpnacl) ! tuned 1/6
                    f_act_conv_coarse(i,k) = (f_act_conv_coarse_dust*tmpdust &
@@ -1290,7 +1304,7 @@ contains
                 ptend%lq(mm) = .TRUE.
                 dqdt_tmp(:,:) = 0.0_r8
                 ! q_tmp reflects changes from modal_aero_calcsize and is the "most current" q
-                q_tmp(1:ncol,:) = state%q(1:ncol,:,mm) + ptend%q(1:ncol,:,mm)*dt
+                q_tmp(1:ncol,:) = state%q(1:ncol,:,mm) ! + ptend%q(1:ncol,:,mm)*dt
                 if(convproc_do_aer) then
                    !Feed in the saved cloudborne mixing ratios from phase 2
                    qqcw_in(:,:) = qqcw_sav(:,:,lspec)
@@ -1326,13 +1340,14 @@ contains
                    endif
                 endif
 
-                   ptend%q(1:ncol,:,mm) = ptend%q(1:ncol,:,mm) + dqdt_tmp(1:ncol,:)
+                ptend%q(1:ncol,:,mm) = ptend%q(1:ncol,:,mm) + dqdt_tmp(1:ncol,:)
 
                 call outfld( trim(cnst_name(mm))//'WET', dqdt_tmp(:,:), pcols, lchnk)
                 call outfld( trim(cnst_name(mm))//'SIC', icscavt, pcols, lchnk)
                 call outfld( trim(cnst_name(mm))//'SIS', isscavt, pcols, lchnk)
                 call outfld( trim(cnst_name(mm))//'SBC', bcscavt, pcols, lchnk)
                 call outfld( trim(cnst_name(mm))//'SBS', bsscavt, pcols, lchnk)
+                call outfld( trim(cnst_name(mm))//'INS', fracis(:,:,mm), pcols, lchnk)
 
                 sflx(:)=0._r8
                 do k=1,pver
@@ -1560,6 +1575,13 @@ contains
                       enddo
                    enddo
                    call outfld( trim(cnst_name_cw(mm))//'SFWET', sflx, pcols, lchnk)
+                   call outfld( trim(cnst_name_cw(mm))//'WET', dqdt_tmp(:,:), pcols, lchnk)
+                   call outfld( trim(cnst_name_cw(mm))//'SIC', icscavt, pcols, lchnk)
+                   call outfld( trim(cnst_name_cw(mm))//'SIS', isscavt, pcols, lchnk)
+                   call outfld( trim(cnst_name_cw(mm))//'SBC', bcscavt, pcols, lchnk)
+                   call outfld( trim(cnst_name_cw(mm))//'SBS', bsscavt, pcols, lchnk)
+                   call outfld( trim(cnst_name_cw(mm))//'INS', fracis_cw, pcols, lchnk)
+
                    aerdepwetcw(:ncol,mm) = sflx(:ncol)
 
                    sflx(:)=0._r8
@@ -2171,7 +2193,6 @@ contains
     allocate(scavimptblvol(nimptblgrow_mind:nimptblgrow_maxd, ntot_amode))
 
     lunerr = 6
-    dlndg_nimptblgrow = log( 1.25_r8 )
 
     modeloop: do mode = 1, ntot_amode
 
