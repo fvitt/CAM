@@ -1923,10 +1923,16 @@ contains
        ! -------------------------------------------------------------------------------
 
        call t_startf('bc_aerosols')
-!!$       if (clim_modal_aero .and. .not. prog_modal_aero) then
-!!$          call modal_aero_calcsize_diag(state, pbuf)
-!!$          call modal_aero_wateruptake_dr(state, pbuf)
-!!$       endif
+
+       if (clim_modal_aero) then
+          if (prog_modal_aero) then
+             call aerosol_watsiz_tend(state, ptend, ztodt, pbuf)
+             call physics_update(state, ptend, ztodt, tend)
+          else
+             call modal_aero_calcsize_diag(state, pbuf)
+             call modal_aero_wateruptake_dr(state, pbuf)
+          endif
+       endif
 
        call aerosol_watsiz_tend(state, ptend, ztodt, pbuf)
        call physics_update(state, ptend, ztodt, tend)
