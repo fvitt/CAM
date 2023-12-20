@@ -989,7 +989,7 @@ contains
 
     ! Initialize the budget capability
     call cam_budget_init()
- 
+
     ! addfld calls for U, V tendency budget variables that are output in
     ! tphysac, tphysbc
     call addfld ( 'UTEND_DCONV', (/ 'lev' /), 'A', 'm/s2', 'Zonal wind tendency by deep convection')
@@ -1938,7 +1938,7 @@ contains
     else
       !
       ! for moist-mixing ratio based dycores
-      ! 
+      !
       ! Note: this operation will NOT be reverted with set_wet_to_dry after set_dry_to_wet call
       !
       call set_dry_to_wet(state)
@@ -1960,7 +1960,7 @@ contains
     if (vc_dycore == vc_height.or.vc_dycore == vc_dry_pressure) then
       !
       ! MPAS and SE specific scaling of temperature for enforcing energy consistency
-      ! (and to make sure that temperature dependent diagnostic tendencies 
+      ! (and to make sure that temperature dependent diagnostic tendencies
       !  are computed correctly; e.g. dtcore)
       !
       scaling(1:ncol,:)  = cpairv(:ncol,:,lchnk)/cp_or_cv_dycore(:ncol,:,lchnk)
@@ -2792,9 +2792,15 @@ contains
        ! -------------------------------------------------------------------------------
 
        call t_startf('bc_aerosols')
-       if (clim_modal_aero .and. .not. prog_modal_aero) then
-          call modal_aero_calcsize_diag(state, pbuf)
-          call modal_aero_wateruptake_dr(state, pbuf)
+
+       if (clim_modal_aero) then
+          if (prog_modal_aero) then
+             call aerosol_watsiz_tend(state, ptend, ztodt, pbuf)
+             call physics_update(state, ptend, ztodt, tend)
+          else
+             call modal_aero_calcsize_diag(state, pbuf)
+             call modal_aero_wateruptake_dr(state, pbuf)
+          endif
        endif
 
        if (trim(cam_take_snapshot_before) == "aero_model_wetdep") then
