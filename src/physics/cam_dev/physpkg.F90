@@ -1409,6 +1409,8 @@ contains
     use cam_budget,         only: thermo_budget_history
     use dyn_tests_utils,    only: vc_dycore, vc_height, vc_dry_pressure
     use air_composition,    only: cpairv, cp_or_cv_dycore
+
+    use aerosol_watsiz_mod
     !
     ! Arguments
     !
@@ -1921,10 +1923,13 @@ contains
        ! -------------------------------------------------------------------------------
 
        call t_startf('bc_aerosols')
-       if (clim_modal_aero .and. .not. prog_modal_aero) then
-          call modal_aero_calcsize_diag(state, pbuf)
-          call modal_aero_wateruptake_dr(state, pbuf)
-       endif
+!!$       if (clim_modal_aero .and. .not. prog_modal_aero) then
+!!$          call modal_aero_calcsize_diag(state, pbuf)
+!!$          call modal_aero_wateruptake_dr(state, pbuf)
+!!$       endif
+
+       call aerosol_watsiz_tend(state, ptend, ztodt, pbuf)
+       call physics_update(state, ptend, ztodt, tend)
 
        if (trim(cam_take_snapshot_before) == "aero_model_wetdep") then
           call cam_snapshot_all_outfld_tphysac(cam_snapshot_before_num, state, tend, cam_in, cam_out, pbuf, &
