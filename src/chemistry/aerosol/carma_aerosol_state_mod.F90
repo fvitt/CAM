@@ -41,6 +41,7 @@ module carma_aerosol_state_mod
      procedure :: dry_volume
      procedure :: wet_volume
      procedure :: water_volume
+     procedure :: wet_diameter
 
      final :: destructor
 
@@ -482,5 +483,27 @@ contains
     end where
 
   end function water_volume
+
+  !------------------------------------------------------------------------------
+  ! aerosol wet diameter
+  !------------------------------------------------------------------------------
+  function wet_diameter(self, bin_idx, ncol, nlev) result(diam)
+    class(carma_aerosol_state), intent(in) :: self
+    integer, intent(in) :: bin_idx   ! bin number
+    integer, intent(in) :: ncol      ! number of columns
+    integer, intent(in) :: nlev      ! number of levels
+
+    real(r8) :: diam(ncol,nlev)
+
+    real(r8), pointer :: wetr(:,:)
+    character(len=32) :: bin_name
+
+    call rad_cnst_get_info_by_bin(0, bin_idx, bin_name=bin_name)
+
+    call pbuf_get_field(self%pbuf, pbuf_get_index(trim(bin_name)//"_wetr"),wetr)
+
+    diam(:ncol,:nlev) = 2._r8*wetr(:ncol,:nlev)
+
+  end function wet_diameter
 
 end module carma_aerosol_state_mod

@@ -76,6 +76,9 @@ module carma_intr
   ! carma_intr.F90.
   public :: MAXCLDAERDIAG
 
+  public :: carma_get_group_by_name
+  public :: carma_get_bin_rmass
+
   ! Private data
 
   ! Particle Group Statistics
@@ -3683,5 +3686,66 @@ contains
     endif
 
   end subroutine CARMA_restart_read
+
+  !=============================================================================
+
+
+  !! Get the CARMA group id a group name.
+  !!
+  !! @author  Chuck Bardeen
+  !! @version Aug 2023
+  subroutine carma_get_group_by_name(shortname, igroup, rc)
+    character(len=*), intent(in)       :: shortname             !! the group short name
+    integer, intent(out)               :: igroup                !! group index
+    integer, intent(out)               :: rc                    !! return code
+
+    integer                            :: i
+    character(len=32)                  :: name
+
+    ! default return code
+    rc = RC_OK
+
+    igroup = -1
+
+    ! Check the short names of each group for one that matches
+    do i = 1, NGROUP
+      call CARMAGROUP_Get(carma, i, rc, shortname=name)
+
+      if (trim(shortname) .eq. trim(name)) then
+        igroup = i
+        exit
+      end if
+    end do
+
+    if (igroup .eq. -1) then
+      write(LUNOPRT, *) 'carma_get_group_by_name:: ERROR - group not found, ', shortname
+      rc = RC_ERROR
+      return
+    end if
+
+    return
+  end subroutine
+
+  !-----------------------------------------------------------------------------
+  !-----------------------------------------------------------------------------
+  subroutine carma_get_bin_rmass(igroup, ibin, mass, rc)
+
+    integer, intent(in)               :: igroup                !! group index
+    integer, intent(in)               :: ibin                  !! bin index
+    real(r8),intent(out)              :: mass ! grams ???
+    integer, intent(out)              :: rc                    !! return code
+
+    real(r8)                          :: rmass(carma%f_NBIN)   ! the bin mass (g)
+
+    ! default return code
+    rc = RC_OK
+
+    call CARMAGROUP_Get(carma, igroup, rc, rmass=rmass) ! grams
+    if (rc /= RC_OK) return
+
+    mass = rmass(ibin)
+
+  end subroutine carma_get_bin_rmass
+
 
 end module carma_intr

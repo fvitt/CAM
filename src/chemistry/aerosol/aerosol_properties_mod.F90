@@ -70,6 +70,7 @@ module aerosol_properties_mod
      procedure(aero_min_mass_mean_rad), deferred :: min_mass_mean_rad
      procedure(aero_optics_params), deferred :: optics_params
      procedure(aero_bin_name), deferred :: bin_name
+     procedure(aero_scav_diam), deferred :: scav_diam
 
      procedure :: final=>aero_props_final
   end type aerosol_properties
@@ -377,6 +378,18 @@ module aerosol_properties_mod
        character(len=32) name
 
      end function aero_bin_name
+
+     !------------------------------------------------------------------------------
+     ! returns scavenging diameter for a given aerosol bin number
+     !------------------------------------------------------------------------------
+     function aero_scav_diam(self, bin_ndx) result(diam)
+       import :: aerosol_properties, r8
+       class(aerosol_properties), intent(in) :: self
+       integer, intent(in) :: bin_ndx  ! bin number
+
+       real(r8) :: diam
+
+     end function aero_scav_diam
 
   end interface
 

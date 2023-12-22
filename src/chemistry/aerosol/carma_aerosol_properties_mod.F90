@@ -34,6 +34,7 @@ module carma_aerosol_properties_mod
      procedure :: soluble
      procedure :: min_mass_mean_rad
      procedure :: bin_name
+     procedure :: scav_diam
 
      final :: destructor
   end type carma_aerosol_properties
@@ -563,5 +564,48 @@ contains
     call rad_cnst_get_info_by_bin(list_ndx, bin_ndx, bin_name=name)
 
   end function bin_name
+
+  !------------------------------------------------------------------------------
+  ! returns scavenging diameter (cm) for a given aerosol bin number
+  !------------------------------------------------------------------------------
+  function scav_diam(self, bin_ndx) result(diam)
+
+    use carma_intr, only: carma_get_bin_rmass
+    use carma_intr, only: carma_get_group_by_name
+
+    class(carma_aerosol_properties), intent(in) :: self
+    integer, intent(in) :: bin_ndx  ! bin number
+
+    real(r8) :: diam ! cm
+
+    real(r8) :: mass   ! the bin mass (g)
+    real(r8) :: rho    ! density (kg/m3)
+    integer :: ispec
+    character(len=32) :: spectype
+
+    character(len=aero_name_len) :: bin_name, shortname
+    integer :: igroup, ibin, rc, nchr
+
+    call rad_cnst_get_info_by_bin(0, bin_ndx, bin_name=bin_name)
+
+    nchr = len_trim(bin_name)-2
+    shortname = bin_name(:nchr)
+
+    call carma_get_group_by_name(shortname, igroup, rc)
+
+    read(bin_name(nchr+1:),*) ibin
+
+    call carma_get_bin_rmass(igroup, ibin, mass, rc)
+
+    do ispec = 1, self%nspecies(bin_ndx)
+       call self%species_type(bin_ndx,ispec, spectype)
+       if (trim(spectype) == 'sulfate') then
+          call self%get(bin_ndx,ispec,density=rho)
+       end if
+    end do
+
+    diam = 2._r8*((0.75*mass / pi  / (1.0e-3_r8*rho))**0.33_r8)    ! specdens kg/m3 to g/cm3, convert from radiust to diameter
+
+  end function scav_diam
 
 end module carma_aerosol_properties_mod

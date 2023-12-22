@@ -57,6 +57,8 @@ module aerosol_state_mod
      procedure(aero_volume), deferred :: dry_volume
      procedure(aero_volume), deferred :: wet_volume
      procedure(aero_volume), deferred :: water_volume
+     procedure(aero_wet_diam), deferred :: wet_diameter
+     procedure :: convcld_actfrac
  end type aerosol_state
 
   ! for state fields
@@ -274,6 +276,21 @@ module aerosol_state_mod
        real(r8) :: vol(ncol,nlev)       ! m3/kg
 
      end function aero_volume
+
+     !------------------------------------------------------------------------------
+     ! aerosol wet diameter
+     !------------------------------------------------------------------------------
+     function aero_wet_diam(self, bin_idx, ncol, nlev) result(diam)
+       import :: aerosol_state,  r8
+
+       class(aerosol_state), intent(in) :: self
+       integer, intent(in) :: bin_idx   ! bin number
+       integer, intent(in) :: ncol      ! number of columns
+       integer, intent(in) :: nlev      ! number of levels
+
+       real(r8) :: diam(ncol,nlev)
+
+     end function aero_wet_diam
 
   end interface
 
@@ -865,5 +882,23 @@ contains
     end do
 
   end function refractive_index_lw
+
+  !------------------------------------------------------------------------------
+  ! prescribed aerosol activation fraction for convective cloud
+  !------------------------------------------------------------------------------
+  function convcld_actfrac(self, ibin, ispc, ncol, nlev) result(frac)
+
+    class(aerosol_state), intent(in) :: self
+    integer, intent(in) :: ibin   ! bin index
+    integer, intent(in) :: ispc   ! species index
+    integer, intent(in) :: ncol   ! number of columns
+    integer, intent(in) :: nlev   ! number of vertical levels
+
+    real(r8) :: frac(ncol,nlev)
+
+    frac = 0.8_r8 ! rce 2010/05/02
+
+  end function convcld_actfrac
+
 
 end module aerosol_state_mod

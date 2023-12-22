@@ -50,7 +50,10 @@ module carma_intr
   public :: carma_restart_init
   public :: carma_restart_write
   public :: carma_restart_read
-  
+
+  public :: carma_get_group_by_name
+  public :: carma_get_bin_rmass
+
   integer, parameter, public  ::     MAXCLDAERDIAG = 16
 
 contains
@@ -145,7 +148,7 @@ contains
 
   subroutine carma_calculate_globalmassfactor(state)
     use ppgrid,     only: begchunk, endchunk
-    
+
     type(physics_state), intent(in), dimension(begchunk:endchunk) :: state  !! All the chunks in this task.
     return
   end subroutine carma_calculate_globalmassfactor
@@ -153,13 +156,13 @@ contains
 
   subroutine carma_checkstate_global(state, ptend, dt)
     use physconst,     only: gravit
-    
+
     type(physics_state), intent(in)     :: state        !! Physics state variables - before CARMA
     type(physics_ptend), intent(inout)  :: ptend        !! indivdual parameterization tendencies
     real(r8), intent(in)                :: dt           !! timestep (s)
 
     call physics_ptend_init(ptend,state%psetcols,'none') !Initialize an empty ptend for use with physics_update
-    
+
     return
   end subroutine carma_checkstate_global
 
@@ -221,7 +224,7 @@ contains
 
     return
   end subroutine carma_output_budget_diagnostics
-  
+
 
   subroutine carma_emission_tend(state, ptend, cam_in, dt, pbuf)
     use camsrfexch,       only: cam_in_t
@@ -291,4 +294,27 @@ contains
     type(file_desc_t),intent(inout) :: File     ! pio File pointer
 
   end subroutine CARMA_restart_read
+
+  !=============================================================================
+  ! Stubs
+  !-----------------------------------------------------------------------------
+  !-----------------------------------------------------------------------------
+  subroutine carma_get_group_by_name(shortname, igroup, rc)
+    character(len=*), intent(in)       :: shortname             !! the group short name
+    integer, intent(out)               :: igroup                !! group index
+    integer, intent(out)               :: rc                    !! return code
+
+  end subroutine
+
+  !-----------------------------------------------------------------------------
+  !-----------------------------------------------------------------------------
+  subroutine carma_get_bin_rmass(igroup, ibin, mass, rc)
+
+    integer, intent(in)               :: igroup                !! group index
+    integer, intent(in)               :: ibin                  !! bin index
+    real(r8),intent(out)              :: mass ! grams ???
+    integer, intent(out)              :: rc                    !! return code
+
+  end subroutine carma_get_bin_rmass
+
 end module carma_intr

@@ -794,6 +794,8 @@ contains
     use surface_emissions_mod, only: surface_emissions_init
     use elevated_emissions_mod, only: elevated_emissions_init
 
+    use aero_wetdep_cam, only: aero_wetdep_init
+
     ! Input/output arguments
     type(physics_state), pointer       :: phys_state(:)
     type(physics_tend ), pointer       :: phys_tend(:)
@@ -878,6 +880,8 @@ contains
 
     ! Prognostic chemistry.
     call chem_init(phys_state,pbuf2d)
+
+    call aero_wetdep_init(pbuf2d)
 
     ! Lightning flash frq and NOx prod
     call lightning_init( pbuf2d )
@@ -2127,6 +2131,7 @@ contains
     use check_energy,    only: tot_energy_phys
     use dycore,          only: dycore_is
     use aero_model,      only: aero_model_wetdep
+    use aero_wetdep_cam, only: aero_wetdep_tend
     use carma_intr,      only: carma_wetdep_tend, carma_timestep_tend, carma_output_budget_diagnostics, &
                                carma_output_cloudborne_diagnostics, carma_calculate_cloudborne_diagnostics, &
                                carma_checkstate_global, MAXCLDAERDIAG
@@ -2935,6 +2940,10 @@ contains
        call carma_calculate_cloudborne_diagnostics(state, pbuf, aerclddiag)
 
        call aero_model_wetdep( state, ztodt, dlf, cam_out, ptend, pbuf)
+       call physics_update(state, ptend, ztodt, tend)
+
+       call aero_wetdep_tend( state, ztodt, dlf, cam_out, ptend, pbuf)
+
        if ( (trim(cam_take_snapshot_after) == "aero_model_wetdep") .and.      &
             (trim(cam_take_snapshot_before) == trim(cam_take_snapshot_after))) then
           call cam_snapshot_ptend_outfld(ptend, lchnk)

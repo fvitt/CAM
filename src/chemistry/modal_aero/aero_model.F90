@@ -284,6 +284,8 @@ contains
        endif
     enddo count_species
 
+ print*,'FVDBG.aero_model_init... nwetdep = ',nwetdep
+
     if (nwetdep>0) &
          allocate(wetdep_indices(nwetdep))
     if (ndrydep>0) &
@@ -388,6 +390,7 @@ contains
        id = wetdep_indices(m)
        wetdep_lq(id) = .true.
     enddo
+ wetdep_lq(:) = .true.
 
     wetdens_ap_idx = pbuf_get_index('WETDENS_AP')
     qaerwat_idx    = pbuf_get_index('QAERWAT')
@@ -425,7 +428,7 @@ contains
        endif
 
     enddo
-
+#ifdef SLLKDJJFH
     do m = 1,nwetdep
 
        ! units
@@ -484,7 +487,7 @@ contains
        endif
 
     enddo
-
+#endif
     do m = 1,gas_pcnst
 
        if  ( solsym(m)(1:3) == 'num') then
@@ -513,16 +516,16 @@ contains
 
           call addfld( cnst_name_cw(n),                (/ 'lev' /), 'A', unit_basename//'/kg ',   &
                trim(cnst_name_cw(n))//' in cloud water')
-          call addfld (trim(cnst_name_cw(n))//'SFWET', horiz_only,  'A', unit_basename//'/m2/s ', &
-               trim(cnst_name_cw(n))//' wet deposition flux at surface')
-          call addfld (trim(cnst_name_cw(n))//'SFSIC', horiz_only,  'A', unit_basename//'/m2/s ', &
-               trim(cnst_name_cw(n))//' wet deposition flux (incloud, convective) at surface')
-          call addfld (trim(cnst_name_cw(n))//'SFSIS', horiz_only,  'A', unit_basename//'/m2/s ', &
-               trim(cnst_name_cw(n))//' wet deposition flux (incloud, stratiform) at surface')
-          call addfld (trim(cnst_name_cw(n))//'SFSBC', horiz_only,  'A', unit_basename//'/m2/s ', &
-               trim(cnst_name_cw(n))//' wet deposition flux (belowcloud, convective) at surface')
-          call addfld (trim(cnst_name_cw(n))//'SFSBS', horiz_only,  'A', unit_basename//'/m2/s ', &
-               trim(cnst_name_cw(n))//' wet deposition flux (belowcloud, stratiform) at surface')
+!!$          call addfld (trim(cnst_name_cw(n))//'SFWET', horiz_only,  'A', unit_basename//'/m2/s ', &
+!!$               trim(cnst_name_cw(n))//' wet deposition flux at surface')
+!!$          call addfld (trim(cnst_name_cw(n))//'SFSIC', horiz_only,  'A', unit_basename//'/m2/s ', &
+!!$               trim(cnst_name_cw(n))//' wet deposition flux (incloud, convective) at surface')
+!!$          call addfld (trim(cnst_name_cw(n))//'SFSIS', horiz_only,  'A', unit_basename//'/m2/s ', &
+!!$               trim(cnst_name_cw(n))//' wet deposition flux (incloud, stratiform) at surface')
+!!$          call addfld (trim(cnst_name_cw(n))//'SFSBC', horiz_only,  'A', unit_basename//'/m2/s ', &
+!!$               trim(cnst_name_cw(n))//' wet deposition flux (belowcloud, convective) at surface')
+!!$          call addfld (trim(cnst_name_cw(n))//'SFSBS', horiz_only,  'A', unit_basename//'/m2/s ', &
+!!$               trim(cnst_name_cw(n))//' wet deposition flux (belowcloud, stratiform) at surface')
           call addfld (trim(cnst_name_cw(n))//'DDF',   horiz_only,  'A', unit_basename//'/m2/s ', &
                trim(cnst_name_cw(n))//' dry deposition flux at bottom (grav + turb)')
           call addfld (trim(cnst_name_cw(n))//'TBF',   horiz_only,  'A', unit_basename//'/m2/s ', &
@@ -530,33 +533,33 @@ contains
           call addfld (trim(cnst_name_cw(n))//'GVF',   horiz_only,  'A', unit_basename//'/m2/s ', &
                trim(cnst_name_cw(n))//' gravitational dry deposition flux')
 
-          if (convproc_do_aer) then
-             call addfld (trim(cnst_name_cw(n))//'SFSEC', &
-                horiz_only,  'A','kg/m2/s','Wet deposition flux (precip evap, convective) at surface')
-             call addfld (trim(cnst_name_cw(n))//'SFSES', &
-                horiz_only,  'A','kg/m2/s','Wet deposition flux (precip evap, stratiform) at surface')
-             call addfld (trim(cnst_name_cw(n))//'SFSBD', &
-                horiz_only,  'A','kg/m2/s','Wet deposition flux (belowcloud, deep convective) at surface')
-          end if
+!!$          if (convproc_do_aer) then
+!!$             call addfld (trim(cnst_name_cw(n))//'SFSEC', &
+!!$                horiz_only,  'A','kg/m2/s','Wet deposition flux (precip evap, convective) at surface')
+!!$             call addfld (trim(cnst_name_cw(n))//'SFSES', &
+!!$                horiz_only,  'A','kg/m2/s','Wet deposition flux (precip evap, stratiform) at surface')
+!!$             call addfld (trim(cnst_name_cw(n))//'SFSBD', &
+!!$                horiz_only,  'A','kg/m2/s','Wet deposition flux (belowcloud, deep convective) at surface')
+!!$          end if
 
 
           if ( history_aerosol.or. history_chemistry ) then
              call add_default( cnst_name_cw(n), 1, ' ' )
-             call add_default (trim(cnst_name_cw(n))//'SFWET', 1, ' ')
+!!$             call add_default (trim(cnst_name_cw(n))//'SFWET', 1, ' ')
           endif
           if ( history_aerosol ) then
              call add_default (trim(cnst_name_cw(n))//'GVF', 1, ' ')
              call add_default (trim(cnst_name_cw(n))//'TBF', 1, ' ')
              call add_default (trim(cnst_name_cw(n))//'DDF', 1, ' ')
-             call add_default (trim(cnst_name_cw(n))//'SFSBS', 1, ' ')
-             call add_default (trim(cnst_name_cw(n))//'SFSIC', 1, ' ')
-             call add_default (trim(cnst_name_cw(n))//'SFSBC', 1, ' ')
-             call add_default (trim(cnst_name_cw(n))//'SFSIS', 1, ' ')
-             if (convproc_do_aer) then
-                call add_default (trim(cnst_name_cw(n))//'SFSEC', 1, ' ')
-                call add_default (trim(cnst_name_cw(n))//'SFSES', 1, ' ')
-                call add_default (trim(cnst_name_cw(n))//'SFSBD', 1, ' ')
-             end if
+!!$             call add_default (trim(cnst_name_cw(n))//'SFSBS', 1, ' ')
+!!$             call add_default (trim(cnst_name_cw(n))//'SFSIC', 1, ' ')
+!!$             call add_default (trim(cnst_name_cw(n))//'SFSBC', 1, ' ')
+!!$             call add_default (trim(cnst_name_cw(n))//'SFSIS', 1, ' ')
+!!$             if (convproc_do_aer) then
+!!$                call add_default (trim(cnst_name_cw(n))//'SFSEC', 1, ' ')
+!!$                call add_default (trim(cnst_name_cw(n))//'SFSES', 1, ' ')
+!!$                call add_default (trim(cnst_name_cw(n))//'SFSBD', 1, ' ')
+!!$             end if
           endif
        endif
     enddo
@@ -1104,7 +1107,7 @@ contains
     call t_stopf('wateruptake')
 
     if (nwetdep<1) return
-
+return
     call wetdep_inputs_set( state, pbuf, dep_inputs )
 
     call pbuf_get_field(pbuf, dgnumwet_idx,       dgnumwet, start=(/1,1,1/), kount=(/pcols,pver,nmodes/) )
