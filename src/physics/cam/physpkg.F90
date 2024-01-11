@@ -2158,6 +2158,7 @@ contains
     use dyn_tests_utils, only: vc_dycore
     use surface_emissions_mod,only: surface_emissions_set
     use elevated_emissions_mod,only: elevated_emissions_set
+    use aerosol_watsiz_mod
 
     ! Arguments
 
@@ -2926,9 +2927,15 @@ contains
        ! -------------------------------------------------------------------------------
 
        call t_startf('bc_aerosols')
-       if (clim_modal_aero .and. .not. prog_modal_aero) then
-          call modal_aero_calcsize_diag(state, pbuf)
-          call modal_aero_wateruptake_dr(state, pbuf)
+
+       if (clim_modal_aero) then
+          if (prog_modal_aero) then
+             call aerosol_watsiz_tend(state, ptend, ztodt, pbuf)
+             call physics_update(state, ptend, ztodt, tend)
+          else
+             call modal_aero_calcsize_diag(state, pbuf)
+             call modal_aero_wateruptake_dr(state, pbuf)
+          endif
        endif
 
        if (trim(cam_take_snapshot_before) == "aero_model_wetdep") then
@@ -2939,11 +2946,8 @@ contains
        old_cflux = cam_in%cflx
        call carma_calculate_cloudborne_diagnostics(state, pbuf, aerclddiag)
 
-       call aero_model_wetdep( state, ztodt, dlf, cam_out, ptend, pbuf)
-       call physics_update(state, ptend, ztodt, tend)
-
+    !   call aero_model_wetdep( state, ztodt, dlf, cam_out, ptend, pbuf)
        call aero_wetdep_tend( state, ztodt, dlf, cam_out, ptend, pbuf)
-
        if ( (trim(cam_take_snapshot_after) == "aero_model_wetdep") .and.      &
             (trim(cam_take_snapshot_before) == trim(cam_take_snapshot_after))) then
           call cam_snapshot_ptend_outfld(ptend, lchnk)

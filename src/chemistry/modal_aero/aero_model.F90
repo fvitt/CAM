@@ -75,7 +75,8 @@ module aero_model
 
   ! variables for table lookup of aerosol impaction/interception scavenging rates
   integer, parameter :: nimptblgrow_mind=-7, nimptblgrow_maxd=12
-  real(r8) :: dlndg_nimptblgrow
+  real(r8), parameter :: dlndg_nimptblgrow = log( 1.25_r8 )
+
   real(r8),allocatable :: scavimptblnum(:,:)
   real(r8),allocatable :: scavimptblvol(:,:)
 
@@ -100,7 +101,7 @@ module aero_model
   integer :: nwetdep = 0
   integer,allocatable :: wetdep_indices(:)
   logical :: drydep_lq(pcnst)
-  logical :: wetdep_lq(pcnst)
+  logical, public, protected :: wetdep_lq(pcnst)
 
   logical :: modal_accum_coarse_exch = .false.
 
@@ -1085,6 +1086,8 @@ contains
 
     real(r8) :: dcondt_resusp3d(2*pcnst,pcols, pver)
 
+call endrun('FVDBG DO NOT CALL aero_model_wetdep !!!!!!!!!!!!!!!!!!!!1')
+
     lchnk = state%lchnk
     ncol  = state%ncol
 
@@ -1092,22 +1095,22 @@ contains
 
     call physics_ptend_init(ptend, state%psetcols, 'aero_model_wetdep', lq=wetdep_lq)
 
-    ! Do calculations of mode radius and water uptake if:
-    ! 1) modal aerosols are affecting the climate, or
-    ! 2) prognostic modal aerosols are enabled
-
-    call t_startf('calcsize')
-    ! for prognostic modal aerosols the transfer of mass between aitken and accumulation
-    ! modes is done in conjunction with the dry radius calculation
-    call modal_aero_calcsize_sub(state, ptend, dt, pbuf)
-    call t_stopf('calcsize')
-
-    call t_startf('wateruptake')
-    call modal_aero_wateruptake_dr(state, pbuf)
-    call t_stopf('wateruptake')
+!!$    ! Do calculations of mode radius and water uptake if:
+!!$    ! 1) modal aerosols are affecting the climate, or
+!!$    ! 2) prognostic modal aerosols are enabled
+!!$
+!!$    call t_startf('calcsize')
+!!$    ! for prognostic modal aerosols the transfer of mass between aitken and accumulation
+!!$    ! modes is done in conjunction with the dry radius calculation
+!!$    call modal_aero_calcsize_sub(state, ptend, dt, pbuf)
+!!$    call t_stopf('calcsize')
+!!$
+!!$    call t_startf('wateruptake')
+!!$    call modal_aero_wateruptake_dr(state, pbuf)
+!!$    call t_stopf('wateruptake')
 
     if (nwetdep<1) return
-return
+
     call wetdep_inputs_set( state, pbuf, dep_inputs )
 
     call pbuf_get_field(pbuf, dgnumwet_idx,       dgnumwet, start=(/1,1,1/), kount=(/pcols,pver,nmodes/) )
@@ -1146,8 +1149,8 @@ return
        if ((lcoardust > 0) .and. (lcoarnacl > 0)) then
           do k = 1, pver
              do i = 1, ncol
-                tmpdust = max( 0.0_r8, state%q(i,k,lcoardust) + ptend%q(i,k,lcoardust)*dt )
-                tmpnacl = max( 0.0_r8, state%q(i,k,lcoarnacl) + ptend%q(i,k,lcoarnacl)*dt )
+                tmpdust = max( 0.0_r8, state%q(i,k,lcoardust) ) !+ ptend%q(i,k,lcoardust)*dt )
+                tmpnacl = max( 0.0_r8, state%q(i,k,lcoarnacl) ) !+ ptend%q(i,k,lcoarnacl)*dt )
                 if ((tmpdust+tmpnacl) > 1.0e-30_r8) then
                    ! sol_factic_coarse(i,k) = (0.2_r8*tmpdust + 0.4_r8*tmpnacl)/(tmpdust+tmpnacl) ! tuned 1/6
                    f_act_conv_coarse(i,k) = (f_act_conv_coarse_dust*tmpdust &
@@ -1306,7 +1309,7 @@ return
                 ptend%lq(mm) = .TRUE.
                 dqdt_tmp(:,:) = 0.0_r8
                 ! q_tmp reflects changes from modal_aero_calcsize and is the "most current" q
-                q_tmp(1:ncol,:) = state%q(1:ncol,:,mm) + ptend%q(1:ncol,:,mm)*dt
+                q_tmp(1:ncol,:) = state%q(1:ncol,:,mm) ! + ptend%q(1:ncol,:,mm)*dt
                 if(convproc_do_aer) then
                    !Feed in the saved cloudborne mixing ratios from phase 2
                    qqcw_in(:,:) = qqcw_sav(:,:,lspec)
@@ -2191,7 +2194,6 @@ return
     allocate(scavimptblvol(nimptblgrow_mind:nimptblgrow_maxd, ntot_amode))
 
     lunerr = 6
-    dlndg_nimptblgrow = log( 1.25_r8 )
 
     modeloop: do mode = 1, ntot_amode
 
