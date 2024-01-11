@@ -562,7 +562,9 @@ contains
     use modal_aero_deposition, only: set_srf_wetdep
     use wetdep,                only: wetdepa_v2, wetdep_inputs_set, wetdep_inputs_t
     !st use modal_aero_wateruptake,only: modal_aero_wateruptake_dr
-    use carma_aero_convproc,   only: deepconv_wetdep_history, ma_convproc_intr, convproc_do_evaprain_atonce
+    use carma_aero_convproc,   only: deepconv_wetdep_history, ma_convproc_intr
+    use aero_wetdep_cam, only: convproc_do_evaprain_atonce
+
     use time_manager,          only: is_first_step
 
 

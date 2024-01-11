@@ -101,7 +101,7 @@ module aero_model
   integer :: nwetdep = 0
   integer,allocatable :: wetdep_indices(:)
   logical :: drydep_lq(pcnst)
-  logical, public, protected :: wetdep_lq(pcnst)
+  logical :: wetdep_lq(pcnst)
 
   logical :: modal_accum_coarse_exch = .false.
 
@@ -391,7 +391,6 @@ contains
        id = wetdep_indices(m)
        wetdep_lq(id) = .true.
     enddo
- wetdep_lq(:) = .true.
 
     wetdens_ap_idx = pbuf_get_index('WETDENS_AP')
     qaerwat_idx    = pbuf_get_index('QAERWAT')
@@ -988,7 +987,8 @@ contains
     use modal_aero_data
     use modal_aero_calcsize,   only: modal_aero_calcsize_sub
     use modal_aero_wateruptake,only: modal_aero_wateruptake_dr
-    use modal_aero_convproc,   only: deepconv_wetdep_history, ma_convproc_intr, convproc_do_evaprain_atonce
+    use modal_aero_convproc,   only: deepconv_wetdep_history, ma_convproc_intr
+    use aero_wetdep_cam, only: convproc_do_evaprain_atonce
 
     ! args
 

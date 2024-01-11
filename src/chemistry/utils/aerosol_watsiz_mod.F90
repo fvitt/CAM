@@ -1,6 +1,6 @@
 module aerosol_watsiz_mod
   use shr_kind_mod,   only: r8 => shr_kind_r8
-  use aero_model,     only: wetdep_lq
+  use aero_wetdep_cam,only: wetdep_lq
   use physics_types,  only: physics_state, physics_ptend, physics_ptend_init
   use physics_buffer, only: physics_buffer_desc
 

@@ -49,8 +49,9 @@ module aero_wetdep_cam
   integer,allocatable :: wetdep_indices(:)
   logical,allocatable :: aero_cnst_lq(:,:)
   integer,allocatable :: aero_cnst_id(:,:)
-  logical :: wetdep_lq(pcnst) = .false. ! set flags true for constituents with non-zero tendencies
+  logical, public, protected :: wetdep_lq(pcnst) ! set flags true for constituents with non-zero tendencies
   logical :: convproc_do_aer = .false.
+  logical, public, protected :: convproc_do_evaprain_atonce = .false.
 
   ! variables for table lookup of aerosol impaction/interception scavenging rates
   integer, parameter :: nimptblgrow_mind=-7, nimptblgrow_maxd=12
@@ -71,6 +72,7 @@ contains
     use namelist_utils,  only: find_group_name
     use units,           only: getunit, freeunit
     use spmd_utils,      only: mpicom, masterprocid, mpi_character, mpi_real8, mpi_integer, mpi_success
+    use spmd_utils,      only: mpi_logical
 
     character(len=*), intent(in)  :: nlfile  ! filepath for file containing namelist input
 
@@ -81,6 +83,7 @@ contains
     ! Namelist definition
     ! ===================
     namelist /aero_wetdep_nl/ aer_wetdep_list, sol_facti_cloud_borne, sol_factb_interstitial, sol_factic_interstitial
+    namelist /aero_wetdep_nl/ convproc_do_evaprain_atonce
 
     ! =============
     ! Read namelist
@@ -131,6 +134,10 @@ contains
     if (ierr/=mpi_success) then
        call endrun(subname//': MPI_BCAST ERROR: sol_factic_interstitial')
     end if
+    call mpi_bcast(convproc_do_evaprain_atonce, 1, mpi_logical, masterprocid, mpicom, ierr)
+    if (ierr/=mpi_success) then
+       call endrun(subname//': MPI_BCAST ERROR: sol_factic_interstitial')
+    end if
 
     call mpi_bcast(nwetdep, 1, mpi_integer, masterprocid, mpicom, ierr)
     if (ierr/=mpi_success) then
@@ -141,6 +148,7 @@ contains
 
     if (masterproc) then
        write(iulog,*) subname,' wetdep_active = ',wetdep_active,' nwetdep = ',nwetdep
+       write(iulog,*) subname,' convproc_do_evaprain_atonce = ',convproc_do_evaprain_atonce
     endif
 
   end subroutine aero_wetdep_readnl
@@ -304,7 +312,6 @@ contains
   !------------------------------------------------------------------------------
   subroutine aero_wetdep_tend( state, dt, dlf, cam_out, ptend, pbuf)
     use wetdep, only: wetdepa_v2, wetdep_inputs_set, wetdep_inputs_t
-    use modal_aero_convproc,   only: deepconv_wetdep_history, ma_convproc_intr, convproc_do_evaprain_atonce
 
     type(physics_state), intent(in)    :: state       ! Physics state variables
     real(r8),            intent(in)    :: dt          ! time step

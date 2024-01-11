@@ -35,6 +35,7 @@ use rad_constituents,only: rad_cnst_get_info, rad_cnst_get_info_by_bin, rad_cnst
 
 use carma_aerosol_properties_mod, only: carma_aerosol_properties
 use carma_aerosol_state_mod, only: carma_aerosol_state
+use aero_wetdep_cam, only: convproc_do_evaprain_atonce
 
 implicit none
 private
@@ -77,7 +78,6 @@ logical, protected, public :: convproc_do_deep = .true.
 ! NOTE: Shallow convection processing does not currently work with CLUBB.
 logical, protected, public :: convproc_do_shallow = .false.
 ! NOTE: These are the defaults for the Eaton/Wang parameterization.
-logical, protected, public :: convproc_do_evaprain_atonce = .false.
 real(r8), protected, public :: convproc_pom_spechygro = -1._r8
 real(r8), protected, public :: convproc_wup_max       = 4.0_r8
 
@@ -169,7 +169,7 @@ subroutine ma_convproc_readnl(nlfile)
   character(len=*), parameter :: subname = 'ma_convproc_readnl'
 
   namelist /aerosol_convproc_opts/ convproc_do_gas, deepconv_wetdep_history, convproc_do_deep, &
-       convproc_do_shallow, convproc_do_evaprain_atonce, convproc_pom_spechygro, convproc_wup_max
+       convproc_do_shallow, convproc_pom_spechygro, convproc_wup_max
 
   ! Read namelist
   if (masterproc) then
@@ -189,7 +189,6 @@ subroutine ma_convproc_readnl(nlfile)
   call mpi_bcast( deepconv_wetdep_history,  1, mpi_logical, masterprocid, mpicom, ierr)
   call mpi_bcast( convproc_do_deep,  1, mpi_logical, masterprocid, mpicom, ierr)
   call mpi_bcast( convproc_do_shallow,  1, mpi_logical, masterprocid, mpicom, ierr)
-  call mpi_bcast( convproc_do_evaprain_atonce,  1, mpi_logical, masterprocid, mpicom, ierr)
   call mpi_bcast( convproc_pom_spechygro,  1, mpi_real8, masterprocid, mpicom, ierr)
   call mpi_bcast( convproc_wup_max,  1, mpi_real8, masterprocid, mpicom, ierr)
 
@@ -198,7 +197,6 @@ subroutine ma_convproc_readnl(nlfile)
      write(iulog,*) subname//': deepconv_wetdep_history = ',deepconv_wetdep_history
      write(iulog,*) subname//': convproc_do_deep = ',convproc_do_deep
      write(iulog,*) subname//': convproc_do_shallow = ',convproc_do_shallow
-     write(iulog,*) subname//': convproc_do_evaprain_atonce = ',convproc_do_evaprain_atonce
      write(iulog,*) subname//': convproc_pom_spechygro = ',convproc_pom_spechygro
      write(iulog,*) subname//': convproc_wup_max = ', convproc_wup_max
   end if
