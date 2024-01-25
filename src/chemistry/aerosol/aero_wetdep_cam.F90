@@ -46,7 +46,6 @@ module aero_wetdep_cam
 
   logical :: wetdep_active = .false.
   integer :: nwetdep = 0
-  integer,allocatable :: wetdep_indices(:)
   logical,allocatable :: aero_cnst_lq(:,:)
   integer,allocatable :: aero_cnst_id(:,:)
   logical, public, protected :: wetdep_lq(pcnst) ! set flags true for constituents with non-zero tendencies
@@ -144,7 +143,7 @@ contains
        call endrun(subname//': MPI_BCAST ERROR: nwetdep')
     end if
 
-    wetdep_active = nwetdep>0
+    wetdep_active = .true. !nwetdep>0
 
     if (masterproc) then
        write(iulog,*) subname,' wetdep_active = ',wetdep_active,' nwetdep = ',nwetdep
@@ -155,8 +154,7 @@ contains
 
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------
-  subroutine aero_wetdep_init( pbuf2d )
-    type(physics_buffer_desc), pointer :: pbuf2d(:,:)
+  subroutine aero_wetdep_init( )
 
     character(len=*), parameter :: subrname = 'aero_wetdep_init'
 
@@ -168,6 +166,7 @@ contains
     logical  :: history_chemistry
 
     integer :: l,m, id, astat
+    character(len=2) :: binstr
 
     fracis_idx = pbuf_get_index('FRACIS')
 
@@ -187,22 +186,6 @@ contains
        call endrun(subrname//' : cannot determine aerosol model')
     endif
 
-    allocate(wetdep_indices(nwetdep), stat=astat)
-    if (astat/=0) then
-       call endrun(subrname//' : not able to allocate wetdep_indices array')
-    end if
-
-    do m = 1,nwetdep
-       call cnst_get_ind ( aer_wetdep_list(m), id, abort=.false. )
-       if (id>0) then
-          wetdep_indices(m) = id
-          wetdep_lq(id) = .true.
-       else
-          call endrun(subrname//': invalid wetdep species: '//trim(aer_wetdep_list(m)) )
-       endif
-
-    enddo
-
     allocate(aero_cnst_lq(aero_props%nbins(),0:maxval(aero_props%nmasses())), stat=astat)
     if (astat/=0) then
        call endrun(subrname//' : not able to allocate aero_cnst_lq array')
@@ -215,7 +198,12 @@ contains
     end if
     aero_cnst_id(:,:) = -1
 
+    wetdep_lq = .false.
+
     do m = 1, aero_props%nbins()
+       write(binstr,'(i2.2)') m
+       call addfld('SOLFACTB'//binstr,  (/ 'lev' /), 'A',unit_basename//'/kg ','below cld sol fact')
+      !call add_default('SOLFACTB'//binstr, 2, ' ')
        do l = 0, aero_props%nmasses(m)
 
           if (l == 0) then   ! number
@@ -227,6 +215,9 @@ contains
           call cnst_get_ind(tmpname, id, abort=.false.)
           aero_cnst_id(m,l) = id
           aero_cnst_lq(m,l) = id > 0
+          if (id > 0) then
+             wetdep_lq(id) = .true.
+          end if
 
           ! units --
           if (l==0) then
@@ -243,8 +234,8 @@ contains
 
     allocate(scavimptblnum(nimptblgrow_mind:nimptblgrow_maxd, aero_props%nbins()))
     allocate(scavimptblvol(nimptblgrow_mind:nimptblgrow_maxd, aero_props%nbins()))
-    scavimptblnum=nan !-huge(1._r8)
-    scavimptblvol=nan !-huge(1._r8)
+    scavimptblnum = nan
+    scavimptblvol = nan
 
     call wetdep_init()
 
@@ -278,8 +269,6 @@ contains
 
       call addfld (trim(name)//'WET',(/ 'lev' /), 'A',baseunits//'/kg/s ','wet deposition tendency')
       call addfld (trim(name)//'INS',(/ 'lev' /), 'A',baseunits//'/kg/s ','insol frac')
-
-      call addfld (trim(name)//'CONU',(/ 'lev' /), 'A',baseunits//'/kg','updraft mixing ratio')
 
       call addfld (trim(name)//'SIC',(/ 'lev' /), 'A',baseunits//'/kg/s ', &
            trim(name)//' ic wet deposition')
@@ -367,8 +356,8 @@ contains
 
     real(r8) :: qqcw_in(pcols,pver), qqcw_sav(pcols,pver,0:nspec_max)
     real(r8) :: f_act_conv(pcols,pver) ! prescribed aerosol activation fraction for convective cloud ! rce 2010/05/01
-    real(r8) :: f_act_conv_coarse(pcols,pver) ! similar but for coarse mode ! rce 2010/05/02
-    real(r8) :: f_act_conv_coarse_dust, f_act_conv_coarse_nacl ! rce 2010/05/02
+
+    character(len=2) :: binstr
 
     class(aerosol_state), pointer :: aero_state
     nullify(aero_state)
@@ -429,19 +418,17 @@ contains
     end do
 
     f_act_conv=0._r8
-    scavcoefnv=nan
+    scavcoefnv = nan
 
     do lphase = strt_loop,end_loop, stride_loop ! loop over interstitial (1) and cloud-borne (2) forms
 
        cldbrn = lphase==2
 
-       sol_factb=nan
-       sol_facti=nan
-       sol_factic=nan
+       sol_factb = nan
+       sol_facti = nan
+       sol_factic = nan
 
        if (lphase == 1) then ! interstial aerosol
-
-          sol_factb = sol_factb_interstitial ! all below-cloud scav ON (0.1 "tuning factor")
 
           sol_facti = 0.0_r8 ! strat in-cloud scav totally OFF for institial
 
@@ -465,6 +452,16 @@ contains
 
           if (lphase == 1) then ! interstial aerosol
              call get_bcscavcoefs( m, ncol, isprx, diam_wet, scavcoefnv(:,:,1), scavcoefnv(:,:,2) )
+
+             if ( sol_factb_interstitial /= NOTSET ) then
+                sol_factb(:ncol,:) = sol_factb_interstitial ! all below-cloud scav
+             else
+                sol_factb(:ncol,:) = aero_state%sol_factb_interstitial( m, ncol, pver, aero_props )
+             end if
+
+             write(binstr,'(i2.2)') m
+             call outfld('SOLFACTB'//binstr,sol_factb, pcols, lchnk)
+
           end if
 
           do l = 0,aero_props%nmasses(m)
@@ -478,12 +475,20 @@ contains
              endif
 
              idx = aero_props%indexer(m,l)
+
+             if (l == 0) then   ! number
+                call aero_props%num_names( m, aname, cname)
+             else
+                call aero_props%mmr_names( m,l, aname, cname)
+             end if
+
              if (cldbrn) then
                 qfld_ptr => qqcw(idx)%fld
                 jnv = 0
                 if (convproc_do_aer) then
                    qqcw_sav(:ncol,:,l) = qqcw(idx)%fld(:ncol,:)
                 endif
+                name = cname
              else ! interstial aerosol
                 qfld_ptr => raer(idx)%fld
                 if (l==0) then
@@ -499,6 +504,7 @@ contains
                 end if
 
                 f_act_conv(:ncol,:) = aero_state%convcld_actfrac( m, l, ncol, pver)
+                name = aname
              end if
 
              dqdt_tmp(1:ncol,:) = 0.0_r8
@@ -518,12 +524,6 @@ contains
                   convproc_do_evaprain_atonce_in=convproc_do_evaprain_atonce, &
                   bergso_in=dep_inputs%bergso )
 
-             if (l == 0) then   ! number
-                call aero_props%num_names( m, aname, cname)
-             else
-                call aero_props%mmr_names( m,l, aname, cname)
-             end if
-
              if(convproc_do_aer) then
                 if(cldbrn) then
                    ! save resuspension of cloudborne species
@@ -537,7 +537,7 @@ contains
                 end if
              endif
 
-             if (cldbrn) then
+             if (cldbrn .or. mm<0) then
                 do k = 1,pver
                    do i = 1,ncol
                       if ( (qqcw(idx)%fld(i,k) + dqdt_tmp(i,k) * dt) .lt. 0.0_r8 )   then
@@ -546,10 +546,8 @@ contains
                    end do
                 end do
                 qqcw(idx)%fld(1:ncol,:) = qqcw(idx)%fld(1:ncol,:) + dqdt_tmp(1:ncol,:) * dt
-                name = cname
             else
                 ptend%q(1:ncol,:,mm) = dqdt_tmp(1:ncol,:)
-                name = aname
             end if
 
             call outfld( trim(name)//'WET', dqdt_tmp(:,:), pcols, lchnk)
@@ -629,12 +627,11 @@ contains
          do i = 1, ncol
 
             ! do only if no precip
-            if ( isprx(i,k) ) then
+            if ( isprx(i,k) .and. diam_wet(i,k)>0.0_r8) then
                !
                ! interpolate table values using log of (actual-wet-size)/(base-dry-size)
 
                dumdgratio = diam_wet(i,k)/aero_props%scav_diam(m)
-
                if ((dumdgratio >= 0.99_r8) .and. (dumdgratio <= 1.01_r8)) then
                   scavimpvol = scavimptblvol(0,m)
                   scavimpnum = scavimptblnum(0,m)
@@ -690,27 +687,24 @@ contains
     !
     !-----------------------------------------------------------------------
 
-    use shr_kind_mod,    only: r8 => shr_kind_r8
-    use cam_abortutils,  only: endrun
-    use mo_constants, only:  pi
-    use ppgrid,          only: begchunk
+    use shr_kind_mod,   only: r8 => shr_kind_r8
+    use cam_abortutils, only: endrun
+    use mo_constants,   only: pi
 
     !   local variables
     integer nnfit_maxd
     parameter (nnfit_maxd=27)
 
-    integer m, i, l, jgrow, jdens, jpress, jtemp, nnfit
+    integer m, jgrow, nnfit
     integer lunerr
 
-    character(len=32) :: spectype
-
     real(r8) dg0, dg0_cgs, press, dg0_base, &
-         rhodryaero, rhowetaero, rhowetaero_cgs, rmserr, &
+         rhodryaero, rhowetaero, rhowetaero_cgs, &
          scavratenum, scavratevol, logsig,                &
          temp, wetdiaratio, wetvolratio
-    real(r8) :: specdens
-    real(r8) aafitnum(1), xxfitnum(1,nnfit_maxd), yyfitnum(nnfit_maxd)
-    real(r8) aafitvol(1), xxfitvol(1,nnfit_maxd), yyfitvol(nnfit_maxd)
+
+    real(r8) :: xxfitnum(1,nnfit_maxd), yyfitnum(nnfit_maxd)
+    real(r8) :: xxfitvol(1,nnfit_maxd), yyfitvol(nnfit_maxd)
 
     lunerr = iulog
     dlndg_nimptblgrow = log( 1.25_r8 )
@@ -726,8 +720,6 @@ contains
        dg0_base = aero_props%scav_diam(m)
 
        logsig = aero_props%alogsig(m)
-
-       !st rhodryaero = specdens_amode(1,mode)
 
        growloop: do jgrow = nimptblgrow_mind, nimptblgrow_maxd
 
@@ -768,21 +760,6 @@ contains
           xxfitvol(1,nnfit) = 1._r8
           yyfitvol(nnfit) = log( scavratevol )
 
-          !
-          ! skip mlinfit stuff because scav table no longer has dependencies on
-          !    air temp, air press, and particle wet density
-          ! just load the log( scavrate--- ) values
-          !
-          !!
-          !!   do linear regression
-          !!    log(scavrate) = a1 + a2*log(wetdens)
-          !!
-          !     call mlinft( xxfitnum, yyfitnum, aafitnum, nnfit, 1, 1, rmserr )
-          !     call mlinft( xxfitvol, yyfitvol, aafitvol, nnfit, 1, 1, rmserr )
-          !
-          !     scavimptblnum(jgrow,mode) = aafitnum(1)
-          !     scavimptblvol(jgrow,mode) = aafitvol(1)
-
          !depends on both bins and different species
           scavimptblnum(jgrow,m) = yyfitnum(1)
           scavimptblvol(jgrow,m) = yyfitvol(1)
@@ -810,8 +787,7 @@ contains
       !   lunerr = logical unit for error message
       !
       use shr_kind_mod, only: r8 => shr_kind_r8
-      use mo_constants, only: boltz_cgs, pi, rhowater => rhoh2o_cgs, &
-           gravity => gravity_cgs, rgas => rgas_cgs
+      use mo_constants, only: boltz_cgs, pi, rhowater => rhoh2o_cgs, rgas => rgas_cgs
 
       implicit none
 

@@ -59,6 +59,7 @@ module aerosol_state_mod
      procedure(aero_volume), deferred :: water_volume
      procedure(aero_wet_diam), deferred :: wet_diameter
      procedure :: convcld_actfrac
+     procedure :: sol_factb_interstitial
  end type aerosol_state
 
   ! for state fields
@@ -899,6 +900,68 @@ contains
     frac = 0.8_r8 ! rce 2010/05/02
 
   end function convcld_actfrac
+
+  !------------------------------------------------------------------------------
+  ! below cloud solubility factor for interstitial aerosols
+  !------------------------------------------------------------------------------
+  function sol_factb_interstitial(self, bin_ndx, ncol, nlev, aero_props) result(sol_factb)
+
+    class(aerosol_state), intent(in) :: self
+    integer, intent(in) :: bin_ndx                ! bin number
+    integer, intent(in) :: ncol                   ! number of columns
+    integer, intent(in) :: nlev                   ! number of vertical levels
+    class(aerosol_properties), intent(in) :: aero_props ! aerosol properties object
+
+    real(r8) :: sol_factb(ncol,nlev)
+
+    real(r8), pointer :: aer_mmr(:,:)
+    real(r8) :: totmmr(ncol,nlev)
+    real(r8) :: solmmr(ncol,nlev)
+    integer :: ispc
+    character(len=aero_name_len) :: spectype
+
+    sol_factb(:,:) = 0.0_r8
+
+    totmmr(:,:) = 0._r8
+    solmmr(:,:) = 0._r8
+
+    do ispc = 1, aero_props%nspecies(bin_ndx)
+
+       call aero_props%species_type(bin_ndx, ispc, spectype)
+       call self%get_ambient_mmr(ispc, bin_ndx, aer_mmr)
+
+       totmmr(:ncol,:) = totmmr(:ncol,:) + aer_mmr(:ncol,:)
+
+       if (trim(spectype) == 'sulfate') then
+          solmmr(:ncol,:) = solmmr(:ncol,:) + aer_mmr(:ncol,:)*0.5_r8
+       end if
+       if (trim(spectype) == 'p-organic') then
+          solmmr(:ncol,:) = solmmr(:ncol,:) + aer_mmr(:ncol,:)*0.2_r8
+       end if
+       if (trim(spectype) == 's-organic') then
+          solmmr(:ncol,:) = solmmr(:ncol,:) + aer_mmr(:ncol,:)*0.2_r8
+       end if
+       if (trim(spectype) == 'dust') then
+          solmmr(:ncol,:) = solmmr(:ncol,:) + aer_mmr(:ncol,:)*0.1_r8
+       end if
+       if (trim(spectype) == 'seasalt') then
+          solmmr(:ncol,:) = solmmr(:ncol,:) + aer_mmr(:ncol,:)*0.8_r8
+       end if
+
+    end do   !nspec
+
+    where ( totmmr > 0._r8 )
+       sol_factb = solmmr/totmmr
+    end where
+
+    where ( sol_factb > 0.8_r8 )
+       sol_factb = 0.8_r8
+    end where
+    where ( sol_factb < 0.1_r8 )
+       sol_factb = 0.1_r8
+    end where
+
+  end function sol_factb_interstitial
 
 
 end module aerosol_state_mod

@@ -394,17 +394,17 @@ contains
          if (l == nspec(m) + 2) then   ! number
           unit_basename = ' 1'
          end if
-
-       call addfld (trim(fieldname(mm))//'SFWET', &
-            horiz_only,  'A',unit_basename//'/m2/s ','Wet deposition flux at surface')
-       call addfld (trim(fieldname(mm))//'SFSIC', &
-            horiz_only,  'A',unit_basename//'/m2/s ','Wet deposition flux (incloud, convective) at surface')
-       call addfld (trim(fieldname(mm))//'SFSIS', &
-            horiz_only,  'A',unit_basename//'/m2/s ','Wet deposition flux (incloud, stratiform) at surface')
-       call addfld (trim(fieldname(mm))//'SFSBC', &
-            horiz_only,  'A',unit_basename//'/m2/s ','Wet deposition flux (belowcloud, convective) at surface')
-       call addfld (trim(fieldname(mm))//'SFSBS', &
-            horiz_only,  'A',unit_basename//'/m2/s ','Wet deposition flux (belowcloud, stratiform) at surface')
+!!$
+!!$       call addfld (trim(fieldname(mm))//'SFWET', &
+!!$            horiz_only,  'A',unit_basename//'/m2/s ','Wet deposition flux at surface')
+!!$       call addfld (trim(fieldname(mm))//'SFSIC', &
+!!$            horiz_only,  'A',unit_basename//'/m2/s ','Wet deposition flux (incloud, convective) at surface')
+!!$       call addfld (trim(fieldname(mm))//'SFSIS', &
+!!$            horiz_only,  'A',unit_basename//'/m2/s ','Wet deposition flux (incloud, stratiform) at surface')
+!!$       call addfld (trim(fieldname(mm))//'SFSBC', &
+!!$            horiz_only,  'A',unit_basename//'/m2/s ','Wet deposition flux (belowcloud, convective) at surface')
+!!$       call addfld (trim(fieldname(mm))//'SFSBS', &
+!!$            horiz_only,  'A',unit_basename//'/m2/s ','Wet deposition flux (belowcloud, stratiform) at surface')
 
        if (convproc_do_aer) then
           call addfld (trim(fieldname(mm))//'SFSES', &
@@ -419,44 +419,44 @@ contains
 
        call addfld (trim(fieldname_cw(mm))//'WETC',(/ 'lev' /), 'A',unit_basename//'/kg/s ','wet deposition tendency??')
        call addfld (trim(fieldname_cw(mm))//'CONU',(/ 'lev' /), 'A',unit_basename//'/kg ','updraft mixing ratio??')
+!!$
+!!$       call addfld (trim(fieldname(mm))//'WET',(/ 'lev' /), 'A',unit_basename//'/kg/s ','wet deposition tendency')
+!!$       call addfld (trim(fieldname(mm))//'SIC',(/ 'lev' /), 'A',unit_basename//'/kg/s ', &
+!!$            trim(fieldname(mm))//' ic wet deposition')
+!!$       call addfld (trim(fieldname(mm))//'SIS',(/ 'lev' /), 'A',unit_basename//'/kg/s ', &
+!!$            trim(fieldname(mm))//' is wet deposition')
+!!$       call addfld (trim(fieldname(mm))//'SBC',(/ 'lev' /), 'A',unit_basename//'/kg/s ', &
+!!$            trim(fieldname(mm))//' bc wet deposition')
+!!$       call addfld (trim(fieldname(mm))//'SBS',(/ 'lev' /), 'A',unit_basename//'/kg/s ', &
+!!$            trim(fieldname(mm))//' bs wet deposition')
 
-       call addfld (trim(fieldname(mm))//'WET',(/ 'lev' /), 'A',unit_basename//'/kg/s ','wet deposition tendency')
-       call addfld (trim(fieldname(mm))//'SIC',(/ 'lev' /), 'A',unit_basename//'/kg/s ', &
-            trim(fieldname(mm))//' ic wet deposition')
-       call addfld (trim(fieldname(mm))//'SIS',(/ 'lev' /), 'A',unit_basename//'/kg/s ', &
-            trim(fieldname(mm))//' is wet deposition')
-       call addfld (trim(fieldname(mm))//'SBC',(/ 'lev' /), 'A',unit_basename//'/kg/s ', &
-            trim(fieldname(mm))//' bc wet deposition')
-       call addfld (trim(fieldname(mm))//'SBS',(/ 'lev' /), 'A',unit_basename//'/kg/s ', &
-            trim(fieldname(mm))//' bs wet deposition')
-
-       if ( history_aerosol .or. history_chemistry ) then
-          call add_default (trim(fieldname(mm))//'SFWET', 1, ' ')
-       endif
-       if ( history_aerosol ) then
-          call add_default (trim(fieldname(mm))//'SFSIC', 1, ' ')
-          call add_default (trim(fieldname(mm))//'SFSIS', 1, ' ')
-          call add_default (trim(fieldname(mm))//'SFSBC', 1, ' ')
-          call add_default (trim(fieldname(mm))//'SFSBS', 1, ' ')
-          if (convproc_do_aer) then
-             call add_default (trim(fieldname(mm))//'SFSES', 1, ' ')
-             call add_default (trim(fieldname(mm))//'SFSBD', 1, ' ')
-          end if
-       endif
+!!$       if ( history_aerosol .or. history_chemistry ) then
+!!$          call add_default (trim(fieldname(mm))//'SFWET', 1, ' ')
+!!$       endif
+!!$       if ( history_aerosol ) then
+!!$          call add_default (trim(fieldname(mm))//'SFSIC', 1, ' ')
+!!$          call add_default (trim(fieldname(mm))//'SFSIS', 1, ' ')
+!!$          call add_default (trim(fieldname(mm))//'SFSBC', 1, ' ')
+!!$          call add_default (trim(fieldname(mm))//'SFSBS', 1, ' ')
+!!$          if (convproc_do_aer) then
+!!$             call add_default (trim(fieldname(mm))//'SFSES', 1, ' ')
+!!$             call add_default (trim(fieldname(mm))//'SFSBD', 1, ' ')
+!!$          end if
+!!$       endif
 
           call addfld( fieldname_cw(mm),                (/ 'lev' /), 'A', unit_basename//'/kg ',   &
                trim(fieldname_cw(mm))//' in cloud water')
-          call addfld (trim(fieldname_cw(mm))//'WET',(/ 'lev' /), 'A',unit_basename//'/kg/s ','wet deposition tendency')
-          call addfld (trim(fieldname_cw(mm))//'SFWET', horiz_only,  'A', unit_basename//'/m2/s ', &
-               trim(fieldname_cw(mm))//' wet deposition flux at surface')
-          call addfld (trim(fieldname_cw(mm))//'SFSIC', horiz_only,  'A', unit_basename//'/m2/s ', &
-               trim(fieldname_cw(mm))//' wet deposition flux (incloud, convective) at surface')
-          call addfld (trim(fieldname_cw(mm))//'SFSIS', horiz_only,  'A', unit_basename//'/m2/s ', &
-               trim(fieldname_cw(mm))//' wet deposition flux (incloud, stratiform) at surface')
-          call addfld (trim(fieldname_cw(mm))//'SFSBC', horiz_only,  'A', unit_basename//'/m2/s ', &
-               trim(fieldname_cw(mm))//' wet deposition flux (belowcloud, convective) at surface')
-          call addfld (trim(fieldname_cw(mm))//'SFSBS', horiz_only,  'A', unit_basename//'/m2/s ', &
-               trim(fieldname_cw(mm))//' wet deposition flux (belowcloud, stratiform) at surface')
+!!$          call addfld (trim(fieldname_cw(mm))//'WET',(/ 'lev' /), 'A',unit_basename//'/kg/s ','wet deposition tendency')
+!!$          call addfld (trim(fieldname_cw(mm))//'SFWET', horiz_only,  'A', unit_basename//'/m2/s ', &
+!!$               trim(fieldname_cw(mm))//' wet deposition flux at surface')
+!!$          call addfld (trim(fieldname_cw(mm))//'SFSIC', horiz_only,  'A', unit_basename//'/m2/s ', &
+!!$               trim(fieldname_cw(mm))//' wet deposition flux (incloud, convective) at surface')
+!!$          call addfld (trim(fieldname_cw(mm))//'SFSIS', horiz_only,  'A', unit_basename//'/m2/s ', &
+!!$               trim(fieldname_cw(mm))//' wet deposition flux (incloud, stratiform) at surface')
+!!$          call addfld (trim(fieldname_cw(mm))//'SFSBC', horiz_only,  'A', unit_basename//'/m2/s ', &
+!!$               trim(fieldname_cw(mm))//' wet deposition flux (belowcloud, convective) at surface')
+!!$          call addfld (trim(fieldname_cw(mm))//'SFSBS', horiz_only,  'A', unit_basename//'/m2/s ', &
+!!$               trim(fieldname_cw(mm))//' wet deposition flux (belowcloud, stratiform) at surface')
           call addfld (trim(fieldname_cw(mm))//'DDF',   horiz_only,  'A', unit_basename//'/m2/s ', &
                trim(fieldname_cw(mm))//' dry deposition flux at bottom (grav + turb)')
           call addfld (trim(fieldname_cw(mm))//'TBF',   horiz_only,  'A', unit_basename//'/m2/s ', &
@@ -476,21 +476,21 @@ contains
 
           if ( history_aerosol.or. history_chemistry ) then
              call add_default( fieldname_cw(mm), 1, ' ' )
-             call add_default (trim(fieldname_cw(mm))//'SFWET', 1, ' ')
+!!$             call add_default (trim(fieldname_cw(mm))//'SFWET', 1, ' ')
           endif
           if ( history_aerosol ) then
              call add_default (trim(fieldname_cw(mm))//'GVF', 1, ' ')
              call add_default (trim(fieldname_cw(mm))//'TBF', 1, ' ')
              call add_default (trim(fieldname_cw(mm))//'DDF', 1, ' ')
-             call add_default (trim(fieldname_cw(mm))//'SFSBS', 1, ' ')
-             call add_default (trim(fieldname_cw(mm))//'SFSIC', 1, ' ')
-             call add_default (trim(fieldname_cw(mm))//'SFSBC', 1, ' ')
-             call add_default (trim(fieldname_cw(mm))//'SFSIS', 1, ' ')
-             if (convproc_do_aer) then
-                call add_default (trim(fieldname_cw(mm))//'SFSEC', 1, ' ')
-                call add_default (trim(fieldname_cw(mm))//'SFSES', 1, ' ')
-                call add_default (trim(fieldname_cw(mm))//'SFSBD', 1, ' ')
-             end if
+!!$             call add_default (trim(fieldname_cw(mm))//'SFSBS', 1, ' ')
+!!$             call add_default (trim(fieldname_cw(mm))//'SFSIC', 1, ' ')
+!!$             call add_default (trim(fieldname_cw(mm))//'SFSBC', 1, ' ')
+!!$             call add_default (trim(fieldname_cw(mm))//'SFSIS', 1, ' ')
+!!$             if (convproc_do_aer) then
+!!$                call add_default (trim(fieldname_cw(mm))//'SFSEC', 1, ' ')
+!!$                call add_default (trim(fieldname_cw(mm))//'SFSES', 1, ' ')
+!!$                call add_default (trim(fieldname_cw(mm))//'SFSBD', 1, ' ')
+!!$             end if
           endif
        enddo
     enddo
@@ -689,6 +689,8 @@ contains
 
     character(len=32) :: spectype
     character(len=32) :: bin_name
+
+call endrun('FVDBG DO NOT CALL aero_model_wetdep !!!!!!!!!!!!!!!!!!!!1')
 
     lchnk = state%lchnk
     ncol  = state%ncol

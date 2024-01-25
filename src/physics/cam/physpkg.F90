@@ -881,7 +881,7 @@ contains
     ! Prognostic chemistry.
     call chem_init(phys_state,pbuf2d)
 
-    call aero_wetdep_init(pbuf2d)
+    call aero_wetdep_init()
 
     ! Lightning flash frq and NOx prod
     call lightning_init( pbuf2d )

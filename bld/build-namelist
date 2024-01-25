@@ -3465,10 +3465,12 @@ if ($phys eq 'cam_dev') {
 }
 
 # Tuning for wet scavenging of modal aerosols
-if ($chem =~ /_mam/) {
+if ($chem =~ /_mam/ or $carma =~ /trop_strat/) {
     add_default($nl, 'sol_facti_cloud_borne');
-    add_default($nl, 'sol_factb_interstitial');
     add_default($nl, 'sol_factic_interstitial');
+}
+if ($chem =~ /_mam/) {
+    add_default($nl, 'sol_factb_interstitial');
 }
 
 # Turbulent Mountain Stress
