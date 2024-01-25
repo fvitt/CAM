@@ -398,7 +398,6 @@ contains
     end_loop    = 2
     stride_loop = 1
     if (convproc_do_aer) then
-       call endrun('FVDBG convproc_do_aer should be FALSE')
        !Do cloudborne first for unified convection scheme so that the resuspension of cloudborne
        !can be saved then applied to interstitial
        strt_loop   =  2
@@ -417,34 +416,44 @@ contains
                     *state%pdel(:ncol,k)/gravit
     end do
 
-    f_act_conv=0._r8
+    f_act_conv = 0._r8
     scavcoefnv = nan
+    qqcw_sav = nan
 
-    do lphase = strt_loop,end_loop, stride_loop ! loop over interstitial (1) and cloud-borne (2) forms
+    do m = 1,aero_props%nbins()
 
-       cldbrn = lphase==2
+       do lphase = strt_loop,end_loop, stride_loop ! loop over interstitial (1) and cloud-borne (2) forms
 
-       sol_factb = nan
-       sol_facti = nan
-       sol_factic = nan
+          cldbrn = lphase==2
 
-       if (lphase == 1) then ! interstial aerosol
+          sol_factb = nan
+          sol_facti = nan
+          sol_factic = nan
 
-          sol_facti = 0.0_r8 ! strat in-cloud scav totally OFF for institial
+          if (lphase == 1) then ! interstial aerosol
 
-          sol_factic = sol_factic_interstitial
+             sol_facti = 0.0_r8 ! strat in-cloud scav totally OFF for institial
 
-       else ! cloud-borne aerosol (borne by stratiform cloud drops)
+             sol_factic = sol_factic_interstitial
 
-          sol_factb  = 0.0_r8   ! all below-cloud scav OFF (anything cloud-borne is located "in-cloud")
-          sol_facti  = sol_facti_cloud_borne   ! strat  in-cloud scav cloud-borne tuning factor
-          sol_factic = 0.0_r8   ! conv   in-cloud scav OFF (having this on would mean
-          !        that conv precip collects strat droplets)
-          f_act_conv = 0.0_r8   ! conv   in-cloud scav OFF (having this on would mean
+          else ! cloud-borne aerosol (borne by stratiform cloud drops)
 
-       end if
+             sol_factb  = 0.0_r8   ! all below-cloud scav OFF (anything cloud-borne is located "in-cloud")
+             sol_facti  = sol_facti_cloud_borne   ! strat  in-cloud scav cloud-borne tuning factor
+             sol_factic = 0.0_r8   ! conv   in-cloud scav OFF (having this on would mean
+             !        that conv precip collects strat droplets)
+             f_act_conv = 0.0_r8   ! conv   in-cloud scav OFF (having this on would mean
 
-       do m = 1,aero_props%nbins()
+          end if
+          if (convproc_do_aer .and. lphase == 1) then
+             ! if modal aero convproc is turned on for aerosols, then
+             !    turn off the convective in-cloud removal for interstitial aerosols
+             !    (but leave the below-cloud on, as convproc only does in-cloud)
+             !    and turn off the outfld SFWET, SFSIC, SFSID, SFSEC, and SFSED calls
+             ! for (stratiform)-cloudborne aerosols, convective wet removal
+             !    (all forms) is zero, so no action is needed
+             sol_factic = 0.0_r8
+          endif
 
           diam_wet = aero_state%wet_diameter(m,ncol,pver)
 
@@ -486,9 +495,11 @@ contains
                 qfld_ptr => qqcw(idx)%fld
                 jnv = 0
                 if (convproc_do_aer) then
-                   qqcw_sav(:ncol,:,l) = qqcw(idx)%fld(:ncol,:)
+                   qqcw_sav(:ncol,:,l) = qfld_ptr(:ncol,:)
                 endif
                 name = cname
+                qqcw_in = nan
+                f_act_conv = nan
              else ! interstial aerosol
                 qfld_ptr => raer(idx)%fld
                 if (l==0) then
