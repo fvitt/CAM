@@ -405,20 +405,20 @@ contains
 !!$            horiz_only,  'A',unit_basename//'/m2/s ','Wet deposition flux (belowcloud, convective) at surface')
 !!$       call addfld (trim(fieldname(mm))//'SFSBS', &
 !!$            horiz_only,  'A',unit_basename//'/m2/s ','Wet deposition flux (belowcloud, stratiform) at surface')
-
-       if (convproc_do_aer) then
-          call addfld (trim(fieldname(mm))//'SFSES', &
-               horiz_only,  'A','kg/m2/s','Wet deposition flux (precip evap, stratiform) at surface')
-          call addfld (trim(fieldname(mm))//'SFSBD', &
-               horiz_only,  'A','kg/m2/s','Wet deposition flux (belowcloud, deep convective) at surface')
-       end if
-
-       call addfld (trim(fieldname(mm))//'WETC',  (/ 'lev' /), 'A',unit_basename//'/kg/s ','wet deposition tendency??')
-       call addfld (trim(fieldname(mm))//'CONU',  (/ 'lev' /), 'A',unit_basename//'/kg ','updraft mixing ratio??')
-       call addfld (trim(fieldname(mm))//'QCONST',(/ 'lev' /), 'A',unit_basename//'/kg ','all mixing ratio??')
-
-       call addfld (trim(fieldname_cw(mm))//'WETC',(/ 'lev' /), 'A',unit_basename//'/kg/s ','wet deposition tendency??')
-       call addfld (trim(fieldname_cw(mm))//'CONU',(/ 'lev' /), 'A',unit_basename//'/kg ','updraft mixing ratio??')
+!!$
+!!$       if (convproc_do_aer) then
+!!$          call addfld (trim(fieldname(mm))//'SFSES', &
+!!$               horiz_only,  'A','kg/m2/s','Wet deposition flux (precip evap, stratiform) at surface')
+!!$          call addfld (trim(fieldname(mm))//'SFSBD', &
+!!$               horiz_only,  'A','kg/m2/s','Wet deposition flux (belowcloud, deep convective) at surface')
+!!$       end if
+!!$
+!!$       call addfld (trim(fieldname(mm))//'WETC',  (/ 'lev' /), 'A',unit_basename//'/kg/s ','wet deposition tendency??')
+!!$       call addfld (trim(fieldname(mm))//'CONU',  (/ 'lev' /), 'A',unit_basename//'/kg ','updraft mixing ratio??')
+!!$       call addfld (trim(fieldname(mm))//'QCONST',(/ 'lev' /), 'A',unit_basename//'/kg ','all mixing ratio??')
+!!$
+!!$       call addfld (trim(fieldname_cw(mm))//'WETC',(/ 'lev' /), 'A',unit_basename//'/kg/s ','wet deposition tendency??')
+!!$       call addfld (trim(fieldname_cw(mm))//'CONU',(/ 'lev' /), 'A',unit_basename//'/kg ','updraft mixing ratio??')
 !!$
 !!$       call addfld (trim(fieldname(mm))//'WET',(/ 'lev' /), 'A',unit_basename//'/kg/s ','wet deposition tendency')
 !!$       call addfld (trim(fieldname(mm))//'SIC',(/ 'lev' /), 'A',unit_basename//'/kg/s ', &
@@ -463,15 +463,15 @@ contains
                trim(fieldname_cw(mm))//' turbulent dry deposition flux')
           call addfld (trim(fieldname_cw(mm))//'GVF',   horiz_only,  'A', unit_basename//'/m2/s ', &
                trim(fieldname_cw(mm))//' gravitational dry deposition flux')
-
-          if (convproc_do_aer) then
-             call addfld (trim(fieldname_cw(mm))//'SFSEC', &
-                horiz_only,  'A','kg/m2/s','Wet deposition flux (precip evap, convective) at surface')
-             call addfld (trim(fieldname_cw(mm))//'SFSES', &
-                horiz_only,  'A','kg/m2/s','Wet deposition flux (precip evap, stratiform) at surface')
-             call addfld (trim(fieldname_cw(mm))//'SFSBD', &
-                horiz_only,  'A','kg/m2/s','Wet deposition flux (belowcloud, deep convective) at surface')
-          end if
+!!$
+!!$          if (convproc_do_aer) then
+!!$             call addfld (trim(fieldname_cw(mm))//'SFSEC', &
+!!$                horiz_only,  'A','kg/m2/s','Wet deposition flux (precip evap, convective) at surface')
+!!$             call addfld (trim(fieldname_cw(mm))//'SFSES', &
+!!$                horiz_only,  'A','kg/m2/s','Wet deposition flux (precip evap, stratiform) at surface')
+!!$             call addfld (trim(fieldname_cw(mm))//'SFSBD', &
+!!$                horiz_only,  'A','kg/m2/s','Wet deposition flux (belowcloud, deep convective) at surface')
+!!$          end if
 
 
           if ( history_aerosol.or. history_chemistry ) then
