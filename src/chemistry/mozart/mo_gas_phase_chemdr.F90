@@ -145,6 +145,7 @@ contains
        tag_names(n) = trim(rxt_tag_lst(n))
        if (n<=phtcnt) then
           call addfld( tag_names(n), (/ 'lev' /), 'I', '/s', 'photolysis rate constant' )
+          call add_default( tag_names(n), 3, ' ')
        else
           ii = n-phtcnt
           select case(num_rnts(ii))
