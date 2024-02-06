@@ -285,8 +285,6 @@ contains
        endif
     enddo count_species
 
- print*,'FVDBG.aero_model_init... nwetdep = ',nwetdep
-
     if (nwetdep>0) &
          allocate(wetdep_indices(nwetdep))
     if (ndrydep>0) &

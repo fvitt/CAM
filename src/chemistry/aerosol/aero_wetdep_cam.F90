@@ -302,7 +302,7 @@ contains
   subroutine aero_wetdep_tend( state, dt, dlf, cam_out, ptend, pbuf)
     use wetdep, only: wetdepa_v2, wetdep_inputs_set, wetdep_inputs_t
 
-    type(physics_state), intent(in)    :: state       ! Physics state variables
+    type(physics_state), target, intent(in) :: state  ! Physics state variables
     real(r8),            intent(in)    :: dt          ! time step
     real(r8),            intent(in)    :: dlf(:,:)    ! shallow+deep convective detrainment [kg/kg/s]
     type(cam_out_t),     intent(inout) :: cam_out     ! export state
@@ -360,14 +360,21 @@ contains
     character(len=2) :: binstr
 
     class(aerosol_state), pointer :: aero_state
+
     nullify(aero_state)
 
     if (.not.wetdep_active) return
 
     if (nmodes>0) then
        aero_state => modal_aerosol_state(state,pbuf)
+       if (.not.associated(aero_state)) then
+          call endrun('aero_wetdep_tend: construction of aero_state modal_aerosol_state object failed')
+       end if
     else if (nbins>0) then
        aero_state => carma_aerosol_state(state,pbuf)
+       if (.not.associated(aero_state)) then
+          call endrun('aero_wetdep_tend: construction of aero_state modal_aerosol_state object failed')
+       end if
     else
        call endrun(subrname//' : cannot determine aerosol model')
     endif
@@ -612,6 +619,11 @@ contains
     end do
 
     deallocate(raer,qqcw)
+
+    if (associated(aero_state)) then
+       deallocate(aero_state)
+       nullify(aero_state)
+    end if
 
     cam_out%bcphiwet = 0._r8
     cam_out%ocphiwet = 0._r8
