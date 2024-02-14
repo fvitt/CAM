@@ -301,6 +301,8 @@ contains
   !------------------------------------------------------------------------------
   subroutine aero_wetdep_tend( state, dt, dlf, cam_out, ptend, pbuf)
     use wetdep, only: wetdepa_v2, wetdep_inputs_set, wetdep_inputs_t
+    use modal_aero_deposition, only: set_srf_wetdep
+    use aerodep_flx,    only: aerodep_flx_prescribed
 
     type(physics_state), target, intent(in) :: state  ! Physics state variables
     real(r8),            intent(in)    :: dt          ! time step
@@ -358,6 +360,8 @@ contains
     real(r8) :: f_act_conv(pcols,pver) ! prescribed aerosol activation fraction for convective cloud ! rce 2010/05/01
 
     character(len=2) :: binstr
+    real(r8) :: aerdepwetis(pcols,pcnst) ! aerosol wet deposition (interstitial)
+    real(r8) :: aerdepwetcw(pcols,pcnst) ! aerosol wet deposition (cloud water)
 
     class(aerosol_state), pointer :: aero_state
 
@@ -400,16 +404,28 @@ contains
 
     call aero_state%get_states( aero_props, raer, qqcw )
 
-    ! Counters for "without" unified convective treatment (i.e. default case)
-    strt_loop   = 1
-    end_loop    = 2
-    stride_loop = 1
     if (convproc_do_aer) then
        !Do cloudborne first for unified convection scheme so that the resuspension of cloudborne
        !can be saved then applied to interstitial
        strt_loop   =  2
        end_loop    =  1
        stride_loop = -1
+       !qsrflx_mzaer2cnvpr(:,:,:) = 0.0_r8
+       if (nmodes>0) then
+          aerdepwetis(:,:) = 0.0_r8
+          aerdepwetcw(:,:) = 0.0_r8
+       else
+          aerdepwetis(:,:) = nan
+          aerdepwetcw(:,:) = nan
+       endif
+    else
+       ! Counters for "without" unified convective treatment (i.e. default case)
+       strt_loop   = 1
+       end_loop    = 2
+       stride_loop = 1
+       !qsrflx_mzaer2cnvpr(:,:,:) = nan
+       aerdepwetis(:,:) = nan
+       aerdepwetcw(:,:) = nan
     endif
 
     prec(:ncol)=0._r8
@@ -480,7 +496,7 @@ contains
 
           end if
 
-          do l = 0,aero_props%nmasses(m)
+          masses_loop: do l = 0,aero_props%nmasses(m)
 
              mm = aero_cnst_id(m,l)
 
@@ -582,7 +598,14 @@ contains
                   sflx(i)=sflx(i)+dqdt_tmp(i,k)*state%pdel(i,k)/gravit
                enddo
             enddo
-            call outfld( trim(name)//'SFWET', sflx, pcols, lchnk)
+            if (cldbrn) then
+               call outfld( trim(name)//'SFWET', sflx, pcols, lchnk)
+               if (nmodes>0) aerdepwetcw(:ncol,mm) = sflx(:ncol)
+            else
+               if (.not.convproc_do_aer) call outfld( trim(name)//'SFWET', sflx, pcols, lchnk)
+               if (nmodes>0) aerdepwetis(:ncol,mm) = sflx(:ncol)
+            end if
+
             sflx(:)=0._r8
             do k=1,pver
                do i=1,ncol
@@ -613,7 +636,7 @@ contains
             call outfld( trim(name)//'SFSBS', sflx, pcols, lchnk)
 
 
-          end do
+          end do masses_loop
        end do
 
     end do
@@ -625,12 +648,11 @@ contains
        nullify(aero_state)
     end if
 
-    cam_out%bcphiwet = 0._r8
-    cam_out%ocphiwet = 0._r8
-    cam_out%dstwet1 = 0._r8
-    cam_out%dstwet2 = 0._r8
-    cam_out%dstwet3 = 0._r8
-    cam_out%dstwet4 = 0._r8
+    if ((nmodes>0) .and. (.not.aerodep_flx_prescribed())) then
+       ! if the user has specified prescribed aerosol dep fluxes then
+       ! do not set cam_out dep fluxes according to the prognostic aerosols
+       call set_srf_wetdep(aerdepwetis, aerdepwetcw, cam_out)
+    end if
 
     return
   contains
