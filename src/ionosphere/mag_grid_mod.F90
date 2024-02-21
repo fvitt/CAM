@@ -13,6 +13,9 @@ module mag_grid_mod
   integer, parameter :: nmlat = 10
   real(r8) :: gmlat(nmlat) = 0._r8
 
+  real(r8), parameter :: r2d = 180._r8/pi
+  real(r8), parameter :: d2r = pi/180._r8
+
 contains
 
   subroutine mag_grid_mod_reg
@@ -30,7 +33,7 @@ contains
     end if
 
     do i = 1,nmlon
-       gmlon(i) = 360._r8*dble(i-1)/dble(nmlon)
+       gmlon(i) = -180._r8 + 360._r8*dble(i-1)/dble(nmlon)
     end do
 
     mlat0 = 1
@@ -112,9 +115,16 @@ contains
     use cam_history,  only: outfld
 
     real(r8) :: testvals(mlon0:mlon1,mlat0:mlat1)
-    integer :: j
+    integer :: i,j
 
     testvals=0._r8
+
+    do j = mlat0,mlat1
+       do i = mlon0,mlon1
+          testvals(i,j) = sin(d2r*gmlat(j))*cos(d2r*gmlon(i))
+       end do
+    end do
+
 
     do j=mlat0,mlat1
        call outfld('MAGTEST', testvals(mlon0:mlon1,j), mlon1-mlon0+1, j)
