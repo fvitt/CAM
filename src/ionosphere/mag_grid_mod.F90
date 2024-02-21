@@ -9,7 +9,6 @@ module mag_grid_mod
 
   real(r8) :: gmlon(nmlon) = 0._r8
 
-  integer :: mlat0,mlat1
   integer, parameter :: nmlat = 10
   real(r8) :: gmlat(nmlat) = 0._r8
 
@@ -35,9 +34,6 @@ contains
     do i = 1,nmlon
        gmlon(i) = -180._r8 + 360._r8*dble(i-1)/dble(nmlon)
     end do
-
-    mlat0 = 1
-    mlat1 = nmlat
 
     do i = 1,nmlat
        gmlat(i) = -90._r8 + 180._r8*dble(i-1)/dble(nmlat-1)
@@ -69,11 +65,11 @@ contains
     nullify(grid_map)
     nullify(coord_map)
 
-    allocate(grid_map(4, ((mlon1-mlon0+1) * (mlat1-mlat0+1))))
+    allocate(grid_map(4, ((mlon1-mlon0+1) * nmlat)))
     grid_map = -huge(1_iMap)
 
     ind = 0
-    do i = mlat0,mlat1
+    do i = 1,nmlat
        do j = mlon0,mlon1
           ind = ind + 1
           grid_map(1, ind) = j
@@ -83,23 +79,20 @@ contains
        end do
     end do
 
-    allocate(coord_map(mlat1 - mlat0 + 1))
+    allocate(coord_map(nmlat))
     if (mlon0==1) then
-       coord_map = (/ (i, i = mlat0, mlat1) /)
+       coord_map = (/ (i, i = 1, nmlat) /)
     else
        coord_map = 0
     end if
 
     lat_coord => horiz_coord_create('mlat', '', nmlat, 'latitude', &
-         'degrees_north', mlat0, mlat1, gmlat(mlat0:mlat1), map=coord_map)
+         'degrees_north', 1,nmlat, gmlat(1:nmlat), map=coord_map)
     nullify(coord_map)
 
     allocate(coord_map(mlon1 - mlon0 + 1))
-    if (mlat0==1) then
-       coord_map = (/ (i, i = mlon0, mlon1) /)
-    else
-       coord_map = 0
-    end if
+
+    coord_map = (/ (i, i = mlon0, mlon1) /)
 
     lon_coord => horiz_coord_create('mlon', '', nmlon, 'longitude', &
          'degrees_east', mlon0, mlon1, gmlon(mlon0:mlon1), map=coord_map)
@@ -114,19 +107,19 @@ contains
   subroutine mag_grid_timestep
     use cam_history,  only: outfld
 
-    real(r8) :: testvals(mlon0:mlon1,mlat0:mlat1)
+    real(r8) :: testvals(mlon0:mlon1,nmlat)
     integer :: i,j
 
     testvals=0._r8
 
-    do j = mlat0,mlat1
+    do j = 1,nmlat
        do i = mlon0,mlon1
           testvals(i,j) = sin(d2r*gmlat(j))*cos(d2r*gmlon(i))
        end do
     end do
 
 
-    do j=mlat0,mlat1
+    do j = 1,nmlat
        call outfld('MAGTEST', testvals(mlon0:mlon1,j), mlon1-mlon0+1, j)
     end do
 
