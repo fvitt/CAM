@@ -28,6 +28,12 @@ contains
   !--------------------------------------------------------------------------------
   !--------------------------------------------------------------------------------
   subroutine ionosphere_init()
+    use mag_grid_mod, only: mag_grid_mod_reg
+
+    print*,'FVDBG....ionosphere_init...0'
+
+    call mag_grid_mod_reg()
+    print*,'FVDBG....ionosphere_init...END'
 
   end subroutine ionosphere_init
 
@@ -47,9 +53,17 @@ contains
     use physics_types,  only: physics_state
     use physics_buffer, only: physics_buffer_desc
 
+    use mag_grid_mod, only:mag_grid_timestep
+
     ! args
     type(physics_state),    intent(in) :: phys_state(begchunk:endchunk)
     type(physics_buffer_desc), pointer :: pbuf2d(:,:)
+
+    print*,'FVDBG....ionosphere_run2...0'
+
+    call mag_grid_timestep
+
+    print*,'FVDBG....ionosphere_run2...END'
 
   end subroutine ionosphere_run2
 
