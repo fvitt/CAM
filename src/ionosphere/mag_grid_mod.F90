@@ -55,7 +55,7 @@ contains
   subroutine reg_hist_grid
 
     use cam_grid_support, only: horiz_coord_t, horiz_coord_create, iMap
-    use cam_grid_support, only: cam_grid_register
+    use cam_grid_support, only: cam_grid_register, cam_grid_attribute_register
 
 
     type(horiz_coord_t), pointer :: flp_coord => null()
@@ -92,21 +92,25 @@ contains
        coord_map = 0
     end if
 
-    flp_coord => horiz_coord_create('maglat', 'pflpt', nflpt, 'latitude', &
-         'degrees_north', 1,nflpt, plat(1:nflpt), map=coord_map)
+    flp_coord => horiz_coord_create('pmlat', 'pflpt', nflpt, 'magnetic latitude', &
+                                    'degrees_north', 1,nflpt, plat(1:nflpt), map=coord_map)
     nullify(coord_map)
 
     allocate(coord_map(mlon1 - mlon0 + 1))
 
     coord_map = (/ (i, i = mlon0, mlon1) /)
 
-    lon_coord => horiz_coord_create('maglon', '', nmlon, 'longitude', &
-         'degrees_east', mlon0, mlon1, gmlon(mlon0:mlon1), map=coord_map)
+    lon_coord => horiz_coord_create('pmlon', '', nmlon, 'magnetic longitude', &
+                                    'degrees_east', mlon0, mlon1, gmlon(mlon0:mlon1), map=coord_map)
     nullify(coord_map)
 
     call cam_grid_register('geomag_grid', mag_decomp, flp_coord, lon_coord, grid_map, unstruct=.false.)
 
     nullify(grid_map)
+
+    call cam_grid_attribute_register('geomag_grid', 'pmalt', 'magnetic field line point altitude (km)', &
+                                     'pflpt', palt)
+
 
   end subroutine reg_hist_grid
 
