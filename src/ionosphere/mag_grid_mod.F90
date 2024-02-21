@@ -9,8 +9,9 @@ module mag_grid_mod
 
   real(r8) :: gmlon(nmlon) = 0._r8
 
-  integer, parameter :: nmlat = 10
-  real(r8) :: gmlat(nmlat) = 0._r8
+  integer, parameter :: nflpt = 10
+  real(r8) :: plat(nflpt) = 0._r8
+  real(r8) :: palt(nflpt) = 0._r8
 
   real(r8), parameter :: r2d = 180._r8/pi
   real(r8), parameter :: d2r = pi/180._r8
@@ -22,6 +23,7 @@ contains
     use spmd_utils, only: mpicom, iam
 
     integer :: i
+    real(r8) :: delta
 
     if (iam==0) then
        mlon0 = 1
@@ -35,8 +37,12 @@ contains
        gmlon(i) = -180._r8 + 360._r8*dble(i-1)/dble(nmlon)
     end do
 
-    do i = 1,nmlat
-       gmlat(i) = -90._r8 + 180._r8*dble(i-1)/dble(nmlat-1)
+    do i = 1,nflpt
+       call random_number(delta)
+       plat(i) = -90._r8 + 180._r8*delta
+       call random_number(delta)
+       palt(i) = 100._r8 + 500._r8*delta
+       !gmlat(i) = -90._r8 + 180._r8*dble(i-1)/dble(nmlat-1)
     end do
 
     call reg_hist_grid()
@@ -52,7 +58,7 @@ contains
     use cam_grid_support, only: cam_grid_register
 
 
-    type(horiz_coord_t), pointer :: lat_coord => null()
+    type(horiz_coord_t), pointer :: flp_coord => null()
     type(horiz_coord_t), pointer :: lon_coord => null()
     integer(iMap),       pointer :: grid_map(:,:) => null()
     integer(iMap),       pointer :: coord_map(:) => null()
@@ -60,16 +66,16 @@ contains
 
     integer, parameter :: mag_decomp = 121 ! Must be unique within CAM
 
-    nullify(lat_coord)
+    nullify(flp_coord)
     nullify(lon_coord)
     nullify(grid_map)
     nullify(coord_map)
 
-    allocate(grid_map(4, ((mlon1-mlon0+1) * nmlat)))
+    allocate(grid_map(4, ((mlon1-mlon0+1) * nflpt)))
     grid_map = -huge(1_iMap)
 
     ind = 0
-    do i = 1,nmlat
+    do i = 1,nflpt
        do j = mlon0,mlon1
           ind = ind + 1
           grid_map(1, ind) = j
@@ -79,26 +85,26 @@ contains
        end do
     end do
 
-    allocate(coord_map(nmlat))
+    allocate(coord_map(nflpt))
     if (mlon0==1) then
-       coord_map = (/ (i, i = 1, nmlat) /)
+       coord_map = (/ (i, i = 1, nflpt) /)
     else
        coord_map = 0
     end if
 
-    lat_coord => horiz_coord_create('mlat', '', nmlat, 'latitude', &
-         'degrees_north', 1,nmlat, gmlat(1:nmlat), map=coord_map)
+    flp_coord => horiz_coord_create('maglat', 'pflpt', nflpt, 'latitude', &
+         'degrees_north', 1,nflpt, plat(1:nflpt), map=coord_map)
     nullify(coord_map)
 
     allocate(coord_map(mlon1 - mlon0 + 1))
 
     coord_map = (/ (i, i = mlon0, mlon1) /)
 
-    lon_coord => horiz_coord_create('mlon', '', nmlon, 'longitude', &
+    lon_coord => horiz_coord_create('maglon', '', nmlon, 'longitude', &
          'degrees_east', mlon0, mlon1, gmlon(mlon0:mlon1), map=coord_map)
     nullify(coord_map)
 
-    call cam_grid_register('geomag_grid', mag_decomp, lat_coord, lon_coord, grid_map, unstruct=.false.)
+    call cam_grid_register('geomag_grid', mag_decomp, flp_coord, lon_coord, grid_map, unstruct=.false.)
 
     nullify(grid_map)
 
@@ -107,19 +113,19 @@ contains
   subroutine mag_grid_timestep
     use cam_history,  only: outfld
 
-    real(r8) :: testvals(mlon0:mlon1,nmlat)
+    real(r8) :: testvals(mlon0:mlon1,nflpt)
     integer :: i,j
 
     testvals=0._r8
 
-    do j = 1,nmlat
+    do j = 1,nflpt
        do i = mlon0,mlon1
-          testvals(i,j) = sin(d2r*gmlat(j))*cos(d2r*gmlon(i))
+          testvals(i,j) = palt(j) + sin(d2r*plat(j))*cos(d2r*gmlon(i))
        end do
     end do
 
 
-    do j = 1,nmlat
+    do j = 1,nflpt
        call outfld('MAGTEST', testvals(mlon0:mlon1,j), mlon1-mlon0+1, j)
     end do
 
