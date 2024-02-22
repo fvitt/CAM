@@ -38,11 +38,13 @@ contains
     end do
 
     do i = 1,nflpt
-       call random_number(delta)
+
+       delta = dble(i-1)/dble(nflpt-1)
        plat(i) = -90._r8 + 180._r8*delta
-       call random_number(delta)
+
+       delta = cos(d2r*plat(i))
        palt(i) = 100._r8 + 500._r8*delta
-       !gmlat(i) = -90._r8 + 180._r8*dble(i-1)/dble(nmlat-1)
+
     end do
 
     call reg_hist_grid()
@@ -58,10 +60,10 @@ contains
     use cam_grid_support, only: cam_grid_register, cam_grid_attribute_register
 
 
-    type(horiz_coord_t), pointer :: flp_coord => null()
-    type(horiz_coord_t), pointer :: lon_coord => null()
-    integer(iMap),       pointer :: grid_map(:,:) => null()
-    integer(iMap),       pointer :: coord_map(:) => null()
+    type(horiz_coord_t), pointer :: flp_coord
+    type(horiz_coord_t), pointer :: lon_coord
+    integer(iMap),       pointer :: grid_map(:,:)
+    integer(iMap),       pointer :: coord_map(:)
     integer                      :: i, j, ind
 
     integer, parameter :: mag_decomp = 121 ! Must be unique within CAM
@@ -107,6 +109,8 @@ contains
     call cam_grid_register('geomag_grid', mag_decomp, flp_coord, lon_coord, grid_map, unstruct=.false.)
 
     nullify(grid_map)
+    nullify(flp_coord)
+    nullify(lon_coord)
 
     call cam_grid_attribute_register('geomag_grid', 'pmalt', 'magnetic field line point altitude (km)', &
                                      'pflpt', palt)
