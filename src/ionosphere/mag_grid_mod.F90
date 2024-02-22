@@ -1,55 +1,41 @@
 module mag_grid_mod
   use shr_kind_mod, only: r8 => shr_kind_r8
-  use physconst,    only: pi
+  use edyn3D_maggrid, only: gen_highres_grid
+
+  use edyn3D_mpi,     only: mp_init_edyn3D, mp_distribute_mag_edyn3D
+  use edyn3D_fieldline, only: fieldline_init
+  use edyn3D_params, only: nmlon, nmlat_h, nptsp_total ,ylonm
 
   implicit none
-
-  integer :: mlon0,mlon1
-  integer, parameter :: nmlon = 18
-
-  real(r8) :: gmlon(nmlon) = 0._r8
-
-  integer, parameter :: nflpt = 10
-  real(r8) :: plat(nflpt) = 0._r8
-  real(r8) :: palt(nflpt) = 0._r8
-
-  real(r8), parameter :: r2d = 180._r8/pi
-  real(r8), parameter :: d2r = pi/180._r8
 
 contains
 
   subroutine mag_grid_mod_reg
     use cam_history,  only: addfld, horiz_only
+
     use spmd_utils, only: mpicom, iam
 
-    integer :: i
-    real(r8) :: delta
+    print*,'FVDBG....mag_grid_mod_reg...0'
 
-    if (iam==0) then
-       mlon0 = 1
-       mlon1 = nmlon/2
-    elseif (iam==1) then
-       mlon0 = (nmlon/2) + 1
-       mlon1 = nmlon
-    end if
+    call mp_init_edyn3D(mpicom)
 
-    do i = 1,nmlon
-       gmlon(i) = -180._r8 + 360._r8*dble(i-1)/dble(nmlon)
-    end do
+    call gen_highres_grid()
 
-    do i = 1,nflpt
+    print*,'FVDBG....mag_grid_mod_reg...nmlon: ',nmlon
 
-       delta = dble(i-1)/dble(nflpt-1)
-       plat(i) = -90._r8 + 180._r8*delta
+    call mp_distribute_mag_edyn3D(nmlon)
 
-       delta = cos(d2r*plat(i))
-       palt(i) = 100._r8 + 500._r8*delta
+    call fieldline_init()  ! Allocate and populate the p, r, s1, and s2 field line structures for computations
 
-    end do
+    print*,'FVDBG....mag_grid_mod_reg...1'
 
     call reg_hist_grid()
 
-    call addfld ('MAGTEST', horiz_only, 'I', 'units','Test field' ,gridname='geomag_grid')
+    print*,'FVDBG....mag_grid_mod_reg...2'
+
+    call addfld ('MAGTEST', horiz_only, 'I', 'units','Test field' ,gridname='mag_fldpnts')
+
+    print*,'FVDBG....mag_grid_mod_reg...END'
 
   end subroutine mag_grid_mod_reg
 
@@ -57,28 +43,69 @@ contains
   subroutine reg_hist_grid
 
     use cam_grid_support, only: horiz_coord_t, horiz_coord_create, iMap
-    use cam_grid_support, only: cam_grid_register, cam_grid_attribute_register
+    use cam_grid_support, only: cam_grid_register
+    use edyn3d_mpi, only: mlon0_p,mlon1_p
+    use edyn3D_fieldline, only: fline_p
 
+    use physconst,     only: pi
 
     type(horiz_coord_t), pointer :: flp_coord
     type(horiz_coord_t), pointer :: lon_coord
     integer(iMap),       pointer :: grid_map(:,:)
     integer(iMap),       pointer :: coord_map(:)
-    integer                      :: i, j, ind
+    integer                      :: h, i, j, ind
 
-    integer, parameter :: mag_decomp = 121 ! Must be unique within CAM
+    real(r8), allocatable :: latvals(:)
+
+    integer, parameter :: mag_decomp = 703 ! Must be unique within CAM
+
+    real(r8), parameter :: r2d = 180./pi
+
+    real(r8) :: xdel
 
     nullify(flp_coord)
     nullify(lon_coord)
     nullify(grid_map)
     nullify(coord_map)
 
-    allocate(grid_map(4, ((mlon1-mlon0+1) * nflpt)))
-    grid_map = -huge(1_iMap)
-
+    nptsp_total  = 0
     ind = 0
-    do i = 1,nflpt
-       do j = mlon0,mlon1
+!!$
+!!$    do h = 1,2
+!!$       do j = 1,nmlat_h
+!!$          nptsp_total = nptsp_total + fline_p(1,j,h)%npts
+!!$       end do
+!!$    end do
+
+    nptsp_total = 11
+    allocate(latvals(nptsp_total))
+
+!!$    do h = 1,2
+!!$       do j = 1,nmlat_h
+!!$          ind = ind + 1
+!!$          latvals(ind) = fline_p(1,j,h)%mlat_m
+!!$       end do
+!!$    end do
+
+
+    do j = 1,nptsp_total
+       xdel = float(j-1)/float(nptsp_total-1)
+
+      ! call random_number(xdel)
+
+       latvals(j) = -90._r8 + 180._r8 * xdel
+
+    end do
+
+    print*,'FVDBG ... latvals: ',latvals
+
+    print*,'FVDBG ...,mlon0_p,mlon1_p,nptsp_total : ',mlon0_p,mlon1_p,nptsp_total
+
+    allocate(grid_map(4, ((mlon1_p-mlon0_p+1) * nptsp_total)))
+    grid_map = -huge(1_iMap)
+    ind = 0
+    do i = 1,nptsp_total
+       do j = mlon0_p,mlon1_p
           ind = ind + 1
           grid_map(1, ind) = j
           grid_map(2, ind) = i
@@ -87,55 +114,51 @@ contains
        end do
     end do
 
-    allocate(coord_map(nflpt))
-    if (mlon0==1) then
-       coord_map = (/ (i, i = 1, nflpt) /)
+
+    allocate(coord_map(nptsp_total))
+    if (mlon0_p==1) then
+       coord_map = (/ (i, i = 1,nptsp_total ) /)
     else
        coord_map = 0
     end if
 
-    flp_coord => horiz_coord_create('pmlat', 'pflpt', nflpt, 'magnetic latitude', &
-                                    'degrees_north', 1,nflpt, plat(1:nflpt), map=coord_map)
+    flp_coord => horiz_coord_create('pmlat', 'pflpt', nptsp_total, 'magnetic latitude', &
+                                    'degrees_north', 1, nptsp_total, latvals, map=coord_map)
     nullify(coord_map)
 
-    allocate(coord_map(mlon1 - mlon0 + 1))
 
-    coord_map = (/ (i, i = mlon0, mlon1) /)
+    allocate(coord_map(mlon1_p-mlon0_p+1))
+    coord_map = (/ (i, i = mlon0_p,mlon1_p ) /)
 
     lon_coord => horiz_coord_create('pmlon', '', nmlon, 'magnetic longitude', &
-                                    'degrees_east', mlon0, mlon1, gmlon(mlon0:mlon1), map=coord_map)
+                                    'degrees_east', mlon0_p,mlon1_p, r2d*ylonm(mlon0_p:mlon1_p), map=coord_map)
     nullify(coord_map)
 
-    call cam_grid_register('geomag_grid', mag_decomp, flp_coord, lon_coord, grid_map, unstruct=.false.)
+
+    call cam_grid_register('mag_fldpnts', mag_decomp, flp_coord, lon_coord, grid_map, unstruct=.false.)
 
     nullify(grid_map)
     nullify(flp_coord)
     nullify(lon_coord)
 
-    call cam_grid_attribute_register('geomag_grid', 'pmalt', 'magnetic field line point altitude (km)', &
-                                     'pflpt', palt)
-
-
   end subroutine reg_hist_grid
 
   subroutine mag_grid_timestep
+    use edyn3d_mpi, only: mlon0_p,mlon1_p
     use cam_history,  only: outfld
 
-    real(r8) :: testvals(mlon0:mlon1,nflpt)
-    integer :: i,j
+    real(r8) :: testvals(mlon0_p:mlon1_p, nptsp_total)
+    integer :: j
 
     testvals=0._r8
 
-    do j = 1,nflpt
-       do i = mlon0,mlon1
-          testvals(i,j) = palt(j) + sin(d2r*plat(j))*cos(d2r*gmlon(i))
-       end do
+    print*,'FVDBG...mag_grid_timestep...0'
+
+    do j = 1,nptsp_total
+       call outfld('MAGTEST', testvals(mlon0_p:mlon1_p,j), mlon1_p-mlon0_p+1, j)
     end do
 
-
-    do j = 1,nflpt
-       call outfld('MAGTEST', testvals(mlon0:mlon1,j), mlon1-mlon0+1, j)
-    end do
+    print*,'FVDBG...mag_grid_timestep...END'
 
   end subroutine mag_grid_timestep
 end module mag_grid_mod
