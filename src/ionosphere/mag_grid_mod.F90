@@ -88,7 +88,7 @@ contains
              k1 = fline_p(mlon0_p,j,isn)%npts
              dk = 1
           else
-             k0 = fline_p(mlon0_p,j,isn)%npts-1
+             k0 = fline_p(mlon0_p,j,isn)%npts
              k1 = 1
              dk = -1
           endif
@@ -112,7 +112,7 @@ contains
              k1 = fline_p(mlon0_p,j,isn)%npts
              dk = 1
           else
-             k0 = fline_p(mlon0_p,j,isn)%npts-1
+             k0 = fline_p(mlon0_p,j,isn)%npts
              k1 = 1
              dk = -1
           endif
@@ -196,7 +196,7 @@ contains
                 k1 = fline_p(mlon0_p,j,isn)%npts
                 dk = 1
              else
-                k0 = fline_p(mlon0_p,j,isn)%npts-1
+                k0 = fline_p(mlon0_p,j,isn)%npts
                 k1 = 1
                 dk = -1
              endif
