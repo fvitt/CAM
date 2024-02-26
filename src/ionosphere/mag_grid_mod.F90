@@ -1,5 +1,8 @@
 module mag_grid_mod
   use shr_kind_mod, only: r8 => shr_kind_r8
+  use spmd_utils,     only: masterproc
+
+
   use edyn3D_maggrid, only: gen_highres_grid
 
   use edyn3D_mpi,     only: mp_init_edyn3D, mp_distribute_mag_edyn3D
@@ -43,9 +46,10 @@ contains
   subroutine reg_hist_grid
 
     use cam_grid_support, only: horiz_coord_t, horiz_coord_create, iMap
-    use cam_grid_support, only: cam_grid_register
+    use cam_grid_support, only: cam_grid_register, cam_grid_attribute_register
     use edyn3d_mpi, only: mlon0_p,mlon1_p
     use edyn3D_fieldline, only: fline_p
+    use edyn3d_params, only: nhgt_fix, nmlat_T1
 
     use physconst,     only: pi
 
@@ -55,7 +59,8 @@ contains
     integer(iMap),       pointer :: coord_map(:)
     integer                      :: h, i, j, ind
 
-    real(r8), allocatable :: latvals(:)
+    real(r8), pointer :: latvals(:)
+    real(r8), pointer :: altvals(:)
 
     integer, parameter :: mag_decomp = 703 ! Must be unique within CAM
 
@@ -63,43 +68,62 @@ contains
 
     real(r8) :: xdel
 
+    integer :: isn, jj, k, ncnt
+    integer :: dk,k0,k1
+
+
     nullify(flp_coord)
     nullify(lon_coord)
     nullify(grid_map)
     nullify(coord_map)
+    nullify(latvals)
+    nullify(altvals)
 
-    nptsp_total  = 0
-    ind = 0
-!!$
-!!$    do h = 1,2
-!!$       do j = 1,nmlat_h
-!!$          nptsp_total = nptsp_total + fline_p(1,j,h)%npts
-!!$       end do
-!!$    end do
+    ncnt = 0
+    do j = 1,nmlat_h
+       do isn = 1,2
 
-    nptsp_total = 11
-    allocate(latvals(nptsp_total))
+          if (isn==1) then
+             k0 = 1
+             k1 = fline_p(mlon0_p,j,isn)%npts
+             dk = 1
+          else
+             k0 = fline_p(mlon0_p,j,isn)%npts-1
+             k1 = 1
+             dk = -1
+          endif
 
-!!$    do h = 1,2
-!!$       do j = 1,nmlat_h
-!!$          ind = ind + 1
-!!$          latvals(ind) = fline_p(1,j,h)%mlat_m
-!!$       end do
-!!$    end do
-
-
-    do j = 1,nptsp_total
-       xdel = float(j-1)/float(nptsp_total-1)
-
-      ! call random_number(xdel)
-
-       latvals(j) = -90._r8 + 180._r8 * xdel
-
+          do k = k0,k1,dk
+             ncnt = ncnt + 1
+          end do
+       end do
     end do
 
-    print*,'FVDBG ... latvals: ',latvals
+    nptsp_total = ncnt
+    allocate(latvals(nptsp_total))
+    allocate(altvals(nptsp_total))
 
-    print*,'FVDBG ...,mlon0_p,mlon1_p,nptsp_total : ',mlon0_p,mlon1_p,nptsp_total
+    ncnt = 0
+    do j = 1,nmlat_h
+       do isn = 1,2
+
+          if (isn==1) then
+             k0 = 1
+             k1 = fline_p(mlon0_p,j,isn)%npts
+             dk = 1
+          else
+             k0 = fline_p(mlon0_p,j,isn)%npts-1
+             k1 = 1
+             dk = -1
+          endif
+
+          do k = k0,k1,dk
+             ncnt = ncnt + 1
+             latvals(ncnt) = fline_p(mlon0_p,j,isn)%mlat_qd(k)*r2d ! degrees
+             altvals(ncnt) = fline_p(mlon0_p,j,isn)%hgt_pt(k)*1.e-3_r8 ! km
+          end do
+       end do
+    end do
 
     allocate(grid_map(4, ((mlon1_p-mlon0_p+1) * nptsp_total)))
     grid_map = -huge(1_iMap)
@@ -141,18 +165,49 @@ contains
     nullify(flp_coord)
     nullify(lon_coord)
 
+    call cam_grid_attribute_register('mag_fldpnts', 'pmalt', 'magnetic field line point altitude (km)', &
+                                     'pflpt', altvals)
+
+    nullify(latvals)
+    nullify(altvals)
+
   end subroutine reg_hist_grid
 
   subroutine mag_grid_timestep
     use edyn3d_mpi, only: mlon0_p,mlon1_p
     use cam_history,  only: outfld
+    use edyn3D_fieldline, only: fline_p
 
     real(r8) :: testvals(mlon0_p:mlon1_p, nptsp_total)
-    integer :: j
+    integer :: i,j,k,isn,ncnt
+    integer :: dk,k0,k1
 
     testvals=0._r8
 
     print*,'FVDBG...mag_grid_timestep...0'
+
+    do i = mlon0_p,mlon1_p
+       ncnt = 0
+       do j = 1,nmlat_h
+          do isn = 1,2
+
+             if (isn==1) then
+                k0 = 1
+                k1 = fline_p(mlon0_p,j,isn)%npts
+                dk = 1
+             else
+                k0 = fline_p(mlon0_p,j,isn)%npts-1
+                k1 = 1
+                dk = -1
+             endif
+
+             do k = k0,k1,dk
+                ncnt = ncnt + 1
+                testvals(i,ncnt) = fline_p(mlon0_p,j,isn)%hgt_pt(k)
+             end do
+          end do
+       end do
+    end do
 
     do j = 1,nptsp_total
        call outfld('MAGTEST', testvals(mlon0_p:mlon1_p,j), mlon1_p-mlon0_p+1, j)

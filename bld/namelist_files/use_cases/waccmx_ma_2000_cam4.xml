@@ -98,7 +98,7 @@
 </fincl1>
 
 <!-- Instantaneous every 3 hours -->
-<fincl2>
+<fincl2 dyn="fv">
   'PS', 'Z3', 'T', 'U', 'V',  'FLNT','PSL',
   'OMEGA','FSDS','FSDSC','CLOUD','CONCLD','SNOWHLND','SNOWHICE',
   'CH3CL', 'CFC11', 'CFC12', 'CFC113', 'HCFC22', 'CCL4', 'CH3CCL3',
