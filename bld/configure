@@ -2188,9 +2188,9 @@ sub write_filepath
     if ($chem_src_dir) {
         print $fh "$chem_src_dir\n";
     }
- 
+
     # GEOS-Chem must be prior to Mozart
-    if ($chem_pkg =~ 'geoschem') {	
+    if ($chem_pkg =~ 'geoschem') {
 	print $fh "$chem_src_dir/geoschem_src/GeosCore\n";
 	print $fh "$chem_src_dir/geoschem_src/GeosUtil\n";
 	print $fh "$chem_src_dir/geoschem_src/Headers\n";
@@ -2235,6 +2235,7 @@ sub write_filepath
     print $fh "$camsrcdir/src/hemco/HEMCO/src/Extensions\n";
     print $fh "$camsrcdir/src/hemco/HEMCO/src/Interfaces/Shared\n";
 
+    print $fh "$camsrcdir/src/chemistry/utils/nrlmsis2.1\n";
     print $fh "$camsrcdir/src/chemistry/utils\n";
 
     if ($rad eq 'rrtmg') {

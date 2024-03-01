@@ -405,7 +405,7 @@ contains
        call upper_bc_file_adv( pbuf2d, state )
     end if
     if (msis_active) then
-       call msis_timestep_init( ap, f107p, f107a )
+       call msis_timestep_init( ap, f107p, f107a, state )
     end if
     if (tgcm_active) then
        call tgcm_timestep_init( pbuf2d, state )

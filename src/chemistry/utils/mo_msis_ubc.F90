@@ -1,4 +1,5 @@
-      module mo_msis_ubc
+#define MSIS_DIAGS
+module mo_msis_ubc
 !---------------------------------------------------------------
 !	... msis upper bndy values
 !---------------------------------------------------------------
@@ -29,7 +30,8 @@
 !	... initialize upper boundary values
 !------------------------------------------------------------------
 
-      use ppgrid, only : pcols, begchunk, endchunk
+        use ppgrid, only : pcols, begchunk, endchunk
+        use msis_init, only: msisinit
 
 !------------------------------------------------------------------
 !	... dummy args
@@ -42,6 +44,8 @@
 !------------------------------------------------------------------
       integer  :: astat
       real(r8) :: msis_switches(25) = 1._r8
+
+      call msisinit(parmpath='/terminator-data1/home/fvitt/camdev/waccm_msis_update/src/chemistry/utils/nrlmsis2.1/')
 
       zonal_average = zonal_avg_in
 
@@ -85,7 +89,7 @@
 
       end subroutine msis_ubc_inti
 
-      subroutine msis_timestep_init( ap, f107p_in, f107a_in )
+      subroutine msis_timestep_init( ap, f107p_in, f107a_in, state )
 !--------------------------------------------------------------------
 !	... get the upper boundary values for h, n, o, o2 and temp
 !--------------------------------------------------------------------
@@ -98,7 +102,12 @@
       use spmd_utils,   only : masterproc
       use physconst,    only : pi
       use cam_control_mod,only : lambm0, eccen, mvelpp, obliqr
-      use shr_orb_mod,    only : shr_orb_decl
+      use shr_orb_mod,  only : shr_orb_decl
+
+      use physics_types,only : physics_state
+
+      use msis_constants, only : rp
+      use msis_calc, only : msiscalc
 
 !--------------------------------------------------------------------
 !	... dummy args
@@ -106,11 +115,11 @@
       real(r8), intent(in)    ::  ap
       real(r8), intent(in)    ::  f107p_in ! previous day
       real(r8), intent(in)    ::  f107a_in
+      type(physics_state), intent(in) :: state(begchunk:endchunk)
 
 !--------------------------------------------------------------------
 !	... local variables
 !--------------------------------------------------------------------
-      real(r8), parameter :: mass_switch = 48._r8
       real(r8), parameter :: pa2mb       = 1.e-2_r8       ! pascal to mb
       real(r8), parameter :: amu_fac     = 1.65979e-24_r8 ! g/amu
       real(r8), parameter :: r2d         = 180._r8/pi
@@ -118,31 +127,28 @@
       integer  ::  yr, mon, day, tod
       integer  ::  yrday
       integer  ::  date
-      real(r8) ::  alt, solar_time, ut, rtod, doy
-      real(r8) ::  msis_press
-      real(r8) ::  msis_ap(7)
-      real(r8) ::  msis_temp(2)
-      real(r8) ::  msis_conc(9)
+      real(r8) ::  doy
       real(r8) ::  rlons(pcols)
       real(r8) ::  rlats(pcols)
       real(r8) ::  dnom(pcols)
-      real(r8) ::  pint(pcols)       ! top interface pressure (Pa)
       real(r8) ::  calday, delta, esfact
       real(r8) ::  f107p, f107a
+
+      real(kind=rp) :: ms_day
+      real(kind=rp) :: ms_utsec
+      real(kind=rp) :: ms_z
+      real(kind=rp) :: ms_lat
+      real(kind=rp) :: ms_lon
+      real(kind=rp) :: ms_sfluxavg,ms_sflux,ms_ap(1:7)
+      real(kind=rp) :: ms_tn, ms_dn(1:10)
 
       !--------------------------------------------------------------------
       !	... get values from msis
       !--------------------------------------------------------------------
 
       call get_curr_date( yr, mon, day, tod )
-      tod = 0
-      rtod       = tod
-      ut         = rtod/3600._r8
-      date       = 10000*yr + 100*mon + day
-      doy        = get_calday( date, tod )
-      msis_ap(:) = 0._r8
-      msis_ap(1) = ap
-      pint(:)    = ptop_ref
+      date = 10000*yr + 100*mon + day
+      doy = get_calday( date, tod )
 
       calday = get_curr_calday()
 
@@ -152,11 +158,18 @@
       f107p = esfact*f107p_in
       f107a = esfact*f107a_in
 
+      ms_day = real(doy,kind=rp)
+      ms_utsec = real(tod,kind=rp)
+      ms_ap(:) = 0._rp
+      ms_ap(1) = real(ap,kind=rp)
+      ms_sfluxavg = real(f107a,kind=rp)
+      ms_sflux = real(f107p,kind=rp)
+
 #ifdef MSIS_DIAGS
       if( masterproc ) then
          write(iulog,*) '===================================='
          write(iulog,*) 'msis_timestep_init: diagnostics'
-         write(iulog,*) 'yr,mon,day,tod,date,ut,doy,esfact = ', yr, mon, day, tod, date, ut, doy, esfact
+         write(iulog,*) 'yr,mon,day,tod,date,doy,esfact = ', yr, mon, day, tod, date, doy, esfact
          write(iulog,*) '===================================='
       end if
 #endif
@@ -166,29 +179,32 @@
          call get_rlon_all_p( c, ncol, rlons )
          rlons(:ncol) = r2d * rlons(:ncol)
          rlats(:ncol) = r2d * rlats(:ncol)
-         yrday = mod( yr,100 ) * 1000 + int( doy )
          column_loop : do i = 1,ncol
-            solar_time = ut + rlons(i)/15._r8
-            msis_press = pint(i)*pa2mb
-            call ghp7( yrday, rtod, alt, rlats(i), rlons(i), &
-                 solar_time, f107a, f107p, msis_ap, msis_conc, &
-                 msis_temp, msis_press )
-            msis_ubc(i,1,c) = msis_temp(2)              ! temp (K)
-#ifdef MSIS_DIAGS
-            write(iulog,*) '===================================='
-            write(iulog,*) 'msis_timestep_init: diagnostics for col,chnk = ',i,c
-            write(iulog,*) 'yrday, rtod, alt,press = ',yrday,rtod,alt,msis_press
-            write(iulog,*) 'msis_temp = ',msis_temp(2)
-#endif
-            msis_ubc(i,2,c) = msis_conc(7)           ! h (molec/cm^3)
-            msis_ubc(i,3,c) = msis_conc(8)           ! n (molec/cm^3)
-            msis_ubc(i,4,c) = msis_conc(2)           ! o (molec/cm^3)
-            msis_ubc(i,5,c) = msis_conc(4)           ! o2 (molec/cm^3)
-            msis_ubc(i,6,c) = msis_conc(6)           ! total atm dens (g/cm^3)
+
+            ms_z = real(state(c)%zi(i,1)*1.e-3_r8,kind=rp) ! km
+            ms_lat = real(rlats(i),kind=rp)
+            ms_lon = real(rlons(i),kind=rp)
+
+            call msiscalc(ms_day,ms_utsec,ms_z,ms_lat,ms_lon,ms_sfluxavg,ms_sflux,ms_ap,ms_tn,ms_dn)
+
+            msis_ubc(i,1,c) = real(ms_tn, kind=r8) ! temp (K)
+            msis_ubc(i,2,c) = real(ms_dn(6),kind=r8)*1.e-6_r8  ! h (molec/cm^3)
+            msis_ubc(i,3,c) = real(ms_dn(8),kind=r8)*1.e-6_r8  ! n (molec/cm^3)
+            msis_ubc(i,4,c) = real(ms_dn(4),kind=r8)*1.e-6_r8  ! o (molec/cm^3)
+            msis_ubc(i,5,c) = real(ms_dn(3),kind=r8)*1.e-6_r8  ! o2 (molec/cm^3)
+            msis_ubc(i,6,c) = real(ms_dn(1),kind=r8)*1.e-3_r8  ! total atm dens (g/cm^3)
 
 #ifdef MSIS_DIAGS
-            write(iulog,*) 'msis h,n,o,o2,m = ',msis_ubc(i,2:6,c)
-            write(iulog,*) '===================================='
+            if( masterproc ) then
+               write(iulog,*) '===================================='
+               write(iulog,*) 'msis_timestep_init: diagnostics for col,chnk = ',i,c
+               write(iulog,*) 'day, utsec, alt = ',ms_day,ms_utsec,ms_z
+               write(iulog,*) 'msis_temp = ', ms_tn
+               write(iulog,*) 'new msis day,utset,z,lat,lon,Tn : ',ms_day,ms_utsec,ms_z,ms_lat,ms_lon,ms_tn
+               write(iulog,*) 'msis h,n,o,o2,m = ',msis_ubc(i,2:6,c)
+               write(iulog,'(a,5e12.3)') 'msis h,n,o,o2,m = ',msis_ubc(i,2:6,c)
+               write(iulog,*) '===================================='
+            endif
 #endif
          end do column_loop
 
