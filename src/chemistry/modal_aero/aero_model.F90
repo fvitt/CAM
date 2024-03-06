@@ -1626,35 +1626,25 @@ contains
 
     if (convproc_do_aer) then
        call t_startf('ma_convproc')
-       call ma_convproc_intr( state, ptend, pbuf, dt,                &
+
+       call ma_convproc_intr( state, ptend, pbuf, dt, &
             nsrflx_mzaer2cnvpr, qsrflx_mzaer2cnvpr, aerdepwetis, &
             dcondt_resusp3d)
 
        if (convproc_do_evaprain_atonce) then
           do m = 1, ntot_amode ! main loop over aerosol modes
-             do lphase = strt_loop,end_loop, stride_loop
-                ! loop over interstitial (1) and cloud-borne (2) forms
-                do lspec = 0, nspec_amode(m)+1 ! loop over number + chem constituents + water
-                   if (lspec == 0) then ! number
-                      if (lphase == 1) then
-                         mm = numptr_amode(m)
-                      else
-                         mm = numptrcw_amode(m)
-                      endif
-                   else if (lspec <= nspec_amode(m)) then ! non-water mass
-                      if (lphase == 1) then
-                         mm = lmassptr_amode(lspec,m)
-                      else
-                         mm = lmassptrcw_amode(lspec,m)
-                      endif
-                   endif
-                   if (lphase == 2) then
-                      fldcw => qqcw_get_field(pbuf, mm,lchnk)
-                      fldcw(:ncol,:) = fldcw(:ncol,:) + dcondt_resusp3d(mm,:ncol,:)*dt
-                   end if
-                end do ! loop over number + chem constituents + water
-             end do  ! lphase
-          end do   ! m aerosol modes
+             ! apply change to cloud-borne (phase=2) aerosols
+             do lspec = 0, nspec_amode(m) ! loop over number + chem constituents
+                mm = -1
+                if (lspec == 0) then ! number
+                   mm = numptrcw_amode(m)
+                else if (lspec <= nspec_amode(m)) then ! non-water mass
+                   mm = lmassptrcw_amode(lspec,m)
+                endif
+                fldcw => qqcw_get_field(pbuf, mm,lchnk)
+                fldcw(:ncol,:) = fldcw(:ncol,:) + dcondt_resusp3d(mm,:ncol,:)*dt
+             end do ! loop over number + chem constituents
+          end do ! m aerosol modes
        end if
 
        call t_stopf('ma_convproc')

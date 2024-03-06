@@ -1326,8 +1326,6 @@ contains
        enddo ! lphase = 1, 2
     enddo ! m = 1, nbins
 
-
-    !st TEST
     if (convproc_do_aer) then
        call t_startf('ma_convproc')
        call ma_convproc_intr( state, ptend, pbuf, dt,                &
@@ -1335,21 +1333,14 @@ contains
             dcondt_resusp3d)
 
        if (convproc_do_evaprain_atonce) then
-          do m = 1, nbins! main loop over aerosol modes
-             do lphase = strt_loop,end_loop, stride_loop
-                ! loop over interstitial (1) and cloud-borne (2) forms
-                do l = 1, nspec(m) + 2
-                   mm = bin_idx(m, l)
-                   lc = mm + ncnst_tot
-                   ! lphase=1 consider interstitial areosols, lphase=2 consider cloud-borne aerosols
-                   ! seems to only considers cloud-borne here (lc instead of mm)
-                   if (lphase == 2) then
-                      qqcw(mm)%fld(:ncol,:) = qqcw(mm)%fld(:ncol,:) + dcondt_resusp3d(lc,:ncol,:)*dt
-                   end if
-                end do ! loop over number + mmr +  chem constituents
-             end do  ! lphase
-          end do   ! m aerosol modes
-
+          do m = 1, nbins ! loop over aerosol bins
+             ! apply change to cloud-borne (lphase=2) aerosols
+             do l = 1, nspec(m) + 2 ! loop over different npsec plus over total mmr and number
+                mm = bin_idx(m, l)
+                lc = mm + ncnst_tot
+                qqcw(mm)%fld(:ncol,:) = qqcw(mm)%fld(:ncol,:) + dcondt_resusp3d(lc,:ncol,:)*dt
+             end do ! loop over number + mmr +  chem constituents
+          end do ! m aerosol modes
        end if
 
        call t_stopf('ma_convproc')
