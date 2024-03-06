@@ -1102,6 +1102,13 @@ subroutine ma_convproc_tend(                                           &
    !Fractional area of ensemble mean updrafts in ZM scheme set to 0.01
    !Chosen to reproduce vertical vecocities in GATEIII GIGALES (Khairoutdinov etal 2009, JAMES)
    real(r8), parameter :: zm_areafrac = 0.01_r8
+
+   real(r8), allocatable :: dcondt_a(:,:)
+   real(r8), allocatable :: dcondt_c(:,:)
+   real(r8), allocatable :: dcondt_resusp_a(:,:)
+   real(r8), allocatable :: dcondt_resusp_c(:,:)
+   integer :: mm
+
 !-----------------------------------------------------------------------
 !
 
@@ -1807,18 +1814,69 @@ k_loop_main_cc: &
       end if
 
 
-
+! ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+! @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+! ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ! make adjustments to dcondt for activated & unactivated aerosol species
 !    pairs to account any (or total) resuspension of convective-cloudborne aerosol
-      call ma_resuspend_convproc( dcondt, dcondt_resusp,   &
-                                  const, dp_i, ktop, kbot_prevap, pcnst_extd )
+!!$      call ma_resuspend_convproc( dcondt, dcondt_resusp,   &
+!!$                                  const, dp_i, ktop, kbot_prevap, pcnst_extd )
+!!$
+      allocate( dcondt_a(aero_props_obj%ncnst_tot(),pver) )
+      allocate( dcondt_c(aero_props_obj%ncnst_tot(),pver) )
+      allocate( dcondt_resusp_a(aero_props_obj%ncnst_tot(),pver) )
+      allocate( dcondt_resusp_c(aero_props_obj%ncnst_tot(),pver) )
+      do m = 1, aero_props_obj%nbins()
+         do l = 0, aero_props_obj%nmasses(m)
+            mm = aero_props_obj%indexer(m,l)
+            if (l == 0) then
+               la = numptr_amode(m)
+               lc = numptrcw_amode(m) + pcnst
+            else
+               la = lmassptr_amode(l,m)
+               lc = lmassptrcw_amode(l,m) + pcnst
+            end if
+
+            dcondt_a(mm,:) = dcondt(la,:)
+            dcondt_c(mm,:) = dcondt(lc,:)
+
+         end do
+      end do
+      dcondt_resusp_a(:,:) = 0._r8
+      dcondt_resusp_c(:,:) = 0._r8
+      dcondt_a = 0._r8
+      dcondt_c = 0._r8
+
+      call  ma_resuspend_convproc( dp_i, ktop, kbot_prevap, &
+                                   dcondt_a, dcondt_c, dcondt_resusp_a,  dcondt_resusp_c )
 
       ! Do resuspension of aerosols from rain only when the rain has
       ! totally evaporated.
       if (convproc_do_evaprain_atonce) then
-         dcondt_resusp3d(pcnst+1:pcnst_extd,icol,:) = dcondt_resusp(pcnst+1:pcnst_extd,:)
-         dcondt_resusp(pcnst+1:pcnst_extd,:) = 0._r8
+!!$         dcondt_resusp3d(pcnst+1:pcnst_extd,icol,:) = dcondt_resusp(pcnst+1:pcnst_extd,:)
+!!$         dcondt_resusp(pcnst+1:pcnst_extd,:) = 0._r8
+
+         do m = 1, aero_props_obj%nbins()
+            do l = 0, aero_props_obj%nmasses(m)
+               mm = aero_props_obj%indexer(m,l)
+               if (l == 0) then
+                  lc = numptrcw_amode(m) + pcnst
+               else
+                  lc = lmassptrcw_amode(l,m) + pcnst
+               end if
+               dcondt_resusp3d(lc,icol,:) = dcondt_c(mm,:)
+            end do
+         end do
+
       end if
+
+      deallocate( dcondt_a )
+      deallocate( dcondt_c )
+      deallocate( dcondt_resusp_a )
+      deallocate( dcondt_resusp_c )
+! ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+! @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+! ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
       if ( idiag_in(icol)>0 ) then
          k = 26
@@ -2876,11 +2934,10 @@ end subroutine ma_convproc_tend
    end subroutine ma_activate_convproc_method2
 
 
-
 !=========================================================================================
-   subroutine ma_resuspend_convproc(                           &
-              dcondt,  dcondt_resusp,                          &
-              const,   dp_i,          ktop,  kbot_prevap,  pcnst_extd )
+   subroutine ma_resuspend_convproc( dp_i, ktop, kbot_prevap, &
+                                     dcondt_a, dcondt_c, dcondt_resusp_a,  dcondt_resusp_c )
+
 !-----------------------------------------------------------------------
 !
 ! Purpose:
@@ -2912,88 +2969,62 @@ end subroutine ma_convproc_tend
 !
 !-----------------------------------------------------------------------
 
-   use modal_aero_data, only:  lmassptr_amode, lmassptrcw_amode, &
-      nspec_amode, ntot_amode, numptr_amode, numptrcw_amode
+     !-----------------------------------------------------------------------
+     ! arguments
+     ! (note:  TMR = tracer mixing ratio)
+!     class(aerosol_properties), intent(in) :: aero_props
+     real(r8), intent(in)    :: dp_i(pver) ! pressure thickness of level (in mb)
+     integer,  intent(in)    :: ktop, kbot_prevap ! indices of top and bottom cloud levels
 
-   implicit none
+     real(r8), intent(inout) :: dcondt_a(:,:) ! ambient
+     ! overall TMR tendency from convection
+     real(r8), intent(inout) :: dcondt_c(:,:) ! cloud-borne
+     ! overall TMR tendency from convection
+     real(r8), intent(inout) :: dcondt_resusp_a(:,:) ! ambient
+     ! portion of TMR tendency due to resuspension
+     ! (actually, due to the adjustments made here)
+     real(r8), intent(inout) :: dcondt_resusp_c(:,:) ! cloud-borne
+     ! portion of TMR tendency due to resuspension
+     ! (actually, due to the adjustments made here)
 
-!-----------------------------------------------------------------------
-! arguments
-! (note:  TMR = tracer mixing ratio)
-   integer,  intent(in)    :: pcnst_extd
-   real(r8), intent(inout) :: dcondt(pcnst_extd,pver)
-                              ! overall TMR tendency from convection
-   real(r8), intent(inout) :: dcondt_resusp(pcnst_extd,pver)
-                              ! portion of TMR tendency due to resuspension
-                              ! (actually, due to the adjustments made here)
-   real(r8), intent(in)    :: const(pcnst_extd,pver)  ! TMRs before convection
-
-   real(r8), intent(in)    :: dp_i(pver) ! pressure thickness of level (in mb)
-   integer,  intent(in)    :: ktop, kbot_prevap ! indices of top and bottom cloud levels
-
-!-----------------------------------------------------------------------
-! local variables
-   integer  :: k, ll, la, lc, n
-   real(r8) :: qa, qc, qac           ! working variables (mixing ratios)
-   real(r8) :: qdota, qdotc, qdotac  ! working variables (MR tendencies)
-!-----------------------------------------------------------------------
+     !-----------------------------------------------------------------------
+     ! local variables
+     integer  :: k, l, m, mm
+     real(r8) :: qa, qc, qac           ! working variables (mixing ratios)
+     real(r8) :: qdota, qdotc, qdotac  ! working variables (MR tendencies)
+     !-----------------------------------------------------------------------
 
 
-   do n = 1, ntot_amode
+     do m = 1, aero_props_obj%nbins()
 
-      do ll = 0, nspec_amode(n)
-         if (ll == 0) then
-            la = numptr_amode(n)
-            lc = numptrcw_amode(n) + pcnst
-         else
-            la = lmassptr_amode(ll,n)
-            lc = lmassptrcw_amode(ll,n) + pcnst
-         end if
+        do l = 0, aero_props_obj%nmasses(m)
 
-! apply adjustments to dcondt for pairs of unactivated (la) and
-! activated (lc) aerosol species
-         if ( (la <= 0) .or. (la > pcnst_extd) ) cycle
-         if ( (lc <= 0) .or. (lc > pcnst_extd) ) cycle
+           mm = aero_props_obj%indexer(m,l)
 
-         do k = ktop, kbot_prevap
-            qdota = dcondt(la,k)
-            qdotc = dcondt(lc,k)
-            qdotac = qdota + qdotc
+           do k = ktop, kbot_prevap
+              qdota = dcondt_a(mm,k)
+              qdotc = dcondt_c(mm,k)
+              qdotac = qdota + qdotc
 
-! mirage2 approach
-!           qa = max( const(la,k), 0.0_r8 )
-!           qc = max( const(lc,k), 0.0_r8 )
-!           qac = qa + qc
-!           if (qac <= 0.0) then
-!              dcondt(la,k) = qdotac
-!              dcondt(lc,k) = 0.0
-!           else
-!              dcondt(la,k) = qdotac*(qa/qac)
-!              dcondt(lc,k) = qdotac*(qc/qac)
-!           end if
+              if (convproc_do_evaprain_atonce) then
+                 dcondt_a(mm,k) = qdota
+                 dcondt_c(mm,k) = qdotc
 
-! cam5 approach
-            if (convproc_do_evaprain_atonce) then
-               dcondt(la,k) = qdota
-               dcondt(lc,k) = qdotc
+                 dcondt_resusp_a(mm,k) = dcondt_a(mm,k)
+                 dcondt_resusp_c(mm,k) = dcondt_c(mm,k)
+              else
+                 dcondt_a(mm,k) = qdotac
+                 dcondt_c(mm,k) = 0.0_r8
 
-               dcondt_resusp(la,k) = dcondt(la,k)
-               dcondt_resusp(lc,k) = dcondt(lc,k)
-            else
-               dcondt(la,k) = qdotac
-               dcondt(lc,k) = 0.0_r8
+                 dcondt_resusp_a(mm,k) = (dcondt_a(mm,k) - qdota)
+                 dcondt_resusp_c(mm,k) = (dcondt_c(mm,k) - qdotc)
+              end if
+           end do
 
-               dcondt_resusp(la,k) = (dcondt(la,k) - qdota)
-               dcondt_resusp(lc,k) = (dcondt(lc,k) - qdotc)
-            end if
-         end do
+        end do
+     end do
 
-      end do   ! "ll = -1, nspec_amode(n)"
-   end do      ! "n = 1, ntot_amode"
-
-   return
    end subroutine ma_resuspend_convproc
-
 
 
 !=========================================================================================
