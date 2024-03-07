@@ -1634,7 +1634,7 @@ contains
           do m = 1, ntot_amode ! main loop over aerosol modes
              do lphase = strt_loop,end_loop, stride_loop
                 ! loop over interstitial (1) and cloud-borne (2) forms
-                do lspec = 0, nspec_amode(m)+1 ! loop over number + chem constituents + water
+                do lspec = 0, nspec_amode(m) ! loop over number + aerosol constituents
                    if (lspec == 0) then ! number
                       if (lphase == 1) then
                          mm = numptr_amode(m)
