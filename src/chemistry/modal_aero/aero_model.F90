@@ -1650,7 +1650,7 @@ contains
                    endif
                    if (lphase == 2) then
                       fldcw => qqcw_get_field(pbuf, mm,lchnk)
-                      fldcw(:ncol,:) = fldcw(:ncol,:) + dcondt_resusp3d(mm,:ncol,:)*dt
+                      fldcw(:ncol,:) = fldcw(:ncol,:) + dcondt_resusp3d(mm+pcnst,:ncol,:)*dt
                    end if
                 end do ! loop over number + chem constituents + water
              end do  ! lphase
