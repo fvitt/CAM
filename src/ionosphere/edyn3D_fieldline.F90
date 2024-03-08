@@ -21,6 +21,8 @@ module edyn3D_fieldline
    public :: fline_s1
    public :: fline_s2
    public :: fieldline_init
+   public :: fieldline_getapex
+
 !   public :: tasks
    ! Public type
 !   public :: array_ptr_type
@@ -70,6 +72,13 @@ module edyn3D_fieldline
 
      integer, allocatable :: ngh_pts(:,:)  ! neighboring points lat_index
   end type fieldline_p
+
+  type magfld_t
+     real(r8), allocatable :: fld(:)
+  end type magfld_t
+
+
+
   !
   ! Define r field line structure
   !
@@ -270,6 +279,10 @@ module edyn3D_fieldline
                                                ! otherwise could be interpolated?
                                                ! read in or set later
 
+  type(magfld_t), allocatable :: magfld(:,:,:)
+
+  public :: magfld, magfld_t
+
   contains
 !-----------------------------------------------------------------------------
     subroutine fieldline_init
@@ -296,6 +309,7 @@ module edyn3D_fieldline
       endif
 
       allocate(fline_p(nmlon,nmlat_h,2),stat=ier)
+      allocate(magfld(nmlon,nmlat_h,2),stat=ier)
 !      allocate(fline_r(nmlon,nmlat_h,2),stat=ier)
 !      allocate(fline_s1(nmlon,nmlat_h,2),stat=ier)     ! note same points as p-fieldlines
 !      allocate(fline_s2(nmlon,nmlatS2_h,2),stat=ier)   ! note one point less than p-fieldlines
@@ -333,7 +347,9 @@ module edyn3D_fieldline
 	     allocate(fline_p(i,j,isn)%mlat_qd(fline_p(i,j,isn)%npts)) ! should be independent of longitude
 	    allocate(fline_p(i,j,isn)%mlon_qd(fline_p(i,j,isn)%npts))
 	    allocate(fline_p(i,j,isn)%glon(fline_p(i,j,isn)%npts))
-	    allocate(fline_p(i,j,isn)%glat(fline_p(i,j,isn)%npts))
+            allocate(fline_p(i,j,isn)%glat(fline_p(i,j,isn)%npts))
+            fline_p(i,j,isn)%glon = -huge(1._r8)
+            fline_p(i,j,isn)%glat = -huge(1._r8)
 	    allocate(fline_p(i,j,isn)%ngh_pts(2,fline_p(i,j,isn)%npts)) ! lat_ind of neighboring point
 	    allocate(fline_p(i,j,isn)%D(fline_p(i,j,isn)%npts))
 	    allocate(fline_p(i,j,isn)%F(fline_p(i,j,isn)%npts))
@@ -344,7 +360,10 @@ module edyn3D_fieldline
 	    allocate(fline_p(i,j,isn)%S(fline_p(i,j,isn)%npts))
 	    allocate(fline_p(i,j,isn)%Jr(fline_p(i,j,isn)%npts))
 	    allocate(fline_p(i,j,isn)%I1hor(fline_p(i,j,isn)%npts))
-	    allocate(fline_p(i,j,isn)%I2hor(fline_p(i,j,isn)%npts))
+            allocate(fline_p(i,j,isn)%I2hor(fline_p(i,j,isn)%npts))
+
+            allocate(magfld(i,j,isn)%fld(fline_p(i,j,isn)%npts))
+
 !	   allocate(fline_p(i,j,isn)%pot(fline_p(i,j,isn)%npts))
 !	   allocate(fline_p(i,j,isn)%pot_test(fline_p(i,j,isn)%npts)) ! am 1/2015 for testing
 
@@ -717,5 +736,47 @@ endif
 !      end function  lamqd_from_apex_coord
 !-----------------------------------------------------------------------
     end subroutine fieldline_init
-!
+
+    subroutine fieldline_getapex
+      use apex, only: apex_q2g, apex_mall
+      use edyn3d_params, only: h0, nmlat_h
+      use edyn3d_mpi, only: mlon0_p,mlon1_p
+      use physconst, only: pi
+
+      integer :: i,j,k,isn, ierr
+      real(r8) :: qdlat,qdlon,alt, gdlat,gdlon
+      real(r8) :: bmag,si,alon,xlatm,vmp,w,d,be3,sim,xlatqd,f
+      real(r8), dimension(3) :: b,bhat,d1,d2,d3,e1,e2,e3,f1,f2
+
+      real(r8), parameter :: href = h0*1e-3_r8
+      real(r8), parameter :: r2d = 180._r8/pi
+
+      do isn = 1,2
+         do j = 1,nmlat_h
+            do i = mlon0_p,mlon1_p
+               do k = 1,fline_p(i,j,isn)%npts
+                  qdlat = fline_p(i,j,isn)%mlat_qd(k)*r2d ! get quasi-dipole latitude
+                  qdlon = fline_p(i,j,isn)%mlon_qd(k)*r2d ! get quasi-dipole longitude
+                  alt = fline_p(i,j,isn)%hgt_pt(k)*1e-3 ! convert height from [m] to [km]
+
+                  call apex_q2g(qdlat,qdlon,alt,gdlat,gdlon, ierr)
+
+                  fline_p(i,j,isn)%glon(k) = gdlon
+                  fline_p(i,j,isn)%glat(k) = gdlat
+
+                  call apex_mall(gdlat,gdlon,alt,href,b,bhat,bmag,si, &
+                       alon,xlatm,vmp,w,d,be3,sim,d1,d2,d3,e1,e2,e3, &
+                       xlatqd,f,f1,f2, ierr)
+                  fline_p(i,j,isn)%sinI(k) = si ! sin(I)
+                  fline_p(i,j,isn)%D(k) = d
+                  fline_p(i,j,isn)%F(k) = f
+                  fline_p(i,j,isn)%d1k(k) = d1(3) ! k: unit vector upward
+                  fline_p(i,j,isn)%d2k(k) = d2(3) ! k: unit vector upward
+               enddo
+            end do
+         end do
+      end do
+
+    end subroutine fieldline_getapex
+
 end module edyn3D_fieldline

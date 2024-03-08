@@ -1,44 +1,60 @@
 module mag_grid_mod
   use shr_kind_mod, only: r8 => shr_kind_r8
-  use spmd_utils,     only: masterproc
+  use spmd_utils, only: masterproc
 
 
   use edyn3D_maggrid, only: gen_highres_grid
 
-  use edyn3D_mpi,     only: mp_init_edyn3D, mp_distribute_mag_edyn3D
-  use edyn3D_fieldline, only: fieldline_init
+  use edyn3D_mpi, only: mp_init_edyn3D, mp_distribute_mag_edyn3D, mp_exchange_tasks_edyn3D
+  use edyn3D_fieldline, only: fieldline_init, fieldline_getapex
   use edyn3D_params, only: nmlon, nmlat_h, nptsp_total ,ylonm
+
+  use edyn3D_esmf_regrid
+
+  use physconst,     only: pi
 
   implicit none
 
+  real(r8), parameter :: r2d = 180./pi
+
 contains
+
+  subroutine mag_grid_mod_readnl(nlfile)
+    use mo_apex, only: mo_apex_readnl
+
+    character(len=*), intent(in) :: nlfile  ! filepath for file containing namelist input
+
+    call mo_apex_readnl(nlfile)
+
+  end subroutine mag_grid_mod_readnl
 
   subroutine mag_grid_mod_reg
     use cam_history,  only: addfld, horiz_only
-
     use spmd_utils, only: mpicom, iam
+    use mo_apex, only: mo_apex_init1
 
-    print*,'FVDBG....mag_grid_mod_reg...0'
+    call mo_apex_init1()
 
     call mp_init_edyn3D(mpicom)
 
     call gen_highres_grid()
 
-    print*,'FVDBG....mag_grid_mod_reg...nmlon: ',nmlon
-
     call mp_distribute_mag_edyn3D(nmlon)
 
+    call mp_exchange_tasks_edyn3D(mpicom, iprint=0)
     call fieldline_init()  ! Allocate and populate the p, r, s1, and s2 field line structures for computations
-
-    print*,'FVDBG....mag_grid_mod_reg...1'
+    call fieldline_getapex()
 
     call reg_hist_grid()
 
-    print*,'FVDBG....mag_grid_mod_reg...2'
+    call edyn3D_esmf_regrid_init()
 
-    call addfld ('MAGTEST', horiz_only, 'I', 'units','Test field' ,gridname='mag_fldpnts')
-
-    print*,'FVDBG....mag_grid_mod_reg...END'
+    call addfld ('GEOGALT', horiz_only, 'I', 'km','magnetic field line point geographic (geodetic) altitude', &
+                  gridname='mag_fldpnts')
+    call addfld ('GEOGLAT', horiz_only, 'I', 'Degrees','magnetic field line point geographic (geodetic) latitude', &
+                  gridname='mag_fldpnts')
+    call addfld ('GEOGLON', horiz_only, 'I', 'Degrees','magnetic field line point geographic (geodetic) longitude', &
+                  gridname='mag_fldpnts')
 
   end subroutine mag_grid_mod_reg
 
@@ -51,8 +67,6 @@ contains
     use edyn3D_fieldline, only: fline_p
     use edyn3d_params, only: nhgt_fix, nmlat_T1
 
-    use physconst,     only: pi
-
     type(horiz_coord_t), pointer :: flp_coord
     type(horiz_coord_t), pointer :: lon_coord
     integer(iMap),       pointer :: grid_map(:,:)
@@ -63,8 +77,6 @@ contains
     real(r8), pointer :: altvals(:)
 
     integer, parameter :: mag_decomp = 703 ! Must be unique within CAM
-
-    real(r8), parameter :: r2d = 180./pi
 
     real(r8) :: xdel
 
@@ -178,13 +190,16 @@ contains
     use cam_history,  only: outfld
     use edyn3D_fieldline, only: fline_p
 
-    real(r8) :: testvals(mlon0_p:mlon1_p, nptsp_total)
+    real(r8) :: geogalts(mlon0_p:mlon1_p, nptsp_total)
+    real(r8) :: geoglats(mlon0_p:mlon1_p, nptsp_total)
+    real(r8) :: geoglons(mlon0_p:mlon1_p, nptsp_total)
+
     integer :: i,j,k,isn,ncnt
     integer :: dk,k0,k1
 
-    testvals=0._r8
-
-    print*,'FVDBG...mag_grid_timestep...0'
+    geogalts=-huge(1._r8)
+    geoglats=-huge(1._r8)
+    geoglons=-huge(1._r8)
 
     do i = mlon0_p,mlon1_p
        ncnt = 0
@@ -193,27 +208,29 @@ contains
 
              if (isn==1) then
                 k0 = 1
-                k1 = fline_p(mlon0_p,j,isn)%npts
+                k1 = fline_p(i,j,isn)%npts
                 dk = 1
              else
-                k0 = fline_p(mlon0_p,j,isn)%npts
+                k0 = fline_p(i,j,isn)%npts
                 k1 = 1
                 dk = -1
              endif
 
              do k = k0,k1,dk
                 ncnt = ncnt + 1
-                testvals(i,ncnt) = fline_p(mlon0_p,j,isn)%hgt_pt(k)
+                geogalts(i,ncnt) = fline_p(i,j,isn)%hgt_pt(k)
+                geoglats(i,ncnt) = fline_p(i,j,isn)%glat(k)
+                geoglons(i,ncnt) = fline_p(i,j,isn)%glon(k)
              end do
           end do
        end do
     end do
 
     do j = 1,nptsp_total
-       call outfld('MAGTEST', testvals(mlon0_p:mlon1_p,j), mlon1_p-mlon0_p+1, j)
+       call outfld('GEOGALT', geogalts(mlon0_p:mlon1_p,j), mlon1_p-mlon0_p+1, j)
+       call outfld('GEOGLAT', geoglats(mlon0_p:mlon1_p,j), mlon1_p-mlon0_p+1, j)
+       call outfld('GEOGLON', geoglons(mlon0_p:mlon1_p,j), mlon1_p-mlon0_p+1, j)
     end do
-
-    print*,'FVDBG...mag_grid_timestep...END'
 
   end subroutine mag_grid_timestep
 end module mag_grid_mod

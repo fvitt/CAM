@@ -180,7 +180,6 @@ contains
       integer                     :: i, n, irank, ier, nmaglon_p, tidcol, ncells
       character(len=cl)          :: errmsg
       character(len=*), parameter :: subname = 'mp_distribute_edyn3D_mag'
-    print*,'FVDBG....mp_distribute_mag_edyn3D...0'
       !
       ! Number of tasks in mag lon:
       !
@@ -270,6 +269,7 @@ contains
                call endrun(errmsg)
             end if
          end do
+
       end if
 
    end subroutine mp_distribute_mag_edyn3D
@@ -358,13 +358,13 @@ contains
          ! Report to stdout:
          !
          if (n==mytid.and.iprint > 0) then
-            write(iulog,"(/,'Task ',i3,':')") n
-            write(iulog,"(/,'Subdomain on geomagnetic longitude grid:')")
-            write(iulog,"('tasks(',i3,')%magtidlon=',i3)") n,tasks(n)%magtidlon
-            write(iulog,"('tasks(',i3,')%nmaglons =',i3)") n,tasks(n)%nmaglons
-            write(iulog,"('tasks(',i3,')%mlon0  =',i3)") n,tasks(n)%mlon0
-            write(iulog,"('tasks(',i3,')%mlon1  =',i3)") n,tasks(n)%mlon1
-            write(iulog,"('Number of mag subdomain grid points = ',i6)") &
+            write(*,"(/,'Task ',i3,':')") n
+            write(*,"(/,'Subdomain on geomagnetic longitude grid:')")
+            write(*,"('tasks(',i3,')%magtidlon=',i3)") n,tasks(n)%magtidlon
+            write(*,"('tasks(',i3,')%nmaglons =',i3)") n,tasks(n)%nmaglons
+            write(*,"('tasks(',i3,')%mlon0  =',i3)") n,tasks(n)%mlon0
+            write(*,"('tasks(',i3,')%mlon1  =',i3)") n,tasks(n)%mlon1
+            write(*,"('Number of mag subdomain grid points = ',i6)") &
                  tasks(n)%nmaglons
          endif
       enddo

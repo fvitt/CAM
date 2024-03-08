@@ -104,6 +104,7 @@ subroutine read_namelist(nlfilename, single_column, scmlat, scmlon)
    use cam_budget,          only: cam_budget_readnl
    use phys_grid_ctem,      only: phys_grid_ctem_readnl
    use mo_lightning,        only: lightning_readnl
+   use mag_grid_mod,        only: mag_grid_mod_readnl
 
    !---------------------------Arguments-----------------------------------
 
@@ -209,6 +210,8 @@ subroutine read_namelist(nlfilename, single_column, scmlat, scmlon)
    call hemco_readnl(nlfilename)
    call cam_budget_readnl(nlfilename)
    call phys_grid_ctem_readnl(nlfilename)
+
+   call mag_grid_mod_readnl(nlfilename)
 
 end subroutine read_namelist
 
