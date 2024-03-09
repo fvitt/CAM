@@ -55,6 +55,8 @@ contains
                   gridname='mag_fldpnts')
     call addfld ('GEOGLON', horiz_only, 'I', 'Degrees','magnetic field line point geographic (geodetic) longitude', &
                   gridname='mag_fldpnts')
+    call addfld ('Tn_mag', horiz_only, 'I', 'K','Neutral Temperature on geo-magnetic field line grid', &
+                  gridname='mag_fldpnts')
 
   end subroutine mag_grid_mod_reg
 
@@ -185,17 +187,25 @@ contains
 
   end subroutine reg_hist_grid
 
-  subroutine mag_grid_timestep
+  subroutine mag_grid_timestep( nphyscol, nphyslev, physalt, tn, tn_out )
     use edyn3d_mpi, only: mlon0_p,mlon1_p
     use cam_history,  only: outfld
-    use edyn3D_fieldline, only: fline_p
+    use edyn3D_fieldline, only: fline_p, magfld_t
+
+    integer,  intent(in) :: nphyscol, nphyslev
+    real(r8), intent(in) :: physalt(nphyslev,nphyscol)
+    real(r8), intent(in) :: tn(nphyslev,nphyscol)
+    real(r8), intent(out) :: tn_out(nphyslev,nphyscol)
 
     real(r8) :: geogalts(mlon0_p:mlon1_p, nptsp_total)
     real(r8) :: geoglats(mlon0_p:mlon1_p, nptsp_total)
     real(r8) :: geoglons(mlon0_p:mlon1_p, nptsp_total)
+    real(r8) :: Tn_tmp(mlon0_p:mlon1_p, nptsp_total)
 
-    integer :: i,j,k,isn,ncnt
+    integer :: i,j,k,isn,ncnt, ier
     integer :: dk,k0,k1
+
+    type(magfld_t), allocatable :: magfld(:,:,:)
 
     geogalts=-huge(1._r8)
     geoglats=-huge(1._r8)
@@ -232,5 +242,48 @@ contains
        call outfld('GEOGLON', geoglons(mlon0_p:mlon1_p,j), mlon1_p-mlon0_p+1, j)
     end do
 
+    allocate(magfld(mlon0_p:mlon1_p,nmlat_h,2),stat=ier)
+
+    do i = mlon0_p,mlon1_p
+       do j = 1,nmlat_h
+          do isn = 1,2
+             allocate(magfld(i,j,isn)%fld(fline_p(i,j,isn)%npts))
+             magfld(i,j,isn)%fld = -huge(1._r8)
+          end do
+       end do
+    end do
+
+    call edyn3D_esmf_regrid_phys2mag(tn,physalt,nphyscol,nphyslev,magfld)
+    do i = mlon0_p,mlon1_p
+       ncnt = 0
+       do j = 1,nmlat_h
+          do isn = 1,2
+
+             if (isn==1) then
+                k0 = 1
+                k1 = fline_p(i,j,isn)%npts
+                dk = 1
+             else
+                k0 = fline_p(i,j,isn)%npts
+                k1 = 1
+                dk = -1
+             endif
+
+             do k = k0,k1,dk
+                ncnt = ncnt + 1
+                Tn_tmp(i,ncnt) = magfld(i,j,isn)%fld(k)
+             end do
+          end do
+       end do
+    end do
+
+    do j = 1,nptsp_total
+       call outfld('Tn_mag', Tn_tmp(mlon0_p:mlon1_p,j), mlon1_p-mlon0_p+1, j)
+    end do
+
+
+    call edyn3D_esmf_regrid_mag2phys(magfld, physalt, nphyscol,nphyslev, tn_out)
+
   end subroutine mag_grid_timestep
+
 end module mag_grid_mod

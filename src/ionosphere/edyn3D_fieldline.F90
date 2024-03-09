@@ -281,7 +281,7 @@ module edyn3D_fieldline
 
   type(magfld_t), allocatable :: magfld(:,:,:)
 
-  public :: magfld, magfld_t
+  public :: magfld_t
 
   contains
 !-----------------------------------------------------------------------------
@@ -309,7 +309,6 @@ module edyn3D_fieldline
       endif
 
       allocate(fline_p(nmlon,nmlat_h,2),stat=ier)
-      allocate(magfld(nmlon,nmlat_h,2),stat=ier)
 !      allocate(fline_r(nmlon,nmlat_h,2),stat=ier)
 !      allocate(fline_s1(nmlon,nmlat_h,2),stat=ier)     ! note same points as p-fieldlines
 !      allocate(fline_s2(nmlon,nmlatS2_h,2),stat=ier)   ! note one point less than p-fieldlines
@@ -361,8 +360,6 @@ module edyn3D_fieldline
 	    allocate(fline_p(i,j,isn)%Jr(fline_p(i,j,isn)%npts))
 	    allocate(fline_p(i,j,isn)%I1hor(fline_p(i,j,isn)%npts))
             allocate(fline_p(i,j,isn)%I2hor(fline_p(i,j,isn)%npts))
-
-            allocate(magfld(i,j,isn)%fld(fline_p(i,j,isn)%npts))
 
 !	   allocate(fline_p(i,j,isn)%pot(fline_p(i,j,isn)%npts))
 !	   allocate(fline_p(i,j,isn)%pot_test(fline_p(i,j,isn)%npts)) ! am 1/2015 for testing

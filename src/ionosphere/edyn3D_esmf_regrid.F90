@@ -178,14 +178,14 @@ contains
   !-----------------------------------------------------------------------
   subroutine edyn3D_esmf_regrid_phys2mag(physfld,physalt,nphyscol,nphyslev,magfld)
     use edyn3d_params, only: hgt_fix,nhgt_fix
-    use edyn3D_fieldline, only: magfld_t
+    use edyn3D_fieldline, only: magfld_t, fline_p
     use edyn3d_mpi, only: mlon0_p,mlon1_p
     use interpolate_data, only: lininterp
 
-    real(r8), intent(in) :: physfld(nphyscol,nphyslev)
-    real(r8), intent(in) :: physalt(nphyslev)
+    real(r8), intent(in) :: physfld(nphyslev,nphyscol)
+    real(r8), intent(in) :: physalt(nphyslev,nphyscol)
     integer,  intent(in) :: nphyscol,nphyslev
-    type(magfld_t), intent(out) :: magfld(mlon0_p:mlon1_p,nmlat_h,2)
+    type(magfld_t), intent(inout) :: magfld(mlon0_p:mlon1_p,nmlat_h,2)
 
     real(r8) :: physfld_tmp(nphyscol,nhgt_fix)
 
@@ -199,7 +199,7 @@ contains
     real(ESMF_KIND_R8), pointer :: fptr1d(:)
 
     do i = 1,nphyscol
-       call lininterp(physfld(i,nphyslev:1:-1),physalt(nphyslev:1:-1),nphyslev,&
+       call lininterp(physfld(nphyslev:1:-1,i),physalt(nphyslev:1:-1,i),nphyslev,&
                       physfld_tmp(i,:),hgt_fix(:),nhgt_fix)
     end do
 
@@ -217,7 +217,7 @@ contains
             termorderflag=ESMF_TERMORDER_SRCSEQ, rc=rc)
        call edyn3D_esmf_chkerr(subname,'ESMF_FieldRegrid phys2mag',rc)
 
-       call ESMF_FieldGet(magField(k), localDe=0, farrayPtr=fptr2d,             &
+       call ESMF_FieldGet(magField(k), localDe=0, farrayPtr=fptr2d, &
             computationalLBound=lbnd2d, computationalUBound=ubnd2d, rc=rc)
        call edyn3D_esmf_chkerr(subname,'ESMF_FieldGet physField',rc)
 
@@ -232,7 +232,7 @@ contains
              jj = nmlat-j+1
           end if
           do i = lbnd2d(1), ubnd2d(1)
-             magfld(i,jj,isn)%fld(k) = fptr2d(i,j)
+             magfld(mlon0_p-1+i,jj,isn)%fld(k) = fptr2d(i,j)
           end do
        end do
 
@@ -243,7 +243,68 @@ contains
 
   !-----------------------------------------------------------------------
   !-----------------------------------------------------------------------
-  subroutine edyn3D_esmf_regrid_mag2phys
+  subroutine edyn3D_esmf_regrid_mag2phys(magfld, physalt, nphyscol,nphyslev, physfld)
+    use edyn3d_params, only: hgt_fix,nhgt_fix
+    use edyn3D_fieldline, only: magfld_t, fline_p
+    use edyn3d_mpi, only: mlon0_p,mlon1_p
+    use interpolate_data, only: lininterp
+
+    type(magfld_t), intent(in) :: magfld(mlon0_p:mlon1_p,nmlat_h,2)
+    real(r8), intent(in) :: physalt(nphyslev,nphyscol)
+    integer,  intent(in) :: nphyscol,nphyslev
+    real(r8), intent(inout) :: physfld(nphyslev,nphyscol)
+
+    real(r8) :: physfld_tmp(nphyscol,nhgt_fix)
+
+    integer :: rc, i,j,k,isn,jj, nmlat
+    character(len=*), parameter :: subname = 'edyn3D_esmf_regrid_mag2phys'
+
+    integer :: lbnd1d(1), ubnd1d(1) ! 1d field bounds
+    integer :: lbnd2d(2), ubnd2d(2) ! 2d field bounds
+
+    real(ESMF_KIND_R8), pointer :: fptr2d(:,:)
+    real(ESMF_KIND_R8), pointer :: fptr1d(:)
+
+    do k = 1,nhgt_fix
+
+       call ESMF_FieldGet(magField(k), localDe=0, farrayPtr=fptr2d, &
+            computationalLBound=lbnd2d, computationalUBound=ubnd2d, rc=rc)
+       call edyn3D_esmf_chkerr(subname,'ESMF_FieldGet physField',rc)
+
+       nmlat = (nmlat_h - (k-1))*2
+
+       do j = lbnd2d(2), ubnd2d(2)
+          if (j<=nmlat_h-(k-1)) then
+             isn = 1
+             jj = j
+          else
+             isn = 2
+             jj = nmlat-j+1
+          end if
+          do i = lbnd2d(1), ubnd2d(1)
+             fptr2d(i,j) = magfld(mlon0_p-1+i,jj,isn)%fld(k)
+          end do
+       end do
+
+       call ESMF_FieldRegrid(magField(k), physField, rh_mag2phys(k), &
+            termorderflag=ESMF_TERMORDER_SRCSEQ, rc=rc)
+       call edyn3D_esmf_chkerr(subname,'ESMF_FieldRegrid mag2phys',rc)
+
+       call ESMF_FieldGet(field=physField, localDe=0, farrayPtr=fptr1d, &
+            computationalLBound=lbnd1d, computationalUBound=ubnd1d, rc=rc)
+       call edyn3D_esmf_chkerr(subname,'ESMF_FieldGet physField',rc)
+
+       do i = lbnd1d(1), ubnd1d(1)
+          physfld_tmp(i,k) = fptr1d(i)
+       end do
+
+    end do
+
+    do i = 1,nphyscol
+       call lininterp(physfld_tmp(i,:),hgt_fix(:),nhgt_fix, &
+                      physfld(nphyslev:1:-1,i),physalt(nphyslev:1:-1,i),nphyslev )
+    end do
+
   end subroutine edyn3D_esmf_regrid_mag2phys
 
   !-----------------------------------------------------------------------

@@ -18,9 +18,8 @@ module edyn3D_params
 
    integer,parameter :: &
 !       nmlat_h  = 91,	&	   ! org. 81 pts; a number of magnetic latitudes in one hemisphere P,S1, and R points
-       nmlat_h  = 21,	&	   ! org. 81 pts; a number of magnetic latitudes in one hemisphere P,S1, and R points
 ! am 10/31/2014 test higher resolution case
-!       nmlat_h  = 161,  &          ! a test see grid.f90 / number of magnetic latitudes in one hemisphere P,S1, and R points
+       nmlat_h  = 161,  &          ! a test see grid.f90 / number of magnetic latitudes in one hemisphere P,S1, and R points
 !*****
 !ADR230826: nmlat_h = J of notes.  How are R points defined?
 !*****
@@ -33,10 +32,9 @@ module edyn3D_params
 !       nlat_qd = 181,  &  !1181 ; 21,          &  ! number of quasi dipole latitudes, edge points j-0.5
        nlat_qd_h=(nlat_qd+1)*0.5, &! half of the hemisphere (assumes point at equator) edge points j-0.5
 
-       nmlon	= 18,  	&  ! number of magnetic longitudes P,S1,S2,R points
+       nmlon	= 180,  	&  ! number of magnetic longitudes P,S1,S2,R points
        nmlonp1  = nmlon+1,	&
-!       nhgt_fix   = 82 , 	&  ! Number of height levels on which P points lie.
-       nhgt_fix   = 12 , 	&  ! Number of height levels on which P points lie.
+       nhgt_fix   = 82 , 	&  ! Number of height levels on which P points lie.
        nhgt_fix_r = nhgt_fix+1     ! Number of height levels encompassing the lower and upper faces of elemental volumes
 
    real(r8), parameter ::	      &
