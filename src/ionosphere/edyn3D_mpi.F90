@@ -134,12 +134,12 @@ module edyn3D_mpi
 
 contains
    !-----------------------------------------------------------------------
-   subroutine mp_init_edyn3D(mpi_comm)  !, ionos_npes)
+   subroutine mp_init_edyn3D(mpi_comm, ionos_npes)
       !
       ! Initialize MPI, and allocate task table.
       !
       integer, intent(in) :: mpi_comm
-  !    integer, intent(in) :: ionos_npes
+      integer, intent(in) :: ionos_npes
 
       integer :: mpi_comm_edyn3D
 
@@ -148,14 +148,16 @@ contains
       character(len=cl) :: errmsg
 
       if (masterproc) then
-         write(iulog,*) ' edyn3Dmpi, mpi_init_edyn3D: Initializing with ionos_npes'!, ionos_npes
+         write(iulog,*) 'mpi_init_edyn3D... ionos_npes :', ionos_npes
       endif
-
-   !   ntask = ionos_npes
 
       call mpi_comm_size(mpi_comm, npes, ierr)
 
-      ntask = npes
+      ntask = min(npes,ionos_npes)
+
+      if (masterproc) then
+         write(iulog,*) 'mpi_init_edyn3D: Initializing with ntask = ', ntask
+      endif
 
       call mpi_comm_rank(mpi_comm, mytid, ierr)
       color = mytid/ntask !  ionos_npes

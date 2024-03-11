@@ -6,6 +6,7 @@ module mag_grid_mod
   use edyn3D_maggrid, only: gen_highres_grid
 
   use edyn3D_mpi, only: mp_init_edyn3D, mp_distribute_mag_edyn3D, mp_exchange_tasks_edyn3D
+  use edyn3D_mpi, only: mytid, ntask
   use edyn3D_fieldline, only: fieldline_init, fieldline_getapex
   use edyn3D_params, only: nmlon, nmlat_h, nptsp_total ,ylonm
 
@@ -16,13 +17,48 @@ module mag_grid_mod
   implicit none
 
   real(r8), parameter :: r2d = 180./pi
+  integer :: ionos_npes = huge(1)
 
 contains
 
   subroutine mag_grid_mod_readnl(nlfile)
     use mo_apex, only: mo_apex_readnl
 
+    use namelist_utils, only: find_group_name
+    use units,          only: getunit, freeunit
+    use spmd_utils,     only: mpicom, masterprocid
+    use spmd_utils,     only: mpi_integer
+    use cam_logfile,    only: iulog
+
     character(len=*), intent(in) :: nlfile  ! filepath for file containing namelist input
+
+    ! Local variables
+    integer :: unitn, ierr, ipos
+
+    character(len=*), parameter :: subname = 'mag_grid_mod_readnl'
+
+    namelist /ionosphere_nl/ ionos_npes
+
+    ! Read namelist
+    if (masterproc) then
+       unitn = getunit()
+       open( unitn, file=trim(nlfile), status='old' )
+       call find_group_name(unitn, 'ionosphere_nl', status=ierr)
+       if (ierr == 0) then
+          read(unitn, ionosphere_nl, iostat=ierr)
+          if (ierr /= 0) then
+             call endrun(subname // ':: ERROR reading namelist')
+          end if
+       end if
+       close(unitn)
+       call freeunit(unitn)
+    end if
+
+    call mpi_bcast(ionos_npes, 1, mpi_integer, masterprocid, mpicom, ierr)
+    ! log the user settings
+    if (masterproc) then
+       write(iulog,'(a,i0)') 'ionosphere_readnl: ionos_npes = ',ionos_npes
+    end if
 
     call mo_apex_readnl(nlfile)
 
@@ -35,7 +71,7 @@ contains
 
     call mo_apex_init1()
 
-    call mp_init_edyn3D(mpicom)
+    call mp_init_edyn3D(mpicom, ionos_npes)
 
     call gen_highres_grid()
 
@@ -207,40 +243,43 @@ contains
 
     type(magfld_t), allocatable :: magfld(:,:,:)
 
-    geogalts=-huge(1._r8)
-    geoglats=-huge(1._r8)
-    geoglons=-huge(1._r8)
+    if (mytid<ntask) then
+       geogalts=-huge(1._r8)
+       geoglats=-huge(1._r8)
+       geoglons=-huge(1._r8)
 
-    do i = mlon0_p,mlon1_p
-       ncnt = 0
-       do j = 1,nmlat_h
-          do isn = 1,2
+       do i = mlon0_p,mlon1_p
+          ncnt = 0
+          do j = 1,nmlat_h
+             do isn = 1,2
 
-             if (isn==1) then
-                k0 = 1
-                k1 = fline_p(i,j,isn)%npts
-                dk = 1
-             else
-                k0 = fline_p(i,j,isn)%npts
-                k1 = 1
-                dk = -1
-             endif
+                if (isn==1) then
+                   k0 = 1
+                   k1 = fline_p(i,j,isn)%npts
+                   dk = 1
+                else
+                   k0 = fline_p(i,j,isn)%npts
+                   k1 = 1
+                   dk = -1
+                endif
 
-             do k = k0,k1,dk
-                ncnt = ncnt + 1
-                geogalts(i,ncnt) = fline_p(i,j,isn)%hgt_pt(k)
-                geoglats(i,ncnt) = fline_p(i,j,isn)%glat(k)
-                geoglons(i,ncnt) = fline_p(i,j,isn)%glon(k)
+                do k = k0,k1,dk
+                   ncnt = ncnt + 1
+                   geogalts(i,ncnt) = fline_p(i,j,isn)%hgt_pt(k)
+                   geoglats(i,ncnt) = fline_p(i,j,isn)%glat(k)
+                   geoglons(i,ncnt) = fline_p(i,j,isn)%glon(k)
+                end do
              end do
           end do
        end do
-    end do
 
-    do j = 1,nptsp_total
-       call outfld('GEOGALT', geogalts(mlon0_p:mlon1_p,j), mlon1_p-mlon0_p+1, j)
-       call outfld('GEOGLAT', geoglats(mlon0_p:mlon1_p,j), mlon1_p-mlon0_p+1, j)
-       call outfld('GEOGLON', geoglons(mlon0_p:mlon1_p,j), mlon1_p-mlon0_p+1, j)
-    end do
+       do j = 1,nptsp_total
+          call outfld('GEOGALT', geogalts(mlon0_p:mlon1_p,j), mlon1_p-mlon0_p+1, j)
+          call outfld('GEOGLAT', geoglats(mlon0_p:mlon1_p,j), mlon1_p-mlon0_p+1, j)
+          call outfld('GEOGLON', geoglons(mlon0_p:mlon1_p,j), mlon1_p-mlon0_p+1, j)
+       end do
+
+    end if
 
     allocate(magfld(mlon0_p:mlon1_p,nmlat_h,2),stat=ier)
 
@@ -254,33 +293,37 @@ contains
     end do
 
     call edyn3D_esmf_regrid_phys2mag(tn,physalt,nphyscol,nphyslev,magfld)
-    do i = mlon0_p,mlon1_p
-       ncnt = 0
-       do j = 1,nmlat_h
-          do isn = 1,2
 
-             if (isn==1) then
-                k0 = 1
-                k1 = fline_p(i,j,isn)%npts
-                dk = 1
-             else
-                k0 = fline_p(i,j,isn)%npts
-                k1 = 1
-                dk = -1
-             endif
+    if (mytid<ntask) then
 
-             do k = k0,k1,dk
-                ncnt = ncnt + 1
-                Tn_tmp(i,ncnt) = magfld(i,j,isn)%fld(k)
+       do i = mlon0_p,mlon1_p
+          ncnt = 0
+          do j = 1,nmlat_h
+             do isn = 1,2
+
+                if (isn==1) then
+                   k0 = 1
+                   k1 = fline_p(i,j,isn)%npts
+                   dk = 1
+                else
+                   k0 = fline_p(i,j,isn)%npts
+                   k1 = 1
+                   dk = -1
+                endif
+
+                do k = k0,k1,dk
+                   ncnt = ncnt + 1
+                   Tn_tmp(i,ncnt) = magfld(i,j,isn)%fld(k)
+                end do
              end do
           end do
        end do
-    end do
 
-    do j = 1,nptsp_total
-       call outfld('Tn_mag', Tn_tmp(mlon0_p:mlon1_p,j), mlon1_p-mlon0_p+1, j)
-    end do
+       do j = 1,nptsp_total
+          call outfld('Tn_mag', Tn_tmp(mlon0_p:mlon1_p,j), mlon1_p-mlon0_p+1, j)
+       end do
 
+    endif
 
     call edyn3D_esmf_regrid_mag2phys(magfld, physalt, nphyscol,nphyslev, tn_out)
 

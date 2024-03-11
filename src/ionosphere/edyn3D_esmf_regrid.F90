@@ -9,6 +9,7 @@ module edyn3D_esmf_regrid
   use ppgrid,       only: begchunk, endchunk
   use phys_grid,    only: get_ncols_p, get_gcol_p
   use edyn3d_params, only: nz=>nhgt_fix, nmlat_h
+  use edyn3D_mpi, only: ntask, tasks, mytid
 
   implicit none
 
@@ -19,17 +20,18 @@ module edyn3D_esmf_regrid
   ! dist_grid_2d: DistGrid for 2D fields
   type(ESMF_DistGrid) :: dist_grid_2d
 
+  integer, allocatable :: petmap(:,:,:)
+
 contains
 
   subroutine edyn3D_esmf_regrid_init
     use phys_control, only: phys_getopts
-    use edyn3D_mpi, only: ntask, tasks
     use edyn3D_fieldline, only: fline_p
     use edyn3d_mpi, only: mlon0_p,mlon1_p
 
     character(len=cl) :: mesh_file
 
-    integer :: total_cols, rc, i,j,k,isn,jj,ii,  nmlat
+    integer :: total_cols, rc, i,j,k,isn,jj,nmlat
     integer :: ncols, chnk, col, dindex
     integer,allocatable :: decomp(:)
 
@@ -86,9 +88,11 @@ contains
     allocate(magField(nz))
     allocate(rh_phys2mag(nz))
     allocate(rh_mag2phys(nz))
+    allocate(petmap(ntask,1,1))
 
     do i = 1,ntask
        nmlons_task = tasks(i-1)%nmaglons
+       petmap(i,1,1) = i-1
     end do
 
     do k = 1,nz
@@ -97,50 +101,51 @@ contains
        nmlats_task(1) = nmlat
        mag_grid = ESMF_GridCreate1PeriDim( &
             countsPerDEDim1=nmlons_task, countsPerDEDim2=nmlats_task, &
-            coordDep1=(/1, 2/), coordDep2=(/1, 2/), rc=rc)
+            coordDep1=(/1, 2/), coordDep2=(/1, 2/), &
+            petmap=petmap, indexflag=ESMF_INDEX_GLOBAL, rc=rc)
 
-       call ESMF_GridAddCoord(grid=mag_grid, rc=rc)
+       call ESMF_GridAddCoord(grid=mag_grid,staggerloc=ESMF_STAGGERLOC_CENTER, rc=rc)
        call edyn3D_esmf_chkerr(subname,'ESMF_GridAddCoord mag_grid',rc)
 
-       !
-       ! Get pointer and set mag grid geographic longitude coordinates:
-       !
-       call ESMF_GridGetCoord(grid=mag_grid, coordDim=1, farrayPtr=fptr2d, rc=rc)
-       call edyn3D_esmf_chkerr(subname,'ESMF_GridGetCoord glon',rc)
+       if (mytid<ntask) then
+          !
+          ! Get pointer and set mag grid geographic longitude coordinates:
+          !
+          call ESMF_GridGetCoord(grid=mag_grid, coordDim=1, farrayPtr=fptr2d, rc=rc)
+          call edyn3D_esmf_chkerr(subname,'ESMF_GridGetCoord glon',rc)
 
-       do j = 1, nmlat
-          if (j<=nmlat_h-(k-1)) then
-             isn = 1
-             jj = j
-          else
-             isn = 2
-             jj = nmlat-j+1
-          end if
-          do i = mlon0_p,mlon1_p
-             ii = i-mlon0_p+1
-             fptr2d(ii,j) = fline_p(i,jj,isn)%glon(k)
-          end do
-       enddo
+          do j = 1, nmlat
+             if (j<=nmlat_h-(k-1)) then
+                isn = 1
+                jj = j
+             else
+                isn = 2
+                jj = nmlat-j+1
+             end if
+             do i = mlon0_p,mlon1_p
+                fptr2d(i,j) = fline_p(i,jj,isn)%glon(k)
+             end do
+          enddo
 
-       !
-       ! Get pointer and set mag grid geographic latitdue coordinates:
-       !
-       call ESMF_GridGetCoord(grid=mag_grid, coordDim=2, farrayPtr=fptr2d, rc=rc)
-       call edyn3D_esmf_chkerr(subname,'ESMF_GridGetCoord glat',rc)
+          !
+          ! Get pointer and set mag grid geographic latitdue coordinates:
+          !
+          call ESMF_GridGetCoord(grid=mag_grid, coordDim=2, farrayPtr=fptr2d, rc=rc)
+          call edyn3D_esmf_chkerr(subname,'ESMF_GridGetCoord glat',rc)
 
-       do j = 1, nmlat
-          if (j<=nmlat_h-(k-1)) then
-             isn = 1
-             jj = j
-          else
-             isn = 2
-             jj = nmlat-j+1
-          end if
-          do i = mlon0_p,mlon1_p
-             ii = i-mlon0_p+1
-             fptr2d(ii,j) = fline_p(i,jj,isn)%glat(k)
-          end do
-       enddo
+          do j = 1, nmlat
+             if (j<=nmlat_h-(k-1)) then
+                isn = 1
+                jj = j
+             else
+                isn = 2
+                jj = nmlat-j+1
+             end if
+             do i = mlon0_p,mlon1_p
+                fptr2d(i,j) = fline_p(i,jj,isn)%glat(k)
+             end do
+          enddo
+       end if
 
        magField(k) = ESMF_FieldCreate( grid=mag_grid, typekind=ESMF_TYPEKIND_R8, rc=rc)
        call edyn3D_esmf_chkerr(subname,'ESMF_FieldCreate magField',rc)
@@ -217,24 +222,28 @@ contains
             termorderflag=ESMF_TERMORDER_SRCSEQ, rc=rc)
        call edyn3D_esmf_chkerr(subname,'ESMF_FieldRegrid phys2mag',rc)
 
-       call ESMF_FieldGet(magField(k), localDe=0, farrayPtr=fptr2d, &
-            computationalLBound=lbnd2d, computationalUBound=ubnd2d, rc=rc)
-       call edyn3D_esmf_chkerr(subname,'ESMF_FieldGet physField',rc)
+       if (mytid<ntask) then
 
-       nmlat = (nmlat_h - (k-1))*2
+          call ESMF_FieldGet(magField(k), localDe=0, farrayPtr=fptr2d, &
+               computationalLBound=lbnd2d, computationalUBound=ubnd2d, rc=rc)
+          call edyn3D_esmf_chkerr(subname,'ESMF_FieldGet physField',rc)
 
-       do j = lbnd2d(2), ubnd2d(2)
-          if (j<=nmlat_h-(k-1)) then
-             isn = 1
-             jj = j
-          else
-             isn = 2
-             jj = nmlat-j+1
-          end if
-          do i = lbnd2d(1), ubnd2d(1)
-             magfld(mlon0_p-1+i,jj,isn)%fld(k) = fptr2d(i,j)
+          nmlat = (nmlat_h - (k-1))*2
+
+          do j = lbnd2d(2), ubnd2d(2)
+             if (j<=nmlat_h-(k-1)) then
+                isn = 1
+                jj = j
+             else
+                isn = 2
+                jj = nmlat-j+1
+             end if
+             do i = lbnd2d(1), ubnd2d(1)
+                magfld(i,jj,isn)%fld(k) = fptr2d(i,j)
+             end do
           end do
-       end do
+
+       end if
 
     end do
 
@@ -267,24 +276,28 @@ contains
 
     do k = 1,nhgt_fix
 
-       call ESMF_FieldGet(magField(k), localDe=0, farrayPtr=fptr2d, &
-            computationalLBound=lbnd2d, computationalUBound=ubnd2d, rc=rc)
-       call edyn3D_esmf_chkerr(subname,'ESMF_FieldGet physField',rc)
+       if (mytid<ntask) then
 
-       nmlat = (nmlat_h - (k-1))*2
+          call ESMF_FieldGet(magField(k), localDe=0, farrayPtr=fptr2d, &
+               computationalLBound=lbnd2d, computationalUBound=ubnd2d, rc=rc)
+          call edyn3D_esmf_chkerr(subname,'ESMF_FieldGet physField',rc)
 
-       do j = lbnd2d(2), ubnd2d(2)
-          if (j<=nmlat_h-(k-1)) then
-             isn = 1
-             jj = j
-          else
-             isn = 2
-             jj = nmlat-j+1
-          end if
-          do i = lbnd2d(1), ubnd2d(1)
-             fptr2d(i,j) = magfld(mlon0_p-1+i,jj,isn)%fld(k)
+          nmlat = (nmlat_h - (k-1))*2
+
+          do j = lbnd2d(2), ubnd2d(2)
+             if (j<=nmlat_h-(k-1)) then
+                isn = 1
+                jj = j
+             else
+                isn = 2
+                jj = nmlat-j+1
+             end if
+             do i = lbnd2d(1), ubnd2d(1)
+                fptr2d(i,j) = magfld(i,jj,isn)%fld(k)
+             end do
           end do
-       end do
+
+       end if
 
        call ESMF_FieldRegrid(magField(k), physField, rh_mag2phys(k), &
             termorderflag=ESMF_TERMORDER_SRCSEQ, rc=rc)
