@@ -141,10 +141,6 @@ logical, parameter :: debug=.false.
 
 character(len=32), allocatable :: fieldname(:)    ! names for interstitial output fields
 character(len=32), allocatable :: fieldname_cw(:)    ! names for cloud_borne output fields
-integer, allocatable :: ibl(:)    !  index that points to the larger bin for evaporation
-integer, allocatable :: imx_bl(:)    ! index used to map pure sulfate bin to mixed sulfate bin
-integer, allocatable :: imx_mmr_bl(:)    ! index used to map pure sulfate bin to mixed sulfate bin for mmr
-integer, allocatable :: imx_num_bl(:)    ! index used to map pure sulfate bin to mixed sulfate bin for num
 
 type(carma_aerosol_properties), pointer :: aero_props_obj => null()
 
@@ -219,7 +215,6 @@ subroutine ma_convproc_init
    character(len=32) :: bin_name
    character(len=32) :: bin_name_l    ! bin name of the larger bin
 
-
    call phys_getopts( history_aerosol_out=history_aerosol, &
         convproc_do_aer_out = convproc_do_aer )
 
@@ -264,10 +259,6 @@ subroutine ma_convproc_init
        bin_idx(nbins,nspec_max),      &
        bin_cnst_lq(nbins,nspec_max), &
        bin_cnst_idx(nbins,nspec_max), &
-       ibl(ncnst_tot),              &
-       imx_bl(nbins),              &
-       imx_mmr_bl(nbins),              &
-       imx_num_bl(nbins),              &
        fieldname_cw(ncnst_tot), &
        fieldname(ncnst_tot)  )
 
@@ -310,71 +301,6 @@ subroutine ma_convproc_init
                bin_cnst_idx(m,l) = 0
             end if
         end do
-      end do
-
-      imx = 0
-      imx_mmr = 0
-      imx_num = 0
-      ipr = 0
-      ipr_mmr = 0
-      ipr_num = 0
-      do m = 1, nbins
-         call rad_cnst_get_info_by_bin(0, m, bin_name=bin_name)
-         bin_name_l = ' '
-         if (m.lt.nbins) then
-            call rad_cnst_get_info_by_bin(0, m+1, bin_name=bin_name_l)
-         end if
-         do l = 1, nspec(m) + 2    ! do through nspec plus mmr and number
-            ii = bin_idx(m,l)
-            ibl(ii) = ii
-
-            ! derive index  array for larger bin, for evaporation into larger bi
-            if (l.le.nspec(m)) then !  only for elements
-               call rad_cnst_get_bin_props_by_idx(0, m, l,spectype=spectype)
-            else
-               spectype = 'other'
-            end if
-            ! identification is required for pure and mixed aerosols, mixed aeroosols are moved to larger bin, pure aerosols are moved to mixed sulfate
-
-            if (index(bin_name,'MXAER')>0 .and. index(bin_name_l,'MXAER')>0) then   ! for mixed aerosols
-               ! find larger bin
-               ibl(ii) =  bin_idx(m+1,l)
-               ! define mixed aerosol sulfate index to be used for pure sulfate only
-               if (trim(spectype) == 'sulfate') then
-                  imx = imx + 1
-                  imx_bl(imx) = ibl(ii)
-                  !write(*,*) "MXSULF: m, l, imx, imx_bl(imx), fieldname(ii), spectype ",m, l, imx, imx_bl(imx), fieldname(ii),spectype
-               end if
-               if (l.eq.nspec(m)+1) then !  only for mmr
-                  imx_mmr = imx_mmr + 1
-                  ibl(ii) =  bin_idx(m+1,l)
-                  imx_mmr_bl(imx_mmr) = ibl(ii)
-               end if
-               if (l.eq.nspec(m)+2) then !  only for num
-                  imx_num = imx_num + 1
-                  ibl(ii) =  bin_idx(m+1,l)
-                  imx_num_bl(imx_num) = ibl(ii)
-               end if
-            end if ! MXAER
-
-            if (index(bin_name,'PRSUL')>0 .and. index(bin_name_l,'PRSUL')>0) then  ! assuming  PRSULF and  MXSULF have the same number of bins
-               if (trim(spectype) == 'sulfate') then
-                  ipr = ipr +1
-                  ibl(ii) = imx_bl(ipr)
-               end if
-               if (l.eq.nspec(m)+1) then !  only for mmr reset counter to only go from 1-20 bins
-                  ipr_mmr = ipr_mmr +1
-                  ibl(ii) = imx_mmr_bl(ipr_mmr)
-               end if
-               if (l.eq.nspec(m)+2) then !  only for num reset counter to only go from 1-20 bins
-                  ipr_num= ipr_num +1
-                  ibl(ii) = imx_num_bl(ipr_num)
-               end if
-            end if
-            if (ibl(ii).eq.0) then
-               ibl(ii) = ii
-            end if
-         end do
       end do
 
    end if
@@ -1293,6 +1219,13 @@ subroutine ma_convproc_tend(                                           &
    !Fractional area of ensemble mean updrafts in ZM scheme set to 0.01
    !Chosen to reproduce vertical vecocities in GATEIII GIGALES (Khairoutdinov etal 2009, JAMES)
    real(r8), parameter :: zm_areafrac = 0.01_r8
+
+   real(r8), allocatable :: dcondt_a(:,:)
+   real(r8), allocatable :: dcondt_c(:,:)
+   real(r8), allocatable :: dcondt_resusp_a(:,:)
+   real(r8), allocatable :: dcondt_resusp_c(:,:)
+   integer :: mm
+
 !-----------------------------------------------------------------------
 !
 
@@ -2025,18 +1958,66 @@ k_loop_main_cc: &
       end if
 
 
-
+! ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+! @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+! ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ! make adjustments to dcondt for activated & unactivated aerosol species
 !    pairs to account any (or total) resuspension of convective-cloudborne aerosol
-      call ma_resuspend_convproc( dcondt, dcondt_resusp,   &
-                                  const, dp_i, ktop, kbot_prevap, pcnst_extd )
+
+      allocate( dcondt_a(aero_props_obj%ncnst_tot(),pver) )
+      allocate( dcondt_c(aero_props_obj%ncnst_tot(),pver) )
+      allocate( dcondt_resusp_a(aero_props_obj%ncnst_tot(),pver) )
+      allocate( dcondt_resusp_c(aero_props_obj%ncnst_tot(),pver) )
+
+
+      do n = 1, nbins
+         do ll = 1, nspec(n) + 2
+            l = bin_idx(n,ll)
+            la = l
+            lc = l + ncnst_tot
+
+            mm = aero_props_obj%indexer(n,ll-1)
+
+
+            dcondt_a(mm,:) = dcondt(la,:)
+            dcondt_c(mm,:) = dcondt(lc,:)
+
+         end do
+      end do
+      dcondt_resusp_a(:,:) = 0._r8
+      dcondt_resusp_c(:,:) = 0._r8
+
+      call  ma_resuspend_convproc( dp_i, ktop, kbot_prevap, &
+                                   dcondt_a, dcondt_c, dcondt_resusp_a,  dcondt_resusp_c )
 
       ! Do resuspension of aerosols from rain only when the rain has
       ! totally evaporated.
       if (convproc_do_evaprain_atonce) then
-         dcondt_resusp3d(ncnst_tot+1:pcnst_extd,icol,:) = dcondt_resusp(ncnst_tot+1:pcnst_extd,:)
-         dcondt_resusp(ncnst_tot+1:pcnst_extd,:) = 0._r8
+
+
+         do n = 1, nbins
+            do ll = 1, nspec(n) + 2
+               l = bin_idx(n,ll)
+               la = l
+               lc = l + ncnst_tot
+
+               mm = aero_props_obj%indexer(n,ll-1)
+
+
+               dcondt_resusp3d(lc,icol,:) = dcondt_resusp_c(mm,:)
+            end do
+         end do
+
       end if
+
+      deallocate( dcondt_a )
+      deallocate( dcondt_c )
+      deallocate( dcondt_resusp_a )
+      deallocate( dcondt_resusp_c )
+
+! ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+! @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+! ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
       if ( idiag_in(icol)>0 ) then
          k = 26
@@ -2459,80 +2440,13 @@ end subroutine ma_convproc_tend
          end if
       end do
 
-     ! move dcondt_prevap to larger bin
-      do m = 1, ncnst_tot
-        if (ibl(m).ne.m) then
-          dcondt_prevap(ibl(m),k) = dcondt_prevap(ibl(m),k) + dcondt_prevap(m,k)
-          dcondt_prevap(m,k) = 0._r8
-        end if
-      end do
+      ! resuspension --> create larger aerosols
+      if (convproc_do_evaprain_atonce) then
+         call aero_props_obj%resuspension_resize( dcondt_prevap(:,k) )
+      end if
 
+   end do ! k
 
-     ! PENGFEI'S changes: have not been implemnted at this point.
-     !py       if (ielem .gt. 1) then
-     !py           ptend%q(:, :, icnst) = ptend%q(:,:,icnst) + scavt
-     !py       else
-     !py                           ptend%q(:, :, icnst) = scavt - evapprd
-     !py                             ! add evaporated pure sulfate to mixed sulfate
-     !py                             do i_col = 1, ncol
-     !py                                   do k_ver = 1, pver
-     !py                                     call carma_binredistr(carma, "carma_wetdep", evapprd(i_col,k_ver), 1, 2, ibin, bin_to1, bin_to2, mass_to1, mass_to2)
-     !py                                     ptend%q(i_col,k_ver, icnst4elem(2, bin_to1)) = ptend%q(i_col,k_ver, icnst4elem(2, bin_to1)) + mass_to1
-     !py                                     ptend%q(i_col,k_ver, icnst4elem(2, bin_to2)) = ptend%q(i_col,k_ver, icnst4elem(2, bin_to2)) + mass_to2
-     !py                                  end do
-     !py                             end do
-     !py       end if                             o
-     !END
-
-     ! NOT done for CARMA: not clear how to distributem evaporative aerososols into bigger bins, for not we assume that aerosols evaporate in the same bin.
-     !      if (convproc_do_evaprain_atonce) then
-     !
-     !         call accumulate_to_larger_mode( 'SO4', lptr_so4_a_amode, dcondt_prevap(:,k) )
-     !         call accumulate_to_larger_mode( 'DUST',lptr_dust_a_amode,dcondt_prevap(:,k) )
-     !         call accumulate_to_larger_mode( 'NACL',lptr_nacl_a_amode,dcondt_prevap(:,k) )
-     !         call accumulate_to_larger_mode( 'MSA', lptr_msa_a_amode, dcondt_prevap(:,k) )
-     !         call accumulate_to_larger_mode( 'NH4', lptr_nh4_a_amode, dcondt_prevap(:,k) )
-     !         call accumulate_to_larger_mode( 'NO3', lptr_no3_a_amode, dcondt_prevap(:,k) )
-     !
-     !         spcstr = '    '
-     !         do i = 1,nsoa
-     !            if (nsoa>1) write(spcstr,'(i4)') i
-     !            call accumulate_to_larger_mode( 'SOA'//adjustl(spcstr), lptr2_soa_a_amode(:,i), dcondt_prevap(:,k) )
-     !         enddo
-     !         spcstr = '    '
-     !         do i = 1,npoa
-     !            if (npoa>1) write(spcstr,'(i4)') i
-     !            call accumulate_to_larger_mode( 'POM'//adjustl(spcstr), lptr2_pom_a_amode(:,i), dcondt_prevap(:,k) )
-     !         enddo
-     !         spcstr = '    '
-     !         do i = 1,nbc
-     !            if (nbc>1) write(spcstr,'(i4)') i
-     !            call accumulate_to_larger_mode( 'BC'//adjustl(spcstr), lptr2_bc_a_amode(:,i), dcondt_prevap(:,k) )
-     !         enddo
-     !
-     !      end if
-     !
-     !      pr_flux = max( 0.0_r8, pr_flux-del_pr_flux_evap )
-     !
-     !      if (idiag_prevap > 0) then
-     !         n = 1
-     !         l = numptrcw_amode(n) + pcnst
-     !         tmpa = dcondt_wetdep(l,k)
-     !         tmpb = dcondt_prevap(l,k)
-     !         tmpc = 0.0_r8
-     !         tmpd = 0.0_r8
-     !         do ll = 1, nspec_amode(n)
-     !            l = lmassptrcw_amode(ll,n) + pcnst
-     !            tmpc = tmpc + dcondt_wetdep(l,k)
-     !            tmpd = tmpd + dcondt_prevap(l,k)
-     !         end do
-     !         write(lun,'(a,i4,1p,4(2x,2e10.2))') 'qakx', k, &
-     !            pr_flux_old, pr_flux, del_pr_flux_prod, -del_pr_flux_evap, &
-     !            -tmpa, tmpb, -tmpc, tmpd
-     !      end if
-        end do ! k
-
-     !   return
    end subroutine ma_precpevap_convproc
 
 !=========================================================================================
@@ -3200,10 +3114,11 @@ end subroutine ma_convproc_tend
 
 
 
+
 !=========================================================================================
-   subroutine ma_resuspend_convproc(                           &
-              dcondt,  dcondt_resusp,                          &
-              const,   dp_i,          ktop,  kbot_prevap,  pcnst_extd )
+   subroutine ma_resuspend_convproc( dp_i, ktop, kbot_prevap, &
+                                     dcondt_a, dcondt_c, dcondt_resusp_a,  dcondt_resusp_c )
+
 !-----------------------------------------------------------------------
 !
 ! Purpose:
@@ -3235,99 +3150,37 @@ end subroutine ma_convproc_tend
 !
 !-----------------------------------------------------------------------
 
-   !st use modal_aero_data, only:  lmassptr_amode, lmassptrcw_amode, &
-   !st   nspec_amode, ntot_amode, numptr_amode, numptrcw_amode
+     !-----------------------------------------------------------------------
+     ! arguments
+     ! (note:  TMR = tracer mixing ratio)
+     real(r8), intent(in)    :: dp_i(pver) ! pressure thickness of level (in mb)
+     integer,  intent(in)    :: ktop, kbot_prevap ! indices of top and bottom cloud levels
 
-   implicit none
+     real(r8), intent(inout) :: dcondt_a(:,:) ! ambient
+     ! overall TMR tendency from convection
+     real(r8), intent(inout) :: dcondt_c(:,:) ! cloud-borne
+     ! overall TMR tendency from convection
+     real(r8), intent(inout) :: dcondt_resusp_a(:,:) ! ambient
+     ! portion of TMR tendency due to resuspension
+     ! (actually, due to the adjustments made here)
+     real(r8), intent(inout) :: dcondt_resusp_c(:,:) ! cloud-borne
+     ! portion of TMR tendency due to resuspension
+     ! (actually, due to the adjustments made here)
 
-!-----------------------------------------------------------------------
-! arguments
-! (note:  TMR = tracer mixing ratio)
-   integer,  intent(in)    :: pcnst_extd
-   real(r8), intent(inout) :: dcondt(pcnst_extd,pver)
-                              ! overall TMR tendency from convection
-   real(r8), intent(inout) :: dcondt_resusp(pcnst_extd,pver)
-                              ! portion of TMR tendency due to resuspension
-                              ! (actually, due to the adjustments made here)
-   real(r8), intent(in)    :: const(pcnst_extd,pver)  ! TMRs before convection
+     if (convproc_do_evaprain_atonce) then
+        dcondt_resusp_a(:,:) = dcondt_a(:,:)
+        dcondt_resusp_c(:,:) = dcondt_c(:,:)
+     else
+        dcondt_a(:,:) = dcondt_a(:,:) + dcondt_c(:,:)
+        dcondt_c(:,:) = 0.0_r8
 
-   real(r8), intent(in)    :: dp_i(pver) ! pressure thickness of level (in mb)
-   integer,  intent(in)    :: ktop, kbot_prevap ! indices of top and bottom cloud levels
+        dcondt_resusp_a(:,:) = 0.0_r8
+        dcondt_resusp_c(:,:) = 0.0_r8
+     end if
 
-!-----------------------------------------------------------------------
-! local variables
-   integer  :: k, ll, la, lc, n, l
-   real(r8) :: qa, qc, qac           ! working variables (mixing ratios)
-   real(r8) :: qdota, qdotc, qdotac  ! working variables (MR tendencies)
-!-----------------------------------------------------------------------
-
-
-!st   do n = 1, ntot_amode
-!st
-!st      do ll = 0, nspec_amode(n)
-!st         if (ll == 0) then
-!st            la = numptr_amode(n)
-!st            lc = numptrcw_amode(n) + pcnst
-!st         else
-!st            la = lmassptr_amode(ll,n)
-!st            lc = lmassptrcw_amode(ll,n) + pcnst
-!st         end if
-
-! apply adjustments to dcondt for pairs of unactivated (la) and
-! activated (lc) aerosol species
-!st         if ( (la <= 0) .or. (la > pcnst_extd) ) cycle
-!st         if ( (lc <= 0) .or. (lc > pcnst_extd) ) cycle
-!st
-     do n = 1, nbins
-
-        do ll = 1, nspec(n) + 2
-           l = bin_idx(n,ll)
-           la = l
-           lc = l + ncnst_tot
-
-           do k = ktop, kbot_prevap
-               qdota = dcondt(la,k)
-               qdotc = dcondt(lc,k)
-               qdotac = qdota + qdotc
-
-! mirage2 approach
-!           qa = max( const(la,k), 0.0_r8 )
-!           qc = max( const(lc,k), 0.0_r8 )
-!           qac = qa + qc
-!           if (qac <= 0.0) then
-!              dcondt(la,k) = qdotac
-!              dcondt(lc,k) = 0.0
-!           else
-!              dcondt(la,k) = qdotac*(qa/qac)
-!              dcondt(lc,k) = qdotac*(qc/qac)
-!           end if
-
-! cam5 approach
-              if (convproc_do_evaprain_atonce) then
-                  dcondt(la,k) = qdota
-                  dcondt(lc,k) = qdotc
-
-                  dcondt_resusp(la,k) = dcondt(la,k)
-                  dcondt_resusp(lc,k) = dcondt(lc,k)
-               else
-                  dcondt(la,k) = qdotac
-                  dcondt(lc,k) = 0.0_r8
-
-                  dcondt_resusp(la,k) = (dcondt(la,k) - qdota)
-                  dcondt_resusp(lc,k) = (dcondt(lc,k) - qdotc)
-               end if
-            end do
-
-         end do   ! "ll = -1, nspec_amode(n)"
-      end do      ! "n = 1, ntot_amode"
-
-   return
    end subroutine ma_resuspend_convproc
 
 
-
 !=========================================================================================
-
-
 
 end module carma_aero_convproc

@@ -13,6 +13,7 @@ module carma_aerosol_properties_mod
 
   type, extends(aerosol_properties) :: carma_aerosol_properties
      private
+     integer, allocatable :: ibl(:)
    contains
      procedure :: number_transported
      procedure :: get
@@ -34,6 +35,7 @@ module carma_aerosol_properties_mod
      procedure :: soluble
      procedure :: min_mass_mean_rad
      procedure :: bin_name
+     procedure :: resuspension_resize
 
      final :: destructor
   end type carma_aerosol_properties
@@ -50,13 +52,23 @@ contains
 
     type(carma_aerosol_properties), pointer :: newobj
 
-    integer :: m, nbins, ncnst_tot
+    integer :: l, m, nbins, ncnst_tot
     integer,allocatable :: nspecies(:)
     integer,allocatable :: nmasses(:)
     real(r8),allocatable :: alogsig(:)
     real(r8),allocatable :: f1(:)
     real(r8),allocatable :: f2(:)
     integer :: ierr
+
+    integer, pointer :: ibl(:)
+    integer :: ii, imx, imx_num, imx_mmr, ipr, ipr_num, ipr_mmr
+    character(len=32) :: spectype
+    character(len=32) :: bin_name
+    character(len=32) :: bin_name_l    ! bin name of the larger bin
+
+    integer, allocatable :: imx_bl(:)     ! index used to map pure sulfate bin to mixed sulfate bin
+    integer, allocatable :: imx_mmr_bl(:) ! index used to map pure sulfate bin to mixed sulfate bin for mmr
+    integer, allocatable :: imx_num_bl(:) ! index used to map pure sulfate bin to mixed sulfate bin for num
 
     allocate(newobj,stat=ierr)
     if( ierr /= 0 ) then
@@ -114,6 +126,91 @@ contains
     deallocate(alogsig)
     deallocate(f1)
     deallocate(f2)
+
+    allocate(newobj%ibl(ncnst_tot),stat=ierr)
+    if( ierr /= 0 ) then
+       nullify(newobj)
+       return
+    end if
+    ibl => newobj%ibl
+
+    ibl = -1
+
+    allocate(imx_num_bl(nbins))
+    allocate(imx_mmr_bl(nbins))
+    allocate(imx_bl(nbins))
+
+    imx = 0
+    imx_mmr = 0
+    imx_num = 0
+    ipr = 0
+    ipr_mmr = 0
+    ipr_num = 0
+
+    do m = 1,nbins
+       bin_name = newobj%bin_name(0,m)
+       bin_name_l = ' '
+       if (m<nbins) then
+          bin_name_l = newobj%bin_name(0,m+1)
+       end if
+
+       do l = 0,newobj%nmasses(m)
+          ii = newobj%indexer(m,l)
+          ibl(ii) = ii
+
+          ! derive index  array for larger bin, for evaporation into larger bi
+          if (l>0 .and. l<=newobj%nspecies(m)) then
+             call newobj%species_type(m,l,spectype)
+          else
+             spectype = 'other'
+          end if
+          ! identification is required for pure and mixed aerosols, mixed aeroosols are moved to
+          ! larger bin, pure aerosols are moved to mixed sulfate
+
+
+          if (index(bin_name,'MXAER')>0 .and. index(bin_name_l,'MXAER')>0) then
+             ! for mixed aerosols
+             ! find larger bin
+             ibl(ii) = newobj%indexer(m+1,l)
+             ! define mixed aerosol sulfate index to be used for pure sulfate only
+             if (trim(spectype) == 'sulfate') then
+                imx = imx + 1
+                imx_bl(imx) = ibl(ii)
+             end if
+             if (l == newobj%nspecies(m)+1) then !  only for mmr
+                imx_mmr = imx_mmr + 1
+                ibl(ii) = newobj%indexer(m+1,l)
+                imx_mmr_bl(imx_mmr) = ibl(ii)
+             end if
+             if (l == 0) then !  only for num
+                imx_num = imx_num + 1
+                ibl(ii) =  newobj%indexer(m+1,l)
+                imx_num_bl(imx_num) = ibl(ii)
+             end if
+          end if ! MXAER
+
+          if (index(bin_name,'PRSUL')>0 .and. index(bin_name_l,'PRSUL')>0) then
+             ! assuming  PRSULF and  MXSULF have the same number of bins
+             if (trim(spectype) == 'sulfate') then
+                ipr = ipr +1
+                ibl(ii) = imx_bl(ipr)
+             end if
+             if (l == newobj%nspecies(m)+1) then ! only for mmr reset counter to only go from 1-20 bins
+                ipr_mmr = ipr_mmr + 1
+                ibl(ii) = imx_mmr_bl(ipr_mmr)
+             end if
+             if (l == 0 ) then ! only for num reset counter to only go from 1-20 bins
+                ipr_num = ipr_num + 1
+                ibl(ii) = imx_num_bl(ipr_num)
+             end if
+          end if
+          if (ibl(ii).eq.0) then
+             ibl(ii) = ii
+          end if
+       end do
+    end do
+
+    deallocate(imx_mmr_bl, imx_num_bl, imx_bl)
 
   end function constructor
 
@@ -563,5 +660,25 @@ contains
     call rad_cnst_get_info_by_bin(list_ndx, bin_ndx, bin_name=name)
 
   end function bin_name
+
+  !------------------------------------------------------------------------------
+  ! adjust aerosol concentration tendencies to create larger sizes of aerosols
+  ! during resuspension
+  !------------------------------------------------------------------------------
+  subroutine resuspension_resize(self, dcondt)
+    class(carma_aerosol_properties), intent(in) :: self
+    real(r8), intent(inout) :: dcondt(:)
+
+    integer :: m
+
+    ! move dcondt_prevap to larger bin
+    do m = 1, self%ncnst_tot()
+       if (self%ibl(m) /= m) then
+          dcondt(self%ibl(m)) = dcondt(self%ibl(m)) + dcondt(m)
+          dcondt(m) = 0._r8
+       end if
+    end do
+
+  end subroutine resuspension_resize
 
 end module carma_aerosol_properties_mod

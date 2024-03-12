@@ -1642,7 +1642,7 @@ contains
                    mm = lmassptrcw_amode(lspec,m)
                 endif
                 fldcw => qqcw_get_field(pbuf, mm,lchnk)
-                fldcw(:ncol,:) = fldcw(:ncol,:) + dcondt_resusp3d(mm,:ncol,:)*dt
+                fldcw(:ncol,:) = fldcw(:ncol,:) + dcondt_resusp3d(mm+pcnst,:ncol,:)*dt
              end do ! loop over number + chem constituents
           end do ! m aerosol modes
        end if

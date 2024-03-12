@@ -36,6 +36,7 @@ module modal_aerosol_properties_mod
      procedure :: soluble
      procedure :: min_mass_mean_rad
      procedure :: bin_name
+     procedure :: resuspension_resize
 
      final :: destructor
   end type modal_aerosol_properties
@@ -664,5 +665,85 @@ contains
     call rad_cnst_get_info(list_ndx, bin_ndx, mode_type=name)
 
   end function bin_name
+
+  !------------------------------------------------------------------------------
+  ! adjust aerosol concentration tendencies to create larger sizes of aerosols
+  ! during resuspension
+  !------------------------------------------------------------------------------
+  subroutine resuspension_resize(self, dcondt)
+
+    use modal_aero_data, only: lptr_so4_a_amode, lptr_dust_a_amode, lptr_nacl_a_amode, mode_size_order
+    use modal_aero_data, only: lptr_msa_a_amode, lptr_nh4_a_amode, lptr_no3_a_amode, ntot_amode
+    use modal_aero_data, only: lptr2_pom_a_amode, lptr2_soa_a_amode, lptr2_bc_a_amode, nsoa, npoa, nbc
+
+    class(modal_aerosol_properties), intent(in) :: self
+    real(r8), intent(inout) :: dcondt(:)
+
+    integer :: i
+    character(len=4) :: spcstr
+
+    call accumulate_to_larger_mode( 'SO4', lptr_so4_a_amode, dcondt )
+    call accumulate_to_larger_mode( 'DUST',lptr_dust_a_amode,dcondt )
+    call accumulate_to_larger_mode( 'NACL',lptr_nacl_a_amode,dcondt )
+    call accumulate_to_larger_mode( 'MSA', lptr_msa_a_amode, dcondt )
+    call accumulate_to_larger_mode( 'NH4', lptr_nh4_a_amode, dcondt )
+    call accumulate_to_larger_mode( 'NO3', lptr_no3_a_amode, dcondt )
+
+    spcstr = '    '
+    do i = 1,nsoa
+       write(spcstr,'(i4)') i
+       call accumulate_to_larger_mode( 'SOA'//adjustl(spcstr), lptr2_soa_a_amode(:,i), dcondt )
+    enddo
+    spcstr = '    '
+    do i = 1,npoa
+       write(spcstr,'(i4)') i
+       call accumulate_to_larger_mode( 'POM'//adjustl(spcstr), lptr2_pom_a_amode(:,i), dcondt )
+    enddo
+    spcstr = '    '
+    do i = 1,nbc
+       write(spcstr,'(i4)') i
+       call accumulate_to_larger_mode( 'BC'//adjustl(spcstr), lptr2_bc_a_amode(:,i), dcondt )
+    enddo
+
+  contains
+
+    !------------------------------------------------------------------------------
+    subroutine accumulate_to_larger_mode( spc_name, lptr, prevap )
+
+      use cam_logfile, only: iulog
+      use spmd_utils, only: masterproc
+
+      character(len=*), intent(in) :: spc_name
+      integer,  intent(in) :: lptr(:)
+      real(r8), intent(inout) :: prevap(:)
+
+      integer :: m,n, nl,ns
+
+      logical, parameter :: debug = .false.
+
+      ! find constituent index of the largest mode for the species
+      loop1: do m = 1,ntot_amode-1
+         nl = lptr(mode_size_order(m))
+         if (nl>0) exit loop1
+      end do loop1
+
+      if (.not. nl>0) return
+
+      ! accumulate the smaller modes into the largest mode
+      do n = m+1,ntot_amode
+         ns = lptr(mode_size_order(n))
+         if (ns>0) then
+            prevap(nl) = prevap(nl) + prevap(ns)
+            prevap(ns) = 0._r8
+            if (masterproc .and. debug) then
+               write(iulog,'(a,i3,a,i3)') trim(spc_name)//' mode number accumulate ',ns,'->',nl
+            endif
+         endif
+      end do
+
+    end subroutine accumulate_to_larger_mode
+    !------------------------------------------------------------------------------
+
+  end subroutine resuspension_resize
 
 end module modal_aerosol_properties_mod
