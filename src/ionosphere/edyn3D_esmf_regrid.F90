@@ -91,7 +91,7 @@ contains
     allocate(petmap(ntask,1,1))
 
     do i = 1,ntask
-       nmlons_task = tasks(i-1)%nmaglons
+       nmlons_task(i) = tasks(i-1)%nmaglons
        petmap(i,1,1) = i-1
     end do
 
