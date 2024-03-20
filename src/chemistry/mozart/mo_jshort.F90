@@ -71,6 +71,9 @@
       real(r8), allocatable :: xs_o3b(:)
       real(r8), allocatable :: xs_wl(:,:)
 
+      real(r8), parameter :: o2xs_llimit = 38._r8 ! ln(NO2) lower limit
+      real(r8), parameter :: o2xs_ulimit = 56._r8 ! ln(NO2) upper limit
+
       contains
 
       subroutine jshort_init( xs_coef_file, xs_short_file, sht_indexer )
@@ -1492,13 +1495,13 @@
 
       do k = 1,nlev
 	x  = log( o2col(k) )
-	if( x >= 38._r8 .and. x <= 56._r8 ) then
+	if( x >= o2xs_llimit .and. x <= o2xs_ulimit ) then
           call effxs( x, tlev(k), xs )
           xscho2(k,:) = xs(:)
-	else if( x < 38._r8 ) then
+	else if( x < o2xs_llimit ) then
 	   ktop1 = k-1
            ktop  = min( ktop1,ktop )
-	else if( x > 56._r8 ) then
+	else if( x > o2xs_ulimit ) then
 	   kbot = k
 	end if
       end do
@@ -1601,9 +1604,9 @@
 !     method:
 !     ln(xs) = A(X)[T-220]+B(X)
 !     X = log of slant column of O2
-!     A,B calculated from chebyshev polynomial coeffs
-!     AC and BC using NR routine chebev.  Assume interval
-!     is 38<ln(NO2)<56.
+!     A,B calculated from Chebyshev polynomial coeffs
+!     AC and BC using Clenshaw summation algorithm.
+!     Assume interval is 38<ln(NO2)<56.
 !
 !     Revision History:
 !
@@ -1652,56 +1655,18 @@
 !-------------------------------------------------------------
       integer :: i
 
-!-------------------------------------------------------------
-!     ... call chebyshev evaluation routine to calc a and b from
-!	    set of 20 coeficients for each wavelength
-!-------------------------------------------------------------
-      do i = 1,nsrbtuv
-        a(i) = jchebev( 38._r8, 56._r8, ac(1,i), 20, x )
-        b(i) = jchebev( 38._r8, 56._r8, bc(1,i), 20, x )
-      end do
-
-      contains
-
-      function jchebev( a, b, c, m, x )
-!-------------------------------------------------------------
-!     Chebyshev evaluation algorithm
-!     See Numerical recipes p193
-!-------------------------------------------------------------
-
-!-------------------------------------------------------------
-!	... Dummy arguments
-!-------------------------------------------------------------
-      integer, intent(in)     :: m
-      real(r8), intent(in)    :: a, b, x
-      real(r8), intent(in)    :: c(m)
-
-      real(r8) :: jchebev
-!-------------------------------------------------------------
-!	... Local variables
-!-------------------------------------------------------------
-      integer  :: j
-      real(r8) :: d, dd, sv, y, y2
-
-      if( (x - a)*(x - b) > 0._r8 ) then
-	  write(iulog,*) 'x not in range in chebev', x
-	  jchebev = 0._r8
-	  return
+      if (x<o2xs_llimit .or. x>o2xs_ulimit) then
+         call endrun('mo_jshort::effxs of O2: x is not in the valid range. ')
       end if
 
-      d  = 0._r8
-      dd = 0._r8
-      y  = (2._r8*x - a - b)/(b - a)
-      y2 = 2._r8*y
-      do j = m,2,-1
-        sv = d
-        d  = y2*d - dd + c(j)
-        dd = sv
+!-------------------------------------------------------------
+!     ... evaluate at each wavelength
+!	  for a set of 20 Chebyshev coeficients
+!-------------------------------------------------------------
+      do i = 1,nsrbtuv
+         a(i) = evalchebpoly( o2xs_llimit, o2xs_ulimit, ac(1,i), 20, x )
+         b(i) = evalchebpoly( o2xs_llimit, o2xs_ulimit, bc(1,i), 20, x )
       end do
-
-      jchebev = y*d - dd + .5_r8*c(1)
-
-      end function jchebev
 
       end subroutine calc_params
 
@@ -1873,5 +1838,39 @@
       end function pjno
 
       end subroutine calc_jno
+
+      ! for O2 cross section calc
+      ! Evaluate Chebyshev polynomial at point [pnt − (lim2 + lim1)/2]/[(lim2 − lim1)/2]
+      ! given coefficients coefs within limits lim1 and lim2
+      function evalchebpoly(lim1,lim2,coefs,ncoef,pnt) result(cval)
+
+        integer, intent(in) :: ncoef
+        real(r8), intent(in) :: lim1,lim2,pnt
+        real(r8), intent(in) :: coefs(ncoef)
+        real(r8) :: cval
+        real(r8) :: fac1,fac2
+
+        fac1 = (2._r8*pnt-lim1-lim2)/(lim2-lim1)
+        fac2 = 2._r8*fac1
+
+        cval = fac1*clenshaw(2) - clenshaw(3) + 0.5_r8*coefs(1)
+
+      contains
+
+        ! Clenshaw summation
+        recursive function clenshaw(ndx) result(csum)
+
+          integer, intent(in) :: ndx
+          real(r8) :: csum
+
+          if (ndx==ncoef+2 .or. ndx==ncoef+1) then
+             csum = 0.0_r8
+          else
+             csum = fac2*clenshaw(ndx+1) - clenshaw(ndx+2) + coefs(ndx)
+          end if
+
+        end function clenshaw
+
+      end function evalchebpoly
 
       end module mo_jshort
