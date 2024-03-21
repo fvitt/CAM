@@ -471,6 +471,8 @@ contains
                 horiz_only,  'A','kg/m2/s','Wet deposition flux (precip evap, stratiform) at surface')
              call addfld (trim(fieldname_cw(mm))//'SFSBD', &
                 horiz_only,  'A','kg/m2/s','Wet deposition flux (belowcloud, deep convective) at surface')
+             call addfld( trim(fieldname_cw(mm))//'RSPTD', (/ 'lev' /), 'A', unit_basename//'/kg/s',   &
+                trim(fieldname_cw(mm))//' resuspension tendency')
           end if
 
 
@@ -490,6 +492,7 @@ contains
                 call add_default (trim(fieldname_cw(mm))//'SFSEC', 1, ' ')
                 call add_default (trim(fieldname_cw(mm))//'SFSES', 1, ' ')
                 call add_default (trim(fieldname_cw(mm))//'SFSBD', 1, ' ')
+                call add_default (trim(fieldname_cw(mm))//'RSPTD', 1, ' ')
              end if
           endif
        enddo
@@ -1339,6 +1342,7 @@ contains
                 mm = bin_idx(m, l)
                 lc = mm + ncnst_tot
                 qqcw(mm)%fld(:ncol,:) = qqcw(mm)%fld(:ncol,:) + dcondt_resusp3d(lc,:ncol,:)*dt
+                call outfld( trim(fieldname_cw(mm))//'RSPTD', dcondt_resusp3d(lc,:ncol,:), ncol, lchnk )
              end do ! loop over number + mmr +  chem constituents
           end do ! m aerosol modes
        end if
