@@ -7159,6 +7159,12 @@ Perturbation applied to the upper boundary temperature.
 Default: 0.0
 </entry>
 
+<entry id="msis_params_filepath" type="char*512" input_pathname="abs" category="upper_boundary"
+       group="upper_bc_opts" valid_values="" >
+Full path of the NRLMSIS parameters file.
+Default: NONE
+</entry>
+
 <entry id="ubc_specifier" type="char*64(pcnst)"  category="upper_boundary"
        group="upper_bc_opts" valid_values="" >
 

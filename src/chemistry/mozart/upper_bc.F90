@@ -79,6 +79,8 @@ module upper_bc
   integer           :: tgcm_ubc_fixed_tod = 0
   character(len=32) :: tgcm_ubc_data_type = 'CYCLICAL'
 
+  character(len=cl) :: msis_params_filepath = 'NONE'
+
   logical :: apply_upper_bc = .false.
 
   integer, allocatable :: file_spc_ndx(:)
@@ -103,7 +105,7 @@ contains
 
     namelist /upper_bc_opts/ tgcm_ubc_file,tgcm_ubc_data_type,tgcm_ubc_cycle_yr,tgcm_ubc_fixed_ymd, &
                              tgcm_ubc_fixed_tod, snoe_ubc_file, no_xfac_ubc, t_pert_ubc
-    namelist /upper_bc_opts/ ubc_specifier
+    namelist /upper_bc_opts/ ubc_specifier, msis_params_filepath
 
     if (masterproc) then
        ! read namelist
@@ -118,6 +120,7 @@ contains
        close(unitn)
 
        ! log the UBC options
+       write(iulog,*) prefix//'msis_params_filepath = '//trim(msis_params_filepath)
        write(iulog,*) prefix//'tgcm_ubc_file = '//trim(tgcm_ubc_file)
        write(iulog,*) prefix//'tgcm_ubc_data_type = '//trim(tgcm_ubc_data_type)
        write(iulog,*) prefix//'tgcm_ubc_cycle_yr = ', tgcm_ubc_cycle_yr
@@ -200,6 +203,9 @@ contains
     call mpi_bcast(ubc_source,    pcnst*len(ubc_source(1)),    mpi_character,masterprocid, mpicom, ierr)
     if (ierr /= 0) call endrun(prefix//'mpi_bcast error : ubc_source')
 
+    call mpi_bcast(msis_params_filepath, len(msis_params_filepath), mpi_character, masterprocid, mpicom, ierr)
+    if (ierr /= 0) call endrun(prefix//'mpi_bcast error : msis_params_filepath')
+
     apply_upper_bc = num_fixed>0
 
     if (apply_upper_bc) then
@@ -222,7 +228,6 @@ contains
     use upper_bc_file, only: upper_bc_file_init
 
     !---------------------------Local workspace-----------------------------
-    logical, parameter :: zonal_avg = .false.
     integer :: m, mm, ierr
     integer :: mmrndx, vmrndx, m_mmr, m_vmr
 
@@ -354,7 +359,8 @@ contains
        !-----------------------------------------------------------------------
        !       ... initialize the msis module
        !-----------------------------------------------------------------------
-       call msis_ubc_inti( zonal_avg, n_msis_ndx,h_msis_ndx,o_msis_ndx,o2_msis_ndx )
+       call msis_ubc_inti( n_msis_ndx,h_msis_ndx,o_msis_ndx,o2_msis_ndx, &
+                           msis_params_filepath )
        if (masterproc) write(iulog,*) 'ubc_init: after msis_ubc_inti'
     endif
 

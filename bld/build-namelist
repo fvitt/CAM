@@ -105,7 +105,7 @@ if ($ProgDir) {
 }
 
 # CAM root directory.
-my $cam_root = absolute_path("$cfgdir/../../..");
+my $cam_root = absolute_path("$cfgdir/..");
 
 my $cfg_cache = "config_cache.xml";           # Default name of configuration cache file
 my $outdirname = ".";                         # Default name of output directory name
@@ -2904,6 +2904,10 @@ if ($chem =~ /waccm_ma/ or $chem =~ /waccm_tsmlt/) {
 
     # max cross cap electric potential of 120 kV to keep WACCM stable through large geo-mag storms
     add_default($nl, 'efield_potential_max', 'val'=>'120.D0');
+
+    # NRLMSIS parameters filepath
+    my $msis_parm_filepath = $cam_root . '/src/chemistry/utils/nrlmsis2.1/msis21.parm';
+    add_default($nl, 'msis_params_filepath', 'val'=>$msis_parm_filepath);
 }
 
 # Determine the source of the prescribed GHG values.
@@ -3226,7 +3230,7 @@ if ($cfg->get('microphys') =~ /^mg/) {
         my $abs_path = quote_string(set_abs_filepath($rel_path, $cam_dir));
         #overwrite the relative pathname with the absolute pathname
         $nl->set_variable_value('pumas_stochastic_tau_nl', 'pumas_stochastic_tau_kernel_filename', $abs_path);
-      
+
     }else {
     # For CESM2, the decision was made to set micro_do_sb_physics to false
     # This variable is replaced with micro_mg_warm_rain in cam_dev runs

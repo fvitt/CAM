@@ -1,5 +1,4 @@
-#define MSIS_DIAGS
-module mo_msis_ubc
+      module mo_msis_ubc
 !---------------------------------------------------------------
 !	... msis upper bndy values
 !---------------------------------------------------------------
@@ -10,6 +9,7 @@ module mo_msis_ubc
       use cam_abortutils,   only: endrun
       use cam_logfile,      only: iulog
       use cam_history,      only: addfld, horiz_only, outfld
+      use infnan,           only: nan, assignment(=)
 
       implicit none
 
@@ -21,33 +21,38 @@ module mo_msis_ubc
       integer                :: ndx_n=-1, ndx_h=-1, ndx_o=-1, ndx_o2=-1 ! n, h, o, o2 spc indicies
       real(r8), allocatable  :: msis_ubc(:,:,:)                       ! module array for msis ub values (kg/kg)
 
-      logical                :: zonal_average         = .false.       ! use zonal averaged tgcm values
-
       contains
 
-      subroutine msis_ubc_inti( zonal_avg_in, n_ndx_in,h_ndx_in,o_ndx_in,o2_ndx_in )
+      subroutine msis_ubc_inti( n_ndx_in,h_ndx_in,o_ndx_in,o2_ndx_in, params_filepath )
 !------------------------------------------------------------------
 !	... initialize upper boundary values
 !------------------------------------------------------------------
 
-        use ppgrid, only : pcols, begchunk, endchunk
-        use msis_init, only: msisinit
+      use ppgrid, only : pcols, begchunk, endchunk
+      use msis_init, only: msisinit
 
 !------------------------------------------------------------------
 !	... dummy args
 !------------------------------------------------------------------
-      logical, intent(in) :: zonal_avg_in  ! zonal averaging switch
       integer, intent(in) :: n_ndx_in,h_ndx_in,o_ndx_in,o2_ndx_in
+      character(len=*), intent(in) :: params_filepath
 
 !------------------------------------------------------------------
 !	... local variables
 !------------------------------------------------------------------
       integer  :: astat
-      real(r8) :: msis_switches(25) = 1._r8
+      logical  :: msis_spec_switch(10)
 
-      call msisinit(parmpath='/terminator-data1/home/fvitt/camdev/waccm_msis_update/src/chemistry/utils/nrlmsis2.1/')
+      msis_spec_switch(:) = .false.
+      msis_spec_switch(1) = .true. ! Mass density
+      msis_spec_switch(3) = .true. ! O2
+      msis_spec_switch(4) = .true. ! O
+      msis_spec_switch(6) = .true. ! H
+      msis_spec_switch(8) = .true. ! N
 
-      zonal_average = zonal_avg_in
+      call msisinit( parmfile=params_filepath, &
+           lspec_select = msis_spec_switch, &
+           lzalt_type = .false. ) ! lzalt_type=.false. for geopotential heights
 
       if (h_ndx_in>0) then
          ndx_h = h_ndx_in
@@ -70,16 +75,7 @@ module mo_msis_ubc
          write(iulog,*) 'msis_ubc_inti: failed to allocate msis_ubc; error = ',astat
          call endrun('msis_ubc_inti: failed to allocate msis_ubc')
       end if
-
-      if( zonal_average ) then
-         msis_switches(7:8)   = 0._r8
-         msis_switches(10:14) = 0._r8
-      end if
-
-!------------------------------------------------------------------
-!	... initialize msis switches
-!------------------------------------------------------------------
-      call tselec( msis_switches )
+      msis_ubc(:,:,:) = nan
 
       call addfld( 'MSIS_T', horiz_only, 'A', 'K',     'T upper boundary condition from MSIS')
       call addfld( 'MSIS_H', horiz_only, 'A', 'kg/kg', 'H upper boundary condition from MSIS')
