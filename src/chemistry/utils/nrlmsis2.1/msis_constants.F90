@@ -21,10 +21,12 @@ module msis_constants
 
   ! Floating Point Precision
 #ifdef DBLE
-  integer, parameter         :: rp = 8
+  integer, parameter         :: rp = selected_real_kind(12) ! 8 byte real
 #else
-  integer, parameter         :: rp = 4
+  integer, parameter         :: rp = selected_real_kind( 6) ! 4 byte real
 #endif
+  integer, parameter         :: r4 = selected_real_kind( 6) ! 4 byte real
+  integer, parameter         :: r8 = selected_real_kind(12) ! 8 byte real
 
   ! Missing density value
   real(kind=rp),parameter    :: dmissing = 9.999e-38_rp

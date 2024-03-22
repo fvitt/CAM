@@ -87,7 +87,7 @@ contains
   subroutine msiscalc(day,utsec,z,lat,lon,sfluxavg,sflux,ap,tn,dn,tex)
 
     use msis_constants, only    : rp, dmissing, lnp0, Mbarg0divkB, kB, nspec, nodesTN, nd, zetaF, zetaB, &
-                                  Hgamma, zetagamma, maxnbf
+                                  Hgamma, zetagamma, maxnbf, r8
     use msis_init, only         : msisinit, initflag, zaltflag, specflag, massflag, masswgt, etaTN
     use msis_gfn, only          : globe
     use msis_tfn, only          : tnparm, tfnparm, tfnx
@@ -119,10 +119,12 @@ contains
     type(tnparm), save         :: tpro
     type(dnparm), save         :: dpro(1:nspec-1)
 
-    real(8)                    :: zaltd, latd
+    real(r8)                   :: zaltd, latd
     real(kind=rp)              :: zeta, lndtotz, Vz, Wz, HRfact, lnPz, delz
     integer                    :: i, j, kmax, ispec
 
+    dn(:) = 0.0_rp
+    
     ! Check if model has been initialized; if not, perform default initialization
     if (.not. initflag) call msisinit()
 

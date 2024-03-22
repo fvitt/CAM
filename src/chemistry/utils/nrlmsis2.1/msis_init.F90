@@ -100,7 +100,7 @@
 !**************************************************************************************************
 module msis_init
 
-  use msis_constants, only    : rp, nspec, nl, maxnbf, mbf
+  use msis_constants, only    : rp, nspec, nl, maxnbf, mbf, r4, r8
 
   implicit none
   
@@ -117,7 +117,7 @@ module msis_init
   logical       :: smod(0:nl) = .false.         !Flags which temperature levels get solar flux modulation; loadparmset turns flags on based on parameter values
   logical       :: swg(0:maxnbf-1) = .true.     !Switch array for globe subroutine.
   real(kind=rp) :: masswgt(1:nspec-1)  = 0.0_rp !Weights for calculating mass density
-  real(4)       :: swleg(1:25)=1.0, swc(1:25), sav(1:25) !Legacy switch arrays
+  real(r4)      :: swleg(1:25)=1.0, swc(1:25), sav(1:25) !Legacy switch arrays
 
   ! Model parameter arrays
   type basissubset
@@ -165,7 +165,7 @@ contains
     character(len=*), intent(in), optional    :: parmfile                 !Parameter file name
     integer, intent(in), optional             :: iun                      !File unit number for reading parameter file
     logical, intent(in), optional             :: switch_gfn(0:maxnbf-1)   !Switch array for globe subroutine.
-    real(4), intent(in), optional             :: switch_legacy(1:25)      !Legacy switch array
+    real(r4), intent(in), optional             :: switch_legacy(1:25)      !Legacy switch array
     logical, intent(in), optional             :: lzalt_type               !true: height input is geometric, false: height input is geopotential
     logical, intent(in), optional             :: lspec_select(1:nspec-1)  !Array flagging which species densities are required
     logical, intent(in), optional             :: lmass_include(1:nspec-1) !Array flagging which species should be included in mass density
@@ -379,7 +379,7 @@ contains
 
     integer                      :: i0, i1
     logical                      :: havefile
-    real(8), allocatable         :: parmin(:,:)
+    real(r8), allocatable         :: parmin(:,:)
 
     ! Check if file exists
     inquire(file=trim(name),exist=havefile)
@@ -484,7 +484,7 @@ contains
 
     implicit none
 
-    real(4), intent(in)  :: sv(1:25)
+    real(r4), intent(in)  :: sv(1:25)
 
     integer              :: i
     
@@ -622,7 +622,7 @@ contains
 
     implicit none
 
-    real(4), intent(out) :: svv(1:25)
+    real(r4), intent(out) :: svv(1:25)
 
     integer              :: i
 

@@ -65,7 +65,7 @@ module msis_tfn
     real(kind=rp), intent(in) :: gf(0:maxnbf-1) ! Array of horizontal and temporal basis function terms   
     type(tnparm), intent(out) :: tpro           ! Output structure containing temperature vertical profile parameters
     
-    integer(4)                :: ix
+    integer                   :: ix
     real(kind=rp)             :: bc(3)
         
     ! Unconstrained spline coefficients

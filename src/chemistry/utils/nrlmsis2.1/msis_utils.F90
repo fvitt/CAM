@@ -21,7 +21,8 @@
 !**************************************************************************************************
 
 module msis_utils
-
+  use msis_constants, only: r8
+  
 contains
 
   !==================================================================================================
@@ -36,43 +37,43 @@ contains
   !   NIMA Technical Report TR8350.2 (2000, 3rd edition, Amendment1), 
   !     http://earth-info.nga.mil/GandG/publications/tr8350.2/tr8350_2.html
   !==================================================================================================
-  real(8) function alt2gph(lat,alt)
+  real(r8) function alt2gph(lat,alt)
 
     implicit none
 
     ! Input variables
-    real(8), intent(in) :: lat    !Geodetic latitude (deg)
-    real(8), intent(in) :: alt    !Geodetic altitude (km)
+    real(r8), intent(in) :: lat    !Geodetic latitude (deg)
+    real(r8), intent(in) :: alt    !Geodetic altitude (km)
 
-    real(8), parameter  :: deg2rad = 0.017453292519943295d0
+    real(r8), parameter  :: deg2rad = 0.017453292519943295d0
 
     ! WGS84 Defining parameters
-    real(8), parameter  :: a = 6378.1370d0 * 1d3 !Semi-major axis of reference ellipsoid (m)
-    real(8), parameter  :: finv = 298.257223563d0 ! 1/f = Reciprocal of flattening
-    real(8), parameter  :: w = 7292115d-11 !Angular velocity of Earth rotation (rad/s)
-    real(8), parameter  :: GM = 398600.4418 * 1d9 !Gravitational constant x Earth mass (m^3/s^2)
+    real(r8), parameter  :: a = 6378.1370d0 * 1d3 !Semi-major axis of reference ellipsoid (m)
+    real(r8), parameter  :: finv = 298.257223563d0 ! 1/f = Reciprocal of flattening
+    real(r8), parameter  :: w = 7292115d-11 !Angular velocity of Earth rotation (rad/s)
+    real(r8), parameter  :: GM = 398600.4418 * 1d9 !Gravitational constant x Earth mass (m^3/s^2)
 
     ! WGS84 Derived parameters
-    real(8), parameter  :: asq = a*a
-    real(8), parameter  :: wsq = w*w
-    real(8), parameter  :: f = 1.0d0 / finv
-    real(8), parameter  :: esq = 2*f - f*f
-    real(8), parameter  :: e = sqrt(esq)  !Ellipsoid eccentricity
-    real(8), parameter  :: Elin = a*e     !Linear eccentricity of ellipsoid
-    real(8), parameter  :: Elinsq = Elin*Elin
-    real(8), parameter  :: epr = e / (1-f)  !Second eccentricity
-    real(8), parameter  :: q0 = ((1.0d0 + 3.0d0/(epr*epr))*atan(epr) - 3.0d0/epr)/2.0d0  !DMA Technical Report tr8350.2, Eq. 3-25
-    real(8), parameter  :: U0 = -GM*atan(epr)/Elin - wsq*asq/3d0 !Theoretical potential of reference ellipsoid (m^2/s^2)
-    real(8), parameter  :: g0 = 9.80665d0 !Standard gravity (m/s^2), CGPM 1901; WMO
-    real(8), parameter  :: GMdivElin = GM / Elin
+    real(r8), parameter  :: asq = a*a
+    real(r8), parameter  :: wsq = w*w
+    real(r8), parameter  :: f = 1.0d0 / finv
+    real(r8), parameter  :: esq = 2*f - f*f
+    real(r8), parameter  :: e = sqrt(esq)  !Ellipsoid eccentricity
+    real(r8), parameter  :: Elin = a*e     !Linear eccentricity of ellipsoid
+    real(r8), parameter  :: Elinsq = Elin*Elin
+    real(r8), parameter  :: epr = e / (1-f)  !Second eccentricity
+    real(r8), parameter  :: q0 = ((1.0d0 + 3.0d0/(epr*epr))*atan(epr) - 3.0d0/epr)/2.0d0  !DMA Technical Report tr8350.2, Eq. 3-25
+    real(r8), parameter  :: U0 = -GM*atan(epr)/Elin - wsq*asq/3d0 !Theoretical potential of reference ellipsoid (m^2/s^2)
+    real(r8), parameter  :: g0 = 9.80665d0 !Standard gravity (m/s^2), CGPM 1901; WMO
+    real(r8), parameter  :: GMdivElin = GM / Elin
   
     ! Parameters for centrifugal potential taper
-    real(8), parameter  :: x0sq = 2d7**2   !Axial distance squared at which tapering begins (m^2)
-    real(8), parameter  :: Hsq = 1.2d7**2  !Relaxation scale length of taper (m^2)
+    real(r8), parameter  :: x0sq = 2d7**2   !Axial distance squared at which tapering begins (m^2)
+    real(r8), parameter  :: Hsq = 1.2d7**2  !Relaxation scale length of taper (m^2)
 
     ! Working variables
-    real(8)             :: altm, sinsqlat, v, xsq, zsq
-    real(8)             :: rsqminElinsq, usq, cossqdelta, epru, atanepru, q, U, Vc
+    real(r8)             :: altm, sinsqlat, v, xsq, zsq
+    real(r8)             :: rsqminElinsq, usq, cossqdelta, epru, atanepru, q, U, Vc
 
     ! Compute Cartesian and ellipsoidal coordinates
     altm = alt * 1000.0d0
@@ -108,17 +109,17 @@ contains
   !==================================================================================================
   ! GPH2ALT: Geopotential Height to Altitude
   !==================================================================================================
-  real(8) function gph2alt(theta,gph)
+  real(r8) function gph2alt(theta,gph)
 
     implicit none
 
-    real(8), intent(in)  :: theta
-    real(8), intent(in)  :: gph
+    real(r8), intent(in)  :: theta
+    real(r8), intent(in)  :: gph
 
     integer, parameter   :: maxn = 10
-    real(8), parameter   :: epsilon = 0.0005
+    real(r8), parameter   :: epsilon = 0.0005
 
-    real(8)              :: x,dx,y,dydz
+    real(r8)              :: x,dx,y,dydz
     integer              :: n
 
     x = gph

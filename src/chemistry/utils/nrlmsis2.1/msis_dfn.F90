@@ -417,7 +417,7 @@ module msis_dfn
     type(tnparm), intent(in)  :: tpro         ! Structure containing temperature vertical profile parameters
     type(dnparm), intent(in)  :: dpro         ! Structure containing density vertical profile parameters
 
-    integer(4)                :: i, i1, iz
+    integer                   :: i, i1, iz
     real(kind=rp)             :: Mz
     real(kind=rp)             :: Sz(-5:0,2:6)
     real(kind=rp)             :: Ihyd         ! Hydrostatic definite integral
