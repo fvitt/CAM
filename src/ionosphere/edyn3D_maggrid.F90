@@ -297,7 +297,7 @@ module edyn3D_maggrid
          rho_s(j,1) = cos_avg  ! cos(ylatm_s)
          rho_s(j,2) = cos_avg  ! cos(ylatm_s)
          ha_s(j)    = (r0km/cos_avg**2 - rekm)*km2m
-	 if(debug) write(iulog,'(i4,3(x,f10.6))') j,rho_s(j,2),90.*ylatm_s(j,2)/pio2,ylatm_s(j,2)
+	 if(debug) write(iulog,'(i4,3(1x,f10.6))') j,rho_s(j,2),90.*ylatm_s(j,2)/pio2,ylatm_s(j,2)
 !	 if(debug) write(iulog,*) j,ylatm(j,2),ylatm(j+1,2),ylatm_s(j,2)
       enddo
       !
@@ -308,11 +308,11 @@ module edyn3D_maggrid
       do k=2,nhgt_fix_r
         j = nmlatS2_h-k+2
         hgt_fix_r(k) = apex_height(rho_s(j,isn))
-	if(debug)  write(iulog,'(i3,1(x,f15.2))') k,hgt_fix_r(k)
+	if(debug)  write(iulog,'(i3,1(1x,f15.2))') k,hgt_fix_r(k)
       enddo
       k=1
       hgt_fix_r(1) = h0
-      if(debug)  write(iulog,'(i4,3(x,f15.2))') k,hgt_fix_r(k)
+      if(debug)  write(iulog,'(i4,3(1x,f15.2))') k,hgt_fix_r(k)
       !
       ! Calculate magnetic longitudes [radians]
       !

@@ -187,9 +187,9 @@ contains
     use edyn3d_mpi, only: mlon0_p,mlon1_p
     use interpolate_data, only: lininterp
 
+    integer,  intent(in) :: nphyscol,nphyslev
     real(r8), intent(in) :: physfld(nphyslev,nphyscol)
     real(r8), intent(in) :: physalt(nphyslev,nphyscol)
-    integer,  intent(in) :: nphyscol,nphyslev
     type(magfld_t), intent(inout) :: magfld(mlon0_p:mlon1_p,nmlat_h,2)
 
     real(r8) :: physfld_tmp(nphyscol,nhgt_fix)
@@ -258,9 +258,9 @@ contains
     use edyn3d_mpi, only: mlon0_p,mlon1_p
     use interpolate_data, only: lininterp
 
+    integer,  intent(in) :: nphyscol,nphyslev
     type(magfld_t), intent(in) :: magfld(mlon0_p:mlon1_p,nmlat_h,2)
     real(r8), intent(in) :: physalt(nphyslev,nphyscol)
-    integer,  intent(in) :: nphyscol,nphyslev
     real(r8), intent(inout) :: physfld(nphyslev,nphyscol)
 
     real(r8) :: physfld_tmp(nphyscol,nhgt_fix)
