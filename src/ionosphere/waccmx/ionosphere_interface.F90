@@ -21,6 +21,9 @@ module ionosphere_interface
    use perf_mod,            only: t_startf, t_stopf
    use epotential_params,   only: epot_active, epot_crit_colats
 
+ ! test 3D field line mag grid infrastructure
+   use edyn3D_driver, only: edyn3D_driver_reg, edyn3D_driver_timestep
+
    implicit none
 
    private
@@ -385,6 +388,15 @@ module ionosphere_interface
       call addfld ('Z3GMI',      (/ 'lev' /), 'I', 'm',                       &
            'Geometric height (Interfaces)', gridname='physgrid')
 
+
+    ! test 3D field line mag grid infrastructure
+
+      call edyn3D_driver_reg(mpicom, ionos_npes) ! set ntask,mytid
+
+      call addfld( 'TnPhysIn', (/ 'lev' /), 'I', 'K', 'Nuetral Temperature input on phys grid' )
+      call addfld( 'TnPhysOut', (/ 'lev' /), 'I', 'K', 'Nuetral Temperature output on phys grid' )
+
+
    end subroutine ionosphere_init
 
    !----------------------------------------------------------------------------
@@ -550,6 +562,15 @@ module ionosphere_interface
       real(r8), parameter :: n2min = 1.e-6_r8  ! lower limit of N2 mixing ratios
 
       character(len=*), parameter :: subname = 'ionosphere_run2'
+
+ ! test 3D field line mag grid infrastructure ++
+    integer :: nphyscols
+
+    real(r8), pointer :: physalt(:,:)
+    real(r8), pointer :: tn_in(:,:)
+    real(r8), pointer :: tn_out(:,:)
+    real(r8) :: phys_out(pcols,pver)
+ ! test 3D field line mag grid infrastructure --
 
       ionos_cpl: if (ionos_xport_active) then
 
@@ -982,6 +1003,54 @@ module ionosphere_interface
          nullify(pmid_blck)
 
       end if ionos_cpl
+
+
+! test 3D field line mag grid infrastructure
+
+      nphyscols = 0
+      do lchnk = begchunk, endchunk
+         nphyscols = nphyscols + phys_state(lchnk)%ncol
+      end do
+
+      allocate(physalt(pver,nphyscols), stat=astat)
+      allocate(tn_in(pver,nphyscols), stat=astat)
+      allocate(tn_out(pver,nphyscols), stat=astat)
+
+      j = 0
+      do lchnk = begchunk, endchunk
+         ncol = phys_state(lchnk)%ncol
+         call outfld( 'TnPhysIn', phys_state(lchnk)%t, pcols, lchnk )
+         do i = 1, ncol
+            j = j + 1
+            do k = 1, pver
+               !physalt(k,j) = phys_state(lchnk)%zm(i,k) ! meters
+
+               r8tmp = phys_state(lchnk)%zm(i, k) + phys_state(lchnk)%phis(i)*rga
+               physalt(k,j) = r8tmp * (1._r8 + (r8tmp * rearth_inv))
+
+               tn_in(k,j) = phys_state(lchnk)%t(i,k)
+            end do
+         end do
+      end do
+
+      call edyn3D_driver_timestep( nphyscols, pver, physalt, tn_in, tn_out )
+
+      j = 0
+      do lchnk = begchunk, endchunk
+         phys_out = -huge(1._r8)
+         ncol = phys_state(lchnk)%ncol
+         do i = 1, ncol
+            j = j + 1
+            do k = 1, pver
+               phys_out(i,k) = tn_out(k,j)
+            end do
+         end do
+         call outfld( 'TnPhysOut', phys_out, pcols, lchnk )
+      end do
+
+      deallocate(physalt)
+      deallocate(tn_in)
+      deallocate(tn_out)
 
    end subroutine ionosphere_run2
 

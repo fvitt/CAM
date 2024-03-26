@@ -116,11 +116,11 @@ subroutine mo_apex_init1()
 
    integer :: nglats
    integer :: nglons
-   integer, parameter :: ngalts = 2             ! number of altitudes
+   integer, parameter :: ngalts = 21             ! number of altitudes
 
    real(r8), allocatable :: gridlats(:)
    real(r8), allocatable :: gridlons(:)
-   real(r8) :: gridalts(ngalts)                   ! altitudes passed to apxmka
+   real(r8) :: gridalts(ngalts)                  ! altitudes passed to apxmka
 
    integer :: ngcols, hdim1_d, hdim2_d
    integer :: yr, mon, day, sec
@@ -147,9 +147,11 @@ subroutine mo_apex_init1()
    geomag_year = dble(yr)+0.5_r8
 
 !-------------------------------------------------------------------------------
-! Center min, max altitudes about 130 km
+! altitude grid (km)
 !-------------------------------------------------------------------------------
-   gridalts(:ngalts) =  (/ 90._r8, 170._r8 /)
+   do i = 1,ngalts
+      gridalts(i) = 50._r8 + dble(i-1)*100._r8
+   end do
 
 !-------------------------------------------------------------------------------
 ! Initialize APEX with a regular lat/lon grid ...
@@ -196,7 +198,8 @@ subroutine mo_apex_init1()
       if (fixed_geomag_year<1) then
          write(iulog, "('mo_apex_init: model yr,mon,day,sec ',4i6)") yr, mon, day, sec
       endif
-      write(iulog, "('mo_apex_init: nglons,nglats ', 2i6)") nglons, nglats
+      write(iulog, "('mo_apex_init1: nglons,nglats ', 2i6)") nglons, nglats
+      write(iulog, "('mo_apex_init1: geo-magnetic year ', f10.2)") geomag_year
    endif
 
 end subroutine mo_apex_init1
