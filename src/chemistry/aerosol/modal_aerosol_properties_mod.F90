@@ -15,6 +15,18 @@ module modal_aerosol_properties_mod
      real(r8), allocatable :: exp45logsig_(:)
      real(r8), allocatable :: voltonumblo_(:)
      real(r8), allocatable :: voltonumbhi_(:)
+     integer,  allocatable :: sulfate_mode_ndxs_(:)
+     integer,  allocatable :: dust_mode_ndxs_(:)
+     integer,  allocatable :: ssalt_mode_ndxs_(:)
+     integer,  allocatable :: ammon_mode_ndxs_(:)
+     integer,  allocatable :: nitrate_mode_ndxs_(:)
+     integer,  allocatable :: msa_mode_ndxs_(:)
+     integer,  allocatable :: bcarbon_mode_ndxs_(:,:)
+     integer,  allocatable :: porganic_mode_ndxs_(:,:)
+     integer,  allocatable :: sorganic_mode_ndxs_(:,:)
+     integer :: num_soa_ = 0
+     integer :: num_poa_ = 0
+     integer :: num_bc_ = 0
    contains
      procedure :: number_transported
      procedure :: get
@@ -53,7 +65,7 @@ contains
 
     type(modal_aerosol_properties), pointer :: newobj
 
-    integer :: m, nmodes, ncnst_tot
+    integer :: l, m, nmodes, ncnst_tot, mm
     real(r8) :: dgnumlo
     real(r8) :: dgnumhi
     integer,allocatable :: nspecies(:)
@@ -62,6 +74,10 @@ contains
     real(r8),allocatable :: f1(:)
     real(r8),allocatable :: f2(:)
     integer :: ierr
+
+    character(len=aero_name_len) :: spectype
+
+    integer :: npoa, nsoa, nbc
 
     allocate(newobj,stat=ierr)
     if( ierr /= 0 ) then
@@ -138,6 +154,87 @@ contains
     end do
 
     call newobj%initialize(nmodes,ncnst_tot,nspecies,nspecies,alogsig,f1,f2,ierr)
+
+    npoa = 0
+    nsoa = 0
+    nbc = 0
+
+    m = 1
+    do l = 1,newobj%nspecies(m)
+       mm = newobj%indexer(m,l)
+       call newobj%species_type(m, l, spectype)
+       select case ( trim(spectype) )
+       case('p-organic')
+          npoa = npoa + 1
+       case('s-organic')
+          nsoa = nsoa + 1
+       case('black-c')
+          nbc = nbc + 1
+       end select
+    end do
+
+    newobj%num_soa_ = nsoa
+    newobj%num_poa_ = npoa
+    newobj%num_bc_ = nbc
+
+    allocate(newobj%sulfate_mode_ndxs_(newobj%nbins()))
+    allocate(newobj%dust_mode_ndxs_(newobj%nbins()))
+    allocate(newobj%ssalt_mode_ndxs_(newobj%nbins()))
+    allocate(newobj%ammon_mode_ndxs_(newobj%nbins()))
+    allocate(newobj%nitrate_mode_ndxs_(newobj%nbins()))
+    allocate(newobj%msa_mode_ndxs_(newobj%nbins()))
+
+    newobj%sulfate_mode_ndxs_ = 0
+    newobj%dust_mode_ndxs_ = 0
+    newobj%ssalt_mode_ndxs_ = 0
+    newobj%ammon_mode_ndxs_ = 0
+    newobj%nitrate_mode_ndxs_ = 0
+    newobj%msa_mode_ndxs_ = 0
+
+    allocate(newobj%porganic_mode_ndxs_(newobj%nbins(),npoa))
+    allocate(newobj%sorganic_mode_ndxs_(newobj%nbins(),nsoa))
+    allocate(newobj%bcarbon_mode_ndxs_(newobj%nbins(),nbc))
+
+    newobj%porganic_mode_ndxs_ = 0._r8
+    newobj%sorganic_mode_ndxs_ = 0._r8
+    newobj%bcarbon_mode_ndxs_ = 0._r8
+
+    do m = 1,newobj%nbins()
+       npoa = 0
+       nsoa = 0
+       nbc = 0
+
+       do l = 1,newobj%nspecies(m)
+          mm = newobj%indexer(m,l)
+          call newobj%species_type(m, l, spectype)
+
+          select case ( trim(spectype) )
+          case('sulfate')
+             newobj%sulfate_mode_ndxs_(m) = mm
+          case('dust')
+             newobj%dust_mode_ndxs_(m) = mm
+          case('nitrate')
+             newobj%nitrate_mode_ndxs_(m) = mm
+          case('ammonium')
+             newobj%ammon_mode_ndxs_(m) = mm
+          case('seasalt')
+             newobj%ssalt_mode_ndxs_(m) = mm
+          case('msa')
+             newobj%msa_mode_ndxs_(m) = mm
+          case('p-organic')
+             npoa = npoa + 1
+             newobj%porganic_mode_ndxs_(m,npoa)  = mm
+          case('s-organic')
+             nsoa = nsoa + 1
+             newobj%sorganic_mode_ndxs_(m,nsoa)  = mm
+          case('black-c')
+             nbc = nbc + 1
+             newobj%bcarbon_mode_ndxs_(m,nbc)  = mm
+          end select
+
+       end do
+    end do
+
     if( ierr /= 0 ) then
        nullify(newobj)
        return
@@ -163,6 +260,34 @@ contains
     end if
     if (allocated(self%voltonumbhi_)) then
        deallocate(self%voltonumbhi_)
+    end if
+
+    if (allocated(self%sulfate_mode_ndxs_)) then
+       deallocate(self%sulfate_mode_ndxs_)
+    end if
+    if (allocated(self%dust_mode_ndxs_)) then
+       deallocate(self%dust_mode_ndxs_)
+    end if
+    if (allocated(self%ssalt_mode_ndxs_)) then
+       deallocate(self%ssalt_mode_ndxs_)
+    end if
+    if (allocated(self%ammon_mode_ndxs_)) then
+       deallocate(self%ammon_mode_ndxs_)
+    end if
+    if (allocated(self%nitrate_mode_ndxs_)) then
+       deallocate(self%nitrate_mode_ndxs_)
+    end if
+    if (allocated(self%msa_mode_ndxs_)) then
+       deallocate(self%msa_mode_ndxs_)
+    end if
+    if (allocated(self%porganic_mode_ndxs_)) then
+       deallocate(self%porganic_mode_ndxs_)
+    end if
+    if (allocated(self%sorganic_mode_ndxs_)) then
+       deallocate(self%sorganic_mode_ndxs_)
+    end if
+    if (allocated(self%bcarbon_mode_ndxs_)) then
+       deallocate(self%bcarbon_mode_ndxs_)
     end if
 
     call self%final()
@@ -672,9 +797,7 @@ contains
   !------------------------------------------------------------------------------
   subroutine resuspension_resize(self, dcondt)
 
-    use modal_aero_data, only: lptr_so4_a_amode, lptr_dust_a_amode, lptr_nacl_a_amode, mode_size_order
-    use modal_aero_data, only: lptr_msa_a_amode, lptr_nh4_a_amode, lptr_no3_a_amode, ntot_amode
-    use modal_aero_data, only: lptr2_pom_a_amode, lptr2_soa_a_amode, lptr2_bc_a_amode, nsoa, npoa, nbc
+    use modal_aero_data, only:  mode_size_order
 
     class(modal_aerosol_properties), intent(in) :: self
     real(r8), intent(inout) :: dcondt(:)
@@ -682,27 +805,27 @@ contains
     integer :: i
     character(len=4) :: spcstr
 
-    call accumulate_to_larger_mode( 'SO4', lptr_so4_a_amode, dcondt )
-    call accumulate_to_larger_mode( 'DUST',lptr_dust_a_amode,dcondt )
-    call accumulate_to_larger_mode( 'NACL',lptr_nacl_a_amode,dcondt )
-    call accumulate_to_larger_mode( 'MSA', lptr_msa_a_amode, dcondt )
-    call accumulate_to_larger_mode( 'NH4', lptr_nh4_a_amode, dcondt )
-    call accumulate_to_larger_mode( 'NO3', lptr_no3_a_amode, dcondt )
+    call accumulate_to_larger_mode( 'SO4', self%sulfate_mode_ndxs_, dcondt )
+    call accumulate_to_larger_mode( 'DUST',self%dust_mode_ndxs_,dcondt )
+    call accumulate_to_larger_mode( 'NACL',self%ssalt_mode_ndxs_,dcondt )
+    call accumulate_to_larger_mode( 'MSA', self%msa_mode_ndxs_, dcondt )
+    call accumulate_to_larger_mode( 'NH4', self%ammon_mode_ndxs_, dcondt )
+    call accumulate_to_larger_mode( 'NO3', self%nitrate_mode_ndxs_, dcondt )
 
     spcstr = '    '
-    do i = 1,nsoa
+    do i = 1,self%num_soa_
        write(spcstr,'(i4)') i
-       call accumulate_to_larger_mode( 'SOA'//adjustl(spcstr), lptr2_soa_a_amode(:,i), dcondt )
+       call accumulate_to_larger_mode( 'SOA'//adjustl(spcstr), self%sorganic_mode_ndxs_(:,i), dcondt )
     enddo
     spcstr = '    '
-    do i = 1,npoa
+    do i = 1,self%num_poa_
        write(spcstr,'(i4)') i
-       call accumulate_to_larger_mode( 'POM'//adjustl(spcstr), lptr2_pom_a_amode(:,i), dcondt )
+       call accumulate_to_larger_mode( 'POM'//adjustl(spcstr), self%porganic_mode_ndxs_(:,i), dcondt )
     enddo
     spcstr = '    '
-    do i = 1,nbc
+    do i = 1,self%num_bc_
        write(spcstr,'(i4)') i
-       call accumulate_to_larger_mode( 'BC'//adjustl(spcstr), lptr2_bc_a_amode(:,i), dcondt )
+       call accumulate_to_larger_mode( 'BC'//adjustl(spcstr), self%bcarbon_mode_ndxs_(:,i), dcondt )
     enddo
 
   contains
@@ -722,7 +845,7 @@ contains
       logical, parameter :: debug = .false.
 
       ! find constituent index of the largest mode for the species
-      loop1: do m = 1,ntot_amode-1
+      loop1: do m = 1,self%nbins()-1
          nl = lptr(mode_size_order(m))
          if (nl>0) exit loop1
       end do loop1
@@ -730,7 +853,7 @@ contains
       if (.not. nl>0) return
 
       ! accumulate the smaller modes into the largest mode
-      do n = m+1,ntot_amode
+      do n = m+1,self%nbins()
          ns = lptr(mode_size_order(n))
          if (ns>0) then
             prevap(nl) = prevap(nl) + prevap(ns)

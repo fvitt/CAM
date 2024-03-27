@@ -1233,6 +1233,13 @@ subroutine ma_convproc_tend( aero_state, &
 
    real(r8), allocatable :: dcondt_a(:,:)
    real(r8), allocatable :: dcondt_c(:,:)
+
+   real(r8), allocatable :: dcondt_wetdep_a(:,:)
+   real(r8), allocatable :: dcondt_wetdep_c(:,:)
+
+   real(r8), allocatable :: dcondt_prevap_a(:,:)
+   real(r8), allocatable :: dcondt_prevap_c(:,:)
+
    real(r8), allocatable :: dcondt_resusp_a(:,:)
    real(r8), allocatable :: dcondt_resusp_c(:,:)
    real(r8), allocatable :: conu_a(:)
@@ -2006,13 +2013,54 @@ k_loop_main_cc: &
          end do      ! "m = 2,ncnst_extd"
       end do k_loop_main_cc ! "k = ktop, kbot"
 
+! ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+! @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+! ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+! make adjustments to dcondt for activated & unactivated aerosol species
+!    pairs to account any (or total) resuspension of convective-cloudborne aerosol
+
+      allocate( dcondt_a(aero_props_obj%ncnst_tot(),pver) )
+      allocate( dcondt_c(aero_props_obj%ncnst_tot(),pver) )
+
+      allocate( dcondt_wetdep_a(aero_props_obj%ncnst_tot(),pver) )
+      allocate( dcondt_wetdep_c(aero_props_obj%ncnst_tot(),pver) )
+
+      allocate( dcondt_prevap_a(aero_props_obj%ncnst_tot(),pver) )
+      allocate( dcondt_prevap_c(aero_props_obj%ncnst_tot(),pver) )
+
+      allocate( dcondt_resusp_a(aero_props_obj%ncnst_tot(),pver) )
+      allocate( dcondt_resusp_c(aero_props_obj%ncnst_tot(),pver) )
+
+
+      do n = 1, nbins
+         do ll = 1, nspec(n) + 2
+            l = bin_idx(n,ll)
+            la = l
+            lc = l + ncnst_tot
+
+            mm = aero_props_obj%indexer(n,ll-1)
+
+            dcondt_a(mm,:) = dcondt(la,:)
+            dcondt_c(mm,:) = dcondt(lc,:)
+
+            dcondt_wetdep_a(mm,:) = dcondt_wetdep(la,:)
+            dcondt_wetdep_c(mm,:) = dcondt_wetdep(lc,:)
+
+            dcondt_prevap_a(mm,:) = dcondt_prevap(la,:)
+            dcondt_prevap_c(mm,:) = dcondt_prevap(lc,:)
+
+         end do
+      end do
+      dcondt_resusp_a(:,:) = 0._r8
+      dcondt_resusp_c(:,:) = 0._r8
+
 
 ! calculate effects of precipitation evaporation
-      call ma_precpevap_convproc( dcondt, dcondt_wetdep,  dcondt_prevap,   &
-                                  rprd,   evapc,          dp_i,            &
-                                  icol,   ktop,           pcnst_extd,      &
-                                  lun,    idiag_in(icol), lchnk,           &
-                                  doconvproc_extd                          )
+      call ma_precpevap_convproc( rprd,   evapc,          dp_i,            &
+           icol,   ktop, lun, idiag_in(icol), lchnk, &
+           dcondt_wetdep_a, dcondt_wetdep_c, dcondt_a, dcondt_c, &
+           dcondt_prevap_a, dcondt_prevap_c )
+
       if ( idiag_in(icol)>0 ) then
          k = 26
          do m = 16, 23, 7
@@ -2028,34 +2076,6 @@ k_loop_main_cc: &
       end if
 
 
-! ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-! @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-! ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-! make adjustments to dcondt for activated & unactivated aerosol species
-!    pairs to account any (or total) resuspension of convective-cloudborne aerosol
-
-      allocate( dcondt_a(aero_props_obj%ncnst_tot(),pver) )
-      allocate( dcondt_c(aero_props_obj%ncnst_tot(),pver) )
-      allocate( dcondt_resusp_a(aero_props_obj%ncnst_tot(),pver) )
-      allocate( dcondt_resusp_c(aero_props_obj%ncnst_tot(),pver) )
-
-
-      do n = 1, nbins
-         do ll = 1, nspec(n) + 2
-            l = bin_idx(n,ll)
-            la = l
-            lc = l + ncnst_tot
-
-            mm = aero_props_obj%indexer(n,ll-1)
-
-
-            dcondt_a(mm,:) = dcondt(la,:)
-            dcondt_c(mm,:) = dcondt(lc,:)
-
-         end do
-      end do
-      dcondt_resusp_a(:,:) = 0._r8
-      dcondt_resusp_c(:,:) = 0._r8
 
       call  ma_resuspend_convproc( dp_i, ktop, kbot_prevap, &
                                    dcondt_a, dcondt_c, dcondt_resusp_a,  dcondt_resusp_c )
@@ -2075,13 +2095,39 @@ k_loop_main_cc: &
 
 
                dcondt_resusp3d(lc,icol,:) = dcondt_resusp_c(mm,:)
+
             end do
          end do
 
       end if
 
+      do n = 1, nbins
+         do ll = 1, nspec(n) + 2
+            l = bin_idx(n,ll)
+            la = l
+            lc = l + ncnst_tot
+
+            mm = aero_props_obj%indexer(n,ll-1)
+
+            dcondt(la,:) = dcondt_a(mm,:)
+            dcondt(lc,:) = dcondt_c(mm,:)
+
+            dcondt_wetdep(la,:) = dcondt_wetdep_a(mm,:)
+            dcondt_wetdep(lc,:) = dcondt_wetdep_c(mm,:)
+
+            dcondt_prevap_a(mm,:) = dcondt_prevap(la,:)
+            dcondt_prevap_c(mm,:) = dcondt_prevap(lc,:)
+
+         end do
+      end do
+
+
       deallocate( dcondt_a )
       deallocate( dcondt_c )
+      deallocate( dcondt_wetdep_a )
+      deallocate( dcondt_wetdep_c )
+      deallocate( dcondt_prevap_a )
+      deallocate( dcondt_prevap_c )
       deallocate( dcondt_resusp_a )
       deallocate( dcondt_resusp_c )
 
@@ -2413,12 +2459,11 @@ end subroutine ma_convproc_tend
 
 
 !=========================================================================================
-   subroutine ma_precpevap_convproc(                           &
-              dcondt,  dcondt_wetdep, dcondt_prevap,           &
-              rprd,    evapc,         dp_i,                    &
-              icol,    ktop,          pcnst_extd,              &
-              lun,     idiag_prevap,  lchnk,                   &
-              doconvproc_extd                                  )
+   subroutine ma_precpevap_convproc( rprd, evapc, dp_i, &
+              icol, ktop,  lun,  idiag_prevap, lchnk, &
+              dcondt_wetdep_a, dcondt_wetdep_c, dcondt_a, dcondt_c, &
+              dcondt_prevap_a, dcondt_prevap_c )
+
 !-----------------------------------------------------------------------
 !
 ! Purpose:
@@ -2429,21 +2474,14 @@ end subroutine ma_convproc_tend
 !
 !-----------------------------------------------------------------------
 
+   use modal_aero_data, only:  &
+      lmassptrcw_amode, nspec_amode, numptrcw_amode
+
    implicit none
 
 !-----------------------------------------------------------------------
 ! arguments
 ! (note:  TMR = tracer mixing ratio)
-   integer,  intent(in)    :: pcnst_extd
-
-   real(r8), intent(inout) :: dcondt(pcnst_extd,pver)
-                              ! overall TMR tendency from convection
-   real(r8), intent(in)    :: dcondt_wetdep(pcnst_extd,pver)
-                              ! portion of TMR tendency due to wet removal
-   real(r8), intent(inout) :: dcondt_prevap(pcnst_extd,pver)
-                              ! portion of TMR tendency due to precip evaporation
-                              ! (actually, due to the adjustments made here)
-                              ! (on entry, this is 0.0)
 
    real(r8), intent(in)    :: rprd(pcols,pver)  ! conv precip production  rate (gathered)
    real(r8), intent(in)    :: evapc(pcols,pver)  ! conv precip evaporation rate (gathered)
@@ -2455,27 +2493,31 @@ end subroutine ma_convproc_tend
    integer,  intent(in)    :: idiag_prevap ! flag for diagnostic output
    integer,  intent(in)    :: lchnk  ! chunk index
 
-   logical,  intent(in)    :: doconvproc_extd(pcnst_extd)  ! indicates which species to process
+   real(r8), intent(in)    :: dcondt_wetdep_a(:,:)
+   real(r8), intent(in)    :: dcondt_wetdep_c(:,:)
+                              ! portion of TMR tendency due to wet removal
+   real(r8), intent(inout) :: dcondt_a(:,:)
+   real(r8), intent(inout) :: dcondt_c(:,:)
+                              ! overall TMR tendency from convection
+   real(r8), intent(inout) :: dcondt_prevap_a(:,:)
+   real(r8), intent(inout) :: dcondt_prevap_c(:,:)
+                              ! portion of TMR tendency due to precip evaporation
+                              ! (actually, due to the adjustments made here)
+                              ! (on entry, this is 0.0)
 
 !-----------------------------------------------------------------------
 ! local variables
-   integer  :: k, l, ll, m, n
+   integer  :: k, l, m, mm
    real(r8) :: del_pr_flux_prod      ! change to precip flux from production  [(kg/kg/s)*mb]
    real(r8) :: del_pr_flux_evap      ! change to precip flux from evaporation [(kg/kg/s)*mb]
    real(r8) :: del_wd_flux_evap      ! change to wet deposition flux from evaporation [(kg/kg/s)*mb]
    real(r8) :: fdel_pr_flux_evap     ! fractional change to precip flux from evaporation
    real(r8) :: pr_flux               ! precip flux at base of current layer [(kg/kg/s)*mb]
    real(r8) :: pr_flux_old
-   real(r8) :: tmpa, tmpb, tmpc, tmpd
    real(r8) :: tmpdp                 ! delta-pressure (mb)
-   real(r8) :: wd_flux(pcnst_extd)   ! tracer wet deposition flux at base of current layer [(kg/kg/s)*mb]
-   integer :: i
-   character(len=4) :: spcstr
 !-----------------------------------------------------------------------
 
-
    pr_flux = 0.0_r8
-   wd_flux(:) = 0.0_r8
 
    if (idiag_prevap > 0) then
       write(lun,'(a,i9,i4,5x,a)') 'qakx - lchnk,i', lchnk, icol, &
@@ -2493,27 +2535,32 @@ end subroutine ma_convproc_tend
 
       ! Do resuspension of aerosols from rain only when the rain has
       ! totally evaporated in one layer.
-      if (convproc_do_evaprain_atonce .and. &
-          (del_pr_flux_evap.ne.pr_flux)) del_pr_flux_evap = 0._r8
+      if (convproc_do_evaprain_atonce .and. (del_pr_flux_evap.ne.pr_flux)) then
+         del_pr_flux_evap = 0._r8
+      end if
 
       fdel_pr_flux_evap = del_pr_flux_evap / max(pr_flux, 1.0e-35_r8)
 
-      do m = 1, pcnst_extd
-         if ( doconvproc_extd(m) ) then
-            ! use -dcondt_wetdep(m,k) as it is negative (or zero)
-            wd_flux(m) = wd_flux(m) + tmpdp*max(0.0_r8, -dcondt_wetdep(m,k))
-            del_wd_flux_evap = wd_flux(m)*fdel_pr_flux_evap
-            wd_flux(m) = max( 0.0_r8, wd_flux(m)-del_wd_flux_evap )
+      do m = 1, aero_props_obj%nbins()
+         do l = 0, aero_props_obj%nmasses(m)
 
-            dcondt_prevap(m,k) = del_wd_flux_evap/tmpdp
-            dcondt(m,k) = dcondt(m,k) + dcondt_prevap(m,k)
-         end if
+            mm = aero_props_obj%indexer(m,l)
+
+            ! use -dcondt_wetdep(m,k) as it is negative (or zero)
+            del_wd_flux_evap = (tmpdp*max(0.0_r8, -dcondt_wetdep_a(mm,k)))*fdel_pr_flux_evap
+            dcondt_prevap_a(mm,k) = del_wd_flux_evap/tmpdp
+            del_wd_flux_evap = (tmpdp*max(0.0_r8, -dcondt_wetdep_c(mm,k)))*fdel_pr_flux_evap
+            dcondt_prevap_c(mm,k) = del_wd_flux_evap/tmpdp
+
+            dcondt_a(mm,k) = dcondt_a(mm,k) + dcondt_prevap_c(mm,k)
+            dcondt_c(mm,k) = dcondt_c(mm,k) + dcondt_prevap_a(mm,k)
+         end do
       end do
 
       ! resuspension --> create larger aerosols
       if (convproc_do_evaprain_atonce) then
-         call aero_props_obj%resuspension_resize( dcondt_prevap(:,k) )
-      end if
+         call aero_props_obj%resuspension_resize( dcondt_prevap_a(:,k) )
+      endif
 
    end do ! k
 
