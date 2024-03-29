@@ -20,52 +20,8 @@ module edyn3D_driver
   public :: edyn3D_driver_timestep
 
   real(r8), parameter :: r2d = 180./pi
-!!$  integer :: ionos_npes = huge(1)
 
 contains
-
-!!$  subroutine edyn3D_driver_readnl(nlfile)
-!!$    use mo_apex, only: mo_apex_readnl
-!!$
-!!$    use namelist_utils, only: find_group_name
-!!$    use units,          only: getunit, freeunit
-!!$    use spmd_utils,     only: mpicom, masterprocid
-!!$    use spmd_utils,     only: mpi_integer
-!!$    use cam_logfile,    only: iulog
-!!$
-!!$    character(len=*), intent(in) :: nlfile  ! filepath for file containing namelist input
-!!$
-!!$    ! Local variables
-!!$    integer :: unitn, ierr, ipos
-!!$
-!!$    character(len=*), parameter :: subname = 'edyn3D_driver_readnl'
-!!$
-!!$    namelist /ionosphere_nl/ ionos_npes
-!!$
-!!$    ! Read namelist
-!!$    if (masterproc) then
-!!$       unitn = getunit()
-!!$       open( unitn, file=trim(nlfile), status='old' )
-!!$       call find_group_name(unitn, 'ionosphere_nl', status=ierr)
-!!$       if (ierr == 0) then
-!!$          read(unitn, ionosphere_nl, iostat=ierr)
-!!$          if (ierr /= 0) then
-!!$             call endrun(subname // ':: ERROR reading namelist')
-!!$          end if
-!!$       end if
-!!$       close(unitn)
-!!$       call freeunit(unitn)
-!!$    end if
-!!$
-!!$    call mpi_bcast(ionos_npes, 1, mpi_integer, masterprocid, mpicom, ierr)
-!!$    ! log the user settings
-!!$    if (masterproc) then
-!!$       write(iulog,'(a,i0)') 'ionosphere_readnl: ionos_npes = ',ionos_npes
-!!$    end if
-!!$
-!!$    call mo_apex_readnl(nlfile)
-!!$
-!!$  end subroutine edyn3D_driver_readnl
 
   subroutine edyn3D_driver_reg(mpicom, npes)
     use cam_history,  only: addfld, horiz_only
