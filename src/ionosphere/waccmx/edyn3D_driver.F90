@@ -9,7 +9,9 @@ module edyn3D_driver
   use edyn3D_fieldline, only: fieldline_init, fieldline_getapex
   use edyn3D_params, only: nmlon, nmlat_h, nptsp_total ,ylonm
 
+  use edyn3D_fline_fields
   use edyn3D_esmf_regrid
+  use edyn3D_regridder
 
   use physconst, only: pi
 
@@ -54,16 +56,20 @@ contains
     call addfld ('Tn_mag', horiz_only, 'I', 'K','Neutral Temperature on geo-magnetic field line grid', &
                   gridname='mag_fldpnts')
 
+    call edyn3D_fline_fields_alloc()
+
   end subroutine edyn3D_driver_reg
 
-  subroutine edyn3D_driver_timestep( nphyscol, nphyslev, physalt, tn, tn_out )
+  subroutine edyn3D_driver_timestep( nphyscol, nphyslev, physalt, tn, sigPed, sigHal, tn_out )
     use edyn3d_mpi, only: mlon0_p,mlon1_p
     use cam_history,  only: outfld
-    use edyn3D_fieldline, only: fline_p, magfld_t
+    use edyn3D_fieldline, only: fline_p
 
     integer,  intent(in) :: nphyscol, nphyslev
     real(r8), intent(in) :: physalt(nphyslev,nphyscol)
     real(r8), intent(in) :: tn(nphyslev,nphyscol)
+    real(r8), intent(in) :: sigPed(nphyslev,nphyscol)
+    real(r8), intent(in) :: sigHal(nphyslev,nphyscol)
     real(r8), intent(out) :: tn_out(nphyslev,nphyscol)
 
     real(r8) :: geogalts(mlon0_p:mlon1_p, nptsp_total)
@@ -74,7 +80,13 @@ contains
     integer :: i,j,k,isn,ncnt, ier
     integer :: dk,k0,k1
 
-    type(magfld_t), allocatable :: magfld(:,:,:)
+    call edyn3D_regridder_phys2mag(sigPed,physalt,nphyscol,nphyslev,sigma_ped_s1)
+    call edyn3D_regridder_phys2mag(sigPed,physalt,nphyscol,nphyslev,sigma_ped_s2)
+
+    call edyn3D_regridder_phys2mag(sigHal,physalt,nphyscol,nphyslev,sigma_hal_s1)
+    call edyn3D_regridder_phys2mag(sigHal,physalt,nphyscol,nphyslev,sigma_hal_s2)
+
+    call edyn3D_regridder_phys2mag(sigPed,physalt,nphyscol,nphyslev,Tn_p)
 
     if (mytid<ntask) then
        geogalts=-huge(1._r8)
@@ -114,39 +126,28 @@ contains
 
     end if
 
-    allocate(magfld(mlon0_p:mlon1_p,nmlat_h,2),stat=ier)
-
-    do i = mlon0_p,mlon1_p
-       do j = 1,nmlat_h
-          do isn = 1,2
-             allocate(magfld(i,j,isn)%fld(fline_p(i,j,isn)%npts))
-             magfld(i,j,isn)%fld = -huge(1._r8)
-          end do
-       end do
-    end do
-
-    call edyn3D_esmf_regrid_phys2mag(tn,physalt,nphyscol,nphyslev,magfld)
+    call edyn3D_regridder_phys2mag(tn,physalt,nphyscol,nphyslev,Tn_p)
 
     if (mytid<ntask) then
 
-       do i = mlon0_p,mlon1_p
+       do i = Tn_p%mlon0,Tn_p%mlon1
           ncnt = 0
-          do j = 1,nmlat_h
+          do j = 1,Tn_p%nmlat_h
              do isn = 1,2
 
                 if (isn==1) then
                    k0 = 1
-                   k1 = fline_p(i,j,isn)%npts
+                   k1 = Tn_p%flines(i,j,isn)%npts
                    dk = 1
                 else
-                   k0 = fline_p(i,j,isn)%npts
+                   k0 = Tn_p%flines(i,j,isn)%npts
                    k1 = 1
                    dk = -1
                 endif
 
                 do k = k0,k1,dk
                    ncnt = ncnt + 1
-                   Tn_tmp(i,ncnt) = magfld(i,j,isn)%fld(k)
+                   Tn_tmp(i,ncnt) = Tn_p%flines(i,j,isn)%fld(k)
                 end do
              end do
           end do
@@ -158,7 +159,7 @@ contains
 
     endif
 
-    call edyn3D_esmf_regrid_mag2phys(magfld, physalt, nphyscol,nphyslev, tn_out)
+    call edyn3D_regridder_mag2phys(Tn_p, physalt, nphyscol,nphyslev, tn_out)
 
   end subroutine edyn3D_driver_timestep
 
