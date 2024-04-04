@@ -1635,29 +1635,18 @@ contains
 
        if (convproc_do_evaprain_atonce) then
           do m = 1, ntot_amode ! main loop over aerosol modes
-             do lphase = strt_loop,end_loop, stride_loop
-                ! loop over interstitial (1) and cloud-borne (2) forms
-                do lspec = 0, nspec_amode(m) ! loop over number + aerosol constituents
-                   if (lspec == 0) then ! number
-                      if (lphase == 1) then
-                         mm = numptr_amode(m)
-                      else
-                         mm = numptrcw_amode(m)
-                      endif
-                   else if (lspec <= nspec_amode(m)) then ! non-water mass
-                      if (lphase == 1) then
-                         mm = lmassptr_amode(lspec,m)
-                      else
-                         mm = lmassptrcw_amode(lspec,m)
-                      endif
-                   endif
-                   if (lphase == 2) then
-                      fldcw => qqcw_get_field(pbuf, mm,lchnk)
-                      fldcw(:ncol,:) = fldcw(:ncol,:) + dcondt_resusp3d(mm+pcnst,:ncol,:)*dt
-                      call outfld( trim(cnst_name_cw(mm))//'RSPTD', dcondt_resusp3d(mm+pcnst,:ncol,:), ncol, lchnk )
-                   end if
-                end do ! loop over number + chem constituents + water
-             end do  ! lphase
+             lphase = 2
+             ! loop over interstitial (1) and cloud-borne (2) forms
+             do lspec = 0, nspec_amode(m) ! loop over number + aerosol constituents
+                if (lspec == 0) then ! number
+                   mm = numptrcw_amode(m)
+                else if (lspec <= nspec_amode(m)) then ! non-water mass
+                   mm = lmassptrcw_amode(lspec,m)
+                endif
+                fldcw => qqcw_get_field(pbuf, mm,lchnk)
+                fldcw(:ncol,:) = fldcw(:ncol,:) + dcondt_resusp3d(mm+pcnst,:ncol,:)*dt
+                call outfld( trim(cnst_name_cw(mm))//'RSPTD', dcondt_resusp3d(mm+pcnst,:ncol,:), ncol, lchnk )
+             end do ! loop over number + chem constituents + water
           end do   ! m aerosol modes
        end if
 

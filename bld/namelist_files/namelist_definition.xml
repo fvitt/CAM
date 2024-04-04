@@ -5370,13 +5370,6 @@ mass mixing ratio constituents.
 Default: .false.
 </entry>
 
-<entry id="convproc_do_gas" type="logical"  category="conv"
-       group="aerosol_convproc_opts" valid_values="" >
-Switch to turn on / off trace gas tendencies due to the MAM
-convective cloud processing scheme.
-Default: .false.
-</entry>
-
 <entry id="deepconv_wetdep_history" type="logical"  category="conv"
        group="aerosol_convproc_opts" valid_values="" >
 Switch to turn on / off default history fields associated with aerosol
@@ -5389,13 +5382,6 @@ Default: .true.
 Switch to turn on / off deep convection in the MAM convective
 cloud processing scheme.
 Default: .true.
-</entry>
-
-<entry id="convproc_do_shallow" type="logical"  category="conv"
-       group="aerosol_convproc_opts" valid_values="" >
-Switch to turn on / off shallow convection in the MAM convective
-cloud processing scheme.
-Default: .false.
 </entry>
 
 <entry id="convproc_do_evaprain_atonce" type="logical"  category="conv"

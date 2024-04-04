@@ -1339,19 +1339,13 @@ contains
 
        if (convproc_do_evaprain_atonce) then
           do m = 1, nbins! main loop over aerosol modes
-             do lphase = strt_loop,end_loop, stride_loop
-                ! loop over interstitial (1) and cloud-borne (2) forms
-                do l = 1, nspec(m) + 2
-                   mm = bin_idx(m, l)
-                   lc = mm + ncnst_tot
-                   ! lphase=1 consider interstitial areosols, lphase=2 consider cloud-borne aerosols
-                   ! seems to only considers cloud-borne here (lc instead of mm)
-                   if (lphase == 2) then
-                      qqcw(mm)%fld(:ncol,:) = qqcw(mm)%fld(:ncol,:) + dcondt_resusp3d(lc,:ncol,:)*dt
-                      call outfld( trim(fieldname_cw(mm))//'RSPTD', dcondt_resusp3d(lc,:ncol,:), ncol, lchnk )
-                   end if
-                end do ! loop over number + mmr +  chem constituents
-             end do  ! lphase
+             lphase = 2
+             do l = 1, nspec(m) + 2
+                mm = bin_idx(m, l)
+                lc = mm + ncnst_tot
+                qqcw(mm)%fld(:ncol,:) = qqcw(mm)%fld(:ncol,:) + dcondt_resusp3d(lc,:ncol,:)*dt
+                call outfld( trim(fieldname_cw(mm))//'RSPTD', dcondt_resusp3d(lc,:ncol,:), ncol, lchnk )
+             end do ! loop over number + mmr +  chem constituents
           end do   ! m aerosol modes
 
        end if
