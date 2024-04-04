@@ -730,7 +730,7 @@
     <machines>
       <machine name="cheyenne" compiler="intel" category="prealpha"/>
       <machine name="cheyenne" compiler="intel" category="waccm"/>
-      <machine name="cheyenne" compiler="intel" category="frontogw_mpas"/>
+      <machine name="derecho" compiler="intel" category="frontogw_mpas"/>
       <machine name="cheyenne" compiler="intel" category="tem_diags"/>
    </machines>
     <options>
@@ -2136,7 +2136,7 @@
 
   <test compset="FWsc2000climo" grid="mpasa120_mpasa120" name="SMS_D_Ln9_Vnuopc" testmods="cam/outfrq9s_mpasa120">
     <machines>
-      <machine name="cheyenne" compiler="intel" category="frontogw_mpas"/>
+      <machine name="derecho" compiler="intel" category="frontogw_mpas"/>
       <machine name="cheyenne" compiler="intel" category="waccm"/>
     </machines>
     <options>
@@ -2145,7 +2145,7 @@
   </test>
   <test compset="FWsc2000climo" grid="mpasa120_mpasa120" name="ERS_Ln9_Vnuopc" testmods="cam/outfrq9s_mpasa120">
     <machines>
-      <machine name="cheyenne" compiler="intel" category="frontogw_mpas"/>
+      <machine name="derecho" compiler="intel" category="frontogw_mpas"/>
       <machine name="cheyenne" compiler="intel" category="waccm"/>
     </machines>
     <options>
