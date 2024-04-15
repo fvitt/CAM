@@ -242,6 +242,14 @@ contains
     integer :: isn, jj, k, ncnt
     integer :: dk,k0,k1
 
+    if (mytid>=ntask) then
+       if (mlon0_p/=1) then
+          call endrun('register_grids: mlat0_p needs to be 1 on inactive PEs')
+       end if
+       if (mlon1_p/=0) then
+          call endrun('register_grids: mlat1_p needs to be 0 on inactive PEs')
+       end if
+    end if
 
     nullify(flp_coord)
     nullify(fls1_coord)
@@ -281,6 +289,8 @@ contains
     nptsp_total = ncnt
     allocate(latvals(nptsp_total))
     allocate(altvals(nptsp_total))
+    latvals = huge(1._r8)
+    altvals = -huge(1._r8)
 
     ncnt = 0
     do j = 1,nmlat_h
@@ -304,18 +314,10 @@ contains
        end do
     end do
 
-    allocate(coord_map(nptsp_total))
-    if (mlon0_p==1) then
-       coord_map = (/ (i, i = 1,nptsp_total ) /)
-    else
-       coord_map = 0
-    end if
-
     flp_coord => horiz_coord_create('lat_p', 'pflpt', nptsp_total, 'magnetic latitude', &
-                                    'degrees_north', 1, nptsp_total, latvals, map=coord_map)
+                                    'degrees_north', 1, nptsp_total, latvals)
     fls1_coord => horiz_coord_create('lat_s1', 'pflpt', nptsp_total, 'magnetic latitude', &
-                                    'degrees_north', 1, nptsp_total, latvals, map=coord_map)
-    nullify(coord_map)
+                                    'degrees_north', 1, nptsp_total, latvals)
 
 
     allocate(coord_map(mlon1_p-mlon0_p+1))
@@ -378,6 +380,8 @@ contains
     nptss2_total = ncnt
     allocate(latvalss2(nptss2_total))
     allocate(altvalss2(nptss2_total))
+    latvalss2 = huge(1._r8)
+    altvalss2 = -huge(1._r8)
 
     ncnt = 0
     do j = 1,nmlats2_h
@@ -401,16 +405,8 @@ contains
        end do
     end do
 
-    allocate(coord_map(nptss2_total))
-    if (mlon0_p==1) then
-       coord_map = (/ (i, i = 1,nptss2_total ) /)
-    else
-       coord_map = 0
-    end if
-
     fls2_coord => horiz_coord_create('lat_s2', 's2flpt', nptss2_total, 'magnetic latitude', &
-                                    'degrees_north', 1, nptss2_total, latvalss2, map=coord_map)
-    nullify(coord_map)
+                                    'degrees_north', 1, nptss2_total, latvalss2)
 
     allocate(grid_map(4, ((mlon1_p-mlon0_p+1) * nptss2_total)))
     grid_map = -huge(1_iMap)

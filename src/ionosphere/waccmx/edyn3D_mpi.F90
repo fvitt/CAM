@@ -266,7 +266,7 @@ contains
                     ': each task must carry at least 4 longitudes. task = ',     &
                     n, tasks(n)%nmaglons
                if (masterproc) then
-                  write(iulog, errmsg)
+                  write(iulog, *) errmsg
                end if
                call endrun(errmsg)
             end if
