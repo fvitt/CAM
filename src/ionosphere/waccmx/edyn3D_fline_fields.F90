@@ -13,6 +13,7 @@ module edyn3D_fline_fields
      integer :: mlon0 = -huge(1)
      integer :: mlon1 = -huge(1)
      integer :: nmlat_h = -huge(1)
+     integer :: nptstot = 0
      type(ESMF_Field),       pointer :: esmf_fld(:) => null()
      type(ESMF_RouteHandle), pointer :: rhandle_phys2mag(:) => null()
      type(ESMF_RouteHandle), pointer :: rhandle_mag2phys(:) => null()
@@ -31,7 +32,7 @@ contains
 
   subroutine edyn3D_fline_fields_alloc()
 
-    use edyn3D_params, only: nmlat_h,nmlatS2_h
+    use edyn3D_params, only: nmlat_h,nmlatS2_h, nptsp_total,nptss2_total
     use edyn3d_mpi, only: mlon0_p,mlon1_p
     use edyn3D_fieldline, only: fline_p,fline_s1,fline_s2
     use edyn3D_esmf_regrid, only: magField, rh_phys2mag, rh_mag2phys
@@ -44,6 +45,7 @@ contains
     Tn_p%mlon0 = mlon0_p
     Tn_p%mlon1 = mlon1_p
     Tn_p%nmlat_h = nmlat_h
+    Tn_p%nptstot = nptsp_total
     Tn_p%rhandle_phys2mag => rh_phys2mag
     Tn_p%rhandle_mag2phys => rh_mag2phys
     Tn_p%esmf_fld => magField
@@ -64,6 +66,7 @@ contains
     sigma_hal_s1%mlon0 = mlon0_p
     sigma_hal_s1%mlon1 = mlon1_p
     sigma_hal_s1%nmlat_h = nmlat_h
+    sigma_hal_s1%nptstot = nptsp_total
     sigma_hal_s1%rhandle_phys2mag => rh_phys2mag_s1
     sigma_hal_s1%esmf_fld => magField_s1
     allocate(sigma_hal_s1%flines(mlon0_p:mlon1_p,nmlat_h,2))
@@ -71,6 +74,7 @@ contains
     sigma_ped_s1%mlon0 = mlon0_p
     sigma_ped_s1%mlon1 = mlon1_p
     sigma_ped_s1%nmlat_h = nmlat_h
+    sigma_ped_s1%nptstot = nptsp_total
     sigma_ped_s1%rhandle_phys2mag => rh_phys2mag_s1
     sigma_ped_s1%esmf_fld => magField_s1
     allocate(sigma_ped_s1%flines(mlon0_p:mlon1_p,nmlat_h,2))
@@ -94,6 +98,7 @@ contains
     sigma_hal_s2%mlon0 = mlon0_p
     sigma_hal_s2%mlon1 = mlon1_p
     sigma_hal_s2%nmlat_h = nmlatS2_h
+    sigma_hal_s2%nptstot = nptss2_total
     sigma_hal_s2%rhandle_phys2mag => rh_phys2mag_s2
     sigma_hal_s2%esmf_fld => magField_s2
     allocate(sigma_hal_s2%flines(mlon0_p:mlon1_p,nmlat_h,2))
@@ -101,6 +106,7 @@ contains
     sigma_ped_s2%mlon0 = mlon0_p
     sigma_ped_s2%mlon1 = mlon1_p
     sigma_ped_s2%nmlat_h = nmlatS2_h
+    sigma_ped_s2%nptstot = nptss2_total
     sigma_ped_s2%rhandle_phys2mag => rh_phys2mag_s2
     sigma_ped_s2%esmf_fld => magField_s2
     allocate(sigma_ped_s2%flines(mlon0_p:mlon1_p,nmlat_h,2))
