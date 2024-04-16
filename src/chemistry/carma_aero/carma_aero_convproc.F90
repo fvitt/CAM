@@ -1614,18 +1614,10 @@ k_loop_main_cc: &
             dcondt(m,k) = (netflux+netsrce)/dp_i(k)
 
             dcondt_wetdep(m,k) = fa_u_dp*dconudt_wetdep(m,k)/dp_i(k)
-
-            sumflux(m) = sumflux(m) + netflux
-            maxflux(m) = max( maxflux(m), abs(fluxin), abs(fluxout) )
-            sumsrce(m) = sumsrce(m) + netsrce
-            maxsrce(m) = max( maxsrce(m), &
-               fa_u_dp*max( abs(dconudt_aqchem(m,k)), &
-                            abs(dconudt_activa(m,k)),  abs(dconudt_wetdep(m,k)) ) )
-            sumchng(m) = sumchng(m) + dcondt(m,k)*dp_i(k)
             sumwetdep(m) = sumwetdep(m) + fa_u_dp*dconudt_wetdep(m,k)
 
             end if   ! "(doconvproc_extd(m))"
-            dcondt2(icol,k,m) = dcondt(m,k)
+
          end do      ! "m = 2,ncnst_extd"
       end do k_loop_main_cc ! "k = ktop, kbot"
 
@@ -1653,83 +1645,10 @@ k_loop_main_cc: &
       do m = 1, pcnst_extd
          if (doconvproc_extd(m)) then
             do k = ktop, kbot_prevap
-               sumchng3(m)  = sumchng3(m)  + dcondt(m,k)*dp_i(k)
-               maxresusp(m) = max( maxresusp(m),   &
-                                         abs(dcondt_resusp(m,k)*dp_i(k)) )
                sumprevap(m) = sumprevap(m) + dcondt_prevap(m,k)*dp_i(k)
-               maxprevap(m) = max( maxprevap(m),   &
-                                         abs(dcondt_prevap(m,k)*dp_i(k)) )
             end do
          end if
       end do ! m
-
-
-! do checks for mass conservation
-! do not expect errors > 1.0e-14, but use a conservative 1.0e-10 here,
-! as an error of this size is still not a big concern
-      relerr_cut = 1.0e-10_r8
-      if (nerr < nerrmax) then
-         merr = 0
-         if (courantmax > (1.0_r8 + 1.0e-6_r8)) then
-            write(*,9161) '-', trim(convtype), courantmax
-            merr = merr + 1
-         end if
-         do m = 1, pcnst_extd
-            if (doconvproc_extd(m)) then
-               itmpa = 0
-               ! sumflux should be ~=0.0 because fluxout of one layer cancels
-               !    fluxin to adjacent layer
-               tmpa = sumflux(m)
-               tmpb = max( maxflux(m), small )
-               if (abs(tmpa) > relerr_cut*tmpb) then
-                  write(*,9151) '1', m, cnst_name_extd(m), tmpb, tmpa, (tmpa/tmpb)
-                  itmpa = itmpa + 1
-               end if
-               ! sumflux2 involve environment fluxes and entrainment/detrainment
-               !    to up/downdrafts, and it should be equal to sumchng,
-               !    and so (sumflux2 - sumsrce) should be ~=0.0
-               tmpa = sumflux2(m) - sumsrce(m)
-               tmpb = max( maxflux2(m), maxsrce(m), small )
-               if (abs(tmpa) > relerr_cut*tmpb) then
-                  write(*,9151) '2', m, cnst_name_extd(m), tmpb, tmpa, (tmpa/tmpb)
-                  itmpa = itmpa + 10
-               end if
-               ! sunchng = sumflux + sumsrce, so (sumchng - sumsrc) should be ~=0.0
-               tmpa = sumchng(m) - sumsrce(m)
-               tmpb = max( maxflux(m), maxsrce(m), small )
-               if (abs(tmpa) > relerr_cut*tmpb) then
-                  write(*,9151) '3', m, cnst_name_extd(m), tmpb, tmpa, (tmpa/tmpb)
-                  itmpa = itmpa + 100
-               end if
-               ! sumchng3 = sumchng + sumresusp + sumprevap,
-               !    so tmpa (below) should be ~=0.0
-               ! NOTE: This check needs to be redone if the rain is being
-               ! evaporated all at once. Until then, skip this check for that case.
-               if (.not. convproc_do_evaprain_atonce) then
-                  tmpa = sumchng3(m) - (sumsrce(m) + sumprevap(m))
-                  tmpb = max( maxflux(m), maxsrce(m), maxresusp(m), maxprevap(m), small )
-
-                  if (abs(tmpa) > relerr_cut*tmpb) then
-                     write(*,9151) '4', m, cnst_name_extd(m), tmpb, tmpa, (tmpa/tmpb)
-                     itmpa = itmpa + 1000
-                  end if
-               end if
-
-               if (itmpa > 0) merr = merr + 1
-            end if
-         end do ! m
-         if (merr > 0) write(*,9181) convtype, lchnk, icol, i, jt(i), mx(i)
-         nerr = nerr + merr
-         if (nerr >= nerrmax) write(*,9171) nerr
-      end if ! (nerr < nerrmax) then
-
-9151 format( '*** ma_convproc_tend error, massbal', a, 1x, i5,1x,a, &
-             ' -- maxflux, sumflux, relerr =', 3(1pe14.6) )
-9161 format( '*** ma_convproc_tend error, courantmax', 2a, 3x, 1pe14.6 )
-9171 format( '*** ma_convproc_tend error, stopping messages after nerr =', i10 )
-
-9181 format( '*** ma_convproc_tend error -- convtype, lchnk, icol, il, jt, mx =  ', a,2x,5(1x,i10) )
-
 
 !
 ! note again the ma_convproc_tend does not apply convective cloud processing
