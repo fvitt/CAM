@@ -215,7 +215,7 @@ contains
     use cam_grid_support, only: horiz_coord_t, horiz_coord_create, iMap
     use cam_grid_support, only: cam_grid_register, cam_grid_attribute_register
     use edyn3d_mpi, only: mlon0_p,mlon1_p
-    use edyn3D_fieldline, only: fline_p, fline_s2
+    use edyn3D_fieldline, only: gmapex_p, gmapex_s
     use edyn3d_params, only: nhgt_fix, nmlat_T1
 
     type(horiz_coord_t), pointer :: flp_coord
@@ -272,10 +272,10 @@ contains
 
           if (isn==1) then
              k0 = 1
-             k1 = fline_p(mlon0_p,j,isn)%npts
+             k1 = gmapex_p(j,isn)%npts
              dk = 1
           else
-             k0 = fline_p(mlon0_p,j,isn)%npts
+             k0 = gmapex_p(j,isn)%npts
              k1 = 1
              dk = -1
           endif
@@ -298,18 +298,18 @@ contains
 
           if (isn==1) then
              k0 = 1
-             k1 = fline_p(mlon0_p,j,isn)%npts
+             k1 = gmapex_p(j,isn)%npts
              dk = 1
           else
-             k0 = fline_p(mlon0_p,j,isn)%npts
+             k0 = gmapex_p(j,isn)%npts
              k1 = 1
              dk = -1
           endif
 
           do k = k0,k1,dk
              ncnt = ncnt + 1
-             latvals(ncnt) = fline_p(mlon0_p,j,isn)%mlat_qd(k)*r2d ! degrees
-             altvals(ncnt) = fline_p(mlon0_p,j,isn)%hgt_pt(k)*1.e-3_r8 ! km
+             latvals(ncnt) = gmapex_p(j,isn)%mlat_qd(k)*r2d ! degrees
+             altvals(ncnt) = gmapex_p(j,isn)%hgt_pt(k)*1.e-3_r8 ! km
           end do
        end do
     end do
@@ -363,10 +363,10 @@ contains
 
           if (isn==1) then
              k0 = 1
-             k1 = fline_s2(mlon0_p,j,isn)%npts
+             k1 = gmapex_s(j,isn)%npts
              dk = 1
           else
-             k0 = fline_s2(mlon0_p,j,isn)%npts
+             k0 = gmapex_s(j,isn)%npts
              k1 = 1
              dk = -1
           endif
@@ -389,18 +389,18 @@ contains
 
           if (isn==1) then
              k0 = 1
-             k1 = fline_s2(mlon0_p,j,isn)%npts
+             k1 = gmapex_s(j,isn)%npts
              dk = 1
           else
-             k0 = fline_s2(mlon0_p,j,isn)%npts
+             k0 = gmapex_s(j,isn)%npts
              k1 = 1
              dk = -1
           endif
 
           do k = k0,k1,dk
              ncnt = ncnt + 1
-             latvalss2(ncnt) = fline_s2(mlon0_p,j,isn)%mlat_qd(k)*r2d ! degrees
-             altvalss2(ncnt) = fline_s2(mlon0_p,j,isn)%hgt_pt(k)*1.e-3_r8 ! km
+             latvalss2(ncnt) = gmapex_s(j,isn)%mlat_qd(k)*r2d ! degrees
+             altvalss2(ncnt) = gmapex_s(j,isn)%hgt_pt(k)*1.e-3_r8 ! km
           end do
        end do
     end do
