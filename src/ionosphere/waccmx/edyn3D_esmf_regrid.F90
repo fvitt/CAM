@@ -224,7 +224,7 @@ contains
           !
           ! Get pointer and set mag grid geographic latitdue coordinates:
           !
-          call ESMF_GridGetCoord(grid=mag_grid(k), coordDim=2, farrayPtr=fptr2d, rc=rc)
+          call ESMF_GridGetCoord(grid=mag_grid_s1(k), coordDim=2, farrayPtr=fptr2d, rc=rc)
           call check_error(subname,'ESMF_GridGetCoord glat',rc)
 
           do j = 1, nmlat
@@ -291,7 +291,7 @@ contains
           !
           ! Get pointer and set mag grid geographic latitdue coordinates:
           !
-          call ESMF_GridGetCoord(grid=mag_grid(k), coordDim=2, farrayPtr=fptr2d, rc=rc)
+          call ESMF_GridGetCoord(grid=mag_grid_s2(k), coordDim=2, farrayPtr=fptr2d, rc=rc)
           call check_error(subname,'ESMF_GridGetCoord glat',rc)
 
           do j = 1, nmlat_s2

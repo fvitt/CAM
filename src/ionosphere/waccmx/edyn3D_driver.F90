@@ -9,7 +9,6 @@ module edyn3D_driver
   use edyn3D_fieldline, only: fieldline_init, fieldline_getapex
   use edyn3D_params, only: nmlon, nmlat_h, nptsp_total,nptss1_total,nptss2_total, ylonm,ylonm_s
 
-  use edyn3D_fline_fields
   use edyn3D_esmf_regrid
   use edyn3D_regridder
 
@@ -27,6 +26,7 @@ contains
   subroutine edyn3D_driver_reg(mpicom, npes)
     use cam_history,  only: addfld, horiz_only
     use mo_apex, only: mo_apex_init1
+    use edyn3D_fline_fields, only: edyn3D_fline_fields_alloc
 
     integer, intent(in) :: mpicom, npes
 
@@ -70,14 +70,18 @@ contains
     call addfld ('GEOGLONs2', horiz_only, 'I', 'Degrees','magnetic field line point geographic (geodetic) longitude', &
                   gridname='magfline_s2')
 
+    call addfld ('height_s1', horiz_only, 'I', 'm','altitude', &
+                  gridname='magfline_s1')
+    call addfld ('height_s2', horiz_only, 'I', 'm','altitude', &
+                  gridname='magfline_s1')
 
-    call addfld ('simga_ped_s1', horiz_only, 'I', 'K','Ped cond. on S1 mag field line grid', &
+    call addfld ('sigma_ped_s1', horiz_only, 'I', 'K','Ped cond. on S1 mag field line grid', &
                   gridname='magfline_s1')
-    call addfld ('simga_hal_s1', horiz_only, 'I', 'K','Hal cond. on S1 mag field line grid', &
+    call addfld ('sigma_hal_s1', horiz_only, 'I', 'K','Hal cond. on S1 mag field line grid', &
                   gridname='magfline_s1')
-    call addfld ('simga_ped_s2', horiz_only, 'I', 'K','Ped cond. on S2 mag field line grid', &
+    call addfld ('sigma_ped_s2', horiz_only, 'I', 'K','Ped cond. on S2 mag field line grid', &
                   gridname='magfline_s2')
-    call addfld ('simga_hal_s2', horiz_only, 'I', 'K','Hal cond. on S2 mag field line grid', &
+    call addfld ('sigma_hal_s2', horiz_only, 'I', 'K','Hal cond. on S2 mag field line grid', &
                   gridname='magfline_s2')
 
     call edyn3D_fline_fields_alloc()
@@ -88,6 +92,8 @@ contains
     use edyn3d_mpi, only: mlon0_p,mlon1_p
     use cam_history,  only: outfld
     use edyn3D_fieldline, only: fline_p, fline_s1, fline_s2
+    use edyn3D_fline_fields, only: Tn_p, height_s1, height_s2
+    use edyn3D_fline_fields, only: sigma_ped_s1,sigma_hal_s1,sigma_ped_s2,sigma_hal_s2
 
     integer,  intent(in) :: nphyscol, nphyslev
     real(r8), intent(in) :: physalt(nphyslev,nphyscol)
@@ -110,17 +116,23 @@ contains
     integer :: i,j,k,isn,ncnt, ier
     integer :: dk,k0,k1
 
+    call edyn3D_regridder_phys2mag(physalt,physalt,nphyscol,nphyslev,height_s1)
+    call edyn3D_regridder_phys2mag(physalt,physalt,nphyscol,nphyslev,height_s2)
+
+    call output_fline_field(height_s1)
+    call output_fline_field(height_s2)
+
     call edyn3D_regridder_phys2mag(sigPed,physalt,nphyscol,nphyslev,sigma_ped_s1)
     call edyn3D_regridder_phys2mag(sigPed,physalt,nphyscol,nphyslev,sigma_ped_s2)
 
-    call output_fline_field('simga_ped_s1',sigma_ped_s1)
-    call output_fline_field('simga_ped_s2',sigma_ped_s2)
+    call output_fline_field(sigma_ped_s1)
+    call output_fline_field(sigma_ped_s2)
 
     call edyn3D_regridder_phys2mag(sigHal,physalt,nphyscol,nphyslev,sigma_hal_s1)
     call edyn3D_regridder_phys2mag(sigHal,physalt,nphyscol,nphyslev,sigma_hal_s2)
 
-    call output_fline_field('simga_hal_s1',sigma_hal_s1)
-    call output_fline_field('simga_hal_s2',sigma_hal_s2)
+    call output_fline_field(sigma_hal_s1)
+    call output_fline_field(sigma_hal_s2)
 
     if (mytid<ntask) then
        geogaltp=-huge(1._r8)
@@ -204,7 +216,7 @@ contains
 
     call edyn3D_regridder_phys2mag(tn,physalt,nphyscol,nphyslev,Tn_p)
 
-    call output_fline_field('Tn_mag', Tn_p)
+    call output_fline_field(Tn_p)
 
     call edyn3D_regridder_mag2phys(Tn_p, physalt, nphyscol,nphyslev, tn_out)
 
@@ -444,9 +456,10 @@ contains
   end subroutine reg_hist_grid
 
 
-  subroutine output_fline_field( hfld_name, magfld )
+  subroutine output_fline_field( magfld )
     use cam_history,  only: outfld
-    character(len=*), intent(in) :: hfld_name
+    use edyn3D_fline_fields, only: magfield_t
+
     type(magfield_t), intent(in) :: magfld
 
     integer :: i,j,k,isn,ncnt
@@ -472,14 +485,14 @@ contains
 
                 do k = k0,k1,dk
                    ncnt = ncnt + 1
-                   fld_tmp(i,ncnt) = Tn_p%flines(i,j,isn)%fld(k)
+                   fld_tmp(i,ncnt) = magfld%flines(i,j,isn)%fld(k)
                 end do
              end do
           end do
        end do
 
        do j = 1,magfld%nptstot
-          call outfld(hfld_name, fld_tmp(magfld%mlon0:magfld%mlon1,j), magfld%mlon1-magfld%mlon0+1, j)
+          call outfld(magfld%name, fld_tmp(magfld%mlon0:magfld%mlon1,j), magfld%mlon1-magfld%mlon0+1, j)
        end do
     end if
 
