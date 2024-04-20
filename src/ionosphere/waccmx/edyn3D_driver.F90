@@ -73,7 +73,7 @@ contains
     call addfld ('height_s1', horiz_only, 'I', 'm','altitude', &
                   gridname='magfline_s1')
     call addfld ('height_s2', horiz_only, 'I', 'm','altitude', &
-                  gridname='magfline_s1')
+                  gridname='magfline_s2')
 
     call addfld ('sigma_ped_s1', horiz_only, 'I', 'K','Ped cond. on S1 mag field line grid', &
                   gridname='magfline_s1')
