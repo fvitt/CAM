@@ -26,6 +26,7 @@ module modal_aerosol_state_mod
      procedure :: ambient_total_bin_mmr
      procedure :: get_ambient_mmr_0list
      procedure :: get_ambient_mmr_rlist
+     procedure :: get_ambient_mmr_tot
      procedure :: get_cldbrne_mmr
      procedure :: get_ambient_num
      procedure :: get_cldbrne_num
@@ -155,6 +156,15 @@ contains
 
     call rad_cnst_get_aer_mmr(list_ndx, bin_ndx, species_ndx, 'a', self%state, self%pbuf, mmr)
   end subroutine get_ambient_mmr_rlist
+
+  subroutine get_ambient_mmr_tot(self, bin_ndx, mmr)
+    class(modal_aerosol_state), intent(in) :: self
+    integer, intent(in) :: bin_ndx     ! bin index
+    real(r8), pointer :: mmr(:,:)      ! mass mixing ratios
+
+    nullify(mmr)
+
+  end subroutine get_ambient_mmr_tot
 
   !------------------------------------------------------------------------------
   ! returns cloud-borne aerosol number mixing ratio for a given species index and bin index

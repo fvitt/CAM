@@ -30,7 +30,8 @@ module aerosol_state_mod
      procedure(aero_get_amb_total_bin_mmr), deferred :: ambient_total_bin_mmr
      procedure(aero_get_state_mmr), deferred :: get_ambient_mmr_0list
      procedure(aero_get_list_mmr), deferred :: get_ambient_mmr_rlist
-     generic :: get_ambient_mmr=>get_ambient_mmr_0list,get_ambient_mmr_rlist
+     procedure(aero_get_tot_mmr), deferred :: get_ambient_mmr_tot
+     generic :: get_ambient_mmr=>get_ambient_mmr_0list,get_ambient_mmr_rlist,get_ambient_mmr_tot
      procedure(aero_get_state_mmr), deferred :: get_cldbrne_mmr
      procedure(aero_get_state_num), deferred :: get_ambient_num
      procedure(aero_get_state_num), deferred :: get_cldbrne_num
@@ -95,6 +96,13 @@ module aerosol_state_mod
        integer, intent(in) :: bin_ndx      ! bin index
        real(r8), pointer :: mmr(:,:)       ! mass mixing ratios (ncol,nlev)
      end subroutine aero_get_state_mmr
+
+     subroutine aero_get_tot_mmr(self, bin_ndx, mmr)
+       import :: aerosol_state, r8
+       class(aerosol_state), intent(in) :: self
+       integer, intent(in) :: bin_ndx      ! bin index
+       real(r8), pointer :: mmr(:,:)       ! mass mixing ratios (ncol,nlev)
+     end subroutine aero_get_tot_mmr
 
      !------------------------------------------------------------------------
      ! returns aerosol mass mixing ratio for a given species index, bin index
