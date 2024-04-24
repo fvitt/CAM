@@ -244,35 +244,33 @@ subroutine ma_convproc_init
             ndx = aer_cnst_ndx(mm)
             call addfld (trim(cnst_name_extd(1,mm))//'SFSEC', &
                  horiz_only,  'A','kg/m2/s','Wet deposition flux (precip evap, convective) at surface')
-            !if (history_aerosol) then
-               call add_default(trim(cnst_name_extd(1,mm))//'SFSEC', 4, ' ')
-            !end if
+            if (history_aerosol) then
+               call add_default(trim(cnst_name_extd(1,mm))//'SFSEC', 1, ' ')
+            end if
 
-            !if ( deepconv_wetdep_history ) then
+            if ( deepconv_wetdep_history ) then
                call addfld (trim(cnst_name_extd(1,mm))//'SFSID', &
                     horiz_only,  'A','kg/m2/s','Wet deposition flux (incloud, deep convective) at surface')
                call addfld (trim(cnst_name_extd(1,mm))//'SFSED', &
                     horiz_only,  'A','kg/m2/s','Wet deposition flux (precip evap, deep convective) at surface')
-               !if (history_aerosol) then
-                  call add_default(trim(cnst_name_extd(1,mm))//'SFSID', 4, ' ')
-                  call add_default(trim(cnst_name_extd(1,mm))//'SFSED', 4, ' ')
-               !end if
-                  !end if
+               if (history_aerosol) then
+                  call add_default(trim(cnst_name_extd(1,mm))//'SFSID', 1, ' ')
+                  call add_default(trim(cnst_name_extd(1,mm))//'SFSED', 1, ' ')
+               end if
+            end if
 
-                  call addfld (trim(cnst_name_extd(1,mm))//'QB',(/ 'lev' /), 'I', ' ','convproc input qb')
-                  call add_default(trim(cnst_name_extd(1,mm))//'QB',5, ' ')
          end do
       end do
    end if
 
-   !if ( history_aerosol .and. convproc_do_aer ) then
-      call add_default( 'SH_MFUP_MAX', 4, ' ' )
-      call add_default( 'SH_WCLDBASE', 4, ' ' )
-      call add_default( 'SH_KCLDBASE', 4, ' ' )
-      call add_default( 'DP_MFUP_MAX', 4, ' ' )
-      call add_default( 'DP_WCLDBASE', 4, ' ' )
-      call add_default( 'DP_KCLDBASE', 4, ' ' )
-   !end if
+   if ( history_aerosol .and. convproc_do_aer ) then
+      call add_default( 'SH_MFUP_MAX', 1, ' ' )
+      call add_default( 'SH_WCLDBASE', 1, ' ' )
+      call add_default( 'SH_KCLDBASE', 1, ' ' )
+      call add_default( 'DP_MFUP_MAX', 1, ' ' )
+      call add_default( 'DP_WCLDBASE', 1, ' ' )
+      call add_default( 'DP_KCLDBASE', 1, ' ' )
+   end if
 
    fracis_idx      = pbuf_get_index('FRACIS')
 
@@ -443,8 +441,6 @@ subroutine ma_convproc_intr( state, ptend, pbuf, ztodt,             &
             qb(1:ncol,:,mm) = qptr(1:ncol,:)
          end if
 
-         call outfld( trim(cnst_name_extd(1,mm))//'QB', qb(1:ncol,:,mm), ncol, lchnk )
-
       end do
    end do
 
@@ -513,10 +509,10 @@ subroutine ma_convproc_intr( state, ptend, pbuf, ztodt,             &
             call outfld( trim(cnst_name_extd(1,mm))//'SFSIC', sflxic(:,mm), pcols, lchnk )
             call outfld( trim(cnst_name_extd(1,mm))//'SFSEC', sflxec(:,mm), pcols, lchnk )
 
-            !if ( deepconv_wetdep_history ) then
+            if ( deepconv_wetdep_history ) then
                call outfld( trim(cnst_name_extd(1,mm))//'SFSID', sflxid(:,mm), pcols, lchnk )
                call outfld( trim(cnst_name_extd(1,mm))//'SFSED', sflxed(:,mm), pcols, lchnk )
-            !end if
+            end if
          end do
       end do
 
