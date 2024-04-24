@@ -24,6 +24,7 @@ module aero_model
                                rad_cnst_get_bin_mmr_by_idx, rad_cnst_get_bin_mmr, &
                                rad_cnst_get_bin_num
   use mo_setsox,         only: setsox, has_sox
+  use carma_aerosol_properties_mod, only: carma_aerosol_properties
 
   implicit none
   private
@@ -97,7 +98,8 @@ module aero_model
 
  logical :: convproc_do_aer
 
-
+ type(carma_aerosol_properties), pointer :: aero_props_obj => null()
+ integer :: ncnstaer = 0
 
 contains
 
@@ -265,6 +267,13 @@ contains
     integer :: idx
     real(r8) :: nanval
 
+    aero_props_obj => carma_aerosol_properties()
+    if (.not.associated(aero_props_obj)) then
+       call endrun('ma_convproc_init: carma_aerosol_properties constructor failed')
+    end if
+
+    ncnstaer = aero_props_obj%ncnst_tot()
+
     if (is_first_step()) then
        do m = 1, nbins
           call rad_cnst_get_info_by_bin(0, m, mmr_name=mmr_name)
@@ -420,6 +429,11 @@ contains
        call addfld (trim(fieldname_cw(mm))//'WETC',(/ 'lev' /), 'A',unit_basename//'/kg/s ','wet deposition tendency??')
        call addfld (trim(fieldname_cw(mm))//'CONU',(/ 'lev' /), 'A',unit_basename//'/kg ','updraft mixing ratio??')
 
+       call add_default (trim(fieldname(mm))//'WETC', 6, ' ')
+       call add_default (trim(fieldname(mm))//'CONU', 6, ' ')
+       call add_default (trim(fieldname_cw(mm))//'WETC', 6, ' ')
+       call add_default (trim(fieldname_cw(mm))//'CONU', 6, ' ')
+
        call addfld (trim(fieldname(mm))//'WET',(/ 'lev' /), 'A',unit_basename//'/kg/s ','wet deposition tendency')
        call addfld (trim(fieldname(mm))//'SIC',(/ 'lev' /), 'A',unit_basename//'/kg/s ', &
             trim(fieldname(mm))//' ic wet deposition')
@@ -473,7 +487,8 @@ contains
                 horiz_only,  'A','kg/m2/s','Wet deposition flux (belowcloud, deep convective) at surface')
              call addfld( trim(fieldname_cw(mm))//'RSPTD', (/ 'lev' /), 'A', unit_basename//'/kg/s',   &
                 trim(fieldname_cw(mm))//' resuspension tendency')
-          end if
+              call add_default (trim(fieldname_cw(mm))//'RSPTD', 3, ' ')
+         end if
 
 
           if ( history_aerosol.or. history_chemistry ) then
@@ -633,7 +648,7 @@ contains
     real(r8) :: tmpdust, tmpnacl
     real(r8) :: water_old, water_new ! temporary old/new aerosol water mix-rat
     logical  :: isprx(pcols,pver) ! true if precipation
-    real(r8) :: aerdepwetis(pcols,ncnst_tot) ! aerosol wet deposition (interstitial)
+    real(r8) :: aerdepwetis(ncnstaer,pcnst) ! aerosol wet deposition (interstitial)
     real(r8) :: aerdepwetcw(pcols,ncnst_tot) ! aerosol wet deposition (cloud water)
 
     ! For unified convection scheme
@@ -674,7 +689,7 @@ contains
     real(r8) :: rtscavt(pcols, pver, 0:nspec_max)
 
     integer, parameter :: nsrflx_mzaer2cnvpr = 2
-    real(r8) :: qsrflx_mzaer2cnvpr(pcols,ncnst_tot,nsrflx_mzaer2cnvpr)
+    real(r8) :: qsrflx_mzaer2cnvpr(pcols,pcnst,nsrflx_mzaer2cnvpr)
     ! End unified convection scheme
 
     real(r8), pointer :: fracis(:,:,:)   ! fraction of transported species that are insoluble
@@ -686,10 +701,14 @@ contains
 
     type(wetdep_inputs_t) :: dep_inputs
 
-    real(r8) :: dcondt_resusp3d(ncnst_extd,pcols, pver)
+    !real(r8) :: dcondt_resusp3d(ncnst_extd,pcols, pver)
+    !real(r8) :: dcondt_resusp3d(pcnst*2,pcols, pver)
+    real(r8) :: dcondt_resusp3d(ncnstaer,pcols, pver)
 
     character(len=32) :: spectype
     character(len=32) :: bin_name
+
+    integer :: ndx
 
     lchnk = state%lchnk
     ncol  = state%ncol
@@ -1067,7 +1086,7 @@ contains
                    enddo
                 enddo
                 if (.not.convproc_do_aer) call outfld( trim(fieldname(mm))//'SFWET', sflx, pcols, lchnk)
-                aerdepwetis(:ncol,mm) = sflx(:ncol)
+                !aerdepwetis(:ncol,mm) = sflx(:ncol)
 
                 sflx(:)=0._r8
                 do k=1,pver
@@ -1337,18 +1356,23 @@ contains
             nsrflx_mzaer2cnvpr, qsrflx_mzaer2cnvpr, aerdepwetis, &
             dcondt_resusp3d)
 
-       if (convproc_do_evaprain_atonce) then
-          do m = 1, nbins! main loop over aerosol modes
-             lphase = 2
-             do l = 1, nspec(m) + 2
-                mm = bin_idx(m, l)
-                lc = mm + ncnst_tot
-                qqcw(mm)%fld(:ncol,:) = qqcw(mm)%fld(:ncol,:) + dcondt_resusp3d(lc,:ncol,:)*dt
-                call outfld( trim(fieldname_cw(mm))//'RSPTD', dcondt_resusp3d(lc,:ncol,:), ncol, lchnk )
-             end do ! loop over number + mmr +  chem constituents
-          end do   ! m aerosol modes
-
-       end if
+!!$       if (convproc_do_evaprain_atonce) then
+!!$          do m = 1, nbins! main loop over aerosol modes
+!!$             lphase = 2
+!!$             do l = 1, nspec(m) + 2
+!!$                mm = bin_idx(m, l)
+!!$                lc = mm + ncnst_tot
+!!$                if (l == nspec(m) + 2) then   !number
+!!$                   ndx = aero_props_obj%indexer(m,0)
+!!$                else  (l == nspec(m) + 1) then  ! mmr
+!!$                   ndx = aero_props_obj%indexer(m,l)
+!!$                endif
+!!$                qqcw(mm)%fld(:ncol,:) = qqcw(mm)%fld(:ncol,:) + dcondt_resusp3d(ndx,:ncol,:)*dt
+!!$                call outfld( trim(fieldname_cw(mm))//'RSPTD', dcondt_resusp3d(ndx,:ncol,:), ncol, lchnk )
+!!$             end do ! loop over number + mmr +  chem constituents
+!!$          end do   ! m aerosol modes
+!!$
+!!$       end if
 
        call t_stopf('ma_convproc')
     endif

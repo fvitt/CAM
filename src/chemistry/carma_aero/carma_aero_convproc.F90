@@ -34,7 +34,7 @@ use cam_abortutils,  only: endrun
 
 
 use carma_aerosol_properties_mod, only: carma_aerosol_properties
-use aerosol_state_mod, only: aerosol_state
+use aerosol_state_mod, only: aerosol_state, ptr2d_t
 use carma_aerosol_state_mod, only: carma_aerosol_state
 
 implicit none
@@ -195,6 +195,8 @@ subroutine ma_convproc_init
    allocate(aer_cnst_ndx(ncnstaer))
    allocate(cnst_name_extd(2,ncnstaer))
 
+   aer_cnst_ndx(:) = -1
+
    do m = 1, aero_props_obj%nbins()
       do l = 0, aero_props_obj%nmasses(m)
          mm = aero_props_obj%indexer(m,l)
@@ -242,32 +244,35 @@ subroutine ma_convproc_init
             ndx = aer_cnst_ndx(mm)
             call addfld (trim(cnst_name_extd(1,mm))//'SFSEC', &
                  horiz_only,  'A','kg/m2/s','Wet deposition flux (precip evap, convective) at surface')
-            if (history_aerosol) then
-               call add_default(trim(cnst_name_extd(1,mm))//'SFSEC', 1, ' ')
-            end if
+            !if (history_aerosol) then
+               call add_default(trim(cnst_name_extd(1,mm))//'SFSEC', 4, ' ')
+            !end if
 
-            if ( deepconv_wetdep_history ) then
+            !if ( deepconv_wetdep_history ) then
                call addfld (trim(cnst_name_extd(1,mm))//'SFSID', &
                     horiz_only,  'A','kg/m2/s','Wet deposition flux (incloud, deep convective) at surface')
                call addfld (trim(cnst_name_extd(1,mm))//'SFSED', &
                     horiz_only,  'A','kg/m2/s','Wet deposition flux (precip evap, deep convective) at surface')
-               if (history_aerosol) then
-                  call add_default(trim(cnst_name_extd(1,mm))//'SFSID', 1, ' ')
-                  call add_default(trim(cnst_name_extd(1,mm))//'SFSED', 1, ' ')
-               end if
-            end if
+               !if (history_aerosol) then
+                  call add_default(trim(cnst_name_extd(1,mm))//'SFSID', 4, ' ')
+                  call add_default(trim(cnst_name_extd(1,mm))//'SFSED', 4, ' ')
+               !end if
+                  !end if
+
+                  call addfld (trim(cnst_name_extd(1,mm))//'QB',(/ 'lev' /), 'I', ' ','convproc input qb')
+                  call add_default(trim(cnst_name_extd(1,mm))//'QB',5, ' ')
          end do
       end do
    end if
 
-   if ( history_aerosol .and. convproc_do_aer ) then
-      call add_default( 'SH_MFUP_MAX', 1, ' ' )
-      call add_default( 'SH_WCLDBASE', 1, ' ' )
-      call add_default( 'SH_KCLDBASE', 1, ' ' )
-      call add_default( 'DP_MFUP_MAX', 1, ' ' )
-      call add_default( 'DP_WCLDBASE', 1, ' ' )
-      call add_default( 'DP_KCLDBASE', 1, ' ' )
-   end if
+   !if ( history_aerosol .and. convproc_do_aer ) then
+      call add_default( 'SH_MFUP_MAX', 4, ' ' )
+      call add_default( 'SH_WCLDBASE', 4, ' ' )
+      call add_default( 'SH_KCLDBASE', 4, ' ' )
+      call add_default( 'DP_MFUP_MAX', 4, ' ' )
+      call add_default( 'DP_WCLDBASE', 4, ' ' )
+      call add_default( 'DP_KCLDBASE', 4, ' ' )
+   !end if
 
    fracis_idx      = pbuf_get_index('FRACIS')
 
@@ -347,14 +352,14 @@ subroutine ma_convproc_intr( state, ptend, pbuf, ztodt,             &
 
 
    ! Arguments
-   type(physics_state),       intent(in )   :: state      ! Physics state variables
+   type(physics_state),target,intent(in )   :: state      ! Physics state variables
    type(physics_ptend),       intent(inout) :: ptend      ! %lq set in aero_model_wetdep
    type(physics_buffer_desc), pointer       :: pbuf(:)
    real(r8), intent(in) :: ztodt                          ! 2 delta t (model time increment)
 
    integer,  intent(in)    :: nsrflx_mzaer2cnvpr
    real(r8), intent(in)    :: qsrflx_mzaer2cnvpr(pcols,pcnst,nsrflx_mzaer2cnvpr)
-   real(r8), intent(inout) :: aerdepwetis(pcols,pcnst)  ! aerosol wet deposition (interstitial)
+   real(r8), intent(inout) :: aerdepwetis(ncnstaer,pcnst)  ! aerosol wet deposition (interstitial)
    real(r8), intent(inout) :: dcondt_resusp3d(ncnstaer,pcols,pver)
 
    ! Local variables
@@ -369,13 +374,16 @@ subroutine ma_convproc_intr( state, ptend, pbuf, ztodt,             &
 
    real(r8) :: qa(pcols,pver,ncnstaer)
    real(r8) :: qb(pcols,pver,ncnstaer)
-   real(r8) :: qsrflx(pcols,pcnst,nsrflx)
+   real(r8) :: qsrflx(pcols,ncnstaer,nsrflx)
    real(r8), pointer :: qptr(:,:)
 
-   real(r8) :: sflxic(pcols,pcnst)
-   real(r8) :: sflxid(pcols,pcnst)
-   real(r8) :: sflxec(pcols,pcnst)
-   real(r8) :: sflxed(pcols,pcnst)
+   real(r8) :: sflxic(pcols,ncnstaer)
+   real(r8) :: sflxid(pcols,ncnstaer)
+   real(r8) :: sflxec(pcols,ncnstaer)
+   real(r8) :: sflxed(pcols,ncnstaer)
+
+   type(ptr2d_t) :: raer(ncnstaer)     ! aerosol mass, number mixing ratios
+   type(ptr2d_t) :: qqcw(ncnstaer)
 
    logical  :: dotend(pcnst)
    logical  :: applytend
@@ -408,28 +416,12 @@ subroutine ma_convproc_intr( state, ptend, pbuf, ztodt,             &
       end if
    end do
 
-   ! prepare for deep conv processing
-!!$   do l = 1, pcnst
-!!$      if ( ptend%lq(l) ) then
-!!$         ! calc new q (after calcaersize and mz_aero_wet_intr)
-!!$         qa(1:ncol,:,l) = state%q(1:ncol,:,l) + dt*ptend%q(1:ncol,:,l)
-!!$         qb(1:ncol,:,l) = max( 0.0_r8, qa(1:ncol,:,l) )
-!!$      else
-!!$         ! use old q
-!!$         qb(1:ncol,:,l) = state%q(1:ncol,:,l)
-!!$      end if
-!!$   end do
 
+   call aero_state%get_states( aero_props_obj, raer, qqcw )
+
+   ! prepare for deep conv processing
    do m = 1, aero_props_obj%nbins()
       do l = 0, aero_props_obj%nmasses(m)
-
-         if (l==0) then
-            call aero_state%get_ambient_num(m,qptr)
-         else if (l>aero_props_obj%nspecies(m)) then
-            call aero_state%get_ambient_mmr(m,qptr)
-         else
-            call aero_state%get_ambient_mmr(l,m,qptr)
-         end if
 
          mm = aero_props_obj%indexer(m,l)
          ndx = aer_cnst_ndx(mm)
@@ -439,14 +431,19 @@ subroutine ma_convproc_intr( state, ptend, pbuf, ztodt,             &
             applytend = ptend%lq(ndx)
             dotend(ndx) = applytend
          endif
+
+         qptr => raer(mm)%fld
+
          if ( applytend ) then
             ! calc new q (after calcaersize and mz_aero_wet_intr)
-            qa(1:ncol,:,mm) = qptr(1:ncol,:) + dt*qptr(1:ncol,:)
+            qa(1:ncol,:,mm) = qptr(1:ncol,:) + dt*ptend%q(1:ncol,:,ndx)
             qb(1:ncol,:,mm) = max( 0.0_r8, qa(1:ncol,:,mm) )
          else
             ! use old q
             qb(1:ncol,:,mm) = qptr(1:ncol,:)
          end if
+
+         call outfld( trim(cnst_name_extd(1,mm))//'QB', qb(1:ncol,:,mm), ncol, lchnk )
 
       end do
    end do
@@ -469,31 +466,30 @@ subroutine ma_convproc_intr( state, ptend, pbuf, ztodt,             &
                mm = aero_props_obj%indexer(m,l)
                ndx = aer_cnst_ndx(mm)
 
-               !if ( .not. dotend(ndx) ) cycle
-               if (ndx < 1) cycle
-
                ! calc new q (after ma_convproc_dp_intr)
                qa(1:ncol,:,mm) = qb(1:ncol,:,mm) + dt*dqdt(1:ncol,:,mm)
                qb(1:ncol,:,mm) = max( 0.0_r8, qa(1:ncol,:,mm) )
 
                if ( apply_convproc_tend_to_ptend ) then
                   ! add dqdt onto ptend%q and set ptend%lq
-                  ptend%q(1:ncol,:,ndx) = ptend%q(1:ncol,:,ndx) + dqdt(1:ncol,:,mm)
-                  ptend%lq(ndx) = .true.
+                  if (ndx>0) then ! adveced species
+                     ptend%q(1:ncol,:,ndx) = ptend%q(1:ncol,:,ndx) + dqdt(1:ncol,:,mm)
+                  else
+                     raer(mm)%fld(1:ncol,:) = max( 0.0_r8, raer(mm)%fld(1:ncol,:) + dqdt(1:ncol,:,mm) * dt )
+                  end if
                end if
 
-               if (cnst_species_class(ndx) == cnst_spec_class_aerosol) then
-                  ! these used for history file wetdep diagnostics
-                  sflxic(1:ncol,ndx) = sflxic(1:ncol,ndx) + qsrflx(1:ncol,ndx,4)
-                  sflxid(1:ncol,ndx) = sflxid(1:ncol,ndx) + qsrflx(1:ncol,ndx,4)
-                  sflxec(1:ncol,ndx) = sflxec(1:ncol,ndx) + qsrflx(1:ncol,ndx,5)
-                  sflxed(1:ncol,ndx) = sflxed(1:ncol,ndx) + qsrflx(1:ncol,ndx,5)
-               end if
+               ! these used for history file wetdep diagnostics
+               sflxic(1:ncol,mm) = sflxic(1:ncol,mm) + qsrflx(1:ncol,mm,4)
+               sflxid(1:ncol,mm) = sflxid(1:ncol,mm) + qsrflx(1:ncol,mm,4)
+               sflxec(1:ncol,mm) = sflxec(1:ncol,mm) + qsrflx(1:ncol,mm,5)
+               sflxed(1:ncol,mm) = sflxed(1:ncol,mm) + qsrflx(1:ncol,mm,5)
 
-               if (cnst_species_class(l) == cnst_spec_class_aerosol) then
-                  ! this used for surface coupling
-                  aerdepwetis(1:ncol,ndx) = aerdepwetis(1:ncol,ndx) &
-                       + qsrflx(1:ncol,ndx,4) + qsrflx(1:ncol,ndx,5)
+               !if (cnst_species_class(ndx) == cnst_spec_class_aerosol) then
+               ! this used for surface coupling
+               if (ndx>0) then
+                  aerdepwetis(1:ncol,mm) = aerdepwetis(1:ncol,mm) &
+                       + qsrflx(1:ncol,mm,4) + qsrflx(1:ncol,mm,5)
                end if
             end do
          end do
@@ -513,14 +509,14 @@ subroutine ma_convproc_intr( state, ptend, pbuf, ztodt,             &
 
             ndx = aer_cnst_ndx(mm)
 
-            call outfld( trim(cnst_name_extd(1,mm))//'SFWET', aerdepwetis(:,ndx), pcols, lchnk )
-            call outfld( trim(cnst_name_extd(1,mm))//'SFSIC', sflxic(:,ndx), pcols, lchnk )
-            call outfld( trim(cnst_name_extd(1,mm))//'SFSEC', sflxec(:,ndx), pcols, lchnk )
+            call outfld( trim(cnst_name_extd(1,mm))//'SFWET', aerdepwetis(:,mm), pcols, lchnk )
+            call outfld( trim(cnst_name_extd(1,mm))//'SFSIC', sflxic(:,mm), pcols, lchnk )
+            call outfld( trim(cnst_name_extd(1,mm))//'SFSEC', sflxec(:,mm), pcols, lchnk )
 
-            if ( deepconv_wetdep_history ) then
-               call outfld( trim(cnst_name_extd(1,mm))//'SFSID', sflxid(:,ndx), pcols, lchnk )
-               call outfld( trim(cnst_name_extd(1,mm))//'SFSED', sflxed(:,ndx), pcols, lchnk )
-            end if
+            !if ( deepconv_wetdep_history ) then
+               call outfld( trim(cnst_name_extd(1,mm))//'SFSID', sflxid(:,mm), pcols, lchnk )
+               call outfld( trim(cnst_name_extd(1,mm))//'SFSED', sflxed(:,mm), pcols, lchnk )
+            !end if
          end do
       end do
 
@@ -564,8 +560,8 @@ subroutine ma_convproc_dp_intr(  aero_state, &
    real(r8), intent(inout) :: dqdt(pcols,pver,ncnstaer)
 !!$   logical,  intent(out)   :: dotend(pcnst)
    integer,  intent(in)    :: nsrflx
-   real(r8), intent(inout) :: qsrflx(pcols,pcnst,nsrflx)
-   real(r8), intent(inout) :: dcondt_resusp3d(pcnst*2,pcols,pver)
+   real(r8), intent(inout) :: qsrflx(pcols,ncnstaer,nsrflx)
+   real(r8), intent(inout) :: dcondt_resusp3d(ncnstaer,pcols,pver)
 
    integer :: i
    integer :: lchnk
@@ -743,14 +739,14 @@ subroutine ma_convproc_tend(  aero_state, &
 
    real(r8), intent(out):: dqdt(pcols,pver,ncnstaer)  ! Tracer tendency array
    integer,  intent(in) :: nsrflx            ! last dimension of qsrflx
-   real(r8), intent(out):: qsrflx(pcols,pcnst,nsrflx)
+   real(r8), intent(out):: qsrflx(pcols,ncnstaer,nsrflx)
                               ! process-specific column tracer tendencies
                               ! (1=activation,  2=resuspension, 3=aqueous rxn,
                               !  4=wet removal, 5=renaming)
    real(r8), intent(out) :: xx_mfup_max(pcols)
    real(r8), intent(out) :: xx_wcldbase(pcols)
    real(r8), intent(out) :: xx_kcldbase(pcols)
-   real(r8), intent(inout) :: dcondt_resusp3d(pcnst*2,pcols,pver)
+   real(r8), intent(inout) :: dcondt_resusp3d(ncnstaer,pcols,pver)
 
 !--------------------------Local Variables------------------------------
 
@@ -852,7 +848,7 @@ subroutine ma_convproc_tend(  aero_state, &
    real(r8) netflux              ! a work variable
    real(r8) netsrce              ! a work variable
    real(r8) q_i(pver,ncnstaer)      ! q(i,k,m) at current i
-   real(r8) qsrflx_i(pcnst,nsrflx) ! qsrflx(i,m,n) at current i
+   real(r8) qsrflx_i(ncnstaer,nsrflx) ! qsrflx(i,m,n) at current i
    real(r8) rhoair_i(pver)       ! air density at current i
    real(r8) small                ! a small number
    real(r8) tmpa                 ! work variables
@@ -1043,6 +1039,7 @@ i_loop_main_aa: &
          do l = 0, aero_props_obj%nmasses(m)
             mm = aero_props_obj%indexer(m,l)
             q_i(1:pver,mm) = q(icol,1:pver,mm)
+            conu2(icol,1:pver,1,mm) = q(icol,1:pver,mm)
          end do
       end do
 
@@ -1277,7 +1274,9 @@ k_loop_main_bb: &
                      t(icol,k),  rhoair_i(k),         &
                      icol,                k,                &
                      kactfirst,  ipass_calc_updraft                     )
+
                end if
+               conu2(icol,k,:,:) = conu(:,:,k)
 
             end if ! (convproc_method_activate <= 1)
 
@@ -1475,6 +1474,8 @@ k_loop_main_cc: &
                   dcondt_wetdep(n,mm,k) = fa_u_dp*dconudt_wetdep(n,mm,k)/dp_i(k)
                   sumwetdep(n,mm) = sumwetdep(n,mm) + fa_u_dp*dconudt_wetdep(n,mm,k)
 
+                  dcondt2(icol,k,n,mm) = dcondt(n,mm,k)
+
                end do
             end do
 
@@ -1497,8 +1498,7 @@ k_loop_main_cc: &
          do m = 1, aero_props_obj%nbins()
             do l = 0, aero_props_obj%nmasses(m)
                mm = aero_props_obj%indexer(m,l)
-               ndx = aer_cnst_ndx(mm)
-               dcondt_resusp3d(pcnst+ndx,icol,:) = dcondt_resusp(2,mm,:)
+               dcondt_resusp3d(mm,icol,:) = dcondt_resusp(2,mm,:)
             end do
          end do
 
@@ -1562,12 +1562,9 @@ k_loop_main_cc: &
       do m = 1, aero_props_obj%nbins()
          do l = 0, aero_props_obj%nmasses(m)
             mm = aero_props_obj%indexer(m,l)
-            ndx = aer_cnst_ndx(mm)
-            if (ndx>0) then
-               qsrflx_i(ndx,4) = sumwetdep(1,mm)*hund_ovr_g
-               qsrflx_i(ndx,5) = sumprevap(1,mm)*hund_ovr_g
-               qsrflx(icol,ndx,1:5) = qsrflx(icol,ndx,1:5) + qsrflx_i(ndx,1:5)*xinv_ntsub
-            end if
+            qsrflx_i(mm,4) = sumwetdep(1,mm)*hund_ovr_g
+            qsrflx_i(mm,5) = sumprevap(1,mm)*hund_ovr_g
+            qsrflx(icol,mm,1:5) = qsrflx(icol,mm,1:5) + qsrflx_i(mm,1:5)*xinv_ntsub
          end do
       end do
 
@@ -1597,8 +1594,9 @@ k_loop_main_cc: &
 
          call outfld( trim(cnst_name_extd(1,mm))//'WETC', dcondt2(:,:,1,mm), pcols, lchnk )
          call outfld( trim(cnst_name_extd(1,mm))//'CONU', conu2(:,:,1,mm), pcols, lchnk )
-         !call outfld( trim(cnst_name_extd(2,mm))//'WETC', dcondt2(:,:,2,mm), pcols, lchnk )
-         !call outfld( trim(cnst_name_extd(2,mm))//'CONU', conu2(:,:,2,mm), pcols, lchnk )
+         call outfld( trim(cnst_name_extd(2,mm))//'WETC', dcondt2(:,:,2,mm), pcols, lchnk )
+         call outfld( trim(cnst_name_extd(2,mm))//'CONU', conu2(:,:,2,mm), pcols, lchnk )
+
       end do
    end do
 
@@ -1694,7 +1692,6 @@ end subroutine ma_convproc_tend
 
    end do ! k
 
-   return
    end subroutine ma_precpevap_convproc
 
 !=========================================================================================
