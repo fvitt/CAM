@@ -407,13 +407,6 @@ subroutine ma_convproc_intr( state, ptend, pbuf, ztodt,             &
    sflxid(:,:) = 0.0_r8
    sflxec(:,:) = 0.0_r8
    sflxed(:,:) = 0.0_r8
-   do l = 1, pcnst
-      if ( (cnst_species_class(l) == cnst_spec_class_aerosol) .and. ptend%lq(l) ) then
-         sflxec(1:ncol,l) = qsrflx_mzaer2cnvpr(1:ncol,l,1)
-         sflxed(1:ncol,l) = qsrflx_mzaer2cnvpr(1:ncol,l,2)
-      end if
-   end do
-
 
    call aero_state%get_states( aero_props_obj, raer, qqcw )
 
@@ -423,6 +416,11 @@ subroutine ma_convproc_intr( state, ptend, pbuf, ztodt,             &
 
          mm = aero_props_obj%indexer(m,l)
          ndx = aer_cnst_ndx(mm)
+
+         if (ndx>0) then
+            sflxec(1:ncol,mm) = qsrflx_mzaer2cnvpr(1:ncol,ndx,1)
+            sflxed(1:ncol,mm) = qsrflx_mzaer2cnvpr(1:ncol,ndx,2)
+         end if
 
          applytend = .false.
          if ( ndx > 0 ) then
@@ -554,7 +552,6 @@ subroutine ma_convproc_dp_intr(  aero_state, &
 
    real(r8), intent(in)    :: q(pcols,pver,ncnstaer)
    real(r8), intent(inout) :: dqdt(pcols,pver,ncnstaer)
-!!$   logical,  intent(out)   :: dotend(pcnst)
    integer,  intent(in)    :: nsrflx
    real(r8), intent(inout) :: qsrflx(pcols,ncnstaer,nsrflx)
    real(r8), intent(inout) :: dcondt_resusp3d(ncnstaer,pcols,pver)

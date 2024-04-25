@@ -30,6 +30,8 @@ module aero_model
   use modal_aero_wateruptake, only: modal_strat_sulfate
   use mo_setsox,              only: setsox, has_sox
 
+  use modal_aerosol_properties_mod, only: modal_aerosol_properties
+
   implicit none
   private
 
@@ -105,6 +107,9 @@ module aero_model
   logical :: modal_accum_coarse_exch = .false.
 
   logical :: convproc_do_aer
+
+  type(modal_aerosol_properties), pointer :: aero_props_obj => null()
+  integer :: ncnstaer = 0
 
 contains
 
@@ -225,6 +230,12 @@ contains
     character(len=32) :: spec_type
     character(len=32) :: mode_type
     integer :: nspec
+
+    aero_props_obj => modal_aerosol_properties()
+    if (.not.associated(aero_props_obj)) then
+       call endrun('ma_convproc_init: modal_aerosol_properties constructor failed')
+    end if
+    ncnstaer = aero_props_obj%ncnst_tot()
 
     ! aqueous chem initialization
     call sox_inti()
@@ -469,8 +480,8 @@ contains
 
        if ( history_aerosol .or. history_chemistry ) then
           call add_default (trim(wetdep_list(m))//'SFWET', 1, ' ')
-!!$          call add_default (trim(wetdep_list(m))//'WETC', 1, ' ')
-!!$          call add_default (trim(wetdep_list(m))//'CONU', 1, ' ')
+          call add_default (trim(wetdep_list(m))//'WETC', 1, ' ')
+          call add_default (trim(wetdep_list(m))//'CONU', 1, ' ')
        endif
        if ( history_aerosol ) then
           call add_default (trim(wetdep_list(m))//'SFSIC', 1, ' ')
@@ -529,6 +540,9 @@ contains
                trim(cnst_name_cw(n))//' turbulent dry deposition flux')
           call addfld (trim(cnst_name_cw(n))//'GVF',   horiz_only,  'A', unit_basename//'/m2/s ', &
                trim(cnst_name_cw(n))//' gravitational dry deposition flux')
+
+          call addfld (trim(cnst_name_cw(n))//'WETC',(/ 'lev' /), 'A',unit_basename//'/kg/s','wet deposition tendency??')
+          call addfld (trim(cnst_name_cw(n))//'CONU',(/ 'lev' /), 'A',unit_basename//'/kg','updraft mixing ratio')
 
           if (convproc_do_aer) then
              call addfld (trim(cnst_name_cw(n))//'SFSEC', &
@@ -1007,7 +1021,7 @@ contains
 
     real(r8) :: iscavt(pcols, pver)
 
-    integer :: mm
+    integer :: mm, mmm
     integer :: i,k
 
     real(r8) :: icscavt(pcols, pver)
@@ -1042,7 +1056,8 @@ contains
     real(r8) :: tmpdust, tmpnacl
     real(r8) :: water_old, water_new ! temporary old/new aerosol water mix-rat
     logical  :: isprx(pcols,pver) ! true if precipation
-    real(r8) :: aerdepwetis(pcols,pcnst) ! aerosol wet deposition (interstitial)
+    real(r8) :: aerdepwetis(pcols,pcnst)  ! aerosol wet deposition (interstitial)
+    real(r8) :: aerdepwetis_tmp(pcols,ncnstaer)  ! aerosol wet deposition (interstitial)
     real(r8) :: aerdepwetcw(pcols,pcnst) ! aerosol wet deposition (cloud water)
 
     ! For unified convection scheme
@@ -1083,7 +1098,7 @@ contains
 
     type(wetdep_inputs_t) :: dep_inputs
 
-    real(r8) :: dcondt_resusp3d(2*pcnst,pcols, pver)
+    real(r8) :: dcondt_resusp3d(ncnstaer,pcols,pver)
 
     lchnk = state%lchnk
     ncol  = state%ncol
@@ -1128,6 +1143,7 @@ contains
     if(convproc_do_aer) then
        qsrflx_mzaer2cnvpr(:,:,:) = 0.0_r8
        aerdepwetis(:,:)          = 0.0_r8
+       aerdepwetis_tmp(:,:)      = 0.0_r8
        aerdepwetcw(:,:)          = 0.0_r8
     else
        qsrflx_mzaer2cnvpr(:,:,:) = nan
@@ -1629,13 +1645,28 @@ contains
 
     if (convproc_do_aer) then
        call t_startf('ma_convproc')
+
+       do m = 1, ntot_amode ! main loop over aerosol modes
+          do lspec = 0, nspec_amode(m) ! loop over number + aerosol constituents
+             if (lspec == 0) then ! number
+                mm = numptr_amode(m)
+             else if (lspec <= nspec_amode(m)) then ! non-water mass
+                mm = lmassptr_amode(lspec,m)
+             endif
+             mmm = aero_props_obj%indexer(m,lspec)
+
+             aerdepwetis_tmp(:ncol,mmm) = aerdepwetis(:ncol,mm)
+          end do
+       end do
+
+
        call ma_convproc_intr( state, ptend, pbuf, dt,                &
-            nsrflx_mzaer2cnvpr, qsrflx_mzaer2cnvpr, aerdepwetis, &
+            nsrflx_mzaer2cnvpr, qsrflx_mzaer2cnvpr, aerdepwetis_tmp, &
             dcondt_resusp3d)
 
        if (convproc_do_evaprain_atonce) then
           do m = 1, ntot_amode ! main loop over aerosol modes
-             lphase = 2
+            ! lphase = 2
              ! loop over interstitial (1) and cloud-borne (2) forms
              do lspec = 0, nspec_amode(m) ! loop over number + aerosol constituents
                 if (lspec == 0) then ! number
@@ -1643,9 +1674,14 @@ contains
                 else if (lspec <= nspec_amode(m)) then ! non-water mass
                    mm = lmassptrcw_amode(lspec,m)
                 endif
+
+                mmm = aero_props_obj%indexer(m,lspec)
+
+                aerdepwetis(:ncol,mm) = aerdepwetis_tmp(:ncol,mmm)
+
                 fldcw => qqcw_get_field(pbuf, mm,lchnk)
-                fldcw(:ncol,:) = fldcw(:ncol,:) + dcondt_resusp3d(mm+pcnst,:ncol,:)*dt
-                call outfld( trim(cnst_name_cw(mm))//'RSPTD', dcondt_resusp3d(mm+pcnst,:ncol,:), ncol, lchnk )
+                fldcw(:ncol,:) = fldcw(:ncol,:) + dcondt_resusp3d(mmm,:ncol,:)*dt
+                call outfld( trim(cnst_name_cw(mm))//'RSPTD', dcondt_resusp3d(mmm,:ncol,:), ncol, lchnk )
              end do ! loop over number + chem constituents + water
           end do   ! m aerosol modes
        end if
