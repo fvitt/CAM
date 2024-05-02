@@ -446,6 +446,10 @@ contains
                horiz_only,  'A','kg/m2/s','Wet deposition flux (precip evap, stratiform) at surface')
           call addfld (trim(wetdep_list(m))//'SFSBD', &
                horiz_only,  'A','kg/m2/s','Wet deposition flux (belowcloud, deep convective) at surface')
+          call addfld (trim(wetdep_list(m))//'WETC',  &
+              (/ 'lev' /), 'A',unit_basename//'/kg/s ','wet deposition tendency')
+          call addfld (trim(wetdep_list(m))//'CONU',  &
+              (/ 'lev' /), 'A',unit_basename//'/kg ','updraft mixing ratio')
        end if
 
        call addfld (trim(wetdep_list(m))//'WET',(/ 'lev' /), 'A',unit_basename//'/kg/s ','wet deposition tendency')
@@ -460,16 +464,18 @@ contains
        call addfld (trim(wetdep_list(m))//'INS',(/ 'lev' /), 'A',unit_basename//'/kg/s ','insol frac')
 
        if ( history_aerosol .or. history_chemistry ) then
-          call add_default (trim(wetdep_list(m))//'SFWET', 1, ' ')
+          call add_default (trim(wetdep_list(m))//'SFWET', 2, ' ')
        endif
        if ( history_aerosol ) then
-          call add_default (trim(wetdep_list(m))//'SFSIC', 1, ' ')
-          call add_default (trim(wetdep_list(m))//'SFSIS', 1, ' ')
-          call add_default (trim(wetdep_list(m))//'SFSBC', 1, ' ')
-          call add_default (trim(wetdep_list(m))//'SFSBS', 1, ' ')
+          call add_default (trim(wetdep_list(m))//'SFSIC', 2, ' ')
+          call add_default (trim(wetdep_list(m))//'SFSIS', 2, ' ')
+          call add_default (trim(wetdep_list(m))//'SFSBC', 2, ' ')
+          call add_default (trim(wetdep_list(m))//'SFSBS', 2, ' ')
           if (convproc_do_aer) then
-             call add_default (trim(wetdep_list(m))//'SFSES', 1, ' ')
-             call add_default (trim(wetdep_list(m))//'SFSBD', 1, ' ')
+             call add_default (trim(wetdep_list(m))//'SFSES', 2, ' ')
+             call add_default (trim(wetdep_list(m))//'SFSBD', 2, ' ')
+             call add_default (trim(wetdep_list(m))//'WETC', 4, ' ')
+             call add_default (trim(wetdep_list(m))//'CONU', 4, ' ')
           end if
        endif
 
@@ -538,8 +544,14 @@ contains
              call addfld (trim(cnst_name_cw(n))//'SFSES', &
                 horiz_only,  'A','kg/m2/s','Wet deposition flux (precip evap, stratiform) at surface')
              call addfld (trim(cnst_name_cw(n))//'SFSBD', &
-                horiz_only,  'A','kg/m2/s','Wet deposition flux (belowcloud, deep convective) at surface')
-          end if
+                  horiz_only,  'A','kg/m2/s','Wet deposition flux (belowcloud, deep convective) at surface')
+             call addfld( trim(cnst_name_cw(n))//'RSPTD', (/ 'lev' /), 'A', unit_basename//'/kg/s',   &
+                  trim(cnst_name_cw(n))//' resuspension tendency')
+             call addfld (trim(cnst_name_cw(n))//'WETC',  &
+                  (/ 'lev' /), 'A',unit_basename//'/kg/s ','wet deposition tendency')
+             call addfld (trim(cnst_name_cw(n))//'CONU',  &
+                  (/ 'lev' /), 'A',unit_basename//'/kg ','updraft mixing ratio')
+        end if
 
 
           if ( history_aerosol.or. history_chemistry ) then
@@ -550,14 +562,17 @@ contains
              call add_default (trim(cnst_name_cw(n))//'GVF', 1, ' ')
              call add_default (trim(cnst_name_cw(n))//'TBF', 1, ' ')
              call add_default (trim(cnst_name_cw(n))//'DDF', 1, ' ')
-             call add_default (trim(cnst_name_cw(n))//'SFSBS', 1, ' ')
-             call add_default (trim(cnst_name_cw(n))//'SFSIC', 1, ' ')
-             call add_default (trim(cnst_name_cw(n))//'SFSBC', 1, ' ')
-             call add_default (trim(cnst_name_cw(n))//'SFSIS', 1, ' ')
+             call add_default (trim(cnst_name_cw(n))//'SFSBS', 2, ' ')
+             call add_default (trim(cnst_name_cw(n))//'SFSIC', 2, ' ')
+             call add_default (trim(cnst_name_cw(n))//'SFSBC', 2, ' ')
+             call add_default (trim(cnst_name_cw(n))//'SFSIS', 2, ' ')
              if (convproc_do_aer) then
-                call add_default (trim(cnst_name_cw(n))//'SFSEC', 1, ' ')
-                call add_default (trim(cnst_name_cw(n))//'SFSES', 1, ' ')
-                call add_default (trim(cnst_name_cw(n))//'SFSBD', 1, ' ')
+                call add_default (trim(cnst_name_cw(n))//'SFSEC', 2, ' ')
+                call add_default (trim(cnst_name_cw(n))//'SFSES', 2, ' ')
+                call add_default (trim(cnst_name_cw(n))//'SFSBD', 2, ' ')
+                call add_default (trim(cnst_name_cw(n))//'RSPTD', 5, ' ')
+                call add_default (trim(cnst_name_cw(n))//'WETC', 4, ' ')
+                call add_default (trim(cnst_name_cw(n))//'CONU', 4, ' ')
              end if
           endif
        endif
@@ -1635,6 +1650,7 @@ contains
 
     if (convproc_do_aer) then
        call t_startf('ma_convproc')
+
        call ma_convproc_intr( state, ptend, pbuf, dt,                &
             nsrflx_mzaer2cnvpr, qsrflx_mzaer2cnvpr, aerdepwetis, &
             dcondt_resusp3d)
@@ -1643,7 +1659,7 @@ contains
           do m = 1, ntot_amode ! main loop over aerosol modes
              do lphase = strt_loop,end_loop, stride_loop
                 ! loop over interstitial (1) and cloud-borne (2) forms
-                do lspec = 0, nspec_amode(m)+1 ! loop over number + chem constituents + water
+                do lspec = 0, nspec_amode(m) ! loop over number + chem constituents
                    if (lspec == 0) then ! number
                       if (lphase == 1) then
                          mm = numptr_amode(m)
@@ -1658,8 +1674,9 @@ contains
                       endif
                    endif
                    if (lphase == 2) then
+                      call outfld( trim(cnst_name_cw(mm))//'RSPTD', dcondt_resusp3d(mm+pcnst,:ncol,:), ncol, lchnk )
                       fldcw => qqcw_get_field(pbuf, mm,lchnk)
-                      fldcw(:ncol,:) = fldcw(:ncol,:) + dcondt_resusp3d(mm,:ncol,:)*dt
+                      fldcw(:ncol,:) = fldcw(:ncol,:) + dcondt_resusp3d(mm+pcnst,:ncol,:)*dt
                    end if
                 end do ! loop over number + chem constituents + water
              end do  ! lphase
@@ -1669,11 +1686,11 @@ contains
        call t_stopf('ma_convproc')
     endif
 
-    ! if the user has specified prescribed aerosol dep fluxes then
-    ! do not set cam_out dep fluxes according to the prognostic aerosols
-    if (.not. aerodep_flx_prescribed()) then
-       call set_srf_wetdep(aerdepwetis, aerdepwetcw, cam_out)
-    endif
+!!$    ! if the user has specified prescribed aerosol dep fluxes then
+!!$    ! do not set cam_out dep fluxes according to the prognostic aerosols
+!!$    if (.not. aerodep_flx_prescribed()) then
+!!$       call set_srf_wetdep(aerdepwetis, aerdepwetcw, cam_out)
+!!$    endif
 
   endsubroutine aero_model_wetdep
 

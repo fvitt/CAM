@@ -16,6 +16,7 @@ module modal_aero_convproc
 !---------------------------------------------------------------------------------
 
 use shr_kind_mod,    only: r8=>shr_kind_r8
+use shr_kind_mod,    only: shr_kind_cs
 use spmd_utils,      only: masterproc
 use physconst,       only: gravit, rair
 use ppgrid,          only: pver, pcols, pverp
@@ -37,6 +38,8 @@ use modal_aero_data, only: lptr2_pom_a_amode, lptr2_soa_a_amode, lptr2_bc_a_amod
 use modal_aero_data, only: lptr_msa_a_amode, lptr_nh4_a_amode, lptr_no3_a_amode
 
 use modal_aerosol_properties_mod, only: modal_aerosol_properties
+use aerosol_state_mod, only: aerosol_state
+use modal_aerosol_state_mod, only: modal_aerosol_state
 
 implicit none
 private
@@ -115,10 +118,10 @@ integer :: cmfmc_sh_idx       = 0
 integer :: sh_e_ed_ratio_idx  = 0
 
 integer :: istat
-
 logical, parameter :: debug=.false.
 
 type(modal_aerosol_properties), pointer :: aero_props_obj => null()
+integer :: nbins = 0
 
 !=========================================================================================
 contains
@@ -219,8 +222,11 @@ subroutine ma_convproc_init
             call addfld (trim(cnst_name(l))//'SFSEC', &
                 horiz_only,  'A','kg/m2/s','Wet deposition flux (precip evap, convective) at surface')
             if (history_aerosol) then
-               call add_default(trim(cnst_name(l))//'SFSEC', 1, ' ')
+               call add_default(trim(cnst_name(l))//'SFSEC', 2, ' ')
             end if
+
+            call addfld( trim(cnst_name(l))//'QB', (/ 'lev' /), 'A', ' ', ' ')
+            call add_default(trim(cnst_name(l))//'QB',4,' ')
 
             if ( deepconv_wetdep_history ) then
                call addfld (trim(cnst_name(l))//'SFSID', &
@@ -228,8 +234,8 @@ subroutine ma_convproc_init
                call addfld (trim(cnst_name(l))//'SFSED', &
                   horiz_only,  'A','kg/m2/s','Wet deposition flux (precip evap, deep convective) at surface')
                if (history_aerosol) then
-                  call add_default(trim(cnst_name(l))//'SFSID', 1, ' ')
-                  call add_default(trim(cnst_name(l))//'SFSED', 1, ' ')
+                  call add_default(trim(cnst_name(l))//'SFSID', 2, ' ')
+                  call add_default(trim(cnst_name(l))//'SFSED', 2, ' ')
                end if
             end if
          end do
@@ -241,9 +247,9 @@ subroutine ma_convproc_init
       call add_default( 'SH_MFUP_MAX', 1, ' ' )
       call add_default( 'SH_WCLDBASE', 1, ' ' )
       call add_default( 'SH_KCLDBASE', 1, ' ' )
-      call add_default( 'DP_MFUP_MAX', 1, ' ' )
-      call add_default( 'DP_WCLDBASE', 1, ' ' )
-      call add_default( 'DP_KCLDBASE', 1, ' ' )
+      call add_default( 'DP_MFUP_MAX', 3, ' ' )
+      call add_default( 'DP_WCLDBASE', 3, ' ' )
+      call add_default( 'DP_KCLDBASE', 3, ' ' )
    end if
 
    fracis_idx      = pbuf_get_index('FRACIS')
@@ -307,6 +313,8 @@ subroutine ma_convproc_init
       call endrun('ma_convproc_init: modal_aerosol_properties constructor failed')
    end if
 
+   nbins = aero_props_obj%nbins()
+
 end subroutine ma_convproc_init
 
 !=========================================================================================
@@ -357,7 +365,11 @@ subroutine ma_convproc_intr( state, ptend, pbuf, ztodt,             &
    real(r8) :: sflxed(pcols,pcnst)
 
    logical  :: dotend(pcnst)
+   class(aerosol_state), pointer :: aero_state
    !-------------------------------------------------------------------------------------------------
+   nullify(aero_state)
+
+   aero_state => modal_aerosol_state( state, pbuf )
 
    ! Initialize
    lchnk = state%lchnk
@@ -386,6 +398,9 @@ subroutine ma_convproc_intr( state, ptend, pbuf, ztodt,             &
          ! calc new q (after calcaersize and mz_aero_wet_intr)
          qa(1:ncol,:,l) = state%q(1:ncol,:,l) + dt*ptend%q(1:ncol,:,l)
          qb(1:ncol,:,l) = max( 0.0_r8, qa(1:ncol,:,l) )
+
+         call outfld(trim(cnst_name(l))//'QB', qb(1:ncol,:,l), ncol, lchnk)
+
       else
          ! use old q
          qb(1:ncol,:,l) = state%q(1:ncol,:,l)
@@ -398,7 +413,7 @@ subroutine ma_convproc_intr( state, ptend, pbuf, ztodt,             &
 
       ! do deep conv processing
       if (convproc_do_deep) then
-         call ma_convproc_dp_intr(                    &
+         call ma_convproc_dp_intr(    aero_state,     &
             state, pbuf, dt,                          &
             qb, dqdt, dotend, nsrflx, qsrflx, dcondt_resusp3d )
 
@@ -424,7 +439,7 @@ subroutine ma_convproc_intr( state, ptend, pbuf, ztodt,             &
                sflxid(1:ncol,l) = sflxid(1:ncol,l) + qsrflx(1:ncol,l,4)
                sflxec(1:ncol,l) = sflxec(1:ncol,l) + qsrflx(1:ncol,l,5)
                sflxed(1:ncol,l) = sflxed(1:ncol,l) + qsrflx(1:ncol,l,5)
-            end if
+           end if
 
             if (cnst_species_class(l) == cnst_spec_class_aerosol) then
                ! this used for surface coupling
@@ -437,7 +452,7 @@ subroutine ma_convproc_intr( state, ptend, pbuf, ztodt,             &
       dqdt(:,:,:) = 0.0_r8
       qsrflx(:,:,:) = 0.0_r8
       if (convproc_do_shallow) then
-         call ma_convproc_sh_intr(                    &
+         call ma_convproc_sh_intr( aero_state,        &
             state, pbuf, dt,                          &
             qb, dqdt, dotend, nsrflx, qsrflx, dcondt_resusp3d )
 
@@ -493,11 +508,14 @@ subroutine ma_convproc_intr( state, ptend, pbuf, ztodt,             &
       end do
    end if
 
+   deallocate(aero_state)
+   nullify(aero_state)
+
 end subroutine ma_convproc_intr
 
 !=========================================================================================
 
-subroutine ma_convproc_dp_intr(                &
+subroutine ma_convproc_dp_intr( aero_state, &
      state, pbuf, dt,                          &
      q, dqdt, dotend, nsrflx, qsrflx,  dcondt_resusp3d)
 !-----------------------------------------------------------------------
@@ -518,6 +536,8 @@ subroutine ma_convproc_dp_intr(                &
 
 
    ! Arguments
+   class(aerosol_state), intent(in) :: aero_state
+
    type(physics_state),       intent(in ) :: state          ! Physics state variables
    type(physics_buffer_desc), pointer     :: pbuf(:)
 
@@ -610,7 +630,7 @@ subroutine ma_convproc_dp_intr(                &
 
    itmpveca(:) = -1
 
-   call ma_convproc_tend(                                            &
+   call ma_convproc_tend( aero_state, &
                      'deep',                                         &
                      lchnk,      pcnst,      nstep,      dt,         &
                      state%t,    state%pmid, state%pdel, qaa,        &
@@ -632,7 +652,7 @@ end subroutine ma_convproc_dp_intr
 
 
 !=========================================================================================
-subroutine ma_convproc_sh_intr(                 &
+subroutine ma_convproc_sh_intr( aero_state,     &
      state, pbuf, dt,                           &
      q, dqdt, dotend, nsrflx, qsrflx, dcondt_resusp3d )
 !-----------------------------------------------------------------------
@@ -653,6 +673,7 @@ subroutine ma_convproc_sh_intr(                 &
 !-----------------------------------------------------------------------
 
 ! Arguments
+   class(aerosol_state), intent(in) :: aero_state
    type(physics_state), intent(in ) :: state          ! Physics state variables
    type(physics_buffer_desc), pointer :: pbuf(:)
 
@@ -839,7 +860,7 @@ subroutine ma_convproc_sh_intr(                 &
 
    itmpveca(:) = -1
 
-   call ma_convproc_tend(                                            &
+   call ma_convproc_tend( aero_state,                                &
                      'uwsh',                                         &
                      lchnk,      pcnst,      nstep,      dt,         &
                      state%t,    state%pmid, state%pdel, qaa,        &
@@ -860,7 +881,7 @@ end subroutine ma_convproc_sh_intr
 
 !=========================================================================================
 
-subroutine ma_convproc_tend(                                           &
+subroutine ma_convproc_tend(  aero_state, &
                      convtype,                                       &
                      lchnk,      ncnst,      nstep,      dt,         &
                      t,          pmid,       pdel,       q,          &
@@ -921,6 +942,8 @@ subroutine ma_convproc_tend(                                           &
 !
 ! Input arguments
 !
+   class(aerosol_state), intent(in) :: aero_state
+
    character(len=*), intent(in) :: convtype  ! identifies the type of
                                              ! convection ("deep", "shcu")
    integer,  intent(in) :: lchnk             ! chunk identifier
@@ -1095,6 +1118,9 @@ subroutine ma_convproc_tend(                                           &
    real(r8) zmagl(pver)          ! working height above surface (m)
    real(r8) zkm                  ! working height above surface (km)
 
+   real(r8) :: dcondt2(pcols,pver,pcnst_extd)
+   real(r8) :: conu2(pcols,pver,pcnst_extd)
+
    character(len=16) :: cnst_name_extd(pcnst_extd)
 
    !Fractional area of ensemble mean updrafts in ZM scheme set to 0.01
@@ -1133,6 +1159,9 @@ subroutine ma_convproc_tend(                                           &
 
    wup(:) = 0.0_r8
 
+   dcondt2 = 0.0_r8
+   conu2 = 0.0_r8
+
 ! set doconvproc_extd (extended array) values
 ! inititialize aqfrac to 1.0 for activated aerosol species, 0.0 otherwise
    doconvproc_extd(:) = .false.
@@ -1158,7 +1187,7 @@ subroutine ma_convproc_tend(                                           &
       if (l <= pcnst) then
          cnst_name_extd(l) = cnst_name(l)
       else
-         cnst_name_extd(l) = trim(cnst_name(l-pcnst)) // '_cw'
+         cnst_name_extd(l) = cnst_name_cw(l-pcnst) ! trim(cnst_name(l-pcnst)) // '_cw'
       end if
    end do
 
@@ -1293,6 +1322,11 @@ i_loop_main_aa: &
 
 !  load tracer mixing ratio array, which will be updated at the end of each jtsub interation
       q_i(1:pver,1:pcnst) = q(icol,1:pver,1:pcnst)
+
+      do m = 1,pcnst
+         conu2(icol,1:pver,m) = q(icol,1:pver,m)
+      end do
+
 
 !
 !   when method_reduce_actfrac = 2, need to do the updraft calc twice
@@ -1470,7 +1504,7 @@ k_loop_main_bb: &
 
                      kactfirst = k
                      tmpa = 1.0_r8
-                     call ma_activate_convproc(                            &
+                     call ma_activate_convproc( aero_state,    &
                         conu(:,k),  dconudt_activa(:,k), conu(:,k),        &
                         tmpa,       dt_u(k),             wup(k),           &
                         t(icol,k),  rhoair_i(k),         fracice(icol,k),  &
@@ -1481,7 +1515,7 @@ k_loop_main_bb: &
                      ! current layer is above cloud base (=first layer with activation)
                      !    only allow activation at k = kactfirst thru kactfirst-(method1_activate_nlayers-1)
                      if (k >= kactfirst-(method1_activate_nlayers-1)) then
-                        call ma_activate_convproc(                            &
+                        call ma_activate_convproc( aero_state,    &
                            conu(:,k),  dconudt_activa(:,k), const(:,k),       &
                            f_ent,      dt_u(k),             wup(k),           &
                            t(icol,k),  rhoair_i(k),         fracice(icol,k),  &
@@ -1536,7 +1570,7 @@ k_loop_main_bb: &
                         'qaku act_conv lchnk,i,jtsub', lchnk, icol, jtsub
                   end if
 
-                  call ma_activate_convproc_method2(                    &
+                  call ma_activate_convproc_method2( aero_state,        &
                      conu(:,k),  dconudt_activa(:,k),                   &
                      f_ent,      dt_u(k),             wup(k),           &
                      t(icol,k),  rhoair_i(k),         fracice(icol,k),  &
@@ -1544,6 +1578,8 @@ k_loop_main_bb: &
                      lchnk,      icol,                k,                &
                      kactfirst,  ipass_calc_updraft                     )
                end if
+
+               conu2(icol,k,:) = conu(:,k)
 
             end if ! (convproc_method_activate <= 1)
 
@@ -1611,6 +1647,9 @@ k_loop_main_bb: &
                      dconudt_wetdep(m,k) = conu(m,k)*aqfrac(m)*expcdtm1
                      conu(m,k) = conu(m,k) + dconudt_wetdep(m,k)
                      dconudt_wetdep(m,k) = dconudt_wetdep(m,k) / dt_u(k)
+
+                     conu2(icol,k,m) = conu(m,k)
+
                   end if
                enddo
             end if
@@ -1773,6 +1812,8 @@ k_loop_main_cc: &
                   'qakww1-'//convtype(1:4), lchnk, icol, k, m, jtsub, &
                   dtsub*tmpveca(1:6)/dp_i(k)
             end if
+
+            dcondt2(icol,k,m) = dcondt(m,k)
 
             end if   ! "(doconvproc_extd(m))"
          end do      ! "m = 2,ncnst_extd"
@@ -2115,6 +2156,25 @@ k_loop_main_cc: &
 
    end do i_loop_main_aa  ! of the main "do i = il1g, il2g" loop
 
+
+   do n = 1, ntot_amode
+      do ll = 0, nspec_amode(n)
+         if (ll == 0) then
+            la = numptr_amode(n)
+            lc = numptrcw_amode(n) + pcnst
+         else
+            la = lmassptr_amode(ll,n)
+            lc = lmassptrcw_amode(ll,n) + pcnst
+         end if
+
+         call outfld( trim(cnst_name_extd(la))//'WETC', dcondt2(:,:,la), pcols, lchnk )
+         call outfld( trim(cnst_name_extd(la))//'CONU', conu2(:,:,la), pcols, lchnk )
+         call outfld( trim(cnst_name_extd(lc))//'WETC', dcondt2(:,:,lc), pcols, lchnk )
+         call outfld( trim(cnst_name_extd(lc))//'CONU', conu2(:,:,lc), pcols, lchnk )
+
+      end do
+   end do
+
    return
 end subroutine ma_convproc_tend
 
@@ -2305,7 +2365,7 @@ end subroutine ma_convproc_tend
    end subroutine accumulate_to_larger_mode
 
 !=========================================================================================
-   subroutine ma_activate_convproc(             &
+   subroutine ma_activate_convproc( aero_state, &
               conu,       dconudt,   conent,    &
               f_ent,      dt_u,      wup,       &
               tair,       rhoair,    fracice,   &
@@ -2368,6 +2428,7 @@ end subroutine ma_convproc_tend
 
 !-----------------------------------------------------------------------
 ! arguments  (note:  TMR = tracer mixing ratio)
+   class(aerosol_state), intent(in) :: aero_state
    integer, intent(in)     :: pcnst_extd
    ! conu = tracer mixing ratios in updraft at top of this (current) level
    !        The conu are changed by activation
@@ -2398,6 +2459,7 @@ end subroutine ma_convproc_tend
 !-----------------------------------------------------------------------
 ! local variables
    integer  :: ll, la, lc, n
+   integer  :: l, m, mm
 
    real(r8) :: delact                ! working variable
    real(r8) :: dt_u_inv              ! 1.0/dt_u
@@ -2416,6 +2478,14 @@ end subroutine ma_convproc_tend
    real(r8) :: wdiab                 ! diabatic vertical velocity (cm/s)
    real(r8) :: wminf, wmaxf          ! limits for integration over updraft spectrum (cm/s)
 
+   integer :: errnum
+   character(len=shr_kind_cs) :: errstr
+   integer :: phase
+
+   real(r8) :: cs_a(pcols,pver)   ! air density (kg/m3)
+   real(r8) :: naerosol_a(pcols)  ! number conc (1/m3)
+   real(r8) :: vaerosol_a(pcols)  ! volume conc (m3/m3)
+   real(r8) :: hygro_a(pcols)     ! bulk hygroscopicity of mode
 
 !-----------------------------------------------------------------------
 
@@ -2453,55 +2523,17 @@ end subroutine ma_convproc_tend
 ! check f_ent > 0
    if (f_ent <= 0.0_r8) return
 
-
-   do n = 1, ntot_amode
-! compute a (or a+cw) volume and hygroscopicity
-      tmpa = 0.0_r8
-      tmpb = 0.0_r8
-      do ll = 1, nspec_amode(n)
-         tmpc = max( conent(lmassptr_amode(ll,n)), 0.0_r8 )
-         if ( use_cwaer_for_activate_maxsat ) &
-         tmpc = tmpc + max( conent(lmassptrcw_amode(ll,n)+pcnst), 0.0_r8 )
-         tmpc = tmpc / specdens_amode(ll,n)
-         tmpa = tmpa + tmpc
-         tmpb = tmpb + tmpc * spechygro(ll,n)
-      end do
-      vaerosol(n) = tmpa * rhoair
-      if (tmpa < 1.0e-35_r8) then
-         hygro(n) = 0.2_r8
-      else
-         hygro(n) = tmpb/tmpa
+   phase = 1 ! interstitial
+   cs_a(i,k) = rhoair
+   do m = 1, nbins
+      call aero_state%loadaer( aero_props_obj, i, i, k, m, cs_a, phase, naerosol_a, vaerosol_a, hygro_a, errnum, errstr, &
+                               pom_hygro=convproc_pom_spechygro)
+      if (errnum/=0) then
+         call endrun('ma_activate_convproc : '//trim(errstr))
       end if
-
-! load a (or a+cw) number and bound it
-      tmpa = max( conent(numptr_amode(n)), 0.0_r8 )
-      if ( use_cwaer_for_activate_maxsat ) &
-      tmpa = tmpa + max( conent(numptrcw_amode(n)+pcnst), 0.0_r8 )
-      naerosol(n) = tmpa * rhoair
-      naerosol(n) = max( naerosol(n),   &
-                         vaerosol(n)*voltonumbhi_amode(n) )
-      naerosol(n) = min( naerosol(n),   &
-                         vaerosol(n)*voltonumblo_amode(n) )
-
-! diagnostic output for testing/development
-!      if (lun > 0) then
-!         if (n == 1) then
-!            write(lun,9500)
-!            write(lun,9510) (cnst_name(l), conu(l), l=1,pcnst_extd)
-!            write(lun,9520) tair, rhoaircgs, airconcgs
-!         end if
-!         write(lun,9530) n, ntype(n), vaerosol
-!         write(lun,9540) naerosol(n), tmp*airconcgs, &
-!                         voltonumbhi_amode(n), voltonumblo_amode(n)
-!         write(lun,9550) (maerosol(l,n), l=1,ntype(n))
-!9500     format( / 'activate_conv output -- conu values' )
-!9510     format( 3( a, 1pe11.3, 4x ) )
-!9520     format( 'ta, rhoa, acon     ', 3(1pe11.3) )
-!9530     format( 'n, ntype, sg, vol  ', i6, i5, 2(1pe11.3) )
-!9540     format( 'num, num0, v2nhi&lo', 4(1pe11.3) )
-!9550     format( 'masses             ', 6(1pe11.3) )
-!      end if
-
+      naerosol(m) = naerosol_a(i)
+      vaerosol(m) = vaerosol_a(i)
+      hygro(m) = hygro_a(i)
    end do
 
 
@@ -2571,7 +2603,7 @@ end subroutine ma_convproc_tend
 
 
 !=========================================================================================
-   subroutine ma_activate_convproc_method2(     &
+   subroutine ma_activate_convproc_method2( aero_state, &
               conu,       dconudt,              &
               f_ent,      dt_u,      wup,       &
               tair,       rhoair,    fracice,   &
@@ -2630,6 +2662,8 @@ end subroutine ma_convproc_tend
 
 !-----------------------------------------------------------------------
 ! arguments  (note:  TMR = tracer mixing ratio)
+
+   class(aerosol_state), intent(in) :: aero_state
    integer, intent(in)     :: pcnst_extd
    ! conu = tracer mixing ratios in updraft at top of this (current) level
    !        The conu are changed by activation
@@ -2659,6 +2693,8 @@ end subroutine ma_convproc_tend
 !-----------------------------------------------------------------------
 ! local variables
    integer  :: ll, la, lc, n
+   integer  :: l, m, mm
+   integer  :: phase           ! phase of aerosol
 
    real(r8) :: delact                ! working variable
    real(r8) :: dt_u_inv              ! 1.0/dt_u
@@ -2680,8 +2716,14 @@ end subroutine ma_convproc_tend
 
    character(len=32) :: spec_type
 
-!-----------------------------------------------------------------------
+   real(r8) :: cs_a(pcols,pver)   ! air density (kg/m3)
+   real(r8) :: naerosol_a(pcols)  ! number conc (1/m3)
+   real(r8) :: vaerosol_a(pcols)  ! volume conc (m3/m3)
+   real(r8) :: hygro_a(pcols)     ! bulk hygroscopicity of mode
 
+   integer :: errnum
+   character(len=shr_kind_cs) :: errstr
+!-----------------------------------------------------------------------
 
 ! when ipass_calc_updraft == 2, apply the activation tendencies
 !    from pass 1, but multiplied by factor_reduce_actfrac
@@ -2717,67 +2759,17 @@ end subroutine ma_convproc_tend
    if (f_ent <= 0.0_r8) return
 
 
-   do n = 1, ntot_amode
-! compute a (or a+cw) volume and hygroscopicity
-      tmpa = 0.0_r8
-      tmpb = 0.0_r8
-      do ll = 1, nspec_amode(n)
-         tmpc = max( conu(lmassptr_amode(ll,n)), 0.0_r8 )
-         if ( use_cwaer_for_activate_maxsat ) &
-         tmpc = tmpc + max( conu(lmassptrcw_amode(ll,n)+pcnst), 0.0_r8 )
-         tmpc = tmpc / specdens_amode(ll,n)
-         tmpa = tmpa + tmpc
-
-         ! Change the hygroscopicity of POM based on the discussion with Prof.
-         ! Xiaohong Liu. Some observational studies found that the primary organic
-         ! material from biomass burning emission shows very high hygroscopicity.
-         ! Also, found that BC mass will be overestimated if all the aerosols in
-         ! the primary mode are free to be removed. Therefore, set the hygroscopicity
-         ! of POM here as 0.2 to enhance the wet scavenge of primary BC and POM.
-
-         call rad_cnst_get_info(0, n, ll, spec_type=spec_type)
-         if (spec_type=='p-organic' .and. convproc_pom_spechygro>0._r8) then
-            tmpb = tmpb + tmpc * convproc_pom_spechygro
-         else
-            tmpb = tmpb + tmpc * spechygro(ll,n)
-         end if
-      end do
-      vaerosol(n) = tmpa * rhoair
-      if (tmpa < 1.0e-35_r8) then
-         hygro(n) = 0.2_r8
-      else
-         hygro(n) = tmpb/tmpa
+   phase = 1 ! interstitial
+   cs_a(i,k) = rhoair
+   do m = 1, nbins
+      call aero_state%loadaer( aero_props_obj, i, i, k, m, cs_a, phase, naerosol_a, vaerosol_a, hygro_a, errnum, errstr, &
+                               pom_hygro=convproc_pom_spechygro)
+      if (errnum/=0) then
+         call endrun('ma_activate_convproc_method2 : '//trim(errstr))
       end if
-
-! load a (or a+cw) number and bound it
-      tmpa = max( conu(numptr_amode(n)), 0.0_r8 )
-      if ( use_cwaer_for_activate_maxsat ) &
-      tmpa = tmpa + max( conu(numptrcw_amode(n)+pcnst), 0.0_r8 )
-      naerosol(n) = tmpa * rhoair
-      naerosol(n) = max( naerosol(n),   &
-                         vaerosol(n)*voltonumbhi_amode(n) )
-      naerosol(n) = min( naerosol(n),   &
-                         vaerosol(n)*voltonumblo_amode(n) )
-
-! diagnostic output for testing/development
-!      if (lun > 0) then
-!         if (n == 1) then
-!            write(lun,9500)
-!            write(lun,9510) (cnst_name(l), conu(l), l=1,pcnst_extd)
-!            write(lun,9520) tair, rhoaircgs, airconcgs
-!         end if
-!         write(lun,9530) n, ntype(n), vaerosol
-!         write(lun,9540) naerosol(n), tmp*airconcgs, &
-!                         voltonumbhi_amode(n), voltonumblo_amode(n)
-!         write(lun,9550) (maerosol(l,n), l=1,ntype(n))
-!9500     format( / 'activate_conv output -- conu values' )
-!9510     format( 3( a, 1pe11.3, 4x ) )
-!9520     format( 'ta, rhoa, acon     ', 3(1pe11.3) )
-!9530     format( 'n, ntype, sg, vol  ', i6, i5, 2(1pe11.3) )
-!9540     format( 'num, num0, v2nhi&lo', 4(1pe11.3) )
-!9550     format( 'masses             ', 6(1pe11.3) )
-!      end if
-
+      naerosol(m) = naerosol_a(i)
+      vaerosol(m) = vaerosol_a(i)
+      hygro(m) = hygro_a(i)
    end do
 
 
