@@ -35,7 +35,7 @@ use rad_constituents,only: rad_cnst_get_info, rad_cnst_get_info_by_bin, rad_cnst
 
 use carma_aerosol_properties_mod, only: carma_aerosol_properties
 use carma_aerosol_state_mod, only: carma_aerosol_state
-use aero_wetdep_cam, only: convproc_do_evaprain_atonce
+use aero_convproc, only: convproc_do_evaprain_atonce
 
 implicit none
 private
@@ -217,7 +217,7 @@ subroutine ma_convproc_init
    character(len=32) :: bin_name
    character(len=32) :: bin_name_l    ! bin name of the larger bin
 
-
+return
    call phys_getopts( history_aerosol_out=history_aerosol, &
         convproc_do_aer_out = convproc_do_aer )
 

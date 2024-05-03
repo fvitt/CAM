@@ -117,7 +117,6 @@ contains
     use namelist_utils,  only: find_group_name
     use units,           only: getunit, freeunit
     use mpishorthand
-    use modal_aero_convproc,   only: ma_convproc_readnl
     use dust_model,      only: dust_readnl
 
     character(len=*), intent(in) :: nlfile  ! filepath for file containing namelist input
@@ -165,7 +164,6 @@ contains
     wetdep_list = aer_wetdep_list
     drydep_list = aer_drydep_list
 
-    call ma_convproc_readnl(nlfile)
     call dust_readnl(nlfile)
 
   end subroutine aero_model_readnl
@@ -986,7 +984,6 @@ contains
     use modal_aero_calcsize,   only: modal_aero_calcsize_sub
     use modal_aero_wateruptake,only: modal_aero_wateruptake_dr
     use modal_aero_convproc,   only: deepconv_wetdep_history, ma_convproc_intr
-    use aero_wetdep_cam, only: convproc_do_evaprain_atonce
 
     ! args
 
@@ -1085,7 +1082,7 @@ contains
     real(r8) :: dcondt_resusp3d(2*pcnst,pcols, pver)
 
 call endrun('FVDBG DO NOT CALL aero_model_wetdep !!!!!!!!!!!!!!!!!!!!1')
-
+#ifdef XCVDSDFGDX
     lchnk = state%lchnk
     ncol  = state%ncol
 
@@ -1669,7 +1666,7 @@ call endrun('FVDBG DO NOT CALL aero_model_wetdep !!!!!!!!!!!!!!!!!!!!1')
     if (.not. aerodep_flx_prescribed()) then
        call set_srf_wetdep(aerdepwetis, aerdepwetcw, cam_out)
     endif
-
+#endif
   endsubroutine aero_model_wetdep
 
   !-------------------------------------------------------------------------

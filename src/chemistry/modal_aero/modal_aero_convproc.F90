@@ -37,7 +37,7 @@ use modal_aero_data, only: lptr2_pom_a_amode, lptr2_soa_a_amode, lptr2_bc_a_amod
 use modal_aero_data, only: lptr_msa_a_amode, lptr_nh4_a_amode, lptr_no3_a_amode
 
 use modal_aerosol_properties_mod, only: modal_aerosol_properties
-use aero_wetdep_cam, only: convproc_do_evaprain_atonce
+use aero_convproc, only: convproc_do_evaprain_atonce
 
 implicit none
 private
@@ -182,6 +182,8 @@ subroutine ma_convproc_init
    integer :: n, l, ll
    integer :: npass_calc_updraft
    logical :: history_aerosol
+
+return
 
    call phys_getopts( history_aerosol_out=history_aerosol, &
         convproc_do_aer_out = convproc_do_aer )
