@@ -15,6 +15,10 @@ module edyn3D_params
    public :: m2km,km2m,nhgt_fix,nhgt_fix_r,hgt_fix,hgt_fix_r,ha,ha_s
    public :: nlat_qd,nlat_qd_h,nptsp_total,nptsr_total,nptss1_total,nptss2_total
    public :: nptsp_max,nptsr_max,nptss1_max,nptss2_max
+   public :: nglon,nglat,glon,glat
+   public :: m1f,m2f,m3f
+   public :: nggjlon,nggjlat,nggjhgt,ggjlon,ggjclat,ggjhgt,ggjtop
+   public :: wts,ktop,k_fix_ggjbot,delBsolution
 
    integer,parameter :: &
 !       nmlat_h  = 91,	&	   ! org. 81 pts; a number of magnetic latitudes in one hemisphere P,S1, and R points
@@ -35,7 +39,44 @@ module edyn3D_params
        nmlon	= 180,  	&  ! number of magnetic longitudes P,S1,S2,R points
        nmlonp1  = nmlon+1,	&
        nhgt_fix   = 82 , 	&  ! Number of height levels on which P points lie.
-       nhgt_fix_r = nhgt_fix+1     ! Number of height levels encompassing the lower and upper faces of elemental volumes
+       nhgt_fix_r = nhgt_fix+1, &   ! Number of height levels encompassing the lower and upper faces of elemental volumes
+       ! nglon=73, nglat=91 gives 5 x 2 deg lon-lat grid for magnetic perturbations
+       nglon =179, nglat = 319     ! dimensions of geographic grid
+!       nglon = 141, nglat = 91      ! dimensions of geographic grid
+!       nglon = 5, nglat = 5      ! dimensions of geographic grid
+!        for calculating delB (cannot be larger than nggjlat)
+
+       ! Heights for current layers are set to heights of rho and QD grids.
+       !   This gives the most accurate but time-consuming solution.
+       character(len=16), parameter :: delBsolution = 'full_hgt_delB  '
+       integer,parameter :: nggjhgt=nhgt_fix
+!       real,parameter :: h_LEO=400000.  ! Nominal height for calculating LEO delB
+!        (h_LEO may not exceed ggjtop(nggjhgt)=1114811.)
+!
+       integer, parameter :: &
+               nggjlon = 360, & ! 120 number of geographic longitude points
+!               nggjlon = 12, & ! number of geographic longitude points
+!                        for calculating currents, to get spherical-harmonic
+!                        coefficients for magnetic perturbations (delB).
+!               nggjlat = 120, & ! number of geographic latitude points
+!               nggjlat = 16, & ! number of geographic latitude points
+               nggjlat = 360    !180  number of geographic latitude points
+!                        for calculating currents, to get spherical-harmonic
+!                        coefficients for magnetic perturbations.  
+
+       real :: ggjlon(nggjlon)    ! geographic longitude grid for J (radians)
+       double precision ::  &
+           ggjclat(nggjlat), &  ! geographic Gaussian colatitude grid for J (rad)
+           wts(nggjlat)         ! Gaussian weights
+!
+       real :: ggjhgt(nggjhgt), & ! geographic height grid for J (m)
+               ggjtop(nggjhgt)    ! top heights of J layers (m)
+
+       integer ::  ktop         ! k index for the highest hgt_fix layer
+!        used for calculations of currents, plus 1.
+       integer :: k_fix_ggjbot(nhgt_fix_r) ! array that gives the appropriate
+!        index of hgt_fix_r corresponding to the k index of ggjbot(k) (defined
+!        in calc_B.f90 such that ggjbot(k+1)=ggjtop(k)).
 
    real(r8), parameter ::	      &
        dtr = pi/180._r8,	      & ! Conversion factor when going from degrees to radians
@@ -50,9 +91,17 @@ module edyn3D_params
 	       hgt_fix(nhgt_fix),     & ! array with fixed heights for s&p-grids
 	       hgt_fix_r(nhgt_fix_r), & ! height of the lower face of an elemental volume for which the P point is at height hgt_fix(k)
 	       ha(nmlat_h),	      & ! apex height calculated in grid.f90 for ylatm points; same for both hemispheres
-	       ha_s(nmlatS2_h)          ! apex height calculated in grid.f90 for ylatm_s points; same for both hemispheres
+	       ha_s(nmlatS2_h),       & ! apex height calculated in grid.f90 for ylatm_s points; same for both hemispheres
+               glon(nglon),           & ! geographic longitude grid for delB (degrees)
+               glat(nglat)              ! geographic latitude grid for delB (degrees)
+   !
+   ! M1*F, M2*F, M3*F
+   !
+   real,dimension(nhgt_fix,nmlat_h) :: m1f,m2f
+   real,dimension(nhgt_fix_r,nmlat_h) :: m3f
 !
 ! global constants
+!
    real, parameter ::	          &
 	   h0 = 8.0e4_r8,         &   ! Initial value for bottom height of dynamo grid
 	   r0 =rearth_m+h0,	  &   ! Mean Earth radius plus height of bottom of dynamo region (h0) [m]

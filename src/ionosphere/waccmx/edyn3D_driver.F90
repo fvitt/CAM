@@ -2,7 +2,8 @@ module edyn3D_driver
   use shr_kind_mod, only: r8 => shr_kind_r8
   use spmd_utils, only: masterproc
 
-  use edyn3D_maggrid, only: gen_highres_grid
+  use edyn3D_maggrid, only: gen_highres_grid, edyn3D_gen_ggj_grid, edyn3D_gen_qd_grid, &
+                            edyn3D_gen_geo_grid, edyn3D_qcoef, edyn3D_calculate_mf
 
   use edyn3D_mpi, only: mp_init_edyn3D, mp_distribute_mag_edyn3D, mp_exchange_tasks_edyn3D
   use edyn3D_mpi, only: mytid, ntask
@@ -35,13 +36,23 @@ contains
     call mp_init_edyn3D(mpicom, npes)
 
     call gen_highres_grid()
+      
+    call edyn3D_gen_ggj_grid
+
+    call edyn3D_gen_qd_grid
+    
+    call edyn3D_gen_geo_grid
+
+    call edyn3D_qcoef
+
+    call edyn3D_calculate_mf
 
     call mp_distribute_mag_edyn3D(nmlon)
 
     call mp_exchange_tasks_edyn3D(mpicom, iprint=0)
     call fieldline_init()  ! Allocate and populate the p, r, s1, and s2 field line structures for computations
     call fieldline_getapex()
-
+ 
     call reg_hist_grid()
 
     call edyn3D_esmf_regrid_init()

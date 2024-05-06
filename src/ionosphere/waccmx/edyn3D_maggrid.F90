@@ -53,7 +53,8 @@ module edyn3D_maggrid
 
  contains
 
-!!-------------------------------------------------------------------------------------------
+!-------------------------------------------------------------------------------------------
+
       subroutine gen_highres_grid
 !
 ! Generate the field line, latitude, and longitude grid for dynamo with P, R, S1, S2 points
@@ -348,5 +349,445 @@ module edyn3D_maggrid
       end function apex_height
 
     end subroutine gen_highres_grid
+!
+!---------------------------------------------------------------------- 
+
+      subroutine edyn3D_gen_ggj_grid
+     
+  	! Sets up geographic grid (in radians and m) for calculating currents
+  	!  to use for magnetic perturbations.
+  	! In this version, colatitude points are Gaussian, which exclude the poles.
+  	! i=1 is 0 geographic longitude. 
+  	! j=1 is near, but not at, the North Pole (pi/2).
+  	! j=nggjlat is near, but not at, the South Pole (-pi/2).
+   
+  	use edyn3D_params, only: pi,nhgt_fix,nhgt_fix_r,hgt_fix,hgt_fix_r, &
+  	  nggjlon,nggjlat,nggjhgt,ggjlon,ggjclat,wts,ggjhgt,ggjtop, &
+  	  ktop,k_fix_ggjbot,delBsolution
+
+  	implicit none
+  !	 
+  	integer :: i,lwork,ierror,k,kk,ktop_tmp,kend
+  	real(r8) :: dggjlon,k_tmp(nhgt_fix_r),w
+      
+  	  k_tmp = hgt_fix_r - 400000._r8
+  	  ktop_tmp = minloc(abs(k_tmp),dim=1)
+  	  write(iulog,'(a4,xi4)') 'ktop',minloc(abs(k_tmp))
+  	  
+  	dggjlon = 2._r8*pi/float(nggjlon)
+  	do i=1,nggjlon
+  	  ggjlon(i) = float(i-1)*dggjlon
+  	enddo ! i
+  ! Gaussian colatitude points (radians) and weights
+  	call gaqd(nggjlat,ggjclat,wts,w,lwork,ierror)
+  	if (ierror.ne.0) then
+  	  write (iulog,*) 'gaqd error code ',ierror
+  	  stop
+  	endif
+  	k_fix_ggjbot(1) = 1
+  	if (delBsolution.eq.'full_hgt_delB  ') then
+  ! In this version, heights for current layers used for magnetic
+  !   perturbation calculations are set to heights of rho and QD grids,
+  	  ktop = nhgt_fix_r
+  	  do k=1,nggjhgt
+  	    ggjhgt(k) = hgt_fix(k)
+  ! Note that ggjtop refers to the height of the top of the ggj layer,
+  !   while hgt_fix_r refers to the height of the bottom of the hgt_fix
+  !   layer.
+  	    ggjtop(k) = hgt_fix_r(k+1)
+  	    k_fix_ggjbot(k+1) = k+1
+  	 enddo
+  	elseif (delBsolution.eq.'quick_ground	 ') then
+  ! In this version, all horizontal currents up to 397140 m are combined
+  !   to a single layer at 110 km, and delB is calculated only at the
+  !   ground.
+  	  k_tmp = hgt_fix_r - 400000._r8
+  	  ktop = minloc(abs(k_tmp),dim=1)
+  	  !ktop = 39  ! hgt_fix_r(39) = 397140. m
+  	  ggjhgt(1) = 110.e3_r8  ! m
+  	  ggjtop(nggjhgt) = hgt_fix_r(ktop)  
+  	  k_fix_ggjbot(nggjhgt+1) = ktop
+  	elseif (delBsolution.eq.'quick_ground,LEO') then
+  ! In this version, all horizontal currents up to 397140 m are combined
+  !   to a single layer at 110 km, and delB is calculated only at the
+  !   ground and at 397139 m.
+  	  k_tmp = hgt_fix_r - 400000._r8
+  	  ktop = minloc(abs(k_tmp),dim=1)
+  	  !ktop = 39  ! hgt_fix_r(39) = 397140. m
+  	  ggjhgt(1) = 110.e3_r8  ! m
+  	  ggjtop(nggjhgt) = hgt_fix_r(ktop)  
+  	  k_fix_ggjbot(nggjhgt+1) = ktop
+  	elseif (delBsolution.eq.'ground,LEO	') then
+  ! In this version, horizontal currents are combined in thick layers,
+  !   and delB is calculated at the ground and at heights between 299702 m
+  !   and 540303 m, and between 764409 m and 948105 m.
+  	  k_tmp = hgt_fix_r - 998000._r8
+  	  ktop = minloc(abs(k_tmp),dim=1)			 ! ktop = 54  ! hgt_fix_r(54) = 948105 m 
+  	  
+  	  kk = minloc(abs(hgt_fix-109000._r8),dim=1)
+  	  ggjhgt(1) = hgt_fix(kk)				 ! hgt_fix(14)      ! 109486 m
+  	  k_fix_ggjbot(2) = minloc(abs(hgt_fix_r-140000._r8),dim=1) ! k_fix_ggjbot(2) = 21
+  	  ggjtop(1) = hgt_fix_r(k_fix_ggjbot(2))		 ! hgt_fix_r(21)    ! 139381 m
+  	   
+  	  kk = minloc(abs(hgt_fix-140000._r8),dim=1)
+  	  ggjhgt(2) = hgt_fix(kk)				 ! hgt_fix(25)      ! 179576 m
+  	  k_fix_ggjbot(3) = minloc(abs(hgt_fix_r-22000._r8),dim=1)  ! k_fix_ggjbot(3) = 29
+  	  ggjtop(2) = hgt_fix_r(k_fix_ggjbot(3))		 ! hgt_fix_r(29)    ! 222139 m
+  	  
+  	  kk = minloc(abs(hgt_fix-225000._r8),dim=1)
+  	  ggjhgt(3) = hgt_fix(kk)				 ! hgt_fix(31)      ! 258343 m
+  	  k_fix_ggjbot(4) = minloc(abs(hgt_fix_r-300000._r8),dim=1) ! k_fix_ggjbot(4) = 34
+  	  ggjtop(3) = hgt_fix_r(k_fix_ggjbot(4))		 ! hgt_fix_r(34)  ! 299702 m
+  	  
+  	  k = k_fix_ggjbot(4)					 ! k= 34
+  	  kend = minloc(abs(hgt_fix_r - 540000._r8),dim=1) 	 ! ggjtop = 540303 m  
+  	  kend = kend-k+1					 ! how many levels between	     
+  	  do kk=4,kend  					 ! ggjtop = 317599 m to 540303 m
+  	    ggjhgt(kk) = hgt_fix(k)
+  	    ggjtop(kk) = hgt_fix_r(k+1)
+  	    k_fix_ggjbot(kk+1) = k+1
+  	    k = k+1
+  	  enddo
+  	  kk = minloc(abs(hgt_fix-580000._r8),dim=1)
+  	  ggjhgt(kend+1) = hgt_fix(kk)  				   ! ggjhgt(15) = hgt_fix(46)	   ! 580485 m
+  	  k_fix_ggjbot(kend+2) = minloc(abs(hgt_fix_r-630000._r8),dim=1)	   ! k_fix_ggjbot(16) = 48
+  	  ggjtop(kend+1) = hgt_fix_r(k_fix_ggjbot(kend+2))		   ! ggjtop(15) = hgt_fix_r(48)    ! 622616 m
+  	  kk = minloc(abs(hgt_fix-670000._r8),dim=1)
+  	  ggjhgt(kend+2) = hgt_fix(kk)  				   ! ggjhgt(16) = hgt_fix(50)	   ! 696619 m
+  	  k_fix_ggjbot(kend+3) =  minloc(abs(hgt_fix_r-760000._r8),dim=1)     ! k_fix_ggjbot(17) = 52
+  	  ggjtop(kend+2) = hgt_fix_r(k_fix_ggjbot(kend+3))		   ! ggjtop(16) = hgt_fix_r(52)    ! 764409 m
+  	  kk = minloc(abs(hgt_fix-790000._r8),dim=1)
+  	  ggjhgt(kend+3) = hgt_fix(kk)  				   ! ggjhgt(17) = hgt_fix(52)	   ! 793704 m
+  	  k_fix_ggjbot(kend+4) = minloc(abs(hgt_fix_r-840000._r8),dim=1)	   ! k_fix_ggjbot(18) = 53
+  	  ggjtop(kend+3) = hgt_fix_r(k_fix_ggjbot(kend+4))		   ! ggjtop(17) = hgt_fix_r(53)    ! 837615 m
+  	  kk = minloc(abs(hgt_fix-880000.),dim=1)
+  	  ggjhgt(kend+4) = hgt_fix(kk)  				   ! ggjhgt(18) = hgt_fix(53)	   ! 881931 m
+  	  k_fix_ggjbot(nggjhgt+1) = ktop				   ! ???? should this be kend+5 instead of nggjhgt+1
+  	  ggjtop(kend+4) = hgt_fix_r(k_fix_ggjbot(nggjhgt+1))		   ! ggjtop(18) = hgt_fix_r(54)    ! 948105 m
+  	else
+  	  write (iulog,*) 'delBsolution must be specified in params'
+  	  stop
+  	endif
+  !	  
+       end subroutine edyn3D_gen_ggj_grid
+!
+!-----------------------------------------------------------------------
+
+      subroutine edyn3D_gen_qd_grid
+!     
+!  set up quasi dipole grid (longitude, latitude and height)   
+!     
+      use edyn3D_params, only: nmlon,ylonm,ylonm_s,nlat_qd,nlat_qd_h,pi,rtd, &
+                               nhgt_fix,nhgt_fix_r,hgt_fix,hgt_fix_r
+!     
+      implicit none
+!
+      integer :: i,l,k
+      real(r8) :: dlatm,fac_r      
+
+      real :: lat_qd_ed(nlat_qd)    ! quasi latitude of edge of volume l-.5
+      real :: lat_qd_mp(nlat_qd-1)  ! quasi latitude of midpoint of volume l
+      real :: lon_qd_ed(nmlon)      ! quasi longitude of edge of volume     
+      real :: lon_qd_mp(nmlon)      ! quasi longitude of midpoint of volume     
+      real :: hgt_qd_mp(nhgt_fix)   ! height of quasi dipole grid = p height level
+      real :: hgt_qd_ed(nhgt_fix_r) ! height of quasi dipole grid = r height level
+!    
+      lon_qd_mp = ylonm    ! [rad] same as p-points
+      lon_qd_ed = ylonm_s  ! [rad] same as s1-points
+!      
+      dlatm = pi/float(nlat_qd-1)
+      do l =1,nlat_qd
+        lat_qd_ed(l) = pi*float(l-nlat_qd_h)/float(nlat_qd-1) ! equally distributed
+        !write(6,*) 'lat_qd_ed',i,lat_qd_ed(i)*rtd
+      end do
+!      
+! midpoints are in the middle of the volume l
+      do l =1,nlat_qd-1
+        lat_qd_mp(l) = 0.5*(lat_qd_ed(l)+lat_qd_ed(l+1)) ! equally distributed
+        !write(6,*) 'lat_qd_mp',i,lat_qd_mp(i)*rtd
+      end do
+!       
+      hgt_qd_mp = hgt_fix    ! height of p,s1,s2 points
+      hgt_qd_ed = hgt_fix_r  ! height of r points
+        
+!         
+      end subroutine edyn3D_gen_qd_grid
+
+!---------------------------------------------------------------------- 
+
+      subroutine edyn3D_gen_geo_grid
+!     
+      use edyn3D_params, only: nglon,nglat,glon,glat
+!
+      implicit none
+!     
+      integer :: ilateq,i
+      real(r8) :: dlon,dlat
+!      
+! Set up geographic grid for outputting magnetic perturbations.  Also used for 
+! interpolation between physics grid and 3D dynamo grid
+!
+      dlon = 360._r8/float(nglon-1)
+      dlat = 180._r8/float(nglat-1)
+      ilateq = (nglat+1)/2
+      do i=1,nglon
+        glon(i) = 0._r8+(i-1)*dlon
+      enddo
+      do i=1,nglat
+        glat(i) = (i-ilateq)*dlat
+      enddo     
+!      
+      end subroutine edyn3D_gen_geo_grid
+
+!----------------------------------------------------------------------------- 
+      subroutine edyn3D_qcoef
+      
+!  Calculates coefficients needed to calculate functions Q of Richmond
+!  (1974), including functions with odd n-m, used for symmetric
+!  high-latitude FAC.  These functions are applied to the top of the
+!  region of resolved 3D currents, above which current is assumed to
+!  flow only along dipolar field lines out to the apex, and then
+!  radially to infinity (for symmetric FAC).
+!     
+      implicit none
+!     
+! parameters and arrays for calculating equivalent current function
+!   associated with field-aligned currents above ggjtop(nggjhgt)
+      integer, parameter :: nmax = 6
+      integer :: m,n,p,po2,num,k
+      real(r8) :: PMOPMMO(nmax+1), R(0:nmax,0:nmax), SQ2,pi,sq4pi
+      real(r8) :: a(0:nmax,0:nmax,0:nmax), mc(0:nmax,0:nmax,0:nmax), &
+        md(0:nmax,0:nmax)
+
+      real(r8) :: x
+
+      pi = 4._r8*atan(1._r8)
+      SQ2 = sqrt(2.e0_r8)
+      sq4pi = sqrt(4._r8*pi)
+      R = 0._r8
+      
+      do m=0,nmax
+        if (m.ne.0) PMOPMMO(m) = sqrt(1._r8 + .5_r8/float(m))
+        do n=max0(1,m),nmax
+          R(n,m) = sqrt(float(n*n-m*m))/sqrt(float(4*n*n-1))
+        enddo
+      enddo
+      
+      a = 0._r8
+      a(0,0,0) = 1._r8
+
+      do m=1,nmax
+        a(m,m,0) = sqrt(float(2*m+1)/float(2*m))*a(m-1,m-1,0)
+        n = m + 1
+        if (n.gt.nmax) cycle
+        a(n,m,0) = sqrt(float(2*m+3))*a(m-1,m-1,0)
+        n = m + 2
+        if (n.gt.nmax) cycle
+        a(n,m,0) = (1._r8 - R(n-1,m)**2 - R(n-2,m)**2)*a(n-2,m,0)/ &
+          (R(n,m)*R(n-1,m))
+        a(n,m,1) = ((1._r8 - R(n-1,m)**2 - R(n-2,m)**2)*a(n-2,m,1) &
+           - a(n-2,m,0))/(R(n,m)*R(n-1,m))
+        n = m + 3
+        if (n.gt.nmax) cycle
+        a(n,m,0) = (1._r8 - R(n-1,m)**2 - R(n-2,m)**2)*a(n-2,m,0)/ &
+          (R(n,m)*R(n-1,m))
+        a(n,m,1) = ((1._r8 - R(n-1,m)**2 - R(n-2,m)**2)*a(n-2,m,1) &
+           - a(n-2,m,0))/(R(n,m)*R(n-1,m))
+        if (m+4.gt.nmax) cycle
+        do n=m+4,nmax
+          do p=0,n-m,2
+            po2 = p/2
+            x = 0._r8
+            if (p.ge.2) x = a(n-2,m,po2-1)
+            a(n,m,po2) = ((1._r8-R(n-1,m)**2-R(n-2,m)**2)*a(n-2,m,po2) - &
+              x - R(n-2,m)*R(n-3,m)*a(n-4,m,po2))/(R(n,m)*R(n-1,m))
+          enddo
+        enddo
+      enddo
+! Now multiply a_nmp of notes by m and divide by (2n-m-p).
+      do m=1,nmax
+        do n=m,nmax
+          do p=0,n-m,2
+            po2 = p/2
+            a(n,m,po2) = m*a(n,m,po2)/float(2*n-m-p)
+! a contains a_nmp of notes multiplied by m and divided by (2n-m-p).
+          enddo
+        enddo
+      enddo
+      mc = 0.
+! Case 1: m,n are both odd
+      do m=1,nmax,2
+        do n=m,nmax,2
+          mc(n,m,0) = a(n,m,0)
+          if (2.gt.2*n-m-1) cycle
+          do p=2,2*n-m-1,2
+            po2 = p/2
+            mc(n,m,po2) = a(n,m,po2) + &
+              mc(n,m,po2-1)*float(2*n-m-p+1)/float(2*n-m-p)
+! mc contains c_nm of notes multiplied by m.
+          enddo
+        enddo
+      enddo
+! Case 2: m,n are both even
+      md = 0._r8
+      do m=2,nmax,2
+        do n=m,nmax,2
+          mc(n,m,0) = a(n,m,0)
+          do p=0,n-m,2
+            po2 = p/2
+            num = 2*n-m-p
+            x = a(n,m,po2)*(num-1)
+            do k=1,n-m/2
+              if (num.eq.2) exit
+              num = num-2
+              x = x*(num-1)/float(num)
+            enddo
+            md(n,m) = md(n,m) + x
+! md contains d_nm of notes multiplied by m.
+          enddo
+          if (2.gt.2*n-m-2) cycle
+          do p=2,2*n-m-2,2
+            po2 = p/2
+            mc(n,m,po2) = a(n,m,po2) + &
+              mc(n,m,po2-1)*float(2*n-m-p+1)/float(2*n-m-p)
+! mc contains c_nm of notes multiplied by m.
+          enddo
+        enddo
+      enddo
+
+! Test
+!      do m=0,nmax
+!        do n=m,nmax
+!          write (6,'(a1,2i3,7e10.3)') 'a',n,m,(a(n,m,po2),po2=0,nmax)
+!        enddo
+!      enddo
+!      do m=0,nmax
+!        do n=m,nmax
+!          write (6,'(a2,2i3,7e10.3)') 'mc',n,m,(mc(n,m,po2),po2=0,nmax)
+!        enddo
+!      enddo
+!      do m=0,nmax
+!        do n=m,nmax
+!          write (6,'(a2,2i3,7e10.3)') 'md',n,m,md(n,m)
+!        enddo
+!      enddo
+
+! Case 3: If n-m is odd use array a, which contains 
+!   a_nmp of notes multiplied by m and divided by (2n-m-p).
+!
+      end subroutine edyn3D_qcoef
+
+!-----------------------------------------------------------------------------
+
+  subroutine edyn3D_calculate_mf
+
+! calculate normalized integrated areas from the pole to an S2 surface
+! in the meridional (a1) and horizontal (a3) planes
+! the factors m1f,m2f,m3f are independent of magnetic longitude
+! these factors later give M1,M2,M3 when divided by F
+
+   use physconst,     only: pi
+   use shr_const_mod, only: re => SHR_CONST_REARTH ! meters
+   use edyn3D_params, only: m1f,m2f,m3f,ylonm,nhgt_fix,nhgt_fix_r,hgt_fix,hgt_fix_r,nmlat_h,nmlatS2_h,rho_s,r0 
+!	nmlat_h,nmlatS2_h,nmlat_T1,nmlat_T2,nmlon, &
+!	nmlonp1,ylatm,ylonm,ylatm_s,ylonm_s,pi,rho,rho_s,rtd,dtr,re=>rearth_m,r0,h0, &
+!	m2km,km2m,nhgt_fix,nhgt_fix_r,hgt_fix,hgt_fix_r,ha,ha_s
+      
+      implicit none
+
+    integer :: j,k,jmax      
+    real(r8) :: fac1,fac2,fac3,dlonm,rm,rp,ra,rbar
+    !
+    ! a1,a3 vary from 0 at the magnetic pole to 1 at the magnetic equator
+    !
+    real(r8),dimension(nhgt_fix,nmlat_h+1) :: a1 ! normalized integral of M1*F
+    real(r8),dimension(nhgt_fix_r,nmlat_h+1) :: a3 ! normalized integral of M3*F
+    !
+    ! assume equidistant longitudinal grid points
+    !
+    dlonm = ylonm(2)-ylonm(1)
+    !
+    ! in order to include the pole, the first index of a1,a3 represents the location j-0.5, not j+0.5
+    ! however, the first index of m1f,m2f,m3f represents the location j+0.5, which are the S2 points
+    !
+    ! initialize a1,a3 to 1 and m1f,m2f,m3f to 0
+    !
+    a1 = 1
+    a3 = 1
+    m1f = 0
+    m2f = 0
+    m3f = 0
+
+    do k = 1,nhgt_fix
+      a1(k,1) = 0
+      a3(k,1) = 0
+      jmax = nmlatS2_h-k+1 ! number of S2 points at level k
+      !
+      ! normalized radii of the top and bottom of layer k
+      !
+      rp = (hgt_fix_r(k+1)+re)/r0 ! r_k+0.5/R
+      rm = (hgt_fix_r(k)+re)/r0 ! r_k-0.5/R
+
+      fac2 = 0.5*pi*(rp-rm)*r0 ! pi/2*((r_k+0.5)-(r_k-0.5))
+      fac3 = 2*dlonm*(hgt_fix(k)+re)**3/r0 ! 2*dlon*r_k^3/R
+      do j = 1,jmax ! loop over all S2 points
+	!
+	! make sure fac1 does not numerically exceed 1, so that sqrt(1-fac1**2) can be computed
+	!
+	fac1 = min(sqrt(rm)*rho_s(j,1),1.0) ! sqrt(r_k-0.5/R)*rho(j+0.5)
+	!
+	! first index of a1,a3 is j+1 because this corresponds to position j+0.5
+	!
+	a3(k,j+1) = 1-sqrt(1-fac1**2)
+	m3f(k,j) = (hgt_fix_r(k)+re)**2*dlonm*(a3(k,j+1)-a3(k,j))
+	!
+	! calculate the normalized radius within the layer, rbar,
+	! that gives the most accurate value of a1 when a1 is computed by the approximation below
+	! this calculation of rbar assumes the radius of field lines near the equator
+	! is parabolic with respect to magnetic latitude
+	!
+	ra = 1/rho_s(j,1)**2
+	!
+	! prevent ra from getting too large to affect the numerical accuracy of rbar
+	! which rapidly asymptotes to 0.5*(rp+rm) as ra increases
+	!
+	if (ra > rp+16*(rp-rm)) ra = rp+16*(rp-rm)
+	if (ra < rp) ra = rp ! ra was less than rp when they should have been equal
+
+	rbar = ra-(2*(sqrt(ra-rm)**3-sqrt(ra-rp)**3)/(3*(rp-rm)))**2 ! Eq (45') page 4c r*/R
+	a1(k,j+1) = 2*asin(sqrt(rbar)*rho_s(j,1))/pi ! Eq (47')
+	m1f(k,j) = sqrt(((hgt_fix(k)+re)/r0)**5)*fac2*(a1(k,j+1)-a1(k,j))*r0
+	!
+	! make sure fac1 does not numerically exceed 1, so that sqrt(1-fac1**2) can be computed
+	!
+	fac1 = min(sqrt(rp)*rho_s(j,1),1.0) ! sqrt(r_k+0.5/R)*rho(j+0.5)
+
+	m2f(k,j) = fac3*(sqrt(1-rm*rho_s(j,1)**2)-sqrt(1-fac1**2))* &
+	  sqrt(1-0.75*rho_s(j,1)**2)/rho_s(j,1)
+      enddo
+      m1f(k,jmax+1) = sqrt(((hgt_fix(k)+re)/r0)**5)*fac2*(1-a1(k,jmax+1))*r0
+      m3f(k,jmax+1) = (hgt_fix_r(k)+re)**2*dlonm*(1-a3(k,jmax+1))
+    enddo
+
+    !
+    ! now do a3,m3f for top level
+    !
+    k = nhgt_fix_r
+    a3(k,1) = 0
+    jmax = nmlatS2_h-k+1 ! number of S2 points at k-0.5
+    rm = (hgt_fix_r(k)+re)/r0
+    do j = 1,jmax ! loop over all S2 points (level k has nmlatS2_h-k+1 S2 points)
+      !
+      ! make sure fac1 does not numerically exceed 1, so that sqrt(1-fac1**2) can be computed
+      !
+      fac1 = min(sqrt(rm)*rho_s(j,1),1.0) ! sqrt(r_k-0.5/R)*rho(j+0.5)
+      a3(k,j+1) = 1-sqrt(1-fac1**2)
+      m3f(k,j) = (hgt_fix_r(k)+re)**2*dlonm*(a3(k,j+1)-a3(k,j))
+    enddo
+    m3f(k,jmax+1) = (hgt_fix_r(k)+re)**2*dlonm*(1-a3(k,jmax+1))
+
+  end subroutine edyn3D_calculate_mf
+
+!---------------------------------------------------------------------- 
 
 end module edyn3D_maggrid
