@@ -222,11 +222,11 @@ subroutine ma_convproc_init
             call addfld (trim(cnst_name(l))//'SFSEC', &
                 horiz_only,  'A','kg/m2/s','Wet deposition flux (precip evap, convective) at surface')
             if (history_aerosol) then
-               call add_default(trim(cnst_name(l))//'SFSEC', 2, ' ')
+               call add_default(trim(cnst_name(l))//'SFSEC', 1, ' ')
             end if
 
             call addfld( trim(cnst_name(l))//'QB', (/ 'lev' /), 'A', ' ', ' ')
-            call add_default(trim(cnst_name(l))//'QB',4,' ')
+            !call add_default(trim(cnst_name(l))//'QB',1,' ')
 
             if ( deepconv_wetdep_history ) then
                call addfld (trim(cnst_name(l))//'SFSID', &
@@ -234,8 +234,8 @@ subroutine ma_convproc_init
                call addfld (trim(cnst_name(l))//'SFSED', &
                   horiz_only,  'A','kg/m2/s','Wet deposition flux (precip evap, deep convective) at surface')
                if (history_aerosol) then
-                  call add_default(trim(cnst_name(l))//'SFSID', 2, ' ')
-                  call add_default(trim(cnst_name(l))//'SFSED', 2, ' ')
+                  call add_default(trim(cnst_name(l))//'SFSID', 1, ' ')
+                  call add_default(trim(cnst_name(l))//'SFSED', 1, ' ')
                end if
             end if
          end do
@@ -247,9 +247,9 @@ subroutine ma_convproc_init
       call add_default( 'SH_MFUP_MAX', 1, ' ' )
       call add_default( 'SH_WCLDBASE', 1, ' ' )
       call add_default( 'SH_KCLDBASE', 1, ' ' )
-      call add_default( 'DP_MFUP_MAX', 3, ' ' )
-      call add_default( 'DP_WCLDBASE', 3, ' ' )
-      call add_default( 'DP_KCLDBASE', 3, ' ' )
+      call add_default( 'DP_MFUP_MAX', 1, ' ' )
+      call add_default( 'DP_WCLDBASE', 1, ' ' )
+      call add_default( 'DP_KCLDBASE', 1, ' ' )
    end if
 
    fracis_idx      = pbuf_get_index('FRACIS')

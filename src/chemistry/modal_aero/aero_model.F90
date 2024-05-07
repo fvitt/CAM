@@ -464,18 +464,18 @@ contains
        call addfld (trim(wetdep_list(m))//'INS',(/ 'lev' /), 'A',unit_basename//'/kg/s ','insol frac')
 
        if ( history_aerosol .or. history_chemistry ) then
-          call add_default (trim(wetdep_list(m))//'SFWET', 2, ' ')
+          call add_default (trim(wetdep_list(m))//'SFWET', 1, ' ')
        endif
        if ( history_aerosol ) then
-          call add_default (trim(wetdep_list(m))//'SFSIC', 2, ' ')
-          call add_default (trim(wetdep_list(m))//'SFSIS', 2, ' ')
-          call add_default (trim(wetdep_list(m))//'SFSBC', 2, ' ')
-          call add_default (trim(wetdep_list(m))//'SFSBS', 2, ' ')
+          call add_default (trim(wetdep_list(m))//'SFSIC', 1, ' ')
+          call add_default (trim(wetdep_list(m))//'SFSIS', 1, ' ')
+          call add_default (trim(wetdep_list(m))//'SFSBC', 1, ' ')
+          call add_default (trim(wetdep_list(m))//'SFSBS', 1, ' ')
           if (convproc_do_aer) then
-             call add_default (trim(wetdep_list(m))//'SFSES', 2, ' ')
-             call add_default (trim(wetdep_list(m))//'SFSBD', 2, ' ')
-             call add_default (trim(wetdep_list(m))//'WETC', 4, ' ')
-             call add_default (trim(wetdep_list(m))//'CONU', 4, ' ')
+             call add_default (trim(wetdep_list(m))//'SFSES', 1, ' ')
+             call add_default (trim(wetdep_list(m))//'SFSBD', 1, ' ')
+             !call add_default (trim(wetdep_list(m))//'WETC', 4, ' ')
+             !call add_default (trim(wetdep_list(m))//'CONU', 4, ' ')
           end if
        endif
 
@@ -562,17 +562,17 @@ contains
              call add_default (trim(cnst_name_cw(n))//'GVF', 1, ' ')
              call add_default (trim(cnst_name_cw(n))//'TBF', 1, ' ')
              call add_default (trim(cnst_name_cw(n))//'DDF', 1, ' ')
-             call add_default (trim(cnst_name_cw(n))//'SFSBS', 2, ' ')
-             call add_default (trim(cnst_name_cw(n))//'SFSIC', 2, ' ')
-             call add_default (trim(cnst_name_cw(n))//'SFSBC', 2, ' ')
-             call add_default (trim(cnst_name_cw(n))//'SFSIS', 2, ' ')
+             call add_default (trim(cnst_name_cw(n))//'SFSBS', 1, ' ')
+             call add_default (trim(cnst_name_cw(n))//'SFSIC', 1, ' ')
+             call add_default (trim(cnst_name_cw(n))//'SFSBC', 1, ' ')
+             call add_default (trim(cnst_name_cw(n))//'SFSIS', 1, ' ')
              if (convproc_do_aer) then
-                call add_default (trim(cnst_name_cw(n))//'SFSEC', 2, ' ')
-                call add_default (trim(cnst_name_cw(n))//'SFSES', 2, ' ')
-                call add_default (trim(cnst_name_cw(n))//'SFSBD', 2, ' ')
-                call add_default (trim(cnst_name_cw(n))//'RSPTD', 5, ' ')
-                call add_default (trim(cnst_name_cw(n))//'WETC', 4, ' ')
-                call add_default (trim(cnst_name_cw(n))//'CONU', 4, ' ')
+                call add_default (trim(cnst_name_cw(n))//'SFSEC', 1, ' ')
+                call add_default (trim(cnst_name_cw(n))//'SFSES', 1, ' ')
+                !call add_default (trim(cnst_name_cw(n))//'SFSBD', 2, ' ')
+                !call add_default (trim(cnst_name_cw(n))//'RSPTD', 5, ' ')
+                !call add_default (trim(cnst_name_cw(n))//'WETC', 4, ' ')
+                !call add_default (trim(cnst_name_cw(n))//'CONU', 4, ' ')
              end if
           endif
        endif
@@ -1686,11 +1686,11 @@ contains
        call t_stopf('ma_convproc')
     endif
 
-!!$    ! if the user has specified prescribed aerosol dep fluxes then
-!!$    ! do not set cam_out dep fluxes according to the prognostic aerosols
-!!$    if (.not. aerodep_flx_prescribed()) then
-!!$       call set_srf_wetdep(aerdepwetis, aerdepwetcw, cam_out)
-!!$    endif
+    ! if the user has specified prescribed aerosol dep fluxes then
+    ! do not set cam_out dep fluxes according to the prognostic aerosols
+    if (.not. aerodep_flx_prescribed()) then
+       call set_srf_wetdep(aerdepwetis, aerdepwetcw, cam_out)
+    endif
 
   endsubroutine aero_model_wetdep
 
