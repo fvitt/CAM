@@ -329,7 +329,7 @@ subroutine aero_convproc_intr( aero_props, aero_state, state, ptend, pbuf, ztodt
 
    integer,  intent(in)    :: nsrflx_mzaer2cnvpr
    real(r8), intent(in)    :: qsrflx_mzaer2cnvpr(pcols,ncnstaer,nsrflx_mzaer2cnvpr)
-   real(r8), intent(inout) :: aerdepwetis(pcols,ncnstaer)  ! aerosol wet deposition (interstitial)
+   real(r8), intent(inout) :: aerdepwetis(pcols,pcnst)  ! aerosol wet deposition (interstitial)
    real(r8), intent(inout) :: dcondt_resusp3d(ncnstaer,pcols,pver)
 
    ! Local variables
@@ -449,7 +449,7 @@ subroutine aero_convproc_intr( aero_props, aero_state, state, ptend, pbuf, ztodt
                !if (cnst_species_class(ndx) == cnst_spec_class_aerosol) then
                ! this used for surface coupling
                if (ndx>0) then
-                  aerdepwetis(1:ncol,mm) = aerdepwetis(1:ncol,mm) &
+                  aerdepwetis(1:ncol,ndx) = aerdepwetis(1:ncol,ndx) &
                        + qsrflx(1:ncol,mm,4) + qsrflx(1:ncol,mm,5)
                end if
             end do
@@ -467,7 +467,7 @@ subroutine aero_convproc_intr( aero_props, aero_state, state, ptend, pbuf, ztodt
 
             ndx = aer_cnst_ndx(mm)
 
-            call outfld( trim(cnst_name_extd(1,mm))//'SFWET', aerdepwetis(:,mm), pcols, lchnk )
+            call outfld( trim(cnst_name_extd(1,mm))//'SFWET', aerdepwetis(:,ndx), pcols, lchnk )
             call outfld( trim(cnst_name_extd(1,mm))//'SFSIC', sflxic(:,mm), pcols, lchnk )
             call outfld( trim(cnst_name_extd(1,mm))//'SFSEC', sflxec(:,mm), pcols, lchnk )
 
