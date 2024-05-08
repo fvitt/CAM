@@ -252,6 +252,23 @@ contains
              end if
           end if
        end do
+
+       write(fieldname,'("WETRAD_bin",I2.2)') m
+       write(long_name,'("bin ",I2.2," wet radius in carma_aero_gasaerexch")') m
+
+       call addfld(fieldname, (/'lev'/), 'A', 'cm', long_name )
+       if ( history_aerosol ) then
+          call add_default( fieldname,  1, ' ' )
+       endif
+
+       write(fieldname,'("UPTKRATE_bin",I2.2)') m
+       write(long_name,'("bin ",I2.2," up take rate carma_aero_gasaerexch")') m
+
+       call addfld(fieldname, (/'lev'/), 'A', 'sec-1', long_name )
+       if ( history_aerosol ) then
+          call add_default( fieldname,  1, ' ' )
+       endif
+
     end do
 
   end subroutine carma_aero_gasaerexch_init
@@ -461,6 +478,16 @@ subroutine carma_aero_gasaerexch_sub(                            &
   call gas_aer_uptkrates( ncol,       loffset,                &
                           num_bin,          t,          pmid,       &
                           wetr_n,                   uptkrate    )
+
+  do m = 1, nbins
+
+     write(fieldname,'("WETRAD_bin",I2.2)') m
+     call outfld(fieldname, wetr_n(:ncol,:,m), ncol, lchnk )
+
+     write(fieldname,'("UPTKRATE_bin",I2.2)') m
+     call outfld(fieldname, uptkrate(:ncol,:,m), ncol, lchnk )
+
+  end do
 
 ! use this for tendency calcs to avoid generating very small negative values
   deltatxx = deltat * (1.0_r8 + 1.0e-15_r8)
