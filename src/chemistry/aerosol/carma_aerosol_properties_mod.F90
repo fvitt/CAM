@@ -243,7 +243,7 @@ contains
   !  species morphology
   !------------------------------------------------------------------------
   subroutine get(self, bin_ndx, species_ndx, list_ndx, density, hygro, &
-                 spectype, specmorph, refindex_sw, refindex_lw)
+                 spectype, specname, specmorph, refindex_sw, refindex_lw)
 
     class(carma_aerosol_properties), intent(in) :: self
     integer, intent(in) :: bin_ndx             ! bin index
@@ -252,6 +252,7 @@ contains
     real(r8), optional, intent(out) :: density ! density (kg/m3)
     real(r8), optional, intent(out) :: hygro   ! hygroscopicity
     character(len=*), optional, intent(out) :: spectype  ! species type
+    character(len=*), optional, intent(out) :: specname  ! species name
     character(len=*), optional, intent(out) :: specmorph ! species morphology
     complex(r8), pointer, optional, intent(out) :: refindex_sw(:) ! short wave species refractive indices
     complex(r8), pointer, optional, intent(out) :: refindex_lw(:) ! long wave species refractive indices
@@ -281,6 +282,9 @@ contains
     end if
     if (present(specmorph)) then
        call rad_cnst_get_bin_props_by_idx(ilist, bin_ndx, species_ndx, specmorph=specmorph)
+    end if
+    if (present(specname)) then
+       call rad_cnst_get_info_by_bin_spec(ilist, bin_ndx, species_ndx, spec_name=specname)
     end if
 
   end subroutine get
@@ -596,13 +600,30 @@ contains
   ! returns minimum mass mean radius (meters)
   !------------------------------------------------------------------------------
   function min_mass_mean_rad(self,bin_ndx,species_ndx) result(minrad)
+    use carma_intr, only: carma_get_bin_radius
+    use carma_intr, only: carma_get_group_by_name
+
     class(carma_aerosol_properties), intent(in) :: self
     integer, intent(in) :: bin_ndx           ! bin number
     integer, intent(in) :: species_ndx       ! species number
 
     real(r8) :: minrad  ! meters
+    real(r8) :: radcm
 
-    minrad = 0.0_r8 ! -huge(1._r8)
+    character(len=aero_name_len) :: bin_name, shortname
+    integer :: igroup, ibin, rc, nchr
+
+    call rad_cnst_get_info_by_bin(0, bin_ndx, bin_name=bin_name)
+
+    nchr = len_trim(bin_name)-2
+    shortname = bin_name(:nchr)
+
+    call carma_get_group_by_name(shortname, igroup, rc)
+
+    read(bin_name(nchr+1:),*) ibin
+
+    call carma_get_bin_radius(igroup, ibin, radcm, rc)
+    minrad = radcm*1.e-2_r8 ! meters
 
   end function min_mass_mean_rad
 

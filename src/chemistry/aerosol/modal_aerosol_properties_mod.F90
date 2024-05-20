@@ -314,7 +314,7 @@ contains
   !  species morphology
   !------------------------------------------------------------------------
   subroutine get(self, bin_ndx, species_ndx, list_ndx, density, hygro, &
-                 spectype, specmorph, refindex_sw, refindex_lw)
+                 spectype, specname, specmorph, refindex_sw, refindex_lw)
 
     class(modal_aerosol_properties), intent(in) :: self
     integer, intent(in) :: bin_ndx             ! bin index
@@ -323,6 +323,7 @@ contains
     real(r8), optional, intent(out) :: density ! density (kg/m3)
     real(r8), optional, intent(out) :: hygro   ! hygroscopicity
     character(len=*), optional, intent(out) :: spectype  ! species type
+    character(len=*), optional, intent(out) :: specname  ! species name
     character(len=*), optional, intent(out) :: specmorph ! species morphology
     complex(r8), pointer, optional, intent(out) :: refindex_sw(:) ! short wave species refractive indices
     complex(r8), pointer, optional, intent(out) :: refindex_lw(:) ! long wave species refractive indices
@@ -338,6 +339,10 @@ contains
     call rad_cnst_get_aer_props(ilist, bin_ndx, species_ndx, &
                                 density_aer=density, hygro_aer=hygro, spectype=spectype, &
                                 refindex_aer_sw=refindex_sw, refindex_aer_lw=refindex_lw)
+
+    if (present(specname)) then
+       call rad_cnst_get_info(ilist, bin_ndx, species_ndx, spec_name=specname)
+    end if
 
     if (present(specmorph)) then
        specmorph = 'UNKNOWN'

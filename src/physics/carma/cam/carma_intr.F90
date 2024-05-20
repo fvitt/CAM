@@ -78,6 +78,7 @@ module carma_intr
 
   public :: carma_get_group_by_name
   public :: carma_get_bin_rmass
+  public :: carma_get_bin_radius
 
   ! Private data
 
@@ -3747,5 +3748,25 @@ contains
 
   end subroutine carma_get_bin_rmass
 
+  !-----------------------------------------------------------------------------
+  !-----------------------------------------------------------------------------
+  subroutine carma_get_bin_radius(igroup, ibin, radius, rc)
+
+    integer, intent(in)               :: igroup                !! group index
+    integer, intent(in)               :: ibin                  !! bin index
+    real(r8),intent(out)              :: radius ! cm ???
+    integer, intent(out)              :: rc                    !! return code
+
+    real(r8)                          :: rad(carma%f_NBIN)   ! the bin radius
+
+    ! default return code
+    rc = RC_OK
+
+    call CARMAGROUP_Get(carma, igroup, rc, r=rad) ! cm
+    if (rc /= RC_OK) return
+
+    radius = rad(ibin)
+
+  end subroutine carma_get_bin_radius
 
 end module carma_intr

@@ -53,6 +53,7 @@ module carma_intr
 
   public :: carma_get_group_by_name
   public :: carma_get_bin_rmass
+  public :: carma_get_bin_radius
 
   integer, parameter, public  ::     MAXCLDAERDIAG = 16
 
@@ -317,4 +318,13 @@ contains
 
   end subroutine carma_get_bin_rmass
 
-end module carma_intr
+  !-----------------------------------------------------------------------------
+  !-----------------------------------------------------------------------------
+  subroutine carma_get_bin_radius(igroup, ibin, radius, rc)
+    integer, intent(in)               :: igroup                !! group index
+    integer, intent(in)               :: ibin                  !! bin index
+    real(r8),intent(out)              :: radius ! cm ???
+    integer, intent(out)              :: rc                    !! return code
+  end subroutine carma_get_bin_radius
+
+ end module carma_intr

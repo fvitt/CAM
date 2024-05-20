@@ -30,6 +30,7 @@ module aero_wetdep_cam
   use aero_convproc, only: aero_convproc_readnl, aero_convproc_init, aero_convproc_intr
   use aero_convproc, only: convproc_do_evaprain_atonce
   use aero_convproc, only: deepconv_wetdep_history
+  use aero_deposition_cam, only: aero_deposition_cam_init, aero_deposition_cam_setwet
 
   use infnan,         only: nan, assignment(=)
 
@@ -257,6 +258,8 @@ contains
     call init_bcscavcoef()
     call aero_convproc_init(aero_props)
 
+    call aero_deposition_cam_init(aero_props)
+
   contains
 
     subroutine add_hist_fields(name,baseunits)
@@ -321,7 +324,6 @@ contains
   !------------------------------------------------------------------------------
   subroutine aero_wetdep_tend( state, dt, dlf, cam_out, ptend, pbuf)
     use wetdep, only: wetdepa_v2, wetdep_inputs_set, wetdep_inputs_t
-    use modal_aero_deposition, only: set_srf_wetdep
     use aerodep_flx,    only: aerodep_flx_prescribed
 
     type(physics_state), target, intent(in) :: state  ! Physics state variables
@@ -633,10 +635,10 @@ contains
              enddo
              if (cldbrn) then
                 call outfld( trim(name)//'SFWET', sflx, pcols, lchnk)
-                if (nmodes>0) aerdepwetcw(:ncol,ndx) = sflx(:ncol)
+                if (ndx>0) aerdepwetcw(:ncol,ndx) = sflx(:ncol)
              else
                 if (.not.convproc_do_aer) call outfld( trim(name)//'SFWET', sflx, pcols, lchnk)
-                aerdepwetis(:ncol,ndx) = sflx(:ncol)
+                if (ndx>0) aerdepwetis(:ncol,ndx) = sflx(:ncol)
              end if
 
              sflx(:)=0._r8
@@ -795,10 +797,8 @@ contains
        nullify(aero_state)
     end if
 
-    if ((nmodes>0) .and. (.not.aerodep_flx_prescribed())) then
-       ! if the user has specified prescribed aerosol dep fluxes then
-       ! do not set cam_out dep fluxes according to the prognostic aerosols
-       call set_srf_wetdep(aerdepwetis, aerdepwetcw, cam_out)
+    if (.not.aerodep_flx_prescribed()) then
+       call aero_deposition_cam_setwet(aerdepwetis, aerdepwetcw, cam_out)
     end if
 
     return
