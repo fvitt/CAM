@@ -1621,7 +1621,7 @@ contains
           do m = 1, ntot_amode ! main loop over aerosol modes
              do lphase = strt_loop,end_loop, stride_loop
                 ! loop over interstitial (1) and cloud-borne (2) forms
-                do lspec = 0, nspec_amode(m)+1 ! loop over number + chem constituents + water
+                do lspec = 0, nspec_amode(m) ! loop over number + chem constituents
                    if (lspec == 0) then ! number
                       if (lphase == 1) then
                          mm = numptr_amode(m)
@@ -1637,7 +1637,11 @@ contains
                    endif
                    if (lphase == 2) then
                       fldcw => qqcw_get_field(pbuf, mm,lchnk)
-                      fldcw(:ncol,:) = fldcw(:ncol,:) + dcondt_resusp3d(mm,:ncol,:)*dt
+                      do k = 1,pver
+                         do i = 1,ncol
+                            fldcw(i,k) = fldcw(i,k) + max(0._r8,dcondt_resusp3d(mm+pcnst,i,k))*dt
+                         end do
+                      end do
                    end if
                 end do ! loop over number + chem constituents + water
              end do  ! lphase
