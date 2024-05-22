@@ -2216,10 +2216,7 @@ end subroutine ma_convproc_tend
             ! use -dcondt_wetdep(m,k) as it is negative (or zero)
             wd_flux(m) = wd_flux(m) + tmpdp*max(0.0_r8, -dcondt_wetdep(m,k))
             del_wd_flux_evap = wd_flux(m)*fdel_pr_flux_evap
-            wd_flux(m) = max( 0.0_r8, wd_flux(m)-del_wd_flux_evap )
-
             dcondt_prevap(m,k) = del_wd_flux_evap/tmpdp
-            dcondt(m,k) = dcondt(m,k) + dcondt_prevap(m,k)
          end if
       end do
 
@@ -2251,6 +2248,12 @@ end subroutine ma_convproc_tend
          enddo
 
       end if
+
+      do m = 2, pcnst_extd
+         if ( doconvproc_extd(m) ) then
+            dcondt(m,k) = dcondt(m,k) + dcondt_prevap(m,k)
+         end if
+      end do
 
       pr_flux = max( 0.0_r8, pr_flux-del_pr_flux_evap )
 
