@@ -1109,15 +1109,9 @@ contains
             *state%pdel(:ncol,k)/gravit
     end do
 
-    if(convproc_do_aer) then
-       qsrflx_mzaer2cnvpr(:,:,:) = 0.0_r8
-       aerdepwetis(:,:)          = 0.0_r8
-       aerdepwetcw(:,:)          = 0.0_r8
-    else
-       qsrflx_mzaer2cnvpr(:,:,:) = nan
-       aerdepwetis(:,:)          = nan
-       aerdepwetcw(:,:)          = nan
-    endif
+    qsrflx_mzaer2cnvpr(:,:,:) = 0.0_r8
+    aerdepwetis(:,:)          = 0.0_r8
+    aerdepwetcw(:,:)          = 0.0_r8
 
     ! calculate the mass-weighted sol_factic for coarse mode species
     ! sol_factic_coarse(:,:) = 0.30_r8 ! tuned 1/4
@@ -1154,6 +1148,46 @@ contains
        strt_loop   =  2
        end_loop    =  1
        stride_loop = -1
+    endif
+
+    if (convproc_do_aer) then
+       call t_startf('ma_convproc')
+       call ma_convproc_intr( state, ptend, pbuf, dt,                &
+            nsrflx_mzaer2cnvpr, qsrflx_mzaer2cnvpr, aerdepwetis, &
+            dcondt_resusp3d)
+
+       if (convproc_do_evaprain_atonce) then
+          do m = 1, ntot_amode ! main loop over aerosol modes
+             do lphase = strt_loop,end_loop, stride_loop
+                ! loop over interstitial (1) and cloud-borne (2) forms
+                do lspec = 0, nspec_amode(m) ! loop over number + chem constituents
+                   if (lspec == 0) then ! number
+                      if (lphase == 1) then
+                         mm = numptr_amode(m)
+                      else
+                         mm = numptrcw_amode(m)
+                      endif
+                   else if (lspec <= nspec_amode(m)) then ! non-water mass
+                      if (lphase == 1) then
+                         mm = lmassptr_amode(lspec,m)
+                      else
+                         mm = lmassptrcw_amode(lspec,m)
+                      endif
+                   endif
+                   if (lphase == 2) then
+                      fldcw => qqcw_get_field(pbuf, mm,lchnk)
+                      do k = 1,pver
+                         do i = 1,ncol
+                            fldcw(i,k) = fldcw(i,k) + max(0._r8,dcondt_resusp3d(mm+pcnst,i,k))*dt
+                         end do
+                      end do
+                   end if
+                end do ! loop over number + chem constituents + water
+             end do  ! lphase
+          end do   ! m aerosol modes
+       end if
+
+       call t_stopf('ma_convproc')
     endif
 
     do m = 1, ntot_amode ! main loop over aerosol modes
@@ -1341,7 +1375,7 @@ contains
                    enddo
                 enddo
                 if (.not.convproc_do_aer) call outfld( trim(cnst_name(mm))//'SFWET', sflx, pcols, lchnk)
-                aerdepwetis(:ncol,mm) = sflx(:ncol)
+                aerdepwetis(:ncol,mm) = aerdepwetis(:ncol,mm) + sflx(:ncol)
 
                 sflx(:)=0._r8
                 do k=1,pver
@@ -1610,46 +1644,6 @@ contains
           enddo ! lspec = 0, nspec_amode(m)+1
        enddo ! lphase = 1, 2
     enddo ! m = 1, ntot_amode
-
-    if (convproc_do_aer) then
-       call t_startf('ma_convproc')
-       call ma_convproc_intr( state, ptend, pbuf, dt,                &
-            nsrflx_mzaer2cnvpr, qsrflx_mzaer2cnvpr, aerdepwetis, &
-            dcondt_resusp3d)
-
-       if (convproc_do_evaprain_atonce) then
-          do m = 1, ntot_amode ! main loop over aerosol modes
-             do lphase = strt_loop,end_loop, stride_loop
-                ! loop over interstitial (1) and cloud-borne (2) forms
-                do lspec = 0, nspec_amode(m) ! loop over number + chem constituents
-                   if (lspec == 0) then ! number
-                      if (lphase == 1) then
-                         mm = numptr_amode(m)
-                      else
-                         mm = numptrcw_amode(m)
-                      endif
-                   else if (lspec <= nspec_amode(m)) then ! non-water mass
-                      if (lphase == 1) then
-                         mm = lmassptr_amode(lspec,m)
-                      else
-                         mm = lmassptrcw_amode(lspec,m)
-                      endif
-                   endif
-                   if (lphase == 2) then
-                      fldcw => qqcw_get_field(pbuf, mm,lchnk)
-                      do k = 1,pver
-                         do i = 1,ncol
-                            fldcw(i,k) = fldcw(i,k) + max(0._r8,dcondt_resusp3d(mm+pcnst,i,k))*dt
-                         end do
-                      end do
-                   end if
-                end do ! loop over number + chem constituents + water
-             end do  ! lphase
-          end do   ! m aerosol modes
-       end if
-
-       call t_stopf('ma_convproc')
-    endif
 
     ! if the user has specified prescribed aerosol dep fluxes then
     ! do not set cam_out dep fluxes according to the prognostic aerosols
