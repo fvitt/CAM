@@ -787,6 +787,7 @@ contains
     use cam_budget,         only: cam_budget_init
 
     use ccpp_constituent_prop_mod, only: ccpp_const_props_init
+    use met_input_stream, only: met_input_stream_histinit
 
     ! Input/output arguments
     type(physics_state), pointer       :: phys_state(:)
@@ -996,6 +997,8 @@ contains
 
     ! Initialize the budget capability
     call cam_budget_init()
+
+    call met_input_stream_histinit()
 
     ! addfld calls for U, V tendency budget variables that are output in
     ! tphysac, tphysbc

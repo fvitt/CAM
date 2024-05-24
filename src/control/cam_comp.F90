@@ -228,6 +228,7 @@ subroutine cam_run1(cam_in, cam_out)
    use physpkg,          only: phys_run1
    use stepon,           only: stepon_run1
    use ionosphere_interface,only: ionosphere_run1
+   use met_input_stream, only: met_input_stream_adv
 
    type(cam_in_t)  :: cam_in(begchunk:endchunk)
    type(cam_out_t) :: cam_out(begchunk:endchunk)
@@ -250,6 +251,7 @@ subroutine cam_run1(cam_in, cam_out)
    !----------------------------------------------------------
    call ionosphere_run1(pbuf2d)
 
+   call met_input_stream_adv(phys_state, pbuf2d)
    !
    !----------------------------------------------------------
    ! PHYS_RUN Call the Physics package

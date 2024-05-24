@@ -71,6 +71,8 @@ module atm_comp_nuopc
    use ioFileMod
    !$use omp_lib           , only : omp_set_num_threads
 
+   use met_input_stream, only: met_input_stream_datainit
+
   implicit none
   private ! except
 
@@ -902,6 +904,8 @@ contains
        ! flux averaged calculation to compute cam-out
        ! Note - cam_run1 is called on restart only to have cam internal state consistent with the
        ! cam_out state sent to the coupler
+
+       call met_input_stream_datainit(model_mesh, model_clock)
 
        if (stepno == 0) then
           call import_fields( gcomp, cam_in, rc=rc )
