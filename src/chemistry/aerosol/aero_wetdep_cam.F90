@@ -776,16 +776,20 @@ contains
              do l = 0,aero_props%nmasses(m)
                 mm = aero_props%indexer(m,l)
 
-
                 if (l == 0) then   ! number
                    call aero_props%num_names(m, aname, cname)
                 else
                    call aero_props%mmr_names(m,l, aname, cname)
                 end if
 
+                where(dcondt_resusp3d(mm,:ncol,:)<0._r8)
+                   dcondt_resusp3d(mm,:ncol,:) = 0._r8
+                end where
+
                 call outfld( trim(cname)//'RSPTD', dcondt_resusp3d(mm,:ncol,:), ncol, lchnk )
 
                 qqcw(mm)%fld(:ncol,:) = qqcw(mm)%fld(:ncol,:) + dcondt_resusp3d(mm,:ncol,:)*dt
+
              end do
           end do
        end if

@@ -17,8 +17,6 @@ contains
     type(physics_ptend), intent(out)   :: ptend       ! indivdual parameterization tendencies
     type(physics_buffer_desc), pointer :: pbuf(:)
 
-    !print*,'FVDBG.aerosol_watsiz_tend.. wetdep_lq: ',wetdep_lq
-
     call physics_ptend_init(ptend, state%psetcols, 'aero_model_wetdep', lq=wetdep_lq)
 
     ! Do calculations of mode radius and water uptake if:
