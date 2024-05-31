@@ -526,8 +526,21 @@ contains
                 horiz_only,  'A','kg/m2/s','Wet deposition flux (precip evap, stratiform) at surface')
              call addfld (trim(cnst_name_cw(n))//'SFSBD', &
                 horiz_only,  'A','kg/m2/s','Wet deposition flux (belowcloud, deep convective) at surface')
-          end if
 
+             call addfld (trim(cnst_name(n))//'WETC',  &
+                  (/ 'lev' /), 'A',unit_basename//'/kg/s ','wet deposition tendency')
+             call addfld (trim(cnst_name(n))//'CONU',  &
+                  (/ 'lev' /), 'A',unit_basename//'/kg ','updraft mixing ratio')
+
+             call addfld (trim(cnst_name_cw(n))//'WETC',  &
+                  (/ 'lev' /), 'A',unit_basename//'/kg/s ','wet deposition tendency')
+             call addfld (trim(cnst_name_cw(n))//'CONU',  &
+                  (/ 'lev' /), 'A',unit_basename//'/kg ','updraft mixing ratio')
+
+             call addfld( trim(cnst_name_cw(n))//'RSPTD', (/ 'lev' /), 'A', unit_basename//'/kg/s',   &
+                  trim(cnst_name_cw(n))//' resuspension tendency')
+
+          end if
 
           if ( history_aerosol.or. history_chemistry ) then
              call add_default( cnst_name_cw(n), 1, ' ' )
@@ -1150,6 +1163,9 @@ contains
                    mm = lmassptrcw_amode(lspec,m)
                 endif
                 fldcw => qqcw_get_field(pbuf, mm,lchnk)
+
+                call outfld( trim(cnst_name_cw(mm))//'RSPTD', dcondt_resusp3d(mm+pcnst,:ncol,:), ncol, lchnk )
+
                 do k = 1,pver
                    do i = 1,ncol
                       fldcw(i,k) = max(0._r8, fldcw(i,k) + dcondt_resusp3d(mm+pcnst,i,k)*dt)
@@ -1372,7 +1388,7 @@ contains
                    enddo
                 enddo
                 call outfld( trim(cnst_name(mm))//'SFSBC', sflx, pcols, lchnk)
-                if (convproc_do_aer)sflxbc = sflx
+                if (convproc_do_aer) sflxbc = sflx
 
                 sflx(:)=0._r8
                 do k=1,pver
