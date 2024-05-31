@@ -769,6 +769,7 @@ contains
     use cam_history,        only: addfld, register_vector_field, add_default
     use cam_budget,         only: cam_budget_init
     use phys_grid_ctem,     only: phys_grid_ctem_init
+    use aero_wetdep_cam,    only: aero_wetdep_init
 
     use ccpp_constituent_prop_mod, only: ccpp_const_props_init
 
@@ -855,6 +856,7 @@ contains
 
     ! Prognostic chemistry.
     call chem_init(phys_state,pbuf2d)
+    call aero_wetdep_init()
 
     ! Lightning flash frq and NOx prod
     call lightning_init( pbuf2d )
@@ -1400,7 +1402,7 @@ contains
     use radiation,          only: radiation_tend
     use tropopause,         only: tropopause_output
     use cam_diagnostics,    only: diag_phys_writeout, diag_conv, diag_clip_tend_writeout
-    use aero_model,         only: aero_model_wetdep, wetdep_lq
+    use aero_wetdep_cam,    only: aero_wetdep_tend, wetdep_lq
     use physics_buffer,     only: col_type_subcol
     use check_energy,       only: check_energy_timestep_init
     use carma_intr,         only: carma_wetdep_tend, carma_timestep_tend, carma_emission_tend
@@ -1940,19 +1942,19 @@ contains
           endif
        endif
 
-       if (trim(cam_take_snapshot_before) == "aero_model_wetdep") then
+       if (trim(cam_take_snapshot_before) == "aero_wetdep_tend") then
           call cam_snapshot_all_outfld_tphysac(cam_snapshot_before_num, state, tend, cam_in, cam_out, pbuf, &
                   fh2o, surfric, obklen, flx_heat, cmfmc, dlf, det_s, det_ice, net_flx)
        end if
 
-       call aero_model_wetdep( state, ztodt, dlf, cam_out, ptend, pbuf)
-       if ( (trim(cam_take_snapshot_after) == "aero_model_wetdep") .and.      &
+       call aero_wetdep_tend( state, ztodt, dlf, cam_out, ptend, pbuf)
+       if ( (trim(cam_take_snapshot_after) == "aero_wetdep_tend") .and.      &
             (trim(cam_take_snapshot_before) == trim(cam_take_snapshot_after))) then
           call cam_snapshot_ptend_outfld(ptend, lchnk)
        end if
        call physics_update(state, ptend, ztodt, tend)
 
-       if (trim(cam_take_snapshot_after) == "aero_model_wetdep") then
+       if (trim(cam_take_snapshot_after) == "aero_wetdep_tend") then
           call cam_snapshot_all_outfld_tphysac(cam_snapshot_after_num, state, tend, cam_in, cam_out, pbuf, &
                   fh2o, surfric, obklen, flx_heat, cmfmc, dlf, det_s, det_ice, net_flx)
        end if
@@ -1960,7 +1962,7 @@ contains
        if (carma_do_wetdep) then
           ! CARMA wet deposition
           !
-          ! NOTE: It needs to follow aero_model_wetdep, so that
+          ! NOTE: It needs to follow aero_wetdep_tend, so that
           ! cam_out%xxxwetxxx
           ! fields have already been set for CAM aerosols and cam_out can be
           ! added
