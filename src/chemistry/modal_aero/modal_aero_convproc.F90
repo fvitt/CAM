@@ -242,12 +242,16 @@ subroutine ma_convproc_init
 
    if ( history_aerosol .and. &
       ( convproc_do_aer .or.  convproc_do_gas)  ) then
-      call add_default( 'SH_MFUP_MAX', 1, ' ' )
-      call add_default( 'SH_WCLDBASE', 1, ' ' )
-      call add_default( 'SH_KCLDBASE', 1, ' ' )
-      call add_default( 'DP_MFUP_MAX', 1, ' ' )
-      call add_default( 'DP_WCLDBASE', 1, ' ' )
-      call add_default( 'DP_KCLDBASE', 1, ' ' )
+      if (convproc_do_shallow) then
+         call add_default( 'SH_MFUP_MAX', 1, ' ' )
+         call add_default( 'SH_WCLDBASE', 1, ' ' )
+         call add_default( 'SH_KCLDBASE', 1, ' ' )
+      end if
+      if (convproc_do_deep) then
+         call add_default( 'DP_MFUP_MAX', 1, ' ' )
+         call add_default( 'DP_WCLDBASE', 1, ' ' )
+         call add_default( 'DP_KCLDBASE', 1, ' ' )
+      end if
    end if
 
    fracis_idx      = pbuf_get_index('FRACIS')
