@@ -38,6 +38,7 @@ module aero_model
   public :: aero_model_init
   public :: aero_model_gasaerexch ! create, grow, change, and shrink aerosols.
   public :: aero_model_drydep     ! aerosol dry deposition and sediment
+  public :: aero_model_wetdep     ! aerosol wet removal
   public :: aero_model_emissions  ! aerosol emissions
   public :: aero_model_surfarea  ! tropopspheric aerosol wet surface area for chemistry
   public :: aero_model_strat_surfarea ! stratospheric aerosol wet surface area for chemistry
@@ -46,7 +47,7 @@ module aero_model
   public :: nimptblgrow_mind, nimptblgrow_maxd
 
   ! Accessor functions
-  public :: get_scavimptblvol, get_scavimptblnum, get_dlndg_nimptblgrow
+  public ::  get_scavimptblvol, get_scavimptblnum, get_dlndg_nimptblgrow
 
   ! Misc private data
 
@@ -106,6 +107,7 @@ contains
     use namelist_utils,  only: find_group_name
     use units,           only: getunit, freeunit
     use mpishorthand
+    use aero_wetdep_cam, only: aero_wetdep_readnl
 
     character(len=*), intent(in) :: nlfile  ! filepath for file containing namelist input
 
@@ -145,6 +147,8 @@ contains
 
     drydep_list = aer_drydep_list
 
+    call aero_wetdep_readnl(nlfile)
+
   end subroutine aero_model_readnl
 
   !=============================================================================
@@ -169,6 +173,7 @@ contains
     use dust_model,      only: dust_init, dust_names, dust_active, dust_nbin, dust_nnum
     use seasalt_model,   only: seasalt_init, seasalt_names, seasalt_active,seasalt_nbin
     use aer_drydep_mod,  only: inidrydep
+    use aero_wetdep_cam, only: aero_wetdep_init
 
     use modal_aero_calcsize,   only: modal_aero_calcsize_init
     use modal_aero_coag,       only: modal_aero_coag_init
@@ -527,6 +532,8 @@ contains
        endif
     endif
 
+    call aero_wetdep_init()
+
   end subroutine aero_model_init
 
   !=============================================================================
@@ -826,6 +833,27 @@ contains
     endif
 
   endsubroutine aero_model_drydep
+
+  !=============================================================================
+  !=============================================================================
+  subroutine aero_model_wetdep( state, dt, dlf, cam_out, ptend, pbuf)
+
+    use aero_wetdep_cam, only: aero_wetdep_tend
+
+    ! args
+
+    type(physics_state), intent(in)    :: state       ! Physics state variables
+    real(r8),            intent(in)    :: dt          ! time step
+    real(r8),            intent(in)    :: dlf(:,:)    ! shallow+deep convective detrainment [kg/kg/s]
+    type(cam_out_t),     intent(inout) :: cam_out     ! export state
+    type(physics_ptend), intent(out)   :: ptend       ! indivdual parameterization tendencies
+    type(physics_buffer_desc), pointer :: pbuf(:)
+
+    ! local vars
+
+    call aero_wetdep_tend( state, dt, dlf, cam_out, ptend, pbuf)
+
+  end subroutine aero_model_wetdep
 
   !-------------------------------------------------------------------------
   ! provides wet tropospheric aerosol surface area info for modal aerosols
