@@ -342,7 +342,7 @@ subroutine ma_convproc_intr( state, ptend, pbuf, ztodt,             &
 
 
    ! Arguments
-   type(physics_state),       intent(in )   :: state      ! Physics state variables
+   type(physics_state), target, intent(in ) :: state      ! Physics state variables
    type(physics_ptend),       intent(inout) :: ptend      ! %lq set in aero_model_wetdep
    type(physics_buffer_desc), pointer       :: pbuf(:)
    real(r8), intent(in) :: ztodt                          ! 2 delta t (model time increment)
