@@ -76,7 +76,6 @@ contains
   !------------------------------------------------------------------------------
   subroutine aero_wetdep_readnl(nlfile)
     use namelist_utils,  only: find_group_name
-    use units,           only: getunit, freeunit
     use spmd_utils,      only: mpicom, masterprocid, mpi_character, mpi_real8, mpi_integer, mpi_success
     use spmd_utils,      only: mpi_logical
 

@@ -64,9 +64,8 @@ contains
   !=============================================================================
   subroutine aero_model_readnl(nlfile)
 
-    use namelist_utils,  only: find_group_name
-    use units,           only: getunit, freeunit
-    use mpishorthand
+    use namelist_utils, only: find_group_name
+    use spmd_utils,     only: mpicom, masterprocid, mpi_character, mpi_real8, mpi_success
 
     character(len=*), intent(in) :: nlfile  ! filepath for file containing namelist input
 
@@ -78,8 +77,10 @@ contains
     character(len=16) :: aer_wetdep_list(pcnst) = ' '
     character(len=16) :: aer_drydep_list(pcnst) = ' '
 
-    namelist /aerosol_nl/ aer_wetdep_list, aer_drydep_list
+    namelist /aerosol_nl/ aer_drydep_list
     namelist /aerosol_nl/ aer_sol_facti, aer_sol_factb, aer_scav_coef
+    namelist /aero_wetdep_nl/ aer_wetdep_list
+
     !-----------------------------------------------------------------------------
     aer_sol_facti = nan
     aer_sol_factb = nan
@@ -87,27 +88,54 @@ contains
 
     ! Read namelist
     if (masterproc) then
-       unitn = getunit()
-       open( unitn, file=trim(nlfile), status='old' )
+
+       open( newunit=unitn, file=trim(nlfile), status='old' )
        call find_group_name(unitn, 'aerosol_nl', status=ierr)
        if (ierr == 0) then
           read(unitn, aerosol_nl, iostat=ierr)
           if (ierr /= 0) then
-             call endrun(subname // ':: ERROR reading namelist')
+             call endrun(subname // ':: ERROR reading aerosol_nl namelist')
           end if
        end if
        close(unitn)
-       call freeunit(unitn)
+
+       open( newunit=unitn, file=trim(nlfile), status='old' )
+       call find_group_name(unitn, 'aero_wetdep_nl', status=ierr)
+       if (ierr == 0) then
+          read(unitn, aero_wetdep_nl, iostat=ierr)
+          if (ierr /= 0) then
+             call endrun(subname // ':: ERROR reading aero_wetdep_nl namelist')
+          end if
+       end if
+       close(unitn)
+
     end if
 
-#ifdef SPMD
-    ! Broadcast namelist variables
-    call mpibcast(aer_wetdep_list, len(aer_wetdep_list(1))*pcnst, mpichar, 0, mpicom)
-    call mpibcast(aer_drydep_list, len(aer_drydep_list(1))*pcnst, mpichar, 0, mpicom)
-    call mpibcast(aer_sol_facti, pcnst, mpir8, 0, mpicom)
-    call mpibcast(aer_sol_factb, pcnst, mpir8, 0, mpicom)
-    call mpibcast(aer_scav_coef, pcnst, mpir8, 0, mpicom)
-#endif
+    call mpi_bcast(aer_wetdep_list, pcnst*len(aer_wetdep_list), mpi_character, masterprocid, mpicom, ierr)
+    if (ierr/=mpi_success) then
+       call endrun(subname//': MPI_BCAST ERROR: aer_wetdep_list')
+    end if
+    call mpi_bcast(aer_drydep_list, pcnst*len(aer_drydep_list), mpi_character, masterprocid, mpicom, ierr)
+    if (ierr/=mpi_success) then
+       call endrun(subname//': MPI_BCAST ERROR: aer_drydep_list')
+    end if
+
+    call mpi_bcast(aer_sol_facti, pcnst, mpi_real8, masterprocid, mpicom, ierr)
+    if (ierr/=mpi_success) then
+       call endrun(subname//': MPI_BCAST ERROR: aer_sol_facti')
+    end if
+    call mpi_bcast(aer_sol_facti, pcnst, mpi_real8, masterprocid, mpicom, ierr)
+    if (ierr/=mpi_success) then
+       call endrun(subname//': MPI_BCAST ERROR: aer_sol_facti')
+    end if
+    call mpi_bcast(aer_sol_factb, pcnst, mpi_real8, masterprocid, mpicom, ierr)
+    if (ierr/=mpi_success) then
+       call endrun(subname//': MPI_BCAST ERROR: aer_sol_factb')
+    end if
+    call mpi_bcast(aer_scav_coef, pcnst, mpi_real8, masterprocid, mpicom, ierr)
+    if (ierr/=mpi_success) then
+       call endrun(subname//': MPI_BCAST ERROR: aer_scav_coef')
+    end if
 
     wetdep_list = aer_wetdep_list
     drydep_list = aer_drydep_list
