@@ -63,7 +63,6 @@ logical, protected, public :: convproc_do_evaprain_atonce = .false.
 real(r8), protected, public    :: convproc_pom_spechygro = -1._r8
 real(r8), protected, public    :: convproc_wup_max       = 4.0_r8
 
-logical, parameter :: use_cwaer_for_activate_maxsat = .false.
 logical, parameter :: apply_convproc_tend_to_ptend = .true.
 
 real(r8) :: hund_ovr_g ! = 100.0_r8/gravit
@@ -286,8 +285,6 @@ subroutine ma_convproc_init
          convproc_do_aer
       write(iulog,'(a,l12)')     'ma_convproc_init - convproc_do_gas               = ', &
          convproc_do_gas
-      write(iulog,'(a,l12)')     'ma_convproc_init - use_cwaer_for_activate_maxsat = ', &
-         use_cwaer_for_activate_maxsat
       write(iulog,'(a,l12)')     'ma_convproc_init - apply_convproc_tend_to_ptend  = ', &
          apply_convproc_tend_to_ptend
       write(iulog,'(a,i12)')     'ma_convproc_init - convproc_method_activate      = ', &
