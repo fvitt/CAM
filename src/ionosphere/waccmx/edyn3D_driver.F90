@@ -27,6 +27,7 @@ contains
     use cam_history,  only: addfld, horiz_only
     use mo_apex, only: mo_apex_init1
     use edyn3D_fline_fields, only: edyn3D_fline_fields_alloc
+    use edyn3D_fldln_mesh, only: edyn3D_fldln_mesh_init
 
     integer, intent(in) :: mpicom, npes
 
@@ -43,6 +44,8 @@ contains
     call fieldline_getapex()
 
     call reg_hist_grid()
+
+    call edyn3D_fldln_mesh_init()
 
     call edyn3D_esmf_regrid_init()
 

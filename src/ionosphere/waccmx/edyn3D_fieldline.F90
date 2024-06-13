@@ -18,6 +18,7 @@ module edyn3D_fieldline
   ! Public data
   public :: gmapex_p
   public :: gmapex_s
+  public :: glbgrid_p
 
    public :: fline_p
    public :: fline_r
@@ -88,6 +89,14 @@ module edyn3D_fieldline
 
   type (magapex_t), allocatable  :: gmapex_p(:,:)
   type (magapex_t), allocatable  :: gmapex_s(:,:)
+
+  type globgrid_t
+     integer, allocatable :: ID(:)
+     real(r8), allocatable :: geoalt(:)
+     real(r8), allocatable :: geolat(:)
+     real(r8), allocatable :: geolon(:)
+  end type globgrid_t
+  type (globgrid_t), allocatable  :: glbgrid_p(:,:,:)
 
   !
   ! Define r field line structure
@@ -336,6 +345,19 @@ module edyn3D_fieldline
          end do
 
       end do
+
+      allocate(glbgrid_p(nmlon,nmlat_h,2),stat=ier)
+      do isn = 1,2  ! loop over hemisphere
+         do j=1,nmlat_h
+            do i = 1,nmlon
+               allocate(glbgrid_p(i,j,isn)%ID(gmapex_p(j,isn)%npts))
+               allocate(glbgrid_p(i,j,isn)%geoalt(gmapex_p(j,isn)%npts))
+               allocate(glbgrid_p(i,j,isn)%geolat(gmapex_p(j,isn)%npts))
+               allocate(glbgrid_p(i,j,isn)%geolon(gmapex_p(j,isn)%npts))
+            end do
+         end do
+      end do
+
 
       if (mytid>=ntask) return
 
@@ -788,7 +810,7 @@ endif
 
     subroutine fieldline_getapex
       use apex, only: apex_q2g, apex_mall
-      use edyn3d_params, only: h0, nmlat_h, nmlats2_h
+      use edyn3d_params, only: h0, nmlat_h, nmlats2_h, nmlon, nhgt_fix
       use edyn3d_mpi, only: mlon0_p,mlon1_p
       use physconst, only: pi
 
@@ -799,6 +821,8 @@ endif
 
       real(r8), parameter :: href = h0*1e-3_r8
       real(r8), parameter :: r2d = 180._r8/pi
+
+      integer :: id, nmlat
 
       do isn = 1,2
 
@@ -895,6 +919,32 @@ endif
             end do
          end do
 
+      end do
+
+      id = 0
+
+      do k = 1,nhgt_fix
+         nmlat = nmlat_h - (k-1)
+
+         do i = 1,nmlon
+
+            do isn = 1,2
+
+               do j = 1,nmlat
+
+                  qdlon = ylonm(i)*r2d
+                  qdlat = gmapex_p(j,isn)%mlat_qd(k)*r2d
+                  alt = gmapex_p(j,isn)%hgt_pt(k)*1e-3 ! km
+                  call apex_q2g(qdlat,qdlon,alt,gdlat,gdlon, ierr)
+
+                  id = id+1
+                  glbgrid_p(i,j,isn)%ID(k) = id
+                  glbgrid_p(i,j,isn)%geoalt(k) = gmapex_p(j,isn)%hgt_pt(k)
+                  glbgrid_p(i,j,isn)%geolat(k) = gdlat
+                  glbgrid_p(i,j,isn)%geolon(k) = gdlon
+               end do
+            end do
+         end do
       end do
 
     end subroutine fieldline_getapex
