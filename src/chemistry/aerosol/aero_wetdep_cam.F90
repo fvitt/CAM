@@ -40,7 +40,6 @@ module aero_wetdep_cam
   public :: aero_wetdep_init
   public :: aero_wetdep_tend
 
-  character(len=16) :: aer_wetdep_list(pcnst) = ' '
   real(r8), parameter :: NOTSET = -huge(1._r8)
   real(r8) :: sol_facti_cloud_borne   = NOTSET
   real(r8) :: sol_factb_interstitial  = NOTSET
@@ -87,7 +86,7 @@ contains
     ! ===================
     ! Namelist definition
     ! ===================
-    namelist /aero_wetdep_nl/ aer_wetdep_list, sol_facti_cloud_borne, sol_factb_interstitial, sol_factic_interstitial
+    namelist /aero_wetdep_nl/ sol_facti_cloud_borne, sol_factb_interstitial, sol_factic_interstitial
 
     ! =============
     ! Read namelist
@@ -107,13 +106,6 @@ contains
        ! Log namelist options
        ! ============================
        write(iulog,*) subname,' namelist settings: '
-       write(iulog,*) '   aer_wetdep_list: '
-       do i = 1,pcnst
-          if (len_trim(aer_wetdep_list(i))>0) then
-             write(iulog,*) '      ',trim(aer_wetdep_list(i))
-             nwetdep = nwetdep+1
-          end if
-       end do
        write(iulog,*) '   sol_facti_cloud_borne  : ',sol_facti_cloud_borne
        write(iulog,*) '   sol_factb_interstitial : ',sol_factb_interstitial
        write(iulog,*) '   sol_factic_interstitial: ',sol_factic_interstitial
@@ -122,10 +114,6 @@ contains
     ! ============================
     ! Broadcast namelist variables
     ! ============================
-    call mpi_bcast(aer_wetdep_list, pcnst*len(aer_wetdep_list), mpi_character, masterprocid, mpicom, ierr)
-    if (ierr/=mpi_success) then
-       call endrun(subname//': MPI_BCAST ERROR: aer_wetdep_list')
-    end if
     call mpi_bcast(sol_facti_cloud_borne, 1, mpi_real8, masterprocid, mpicom, ierr)
     if (ierr/=mpi_success) then
        call endrun(subname//': MPI_BCAST ERROR: sol_facti_cloud_borne')
