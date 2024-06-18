@@ -32,7 +32,7 @@ module edyn3D_params
 !       nlat_qd = 181,  &  !1181 ; 21,          &  ! number of quasi dipole latitudes, edge points j-0.5
 !       nlat_qd_h=(nlat_qd+1)*0.5, &! half of the hemisphere (assumes point at equator) edge points j-0.5
 
-       nmlon	= 10,  	&  ! number of magnetic longitudes P,S1,S2,R points
+       nmlon	= 12,  	&  ! number of magnetic longitudes P,S1,S2,R points
        nmlonp1  = nmlon+1,	&
        nhgt_fix   = 5 , 	&  ! Number of height levels on which P points lie.
        nhgt_fix_r = nhgt_fix+1     ! Number of height levels encompassing the lower and upper faces of elemental volumes

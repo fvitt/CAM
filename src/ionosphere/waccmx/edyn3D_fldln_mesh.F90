@@ -1,6 +1,14 @@
 module edyn3D_fldln_mesh
   use shr_kind_mod, only: r8 => shr_kind_r8
   use cam_abortutils, only: endrun
+
+  use edyn3d_params, only: nz=>nhgt_fix, nmlat_h, nmlon
+  use edyn3d_mpi, only: mlon0_p,mlon1_p
+  use edyn3D_fieldline, only: gmapex_p, fline_p
+  use edyn3D_fieldline, only: glbgrid_p
+
+  use edyn3D_fline_fields, only: magfield_t
+
   use ESMF
 
   implicit none
@@ -11,10 +19,6 @@ module edyn3D_fldln_mesh
 contains
 
   subroutine edyn3D_fldln_mesh_init
-    use edyn3d_params, only: nz=>nhgt_fix, nmlat_h, nmlon
-    use edyn3d_mpi, only: mlon0_p,mlon1_p
-    use edyn3D_fieldline, only: gmapex_p, fline_p
-    use edyn3D_fieldline, only: glbgrid_p
 
     integer, pointer :: nodeIds(:),nodeOwners(:)
     real(ESMF_KIND_R8), pointer :: nodeCoords(:)
@@ -172,11 +176,90 @@ contains
 
   end subroutine edyn3D_fldln_mesh_init
 
-  subroutine edyn3D_fldln_mesh_setfld
+  subroutine edyn3D_fldln_mesh_setfld( magfld )
+
+    type(magfield_t), intent(in) :: magfld
+
+
+    integer :: localrc, ndx, nmlat, i,j,k, isn
+
+    real(ESMF_KIND_R8), pointer :: farrayPtr1D(:)
+    character(len=*), parameter :: subname = 'edyn3D_fldln_mesh_setfld'
+
+    ! Load test data into the 3D mag field-line Field
+    ! Should only be 1 localDE
+    call ESMF_FieldGet(fldln_field, 0, farrayPtr1D,  rc=localrc)
+    if (ESMF_LogFoundError(localrc)) then
+       call endrun(subname//' ESMF_FieldGet fldln_field error')
+    end if
+
+    farrayPtr1D = -huge(1._r8)
+
+    ndx = 0
+
+    do k = 1,nz
+       if (k==1) then
+          nmlat = nmlat_h - 1
+       else
+          nmlat = nmlat_h - (k-1)
+       end if
+
+       do i = mlon0_p,mlon1_p
+           do isn = 1,2
+             do j = 1,nmlat
+                ndx = ndx+1
+
+                farrayPtr1D(ndx) = magfld%flines(i,j,isn)%fld(k)
+
+             end do
+          end do
+       end do
+    end do
+
   end subroutine edyn3D_fldln_mesh_setfld
 
-  subroutine edyn3D_fldln_mesh_getfld
-  end subroutine edyn3D_fldln_mesh_getfld
+  subroutine edyn3D_fldln_mesh_getfld( magfld )
 
+    type(magfield_t), intent(inout) :: magfld
+
+    integer :: localrc, ndx, nmlat, i,j,k, isn
+
+    real(ESMF_KIND_R8), pointer :: farrayPtr1D(:)
+    character(len=*), parameter :: subname = 'edyn3D_fldln_mesh_setfld'
+
+    ! Load test data into the 3D mag field-line Field
+    ! Should only be 1 localDE
+    call ESMF_FieldGet(fldln_field, 0, farrayPtr1D,  rc=localrc)
+    if (ESMF_LogFoundError(localrc)) then
+       call endrun(subname//' ESMF_FieldGet fldln_field error')
+    end if
+
+    ndx = 0
+
+    do k = 1,nz
+       if (k==1) then
+          nmlat = nmlat_h - 1
+       else
+          nmlat = nmlat_h - (k-1)
+       end if
+
+       do i = mlon0_p,mlon1_p
+           do isn = 1,2
+             do j = 1,nmlat
+                ndx = ndx+1
+                magfld%flines(i,j,isn)%fld(k) = farrayPtr1D(ndx)
+             end do
+          end do
+       end do
+    end do
+
+    do i = mlon0_p,mlon1_p
+       do isn = 1,2
+          magfld%flines(i,nmlat_h,isn)%fld(1) = 0.5_r8 &
+               *(magfld%flines(i,nmlat_h-1,1)%fld(1) + magfld%flines(i,nmlat_h-1,2)%fld(1))
+       end do
+    end do
+
+  end subroutine edyn3D_fldln_mesh_getfld
 
 end module edyn3D_fldln_mesh

@@ -18,6 +18,7 @@ module edyn3D_esmf_regrid
   type(ESMF_Grid),  pointer :: mag_grid(:)
   type(ESMF_Field), pointer :: magField(:)
   type(ESMF_RouteHandle), pointer :: rh_phys2mag(:), rh_mag2phys(:)
+  type(ESMF_RouteHandle), pointer :: rh_mag2opls(:)
 
   type(ESMF_Grid),  pointer :: mag_grid_s1(:), mag_grid_s2(:)
   type(ESMF_Field), pointer :: magField_s1(:), magField_s2(:)
@@ -34,6 +35,7 @@ contains
     use phys_control, only: phys_getopts
     use edyn3D_fieldline, only: fline_p, fline_s1, fline_s2
     use edyn3d_mpi, only: mlon0_p,mlon1_p
+    use edyn3D_oplus_grid, only: oplsField2D
 
     character(len=cl) :: mesh_file
 
@@ -93,6 +95,7 @@ contains
     allocate(magField(nz))
     allocate(rh_phys2mag(nz))
     allocate(rh_mag2phys(nz))
+    allocate(rh_mag2opls(nz))
 
     allocate(mag_grid_s1(nz))
     allocate(mag_grid_s2(nz))
@@ -182,6 +185,18 @@ contains
        call ESMF_FieldRegridStore( &
             srcField=magField(k), dstField=physField, &
             routehandle=rh_mag2phys(k), &
+            regridMethod=ESMF_REGRIDMETHOD_BILINEAR,                           &
+            polemethod=ESMF_POLEMETHOD_ALLAVG,                                 &
+            extrapMethod=ESMF_EXTRAPMETHOD_NEAREST_IDAVG,                      &
+            factorIndexList=factorIndexList,                                   &
+            factorList=factorList, srcTermProcessing=smm_srctermproc,          &
+            pipelineDepth=smm_pipelinedep, rc=rc)
+       call check_error(subname,'FieldRegridStore mag2phys route handle',rc)
+
+       ! mag->oplus
+       call ESMF_FieldRegridStore( &
+            srcField=magField(k), dstField=oplsField2D, &
+            routehandle=rh_mag2opls(k), &
             regridMethod=ESMF_REGRIDMETHOD_BILINEAR,                           &
             polemethod=ESMF_POLEMETHOD_ALLAVG,                                 &
             extrapMethod=ESMF_EXTRAPMETHOD_NEAREST_IDAVG,                      &
