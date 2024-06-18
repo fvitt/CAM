@@ -59,6 +59,10 @@ module carma_model_mod
   integer, public, parameter      :: NMIE_RH  = 8               !! Number of relative humidities for mie calculations
   real(kind=f), public            :: mie_rh(NMIE_RH)
 
+  integer, public, parameter      :: NMIE_WTP = 0              !! Number of weight percents for mie calculations
+  real(kind=f), public            :: mie_wtp(NMIE_WTP)
+  integer, public, parameter      :: NREFIDX = 1               !! Number of refractive indices per element
+
   ! Defines whether the groups should undergo deep convection in phase 1 or phase 2.
   ! Water vapor and cloud particles are convected in phase 1, while all other constituents
   ! are done in phase 2.

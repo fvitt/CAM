@@ -253,7 +253,7 @@ contains
     ! how CARMA is configured.
 
     call CARMA_Create(carma, NBIN, NELEM, NGROUP, NSOLUTE, NGAS, NWAVE, rc, &
-         LUNOPRT=LUNOPRT, wave=wave, dwave=dwave, do_wave_emit=do_wave_emit)
+         LUNOPRT=LUNOPRT, wave=wave, dwave=dwave, do_wave_emit=do_wave_emit, NREFIDX=NREFIDX)
     if (rc < 0) call endrun('carma_register::CARMA_Create failed.')
 
     ! Define the microphysical model.
@@ -362,15 +362,14 @@ contains
       ! For prognostic groups, all of the bins need to be represented as actual CAM
       ! constituents. Diagnostic groups are determined from state information that
       ! is already present in CAM, and thus their bins only exist in CARMA.
-      if (cnsttype == I_CNSTTYPE_PROGNOSTIC) then
+      do ibin = 1, NBIN
+         write(btndname(igroup, ibin), '(A, I2.2)') trim(grp_short), ibin
 
-        do ibin = 1, NBIN
+         if (cnsttype == I_CNSTTYPE_PROGNOSTIC) then
 
           ! Bins past maxbin are treated as diagnostic even if the group
           ! is prognostic and thus are not advected in the paerent model.
           if (ibin <= maxbin) then
-
-            write(btndname(igroup, ibin), '(A, I2.2)') trim(grp_short), ibin
 
             write(c_name, '(A, I2.2)') trim(shortname), ibin
             write(c_longname, '(A, e11.4, A)') trim(name) // ', ', r(ibin)*1.e4_r8, ' um'
@@ -381,8 +380,8 @@ contains
             call cnst_add(c_name, WTMOL_AIR, cpair, 0._r8, icnst4elem(ielem, ibin), &
               longname=c_longname, mixtype=carma_mixtype, is_convtran1=is_convtran1(igroup))
           end if
-        end do
-      end if
+         end if
+      end do
     end do
 
     ! Find the constituent for the gas or add it if not found.
@@ -2155,7 +2154,7 @@ contains
     real(kind=f)                        :: rho(NBIN), rhopwet
     real(kind=f)                        :: r(NBIN), rmass(NBIN), rlow(NBIN), rup(NBIN)
     real(kind=f)                        :: wave(NWAVE)
-    complex(kind=f)                     :: refidx(NWAVE)
+    complex(kind=f)                     :: refidx(NWAVE,NREFIDX)
     character(len=CARMA_NAME_LEN)       :: name
     character(len=CARMA_SHORT_NAME_LEN) :: shortname
     logical                             :: do_mie
@@ -2201,14 +2200,14 @@ contains
 
       ! Get the necessary group properties.
       call CARMAGROUP_Get(carma, igroup, rc, do_mie=do_mie, name=name, shortname=shortname, r=r, &
-                          rlow=rlow, rup=rup, rmass=rmass, refidx=refidx, irhswell=irhswell, &
+                          rlow=rlow, rup=rup, rmass=rmass, irhswell=irhswell, &
                           ienconc=ienconc, cnsttype=cnsttype, maxbin=maxbin)
       if (rc < 0) call endrun('carma_CreateOpticsFile::CARMAGROUP_Get failed.')
 
       ! Are we supposed to do the mie calculation for this group?
       if ((do_mie) .and. (cnsttype == I_CNSTTYPE_PROGNOSTIC)) then
 
-        call CARMAELEMENT_Get(carma, ienconc, rc, rho=rho)
+        call CARMAELEMENT_Get(carma, ienconc, rc, rho=rho, refidx=refidx)
         if (rc < 0) call endrun('carma_CreateOpticsFile::CARMAELEMENT_Get failed.')
 
         ! A file needs to be created for each bin.
@@ -2363,10 +2362,10 @@ contains
             call wrap_put_var_realx(fid, swvar, wave(nlwbands+1:) * 1e-2_f)
 
             ! Write out the refractive indicies.
-            call wrap_put_var_realx(fid, sw_r_refidx_var, real(refidx(nlwbands+1:)))
-            call wrap_put_var_realx(fid, sw_i_refidx_var, aimag(refidx(nlwbands+1:)))
-            call wrap_put_var_realx(fid, lw_r_refidx_var, real(refidx(:nlwbands)))
-            call wrap_put_var_realx(fid, lw_i_refidx_var, aimag(refidx(:nlwbands)))
+            call wrap_put_var_realx(fid, sw_r_refidx_var, real(refidx(nlwbands+1:,1)))
+            call wrap_put_var_realx(fid, sw_i_refidx_var, aimag(refidx(nlwbands+1:,1)))
+            call wrap_put_var_realx(fid, lw_r_refidx_var, real(refidx(:nlwbands,1)))
+            call wrap_put_var_realx(fid, lw_i_refidx_var, aimag(refidx(:nlwbands,1)))
 
 
             ! Pad the names out with spaces.
@@ -2408,7 +2407,9 @@ contains
 
               ! Calculate at each wavelength.
               do iwave = 1, NWAVE
-write(carma%f_LUNOPRT,*) "CARMA mie calc:  start  ", igroup, ibin, iwave, carma%f_wave(iwave), carma%f_group(igroup)%f_nmon(ibin)
+
+                 write(carma%f_LUNOPRT,*) "CARMA mie calc:  start  ", igroup, ibin, iwave, carma%f_wave(iwave), &
+                                                                      carma%f_group(igroup)%f_nmon(ibin)
 
 
                 ! Using Mie code, calculate the optical properties: extinction coefficient,
@@ -2424,13 +2425,16 @@ write(carma%f_LUNOPRT,*) "CARMA mie calc:  start  ", igroup, ibin, iwave, carma%
                          carma%f_group(igroup)%f_df(ibin), &
                          carma%f_group(igroup)%f_rmon, &
                          carma%f_group(igroup)%f_falpha, &
-                         carma%f_group(igroup)%f_refidx(iwave), &
+                         refidx(iwave,1), &
+                         0.0_f, &
+                         refidx(iwave, 1), &
                          Qext, &
                          Qsca, &
                          asym, &
                          rc)
                 if (rc < 0) call endrun('carma_CreateOpticsFile::mie failed.')
-write(carma%f_LUNOPRT,*) "CARMA mie calc:  done  ", Qext, Qsca, asym
+
+                write(carma%f_LUNOPRT,*) "CARMA mie calc:  done  ", Qext, Qsca, asym
 
 
                 ! Calculate  the shortwave and longwave properties?

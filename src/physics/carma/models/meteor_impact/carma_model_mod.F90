@@ -65,6 +65,10 @@ module carma_model_mod
   integer, public, parameter      :: NMIE_RH  = 8               !! Number of relative humidities for mie calculations
   real(kind=f), public            :: mie_rh(NMIE_RH) = (/ 0._f, 0.5_f, 0.7_f, 0.8_f, 0.9_f, 0.95_f, 0.98_f, 0.99_f /)
 
+  integer, public, parameter      :: NMIE_WTP = 0              !! Number of weight percents for mie calculations
+  real(kind=f), public            :: mie_wtp(NMIE_WTP)
+  integer, public, parameter      :: NREFIDX = 1               !! Number of refractive indices per element
+
   ! Defines whether the groups should undergo deep convection in phase 1 or phase 2.
   ! Water vapor and cloud particles are convected in phase 1, while all other constituents
   ! are done in phase 2.
@@ -107,7 +111,7 @@ contains
     real(kind=f), parameter            :: dust_vmrat = 2.49_f  ! dust volume ratio
     real(kind=f), parameter            :: soot_rmin = 20.e-7_f ! dust minimum radius (cm)
     real(kind=f), parameter            :: soot_vmrat = 2.49_f  ! dust volume ratio
-    complex(kind=f)                    :: refidx(NWAVE)        ! refractice indices
+    complex(kind=f)                    :: refidx(NWAVE,NREFIDX) ! refractice indices
 
     integer                            :: LUNOPRT               ! logical unit number for output
     logical                            :: do_print              ! do print output?
@@ -154,19 +158,10 @@ contains
     ! defined. If wetdep is defined, then the optional solubility factor
     ! should also be defined.
 
-    ! Use the same refractive index at all wavelengths. This value is typical of soot and
-    ! is recommended by Toon et al. 2012. TBD Wagner et al. 2011 shows variability in the
-    ! real part (0.003 (IR) to 0.05 (UV)).
-    refidx(:) = (1.53_f, 0.008_f)
-
     call CARMAGROUP_Create(carma, I_GRP_DUST, "Dust", dust_rmin, dust_vmrat, I_SPHERE, 1._f, .false., &
                            rc, do_wetdep=.true., do_drydep=.true., solfac=0.3_f, &
-                           scavcoef=0.1_f, shortname="CRDUST", refidx=refidx, do_mie=.true.)
+                           scavcoef=0.1_f, shortname="CRDUST", do_mie=.true.)
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddGroup failed.')
-
-    ! Use the same refractive index at all wavelengths. This value is typical of soot and
-    ! is recommended by Toon et al. 2012.
-    refidx(:) = (1.8_f, 0.67_f)
 
     if (carma_fractal_soot) then
       RHO_SOOT = 1.8_f
@@ -178,14 +173,14 @@ contains
 
       call CARMAGROUP_Create(carma, I_GRP_SOOT, "Soot", soot_rmin, soot_vmrat, I_SPHERE, 1._f, .false., &
                              rc, do_wetdep=.true., do_drydep=.true., solfac=0.1_f, &
-                             scavcoef=0.1_f, shortname="CRSOOT", refidx=refidx, do_mie=.true., &
+                             scavcoef=0.1_f, shortname="CRSOOT", do_mie=.true., &
                              is_fractal=.true., rmon=soot_rmon, df=soot_df, falpha=soot_falpha, &
                              imiertn=I_MIERTN_BOTET1997)
     else
       RHO_SOOT = 1.0_f
       call CARMAGROUP_Create(carma, I_GRP_SOOT, "Soot", soot_rmin, soot_vmrat, I_SPHERE, 1._f, .false., &
                              rc, do_wetdep=.true., do_drydep=.true., solfac=0.1_f, &
-                             scavcoef=0.1_f, shortname="CRSOOT", refidx=refidx, do_mie=.true.)
+                             scavcoef=0.1_f, shortname="CRSOOT", do_mie=.true.)
     end if
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddGroup failed.')
 
@@ -194,11 +189,21 @@ contains
     !
     ! NOTE: For CAM, the optional shortname needs to be provided for the group. These names
     ! should be 6 characters or less and without spaces.
-    call CARMAELEMENT_Create(carma, I_ELEM_DUST, I_GRP_DUST, "Dust", RHO_DUST, I_INVOLATILE, I_DUST, rc, shortname="CRDUST")
-    if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddElement failed.')
 
-    call CARMAELEMENT_Create(carma, I_ELEM_SOOT, I_GRP_SOOT, "Soot", RHO_SOOT, I_INVOLATILE, I_SOOT, rc, shortname="CRSOOT")
-    if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddElement failed.')
+    ! Use the same refractive index at all wavelengths. This value is typical of dust and
+    ! is recommended by Toon et al. 2012. TBD Wagner et al. 2011 shows variability in the
+    ! real part (0.003 (IR) to 0.05 (UV)).
+    refidx(:,1) = CMPLX(1.53_f, 0.008_f, kind=f)
+
+    call CARMAELEMENT_Create(carma, I_ELEM_DUST, I_GRP_DUST, "Dust", RHO_DUST, I_INVOLATILE, I_DUST, rc, shortname="CRDUST", refidx=refidx)
+    if (rc < 0) call endrun('CARMAMODEL_DefineModel::CARMA_AddElement failed.')
+
+    ! Use the same refractive index at all wavelengths. This value is typical of soot and
+    ! is recommended by Toon et al. 2012.
+    refidx(:,1) = CMPLX(1.8_f, 0.67_f, kind=f)
+
+    call CARMAELEMENT_Create(carma, I_ELEM_SOOT, I_GRP_SOOT, "Soot", RHO_SOOT, I_INVOLATILE, I_SOOT, rc, shortname="CRSOOT", refidx=refidx)
+    if (rc < 0) call endrun('CARMAMODEL_DefineModel::CARMA_AddElement failed.')
 
 
     ! Define the Solutes

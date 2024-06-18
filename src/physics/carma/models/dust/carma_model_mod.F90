@@ -65,6 +65,7 @@ module carma_model_mod
   ! These need to be defined, but are only used when the particles are radiatively active.
   integer, public, parameter      :: NMIE_RH  = 8               !! Number of relative humidities for mie calculations
   real(kind=f), public            :: mie_rh(NMIE_RH)
+  integer, public, parameter      :: NREFIDX = 1                !! Number of refractive indices per element
 
   ! Defines whether the groups should undergo deep convection in phase 1 or phase 2.
   ! Water vapor and cloud particles are convected in phase 1, while all other constituents

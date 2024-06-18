@@ -65,6 +65,10 @@ module carma_model_mod
   integer, public, parameter      :: NMIE_RH  = 8               !! Number of relative humidities for mie calculations
   real(kind=f), public            :: mie_rh(NMIE_RH)
 
+  integer, public, parameter      :: NMIE_WTP = 0              !! Number of weight percents for mie calculations
+  real(kind=f), public            :: mie_wtp(NMIE_WTP)
+  integer, public, parameter      :: NREFIDX = 1               !! Number of refractive indices per element
+
   ! Defines whether the groups should undergo deep convection in phase 1 or phase 2.
   ! Water vapor and cloud particles are convected in phase 1, while all other constituents
   ! are done in phase 2.
@@ -137,7 +141,7 @@ contains
     integer                            :: imag_vid
     character(len=256)                 :: efile                     ! refractive index file name
     real(kind=f)                       :: interp
-    complex(kind=f)                    :: refidx_ice(NWAVE)         ! the refractive index at each CAM wavelength
+    complex(kind=f)                    :: refidx_ice(NWAVE,NREFIDX) ! the refractive index at each CAM wavelength
     integer                            :: LUNOPRT
     logical                            :: do_print
 
@@ -227,10 +231,10 @@ contains
           if (wave(i) > warren_wave(j)) then
             if (j > 1) then
               interp = (wave(i) - warren_wave(j-1)) / (warren_wave(j) - warren_wave(j-1))
-              refidx_ice(i) = cmplx(warren_real(j-1) + interp*(warren_real(j) - warren_real(j-1)), &
+              refidx_ice(i,1) = cmplx(warren_real(j-1) + interp*(warren_real(j) - warren_real(j-1)), &
                    warren_imag(j-1) + interp*(warren_imag(j) - warren_imag(j-1)))
             else
-              refidx_ice(i) = cmplx(warren_real(j), warren_imag(j))
+              refidx_ice(i,1) = cmplx(warren_real(j), warren_imag(j))
             endif
 
             exit
@@ -240,7 +244,7 @@ contains
     end if
 
     call CARMAGROUP_Create(carma, I_GRP_CRICE, "ice crystal", rmin, 2.2_f, I_SPHERE, 1._f, .true., &
-                          rc, do_mie=carma_do_pheat, refidx=refidx_ice, shortname="CRICE")
+                          rc, do_mie=carma_do_pheat, shortname="CRICE")
     if (rc < 0) call endrun('CARMA_DefineModel::CARMAGROUP_Create failed.')
 
 

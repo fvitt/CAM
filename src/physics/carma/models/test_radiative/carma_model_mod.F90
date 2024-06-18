@@ -65,6 +65,10 @@ module carma_model_mod
   integer, public, parameter      :: NMIE_RH  = 8               !! Number of relative humidities for mie calculations
   real(kind=f), public            :: mie_rh(NMIE_RH) = (/ 0._f, 0.5_f, 0.7_f, 0.8_f, 0.9_f, 0.95_f, 0.98_f, 0.99_f /)
 
+  integer, public, parameter      :: NMIE_WTP = 0              !! Number of weight percents for mie calculations
+  real(kind=f), public            :: mie_wtp(NMIE_WTP)
+  integer, public, parameter      :: NREFIDX = 1               !! Number of refractive indices per element
+
   ! Defines whether the groups should undergo deep convection in phase 1 or phase 2.
   ! Water vapor and cloud particles are convected in phase 1, while all other constituents
   ! are done in phase 2.
@@ -90,14 +94,14 @@ contains
     real(kind=f), parameter            :: RHO_DUST = 2.0_f     ! density of dust particles (g/cm)
     real(kind=f), parameter            :: rmin     = 1e-5_f    ! minimum radius (cm)
     real(kind=f), parameter            :: vmrat    = 2.0_f     ! volume ratio
-    complex(kind=f)                    :: refidx(NWAVE)        ! refractice indices
+    complex(kind=f)                    :: refidx(NWAVE,NREFIDX) ! refractice indices
 
     ! Default return code.
     rc = RC_OK
 
     ! Use the same refractive index at all wavelengths. This value is typical of dust in
     ! the visible.
-    refidx(:) = (1.55_f, 4e-3_f)
+    refidx(:,1) = (1.55_f, 4e-3_f)
 
     ! Define the Groups
     !
@@ -108,7 +112,7 @@ contains
     ! should also be defined.
     call CARMAGROUP_Create(carma, 1, "Dust", rmin, vmrat, I_SPHERE, 1._f, .false., &
                            rc, do_wetdep=.true., do_drydep=.true., solfac=0.15_f, &
-                           scavcoef=0.1_f, shortname="DUST", refidx=refidx, do_mie=.true.)
+                           scavcoef=0.1_f, shortname="DUST", do_mie=.true.)
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddGroup failed.')
 
 
