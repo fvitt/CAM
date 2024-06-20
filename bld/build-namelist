@@ -1288,6 +1288,7 @@ if ($carma ne 'none') {
   add_default($nl, 'carma_model',       'val'=>$carma);
   add_default($nl, 'carma_flag',        'val'=>'.true.');
   add_default($nl, 'history_carma',     'val'=>'.true.');
+  add_default($nl, 'carma_sulfnuc_method','val'=>'ZhaoTurco');
 }
 if ($carma eq 'bc_strat') {
   add_default($nl, 'carma_do_drydep',   'val'=>'.true.');
@@ -3226,7 +3227,7 @@ if ($cfg->get('microphys') =~ /^mg/) {
         my $abs_path = quote_string(set_abs_filepath($rel_path, $cam_dir));
         #overwrite the relative pathname with the absolute pathname
         $nl->set_variable_value('pumas_stochastic_tau_nl', 'pumas_stochastic_tau_kernel_filename', $abs_path);
-      
+
     }else {
     # For CESM2, the decision was made to set micro_do_sb_physics to false
     # This variable is replaced with micro_mg_warm_rain in cam_dev runs
