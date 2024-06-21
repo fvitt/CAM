@@ -76,7 +76,6 @@ contains
        end do
     end do
 
-
   end subroutine edyn3D_fldln2oplus_flg2opg
 
   subroutine edyn3D_fldln2oplus_flg2opg_v2( opalt, magfld, opfld )
@@ -100,61 +99,63 @@ contains
     integer :: i,j,k, isn, jj, nmlat
     character(len=*), parameter :: subname = 'edyn3D_fldln2oplus_flg2opg_v2'
 
-    do k = 1,nhgt_fix
+    if (mytid<ntask) then
+       do k = 1,nhgt_fix
 
-       if (mytid<ntask) then
+          if (mytid<ntask) then
 
-          call ESMF_FieldGet(magfld%esmf_fld(k), localDe=0, farrayPtr=fptr2d, &
-                             computationalLBound=lbnd2d, computationalUBound=ubnd2d, rc=rc)
-          if (ESMF_LogFoundError(rc)) then
-             call endrun(subname//' ESMF_FieldGet magfld%esmf_fld(k)')
+             call ESMF_FieldGet(magfld%esmf_fld(k), localDe=0, farrayPtr=fptr2d, &
+                  computationalLBound=lbnd2d, computationalUBound=ubnd2d, rc=rc)
+             if (ESMF_LogFoundError(rc)) then
+                call endrun(subname//' ESMF_FieldGet magfld%esmf_fld(k)')
+             end if
+
+             nmlat = (magfld%nmlat_h - (k-1))*2
+
+             do j = lbnd2d(2), ubnd2d(2)
+                if (j<=magfld%nmlat_h-(k-1)) then
+                   isn = 1
+                   jj = j
+                else
+                   isn = 2
+                   jj = nmlat-j+1
+                end if
+                do i = lbnd2d(1), ubnd2d(1)
+                   fptr2d(i,j) = magfld%flines(i,jj,isn)%fld(k)
+                end do
+             end do
+
           end if
 
-          nmlat = (magfld%nmlat_h - (k-1))*2
+          call ESMF_FieldRegrid(magfld%esmf_fld(k), oplsField2D, rh_mag2opls(k), &
+               termorderflag=ESMF_TERMORDER_SRCSEQ, rc=rc)
+          if (ESMF_LogFoundError(rc)) then
+             call endrun(subname//' ESMF_FieldRegrid')
+          end if
+
+          call ESMF_FieldGet(field=oplsField2D, localDe=0, farrayPtr=fptr2d, &
+               computationalLBound=lbnd2d, computationalUBound=ubnd2d, rc=rc)
+          if (ESMF_LogFoundError(rc)) then
+             call endrun(subname//' ESMF_FieldGet moplsField2D')
+          end if
 
           do j = lbnd2d(2), ubnd2d(2)
-             if (j<=magfld%nmlat_h-(k-1)) then
-                isn = 1
-                jj = j
-             else
-                isn = 2
-                jj = nmlat-j+1
-             end if
              do i = lbnd2d(1), ubnd2d(1)
-                fptr2d(i,j) = magfld%flines(i,jj,isn)%fld(k)
+                f_tmp(i,j,k) = fptr2d(i,j)
              end do
           end do
 
-       end if
+       end do
 
-       call ESMF_FieldRegrid(magfld%esmf_fld(k), oplsField2D, rh_mag2opls(k), &
-                             termorderflag=ESMF_TERMORDER_SRCSEQ, rc=rc)
-       if (ESMF_LogFoundError(rc)) then
-          call endrun(subname//' ESMF_FieldRegrid')
-       end if
+       do i = lon0,lon1
+          do j = lat0,lat1
+             !vert interpolate...
+             call lininterp(f_tmp(i,j,:), hgt_fix(:), nhgt_fix, &
+                  opfld(i,j,:), opalt(i,j,:), nlevo )
 
-       call ESMF_FieldGet(field=oplsField2D, localDe=0, farrayPtr=fptr2d, &
-                          computationalLBound=lbnd2d, computationalUBound=ubnd2d, rc=rc)
-       if (ESMF_LogFoundError(rc)) then
-          call endrun(subname//' ESMF_FieldGet moplsField2D')
-       end if
-
-       do j = lbnd2d(2), ubnd2d(2)
-          do i = lbnd2d(1), ubnd2d(1)
-             f_tmp(i,j,k) = fptr2d(i,j)
           end do
        end do
-
-    end do
-
-    do i = lon0,lon1
-       do j = lat0,lat1
-          !vert interpolate...
-          call lininterp(f_tmp(i,j,:), hgt_fix(:), nhgt_fix, &
-                         opfld(i,j,:), opalt(i,j,:), nlevo )
-
-       end do
-    end do
+    end if
 
   end subroutine edyn3D_fldln2oplus_flg2opg_v2
 

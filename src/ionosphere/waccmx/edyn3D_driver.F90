@@ -46,10 +46,9 @@ contains
     call fieldline_getapex()
 
     call reg_hist_grid()
-
-    call edyn3D_fldln_mesh_init()
+!!$    call edyn3D_fldln_mesh_init()
     call edyn3D_oplus_grid_init()
-    call edyn3D_fldln2oplus_init()
+!!$    call edyn3D_fldln2oplus_init()
 
     call edyn3D_esmf_regrid_init()
 
@@ -131,7 +130,6 @@ contains
     real(r8) :: Tn_oplus0(lon0:lon1,lat0:lat1,lev0:lev1)
     real(r8) :: Tn_oplus1(lon0:lon1,lat0:lat1,lev0:lev1)
     real(r8) :: Tn_oplus2(lon0:lon1,lat0:lat1,lev0:lev1)
-
 
     call edyn3D_regridder_phys2mag(physalt,physalt,nphyscol,nphyslev,height_s1)
     call edyn3D_regridder_phys2mag(physalt,physalt,nphyscol,nphyslev,height_s2)
@@ -242,11 +240,11 @@ contains
     do j = lat0,lat1
        call outfld( 'Tn_opg0', Tn_oplus0(lon0:lon1,j,lev0:lev1), lon1-lon0+1, j )
     end do
-
-    call edyn3D_fldln2oplus_flg2opg( opalt, Tn_p, Tn_oplus1 )
-    do j = lat0,lat1
-       call outfld( 'Tn_opg1', Tn_oplus1(lon0:lon1,j,lev0:lev1), lon1-lon0+1, j )
-    end do
+!!$
+!!$    call edyn3D_fldln2oplus_flg2opg( opalt, Tn_p, Tn_oplus1 )
+!!$    do j = lat0,lat1
+!!$       call outfld( 'Tn_opg1', Tn_oplus1(lon0:lon1,j,lev0:lev1), lon1-lon0+1, j )
+!!$    end do
 
     call edyn3D_fldln2oplus_flg2opg_v2( opalt, Tn_p, Tn_oplus2 )
     do j = lat0,lat1

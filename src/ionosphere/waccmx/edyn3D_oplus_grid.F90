@@ -123,73 +123,75 @@ contains
        call endrun(subname//' ESMF_GridAddCoord oplsGrid2D ')
     end if
 
-    ! Lon Coord
-    call ESMF_GridGetCoord(oplus_grid, coordDim=1, localDE=0, &
-         computationalLBound=lbnd, computationalUBound=ubnd, &
-         farrayPtr=coordX, staggerloc=ESMF_STAGGERLOC_CENTER_VCENTER, rc=localrc)
-    if (ESMF_LogFoundError(localrc)) then
-       call endrun(subname//' ESMF_GridGetCoord longitude coord oplus_grid')
+    if (mytid<ntask) then
+       ! Lon Coord
+       call ESMF_GridGetCoord(oplus_grid, coordDim=1, localDE=0, &
+            computationalLBound=lbnd, computationalUBound=ubnd, &
+            farrayPtr=coordX, staggerloc=ESMF_STAGGERLOC_CENTER_VCENTER, rc=localrc)
+       if (ESMF_LogFoundError(localrc)) then
+          call endrun(subname//' ESMF_GridGetCoord longitude coord oplus_grid')
+       end if
+
+       lbnd_lon = lbnd(1)
+       ubnd_lon = ubnd(1)
+       do i = lbnd_lon, ubnd_lon
+          coordX(i) = glon(i)
+       end do
+
+       call ESMF_GridGetCoord(oplsGrid2D, coordDim=1, localDE=0, &
+            computationalLBound=lbnd, computationalUBound=ubnd, &
+            farrayPtr=coordX, staggerloc=ESMF_STAGGERLOC_CENTER, rc=localrc)
+       if (ESMF_LogFoundError(localrc)) then
+          call endrun(subname//' ESMF_GridGetCoord longitude coord oplsGrid2D')
+       end if
+
+       lbnd_lon = lbnd(1)
+       ubnd_lon = ubnd(1)
+       do i = lbnd_lon, ubnd_lon
+          coordX(i) = glon(i)
+       end do
+
+       ! Lat Coord
+       call ESMF_GridGetCoord(oplus_grid, coordDim=2, localDE=0, &
+            computationalLBound=lbnd, computationalUBound=ubnd, &
+            farrayPtr=coordY, staggerloc=ESMF_STAGGERLOC_CENTER_VCENTER, rc=localrc)
+       if (ESMF_LogFoundError(localrc)) then
+          call endrun(subname//' ESMF_GridGetCoord longitude coord oplus_grid')
+       end if
+
+       lbnd_lat = lbnd(1)
+       ubnd_lat = ubnd(1)
+       do i = lbnd_lat, ubnd_lat
+          coordY(i) = glat(i)
+       end do
+
+       call ESMF_GridGetCoord(oplsGrid2D, coordDim=2, localDE=0, &
+            computationalLBound=lbnd, computationalUBound=ubnd, &
+            farrayPtr=coordY, staggerloc=ESMF_STAGGERLOC_CENTER, rc=localrc)
+       if (ESMF_LogFoundError(localrc)) then
+          call endrun(subname//' ESMF_GridGetCoord longitude coord oplsGrid2D')
+       end if
+
+       lbnd_lat = lbnd(1)
+       ubnd_lat = ubnd(1)
+       do i = lbnd_lat, ubnd_lat
+          coordY(i) = glat(i)
+       end do
+
+       ! Alt Coord
+       call ESMF_GridGetCoord(oplus_grid, coordDim=3, localDE=0, &
+            computationalLBound=lbnd, computationalUBound=ubnd, &
+            farrayPtr=coordZ, staggerloc=ESMF_STAGGERLOC_CENTER_VCENTER, rc=localrc)
+       if (ESMF_LogFoundError(localrc)) then
+          call endrun(subname//' ESMF_GridGetCoord longitude coord ')
+       end if
+
+       lbnd_lev = lbnd(1)
+       ubnd_lev = ubnd(1)
+       do i = lbnd_lev, ubnd_lev
+          coordZ(i) = galt(i)
+       end do
     end if
-
-    lbnd_lon = lbnd(1)
-    ubnd_lon = ubnd(1)
-    do i = lbnd_lon, ubnd_lon
-       coordX(i) = glon(i)
-    end do
-
-    call ESMF_GridGetCoord(oplsGrid2D, coordDim=1, localDE=0, &
-         computationalLBound=lbnd, computationalUBound=ubnd, &
-         farrayPtr=coordX, staggerloc=ESMF_STAGGERLOC_CENTER, rc=localrc)
-    if (ESMF_LogFoundError(localrc)) then
-       call endrun(subname//' ESMF_GridGetCoord longitude coord oplsGrid2D')
-    end if
-
-    lbnd_lon = lbnd(1)
-    ubnd_lon = ubnd(1)
-    do i = lbnd_lon, ubnd_lon
-       coordX(i) = glon(i)
-    end do
-
-    ! Lat Coord
-    call ESMF_GridGetCoord(oplus_grid, coordDim=2, localDE=0, &
-         computationalLBound=lbnd, computationalUBound=ubnd, &
-         farrayPtr=coordY, staggerloc=ESMF_STAGGERLOC_CENTER_VCENTER, rc=localrc)
-    if (ESMF_LogFoundError(localrc)) then
-       call endrun(subname//' ESMF_GridGetCoord longitude coord oplus_grid')
-    end if
-
-    lbnd_lat = lbnd(1)
-    ubnd_lat = ubnd(1)
-    do i = lbnd_lat, ubnd_lat
-       coordY(i) = glat(i)
-    end do
-
-    call ESMF_GridGetCoord(oplsGrid2D, coordDim=2, localDE=0, &
-         computationalLBound=lbnd, computationalUBound=ubnd, &
-         farrayPtr=coordY, staggerloc=ESMF_STAGGERLOC_CENTER, rc=localrc)
-    if (ESMF_LogFoundError(localrc)) then
-       call endrun(subname//' ESMF_GridGetCoord longitude coord oplsGrid2D')
-    end if
-
-    lbnd_lat = lbnd(1)
-    ubnd_lat = ubnd(1)
-    do i = lbnd_lat, ubnd_lat
-       coordY(i) = glat(i)
-    end do
-
-    ! Alt Coord
-    call ESMF_GridGetCoord(oplus_grid, coordDim=3, localDE=0, &
-         computationalLBound=lbnd, computationalUBound=ubnd, &
-         farrayPtr=coordZ, staggerloc=ESMF_STAGGERLOC_CENTER_VCENTER, rc=localrc)
-    if (ESMF_LogFoundError(localrc)) then
-       call endrun(subname//' ESMF_GridGetCoord longitude coord ')
-    end if
-
-    lbnd_lev = lbnd(1)
-    ubnd_lev = ubnd(1)
-    do i = lbnd_lev, ubnd_lev
-       coordZ(i) = galt(i)
-    end do
 
     ! Create 3D field
     call ESMF_ArraySpecSet(arrayspec, 3, ESMF_TYPEKIND_R8, rc=localrc)
@@ -206,7 +208,7 @@ contains
     ! Create 2D field
     call ESMF_ArraySpecSet(arrayspec2d, 2, ESMF_TYPEKIND_R8, rc=localrc)
     if (ESMF_LogFoundError(localrc)) then
-       call endrun(subname//' ESMF_ArraySpecSet for oplus_field')
+       call endrun(subname//' ESMF_ArraySpecSet for oplsField2D')
     end if
 
     oplsField2D = ESMF_FieldCreate(oplsGrid2D, arrayspec2d, &
