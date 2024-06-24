@@ -5,8 +5,6 @@ module edyn3D_fldln2oplus_mod
   use edyn3D_mpi, only: mytid, ntask
 
   use edyn3D_fline_fields, only: magfield_t
-  use edyn3D_oplus_grid, only: oplus_field
-  use edyn3D_oplus_grid, only: edyn3D_oplus_grid_getfld
 
   use ESMF
 
