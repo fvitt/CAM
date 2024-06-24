@@ -27,9 +27,7 @@ contains
     use cam_history,  only: addfld, horiz_only
     use mo_apex, only: mo_apex_init1
     use edyn3D_fline_fields, only: edyn3D_fline_fields_alloc
-    use edyn3D_fldln_mesh, only: edyn3D_fldln_mesh_init
     use edyn3D_oplus_grid, only: edyn3D_oplus_grid_init
-    use edyn3D_fldln2oplus_mod, only: edyn3D_fldln2oplus_init
 
     integer, intent(in) :: mpicom, npes
 
@@ -46,10 +44,8 @@ contains
     call fieldline_getapex()
 
     call reg_hist_grid()
-!!$    call edyn3D_fldln_mesh_init()
-    call edyn3D_oplus_grid_init()
-!!$    call edyn3D_fldln2oplus_init()
 
+    call edyn3D_oplus_grid_init()
     call edyn3D_esmf_regrid_init()
 
     call addfld ('Tn_mag', horiz_only, 'I', 'K','Neutral Temperature on geo-magnetic field line grid', &
@@ -100,10 +96,9 @@ contains
     use edyn3D_fieldline, only: fline_p, fline_s1, fline_s2
     use edyn3D_fline_fields, only: Tn_p, height_s1, height_s2
     use edyn3D_fline_fields, only: sigma_ped_s1,sigma_hal_s1,sigma_ped_s2,sigma_hal_s2
-    use edyn3D_fldln_mesh, only: edyn3D_fldln_mesh_setfld, edyn3D_fldln_mesh_getfld
-    use edyn3D_fldln2oplus_mod, only: edyn3D_fldln2oplus_flg2opg, edyn3D_fldln2oplus_flg2opg_v2
-    use regridder, only: regrid_phys2geo_3d
     use edyn_mpi, only: lon0,lon1,lat0,lat1,lev0,lev1
+    use regridder, only: regrid_phys2geo_3d
+    use edyn3D_fldln2oplus_mod, only:  edyn3D_fldln2oplus_flg2opg_v2
 
     integer,  intent(in) :: nphyscol, nphyslev
     real(r8), intent(in) :: physalt(nphyslev,nphyscol)
@@ -240,11 +235,6 @@ contains
     do j = lat0,lat1
        call outfld( 'Tn_opg0', Tn_oplus0(lon0:lon1,j,lev0:lev1), lon1-lon0+1, j )
     end do
-!!$
-!!$    call edyn3D_fldln2oplus_flg2opg( opalt, Tn_p, Tn_oplus1 )
-!!$    do j = lat0,lat1
-!!$       call outfld( 'Tn_opg1', Tn_oplus1(lon0:lon1,j,lev0:lev1), lon1-lon0+1, j )
-!!$    end do
 
     call edyn3D_fldln2oplus_flg2opg_v2( opalt, Tn_p, Tn_oplus2 )
     do j = lat0,lat1
