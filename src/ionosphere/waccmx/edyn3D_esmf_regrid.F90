@@ -10,6 +10,8 @@ module edyn3D_esmf_regrid
   use phys_grid,    only: get_ncols_p, get_gcol_p
   use edyn3d_params, only: nz=>nhgt_fix, nmlat_h, nmlats2_h
   use edyn3D_mpi, only: ntask, tasks, mytid
+  use edyn_mpi, only: edyn_mytid=>mytid, edyn_ntask=>ntask, edyn_ntaski=>ntaski, edyn_ntaskj=>ntaskj, edyn_tasks=>tasks
+  use edyn_geogrid, only: glon, glat
 
   implicit none
 
@@ -18,7 +20,10 @@ module edyn3D_esmf_regrid
   type(ESMF_Grid),  pointer :: mag_grid(:)
   type(ESMF_Field), pointer :: magField(:)
   type(ESMF_RouteHandle), pointer :: rh_phys2mag(:), rh_mag2phys(:)
-  type(ESMF_RouteHandle), pointer :: rh_mag2opls(:)
+
+  type(ESMF_Grid)  :: oplusGrid
+  type(ESMF_Field) :: oplusField
+  type(ESMF_RouteHandle), pointer :: rh_mag2oplus(:)
 
   type(ESMF_Grid),  pointer :: mag_grid_s1(:), mag_grid_s2(:)
   type(ESMF_Field), pointer :: magField_s1(:), magField_s2(:)
@@ -35,7 +40,6 @@ contains
     use phys_control, only: phys_getopts
     use edyn3D_fieldline, only: fline_p, fline_s1, fline_s2
     use edyn3d_mpi, only: mlon0_p,mlon1_p
-    use edyn3D_oplus_grid, only: oplsField2D
 
     character(len=cl) :: mesh_file
 
@@ -55,6 +59,12 @@ contains
     integer(ESMF_KIND_I4), pointer :: factorIndexList(:,:)
     real(ESMF_KIND_R8),    pointer :: factorList(:)
     integer                        :: smm_srctermproc,  smm_pipelinedep
+
+    integer :: petcnt
+    integer :: nlons_task(edyn_ntaski) ! # number of lons per task
+    integer :: nlats_task(edyn_ntaskj) ! # number of lats per task
+    real(ESMF_KIND_R8), pointer   :: coordX(:), coordY(:)
+    integer :: lbnd(1), ubnd(1), n
 
     smm_srctermproc = 0
     smm_pipelinedep = 16
@@ -90,12 +100,93 @@ contains
     physField = ESMF_FieldCreate(phys_mesh, arrayspec, meshloc=ESMF_MESHLOC_ELEMENT, rc=rc)
     call check_error(subname,'ESMF_FieldCreate physField',rc)
 
+
+    ! Oplus grid / field
+
+    nlons_task = 0
+    nlats_task = 0
+
+    allocate(petmap(edyn_ntaski,edyn_ntaskj,1))
+
+    petcnt = 0
+    do j = 1,edyn_ntaskj
+       do i = 1,edyn_ntaski
+          petmap(i,j,1) = petcnt
+          petcnt = petcnt+1
+       end do
+    end do
+
+    do i = 1,edyn_ntaski
+       loop: do n = 0, edyn_ntask-1
+          if (edyn_tasks(n)%mytidi == i-1) then
+             nlons_task(i) = edyn_tasks(n)%nlons
+             exit loop
+          end if
+       end do loop
+    end do
+    !
+    do j = 1, edyn_ntaskj
+       loop1: do n = 0, edyn_ntask-1
+          if (edyn_tasks(n)%mytidj == j-1) then
+             nlats_task(j) = edyn_tasks(n)%nlats
+             exit loop1
+          end if
+       end do loop1
+    end do
+
+    oplusGrid = ESMF_GridCreate1PeriDim(               &
+           countsPerDEDim1=nlons_task, coordDep1=(/1/), &
+           countsPerDEDim2=nlats_task, coordDep2=(/2/), &
+           petmap=petmap, &
+           coordSys=ESMF_COORDSYS_SPH_DEG, &
+           indexflag=ESMF_INDEX_GLOBAL,minIndex=(/1,1/), rc=rc)
+    call check_error(subname,'ESMF_GridCreate1PeriDim oplusGrid',rc)
+
+    ! set up coordinates:
+
+    call ESMF_GridAddCoord(oplusGrid, staggerloc=ESMF_STAGGERLOC_CENTER, rc=rc)
+    call check_error(subname,'ESMF_GridAddCoord  oplusGrid',rc)
+
+    if (mytid<edyn_ntask) then
+
+       ! Lon Coord
+       call ESMF_GridGetCoord(oplusGrid, coordDim=1, localDE=0, &
+            computationalLBound=lbnd, computationalUBound=ubnd, &
+            farrayPtr=coordX, staggerloc=ESMF_STAGGERLOC_CENTER, rc=rc)
+       call check_error(subname,'ESMF_GridGetCoord longitude coord oplusGrid',rc)
+
+       do i = lbnd(1),ubnd(1)
+          coordX(i) = glon(i)
+       end do
+
+       ! Lat Coord
+       call ESMF_GridGetCoord(oplusGrid, coordDim=2, localDE=0, &
+            computationalLBound=lbnd, computationalUBound=ubnd, &
+            farrayPtr=coordY, staggerloc=ESMF_STAGGERLOC_CENTER, rc=rc)
+       call check_error(subname,'ESMF_GridGetCoord latitude coord oplusGrid',rc)
+
+       do j = lbnd(1),ubnd(1)
+          coordY(j) = glat(j)
+       end do
+
+    end if
+
+    ! Create 2D field
+    call ESMF_ArraySpecSet(arrayspec, 2, ESMF_TYPEKIND_R8, rc=rc)
+    call check_error(subname,'ESMF_ArraySpecSet for oplusFeild',rc)
+
+    oplusField = ESMF_FieldCreate(oplusGrid, arrayspec, &
+         staggerloc=ESMF_STAGGERLOC_CENTER, name="oplusField", rc=rc)
+    call check_error(subname,'ESMF_FieldCreate oplusFeild',rc)
+
+    deallocate(petmap)
+
     ! 2 for fline_s1 and fline_s2
     allocate(mag_grid(nz))
     allocate(magField(nz))
     allocate(rh_phys2mag(nz))
     allocate(rh_mag2phys(nz))
-    allocate(rh_mag2opls(nz))
+    allocate(rh_mag2oplus(nz))
 
     allocate(mag_grid_s1(nz))
     allocate(mag_grid_s2(nz))
@@ -195,15 +286,15 @@ contains
 
        ! mag->oplus
        call ESMF_FieldRegridStore( &
-            srcField=magField(k), dstField=oplsField2D, &
-            routehandle=rh_mag2opls(k), &
+            srcField=magField(k), dstField=oplusField, &
+            routehandle=rh_mag2oplus(k), &
             regridMethod=ESMF_REGRIDMETHOD_BILINEAR,                           &
             polemethod=ESMF_POLEMETHOD_ALLAVG,                                 &
             extrapMethod=ESMF_EXTRAPMETHOD_NEAREST_IDAVG,                      &
             factorIndexList=factorIndexList,                                   &
             factorList=factorList, srcTermProcessing=smm_srctermproc,          &
             pipelineDepth=smm_pipelinedep, rc=rc)
-       call check_error(subname,'FieldRegridStore rh_mag2opls route handle',rc)
+       call check_error(subname,'FieldRegridStore rh_mag2oplus route handle',rc)
 
        ! s1 grid
 

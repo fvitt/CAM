@@ -118,7 +118,6 @@ contains
 
     call addfld ('Tn_opg0', (/ 'lev' /), 'I', 'K','Tn_opg1 test field' , gridname='geo_grid')
     call addfld ('Tn_opg1', (/ 'lev' /), 'I', 'K','Tn_opg1 test field' , gridname='geo_grid')
-    call addfld ('Tn_opg2', (/ 'lev' /), 'I', 'K','Tn_opg2 test field' , gridname='geo_grid')
 
   end subroutine d_pie_init
 

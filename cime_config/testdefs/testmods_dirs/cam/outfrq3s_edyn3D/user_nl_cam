@@ -14,4 +14,4 @@ fincl2 = 'GEOGALTp','GEOGALTs1','GEOGALTs2','GEOGLATp','GEOGLONp','Tn_mag',
 
 fincl3 = 'T','TnPhysIn','TnPhysOut','SIGMAPED','SIGMAHAL','Z3','Z3GM'
 
-fincl4 = 'Tn_opg0','Tn_opg1','Tn_opg2'
+fincl4 = 'Tn_opg0','Tn_opg1'
