@@ -272,7 +272,7 @@ contains
   ! returns aerosol number, volume concentrations, and bulk hygroscopicity
   !------------------------------------------------------------------------------
   subroutine loadaer( self, aero_props, istart, istop, k,  m, cs, phase, &
-                       naerosol, vaerosol, hygro, errnum, errstr, pom_hygro)
+                      naerosol, vaerosol, hygro, errnum, errstr, pom_hygro, ammr)
 
     use aerosol_properties_mod, only: aerosol_properties
 
@@ -295,7 +295,8 @@ contains
     integer ,         intent(out) :: errnum
     character(len=*), intent(out) :: errstr
 
-    real(r8), optional, intent(in) :: pom_hygro     ! POM hygroscopicity override
+    real(r8), optional, intent(in) :: pom_hygro  ! POM hygroscopicity override
+    real(r8), optional, intent(in) :: ammr(:)    ! mass mixing ratio override
 
     ! internal
     real(r8), pointer :: raer(:,:) ! interstitial aerosol mass, number mixing ratios
@@ -324,7 +325,11 @@ contains
           endif
        endif
 
-       if (phase == 3) then
+       if (present(ammr)) then
+          do i = istart, istop
+             vol(i) = max(ammr(l), 0._r8)/specdens
+          end do
+       else if (phase == 3) then
           do i = istart, istop
              vol(i) = max(raer(i,k) + qqcw(i,k), 0._r8)/specdens
           end do

@@ -121,6 +121,7 @@ logical, parameter :: debug=.false.
 
 type(modal_aerosol_properties), pointer :: aero_props_obj => null()
 integer :: nbins = 0
+integer :: nspecmax = 0
 
 !=========================================================================================
 contains
@@ -313,6 +314,7 @@ subroutine ma_convproc_init
    end if
 
    nbins = aero_props_obj%nbins()
+   nspecmax = maxval(aero_props_obj%nspecies())
 
 end subroutine ma_convproc_init
 
@@ -2714,6 +2716,7 @@ end subroutine ma_convproc_tend
    real(r8) :: naerosol_a(pcols)  ! number conc (1/m3)
    real(r8) :: vaerosol_a(pcols)  ! volume conc (m3/m3)
    real(r8) :: hygro_a(pcols)     ! bulk hygroscopicity of mode
+   real(r8) :: ammr(nspecmax,nbins)
 
    integer :: errnum
    character(len=shr_kind_cs) :: errstr
@@ -2748,6 +2751,13 @@ end subroutine ma_convproc_tend
 
    end if ! (ipass_calc_updraft == 2)
 
+   ammr = -huge(1._r8)
+   do m = 1, nbins
+     do l = 1, aero_props_obj%nspecies(m)
+         la = lmassptr_amode(l,m)
+         ammr(l,m) = conu(la)
+      end do
+   end do
 
 ! check f_ent > 0
    if (f_ent <= 0.0_r8) return
@@ -2757,7 +2767,7 @@ end subroutine ma_convproc_tend
    cs_a(i,k) = rhoair
    do m = 1, nbins
       call aero_state%loadaer( aero_props_obj, i, i, k, m, cs_a, phase, naerosol_a, vaerosol_a, hygro_a, errnum, errstr, &
-                               pom_hygro=convproc_pom_spechygro)
+                               pom_hygro=convproc_pom_spechygro, ammr=ammr(:,m) )
       if (errnum/=0) then
          call endrun('ma_activate_convproc_method2 : '//trim(errstr))
       end if
