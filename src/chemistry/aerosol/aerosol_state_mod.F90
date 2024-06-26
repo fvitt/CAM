@@ -272,7 +272,7 @@ contains
   ! returns aerosol number, volume concentrations, and bulk hygroscopicity
   !------------------------------------------------------------------------------
   subroutine loadaer( self, aero_props, istart, istop, k,  m, cs, phase, &
-                      naerosol, vaerosol, hygro, errnum, errstr, pom_hygro, ammr)
+                       naerosol, vaerosol, hygro, errnum, errstr)
 
     use aerosol_properties_mod, only: aerosol_properties
 
@@ -295,14 +295,10 @@ contains
     integer ,         intent(out) :: errnum
     character(len=*), intent(out) :: errstr
 
-    real(r8), optional, intent(in) :: pom_hygro  ! POM hygroscopicity override
-    real(r8), optional, intent(in) :: ammr(:)    ! mass mixing ratio override
-
     ! internal
     real(r8), pointer :: raer(:,:) ! interstitial aerosol mass, number mixing ratios
     real(r8), pointer :: qqcw(:,:) ! cloud-borne aerosol mass, number mixing ratios
     real(r8) :: specdens, spechygro
-    character(len=aero_name_len) :: spectype
 
     real(r8) :: vol(istart:istop) ! aerosol volume mixing ratio
     integer  :: i, l
@@ -318,18 +314,9 @@ contains
 
        call self%get_ambient_mmr(l,m, raer)
        call self%get_cldbrne_mmr(l,m, qqcw)
-       call aero_props%get(m,l, density=specdens, hygro=spechygro, spectype=spectype)
-       if (present(pom_hygro)) then
-          if (spectype=='p-organic'.and.pom_hygro>0._r8) then
-             spechygro=pom_hygro
-          endif
-       endif
+       call aero_props%get(m,l, density=specdens, hygro=spechygro)
 
-       if (present(ammr)) then
-          do i = istart, istop
-             vol(i) = max(ammr(l), 0._r8)/specdens
-          end do
-       else if (phase == 3) then
+       if (phase == 3) then
           do i = istart, istop
              vol(i) = max(raer(i,k) + qqcw(i,k), 0._r8)/specdens
           end do
