@@ -1744,30 +1744,29 @@ end subroutine aero_convproc_tend
 ! local variables
    integer  :: l, m, mm
 
-   real(r8) :: delact                ! working variable
-   real(r8) :: dt_u_inv              ! 1.0/dt_u
-   real(r8) :: fluxm(nbins)      ! to understand this, see subr activate_aerosol
-   real(r8) :: fluxn(nbins)      ! to understand this, see subr activate_aerosol
-   real(r8) :: flux_fullact           ! to understand this, see subr activate_aerosol
-   real(r8) :: fm(nbins)         ! mass fraction of aerosols activated
-   real(r8) :: fn(nbins)         ! number fraction of aerosols activated
-   real(r8) :: hygro(nbins)      ! current hygroscopicity for int+act
-   real(r8) :: naerosol(nbins)   ! interstitial+activated number conc (#/m3)
-   real(r8) :: sigw                  ! standard deviation of updraft velocity (cm/s)
-   real(r8) :: tmp_fact              ! working variable
-   real(r8) :: vaerosol(nbins)   ! int+act volume (m3/m3)
-   real(r8) :: wbar                  ! mean updraft velocity (cm/s)
-   real(r8) :: wdiab                 ! diabatic vertical velocity (cm/s)
-   real(r8) :: wminf, wmaxf          ! limits for integration over updraft spectrum (cm/s)
+   real(r8) :: delact           ! working variable
+   real(r8) :: dt_u_inv         ! 1.0/dt_u
+   real(r8) :: fluxm(nbins)     ! to understand this, see subr activate_aerosol
+   real(r8) :: fluxn(nbins)     ! to understand this, see subr activate_aerosol
+   real(r8) :: flux_fullact     ! to understand this, see subr activate_aerosol
+   real(r8) :: fm(nbins)        ! mass fraction of aerosols activated
+   real(r8) :: fn(nbins)        ! number fraction of aerosols activated
+   real(r8) :: hygro(nbins)     ! current hygroscopicity for int+act
+   real(r8) :: naerosol(nbins)  ! interstitial+activated number conc (#/m3)
+   real(r8) :: sigw             ! standard deviation of updraft velocity (cm/s)
+   real(r8) :: tmp_fact         ! working variable
+   real(r8) :: vaerosol(nbins)  ! int+act volume (m3/m3)
+   real(r8) :: wbar             ! mean updraft velocity (cm/s)
+   real(r8) :: wdiab            ! diabatic vertical velocity (cm/s)
+   real(r8) :: wminf, wmaxf     ! limits for integration over updraft spectrum (cm/s)
 
-   integer :: errnum
-   character(len=shr_kind_cs) :: errstr
-   integer :: phase
+   real(r8) :: spec_hygro
+   real(r8) :: spec_dens
+   character(len=32) :: spec_type
 
-   real(r8) :: cs_a(pcols,pver)   ! air density (kg/m3)
-   real(r8) :: naerosol_a(pcols)  ! number conc (1/m3)
-   real(r8) :: vaerosol_a(pcols)  ! volume conc (m3/m3)
-   real(r8) :: hygro_a(pcols)     ! bulk hygroscopicity of mode
+   real(r8) :: tmpa, tmpb, tmpc ! working variable
+   real(r8) :: naerosol_a(1)    ! number conc (1/m3)
+   real(r8) :: vaerosol_a(1)    ! volume conc (m3/m3)
 
 !-----------------------------------------------------------------------
 
@@ -1802,19 +1801,47 @@ end subroutine aero_convproc_tend
 ! check f_ent > 0
    if (f_ent <= 0.0_r8) return
 
-   phase = 1 ! interstitial
-   cs_a(i,k) = rhoair
-   do m = 1, nbins
-      call aero_state%loadaer( aero_props, i, i, k, m, cs_a, phase, naerosol_a, vaerosol_a, hygro_a, errnum, errstr, &
-                               pom_hygro=convproc_pom_spechygro)
-      if (errnum/=0) then
-         call endrun('activate_convproc : '//trim(errstr))
-      end if
-      naerosol(m) = naerosol_a(i)
-      vaerosol(m) = vaerosol_a(i)
-      hygro(m) = hygro_a(i)
-   end do
+   hygro = 0.0_r8
+   vaerosol = 0.0_r8
+   naerosol = 0.0_r8
 
+   do m = 1, nbins
+! compute a (or a+cw) volume and hygroscopicity
+      tmpa = 0.0_r8
+      tmpb = 0.0_r8
+      do l = 1, aero_props%nmasses(m)
+
+         mm = aero_props%indexer(m,l)
+
+         call aero_props%get(m, l, spectype=spec_type, density=spec_dens, hygro=spec_hygro)
+
+         tmpc = max( conent(1,mm), 0.0_r8 )
+         if ( use_cwaer_for_activate_maxsat ) &
+         tmpc = tmpc + max( conent(2,mm), 0.0_r8 )
+         tmpc = tmpc / spec_dens
+         tmpa = tmpa + tmpc
+         tmpb = tmpb + tmpc * spec_hygro
+      end do
+      vaerosol(m) = tmpa * rhoair
+      if (tmpa < 1.0e-35_r8) then
+         hygro(m) = 0.2_r8
+      else
+         hygro(m) = tmpb/tmpa
+      end if
+
+! load a (or a+cw) number and bound it
+      tmpa = max( conent(1,mm), 0.0_r8 )
+      if ( use_cwaer_for_activate_maxsat ) &
+      tmpa = tmpa + max( conent(2,mm), 0.0_r8 )
+      naerosol(m) = tmpa * rhoair
+
+      naerosol_a(1) = naerosol(m)
+      vaerosol_a(1) = vaerosol(m)
+
+      call aero_props%apply_number_limits( naerosol_a, vaerosol_a, 1, 1, m )
+
+      naerosol(m) = naerosol_a(1)
+   end do
 
 ! call Razzak-Ghan activation routine with single updraft
    wbar = max( wup, 0.5_r8 )  ! force wbar >= 0.5 m/s for now
@@ -1929,32 +1956,33 @@ end subroutine aero_convproc_tend
 !-----------------------------------------------------------------------
 ! local variables
    integer  :: l, m, mm
-   integer  :: phase           ! phase of aerosol
+   integer  :: phase            ! phase of aerosol
 
-   real(r8) :: delact                ! working variable
-   real(r8) :: dt_u_inv              ! 1.0/dt_u
-   real(r8) :: fluxm(nbins)      ! to understand this, see subr activate_aerosol
-   real(r8) :: fluxn(nbins)      ! to understand this, see subr activate_aerosol
-   real(r8) :: flux_fullact           ! to understand this, see subr activate_aerosol
-   real(r8) :: fm(nbins)         ! mass fraction of aerosols activated
-   real(r8) :: fn(nbins)         ! number fraction of aerosols activated
-   real(r8) :: hygro(nbins)      ! current hygroscopicity for int+act
-   real(r8) :: naerosol(nbins)   ! interstitial+activated number conc (#/m3)
-   real(r8) :: sigw                  ! standard deviation of updraft velocity (cm/s)
-   real(r8) :: smax_prescribed       ! prescribed supersaturation for secondary activation (0-1 fraction)
-   real(r8) :: tmp_fact              ! working variable
-   real(r8) :: vaerosol(nbins)   ! int+act volume (m3/m3)
-   real(r8) :: wbar                  ! mean updraft velocity (cm/s)
-   real(r8) :: wdiab                 ! diabatic vertical velocity (cm/s)
-   real(r8) :: wminf, wmaxf          ! limits for integration over updraft spectrum (cm/s)
+   real(r8) :: delact           ! working variable
+   real(r8) :: dt_u_inv         ! 1.0/dt_u
+   real(r8) :: fluxm(nbins)     ! to understand this, see subr activate_aerosol
+   real(r8) :: fluxn(nbins)     ! to understand this, see subr activate_aerosol
+   real(r8) :: flux_fullact     ! to understand this, see subr activate_aerosol
+   real(r8) :: fm(nbins)        ! mass fraction of aerosols activated
+   real(r8) :: fn(nbins)        ! number fraction of aerosols activated
+   real(r8) :: hygro(nbins)     ! current hygroscopicity for int+act
+   real(r8) :: naerosol(nbins)  ! interstitial+activated number conc (#/m3)
+   real(r8) :: sigw             ! standard deviation of updraft velocity (cm/s)
+   real(r8) :: smax_prescribed  ! prescribed supersaturation for secondary activation (0-1 fraction)
+   real(r8) :: tmp_fact         ! working variable
+   real(r8) :: vaerosol(nbins)  ! int+act volume (m3/m3)
+   real(r8) :: wbar             ! mean updraft velocity (cm/s)
+   real(r8) :: wdiab            ! diabatic vertical velocity (cm/s)
+   real(r8) :: wminf, wmaxf     ! limits for integration over updraft spectrum (cm/s)
 
-   real(r8) :: cs_a(pcols,pver)   ! air density (kg/m3)
-   real(r8) :: naerosol_a(pcols)  ! number conc (1/m3)
-   real(r8) :: vaerosol_a(pcols)  ! volume conc (m3/m3)
-   real(r8) :: hygro_a(pcols)     ! bulk hygroscopicity of mode
+   real(r8) :: spec_hygro
+   real(r8) :: spec_dens
+   character(len=32) :: spec_type
 
-   integer :: errnum
-   character(len=shr_kind_cs) :: errstr
+   real(r8) :: tmpa, tmpb, tmpc ! working variable
+   real(r8) :: naerosol_a(1)    ! number conc (1/m3)
+   real(r8) :: vaerosol_a(1)    ! volume conc (m3/m3)
+
 !-----------------------------------------------------------------------
 
 ! when ipass_calc_updraft == 2, apply the activation tendencies
@@ -1985,17 +2013,61 @@ end subroutine aero_convproc_tend
 ! check f_ent > 0
    if (f_ent <= 0.0_r8) return
 
-   phase = 1 ! interstitial
-   cs_a(i,k) = rhoair
+   hygro = 0.0_r8
+   vaerosol = 0.0_r8
+   naerosol = 0.0_r8
+
    do m = 1, nbins
-      call aero_state%loadaer( aero_props, i, i, k, m, cs_a, phase, naerosol_a, vaerosol_a, hygro_a, errnum, errstr, &
-                               pom_hygro=convproc_pom_spechygro)
-      if (errnum/=0) then
-         call endrun('activate_convproc_method2 : '//trim(errstr))
+! compute a (or a+cw) volume and hygroscopicity
+      tmpa = 0.0_r8
+      tmpb = 0.0_r8
+      do l = 1, aero_props%nspecies(m)
+
+         mm = aero_props%indexer(m,l)
+
+         call aero_props%get(m, l, spectype=spec_type, density=spec_dens, hygro=spec_hygro)
+
+         tmpc = max( conu(1,mm), 0.0_r8 )
+         if ( use_cwaer_for_activate_maxsat ) &
+         tmpc = tmpc + max( conu(2,mm), 0.0_r8 )
+         tmpc = tmpc / spec_dens
+         tmpa = tmpa + tmpc
+
+         ! Change the hygroscopicity of POM based on the discussion with Prof.
+         ! Xiaohong Liu. Some observational studies found that the primary organic
+         ! material from biomass burning emission shows very high hygroscopicity.
+         ! Also, found that BC mass will be overestimated if all the aerosols in
+         ! the primary mode are free to be removed. Therefore, set the hygroscopicity
+         ! of POM here as 0.2 to enhance the wet scavenge of primary BC and POM.
+
+         if (spec_type=='p-organic' .and. convproc_pom_spechygro>0._r8) then
+            tmpb = tmpb + tmpc * convproc_pom_spechygro
+         else
+            tmpb = tmpb + tmpc * spec_hygro
+         end if
+      end do
+      vaerosol(m) = tmpa * rhoair
+      if (tmpa < 1.0e-35_r8) then
+         hygro(m) = 0.2_r8
+      else
+         hygro(m) = tmpb/tmpa
       end if
-      naerosol(m) = naerosol_a(i)
-      vaerosol(m) = vaerosol_a(i)
-      hygro(m) = hygro_a(i)
+
+      mm = aero_props%indexer(m,0)
+
+! load a (or a+cw) number and bound it
+      tmpa = max( conu(1,mm), 0.0_r8 )
+      if ( use_cwaer_for_activate_maxsat ) &
+      tmpa = tmpa + max( conu(2,mm), 0.0_r8 )
+      naerosol(m) = tmpa * rhoair
+
+      naerosol_a(1) = naerosol(m)
+      vaerosol_a(1) = vaerosol(m)
+
+      call aero_props%apply_number_limits( naerosol_a, vaerosol_a, 1, 1, m )
+
+      naerosol(m) = naerosol_a(1)
+
    end do
 
 ! call Razzak-Ghan activation routine with single updraft
