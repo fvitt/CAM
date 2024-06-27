@@ -617,7 +617,6 @@ subroutine zm_conv_tend(pblh    ,mcon    ,cme     , &
                     dif(:ncol,:), dnlf(:ncol,:), dnif(:ncol,:),  &
                     rice(:ncol), errmsg, errflg)
 
-
    if (zmconv_org) then
       ptend_loc%q(:,:,ixorg)=orgt_ncol(:ncol,:)
       zm_org2d(:ncol,:) = zm_org2d_ncol(:ncol,:)
