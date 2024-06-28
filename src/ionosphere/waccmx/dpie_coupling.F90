@@ -116,9 +116,6 @@ contains
        call addfld ('OPtm1o',(/ 'lev' /), 'I', 'cm^3','O+ (oplus_xport output)',    gridname='geo_grid')
     endif
 
-    call addfld ('Tn_opg0', (/ 'lev' /), 'I', 'K','Tn_opg1 test field' , gridname='geo_grid')
-    call addfld ('Tn_opg1', (/ 'lev' /), 'I', 'K','Tn_opg1 test field' , gridname='geo_grid')
-
   end subroutine d_pie_init
 
   !-----------------------------------------------------------------------
