@@ -396,6 +396,7 @@ module ionosphere_interface
       call addfld( 'TnPhysIn', (/ 'lev' /), 'I', 'K', 'Nuetral Temperature input on phys grid' )
       call addfld( 'TnPhysOut', (/ 'lev' /), 'I', 'K', 'Nuetral Temperature output on phys grid' )
 
+      call addfld( 'Tn_phys2', (/ 'lev' /),'I', 'K', 'Tn test field' )
 
    end subroutine ionosphere_init
 
@@ -569,8 +570,11 @@ module ionosphere_interface
     real(r8), pointer :: physalt(:,:)
     real(r8), pointer :: tn_in(:,:)
     real(r8), pointer :: tn_out(:,:)
+    real(r8), pointer :: tn_out2(:,:)
     real(r8) :: phys_out(pcols,pver)
- ! test 3D field line mag grid infrastructure --
+    real(r8) :: phys_out2(pcols,pver)
+
+  ! test 3D field line mag grid infrastructure --
 
       ionos_cpl: if (ionos_xport_active) then
 
@@ -1011,6 +1015,7 @@ module ionosphere_interface
       allocate(physalt(pver,nphyscols), stat=astat)
       allocate(tn_in(pver,nphyscols), stat=astat)
       allocate(tn_out(pver,nphyscols), stat=astat)
+      allocate(tn_out2(pver,nphyscols), stat=astat)
 
       j = 0
       do lchnk = begchunk, endchunk
@@ -1029,24 +1034,28 @@ module ionosphere_interface
          end do
       end do
 
-      call edyn3D_driver_timestep( nphyscols, pver, physalt, tn_in, sigma_ped_blck, sigma_hall_blck, tn_out )
+      call edyn3D_driver_timestep( nphyscols, pver, physalt, tn_in, sigma_ped_blck, sigma_hall_blck, tn_out, tn_out2 )
 
       j = 0
       do lchnk = begchunk, endchunk
          phys_out = -huge(1._r8)
+         phys_out2 = -huge(1._r8)
          ncol = phys_state(lchnk)%ncol
          do i = 1, ncol
             j = j + 1
             do k = 1, pver
                phys_out(i,k) = tn_out(k,j)
+               phys_out2(i,k) = tn_out2(k,j)
             end do
          end do
          call outfld( 'TnPhysOut', phys_out, pcols, lchnk )
+         call outfld( 'Tn_phys2', phys_out2, pcols, lchnk )
       end do
 
       deallocate(physalt)
       deallocate(tn_in)
       deallocate(tn_out)
+      deallocate(tn_out2)
 
       deallocate(sigma_ped_blck)
       nullify(sigma_ped_blck)
