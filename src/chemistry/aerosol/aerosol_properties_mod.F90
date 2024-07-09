@@ -72,6 +72,7 @@ module aerosol_properties_mod
      procedure(aero_bin_name), deferred :: bin_name
      procedure(aero_scav_diam), deferred :: scav_diam
      procedure(aero_resuspension_resize), deferred :: resuspension_resize
+     procedure(aero_rebin_bulk_fluxes), deferred :: rebin_bulk_fluxes
 
      procedure :: final=>aero_props_final
   end type aerosol_properties
@@ -404,6 +405,19 @@ module aerosol_properties_mod
        real(r8), intent(inout) :: dcondt(:)
 
      end subroutine aero_resuspension_resize
+
+     !------------------------------------------------------------------------------
+     ! returns dust deposition fluxes rebinned to specified diameter limits
+     !------------------------------------------------------------------------------
+     subroutine aero_rebin_bulk_fluxes(self, bulk_type, dep_fluxes, diam_edges, bulk_fluxes)
+       import :: aerosol_properties, r8
+       class(aerosol_properties), intent(in) :: self
+       character(len=*),intent(in) :: bulk_type ! aerosol type to rebin
+       real(r8), intent(in) :: dep_fluxes(:) ! kg/m2
+       real(r8), intent(in) :: diam_edges(:) ! meters
+       real(r8), intent(out) :: bulk_fluxes(:) ! kg/m2
+
+     end subroutine aero_rebin_bulk_fluxes
 
   end interface
 

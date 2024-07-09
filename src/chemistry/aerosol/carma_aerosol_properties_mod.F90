@@ -37,6 +37,7 @@ module carma_aerosol_properties_mod
      procedure :: bin_name
      procedure :: scav_diam
      procedure :: resuspension_resize
+     procedure :: rebin_bulk_fluxes
 
      final :: destructor
   end type carma_aerosol_properties
@@ -745,5 +746,89 @@ contains
     end do
 
   end subroutine resuspension_resize
+
+  !------------------------------------------------------------------------------
+  ! returns dust deposition fluxes rebinned to specified diameter limits
+  !------------------------------------------------------------------------------
+  subroutine rebin_bulk_fluxes(self, bulk_type, dep_fluxes, diam_edges, bulk_fluxes)
+
+    class(carma_aerosol_properties), intent(in) :: self
+    character(len=*),intent(in) :: bulk_type ! aerosol type to rebin
+    real(r8), intent(in) :: dep_fluxes(:) ! kg/m2
+    real(r8), intent(in) :: diam_edges(:) ! meters
+    real(r8), intent(out) :: bulk_fluxes(:) ! kg/m2
+
+    real(r8) :: bindiam ! meters
+    integer :: m,l,mm
+    integer :: n_bulk_bins, ibulk
+    character(len=aero_name_len) :: spectype
+
+    n_bulk_bins = size(bulk_fluxes)
+
+
+    bulk_fluxes(:) = 0._r8
+
+    do m = 1,self%nbins()
+       do l = 1,self%nspecies(m)
+          mm = self%indexer(m,l)
+          call self%get(m,l,spectype=spectype)
+
+          if (spectype==bulk_type) then
+             bindiam = bin_radius(m) * 2._r8  ! meters
+             ibulk = bulk_index(bindiam)
+             if (ibulk>0) then
+                bulk_fluxes(ibulk) = bulk_fluxes(ibulk) + dep_fluxes(mm)
+             end if
+          end if
+
+       end do
+    end do
+
+  contains
+
+    !---------------------------------------------------------------
+    real(r8) function bin_radius(bin_ndx) ! (microns)
+      use carma_intr, only: carma_get_bin_radius
+      use carma_intr, only: carma_get_group_by_name
+
+      integer, intent(in) :: bin_ndx
+
+      character(len=aero_name_len) :: bin_name, shortname
+      integer :: ibin, igroup, rc, nchr
+      real(r8) :: radcm
+
+      call rad_cnst_get_info_by_bin(0, bin_ndx, bin_name=bin_name)
+
+      nchr = len_trim(bin_name)-2
+      shortname = bin_name(:nchr)
+
+      call carma_get_group_by_name(shortname, igroup, rc)
+
+      read(bin_name(nchr+1:),*) ibin
+
+      call carma_get_bin_radius(igroup, ibin, radcm, rc)
+
+      bin_radius = radcm * 1.e-2 ! meters
+
+    end function bin_radius
+
+    !---------------------------------------------------------------
+    integer function bulk_index(diam)
+      real(r8), intent(in) :: diam ! meters
+
+      integer :: ndx
+
+      bulk_index = -huge(1)
+
+      ndx_loop: do ndx = 1,n_bulk_bins
+         if (diam>diam_edges(ndx) .and. diam<=diam_edges(ndx+1)) then
+            bulk_index = ndx
+            exit ndx_loop
+         end if
+      end do ndx_loop
+
+    end function bulk_index
+
+  end subroutine rebin_bulk_fluxes
 
 end module carma_aerosol_properties_mod

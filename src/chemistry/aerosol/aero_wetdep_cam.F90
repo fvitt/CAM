@@ -381,7 +381,7 @@ contains
 
     character(len=2) :: binstr
     real(r8) :: aerdepwetcw(pcols,pcnst) ! aerosol wet deposition (cloud water)
-    real(r8) :: aerdepwetis(pcols,pcnst)  ! aerosol wet deposition (interstitial)
+    real(r8) :: aerdepwetis(pcols,pcnst) ! aerosol wet deposition (interstitial)
     real(r8) :: dcondt_resusp3d(nele_tot,pcols,pver)
 
     integer, parameter :: nsrflx_mzaer2cnvpr = 2

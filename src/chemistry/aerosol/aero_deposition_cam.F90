@@ -17,41 +17,45 @@ module aero_deposition_cam
   integer :: ocarbon_ndx( pcnst ) = -1
   integer :: ocarbon_cnt = 0
 
-  integer :: crse_dust_ndx( pcnst ) = -1
-  integer :: fine_dust_ndx( pcnst ) = -1
-  integer :: crse_dust_cnt = 0
-  integer :: fine_dust_cnt = 0
+  class(aerosol_properties), pointer :: aero_props=>null()
+  integer :: nele_tot=0            ! total number of aerosol elements
+
+  ! bulk dust bins (meters)
+
+  integer, parameter :: n_bulk_dst_bins = 4
+  real(r8), parameter :: bulk_dst_edges(n_bulk_dst_bins+1) = &
+       (/1.e-15_r8, 1.25e-6_r8, 2.5e-6_r8, 5.0e-6_r8, 1.0e-2_r8/) ! meters
+    ! ????
+!!$    ! bulk dust sizes (0.05-0.5, 0.5-1.25, 1.25-2.5, and 2.5-5.0 microns) ????
 
 contains
 
   !==============================================================================
-  subroutine aero_deposition_cam_init(aero_props)
+  subroutine aero_deposition_cam_init(aero_props_in)
 
-    class(aerosol_properties), intent(in) :: aero_props
+    class(aerosol_properties),target, intent(in) :: aero_props_in
 
     integer :: pcnt, scnt
+    character(len=*), parameter :: subrname = 'aero_deposition_cam_init'
+
+    aero_props => aero_props_in
 
     call get_indices( type='black-c',   indices=bcarbon_ndx, count=bcarbon_cnt )
     call get_indices( type='s-organic', indices=ocarbon_ndx, count=pcnt )
     call get_indices( type='p-organic', indices=ocarbon_ndx(pcnt+1:), count=scnt )
     ocarbon_cnt = pcnt+scnt
 
-    ! bulk dust sizes (0.05–0.5, 0.5–1.25, 1.25–2.5, and 2.5–5.0 microns) ????
 
-    ! fine dust has radius less than 1.25 microns ????
-    call get_indices( type='dust', indices=fine_dust_ndx, count=fine_dust_cnt, max_radius=1.25e-6_r8 )
-    call get_indices( type='dust', indices=crse_dust_ndx, count=crse_dust_cnt, min_radius=1.25e-6_r8 ) ! meters
+    nele_tot = aero_props%ncnst_tot()
 
   contains
 
     !==============================================================================
-    subroutine get_indices( type, indices, count, min_radius, max_radius )
+    subroutine get_indices( type, indices, count)
 
       character(len=*), intent(in) :: type
       integer, intent(out) :: indices(:)
       integer, intent(out) :: count
-      real(r8), intent(in), optional :: min_radius ! meters
-      real(r8), intent(in), optional :: max_radius ! meters
 
       integer :: ibin,ispc, ndx, nspec
       character(len=aero_name_len) :: spec_type, spec_name
@@ -60,7 +64,6 @@ contains
 
       count = 0
       indices(:) = -1
-
 
       do ibin = 1, aero_props%nbins()
 
@@ -71,13 +74,6 @@ contains
             if (spec_type==type) then
 
                getndx = .true.
-               minrad = aero_props%min_mass_mean_rad(ibin,ispc) ! meters
-
-               if (present(min_radius)) then
-                  getndx = min_radius < minrad ! coarse
-               elseif (present(max_radius)) then
-                  getndx = max_radius > minrad .and. minrad > 0._r8 ! fine
-               end if
                if (getndx) then
                   call cnst_get_ind(spec_name, ndx, abort=.false.)
                   if (ndx>0) then
@@ -89,7 +85,6 @@ contains
             endif
 
          enddo
-
 
       enddo
 
@@ -107,8 +102,12 @@ contains
    type(cam_out_t), intent(inout) :: cam_out     ! cam export state
 
    ! Local variables:
-   integer :: i, ispec
+   integer :: i, ispec, ibin, mm, ndx
    integer :: ncol                      ! number of columns
+
+   real(r8) :: dep_fluxes(nele_tot)
+   real(r8) :: dst_fluxes(n_bulk_dst_bins)
+   character(len=aero_name_len) :: specname, name_c
 
    ncol = cam_out%ncol
 
@@ -137,23 +136,38 @@ contains
                              - (aerdepwetis(i,ocarbon_ndx(ispec))+aerdepwetcw(i,ocarbon_ndx(ispec)))
       enddo
 
-      !  Assign "fine" dust to bulk size bin 1:
-      do ispec=1,fine_dust_cnt
-         cam_out%dstwet1(i) = cam_out%dstwet1(i) &
-                            -(aerdepwetis(i,fine_dust_ndx(ispec))+aerdepwetcw(i,fine_dust_ndx(ispec)))
-      enddo
+      dep_fluxes = 0._r8
+      dst_fluxes = 0._r8
 
-      !  Assign "coarse" dust to bulk size bin 3:
-      do ispec=1,crse_dust_cnt
-         cam_out%dstwet3(i) = cam_out%dstwet3(i) &
-                            -(aerdepwetis(i,crse_dust_ndx(ispec))+aerdepwetcw(i,crse_dust_ndx(ispec)))
-      enddo
+      do ibin = 1,aero_props%nbins()
+         do ispec = 0,aero_props%nspecies(ibin)
+            if (ispec==0) then
+               call aero_props%num_names(ibin, specname, name_c)
+            else
+               call aero_props%get(ibin,ispec, specname=specname)
+            end if
+            call cnst_get_ind(specname, ndx, abort=.false.)
+            if (ndx>0) then
+               mm = aero_props%indexer(ibin,ispec)
+               dep_fluxes(mm) = - (aerdepwetis(i,ndx)+aerdepwetcw(i,ndx))
+            end if
+         end do
+      end do
+
+      ! rebin dust fluxes to bulk dust bins
+      call aero_props%rebin_bulk_fluxes('dust', dep_fluxes, bulk_dst_edges, dst_fluxes)
+      cam_out%dstwet1(i) = cam_out%dstwet1(i) + dst_fluxes(1)
+      cam_out%dstwet2(i) = cam_out%dstwet2(i) + dst_fluxes(2)
+      cam_out%dstwet3(i) = cam_out%dstwet3(i) + dst_fluxes(3)
+      cam_out%dstwet4(i) = cam_out%dstwet4(i) + dst_fluxes(4)
 
       ! in rare cases, integrated deposition tendency is upward
       if (cam_out%bcphiwet(i) .lt. 0._r8) cam_out%bcphiwet(i) = 0._r8
       if (cam_out%ocphiwet(i) .lt. 0._r8) cam_out%ocphiwet(i) = 0._r8
       if (cam_out%dstwet1(i)  .lt. 0._r8) cam_out%dstwet1(i)  = 0._r8
+      if (cam_out%dstwet2(i)  .lt. 0._r8) cam_out%dstwet2(i)  = 0._r8
       if (cam_out%dstwet3(i)  .lt. 0._r8) cam_out%dstwet3(i)  = 0._r8
+      if (cam_out%dstwet4(i)  .lt. 0._r8) cam_out%dstwet4(i)  = 0._r8
 
    enddo
 
