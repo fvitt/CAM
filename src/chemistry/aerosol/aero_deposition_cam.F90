@@ -253,7 +253,7 @@ contains
 
       ! organic carbon fluxes
       do ispec=1,ocphi_cnt
-         cam_out%ocphidry(i) = cam_out%ocphodry(i) &
+         cam_out%ocphidry(i) = cam_out%ocphidry(i) &
                              + (aerdepdryis(i,ocphi_ndx(ispec))+aerdepdrycw(i,ocphi_ndx(ispec)))
       enddo
       do ispec=1,ocpho_cnt
