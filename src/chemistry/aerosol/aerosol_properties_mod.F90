@@ -73,6 +73,7 @@ module aerosol_properties_mod
      procedure(aero_scav_diam), deferred :: scav_diam
      procedure(aero_resuspension_resize), deferred :: resuspension_resize
      procedure(aero_rebin_bulk_fluxes), deferred :: rebin_bulk_fluxes
+     procedure(aero_hydrophilic), deferred :: hydrophilic
 
      procedure :: final=>aero_props_final
   end type aerosol_properties
@@ -418,6 +419,15 @@ module aerosol_properties_mod
        real(r8), intent(out) :: bulk_fluxes(:) ! kg/m2
 
      end subroutine aero_rebin_bulk_fluxes
+
+     !------------------------------------------------------------------------------
+     ! Returns TRUE if bin is hydrophilic, otherwise FALSE
+     !------------------------------------------------------------------------------
+     logical function aero_hydrophilic(self, bin_ndx)
+       import :: aerosol_properties
+       class(aerosol_properties), intent(in) :: self
+       integer, intent(in) :: bin_ndx ! bin number
+     end function aero_hydrophilic
 
   end interface
 

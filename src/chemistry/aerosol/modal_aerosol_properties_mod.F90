@@ -51,6 +51,7 @@ module modal_aerosol_properties_mod
      procedure :: scav_diam
      procedure :: resuspension_resize
      procedure :: rebin_bulk_fluxes
+     procedure :: hydrophilic
 
      final :: destructor
   end type modal_aerosol_properties
@@ -964,5 +965,21 @@ contains
     end do
 
   end subroutine rebin_bulk_fluxes
+
+  !------------------------------------------------------------------------------
+  ! Returns TRUE if bin is hydrophilic, otherwise FALSE
+  !------------------------------------------------------------------------------
+  logical function hydrophilic(self, bin_ndx)
+    class(modal_aerosol_properties), intent(in) :: self
+    integer, intent(in) :: bin_ndx ! bin number
+
+    character(len=aero_name_len) :: modetype
+
+    call rad_cnst_get_info(0, bin_ndx, mode_type=modetype)
+
+    hydrophilic = (trim(modetype) == 'accum')
+    !soluble = trim(mode_name)/='primary_carbon' ???
+
+  end function hydrophilic
 
 end module modal_aerosol_properties_mod

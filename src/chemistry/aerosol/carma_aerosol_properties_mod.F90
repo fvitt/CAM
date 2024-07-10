@@ -38,6 +38,7 @@ module carma_aerosol_properties_mod
      procedure :: scav_diam
      procedure :: resuspension_resize
      procedure :: rebin_bulk_fluxes
+     procedure :: hydrophilic
 
      final :: destructor
   end type carma_aerosol_properties
@@ -830,5 +831,16 @@ contains
     end function bulk_index
 
   end subroutine rebin_bulk_fluxes
+
+  !------------------------------------------------------------------------------
+  ! Returns TRUE if bin is hydrophilic, otherwise FALSE
+  !------------------------------------------------------------------------------
+  logical function hydrophilic(self, bin_ndx)
+    class(carma_aerosol_properties), intent(in) :: self
+    integer, intent(in) :: bin_ndx ! bin number
+
+    hydrophilic = .true.
+
+  end function hydrophilic
 
 end module carma_aerosol_properties_mod

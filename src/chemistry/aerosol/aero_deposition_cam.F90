@@ -11,11 +11,16 @@ module aero_deposition_cam
   private
   public :: aero_deposition_cam_init
   public :: aero_deposition_cam_setwet
+  public :: aero_deposition_cam_setdry
 
-  integer :: bcarbon_ndx( pcnst ) = -1
-  integer :: bcarbon_cnt = 0
-  integer :: ocarbon_ndx( pcnst ) = -1
-  integer :: ocarbon_cnt = 0
+  integer :: bcphi_ndx( pcnst ) = -1
+  integer :: bcphi_cnt = 0
+  integer :: bcpho_ndx( pcnst ) = -1
+  integer :: bcpho_cnt = 0
+  integer :: ocphi_ndx( pcnst ) = -1
+  integer :: ocphi_cnt = 0
+  integer :: ocpho_ndx( pcnst ) = -1
+  integer :: ocpho_cnt = 0
 
   class(aerosol_properties), pointer :: aero_props=>null()
   integer :: nele_tot=0            ! total number of aerosol elements
@@ -24,9 +29,20 @@ module aero_deposition_cam
 
   integer, parameter :: n_bulk_dst_bins = 4
   real(r8), parameter :: bulk_dst_edges(n_bulk_dst_bins+1) = &
-       (/1.e-15_r8, 1.25e-6_r8, 2.5e-6_r8, 5.0e-6_r8, 1.0e-2_r8/) ! meters
-    ! ????
-!!$    ! bulk dust sizes (0.05-0.5, 0.5-1.25, 1.25-2.5, and 2.5-5.0 microns) ????
+       (/1.0e-15_r8, 0.5e-6_r8, 1.25e-6_r8, 2.5e-6_r8, 1.0e-2_r8/) ! meters
+!       (/0.05e-6_r8, 0.5e-6_r8, 1.25e-6_r8, 2.5e-6_r8, 5.0e-6_r8/) ! meters
+!       (/1.e-15_r8, 1.25e-6_r8, 2.5e-6_r8, 5.0e-6_r8, 1.0e-2_r8/) ! meters (Flanner's)
+
+! in mo_setaer.F90 :
+! dust is treated as 4 size distributions
+! 0.05 - 0.5; 0.5 - 1.25; 1.25 - 2.5; 2.5 - 5.0 microns
+
+! in components/cice/src/icepack/columnphysics/icepack_zbgc_shared.F90
+      ! Aerosol order and type should be consistent with order/type
+      ! specified in delta Eddington:  1) hydrophobic black carbon;
+      ! 2) hydrophilic black carbon; 3) dust (0.05-0.5 micron);
+      ! 4) dust (0.5-1.25 micron); 5) dust (1.25-2.5 micron);
+      ! 6) dust (2.5-5 micron)
 
 contains
 
@@ -40,20 +56,26 @@ contains
 
     aero_props => aero_props_in
 
-    call get_indices( type='black-c',   indices=bcarbon_ndx, count=bcarbon_cnt )
-    call get_indices( type='s-organic', indices=ocarbon_ndx, count=pcnt )
-    call get_indices( type='p-organic', indices=ocarbon_ndx(pcnt+1:), count=scnt )
-    ocarbon_cnt = pcnt+scnt
+    call get_indices( type='black-c',  hydrophilic=.true.,  indices=bcphi_ndx, count=bcphi_cnt )
+    call get_indices( type='black-c',  hydrophilic=.false., indices=bcpho_ndx, count=bcpho_cnt )
 
+    call get_indices( type='s-organic',hydrophilic=.true.,  indices=ocphi_ndx, count=pcnt )
+    call get_indices( type='p-organic',hydrophilic=.true.,  indices=ocphi_ndx(pcnt+1:), count=scnt )
+    ocphi_cnt = pcnt+scnt
+
+    call get_indices( type='s-organic',hydrophilic=.false., indices=ocpho_ndx, count=pcnt )
+    call get_indices( type='p-organic',hydrophilic=.false., indices=ocpho_ndx(pcnt+1:), count=scnt )
+    ocpho_cnt = pcnt+scnt
 
     nele_tot = aero_props%ncnst_tot()
 
   contains
 
     !==============================================================================
-    subroutine get_indices( type, indices, count)
+    subroutine get_indices( type, hydrophilic, indices, count)
 
       character(len=*), intent(in) :: type
+      logical, intent(in ) :: hydrophilic
       integer, intent(out) :: indices(:)
       integer, intent(out) :: count
 
@@ -67,24 +89,26 @@ contains
 
       do ibin = 1, aero_props%nbins()
 
-         do ispc = 1, aero_props%nspecies(ibin)
+         if ( aero_props%hydrophilic(ibin) .eqv. hydrophilic ) then
+            do ispc = 1, aero_props%nspecies(ibin)
 
-            call aero_props%get(ibin,ispc, spectype=spec_type, specname=spec_name )
+               call aero_props%get(ibin,ispc, spectype=spec_type, specname=spec_name )
 
-            if (spec_type==type) then
+               if (spec_type==type) then
 
-               getndx = .true.
-               if (getndx) then
-                  call cnst_get_ind(spec_name, ndx, abort=.false.)
-                  if (ndx>0) then
-                     count = count+1
-                     indices(count) = ndx
+                  getndx = .true.
+                  if (getndx) then
+                     call cnst_get_ind(spec_name, ndx, abort=.false.)
+                     if (ndx>0) then
+                        count = count+1
+                        indices(count) = ndx
+                     endif
                   endif
+
                endif
 
-            endif
-
-         enddo
+            enddo
+         endif
 
       enddo
 
@@ -94,7 +118,6 @@ contains
 
   !==============================================================================
   subroutine aero_deposition_cam_setwet(aerdepwetis, aerdepwetcw, cam_out)
-
 
    ! Arguments:
    real(r8), intent(in) :: aerdepwetis(:,:)  ! aerosol wet deposition (interstitial)
@@ -125,16 +148,26 @@ contains
    do i = 1, ncol
 
       ! black carbon fluxes
-      do ispec=1,bcarbon_cnt
+      do ispec=1,bcphi_cnt
          cam_out%bcphiwet(i) = cam_out%bcphiwet(i) &
-                             - (aerdepwetis(i,bcarbon_ndx(ispec))+aerdepwetcw(i,bcarbon_ndx(ispec)))
+                             - (aerdepwetis(i,bcphi_ndx(ispec))+aerdepwetcw(i,bcphi_ndx(ispec)))
+      enddo
+      do ispec=1,bcpho_cnt
+         cam_out%bcphiwet(i) = cam_out%bcphiwet(i) &
+                             - (aerdepwetis(i,bcpho_ndx(ispec))+aerdepwetcw(i,bcpho_ndx(ispec)))
       enddo
 
       ! organic carbon fluxes
-      do ispec=1,ocarbon_cnt
+      do ispec=1,ocphi_cnt
          cam_out%ocphiwet(i) = cam_out%ocphiwet(i) &
-                             - (aerdepwetis(i,ocarbon_ndx(ispec))+aerdepwetcw(i,ocarbon_ndx(ispec)))
+                             - (aerdepwetis(i,ocphi_ndx(ispec))+aerdepwetcw(i,ocphi_ndx(ispec)))
       enddo
+      do ispec=1,ocpho_cnt
+         cam_out%ocphiwet(i) = cam_out%ocphiwet(i) &
+                             - (aerdepwetis(i,ocpho_ndx(ispec))+aerdepwetcw(i,ocpho_ndx(ispec)))
+      enddo
+
+      ! dust fluxes
 
       dep_fluxes = 0._r8
       dst_fluxes = 0._r8
@@ -174,5 +207,99 @@ contains
   end subroutine aero_deposition_cam_setwet
 
 
+
+  !==============================================================================
+  subroutine aero_deposition_cam_setdry(aerdepdryis, aerdepdrycw, cam_out)
+
+   ! Arguments:
+   real(r8), intent(in) :: aerdepdryis(:,:)  ! aerosol dry deposition (interstitial)
+   real(r8), intent(in) :: aerdepdrycw(:,:)  ! aerosol dry deposition (cloud water)
+   type(cam_out_t), intent(inout) :: cam_out     ! cam export state
+
+   ! Local variables:
+   integer :: i, ispec, ibin, mm, ndx
+   integer :: ncol                      ! number of columns
+
+   real(r8) :: dep_fluxes(nele_tot)
+   real(r8) :: dst_fluxes(n_bulk_dst_bins)
+   character(len=aero_name_len) :: specname, name_c
+
+   ncol = cam_out%ncol
+
+   cam_out%bcphidry(:) = 0._r8
+   cam_out%ocphidry(:) = 0._r8
+   cam_out%bcphodry(:) = 0._r8
+   cam_out%ocphodry(:) = 0._r8
+   cam_out%dstdry1(:) = 0._r8
+   cam_out%dstdry2(:) = 0._r8
+   cam_out%dstdry3(:) = 0._r8
+   cam_out%dstdry4(:) = 0._r8
+
+   ! derive cam_out variables from deposition fluxes
+   !  note: wet deposition fluxes are negative into surface,
+   !        dry deposition fluxes are positive into surface.
+   !        srf models want positive definite fluxes.
+   do i = 1, ncol
+
+      ! black carbon fluxes
+      do ispec=1,bcphi_cnt
+         cam_out%bcphidry(i) = cam_out%bcphidry(i) &
+                             + (aerdepdryis(i,bcphi_ndx(ispec))+aerdepdrycw(i,bcphi_ndx(ispec)))
+      enddo
+      do ispec=1,bcpho_cnt
+         cam_out%bcphodry(i) = cam_out%bcphodry(i) &
+                             + (aerdepdryis(i,bcpho_ndx(ispec))+aerdepdrycw(i,bcpho_ndx(ispec)))
+      enddo
+
+      ! organic carbon fluxes
+      do ispec=1,ocphi_cnt
+         cam_out%ocphidry(i) = cam_out%ocphodry(i) &
+                             + (aerdepdryis(i,ocphi_ndx(ispec))+aerdepdrycw(i,ocphi_ndx(ispec)))
+      enddo
+      do ispec=1,ocpho_cnt
+         cam_out%ocphodry(i) = cam_out%ocphodry(i) &
+                             + (aerdepdryis(i,ocpho_ndx(ispec))+aerdepdrycw(i,ocpho_ndx(ispec)))
+      enddo
+
+      ! dust fluxes
+
+      dep_fluxes = 0._r8
+      dst_fluxes = 0._r8
+
+      do ibin = 1,aero_props%nbins()
+         do ispec = 0,aero_props%nspecies(ibin)
+            if (ispec==0) then
+               call aero_props%num_names(ibin, specname, name_c)
+            else
+               call aero_props%get(ibin,ispec, specname=specname)
+            end if
+            call cnst_get_ind(specname, ndx, abort=.false.)
+            if (ndx>0) then
+               mm = aero_props%indexer(ibin,ispec)
+               dep_fluxes(mm) = aerdepdryis(i,ndx)+aerdepdrycw(i,ndx)
+            end if
+         end do
+      end do
+
+      ! rebin dust fluxes to bulk dust bins
+      call aero_props%rebin_bulk_fluxes('dust', dep_fluxes, bulk_dst_edges, dst_fluxes)
+      cam_out%dstdry1(i) = cam_out%dstdry1(i) + dst_fluxes(1)
+      cam_out%dstdry2(i) = cam_out%dstdry2(i) + dst_fluxes(2)
+      cam_out%dstdry3(i) = cam_out%dstdry3(i) + dst_fluxes(3)
+      cam_out%dstdry4(i) = cam_out%dstdry4(i) + dst_fluxes(4)
+
+      ! in rare cases, integrated deposition tendency is upward
+      if (cam_out%bcphidry(i) .lt. 0._r8) cam_out%bcphidry(i) = 0._r8
+      if (cam_out%ocphidry(i) .lt. 0._r8) cam_out%ocphidry(i) = 0._r8
+      if (cam_out%bcphodry(i) .lt. 0._r8) cam_out%bcphodry(i) = 0._r8
+      if (cam_out%ocphodry(i) .lt. 0._r8) cam_out%ocphodry(i) = 0._r8
+      if (cam_out%dstdry1(i)  .lt. 0._r8) cam_out%dstdry1(i)  = 0._r8
+      if (cam_out%dstdry2(i)  .lt. 0._r8) cam_out%dstdry2(i)  = 0._r8
+      if (cam_out%dstdry3(i)  .lt. 0._r8) cam_out%dstdry3(i)  = 0._r8
+      if (cam_out%dstdry4(i)  .lt. 0._r8) cam_out%dstdry4(i)  = 0._r8
+
+   enddo
+
+  end subroutine aero_deposition_cam_setdry
 
 end module aero_deposition_cam

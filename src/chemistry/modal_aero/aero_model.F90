@@ -691,7 +691,7 @@ contains
     use modal_aero_data,   only: numptrcw_amode
     use modal_aero_data,   only: lmassptr_amode
     use modal_aero_data,   only: lmassptrcw_amode
-    use modal_aero_deposition, only: set_srf_drydep
+    use aero_deposition_cam,only: aero_deposition_cam_setdry
 
   ! args
     type(physics_state),    intent(in)    :: state     ! Physics state variables
@@ -969,7 +969,7 @@ contains
     ! if the user has specified prescribed aerosol dep fluxes then
     ! do not set cam_out dep fluxes according to the prognostic aerosols
     if (.not.aerodep_flx_prescribed()) then
-       call set_srf_drydep(aerdepdryis, aerdepdrycw, cam_out)
+       call aero_deposition_cam_setdry(aerdepdryis, aerdepdrycw, cam_out)
     endif
 
   endsubroutine aero_model_drydep
