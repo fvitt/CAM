@@ -95,6 +95,7 @@ module aerosol_properties_mod
      !  density
      !  hygroscopicity
      !  species type
+     !  species name
      !  short wave species refractive indices
      !  long wave species refractive indices
      !  species morphology

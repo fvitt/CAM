@@ -1,4 +1,10 @@
 module aero_deposition_cam
+!------------------------------------------------------------------------------
+! Purpose:
+!
+! Partition the contributions from modal components of wet and dry
+! deposition at the surface into the fields passed to the coupler.
+!------------------------------------------------------------------------------
 
   use shr_kind_mod, only: r8 => shr_kind_r8
   use constituents, only: cnst_get_ind, pcnst
@@ -9,9 +15,14 @@ module aero_deposition_cam
   implicit none
 
   private
+
+! Public interfaces
+
   public :: aero_deposition_cam_init
   public :: aero_deposition_cam_setwet
   public :: aero_deposition_cam_setdry
+
+! Private module data
 
   integer :: bcphi_ndx( pcnst ) = -1
   integer :: bcphi_cnt = 0
@@ -46,7 +57,7 @@ module aero_deposition_cam
 
 contains
 
-  !==============================================================================
+  !============================================================================
   subroutine aero_deposition_cam_init(aero_props_in)
 
     class(aerosol_properties),target, intent(in) :: aero_props_in
@@ -54,24 +65,33 @@ contains
     integer :: pcnt, scnt
     character(len=*), parameter :: subrname = 'aero_deposition_cam_init'
 
+    ! construct the aerosol properties object
     aero_props => aero_props_in
 
+    ! set the cam constituent indices and determine the counts
+    ! for the specified aerosol types
+
+    ! black carbons
     call get_indices( type='black-c',  hydrophilic=.true.,  indices=bcphi_ndx, count=bcphi_cnt )
     call get_indices( type='black-c',  hydrophilic=.false., indices=bcpho_ndx, count=bcpho_cnt )
 
-    call get_indices( type='s-organic',hydrophilic=.true.,  indices=ocphi_ndx, count=pcnt )
-    call get_indices( type='p-organic',hydrophilic=.true.,  indices=ocphi_ndx(pcnt+1:), count=scnt )
+    ! primary and secondary organics
+    call get_indices( type='p-organic',hydrophilic=.true.,  indices=ocphi_ndx, count=pcnt )
+    call get_indices( type='s-organic',hydrophilic=.true.,  indices=ocphi_ndx(pcnt+1:), count=scnt )
     ocphi_cnt = pcnt+scnt
 
-    call get_indices( type='s-organic',hydrophilic=.false., indices=ocpho_ndx, count=pcnt )
-    call get_indices( type='p-organic',hydrophilic=.false., indices=ocpho_ndx(pcnt+1:), count=scnt )
+    call get_indices( type='p-organic',hydrophilic=.false., indices=ocpho_ndx, count=pcnt )
+    call get_indices( type='s-organic',hydrophilic=.false., indices=ocpho_ndx(pcnt+1:), count=scnt )
     ocpho_cnt = pcnt+scnt
 
+    ! total number of aerosol elements
     nele_tot = aero_props%ncnst_tot()
 
   contains
 
-    !==============================================================================
+    !==========================================================================
+    ! returns CAM constituent indices of the aerosol tracers (and count)
+    !==========================================================================
     subroutine get_indices( type, hydrophilic, indices, count)
 
       character(len=*), intent(in) :: type
@@ -81,28 +101,26 @@ contains
 
       integer :: ibin,ispc, ndx, nspec
       character(len=aero_name_len) :: spec_type, spec_name
-      real(r8) :: minrad
-      logical :: getndx
 
       count = 0
       indices(:) = -1
 
+      ! loop through aerosol bins / modes
       do ibin = 1, aero_props%nbins()
 
+         ! check if the bin/mode is hydrophilic
          if ( aero_props%hydrophilic(ibin) .eqv. hydrophilic ) then
             do ispc = 1, aero_props%nspecies(ibin)
 
-               call aero_props%get(ibin,ispc, spectype=spec_type, specname=spec_name )
+               call aero_props%get(ibin,ispc, spectype=spec_type, specname=spec_name)
 
                if (spec_type==type) then
 
-                  getndx = .true.
-                  if (getndx) then
-                     call cnst_get_ind(spec_name, ndx, abort=.false.)
-                     if (ndx>0) then
-                        count = count+1
-                        indices(count) = ndx
-                     endif
+                  ! get CAM constituent index
+                  call cnst_get_ind(spec_name, ndx, abort=.false.)
+                  if (ndx>0) then
+                     count = count+1
+                     indices(count) = ndx
                   endif
 
                endif
@@ -116,7 +134,9 @@ contains
 
   end subroutine aero_deposition_cam_init
 
-  !==============================================================================
+  !============================================================================
+  ! Set surface wet deposition fluxes passed to coupler.
+  !============================================================================
   subroutine aero_deposition_cam_setwet(aerdepwetis, aerdepwetcw, cam_out)
 
    ! Arguments:
@@ -206,9 +226,9 @@ contains
 
   end subroutine aero_deposition_cam_setwet
 
-
-
-  !==============================================================================
+  !============================================================================
+  ! Set surface dry deposition fluxes passed to coupler.
+  !============================================================================
   subroutine aero_deposition_cam_setdry(aerdepdryis, aerdepdrycw, cam_out)
 
    ! Arguments:
