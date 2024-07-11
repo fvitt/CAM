@@ -168,7 +168,7 @@ subroutine ggrid(nvert,glatmin,glatmax,glonmin,glonmax,altmin,altmax, &
   nlat = 0 ; nlon = 0 ; nalt = 0
   gplat = 0._r8 ; gplon = 0._r8 ; gpalt = 0._r8
 !
-  dnv = dble(nvert)
+  dnv = real(nvert,kind=r8)
   dlon = 360._r8 / (5._r8*dnv)
   dlat = 180._r8 / (3._r8*dnv)
   diht = 1._r8   / dnv
@@ -193,14 +193,14 @@ subroutine ggrid(nvert,glatmin,glatmax,glonmin,glonmax,altmin,altmax, &
   nalt = naltmax - naltmin + 1
 
   do j=1,nlat
-    gplat(j) = dlat*dble(nlatmin+j-1) - 90._r8
+    gplat(j) = dlat*real(nlatmin+j-1,kind=r8) - 90._r8
   enddo
   do i=1,nlon
-    gplon(i) = dlon*dble(nlonmin+i-1) - 180._r8
+    gplon(i) = dlon*real(nlonmin+i-1,kind=r8) - 180._r8
   enddo
   do k=1,nalt
     kk = naltmax - k +1
-    gpalt(k) = re*(dble(nvert-kk) - eps) / (dble(kk)+eps)
+    gpalt(k) = re*(real(nvert-kk,kind=r8) - eps) / (real(kk,kind=r8)+eps)
   enddo
   if (gplon(nlon-1) >= glonmax) nlon = nlon-1
   gpalt(1) = max(gpalt(1),0._r8)
@@ -1345,7 +1345,7 @@ subroutine feldg(iflag,glat,glon,alt,bnrth,beast,bdown,babs)
 
 100 continue
     il = ih-i
-    f = 2._r8/dble(i-k+2)
+    f = 2._r8/real(i-k+2,kind=r8)
     x = xi(1)*f
     y = xi(2)*f
     z = xi(3)*(f+f)
@@ -2046,20 +2046,20 @@ subroutine cofrm(date)
       n = n+1
     endif ! n < m
     lm = ll + l
-    if (m == 0) f0 = f0 * dble(n)/2._r8
+    if (m == 0) f0 = f0 * real(n,kind=r8)/2._r8
     if (m == 0) f  = f0 / sqrt(2.0_r8)
     nn = n+1
 
     if (m /= 0) then
-      f = f / sqrt(dble(n-m+1) / dble(n+m) )
+      f = f / sqrt(real(n-m+1,kind=r8) / real(n+m,kind=r8) )
       gb(l+1)  = (tc*gh(lm) + t*gh(lm+nc))* f
     else
       gb(l+1)  = (tc*gh(lm) + t*gh(lm+nc))* f0
     endif
-    gv(l+1) = gb(l+1)/dble(nn)
+    gv(l+1) = gb(l+1)/real(nn,kind=r8)
     if (m /= 0) then
       gb(l+2)  = (tc*gh(lm+1) + t*gh(lm+nc+1))*f
-      gv(l+2) = gb(l+2)/dble(nn)
+      gv(l+2) = gb(l+2)/real(nn,kind=r8)
       l = l+2
     else
       l = l+1
@@ -2158,7 +2158,7 @@ subroutine apex_subsol(iyr,iday,ihr,imn,sec,sbsllat,sbsllon)
       g0 = -2.472_r8 + (-.2558905_r8*(yr-4*nleap) - 3.79617e-2_r8*nleap)
 !
 ! Universal time in seconds:
-      ut = dble(ihr*3600 + imn*60) + sec
+      ut = real(ihr*3600 + imn*60,kind=r8) + sec
 !
 ! Days (including fraction) since 12 UT on January 1 of IYR:
       df = (ut/86400._r8 - 1.5_r8) + iday
@@ -2182,7 +2182,7 @@ subroutine apex_subsol(iyr,iday,ihr,imn,sec,sbsllat,sbsllon)
       sinlam = sin(lamrad)
 !
 ! Days (including fraction) since 12 UT on January 1 of 2000:
-      n = df + 365._r8*yr + dble(nleap)
+      n = df + 365._r8*yr + real(nleap,kind=r8)
 !
 ! Obliquity of ecliptic:
       epsilon = 23.439_r8 - 4.e-7_r8*n
@@ -2200,7 +2200,7 @@ subroutine apex_subsol(iyr,iday,ihr,imn,sec,sbsllat,sbsllon)
 ! Equation of time (degrees):
       etdeg = l - alpha
       nrot = nint(etdeg/360._r8)
-      etdeg = etdeg - dble(360*nrot)
+      etdeg = etdeg - real(360*nrot,kind=r8)
 !
 ! Apparent time (degrees):
 ! Earth rotates one degree every 240 s.
@@ -2209,7 +2209,7 @@ subroutine apex_subsol(iyr,iday,ihr,imn,sec,sbsllat,sbsllon)
 ! Subsolar longitude (output argument):
       sbsllon = 180._r8 - aptime
       nrot = nint(sbsllon/360._r8)
-      sbsllon = sbsllon - dble(360*nrot)
+      sbsllon = sbsllon - real(360*nrot,kind=r8)
 
 end subroutine apex_subsol
 
