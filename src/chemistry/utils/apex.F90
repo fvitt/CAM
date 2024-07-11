@@ -5,31 +5,31 @@ module apex
 ! This is a refactored version of the legacy apex code, originally written
 ! by Art Richmond and Roy Barnes, and others in the 1995-2000 timeframe.
 ! This new version is written in free-format fortran90. Subroutines and
-! module data may be use-associated from this module. 
+! module data may be use-associated from this module.
 !
 ! Original reference for the legacy code:
 !          Richmond, A. D., Ionospheric Electrodynamics Using Magnetic Apex
-!          Coordinates, J. Geomag. Geoelectr., 47, 191-212, 1995. 
+!          Coordinates, J. Geomag. Geoelectr., 47, 191-212, 1995.
 !
-! This code should produce near-identical results as the legacy code, altho 
-! the refactored version does not provide all subroutines and options available 
+! This code should produce near-identical results as the legacy code, altho
+! the refactored version does not provide all subroutines and options available
 ! in the old code, notably the ability to write and read-back an external file.
-! 
+!
 ! A typical calling sequence for a code calling this module is as follows:
 !
-! subroutine ggrid (legacy SUBROUTINE GGRID): 
+! subroutine ggrid (legacy SUBROUTINE GGRID):
 !   Make a global lat,lon,alt grid for use in later calls (optional)
 !
-! subroutine apex_mka (legacy SUBROUTINE APXMKA): 
+! subroutine apex_mka (legacy SUBROUTINE APXMKA):
 !   Make magnetic arrays x,y,z,v for use in later routines
-!   (geographic lat,lon grid and altitudes are input) 
+!   (geographic lat,lon grid and altitudes are input)
 !   (This must be called before apex_mall and apex_q2g)
-! 
-! subroutine apex_mall (legacy ENTRY APXMALL): 
+!
+! subroutine apex_mall (legacy ENTRY APXMALL):
 !   Calculate modified Apex coordinates and other magnetic field parameters
 !   (usually called from lat,lon,alt nested loop)
-! 
-! subroutine apex_q2g (legacy ENTRY APXQ2G): 
+!
+! subroutine apex_q2g (legacy ENTRY APXQ2G):
 !   Convert from quasi-dipole to geodetic coordinates
 !   (usually called from lat,lon,alt nested loop)
 !
@@ -50,7 +50,7 @@ module apex
   public :: apex_beg_yr
   public :: apex_end_yr
   public :: apex_q2g
- 
+
   real(r8),parameter :: re = 6371.2_r8, eps = 1.e-5_r8
 
   real(r8),allocatable,save :: &
@@ -59,11 +59,11 @@ module apex
     zarray(:,:,:), & ! sin(quasi-dipole latitude)
     varray(:,:,:)    ! (VMP/VP)*((RE+ALT)/RE)**2
 !
-! This grid (geolat,geolon,geoalt is equivalent to gdlat,gdlon,gdalt, 
+! This grid (geolat,geolon,geoalt is equivalent to gdlat,gdlon,gdalt,
 ! as passed to apex_mka.
 !
   integer :: nglat,nglon,ngalt
-  real(r8),allocatable,save :: geolat(:), geolon(:), geoalt(:)    
+  real(r8),allocatable,save :: geolat(:), geolon(:), geoalt(:)
 
   integer,parameter :: nmax=13
   integer,parameter :: ncoef = nmax*nmax + 2*nmax + 1 ! 196
@@ -75,7 +75,7 @@ module apex
     rtd,  & ! radians to degrees
     dtr,  & ! degrees to radians
     pola    ! pole angle (deg); when geographic lat is poleward of pola,
-            ! x,y,z,v arrays are forced to be constant (pola=89.995) 
+            ! x,y,z,v arrays are forced to be constant (pola=89.995)
 
   real(r8),parameter ::       & ! Formerly common /APXCON/
     req  = 6378.160_r8,       & ! Equatorial earth radius
@@ -100,22 +100,22 @@ module apex
     bb       ! Magnitude of field vector at the current tracing point (Gauss)
 
   real(r8) ::      & ! Formerly /APXIN/
-    yapx(3,3)    ! Matrix of cartesian coordinates (loaded columnwise) 
+    yapx(3,3)    ! Matrix of cartesian coordinates (loaded columnwise)
 !
 ! /ITRA/ was only in subs linapx and itrace, so can probably be removed from module data
 !
-  integer ::   & ! Formerly /ITRA/ 
+  integer ::   & ! Formerly /ITRA/
     nstp         ! Step count. Incremented in sub linapx.
-  real(r8)    ::   & 
+  real(r8)    ::   &
     y(3),      & ! Array containing current tracing point cartesian coordinates.
     yp(3),     & ! Array containing previous tracing point cartesian coordinates.
     sgn,       & ! Determines direction of trace. Set in subprogram linapx
     ds           ! Step size (Km) Computed in subprogram linapx.
 
-  real(r8) ::         & ! limits beyond which east-west gradients are computed 
+  real(r8) ::         & ! limits beyond which east-west gradients are computed
     glatmn,glatmx   ! differently to avoid potential underflow (apex_mka)
 
-  ! IGRF coefficients 
+  ! IGRF coefficients
   real(r8), allocatable :: g1(:,:), g2(:,:)
   integer :: n1, n2, ncn1, ncn2, year1, year2
   integer, protected :: apex_beg_yr
@@ -129,8 +129,8 @@ contains
 subroutine ggrid(nvert,glatmin,glatmax,glonmin,glonmax,altmin,altmax, &
                  gplat,gplon,gpalt,mxlat,mxlon,mxalt,nlat,nlon,nalt)
 !
-! Given desired range of geographic latitude, longitude and altitude, 
-! choose an appropriate grid that can be used in subsequent calls to 
+! Given desired range of geographic latitude, longitude and altitude,
+! choose an appropriate grid that can be used in subsequent calls to
 ! subs apex_mka, apex_mall, apex_q2g.
 !
 ! Input args:
@@ -176,10 +176,10 @@ subroutine ggrid(nvert,glatmin,glatmax,glonmin,glonmax,altmin,altmax, &
   nlatmin = max(int((glatmin+90._r8)/dlat),0)
   nlatmax = min(int((glatmax+90._r8)/dlat+1._r8),3*nvert)
   nlonmin = max(int((glonmin+180._r8)/dlon),0)
- 
+
   glonmaxx = min(glonmax,glonmin+360._r8)
   nlonmax = min(int((glonmaxx+180._r8)/dlon+1._r8),10*nvert)
-    
+
   x = re/(re+altmax)/diht-eps
   naltmin = max(x,1._r8)
   naltmin = min(naltmin,nvert-1)
@@ -221,9 +221,9 @@ subroutine apex_set_igrf(coefs_file)
   use pio,           only : file_desc_t, pio_get_var, pio_closefile, pio_nowrite, pio_inq_varid, pio_inq_dimid, pio_inq_dimlen
 
   character(len=*), intent(in) :: coefs_file
-  
+
   integer :: ierr
-  integer :: dim_id, var_id 
+  integer :: dim_id, var_id
   type(file_desc_t) :: ncid
   character(len=256) :: locfn
 
@@ -299,7 +299,7 @@ subroutine apex_mka(date,gplat,gplon,gpalt,nlat,nlon,nalt,ier)
 !
 ! Some parts of the legacy apex code use constants to set dtr,rtd,
 ! other parts use rtd=45./atan(1.), dtr=1./rtd. Differences are
-! on the order of 1.e-18 to 1.e-14. Here, the atan method is used. 
+! on the order of 1.e-18 to 1.e-14. Here, the atan method is used.
 !
 !  rtd  = 5.72957795130823E1
 !  dtr  = 1.745329251994330E-2
@@ -308,8 +308,8 @@ subroutine apex_mka(date,gplat,gplon,gpalt,nlat,nlon,nalt,ier)
    dtr  = 1._r8/rtd
 !
 ! pola:
-!   Pole angle (deg); when the geographic latitude is poleward of POLA, 
-!   X,Y,Z,V are forced to be constant for all longitudes at each altitude.  
+!   Pole angle (deg); when the geographic latitude is poleward of POLA,
+!   X,Y,Z,V are forced to be constant for all longitudes at each altitude.
 !   This makes POLA = 89.995
 !
   pola = 90._r8-sqrt(precise)*rtd    ! Pole angle (deg)
@@ -378,7 +378,7 @@ subroutine apex_mka(date,gplat,gplon,gpalt,nlat,nlon,nalt,ier)
         zarray(j,i,:) = zarray(j,1,:)
         varray(j,i,:) = varray(j,1,:)
         cycle
-      endif  
+      endif
       cp = cos((gplon(i)-elon)*dtr)
       sp = sin((gplon(i)-elon)*dtr)
 !
@@ -422,7 +422,7 @@ subroutine apex_mka(date,gplat,gplon,gpalt,nlat,nlon,nalt,ier)
 end subroutine apex_mka
 !-----------------------------------------------------------------------
 subroutine apex_mall(glat,glon,alt,hr, b,bhat,bmag,si,alon,xlatm,vmp,w,&
-  d,be3,sim,d1,d2,d3,e1,e2,e3,xlatqd,f,f1,f2,ier)
+                     d,be3,sim,d1,d2,d3,e1,e2,e3,xlatqd,f,f1,f2,f3,g1,g2,g3,ier)
 !
 ! Compute Modified Apex coordinates, quasi-dipole coordinates,
 ! base vectors and other parameters by interpolation from
@@ -437,12 +437,12 @@ subroutine apex_mall(glat,glon,alt,hr, b,bhat,bmag,si,alon,xlatm,vmp,w,&
     hr                  ! Reference altitude (km)
 
   real(r8),intent(out) :: & ! Output
-    b(3)             ,& ! Magnetic field components (east, north, up), in nT    
-    bhat(3)          ,& ! components (east, north, up) of unit vector along 
+    b(3)             ,& ! Magnetic field components (east, north, up), in nT
+    bhat(3)          ,& ! components (east, north, up) of unit vector along
                         ! geomagnetic field direction
     bmag             ,& ! Magnitude of magnetic field (nT)
     si               ,& ! sin(i)
-    alon             ,& ! Apex longitude = modified apex longitude = 
+    alon             ,& ! Apex longitude = modified apex longitude =
                         ! quasi-dipole longitude (deg)
     xlatm            ,& ! Modified Apex latitude (deg)
     vmp              ,& ! Magnetic potential (T.m)
@@ -451,10 +451,9 @@ subroutine apex_mall(glat,glon,alt,hr, b,bhat,bmag,si,alon,xlatm,vmp,w,&
     be3              ,& ! B_e3 of reference above (= Bmag/D), in nT
     sim              ,& ! sin(I_m) described in Richmond reference above
     xlatqd           ,& ! Quasi-dipole latitude (deg)
-    f                ,& ! F described in ref above for quasi-dipole coordinates
-    f1(2),f2(2)         ! Components (east, north) of base vectors
+    f                   ! F described in ref above for quasi-dipole coordinates
 !
-  real(r8),dimension(3),intent(out) :: d1,d2,d3,e1,e2,e3 ! Components of base vectors
+  real(r8),dimension(3),intent(out) :: d1,d2,d3,e1,e2,e3,f1,f2,f3,g1,g2,g3 ! Components of base vectors
   integer,intent(out) :: ier ! error return
 !
 ! Local:
@@ -482,7 +481,7 @@ subroutine apex_mall(glat,glon,alt,hr, b,bhat,bmag,si,alon,xlatm,vmp,w,&
 
   if (ier /= 0) then
     call setmiss(xmiss,xlatm,alon,vmp,b,bmag,be3,sim,si,f,d,w, &
-      bhat,d1,d2,d3,e1,e2,e3,f1,f2)
+                 bhat,d1,d2,d3,e1,e2,e3,f1,f2, f3,g1,g2,g3)
     write(iulog,"('apex_mall called setmiss: glat,glon,alt=',3f12.3)") &
       glat,glon,alt
     return
@@ -519,23 +518,26 @@ subroutine apex_mall(glat,glon,alt,hr, b,bhat,bmag,si,alon,xlatm,vmp,w,&
     xlatm,alon,vmp,grclm,clmgrp,xlatqd,rgrlp,b,clm,r3_2)
 
   call basevec(hr,xlatm,grclm,clmgrp,rgrlp,b,clm,r3_2, &
-               bmag,sim,si,f,d,w,bhat,d1,d2,d3,e1,e2,e3,f1,f2)
+               bmag,sim,si,f,d,w,bhat,d1,d2,d3,e1,e2,e3,f1,f2,f3,g1,g2,g3)
 
   be3 = bmag/d
   ier = 0
 
 end subroutine apex_mall
 !-----------------------------------------------------------------------
-subroutine apex_q2g(qdlat,qdlon,alt,gdlat,gdlon,ier)
+subroutine apex_q2g(qdlat_in,qdlon,alt,gdlat,gdlon,ier)
+! 20160811 ADR If qdlat_in is +/- 90, move it a little off the pole so
+!  that when gdlat, gdlon are used in apxmall the directions of the base
+!  vectors vary appropriately with longitude.
 !
 ! Convert from quasi-dipole to geodetic coordinates. This subroutine
-! (input magnetic, output geodetic) is the functional inverse of 
+! (input magnetic, output geodetic) is the functional inverse of
 ! subroutine apex_mall (input geodetic, output magnetic). Sub apex_mka
 ! must be called before this routine.
 !
 ! Args:
   real(r8),intent(in) ::  & ! inputs
-    qdlat,                & ! quasi-dipole latitude (deg)
+    qdlat_in,             & ! quasi-dipole latitude (deg)
     qdlon,                & ! quasi-dipole longitude (deg)
     alt                     ! altitude (km)
 
@@ -547,10 +549,10 @@ subroutine apex_q2g(qdlat,qdlon,alt,gdlat,gdlon,ier)
 ! Local:
   real(r8) :: x0,y0,z0,xnorm,xdif,ydif,zdif,dist2,hgrd2e,hgrd2n,hgrd2,&
     angdist,distlon,glatx,cal,sal,coslm,slm,cad,sad,slp,clm2,slm2,&
-    sad2,cal2,clp2,clp,dylon
+    sad2,cal2,clp2,clp,dylon, qdlat
   real(r8) :: ylat,ylon ! first guess output by gm2gc, input to intrp
   integer :: iter
-  integer,parameter :: niter=20
+  integer,parameter :: niter=30
   real(r8) ::                    & ! output of sub intrp
     fx,fy,fz,fv,                 & ! interpolated values of x,y,z,v
     dfxdth,dfydth,dfzdth,dfvdth, & ! derivatives of x,y,z,v wrt colatitude
@@ -565,6 +567,10 @@ subroutine apex_q2g(qdlat,qdlon,alt,gdlat,gdlon,ier)
 
   ier = 0 ; gdlat = 0._r8 ; gdlon = 0._r8
 !
+! Keep qdlat away from poles
+  qdlat = max(qdlat_in,-90.+sqrt(precise)*rtd)
+  qdlat = min(qdlat   , 90.-sqrt(precise)*rtd)
+!
 ! Determine quasi-cartesian coordinates on a unit sphere of the
 ! desired magnetic lat,lon in quasi-dipole coordinates.
 !
@@ -577,7 +583,7 @@ subroutine apex_q2g(qdlat,qdlon,alt,gdlat,gdlon,ier)
   call gm2gc (qdlat,qdlon,ylat,ylon)
 !
 ! Iterate until (angular distance)**2 (units: radians) is within
-! precise of location (qdlat,qdlon) on a unit sphere. 
+! precise of location (qdlat,qdlon) on a unit sphere.
 ! (precise is a parameter in module data)
 !
   do iter=1,niter
@@ -655,10 +661,10 @@ subroutine apex_q2g(qdlat,qdlon,alt,gdlat,gdlon,ier)
 ! in direction of grad(dist2), by amount angdist.
 !
     cal = -hgrd2n/hgrd2
-    sal = -hgrd2e/hgrd2 
+    sal = -hgrd2e/hgrd2
     coslm = cos(ylat*dtr)
     slm = sin(ylat*dtr)
-    cad = cos(angdist) 
+    cad = cos(angdist)
     sad = sin(angdist)
     slp = slm*cad + coslm*sad*cal
 
@@ -693,7 +699,7 @@ subroutine apex_q2g(qdlat,qdlon,alt,gdlat,gdlon,ier)
   if (ylat == geolat(1))     edge = 'south'
   if (edge /= '     ') then
     write(iulog,"('Coordinates are on the ',a,' edge of the interpolation grid ')") edge
-    write(iulog,"('and latitude is constrained to stay within grid limits when iterating.')") 
+    write(iulog,"('and latitude is constrained to stay within grid limits when iterating.')")
   endif
   ier = 1
 
@@ -787,7 +793,7 @@ subroutine gradlpv(hr,alt,fx,fy,fz,fv,gradx,grady,gradz,gradv, &
   real(r8),intent(in) :: & ! scalar inputs
     hr,                  & ! reference altitude (km)
     alt,                 & ! altitude (km)
-    fx,fy,fz,fv            ! interpolated values of x,y,z,v, plus 
+    fx,fy,fz,fv            ! interpolated values of x,y,z,v, plus
                            ! pseudodipole component
   real(r8),dimension(3),intent(in) :: & ! 3-component inputs
     gradx,grady,gradz,gradv ! interpolated gradients of x,y,z,v,
@@ -805,13 +811,13 @@ subroutine gradlpv(hr,alt,fx,fy,fz,fv,gradx,grady,gradz,gradv, &
     clm,    & !  cos(lambda_m)
     r3_2      !  ((re + alt)/(re + hr))**(3/2)
 
-  real(r8),dimension(3),intent(out) :: & ! 3-component outputs 
+  real(r8),dimension(3),intent(out) :: & ! 3-component outputs
     grclm,   & ! grad(cos(lambda_m)), in km-1
     clmgrp,  & ! cos(lambda_m)*grad(phi_a), in km-1
     rgrlp,   & ! (re + alt)*grad(lambda')
     b          ! magnetic field, in nT
 
-  xlatm=0._r8 ; xlonm=0._r8 ; vmp=0._r8 ; grclm=0._r8 ; clmgrp=0._r8 
+  xlatm=0._r8 ; xlonm=0._r8 ; vmp=0._r8 ; grclm=0._r8 ; clmgrp=0._r8
   rgrlp = 0._r8 ; b=0._r8 ; clm=0._r8 ; r3_2=0._r8 ; qdlat=0._r8
 
   rr = re + hr
@@ -846,7 +852,7 @@ subroutine gradlpv(hr,alt,fx,fy,fz,fv,gradx,grady,gradz,gradv, &
 !  If southern magnetic hemisphere, reverse sign of xlatm
 !
   if (slp < 0._r8) xlatm = -xlatm
-  do i=1,3  
+  do i=1,3
     grclp = cpm*gradx(i) + spm*grady(i)
     rgrlp(i) = r*(clp*gradz(i) - slp*grclp)
     grclm(i) = sqrror*grclp
@@ -857,7 +863,7 @@ subroutine gradlpv(hr,alt,fx,fy,fz,fv,gradx,grady,gradz,gradv, &
 end subroutine gradlpv
 !-----------------------------------------------------------------------
 subroutine basevec(hr,xlatm,grclm,clmgrp,rgrlp,b,clm,r3_2, &
-                   bmag,sim,si,f,d,w,bhat,d1,d2,d3,e1,e2,e3,f1,f2)
+                   bmag,sim,si,f,d,w,bhat,d1,d2,d3,e1,e2,e3,f1,f2,f3,g1,g2,g3)
 !
 ! Computes base vectors and other parameters for apex coordinates.
 ! Vector components:  east, north, up
@@ -873,7 +879,7 @@ subroutine basevec(hr,xlatm,grclm,clmgrp,rgrlp,b,clm,r3_2, &
     grclm,   & ! grad(cos(lambda_m)), in km-1
     clmgrp,  & ! cos(lambda_m)*grad(phi_a), in km-1
     rgrlp,   & ! (re + altitude)*grad(lambda')
-    b          ! ((re + altitude)/(re + hr))**(3/2)
+    b          ! magnetic field, in nT
 
   real(r8),intent(out) :: & ! scalar output
     bmag,    & ! magnitude of magnetic field, in nT
@@ -884,10 +890,8 @@ subroutine basevec(hr,xlatm,grclm,clmgrp,rgrlp,b,clm,r3_2, &
     w          ! W of Richmond reference
 
   real(r8),dimension(3),intent(out) :: & ! 3-component outputs
-    bhat,             & ! unit vector along geomagnetic field direction
-    d1,d2,d3,e1,e2,e3   ! base vectors of Richmond reference
-  real(r8),dimension(2),intent(out) :: & ! 2-component outputs
-    f1,f2               ! base vectors of Richmond reference
+    bhat,    & ! unit vector along geomagnetic field direction
+    d1,d2,d3,e1,e2,e3,f1,f2,f3,g1,g2,g3  ! base vectors of Richmond reference
 !
 ! Local:
   integer :: i
@@ -912,10 +916,10 @@ subroutine basevec(hr,xlatm,grclm,clmgrp,rgrlp,b,clm,r3_2, &
   do i=1,3
     d1(i) = d1(i) - d1db*bhat(i)
     d2(i) = d2(i) - d2db*bhat(i)
-  enddo  
+  enddo
   e3(1) = d1(2)*d2(3) - d1(3)*d2(2)
   e3(2) = d1(3)*d2(1) - d1(1)*d2(3)
-  e3(3) = d1(1)*d2(2) - d1(2)*d2(1) 
+  e3(3) = d1(1)*d2(2) - d1(2)*d2(1)
   d = bhat(1)*e3(1) + bhat(2)*e3(2) + bhat(3)*e3(3)
   do i=1,3
     d3(i) = bhat(i)/d
@@ -934,6 +938,21 @@ subroutine basevec(hr,xlatm,grclm,clmgrp,rgrlp,b,clm,r3_2, &
   f2(1) = -d1(2)*r3_2
   f2(2) =  d1(1)*r3_2
   f = f1(1)*f2(2) - f1(2)*f2(1)
+! Added output 2015 February 17
+  f1(3) = 0.
+  f2(3) = 0.
+  g1(1) = r3_2*d1(1)/f
+  g1(2) = r3_2*d1(2)/f
+  g1(3) = r3_2*d1(3)/f
+  g2(1) = rgrlp(1)/f
+  g2(2) = rgrlp(2)/f
+  g2(3) = rgrlp(3)/f
+  g3(1) = 0.
+  g3(2) = 0.
+  g3(3) = f
+  f3(1) = g1(2)*g2(3) - g1(3)*g2(2)
+  f3(2) = g1(3)*g2(1) - g1(1)*g2(3)
+  f3(3) = g1(1)*g2(2) - g1(2)*g2(1)
 
 end subroutine basevec
 !-----------------------------------------------------------------------
@@ -950,14 +969,14 @@ subroutine apex_dypol(colat,elon,vp)
   real(r8) :: gpl,ctp
 !
 ! Compute geographic colatitude and longitude of the north pole of
-! earth centered dipole  
+! earth centered dipole
 !
   gpl = sqrt( gb(2  )**2+ gb(3  )**2+ gb(4  )**2)
   ctp = gb(2  )/gpl
 
   colat = (acos(ctp))*rtd
   elon = atan2( gb(4  ), gb(3  ))*rtd
-!           
+!
 ! Compute magnitude of magnetic potential at pole, radius Re.
 !      .2 = 2*(10**-4 T/gauss)*(1000 m/km) (2 comes through f0 in COFRM).
 !
@@ -1051,7 +1070,7 @@ subroutine linapx(gdlat,glon,alt,aht,alat,alon,xmag,ymag,zmag,fmag)
 !
 ! Get magnetic field components to determine the direction for tracing field line:
 !
-  iflag = 1 
+  iflag = 1
   call feldg(iflag,gdlat,glon,alt,xmag,ymag,zmag,fmag)
 
   sgn = sign(1._r8,-zmag)
@@ -1101,7 +1120,7 @@ subroutine convrt(iflag,gdlat,alt,x1,x2)
 !           x2    = Distance above (north of) Earth's equatorial plane (km)
 !
 ! iflag = 2: Convert from geodetic to geocentric spherical
-!   Input:  gdlat = Geodetic latitude (deg) 
+!   Input:  gdlat = Geodetic latitude (deg)
 !           alt   = Altitude above reference ellipsoid (km)
 !   Output: x1    = Geocentric latitude (deg)
 !           x2    = Geocentric distance (km)
@@ -1237,7 +1256,7 @@ subroutine feldg(iflag,glat,glon,alt,bnrth,beast,bdown,babs)
 !     bnrth = North component of field vector (Gauss)
 !     beast = East component of field vector (Gauss)
 !     bdown = Downward component of field vector (Gauss)
-!     babs  = Magnitude of field vector (Gauss)  
+!     babs  = Magnitude of field vector (Gauss)
 !
 ! iflag = 2:
 !   Inputs:
@@ -1264,8 +1283,8 @@ subroutine feldg(iflag,glat,glon,alt,bnrth,beast,bdown,babs)
 ! Args:
   integer,intent(in)     :: iflag
   real(r8),intent(in)    :: glon
-  real(r8),intent(inout) :: glat
-  real(r8),intent(inout) :: alt
+  real(r8),intent(out)   :: glat
+  real(r8),intent(out)   :: alt
   real(r8),intent(out)   :: bnrth,beast,bdown,babs
 !
 ! Local:
@@ -1397,8 +1416,8 @@ subroutine dipapx(gdlat,gdlon,alt,bnorth,beast,bdown,a,alon)
 ! Output:
 !   a      = apex radius, 1 + h_A/R_eq
 !   alon   = apex longitude, degrees
-!     
-! Algorithm: 
+!
+! Algorithm:
 !   Use spherical coordinates.
 !   Let GP be geographic pole.
 !   Let GM be geomagnetic pole (colatitude COLAT, east longitude ELON).
@@ -1483,9 +1502,9 @@ subroutine itrace(iapx)
 ! in cartesian coordinates.
 ! (yapx,yp,y are module data)
 !
-  yploc(1,4) = sgn*bx/bb 
-  yploc(2,4) = sgn*by/bb 
-  yploc(3,4) = sgn*bz/bb 
+  yploc(1,4) = sgn*bx/bb
+  yploc(2,4) = sgn*by/bb
+  yploc(3,4) = sgn*bz/bb
 
   if (nstp > 7) then
     do i=1,3
@@ -1581,7 +1600,7 @@ subroutine fndapx(alt,zmag,a,alat,alon)
     call convrt(iflag_convrt,gdlt,ht(i),rho,yapx(3,i))
     gdln = rtd*atan2(yapx(2,i),yapx(1,i))
     call feldg(iflag_feldg,gdlt,gdln,ht(i),x,ydum,z(i),f)
-  enddo 
+  enddo
 !
 ! Find cartesian coordinates at dip equator by interpolation
 !
@@ -1597,7 +1616,7 @@ subroutine fndapx(alt,zmag,a,alat,alon)
   xinter = max(alt,xinter)
   a = (req+xinter)/req
 !
-! Find apex coordinates , giving alat sign of dip at starting point.  
+! Find apex coordinates , giving alat sign of dip at starting point.
 ! Alon is the value of the geomagnetic longitude at the apex.
 !
   if (a < 1._r8) then
@@ -1617,11 +1636,11 @@ subroutine fndapx(alt,zmag,a,alat,alon)
 !   Let ANG be longitude angle from GM to apex.
 !   Let TP be colatitude of GM.
 !   Let TF be arc length between GM and apex.
-!   Let PA = ALON be geomagnetic longitude, i.e., Pi minus angle measured 
+!   Let PA = ALON be geomagnetic longitude, i.e., Pi minus angle measured
 !     counterclockwise from arc GM-apex to arc GM-GP.
 !   Then, using notation C=cos, S=sin, spherical-trigonometry formulas
 !     for the functions of the angles are as shown below.  Note: STFCPA,
-!     STFSPA are sin(TF) times cos(PA), sin(PA), respectively. 
+!     STFSPA are sin(TF) times cos(PA), sin(PA), respectively.
 !
   xlon = atan2(yloc(2),yloc(1))
   ang  = xlon-elon*dtr
@@ -1668,7 +1687,7 @@ subroutine gm2gc(gmlat,gmlon,gclat,gclon)
 !
 ! elon is in module data, and was set by dypol (called from apex_mka)
 !
-  gclon = gclon*rtd + elon 
+  gclon = gclon*rtd + elon
   if (gclon < -180._r8) gclon = gclon + 360._r8
 
 end subroutine gm2gc
@@ -1712,14 +1731,14 @@ subroutine intrp(glat,glon,alt, gplat,gplon,gpalt, nlat,nlon,nalt, &
       i0 = i
       dlat = gplat(i+1)-gplat(i)
       xi = (glat - gplat(i)) / dlat
-      exit 
+      exit
     endif
   enddo
   if (i0==0) then
     write(iulog,"('>>> intrp: could not bracket glat=',f9.3,' in gplat=',/,(6f9.2))") &
       glat,gplat
     ier = 1
-    return 
+    return
   endif
 
   j0 = 0
@@ -1728,14 +1747,14 @@ subroutine intrp(glat,glon,alt, gplat,gplon,gpalt, nlat,nlon,nalt, &
       j0 = j
       dlon = gplon(j+1)-gplon(j)
       yj = (glon - gplon(j)) / dlon
-      exit 
+      exit
     endif
   enddo
   if (j0==0) then
     write(iulog,"('>>> intrp: could not bracket glon=',f9.3,' in gplon=',/,(6f9.2))") &
       glon,gplon
     ier = 1
-    return 
+    return
   endif
 
   k0 = 0
@@ -1745,14 +1764,14 @@ subroutine intrp(glat,glon,alt, gplat,gplon,gpalt, nlat,nlon,nalt, &
       hti = re/(re+alt)
       diht = re/(re+gpalt(k+1)) - re/(re+gpalt(k))
       zk = (hti - re/(re+gpalt(k))) / diht
-      exit 
+      exit
     endif
   enddo
   if (k0==0) then
     write(iulog,"('>>> intrp: could not bracket alt=',f12.3,' in gpalt=',/,(6f12.2))") &
       alt,gpalt
     ier = 1
-    return 
+    return
   endif
 
   call trilin(xarray(i0:i0+1,j0:j0+1,k0:k0+1),xi,yj,zk,fx,dfxdn,dfxde,dfxdd)
@@ -1885,7 +1904,7 @@ subroutine adpl(glat,glon,cth,sth,fx,fy,fz,fv, &
   fv = fv - ctm
 
   dfxdth = dfxdth + ctp*cth*cph + stp*sth
-  dfydth = dfydth + cth*sph 
+  dfydth = dfydth + cth*sph
   dfzdth = dfzdth - ctp*sth + stp*cth*cph
   dfvdth = dfvdth + ctp*sth - stp*cth*cph
 
@@ -1897,13 +1916,12 @@ subroutine adpl(glat,glon,cth,sth,fx,fy,fz,fv, &
 end subroutine adpl
 !-----------------------------------------------------------------------
 subroutine setmiss(xmiss,xlatm,alon,vmp,b,bmag,be3,sim,si,f,d,w, &
-  bhat,d1,d2,d3,e1,e2,e3,f1,f2)
+                   bhat,d1,d2,d3,e1,e2,e3,f1,f2,f3,g1,g2,g3)
 !
 ! Args:
   real(r8),intent(in)  :: xmiss
   real(r8),intent(out) :: xlatm,alon,vmp,bmag,be3,sim,si,f,d,w
-  real(r8),dimension(3),intent(out) :: bhat,d1,d2,d3,e1,e2,e3,b
-  real(r8),dimension(2),intent(out) :: f1,f2
+  real(r8),dimension(3),intent(out) :: bhat,d1,d2,d3,e1,e2,e3,b,f1,f2,f3,g1,g2,g3
 
   xlatm = xmiss
   alon  = xmiss
@@ -1925,6 +1943,10 @@ subroutine setmiss(xmiss,xlatm,alon,vmp,b,bmag,be3,sim,si,f,d,w, &
   b     = xmiss
   f1    = xmiss
   f2    = xmiss
+  f3    = xmiss
+  g1    = xmiss
+  g2    = xmiss
+  g3    = xmiss
 
 end subroutine setmiss
 !-----------------------------------------------------------------------
@@ -1938,7 +1960,7 @@ subroutine cofrm(date)
   integer :: m,n,i,l,ll,lm,nmx,nc,kmx,k,nn
   real(r8) :: t,one,tc,f,f0
 
-  integer :: ngh !  = n1*ncn1 + n2*ncn2 + 1 
+  integer :: ngh !  = n1*ncn1 + n2*ncn2 + 1
   real(r8) :: gh(n1*ncn1 + n2*ncn2 + 1)
 
   real(r8),parameter :: alt = 0._r8
@@ -1972,8 +1994,8 @@ subroutine cofrm(date)
     gh(i+1:i+n2) = g2(:,n)
 !   write(iulog,"('cofrm: n=',i3,' i+1:i+n2=',i4,':',i4)") n,i+1,i+n2
   enddo
-  gh(ngh) = 0._r8 ! not sure why gh is dimensioned with the extra element, so set it to 0. 
-  
+  gh(ngh) = 0._r8 ! not sure why gh is dimensioned with the extra element, so set it to 0.
+
   if (date < apex_end_yr-10) then
     t   = 0.2_r8*(date - year1)
     ll  = t
@@ -2014,7 +2036,7 @@ subroutine cofrm(date)
 !
 ! Set outputs gb(ncoef) and gv(ncoef)
 ! These are module data above.
-! 
+!
   gb(1) = 0._r8
   gv(1) = 0._r8
   f0 = -1.e-5_r8
@@ -2031,9 +2053,9 @@ subroutine cofrm(date)
     if (m /= 0) then
       f = f / sqrt(dble(n-m+1) / dble(n+m) )
       gb(l+1)  = (tc*gh(lm) + t*gh(lm+nc))* f
-    else   
+    else
       gb(l+1)  = (tc*gh(lm) + t*gh(lm+nc))* f0
-    endif  
+    endif
     gv(l+1) = gb(l+1)/dble(nn)
     if (m /= 0) then
       gb(l+2)  = (tc*gh(lm+1) + t*gh(lm+nc+1))*f
@@ -2054,7 +2076,7 @@ subroutine apex_subsol(iyr,iday,ihr,imn,sec,sbsllat,sbsllon)
 !
 ! Find subsolar geographic latitude and longitude given the
 ! date and time (Universal Time).
-!     
+!
 ! This is based on formulas in Astronomical Almanac for the
 ! year 1996, p.  C24. (U.S.  Government Printing Office,
 ! 1994).  According to the Almanac, results are good to at
@@ -2065,7 +2087,7 @@ subroutine apex_subsol(iyr,iday,ihr,imn,sec,sbsllat,sbsllon)
 ! to have exactly 86400 seconds; thus leap seconds that
 ! sometimes occur on June 30 and December 31 are ignored:
 ! their effect is below the accuracy threshold of the algorithm.
-!     
+!
 ! 961026 A. D. Richmond, NCAR
 !
 ! Input Args:
@@ -2123,63 +2145,63 @@ subroutine apex_subsol(iyr,iday,ihr,imn,sec,sbsllat,sbsllon)
 !  where ARBITRARY INTEGER = YR+1.  This gives:
 !
       l0 = -79.549_r8 + (-.238699_r8*(yr-4*nleap) + 3.08514e-2_r8*nleap)
-!                 
+!
 ! G0 = Mean anomaly at 12 UT on January 1 of IYR:
 !     G0 = 357.528 + .9856003*(365*(YR-NLEAP) + 366*NLEAP)
 !          - (ARBITRARY INTEGER)*360.
-!        = 357.528 + .9856003*(365*(YR-4*NLEAP) + (366+365*3)*NLEAP) 
+!        = 357.528 + .9856003*(365*(YR-4*NLEAP) + (366+365*3)*NLEAP)
 !          - (ARBITRARY INTEGER)*360.
 !        = (357.528 - 360.) + (.9856003*365 - 360.)*(YR-4*NLEAP)
 !          + (.9856003*(366+365*3) - 4*360.)*NLEAP,
 !  where ARBITRARY INTEGER = YR+1.  This gives:
 !
       g0 = -2.472_r8 + (-.2558905_r8*(yr-4*nleap) - 3.79617e-2_r8*nleap)
-!     
+!
 ! Universal time in seconds:
       ut = dble(ihr*3600 + imn*60) + sec
 !
 ! Days (including fraction) since 12 UT on January 1 of IYR:
       df = (ut/86400._r8 - 1.5_r8) + iday
 !
-! Addition to Mean longitude of Sun since January 1 of IYR: 
+! Addition to Mean longitude of Sun since January 1 of IYR:
       lf = .9856474_r8*df
-! 
+!
 ! Addition to Mean anomaly since January 1 of IYR:
       gf = .9856003_r8*df
-! 
+!
 ! Mean longitude of Sun:
       l = l0 + lf
-! 
+!
 ! Mean anomaly:
       g = g0 + gf
       grad = g*d2r
-! 
+!
 ! Ecliptic longitude:
       lambda = l + 1.915_r8*sin(grad) + .020_r8*sin(2._r8*grad)
       lamrad = lambda*d2r
       sinlam = sin(lamrad)
-! 
+!
 ! Days (including fraction) since 12 UT on January 1 of 2000:
       n = df + 365._r8*yr + dble(nleap)
-! 
-! Obliquity of ecliptic: 
+!
+! Obliquity of ecliptic:
       epsilon = 23.439_r8 - 4.e-7_r8*n
       epsrad = epsilon*d2r
-! 
+!
 ! Right ascension:
       alpha = atan2(cos(epsrad)*sinlam,cos(lamrad))*r2d
-! 
+!
 ! Declination:
       delta = asin(sin(epsrad)*sinlam)*r2d
-! 
+!
 ! Subsolar latitude (output argument):
       sbsllat = delta
-! 
+!
 ! Equation of time (degrees):
       etdeg = l - alpha
       nrot = nint(etdeg/360._r8)
       etdeg = etdeg - dble(360*nrot)
-! 
+!
 ! Apparent time (degrees):
 ! Earth rotates one degree every 240 s.
       aptime = ut/240._r8 + etdeg
@@ -2199,8 +2221,8 @@ subroutine solgmlon(xlat,xlon,colat,elon,mlon)
 ! 940719 A. D. Richmond, NCAR
 !
 ! Algorithm:
-!   Use spherical coordinates. 
-!   Let GP be geographic pole. 
+!   Use spherical coordinates.
+!   Let GP be geographic pole.
 !   Let GM be geomagnetic pole (colatitude COLAT, east longitude ELON).
 !   Let XLON be longitude of point P.
 !   Let TE be colatitude of point P.
@@ -2208,16 +2230,16 @@ subroutine solgmlon(xlat,xlon,colat,elon,mlon)
 !   Let TP be colatitude of GM.
 !   Let TF be arc length between GM and P.
 !   Let PA = MLON be geomagnetic longitude, i.e., Pi minus angle measured
-!     counterclockwise from arc GM-P to arc GM-GP. 
+!     counterclockwise from arc GM-P to arc GM-GP.
 !   Then, using notation C=cos, S=sin, spherical-trigonometry formulas
 !     for the functions of the angles are as shown below.  Note: STFCPA,
 !     STFSPA are sin(TF) times cos(PA), sin(PA), respectively.
 !
 ! Input Args:
   real(r8),intent(in)  :: xlat,xlon,colat,elon
-! 
+!
 ! Output Arg: Geomagnetic dipole longitude of the point (deg, -180. to 180.)
-  real(r8),intent(out) :: mlon 
+  real(r8),intent(out) :: mlon
 !
 ! Local:
   real(r8),parameter ::           &
