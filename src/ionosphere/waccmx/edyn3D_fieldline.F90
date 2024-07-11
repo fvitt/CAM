@@ -61,7 +61,6 @@ module edyn3D_fieldline
 
      real(r8), allocatable :: glat(:)	 ! geog. latitude
      real(r8), allocatable :: glon(:)	 ! geog. longitude
-!#ifdef XXXRMVZZZ
      real(r8), allocatable :: D(:)	 !  D
      real(r8), allocatable :: F(:)	 !  F
      real(r8), allocatable :: sinI(:)	 !  sinI
@@ -72,7 +71,6 @@ module edyn3D_fieldline
      real(r8), allocatable :: Jr(:)	 !  Jr
      real(r8), allocatable :: I1hor(:)   !  I1horizontal
      real(r8), allocatable :: I2hor(:)   !  I2horizontal
-!#endif
      integer, allocatable :: ngh_pts(:,:)  ! neighboring points lat_index
   end type fieldline_p
 
@@ -106,7 +104,6 @@ module edyn3D_fieldline
 
      real(r8), allocatable :: glat(:)	 ! geog. latitude
      real(r8), allocatable :: glon(:)	 ! geog. longitude
-!#ifdef XXXRMVZZZ
      real(r8), allocatable :: sinI(:)	 ! sinI coefficient
      real(r8), allocatable :: D(:)	 ! D coefficient
      real(r8), allocatable :: F(:)	 ! F factor
@@ -119,7 +116,6 @@ module edyn3D_fieldline
 
      real(r8), allocatable :: je3(:)	 ! je3 current
      real(r8), allocatable :: Jr(:)	 ! Jr current (diagnostic)
-!#endif
      integer, allocatable :: ngh_pts(:,:)  ! neighboring points lat_index
   end type fieldline_r
   !
@@ -146,7 +142,6 @@ module edyn3D_fieldline
 
      real(r8), allocatable :: glat(:)    ! geog. latitude
      real(r8), allocatable :: glon(:)    ! geog. longitude
-!#ifdef XXXRMVZZZ
      real(r8), allocatable :: Vmp(:)     ! magnetic fpotential [TM]
      real(r8), allocatable :: Bmag(:)    ! magnetic field magnitude []
      real(r8), allocatable :: sinI(:)    ! local inclination sin I
@@ -188,7 +183,6 @@ module edyn3D_fieldline
      real(r8), allocatable :: I13d_1(:)  ! I1
      real(r8), allocatable :: I13d_2(:)  ! I1
      real(r8), allocatable :: I13d_3(:)  ! I1
-!#endif
      integer, allocatable :: ngh_pts(:,:)  ! neighboring points lat_index
   end type fieldline_s1
   !
@@ -214,7 +208,6 @@ module edyn3D_fieldline
 
      real(r8), allocatable :: glat(:)    ! geog. latitude
      real(r8), allocatable :: glon(:)    ! geog. longitude
-!#ifdef XXXRMVZZZ
      real(r8), allocatable :: Vmp(:)     ! magnetic fpotential [TM]
      real(r8), allocatable :: Bmag(:)    ! magnetic field magnitude [T]
      real(r8), allocatable :: sinI(:)    ! local inclination sin I
@@ -265,7 +258,6 @@ module edyn3D_fieldline
 
      real(r8), allocatable :: je2(:)      ! je2 current
      real(r8), allocatable :: I2(:)       ! I2 current meridional current integrated over the lon/hgt surface
-!#endif
      integer, allocatable :: ngh_pts(:,:)  ! neighboring points lat_index
   end type fieldline_s2
   !
@@ -393,7 +385,6 @@ module edyn3D_fieldline
             fline_p(i,j,isn)%glon = -huge(1._r8)
             fline_p(i,j,isn)%glat = -huge(1._r8)
             allocate(fline_p(i,j,isn)%ngh_pts(2,fline_p(i,j,isn)%npts)) ! lat_ind of neighboring point
-#ifdef XXXRMVZZZ
             allocate(fline_p(i,j,isn)%D(fline_p(i,j,isn)%npts))
             allocate(fline_p(i,j,isn)%F(fline_p(i,j,isn)%npts))
             allocate(fline_p(i,j,isn)%sinI(fline_p(i,j,isn)%npts))
@@ -407,7 +398,7 @@ module edyn3D_fieldline
 
 !          allocate(fline_p(i,j,isn)%pot(fline_p(i,j,isn)%npts))
 !          allocate(fline_p(i,j,isn)%pot_test(fline_p(i,j,isn)%npts)) ! am 1/2015 for testing
-#endif
+
              fline_r(i,j,isn)%mlon_m = ylonm(i)  !
 
              allocate(fline_r(i,j,isn)%hgt_pt(fline_r(i,j,isn)%npts))  ! should be independent of longitude
@@ -416,7 +407,6 @@ module edyn3D_fieldline
              allocate(fline_r(i,j,isn)%glon(fline_r(i,j,isn)%npts))
              allocate(fline_r(i,j,isn)%glat(fline_r(i,j,isn)%npts))
              allocate(fline_r(i,j,isn)%ngh_pts(2,fline_r(i,j,isn)%npts)) ! lat_ind of neighboring point
-#ifdef XXXRMVZZZ
              allocate(fline_r(i,j,isn)%D(fline_r(i,j,isn)%npts))
              allocate(fline_r(i,j,isn)%F(fline_r(i,j,isn)%npts))
              allocate(fline_r(i,j,isn)%sinI(fline_r(i,j,isn)%npts))
@@ -429,7 +419,6 @@ module edyn3D_fieldline
 
              allocate(fline_r(i,j,isn)%je3(fline_r(i,j,isn)%npts))
              allocate(fline_r(i,j,isn)%Jr(fline_r(i,j,isn)%npts))
-#endif
 !            !
 !            !  Relationship between P and S1 points for the same index (i,j)
 !            !  P(i,j) then is really S1(i+0.5,j) with j increasing equatorward
@@ -442,7 +431,6 @@ module edyn3D_fieldline
              allocate(fline_s1(i,j,isn)%mlon_qd(fline_s1(i,j,isn)%npts))
              allocate(fline_s1(i,j,isn)%glon(fline_s1(i,j,isn)%npts))
              allocate(fline_s1(i,j,isn)%glat(fline_s1(i,j,isn)%npts))
-#ifdef XXXRMVZZZ
              allocate(fline_s1(i,j,isn)%Vmp(fline_s1(i,j,isn)%npts))
              allocate(fline_s1(i,j,isn)%Bmag(fline_s1(i,j,isn)%npts))
              allocate(fline_s1(i,j,isn)%sinI(fline_s1(i,j,isn)%npts))
@@ -482,7 +470,7 @@ module edyn3D_fieldline
              !
              allocate(fline_s1(i,j,isn)%je1(fline_s1(i,j,isn)%npts))
              allocate(fline_s1(i,j,isn)%I1(fline_s1(i,j,isn)%npts))
-#endif
+
              allocate(fline_s1(i,j,isn)%ngh_pts(2,fline_s1(i,j,isn)%npts)) ! lat_ind of neighboring point
              do k=1,fline_p(i,j,isn)%npts
 
@@ -540,7 +528,6 @@ endif
               allocate(fline_s2(i,j,isn)%mlon_qd(fline_s2(i,j,isn)%npts))
               allocate(fline_s2(i,j,isn)%glon(fline_s2(i,j,isn)%npts))
               allocate(fline_s2(i,j,isn)%glat(fline_s2(i,j,isn)%npts))
-#ifdef XXXRMVZZZ
               allocate(fline_s2(i,j,isn)%Vmp(fline_s2(i,j,isn)%npts))
               allocate(fline_s2(i,j,isn)%Bmag(fline_s2(i,j,isn)%npts))
               allocate(fline_s2(i,j,isn)%sinI(fline_s2(i,j,isn)%npts))
@@ -589,7 +576,6 @@ endif
               allocate(fline_s2(i,j,isn)%ngh_pts(2,fline_s2(i,j,isn)%npts)) ! lat_ind of neighboring point
               allocate(fline_s2(i,j,isn)%je2(fline_s2(i,j,isn)%npts))
               allocate(fline_s2(i,j,isn)%I2(fline_s2(i,j,isn)%npts))
-#endif
 !
               do k=1,fline_s2(i,j,isn)%npts
 !
@@ -818,13 +804,13 @@ endif
                   call apex_mall(gdlat,gdlon,alt,href,b,bhat,bmag,si, &
                        alon,xlatm,vmp,w,d,be3,sim,d1,d2,d3,e1,e2,e3, &
                        xlatqd,f,f1,f2,f3, g1,g2, g3, ierr)
-#ifdef XXXRMVZZZ
+
                   fline_p(i,j,isn)%sinI(k) = si ! sin(I)
                   fline_p(i,j,isn)%D(k) = d
                   fline_p(i,j,isn)%F(k) = f
                   fline_p(i,j,isn)%d1k(k) = d1(3) ! k: unit vector upward
                   fline_p(i,j,isn)%d2k(k) = d2(3) ! k: unit vector upward
-#endif
+
                   qdlat = fline_r(i,j,isn)%mlat_qd(k)*r2d ! get quasi-dipole latitude
                   qdlon = fline_r(i,j,isn)%mlon_qd(k)*r2d ! get quasi-dipole longitude
                   alt = fline_r(i,j,isn)%hgt_pt(k)*1e-3 ! convert height from [m] to [km]
@@ -837,13 +823,12 @@ endif
                   call apex_mall(gdlat,gdlon,alt,href,b,bhat,bmag,si, &
                        alon,xlatm,vmp,w,d,be3,sim,d1,d2,d3,e1,e2,e3, &
                        xlatqd,f,f1,f2,f3, g1,g2,g3, ierr)
-#ifdef XXXRMVZZZ
+
                   fline_r(i,j,isn)%sinI(k) = si ! sin(I)
                   fline_r(i,j,isn)%D(k) = d
                   fline_r(i,j,isn)%F(k) = f
                   !fline_r(i,j,isn)%d1k(k) = d1(3) ! k: unit vector upward
                   !fline_r(i,j,isn)%d2k(k) = d2(3) ! k: unit vector upward
-#endif
 
                   qdlat = fline_s1(i,j,isn)%mlat_qd(k)*r2d ! get quasi-dipole latitude
                   qdlon = fline_s1(i,j,isn)%mlon_qd(k)*r2d ! get quasi-dipole longitude
@@ -857,13 +842,13 @@ endif
                   call apex_mall(gdlat,gdlon,alt,href,b,bhat,bmag,si, &
                        alon,xlatm,vmp,w,d,be3,sim,d1,d2,d3,e1,e2,e3, &
                        xlatqd,f,f1,f2,f3, g1,g2,g3, ierr)
-#ifdef XXXRMVZZZ
+
                   fline_s1(i,j,isn)%sinI(k) = si ! sin(I)
                   fline_s1(i,j,isn)%D(k) = d
                   fline_s1(i,j,isn)%F(k) = f
                   !fline_s1(i,j,isn)%d1k(k) = d1(3) ! k: unit vector upward
                   !fline_s1(i,j,isn)%d2k(k) = d2(3) ! k: unit vector upward
-#endif
+
                enddo
             end do
          end do
