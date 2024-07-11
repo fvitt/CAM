@@ -240,6 +240,7 @@ contains
   !  density
   !  hygroscopicity
   !  species type
+  !  species name
   !  short wave species refractive indices
   !  long wave species refractive indices
   !  species morphology
@@ -724,7 +725,8 @@ contains
        end if
     end do
 
-    diam = 2._r8*((0.75*mass / pi  / (1.0e-3_r8*rho))**0.33_r8)    ! specdens kg/m3 to g/cm3, convert from radiust to diameter
+    ! specdens kg/m3 to g/cm3, convert from radius to diameter
+    diam = 2._r8*((0.75*mass / pi  / (1.0e-3_r8*rho))**0.33_r8)
 
   end function scav_diam
 
@@ -755,48 +757,69 @@ contains
 
     class(carma_aerosol_properties), intent(in) :: self
     character(len=*),intent(in) :: bulk_type ! aerosol type to rebin
-    real(r8), intent(in) :: dep_fluxes(:) ! kg/m2
+    real(r8), intent(in) :: dep_fluxes(:) ! kg/m2/sec
     real(r8), intent(in) :: diam_edges(:) ! meters
-    real(r8), intent(out) :: bulk_fluxes(:) ! kg/m2
+    real(r8), intent(out) :: bulk_fluxes(:) ! kg/m2/sec
 
-    real(r8) :: bindiam ! meters
-    integer :: m,l,mm
-    integer :: n_bulk_bins, ibulk
+    real(r8) :: mflx, mflx_tot
+    real(r8) :: rho, mass, frac, diam
+    integer :: i, m,l,mm
+    integer :: n_bulk_bins
     character(len=aero_name_len) :: spectype
 
     n_bulk_bins = size(bulk_fluxes)
 
-
     bulk_fluxes(:) = 0._r8
 
-    do m = 1,self%nbins()
-       do l = 1,self%nspecies(m)
+    bin_loop: do m = 1,self%nbins()
+
+       mflx_tot = 0._r8
+       mflx = 0._r8
+
+       species: do l = 1,self%nspecies(m)
           mm = self%indexer(m,l)
+          mflx_tot = mflx_tot + dep_fluxes(mm)
+
           call self%get(m,l,spectype=spectype)
 
           if (spectype==bulk_type) then
-             bindiam = bin_radius(m) * 2._r8  ! meters
-             ibulk = bulk_index(bindiam)
-             if (ibulk>0) then
-                bulk_fluxes(ibulk) = bulk_fluxes(ibulk) + dep_fluxes(mm)
-             end if
+             mflx = dep_fluxes(mm)
+             call self%get(m,l,density=rho) ! kg/m3
           end if
+       end do species
 
-       end do
-    end do
+       ! mass flux fraction
+       frac = mflx/mflx_tot
+
+       ! mass of the specified aerosol type
+       mass = frac * bin_mass(m) ! kg
+
+       ! diameter in meters
+       diam = 2._r8*((0.75_r8*mass/pi/rho)**0.333333_r8)
+
+       ! add the flux to the corresponding bulk bin
+       blk_loop: do i = 1,n_bulk_bins-1
+          if (diam>diam_edges(i) .and. diam<=diam_edges(i+1)) then
+             bulk_fluxes(i) = bulk_fluxes(i) + mflx
+             exit blk_loop
+          end if
+       end do blk_loop
+
+    end do bin_loop
 
   contains
 
     !---------------------------------------------------------------
-    real(r8) function bin_radius(bin_ndx) ! (microns)
-      use carma_intr, only: carma_get_bin_radius
-      use carma_intr, only: carma_get_group_by_name
+    ! get mass of the specified bin in kg -- could be done at init time ...
+    !---------------------------------------------------------------
+    real(r8) function bin_mass(bin_ndx) ! (kg)
+      use carma_intr, only: carma_get_bin_rmass, carma_get_group_by_name
 
       integer, intent(in) :: bin_ndx
 
       character(len=aero_name_len) :: bin_name, shortname
       integer :: ibin, igroup, rc, nchr
-      real(r8) :: radcm
+      real(r8) :: rmass
 
       call rad_cnst_get_info_by_bin(0, bin_ndx, bin_name=bin_name)
 
@@ -807,28 +830,10 @@ contains
 
       read(bin_name(nchr+1:),*) ibin
 
-      call carma_get_bin_radius(igroup, ibin, radcm, rc)
+      call carma_get_bin_rmass(igroup, ibin, rmass, rc)
+      bin_mass = rmass * 1.e-3_r8 ! g->kg
 
-      bin_radius = radcm * 1.e-2 ! meters
-
-    end function bin_radius
-
-    !---------------------------------------------------------------
-    integer function bulk_index(diam)
-      real(r8), intent(in) :: diam ! meters
-
-      integer :: ndx
-
-      bulk_index = -huge(1)
-
-      ndx_loop: do ndx = 1,n_bulk_bins
-         if (diam>diam_edges(ndx) .and. diam<=diam_edges(ndx+1)) then
-            bulk_index = ndx
-            exit ndx_loop
-         end if
-      end do ndx_loop
-
-    end function bulk_index
+    end function bin_mass
 
   end subroutine rebin_bulk_fluxes
 
