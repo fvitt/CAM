@@ -287,7 +287,11 @@ contains
        call rad_cnst_get_bin_props_by_idx(ilist, bin_ndx, species_ndx, specmorph=specmorph)
     end if
     if (present(specname)) then
-       call rad_cnst_get_info_by_bin_spec(ilist, bin_ndx, species_ndx, spec_name=specname)
+       if (species_ndx>self%nspecies(bin_ndx)) then
+          call rad_cnst_get_info_by_bin(0, bin_ndx,  mmr_name=specname)
+       else
+          call rad_cnst_get_info_by_bin_spec(ilist, bin_ndx, species_ndx, spec_name=specname)
+       end if
     end if
 
   end subroutine get
@@ -776,15 +780,24 @@ contains
        mflx_tot = 0._r8
        mflx = 0._r8
 
-       species: do l = 1,self%nspecies(m)
+       species: do l = 1,self%nmasses(m)
           mm = self%indexer(m,l)
-          mflx_tot = mflx_tot + dep_fluxes(mm)
 
-          call self%get(m,l,spectype=spectype)
+          if (l>self%nspecies(m)) then
+             ! use mass flux for the entire bin (concentration element) if available
+             ! -- override the total summed below
+             mflx_tot = dep_fluxes(mm)
+          else
+             ! this sums up the total assuming all species are transported
+             mflx_tot = mflx_tot + dep_fluxes(mm)
 
-          if (spectype==bulk_type) then
-             mflx = dep_fluxes(mm)
-             call self%get(m,l,density=rho) ! kg/m3
+             call self%get(m,l,spectype=spectype)
+
+             if (spectype==bulk_type) then
+                ! get mass flux and density of the specified type
+                mflx = dep_fluxes(mm)
+                call self%get(m,l,density=rho) ! kg/m3
+             end if
           end if
        end do species
 
