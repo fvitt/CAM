@@ -963,10 +963,10 @@ module ionosphere_interface
          nullify(opmmrtm1_blck)
          deallocate(phis)
          nullify(phis)
-         deallocate(u_blck)
-         nullify(u_blck)
-         deallocate(v_blck)
-         nullify(v_blck)
+!         deallocate(u_blck)
+!         nullify(u_blck)
+!         deallocate(v_blck)
+!         nullify(v_blck)
          deallocate(ti_blck)
          nullify(ti_blck)
          deallocate(hi_blck)
@@ -1029,7 +1029,7 @@ module ionosphere_interface
          end do
       end do
 
-      call edyn3D_driver_timestep( nphyscols, pver, physalt, tn_in, sigma_ped_blck, sigma_hall_blck, tn_out )
+      call edyn3D_driver_timestep( nphyscols, pver, physalt, tn_in, sigma_ped_blck, sigma_hall_blck, u_blck, v_blck, tn_out )
 
       j = 0
       do lchnk = begchunk, endchunk
@@ -1052,6 +1052,11 @@ module ionosphere_interface
       nullify(sigma_ped_blck)
       deallocate(sigma_hall_blck)
       nullify(sigma_hall_blck)
+
+      deallocate(u_blck)
+      nullify(u_blck)
+      deallocate(v_blck)
+      nullify(v_blck)
 
    end subroutine ionosphere_run2
 

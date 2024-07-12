@@ -243,7 +243,9 @@ subroutine mo_apex_init(phys_state)
    real(r8) :: bhat(3)
    real(r8) :: d3(3)
    real(r8) :: e1(3), e2(3), e3(3)
-   real(r8) :: f1(2), f2(2)
+!obsolete   real(r8) :: f1(2), f2(2)
+   real(r8) :: f1(3), f2(3)
+   real(r8) :: f3(3),g1(3),g2(3),g3(3)
 
    real(r8) :: bg(3), d1g(3), d2g(3), bmg
 
@@ -281,7 +283,7 @@ subroutine mo_apex_init(phys_state)
            bg, bhat, bmag(i,c), si,     & ! Mag Fld
            alon, alat,                                  & ! Apex lon,lat output
            vmp, w, d, be3, sim, d1vec(:,i,c), d2vec(:,i,c),  d3, e1, e2, e3, & ! Mod Apex
-           xlatqd, f, f1, f2, ist )                       ! Qsi-Dpl
+           xlatqd, f, f1, f2, f3, g1, g2, g3, ist )                       ! Qsi-Dpl
          if( ist /= 0 ) then
            write(iulog,"(/,'>>> mo_apex_init: Error from apxmall: ist=',i4)") ist
            call endrun('mo_apex_init: Error from apxmall')
@@ -304,7 +306,7 @@ subroutine mo_apex_init(phys_state)
         bg, bhat, bmg, si,                             & ! Mag Fld
         alon, alat,                                    & ! Apex lon,lat output
         vmp, w, d, be3, sim, d1g, d2g, d3, e1, e2, e3, & ! Mod Apex
-        xlatqd, f, f1, f2, ist )                         ! Qsi-Dpl
+        xlatqd, f, f1, f2, f3, g1, g2, g3, ist )                         ! Qsi-Dpl
 
    if( ist /= 0 ) then
       write(iulog,"(/,'>>> mo_apex_init: Error from apxmall: ist=',i4)") ist

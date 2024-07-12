@@ -5,27 +5,33 @@ module edyn3D_fieldline
 ! Define field line p, r, s1, and s2 structures and allocate and populate variables
 !-------------------------------------------------------------------------------------
 !
-  use edyn3d_params, only: dtr,ylatm,ylatm_s,hgt_fix,nhgt_fix,hgt_fix_r,nhgt_fix_r, &
-    ylonm,ylonm_s,rho,rho_s,ha,ha_s,nmlon,nmlat_T1
-  use shr_kind_mod,  only: r8 => shr_kind_r8            ! 8-byte reals
-  use cam_logfile,    only: iulog
-  use spmd_utils,     only: masterproc
+  use edyn3d_params,      only: dtr,ylatm,ylatm_s,hgt_fix,nhgt_fix,hgt_fix_r,nhgt_fix_r, &
+                                ylonm,ylonm_s,rho,rho_s,ha,ha_s,nmlon,nmlat_T1
+  use shr_kind_mod,       only: r8 => shr_kind_r8            ! 8-byte reals
+  use cam_logfile,        only: iulog
+  use spmd_utils,         only: masterproc
 !
   implicit none
   save
   private
-!
+  !
   ! Public data
   public :: gmapex_p
   public :: gmapex_s
 
-   public :: fline_p
-   public :: fline_r
-   public :: fline_s1
-   public :: fline_s2
-   public :: fieldline_init
-   public :: fieldline_getapex
-
+  public :: fline_p
+  public :: fline_r
+  public :: fline_s1
+  public :: fline_s2
+  public :: fieldline_p
+  public :: fieldline_r
+  public :: fieldline_s1
+  public :: fieldline_s2
+  public :: fieldline_init
+  public :: fieldline_getapex
+  public :: Je2Ion_eq
+  public :: poten_hl
+   
 !   public :: tasks
    ! Public type
 !   public :: array_ptr_type
@@ -302,6 +308,7 @@ module edyn3D_fieldline
                                nmlatS2_h,rtd    ! For s1 and s2 points
       use edyn3d_mpi, only: mlon0_p, mlon1_p
       use edyn3D_mpi, only: ntask, mytid
+      use cam_abortutils, only: endrun
 
       !,hgt_fix_r,ha,ylatm,ylonm, & ! For r points
 
@@ -343,17 +350,32 @@ module edyn3D_fieldline
          write(iulog,"(' edyn3D_fieldline, fieldline_init: Allocating fline structures')")
       endif
       if (masterproc) then
-         write(iulog,*) ' edyn3Dmpi, mpi_init_edyn3D: Initializing with nmlon, nmlat_h', nmlon, nmlat_h
+         write(iulog,*) ' edyn3Dmpi, fieldline_init: Initializing with nmlon, nmlat_h', nmlon, nmlat_h
       endif
        if (masterproc) then
-         write(iulog,*) ' edyn3Dmpi, mpi_init_edyn3D: Longitude p grid ylonm ', ylonm
+         write(iulog,*) ' edyn3Dmpi, fieldline_init: Longitude p grid ylonm ', ylonm
       endif
 
       allocate(fline_p(mlon0_p:mlon1_p,nmlat_h,2),stat=ier)
+      if (ier /= 0) then
+         write(iulog,"('>>> Error allocating fline_p structure: mlon0_p,mlon1_p,nmlat_h =',3i4)") mlon0_p,mlon1_p,nmlat_h
+         call endrun('fieldline_init')
+      endif
       allocate(fline_r(mlon0_p:mlon1_p,nmlat_h,2),stat=ier)
+      if (ier /= 0) then
+         write(iulog,"('>>> Error allocating fline_r structure: mlon0_p,mlon1_p,nmlat_h =',3i4)") mlon0_p,mlon1_p,nmlat_h
+         call endrun('fieldline_init')
+      endif
       allocate(fline_s1(mlon0_p:mlon1_p,nmlat_h,2),stat=ier)     ! note same points as p-fieldlines
+      if (ier /= 0) then
+         write(iulog,"('>>> Error allocating fline_r structure: mlon0_p,mlon1_p,nmlat_h =',3i4)") mlon0_p,mlon1_p,nmlat_h
+         call endrun('fieldline_init')
+      endif
       allocate(fline_s2(mlon0_p:mlon1_p,nmlatS2_h,2),stat=ier)   ! note one point less than p-fieldlines
-
+      if (ier /= 0) then
+         write(iulog,"('>>> Error allocating fline_r structure: mlon0_p,mlon1_p,nmlatS2_h =',3i4)") mlon0_p,mlon1_p,nmlatS2_h
+         call endrun('fieldline_init')
+      endif
 
       !
       ! Fieldlines p, r, and s1 can be done together since dimensions are the same
@@ -393,7 +415,7 @@ module edyn3D_fieldline
             fline_p(i,j,isn)%glon = -huge(1._r8)
             fline_p(i,j,isn)%glat = -huge(1._r8)
             allocate(fline_p(i,j,isn)%ngh_pts(2,fline_p(i,j,isn)%npts)) ! lat_ind of neighboring point
-#ifdef XXXRMVZZZ
+!#ifdef XXXRMVZZZ
             allocate(fline_p(i,j,isn)%D(fline_p(i,j,isn)%npts))
             allocate(fline_p(i,j,isn)%F(fline_p(i,j,isn)%npts))
             allocate(fline_p(i,j,isn)%sinI(fline_p(i,j,isn)%npts))
@@ -407,7 +429,7 @@ module edyn3D_fieldline
 
 !          allocate(fline_p(i,j,isn)%pot(fline_p(i,j,isn)%npts))
 !          allocate(fline_p(i,j,isn)%pot_test(fline_p(i,j,isn)%npts)) ! am 1/2015 for testing
-#endif
+!#endif
              fline_r(i,j,isn)%mlon_m = ylonm(i)  !
 
              allocate(fline_r(i,j,isn)%hgt_pt(fline_r(i,j,isn)%npts))  ! should be independent of longitude
@@ -416,7 +438,7 @@ module edyn3D_fieldline
              allocate(fline_r(i,j,isn)%glon(fline_r(i,j,isn)%npts))
              allocate(fline_r(i,j,isn)%glat(fline_r(i,j,isn)%npts))
              allocate(fline_r(i,j,isn)%ngh_pts(2,fline_r(i,j,isn)%npts)) ! lat_ind of neighboring point
-#ifdef XXXRMVZZZ
+!#ifdef XXXRMVZZZ
              allocate(fline_r(i,j,isn)%D(fline_r(i,j,isn)%npts))
              allocate(fline_r(i,j,isn)%F(fline_r(i,j,isn)%npts))
              allocate(fline_r(i,j,isn)%sinI(fline_r(i,j,isn)%npts))
@@ -429,7 +451,7 @@ module edyn3D_fieldline
 
              allocate(fline_r(i,j,isn)%je3(fline_r(i,j,isn)%npts))
              allocate(fline_r(i,j,isn)%Jr(fline_r(i,j,isn)%npts))
-#endif
+!#endif
 !            !
 !            !  Relationship between P and S1 points for the same index (i,j)
 !            !  P(i,j) then is really S1(i+0.5,j) with j increasing equatorward
@@ -442,7 +464,7 @@ module edyn3D_fieldline
              allocate(fline_s1(i,j,isn)%mlon_qd(fline_s1(i,j,isn)%npts))
              allocate(fline_s1(i,j,isn)%glon(fline_s1(i,j,isn)%npts))
              allocate(fline_s1(i,j,isn)%glat(fline_s1(i,j,isn)%npts))
-#ifdef XXXRMVZZZ
+!#ifdef XXXRMVZZZ
              allocate(fline_s1(i,j,isn)%Vmp(fline_s1(i,j,isn)%npts))
              allocate(fline_s1(i,j,isn)%Bmag(fline_s1(i,j,isn)%npts))
              allocate(fline_s1(i,j,isn)%sinI(fline_s1(i,j,isn)%npts))
@@ -482,7 +504,7 @@ module edyn3D_fieldline
              !
              allocate(fline_s1(i,j,isn)%je1(fline_s1(i,j,isn)%npts))
              allocate(fline_s1(i,j,isn)%I1(fline_s1(i,j,isn)%npts))
-#endif
+!#endif
              allocate(fline_s1(i,j,isn)%ngh_pts(2,fline_s1(i,j,isn)%npts)) ! lat_ind of neighboring point
              do k=1,fline_p(i,j,isn)%npts
 
@@ -540,7 +562,7 @@ endif
               allocate(fline_s2(i,j,isn)%mlon_qd(fline_s2(i,j,isn)%npts))
               allocate(fline_s2(i,j,isn)%glon(fline_s2(i,j,isn)%npts))
               allocate(fline_s2(i,j,isn)%glat(fline_s2(i,j,isn)%npts))
-#ifdef XXXRMVZZZ
+!#ifdef XXXRMVZZZ
               allocate(fline_s2(i,j,isn)%Vmp(fline_s2(i,j,isn)%npts))
               allocate(fline_s2(i,j,isn)%Bmag(fline_s2(i,j,isn)%npts))
               allocate(fline_s2(i,j,isn)%sinI(fline_s2(i,j,isn)%npts))
@@ -589,7 +611,7 @@ endif
               allocate(fline_s2(i,j,isn)%ngh_pts(2,fline_s2(i,j,isn)%npts)) ! lat_ind of neighboring point
               allocate(fline_s2(i,j,isn)%je2(fline_s2(i,j,isn)%npts))
               allocate(fline_s2(i,j,isn)%I2(fline_s2(i,j,isn)%npts))
-#endif
+!#endif
 !
               do k=1,fline_s2(i,j,isn)%npts
 !
@@ -730,62 +752,10 @@ endif
 
       end function lamqd_from_apex_coord
 !
-!
-!
-!
-!
-!!
-!    real function lamqd_from_apex_coord(latm,hgt_fix)
-! calculate quasi dipole latitude lamq from modified apex latitude/mod.apex latitude
-!	h height of point
-!      lamm mod. apex latitude of the fieldline
-! lamq= +/- acos([(Re+h)/(Re+hr)]^0.5*cos(lam_m)) eq. (6.2) [Richmond, 1995]
-!      use edyn3D_params, only: r0,rearth_m
-!      use shr_kind_mod,  only: r8 => shr_kind_r8	    ! 8-byte reals
-!!
-!      implicit none
-!
-!      real(r8),intent(in)     :: latm
-!      real(r8),intent(in)     :: hgt_fix
-!      real(r8) :: fac,tmp
-!      real(r8),parameter :: eps = 1.e-6 ! am 10/2014 had to increase for running on glade system/geyser
-!
-!      if (masterproc .and. hgt_fix > 1000000) then
-!	  write(iulog,*) 'Inside lamqd_from_apex_coord rearth_m,r0,hgt_fix fieldline_init:', rearth_m,r0,hgt_fix,latm
-!      endif
-!      fac = (rearth_m*100+hgt_fix)/r0  ! all units [cm]
-!      fac = (rearth_m+hgt_fix)/r0  ! all units [cm]
-!      if (masterproc .and. hgt_fix > 1000000) then
-!	  write(iulog,*) 'Inside lamqd_from_apex_coord fac1 fieldline_init:', fac
-!      endif
-!      fac = sqrt(fac)
-!      if (masterproc .and. hgt_fix > 1000000) then
-!	  write(iulog,*) 'Inside lamqd_from_apex_coord fac2 fieldline_init:', fac
-!      endif
-!      fac = fac*cos(latm)
-!      if (masterproc .and. hgt_fix > 1000000) then
-!	  write(iulog,*) 'Inside lamqd_from_apex_coord fac3 fieldline_init:', fac
-!      endif
-!
-!      if (abs(abs(fac)-1.0).lt.eps) fac = 1.0 ! fac was 1.e-15 larger than 1 and cuased problem with acos
-! lamq needs to be same sign as lam_m
-!      if (masterproc .and. hgt_fix > 1000000) then
-!	 write(iulog,*) 'Inside lamqd_from_apex_coord fac4 fieldline_init:', fac
-!      endif
-!      lamqd_from_apex_coord = sign(acos(fac),latm)
-!      if (masterproc .and. hgt_fix > 1000000) then
-!	  write(iulog,*) 'Inside lamqd_from_apex_coord acos(fac),lamqd_from_apex_coord fieldline_init:', acos(fac),lamqd_from_apex_coord
-!      endif
-! set minimum value to eps
-!     if(abs(lamqd_from_apex_coord) <= eps)	lamqd_from_apex_coord =  sign(eps,latm)
-!
-!      if (masterproc .and. hgt_fix > 1000000) then
-!	  write(iulog,*) 'Inside lamqd_from_apex_coord eps,lamqd_from_apex_coord fieldline_init:', eps,lamqd_from_apex_coord
-!      endif
-!      end function  lamqd_from_apex_coord
 !-----------------------------------------------------------------------
     end subroutine fieldline_init
 
+!-----------------------------------------------------------------------
     subroutine fieldline_getapex
       use apex, only: apex_q2g, apex_mall
       use edyn3d_params, only: h0, nmlat_h, nmlats2_h
@@ -795,7 +765,8 @@ endif
       integer :: i,j,k,isn, ierr
       real(r8) :: qdlat,qdlon,alt, gdlat,gdlon
       real(r8) :: bmag,si,alon,xlatm,vmp,w,d,be3,sim,xlatqd,f
-      real(r8), dimension(3) :: b,bhat,d1,d2,d3,e1,e2,e3,f1,f2
+!obsolete      real(r8), dimension(3) :: b,bhat,d1,d2,d3,e1,e2,e3,f1,f2
+      real(r8), dimension(3) :: b,bhat,d1,d2,d3,e1,e2,e3,f1,f2,f3,g1,g2,g3
 
       real(r8), parameter :: href = h0*1e-3_r8
       real(r8), parameter :: r2d = 180._r8/pi
@@ -804,6 +775,34 @@ endif
 
          do j = 1,nmlat_h
             do i = mlon0_p,mlon1_p
+!write(iulog,*) 'fieldline_init: isn,j,i,fline_p(i,j,isn)%npts,fline_r(i,j,isn)%npts ', isn,j,i,fline_p(i,j,isn)%npts,fline_r(i,j,isn)%npts
+               do k = 1,fline_r(i,j,isn)%npts
+
+                  qdlat = fline_r(i,j,isn)%mlat_qd(k)*r2d ! get quasi-dipole latitude
+                  qdlon = fline_r(i,j,isn)%mlon_qd(k)*r2d ! get quasi-dipole longitude
+                  alt = fline_r(i,j,isn)%hgt_pt(k)*1e-3 ! convert height from [m] to [km]
+
+                  call apex_q2g(qdlat,qdlon,alt,gdlat,gdlon, ierr)
+
+                  fline_r(i,j,isn)%glon(k) = gdlon
+                  fline_r(i,j,isn)%glat(k) = gdlat
+
+                  call apex_mall(gdlat,gdlon,alt,href,b,bhat,bmag,si, &
+                       alon,xlatm,vmp,w,d,be3,sim,d1,d2,d3,e1,e2,e3, &
+                       xlatqd,f,f1,f2,f3,g1,g2,g3,ierr)
+!#ifdef XXXRMVZZZ
+                  fline_r(i,j,isn)%sinI(k) = si ! sin(I)
+                  fline_r(i,j,isn)%D(k) = d
+                  fline_r(i,j,isn)%F(k) = f
+                  !fline_r(i,j,isn)%d1k(k) = d1(3) ! k: unit vector upward
+                  !fline_r(i,j,isn)%d2k(k) = d2(3) ! k: unit vector upward
+
+!if (f == 0._r8) write(iulog,*) 'fieldline_init: j,i,k,f ', j,i,k,f
+!write(iulog,*) 'fieldline_init: j,i,k,f ', j,i,k,f
+
+!#endif
+               enddo
+	       
                do k = 1,fline_p(i,j,isn)%npts
 
                   qdlat = fline_p(i,j,isn)%mlat_qd(k)*r2d ! get quasi-dipole latitude
@@ -817,33 +816,14 @@ endif
 
                   call apex_mall(gdlat,gdlon,alt,href,b,bhat,bmag,si, &
                        alon,xlatm,vmp,w,d,be3,sim,d1,d2,d3,e1,e2,e3, &
-                       xlatqd,f,f1,f2, ierr)
-#ifdef XXXRMVZZZ
+                       xlatqd,f,f1,f2,f3,g1,g2,g3,ierr)
+!#ifdef XXXRMVZZZ
                   fline_p(i,j,isn)%sinI(k) = si ! sin(I)
                   fline_p(i,j,isn)%D(k) = d
                   fline_p(i,j,isn)%F(k) = f
                   fline_p(i,j,isn)%d1k(k) = d1(3) ! k: unit vector upward
                   fline_p(i,j,isn)%d2k(k) = d2(3) ! k: unit vector upward
-#endif
-                  qdlat = fline_r(i,j,isn)%mlat_qd(k)*r2d ! get quasi-dipole latitude
-                  qdlon = fline_r(i,j,isn)%mlon_qd(k)*r2d ! get quasi-dipole longitude
-                  alt = fline_r(i,j,isn)%hgt_pt(k)*1e-3 ! convert height from [m] to [km]
-
-                  call apex_q2g(qdlat,qdlon,alt,gdlat,gdlon, ierr)
-
-                  fline_r(i,j,isn)%glon(k) = gdlon
-                  fline_r(i,j,isn)%glat(k) = gdlat
-
-                  call apex_mall(gdlat,gdlon,alt,href,b,bhat,bmag,si, &
-                       alon,xlatm,vmp,w,d,be3,sim,d1,d2,d3,e1,e2,e3, &
-                       xlatqd,f,f1,f2, ierr)
-#ifdef XXXRMVZZZ
-                  fline_r(i,j,isn)%sinI(k) = si ! sin(I)
-                  fline_r(i,j,isn)%D(k) = d
-                  fline_r(i,j,isn)%F(k) = f
-                  !fline_r(i,j,isn)%d1k(k) = d1(3) ! k: unit vector upward
-                  !fline_r(i,j,isn)%d2k(k) = d2(3) ! k: unit vector upward
-#endif
+!#endif
 
                   qdlat = fline_s1(i,j,isn)%mlat_qd(k)*r2d ! get quasi-dipole latitude
                   qdlon = fline_s1(i,j,isn)%mlon_qd(k)*r2d ! get quasi-dipole longitude
@@ -856,14 +836,21 @@ endif
 
                   call apex_mall(gdlat,gdlon,alt,href,b,bhat,bmag,si, &
                        alon,xlatm,vmp,w,d,be3,sim,d1,d2,d3,e1,e2,e3, &
-                       xlatqd,f,f1,f2, ierr)
-#ifdef XXXRMVZZZ
+                       xlatqd,f,f1,f2,f3,g1,g2,g3, ierr)
+!#ifdef XXXRMVZZZ
                   fline_s1(i,j,isn)%sinI(k) = si ! sin(I)
+                  fline_s1(i,j,isn)%be3(k)  = be3*1.e-9   ! B0= Be3*e3, convert from nT to T 
                   fline_s1(i,j,isn)%D(k) = d
                   fline_s1(i,j,isn)%F(k) = f
                   !fline_s1(i,j,isn)%d1k(k) = d1(3) ! k: unit vector upward
                   !fline_s1(i,j,isn)%d2k(k) = d2(3) ! k: unit vector upward
-#endif
+                  fline_s1(i,j,isn)%d1(:,k) = d1 ! k: unit vector upward
+                  fline_s1(i,j,isn)%d2(:,k) = d2 ! k: unit vector upward
+                  fline_s1(i,j,isn)%d1d2(k) = dot_product(d1,d2)
+                  fline_s1(i,j,isn)%d1d1(k) = dot_product(d1,d1)
+                  fline_s1(i,j,isn)%d2d2(k) = dot_product(d2,d2)
+!                  fline_s1(i,j,isn)%e2g2(k) = dot_product(e2,g2)
+!#endif
                enddo
             end do
          end do
@@ -884,12 +871,29 @@ endif
 
                   call apex_mall(gdlat,gdlon,alt,href,b,bhat,bmag,si, &
                        alon,xlatm,vmp,w,d,be3,sim,d1,d2,d3,e1,e2,e3, &
-                       xlatqd,f,f1,f2, ierr)
+                       xlatqd,f,f1,f2,f3,g1,g2,g3, ierr)
+                  fline_s2(i,j,isn)%Bmag(k) = bmag*1.e-9  ! magnitude of magnetic field, convert from nT to T
                   !fline_s2(i,j,isn)%sinI(k) = si ! sin(I)
-                  !fline_s2(i,j,isn)%D(k) = d
-                  !fline_s2(i,j,isn)%F(k) = f
+                  fline_s2(i,j,isn)%bo(:,k) = b*1.e-9     ! magnetic field components (east, north, up), up positive [T]
+                  fline_s2(i,j,isn)%be3(k)  = be3*1.e-9   ! B0= Be3*e3, convert from nT to T 
+                  fline_s2(i,j,isn)%D(k) = d
+                  fline_s2(i,j,isn)%F(k) = f
                   !fline_s2(i,j,isn)%d1k(k) = d1(3) ! k: unit vector upward
                   !fline_s2(i,j,isn)%d2k(k) = d2(3) ! k: unit vector upward
+                  fline_s2(i,j,isn)%d1(:,k) = d1 ! k: unit vector upward
+                  fline_s2(i,j,isn)%d2(:,k) = d2 ! k: unit vector upward
+                  fline_s2(i,j,isn)%d1d2(k) = dot_product(d1,d2)
+                  fline_s2(i,j,isn)%d2d2(k) = dot_product(d2,d2)
+                  fline_s2(i,j,isn)%d1d1(k) = dot_product(d1,d1)  ! diagnostic
+                  fline_s2(i,j,isn)%e1g1(k) = dot_product(e1,g1)  ! diagnostic
+                  fline_s2(i,j,isn)%e2g1(k) = dot_product(e2,g1)  ! diagnostic
+                  fline_s2(i,j,isn)%e2g2(k) = dot_product(e2,g2) 
+                  b=  b*1.e-9
+                  fline_s2(i,j,isn)%bg1(k) = dot_product(b,g1)/fline_s2(i,j,isn)%Bmag(k)  ! diagnostic  
+		  fline_s2(i,j,isn)%bg2(k) = dot_product(b,g2)/fline_s2(i,j,isn)%Bmag(k)  ! diagnostic
+                  fline_s2(i,j,isn)%e2k(k)  = e2(3)  ! k unit upward vector  
+                  fline_s2(i,j,isn)%e1g2(k) = dot_product(e1,g2)
+                  fline_s2(i,j,isn)%e1k(k)  = e1(3)  ! k unit upward vector
 
                end do
             end do
@@ -898,133 +902,7 @@ endif
       end do
 
     end subroutine fieldline_getapex    
-!
 !-----------------------------------------------------------------------
-
-       subroutine edyn3D_calc_mn_s1s2
-!        
-!       use fieldline_s_module,only: fieldline_s1,fline_s1, &
-!          fieldline_s2,fline_s2
-!       use fieldline_r_module,only:  fieldline_r,fline_r
-!       use fieldline_p_module,only:  fieldline_p,fline_p
-!       use area_factors_module,only: m1f,m2f,m3f
-!       use params_module,only: m1f,m2f,m3f,nmlon,nmlat_h,nmlatS2_h,nhgt_fix,hgt_fix,&
-!          hgt_fix_r,nhgt_fix_r,r0,ylonm,ylonm_s,rho,rho_s,re,pi,ylatm,val_fill
-       use edyn3D_params,only: m1f,m2f,m3f,nmlon,nmlat_h,nmlatS2_h,nhgt_fix,hgt_fix,&
-          hgt_fix_r,nhgt_fix_r,r0,ylonm,ylonm_s,rho,rho_s,ylatm
-!       
-       implicit none
-!       
-! local variables         
-       integer ::  i,j,k,isn,nmax      
-       real :: dlonm,drho,sigC
-!       
-       dlonm = ylonm_s(2)-ylonm_s(1) ! assumes euiqdistant longitudinal gridpoints
-!       
-       do isn = 1,2 ! loop over both hemisphere
-         do i=1,nmlon ! loop over all longitudes
-!        
-! calculate values for S1-points these are at (i+/-0.5,j,k) updated 8/23/2015
-!                
-           do j=1,nmlat_h ! loop over all latitudes in one hemisphere 
-              nmax = fline_s1(i,j,isn)%npts ! maximum of points on fieldline
-              do k=1,nmax
-!                       
-                  fline_s1(i,j,isn)%M1(k) = m1f(j,k)/fline_s1(i,j,isn)%F(k)
-                  ! if(i.eq.10) write(92,*) j,k,isn,fline_s1(i,j,isn)%M1(k)
-                  
-                  if(j > 1) then ! do not calculate N1p & N1h for the pole (not used)
-! N1P(i+0.5) = M1(i+0.5)*[sigP*d1^2](i+0.5)/R/rho(j)/(phi(i+1)-phi(i))            
-                    fline_s1(i,j,isn)%N1p(k) = fline_s1(i,j,isn)%M1(k)*fline_s1(i,j,isn)%sigP(k)* &
-                       fline_s1(i,j,isn)%d1d1(k)/r0/rho(j,isn)/dlonm
-           
-! N1H(i+0.5) = M1(i+0.5)*[sigH*D-sigP*d1*d2](i+0.5)*sqrt(1-0.75*rho^2(j))/2/R/(rho(j+1)-rho(j-1))
-                    if(j.eq.nmlat_h) then
-                       drho = 2*(rho(j,isn)-rho(j-1,isn))
-                    else
-                       drho = rho(j+1,isn)-rho(j-1,isn)
-                    endif
-                    fline_s1(i,j,isn)%N1h(k) = fline_s1(i,j,isn)%M1(k)*(fline_s1(i,j,isn)%sigH(k)* &
-                       fline_s1(i,j,isn)%D(k)-fline_s1(i,j,isn)%sigP(k)*fline_s1(i,j,isn)%d1d2(k))* &
-                       sqrt(1-0.75*rho(j,isn)**2)*0.5/r0/drho
-                   endif
-                   
-! lowest volume at equator : overwrite values from above N1P and N1H (page 12 30 Jan 2014 (Art's notes)
-! N1H = 0
-! N1P -> N1C
-! N1C(i+0.5,j,k) = M1(i+0.5,j,k)*sigC(i+0.5,j,k)/R/rho(j)/(phi(i+1)-phi(i))
-! sigC = sigP*d1*d1+(sigH*D-sigP*d1*d2)*(sigH*D+sigP*d1*d2)/sigP/(d2*d2)
-!        for i+0.5,j,k          
-                  if(k == 1 .and. (nmlat_h-j+1) == k) then ! lowest volume at equator j ==  nmlat_h
-                    fline_s1(i,j,isn)%N1h(k) = 0.
-                    sigC = fline_s1(i,j,isn)%sigP(k)*fline_s1(i,j,isn)%d1d1(k)
-                    sigC =sigC + (fline_s1(i,j,isn)%sigH(k)*fline_s1(i,j,isn)%D(k)- &
-                       fline_s1(i,j,isn)%sigP(k)*fline_s1(i,j,isn)%d1d2(k))* &
-                       (fline_s1(i,j,isn)%sigH(k)*fline_s1(i,j,isn)%D(k)+ &
-                       fline_s1(i,j,isn)%sigP(k)*fline_s1(i,j,isn)%d1d2(k))/ &
-                       fline_s1(i,j,isn)%sigP(k)/fline_s1(i,j,isn)%d2d2(k)
-                    fline_s1(i,j,isn)%N1p(k) = fline_s1(i,j,isn)%M1(k)*sigC/r0/rho(j,isn)/dlonm
-                  endif ! end lowest equatorial volume
-          
-               end do  ! end height loop
-             end do  ! end lat/fieldline loop
-         
-! calculate values for S2-points these are at (i,j+0.5,k)
-!                            
-             do j=1,nmlatS2_h                ! loop over all latitudes in one hemisphere  from pole towards equator
-               nmax = fline_s2(i,j,isn)%npts ! maximum of points on fieldline
-               do k=1,nmax                   ! loop over all heights
-!
-! there is no S2 point at j+0.5 therefore no conditional statement is needed
-! S2 is inbetween p-points in horizontal, but not at the pole or the equator
-                  fline_s2(i,j,isn)%M2(k) = m2f(j,k)/fline_s2(i,j,isn)%F(k)
-                  !if(i.eq.10) write(93,*) j,k,isn,fline_s2(i,j,isn)%M2(k)
-!                  
-! N2H(j+0.5) = M2(j+0.5)*[sigH*D+sigP*d1*d2]](j+0.5)/2/R/rho(j+0.5)/(phi(i+1)-phi(i-1)))                  
-                  fline_s2(i,j,isn)%N2h(k) = fline_s2(i,j,isn)%M2(k)*(fline_s2(i,j,isn)%sigH(k)* &
-                     fline_s2(i,j,isn)%D(k)+fline_s2(i,j,isn)%sigP(k)*fline_s2(i,j,isn)%d1d2(k))*0.5/ &
-                     r0/2/rho_s(j,isn)/dlonm
-! N2P(j+0.5) = M2(j+0.5)[sigP*d2^2](j+0.5)*sqrt(1-0.75 rho^2(j+0.5)/R/(rho(j+1)-rho(j))  
-                  fline_s2(i,j,isn)%N2p(k) = fline_s2(i,j,isn)%M2(k)*fline_s2(i,j,isn)%sigP(k)* &
-                     fline_s2(i,j,isn)%d2d2(k)*sqrt(1-0.75*rho_s(j,isn)**2)/r0/(rho(j+1,isn)-rho(j,isn))
-!         
-               end do  ! end height loop
-             end do  ! end lat/fieldline loop
-             
-! calculate values for R-points these are at (i,j,k+/-1/2) updated 8/23/2015 -> eq (64') Art's notes page 8
-!
-!   calculate at the pole since needed for mapping to QD coordinates at poles rho(j) = 0
-!                    
-             do j=1,nmlat_h   ! loop over all latitudes in one hemisphere 
-               nmax = fline_r(i,j,isn)%npts ! maximum of points on fieldline
-               do k=1,nmax  
-                 fline_r(i,j,isn)%M3(k) = m3f(j,k)/fline_r(i,j,isn)%F(k)
-                 ! if(i.eq.10) write(94,*) j,k,isn,fline_r(i,j,isn)%M3(k)
-                 
-               end do  ! end height loop
-             end do  ! end lat/fieldline loop
-       
-! calculate values for P-points these are at (i,j,k) needed for Jr calculation Art's notes eq. (64') page 8 (updated 8/3/2015)
-! M3(i,j,k) = r(k)^2*(phi(i+0.5)-phi(i-0.5))*sqrt(1-r(k)/R*rho(j)^2)*[sqrt(1-r(k)/R*rho(j-0.5)^2)-
-!             sqrt(1-r(k)/R*rho(j+0.5)^2)]/F(i,jk-0.5)
-! do not calculate at the pole
-!                    
-             do j=2,nmlat_h   ! loop over all latitudes in one hemisphere but not pole
-               nmax = fline_p(i,j,isn)%npts ! maximum of points on fieldline
-               do k=1,nmax  
-                   fline_p(i,j,isn)%M3(k) = m3f(j,k)/fline_p(i,j,isn)%F(k)
-               end do  ! end height loop
-             end do  ! end lat/fieldline loop
-             
-          end do  ! end longitude loop
-          
-       end do ! end hemisphere loop
-!       
-       end subroutine edyn3d_calc_mn_s1s2
-
-
-
-!
 end module edyn3D_fieldline
 
 

@@ -85,7 +85,9 @@ contains
            b(3), bhat(3),       &
            d1(3), d2(3),d3(3),  &
            e1(3), e2(3),e3(3),  &
-           f1(2), f2(2)
+!obsolete           f1(2), f2(2)
+           f1(3), f2(3),        &
+           f3(3),g1(3),g2(3),g3(3)
       real(r8) :: bmag, alon, xlatm, vmp, w, d, be3, si, sim, xlatqd, f
 
       !
@@ -117,7 +119,7 @@ contains
                  b,bhat,bmag,si,                          & !Mag Fld
                  alon,                                    & !Apx Lon
                  xlatm,vmp,w,d,be3,sim,d1,d2,d3,e1,e2,e3, & !Mod Apx
-                 xlatqd,f,f1,f2, ier)                       !Qsi-Dpl
+                 xlatqd,f,f1,f2,f3,g1,g2,g3, ier)           !Qsi-Dpl
 
             if (ier /= 0) then
                call endrun('get_apex: apxmall error')

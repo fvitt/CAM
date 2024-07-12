@@ -25,8 +25,9 @@ module edyn3D_driver
 
 contains
   subroutine edyn3D_driver_reg(mpicom, npes)
-    use cam_history,  only: addfld, horiz_only
-    use mo_apex, only: mo_apex_init1
+    use cam_history,         only: addfld, horiz_only
+    use mo_apex,             only: mo_apex_init1,geomag_year
+!    use edyn3D_get_apex,     only: apxparm
     use edyn3D_fline_fields, only: edyn3D_fline_fields_alloc
 
     integer, intent(in) :: mpicom, npes
@@ -56,6 +57,8 @@ contains
     call reg_hist_grid()
 
     call edyn3D_esmf_regrid_init()
+    
+!    call apxparm(geomag_year)
 
     call addfld ('Tn_mag', horiz_only, 'I', 'K','Neutral Temperature on geo-magnetic field line grid', &
                   gridname='magfline_p')
@@ -95,22 +98,33 @@ contains
     call addfld ('sigma_hal_s2', horiz_only, 'I', 'K','Hal cond. on S2 mag field line grid', &
                   gridname='magfline_s2')
 
+    call addfld ('un_s1', horiz_only, 'I', 'm/s','Zonal wind on S1 mag field line grid', &
+                  gridname='magfline_s1')
+    call addfld ('vn_s1', horiz_only, 'I', 'm/s','Meridional wind on S1 mag field line grid', &
+                  gridname='magfline_s1')
+    call addfld ('un_s2', horiz_only, 'I', 'm/s','Zonal wind on S2 mag field line grid', &
+                  gridname='magfline_s2')
+    call addfld ('vn_s2', horiz_only, 'I', 'm/s','Meridional wind on S2 mag field line grid', &
+                  gridname='magfline_s2')
+
     call edyn3D_fline_fields_alloc()
 
   end subroutine edyn3D_driver_reg
 
-  subroutine edyn3D_driver_timestep( nphyscol, nphyslev, physalt, tn, sigPed, sigHal, tn_out )
+  subroutine edyn3D_driver_timestep( nphyscol, nphyslev, physalt, tn, sigPed, sigHal, un, vn, tn_out )
     use edyn3d_mpi, only: mlon0_p,mlon1_p
     use cam_history,  only: outfld
     use edyn3D_fieldline, only: fline_p, fline_s1, fline_s2
     use edyn3D_fline_fields, only: Tn_p, height_s1, height_s2
-    use edyn3D_fline_fields, only: sigma_ped_s1,sigma_hal_s1,sigma_ped_s2,sigma_hal_s2
+    use edyn3D_fline_fields, only: sigma_ped_s1,sigma_hal_s1,sigma_ped_s2,sigma_hal_s2,un_s1,vn_s1,un_s2,vn_s2
 
     integer,  intent(in) :: nphyscol, nphyslev
     real(r8), intent(in) :: physalt(nphyslev,nphyscol)
     real(r8), intent(in) :: tn(nphyslev,nphyscol)
     real(r8), intent(in) :: sigPed(nphyslev,nphyscol)
     real(r8), intent(in) :: sigHal(nphyslev,nphyscol)
+    real(r8), intent(in) :: un(nphyslev,nphyscol)
+    real(r8), intent(in) :: vn(nphyslev,nphyscol)
     real(r8), intent(out) :: tn_out(nphyslev,nphyscol)
 
     real(r8) :: geogaltp(mlon0_p:mlon1_p, nptsp_total)
@@ -126,6 +140,7 @@ contains
 
     integer :: i,j,k,isn,ncnt, ier
     integer :: dk,k0,k1
+   integer :: npts_s1
 
     call edyn3D_regridder_phys2mag(physalt,physalt,nphyscol,nphyslev,height_s1)
     call edyn3D_regridder_phys2mag(physalt,physalt,nphyscol,nphyslev,height_s2)
@@ -145,6 +160,22 @@ contains
     call output_fline_field(sigma_hal_s1)
     call output_fline_field(sigma_hal_s2)
 
+    call edyn3D_regridder_phys2mag(un,physalt,nphyscol,nphyslev,un_s1)
+    call edyn3D_regridder_phys2mag(un,physalt,nphyscol,nphyslev,un_s2)
+
+    call output_fline_field(un_s1)
+    call output_fline_field(un_s2)
+
+    call edyn3D_regridder_phys2mag(vn,physalt,nphyscol,nphyslev,vn_s1)
+    call edyn3D_regridder_phys2mag(vn,physalt,nphyscol,nphyslev,vn_s2)
+
+    call output_fline_field(vn_s1)
+    call output_fline_field(vn_s2)
+
+write(iulog,*) 'MIN/MAX un ', MINVAL(un), MAXVAL(un)
+write(iulog,*) 'MIN/MAX vn ', MINVAL(vn), MAXVAL(vn)
+
+
     if (mytid<ntask) then
        geogaltp=-huge(1._r8)
        geoglatp=-huge(1._r8)
@@ -162,6 +193,26 @@ contains
           ncnt = 0
           do j = 1,nmlat_h
              do isn = 1,2
+
+npts_s1 = fline_s1(i,j,isn)%npts
+!write(iulog,*) 'edyn3D_driver: fline_s1(i,j,isn)%npts, sigP',fline_s1(i,j,isn)%npts, size(fline_s1(i,j,isn)%sigP), size(sigma_ped_s1%flines(i,j,isn)%fld)
+      fline_s1(i,j,isn)%sigP(:) = sigma_ped_s1%flines(i,j,isn)%fld(:)
+      fline_s1(i,j,isn)%sigH(:) = sigma_hal_s1%flines(i,j,isn)%fld(:)
+!write(iulog,*) 'edyn3D_driver: fline_s1(i,j,isn)%npts, un',fline_s1(i,j,isn)%npts, size(fline_s1(i,j,isn)%un), size(un_s1%flines(i,j,isn)%fld)
+      fline_s1(i,j,isn)%un(:) = un_s1%flines(i,j,isn)%fld(:)
+      fline_s1(i,j,isn)%vn(:) = vn_s1%flines(i,j,isn)%fld(:)
+!      write(iulog,*) 'edyn3D_driver: fline_s1(i,j,isn)%npts',fline_s1(i,j,isn)%npts
+!      write(iulog,*) 'edyn3D_driver: fline_s1(i,j,isn)%sigP(1:npts_s1) ', fline_s1(i,j,isn)%sigP(1:npts_s1)
+!if (i == mlon0_p .and. isn == 1) write(iulog,*) 'fline_s1(i,j,isn)%npts',fline_s1(i,j,isn)%npts
+if (i == mlon0_p .and. isn == 1) write(iulog,*) 'i,j,isn,MIN/MAX fline_s1(i,j,isn)%sigP(1:npts_s1)', i,j,isn,MINVAL(fline_s1(i,j,isn)%sigP(1:npts_s1)), MAXVAL(fline_s1(i,j,isn)%sigP(1:npts_s1))
+if (i == mlon0_p .and. isn == 1) write(iulog,*) 'i,j,isn,MIN/MAX fline_s1(i,j,isn)%sigH(1:npts_s1)', i,j,isn,MINVAL(fline_s1(i,j,isn)%sigH(1:npts_s1)), MAXVAL(fline_s1(i,j,isn)%sigH(1:npts_s1))
+if (i == mlon0_p .and. isn == 1) write(iulog,*) 'i,j,isn,MIN/MAX fline_s1(i,j,isn)%un(1:npts_s1)', i,j,isn,MINVAL(fline_s1(i,j,isn)%un(1:npts_s1)), MAXVAL(fline_s1(i,j,isn)%un(1:npts_s1))
+if (i == mlon0_p .and. isn == 1) write(iulog,*) 'i,j,isn,MIN/MAX fline_s1(i,j,isn)%vn(1:npts_s1)', i,j,isn,MINVAL(fline_s1(i,j,isn)%vn(1:npts_s1)), MAXVAL(fline_s1(i,j,isn)%vn(1:npts_s1))
+if (i == mlon0_p .and. isn == 1) write(iulog,*) 'MIN/MAX fline_s1(i,j,isn)%F(1:npts_s1)', MINVAL(fline_s1(i,j,isn)%F(1:npts_s1)), MAXVAL(fline_s1(i,j,isn)%F(1:npts_s1))
+if (i == mlon0_p .and. isn == 1) write(iulog,*) 'MIN/MAX fline_s1(i,j,isn)%d1d1(1:npts_s1)', MINVAL(fline_s1(i,j,isn)%d1d1(1:npts_s1)), MAXVAL(fline_s1(i,j,isn)%d1d1(1:npts_s1))
+if (i == mlon0_p .and. isn == 1) write(iulog,*) 'MIN/MAX fline_s1(i,j,isn)%d1d2(1:npts_s1)', MINVAL(fline_s1(i,j,isn)%d1d2(1:npts_s1)), MAXVAL(fline_s1(i,j,isn)%d1d2(1:npts_s1))
+if (i == mlon0_p .and. isn == 1) write(iulog,*) 'MIN/MAX fline_s1(i,j,isn)%d2d2(1:npts_s1)', MINVAL(fline_s1(i,j,isn)%d2d2(1:npts_s1)), MAXVAL(fline_s1(i,j,isn)%d2d2(1:npts_s1))
+if (i == mlon0_p .and. isn == 1) write(iulog,*) 'MIN/MAX fline_s1(i,j,isn)%D(1:npts_s1)', MINVAL(fline_s1(i,j,isn)%D(1:npts_s1)), MAXVAL(fline_s1(i,j,isn)%D(1:npts_s1))
 
                 if (isn==1) then
                    k0 = 1
@@ -187,6 +238,15 @@ contains
           ncnt = 0
           do j = 1,nmlats2_h
              do isn = 1,2
+
+                fline_s2(i,j,isn)%sigP(:) = sigma_ped_s2%flines(i,j,isn)%fld(:)
+                fline_s2(i,j,isn)%sigH(:) = sigma_hal_s2%flines(i,j,isn)%fld(:)
+                fline_s2(i,j,isn)%un(:) = un_s2%flines(i,j,isn)%fld(:)
+                fline_s2(i,j,isn)%vn(:) = vn_s2%flines(i,j,isn)%fld(:)
+if (i == mlon0_p .and. isn == 1) write(iulog,*) 'i,j,isn,MIN/MAX fline_s2(i,j,isn)%sigP(1:npts_s1)', i,j,isn,MINVAL(fline_s2(i,j,isn)%sigP(1:npts_s1)), MAXVAL(fline_s2(i,j,isn)%sigP(1:npts_s1))
+if (i == mlon0_p .and. isn == 1) write(iulog,*) 'i,j,isn,MIN/MAX fline_s2(i,j,isn)%sigH(1:npts_s1)', i,j,isn,MINVAL(fline_s2(i,j,isn)%sigH(1:npts_s1)), MAXVAL(fline_s2(i,j,isn)%sigH(1:npts_s1))
+if (i == mlon0_p .and. isn == 1) write(iulog,*) 'i,j,isn,MIN/MAX fline_s2(i,j,isn)%un(1:npts_s1)', i,j,isn, MINVAL(fline_s2(i,j,isn)%un(1:npts_s1)), MAXVAL(fline_s2(i,j,isn)%un(1:npts_s1))
+if (i == mlon0_p .and. isn == 1) write(iulog,*) 'i,j,isn,MIN/MAX fline_s2(i,j,isn)%vn(1:npts_s1)', i,j,isn, MINVAL(fline_s2(i,j,isn)%vn(1:npts_s1)), MAXVAL(fline_s2(i,j,isn)%vn(1:npts_s1))
 
                 if (isn==1) then
                    k0 = 1
@@ -228,6 +288,22 @@ contains
     call edyn3D_regridder_phys2mag(tn,physalt,nphyscol,nphyslev,Tn_p)
 
     call output_fline_field(Tn_p)
+
+    !
+    ! Call 3D dynamo routines
+    !
+!    if (mytid<ntask) then
+!
+      call edyn3D_calc_mn_s1s2 !- (calc conductivities, each timestep)
+      call edyn3D_calc_je_s1s2 ! - (must be calculated each timestep)
+!      call calc_s1approx
+!      call calc_S - (must be calculated each timestep)
+!      call calc_coef - calc LHS & RHS 
+!      call calc_FAC 
+!      call add_coef_ns - add North & South coef
+!      call const_rhs - solver - solve for rhs (electric potential)
+!
+!    endif
 
     call edyn3D_regridder_mag2phys(Tn_p, physalt, nphyscol,nphyslev, tn_out)
 

@@ -422,7 +422,8 @@ subroutine apex_mka(date,gplat,gplon,gpalt,nlat,nlon,nalt,ier)
 end subroutine apex_mka
 !-----------------------------------------------------------------------
 subroutine apex_mall(glat,glon,alt,hr, b,bhat,bmag,si,alon,xlatm,vmp,w,&
-  d,be3,sim,d1,d2,d3,e1,e2,e3,xlatqd,f,f1,f2,ier)
+!obsolete  d,be3,sim,d1,d2,d3,e1,e2,e3,xlatqd,f,f1,f2,ier)
+  d,be3,sim,d1,d2,d3,e1,e2,e3,xlatqd,f,f1,f2,f3,g1,g2,g3,ier)
 !
 ! Compute Modified Apex coordinates, quasi-dipole coordinates,
 ! base vectors and other parameters by interpolation from
@@ -451,10 +452,12 @@ subroutine apex_mall(glat,glon,alt,hr, b,bhat,bmag,si,alon,xlatm,vmp,w,&
     be3              ,& ! B_e3 of reference above (= Bmag/D), in nT
     sim              ,& ! sin(I_m) described in Richmond reference above
     xlatqd           ,& ! Quasi-dipole latitude (deg)
-    f                ,& ! F described in ref above for quasi-dipole coordinates
-    f1(2),f2(2)         ! Components (east, north) of base vectors
+!obsolete    f                ,& ! F described in ref above for quasi-dipole coordinates
+    f                   ! F described in ref above for quasi-dipole coordinates
+!obsolete    f1(2),f2(2)         ! Components (east, north) of base vectors
 !
-  real(r8),dimension(3),intent(out) :: d1,d2,d3,e1,e2,e3 ! Components of base vectors
+!obsolete  real(r8),dimension(3),intent(out) :: d1,d2,d3,e1,e2,e3 ! Components of base vectors
+  real(r8),dimension(3),intent(out) :: d1,d2,d3,e1,e2,e3,f1,f2,f3,g1,g2,g3 ! Components of base vectors
   integer,intent(out) :: ier ! error return
 !
 ! Local:
@@ -482,7 +485,8 @@ subroutine apex_mall(glat,glon,alt,hr, b,bhat,bmag,si,alon,xlatm,vmp,w,&
 
   if (ier /= 0) then
     call setmiss(xmiss,xlatm,alon,vmp,b,bmag,be3,sim,si,f,d,w, &
-      bhat,d1,d2,d3,e1,e2,e3,f1,f2)
+!obsolete      bhat,d1,d2,d3,e1,e2,e3,f1,f2)
+      bhat,d1,d2,d3,e1,e2,e3,f1,f2,f3,g1,g2,g3)
     write(iulog,"('apex_mall called setmiss: glat,glon,alt=',3f12.3)") &
       glat,glon,alt
     return
@@ -519,7 +523,8 @@ subroutine apex_mall(glat,glon,alt,hr, b,bhat,bmag,si,alon,xlatm,vmp,w,&
     xlatm,alon,vmp,grclm,clmgrp,xlatqd,rgrlp,b,clm,r3_2)
 
   call basevec(hr,xlatm,grclm,clmgrp,rgrlp,b,clm,r3_2, &
-               bmag,sim,si,f,d,w,bhat,d1,d2,d3,e1,e2,e3,f1,f2)
+!obsolete               bmag,sim,si,f,d,w,bhat,d1,d2,d3,e1,e2,e3,f1,f2)
+               bmag,sim,si,f,d,w,bhat,d1,d2,d3,e1,e2,e3,f1,f2,f3,g1,g2,g3)
 
   be3 = bmag/d
   ier = 0
@@ -857,7 +862,8 @@ subroutine gradlpv(hr,alt,fx,fy,fz,fv,gradx,grady,gradz,gradv, &
 end subroutine gradlpv
 !-----------------------------------------------------------------------
 subroutine basevec(hr,xlatm,grclm,clmgrp,rgrlp,b,clm,r3_2, &
-                   bmag,sim,si,f,d,w,bhat,d1,d2,d3,e1,e2,e3,f1,f2)
+!obsolete                   bmag,sim,si,f,d,w,bhat,d1,d2,d3,e1,e2,e3,f1,f2)
+                   bmag,sim,si,f,d,w,bhat,d1,d2,d3,e1,e2,e3,f1,f2,f3,g1,g2,g3)
 !
 ! Computes base vectors and other parameters for apex coordinates.
 ! Vector components:  east, north, up
@@ -885,9 +891,10 @@ subroutine basevec(hr,xlatm,grclm,clmgrp,rgrlp,b,clm,r3_2, &
 
   real(r8),dimension(3),intent(out) :: & ! 3-component outputs
     bhat,             & ! unit vector along geomagnetic field direction
-    d1,d2,d3,e1,e2,e3   ! base vectors of Richmond reference
-  real(r8),dimension(2),intent(out) :: & ! 2-component outputs
-    f1,f2               ! base vectors of Richmond reference
+!obsolete    d1,d2,d3,e1,e2,e3   ! base vectors of Richmond reference
+    d1,d2,d3,e1,e2,e3,f1,f2,f3,g1,g2,g3   ! base vectors of Richmond reference
+!obsolete  real(r8),dimension(2),intent(out) :: & ! 2-component outputs
+!obsolete    f1,f2               ! base vectors of Richmond reference
 !
 ! Local:
   integer :: i
@@ -934,6 +941,21 @@ subroutine basevec(hr,xlatm,grclm,clmgrp,rgrlp,b,clm,r3_2, &
   f2(1) = -d1(2)*r3_2
   f2(2) =  d1(1)*r3_2
   f = f1(1)*f2(2) - f1(2)*f2(1)
+! Added output 2024 July 5
+  f1(3) = 0.
+  f2(3) = 0.
+  g1(1) = r3_2*d1(1)/f
+  g1(2) = r3_2*d1(2)/f
+  g1(3) = r3_2*d1(3)/f
+  g2(1) = rgrlp(1)/f
+  g2(2) = rgrlp(2)/f
+  g2(3) = rgrlp(3)/f
+  g3(1) = 0.
+  g3(2) = 0.
+  g3(3) = f
+  f3(1) = g1(2)*g2(3) - g1(3)*g2(2)
+  f3(2) = g1(3)*g2(1) - g1(1)*g2(3)
+  f3(3) = g1(1)*g2(2) - g1(2)*g2(1) 
 
 end subroutine basevec
 !-----------------------------------------------------------------------
@@ -1897,13 +1919,15 @@ subroutine adpl(glat,glon,cth,sth,fx,fy,fz,fv, &
 end subroutine adpl
 !-----------------------------------------------------------------------
 subroutine setmiss(xmiss,xlatm,alon,vmp,b,bmag,be3,sim,si,f,d,w, &
-  bhat,d1,d2,d3,e1,e2,e3,f1,f2)
+!obsolete  bhat,d1,d2,d3,e1,e2,e3,f1,f2)
+  bhat,d1,d2,d3,e1,e2,e3,f1,f2,f3,g1,g2,g3)
 !
 ! Args:
   real(r8),intent(in)  :: xmiss
   real(r8),intent(out) :: xlatm,alon,vmp,bmag,be3,sim,si,f,d,w
-  real(r8),dimension(3),intent(out) :: bhat,d1,d2,d3,e1,e2,e3,b
-  real(r8),dimension(2),intent(out) :: f1,f2
+!obsolete  real(r8),dimension(3),intent(out) :: bhat,d1,d2,d3,e1,e2,e3,b
+  real(r8),dimension(3),intent(out) :: bhat,d1,d2,d3,e1,e2,e3,b,f1,f2,f3,g1,g2,g3
+!obsolete  real(r8),dimension(2),intent(out) :: f1,f2
 
   xlatm = xmiss
   alon  = xmiss

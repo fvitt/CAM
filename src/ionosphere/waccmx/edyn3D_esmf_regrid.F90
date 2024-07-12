@@ -185,6 +185,7 @@ contains
             regridMethod=ESMF_REGRIDMETHOD_BILINEAR,                           &
             polemethod=ESMF_POLEMETHOD_ALLAVG,                                 &
             extrapMethod=ESMF_EXTRAPMETHOD_NEAREST_IDAVG,                      &
+	    ignoreDegenerate=.true.,                                           &
             factorIndexList=factorIndexList,                                   &
             factorList=factorList, srcTermProcessing=smm_srctermproc,          &
             pipelineDepth=smm_pipelinedep, rc=rc)

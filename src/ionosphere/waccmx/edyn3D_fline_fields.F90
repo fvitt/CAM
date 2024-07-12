@@ -32,6 +32,11 @@ module edyn3D_fline_fields
   type(magfield_t) :: height_s1
   type(magfield_t) :: height_s2
 
+  type(magfield_t) :: un_s1
+  type(magfield_t) :: vn_s1
+  type(magfield_t) :: un_s2
+  type(magfield_t) :: vn_s2
+
 contains
 
   subroutine edyn3D_fline_fields_alloc()
@@ -95,6 +100,24 @@ contains
     sigma_ped_s1%esmf_fld => magField_s1
     allocate(sigma_ped_s1%flines(mlon0_p:mlon1_p,nmlat_h,2))
 
+    un_s1%name = 'un_s1'
+    un_s1%mlon0 = mlon0_p
+    un_s1%mlon1 = mlon1_p
+    un_s1%nmlat_h = nmlat_h
+    un_s1%nptstot = nptsp_total
+    un_s1%rhandle_phys2mag => rh_phys2mag_s1
+    un_s1%esmf_fld => magField_s1
+    allocate(un_s1%flines(mlon0_p:mlon1_p,nmlat_h,2))
+
+    vn_s1%name = 'vn_s1'
+    vn_s1%mlon0 = mlon0_p
+    vn_s1%mlon1 = mlon1_p
+    vn_s1%nmlat_h = nmlat_h
+    vn_s1%nptstot = nptsp_total
+    vn_s1%rhandle_phys2mag => rh_phys2mag_s1
+    vn_s1%esmf_fld => magField_s1
+    allocate(vn_s1%flines(mlon0_p:mlon1_p,nmlat_h,2))
+
     do h = 1,2
        do j = 1,nmlat_h
           do i = mlon0_p,mlon1_p
@@ -110,6 +133,14 @@ contains
              sigma_ped_s1%flines(i,j,h)%npts = fline_s1(i,j,h)%npts
              allocate(sigma_ped_s1%flines(i,j,h)%fld(fline_s1(i,j,h)%npts))
              sigma_ped_s1%flines(i,j,h)%fld = nan
+
+             un_s1%flines(i,j,h)%npts = fline_s1(i,j,h)%npts
+             allocate(un_s1%flines(i,j,h)%fld(fline_s1(i,j,h)%npts))
+             un_s1%flines(i,j,h)%fld = nan
+
+             vn_s1%flines(i,j,h)%npts = fline_s1(i,j,h)%npts
+             allocate(vn_s1%flines(i,j,h)%fld(fline_s1(i,j,h)%npts))
+             vn_s1%flines(i,j,h)%fld = nan
 
           end do
        end do
@@ -142,6 +173,24 @@ contains
     sigma_ped_s2%esmf_fld => magField_s2
     allocate(sigma_ped_s2%flines(mlon0_p:mlon1_p,nmlatS2_h,2))
 
+    un_s2%name = 'un_s2'
+    un_s2%mlon0 = mlon0_p
+    un_s2%mlon1 = mlon1_p
+    un_s2%nmlat_h = nmlatS2_h
+    un_s2%nptstot = nptss2_total
+    un_s2%rhandle_phys2mag => rh_phys2mag_s2
+    un_s2%esmf_fld => magField_s2
+    allocate(un_s2%flines(mlon0_p:mlon1_p,nmlatS2_h,2))
+
+    vn_s2%name = 'vn_s2'
+    vn_s2%mlon0 = mlon0_p
+    vn_s2%mlon1 = mlon1_p
+    vn_s2%nmlat_h = nmlatS2_h
+    vn_s2%nptstot = nptss2_total
+    vn_s2%rhandle_phys2mag => rh_phys2mag_s2
+    vn_s2%esmf_fld => magField_s2
+    allocate(vn_s2%flines(mlon0_p:mlon1_p,nmlatS2_h,2))
+
     do h = 1,2
        do j = 1,nmlatS2_h
           do i = mlon0_p,mlon1_p
@@ -157,6 +206,14 @@ contains
              sigma_ped_s2%flines(i,j,h)%npts = fline_s2(i,j,h)%npts
              allocate(sigma_ped_s2%flines(i,j,h)%fld(fline_s2(i,j,h)%npts))
              sigma_ped_s2%flines(i,j,h)%fld = nan
+
+             un_s2%flines(i,j,h)%npts = fline_s2(i,j,h)%npts
+             allocate(un_s2%flines(i,j,h)%fld(fline_s2(i,j,h)%npts))
+             un_s2%flines(i,j,h)%fld = nan
+
+             vn_s2%flines(i,j,h)%npts = fline_s2(i,j,h)%npts
+             allocate(vn_s2%flines(i,j,h)%fld(fline_s2(i,j,h)%npts))
+             vn_s2%flines(i,j,h)%fld = nan
 
           end do
        end do
