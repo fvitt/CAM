@@ -204,7 +204,7 @@ contains
 
     do k = 1,nz
 
-       nmlat = (nmlat_h - (k-1))*2
+       nmlat = (nmlat_h - (k-1))*2 - 1
        nmlat_s2 = (nmlatS2_h - (k-1))*2
 
        ! p grid

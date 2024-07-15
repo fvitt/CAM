@@ -62,14 +62,14 @@ module edyn3D_params
 !               nggjlat = 16, & ! number of geographic latitude points
                nggjlat = 360    !180  number of geographic latitude points
 !                        for calculating currents, to get spherical-harmonic
-!                        coefficients for magnetic perturbations.  
+!                        coefficients for magnetic perturbations.
 
-       real :: ggjlon(nggjlon)    ! geographic longitude grid for J (radians)
-       double precision ::  &
+       real(r8) :: ggjlon(nggjlon)    ! geographic longitude grid for J (radians)
+       real(r8) ::  &
            ggjclat(nggjlat), &  ! geographic Gaussian colatitude grid for J (rad)
            wts(nggjlat)         ! Gaussian weights
 !
-       real :: ggjhgt(nggjhgt), & ! geographic height grid for J (m)
+       real(r8) :: ggjhgt(nggjhgt), & ! geographic height grid for J (m)
                ggjtop(nggjhgt)    ! top heights of J layers (m)
 
        integer ::  ktop         ! k index for the highest hgt_fix layer
@@ -97,16 +97,16 @@ module edyn3D_params
    !
    ! M1*F, M2*F, M3*F
    !
-   real,dimension(nhgt_fix,nmlat_h) :: m1f,m2f
-   real,dimension(nhgt_fix_r,nmlat_h) :: m3f
+   real(r8),dimension(nhgt_fix,nmlat_h) :: m1f,m2f
+   real(r8),dimension(nhgt_fix_r,nmlat_h) :: m3f
 !
 ! global constants
 !
-   real, parameter ::	          &
+   real(r8), parameter ::         &
 	   h0 = 8.0e4_r8,         &   ! Initial value for bottom height of dynamo grid
-	   r0 =rearth_m+h0,	  &   ! Mean Earth radius plus height of bottom of dynamo region (h0) [m]
-	   m2km=1.e-3,            &   ! Conversion factor when going from meters to kilometers
-	   km2m=1.e3                  ! Conversion factor when going from kilometers to meters
+	   r0 = rearth_m+h0,	  &   ! Mean Earth radius plus height of bottom of dynamo region (h0) [m]
+	   m2km = 1.e-3_r8,       &   ! Conversion factor when going from meters to kilometers
+	   km2m = 1.e3_r8             ! Conversion factor when going from kilometers to meters
    !
    ! Field point parameters
    !

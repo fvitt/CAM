@@ -12,7 +12,7 @@ module edyn3D_regridder
   !-----------------------------------------------------------------------
   !-----------------------------------------------------------------------
   subroutine edyn3D_regridder_phys2mag(physfld,physalt,nphyscol,nphyslev,magfld)
-    use edyn3d_params, only: hgt_fix,nhgt_fix
+    use edyn3d_params, only: hgt_fix,nhgt_fix, nmlat_T1
     use edyn3D_fline_fields, only: magfield_t
     use interpolate_data, only: lininterp
 
@@ -57,19 +57,27 @@ module edyn3D_regridder
                              computationalLBound=lbnd2d, computationalUBound=ubnd2d, rc=rc)
           call check_errror(subname,'ESMF_FieldGet physField',rc)
 
-          nmlat = (magfld%nmlat_h - (k-1))*2
+          nmlat = magfld%nmlat_tot - 2*(k-1)
 
           do j = lbnd2d(2), ubnd2d(2)
-             if (j<=magfld%nmlat_h-(k-1)) then
-                isn = 1
-                jj = j
-             else
+
+             if (j>nmlat/2) then
                 isn = 2
                 jj = nmlat-j+1
-             end if
+             else
+                isn = 1
+                jj = j
+             endif
+
              do i = lbnd2d(1), ubnd2d(1)
                 magfld%flines(i,jj,isn)%fld(k) = fptr2d(i,j)
              end do
+
+             if (magfld%nmlat_tot==nmlat_T1 .and. j==nmlat/2) then
+                do i = lbnd2d(1), ubnd2d(1)
+                   magfld%flines(i,jj,2)%fld(k) = magfld%flines(i,jj,1)%fld(k)
+                end do
+             end if
           end do
 
        end if
@@ -109,16 +117,16 @@ module edyn3D_regridder
                              computationalLBound=lbnd2d, computationalUBound=ubnd2d, rc=rc)
           call check_errror(subname,'ESMF_FieldGet physField',rc)
 
-          nmlat = (magfld%nmlat_h - (k-1))*2
+          nmlat = magfld%nmlat_tot - 2*(k-1)
 
           do j = lbnd2d(2), ubnd2d(2)
-             if (j<=magfld%nmlat_h-(k-1)) then
-                isn = 1
-                jj = j
-             else
+             if (j>nmlat/2) then
                 isn = 2
                 jj = nmlat-j+1
-             end if
+             else
+                isn = 1
+                jj = j
+             endif
              do i = lbnd2d(1), ubnd2d(1)
                 fptr2d(i,j) = magfld%flines(i,jj,isn)%fld(k)
              end do
@@ -179,16 +187,18 @@ module edyn3D_regridder
                   computationalLBound=lbnd2d, computationalUBound=ubnd2d, rc=rc)
              call check_errror(subname,'ESMF_FieldGet pmagfld%esmf_fld(k)',rc)
 
-             nmlat = (magfld%nmlat_h - (k-1))*2
+             nmlat = magfld%nmlat_tot - 2*(k-1)
 
              do j = lbnd2d(2), ubnd2d(2)
-                if (j<=magfld%nmlat_h-(k-1)) then
-                   isn = 1
-                   jj = j
-                else
+
+                if (j>nmlat/2) then
                    isn = 2
                    jj = nmlat-j+1
-                end if
+                else
+                   isn = 1
+                   jj = j
+                endif
+
                 do i = lbnd2d(1), ubnd2d(1)
                    fptr2d(i,j) = magfld%flines(i,jj,isn)%fld(k)
                 end do
