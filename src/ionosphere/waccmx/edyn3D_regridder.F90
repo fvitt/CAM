@@ -12,7 +12,7 @@ module edyn3D_regridder
   !-----------------------------------------------------------------------
   !-----------------------------------------------------------------------
   subroutine edyn3D_regridder_phys2mag(physfld,physalt,nphyscol,nphyslev,magfld)
-    use edyn3d_params, only: hgt_fix,nhgt_fix, nmlat_T1
+    use edyn3d_params, only: hgt_fix,nhgt_fix
     use edyn3D_fline_fields, only: magfield_t
     use interpolate_data, only: lininterp
 
@@ -47,37 +47,29 @@ module edyn3D_regridder
           fptr1d(i) = physfld_tmp(i,k)
        end do
 
-       call ESMF_FieldRegrid(physField, magfld%esmf_fld(k), magfld%rhandle_phys2mag(k), &
+       call ESMF_FieldRegrid(physField, magfld%esmf_fld_des(k), magfld%rhandle_phys2mag(k), &
                              termorderflag=ESMF_TERMORDER_SRCSEQ, rc=rc)
        call check_errror(subname,'ESMF_FieldRegrid phys2mag',rc)
 
        if (mytid<ntask) then
 
-          call ESMF_FieldGet(magfld%esmf_fld(k), localDe=0, farrayPtr=fptr2d, &
+          call ESMF_FieldGet(magfld%esmf_fld_des(k), localDe=0, farrayPtr=fptr2d, &
                              computationalLBound=lbnd2d, computationalUBound=ubnd2d, rc=rc)
           call check_errror(subname,'ESMF_FieldGet physField',rc)
 
-          nmlat = magfld%nmlat_tot - 2*(k-1)
+          nmlat = (magfld%nmlat_h - (k-1))*2
 
           do j = lbnd2d(2), ubnd2d(2)
-
              if (j>nmlat/2) then
                 isn = 2
                 jj = nmlat-j+1
              else
                 isn = 1
                 jj = j
-             endif
-
+             end if
              do i = lbnd2d(1), ubnd2d(1)
                 magfld%flines(i,jj,isn)%fld(k) = fptr2d(i,j)
              end do
-
-             if (magfld%nmlat_tot==nmlat_T1 .and. j==nmlat/2) then
-                do i = lbnd2d(1), ubnd2d(1)
-                   magfld%flines(i,jj,2)%fld(k) = magfld%flines(i,jj,1)%fld(k)
-                end do
-             end if
           end do
 
        end if
@@ -113,11 +105,11 @@ module edyn3D_regridder
 
        if (mytid<ntask) then
 
-          call ESMF_FieldGet(magfld%esmf_fld(k), localDe=0, farrayPtr=fptr2d, &
+          call ESMF_FieldGet(magfld%esmf_fld_src(k), localDe=0, farrayPtr=fptr2d, &
                              computationalLBound=lbnd2d, computationalUBound=ubnd2d, rc=rc)
           call check_errror(subname,'ESMF_FieldGet physField',rc)
 
-          nmlat = magfld%nmlat_tot - 2*(k-1)
+          nmlat = (magfld%nmlat_h - (k-1))*2
 
           do j = lbnd2d(2), ubnd2d(2)
              if (j>nmlat/2) then
@@ -126,7 +118,7 @@ module edyn3D_regridder
              else
                 isn = 1
                 jj = j
-             endif
+             end if
              do i = lbnd2d(1), ubnd2d(1)
                 fptr2d(i,j) = magfld%flines(i,jj,isn)%fld(k)
              end do
@@ -134,7 +126,7 @@ module edyn3D_regridder
 
        end if
 
-       call ESMF_FieldRegrid(magfld%esmf_fld(k), physField, magfld%rhandle_mag2phys(k), &
+       call ESMF_FieldRegrid(magfld%esmf_fld_src(k), physField, magfld%rhandle_mag2phys(k), &
                              termorderflag=ESMF_TERMORDER_SRCSEQ, rc=rc)
        call check_errror(subname,'ESMF_FieldRegrid mag2phys',rc)
 
@@ -158,7 +150,7 @@ module edyn3D_regridder
   !-----------------------------------------------------------------------
   !-----------------------------------------------------------------------
   subroutine edyn3D_regridder_mag2oplus( opalt, magfld, opfld )
-    use edyn3D_esmf_regrid, only: rh_mag2oplus, oplusField
+    use edyn3D_esmf_regrid, only: rh_mag_p2oplus, oplusField
     use edyn_mpi, only: lon0,lon1,lat0,lat1,lev0,lev1
     use edyn_geogrid, only: nlevo=>nlev
     use edyn3d_params, only: hgt_fix,nhgt_fix
@@ -183,22 +175,20 @@ module edyn3D_regridder
 
           if (mytid<ntask) then
 
-             call ESMF_FieldGet(magfld%esmf_fld(k), localDe=0, farrayPtr=fptr2d, &
+             call ESMF_FieldGet(magfld%esmf_fld_src(k), localDe=0, farrayPtr=fptr2d, &
                   computationalLBound=lbnd2d, computationalUBound=ubnd2d, rc=rc)
              call check_errror(subname,'ESMF_FieldGet pmagfld%esmf_fld(k)',rc)
 
-             nmlat = magfld%nmlat_tot - 2*(k-1)
+             nmlat = (magfld%nmlat_h - (k-1))*2
 
              do j = lbnd2d(2), ubnd2d(2)
-
                 if (j>nmlat/2) then
                    isn = 2
                    jj = nmlat-j+1
                 else
                    isn = 1
                    jj = j
-                endif
-
+                end if
                 do i = lbnd2d(1), ubnd2d(1)
                    fptr2d(i,j) = magfld%flines(i,jj,isn)%fld(k)
                 end do
@@ -206,7 +196,7 @@ module edyn3D_regridder
 
           end if
 
-          call ESMF_FieldRegrid(magfld%esmf_fld(k), oplusField, rh_mag2oplus(k), &
+          call ESMF_FieldRegrid(magfld%esmf_fld_src(k), oplusField, rh_mag_p2oplus(k), &
                termorderflag=ESMF_TERMORDER_SRCSEQ, rc=rc)
           call check_errror(subname,'ESMF_FieldRegrid mag2oplus',rc)
 
