@@ -71,17 +71,19 @@ module apex
     gb, & ! Coefficients for magnetic field calculation
     gv    ! Coefficients for magnetic potential calculation
 !
-  real(r8) :: &
-    rtd,  & ! radians to degrees
-    dtr,  & ! degrees to radians
-    pola    ! pole angle (deg); when geographic lat is poleward of pola,
-            ! x,y,z,v arrays are forced to be constant (pola=89.995)
+  real(r8),parameter :: &
+    rtd = 45._r8/atan(1._r8),  & ! radians to degrees
+    dtr = 1._r8/rtd              ! degrees to radians
 
   real(r8),parameter ::       & ! Formerly common /APXCON/
     req  = 6378.160_r8,       & ! Equatorial earth radius
     precise = 7.6e-11_r8,     & ! Precision factor
     glatlim = 89.9_r8,        & ! Limit above which gradients are recalculated
     xmiss = -32767._r8
+
+  ! pole angle (deg); when geographic lat is poleward of pola,
+  ! x,y,z,v arrays are forced to be constant (pola=89.995)
+  real(r8),parameter :: pola = 90._r8-sqrt(precise)*rtd
 !
 ! colat,elon,vp,ctp,stp were in two commons in legacy code:
 ! /APXDIPL/ and /DIPOLE/. Need to check if these need to be separated.
@@ -297,24 +299,6 @@ subroutine apex_mka(date,gplat,gplon,gpalt,nlat,nlon,nalt,ier)
 
   ier = 0
 !
-! Some parts of the legacy apex code use constants to set dtr,rtd,
-! other parts use rtd=45./atan(1.), dtr=1./rtd. Differences are
-! on the order of 1.e-18 to 1.e-14. Here, the atan method is used.
-!
-!  rtd  = 5.72957795130823E1
-!  dtr  = 1.745329251994330E-2
-!
-   rtd  = 45._r8/atan(1._r8)
-   dtr  = 1._r8/rtd
-!
-! pola:
-!   Pole angle (deg); when the geographic latitude is poleward of POLA,
-!   X,Y,Z,V are forced to be constant for all longitudes at each altitude.
-!   This makes POLA = 89.995
-!
-  pola = 90._r8-sqrt(precise)*rtd    ! Pole angle (deg)
-
-!
 ! Allocate 3d x,y,z,v arrays:
 ! These are not deallocated by this module. They can be deallocated
 ! by the calling program following the last call to the apex subs.
@@ -391,7 +375,8 @@ subroutine apex_mka(date,gplat,gplon,gpalt,nlat,nlon,nalt,ier)
       stmcpm = st*ctp*cp - ct*stp
       stmspm = st*sp
       do k=1,nalt
-        call apex_sub(date,gplat(j),gplon(i),gpalt(k),&
+         
+         call apex_sub(date,gplat(j),gplon(i),gpalt(k),&
           aht,alat,phia,bmag,xmag,ymag,zdown,vmp)
 
         vnor = vmp/vp
@@ -1283,8 +1268,8 @@ subroutine feldg(iflag,glat,glon,alt,bnrth,beast,bdown,babs)
 ! Args:
   integer,intent(in)     :: iflag
   real(r8),intent(in)    :: glon
-  real(r8),intent(out)   :: glat
-  real(r8),intent(out)   :: alt
+  real(r8),intent(inout) :: glat
+  real(r8),intent(inout) :: alt
   real(r8),intent(out)   :: bnrth,beast,bdown,babs
 !
 ! Local:
@@ -2242,21 +2227,18 @@ subroutine solgmlon(xlat,xlon,colat,elon,mlon)
   real(r8),intent(out) :: mlon
 !
 ! Local:
-  real(r8),parameter ::           &
-    rtod=5.72957795130823e1_r8,  &
-    dtor=1.745329251994330e-2_r8
   real(r8) :: ctp,stp,ang,cang,sang,cte,ste,stfcpa,stfspa
 
-  ctp = cos(colat*dtor)
+  ctp = cos(colat*dtr)
   stp = sqrt(1._r8 - ctp*ctp)
-  ang = (xlon-elon)*dtor
+  ang = (xlon-elon)*dtr
   cang = cos(ang)
   sang = sin(ang)
-  cte = sin(xlat*dtor)
+  cte = sin(xlat*dtr)
   ste = sqrt(1._r8-cte*cte)
   stfcpa = ste*ctp*cang - cte*stp
   stfspa = sang*ste
-  mlon = atan2(stfspa,stfcpa)*rtod
+  mlon = atan2(stfspa,stfcpa)*rtd
 
 end subroutine solgmlon
 !-----------------------------------------------------------------------

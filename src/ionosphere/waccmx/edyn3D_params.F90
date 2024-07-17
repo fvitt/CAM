@@ -34,7 +34,7 @@ module edyn3D_params
        nlat_qd = 321,  &  ! 361; 221; 1181 ; 21,  number of quasi dipole latitudes, edge points j-0.5
 !       nlat_qd = 17,  &  !1181 ; 21,           &  ! number of quasi dipole latitudes, edge points j-0.5
 !       nlat_qd = 181,  &  !1181 ; 21,          &  ! number of quasi dipole latitudes, edge points j-0.5
-       nlat_qd_h=(nlat_qd+1)*0.5, &! half of the hemisphere (assumes point at equator) edge points j-0.5
+       nlat_qd_h=(nlat_qd+1)/2, &! half of the hemisphere (assumes point at equator) edge points j-0.5
 
        nmlon	= 180,  	&  ! number of magnetic longitudes P,S1,S2,R points
        nmlonp1  = nmlon+1,	&

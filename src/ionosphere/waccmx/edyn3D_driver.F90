@@ -21,7 +21,7 @@ module edyn3D_driver
   public :: edyn3D_driver_reg
   public :: edyn3D_driver_timestep
 
-  real(r8), parameter :: r2d = 180./pi
+  real(r8), parameter :: r2d = 180._r8/pi
 
 contains
   subroutine edyn3D_driver_reg(mpicom, npes)

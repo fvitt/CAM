@@ -168,12 +168,12 @@ module edyn3D_maggrid
       if(debug) write(iulog,*) 'y1 =',y1
       y2 = y1 + d*(lam2-lam1)
       if(debug) write(iulog,*) 'y2 =',y2
-      e = (f-d)/(2.e0*(lam3-lam2))
+      e = (f-d)/(2.e0_r8*(lam3-lam2))
       y3 = y2 + d*(lam3-lam2) + e*(lam3-lam2)**2
       if(debug) write(iulog,*) 'y3 =',y3
       y4 = y3 + f*(lam4-lam3)
       if(debug) write(iulog,*) 'y4 =',y4
-      g = (f-h)/(2.e0*(lam5-lam4))
+      g = (f-h)/(2.e0_r8*(lam5-lam4))
       y5 = y4 + f*(lam5-lam4) - g*(lam5-lam4)**2
       if(debug) write(iulog,*) 'y5 =',y5
       ymax = y5 + h*(pio2-lam5)
@@ -227,7 +227,7 @@ module edyn3D_maggrid
         ! Region V grid points
         !
 	if (y.gt.y2.and.y.le.y3) then
-      	  lam = lam2 + (sqrt(d**2+4.*e*(y-y2))-d)/(2._r8*e)
+      	  lam = lam2 + (sqrt(d**2+4._r8*e*(y-y2))-d)/(2._r8*e)
           rho_loc = cos(lam)
           ha_loc = r0km/rho_loc**2 - rekm
         endif
@@ -298,7 +298,7 @@ module edyn3D_maggrid
          rho_s(j,1) = cos_avg  ! cos(ylatm_s)
          rho_s(j,2) = cos_avg  ! cos(ylatm_s)
          ha_s(j)    = (r0km/cos_avg**2 - rekm)*km2m
-	 if(debug) write(iulog,'(i4,3(1x,f10.6))') j,rho_s(j,2),90.*ylatm_s(j,2)/pio2,ylatm_s(j,2)
+	 if(debug) write(iulog,'(i4,3(1x,f10.6))') j,rho_s(j,2),90._r8*ylatm_s(j,2)/pio2,ylatm_s(j,2)
 !	 if(debug) write(iulog,*) j,ylatm(j,2),ylatm(j+1,2),ylatm_s(j,2)
       enddo
       !
@@ -372,7 +372,7 @@ module edyn3D_maggrid
       
   	  k_tmp = hgt_fix_r - 400000._r8
   	  ktop_tmp = minloc(abs(k_tmp),dim=1)
-  	  write(iulog,'(a4,xi4)') 'ktop',minloc(abs(k_tmp))
+  	  write(iulog,'(a4,i4)') 'ktop',minloc(abs(k_tmp))
   	  
   	dggjlon = 2._r8*pi/float(nggjlon)
   	do i=1,nggjlon
@@ -460,7 +460,7 @@ module edyn3D_maggrid
   	  ggjhgt(kend+3) = hgt_fix(kk)  				   ! ggjhgt(17) = hgt_fix(52)	   ! 793704 m
   	  k_fix_ggjbot(kend+4) = minloc(abs(hgt_fix_r-840000._r8),dim=1)	   ! k_fix_ggjbot(18) = 53
   	  ggjtop(kend+3) = hgt_fix_r(k_fix_ggjbot(kend+4))		   ! ggjtop(17) = hgt_fix_r(53)    ! 837615 m
-  	  kk = minloc(abs(hgt_fix-880000.),dim=1)
+  	  kk = minloc(abs(hgt_fix-880000._r8),dim=1)
   	  ggjhgt(kend+4) = hgt_fix(kk)  				   ! ggjhgt(18) = hgt_fix(53)	   ! 881931 m
   	  k_fix_ggjbot(nggjhgt+1) = ktop				   ! ???? should this be kend+5 instead of nggjhgt+1
   	  ggjtop(kend+4) = hgt_fix_r(k_fix_ggjbot(nggjhgt+1))		   ! ggjtop(18) = hgt_fix_r(54)    ! 948105 m
@@ -485,12 +485,12 @@ module edyn3D_maggrid
       integer :: i,l,k
       real(r8) :: dlatm,fac_r      
 
-      real :: lat_qd_ed(nlat_qd)    ! quasi latitude of edge of volume l-.5
-      real :: lat_qd_mp(nlat_qd-1)  ! quasi latitude of midpoint of volume l
-      real :: lon_qd_ed(nmlon)      ! quasi longitude of edge of volume     
-      real :: lon_qd_mp(nmlon)      ! quasi longitude of midpoint of volume     
-      real :: hgt_qd_mp(nhgt_fix)   ! height of quasi dipole grid = p height level
-      real :: hgt_qd_ed(nhgt_fix_r) ! height of quasi dipole grid = r height level
+      real(r8) :: lat_qd_ed(nlat_qd)    ! quasi latitude of edge of volume l-.5
+      real(r8) :: lat_qd_mp(nlat_qd-1)  ! quasi latitude of midpoint of volume l
+      real(r8) :: lon_qd_ed(nmlon)      ! quasi longitude of edge of volume     
+      real(r8) :: lon_qd_mp(nmlon)      ! quasi longitude of midpoint of volume     
+      real(r8) :: hgt_qd_mp(nhgt_fix)   ! height of quasi dipole grid = p height level
+      real(r8) :: hgt_qd_ed(nhgt_fix_r) ! height of quasi dipole grid = r height level
 !    
       lon_qd_mp = ylonm    ! [rad] same as p-points
       lon_qd_ed = ylonm_s  ! [rad] same as s1-points
@@ -503,7 +503,7 @@ module edyn3D_maggrid
 !      
 ! midpoints are in the middle of the volume l
       do l =1,nlat_qd-1
-        lat_qd_mp(l) = 0.5*(lat_qd_ed(l)+lat_qd_ed(l+1)) ! equally distributed
+        lat_qd_mp(l) = 0.5_r8*(lat_qd_ed(l)+lat_qd_ed(l+1)) ! equally distributed
         !write(6,*) 'lat_qd_mp',i,lat_qd_mp(i)*rtd
       end do
 !       
@@ -614,7 +614,7 @@ module edyn3D_maggrid
           enddo
         enddo
       enddo
-      mc = 0.
+      mc = 0._r8
 ! Case 1: m,n are both odd
       do m=1,nmax,2
         do n=m,nmax,2
@@ -728,13 +728,13 @@ module edyn3D_maggrid
       rp = (hgt_fix_r(k+1)+re)/r0 ! r_k+0.5/R
       rm = (hgt_fix_r(k)+re)/r0 ! r_k-0.5/R
 
-      fac2 = 0.5*pi*(rp-rm)*r0 ! pi/2*((r_k+0.5)-(r_k-0.5))
+      fac2 = 0.5_r8*pi*(rp-rm)*r0 ! pi/2*((r_k+0.5)-(r_k-0.5))
       fac3 = 2*dlonm*(hgt_fix(k)+re)**3/r0 ! 2*dlon*r_k^3/R
       do j = 1,jmax ! loop over all S2 points
 	!
 	! make sure fac1 does not numerically exceed 1, so that sqrt(1-fac1**2) can be computed
 	!
-	fac1 = min(sqrt(rm)*rho_s(j,1),1.0) ! sqrt(r_k-0.5/R)*rho(j+0.5)
+	fac1 = min(sqrt(rm)*rho_s(j,1),1.0_r8) ! sqrt(r_k-0.5/R)*rho(j+0.5)
 	!
 	! first index of a1,a3 is j+1 because this corresponds to position j+0.5
 	!
@@ -760,10 +760,10 @@ module edyn3D_maggrid
 	!
 	! make sure fac1 does not numerically exceed 1, so that sqrt(1-fac1**2) can be computed
 	!
-	fac1 = min(sqrt(rp)*rho_s(j,1),1.0) ! sqrt(r_k+0.5/R)*rho(j+0.5)
+	fac1 = min(sqrt(rp)*rho_s(j,1),1.0_r8) ! sqrt(r_k+0.5/R)*rho(j+0.5)
 
 	m2f(k,j) = fac3*(sqrt(1-rm*rho_s(j,1)**2)-sqrt(1-fac1**2))* &
-	  sqrt(1-0.75*rho_s(j,1)**2)/rho_s(j,1)
+	  sqrt(1._r8-0.75_r8*rho_s(j,1)**2)/rho_s(j,1)
       enddo
       m1f(k,jmax+1) = sqrt(((hgt_fix(k)+re)/r0)**5)*fac2*(1-a1(k,jmax+1))*r0
       m3f(k,jmax+1) = (hgt_fix_r(k)+re)**2*dlonm*(1-a3(k,jmax+1))
@@ -780,7 +780,7 @@ module edyn3D_maggrid
       !
       ! make sure fac1 does not numerically exceed 1, so that sqrt(1-fac1**2) can be computed
       !
-      fac1 = min(sqrt(rm)*rho_s(j,1),1.0) ! sqrt(r_k-0.5/R)*rho(j+0.5)
+      fac1 = min(sqrt(rm)*rho_s(j,1),1.0_r8) ! sqrt(r_k-0.5/R)*rho(j+0.5)
       a3(k,j+1) = 1-sqrt(1-fac1**2)
       m3f(k,j) = (hgt_fix_r(k)+re)**2*dlonm*(a3(k,j+1)-a3(k,j))
     enddo

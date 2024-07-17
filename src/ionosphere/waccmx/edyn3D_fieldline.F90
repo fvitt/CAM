@@ -278,7 +278,7 @@ module edyn3D_fieldline
   real(r8) :: poten_hl(nmlon,nmlat_T1)  ! high latitude potential r-points
   real(r8) :: poten_hl3(nmlon,nmlat_T1) ! high latitude potential r-points
 
-  real,parameter ::   Je2Ion_eq(nmlon)=0.      ! at S1 points at k=1 and j=nmlat_h
+  real(r8),parameter ::   Je2Ion_eq(nmlon)=0._r8      ! at S1 points at k=1 and j=nmlat_h
                                                ! otherwise could be interpolated?
                                                ! read in or set later
 
@@ -794,7 +794,7 @@ endif
 
                   qdlat = fline_p(i,j,isn)%mlat_qd(k)*r2d ! get quasi-dipole latitude
                   qdlon = fline_p(i,j,isn)%mlon_qd(k)*r2d ! get quasi-dipole longitude
-                  alt = fline_p(i,j,isn)%hgt_pt(k)*1e-3 ! convert height from [m] to [km]
+                  alt = fline_p(i,j,isn)%hgt_pt(k)*1e-3_r8 ! convert height from [m] to [km]
 
                   call apex_q2g(qdlat,qdlon,alt,gdlat,gdlon, ierr)
 
@@ -813,7 +813,7 @@ endif
 
                   qdlat = fline_r(i,j,isn)%mlat_qd(k)*r2d ! get quasi-dipole latitude
                   qdlon = fline_r(i,j,isn)%mlon_qd(k)*r2d ! get quasi-dipole longitude
-                  alt = fline_r(i,j,isn)%hgt_pt(k)*1e-3 ! convert height from [m] to [km]
+                  alt = fline_r(i,j,isn)%hgt_pt(k)*1e-3_r8 ! convert height from [m] to [km]
 
                   call apex_q2g(qdlat,qdlon,alt,gdlat,gdlon, ierr)
 
@@ -832,7 +832,7 @@ endif
 
                   qdlat = fline_s1(i,j,isn)%mlat_qd(k)*r2d ! get quasi-dipole latitude
                   qdlon = fline_s1(i,j,isn)%mlon_qd(k)*r2d ! get quasi-dipole longitude
-                  alt = fline_s1(i,j,isn)%hgt_pt(k)*1e-3 ! convert height from [m] to [km]
+                  alt = fline_s1(i,j,isn)%hgt_pt(k)*1e-3_r8 ! convert height from [m] to [km]
 
                   call apex_q2g(qdlat,qdlon,alt,gdlat,gdlon, ierr)
 
@@ -860,7 +860,7 @@ endif
 
                   qdlat = fline_s2(i,j,isn)%mlat_qd(k)*r2d ! get quasi-dipole latitude
                   qdlon = fline_s2(i,j,isn)%mlon_qd(k)*r2d ! get quasi-dipole longitude
-                  alt = fline_s2(i,j,isn)%hgt_pt(k)*1e-3 ! convert height from [m] to [km]
+                  alt = fline_s2(i,j,isn)%hgt_pt(k)*1e-3_r8 ! convert height from [m] to [km]
 
                   call apex_q2g(qdlat,qdlon,alt,gdlat,gdlon, ierr)
 
@@ -902,7 +902,7 @@ endif
 !
 ! local variables
        integer ::  i,j,k,isn,nmax
-       real :: dlonm,drho,sigC
+       real(r8) :: dlonm,drho,sigC
 !
        dlonm = ylonm_s(2)-ylonm_s(1) ! assumes euiqdistant longitudinal gridpoints
 !
@@ -931,7 +931,7 @@ endif
                     endif
                     fline_s1(i,j,isn)%N1h(k) = fline_s1(i,j,isn)%M1(k)*(fline_s1(i,j,isn)%sigH(k)* &
                        fline_s1(i,j,isn)%D(k)-fline_s1(i,j,isn)%sigP(k)*fline_s1(i,j,isn)%d1d2(k))* &
-                       sqrt(1-0.75*rho(j,isn)**2)*0.5/r0/drho
+                       sqrt(1-0.75_r8*rho(j,isn)**2)*0.5_r8/r0/drho
                    endif
 
 ! lowest volume at equator : overwrite values from above N1P and N1H (page 12 30 Jan 2014 (Art's notes)
@@ -941,7 +941,7 @@ endif
 ! sigC = sigP*d1*d1+(sigH*D-sigP*d1*d2)*(sigH*D+sigP*d1*d2)/sigP/(d2*d2)
 !        for i+0.5,j,k
                   if(k == 1 .and. (nmlat_h-j+1) == k) then ! lowest volume at equator j ==  nmlat_h
-                    fline_s1(i,j,isn)%N1h(k) = 0.
+                    fline_s1(i,j,isn)%N1h(k) = 0._r8
                     sigC = fline_s1(i,j,isn)%sigP(k)*fline_s1(i,j,isn)%d1d1(k)
                     sigC =sigC + (fline_s1(i,j,isn)%sigH(k)*fline_s1(i,j,isn)%D(k)- &
                        fline_s1(i,j,isn)%sigP(k)*fline_s1(i,j,isn)%d1d2(k))* &
@@ -967,11 +967,11 @@ endif
 !
 ! N2H(j+0.5) = M2(j+0.5)*[sigH*D+sigP*d1*d2]](j+0.5)/2/R/rho(j+0.5)/(phi(i+1)-phi(i-1)))
                   fline_s2(i,j,isn)%N2h(k) = fline_s2(i,j,isn)%M2(k)*(fline_s2(i,j,isn)%sigH(k)* &
-                     fline_s2(i,j,isn)%D(k)+fline_s2(i,j,isn)%sigP(k)*fline_s2(i,j,isn)%d1d2(k))*0.5/ &
+                     fline_s2(i,j,isn)%D(k)+fline_s2(i,j,isn)%sigP(k)*fline_s2(i,j,isn)%d1d2(k))*0.5_r8/ &
                      r0/2/rho_s(j,isn)/dlonm
 ! N2P(j+0.5) = M2(j+0.5)[sigP*d2^2](j+0.5)*sqrt(1-0.75 rho^2(j+0.5)/R/(rho(j+1)-rho(j))
                   fline_s2(i,j,isn)%N2p(k) = fline_s2(i,j,isn)%M2(k)*fline_s2(i,j,isn)%sigP(k)* &
-                     fline_s2(i,j,isn)%d2d2(k)*sqrt(1-0.75*rho_s(j,isn)**2)/r0/(rho(j+1,isn)-rho(j,isn))
+                     fline_s2(i,j,isn)%d2d2(k)*sqrt(1-0.75_r8*rho_s(j,isn)**2)/r0/(rho(j+1,isn)-rho(j,isn))
 !
                end do  ! end height loop
              end do  ! end lat/fieldline loop
