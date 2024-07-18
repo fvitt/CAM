@@ -3,7 +3,7 @@ module modal_aerosol_properties_mod
   use physconst, only: pi
   use aerosol_properties_mod, only: aerosol_properties, aero_name_len
   use rad_constituents, only: rad_cnst_get_info, rad_cnst_get_mode_props, rad_cnst_get_aer_props
- 
+
   implicit none
 
   private
@@ -59,6 +59,8 @@ module modal_aerosol_properties_mod
   interface modal_aerosol_properties
      procedure :: constructor
   end interface modal_aerosol_properties
+
+  logical, parameter :: debug = .false.
 
 contains
 
@@ -956,9 +958,11 @@ contains
                 bulk_fluxes(k) = bulk_fluxes(k) + massfrac_bin(k) * Mdust
              end do
 
-             if (abs(1._r8-sum(massfrac_bin)) > 1.e-6_r8) then
-                write(*,*) 'bulk_dust_fluxes WARNING mode-num, massfrac_bin, sum(massfrac_bin) = ', &
-                     m, massfrac_bin, sum(massfrac_bin)
+             if (debug) then
+                if (abs(1._r8-sum(massfrac_bin)) > 1.e-6_r8) then
+                   write(*,*) 'bulk_dust_fluxes WARNING mode-num, massfrac_bin, sum(massfrac_bin) = ', &
+                        m, massfrac_bin, sum(massfrac_bin)
+                end if
              end if
 
           end if
@@ -979,7 +983,6 @@ contains
     call rad_cnst_get_info(0, bin_ndx, mode_type=modetype)
 
     hydrophilic = (trim(modetype) == 'accum')
-    !soluble = trim(mode_name)/='primary_carbon' ???
 
   end function hydrophilic
 
