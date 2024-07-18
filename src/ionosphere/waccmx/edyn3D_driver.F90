@@ -21,7 +21,7 @@ module edyn3D_driver
   public :: edyn3D_driver_reg
   public :: edyn3D_driver_timestep
 
-  real(r8), parameter :: r2d = 180./pi
+  real(r8), parameter :: r2d = 180._r8/pi
 
 contains
   subroutine edyn3D_driver_reg(mpicom, npes)
@@ -98,25 +98,21 @@ contains
     call addfld ('sigma_hal_s2', horiz_only, 'I', 'K','Hal cond. on S2 mag field line grid', &
                   gridname='magfline_s2')
 
-    call addfld ('un_s1', horiz_only, 'I', 'm/s','Zonal wind on S1 mag field line grid', &
-                  gridname='magfline_s1')
-    call addfld ('vn_s1', horiz_only, 'I', 'm/s','Meridional wind on S1 mag field line grid', &
-                  gridname='magfline_s1')
-    call addfld ('un_s2', horiz_only, 'I', 'm/s','Zonal wind on S2 mag field line grid', &
-                  gridname='magfline_s2')
-    call addfld ('vn_s2', horiz_only, 'I', 'm/s','Meridional wind on S2 mag field line grid', &
-                  gridname='magfline_s2')
+    call addfld ('Tn_opg0', (/ 'lev' /), 'I', 'K','Tn_opg0 test field' , gridname='geo_grid')
+    call addfld ('Tn_opg1', (/ 'lev' /), 'I', 'K','Tn_opg1 test field' , gridname='geo_grid')
 
     call edyn3D_fline_fields_alloc()
 
   end subroutine edyn3D_driver_reg
 
-  subroutine edyn3D_driver_timestep( nphyscol, nphyslev, physalt, tn, sigPed, sigHal, un, vn, tn_out )
+  subroutine edyn3D_driver_timestep( nphyscol, nphyslev, physalt, tn, sigPed, sigHal, tn_out, tn_out2 )
     use edyn3d_mpi, only: mlon0_p,mlon1_p
     use cam_history,  only: outfld
     use edyn3D_fieldline, only: fline_p, fline_s1, fline_s2
     use edyn3D_fline_fields, only: Tn_p, height_s1, height_s2
-    use edyn3D_fline_fields, only: sigma_ped_s1,sigma_hal_s1,sigma_ped_s2,sigma_hal_s2,un_s1,vn_s1,un_s2,vn_s2
+    use edyn3D_fline_fields, only: sigma_ped_s1,sigma_hal_s1,sigma_ped_s2,sigma_hal_s2
+    use edyn_mpi, only: lon0,lon1,lat0,lat1,lev0,lev1
+    use regridder, only: regrid_phys2geo_3d, regrid_geo2phys_3d
 
     integer,  intent(in) :: nphyscol, nphyslev
     real(r8), intent(in) :: physalt(nphyslev,nphyscol)
@@ -126,6 +122,7 @@ contains
     real(r8), intent(in) :: un(nphyslev,nphyscol)
     real(r8), intent(in) :: vn(nphyslev,nphyscol)
     real(r8), intent(out) :: tn_out(nphyslev,nphyscol)
+    real(r8), intent(out) :: tn_out2(nphyslev,nphyscol)
 
     real(r8) :: geogaltp(mlon0_p:mlon1_p, nptsp_total)
     real(r8) :: geoglatp(mlon0_p:mlon1_p, nptsp_total)
@@ -141,6 +138,10 @@ contains
     integer :: i,j,k,isn,ncnt, ier
     integer :: dk,k0,k1
    integer :: npts_s1
+
+    real(r8) :: opalt (lon0:lon1,lat0:lat1,lev0:lev1)
+    real(r8) :: Tn_oplus0(lon0:lon1,lat0:lat1,lev0:lev1)
+    real(r8) :: Tn_oplus1(lon0:lon1,lat0:lat1,lev0:lev1)
 
     call edyn3D_regridder_phys2mag(physalt,physalt,nphyscol,nphyslev,height_s1)
     call edyn3D_regridder_phys2mag(physalt,physalt,nphyscol,nphyslev,height_s2)
@@ -306,6 +307,19 @@ if (i == mlon0_p .and. isn == 1) write(iulog,*) 'i,j,isn,MIN/MAX fline_s2(i,j,is
 !    endif
 
     call edyn3D_regridder_mag2phys(Tn_p, physalt, nphyscol,nphyslev, tn_out)
+
+    call regrid_phys2geo_3d( Tn, Tn_oplus0, nphyslev, 1, nphyscol )
+    do j = lat0,lat1
+       call outfld( 'Tn_opg0', Tn_oplus0(lon0:lon1,j,lev0:lev1), lon1-lon0+1, j )
+    end do
+
+    call regrid_phys2geo_3d( physalt, opalt, nphyslev, 1, nphyscol )
+    call edyn3D_regridder_mag2oplus( opalt, Tn_p, Tn_oplus1 )
+    do j = lat0,lat1
+       call outfld( 'Tn_opg1', Tn_oplus1(lon0:lon1,j,lev0:lev1), lon1-lon0+1, j )
+    end do
+
+    call regrid_geo2phys_3d( Tn_oplus1, Tn_out2, nphyslev, 1, nphyscol )
 
   end subroutine edyn3D_driver_timestep
 
