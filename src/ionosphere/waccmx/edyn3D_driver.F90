@@ -98,6 +98,15 @@ contains
     call addfld ('sigma_hal_s2', horiz_only, 'I', 'K','Hal cond. on S2 mag field line grid', &
                   gridname='magfline_s2')
 
+    call addfld ('un_s1', horiz_only, 'I', 'm/s','Zonal wind on S1 mag field line grid', &
+                  gridname='magfline_s1')
+    call addfld ('vn_s1', horiz_only, 'I', 'm/s','Meridional wind on S1 mag field line grid', &
+                  gridname='magfline_s1')
+    call addfld ('un_s2', horiz_only, 'I', 'm/s','Zonal wind on S2 mag field line grid', &
+                  gridname='magfline_s2')
+    call addfld ('vn_s2', horiz_only, 'I', 'm/s','Meridional wind on S2 mag field line grid', &
+                  gridname='magfline_s2')
+
     call addfld ('Tn_opg0', (/ 'lev' /), 'I', 'K','Tn_opg0 test field' , gridname='geo_grid')
     call addfld ('Tn_opg1', (/ 'lev' /), 'I', 'K','Tn_opg1 test field' , gridname='geo_grid')
 
@@ -105,12 +114,13 @@ contains
 
   end subroutine edyn3D_driver_reg
 
-  subroutine edyn3D_driver_timestep( nphyscol, nphyslev, physalt, tn, sigPed, sigHal, tn_out, tn_out2 )
+  subroutine edyn3D_driver_timestep( nphyscol, nphyslev, physalt, tn, sigPed, sigHal, un, vn, tn_out, tn_out2 )
+
     use edyn3d_mpi, only: mlon0_p,mlon1_p
     use cam_history,  only: outfld
     use edyn3D_fieldline, only: fline_p, fline_s1, fline_s2
     use edyn3D_fline_fields, only: Tn_p, height_s1, height_s2
-    use edyn3D_fline_fields, only: sigma_ped_s1,sigma_hal_s1,sigma_ped_s2,sigma_hal_s2
+    use edyn3D_fline_fields, only: sigma_ped_s1,sigma_hal_s1,sigma_ped_s2,sigma_hal_s2,un_s1,vn_s1,un_s2,vn_s2
     use edyn_mpi, only: lon0,lon1,lat0,lat1,lev0,lev1
     use regridder, only: regrid_phys2geo_3d, regrid_geo2phys_3d
 

@@ -1034,7 +1034,7 @@ module ionosphere_interface
          end do
       end do
 
-      call edyn3D_driver_timestep( nphyscols, pver, physalt, tn_in, sigma_ped_blck, sigma_hall_blck, tn_out, tn_out2 )
+      call edyn3D_driver_timestep( nphyscols, pver, physalt, tn_in, sigma_ped_blck, sigma_hall_blck, u_blck, v_blck, tn_out, tn_out2 )
 
       j = 0
       do lchnk = begchunk, endchunk

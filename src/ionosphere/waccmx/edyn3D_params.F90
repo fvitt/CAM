@@ -90,9 +90,18 @@ module edyn3D_params
 !                        coefficients for magnetic perturbations (delB).
 !               nggjlat = 120, & ! number of geographic latitude points
 !               nggjlat = 16, & ! number of geographic latitude points
-               nggjlat = 360, &   !180  number of geographic latitude points
+               nggjlat = 360, & ! 180  number of geographic latitude points
 !                        for calculating currents, to get spherical-harmonic
 !                        coefficients for magnetic perturbations.
+       ! Following parameters l1ggj through mdab are for SPHEREPACK 3.2
+               l1ggj=min0(nggjlat,(nggjlon+2)/2), &
+               l2ggj=(nggjlat+1)/2, &
+               lvhags=l2ggj*nggjlat*(2*nggjlat-l1ggj+1)+nggjlon+15,  &
+               lshags=nggjlat*(3*(l1ggj+l2ggj)-2)+(l1ggj-1)*       &
+                      (l2ggj*(2*nggjlat-l1ggj)-3*l1ggj)/2+nggjlon+15, &
+               lwork=max0(4*nggjlat*(nggjlat+2)+2, &
+                      (2*nggjhgt+1)*nggjlat*nggjlon), &
+               mdab=min0(nggjlat,(nggjlon+2)/2)
 
        real(r8) :: ggjlon(nggjlon)    ! geographic longitude grid for J (radians)
        real(r8) ::  &
@@ -127,8 +136,8 @@ module edyn3D_params
    !
    ! M1*F, M2*F, M3*F
    !
-   real(r8),dimension(nhgt_fix,nmlat_h) :: m1f,m2f
-   real(r8),dimension(nhgt_fix_r,nmlat_h) :: m3f
+   real(r8),dimension(nmlat_h,nhgt_fix) :: m1f,m2f
+   real(r8),dimension(nmlat_h,nhgt_fix_r) :: m3f
 !
 ! Dimensions below are flipped so use above
 !   !
@@ -137,11 +146,58 @@ module edyn3D_params
 !   real(r8),dimension(nhgt_fix,nmlat_h) :: m1f,m2f
 !   real(r8),dimension(nhgt_fix_r,nmlat_h) :: m3f
 !
-   real(r8), parameter ::         &
-	   h0 = 8.0e4_r8,         &   ! Initial value for bottom height of dynamo grid
-	   r0 = rearth_m+h0,	  &   ! Mean Earth radius plus height of bottom of dynamo region (h0) [m]
-	   m2km = 1.e-3_r8,       &   ! Conversion factor when going from meters to kilometers
-	   km2m = 1.e3_r8             ! Conversion factor when going from kilometers to meters
+! Each gg current point falls in a QD lat-lon box.
+! The western edge of the box lies on QD longitude lon_qd_mp(iw(i,j,k)),
+!  with iw=1 corresponding to QD longitude = -pi.
+! The southern edge of the box lies on QD latitude lat_qd_ed(ls(i,j,k)),
+!  with ls=1 corresponding to QD latitude = -pi/2 (south QD pole).
+! The fractional distance of the gg point from the western box edge
+!  is fw(i,j,k).
+! The fractional distance of the gg point from the southern box edge
+!  is fs(i,j,k).
+!
+     real(r8) :: iw(nggjlon,nggjlat,nggjhgt), &
+                 fw(nggjlon,nggjlat,nggjhgt), &
+                 ls(nggjlon,nggjlat,nggjhgt), &
+                 fs(nggjlon,nggjlat,nggjhgt), & 
+                 f11gg(nggjlon,nggjlat,nggjhgt), & 
+                 f12gg(nggjlon,nggjlat,nggjhgt), & 
+                 f21gg(nggjlon,nggjlat,nggjhgt), & 
+                 f22gg(nggjlon,nggjlat,nggjhgt), & 
+                 f31oFgg(nggjlon,nggjlat,nggjhgt), & 
+                 f32oFgg(nggjlon,nggjlat,nggjhgt)
+   !
+   ! global constants
+   !
+   real(r8), parameter ::                 &
+                   h0 = 8.0e4_r8,         &   ! Initial value for bottom height of dynamo grid
+                   r0 =rearth_m+h0,       &   ! Mean Earth radius plus height of bottom of dynamo region (h0) [m]
+                   mu0 = 4.e-7*pi,        &
+                   m2km=1.e-3_r8,         &   ! Conversion factor when going from meters to kilometers
+                   km2m=1.e3_r8,          &   ! Conversion factor when going from kilometers to meters
+                   val_fill=999999._r8        ! fill value
+    !
+    ! Boundary conditions
+    ! lower boundary Je2LB defined by lower atmosphere model
+    !
+    logical, parameter :: use_lbJ = .false.
+    real  :: J3LB(nmlon,nmlat_h,2)    ! r-points current from lower atmosphere [A/m2]
+    !        
+    ! Boundary conditions
+    ! lower boundary Je2LB defined by lower atmosphere model
+    logical, parameter :: test_pot =.false.
+    !     
+    ! No wind forcing
+    !
+    logical, parameter :: no_wind =.false.
+    !        
+    ! Jpg
+    ! Ionospheric current
+    !
+    logical, parameter :: Jpg     =.false.
+    logical, parameter :: Jpg_add =.false.  ! flag can be reomved once Jpg is tested
+
+    logical, parameter :: use_stabil =.false. ! DO NOT CHANGE should be false
    !
    ! Field point parameters
    !
