@@ -205,25 +205,10 @@ write(iulog,*) 'MIN/MAX vn ', MINVAL(vn), MAXVAL(vn)
           do j = 1,nmlat_h
              do isn = 1,2
 
-npts_s1 = fline_s1(i,j,isn)%npts
-!write(iulog,*) 'edyn3D_driver: fline_s1(i,j,isn)%npts, sigP',fline_s1(i,j,isn)%npts, size(fline_s1(i,j,isn)%sigP), size(sigma_ped_s1%flines(i,j,isn)%fld)
-      fline_s1(i,j,isn)%sigP(:) = sigma_ped_s1%flines(i,j,isn)%fld(:)
-      fline_s1(i,j,isn)%sigH(:) = sigma_hal_s1%flines(i,j,isn)%fld(:)
-!write(iulog,*) 'edyn3D_driver: fline_s1(i,j,isn)%npts, un',fline_s1(i,j,isn)%npts, size(fline_s1(i,j,isn)%un), size(un_s1%flines(i,j,isn)%fld)
-      fline_s1(i,j,isn)%un(:) = un_s1%flines(i,j,isn)%fld(:)
-      fline_s1(i,j,isn)%vn(:) = vn_s1%flines(i,j,isn)%fld(:)
-!      write(iulog,*) 'edyn3D_driver: fline_s1(i,j,isn)%npts',fline_s1(i,j,isn)%npts
-!      write(iulog,*) 'edyn3D_driver: fline_s1(i,j,isn)%sigP(1:npts_s1) ', fline_s1(i,j,isn)%sigP(1:npts_s1)
-!if (i == mlon0_p .and. isn == 1) write(iulog,*) 'fline_s1(i,j,isn)%npts',fline_s1(i,j,isn)%npts
-if (i == mlon0_p .and. isn == 1) write(iulog,*) 'i,j,isn,MIN/MAX fline_s1(i,j,isn)%sigP(1:npts_s1)', i,j,isn,MINVAL(fline_s1(i,j,isn)%sigP(1:npts_s1)), MAXVAL(fline_s1(i,j,isn)%sigP(1:npts_s1))
-if (i == mlon0_p .and. isn == 1) write(iulog,*) 'i,j,isn,MIN/MAX fline_s1(i,j,isn)%sigH(1:npts_s1)', i,j,isn,MINVAL(fline_s1(i,j,isn)%sigH(1:npts_s1)), MAXVAL(fline_s1(i,j,isn)%sigH(1:npts_s1))
-if (i == mlon0_p .and. isn == 1) write(iulog,*) 'i,j,isn,MIN/MAX fline_s1(i,j,isn)%un(1:npts_s1)', i,j,isn,MINVAL(fline_s1(i,j,isn)%un(1:npts_s1)), MAXVAL(fline_s1(i,j,isn)%un(1:npts_s1))
-if (i == mlon0_p .and. isn == 1) write(iulog,*) 'i,j,isn,MIN/MAX fline_s1(i,j,isn)%vn(1:npts_s1)', i,j,isn,MINVAL(fline_s1(i,j,isn)%vn(1:npts_s1)), MAXVAL(fline_s1(i,j,isn)%vn(1:npts_s1))
-if (i == mlon0_p .and. isn == 1) write(iulog,*) 'MIN/MAX fline_s1(i,j,isn)%F(1:npts_s1)', MINVAL(fline_s1(i,j,isn)%F(1:npts_s1)), MAXVAL(fline_s1(i,j,isn)%F(1:npts_s1))
-if (i == mlon0_p .and. isn == 1) write(iulog,*) 'MIN/MAX fline_s1(i,j,isn)%d1d1(1:npts_s1)', MINVAL(fline_s1(i,j,isn)%d1d1(1:npts_s1)), MAXVAL(fline_s1(i,j,isn)%d1d1(1:npts_s1))
-if (i == mlon0_p .and. isn == 1) write(iulog,*) 'MIN/MAX fline_s1(i,j,isn)%d1d2(1:npts_s1)', MINVAL(fline_s1(i,j,isn)%d1d2(1:npts_s1)), MAXVAL(fline_s1(i,j,isn)%d1d2(1:npts_s1))
-if (i == mlon0_p .and. isn == 1) write(iulog,*) 'MIN/MAX fline_s1(i,j,isn)%d2d2(1:npts_s1)', MINVAL(fline_s1(i,j,isn)%d2d2(1:npts_s1)), MAXVAL(fline_s1(i,j,isn)%d2d2(1:npts_s1))
-if (i == mlon0_p .and. isn == 1) write(iulog,*) 'MIN/MAX fline_s1(i,j,isn)%D(1:npts_s1)', MINVAL(fline_s1(i,j,isn)%D(1:npts_s1)), MAXVAL(fline_s1(i,j,isn)%D(1:npts_s1))
+               fline_s1(i,j,isn)%sigP(:) = sigma_ped_s1%flines(i,j,isn)%fld(:)
+               fline_s1(i,j,isn)%sigH(:) = sigma_hal_s1%flines(i,j,isn)%fld(:)
+               fline_s1(i,j,isn)%un(:) = un_s1%flines(i,j,isn)%fld(:)
+               fline_s1(i,j,isn)%vn(:) = vn_s1%flines(i,j,isn)%fld(:)
 
                 if (isn==1) then
                    k0 = 1
@@ -254,10 +239,6 @@ if (i == mlon0_p .and. isn == 1) write(iulog,*) 'MIN/MAX fline_s1(i,j,isn)%D(1:n
                 fline_s2(i,j,isn)%sigH(:) = sigma_hal_s2%flines(i,j,isn)%fld(:)
                 fline_s2(i,j,isn)%un(:) = un_s2%flines(i,j,isn)%fld(:)
                 fline_s2(i,j,isn)%vn(:) = vn_s2%flines(i,j,isn)%fld(:)
-if (i == mlon0_p .and. isn == 1) write(iulog,*) 'i,j,isn,MIN/MAX fline_s2(i,j,isn)%sigP(1:npts_s1)', i,j,isn,MINVAL(fline_s2(i,j,isn)%sigP(1:npts_s1)), MAXVAL(fline_s2(i,j,isn)%sigP(1:npts_s1))
-if (i == mlon0_p .and. isn == 1) write(iulog,*) 'i,j,isn,MIN/MAX fline_s2(i,j,isn)%sigH(1:npts_s1)', i,j,isn,MINVAL(fline_s2(i,j,isn)%sigH(1:npts_s1)), MAXVAL(fline_s2(i,j,isn)%sigH(1:npts_s1))
-if (i == mlon0_p .and. isn == 1) write(iulog,*) 'i,j,isn,MIN/MAX fline_s2(i,j,isn)%un(1:npts_s1)', i,j,isn, MINVAL(fline_s2(i,j,isn)%un(1:npts_s1)), MAXVAL(fline_s2(i,j,isn)%un(1:npts_s1))
-if (i == mlon0_p .and. isn == 1) write(iulog,*) 'i,j,isn,MIN/MAX fline_s2(i,j,isn)%vn(1:npts_s1)', i,j,isn, MINVAL(fline_s2(i,j,isn)%vn(1:npts_s1)), MAXVAL(fline_s2(i,j,isn)%vn(1:npts_s1))
 
                 if (isn==1) then
                    k0 = 1

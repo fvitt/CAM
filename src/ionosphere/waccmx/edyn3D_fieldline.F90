@@ -523,9 +523,6 @@ module edyn3D_fieldline
 !
             enddo   ! end loop longitudes
           enddo  ! end loop latitude
-if (masterproc) then
-   write(iulog,"('edyn3d_fieldline, fieldline_init: Done with allocation of r fieldline structure ')")
-endif
         !
         !
         !  Relationship between P and S2 points for the same index (i,j)
@@ -654,9 +651,6 @@ endif
 	 enddo  ! end loop field line points
       enddo  ! end loop field line apex heights
 !
-if (masterproc) then
-   write(iulog,"('edyn3d_fieldline, fieldline_init: Done ')")
-endif
      contains
 !-----------------------------------------------------------------------
       integer function npt_fldline(apex_height)
