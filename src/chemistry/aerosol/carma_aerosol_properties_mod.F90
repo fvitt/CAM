@@ -47,6 +47,8 @@ module carma_aerosol_properties_mod
      procedure :: constructor
   end interface carma_aerosol_properties
 
+  real(r8), parameter :: onethird = 1._r8/3._r8
+
 contains
 
   !------------------------------------------------------------------------------
@@ -730,7 +732,7 @@ contains
     end do
 
     ! specdens kg/m3 to g/cm3, convert from radius to diameter
-    diam = 2._r8*((0.75*mass / pi  / (1.0e-3_r8*rho))**0.33_r8)
+    diam = 2._r8*((0.75*mass / pi  / (1.0e-3_r8*rho))**onethird)
 
   end function scav_diam
 
@@ -801,22 +803,24 @@ contains
           end if
        end do species
 
-       ! mass flux fraction
-       frac = mflx/mflx_tot
+       if (mflx>0._r8 .and. mflx_tot>0._r8) then
+          ! mass flux fraction
+          frac = mflx/mflx_tot
 
-       ! mass of the specified aerosol type
-       mass = frac * bin_mass(m) ! kg
+          ! mass of the specified aerosol type
+          mass = frac * bin_mass(m) ! kg
 
-       ! diameter in meters
-       diam = 2._r8*((0.75_r8*mass/pi/rho)**0.333333_r8)
+          ! diameter in meters
+          diam = 2._r8*((0.75_r8*mass/pi/rho)**onethird)
 
-       ! add the flux to the corresponding bulk bin
-       blk_loop: do i = 1,n_bulk_bins-1
-          if (diam>diam_edges(i) .and. diam<=diam_edges(i+1)) then
-             bulk_fluxes(i) = bulk_fluxes(i) + mflx
-             exit blk_loop
-          end if
-       end do blk_loop
+          ! add the flux to the corresponding bulk bin
+          blk_loop: do i = 1,n_bulk_bins-1
+             if (diam>diam_edges(i) .and. diam<=diam_edges(i+1)) then
+                bulk_fluxes(i) = bulk_fluxes(i) + mflx
+                exit blk_loop
+             end if
+          end do blk_loop
+       endif
 
     end do bin_loop
 

@@ -3,7 +3,7 @@ module modal_aerosol_properties_mod
   use physconst, only: pi
   use aerosol_properties_mod, only: aerosol_properties, aero_name_len
   use rad_constituents, only: rad_cnst_get_info, rad_cnst_get_mode_props, rad_cnst_get_aer_props
-
+ 
   implicit none
 
   private
@@ -937,7 +937,7 @@ contains
        end do
        mode_has_dust: if (has_dust) then
           call rad_cnst_get_info(0, m, mode_type=modetype)
-          if (Mdust>0._r8) then
+          if (Ntot>0._r8 .and. Mdust>0._r8 .and. Mtotal>0._r8) then
 
              call rad_cnst_get_mode_props(0, m, sigmag=sigma_g)
              tmp = sqrtwo*log(sigma_g)
