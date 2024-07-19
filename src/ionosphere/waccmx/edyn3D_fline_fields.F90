@@ -120,7 +120,8 @@ contains
     un_s1%nmlat_h = nmlat_h
     un_s1%nptstot = nptsp_total
     un_s1%rhandle_phys2mag => rh_phys2mag_s1
-    un_s1%esmf_fld => magField_s1
+    un_s1%esmf_fld_des => magField_s1
+    un_s1%esmf_fld_src => null()
     allocate(un_s1%flines(mlon0_p:mlon1_p,nmlat_h,2))
 
     vn_s1%name = 'vn_s1'
@@ -129,7 +130,8 @@ contains
     vn_s1%nmlat_h = nmlat_h
     vn_s1%nptstot = nptsp_total
     vn_s1%rhandle_phys2mag => rh_phys2mag_s1
-    vn_s1%esmf_fld => magField_s1
+    vn_s1%esmf_fld_des => magField_s1
+    vn_s1%esmf_fld_src => null()
     allocate(vn_s1%flines(mlon0_p:mlon1_p,nmlat_h,2))
 
     do h = 1,2
@@ -193,7 +195,7 @@ contains
     un_s2%nmlat_h = nmlatS2_h
     un_s2%nptstot = nptss2_total
     un_s2%rhandle_phys2mag => rh_phys2mag_s2
-    un_s2%esmf_fld => magField_s2
+    un_s2%esmf_fld_des => magField_s2
     allocate(un_s2%flines(mlon0_p:mlon1_p,nmlatS2_h,2))
 
     vn_s2%name = 'vn_s2'
@@ -202,7 +204,7 @@ contains
     vn_s2%nmlat_h = nmlatS2_h
     vn_s2%nptstot = nptss2_total
     vn_s2%rhandle_phys2mag => rh_phys2mag_s2
-    vn_s2%esmf_fld => magField_s2
+    vn_s2%esmf_fld_des => magField_s2
     allocate(vn_s2%flines(mlon0_p:mlon1_p,nmlatS2_h,2))
 
     do h = 1,2
