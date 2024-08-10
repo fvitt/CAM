@@ -121,10 +121,10 @@ module edyn3D_params
        dtr = pi/180._r8,	      & ! Conversion factor when going from degrees to radians
        rtd = 180._r8/pi	                ! Conversion factor when going from radians to degrees
 
-   real(r8) :: ylonm(nmlon),	      & ! magnetic longitudes of p and s2 grid; same for both hemispheres
+   real(r8) :: ylonm(nmlon),      & ! magnetic longitudes of p and s2 grid; same for both hemispheres
 	       ylatm(nmlat_h,2),      & ! ylatm_s(j) is the magnetic latitude of the equatorward/lower face of an elemental volume for which the P point is at latitude ylatm(j).
 	       ylatm_s(nmlatS2_h,2),  & ! magnetic latitudes of s2-points; 2 index for hemisphere
-	       ylonm_s(nmlon),        & ! magnetic longitude of the eastern face of an elemental volume for which the P point is at longitude ylonm(i)
+	       ylonm_s(nmlon),    & ! magnetic longitude of the eastern face of an elemental volume for which the P point is at longitude ylonm(i)
 	       rho(nmlat_h,2),        & ! cos of magnetic latitudes of p and s1 points; 2 index for hemisphere
 	       rho_s(nmlatS2_h,2),    & ! cos of magnetic latitudes of s2-points; 2 index for hemisphere
 	       hgt_fix(nhgt_fix),     & ! array with fixed heights for s&p-grids

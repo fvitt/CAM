@@ -165,68 +165,68 @@
 !
           end do  ! end longitude loop
        end do ! end hemisphere loop
-! 
-! diagnostic to get wind driven current in f coordinate system
-! process for S2 points
-! 1. calculate J|| to make local current balance no vertical current (with Je3 e3= J|| b^)
-!   ( Je1D e1 + Je2D e2+ J||b^) dot k^ = 0 -> J||= -(Je1D e1 dot k^ + Je2D e2 dot k^)/b^ dot k^
-! 2. calcluate Jf1D and Jf2D and JrD  
-!   Jf1 = g1 dot(Je1D e1 + Je2D e2+ J||b^)  horizontal component
-!   Jf2 = g2 dot(Je1D e1 + Je2D e2+ J||b^)  horizontal component        
-!
-       do isn = 1,2 ! loop over both hemisphere
-!         do i=1,nmlon ! loop over all longitudes
-         do i=mlon0_p,mlon1_p ! loop over task longitudes
-             do j=1,nmlatS2_h ! loop over all latitudes in one hemisphere 
-               nmax = fline_s2(i,j,isn)%npts ! maximum of points on fieldline
-               do k=1,nmax
-                    ! b^ = b/bmag
-                    bhat(:) =  fline_s2(i,j,isn)%bo(:,k)/fline_s2(i,j,isn)%Bmag(k)
-                    !
-                    !  ue1 = (un,vn)dot d1
-                    ue1 = fline_s2(i,j,isn)%un(k)*fline_s2(i,j,isn)%d1(1,k)+ &
-                     fline_s2(i,j,isn)%vn(k)*fline_s2(i,j,isn)%d1(2,k)
-                    ! ue2 = (un,vn)dot d2
-                    ue2 = fline_s2(i,j,isn)%un(k)*fline_s2(i,j,isn)%d2(1,k)+ &
-                     fline_s2(i,j,isn)%vn(k)*fline_s2(i,j,isn)%d2(2,k) 
-!                  
-                    ! Je1D = sigP*d1*d1*ue2*Be3+(sigH*D-sigP*d1*d2)*ue1*Be3+Je1^Ion
-                    ! calculate values for S2-points these are at (i,j+0.5,k)
-                   fac = fline_s2(i,j,isn)%sigP(k)*fline_s2(i,j,isn)%d1d1(k)*ue2* &
-                     fline_s2(i,j,isn)%Be3(k)
-                   fac = fac + (fline_s2(i,j,isn)%sigH(k)* &
-                     fline_s2(i,j,isn)%D(k)-fline_s2(i,j,isn)%sigP(k)*fline_s2(i,j,isn)%d1d2(k))* &
-                     ue1*fline_s2(i,j,isn)%Be3(k) 
-                   !  
-                   ! in case Je2_Ion was added 
-                   je2_woD = 0.
-                   if(Jpg_add) then
-                     je2_woD = fline_s2(i,j,isn)%Je2D(k) - fline_s2(i,j,isn)%Je2Ion(k)
-                   end if
-                   !
-                   ! Jpar = -(Je1D e1 dot k^ + Je2D e2 dot k^)/(b^ dot k^)
-                    Jpar = (-fac*fline_s2(i,j,isn)%e1k(k) -  &
-                       je2_woD*fline_s2(i,j,isn)%e2k(k))/bhat(3)
-                   !
-                   !   Jf1 = g1 dot(Je1D e1 + Je2D e2+ J||b^)  horizontal component
-                   !   Jf2 = g2 dot(Je1D e1 + Je2D e2+ J||b^)  horizontal component
-                   ! 
-                   fline_s2(i,j,isn)%Jf1Dyn(k) = fline_s2(i,j,isn)%e1g1(k)*fac+ fline_s2(i,j,isn)%e2g1(k)*&
-                      je2_woD+fline_s2(i,j,isn)%bg1(k)*Jpar
-                   !
-                   !   Jf1(Je2p) = g1 dot(Je2p e2)  horizontal component
-                   !   Jf2(Je2p) = g2 dot(Je2p e2)  horizontal component
-                   ! 
-                   fline_s2(i,j,isn)%Jf2Dyn(k) = fline_s2(i,j,isn)%e1g2(k)*fac+ fline_s2(i,j,isn)%e2g2(k)* &
-                       je2_woD+fline_s2(i,j,isn)%bg2(k)*Jpar
-                   !   
-                   fline_s2(i,j,isn)%Jf1Ion2(k) = fline_s2(i,j,isn)%e2g1(k)*fline_s2(i,j,isn)%Je2Ion(k) 
-                   !
-                   fline_s2(i,j,isn)%Jf2Ion2(k) = fline_s2(i,j,isn)%e2g2(k)*fline_s2(i,j,isn)%Je2Ion(k) 
-                   !  
-               end do  ! end height loop
-             end do  ! end lat/fieldline loop
-          end do  ! end longitude loop
-       end do ! end hemisphere loop
-!       
+!! 
+!! diagnostic to get wind driven current in f coordinate system
+!! process for S2 points
+!! 1. calculate J|| to make local current balance no vertical current (with Je3 e3= J|| b^)
+!!   ( Je1D e1 + Je2D e2+ J||b^) dot k^ = 0 -> J||= -(Je1D e1 dot k^ + Je2D e2 dot k^)/b^ dot k^
+!! 2. calcluate Jf1D and Jf2D and JrD  
+!!   Jf1 = g1 dot(Je1D e1 + Je2D e2+ J||b^)  horizontal component
+!!   Jf2 = g2 dot(Je1D e1 + Je2D e2+ J||b^)  horizontal component	 
+!!
+!	do isn = 1,2 ! loop over both hemisphere
+!!	   do i=1,nmlon ! loop over all longitudes
+!	  do i=mlon0_p,mlon1_p ! loop over task longitudes
+!	      do j=1,nmlatS2_h ! loop over all latitudes in one hemisphere 
+!		nmax = fline_s2(i,j,isn)%npts ! maximum of points on fieldline
+!		do k=1,nmax
+!		     ! b^ = b/bmag
+!		     bhat(:) =  fline_s2(i,j,isn)%bo(:,k)/fline_s2(i,j,isn)%Bmag(k)
+!		     !
+!		     !  ue1 = (un,vn)dot d1
+!		     ue1 = fline_s2(i,j,isn)%un(k)*fline_s2(i,j,isn)%d1(1,k)+ &
+!		      fline_s2(i,j,isn)%vn(k)*fline_s2(i,j,isn)%d1(2,k)
+!		     ! ue2 = (un,vn)dot d2
+!		     ue2 = fline_s2(i,j,isn)%un(k)*fline_s2(i,j,isn)%d2(1,k)+ &
+!		      fline_s2(i,j,isn)%vn(k)*fline_s2(i,j,isn)%d2(2,k) 
+!!		    
+!		     ! Je1D = sigP*d1*d1*ue2*Be3+(sigH*D-sigP*d1*d2)*ue1*Be3+Je1^Ion
+!		     ! calculate values for S2-points these are at (i,j+0.5,k)
+!		    fac = fline_s2(i,j,isn)%sigP(k)*fline_s2(i,j,isn)%d1d1(k)*ue2* &
+!		      fline_s2(i,j,isn)%Be3(k)
+!		    fac = fac + (fline_s2(i,j,isn)%sigH(k)* &
+!		      fline_s2(i,j,isn)%D(k)-fline_s2(i,j,isn)%sigP(k)*fline_s2(i,j,isn)%d1d2(k))* &
+!		      ue1*fline_s2(i,j,isn)%Be3(k) 
+!		    !  
+!		    ! in case Je2_Ion was added 
+!		    je2_woD = 0.
+!		    if(Jpg_add) then
+!		      je2_woD = fline_s2(i,j,isn)%Je2D(k) - fline_s2(i,j,isn)%Je2Ion(k)
+!		    end if
+!		    !
+!		    ! Jpar = -(Je1D e1 dot k^ + Je2D e2 dot k^)/(b^ dot k^)
+!		     Jpar = (-fac*fline_s2(i,j,isn)%e1k(k) -  &
+!			je2_woD*fline_s2(i,j,isn)%e2k(k))/bhat(3)
+!		    !
+!		    !	Jf1 = g1 dot(Je1D e1 + Je2D e2+ J||b^)  horizontal component
+!		    !	Jf2 = g2 dot(Je1D e1 + Je2D e2+ J||b^)  horizontal component
+!		    ! 
+!!		     fline_s2(i,j,isn)%Jf1Dyn(k) = fline_s2(i,j,isn)%e1g1(k)*fac+ fline_s2(i,j,isn)%e2g1(k)*&
+!!			je2_woD+fline_s2(i,j,isn)%bg1(k)*Jpar
+!		    !
+!		    !	Jf1(Je2p) = g1 dot(Je2p e2)  horizontal component
+!		    !	Jf2(Je2p) = g2 dot(Je2p e2)  horizontal component
+!		    ! 
+!!		     fline_s2(i,j,isn)%Jf2Dyn(k) = fline_s2(i,j,isn)%e1g2(k)*fac+ fline_s2(i,j,isn)%e2g2(k)* &
+!!			 je2_woD+fline_s2(i,j,isn)%bg2(k)*Jpar
+!		    !	
+!!		     fline_s2(i,j,isn)%Jf1Ion2(k) = fline_s2(i,j,isn)%e2g1(k)*fline_s2(i,j,isn)%Je2Ion(k) 
+!		    !
+!!		     fline_s2(i,j,isn)%Jf2Ion2(k) = fline_s2(i,j,isn)%e2g2(k)*fline_s2(i,j,isn)%Je2Ion(k) 
+!		    !  
+!		end do  ! end height loop
+!	      end do  ! end lat/fieldline loop
+!	   end do  ! end longitude loop
+!	end do ! end hemisphere loop
+       
        end subroutine edyn3D_calc_je_s1s2

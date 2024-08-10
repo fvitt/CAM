@@ -44,7 +44,7 @@ contains
   subroutine edyn3D_fline_fields_alloc()
 
     use edyn3D_params, only: nmlat_h,nmlatS2_h, nptsp_total,nptss2_total, nmlat_T1, nmlat_T2
-    use edyn3d_mpi, only: mlon0_p,mlon1_p
+    use edyn3d_mpi, only: mlon0_p,mlon1_p,ntask, mytid
     use edyn3D_fieldline, only: fline_p,fline_s1,fline_s2
 
     use edyn3D_esmf_regrid, only: magField_p_src
@@ -60,6 +60,8 @@ contains
     use infnan, only: nan, assignment(=)
 
     integer :: h,i,j,k
+
+!    if (mytid>=ntask) return
 
     Tn_p%name = 'Tn_mag'
     Tn_p%mlon0 = mlon0_p

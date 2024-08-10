@@ -1,6 +1,7 @@
 module edyn3D_driver
   use shr_kind_mod, only: r8 => shr_kind_r8
   use spmd_utils, only: masterproc
+  use cam_abortutils, only: endrun
 
   use edyn3D_maggrid, only: gen_highres_grid, edyn3D_gen_ggj_grid, edyn3D_gen_qd_grid, &
                             edyn3D_gen_geo_grid, edyn3D_qcoef, edyn3D_calculate_mf
@@ -8,7 +9,7 @@ module edyn3D_driver
   use edyn3D_mpi, only: mp_init_edyn3D, mp_distribute_mag_edyn3D, mp_exchange_tasks_edyn3D
   use edyn3D_mpi, only: mytid, ntask
   use edyn3D_fieldline, only: fieldline_init, fieldline_getapex
-  use edyn3D_params, only: nmlon, nmlat_h, nptsp_total,nptss1_total,nptss2_total, ylonm,ylonm_s
+  use edyn3D_params, only: nmlon,nmlonp1,nmlat_h,nptsp_total,nptss1_total,nptss2_total,ylonm,ylonm_s
 
   use edyn3D_esmf_regrid
   use edyn3D_regridder
@@ -21,7 +22,7 @@ module edyn3D_driver
   public :: edyn3D_driver_reg
   public :: edyn3D_driver_timestep
 
-  real(r8), parameter :: r2d = 180._r8/pi
+  real(r8), parameter :: r2d = 180./pi
 
 contains
   subroutine edyn3D_driver_reg(mpicom, npes)
@@ -38,20 +39,22 @@ contains
 
     call gen_highres_grid()
       
-    call edyn3D_gen_ggj_grid
+    call edyn3D_gen_ggj_grid()
 
-    call edyn3D_gen_qd_grid
+    call edyn3D_gen_qd_grid()
     
-    call edyn3D_gen_geo_grid
+    call edyn3D_gen_geo_grid()
 
-    call edyn3D_qcoef
+    call edyn3D_qcoef()
 
-    call edyn3D_calculate_mf
+    call edyn3D_calculate_mf()
 
     call mp_distribute_mag_edyn3D(nmlon)
 
     call mp_exchange_tasks_edyn3D(mpicom, iprint=0)
+
     call fieldline_init()  ! Allocate and populate the p, r, s1, and s2 field line structures for computations
+
     call fieldline_getapex()
  
     call reg_hist_grid()
@@ -123,6 +126,8 @@ contains
     use edyn3D_fline_fields, only: sigma_ped_s1,sigma_hal_s1,sigma_ped_s2,sigma_hal_s2,un_s1,vn_s1,un_s2,vn_s2
     use edyn_mpi, only: lon0,lon1,lat0,lat1,lev0,lev1
     use regridder, only: regrid_phys2geo_3d, regrid_geo2phys_3d
+    use edyn3D_calc_coef_fac_const_rhs, only: edyn3D_calc_coef,edyn3D_calc_FAC,edyn3D_add_coef_ns, &
+                                              edyn3D_gather_coef_ns,edyn3D_const_rhs,edyn3D_scatter_poten 
 
     integer,  intent(in) :: nphyscol, nphyslev
     real(r8), intent(in) :: physalt(nphyslev,nphyscol)
@@ -147,7 +152,7 @@ contains
 
     integer :: i,j,k,isn,ncnt, ier
     integer :: dk,k0,k1
-   integer :: npts_s1
+    integer :: npts_s1
 
     real(r8) :: opalt (lon0:lon1,lat0:lat1,lev0:lev1)
     real(r8) :: Tn_oplus0(lon0:lon1,lat0:lat1,lev0:lev1)
@@ -183,8 +188,8 @@ contains
     call output_fline_field(vn_s1)
     call output_fline_field(vn_s2)
 
-write(iulog,*) 'MIN/MAX un ', MINVAL(un), MAXVAL(un)
-write(iulog,*) 'MIN/MAX vn ', MINVAL(vn), MAXVAL(vn)
+!write(iulog,*) 'MIN/MAX un ', MINVAL(un), MAXVAL(un)
+!write(iulog,*) 'MIN/MAX vn ', MINVAL(vn), MAXVAL(vn)
 
 
     if (mytid<ntask) then
@@ -205,10 +210,25 @@ write(iulog,*) 'MIN/MAX vn ', MINVAL(vn), MAXVAL(vn)
           do j = 1,nmlat_h
              do isn = 1,2
 
-               fline_s1(i,j,isn)%sigP(:) = sigma_ped_s1%flines(i,j,isn)%fld(:)
-               fline_s1(i,j,isn)%sigH(:) = sigma_hal_s1%flines(i,j,isn)%fld(:)
-               fline_s1(i,j,isn)%un(:) = un_s1%flines(i,j,isn)%fld(:)
-               fline_s1(i,j,isn)%vn(:) = vn_s1%flines(i,j,isn)%fld(:)
+!npts_s1 = fline_s1(i,j,isn)%npts
+!write(iulog,*) 'edyn3D_driver: fline_s1(i,j,isn)%npts, sigP',fline_s1(i,j,isn)%npts, size(fline_s1(i,j,isn)%sigP), size(sigma_ped_s1%flines(i,j,isn)%fld)
+      fline_s1(i,j,isn)%sigP(:) = sigma_ped_s1%flines(i,j,isn)%fld(:)
+      fline_s1(i,j,isn)%sigH(:) = sigma_hal_s1%flines(i,j,isn)%fld(:)
+!write(iulog,*) 'edyn3D_driver: fline_s1(i,j,isn)%npts, un',fline_s1(i,j,isn)%npts, size(fline_s1(i,j,isn)%un), size(un_s1%flines(i,j,isn)%fld)
+      fline_s1(i,j,isn)%un(:) = un_s1%flines(i,j,isn)%fld(:)
+      fline_s1(i,j,isn)%vn(:) = vn_s1%flines(i,j,isn)%fld(:)
+!      write(iulog,*) 'edyn3D_driver: fline_s1(i,j,isn)%npts',fline_s1(i,j,isn)%npts
+!      write(iulog,*) 'edyn3D_driver: fline_s1(i,j,isn)%sigP(1:npts_s1) ', fline_s1(i,j,isn)%sigP(1:npts_s1)
+!if (i == mlon0_p .and. isn == 1) write(iulog,*) 'fline_s1(i,j,isn)%npts',fline_s1(i,j,isn)%npts
+!if (i == mlon0_p .and. isn == 1) write(iulog,*) 'i,j,isn,MIN/MAX fline_s1(i,j,isn)%sigP(1:npts_s1)', i,j,isn,MINVAL(fline_s1(i,j,isn)%sigP(1:npts_s1)), MAXVAL(fline_s1(i,j,isn)%sigP(1:npts_s1))
+!if (i == mlon0_p .and. isn == 1) write(iulog,*) 'i,j,isn,MIN/MAX fline_s1(i,j,isn)%sigH(1:npts_s1)', i,j,isn,MINVAL(fline_s1(i,j,isn)%sigH(1:npts_s1)), MAXVAL(fline_s1(i,j,isn)%sigH(1:npts_s1))
+!if (i == mlon0_p .and. isn == 1) write(iulog,*) 'i,j,isn,MIN/MAX fline_s1(i,j,isn)%un(1:npts_s1)', i,j,isn,MINVAL(fline_s1(i,j,isn)%un(1:npts_s1)), MAXVAL(fline_s1(i,j,isn)%un(1:npts_s1))
+!if (i == mlon0_p .and. isn == 1) write(iulog,*) 'i,j,isn,MIN/MAX fline_s1(i,j,isn)%vn(1:npts_s1)', i,j,isn,MINVAL(fline_s1(i,j,isn)%vn(1:npts_s1)), MAXVAL(fline_s1(i,j,isn)%vn(1:npts_s1))
+!if (i == mlon0_p .and. isn == 1) write(iulog,*) 'MIN/MAX fline_s1(i,j,isn)%F(1:npts_s1)', MINVAL(fline_s1(i,j,isn)%F(1:npts_s1)), MAXVAL(fline_s1(i,j,isn)%F(1:npts_s1))
+!if (i == mlon0_p .and. isn == 1) write(iulog,*) 'MIN/MAX fline_s1(i,j,isn)%d1d1(1:npts_s1)', MINVAL(fline_s1(i,j,isn)%d1d1(1:npts_s1)), MAXVAL(fline_s1(i,j,isn)%d1d1(1:npts_s1))
+!if (i == mlon0_p .and. isn == 1) write(iulog,*) 'MIN/MAX fline_s1(i,j,isn)%d1d2(1:npts_s1)', MINVAL(fline_s1(i,j,isn)%d1d2(1:npts_s1)), MAXVAL(fline_s1(i,j,isn)%d1d2(1:npts_s1))
+!if (i == mlon0_p .and. isn == 1) write(iulog,*) 'MIN/MAX fline_s1(i,j,isn)%d2d2(1:npts_s1)', MINVAL(fline_s1(i,j,isn)%d2d2(1:npts_s1)), MAXVAL(fline_s1(i,j,isn)%d2d2(1:npts_s1))
+!if (i == mlon0_p .and. isn == 1) write(iulog,*) 'MIN/MAX fline_s1(i,j,isn)%D(1:npts_s1)', MINVAL(fline_s1(i,j,isn)%D(1:npts_s1)), MAXVAL(fline_s1(i,j,isn)%D(1:npts_s1))
 
                 if (isn==1) then
                    k0 = 1
@@ -239,6 +259,10 @@ write(iulog,*) 'MIN/MAX vn ', MINVAL(vn), MAXVAL(vn)
                 fline_s2(i,j,isn)%sigH(:) = sigma_hal_s2%flines(i,j,isn)%fld(:)
                 fline_s2(i,j,isn)%un(:) = un_s2%flines(i,j,isn)%fld(:)
                 fline_s2(i,j,isn)%vn(:) = vn_s2%flines(i,j,isn)%fld(:)
+!if (i == mlon0_p .and. isn == 1) write(iulog,*) 'i,j,isn,MIN/MAX fline_s2(i,j,isn)%sigP(1:npts_s1)', i,j,isn,MINVAL(fline_s2(i,j,isn)%sigP(1:npts_s1)), MAXVAL(fline_s2(i,j,isn)%sigP(1:npts_s1))
+!if (i == mlon0_p .and. isn == 1) write(iulog,*) 'i,j,isn,MIN/MAX fline_s2(i,j,isn)%sigH(1:npts_s1)', i,j,isn,MINVAL(fline_s2(i,j,isn)%sigH(1:npts_s1)), MAXVAL(fline_s2(i,j,isn)%sigH(1:npts_s1))
+!if (i == mlon0_p .and. isn == 1) write(iulog,*) 'i,j,isn,MIN/MAX fline_s2(i,j,isn)%un(1:npts_s1)', i,j,isn, MINVAL(fline_s2(i,j,isn)%un(1:npts_s1)), MAXVAL(fline_s2(i,j,isn)%un(1:npts_s1))
+!if (i == mlon0_p .and. isn == 1) write(iulog,*) 'i,j,isn,MIN/MAX fline_s2(i,j,isn)%vn(1:npts_s1)', i,j,isn, MINVAL(fline_s2(i,j,isn)%vn(1:npts_s1)), MAXVAL(fline_s2(i,j,isn)%vn(1:npts_s1))
 
                 if (isn==1) then
                    k0 = 1
@@ -284,18 +308,22 @@ write(iulog,*) 'MIN/MAX vn ', MINVAL(vn), MAXVAL(vn)
     !
     ! Call 3D dynamo routines
     !
-!    if (mytid<ntask) then
+    if (mytid<ntask) then
 !
-      call edyn3D_calc_mn_s1s2 !- (calc conductivities, each timestep)
+      call edyn3D_get_conduct  ! - Get conductivities for edyn3D_calc_FAC
+      call edyn3D_calc_mn_s1s2 ! - (calc conductivities, each timestep)
       call edyn3D_calc_je_s1s2 ! - (must be calculated each timestep)
-!      call calc_s1approx
-!      call calc_S - (must be calculated each timestep)
-!      call calc_coef - calc LHS & RHS 
-!      call calc_FAC 
-!      call add_coef_ns - add North & South coef
-!      call const_rhs - solver - solve for rhs (electric potential)
+      call edyn3D_calc_S       ! - (must be calculated each timestep)
+      call edyn3D_calc_coef    ! - calc LHS & RHS 
+      call edyn3D_calc_FAC 
+      call edyn3D_add_coef_ns  ! - add North & South coef
+      call edyn3D_gather_coef_ns  ! - gather coef_ns for solver
+      if (mytid == 0) then
+        call edyn3D_const_rhs   ! - solver - solve for rhs (electric potential)
+      endif
+      call edyn3D_scatter_poten  ! - Send global potential to each task
 !
-!    endif
+    endif
 
     call edyn3D_regridder_mag2phys(Tn_p, physalt, nphyscol,nphyslev, tn_out)
 

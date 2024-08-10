@@ -406,17 +406,17 @@ module edyn3D_fieldline
             allocate(fline_p(i,j,isn)%glat(fline_p(i,j,isn)%npts))
             fline_p(i,j,isn)%glon = -huge(1._r8)
             fline_p(i,j,isn)%glat = -huge(1._r8)
-            allocate(fline_p(i,j,isn)%ngh_pts(2,fline_p(i,j,isn)%npts)) ! lat_ind of neighboring point
-            allocate(fline_p(i,j,isn)%D(fline_p(i,j,isn)%npts))
+!            allocate(fline_p(i,j,isn)%ngh_pts(2,fline_p(i,j,isn)%npts)) ! lat_ind of neighboring point
+!            allocate(fline_p(i,j,isn)%D(fline_p(i,j,isn)%npts))
             allocate(fline_p(i,j,isn)%F(fline_p(i,j,isn)%npts))
-            allocate(fline_p(i,j,isn)%sinI(fline_p(i,j,isn)%npts))
-            allocate(fline_p(i,j,isn)%d1k(fline_p(i,j,isn)%npts))
-            allocate(fline_p(i,j,isn)%d2k(fline_p(i,j,isn)%npts))
+!            allocate(fline_p(i,j,isn)%sinI(fline_p(i,j,isn)%npts))
+!            allocate(fline_p(i,j,isn)%d1k(fline_p(i,j,isn)%npts))
+!            allocate(fline_p(i,j,isn)%d2k(fline_p(i,j,isn)%npts))
             allocate(fline_p(i,j,isn)%M3(fline_p(i,j,isn)%npts))
             allocate(fline_p(i,j,isn)%S(fline_p(i,j,isn)%npts))
-            allocate(fline_p(i,j,isn)%Jr(fline_p(i,j,isn)%npts))
-            allocate(fline_p(i,j,isn)%I1hor(fline_p(i,j,isn)%npts))
-            allocate(fline_p(i,j,isn)%I2hor(fline_p(i,j,isn)%npts))
+!            allocate(fline_p(i,j,isn)%Jr(fline_p(i,j,isn)%npts))
+!            allocate(fline_p(i,j,isn)%I1hor(fline_p(i,j,isn)%npts))
+!            allocate(fline_p(i,j,isn)%I2hor(fline_p(i,j,isn)%npts))
 
 !          allocate(fline_p(i,j,isn)%pot(fline_p(i,j,isn)%npts))
 !          allocate(fline_p(i,j,isn)%pot_test(fline_p(i,j,isn)%npts)) ! am 1/2015 for testing
@@ -428,19 +428,19 @@ module edyn3D_fieldline
              allocate(fline_r(i,j,isn)%mlon_qd(fline_r(i,j,isn)%npts))
              allocate(fline_r(i,j,isn)%glon(fline_r(i,j,isn)%npts))
              allocate(fline_r(i,j,isn)%glat(fline_r(i,j,isn)%npts))
-             allocate(fline_r(i,j,isn)%ngh_pts(2,fline_r(i,j,isn)%npts)) ! lat_ind of neighboring point
-             allocate(fline_r(i,j,isn)%D(fline_r(i,j,isn)%npts))
+!             allocate(fline_r(i,j,isn)%ngh_pts(2,fline_r(i,j,isn)%npts)) ! lat_ind of neighboring point
+!             allocate(fline_r(i,j,isn)%D(fline_r(i,j,isn)%npts))
              allocate(fline_r(i,j,isn)%F(fline_r(i,j,isn)%npts))
-             allocate(fline_r(i,j,isn)%sinI(fline_r(i,j,isn)%npts))
+!             allocate(fline_r(i,j,isn)%sinI(fline_r(i,j,isn)%npts))
              allocate(fline_r(i,j,isn)%M3(fline_r(i,j,isn)%npts))
-             allocate(fline_r(i,j,isn)%I3(fline_r(i,j,isn)%npts))
+!             allocate(fline_r(i,j,isn)%I3(fline_r(i,j,isn)%npts))
 
-             allocate(fline_r(i,j,isn)%a3(fline_r(i,j,isn)%npts))
-             allocate(fline_r(i,j,isn)%aa3(fline_r(i,j,isn)%npts))
-             allocate(fline_r(i,j,isn)%LI3(fline_r(i,j,isn)%npts))
+!             allocate(fline_r(i,j,isn)%a3(fline_r(i,j,isn)%npts))
+!             allocate(fline_r(i,j,isn)%aa3(fline_r(i,j,isn)%npts))
+!             allocate(fline_r(i,j,isn)%LI3(fline_r(i,j,isn)%npts))
 
-             allocate(fline_r(i,j,isn)%je3(fline_r(i,j,isn)%npts))
-             allocate(fline_r(i,j,isn)%Jr(fline_r(i,j,isn)%npts))
+!             allocate(fline_r(i,j,isn)%je3(fline_r(i,j,isn)%npts))
+!             allocate(fline_r(i,j,isn)%Jr(fline_r(i,j,isn)%npts))
 !            !
 !            !  Relationship between P and S1 points for the same index (i,j)
 !            !  P(i,j) then is really S1(i+0.5,j) with j increasing equatorward
@@ -455,7 +455,7 @@ module edyn3D_fieldline
              allocate(fline_s1(i,j,isn)%glat(fline_s1(i,j,isn)%npts))
              allocate(fline_s1(i,j,isn)%Vmp(fline_s1(i,j,isn)%npts))
              allocate(fline_s1(i,j,isn)%Bmag(fline_s1(i,j,isn)%npts))
-             allocate(fline_s1(i,j,isn)%sinI(fline_s1(i,j,isn)%npts))
+!             allocate(fline_s1(i,j,isn)%sinI(fline_s1(i,j,isn)%npts))
              allocate(fline_s1(i,j,isn)%bo(3,fline_s1(i,j,isn)%npts))
              allocate(fline_s1(i,j,isn)%be3(fline_s1(i,j,isn)%npts))
              allocate(fline_s1(i,j,isn)%D(fline_s1(i,j,isn)%npts))
@@ -465,12 +465,12 @@ module edyn3D_fieldline
              allocate(fline_s1(i,j,isn)%d2d2(fline_s1(i,j,isn)%npts))
              allocate(fline_s1(i,j,isn)%d1(3,fline_s1(i,j,isn)%npts))
              allocate(fline_s1(i,j,isn)%d2(3,fline_s1(i,j,isn)%npts))
-             allocate(fline_s1(i,j,isn)%d3(3,fline_s1(i,j,isn)%npts))
+!             allocate(fline_s1(i,j,isn)%d3(3,fline_s1(i,j,isn)%npts))
              allocate(fline_s1(i,j,isn)%e1g2(fline_s1(i,j,isn)%npts))
              allocate(fline_s1(i,j,isn)%e2g2(fline_s1(i,j,isn)%npts))
              allocate(fline_s1(i,j,isn)%e1k(fline_s1(i,j,isn)%npts))
              allocate(fline_s1(i,j,isn)%e2k(fline_s1(i,j,isn)%npts))
-             allocate(fline_s1(i,j,isn)%e3(3,fline_s1(i,j,isn)%npts))
+!             allocate(fline_s1(i,j,isn)%e3(3,fline_s1(i,j,isn)%npts))
              allocate(fline_s1(i,j,isn)%M1(fline_s1(i,j,isn)%npts))
              allocate(fline_s1(i,j,isn)%N1p(fline_s1(i,j,isn)%npts))
              allocate(fline_s1(i,j,isn)%N1h(fline_s1(i,j,isn)%npts))
@@ -484,16 +484,16 @@ module edyn3D_fieldline
              allocate(fline_s1(i,j,isn)%vn(fline_s1(i,j,isn)%npts))
              !
              ! diagnostic
-             allocate(fline_s1(i,j,isn)%Ne(fline_s1(i,j,isn)%npts))
-             allocate(fline_s1(i,j,isn)%Tei(fline_s1(i,j,isn)%npts))
-             allocate(fline_s1(i,j,isn)%I13d_1(fline_s1(i,j,isn)%npts))
-             allocate(fline_s1(i,j,isn)%I13d_2(fline_s1(i,j,isn)%npts))
-             allocate(fline_s1(i,j,isn)%I13d_3(fline_s1(i,j,isn)%npts))
+!             allocate(fline_s1(i,j,isn)%Ne(fline_s1(i,j,isn)%npts))
+!             allocate(fline_s1(i,j,isn)%Tei(fline_s1(i,j,isn)%npts))
+!             allocate(fline_s1(i,j,isn)%I13d_1(fline_s1(i,j,isn)%npts))
+!             allocate(fline_s1(i,j,isn)%I13d_2(fline_s1(i,j,isn)%npts))
+!             allocate(fline_s1(i,j,isn)%I13d_3(fline_s1(i,j,isn)%npts))
              !
-             allocate(fline_s1(i,j,isn)%je1(fline_s1(i,j,isn)%npts))
-             allocate(fline_s1(i,j,isn)%I1(fline_s1(i,j,isn)%npts))
+!             allocate(fline_s1(i,j,isn)%je1(fline_s1(i,j,isn)%npts))
+!             allocate(fline_s1(i,j,isn)%I1(fline_s1(i,j,isn)%npts))
 
-             allocate(fline_s1(i,j,isn)%ngh_pts(2,fline_s1(i,j,isn)%npts)) ! lat_ind of neighboring point
+!             allocate(fline_s1(i,j,isn)%ngh_pts(2,fline_s1(i,j,isn)%npts)) ! lat_ind of neighboring point
              do k=1,fline_p(i,j,isn)%npts
 
               fline_p(i,j,isn)%hgt_pt(k) = hgt_fix(k)  ! [m] assumes ordering goes from bottom of fieldline to top
@@ -549,8 +549,8 @@ module edyn3D_fieldline
               allocate(fline_s2(i,j,isn)%glat(fline_s2(i,j,isn)%npts))
               allocate(fline_s2(i,j,isn)%Vmp(fline_s2(i,j,isn)%npts))
               allocate(fline_s2(i,j,isn)%Bmag(fline_s2(i,j,isn)%npts))
-              allocate(fline_s2(i,j,isn)%sinI(fline_s2(i,j,isn)%npts))
-              allocate(fline_s2(i,j,isn)%bo(3,fline_s2(i,j,isn)%npts))
+!              allocate(fline_s2(i,j,isn)%sinI(fline_s2(i,j,isn)%npts))
+!              allocate(fline_s2(i,j,isn)%bo(3,fline_s2(i,j,isn)%npts))
               allocate(fline_s2(i,j,isn)%be3(fline_s2(i,j,isn)%npts))
               allocate(fline_s2(i,j,isn)%D(fline_s2(i,j,isn)%npts))
               allocate(fline_s2(i,j,isn)%F(fline_s2(i,j,isn)%npts))
@@ -558,12 +558,12 @@ module edyn3D_fieldline
               allocate(fline_s2(i,j,isn)%d2d2(fline_s2(i,j,isn)%npts))
               allocate(fline_s2(i,j,isn)%d1(3,fline_s2(i,j,isn)%npts))
               allocate(fline_s2(i,j,isn)%d2(3,fline_s2(i,j,isn)%npts))
-              allocate(fline_s2(i,j,isn)%d3(3,fline_s2(i,j,isn)%npts))
+!              allocate(fline_s2(i,j,isn)%d3(3,fline_s2(i,j,isn)%npts))
               allocate(fline_s2(i,j,isn)%e1g2(fline_s2(i,j,isn)%npts))
               allocate(fline_s2(i,j,isn)%e2g2(fline_s2(i,j,isn)%npts))
               allocate(fline_s2(i,j,isn)%e1k(fline_s2(i,j,isn)%npts))
               allocate(fline_s2(i,j,isn)%e2k(fline_s2(i,j,isn)%npts))
-              allocate(fline_s2(i,j,isn)%e3(3,fline_s2(i,j,isn)%npts))
+!              allocate(fline_s2(i,j,isn)%e3(3,fline_s2(i,j,isn)%npts))
               allocate(fline_s2(i,j,isn)%M2(fline_s2(i,j,isn)%npts))
               allocate(fline_s2(i,j,isn)%N2p(fline_s2(i,j,isn)%npts))
               allocate(fline_s2(i,j,isn)%N2h(fline_s2(i,j,isn)%npts))
@@ -575,24 +575,24 @@ module edyn3D_fieldline
               allocate(fline_s2(i,j,isn)%un(fline_s2(i,j,isn)%npts))
               allocate(fline_s2(i,j,isn)%vn(fline_s2(i,j,isn)%npts))
               ! diagnostic
-              allocate(fline_s2(i,j,isn)%Ne(fline_s2(i,j,isn)%npts))
-              allocate(fline_s2(i,j,isn)%Tei(fline_s2(i,j,isn)%npts))
-              allocate(fline_s2(i,j,isn)%I23d_1(fline_s2(i,j,isn)%npts))
-              allocate(fline_s2(i,j,isn)%I23d_2(fline_s2(i,j,isn)%npts))
-              allocate(fline_s2(i,j,isn)%I23d_3(fline_s2(i,j,isn)%npts))
-              allocate(fline_s2(i,j,isn)%I2oM2(fline_s2(i,j,isn)%npts))
+!              allocate(fline_s2(i,j,isn)%Ne(fline_s2(i,j,isn)%npts))
+!              allocate(fline_s2(i,j,isn)%Tei(fline_s2(i,j,isn)%npts))
+!              allocate(fline_s2(i,j,isn)%I23d_1(fline_s2(i,j,isn)%npts))
+!              allocate(fline_s2(i,j,isn)%I23d_2(fline_s2(i,j,isn)%npts))
+!              allocate(fline_s2(i,j,isn)%I23d_3(fline_s2(i,j,isn)%npts))
+!              allocate(fline_s2(i,j,isn)%I2oM2(fline_s2(i,j,isn)%npts))
               ! diagnostic
-              allocate(fline_s2(i,j,isn)%d1d1(fline_s2(i,j,isn)%npts))
-              allocate(fline_s2(i,j,isn)%e1g1(fline_s2(i,j,isn)%npts))
-              allocate(fline_s2(i,j,isn)%e2g1(fline_s2(i,j,isn)%npts))
-              allocate(fline_s2(i,j,isn)%bg1(fline_s2(i,j,isn)%npts))
-              allocate(fline_s2(i,j,isn)%bg2(fline_s2(i,j,isn)%npts))
-              allocate(fline_s2(i,j,isn)%Jf1Dyn(fline_s2(i,j,isn)%npts))
-              allocate(fline_s2(i,j,isn)%Jf2Dyn(fline_s2(i,j,isn)%npts))
-              allocate(fline_s2(i,j,isn)%Jf1Ion2(fline_s2(i,j,isn)%npts))
-              allocate(fline_s2(i,j,isn)%Jf2Ion2(fline_s2(i,j,isn)%npts))
+!              allocate(fline_s2(i,j,isn)%d1d1(fline_s2(i,j,isn)%npts))
+!              allocate(fline_s2(i,j,isn)%e1g1(fline_s2(i,j,isn)%npts))
+!              allocate(fline_s2(i,j,isn)%e2g1(fline_s2(i,j,isn)%npts))
+!              allocate(fline_s2(i,j,isn)%bg1(fline_s2(i,j,isn)%npts))
+!              allocate(fline_s2(i,j,isn)%bg2(fline_s2(i,j,isn)%npts))
+!              allocate(fline_s2(i,j,isn)%Jf1Dyn(fline_s2(i,j,isn)%npts))
+!              allocate(fline_s2(i,j,isn)%Jf2Dyn(fline_s2(i,j,isn)%npts))
+!              allocate(fline_s2(i,j,isn)%Jf1Ion2(fline_s2(i,j,isn)%npts))
+!              allocate(fline_s2(i,j,isn)%Jf2Ion2(fline_s2(i,j,isn)%npts))
 
-              allocate(fline_s2(i,j,isn)%ngh_pts(2,fline_s2(i,j,isn)%npts)) ! lat_ind of neighboring point
+!              allocate(fline_s2(i,j,isn)%ngh_pts(2,fline_s2(i,j,isn)%npts)) ! lat_ind of neighboring point
               allocate(fline_s2(i,j,isn)%je2(fline_s2(i,j,isn)%npts))
               allocate(fline_s2(i,j,isn)%I2(fline_s2(i,j,isn)%npts))
 !
@@ -630,27 +630,27 @@ module edyn3D_fieldline
 	  allocate(hgt_fl(k)%ilat(nlat_k))
 	  hgt_fl(k)%npts= nlat_k		     ! number of fieldlines intersecting with that height k
 	  hgt_fl(k)%ilat(1:nlat_k)= lat_k(1:nlat_k)  ! latitudinal index of fldline intersecting with that height k
-	  !
-	  ! Now use the list of latitudes at each height to set the neighboring points for each fieldline point
-	  !
-	  do j=1,hgt_fl(k)%npts ! set neighboring points for fldlne
-	   do is = 1,2
-	    do ilon = mlon0_p,mlon1_p
-	     if(j==1) then
-		fline_p(ilon,hgt_fl(k)%ilat(j),is)%ngh_pts(1,k)  = -99
-		fline_p(ilon,hgt_fl(k)%ilat(j),is)%ngh_pts(2,k)  = hgt_fl(k)%ilat(j+1)
-	     elseif(j ==  hgt_fl(k)%npts) then
-		fline_p(ilon,hgt_fl(k)%ilat(j),is)%ngh_pts(1,k)  = hgt_fl(k)%ilat(j-1)
-		fline_p(ilon,hgt_fl(k)%ilat(j),is)%ngh_pts(2,k)  = -99
-	     else
-		fline_p(ilon,hgt_fl(k)%ilat(j),is)%ngh_pts(1,k)  = hgt_fl(k)%ilat(j-1)
-		fline_p(ilon,hgt_fl(k)%ilat(j),is)%ngh_pts(2,k)  = hgt_fl(k)%ilat(j+1)
-	    endif
-	   enddo  ! end lon loop
-	  enddo  ! end is loop
-	 enddo  ! end loop field line points
+!	   !
+!	   ! Now use the list of latitudes at each height to set the neighboring points for each fieldline point
+!	   !
+!	   do j=1,hgt_fl(k)%npts ! set neighboring points for fldlne
+!	    do is = 1,2
+!	     do ilon = mlon0_p,mlon1_p
+!	      if(j==1) then
+!		 fline_p(ilon,hgt_fl(k)%ilat(j),is)%ngh_pts(1,k)  = -99
+!		 fline_p(ilon,hgt_fl(k)%ilat(j),is)%ngh_pts(2,k)  = hgt_fl(k)%ilat(j+1)
+!	      elseif(j ==  hgt_fl(k)%npts) then
+!		 fline_p(ilon,hgt_fl(k)%ilat(j),is)%ngh_pts(1,k)  = hgt_fl(k)%ilat(j-1)
+!		 fline_p(ilon,hgt_fl(k)%ilat(j),is)%ngh_pts(2,k)  = -99
+!	      else
+!		 fline_p(ilon,hgt_fl(k)%ilat(j),is)%ngh_pts(1,k)  = hgt_fl(k)%ilat(j-1)
+!		 fline_p(ilon,hgt_fl(k)%ilat(j),is)%ngh_pts(2,k)  = hgt_fl(k)%ilat(j+1)
+!	     endif
+!	    enddo  ! end lon loop
+!	   enddo  ! end is loop
+!	 enddo  ! end loop field line points
       enddo  ! end loop field line apex heights
-!
+!!
      contains
 !-----------------------------------------------------------------------
       integer function npt_fldline(apex_height)
@@ -739,7 +739,7 @@ module edyn3D_fieldline
     subroutine fieldline_getapex
       use apex, only: apex_q2g, apex_mall
       use edyn3d_params, only: h0, nmlat_h, nmlats2_h
-      use edyn3d_mpi, only: mlon0_p,mlon1_p
+      use edyn3d_mpi, only: mlon0_p,mlon1_p,ntask, mytid
       use physconst, only: pi
 
       integer :: i,j,k,isn, ierr
@@ -749,6 +749,8 @@ module edyn3D_fieldline
 
       real(r8), parameter :: href = h0*1e-3_r8
       real(r8), parameter :: r2d = 180._r8/pi
+
+      if (mytid>=ntask) return
 
       do isn = 1,2
 
@@ -768,8 +770,8 @@ module edyn3D_fieldline
                   call apex_mall(gdlat,gdlon,alt,href,b,bhat,bmag,si, &
                        alon,xlatm,vmp,w,d,be3,sim,d1,d2,d3,e1,e2,e3, &
                        xlatqd,f,f1,f2,f3,g1,g2,g3,ierr)
-                  fline_r(i,j,isn)%sinI(k) = si ! sin(I)
-                  fline_r(i,j,isn)%D(k) = d
+!                  fline_r(i,j,isn)%sinI(k) = si ! sin(I)
+!                  fline_r(i,j,isn)%D(k) = d
                   fline_r(i,j,isn)%F(k) = f
                   !fline_r(i,j,isn)%d1k(k) = d1(3) ! k: unit vector upward
                   !fline_r(i,j,isn)%d2k(k) = d2(3) ! k: unit vector upward
@@ -791,11 +793,11 @@ module edyn3D_fieldline
                        alon,xlatm,vmp,w,d,be3,sim,d1,d2,d3,e1,e2,e3, &
                        xlatqd,f,f1,f2,f3, g1,g2, g3, ierr)
 
-                  fline_p(i,j,isn)%sinI(k) = si ! sin(I)
-                  fline_p(i,j,isn)%D(k) = d
+!                  fline_p(i,j,isn)%sinI(k) = si ! sin(I)
+!                  fline_p(i,j,isn)%D(k) = d
                   fline_p(i,j,isn)%F(k) = f
-                  fline_p(i,j,isn)%d1k(k) = d1(3) ! k: unit vector upward
-                  fline_p(i,j,isn)%d2k(k) = d2(3) ! k: unit vector upward
+!                  fline_p(i,j,isn)%d1k(k) = d1(3) ! k: unit vector upward
+!                  fline_p(i,j,isn)%d2k(k) = d2(3) ! k: unit vector upward
 
                   qdlat = fline_r(i,j,isn)%mlat_qd(k)*r2d ! get quasi-dipole latitude
                   qdlon = fline_r(i,j,isn)%mlon_qd(k)*r2d ! get quasi-dipole longitude
@@ -810,8 +812,8 @@ module edyn3D_fieldline
                        alon,xlatm,vmp,w,d,be3,sim,d1,d2,d3,e1,e2,e3, &
                        xlatqd,f,f1,f2,f3, g1,g2,g3, ierr)
 
-                  fline_r(i,j,isn)%sinI(k) = si ! sin(I)
-                  fline_r(i,j,isn)%D(k) = d
+!                  fline_r(i,j,isn)%sinI(k) = si ! sin(I)
+!                  fline_r(i,j,isn)%D(k) = d
                   fline_r(i,j,isn)%F(k) = f
                   !fline_r(i,j,isn)%d1k(k) = d1(3) ! k: unit vector upward
                   !fline_r(i,j,isn)%d2k(k) = d2(3) ! k: unit vector upward
@@ -829,7 +831,9 @@ module edyn3D_fieldline
                        alon,xlatm,vmp,w,d,be3,sim,d1,d2,d3,e1,e2,e3, &
                        xlatqd,f,f1,f2,f3, g1,g2,g3, ierr)
 
-                  fline_s1(i,j,isn)%sinI(k) = si ! sin(I)
+                  fline_s1(i,j,isn)%Vmp(k)  = vmp         ! magnitude potential Tm (diagnostic for ds calculation)
+                  fline_s1(i,j,isn)%Bmag(k) = bmag*1.e-9  ! magnitude of magnetic field, convert from nT to T
+!                  fline_s1(i,j,isn)%sinI(k) = si ! sin(I)
                   fline_s1(i,j,isn)%be3(k)  = be3*1.e-9   ! B0= Be3*e3, convert from nT to T 
                   fline_s1(i,j,isn)%D(k) = d
                   fline_s1(i,j,isn)%F(k) = f
@@ -863,9 +867,10 @@ module edyn3D_fieldline
                   call apex_mall(gdlat,gdlon,alt,href,b,bhat,bmag,si, &
                        alon,xlatm,vmp,w,d,be3,sim,d1,d2,d3,e1,e2,e3, &
                        xlatqd,f,f1,f2,f3, g1,g2,g3, ierr)
+                  fline_s2(i,j,isn)%Vmp(k)  = vmp         ! magnitude potential Tm (diagnostic for ds calculation)
                   fline_s2(i,j,isn)%Bmag(k) = bmag*1.e-9_r8  ! magnitude of magnetic field, convert from nT to T
-                  !fline_s2(i,j,isn)%sinI(k) = si ! sin(I)
-                  fline_s2(i,j,isn)%bo(:,k) = b*1.e-9_r8     ! magnetic field components (east, north, up), up positive [T]
+!                  fline_s2(i,j,isn)%sinI(k) = si ! sin(I)
+!                  fline_s2(i,j,isn)%bo(:,k) = b*1.e-9_r8     ! magnetic field components (east, north, up), up positive [T]
                   fline_s2(i,j,isn)%be3(k)  = be3*1.e-9_r8   ! B0= Be3*e3, convert from nT to T 
                   fline_s2(i,j,isn)%D(k) = d
                   fline_s2(i,j,isn)%F(k) = f
@@ -875,13 +880,13 @@ module edyn3D_fieldline
                   fline_s2(i,j,isn)%d2(:,k) = d2 ! k: unit vector upward
                   fline_s2(i,j,isn)%d1d2(k) = dot_product(d1,d2)
                   fline_s2(i,j,isn)%d2d2(k) = dot_product(d2,d2)
-                  fline_s2(i,j,isn)%d1d1(k) = dot_product(d1,d1)  ! diagnostic
-                  fline_s2(i,j,isn)%e1g1(k) = dot_product(e1,g1)  ! diagnostic
-                  fline_s2(i,j,isn)%e2g1(k) = dot_product(e2,g1)  ! diagnostic
+!                  fline_s2(i,j,isn)%d1d1(k) = dot_product(d1,d1)  ! diagnostic
+!                  fline_s2(i,j,isn)%e1g1(k) = dot_product(e1,g1)  ! diagnostic
+!                  fline_s2(i,j,isn)%e2g1(k) = dot_product(e2,g1)  ! diagnostic
                   fline_s2(i,j,isn)%e2g2(k) = dot_product(e2,g2) 
                   b=  b*1.e-9
-                  fline_s2(i,j,isn)%bg1(k) = dot_product(b,g1)/fline_s2(i,j,isn)%Bmag(k)  ! diagnostic  
-		  fline_s2(i,j,isn)%bg2(k) = dot_product(b,g2)/fline_s2(i,j,isn)%Bmag(k)  ! diagnostic
+!                  fline_s2(i,j,isn)%bg1(k) = dot_product(b,g1)/fline_s2(i,j,isn)%Bmag(k)  ! diagnostic  
+!		  fline_s2(i,j,isn)%bg2(k) = dot_product(b,g2)/fline_s2(i,j,isn)%Bmag(k)  ! diagnostic
                   fline_s2(i,j,isn)%e2k(k)  = e2(3)  ! k unit upward vector  
                   fline_s2(i,j,isn)%e1g2(k) = dot_product(e1,g2)
                   fline_s2(i,j,isn)%e1k(k)  = e1(3)  ! k unit upward vector
