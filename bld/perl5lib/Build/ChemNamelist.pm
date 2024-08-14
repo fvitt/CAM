@@ -7,7 +7,7 @@ no if $] >= 5.017011, warnings => 'experimental::smartmatch';
 #-------------------------------------------------------------------------------------
 # Date         Contributor      Modification
 #-------------------------------------------------------------------------------------
-# 26 Jan 2011  Francis Vitt     Created 
+# 26 Jan 2011  Francis Vitt     Created
 #-------------------------------------------------------------------------------------
 #-------------------------------------------------------------------------------------
 
@@ -16,6 +16,7 @@ use Exporter;
 use FindBin qw($Bin);
 use lib "$Bin/perl5lib";
 use Build::ChemPreprocess qw(get_species_list get_species_nottransported_list);
+use List::Util 'any';
 
 our @ISA = qw(Exporter);
 our @EXPORT = qw(set_dep_lists set_aero_modes_info chem_has_species);
@@ -46,7 +47,7 @@ sub set_dep_lists
 {
     my ( $chem, $cfgdir, $chem_proc_src, $chem_src_dir, $nl, $print_lvl ) = @_;
 
-    my ( $gas_wetdep_list, $aer_wetdep_list, $aer_drydep_list, $aer_sol_facti, $aer_sol_factb, 
+    my ( $gas_wetdep_list, $aer_wetdep_list, $aer_drydep_list, $aer_sol_facti, $aer_sol_factb,
          $aer_scav_coef, $gas_drydep_list ) ;
 
     my @species_list ;
@@ -84,7 +85,7 @@ sub set_dep_lists
     if ($print_lvl>=2) {print " aer dry dep list : $aer_drydep_list  \n" ;}
 
     # set solubility factors for aerosols
-    if (length($aer_wetdep_list)>2){ 
+    if (length($aer_wetdep_list)>2){
         my @values = split(',', $aer_wetdep_list);
         my $first = 1; my $pre = "";
         foreach my $val (@values){
@@ -121,7 +122,7 @@ sub set_dep_lists
         }
     }
 
-    return ( $gas_wetdep_list, $aer_wetdep_list, $aer_sol_facti, $aer_sol_factb, $aer_scav_coef, 
+    return ( $gas_wetdep_list, $aer_wetdep_list, $aer_sol_facti, $aer_sol_factb, $aer_scav_coef,
              $aer_drydep_list, $gas_drydep_list );
 }
 
@@ -129,7 +130,7 @@ sub set_dep_lists
 #-------------------------------------------------------------------------------
 sub set_aero_modes_info
 {
-    my ( $cfg, $data_src, $print_lvl, $mode_types, $modal_species, $modal_groups, 
+    my ( $cfg, $data_src, $print_lvl, $mode_types, $modal_species, $modal_groups,
          $mode_spec_type, $mode_spec, $mode_spec_cw, $mode_spec_src ) = @_;
 
     my $chem_proc_src = $cfg->get('chem_proc_src');
@@ -255,7 +256,7 @@ sub get_aer_wetdep_list
     } else {
       $master_file = "$cfg_dir/namelist_files/mozart_master_aer_wetdep_list.xml";
     }
-      
+
     my $list = get_dep_list($master_file,$print_lvl,$species_list,$nottransported_list);
 
     if ($print_lvl>=2) {print " aer wet dep list : $list  \n" ;}
@@ -295,9 +296,10 @@ sub get_dep_list
 
     my $list = '';
     my $first = 1; my $pre = "";
+
     foreach my $name (sort @species_list) {
 	foreach my $item (@master_list) {
-	    if (!($item ~~ @nottransported_list)) {
+	    if (!(any { $item eq $_ } @nottransported_list)) {
 		if ($name eq $item) {
 		    $list .= $pre .  quote_string($name) ;
 		    if ($first) { $pre = ","; $first = 0; }
@@ -344,4 +346,4 @@ sub quote_string {
     }
     return $str;
 }
-1; # to appease require 
+1; # to appease require
