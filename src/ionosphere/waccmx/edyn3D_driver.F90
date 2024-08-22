@@ -191,10 +191,6 @@ contains
     call output_fline_field(vn_s1)
     call output_fline_field(vn_s2)
 
-!write(iulog,*) 'MIN/MAX un ', MINVAL(un), MAXVAL(un)
-!write(iulog,*) 'MIN/MAX vn ', MINVAL(vn), MAXVAL(vn)
-
-
     if (mytid<ntask) then
        geogaltp=-huge(1._r8)
        geoglatp=-huge(1._r8)
@@ -233,7 +229,6 @@ contains
                    geogaltp(i,ncnt) = fline_p(i,j,isn)%hgt_pt(k)
                    geoglatp(i,ncnt) = fline_p(i,j,isn)%glat(k)
                    geoglonp(i,ncnt) = fline_p(i,j,isn)%glon(k)
-                   potential(i,ncnt)= fline_p(i,j,isn)%pot
                    geogalts1(i,ncnt) = fline_s1(i,j,isn)%hgt_pt(k)
                    geoglats1(i,ncnt) = fline_s1(i,j,isn)%glat(k)
                    geoglons1(i,ncnt) = fline_s1(i,j,isn)%glon(k)
@@ -324,6 +319,39 @@ contains
     end do
 
     call regrid_geo2phys_3d( Tn_oplus1, Tn_out2, nphyslev, 1, nphyscol )
+
+    !  diagnostics ...
+
+    if (mytid<ntask) then
+
+       do i = mlon0_p,mlon1_p
+          ncnt = 0
+          do j = 1,nmlat_h
+             do isn = 1,2
+
+                if (isn==1) then
+                   k0 = 1
+                   k1 = fline_p(i,j,isn)%npts
+                   dk = 1
+                else
+                   k0 = fline_p(i,j,isn)%npts
+                   k1 = 1
+                   dk = -1
+                endif
+
+                do k = k0,k1,dk
+                   ncnt = ncnt + 1
+                   potential(i,ncnt) = fline_p(i,j,isn)%pot
+               end do
+             end do
+          end do
+       end do
+
+       do j = 1,nptsp_total
+          call outfld('POTENp',  potential(mlon0_p:mlon1_p,j), mlon1_p-mlon0_p+1, j)
+       end do
+
+    end if
 
   end subroutine edyn3D_driver_timestep
 
