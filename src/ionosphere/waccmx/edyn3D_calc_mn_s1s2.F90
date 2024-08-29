@@ -1,5 +1,5 @@
 !
-       subroutine edyn3D_calc_mn_s1s2
+     subroutine edyn3D_calc_mn_s1s2
 
        use edyn3D_fieldline, only: fieldline_s1,fline_s1,fieldline_s2,fline_s2,&
                                    fieldline_r,fline_r,fieldline_p,fline_p
@@ -11,15 +11,15 @@
        use spmd_utils,       only: masterproc
 
        implicit none
-!       
-! local variables         
+       !       
+       ! Local variables
+       !         
        integer ::  i,j,k,isn,nmax      
        real(r8) :: dlonm,drho,sigC
 !       
-       dlonm = ylonm_s(2)-ylonm_s(1) ! assumes euiqdistant longitudinal gridpoints
+       dlonm = ylonm_s(2)-ylonm_s(1) ! Assumes equidistant longitudinal gridpoints
 !       
-       do isn = 1,2 ! loop over both hemisphere
-!         do i=1,nmlon ! loop over all longitudes
+       do isn = 1,2 ! loop over both hemispheres
          do i=mlon0_p,mlon1_p ! loop over task longitudes
 !	 
 ! calculate values for S1-points these are at (i+/-0.5,j,k) updated 8/23/2015
@@ -119,5 +119,5 @@
           end do  ! end longitude loop
 	  
        end do ! end hemisphere loop
-!       
-       end subroutine edyn3D_calc_mn_s1s2
+
+     end subroutine edyn3D_calc_mn_s1s2

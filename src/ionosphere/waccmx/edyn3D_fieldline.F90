@@ -6,7 +6,7 @@ module edyn3D_fieldline
 !-------------------------------------------------------------------------------------
 !
   use edyn3d_params,      only: dtr,ylatm,ylatm_s,hgt_fix,nhgt_fix,hgt_fix_r,nhgt_fix_r, &
-                                ylonm,ylonm_s,rho,rho_s,ha,ha_s,nmlon,nmlat_T1
+                                ylonm,ylonm_s,rho,rho_s,ha,ha_s,nmlon,nmlat_T1,nptss1_max
   use shr_kind_mod,       only: r8 => shr_kind_r8            ! 8-byte reals
   use cam_logfile,        only: iulog
   use spmd_utils,         only: masterproc
@@ -31,7 +31,7 @@ module edyn3D_fieldline
   public :: fieldline_getapex
   public :: Je2Ion_eq
   public :: poten_hl
-
+   
 !   public :: tasks
    ! Public type
 !   public :: array_ptr_type
@@ -55,7 +55,7 @@ module edyn3D_fieldline
 
      real(r8) :: ha 	! apex height
      real(r8) :: mlat_m	! modified apex latitude
-     real(r8) :: mlon_m	! modified apex longitude
+!     real(r8) :: mlon_m	! modified apex longitude
 
      real(r8) :: pot       ! electric potential
      real(r8) :: pot_test  ! electric potential am 1/2015 for testing
@@ -101,7 +101,7 @@ module edyn3D_fieldline
 
      real(r8) :: ha 	! apex height
      real(r8) :: mlat_m	! modified apex latitude
-     real(r8) :: mlon_m	! modified apex longitude
+!     real(r8) :: mlon_m	! modified apex longitude
      real(r8) :: pot	! electric potential
 
      real(r8), allocatable :: mlat_qd(:)    ! quasi dipole latitude
@@ -134,7 +134,7 @@ module edyn3D_fieldline
 
      real(r8) :: ha	    ! apex height
      real(r8) :: mlat_m     ! modified apex latitude
-     real(r8) :: mlon_m     ! modified apex longitude
+!     real(r8) :: mlon_m     ! modified apex longitude
      real(r8) :: zigP	    ! Pedersen Conductance
      real(r8) :: zigH	    ! Hall Conductance
      real(r8) :: Ed1	    ! Ed1 electric field
@@ -202,7 +202,7 @@ module edyn3D_fieldline
 
      real(r8) :: ha	    ! apex height
      real(r8) :: mlat_m     ! modified apex latitude
-     real(r8) :: mlon_m     ! modified apex longitude
+!     real(r8) :: mlon_m     ! modified apex longitude
      real(r8) :: zigP	    ! Pedersen Conductance
      real(r8) :: zigH	    ! Hall Conductance
      real(r8) :: Ed1	    ! Ed1 electric field
@@ -281,7 +281,8 @@ module edyn3D_fieldline
 
   type (hgt_fld), allocatable :: hgt_fl(:)
 
-  real(r8) :: poten_hl(nmlon,nmlat_T1)  ! high latitude potential r-points
+!  real(r8) :: poten_hl(nmlon,nmlat_T1)  ! high latitude potential r-points
+  real(r8) :: poten_hl(0:nmlon+1,nmlat_T1)  ! high latitude potential r-points
   real(r8) :: poten_hl3(nmlon,nmlat_T1) ! high latitude potential r-points
 
   real(r8),parameter ::   Je2Ion_eq(nmlon)=0._r8      ! at S1 points at k=1 and j=nmlat_h
@@ -304,7 +305,7 @@ module edyn3D_fieldline
 
       !,hgt_fix_r,ha,ylatm,ylonm, & ! For r points
 
-      integer :: i,j,k,nlat_k,lat_k(nmlat_h),isn,ilon,is,jns,ier
+      integer :: i,j,k,nlat_k,lat_k(nmlat_h),isn,ilon,is,jns,ier,status
 !      integer :: npt_fldline          ! function
 !      integer :: npt_fldline_r        ! function
 !      real(r8) :: lamqd_from_apex_coord   ! function
@@ -338,16 +339,6 @@ module edyn3D_fieldline
 
       if (mytid>=ntask) return
 
-      if (masterproc) then
-         write(iulog,"(' edyn3D_fieldline, fieldline_init: Allocating fline structures')")
-      endif
-      if (masterproc) then
-         write(iulog,*) ' edyn3Dmpi, fieldline_init: Initializing with nmlon, nmlat_h', nmlon, nmlat_h
-      endif
-       if (masterproc) then
-         write(iulog,*) ' edyn3Dmpi, fieldline_init: Longitude p grid ylonm ', ylonm
-      endif
-
       allocate(fline_p(mlon0_p:mlon1_p,nmlat_h,2),stat=ier)
       if (ier /= 0) then
          write(iulog,"('>>> Error allocating fline_p structure: mlon0_p,mlon1_p,nmlat_h =',3i4)") mlon0_p,mlon1_p,nmlat_h
@@ -358,7 +349,7 @@ module edyn3D_fieldline
          write(iulog,"('>>> Error allocating fline_r structure: mlon0_p,mlon1_p,nmlat_h =',3i4)") mlon0_p,mlon1_p,nmlat_h
          call endrun('fieldline_init')
       endif
-      allocate(fline_s1(mlon0_p:mlon1_p,nmlat_h,2),stat=ier)     ! note same points as p-fieldlines
+      allocate(fline_s1(mlon0_p-1:mlon1_p+1,nmlat_h,2),stat=ier)     ! note same points as p-fieldlines but halos needed
       if (ier /= 0) then
          write(iulog,"('>>> Error allocating fline_r structure: mlon0_p,mlon1_p,nmlat_h =',3i4)") mlon0_p,mlon1_p,nmlat_h
          call endrun('fieldline_init')
@@ -370,11 +361,10 @@ module edyn3D_fieldline
       endif
 
       !
-      ! Fieldlines p, r, and s1 can be done together since dimensions are the same
-      !
-      if (masterproc) then
-         write(iulog,"(' edyn3D_fieldline, fieldline_init: Allocating p grid structure ')")
-      endif
+      ! Fieldlines p, r, and s1 can be done together since dimensions are the same except s1 has halo points
+      !      
+      nptss1_max = 0
+      
       do isn = 1,2  ! loop over hemisphere
         do j=1,nmlat_h  ! loop over latitudes (pole to equator)
           fline_p(:,j,isn)%ha     = ha(j)                             ! apex_height
@@ -389,15 +379,19 @@ module edyn3D_fieldline
            !
            ! s1 points are in between p-points with respect to longitude, but ylatm is same as p points
            !
-           fline_s1(:,j,isn)%ha     = fline_p(:,j,isn)%ha               ! apex_height from p-grid
-           fline_s1(:,j,isn)%npts   = fline_p(:,j,isn)%npts             ! points on fieldline from p-grid
-           fline_s1(:,j,isn)%mlat_m = ylatm(j,isn)                      ! magnetic latitude  from p-grid
+           fline_s1(mlon0_p:mlon1_p,j,isn)%ha     = fline_p(:,j,isn)%ha               ! apex_height from p-grid
+
+           fline_s1(mlon0_p:mlon1_p,j,isn)%npts   = fline_p(:,j,isn)%npts             ! points on fieldline from p-grid
+           fline_s1(mlon0_p-1,j,isn)%npts = fline_s1(mlon0_p,j,isn)%npts
+           fline_s1(mlon1_p+1,j,isn)%npts = fline_s1(mlon1_p,j,isn)%npts
+           
+           fline_s1(mlon0_p:mlon1_p,j,isn)%mlat_m = ylatm(j,isn)                      ! magnetic latitude  from p-grid
            !
            ! Allocate p, r, s1, s2 field line structure variables
            !
-           do i=mlon0_p,mlon1_p !1,nmlon ! loop over longitude
+           do i=mlon0_p,mlon1_p ! loop over longitudes for this task
 
-             fline_p(i,j,isn)%mlon_m = ylonm(i)  !
+!             fline_p(i,j,isn)%mlon_m = ylonm(i)  !
 
              allocate(fline_p(i,j,isn)%hgt_pt(fline_p(i,j,isn)%npts))  ! should be independent of longitude
              allocate(fline_p(i,j,isn)%mlat_qd(fline_p(i,j,isn)%npts)) ! should be independent of longitude
@@ -421,7 +415,7 @@ module edyn3D_fieldline
 !          allocate(fline_p(i,j,isn)%pot(fline_p(i,j,isn)%npts))
 !          allocate(fline_p(i,j,isn)%pot_test(fline_p(i,j,isn)%npts)) ! am 1/2015 for testing
 
-             fline_r(i,j,isn)%mlon_m = ylonm(i)  !
+!             fline_r(i,j,isn)%mlon_m = ylonm(i)  !
 
              allocate(fline_r(i,j,isn)%hgt_pt(fline_r(i,j,isn)%npts))  ! should be independent of longitude
              allocate(fline_r(i,j,isn)%mlat_qd(fline_r(i,j,isn)%npts)) ! should be independent of longitude
@@ -446,7 +440,33 @@ module edyn3D_fieldline
 !            !  P(i,j) then is really S1(i+0.5,j) with j increasing equatorward
 !            !  coefficient is calculated at P points
 !            !
-             fline_s1(i,j,isn)%mlon_m = ylonm_s(i)  !
+             ! fline_s1 has halo points so use different mlon loop than p and r fieldline points
+           
+             do k=1,fline_p(i,j,isn)%npts
+
+              fline_p(i,j,isn)%hgt_pt(k) = hgt_fix(k)  ! [m] assumes ordering goes from bottom of fieldline to top
+                                                      ! fix heights go also from bottome to top
+              fline_p(i,j,isn)%mlon_qd(k) = ylonm(i)   ! independent of latitude and height
+              fline_p(i,j,isn)%mlat_qd(k) = lamqd_from_apex_coord(fline_p(i,j,isn)%mlat_m,hgt_fix(k))   ! quasi dipole latitude
+
+             enddo
+
+             do k=1,fline_r(i,j,isn)%npts
+
+               fline_r(i,j,isn)%hgt_pt(k) = hgt_fix_r(k)  ! [m] assumes ordering goes from bottom of fieldline to top
+                                                        ! fix heights go also from bottome to top
+               fline_r(i,j,isn)%mlon_qd(k) = ylonm(i)   ! independent of latitude and height
+               fline_r(i,j,isn)%mlat_qd(k) = lamqd_from_apex_coord(fline_r(i,j,isn)%mlat_m,hgt_fix_r(k))   ! quasi dipole latitude
+
+             enddo
+
+             if (fline_s1(i,j,isn)%npts > nptss1_max) nptss1_max = fline_s1(i,j,isn)%npts
+!
+	   enddo ! longitudes for p and r points
+           !
+           ! fline_s1 has halo points so use different mlon loop than p and r fieldline points to allocate
+           !
+           do i=mlon0_p-1,mlon1_p+1  ! loop over longitudes with halo points for s1
 
              allocate(fline_s1(i,j,isn)%hgt_pt(fline_s1(i,j,isn)%npts))  ! should be independent of longitude
              allocate(fline_s1(i,j,isn)%mlat_qd(fline_s1(i,j,isn)%npts)) ! should be independent of longitude
@@ -493,35 +513,30 @@ module edyn3D_fieldline
 !             allocate(fline_s1(i,j,isn)%je1(fline_s1(i,j,isn)%npts))
 !             allocate(fline_s1(i,j,isn)%I1(fline_s1(i,j,isn)%npts))
 
-!             allocate(fline_s1(i,j,isn)%ngh_pts(2,fline_s1(i,j,isn)%npts)) ! lat_ind of neighboring point
-             do k=1,fline_p(i,j,isn)%npts
+!             allocate(fline_s1(i,j,isn)%ngh_pts(2,fline_s1(i,j,isn)%npts),STAT=status) ! lat_ind of neighboring point
+              if (status /= 0 ) then
+                write(iulog,*) 'fline_s1 ngh_pts allocation failed'
+	        call endrun('fieldline_init')
+              endif
 
-              fline_p(i,j,isn)%hgt_pt(k) = hgt_fix(k)  ! [m] assumes ordering goes from bottom of fieldline to top
-                                                      ! fix heights go also from bottome to top
-              fline_p(i,j,isn)%mlon_qd(k) = ylonm(i)   ! independent of latitude and height
-              fline_p(i,j,isn)%mlat_qd(k) = lamqd_from_apex_coord(fline_p(i,j,isn)%mlat_m,hgt_fix(k))   ! quasi dipole latitude
-
-             enddo
-
-             do k=1,fline_r(i,j,isn)%npts
-
-               fline_r(i,j,isn)%hgt_pt(k) = hgt_fix_r(k)  ! [m] assumes ordering goes from bottom of fieldline to top
-                                                        ! fix heights go also from bottome to top
-               fline_r(i,j,isn)%mlon_qd(k) = ylonm(i)   ! independent of latitude and height
-               fline_r(i,j,isn)%mlat_qd(k) = lamqd_from_apex_coord(fline_r(i,j,isn)%mlat_m,hgt_fix_r(k))   ! quasi dipole latitude
-
-             enddo
+           enddo   ! end loop longitudes for s1 points
+           !
+           do i=mlon0_p,mlon1_p ! loop over longitudes for this task to initialize s1 height and lat variables
+		
+!             fline_s1(i,j,isn)%mlon_m = ylonm_s(i)  !
 
              do k=1,fline_s1(i,j,isn)%npts
 !
                fline_s1(i,j,isn)%hgt_pt(k) = hgt_fix(k)  ! [m] assumes ordering goes from bottom of fieldline to top
-                                                         ! fix heights go also from bottome to top
+                                                         ! fix heights go also from bottom to top
                fline_s1(i,j,isn)%mlon_qd(k) = ylonm_s(i)   ! independent of latitude and height
                fline_s1(i,j,isn)%mlat_qd(k) = fline_p(i,j,isn)%mlat_qd(k)   ! quasi dipole latitude from p-grid
 
              enddo
-!
-            enddo   ! end loop longitudes
+
+           enddo   ! end loop longitudes for s1 initializations
+           !
+	    
           enddo  ! end loop latitude
         !
         !
@@ -534,13 +549,10 @@ module edyn3D_fieldline
            fline_s2(:,j,isn)%ha     = ha_s(j)                           ! apex_height
            fline_s2(:,j,isn)%npts   = npt_fldline(fline_s2(mlon0_p,j,isn)%ha) ! points on fieldline
            fline_s2(:,j,isn)%mlat_m = ylatm_s(j,isn)                    ! magnetic latitude
-!
-           do i=mlon0_p,mlon1_p  !1,nmlon ! loop over longitude
-!       if (masterproc) then
-!          write(iulog,*) 'Looping longitudes allocate s2 fieldline structure fieldline_init:', isn, j, i
-!       endif
 
-              fline_s2(i,j,isn)%mlon_m = ylonm(i)  !
+           do i=mlon0_p,mlon1_p  !1,nmlon ! loop over longitude
+
+!              fline_s2(i,j,isn)%mlon_m = ylonm(i)  !
 
               allocate(fline_s2(i,j,isn)%hgt_pt(fline_s2(i,j,isn)%npts))  ! should be independent of longitude
               allocate(fline_s2(i,j,isn)%mlat_qd(fline_s2(i,j,isn)%npts)) ! should be independent of longitude
@@ -595,18 +607,14 @@ module edyn3D_fieldline
 !              allocate(fline_s2(i,j,isn)%ngh_pts(2,fline_s2(i,j,isn)%npts)) ! lat_ind of neighboring point
               allocate(fline_s2(i,j,isn)%je2(fline_s2(i,j,isn)%npts))
               allocate(fline_s2(i,j,isn)%I2(fline_s2(i,j,isn)%npts))
-!
+
               do k=1,fline_s2(i,j,isn)%npts
-!
+
                  fline_s2(i,j,isn)%hgt_pt(k)  = hgt_fix(k)  ! [m] assumes ordering goes from bottom of fieldline to top
                  ! fix heights go also from bottome to top
                  fline_s2(i,j,isn)%mlon_qd(k) = ylonm(i)   ! independent of latitude and height
-!       if (masterproc .and. isn == 1 .and. j == 12 .and. i == 133) then
-!          write(iulog,*) 'Before lamqd call for s2 fieldline structure fieldline_init:', isn, j, i, k, fline_s2(i,j,isn)%npts
-!         write(iulog,*) 'Before lamqd call for s2 fieldline structure fieldline_init:', fline_s2(i,j,isn)%mlat_m, hgt_fix(k)
-!       endif
                  fline_s2(i,j,isn)%mlat_qd(k) = lamqd_from_apex_coord(fline_s2(i,j,isn)%mlat_m,hgt_fix(k))   ! quasi dipole latitude
-!
+
               enddo
 
            enddo   ! end loop longitudes
@@ -709,26 +717,14 @@ module edyn3D_fieldline
 	real(r8) :: lamqd
 
 	real(r8) :: fac
-!      if (masterproc .and. h > 1000000) then
-!	  write(iulog,*) 'Inside lamqd_from_apex_coord rearth_m,r0,h,lat fieldline_init:', rearth_m,r0,h,lat
-!      endif
 
 	fac = sqrt((rearth_m+h)/r0)*cos(lat)
-!      if (masterproc .and. h > 1000000) then
-!	  write(iulog,*) 'Inside lamqd_from_apex_coord fac1 fieldline_init:', fac
-!      endif
 	!
-	! ensure fac was below 1 and will not cause problem with acos
+	! ensure fac is below 1 and will not cause problem with acos
 	!
 	if (abs(fac) > 1.0_r8) fac = sign(1.0_r8,fac)
-!      if (masterproc .and. h > 1000000) then
-!	  write(iulog,*) 'Inside lamqd_from_apex_coord fac2 fieldline_init:', fac
-!      endif
 
 	lamqd = sign(acos(fac),lat)
-!      if (masterproc .and. h > 1000000) then
-!	  write(iulog,*) 'Inside lamqd_from_apex_coord lamqd fieldline_init:', lamqd
-!      endif
 
       end function lamqd_from_apex_coord
 !
@@ -777,7 +773,7 @@ module edyn3D_fieldline
                   !fline_r(i,j,isn)%d2k(k) = d2(3) ! k: unit vector upward
 
                enddo
-
+	       
                do k = 1,fline_p(i,j,isn)%npts
 
                   qdlat = fline_p(i,j,isn)%mlat_qd(k)*r2d ! get quasi-dipole latitude
@@ -831,10 +827,10 @@ module edyn3D_fieldline
                        alon,xlatm,vmp,w,d,be3,sim,d1,d2,d3,e1,e2,e3, &
                        xlatqd,f,f1,f2,f3, g1,g2,g3, ierr)
 
-                  fline_s1(i,j,isn)%Vmp(k)  = vmp           ! magnitude potential Tm (diagnostic for ds calculation)
-                  fline_s1(i,j,isn)%Bmag(k) = bmag*1.e-9_r8 ! magnitude of magnetic field, convert from nT to T
+                  fline_s1(i,j,isn)%Vmp(k)  = vmp         ! magnitude potential Tm (diagnostic for ds calculation)
+                  fline_s1(i,j,isn)%Bmag(k) = bmag*1.e-9_r8  ! magnitude of magnetic field, convert from nT to T
 !                  fline_s1(i,j,isn)%sinI(k) = si ! sin(I)
-                  fline_s1(i,j,isn)%be3(k)  = be3*1.e-9_r8 ! B0= Be3*e3, convert from nT to T
+                  fline_s1(i,j,isn)%be3(k)  = be3*1.e-9_r8   ! B0= Be3*e3, convert from nT to T 
                   fline_s1(i,j,isn)%D(k) = d
                   fline_s1(i,j,isn)%F(k) = f
                   !fline_s1(i,j,isn)%d1k(k) = d1(3) ! k: unit vector upward
@@ -871,7 +867,7 @@ module edyn3D_fieldline
                   fline_s2(i,j,isn)%Bmag(k) = bmag*1.e-9_r8  ! magnitude of magnetic field, convert from nT to T
 !                  fline_s2(i,j,isn)%sinI(k) = si ! sin(I)
 !                  fline_s2(i,j,isn)%bo(:,k) = b*1.e-9_r8     ! magnetic field components (east, north, up), up positive [T]
-                  fline_s2(i,j,isn)%be3(k)  = be3*1.e-9_r8   ! B0= Be3*e3, convert from nT to T
+                  fline_s2(i,j,isn)%be3(k)  = be3*1.e-9_r8   ! B0= Be3*e3, convert from nT to T 
                   fline_s2(i,j,isn)%D(k) = d
                   fline_s2(i,j,isn)%F(k) = f
                   !fline_s2(i,j,isn)%d1k(k) = d1(3) ! k: unit vector upward
@@ -883,11 +879,11 @@ module edyn3D_fieldline
 !                  fline_s2(i,j,isn)%d1d1(k) = dot_product(d1,d1)  ! diagnostic
 !                  fline_s2(i,j,isn)%e1g1(k) = dot_product(e1,g1)  ! diagnostic
 !                  fline_s2(i,j,isn)%e2g1(k) = dot_product(e2,g1)  ! diagnostic
-                  fline_s2(i,j,isn)%e2g2(k) = dot_product(e2,g2)
+                  fline_s2(i,j,isn)%e2g2(k) = dot_product(e2,g2) 
                   b=  b*1.e-9
-!                  fline_s2(i,j,isn)%bg1(k) = dot_product(b,g1)/fline_s2(i,j,isn)%Bmag(k)  ! diagnostic
+!                  fline_s2(i,j,isn)%bg1(k) = dot_product(b,g1)/fline_s2(i,j,isn)%Bmag(k)  ! diagnostic  
 !		  fline_s2(i,j,isn)%bg2(k) = dot_product(b,g2)/fline_s2(i,j,isn)%Bmag(k)  ! diagnostic
-                  fline_s2(i,j,isn)%e2k(k)  = e2(3)  ! k unit upward vector
+                  fline_s2(i,j,isn)%e2k(k)  = e2(3)  ! k unit upward vector  
                   fline_s2(i,j,isn)%e1g2(k) = dot_product(e1,g2)
                   fline_s2(i,j,isn)%e1k(k)  = e1(3)  ! k unit upward vector
 

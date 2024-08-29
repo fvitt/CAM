@@ -64,12 +64,7 @@
                 end if
                   
                 fline_s1(i,j,isn)%Je1D(k)= fac
-                
-!              if(k==1) then
-!                  write(33,'(3(x,e17.10))') fline_s1(i,j,isn)%mlon_m, &
-!                  fline_s1(i,j,isn)%mlat_m, fline_s1(i,j,isn)%Je1D(k)
-!              end if
-                         
+                                         
               end do  ! end height loop
             end do  ! end lat/fieldline loop
 !

@@ -1,5 +1,7 @@
        
        subroutine edyn3D_get_conduct
+       !
+       !  Calculate Pedersen and Hall conductances for s1 and s2 field line grids
        !              
        use edyn3D_fieldline, only: fline_s1,fline_s2
        use edyn3D_params,    only: nmlon,nmlat_h,nmlatS2_h,nhgt_fix,hgt_fix
@@ -17,7 +19,7 @@
        !
        ! dimension with the largest possible number of points on fieldline       
        !
-       real(r8) :: sigH(nhgt_fix),sigP(nhgt_fix)     ! condiuctivities in [S/m]
+       real(r8) :: sigH(nhgt_fix),sigP(nhgt_fix)     ! conductivities in [S/m]
        real(r8) :: glon(nhgt_fix),glat(nhgt_fix), &  ! geog. location in [deg]
            alt(nhgt_fix), &                      ! altitude of points [km]
            sumP, &                      ! Pedersen conductance
@@ -33,10 +35,12 @@
        logical,parameter :: debug=.false. 
 !         
        if(debug) write(iulog,*) 'in get_conduc'
-
+       !
+       ! Get conductance for s2 grid.  
+       ! Do not need conductivities from empirical model since they are already calculated
+       !
        do isn = 1,2 ! loop over both hemisphere
          do i=mlon0_p,mlon1_p ! loop over task longitudes
-!         do i=1,nmlon ! loop over all longitudes
            do j=nmlatS2_h,1,-1 ! loop over all latitudes in one hemisphere
               !	   
               ! S2-grid: get the location of the conductivities (this is the s2-grid)
@@ -61,8 +65,9 @@
 !                  fline_s2(i,j,isn)%sigP(k)= 0.5*sigP(k)
 ! 		endif 
 !	      enddo
-
-! calculate conductances	      
+              !
+              ! Calculate s2 conductances from conductivities
+	      !	      
 	      sumP = 0
 	      sumH = 0
 	      do k=1,nmax-1
@@ -84,7 +89,9 @@
 !	      endif		       
 	       
 	   enddo ! end latitude loop
-	   
+           !
+           ! Get conductances for s1 grid.  
+           !	   
            do j=nmlat_h,1,-1 ! loop over all latitudes in one hemisphere
               !
 	      ! S1-grid: get the location of the conductivities (this is the s1-grid)
@@ -152,5 +159,5 @@
 !	  deallocate(ne_s2,STAT=status) 
 !         if(status /= 0 ) write(6,*) 'dealloc ne_s2 failed'          
 !       endif  
-!       
+!
        end subroutine edyn3D_get_conduct

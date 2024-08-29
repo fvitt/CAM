@@ -38,11 +38,11 @@ contains
     call mp_init_edyn3D(mpicom, npes)
 
     call gen_highres_grid()
-
+      
     call edyn3D_gen_ggj_grid()
 
     call edyn3D_gen_qd_grid()
-
+    
     call edyn3D_gen_geo_grid()
 
     call edyn3D_qcoef()
@@ -56,11 +56,11 @@ contains
     call fieldline_init()  ! Allocate and populate the p, r, s1, and s2 field line structures for computations
 
     call fieldline_getapex()
-
+ 
     call reg_hist_grid()
 
     call edyn3D_esmf_regrid_init()
-
+    
 !    call apxparm(geomag_year)
 
     call addfld ('Tn_mag', horiz_only, 'I', 'K','Neutral Temperature on geo-magnetic field line grid', &
@@ -209,10 +209,11 @@ contains
           do j = 1,nmlat_h
              do isn = 1,2
 
-                fline_s1(i,j,isn)%sigP(:) = sigma_ped_s1%flines(i,j,isn)%fld(:)
-                fline_s1(i,j,isn)%sigH(:) = sigma_hal_s1%flines(i,j,isn)%fld(:)
-                fline_s1(i,j,isn)%un(:) = un_s1%flines(i,j,isn)%fld(:)
-                fline_s1(i,j,isn)%vn(:) = vn_s1%flines(i,j,isn)%fld(:)
+      fline_s1(i,j,isn)%sigP(:) = sigma_ped_s1%flines(i,j,isn)%fld(:)
+      fline_s1(i,j,isn)%sigH(:) = sigma_hal_s1%flines(i,j,isn)%fld(:)
+
+      fline_s1(i,j,isn)%un(:) = un_s1%flines(i,j,isn)%fld(:)
+      fline_s1(i,j,isn)%vn(:) = vn_s1%flines(i,j,isn)%fld(:)
 
                 if (isn==1) then
                    k0 = 1
@@ -286,21 +287,32 @@ contains
     call output_fline_field(Tn_p)
 
     !
-    ! Call 3D dynamo routines
+    ! Call 3D dynamo routine for solving
     !
     if (mytid<ntask) then
 !
       call edyn3D_get_conduct  ! - Get conductivities for edyn3D_calc_FAC
+
       call edyn3D_calc_mn_s1s2 ! - (calc conductivities, each timestep)
+
       call edyn3D_calc_je_s1s2 ! - (must be calculated each timestep)
+
+      call edyn3D_coef_halos   ! - Get halo points required in following routines
+
       call edyn3D_calc_S       ! - (must be calculated each timestep)
-      call edyn3D_calc_coef    ! - calc LHS & RHS
-      call edyn3D_calc_FAC
+
+      call edyn3D_calc_coef    ! - calc LHS & RHS 
+
+      call edyn3D_calc_FAC     ! - calc high latitude
+
       call edyn3D_add_coef_ns  ! - add North & South coef
+
       call edyn3D_gather_coef_ns  ! - gather coef_ns for solver
+
       if (mytid == 0) then
         call edyn3D_const_rhs   ! - solver - solve for rhs (electric potential)
       endif
+
       call edyn3D_scatter_poten  ! - Send global potential to each task
 !
     endif
@@ -350,8 +362,8 @@ contains
        do j = 1,nptsp_total
           call outfld('POTENp',  potential(mlon0_p:mlon1_p,j), mlon1_p-mlon0_p+1, j)
        end do
-
-    end if
+       
+     end if
 
   end subroutine edyn3D_driver_timestep
 
@@ -490,9 +502,9 @@ contains
        end do
     end do
 
+
     call cam_grid_register('magfline_p', magp_decomp, flp_coord, lonp_coord, grid_map, unstruct=.false.)
     call cam_grid_register('magfline_s1', mags1_decomp, fls1_coord, lons1_coord, grid_map, unstruct=.false.)
-
     nullify(flp_coord)
     nullify(fls1_coord)
     nullify(lons1_coord)
@@ -588,7 +600,92 @@ contains
     nullify(altvalss2)
   end subroutine reg_hist_grid
 
+!--------------------------------------------------------------------------------      
+   subroutine edyn3D_coef_halos
+!
+!    Calculate halo points in require variables
+!   
+       use edyn3D_fieldline,only: fline_s1
+       use edyn3D_mpi,      only: mytid,ntask,mp_mag_halos_edyn3D,mlon0_p,mlon1_p
+       use edyn3D_params,   only: nptss1_max
+!   
+!    Local:
+!    5 fields to get halo points:
+!   
+       integer, parameter :: nf = 5
+       real(r8), allocatable :: fmsub(:,:,:,:) 
+!            real(r8) :: fmsub(mlon0_p-1:mlon1_p+1,nmlat_h,nptss1_max,nf)
+!       real(r8) :: fmsub(mlon0_p-1:mlon1_p+1,nptss1_max,nf)
+       real(r8) :: tempfield
+       integer :: isn,i,j,k,status,nlon_p
+ 
+       nlon_p = mlon1_p-mlon0_p+3
+ 
+       allocate(fmsub(mlon0_p-1:mlon1_p+1,nmlat_h,nptss1_max,nf),STAT=status)
+       
+       if (status /= 0 ) then
+         write(iulog,*) 'fmsub allocation failed'
+	 call endrun('edyn3D_coef_halos')
+       endif
+    
+       do isn = 1,2
+	 !
+	 ! Reset input to halos routine for each hemisphere
+	 !
+         fmsub(:,:,:,:) = 0._r8
 
+         do j = 1, nmlat_h
+
+           !
+	   ! Reset input to halos routine for each latitude
+	   !
+!           fmsub(:,:,:) = 0._r8
+
+           do k = 1,fline_s1(mlon0_p,j,isn)%npts ! Every longitude has same number of field line points
+	     
+             do i = mlon0_p,mlon1_p
+	       
+               fmsub(i,j,k,1) = fline_s1(i,j,isn)%M1(k)
+               fmsub(i,j,k,2) = fline_s1(i,j,isn)%Je1D(k)
+               fmsub(i,j,k,3) = fline_s1(i,j,isn)%M1Je1D(k)
+               fmsub(i,j,k,4) = fline_s1(i,j,isn)%N1h(k)
+               fmsub(i,j,k,5) = fline_s1(i,j,isn)%N1p(k)
+
+             enddo ! longitude
+	             
+           enddo ! field line points
+
+         enddo ! latitude
+	     
+	   call mp_mag_halos_edyn3D(fmsub,mlon0_p,mlon1_p,nmlat_h,nptss1_max,nf)
+	     
+          do j = 1, nmlat_h
+	    do k = 1,fline_s1(mlon0_p,j,isn)%npts ! Field lines at every longitude have same number of points
+
+		fline_s1(mlon0_p-1,j,isn)%M1(k) = fmsub(mlon0_p-1,j,k,1)
+		fline_s1(mlon1_p+1,j,isn)%M1(k) = fmsub(mlon1_p+1,j,k,1)
+                fline_s1(mlon0_p-1,j,isn)%Je1D(k) = fmsub(mlon0_p-1,j,k,2)
+                fline_s1(mlon1_p+1,j,isn)%Je1D(k) = fmsub(mlon1_p+1,j,k,2)
+                fline_s1(mlon0_p-1,j,isn)%M1Je1D(k) = fmsub(mlon0_p-1,j,k,3)
+                fline_s1(mlon1_p+1,j,isn)%M1Je1D(k) = fmsub(mlon1_p+1,j,k,3)
+                fline_s1(mlon0_p-1,j,isn)%N1h(k) = fmsub(mlon0_p-1,j,k,4)
+                fline_s1(mlon1_p+1,j,isn)%N1h(k) = fmsub(mlon1_p+1,j,k,4)
+                fline_s1(mlon0_p-1,j,isn)%N1p(k) = fmsub(mlon0_p-1,j,k,5)
+                fline_s1(mlon1_p+1,j,isn)%N1p(k) = fmsub(mlon1_p+1,j,k,5)
+
+           enddo ! field line points
+	 enddo ! latitude
+       enddo ! N/S hemisphere 
+
+       deallocate(fmsub,STAT=status)  
+       if(status /= 0) then
+	  write(iulog,*) 'deallocation of fmsub not successful' 
+	  call endrun('edyn3D_coef_halos') 
+       endif
+      
+     end subroutine edyn3D_coef_halos
+     
+!--------------------------------------------------------------------------------           
   subroutine output_fline_field( magfld )
     use cam_history,  only: outfld
     use edyn3D_fline_fields, only: magfield_t

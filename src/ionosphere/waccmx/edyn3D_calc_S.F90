@@ -44,11 +44,13 @@
 
 !         do i=1,nmlon ! loop over all longitudes 
 
-           if(i == mlon0_p) then
-             im = mlon1_p ! use wrap around point as i-1 -> nmlon 
-           else
-             im = i-1
-           endif
+            im = i-1
+
+!           if(i == mlon0_p) then
+!             im = mlon1_p ! use wrap around point as i-1 -> nmlon 
+!           else
+!             im = i-1
+!           endif
 
 !           if(i == 1) then
 !             im = nmlon ! use wrap around point as i-1 -> nmlon 
@@ -117,5 +119,4 @@
          end do  ! end longitude loop
        end do ! end hemisphere loop          j=1 ! pole values
 
-!       
        end subroutine edyn3D_calc_S
