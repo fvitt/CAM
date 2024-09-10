@@ -139,8 +139,8 @@ module edyn3D_fieldline
      real(r8) :: zigH	    ! Hall Conductance
      real(r8) :: Ed1	    ! Ed1 electric field
      real(r8) :: Ed2	    ! Ed2 electric field
-     real(r8) :: ve1	    ! ExB ion velocity field
-     real(r8) :: ve2	    ! ExB ion velocity field
+     real(r8) :: ve1	    ! ExB ion velocity field from ed2
+     real(r8) :: ve2	    ! ExB ion velocity field from ed1
 
      real(r8), allocatable :: mlat_qd(:)	! quasi dipole latitude
      real(r8), allocatable :: mlon_qd(:)	! quasi dipole longitude
@@ -166,7 +166,9 @@ module edyn3D_fieldline
      real(r8), allocatable :: e2g2(:)    ! e2 dot g2 vector
      real(r8), allocatable :: e1k(:)     ! e1 dot k vector
      real(r8), allocatable :: e2k(:)     ! e2 dot k vector
-     real(r8), allocatable :: e3(:,:)    ! e3 vector
+     real(r8), allocatable :: e1(:,:)    ! e1 base vector
+     real(r8), allocatable :: e2(:,:)    ! e2 base vector
+     real(r8), allocatable :: e3(:,:)    ! e3 base vector
      real(r8), allocatable :: M1(:)      ! M1
      real(r8), allocatable :: N1p(:)     ! N1p
      real(r8), allocatable :: N1h(:)     ! N1h
@@ -207,6 +209,8 @@ module edyn3D_fieldline
      real(r8) :: zigH	    ! Hall Conductance
      real(r8) :: Ed1	    ! Ed1 electric field
      real(r8) :: Ed2	    ! Ed2 electric field
+     real(r8) :: ve1	    ! ExB ion velocity field from ed2
+     real(r8) :: ve2	    ! ExB ion velocity field from ed1
 
      real(r8), allocatable :: mlat_qd(:)	! quasi dipole latitude
      real(r8), allocatable :: mlon_qd(:)	! quasi dipole longitude
@@ -238,7 +242,7 @@ module edyn3D_fieldline
      real(r8), allocatable :: Je2D(:)    ! Je2D
      real(r8), allocatable :: Je2Ion(:)  ! Je2_ionosphere
      real(r8), allocatable :: Je1Ion(:)  ! Je1_ionosphere
-     ! di(agnostic
+     ! diagnostic
      real(r8), allocatable :: I23d_1(:)  ! I2
      real(r8), allocatable :: I23d_2(:)  ! I2
      real(r8), allocatable :: I23d_3(:)  ! I2
@@ -339,7 +343,7 @@ module edyn3D_fieldline
 
       if (mytid>=ntask) return
 
-      allocate(fline_p(mlon0_p:mlon1_p,nmlat_h,2),stat=ier)
+      allocate(fline_p(mlon0_p-1:mlon1_p+1,nmlat_h,2),stat=ier)
       if (ier /= 0) then
          write(iulog,"('>>> Error allocating fline_p structure: mlon0_p,mlon1_p,nmlat_h =',3i4)") mlon0_p,mlon1_p,nmlat_h
          call endrun('fieldline_init')
@@ -368,33 +372,41 @@ module edyn3D_fieldline
       do isn = 1,2  ! loop over hemisphere
         do j=1,nmlat_h  ! loop over latitudes (pole to equator)
           fline_p(:,j,isn)%ha     = ha(j)                             ! apex_height
+
           fline_p(:,j,isn)%npts   = npt_fldline(fline_p(mlon0_p,j,isn)%ha)  ! points on fieldline
+          fline_p(mlon0_p-1,j,isn)%npts = fline_p(mlon0_p,j,isn)%npts
+          fline_p(mlon1_p+1,j,isn)%npts = fline_p(mlon1_p,j,isn)%npts
+
           fline_p(:,j,isn)%mlat_m = ylatm(j,isn)                      ! same as magnetic grid
-           !
-           ! r points are
-           !
-           fline_r(:,j,isn)%ha     = ha(j)                              ! apex_height on same fieldline as p points
-           fline_r(:,j,isn)%npts   = npt_fldline_r(fline_r(mlon0_p,j,isn)%ha) ! points on fieldline
-           fline_r(:,j,isn)%mlat_m = ylatm(j,isn)                       ! same as magnetic grid
-           !
-           ! s1 points are in between p-points with respect to longitude, but ylatm is same as p points
-           !
-           fline_s1(mlon0_p:mlon1_p,j,isn)%ha     = fline_p(:,j,isn)%ha               ! apex_height from p-grid
+          !
+          ! r points are
+          !
+          fline_r(:,j,isn)%ha	  = ha(j)			       ! apex_height on same fieldline as p points
+          fline_r(:,j,isn)%npts   = npt_fldline_r(fline_r(mlon0_p,j,isn)%ha) ! points on fieldline
+          fline_r(:,j,isn)%mlat_m = ylatm(j,isn)		       ! same as magnetic grid
+          !
+          ! s1 points are in between p-points with respect to longitude, but ylatm is same as p points
+          !
+          fline_s1(mlon0_p:mlon1_p,j,isn)%ha	 = fline_p(:,j,isn)%ha  	     ! apex_height from p-grid
 
-           fline_s1(mlon0_p:mlon1_p,j,isn)%npts   = fline_p(:,j,isn)%npts             ! points on fieldline from p-grid
-           fline_s1(mlon0_p-1,j,isn)%npts = fline_s1(mlon0_p,j,isn)%npts
-           fline_s1(mlon1_p+1,j,isn)%npts = fline_s1(mlon1_p,j,isn)%npts
-           
-           fline_s1(mlon0_p:mlon1_p,j,isn)%mlat_m = ylatm(j,isn)                      ! magnetic latitude  from p-grid
-           !
-           ! Allocate p, r, s1, s2 field line structure variables
-           !
-           do i=mlon0_p,mlon1_p ! loop over longitudes for this task
+          fline_s1(:,j,isn)%npts   = fline_p(:,j,isn)%npts	       ! points on fieldline from p-grid
+          fline_s1(mlon0_p-1,j,isn)%npts = fline_s1(mlon0_p,j,isn)%npts
+          fline_s1(mlon1_p+1,j,isn)%npts = fline_s1(mlon1_p,j,isn)%npts
+          
+          fline_s1(mlon0_p:mlon1_p,j,isn)%mlat_m = ylatm(j,isn) 		     ! magnetic latitude  from p-grid
+          !
+          ! Allocate p, r, s1, s2 field line structure variables
+          !
+          !
+          ! fline_p and fline_s1 have halo points so use different mlon loop 
+	  ! than r fieldline points to allocate
+          !
+          do i=mlon0_p-1,mlon1_p+1  ! loop over longitudes with halo points for p and s1
 
-!             fline_p(i,j,isn)%mlon_m = ylonm(i)  !
+!            fline_p(i,j,isn)%mlon_m = ylonm(i)  !
 
-             allocate(fline_p(i,j,isn)%hgt_pt(fline_p(i,j,isn)%npts))  ! should be independent of longitude
-             allocate(fline_p(i,j,isn)%mlat_qd(fline_p(i,j,isn)%npts)) ! should be independent of longitude
+            allocate(fline_p(i,j,isn)%hgt_pt(fline_p(i,j,isn)%npts))  ! should be independent of longitude
+            allocate(fline_p(i,j,isn)%mlat_qd(fline_p(i,j,isn)%npts)) ! should be independent of longitude
             allocate(fline_p(i,j,isn)%mlon_qd(fline_p(i,j,isn)%npts))
             allocate(fline_p(i,j,isn)%glon(fline_p(i,j,isn)%npts))
             allocate(fline_p(i,j,isn)%glat(fline_p(i,j,isn)%npts))
@@ -412,8 +424,87 @@ module edyn3D_fieldline
 !            allocate(fline_p(i,j,isn)%I1hor(fline_p(i,j,isn)%npts))
 !            allocate(fline_p(i,j,isn)%I2hor(fline_p(i,j,isn)%npts))
 
-!          allocate(fline_p(i,j,isn)%pot(fline_p(i,j,isn)%npts))
-!          allocate(fline_p(i,j,isn)%pot_test(fline_p(i,j,isn)%npts)) ! am 1/2015 for testing
+!            allocate(fline_p(i,j,isn)%pot(fline_p(i,j,isn)%npts))
+!            allocate(fline_p(i,j,isn)%pot_test(fline_p(i,j,isn)%npts)) ! am 1/2015 for testing
+
+            allocate(fline_s1(i,j,isn)%hgt_pt(fline_s1(i,j,isn)%npts))  ! should be independent of longitude
+            allocate(fline_s1(i,j,isn)%mlat_qd(fline_s1(i,j,isn)%npts)) ! should be independent of longitude
+            allocate(fline_s1(i,j,isn)%mlon_qd(fline_s1(i,j,isn)%npts))
+            allocate(fline_s1(i,j,isn)%glon(fline_s1(i,j,isn)%npts))
+            allocate(fline_s1(i,j,isn)%glat(fline_s1(i,j,isn)%npts))
+            allocate(fline_s1(i,j,isn)%Vmp(fline_s1(i,j,isn)%npts))
+            allocate(fline_s1(i,j,isn)%Bmag(fline_s1(i,j,isn)%npts))
+!            allocate(fline_s1(i,j,isn)%sinI(fline_s1(i,j,isn)%npts))
+            allocate(fline_s1(i,j,isn)%bo(3,fline_s1(i,j,isn)%npts))
+            allocate(fline_s1(i,j,isn)%be3(fline_s1(i,j,isn)%npts))
+            allocate(fline_s1(i,j,isn)%D(fline_s1(i,j,isn)%npts))
+            allocate(fline_s1(i,j,isn)%F(fline_s1(i,j,isn)%npts))
+            allocate(fline_s1(i,j,isn)%d1d1(fline_s1(i,j,isn)%npts))
+            allocate(fline_s1(i,j,isn)%d1d2(fline_s1(i,j,isn)%npts))
+            allocate(fline_s1(i,j,isn)%d2d2(fline_s1(i,j,isn)%npts))
+            allocate(fline_s1(i,j,isn)%d1(3,fline_s1(i,j,isn)%npts))
+            allocate(fline_s1(i,j,isn)%d2(3,fline_s1(i,j,isn)%npts))
+!            allocate(fline_s1(i,j,isn)%d3(3,fline_s1(i,j,isn)%npts))
+            allocate(fline_s1(i,j,isn)%e1g2(fline_s1(i,j,isn)%npts))
+            allocate(fline_s1(i,j,isn)%e2g2(fline_s1(i,j,isn)%npts))
+            allocate(fline_s1(i,j,isn)%e1k(fline_s1(i,j,isn)%npts))
+            allocate(fline_s1(i,j,isn)%e2k(fline_s1(i,j,isn)%npts))
+            allocate(fline_s1(i,j,isn)%e1(3,fline_s1(i,j,isn)%npts))
+            allocate(fline_s1(i,j,isn)%e2(3,fline_s1(i,j,isn)%npts))
+!            allocate(fline_s1(i,j,isn)%e3(3,fline_s1(i,j,isn)%npts))
+            allocate(fline_s1(i,j,isn)%M1(fline_s1(i,j,isn)%npts))
+            allocate(fline_s1(i,j,isn)%N1p(fline_s1(i,j,isn)%npts))
+            allocate(fline_s1(i,j,isn)%N1h(fline_s1(i,j,isn)%npts))
+            allocate(fline_s1(i,j,isn)%Je1D(fline_s1(i,j,isn)%npts))
+            allocate(fline_s1(i,j,isn)%M1Je1D(fline_s1(i,j,isn)%npts))
+            allocate(fline_s1(i,j,isn)%Je1Ion(fline_s1(i,j,isn)%npts))
+            allocate(fline_s1(i,j,isn)%Je2Ion(fline_s1(i,j,isn)%npts))
+            allocate(fline_s1(i,j,isn)%sigH(fline_s1(i,j,isn)%npts))
+            allocate(fline_s1(i,j,isn)%sigP(fline_s1(i,j,isn)%npts))
+            allocate(fline_s1(i,j,isn)%un(fline_s1(i,j,isn)%npts))
+            allocate(fline_s1(i,j,isn)%vn(fline_s1(i,j,isn)%npts))
+            !
+            ! diagnostic
+!            allocate(fline_s1(i,j,isn)%Ne(fline_s1(i,j,isn)%npts))
+!            allocate(fline_s1(i,j,isn)%Tei(fline_s1(i,j,isn)%npts))
+!            allocate(fline_s1(i,j,isn)%I13d_1(fline_s1(i,j,isn)%npts))
+!            allocate(fline_s1(i,j,isn)%I13d_2(fline_s1(i,j,isn)%npts))
+!            allocate(fline_s1(i,j,isn)%I13d_3(fline_s1(i,j,isn)%npts))
+            !
+!            allocate(fline_s1(i,j,isn)%je1(fline_s1(i,j,isn)%npts))
+!            allocate(fline_s1(i,j,isn)%I1(fline_s1(i,j,isn)%npts))
+
+!            allocate(fline_s1(i,j,isn)%ngh_pts(2,fline_s1(i,j,isn)%npts),STAT=status) ! lat_ind of neighboring point
+             if (status /= 0 ) then
+               write(iulog,*) 'fline_s1 ngh_pts allocation failed'
+	       call endrun('fieldline_init')
+             endif
+
+             do k=1,fline_p(i,j,isn)%npts
+
+               fline_p(i,j,isn)%hgt_pt(k) = hgt_fix(k)  ! [m] assumes ordering goes from bottom of fieldline to top
+                                                      ! fix heights go also from bottome to top
+               fline_p(i,j,isn)%mlon_qd(k) = ylonm(i)   ! independent of latitude and height
+               fline_p(i,j,isn)%mlat_qd(k) = lamqd_from_apex_coord(fline_p(i,j,isn)%mlat_m,hgt_fix(k))   ! quasi dipole latitude
+
+             enddo
+
+!             fline_s1(i,j,isn)%mlon_m = ylonm_s(i)  !
+
+             do k=1,fline_s1(i,j,isn)%npts
+!
+               fline_s1(i,j,isn)%hgt_pt(k) = hgt_fix(k)  ! [m] assumes ordering goes from bottom of fieldline to top
+                                                         ! fix heights go also from bottom to top
+               fline_s1(i,j,isn)%mlon_qd(k) = ylonm_s(i)   ! independent of latitude and height
+               fline_s1(i,j,isn)%mlat_qd(k) = fline_p(i,j,isn)%mlat_qd(k)   ! quasi dipole latitude from p-grid
+
+             enddo
+
+             if (fline_s1(i,j,isn)%npts > nptss1_max) nptss1_max = fline_s1(i,j,isn)%npts
+
+           enddo   ! end loop longitudes for p and s1 points
+
+           do i=mlon0_p,mlon1_p ! loop over longitudes for this task
 
 !             fline_r(i,j,isn)%mlon_m = ylonm(i)  !
 
@@ -440,17 +531,6 @@ module edyn3D_fieldline
 !            !  P(i,j) then is really S1(i+0.5,j) with j increasing equatorward
 !            !  coefficient is calculated at P points
 !            !
-             ! fline_s1 has halo points so use different mlon loop than p and r fieldline points
-           
-             do k=1,fline_p(i,j,isn)%npts
-
-              fline_p(i,j,isn)%hgt_pt(k) = hgt_fix(k)  ! [m] assumes ordering goes from bottom of fieldline to top
-                                                      ! fix heights go also from bottome to top
-              fline_p(i,j,isn)%mlon_qd(k) = ylonm(i)   ! independent of latitude and height
-              fline_p(i,j,isn)%mlat_qd(k) = lamqd_from_apex_coord(fline_p(i,j,isn)%mlat_m,hgt_fix(k))   ! quasi dipole latitude
-
-             enddo
-
              do k=1,fline_r(i,j,isn)%npts
 
                fline_r(i,j,isn)%hgt_pt(k) = hgt_fix_r(k)  ! [m] assumes ordering goes from bottom of fieldline to top
@@ -459,94 +539,22 @@ module edyn3D_fieldline
                fline_r(i,j,isn)%mlat_qd(k) = lamqd_from_apex_coord(fline_r(i,j,isn)%mlat_m,hgt_fix_r(k))   ! quasi dipole latitude
 
              enddo
-
-             if (fline_s1(i,j,isn)%npts > nptss1_max) nptss1_max = fline_s1(i,j,isn)%npts
 !
-	   enddo ! longitudes for p and r points
-           !
-           ! fline_s1 has halo points so use different mlon loop than p and r fieldline points to allocate
-           !
-           do i=mlon0_p-1,mlon1_p+1  ! loop over longitudes with halo points for s1
-
-             allocate(fline_s1(i,j,isn)%hgt_pt(fline_s1(i,j,isn)%npts))  ! should be independent of longitude
-             allocate(fline_s1(i,j,isn)%mlat_qd(fline_s1(i,j,isn)%npts)) ! should be independent of longitude
-             allocate(fline_s1(i,j,isn)%mlon_qd(fline_s1(i,j,isn)%npts))
-             allocate(fline_s1(i,j,isn)%glon(fline_s1(i,j,isn)%npts))
-             allocate(fline_s1(i,j,isn)%glat(fline_s1(i,j,isn)%npts))
-             allocate(fline_s1(i,j,isn)%Vmp(fline_s1(i,j,isn)%npts))
-             allocate(fline_s1(i,j,isn)%Bmag(fline_s1(i,j,isn)%npts))
-!             allocate(fline_s1(i,j,isn)%sinI(fline_s1(i,j,isn)%npts))
-             allocate(fline_s1(i,j,isn)%bo(3,fline_s1(i,j,isn)%npts))
-             allocate(fline_s1(i,j,isn)%be3(fline_s1(i,j,isn)%npts))
-             allocate(fline_s1(i,j,isn)%D(fline_s1(i,j,isn)%npts))
-             allocate(fline_s1(i,j,isn)%F(fline_s1(i,j,isn)%npts))
-             allocate(fline_s1(i,j,isn)%d1d1(fline_s1(i,j,isn)%npts))
-             allocate(fline_s1(i,j,isn)%d1d2(fline_s1(i,j,isn)%npts))
-             allocate(fline_s1(i,j,isn)%d2d2(fline_s1(i,j,isn)%npts))
-             allocate(fline_s1(i,j,isn)%d1(3,fline_s1(i,j,isn)%npts))
-             allocate(fline_s1(i,j,isn)%d2(3,fline_s1(i,j,isn)%npts))
-!             allocate(fline_s1(i,j,isn)%d3(3,fline_s1(i,j,isn)%npts))
-             allocate(fline_s1(i,j,isn)%e1g2(fline_s1(i,j,isn)%npts))
-             allocate(fline_s1(i,j,isn)%e2g2(fline_s1(i,j,isn)%npts))
-             allocate(fline_s1(i,j,isn)%e1k(fline_s1(i,j,isn)%npts))
-             allocate(fline_s1(i,j,isn)%e2k(fline_s1(i,j,isn)%npts))
-!             allocate(fline_s1(i,j,isn)%e3(3,fline_s1(i,j,isn)%npts))
-             allocate(fline_s1(i,j,isn)%M1(fline_s1(i,j,isn)%npts))
-             allocate(fline_s1(i,j,isn)%N1p(fline_s1(i,j,isn)%npts))
-             allocate(fline_s1(i,j,isn)%N1h(fline_s1(i,j,isn)%npts))
-             allocate(fline_s1(i,j,isn)%Je1D(fline_s1(i,j,isn)%npts))
-             allocate(fline_s1(i,j,isn)%M1Je1D(fline_s1(i,j,isn)%npts))
-             allocate(fline_s1(i,j,isn)%Je1Ion(fline_s1(i,j,isn)%npts))
-             allocate(fline_s1(i,j,isn)%Je2Ion(fline_s1(i,j,isn)%npts))
-             allocate(fline_s1(i,j,isn)%sigH(fline_s1(i,j,isn)%npts))
-             allocate(fline_s1(i,j,isn)%sigP(fline_s1(i,j,isn)%npts))
-             allocate(fline_s1(i,j,isn)%un(fline_s1(i,j,isn)%npts))
-             allocate(fline_s1(i,j,isn)%vn(fline_s1(i,j,isn)%npts))
-             !
-             ! diagnostic
-!             allocate(fline_s1(i,j,isn)%Ne(fline_s1(i,j,isn)%npts))
-!             allocate(fline_s1(i,j,isn)%Tei(fline_s1(i,j,isn)%npts))
-!             allocate(fline_s1(i,j,isn)%I13d_1(fline_s1(i,j,isn)%npts))
-!             allocate(fline_s1(i,j,isn)%I13d_2(fline_s1(i,j,isn)%npts))
-!             allocate(fline_s1(i,j,isn)%I13d_3(fline_s1(i,j,isn)%npts))
-             !
-!             allocate(fline_s1(i,j,isn)%je1(fline_s1(i,j,isn)%npts))
-!             allocate(fline_s1(i,j,isn)%I1(fline_s1(i,j,isn)%npts))
-
-!             allocate(fline_s1(i,j,isn)%ngh_pts(2,fline_s1(i,j,isn)%npts),STAT=status) ! lat_ind of neighboring point
-
-           enddo   ! end loop longitudes for s1 points
-           !
-           do i=mlon0_p,mlon1_p ! loop over longitudes for this task to initialize s1 height and lat variables
-		
-!             fline_s1(i,j,isn)%mlon_m = ylonm_s(i)  !
-
-             do k=1,fline_s1(i,j,isn)%npts
-!
-               fline_s1(i,j,isn)%hgt_pt(k) = hgt_fix(k)  ! [m] assumes ordering goes from bottom of fieldline to top
-                                                         ! fix heights go also from bottom to top
-               fline_s1(i,j,isn)%mlon_qd(k) = ylonm_s(i)   ! independent of latitude and height
-               fline_s1(i,j,isn)%mlat_qd(k) = fline_p(i,j,isn)%mlat_qd(k)   ! quasi dipole latitude from p-grid
-
-             enddo
-
-           enddo   ! end loop longitudes for s1 initializations
-           !
+	   enddo ! longitudes for r points
 	    
           enddo  ! end loop latitude
-        !
-        !
-        !  Relationship between P and S2 points for the same index (i,j)
-        !  P(i,j) then is really 2(i,j+0.5) with j increasing equatorward
-        !  coefficient is calculated at P points
-        !
-         do j=1,nmlatS2_h    ! loop over latitudes (direction pole to equator)
-           ! s2 point are inbetween p-points with respect to rho=cos(ylatm),but same mlon as P points
-           fline_s2(:,j,isn)%ha     = ha_s(j)                           ! apex_height
-           fline_s2(:,j,isn)%npts   = npt_fldline(fline_s2(mlon0_p,j,isn)%ha) ! points on fieldline
-           fline_s2(:,j,isn)%mlat_m = ylatm_s(j,isn)                    ! magnetic latitude
+          !
+          !  Relationship between P and S2 points for the same index (i,j)
+          !  P(i,j) then is really 2(i,j+0.5) with j increasing equatorward
+          !  coefficient is calculated at P points
+          !
+          do j=1,nmlatS2_h    ! loop over latitudes (direction pole to equator)
+            ! s2 point are inbetween p-points with respect to rho=cos(ylatm),but same mlon as P points
+            fline_s2(:,j,isn)%ha     = ha_s(j)                           ! apex_height
+            fline_s2(:,j,isn)%npts   = npt_fldline(fline_s2(mlon0_p,j,isn)%ha) ! points on fieldline
+            fline_s2(:,j,isn)%mlat_m = ylatm_s(j,isn)                    ! magnetic latitude
 
-           do i=mlon0_p,mlon1_p  !1,nmlon ! loop over longitude
+            do i=mlon0_p,mlon1_p  !1,nmlon ! loop over longitude
 
 !              fline_s2(i,j,isn)%mlon_m = ylonm(i)  !
 
@@ -623,36 +631,36 @@ module edyn3D_fieldline
       i = mlon0_p
       isn = 1 ! southern hemisphere it will be the same in the northern hemisphere
       do k =1, nhgt_fix  ! assumes each longitide is the same (no loop over longitude)
-	  nlat_k = 0
-	  do j=1,nmlat_h  ! latitude loop from pole to equator
-	    if(fline_p(i,j,isn)%npts >= k) then 	  ! check if #of pts on fldline is => height => intersects
-	      nlat_k = nlat_k + 1   ! increase number of latitudinal points at that height k
-	      lat_k(nlat_k) = j     ! get latitudinal index
-	    endif
-	  enddo
+	nlat_k = 0
+	do j=1,nmlat_h  ! latitude loop from pole to equator
+	  if(fline_p(i,j,isn)%npts >= k) then		! check if #of pts on fldline is => height => intersects
+	    nlat_k = nlat_k + 1   ! increase number of latitudinal points at that height k
+	    lat_k(nlat_k) = j	  ! get latitudinal index
+	  endif
+	enddo
 
-	  allocate(hgt_fl(k)%ilat(nlat_k))
-	  hgt_fl(k)%npts= nlat_k		     ! number of fieldlines intersecting with that height k
-	  hgt_fl(k)%ilat(1:nlat_k)= lat_k(1:nlat_k)  ! latitudinal index of fldline intersecting with that height k
-!	   !
-!	   ! Now use the list of latitudes at each height to set the neighboring points for each fieldline point
-!	   !
-!	   do j=1,hgt_fl(k)%npts ! set neighboring points for fldlne
-!	    do is = 1,2
-!	     do ilon = mlon0_p,mlon1_p
-!	      if(j==1) then
-!		 fline_p(ilon,hgt_fl(k)%ilat(j),is)%ngh_pts(1,k)  = -99
-!		 fline_p(ilon,hgt_fl(k)%ilat(j),is)%ngh_pts(2,k)  = hgt_fl(k)%ilat(j+1)
-!	      elseif(j ==  hgt_fl(k)%npts) then
-!		 fline_p(ilon,hgt_fl(k)%ilat(j),is)%ngh_pts(1,k)  = hgt_fl(k)%ilat(j-1)
-!		 fline_p(ilon,hgt_fl(k)%ilat(j),is)%ngh_pts(2,k)  = -99
-!	      else
-!		 fline_p(ilon,hgt_fl(k)%ilat(j),is)%ngh_pts(1,k)  = hgt_fl(k)%ilat(j-1)
-!		 fline_p(ilon,hgt_fl(k)%ilat(j),is)%ngh_pts(2,k)  = hgt_fl(k)%ilat(j+1)
-!	     endif
-!	    enddo  ! end lon loop
-!	   enddo  ! end is loop
-!	 enddo  ! end loop field line points
+	allocate(hgt_fl(k)%ilat(nlat_k))
+	hgt_fl(k)%npts= nlat_k  		   ! number of fieldlines intersecting with that height k
+	hgt_fl(k)%ilat(1:nlat_k)= lat_k(1:nlat_k)  ! latitudinal index of fldline intersecting with that height k
+!	 !
+!	 ! Now use the list of latitudes at each height to set the neighboring points for each fieldline point
+!	 !
+!	 do j=1,hgt_fl(k)%npts ! set neighboring points for fldlne
+!	  do is = 1,2
+!	   do ilon = mlon0_p,mlon1_p
+!	    if(j==1) then
+!	       fline_p(ilon,hgt_fl(k)%ilat(j),is)%ngh_pts(1,k)  = -99
+!	       fline_p(ilon,hgt_fl(k)%ilat(j),is)%ngh_pts(2,k)  = hgt_fl(k)%ilat(j+1)
+!	    elseif(j ==  hgt_fl(k)%npts) then
+!	       fline_p(ilon,hgt_fl(k)%ilat(j),is)%ngh_pts(1,k)  = hgt_fl(k)%ilat(j-1)
+!	       fline_p(ilon,hgt_fl(k)%ilat(j),is)%ngh_pts(2,k)  = -99
+!	    else
+!	       fline_p(ilon,hgt_fl(k)%ilat(j),is)%ngh_pts(1,k)  = hgt_fl(k)%ilat(j-1)
+!	       fline_p(ilon,hgt_fl(k)%ilat(j),is)%ngh_pts(2,k)  = hgt_fl(k)%ilat(j+1)
+!	   endif
+!	  enddo  ! end lon loop
+!	 enddo  ! end is loop
+!       enddo  ! end loop field line points
       enddo  ! end loop field line apex heights
 !!
      contains
@@ -836,6 +844,8 @@ module edyn3D_fieldline
                   fline_s1(i,j,isn)%d1d2(k) = dot_product(d1,d2)
                   fline_s1(i,j,isn)%d1d1(k) = dot_product(d1,d1)
                   fline_s1(i,j,isn)%d2d2(k) = dot_product(d2,d2)
+                  fline_s1(i,j,isn)%e1(:,k) = e1
+                  fline_s1(i,j,isn)%e2(:,k) = e2
 !                  fline_s1(i,j,isn)%e2g2(k) = dot_product(e2,g2)
 
                enddo

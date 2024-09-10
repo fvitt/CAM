@@ -9,7 +9,8 @@ module edyn3D_driver
   use edyn3D_mpi, only: mp_init_edyn3D, mp_distribute_mag_edyn3D, mp_exchange_tasks_edyn3D
   use edyn3D_mpi, only: mytid, ntask
   use edyn3D_fieldline, only: fieldline_init, fieldline_getapex
-  use edyn3D_params, only: nmlon,nmlonp1,nmlat_h,nptsp_total,nptss1_total,nptss2_total,ylonm,ylonm_s
+  use edyn3D_params, only: nmlon,nmlonp1,nmlat_h,nptsp_total,nptss1_total,nptss2_total, &
+                           ylonm,ylonm_s,nhgt_fix,nmlat_T1,nmlatS2_h
 
   use edyn3D_esmf_regrid
   use edyn3D_regridder
@@ -117,6 +118,21 @@ contains
 
     call edyn3D_fline_fields_alloc()
 
+    call addfld ('ED1s1', horiz_only, 'I', 'V/m','Eastward electric field on s1 grid', gridname='magfline_s1')
+    call addfld ('ED2s1', horiz_only, 'I', 'V/m','Equatorward electric field on s1 grid', gridname='magfline_s1')
+
+    call addfld ('ED1s2', horiz_only, 'I', 'V/m','Eastward electric field on s2 grid', gridname='magfline_s2')
+    call addfld ('ED2s2', horiz_only, 'I', 'V/m','Equatorward electric field on s2 grid', gridname='magfline_s2')
+
+    call addfld ('Ve1s1', horiz_only, 'I', 'm/s','Ion Drift Velocity 1 on s1 grid', gridname='magfline_s1')
+    call addfld ('Ve2s1', horiz_only, 'I', 'm/s','Ion Drift Velocity 2 on s1 grid', gridname='magfline_s1')
+
+    call addfld ('Ve1s2', horiz_only, 'I', 'm/s','Ion Drift Velocity 1 on s2 grid', gridname='magfline_s2')
+    call addfld ('Ve2s2', horiz_only, 'I', 'm/s','Ion Drift Velocity 2 on s2 grid', gridname='magfline_s2')
+
+    call addfld ('UI_s1', horiz_only, 'I', 'm/s','Zonal Ion Drift Velocity on s1 grid', gridname='magfline_s1')
+    call addfld ('VI_s1', horiz_only, 'I', 'm/s','Meridional Ion Drift Velocity on s1 grid', gridname='magfline_s1')
+
   end subroutine edyn3D_driver_reg
 
   subroutine edyn3D_driver_timestep( nphyscol, nphyslev, physalt, tn, sigPed, sigHal, un, vn, tn_out, tn_out2 )
@@ -152,8 +168,21 @@ contains
     real(r8) :: geoglons2(mlon0_p:mlon1_p, nptss2_total)
     real(r8) :: Tn_tmp(mlon0_p:mlon1_p, nptsp_total)
     real(r8) :: potential(mlon0_p:mlon1_p, nptsp_total)
+    real(r8) :: ed1_s1(mlon0_p:mlon1_p, nptss1_total)
+    real(r8) :: ed2_s1(mlon0_p:mlon1_p, nptss1_total)
+    real(r8) :: ed1_s2(mlon0_p:mlon1_p, nptss2_total)
+    real(r8) :: ed2_s2(mlon0_p:mlon1_p, nptss2_total)
+    real(r8) :: ve1_s1(mlon0_p:mlon1_p, nptss1_total)
+    real(r8) :: ve2_s1(mlon0_p:mlon1_p, nptss1_total)
+    real(r8) :: ve1_s2(mlon0_p:mlon1_p, nptss2_total)
+    real(r8) :: ve2_s2(mlon0_p:mlon1_p, nptss2_total)
+    real(r8) :: ui_s1(mlon0_p:mlon1_p, nptss1_total)
+    real(r8) :: vi_s1(mlon0_p:mlon1_p, nptss1_total)
+    
+    integer,parameter :: ndyn = 7
+    real(r8) :: efield_fline(ndyn,nhgt_fix,nmlat_T1,mlon0_p:mlon1_p)
 
-    integer :: i,j,k,isn,ncnt, ier
+    integer :: i,j,jj,k,isn,ncnt,ncnt1,ncnt2,ncnt3,ier
     integer :: dk,k0,k1
     integer :: npts_s1
 
@@ -291,30 +320,34 @@ contains
     !
     if (mytid<ntask) then
 !
-      call edyn3D_get_conduct  ! - Get conductivities for edyn3D_calc_FAC
+      call edyn3D_get_conduct     ! - Get conductivities for edyn3D_calc_FAC
 
-      call edyn3D_calc_mn_s1s2 ! - (calc conductivities, each timestep)
+      call edyn3D_calc_mn_s1s2    ! - (calc conductivities, each timestep)
 
-      call edyn3D_calc_je_s1s2 ! - (must be calculated each timestep)
+      call edyn3D_calc_je_s1s2    ! - (must be calculated each timestep)
 
-      call edyn3D_coef_halos   ! - Get halo points required in following routines
+      call edyn3D_coef_halos      ! - Get halo points required in following routines
 
-      call edyn3D_calc_S       ! - (must be calculated each timestep)
+      call edyn3D_calc_S          ! - (must be calculated each timestep)
 
-      call edyn3D_calc_coef    ! - calc LHS & RHS 
+      call edyn3D_calc_coef       ! - calc LHS & RHS 
 
-      call edyn3D_calc_FAC     ! - calc high latitude
+      call edyn3D_calc_FAC        ! - calc high latitude
 
-      call edyn3D_add_coef_ns  ! - add North & South coef
+      call edyn3D_add_coef_ns     ! - add North & South coef
 
       call edyn3D_gather_coef_ns  ! - gather coef_ns for solver
 
       if (mytid == 0) then
-        call edyn3D_const_rhs   ! - solver - solve for rhs (electric potential)
+        call edyn3D_const_rhs     ! - solver - solve for rhs (electric potential)
       endif
 
-      call edyn3D_scatter_poten  ! - Send global potential to each task
-!
+      call edyn3D_scatter_poten   ! - Send global potential to each task
+
+      call edyn3D_poten_halos     ! - Get potential halo points required in next call
+      
+      call edyn3D_calc_efield    ! - Calculate the electric field and ion drift velocities
+
     endif
 
     call edyn3D_regridder_mag2phys(Tn_p, physalt, nphyscol,nphyslev, tn_out)
@@ -335,9 +368,45 @@ contains
     !  diagnostics ...
 
     if (mytid<ntask) then
+!      !
+!      ! Get electric fields in geographic coordinates (Ed1,2 -> Ex,y,z) and convert
+!      ! ion drifts from perpedicular to zonal and meridional
+!      ! The 7 fields are: potential, Ex, Ey, Ez, Vx, Vy, Vz (in order).
+!      !
+!      do i = mlon0_p,mlon1_p
+!	 do k = 1,nhgt_fix
+!	   do j = 1,nmlat_h-k+1
+!	     do isn = 1,2
+!	       if (isn == 1) then
+!		 jj = j
+!	       else
+!		 jj = nmlat_T1-(k-1)*2-j+1
+!	       endif
+!	       efield_fline(1,k,jj,i) = fline_p(i,j,isn)%pot
+!	       efield_fline(2,k,jj,i) = fline_s1(i,j,isn)%ed1*fline_s1(i,j,isn)%d1(1,k)+ &
+!		 fline_s1(i,j,isn)%ed2*fline_s1(i,j,isn)%d2(1,k)
+!	       efield_fline(3,k,jj,i) = fline_s1(i,j,isn)%ed1*fline_s1(i,j,isn)%d1(2,k)+ &
+!		 fline_s1(i,j,isn)%ed2*fline_s1(i,j,isn)%d2(2,k)
+!	       efield_fline(4,k,jj,i) = fline_s1(i,j,isn)%ed1*fline_s1(i,j,isn)%d1(3,k)+ &
+!		 fline_s1(i,j,isn)%ed2*fline_s1(i,j,isn)%d2(3,k)
+!	       efield_fline(5,k,jj,i) = fline_s1(i,j,isn)%ve1*fline_s1(i,j,isn)%e1(1,k)+ &
+!		 fline_s1(i,j,isn)%ve2*fline_s1(i,j,isn)%e2(1,k)
+!	       efield_fline(6,k,jj,i) = fline_s1(i,j,isn)%ve1*fline_s1(i,j,isn)%e1(2,k)+ &
+!		 fline_s1(i,j,isn)%ve2*fline_s1(i,j,isn)%e2(2,k)
+!	       efield_fline(7,k,jj,i) = fline_s1(i,j,isn)%ve1*fline_s1(i,j,isn)%e1(3,k)+ &
+!		 fline_s1(i,j,isn)%ve2*fline_s1(i,j,isn)%e2(3,k)
+!	     enddo
+!	   enddo
+!	 enddo
+!      enddo
+
+write(iulog,*) 'edyn3D_driver_timestep: Beg MIN/MAX fline_s1(mlon0_p:mlon1_p,:,:)%ed1 ', &
+                                    MINVAL(fline_s1(mlon0_p:mlon1_p,:,:)%ed1),MAXVAL(fline_s1(mlon0_p:mlon1_p,:,:)%ed1)
+write(iulog,*) 'edyn3D_driver_timestep: Beg MIN/MAX fline_s1(mlon0_p:mlon1_p,:,:)%ed2 ', &
+                                    MINVAL(fline_s1(mlon0_p:mlon1_p,:,:)%ed2),MAXVAL(fline_s1(mlon0_p:mlon1_p,:,:)%ed2)
 
        do i = mlon0_p,mlon1_p
-          ncnt = 0
+          ncnt1 = 0
           do j = 1,nmlat_h
              do isn = 1,2
 
@@ -352,9 +421,70 @@ contains
                 endif
 
                 do k = k0,k1,dk
-                   ncnt = ncnt + 1
-                   potential(i,ncnt) = fline_p(i,j,isn)%pot
-               end do
+                   ncnt1 = ncnt1 + 1
+                   potential(i,ncnt1) = fline_p(i,j,isn)%pot
+                end do
+		
+             end do
+          end do
+       end do
+
+       do i = mlon0_p,mlon1_p
+          ncnt2 = 0
+          do j = 1,nmlat_h
+             do isn = 1,2
+
+		if (isn==1) then
+		   k0 = 1
+		   k1 = fline_s1(i,j,isn)%npts
+		   dk = 1
+		else
+		   k0 = fline_s1(i,j,isn)%npts
+		   k1 = 1
+		   dk = -1
+		endif
+
+		do k = k0,k1,dk
+		   ncnt2 = ncnt2 + 1
+		   ed1_s1(i,ncnt2) = fline_s1(i,j,isn)%ed1
+		   ed2_s1(i,ncnt2) = fline_s1(i,j,isn)%ed2
+		   ve1_s1(i,ncnt2) = fline_s1(i,j,isn)%ve1
+		   ve2_s1(i,ncnt2) = fline_s1(i,j,isn)%ve2
+		   ui_s1(i,ncnt2)  = fline_s1(i,j,isn)%ve1*fline_s1(i,j,isn)%e1(1,k)+ &
+		                          fline_s1(i,j,isn)%ve2*fline_s1(i,j,isn)%e2(1,k)
+		   vi_s1(i,ncnt2)  = fline_s1(i,j,isn)%ve1*fline_s1(i,j,isn)%e1(2,k)+ &
+		                          fline_s1(i,j,isn)%ve2*fline_s1(i,j,isn)%e2(2,k)		   
+	        end do
+
+             end do
+          end do
+          if (i == mlon0_p) nptss1_total = ncnt2
+       end do
+
+       do i = mlon0_p,mlon1_p
+          ncnt3 = 0
+          do j = 1,nmlatS2_h
+             do isn = 1,2
+
+		if (isn==1) then
+		   k0 = 1
+		   k1 = fline_s2(i,j,isn)%npts
+		   dk = 1
+		else
+		   k0 = fline_s2(i,j,isn)%npts
+		   k1 = 1
+		   dk = -1
+		endif
+
+		do k = k0,k1,dk
+		   ncnt3 = ncnt3 + 1
+		   ed1_s2(i,ncnt3) = fline_s2(i,j,isn)%ed1
+		   ed2_s2(i,ncnt3) = fline_s2(i,j,isn)%ed2
+		   ve1_s2(i,ncnt3) = fline_s2(i,j,isn)%ve1
+		   ve2_s2(i,ncnt3) = fline_s2(i,j,isn)%ve2
+		   		   
+	        end do
+
              end do
           end do
        end do
@@ -362,8 +492,38 @@ contains
        do j = 1,nptsp_total
           call outfld('POTENp',  potential(mlon0_p:mlon1_p,j), mlon1_p-mlon0_p+1, j)
        end do
-       
+
+       do j = 1,nptss1_total
+          call outfld('ED1s1',  ed1_s1(mlon0_p:mlon1_p,j), mlon1_p-mlon0_p+1, j)
+          call outfld('ED2s1',  ed2_s1(mlon0_p:mlon1_p,j), mlon1_p-mlon0_p+1, j)
+       end do
+
+       do j = 1,nptss2_total
+          call outfld('ED1s2',  ed1_s2(mlon0_p:mlon1_p,j), mlon1_p-mlon0_p+1, j)
+          call outfld('ED2s2',  ed2_s2(mlon0_p:mlon1_p,j), mlon1_p-mlon0_p+1, j)
+       end do
+
+       do j = 1,nptss1_total
+          call outfld('Ve1s1',  ve1_s1(mlon0_p:mlon1_p,j), mlon1_p-mlon0_p+1, j)
+          call outfld('Ve2s1',  ve2_s1(mlon0_p:mlon1_p,j), mlon1_p-mlon0_p+1, j)
+       end do
+
+       do j = 1,nptss1_total
+          call outfld('UI_s1',  ui_s1(mlon0_p:mlon1_p,j), mlon1_p-mlon0_p+1, j)
+          call outfld('VI_s1',  vi_s1(mlon0_p:mlon1_p,j), mlon1_p-mlon0_p+1, j)
+       end do
+
+       do j = 1,nptss2_total
+          call outfld('Ve1s2',  ve1_s2(mlon0_p:mlon1_p,j), mlon1_p-mlon0_p+1, j)
+          call outfld('Ve2s2',  ve2_s2(mlon0_p:mlon1_p,j), mlon1_p-mlon0_p+1, j)
+       end do
+
      end if
+
+write(iulog,*) 'edyn3D_driver_timestep: End MIN/MAX ed1_s1(mlon0_p:mlon1_p,:) ', &
+                                      MINVAL(ed1_s1(mlon0_p:mlon1_p,:)),MAXVAL(ed1_s1(mlon0_p:mlon1_p,:))
+write(iulog,*) 'edyn3D_driver_timestep: End MIN/MAX ed2_s1(mlon0_p:mlon1_p,:) ', &
+                                      MINVAL(ed2_s1(mlon0_p:mlon1_p,:)),MAXVAL(ed2_s1(mlon0_p:mlon1_p,:))
 
   end subroutine edyn3D_driver_timestep
 
@@ -448,6 +608,8 @@ contains
     allocate(altvals(nptsp_total))
     latvals = huge(1._r8)
     altvals = -huge(1._r8)
+
+    nptss1_total = nptsp_total  ! s1 grid points same as p grid points
 
     ncnt = 0
     do j = 1,nmlat_h
@@ -601,7 +763,7 @@ contains
   end subroutine reg_hist_grid
 
 !--------------------------------------------------------------------------------      
-   subroutine edyn3D_coef_halos
+  subroutine edyn3D_coef_halos
 !
 !    Calculate halo points in require variables
 !   
@@ -683,7 +845,64 @@ contains
 	  call endrun('edyn3D_coef_halos') 
        endif
       
-     end subroutine edyn3D_coef_halos
+  end subroutine edyn3D_coef_halos
+     
+!--------------------------------------------------------------------------------      
+  subroutine edyn3D_poten_halos
+    !
+    !    Calculate potential halo points for efield and ion drift velocity calculations
+    !   
+    use edyn3D_fieldline,only: fline_p
+    use edyn3D_mpi,	 only: mytid,ntask,mp_poten_halos_edyn3D,mlon0_p,mlon1_p
+!    use edyn3D_params,   only: nptss1_max
+!
+! Local:
+! Potential field to get halo points:
+!
+    real(r8), allocatable :: potensub(:,:) 
+!	  real(r8) :: fmsub(mlon0_p-1:mlon1_p+1,nmlat_h,nptss1_max,nf)
+!    real(r8) :: fmsub(mlon0_p-1:mlon1_p+1,nptss1_max,nf)
+    integer :: isn,i,j,k,status,nlon_p
+ 
+    nlon_p = mlon1_p-mlon0_p+3
+ 
+    allocate(potensub(mlon0_p-1:mlon1_p+1,nmlat_h),STAT=status)       
+    if (status /= 0 ) then
+      write(iulog,*) 'potensub allocation failed'
+      call endrun('edyn3D_poten_halos')
+    endif
+ 
+    do isn = 1,2
+      !
+      ! Reset input to halos routine for each hemisphere
+      !
+      potensub(:,:) = 0._r8
+
+      do j = 1, nmlat_h
+ 	do i = mlon0_p,mlon1_p
+     	  
+ 	  potensub(i,j) = fline_p(i,j,isn)%pot
+
+ 	enddo ! longitude
+      enddo ! latitude
+     	  
+      call mp_poten_halos_edyn3D(potensub,mlon0_p,mlon1_p,nmlat_h)
+     	  
+      do j = 1, nmlat_h
+
+     	fline_p(mlon0_p-1,j,isn)%pot = potensub(mlon0_p-1,j)
+     	fline_p(mlon1_p+1,j,isn)%pot = potensub(mlon1_p+1,j)
+     	
+      enddo ! latitude
+    enddo ! N/S hemisphere 
+
+    deallocate(potensub,STAT=status)  
+    if (status /= 0) then
+       write(iulog,*) 'deallocation of potensub not successful' 
+       call endrun('edyn3D_poten_halos') 
+    endif
+   
+  end subroutine edyn3D_poten_halos
      
 !--------------------------------------------------------------------------------           
   subroutine output_fline_field( magfld )

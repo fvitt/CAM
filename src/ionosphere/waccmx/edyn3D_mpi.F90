@@ -23,6 +23,7 @@ module edyn3D_mpi
    ! Public interfaces
    public :: mp_init_edyn3D
    public :: mp_mag_halos_edyn3D
+   public :: mp_poten_halos_edyn3D
    public :: mp_scatter_edyn3D
 !   public :: mp_mag_foldhem
    public :: mp_gather_edyn3D
@@ -555,6 +556,101 @@ contains
 !      enddo ! ifld=1,nf
 
    end subroutine mp_mag_halos_edyn3D
+
+   !-----------------------------------------------------------------------
+   subroutine mp_poten_halos_edyn3D(fmsub,mlon0,mlon1,nmlat)
+      !
+      ! Exchange halo/ghost points between magnetic grid subdomains for potential fields.
+      ! Only a single halo point is required in lon dimension.
+      ! Longitude halos are done, exchanging 1:nmlat
+      !
+      ! Args:
+      !
+      integer,intent(in)     :: mlon0,mlon1,nmlat
+      real(r8),intent(inout) :: fmsub(mlon0-1:mlon1+1,nmlat)
+      !
+      ! Local:
+      !
+      integer :: ifld,west,east,len,isend0,isend1, &
+           irecv0,irecv1,ier,nmlats,istat(MPI_STATUS_SIZE,4),ireq(4),nmlons
+      real(r8),dimension(nmlat)::sndlon0,sndlon1,rcvlon0,rcvlon1
+
+      !
+      ! Init send/recv buffers for lon halos:
+      !
+      sndlon0 = 0._r8 ; rcvlon0 = 0._r8
+      sndlon1 = 0._r8 ; rcvlon1 = 0._r8
+      !
+      ! Identify east and west neighbors:
+      west  = itask_table_mag(magtidlon-1)
+      east  = itask_table_mag(magtidlon+1)
+      !
+      ! Set len 
+      len = nmlat
+      !
+      ! Send mlon0 to the west neighbor, and mlon1 to the east.
+      ! However, tasks are periodic in longitude (see itask_table_mag),
+      ! and far west tasks send mlon0+1, and far east tasks send mlon1-1
+      !	         
+      ! Far west tasks send mlon0+1 to far east (periodic) tasks:
+      !
+      if (magtidlon==0) then
+         sndlon0(:) = fmsub(mlon0+1,1:nmlat)
+         ! Interior tasks send mlon0 to west neighbor:
+      else
+         sndlon0(:) = fmsub(mlon0,1:nmlat)
+      endif
+      !
+      ! Far east tasks send mlon1-1 to far west (periodic) tasks:
+      !
+      if (magtidlon==nmagtasklon-1) then
+         sndlon1(:) = fmsub(mlon1-1,1:nmlat)
+         ! Interior tasks send mlon1 to east neighbor:
+      else
+         sndlon1(:) = fmsub(mlon1,1:nmlat)
+      endif
+
+      !
+      ! Send mlon0 to the west:
+      !
+      call mpi_isend(sndlon0,len,MPI_REAL8,west,1,mpi_comm_edyn3D,isend0,ier)
+      if (ier /= 0) call handle_mpi_err(ier,'mp_mag_halos_edyn3D send mlon0 to west')
+      !
+      ! Send mlon1 to the east:
+      !
+      call mpi_isend(sndlon1,len,MPI_REAL8,east,1,mpi_comm_edyn3D,isend1,ier)
+      if (ier /= 0) call handle_mpi_err(ier,'mp_mag_halos_edyn3D send mlon1 to east')
+      !
+      ! Recv mlon0-1 from west:
+      !
+      call mpi_irecv(rcvlon0,len,MPI_REAL8,west,1,mpi_comm_edyn3D,irecv0,ier)
+      if (ier /= 0) call handle_mpi_err(ier,'mp_mag_halos_edyn3D recv mlon0 from west')
+      !
+      ! Recv mlon1+1 from east:
+      !
+      call mpi_irecv(rcvlon1,len,MPI_REAL8,east,1,mpi_comm_edyn3D,irecv1,ier)
+      if (ier /= 0) call handle_mpi_err(ier,'mp_mag_halos_edyn3D recv mlon1 from east')
+      !
+      ! Wait for completions:
+      !
+      ireq = (/isend0,isend1,irecv0,irecv1/)
+      istat = 0
+      call mpi_waitall(4,ireq,istat,ier)
+      if (ier /= 0) call handle_mpi_err(ier,'mp_mag_halos_edyn3D waitall for lons')
+      !
+      ! Copy mlon0-1 from rcvlon0, and mlon1+1 from rcvlon1:
+      !
+      fmsub(mlon0-1,1:nmlat) = rcvlon0(:)
+      fmsub(mlon1+1,1:nmlat) = rcvlon1(:)
+      !
+      ! Fix special case of 2 tasks in longitude dimension:
+      !
+      if (east == west) then
+        fmsub(mlon0-1,1:nmlat) = rcvlon1(:)
+        fmsub(mlon1+1,1:nmlat) = rcvlon0(:)
+      endif
+      
+   end subroutine mp_poten_halos_edyn3D
 
    !-----------------------------------------------------------------------
    subroutine mp_gather_edyn3D(fmsub,mlon0,mlon1,fmglb,nmlon,nmlat,nf)

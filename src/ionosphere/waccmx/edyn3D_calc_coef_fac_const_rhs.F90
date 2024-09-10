@@ -5,7 +5,7 @@
      !  scatter added 
      !
      use edyn3D_params, only: nmlon,nmlat_h,nhgt_fix,nlonlat,nmlatS2_h,nmlat_T1				  
-     use edyn3d_mpi,       only: mlon0_p,mlon1_p
+     use edyn3d_mpi,       only: mlon0_p,mlon1_p,mp_poten_halos_edyn3D
      use shr_kind_mod,  only: r8 => shr_kind_r8            ! 8-byte reals
      use cam_logfile,    only: iulog
      use spmd_utils,     only: masterproc
@@ -547,11 +547,13 @@
        !   
        !    Local:
        !   
-       real(r8) :: potensub(mlon0_p:mlon1_p,nmlat_h,2)
+!       real(r8) :: potensub(mlon0_p-1:mlon1_p+1,nmlat_h,2)
        real(r8) :: potenglb1(nmlon,nmlat_h)
        real(r8) :: potenglb2(nmlon,nmlat_h)
        real(r8) :: potensub1(mlon0_p:mlon1_p,nmlat_h)
        real(r8) :: potensub2(mlon0_p:mlon1_p,nmlat_h)
+!       real(r8) :: potensub1(mlon0_p-1:mlon1_p+1,nmlat_h)
+!       real(r8) :: potensub2(mlon0_p-1:mlon1_p+1,nmlat_h)
        
        integer :: i,j,jj,status
        !
@@ -563,9 +565,15 @@
        potenglb2(:,:) = poten_glb(:,:,2)
        call mp_scatter_edyn3D(potenglb2,mlon0_p,mlon1_p,potensub2,nmlon,nmlat_h)
        !
+       ! Need halo points for potential for efield and ion drift velocity calculations
+       !
+!       call mp_poten_halos_edyn3D(potensub1,mlon0_p,mlon1_p,nmlat_h) 
+!       call mp_poten_halos_edyn3D(potensub2,mlon0_p,mlon1_p,nmlat_h) 
+       !
        ! Set potential in p field line structure
        !
        do i=mlon0_p,mlon1_p ! loop over task longitudes
+!       do i=mlon0_p-1,mlon1_p+1 ! loop over task longitudes
          do j=1,nmlat_h ! loop over all latitudes in one hemisphere
                 
            fline_p(i,j,1)%pot = potensub1(i,j)
