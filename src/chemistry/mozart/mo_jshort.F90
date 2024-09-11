@@ -13,6 +13,7 @@
       use spmd_utils,        only : masterproc
       use ppgrid,            only : pver
       use phys_control,      only : waccmx_is
+      use actinic_flux_mod, only: sw_actinic_fluxes
 
       implicit none
 
@@ -306,7 +307,7 @@
             end if
             ierr = pio_get_var( ncid, sht_indexer(m), xs_species )
             ndx = ndx + 1
-            xs_wl(:,ndx) = xs_species(:)*wlintv(:)
+            xs_wl(:,ndx) = xs_species(:) !!*wlintv(:)
          end if
       end do
       deallocate( xs_species )
@@ -830,7 +831,7 @@
 
       end subroutine jshort_hrates
 
-      subroutine jshort_photo( nlev, zen, n2cc, o2cc, o3cc, &
+      subroutine jshort_photo( nlev, icol,lchnk, zen, n2cc, o2cc, o3cc, &
                                nocc, tlev, zkm, jo2_sht, jno_sht, jsht )
 !==============================================================================!
 !   Subroutine Jshort                                                          !
@@ -897,7 +898,8 @@
 !------------------------------------------------------------------------------
 !     ... dummy arguments
 !------------------------------------------------------------------------------
-	integer, intent(in)     :: nlev                 ! model vertical levels
+        integer, intent(in)     :: nlev                 ! model vertical levels
+        integer, intent(in)     :: icol,lchnk
 	real(r8), intent(in)    :: zen	                ! Zenith angle (degrees)
         real(r8), intent(in)    :: n2cc(nlev)           ! Molecular Nitrogen conc (mol/cm^3)
 	real(r8), intent(in)    :: o2cc(nlev)		! Molecular Oxygen conc (mol/cm^3)
@@ -1045,9 +1047,22 @@
 !     ... Derive the normalize flux at each altitude,
 !         corrected for O2 and O3 absorption
 !------------------------------------------------------------------------------
-      do wn = 1,nw                               ! nw = 33 (nsrb_tot+nsrc_tot)
-         fnorm(:,wn) = etfphot(wn)*trans_o2(:,wn)*trans_o3(:,wn)
+!!$      do wn = 1,nw                               ! nw = 33 (nsrb_tot+nsrc_tot)
+!!$         fnorm(:,wn) = etfphot(wn)*trans_o2(:,wn)*trans_o3(:,wn)
+!!$      end do
+
+      do k=1,nlev
+         fnorm(k,:) = sw_actinic_fluxes(:,icol,k,lchnk)
       end do
+
+     ! if (masterproc) then
+     !    write(iulog,*) 'FVDBG compare short wave fluxes: '
+     !    do k = 1,nlev
+     !       write(iulog,*) 'FVDBG fnorm v sw_actinic_fluxes: ', fnorm(k,1), sw_actinic_fluxes(1,icol,k,lchnk), fnorm(k,10), sw_actinic_fluxes(10,icol,k,lchnk)
+     !    end do
+     ! end if
+
+
 
 !------------------------------------------------------------------------------
 !     ... Derive the O2 rate constant and apply branching ratio (QY)
@@ -1066,7 +1081,7 @@
 !------------------------------------------------------------------------------
       jo2_lya(:) = etfphot(1)*ro2la(:)*wlintv(1)
 
-      wrk(1:nsrc_tot) = xs_o2src(1:nsrc_tot)*wlintv(1:nsrc_tot)
+      wrk(1:nsrc_tot) = xs_o2src(1:nsrc_tot)  !!*wlintv(1:nsrc_tot)
       wrk(1)          = 0._r8
 !------------------------------------------------------------------------------
 !     ... o2 src photolysis
@@ -1082,7 +1097,7 @@
 !     ... o2 srb photolysis
 !------------------------------------------------------------------------------
       do k = 1,nlev
-         wrk(1:nsrb_tot) = xs_o2srb(k,1:nsrb_tot)*wlintv(nsrc_tot+1:nsrc_tot+nsrb_tot)
+         wrk(1:nsrb_tot) = xs_o2srb(k,1:nsrb_tot) !!*wlintv(nsrc_tot+1:nsrc_tot+nsrb_tot)
 	 jo2_srb(k)      = dot_product( fnorm(k,nsrc_tot+1:nsrc_tot+nsrb_tot),wrk(1:nsrb_tot) )
       end do
 

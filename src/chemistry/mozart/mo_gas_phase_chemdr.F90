@@ -10,6 +10,7 @@ module mo_gas_phase_chemdr
   use phys_control,     only : phys_getopts
   use carma_flags_mod,  only : carma_hetchem_feedback
   use chem_prod_loss_diags, only: chem_prod_loss_diags_init, chem_prod_loss_diags_out
+    use cam_abortutils,    only : endrun
 
   implicit none
   save
@@ -144,6 +145,7 @@ contains
        tag_names(n) = trim(rxt_tag_lst(n))
        if (n<=phtcnt) then
           call addfld( tag_names(n), (/ 'lev' /), 'I', '/s', 'photolysis rate constant' )
+          call add_default( tag_names(n), 3, ' ')
        else
           ii = n-phtcnt
           select case(num_rnts(ii))
@@ -823,14 +825,21 @@ contains
                                  tfld, ts, invariants, vmr, col_delta, &
                                  asdir, zen_angle, esfact, pdel, cldfr,&
                                  cwat, reaction_rates(:,:,1:phtcnt) )
-    else
+
+      if (any(reaction_rates(1:ncol,:,1:phtcnt)<0._r8)) then
+         call endrun('FVDBG.ERROR... chemdr neg J rates')
+      end if
+
+      reaction_rates(:,:,1:phtcnt)=0._r8
+    endif
+ !   else
       !-----------------------------------------------------------------
       !	... lookup the photolysis rates from table
       !-----------------------------------------------------------------
       call table_photo( reaction_rates, pmid, pdel, tfld, zmid, zint, &
                         col_dens, zen_angle, asdir, cwat, cldfr, &
                         esfact, vmr, invariants, ncol, lchnk, pbuf )
-    endif
+  !  endif
 
     do i = 1,phtcnt
        call outfld( tag_names(i), reaction_rates(:ncol,:,rxt_tag_map(i)), ncol, lchnk )

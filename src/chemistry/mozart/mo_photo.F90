@@ -789,7 +789,7 @@ contains
              !-----------------------------------------------------------------
              !	... short wave length component
              !-----------------------------------------------------------------
-             call jshort( n_jshrt_levs, sza, n2_den, o2_den, o3_den, &
+             call jshort( n_jshrt_levs,  i,lchnk,  sza, n2_den, o2_den, o3_den, &
                   no_den, tline, zarg, jo2_sht, jno_sht, sht_prates )
 
              do m = 1,phtcnt
@@ -823,14 +823,16 @@ contains
           !-----------------------------------------------------------------
           !     ... compute eff_alb and cld_mult -- needs to be before jlong
           !-----------------------------------------------------------------
-          call cloud_mod( zen_angle(i), cld_line, lwc_line, fac1, srf_alb(i), &
-                          eff_alb, cld_mult )
-          cld_mult(:) = esfact * cld_mult(:)
+!!$          call cloud_mod( zen_angle(i), cld_line, lwc_line, fac1, srf_alb(i), &
+!!$                          eff_alb, cld_mult )
+!!$          cld_mult(:) = esfact * cld_mult(:)
+
+          cld_mult(:) = 1._r8
 
           !-----------------------------------------------------------------
           !	... long wave length component
           !-----------------------------------------------------------------
-          call jlong( pver, sza, eff_alb, parg, tline, colo3, lng_prates )
+          call jlong( pver, i,lchnk, sza, eff_alb, parg, tline, colo3, lng_prates )
           do m = 1,phtcnt
              if( lng_indexer(m) > 0 ) then
                 alias_factor = pht_alias_mult(m,2)

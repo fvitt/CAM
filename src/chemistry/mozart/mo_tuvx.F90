@@ -5,6 +5,7 @@ module mo_tuvx
 
    use musica_map,              only : map_t
    use musica_string,           only : string_t
+   use ppgrid,                  only : begchunk, endchunk, pcols
    use ppgrid,                  only : pver, & ! number of vertical layers
                                        pverp   ! number of vertical interfaces (pver + 1)
    use shr_kind_mod,            only : r8 => shr_kind_r8, cl=>shr_kind_cl
@@ -13,9 +14,13 @@ module mo_tuvx
    use tuvx_profile_from_host,  only : profile_updater_t
    use tuvx_radiator_from_host, only : radiator_updater_t
 
-   implicit none
+   use spmd_utils,     only : masterproc
+   use cam_logfile,    only : iulog ! log file output unit
+   use actinic_flux_mod, only: sw_actinic_fluxes
+   use actinic_flux_mod, only: lw_actinic_fluxes
+   use cam_abortutils, only : endrun
 
-   private
+   implicit none
 
    public :: tuvx_readnl
    public :: tuvx_register
@@ -118,6 +123,7 @@ module mo_tuvx
                                                             !   on the TUV-x wavelength grid
       real(r8)                 :: et_flux_ms93_(NUM_BINS_MS93) ! extraterrestrial flux on the MS93 grid
                                                                !   [photon cm-2 nm-1 s-1]
+      real(r8), allocatable    :: mid_wavelength_etf_(:) ! Working array for mid-point etf
    end type tuvx_ptr
    type(tuvx_ptr), allocatable :: tuvx_ptrs(:)
 
@@ -131,6 +137,9 @@ module mo_tuvx
    ! namelist options
    character(len=cl) :: tuvx_config_path = 'NONE'  ! absolute path to TUVX configuration file
    logical, protected :: tuvx_active = .false.
+
+   integer :: nw_short = -1
+   integer :: nw_long = -1
 
 !================================================================================================
 contains
@@ -278,7 +287,7 @@ contains
 
       type(string_t), allocatable :: labels(:)
       character(len=16) :: label
-      integer :: i
+      integer :: i, astat
       real(r8) :: nanval
 
       if( .not. tuvx_active ) return
@@ -485,6 +494,15 @@ contains
 
       if( is_main_task ) call log_initialization( labels )
 
+      allocate(sw_actinic_fluxes(nw_short,pcols,pver,begchunk:endchunk), stat=astat)
+      if (astat/=0) then
+         call endrun('tuvx_init: Error allocating sw_actinic_fluxes array')
+      endif
+      allocate(lw_actinic_fluxes(nw_long,pcols,pver,begchunk:endchunk), stat=astat)
+      if (astat/=0) then
+         call endrun('tuvx_init: Error allocating lw_actinic_fluxes array')
+      endif
+
    end subroutine tuvx_init
 
 !================================================================================================
@@ -529,8 +547,9 @@ contains
       use ppgrid,           only : pcols        ! maximum number of columns
       use shr_const_mod,    only : pi => shr_const_pi
       use spmd_utils,       only : main_task => masterprocid, &
-         is_main_task => masterproc, &
-         mpicom
+                                   is_main_task => masterproc, &
+                                   mpicom
+      use tuvx_solver, only : radiation_field_t
 
       type(physics_state),       target,  intent(in)    :: state
       type(physics_buffer_desc), pointer, intent(inout) :: pbuf(:)
@@ -569,6 +588,10 @@ contains
       real(r8), allocatable :: optical_depth(:,:,:)            ! aerosol optical depth (column, level, wavelength) [unitless]
       real(r8), allocatable :: single_scattering_albedo(:,:,:) ! aerosol single scattering albedo (column, level, wavelength) [unitless]
       real(r8), allocatable :: asymmetry_factor(:,:,:)         ! aerosol asymmetry factor (column, level, wavelength) [unitless]
+
+      integer :: i_wave
+      type(radiation_field_t) :: field
+      real(r8), allocatable :: actinicFlux(:,:)
 
       if( .not. tuvx_active ) return
 
@@ -630,6 +653,36 @@ contains
                photolysis_rate_constants = &
                photo_rates(i_col,:,1:tuvx%n_photo_rates_), &
                heating_rates = cpe_rates(i_col,:,:) )
+
+            field = tuvx%core_%get_radiation_field()
+
+            actinicFlux = transpose( field%fdr_ + field%fup_ + field%fdn_ )
+            where( actinicFlux < 0.0_r8 )
+               actinicFlux = 0.0_r8
+            end where
+
+            if (any(actinicFlux<0.0_r8)) then
+               write(*,*) 'FVDBG negative actinicFlux : '
+
+               do i_level = 1,pverp
+                  do i_wave = 1,tuvx%n_photo_rates_
+                     if (actinicFlux(i_wave,i_level)<0.0_r8) then
+                        write(*,*) 'FVDBG negative actinicFlux : ',actinicFlux(i_wave,i_level),' i_wave,i_level: ',i_wave,i_level
+                     end if
+                  end do
+               end do
+
+               call endrun('FVDBG.ERROR....actinicFlux<0.0')
+            end if
+
+
+            do i_level = 1,pver
+               sw_actinic_fluxes(:,i_col,i_level,lchnk) = actinicFlux(1:nw_short, i_level+1) &
+                                                        * tuvx%mid_wavelength_etf_(1:nw_short)
+               lw_actinic_fluxes(:,i_col,i_level,lchnk) = actinicFlux(nw_short+1:,i_level+1) &
+                                                        * tuvx%mid_wavelength_etf_(nw_short+1:)
+            enddo
+
 
             ! ==============================
             ! Calculate the extreme-UV rates
@@ -869,7 +922,7 @@ contains
    !-----------------------------------------------------------------------
    subroutine initialize_diagnostics( this )
 
-      use cam_history,   only : addfld
+      use cam_history,   only : addfld, add_default
       use musica_assert, only : assert
       use musica_string, only : string_t
 
@@ -900,7 +953,8 @@ contains
          diagnostics( i_label )%name_  = trim( all_labels( i_label )%to_char( ) )
          diagnostics( i_label )%index_ = i_label
          call addfld( "tuvx_"//diagnostics( i_label )%name_, (/ 'lev' /), 'A', 'sec-1', &
-            'photolysis rate constant' )
+                      'photolysis rate constant' )
+         call add_default("tuvx_"//diagnostics( i_label )%name_,3,' ')
       end do
 
    end subroutine initialize_diagnostics
@@ -1257,6 +1311,11 @@ contains
       allocate( this%wavelength_edges_( this%n_wavelength_bins_ + 1 ) )
       this%wavelength_edges_(:) = wavelength%edge_(:)
 
+      allocate( this%mid_wavelength_etf_( this%n_wavelength_bins_ ) )
+
+      nw_short = count(wavelength%mid_<200._r8)
+      nw_long  = count(wavelength%mid_>200._r8)
+
       deallocate( height )
       deallocate( wavelength )
 
@@ -1456,7 +1515,7 @@ contains
 
       class(tuvx_ptr), intent(inout) :: this  ! TUV-x calculator
 
-      real(r8) :: et_flux_orig(nbins), tuv_mid_values(this%n_wavelength_bins_), &
+      real(r8) :: et_flux_orig(nbins) , & !, tuv_mid_values(this%n_wavelength_bins_), &
                   tuv_edge_values(this%n_wavelength_bins_ + 1)
       integer  :: i_bin
 
@@ -1465,41 +1524,41 @@ contains
       !================================================
       et_flux_orig(:) = sol_etf(:)
       call rebin( nbins, this%n_wavelength_bins_, we, this%wavelength_edges_, &
-         et_flux_orig, tuv_mid_values )
+                  et_flux_orig, this%mid_wavelength_etf_ )
 
       ! ========================================================
       ! convert normalized flux to flux on TUV-x wavelength grid
       ! ========================================================
-      tuv_mid_values(:) = tuv_mid_values(:) * &
+      this%mid_wavelength_etf_(:) = this%mid_wavelength_etf_(:) * &
          ( this%wavelength_edges_(2:this%n_wavelength_bins_+1) - &
            this%wavelength_edges_(1:this%n_wavelength_bins_) )
 
       ! ====================================
       ! estimate unused edge values for flux
       ! ====================================
-      tuv_edge_values(1)  = tuv_mid_values(1) - &
-         ( tuv_mid_values(2) - tuv_mid_values(1) ) * 0.5_r8
+      tuv_edge_values(1)  = this%mid_wavelength_etf_(1) - &
+         ( this%mid_wavelength_etf_(2) - this%mid_wavelength_etf_(1) ) * 0.5_r8
       do i_bin = 2, this%n_wavelength_bins_
-         tuv_edge_values(i_bin) = tuv_mid_values(i_bin-1) + &
-            ( tuv_mid_values(i_bin) - tuv_mid_values(i_bin-1) ) * 0.5_r8
+         tuv_edge_values(i_bin) = this%mid_wavelength_etf_(i_bin-1) + &
+            ( this%mid_wavelength_etf_(i_bin) - this%mid_wavelength_etf_(i_bin-1) ) * 0.5_r8
       end do
       tuv_edge_values(this%n_wavelength_bins_+1) = &
-         tuv_mid_values(this%n_wavelength_bins_) + &
-         ( tuv_mid_values(this%n_wavelength_bins_) - &
-           tuv_mid_values(this%n_wavelength_bins_-1) ) * 0.5_r8
+         this%mid_wavelength_etf_(this%n_wavelength_bins_) + &
+         ( this%mid_wavelength_etf_(this%n_wavelength_bins_) - &
+           this%mid_wavelength_etf_(this%n_wavelength_bins_-1) ) * 0.5_r8
 
       ! ============================
       ! update TUV-x ET flux profile
       ! ============================
       call this%profiles_( PROFILE_INDEX_ET_FLUX )%update( &
-         mid_point_values = tuv_mid_values, &
+         mid_point_values = this%mid_wavelength_etf_, &
          edge_values      = tuv_edge_values)
 
       ! ======================================================================
       ! rebin extraterrestrial flux to MS93 grid for use with jno calculations
       ! ======================================================================
       call rebin( nbins, NUM_BINS_MS93, we, WAVELENGTH_EDGES_MS93, et_flux_orig, &
-         this%et_flux_ms93_ )
+                  this%et_flux_ms93_ )
 
    end subroutine set_et_flux
 
