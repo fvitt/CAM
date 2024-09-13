@@ -475,10 +475,6 @@ module edyn3D_fieldline
 !            allocate(fline_s1(i,j,isn)%I1(fline_s1(i,j,isn)%npts))
 
 !            allocate(fline_s1(i,j,isn)%ngh_pts(2,fline_s1(i,j,isn)%npts),STAT=status) ! lat_ind of neighboring point
-             if (status /= 0 ) then
-               write(iulog,*) 'fline_s1 ngh_pts allocation failed'
-               call endrun('fieldline_init')
-             endif
 
              do k=1,fline_p(i,j,isn)%npts
 

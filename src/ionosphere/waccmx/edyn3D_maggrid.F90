@@ -48,7 +48,7 @@ module edyn3D_maggrid
 !   real(r8), protected :: table(91,2) = finit
 
 !    logical, private :: debug = .false. ! set true for prints to stdout at each call
-   logical, private :: debug = .true. ! set true for prints to stdout at each call
+   logical, private :: debug = .false. ! set true for prints to stdout at each call
 
 
  contains
@@ -350,30 +350,30 @@ module edyn3D_maggrid
 
     end subroutine gen_highres_grid
 !
-!---------------------------------------------------------------------- 
+!----------------------------------------------------------------------
 
       subroutine edyn3D_gen_ggj_grid
-     
+
   	! Sets up geographic grid (in radians and m) for calculating currents
   	!  to use for magnetic perturbations.
   	! In this version, colatitude points are Gaussian, which exclude the poles.
-  	! i=1 is 0 geographic longitude. 
+  	! i=1 is 0 geographic longitude.
   	! j=1 is near, but not at, the North Pole (pi/2).
   	! j=nggjlat is near, but not at, the South Pole (-pi/2).
-   
+
   	use edyn3D_params, only: pi,nhgt_fix,nhgt_fix_r,hgt_fix,hgt_fix_r, &
   	  nggjlon,nggjlat,nggjhgt,ggjlon,ggjclat,wts,ggjhgt,ggjtop, &
   	  ktop,k_fix_ggjbot,delBsolution
 
   	implicit none
-  !	 
+  !
   	integer :: i,lwork,ierror,k,kk,ktop_tmp,kend
   	real(r8) :: dggjlon,k_tmp(nhgt_fix_r),w
-      
+
   	  k_tmp = hgt_fix_r - 400000._r8
   	  ktop_tmp = minloc(abs(k_tmp),dim=1)
-  	  write(iulog,'(a4,i4)') 'ktop',minloc(abs(k_tmp))
-  	  
+  	  if (debug) write(iulog,'(a4,i4)') 'ktop',minloc(abs(k_tmp))
+
   	dggjlon = 2._r8*pi/float(nggjlon)
   	do i=1,nggjlon
   	  ggjlon(i) = float(i-1)*dggjlon
@@ -405,7 +405,7 @@ module edyn3D_maggrid
   	  ktop = minloc(abs(k_tmp),dim=1)
   	  !ktop = 39  ! hgt_fix_r(39) = 397140. m
   	  ggjhgt(1) = 110.e3_r8  ! m
-  	  ggjtop(nggjhgt) = hgt_fix_r(ktop)  
+  	  ggjtop(nggjhgt) = hgt_fix_r(ktop)
   	  k_fix_ggjbot(nggjhgt+1) = ktop
   	elseif (delBsolution.eq.'quick_ground,LEO') then
   ! In this version, all horizontal currents up to 397140 m are combined
@@ -415,33 +415,33 @@ module edyn3D_maggrid
   	  ktop = minloc(abs(k_tmp),dim=1)
   	  !ktop = 39  ! hgt_fix_r(39) = 397140. m
   	  ggjhgt(1) = 110.e3_r8  ! m
-  	  ggjtop(nggjhgt) = hgt_fix_r(ktop)  
+  	  ggjtop(nggjhgt) = hgt_fix_r(ktop)
   	  k_fix_ggjbot(nggjhgt+1) = ktop
   	elseif (delBsolution.eq.'ground,LEO	') then
   ! In this version, horizontal currents are combined in thick layers,
   !   and delB is calculated at the ground and at heights between 299702 m
   !   and 540303 m, and between 764409 m and 948105 m.
   	  k_tmp = hgt_fix_r - 998000._r8
-  	  ktop = minloc(abs(k_tmp),dim=1)			 ! ktop = 54  ! hgt_fix_r(54) = 948105 m 
-  	  
+  	  ktop = minloc(abs(k_tmp),dim=1)			 ! ktop = 54  ! hgt_fix_r(54) = 948105 m
+
   	  kk = minloc(abs(hgt_fix-109000._r8),dim=1)
   	  ggjhgt(1) = hgt_fix(kk)				 ! hgt_fix(14)      ! 109486 m
   	  k_fix_ggjbot(2) = minloc(abs(hgt_fix_r-140000._r8),dim=1) ! k_fix_ggjbot(2) = 21
   	  ggjtop(1) = hgt_fix_r(k_fix_ggjbot(2))		 ! hgt_fix_r(21)    ! 139381 m
-  	   
+
   	  kk = minloc(abs(hgt_fix-140000._r8),dim=1)
   	  ggjhgt(2) = hgt_fix(kk)				 ! hgt_fix(25)      ! 179576 m
   	  k_fix_ggjbot(3) = minloc(abs(hgt_fix_r-22000._r8),dim=1)  ! k_fix_ggjbot(3) = 29
   	  ggjtop(2) = hgt_fix_r(k_fix_ggjbot(3))		 ! hgt_fix_r(29)    ! 222139 m
-  	  
+
   	  kk = minloc(abs(hgt_fix-225000._r8),dim=1)
   	  ggjhgt(3) = hgt_fix(kk)				 ! hgt_fix(31)      ! 258343 m
   	  k_fix_ggjbot(4) = minloc(abs(hgt_fix_r-300000._r8),dim=1) ! k_fix_ggjbot(4) = 34
   	  ggjtop(3) = hgt_fix_r(k_fix_ggjbot(4))		 ! hgt_fix_r(34)  ! 299702 m
-  	  
+
   	  k = k_fix_ggjbot(4)					 ! k= 34
-  	  kend = minloc(abs(hgt_fix_r - 540000._r8),dim=1) 	 ! ggjtop = 540303 m  
-  	  kend = kend-k+1					 ! how many levels between	     
+  	  kend = minloc(abs(hgt_fix_r - 540000._r8),dim=1) 	 ! ggjtop = 540303 m
+  	  kend = kend-k+1					 ! how many levels between
   	  do kk=4,kend  					 ! ggjtop = 317599 m to 540303 m
   	    ggjhgt(kk) = hgt_fix(k)
   	    ggjtop(kk) = hgt_fix_r(k+1)
@@ -468,63 +468,63 @@ module edyn3D_maggrid
   	  write (iulog,*) 'delBsolution must be specified in params'
   	  stop
   	endif
-  !	  
+  !
        end subroutine edyn3D_gen_ggj_grid
 !
 !-----------------------------------------------------------------------
 
       subroutine edyn3D_gen_qd_grid
-!     
-!  set up quasi dipole grid (longitude, latitude and height)   
-!     
+!
+!  set up quasi dipole grid (longitude, latitude and height)
+!
       use edyn3D_params, only: nmlon,ylonm,ylonm_s,nlat_qd,nlat_qd_h,pi,rtd, &
                                nhgt_fix,nhgt_fix_r,hgt_fix,hgt_fix_r
-!     
+!
       implicit none
 !
       integer :: i,l,k
-      real(r8) :: dlatm,fac_r      
+      real(r8) :: dlatm,fac_r
 
       real(r8) :: lat_qd_ed(nlat_qd)    ! quasi latitude of edge of volume l-.5
       real(r8) :: lat_qd_mp(nlat_qd-1)  ! quasi latitude of midpoint of volume l
-      real(r8) :: lon_qd_ed(nmlon)      ! quasi longitude of edge of volume     
-      real(r8) :: lon_qd_mp(nmlon)      ! quasi longitude of midpoint of volume     
+      real(r8) :: lon_qd_ed(nmlon)      ! quasi longitude of edge of volume
+      real(r8) :: lon_qd_mp(nmlon)      ! quasi longitude of midpoint of volume
       real(r8) :: hgt_qd_mp(nhgt_fix)   ! height of quasi dipole grid = p height level
       real(r8) :: hgt_qd_ed(nhgt_fix_r) ! height of quasi dipole grid = r height level
-!    
+!
       lon_qd_mp = ylonm    ! [rad] same as p-points
       lon_qd_ed = ylonm_s  ! [rad] same as s1-points
-!      
+!
       dlatm = pi/float(nlat_qd-1)
       do l =1,nlat_qd
         lat_qd_ed(l) = pi*float(l-nlat_qd_h)/float(nlat_qd-1) ! equally distributed
         !write(6,*) 'lat_qd_ed',i,lat_qd_ed(i)*rtd
       end do
-!      
+!
 ! midpoints are in the middle of the volume l
       do l =1,nlat_qd-1
         lat_qd_mp(l) = 0.5_r8*(lat_qd_ed(l)+lat_qd_ed(l+1)) ! equally distributed
         !write(6,*) 'lat_qd_mp',i,lat_qd_mp(i)*rtd
       end do
-!       
+!
       hgt_qd_mp = hgt_fix    ! height of p,s1,s2 points
       hgt_qd_ed = hgt_fix_r  ! height of r points
-        
-!         
+
+!
       end subroutine edyn3D_gen_qd_grid
 
-!---------------------------------------------------------------------- 
+!----------------------------------------------------------------------
 
       subroutine edyn3D_gen_geo_grid
-!     
+!
       use edyn3D_params, only: nglon,nglat,glon,glat
 !
       implicit none
-!     
+!
       integer :: ilateq,i
       real(r8) :: dlon,dlat
-!      
-! Set up geographic grid for outputting magnetic perturbations.  Also used for 
+!
+! Set up geographic grid for outputting magnetic perturbations.  Also used for
 ! interpolation between physics grid and 3D dynamo grid
 !
       dlon = 360._r8/float(nglon-1)
@@ -535,22 +535,22 @@ module edyn3D_maggrid
       enddo
       do i=1,nglat
         glat(i) = (i-ilateq)*dlat
-      enddo     
-!      
+      enddo
+!
       end subroutine edyn3D_gen_geo_grid
 
-!----------------------------------------------------------------------------- 
+!-----------------------------------------------------------------------------
       subroutine edyn3D_qcoef
-      
+
 !  Calculates coefficients needed to calculate functions Q of Richmond
 !  (1974), including functions with odd n-m, used for symmetric
 !  high-latitude FAC.  These functions are applied to the top of the
 !  region of resolved 3D currents, above which current is assumed to
 !  flow only along dipolar field lines out to the apex, and then
 !  radially to infinity (for symmetric FAC).
-!     
+!
       implicit none
-!     
+!
 ! parameters and arrays for calculating equivalent current function
 !   associated with field-aligned currents above ggjtop(nggjhgt)
       integer, parameter :: nmax = 6
@@ -565,14 +565,14 @@ module edyn3D_maggrid
       SQ2 = sqrt(2.e0_r8)
       sq4pi = sqrt(4._r8*pi)
       R = 0._r8
-      
+
       do m=0,nmax
         if (m.ne.0) PMOPMMO(m) = sqrt(1._r8 + .5_r8/float(m))
         do n=max0(1,m),nmax
           R(n,m) = sqrt(float(n*n-m*m))/sqrt(float(4*n*n-1))
         enddo
       enddo
-      
+
       a = 0._r8
       a(0,0,0) = 1._r8
 
@@ -672,7 +672,7 @@ module edyn3D_maggrid
 !        enddo
 !      enddo
 
-! Case 3: If n-m is odd use array a, which contains 
+! Case 3: If n-m is odd use array a, which contains
 !   a_nmp of notes multiplied by m and divided by (2n-m-p).
 !
       end subroutine edyn3D_qcoef
@@ -691,22 +691,22 @@ module edyn3D_maggrid
                                 m1f,m2f,m3f
 
        implicit none
-!       
-! local variables         
-       integer ::  j,k,isn,jmax      
+!
+! local variables
+       integer ::  j,k,isn,jmax
        real(r8) ::  fac1,fac2,fac3,dlonm,rm,rp,ra,rbar
 ! a1,a3 vary from 0 at the magnetic pole to 1 at the magnetic equator.
        real(r8) ::  a1(nmlat_h+1,nhgt_fix)  ! Normalized integral from pole of M1*F
        real(r8) ::  a3(nmlat_h+1,nhgt_fix_r)! Normalized integral from pole of M3*F
-!                   
+!
        dlonm = ylonm_s(2)-ylonm_s(1) ! assumes equidistant longitudinal gridpoints
 ! Assumes hemispherical symmetry
         isn = 1 !Should get the same result for isn = 2, since rho_s(j,1) = rho_s(j,2)
-!  
+!
 ! In order to include the pole, the first index of a1,a3 represents the
 !  location j-0.5, not j+0.5. However, the first index of m1f,m2f,m3f
 !  represents the location j+0.5, i.e., the s2 points.
-! 
+!
         ! Set a1,a3 to 1 for equator and beyond (points before equator will be
         !  overwritten later).
         a1 = 1.
@@ -716,10 +716,10 @@ module edyn3D_maggrid
         m1f = 0.
         m2f = 0.
         m3f = 0.
-        do k=1,nhgt_fix 
+        do k=1,nhgt_fix
            a1(1,k) = 0.
            a3(1,k) = 0.
-           jmax = nmlatS2_h - k + 1 ! number of s2 points at level k 
+           jmax = nmlatS2_h - k + 1 ! number of s2 points at level k
            if (jmax.lt.1) then
 ! Error trap; this condition should never occur.
               write(6,*) 'Stopped in calc_mf because jmax=',jmax
@@ -729,10 +729,10 @@ module edyn3D_maggrid
            rp = (hgt_fix_r(k+1)+re)/r0           ! r_k+0.5 /R
            rm = (hgt_fix_r(k)+re)/r0             ! r_k-0.5 /R
 !
-           fac2 = 0.5*pi*(rp - rm)*r0   ! Pi/2*((r_k+0.5)-(r_k-0.5)) 
+           fac2 = 0.5*pi*(rp - rm)*r0   ! Pi/2*((r_k+0.5)-(r_k-0.5))
            fac3 = 2.*dlonm*(hgt_fix(k)+re)**3/r0 ! 2*dlon*r_k^3/R
            do j=1,jmax     ! loop over all s2 points
-              fac1 = sqrt(rm)*rho_s(j,isn)      ! sqrt[r_k-0.5/R]*rho(j+0.5) 
+              fac1 = sqrt(rm)*rho_s(j,isn)      ! sqrt[r_k-0.5/R]*rho(j+0.5)
 ! First index of a1,a3 is j+1 because this corresponds to position j+0.5.
               a3(j+1,k) = 1. - sqrt(1.-fac1**2)
               m3f(j,k) = (hgt_fix_r(k)+re)**2 *dlonm*(a3(j+1,k)-a3(j,k))
@@ -751,7 +751,7 @@ module edyn3D_maggrid
               m1f(j,k) = ((hgt_fix(k)+re)/r0)**2.5 *fac2*(a1(j+1,k)-a1(j,k))*r0
 ! Make sure fac1 does not numerically exceed 1,
 !  so that sqrt(1-fac1**2) can be computed.
-              fac1 = sqrt(rp)*rho_s(j,isn)        ! sqrt[r_k+0.5/R]*rho(j+0.5) 
+              fac1 = sqrt(rp)*rho_s(j,isn)        ! sqrt[r_k+0.5/R]*rho(j+0.5)
               fac1 = min(fac1,1.)
               m2f(j,k) = fac3*(sqrt(1.-rm*rho_s(j,isn)**2) &
                 - sqrt(1.-fac1**2))*sqrt(1.-.75*rho_s(j,isn)**2)/rho_s(j,isn)
@@ -763,19 +763,19 @@ module edyn3D_maggrid
 ! Now do a3,m3f for top level
         k = nhgt_fix_r
         a3(1,k) = 0.
-        jmax = nmlatS2_h - k + 1 ! number of s2 points at k-0.5 
+        jmax = nmlatS2_h - k + 1 ! number of s2 points at k-0.5
         if (jmax.ge.1) then
            rm = (hgt_fix_r(k)+re)/r0
            do j=1,jmax     ! loop over all s2 points (level k has nmlatS2_h-k+1 s2 points)
-              fac1 = sqrt(rm)*rho_s(j,isn)      ! sqrt[r_k-0.5/R]*rho(j+0.5) 
+              fac1 = sqrt(rm)*rho_s(j,isn)      ! sqrt[r_k-0.5/R]*rho(j+0.5)
               a3(j+1,k) = 1. - sqrt(1.-fac1**2)
               m3f(j,k) = (hgt_fix_r(k)+re)**2 *dlonm*(a3(j+1,k)-a3(j,k))
             enddo !j
             m3f(jmax+1,k) = (hgt_fix_r(k)+re)**2 *dlonm*(1.-a3(jmax+1,k))
         endif
-!       
+!
   end subroutine edyn3D_calculate_mf
 
-!---------------------------------------------------------------------- 
+!----------------------------------------------------------------------
 
 end module edyn3D_maggrid

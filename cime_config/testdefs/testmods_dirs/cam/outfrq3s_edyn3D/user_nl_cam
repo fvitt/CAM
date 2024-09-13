@@ -1,17 +1,19 @@
 mfilt=1,1,1,1,1,1,1,1,1
 ndens=1,1,1,1,1,1,1,1,1
-nhtfrq=3,3,3,3,3,3
+nhtfrq=3,3,3,3,3,3,3,3,3
 write_nstep0=.true.
 inithist='ENDOFRUN'
-pbuf_global_allocate=.false.
 
-ionos_npes = 64
+ionos_npes = 45
 
 fincl2 = 'GEOGALTp','GEOGALTs1','GEOGALTs2','GEOGLATp','GEOGLONp','Tn_mag',
          'sigma_ped_s1','sigma_ped_s2',
          'sigma_hal_s1','sigma_hal_s2',
-         'height_s1','height_s2'
+         'height_s1','height_s2', 'POTENp'
 
-fincl3 = 'T','TnPhysIn','TnPhysOut','SIGMAPED','SIGMAHAL','Z3','Z3GM'
+fincl3 = 'T','TnPhysIn','TnPhysOut','SIGMAPED','SIGMAHAL','Z3','Z3GM', 'POTENp'
 
 fincl4 = 'Tn_opg0','Tn_opg1'
+
+fincl5 = 'ED1s1','ED2s1','ED1s2','ED2s2', 'Ve1s1','Ve2s1','Ve1s2','Ve2s2',
+         'UI_s1','VI_s1'

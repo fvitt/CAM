@@ -72,10 +72,5 @@
       enddo
     enddo
 
-write(iulog,*) 'edyn3D_calc_efield: End MIN/MAX fline_s1(mlon0_p:mlon1_p,:,:)%ed1 ', &
-                                 MINVAL(fline_s1(mlon0_p:mlon1_p,:,:)%ed1),MAXVAL(fline_s1(mlon0_p:mlon1_p,:,:)%ed1)
-write(iulog,*) 'edyn3D_calc_efield: End MIN/MAX fline_s1(mlon0_p:mlon1_p,:,:)%ed2 ', &
-                                 MINVAL(fline_s1(mlon0_p:mlon1_p,:,:)%ed2),MAXVAL(fline_s1(mlon0_p:mlon1_p,:,:)%ed2)
-
   endsubroutine edyn3D_calc_efield
 !-----------------------------------------------------------------------
