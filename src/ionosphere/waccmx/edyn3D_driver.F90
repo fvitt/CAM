@@ -15,6 +15,8 @@ module edyn3D_driver
   use edyn3D_esmf_regrid
   use edyn3D_regridder
 
+  use perf_mod, only: t_startf, t_stopf
+
   use physconst, only: pi
 
   implicit none
@@ -190,6 +192,7 @@ contains
     real(r8) :: Tn_oplus0(lon0:lon1,lat0:lat1,lev0:lev1)
     real(r8) :: Tn_oplus1(lon0:lon1,lat0:lat1,lev0:lev1)
 
+    call t_startf('edyn3D_driver_timestep.1')
     call edyn3D_regridder_phys2mag(physalt,physalt,nphyscol,nphyslev,height_s1)
     call edyn3D_regridder_phys2mag(physalt,physalt,nphyscol,nphyslev,height_s2)
 
@@ -315,11 +318,15 @@ contains
 
     call output_fline_field(Tn_p)
 
+    call t_stopf('edyn3D_driver_timestep.1')
+
     !
     ! Call 3D dynamo routine for solving
     !
     if (mytid<ntask) then
 !
+      call t_startf('edyn3D_driver_timestep.2')
+
       call edyn3D_get_conduct     ! - Get conductivities for edyn3D_calc_FAC
 
       call edyn3D_calc_mn_s1s2    ! - (calc conductivities, each timestep)
@@ -336,19 +343,33 @@ contains
 
       call edyn3D_add_coef_ns     ! - add North & South coef
 
+      call t_stopf('edyn3D_driver_timestep.2')
+
+      call t_startf('edyn3D_driver_timestep.3.gather')
+
       call edyn3D_gather_coef_ns  ! - gather coef_ns for solver
 
+      call t_stopf('edyn3D_driver_timestep.3.gather')
+
+      call t_startf('edyn3D_driver_timestep.4.solve')
       if (mytid == 0) then
         call edyn3D_const_rhs     ! - solver - solve for rhs (electric potential)
       endif
+      call t_stopf('edyn3D_driver_timestep.4.solve')
 
+      call t_startf('edyn3D_driver_timestep.5.scatter')
       call edyn3D_scatter_poten   ! - Send global potential to each task
+      call t_stopf('edyn3D_driver_timestep.5.scatter')
 
+      call t_startf('edyn3D_driver_timestep.6')
       call edyn3D_poten_halos     ! - Get potential halo points required in next call
 
       call edyn3D_calc_efield    ! - Calculate the electric field and ion drift velocities
+      call t_stopf('edyn3D_driver_timestep.6')
 
     endif
+
+    call t_startf('edyn3D_driver_timestep.7')
 
     call edyn3D_regridder_mag2phys(Tn_p, physalt, nphyscol,nphyslev, tn_out)
 
@@ -368,37 +389,6 @@ contains
     !  diagnostics ...
 
     if (mytid<ntask) then
-!      !
-!      ! Get electric fields in geographic coordinates (Ed1,2 -> Ex,y,z) and convert
-!      ! ion drifts from perpedicular to zonal and meridional
-!      ! The 7 fields are: potential, Ex, Ey, Ez, Vx, Vy, Vz (in order).
-!      !
-!      do i = mlon0_p,mlon1_p
-!	 do k = 1,nhgt_fix
-!	   do j = 1,nmlat_h-k+1
-!	     do isn = 1,2
-!	       if (isn == 1) then
-!		 jj = j
-!	       else
-!		 jj = nmlat_T1-(k-1)*2-j+1
-!	       endif
-!	       efield_fline(1,k,jj,i) = fline_p(i,j,isn)%pot
-!	       efield_fline(2,k,jj,i) = fline_s1(i,j,isn)%ed1*fline_s1(i,j,isn)%d1(1,k)+ &
-!		 fline_s1(i,j,isn)%ed2*fline_s1(i,j,isn)%d2(1,k)
-!	       efield_fline(3,k,jj,i) = fline_s1(i,j,isn)%ed1*fline_s1(i,j,isn)%d1(2,k)+ &
-!		 fline_s1(i,j,isn)%ed2*fline_s1(i,j,isn)%d2(2,k)
-!	       efield_fline(4,k,jj,i) = fline_s1(i,j,isn)%ed1*fline_s1(i,j,isn)%d1(3,k)+ &
-!		 fline_s1(i,j,isn)%ed2*fline_s1(i,j,isn)%d2(3,k)
-!	       efield_fline(5,k,jj,i) = fline_s1(i,j,isn)%ve1*fline_s1(i,j,isn)%e1(1,k)+ &
-!		 fline_s1(i,j,isn)%ve2*fline_s1(i,j,isn)%e2(1,k)
-!	       efield_fline(6,k,jj,i) = fline_s1(i,j,isn)%ve1*fline_s1(i,j,isn)%e1(2,k)+ &
-!		 fline_s1(i,j,isn)%ve2*fline_s1(i,j,isn)%e2(2,k)
-!	       efield_fline(7,k,jj,i) = fline_s1(i,j,isn)%ve1*fline_s1(i,j,isn)%e1(3,k)+ &
-!		 fline_s1(i,j,isn)%ve2*fline_s1(i,j,isn)%e2(3,k)
-!	     enddo
-!	   enddo
-!	 enddo
-!      enddo
 
        do i = mlon0_p,mlon1_p
           ncnt1 = 0
@@ -513,7 +503,9 @@ contains
           call outfld('Ve2s2',  ve2_s2(mlon0_p:mlon1_p,j), mlon1_p-mlon0_p+1, j)
        end do
 
-     end if
+    end if
+
+    call t_stopf('edyn3D_driver_timestep.7')
 
   end subroutine edyn3D_driver_timestep
 
