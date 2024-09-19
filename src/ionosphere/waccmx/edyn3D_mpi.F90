@@ -95,7 +95,6 @@ module edyn3D_mpi
 !        mxhmaglon       ! max number of output mag subdomain lon points among all tasks
 
    integer, allocatable :: &
-!        itask_table_comp_mag(:),  &  ! 1d table of tasks on mag computation grid (i)
         itask_table_mag(:)      ! 1d table of tasks on mag output grid (i)
 
 !   integer :: cols_comm_comp_p_edyn3D  ! communicators for each computation task column
@@ -404,9 +403,9 @@ contains
       !   halos are done, exchanging mlon0-1:mlon1+1 (i.e., including the
       !   longitude halos that were defined first).
       !
-       
+
 !       use edyn3D_fieldline,only: fline_s1
-       
+
        ! Args:
 !      integer,intent(in) :: mlon0,mlon1,mlat0,mlat1,nf
       integer,intent(in) :: mlon0,mlon1,nmlat,nflpts,nf
@@ -429,7 +428,7 @@ contains
       west  = itask_table_mag(magtidlon-1)
       east  = itask_table_mag(magtidlon+1)
       !
-      ! Set len 
+      ! Set len
 !      nmlats = mlat1-mlat0+1
       len = nmlat*nflpts*nf
 !      len = nflpts*nf
@@ -438,7 +437,7 @@ contains
       ! However, tasks are periodic in longitude (see itask_table_mag),
       !   and far west tasks send mlon0+1, and far east tasks send mlon1-1
       !
-	         
+
       do ifld=1,nf
 	 ! Far west tasks send mlon0+1 to far east (periodic) tasks:
 	 if (magtidlon==0) then
@@ -585,13 +584,13 @@ contains
       west  = itask_table_mag(magtidlon-1)
       east  = itask_table_mag(magtidlon+1)
       !
-      ! Set len 
+      ! Set len
       len = nmlat
       !
       ! Send mlon0 to the west neighbor, and mlon1 to the east.
       ! However, tasks are periodic in longitude (see itask_table_mag),
       ! and far west tasks send mlon0+1, and far east tasks send mlon1-1
-      !	         
+      !
       ! Far west tasks send mlon0+1 to far east (periodic) tasks:
       !
       if (magtidlon==0) then
@@ -649,7 +648,7 @@ contains
         fmsub(mlon0-1,1:nmlat) = rcvlon1(:)
         fmsub(mlon1+1,1:nmlat) = rcvlon0(:)
       endif
-      
+
    end subroutine mp_poten_halos_edyn3D
 
    !-----------------------------------------------------------------------
@@ -691,35 +690,74 @@ contains
       if (ier /= 0) call handle_mpi_err(ier,'mp_gather_edyn3D: mpi_gather to root')
 
    end subroutine mp_gather_edyn3D
+    
 !-----------------------------------------------------------------------
-   subroutine mp_scatter_edyn3D(fmglb,mlon0,mlon1,fmsub,nmlon,nmlat)
+   subroutine mp_scatter_edyn3D(fmglb, mlon0, mlon1, fmsub, nmlon, nmlat, nldim)
 
-      use mpi,             only: MPI_INTEGER, MPI_REAL8, MPI_SUCCESS, MPI_SUM
-
-      integer,intent(in)   :: mlon0,mlon1,nmlon,nmlat
-      real(r8),intent(in)  :: fmglb(nmlon,nmlat)
-      real(r8),intent(out) :: fmsub(mlon0:mlon1,nmlat)
+      integer,intent(in)   :: mlon0,mlon1,nmlon,nmlat, nldim
+      real(r8),intent(in)  :: fmglb(nmlon,nmlat,nldim)
+      real(r8),intent(out) :: fmsub(mlon0:mlon1,nmlat,nldim)
 
       ! Local:
-      integer :: ier,len,i,j
+      integer :: ier,len,i,j,n, f
+      integer :: nlonsend, lonsend0,lonsend1, mtag, nlonrecv
+      integer :: itask, idest, isend, irecv, isrc
+      integer :: irstat(MPI_STATUS_SIZE)      ! mpi receive status
 
-      !   if (mpi_timing) starttime = mpi_wtime()
+      real(r8),allocatable :: sndbuf(:,:,:), rcvbuf(:,:,:)
+      
       !
-      ! Broadcast global field:
-      len = nmlon*nmlat
-      call mpi_bcast(fmglb,len,MPI_REAL8,0,mpi_comm_edyn3D,ier)
-      if (ier /= 0) &
-	   call handle_mpi_err(ier,'mp_scatter_edyn3D: bcast global potential')
-      !
-      ! Define subdomains:
-      do j=1,nmlat
-	 do i=mlon0_p,mlon1_p
-	    fmsub(i,j) = fmglb(i,j)
-	    fmsub(i,j) = fmglb(i,j)
-	 enddo
-      enddo
+      ! If mytid==0, send to other tasks (mytid>0):
+      if (mytid == 0) then
+         do itask=1,ntask-1
+            idest = itask_table_mag(itask)
+            lonsend0 = tasks(idest)%mlon0
+            lonsend1 = tasks(idest)%mlon1
+            nlonsend = lonsend1-lonsend0+1
+            mtag = idest+mytid
+            allocate(sndbuf(1:nlonsend,nmlat,nldim))
+            len = nlonsend*nmlat*nldim
+            do n=1,nldim
+               do j=1,nmlat
+                  sndbuf(1:nlonsend,j,n) = fmglb(lonsend0:lonsend1,j,n)
+               enddo 
+            enddo 
+            mtag = idest+mytid
+            call mpi_isend(sndbuf,len,MPI_REAL8,idest,mtag,mpi_comm_edyn3D,isend,ier)
+            if (ier /= 0) call handle_mpi_err(ier,'mp_scatter_edyn3D send to idest')
+            call mpi_wait(isend,irstat,ier)
+            if (ier /= 0) call handle_mpi_err(ier,'mp_scatter_edyn3D wait for send')
+            deallocate(sndbuf)
+         enddo ! itask=1,ntaski-1
+         !
+         ! 
+         do n=1,nldim
+            do j=1,nmlat
+               fmsub(mlon0:mlon1,j,n) = fmglb(mlon0:mlon1,j,n)
+            enddo
+         enddo
+      else
+         isrc = itask_table_mag(0)
+         mtag = isrc+mytid
+         nlonrecv = mlon1-mlon0+1
+         allocate(rcvbuf(1:nlonrecv,nmlat,nldim))
+         len = nlonrecv*nmlat*nldim
+         call mpi_irecv(rcvbuf,len,MPI_REAL8,isrc,mtag,mpi_comm_edyn3D,irecv,ier)
+         if (ier /= 0) &
+              call handle_mpi_err(ier,'mp_scatterlons_f3d recv fm isrc')
+         call mpi_wait(irecv,irstat,ier)
+         if (ier /= 0) &
+              call handle_mpi_err(ier,'mp_scatterlons_f3d wait for recv')
+         do n=1,nldim
+            do j=1,nmlat
+               fmsub(mlon0:mlon1,j,n) = rcvbuf(1:nlonrecv,j,n)
+            enddo
+         enddo
+         deallocate(rcvbuf)
+      endif
 
    end subroutine mp_scatter_edyn3D
+
    !-----------------------------------------------------------------------
    subroutine handle_mpi_err(ierrcode,string)
       !
