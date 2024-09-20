@@ -53,14 +53,14 @@ contains
     use edyn3D_esmf_regrid, only: magField_p_src
     use edyn3D_esmf_regrid, only: magField_p_des
     use edyn3D_esmf_regrid, only: magField_s1_src
-    use edyn3D_esmf_regrid, only: magField_s1
+    use edyn3D_esmf_regrid, only: magField_s1_des
     use edyn3D_esmf_regrid, only: magField_s2
 
     use edyn3D_esmf_regrid, only: rh_phys2mag_p
     use edyn3D_esmf_regrid, only: rh_phys2mag_s1
     use edyn3D_esmf_regrid, only: rh_phys2mag_s2
     use edyn3D_esmf_regrid, only: rh_mag_p2phys, rh_mag_p2oplus
-    use edyn3D_esmf_regrid, only: rh_mag_s12phys
+    use edyn3D_esmf_regrid, only: rh_s1mag2phys
 
     use infnan, only: nan, assignment(=)
 
@@ -95,7 +95,7 @@ contains
     height_s1%nmlat_h = nmlat_h
     height_s1%nptstot = nptsp_total
     height_s1%rhandle_phys2mag => rh_phys2mag_s1
-    height_s1%esmf_fld_des => magField_s1
+    height_s1%esmf_fld_des => magField_s1_des
     height_s1%esmf_fld_src => null()
     allocate(height_s1%flines(mlon0_p:mlon1_p,nmlat_h,2))
 
@@ -105,7 +105,7 @@ contains
     sigma_hal_s1%nmlat_h = nmlat_h
     sigma_hal_s1%nptstot = nptsp_total
     sigma_hal_s1%rhandle_phys2mag => rh_phys2mag_s1
-    sigma_hal_s1%esmf_fld_des => magField_s1
+    sigma_hal_s1%esmf_fld_des => magField_s1_des
     sigma_hal_s1%esmf_fld_src => null()
     allocate(sigma_hal_s1%flines(mlon0_p:mlon1_p,nmlat_h,2))
 
@@ -115,7 +115,7 @@ contains
     sigma_ped_s1%nmlat_h = nmlat_h
     sigma_ped_s1%nptstot = nptsp_total
     sigma_ped_s1%rhandle_phys2mag => rh_phys2mag_s1
-    sigma_ped_s1%esmf_fld_des => magField_s1
+    sigma_ped_s1%esmf_fld_des => magField_s1_des
     sigma_ped_s1%esmf_fld_src => null()
     allocate(sigma_ped_s1%flines(mlon0_p:mlon1_p,nmlat_h,2))
 
@@ -125,7 +125,7 @@ contains
     un_s1%nmlat_h = nmlat_h
     un_s1%nptstot = nptsp_total
     un_s1%rhandle_phys2mag => rh_phys2mag_s1
-    un_s1%esmf_fld_des => magField_s1
+    un_s1%esmf_fld_des => magField_s1_des
     un_s1%esmf_fld_src => null()
     allocate(un_s1%flines(mlon0_p:mlon1_p,nmlat_h,2))
 
@@ -135,7 +135,7 @@ contains
     vn_s1%nmlat_h = nmlat_h
     vn_s1%nptstot = nptsp_total
     vn_s1%rhandle_phys2mag => rh_phys2mag_s1
-    vn_s1%esmf_fld_des => magField_s1
+    vn_s1%esmf_fld_des => magField_s1_des
     vn_s1%esmf_fld_src => null()
     allocate(vn_s1%flines(mlon0_p:mlon1_p,nmlat_h,2))
 
@@ -144,9 +144,9 @@ contains
     IonU_s1%mlon1 = mlon1_p
     IonU_s1%nmlat_h = nmlat_h
     IonU_s1%nptstot = nptsp_total
-    IonU_s1%rhandle_mag2phys => rh_mag_s12phys
+    IonU_s1%rhandle_mag2phys => rh_s1mag2phys
     IonU_s1%rhandle_phys2mag => rh_phys2mag_s1
-    IonU_s1%esmf_fld_des => magField_s1
+    IonU_s1%esmf_fld_des => magField_s1_des
     IonU_s1%esmf_fld_src => magField_s1_src
     allocate(IonU_s1%flines(mlon0_p:mlon1_p,nmlat_h,2))
 
@@ -155,9 +155,9 @@ contains
     IonV_s1%mlon1 = mlon1_p
     IonV_s1%nmlat_h = nmlat_h
     IonV_s1%nptstot = nptsp_total
-    IonV_s1%rhandle_mag2phys => rh_mag_s12phys
+    IonV_s1%rhandle_mag2phys => rh_s1mag2phys
     IonV_s1%rhandle_phys2mag => rh_phys2mag_s1
-    IonV_s1%esmf_fld_des => magField_s1
+    IonV_s1%esmf_fld_des => magField_s1_des
     IonV_s1%esmf_fld_src => magField_s1_src
     allocate(IonV_s1%flines(mlon0_p:mlon1_p,nmlat_h,2))
 

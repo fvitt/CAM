@@ -24,8 +24,8 @@ module edyn3D_esmf_regrid
   type(ESMF_Grid),  pointer :: mag_grid_s1_src(:)
   type(ESMF_Field), pointer :: magField_s1_src(:)
 
-  type(ESMF_Grid),  pointer :: mag_grid_s1(:) ! destination only
-  type(ESMF_Field), pointer :: magField_s1(:)
+  type(ESMF_Grid),  pointer :: mag_grid_s1_des(:)
+  type(ESMF_Field), pointer :: magField_s1_des(:)
 
   type(ESMF_Grid),  pointer :: mag_grid_s2(:)
   type(ESMF_Field), pointer :: magField_s2(:)
@@ -36,7 +36,7 @@ module edyn3D_esmf_regrid
   type(ESMF_RouteHandle), pointer :: rh_phys2mag_p(:)
   type(ESMF_RouteHandle), pointer :: rh_phys2mag_s1(:), rh_phys2mag_s2(:)
   type(ESMF_RouteHandle), pointer :: rh_mag_p2phys(:), rh_mag_p2oplus(:)
-  type(ESMF_RouteHandle), pointer :: rh_mag_s12phys(:)
+  type(ESMF_RouteHandle), pointer :: rh_s1mag2phys(:)
 
   ! dist_grid_2d: DistGrid for 2D physics fields
   type(ESMF_DistGrid) :: dist_grid_2d
@@ -202,8 +202,8 @@ contains
     allocate(mag_grid_s1_src(nz))
     allocate(magField_s1_src(nz))
 
-    allocate(mag_grid_s1(nz))
-    allocate(magField_s1(nz))
+    allocate(mag_grid_s1_des(nz))
+    allocate(magField_s1_des(nz))
 
     allocate(mag_grid_s2(nz))
     allocate(magField_s2(nz))
@@ -214,7 +214,7 @@ contains
 
     allocate(rh_mag_p2phys(nz))
     allocate(rh_mag_p2oplus(nz))
-    allocate(rh_mag_s12phys(nz))
+    allocate(rh_s1mag2phys(nz))
 
     allocate(petmap(ntask,1,1))
 
@@ -376,20 +376,20 @@ contains
        ! des mag s1 grid
        nmlat = (nmlat_h - (k-1))*2
        nmlats_task(1) = nmlat
-       mag_grid_s1(k) = ESMF_GridCreate1PeriDim( &
+       mag_grid_s1_des(k) = ESMF_GridCreate1PeriDim( &
             countsPerDEDim1=nmlons_task, countsPerDEDim2=nmlats_task, &
             coordDep1=(/1, 2/), coordDep2=(/1, 2/), &
             petmap=petmap, indexflag=ESMF_INDEX_GLOBAL, rc=rc)
-       call check_error(subname,'ESMF_GridCreate1PeriDim mag_grid_s1',rc)
+       call check_error(subname,'ESMF_GridCreate1PeriDim mag_grid_s1_des',rc)
 
-       call ESMF_GridAddCoord(grid=mag_grid_s1(k),staggerloc=ESMF_STAGGERLOC_CENTER, rc=rc)
-       call check_error(subname,'ESMF_GridAddCoord mag_grid_s1',rc)
+       call ESMF_GridAddCoord(grid=mag_grid_s1_des(k),staggerloc=ESMF_STAGGERLOC_CENTER, rc=rc)
+       call check_error(subname,'ESMF_GridAddCoord mag_grid_s1_des',rc)
 
        if (mytid<ntask) then
           !
           ! Get pointer and set mag grid geographic longitude coordinates:
           !
-          call ESMF_GridGetCoord(grid=mag_grid_s1(k), coordDim=1, farrayPtr=fptr2d, rc=rc)
+          call ESMF_GridGetCoord(grid=mag_grid_s1_des(k), coordDim=1, farrayPtr=fptr2d, rc=rc)
           call check_error(subname,'ESMF_GridGetCoord glon',rc)
 
           do j = 1, nmlat
@@ -408,7 +408,7 @@ contains
           !
           ! Get pointer and set mag grid geographic latitdue coordinates:
           !
-          call ESMF_GridGetCoord(grid=mag_grid_s1(k), coordDim=2, farrayPtr=fptr2d, rc=rc)
+          call ESMF_GridGetCoord(grid=mag_grid_s1_des(k), coordDim=2, farrayPtr=fptr2d, rc=rc)
           call check_error(subname,'ESMF_GridGetCoord glat',rc)
 
           do j = 1, nmlat
@@ -425,8 +425,8 @@ contains
           enddo
        end if
 
-       magField_s1(k) = ESMF_FieldCreate( grid=mag_grid_s1(k), typekind=ESMF_TYPEKIND_R8, rc=rc)
-       call check_error(subname,'ESMF_FieldCreate magField',rc)
+       magField_s1_des(k) = ESMF_FieldCreate( grid=mag_grid_s1_des(k), typekind=ESMF_TYPEKIND_R8, rc=rc)
+       call check_error(subname,'ESMF_FieldCreate magField_s1_des',rc)
 
 
        ! src mag s1 grid
@@ -487,7 +487,7 @@ contains
 
        ! phys->mag
        call ESMF_FieldRegridStore( &
-            srcField=physField, dstField=magField_s1(k), &
+            srcField=physField, dstField=magField_s1_des(k), &
             routehandle=rh_phys2mag_s1(k), &
             regridMethod=ESMF_REGRIDMETHOD_BILINEAR,                           &
             polemethod=ESMF_POLEMETHOD_ALLAVG,                                 &
@@ -500,7 +500,7 @@ contains
        ! mag_s1->phys
        call ESMF_FieldRegridStore( &
             srcField=magField_s1_src(k), dstField=physField, &
-            routehandle=rh_mag_s12phys(k), &
+            routehandle=rh_s1mag2phys(k), &
             regridMethod=ESMF_REGRIDMETHOD_BILINEAR,                           &
             polemethod=ESMF_POLEMETHOD_ALLAVG,                                 &
             extrapMethod=ESMF_EXTRAPMETHOD_NEAREST_IDAVG,                      &

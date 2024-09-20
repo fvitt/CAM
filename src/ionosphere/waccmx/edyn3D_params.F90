@@ -19,7 +19,7 @@ module edyn3D_params
    public :: m1f,m2f,m3f
    public :: nggjlon,nggjlat,nggjhgt,ggjlon,ggjclat,ggjhgt,ggjtop
    public :: wts,ktop,k_fix_ggjbot,delBsolution
-   public :: J3LB,test_pot,jpg_add,no_wind,use_lbJ,val_fill,use_stabil 
+   public :: J3LB,test_pot,jpg_add,no_wind,use_lbJ,val_fill,use_stabil
    public :: h_leo,mu0,l1ggj,l2ggj,lvhags,lshags,lwork,mdab
    public :: iw,fw,ls,fs,f11gg,f12gg,f21gg,f22gg,f31oFgg,f32oFgg
    integer,parameter :: &
@@ -49,11 +49,11 @@ module edyn3D_params
 !       nglon = 5, nglat = 5      ! dimensions of geographic grid
 !        for calculating delB (cannot be larger than nggjlat)
 
-       !       
+       !
        ! Select speed and accuracy of delB calculations by the choice of
        !   delBsolution and nggjhgt below.  nggjhgt is the number of current
        !   layers used to get spherical-harmonic coefficients for magnetic
-       !   perturbations.  
+       !   perturbations.
        !
        ! Single current layer combining horizontal currents up to 397.14 km,
        !   with delB calculated only at the ground.
@@ -159,12 +159,12 @@ module edyn3D_params
      real(r8) :: iw(nggjlon,nggjlat,nggjhgt), &
                  fw(nggjlon,nggjlat,nggjhgt), &
                  ls(nggjlon,nggjlat,nggjhgt), &
-                 fs(nggjlon,nggjlat,nggjhgt), & 
-                 f11gg(nggjlon,nggjlat,nggjhgt), & 
-                 f12gg(nggjlon,nggjlat,nggjhgt), & 
-                 f21gg(nggjlon,nggjlat,nggjhgt), & 
-                 f22gg(nggjlon,nggjlat,nggjhgt), & 
-                 f31oFgg(nggjlon,nggjlat,nggjhgt), & 
+                 fs(nggjlon,nggjlat,nggjhgt), &
+                 f11gg(nggjlon,nggjlat,nggjhgt), &
+                 f12gg(nggjlon,nggjlat,nggjhgt), &
+                 f21gg(nggjlon,nggjlat,nggjhgt), &
+                 f22gg(nggjlon,nggjlat,nggjhgt), &
+                 f31oFgg(nggjlon,nggjlat,nggjhgt), &
                  f32oFgg(nggjlon,nggjlat,nggjhgt)
    !
    ! global constants
@@ -182,15 +182,15 @@ module edyn3D_params
     !
     logical, parameter :: use_lbJ = .false.
     real  :: J3LB(nmlon,nmlat_h,2)    ! r-points current from lower atmosphere [A/m2]
-    !        
+    !
     ! Boundary conditions
     ! lower boundary Je2LB defined by lower atmosphere model
     logical, parameter :: test_pot =.false.
-    !     
+    !
     ! No wind forcing
     !
     logical, parameter :: no_wind =.false.
-    !        
+    !
     ! Jpg
     ! Ionospheric current
     !
