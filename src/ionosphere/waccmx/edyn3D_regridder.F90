@@ -107,7 +107,7 @@ module edyn3D_regridder
 
           call ESMF_FieldGet(magfld%esmf_fld_src(k), localDe=0, farrayPtr=fptr2d, &
                              computationalLBound=lbnd2d, computationalUBound=ubnd2d, rc=rc)
-          call check_errror(subname,'ESMF_FieldGet physField',rc)
+          call check_errror(subname,'ESMF_FieldGet physField '//trim(magfld%name),rc)
 
           nmlat = (magfld%nmlat_h - (k-1))*2
 
@@ -128,11 +128,11 @@ module edyn3D_regridder
 
        call ESMF_FieldRegrid(magfld%esmf_fld_src(k), physField, magfld%rhandle_mag2phys(k), &
                              termorderflag=ESMF_TERMORDER_SRCSEQ, rc=rc)
-       call check_errror(subname,'ESMF_FieldRegrid mag2phys',rc)
+       call check_errror(subname,'ESMF_FieldRegrid mag2phys '//trim(magfld%name),rc)
 
        call ESMF_FieldGet(field=physField, localDe=0, farrayPtr=fptr1d, &
                           computationalLBound=lbnd1d, computationalUBound=ubnd1d, rc=rc)
-       call check_errror(subname,'ESMF_FieldGet physField',rc)
+       call check_errror(subname,'ESMF_FieldGet physField '//trim(magfld%name),rc)
 
        do i = lbnd1d(1), ubnd1d(1)
           physfld_tmp(i,k) = fptr1d(i)
@@ -157,9 +157,9 @@ module edyn3D_regridder
     use interpolate_data, only: lininterp
     use edyn3D_fline_fields, only: magfield_t
 
-    real(r8), intent(in) :: opalt(lon0:lon1,lat0:lat1,nlevo)
-    type(magfield_t), intent(in) :: magfld
-    real(r8), intent(out) :: opfld(lon0:lon1,lat0:lat1,nlevo)
+    real(r8), intent(in) :: opalt(lon0:lon1,lat0:lat1,nlevo) ! oplus grid altitudes
+    type(magfield_t), intent(in) :: magfld                   ! field on mag-fld-line grid
+    real(r8), intent(out) :: opfld(lon0:lon1,lat0:lat1,nlevo) ! field mapped to oplus grid
 
     real(r8) :: f_tmp(lon0:lon1,lat0:lat1,nhgt_fix)
     integer :: lbnd1d(1), ubnd1d(1) ! 1d field bounds

@@ -31,7 +31,6 @@ contains
   subroutine edyn3D_driver_reg(mpicom, npes)
     use cam_history,         only: addfld, horiz_only
     use mo_apex,             only: mo_apex_init1,geomag_year
-!    use edyn3D_get_apex,     only: apxparm
     use edyn3D_fline_fields, only: edyn3D_fline_fields_alloc
 
     integer, intent(in) :: mpicom, npes
@@ -135,14 +134,19 @@ contains
     call addfld ('UI_s1', horiz_only, 'I', 'm/s','Zonal Ion Drift Velocity on s1 grid', gridname='magfline_s1')
     call addfld ('VI_s1', horiz_only, 'I', 'm/s','Meridional Ion Drift Velocity on s1 grid', gridname='magfline_s1')
 
+    call addfld ('IonU_s1', horiz_only, 'I', 'm/s','Zonal Ion Drift Velocity on s1 grid', gridname='magfline_s1')
+    call addfld ('IonV_s1', horiz_only, 'I', 'm/s','Meridional Ion Drift Velocity on s1 grid', gridname='magfline_s1')
+    call addfld ('IonU_opg', (/ 'lev' /), 'I', 'm/s','Zonal Ion Drift Velocity on oplus grid' , gridname='geo_grid')
+    call addfld ('IonV_opg', (/ 'lev' /), 'I', 'm/s','Meridional Ion Drift Velocity on oplus grid' , gridname='geo_grid')
+
   end subroutine edyn3D_driver_reg
 
-  subroutine edyn3D_driver_timestep( nphyscol, nphyslev, physalt, tn, sigPed, sigHal, un, vn, tn_out, tn_out2 )
+  subroutine edyn3D_driver_timestep( nphyscol, nphyslev, physalt, tn, sigPed, sigHal, un, vn, tn_out, tn_out2, ui_out, vi_out )
 
     use edyn3d_mpi, only: mlon0_p,mlon1_p
     use cam_history,  only: outfld
     use edyn3D_fieldline, only: fline_p, fline_s1, fline_s2
-    use edyn3D_fline_fields, only: Tn_p, height_s1, height_s2
+    use edyn3D_fline_fields, only: Tn_p, height_s1, height_s2, IonV_s1, IonU_s1
     use edyn3D_fline_fields, only: sigma_ped_s1,sigma_hal_s1,sigma_ped_s2,sigma_hal_s2,un_s1,vn_s1,un_s2,vn_s2
     use edyn_mpi, only: lon0,lon1,lat0,lat1,lev0,lev1
     use regridder, only: regrid_phys2geo_3d, regrid_geo2phys_3d
@@ -158,6 +162,8 @@ contains
     real(r8), intent(in) :: vn(nphyslev,nphyscol)
     real(r8), intent(out) :: tn_out(nphyslev,nphyscol)
     real(r8), intent(out) :: tn_out2(nphyslev,nphyscol)
+    real(r8), intent(out) :: ui_out(nphyslev,nphyscol)
+    real(r8), intent(out) :: vi_out(nphyslev,nphyscol)
 
     real(r8) :: geogaltp(mlon0_p:mlon1_p, nptsp_total)
     real(r8) :: geoglatp(mlon0_p:mlon1_p, nptsp_total)
@@ -191,6 +197,9 @@ contains
     real(r8) :: opalt (lon0:lon1,lat0:lat1,lev0:lev1)
     real(r8) :: Tn_oplus0(lon0:lon1,lat0:lat1,lev0:lev1)
     real(r8) :: Tn_oplus1(lon0:lon1,lat0:lat1,lev0:lev1)
+
+    real(r8) :: IonU_oplus(lon0:lon1,lat0:lat1,lev0:lev1)
+    real(r8) :: IonV_oplus(lon0:lon1,lat0:lat1,lev0:lev1)
 
     call t_startf('edyn3D_driver_timestep.1')
     call edyn3D_regridder_phys2mag(physalt,physalt,nphyscol,nphyslev,height_s1)
@@ -241,11 +250,11 @@ contains
           do j = 1,nmlat_h
              do isn = 1,2
 
-      fline_s1(i,j,isn)%sigP(:) = sigma_ped_s1%flines(i,j,isn)%fld(:)
-      fline_s1(i,j,isn)%sigH(:) = sigma_hal_s1%flines(i,j,isn)%fld(:)
+                fline_s1(i,j,isn)%sigP(:) = sigma_ped_s1%flines(i,j,isn)%fld(:)
+                fline_s1(i,j,isn)%sigH(:) = sigma_hal_s1%flines(i,j,isn)%fld(:)
 
-      fline_s1(i,j,isn)%un(:) = un_s1%flines(i,j,isn)%fld(:)
-      fline_s1(i,j,isn)%vn(:) = vn_s1%flines(i,j,isn)%fld(:)
+                fline_s1(i,j,isn)%un(:) = un_s1%flines(i,j,isn)%fld(:)
+                fline_s1(i,j,isn)%vn(:) = vn_s1%flines(i,j,isn)%fld(:)
 
                 if (isn==1) then
                    k0 = 1
@@ -265,7 +274,7 @@ contains
                    geogalts1(i,ncnt) = fline_s1(i,j,isn)%hgt_pt(k)
                    geoglats1(i,ncnt) = fline_s1(i,j,isn)%glat(k)
                    geoglons1(i,ncnt) = fline_s1(i,j,isn)%glon(k)
-               end do
+                end do
              end do
           end do
           ncnt = 0
@@ -324,7 +333,7 @@ contains
     ! Call 3D dynamo routine for solving
     !
     if (mytid<ntask) then
-!
+
       call t_startf('edyn3D_driver_timestep.2')
 
       call edyn3D_get_conduct     ! - Get conductivities for edyn3D_calc_FAC
@@ -388,7 +397,7 @@ contains
 
     !  diagnostics ...
 
-    if (mytid<ntask) then
+    proc_tasks: if (mytid<ntask) then
 
        do i = mlon0_p,mlon1_p
           ncnt1 = 0
@@ -419,31 +428,45 @@ contains
           do j = 1,nmlat_h
              do isn = 1,2
 
-		if (isn==1) then
-		   k0 = 1
-		   k1 = fline_s1(i,j,isn)%npts
-		   dk = 1
-		else
-		   k0 = fline_s1(i,j,isn)%npts
-		   k1 = 1
-		   dk = -1
-		endif
+                if (isn==1) then
+                   k0 = 1
+                   k1 = fline_s1(i,j,isn)%npts
+                   dk = 1
+                else
+                   k0 = fline_s1(i,j,isn)%npts
+                   k1 = 1
+                   dk = -1
+                endif
 
-		do k = k0,k1,dk
-		   ncnt2 = ncnt2 + 1
-		   ed1_s1(i,ncnt2) = fline_s1(i,j,isn)%ed1
-		   ed2_s1(i,ncnt2) = fline_s1(i,j,isn)%ed2
-		   ve1_s1(i,ncnt2) = fline_s1(i,j,isn)%ve1
-		   ve2_s1(i,ncnt2) = fline_s1(i,j,isn)%ve2
-		   ui_s1(i,ncnt2)  = fline_s1(i,j,isn)%ve1*fline_s1(i,j,isn)%e1(1,k)+ &
-		                          fline_s1(i,j,isn)%ve2*fline_s1(i,j,isn)%e2(1,k)
-		   vi_s1(i,ncnt2)  = fline_s1(i,j,isn)%ve1*fline_s1(i,j,isn)%e1(2,k)+ &
-		                          fline_s1(i,j,isn)%ve2*fline_s1(i,j,isn)%e2(2,k)
-	        end do
+                do k = k0,k1,dk
+                   ncnt2 = ncnt2 + 1
+                   ed1_s1(i,ncnt2) = fline_s1(i,j,isn)%ed1
+                   ed2_s1(i,ncnt2) = fline_s1(i,j,isn)%ed2
+                   ve1_s1(i,ncnt2) = fline_s1(i,j,isn)%ve1
+                   ve2_s1(i,ncnt2) = fline_s1(i,j,isn)%ve2
+                   ui_s1(i,ncnt2)  = fline_s1(i,j,isn)%ve1*fline_s1(i,j,isn)%e1(1,k)+ &
+                                     fline_s1(i,j,isn)%ve2*fline_s1(i,j,isn)%e2(1,k)
+                   vi_s1(i,ncnt2)  = fline_s1(i,j,isn)%ve1*fline_s1(i,j,isn)%e1(2,k)+ &
+                                     fline_s1(i,j,isn)%ve2*fline_s1(i,j,isn)%e2(2,k)
+
+                   IonU_s1%flines(i,j,isn)%fld(k) = ui_s1(i,ncnt2)
+                   IonV_s1%flines(i,j,isn)%fld(k) = ui_s1(i,ncnt2)
+
+                end do
 
              end do
           end do
           if (i == mlon0_p) nptss1_total = ncnt2
+       end do
+
+       call output_fline_field(IonU_s1)
+       call output_fline_field(IonV_s1)
+
+       call edyn3D_regridder_mag2oplus( opalt, IonU_s1, IonU_oplus )
+       call edyn3D_regridder_mag2oplus( opalt, IonV_s1, IonV_oplus )
+       do j = lat0,lat1
+          call outfld( 'IonU_opg', IonU_oplus(lon0:lon1,j,lev0:lev1), lon1-lon0+1, j )
+          call outfld( 'IonV_opg', IonV_oplus(lon0:lon1,j,lev0:lev1), lon1-lon0+1, j )
        end do
 
        do i = mlon0_p,mlon1_p
@@ -503,7 +526,10 @@ contains
           call outfld('Ve2s2',  ve2_s2(mlon0_p:mlon1_p,j), mlon1_p-mlon0_p+1, j)
        end do
 
-    end if
+    end if proc_tasks
+
+    call edyn3D_regridder_mag2phys(IonU_s1, physalt, nphyscol,nphyslev, ui_out)
+    call edyn3D_regridder_mag2phys(IonV_s1, physalt, nphyscol,nphyslev, vi_out)
 
     call t_stopf('edyn3D_driver_timestep.7')
 

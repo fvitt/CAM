@@ -39,6 +39,9 @@ module edyn3D_fline_fields
   type(magfield_t) :: un_s2
   type(magfield_t) :: vn_s2
 
+  type(magfield_t) :: IonU_s1
+  type(magfield_t) :: IonV_s1
+
 contains
 
   subroutine edyn3D_fline_fields_alloc()
@@ -49,6 +52,7 @@ contains
 
     use edyn3D_esmf_regrid, only: magField_p_src
     use edyn3D_esmf_regrid, only: magField_p_des
+    use edyn3D_esmf_regrid, only: magField_s1_src
     use edyn3D_esmf_regrid, only: magField_s1
     use edyn3D_esmf_regrid, only: magField_s2
 
@@ -56,6 +60,7 @@ contains
     use edyn3D_esmf_regrid, only: rh_phys2mag_s1
     use edyn3D_esmf_regrid, only: rh_phys2mag_s2
     use edyn3D_esmf_regrid, only: rh_mag_p2phys, rh_mag_p2oplus
+    use edyn3D_esmf_regrid, only: rh_mag_s12phys
 
     use infnan, only: nan, assignment(=)
 
@@ -134,6 +139,28 @@ contains
     vn_s1%esmf_fld_src => null()
     allocate(vn_s1%flines(mlon0_p:mlon1_p,nmlat_h,2))
 
+    IonU_s1%name = 'IonU_s1'
+    IonU_s1%mlon0 = mlon0_p
+    IonU_s1%mlon1 = mlon1_p
+    IonU_s1%nmlat_h = nmlat_h
+    IonU_s1%nptstot = nptsp_total
+    IonU_s1%rhandle_mag2phys => rh_mag_s12phys
+    IonU_s1%rhandle_phys2mag => rh_phys2mag_s1
+    IonU_s1%esmf_fld_des => magField_s1
+    IonU_s1%esmf_fld_src => magField_s1_src
+    allocate(IonU_s1%flines(mlon0_p:mlon1_p,nmlat_h,2))
+
+    IonV_s1%name = 'IonV_s1'
+    IonV_s1%mlon0 = mlon0_p
+    IonV_s1%mlon1 = mlon1_p
+    IonV_s1%nmlat_h = nmlat_h
+    IonV_s1%nptstot = nptsp_total
+    IonV_s1%rhandle_mag2phys => rh_mag_s12phys
+    IonV_s1%rhandle_phys2mag => rh_phys2mag_s1
+    IonV_s1%esmf_fld_des => magField_s1
+    IonV_s1%esmf_fld_src => magField_s1_src
+    allocate(IonV_s1%flines(mlon0_p:mlon1_p,nmlat_h,2))
+
     do h = 1,2
        do j = 1,nmlat_h
           do i = mlon0_p,mlon1_p
@@ -157,6 +184,14 @@ contains
              vn_s1%flines(i,j,h)%npts = fline_s1(i,j,h)%npts
              allocate(vn_s1%flines(i,j,h)%fld(fline_s1(i,j,h)%npts))
              vn_s1%flines(i,j,h)%fld = nan
+
+             IonU_s1%flines(i,j,h)%npts = fline_s1(i,j,h)%npts
+             allocate(IonU_s1%flines(i,j,h)%fld(fline_s1(i,j,h)%npts))
+             IonU_s1%flines(i,j,h)%fld = nan
+
+             IonV_s1%flines(i,j,h)%npts = fline_s1(i,j,h)%npts
+             allocate(IonV_s1%flines(i,j,h)%fld(fline_s1(i,j,h)%npts))
+             IonV_s1%flines(i,j,h)%fld = nan
 
           end do
        end do

@@ -394,9 +394,12 @@ module ionosphere_interface
       call edyn3D_driver_reg(mpicom, ionos_npes) ! set ntask,mytid
 
       call addfld( 'TnPhysIn', (/ 'lev' /), 'I', 'K', 'Nuetral Temperature input on phys grid' )
-      call addfld( 'TnPhysOut', (/ 'lev' /), 'I', 'K', 'Nuetral Temperature output on phys grid' )
+      call addfld( 'TnPhysOut',(/ 'lev' /), 'I', 'K', 'Nuetral Temperature output on phys grid' )
 
-      call addfld( 'Tn_phys2', (/ 'lev' /),'I', 'K', 'Tn test field' )
+      call addfld( 'Tn_phys2', (/ 'lev' /), 'I', 'K', 'Tn test field' )
+
+      call addfld('IonU_phys', (/ 'lev' /), 'I', 'm/s','Zonal Ion Drift Velocity on phys grid' )
+      call addfld('IonV_phys', (/ 'lev' /), 'I', 'm/s','Meridional Ion Drift Velocity on phys grid' )
 
    end subroutine ionosphere_init
 
@@ -569,10 +572,15 @@ module ionosphere_interface
 
     real(r8), pointer :: physalt(:,:)
     real(r8), pointer :: tn_in(:,:)
+    real(r8), pointer :: ui_out(:,:)
+    real(r8), pointer :: vi_out(:,:)
     real(r8), pointer :: tn_out(:,:)
     real(r8), pointer :: tn_out2(:,:)
     real(r8) :: phys_out(pcols,pver)
     real(r8) :: phys_out2(pcols,pver)
+
+    real(r8) :: phys_ui_out(pcols,pver)
+    real(r8) :: phys_vi_out(pcols,pver)
 
   ! test 3D field line mag grid infrastructure --
 
@@ -1017,6 +1025,9 @@ module ionosphere_interface
       allocate(tn_out(pver,nphyscols), stat=astat)
       allocate(tn_out2(pver,nphyscols), stat=astat)
 
+      allocate(ui_out(pver,nphyscols), stat=astat)
+      allocate(vi_out(pver,nphyscols), stat=astat)
+
       j = 0
       do lchnk = begchunk, endchunk
          ncol = phys_state(lchnk)%ncol
@@ -1034,7 +1045,7 @@ module ionosphere_interface
          end do
       end do
 
-      call edyn3D_driver_timestep( nphyscols, pver, physalt, tn_in, sigma_ped_blck, sigma_hall_blck, u_blck, v_blck, tn_out, tn_out2 )
+      call edyn3D_driver_timestep( nphyscols, pver, physalt, tn_in, sigma_ped_blck, sigma_hall_blck, u_blck, v_blck, tn_out, tn_out2, ui_out, vi_out )
 
       j = 0
       do lchnk = begchunk, endchunk
@@ -1046,16 +1057,23 @@ module ionosphere_interface
             do k = 1, pver
                phys_out(i,k) = tn_out(k,j)
                phys_out2(i,k) = tn_out2(k,j)
+
+               phys_ui_out(i,k) = ui_out(k,j)
+               phys_vi_out(i,k) = vi_out(k,j)
             end do
          end do
          call outfld( 'TnPhysOut', phys_out, pcols, lchnk )
          call outfld( 'Tn_phys2', phys_out2, pcols, lchnk )
+         call outfld( 'IonU_phys', phys_ui_out, pcols, lchnk )
+         call outfld( 'IonV_phys', phys_vi_out, pcols, lchnk )
       end do
 
       deallocate(physalt)
       deallocate(tn_in)
       deallocate(tn_out)
       deallocate(tn_out2)
+      deallocate(ui_out)
+      deallocate(vi_out)
 
       deallocate(sigma_ped_blck)
       nullify(sigma_ped_blck)
