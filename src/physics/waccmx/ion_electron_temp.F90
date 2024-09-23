@@ -324,8 +324,10 @@ contains
        deallocate(tI)
     endif
     if (index_te>0 .and. index_ti>0 .and. .not.initialized_TiTe) then
-       write(iulog,*) 'ion_electron_temp_inidat: Not able to read temperatures from IC file.' &
-            //' Will set ion and electron temperatures to neutral temperature (state%t) on initial timestep.'
+       if (masterproc) then
+          write(iulog,*) 'ion_electron_temp_inidat: Not able to read temperatures from IC file.' &
+               //' Will set ion and electron temperatures to neutral temperature (state%t) on initial timestep.'
+       end if
     endif
 
   end subroutine ion_electron_temp_inidat

@@ -450,7 +450,7 @@ contains
                                      fline_s1(i,j,isn)%ve2*fline_s1(i,j,isn)%e2(2,k)
 
                    IonU_s1%flines(i,j,isn)%fld(k) = ui_s1(i,ncnt2)
-                   IonV_s1%flines(i,j,isn)%fld(k) = ui_s1(i,ncnt2)
+                   IonV_s1%flines(i,j,isn)%fld(k) = vi_s1(i,ncnt2)
 
                 end do
 
