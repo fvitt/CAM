@@ -1415,8 +1415,12 @@ contains
 
         call addfld("H2SO4TC_"//trim(carma_diags_packages(i)), horiz_only, 'A', 'kg/m2/s', trim(carma_diags_packages(i))//', H2SO4 total tendency')
         if (carma_diags_file > 0) call add_default("H2SO4TC_"//trim(carma_diags_packages(i)), carma_diags_file, ' ')
+        call addfld("H2SO4BD_"//trim(carma_diags_packages(i)), horiz_only, 'A', 'kg/m2', trim(carma_diags_packages(i))//', H2SO4 burden')
+        if (carma_diags_file > 0) call add_default("H2SO4BD_"//trim(carma_diags_packages(i)), carma_diags_file, ' ')
         call addfld("SO2TC_"//trim(carma_diags_packages(i)), horiz_only, 'A', 'kg/m2/s', trim(carma_diags_packages(i))//', SO2 total tendency')
         if (carma_diags_file > 0) call add_default("SO2TC_"//trim(carma_diags_packages(i)), carma_diags_file, ' ')
+        call addfld("SO2BD_"//trim(carma_diags_packages(i)), horiz_only, 'A', 'kg/m2', trim(carma_diags_packages(i))//', SO2 burden')
+        if (carma_diags_file > 0) call add_default("SO2BD_"//trim(carma_diags_packages(i)), carma_diags_file, ' ')
       end do
     end if
 
@@ -2869,6 +2873,9 @@ contains
 
     ! For MXAER, it is the difference in mass between the concentration element
     ! and the sum of the core masses.
+    !
+    ! NOTE: Since this is using the CAM state variables and not he CARMA state
+    ! variables the concentration element is just the mass of the sulfate.
     call CARMAGROUP_Get(carma, I_GRP_MXAER, rc, ienconc=ienconc, ncore=ncore, icorelem=icorelem)
     call CARMAELEMENT_Get(carma, ienconc, rc, shortname=concname)
 
@@ -2969,7 +2976,9 @@ contains
     real(r8)                             :: cmxflux(pcols)  !! Surface Flux tendency, mix sulfate (kg/m2/s)
     real(r8)                             :: gastend(pcols)  !! Tendency H2SO4 gas (kg/m2/s)
     real(r8)                             :: so2tend(pcols)  !! Tendency SO2 gas (kg/m2/s)
-    real(r8)                             :: tottend(pver)   !! Total Tendency mix sulfate (kg/m2/s)
+    real(r8)                             :: h2so4(pcols)   !! H2SO4 gas (kg/m2)
+    real(r8)                             :: so2(pcols)     !! SO2 gas (kg/m2)
+
 
     ! Default return code.
     rc = RC_OK
@@ -2983,6 +2992,8 @@ contains
 
     bdmxso4(:)  = 0._r8
     bdprso4(:)  = 0._r8
+    h2so4(:) = 0._r8
+    so2(:) = 0._r8
 
     ! Add up the sulfate tendencies.
     do icol = 1, state%ncol
@@ -3007,25 +3018,18 @@ contains
 
         ! For MXAER, it is the difference in mass between the concentration element
         ! and the sum of the core masses.
+        !
+        ! NOTE: Since this is using the CAM state variables and not he CARMA state
+        ! variables the concentration element is just the mass of the sulfate.
         call CARMAGROUP_Get(carma, I_GRP_MXAER, rc, ienconc=ienconc, ncore=ncore, icorelem=icorelem)
         icnst = icnst4elem(ienconc, ibin)
 
-        tottend(:) = 0._r8
         if (ptend%lq(icnst)) then
-          tottend(:) = ptend%q(icol, :, icnst) * mair(:)
+          mixtend(icol) = mixtend(icol) + sum(ptend%q(icol, :, icnst) * mair(:))
         end if
+
         bdmxso4(icol) = bdmxso4(icol) + sum(state%q(icol,:,icnst) * mair(:))
-
         cmxflux(icol) = cmxflux(icol) + (cflux(icol,icnst) - old_cflux(icol,icnst))
-
-        do i = 1, ncore
-          icnst = icnst4elem(icorelem(i), ibin)
-          if (ptend%lq(icnst)) then
-            tottend(:) = tottend(:) - ptend%q(icol,:,icnst) * mair(:)
-          end if
-        end do
-
-        mixtend(icol) = mixtend(icol) + sum(tottend(:))
       end do
 
       ! Calculate the H2SO4 change.
@@ -3033,13 +3037,16 @@ contains
       if (ptend%lq(icnst)) then
         gastend(icol) = sum(ptend%q(icol,:,icnst) * mair(:))
       end if
+      ! Calculate the H2SO4 burden.
+      h2so4(icol) = sum(state%q(icol,:,icnst) * mair(:))
 
       ! Also do SO2
       call cnst_get_ind("SO2", icnst)
       if (ptend%lq(icnst)) then
         so2tend(icol) = sum(ptend%q(icol,:,icnst) * mair(:))
       end if
-
+      ! Calculate the SO2 burden.
+      so2(icol) = sum(state%q(icol,:,icnst) * mair(:))
     end do
 
     if (carma_do_package_diags) then
@@ -3047,6 +3054,8 @@ contains
        call outfld("SO4PRTC_"//trim(pname), puretend(:), pcols, state%lchnk)
        call outfld("SO4MXTC_"//trim(pname), mixtend(:), pcols, state%lchnk)
        call outfld("H2SO4TC_"//trim(pname), gastend(:), pcols, state%lchnk)
+       call outfld("H2SO4BD_"//trim(pname), h2so4(:), pcols, state%lchnk)
+       call outfld("SO2BD_"//trim(pname), so2(:), pcols, state%lchnk)
        call outfld("SO2TC_"//trim(pname), so2tend(:), pcols, state%lchnk)
        call outfld("SO4PRSF_"//trim(pname), cprflux(:), pcols, state%lchnk)
        call outfld("SO4MXSF_"//trim(pname), cmxflux(:), pcols, state%lchnk)
@@ -3268,6 +3277,9 @@ contains
 
         ! For MXAER, it is the difference in mass between the concentration element
         ! and the sum of the core masses.
+        !
+        ! NOTE: Since this is using the CAM state variables and not he CARMA state
+        ! variables the concentration element is just the mass of the sulfate.
         call CARMAGROUP_Get(carma, I_GRP_MXAER, rc, ienconc=ienconc, ncore=ncore, icorelem=icorelem)
         icnst = icnst4elem(ienconc, ibin)
 
@@ -3293,14 +3305,19 @@ contains
             saltmr(icol,:) = saltmr(icol,:) + state%q(icol,:,icnst)
             bdsalt(icol) = bdsalt(icol) + sum(state%q(icol,:,icnst) * mair(:))
           else if (shortname .eq. "MXSOA1") then
+            soamr(icol,:) = soamr(icol,:) + state%q(icol,:,icnst)
             bdsoa1(icol) = bdsoa1(icol) + sum(state%q(icol,:,icnst) * mair(:))
           else if (shortname .eq. "MXSOA2") then
+            soamr(icol,:) = soamr(icol,:) + state%q(icol,:,icnst)
             bdsoa2(icol) = bdsoa2(icol) + sum(state%q(icol,:,icnst) * mair(:))
           else if (shortname .eq. "MXSOA3") then
+            soamr(icol,:) = soamr(icol,:) + state%q(icol,:,icnst)
             bdsoa3(icol) = bdsoa3(icol) + sum(state%q(icol,:,icnst) * mair(:))
           else if (shortname .eq. "MXSOA4") then
+            soamr(icol,:) = soamr(icol,:) + state%q(icol,:,icnst)
             bdsoa4(icol) = bdsoa4(icol) + sum(state%q(icol,:,icnst) * mair(:))
           else if (shortname .eq. "MXSOA5") then
+            soamr(icol,:) = soamr(icol,:) + state%q(icol,:,icnst)
             bdsoa5(icol) = bdsoa5(icol) + sum(state%q(icol,:,icnst) * mair(:))
           end if
 

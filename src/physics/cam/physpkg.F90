@@ -1096,7 +1096,6 @@ contains
 #if ( defined OFFLINE_DYN )
      use metdata,       only: get_met_srf1
 #endif
-    use carma_intr,     only: carma_calculate_globalmassfactor
 
     !
     ! Input arguments
@@ -1154,12 +1153,6 @@ contains
 #ifdef TRACER_CHECK
     call gmean_mass ('before tphysbc DRY', phys_state)
 #endif
-
-    !-----------------------------------------------------------------------
-    ! Determine scaling factors for mass adjustment for CARMA groups
-    ! that use coremass elements.
-    !-----------------------------------------------------------------------
-    call carma_calculate_globalmassfactor(phys_state)
 
     !-----------------------------------------------------------------------
     ! Tendency physics before flux coupler invocation
@@ -2128,7 +2121,7 @@ contains
     use aero_model,      only: aero_model_wetdep
     use carma_intr,      only: carma_wetdep_tend, carma_timestep_tend, carma_output_budget_diagnostics, &
                                carma_output_cloudborne_diagnostics, carma_calculate_cloudborne_diagnostics, &
-                               carma_checkstate_global, MAXCLDAERDIAG
+                               MAXCLDAERDIAG
     use carma_flags_mod, only: carma_do_detrain, carma_do_cldice, carma_do_cldliq,  carma_do_wetdep
     use radiation,       only: radiation_tend
     use cloud_diagnostics, only: cloud_diagnostics_calc
@@ -2388,26 +2381,6 @@ contains
     end if
 
     call t_stopf('energy_fixer')
-
-
-    !===================================================
-    ! Fixes conservation of condensation gases in CARMA
-    ! following advection, which may alter tracer/tracer
-    ! relationships.
-    !===================================================
-    call t_startf('carma_mass_fixer')
-
-    old_cflux = cam_in%cflx
-    call carma_calculate_cloudborne_diagnostics(state, pbuf, aerclddiag)
-
-    call carma_checkstate_global(state, ptend, ztodt)
-
-    call carma_output_budget_diagnostics(state, ptend, old_cflux, cam_in%cflx, ztodt, "CRGFIX")
-    call carma_output_cloudborne_diagnostics(state, pbuf, "CRGFIX", ztodt, aerclddiag)
-
-    call physics_update(state, ptend, ztodt, tend)
-
-    call t_stopf('carma_mass_fixer')
 
 
     call surface_emissions_set( lchnk, ncol, pbuf )

@@ -118,12 +118,12 @@ contains
     do m = 1, nbins
        call rad_cnst_get_info_by_bin(0, m, nspec=nspec(m))
     end do
-    ! add plus one to include number, total mmr and nspec
-    nspec_max = maxval(nspec) + 2
 
-    ncnst_tot = nspec(1) + 2
+    nspec_max = maxval(nspec)
+
+    ncnst_tot = nspec(1)
     do m = 2, nbins
-       ncnst_tot = ncnst_tot + nspec(m) + 2
+       ncnst_tot = ncnst_tot + nspec(m)
     end do
 
     allocate(  bin_idx(nbins,nspec_max), &
@@ -137,7 +137,7 @@ contains
     ! for CARMA we add number = 0, total mass = 1, and mass from each constituence into mm.
     ii = 0
     do m = 1, nbins
-       do l = 1, nspec(m) + 2    ! do through nspec plus mmr and number
+       do l = 1, nspec(m)    ! do through nspec
           ii = ii + 1
           bin_idx(m,l) = ii
        end do
@@ -235,7 +235,7 @@ contains
 
 !  define history fields for basic gas-aer exchange
     do m = 1, nbins
-       do l = 1, nspec(m) + 2    ! do through nspec plus mmr and number
+       do l = 1, nspec(m)    ! do through nspec
           ii = bin_idx(m,l)
           if (l <= nspec(m) ) then   ! species
              call rad_cnst_get_info_by_bin_spec(0, m, l, spec_name=fldname(ii) )
@@ -262,14 +262,30 @@ contains
        endif
 
        write(fieldname,'("UPTKRATE_bin",I2.2)') m
-       write(long_name,'("bin ",I2.2," up take rate carma_aero_gasaerexch")') m
+       write(long_name,'("bin ",I2.2," up take rate in carma_aero_gasaerexch")') m
 
        call addfld(fieldname, (/'lev'/), 'A', 'sec-1', long_name )
        if ( history_aerosol ) then
           call add_default( fieldname,  1, ' ' )
        endif
 
+       write(fieldname,'("NUMDENS_bin",I2.2)') m
+       write(long_name,'("bin ",I2.2," number density carma_aero_gasaerexch")') m
+
+       call addfld(fieldname, (/'lev'/), 'A', 'm-3', long_name )
+       if ( history_aerosol ) then
+          call add_default( fieldname,  1, ' ' )
+       endif
+
     end do
+
+    fieldname=trim('UPTKRATE')
+    long_name = trim('total uptake rate in carma_aero_gasaerexch')
+    call addfld(fieldname, (/'lev'/), 'A', 'sec-1', long_name )
+    if ( history_aerosol ) then
+       call add_default( fieldname,  1, ' ' )
+    endif
+
 
   end subroutine carma_aero_gasaerexch_init
 
@@ -282,7 +298,7 @@ contains
 ! !ROUTINE:  carma_aero_gasaerexch_sub --- ...
 !
 ! !INTERFACE:
-subroutine carma_aero_gasaerexch_sub(                            &
+subroutine carma_aero_gasaerexch_sub(  state, &
                         pbuf, lchnk,    ncol,     nstep,         &
                         loffset,  deltat,   mbar,                &
                         t,        pmid,     pdel,                &
@@ -295,8 +311,12 @@ subroutine carma_aero_gasaerexch_sub(                            &
   use physconst,         only: gravit, mwdry
   use cam_abortutils,    only: endrun
   use time_manager,      only: is_first_step
+  use carma_aerosol_state_mod, only: carma_aerosol_state
+  use physics_types,     only: physics_state
+  use physconst, only: mwdry, rair
 
-  ! !PARAMETERS:
+! !PARAMETERS:
+  type(physics_state), intent(in)    :: state    ! Physics state variables
   type(physics_buffer_desc), pointer :: pbuf(:)
 
   integer,  intent(in)    :: lchnk                ! chunk identifier
@@ -367,6 +387,7 @@ subroutine carma_aero_gasaerexch_sub(                            &
   real (r8) :: sum_dqdt_soa(nsoa_vbs)     !   sum_dqdt_soa = soa tendency from soa  gas uptake (mol/mol/s)
   real (r8) :: sum_uprt_soa(nsoa_vbs)     ! total soa uptake rate over all bin, for each soa vbs bin
   real (r8) :: uptkrate(pcols,pver,nbins)
+  real (r8) :: uptkrate_all(pcols,pver)
   real (r8) :: uptkratebb(nbins)
   real (r8) :: uptkrate_soa(nbins,nsoa_vbs)
   ! gas-to-aerosol mass transfer rates (1/s)
@@ -386,7 +407,12 @@ subroutine carma_aero_gasaerexch_sub(                            &
   real(r8), pointer :: frac_vbs(:,:,:,:)   ! fraction of vbs SOA bins to total SOA
   real(r8), pointer :: dqdt_soa(:,:)
 
+  real(r8) :: rhoair(pcols,pver)
+  real(r8), pointer :: nmr(:,:)
+  type(carma_aerosol_state), pointer :: aero_state
+
 !----------------------------------------------------------------------
+   aero_state => carma_aerosol_state(state, pbuf)
 
 !  map CARMA soa to working soa(nbins,nsoa)
 
@@ -395,6 +421,8 @@ subroutine carma_aero_gasaerexch_sub(                            &
   num_bin(:,:,:) = 0._r8
   soa_c(:,:,:,:) = 0._r8
   poa_c(:,:,:,:) = 0._r8
+
+  rhoair(:ncol,:) = pmid(:ncol,:)/(rair*t(:ncol,:))   ! (kg-air/m3)
 
   do m = 1, nbins      ! main loop over aerosol bins
      if (do_soag_any(m)) then  ! only bins that contain soa
@@ -453,10 +481,10 @@ subroutine carma_aero_gasaerexch_sub(                            &
 
         end if
 
-        ! get bin number for all aerosols
-        l = nspec(m) + 2
-        mm = bin_idx(m, l)
-        num_bin(:ncol,:,m) = raervmr(:ncol,:,mm)
+        ! get bin number densities for all aerosols
+        call aero_state%get_ambient_num(m,nmr) !  #/kg
+        num_bin(:ncol,:,m) = nmr(:ncol,:)*rhoair(:ncol,:) ! #/m3
+
      end if
   end do
 
@@ -481,13 +509,20 @@ subroutine carma_aero_gasaerexch_sub(                            &
 
   do m = 1, nbins
 
+     write(fieldname,'("NUMDENS_bin",I2.2)') m
+     call outfld(fieldname, num_bin(:ncol,:,m), ncol, lchnk )
+
      write(fieldname,'("WETRAD_bin",I2.2)') m
      call outfld(fieldname, wetr_n(:ncol,:,m), ncol, lchnk )
 
      write(fieldname,'("UPTKRATE_bin",I2.2)') m
      call outfld(fieldname, uptkrate(:ncol,:,m), ncol, lchnk )
 
+     uptkrate_all(:ncol,:) = uptkrate_all(:ncol,:) + uptkrate(:ncol,:,m)
   end do
+
+  fieldname = trim('UPTKRATE')
+  call outfld(fieldname, uptkrate_all(:ncol,:), ncol, lchnk )
 
 ! use this for tendency calcs to avoid generating very small negative values
   deltatxx = deltat * (1.0_r8 + 1.0e-15_r8)
@@ -570,12 +605,9 @@ subroutine carma_aero_gasaerexch_sub(                            &
                  do jsoa = 1, nsoa_vbs
                     dqdt_soa_vbs(n,jsoa) = fgain_soa(n,jsoa)*sum_dqdt_soa(jsoa)
                  end do
-              else
-                 dqdt_soa_vbs(:,:) = 0.0_r8
               end if
            end do
-        else ! method_soa is neither 1 nor 2, no uptake
-           dqdt_soa_vbs(:,:) = 0.0_r8
+
         end if
 
         !  update soa to calcuate fractions (state variables and pbuf is not updated for SOA, will be done in CARMA)
@@ -612,10 +644,10 @@ subroutine carma_aero_gasaerexch_sub(                            &
 !------- Add code for condensation/evaporation diagnostics sum of all bin---
               do jsoa = 1, nsoa_vbs
                  if (dqdt_soa_vbs(n,jsoa).ge.0.0_r8) then
-                    qcon_vbs(i,k,jsoa)=dqdt_soa_vbs(n,jsoa)*(mw_soa/mwdry)
+                    qcon_vbs(i,k,jsoa)=qcon_vbs(i,k,jsoa) + dqdt_soa_vbs(n,jsoa)*(mw_soa/mwdry)
                     qcon(i,k)=qcon(i,k)+dqdt_soa_vbs(n,jsoa)*(mw_soa/mwdry)
                  else if (dqdt_soa_vbs(n,jsoa).lt.0.0_r8) then
-                    qevap_vbs(i,k,jsoa)=dqdt_soa_vbs(n,jsoa)*(mw_soa/mwdry)
+                    qevap_vbs(i,k,jsoa)=qevap_vbs(i,k,jsoa) + dqdt_soa_vbs(n,jsoa)*(mw_soa/mwdry)
                     qevap(i,k)=qevap(i,k)+dqdt_soa_vbs(n,jsoa)*(mw_soa/mwdry)
                  endif
               end do
@@ -701,8 +733,6 @@ subroutine gas_aer_uptkrates( ncol,       loffset,                &
 !           ac = accomodation coefficient
 !
 
-  use physconst, only: mwdry, rair
-
   integer,  intent(in) :: ncol                 ! number of atmospheric column
   integer,  intent(in) :: loffset
   real(r8), intent(in) :: t(pcols,pver)        ! Temperature in Kelvin
@@ -723,14 +753,14 @@ subroutine gas_aer_uptkrates( ncol,       loffset,                &
   real(r8), parameter :: root2 = 1.4142135_r8
   real(r8), parameter :: beta = 2.0_r8
 
-  real(r8) :: aircon
   real(r8) :: const
   real(r8) :: dp
   real(r8) :: gasdiffus, gasspeed
   real(r8) :: freepathx2, fuchs_sutugin
   real(r8) :: knudsen
-  real(r8) :: num_a
-  real(r8) :: rhoair
+
+  ! initialize to zero
+  uptkrate(:,:,:) = 0.0_r8
 
 ! outermost loop over all bins
   do n = 1, nbins
@@ -740,14 +770,6 @@ subroutine gas_aer_uptkrates( ncol,       loffset,                &
         do i=1,ncol
            if (wetr(i,k,n) .gt. 0.0_r8) then
 
-              rhoair = pmid(i,k)/(rair*t(i,k))   ! (kg-air/m3)
-
-!   number conc. (#/m3) -- note q(i,k,numptr) is (#/kmol-air)
-!   so need aircon in (kmol-air/m3)
-!   num_bin = number per bin
-              aircon = rhoair/mwdry              ! (kmol-air/m3)
-              num_a = num_bin(i,k,n)*aircon
-
 !   gasdiffus = h2so4 gas diffusivity from mosaic code (m^2/s)
 !               (pmid must be Pa)
               gasdiffus = 0.557e-4_r8 * (t(i,k)**1.75_r8) / pmid(i,k)
@@ -755,8 +777,8 @@ subroutine gas_aer_uptkrates( ncol,       loffset,                &
               gasspeed  = 1.470e1_r8 * sqrt(t(i,k))
 !   freepathx2 = 2 * (h2so4 mean free path)  (m)
               freepathx2 = 6.0_r8*gasdiffus/gasspeed
-              dp = wetr(i,k,n)
-              const = tworootpi * num_a * 2.0_r8 * dp
+              dp = wetr(i,k,n) * 1.e-2 ! meters
+              const = tworootpi * num_bin(i,k,n) * 2.0_r8 * dp
               ! gas_conden_rate(Dp) = const *  gasdiffus *  F(Kn,ac)
               !   knudsen number
               knudsen = freepathx2/dp

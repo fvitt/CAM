@@ -346,14 +346,14 @@ contains
     real(r8), pointer :: amb_num(:,:)
     real(r8), pointer :: cld_num(:,:)
 
-    call self%get_ambient_num(bin_ndx, amb_num)
-    call self%get_cldbrne_num(bin_ndx, cld_num)
-
-    ! apply the total number change to bin number
-    amb_num(col_ndx,lyr_ndx) = amb_num(col_ndx,lyr_ndx) - delnum_sum
-
-    ! apply the total number change to bin number
-    cld_num(col_ndx,lyr_ndx) = cld_num(col_ndx,lyr_ndx) + delnum_sum
+!!$    call self%get_ambient_num(bin_ndx, amb_num)
+!!$    call self%get_cldbrne_num(bin_ndx, cld_num)
+!!$
+!!$    ! apply the total number change to bin number
+!!$    amb_num(col_ndx,lyr_ndx) = amb_num(col_ndx,lyr_ndx) - delnum_sum
+!!$
+!!$    ! apply the total number change to bin number
+!!$    cld_num(col_ndx,lyr_ndx) = cld_num(col_ndx,lyr_ndx) + delnum_sum
 
   end subroutine update_bin
 

@@ -288,7 +288,7 @@ contains
           call endrun(subname//': ERROR in carma_get_dry_radius')
        end if
 
-       dryr = dryr*1.e2_r8 ! cm
+       dryr(:ncol,:) = dryr(:ncol,:)*1.e2_r8 ! cm
 
        if (index(bin_name,'MXAER')>0) then
           dryr_n(n,:ncol,:) = dryr(:ncol,:)

@@ -471,6 +471,10 @@ subroutine nucleate_ice_cam_calc( &
 
    real(r8), parameter :: per_cm3 = 1.e-6_r8 ! factor for m-3 to cm-3 conversions
 
+   integer :: nbins, nmaxspc
+   real(r8), allocatable :: amb_num_bins(:,:,:)
+   real(r8), allocatable :: size_wght(:,:,:,:)
+
    !-------------------------------------------------------------------------------
 
    lchnk = state%lchnk
@@ -481,6 +485,11 @@ subroutine nucleate_ice_cam_calc( &
    qi    => state%q(:,:,cldice_idx)
    ni    => state%q(:,:,numice_idx)
    pmid  => state%pmid
+   nbins = aero_props%nbins()
+   nmaxspc = maxval(aero_props%nspecies())
+
+   allocate(size_wght(ncol,pver,nbins,nmaxspc))
+   allocate(amb_num_bins(ncol,pver,nbins))
 
    do k = 1, pver
       do i = 1, ncol
@@ -616,6 +625,21 @@ subroutine nucleate_ice_cam_calc( &
       soot_num_col(:ncol,:) = naer2(:ncol,:,idxbcphi)/25._r8 * per_cm3
    endif
 
+   do m = 1, aero_props%nbins()
+      call aero_state%get_ambient_num(m, amb_num)
+      amb_num_bins(:ncol,:,m) = amb_num(:ncol,:)
+   end do
+
+   do m = 1, aero_props%nbins()
+      do l = 1, aero_props%nspecies(m)
+         call aero_props%species_type(m, l, spectype)
+         call aero_state%icenuc_size_wght( m, ncol, pver, spectype, use_preexisting_ice, size_wght(:,:,m,l))
+
+         !size_wght(:ncol,:,m,l) = wght(:ncol,:)
+      end do
+   end do
+
+
    kloop: do k = top_lev, pver
       iloop: do i = 1, ncol
 
@@ -670,10 +694,7 @@ subroutine nucleate_ice_cam_calc( &
 
                      ! constituents of this bin will need to be updated
 
-                     call aero_state%get_ambient_num(m, amb_num)
-                     call aero_state%get_cldbrne_num(m, cld_num)
-
-                     if (amb_num(i,k)>0._r8) then
+                     if (amb_num_bins(i,k,m)>0._r8) then
                         delmmr_sum = 0._r8
                         delnum_sum = 0._r8
 
@@ -682,7 +703,8 @@ subroutine nucleate_ice_cam_calc( &
                            if (aero_props%icenuc_updates_mmr(m,l)) then
 
                               call aero_props%species_type(m, l, spectype)
-                              call aero_state%icenuc_size_wght( m, i,k, spectype, use_preexisting_ice, wght)
+
+                              wght = size_wght(i,k,m,l)
 
                               if (wght>0._r8) then
 
@@ -900,6 +922,9 @@ subroutine nucleate_ice_cam_calc( &
       call outfld('INFrehom',INFrehom,pcols,lchnk)
       call outfld('INFreIN ',INFreIN, pcols,lchnk)
    end if
+
+   deallocate(size_wght)
+   deallocate(amb_num_bins)
 
 end subroutine nucleate_ice_cam_calc
 

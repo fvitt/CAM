@@ -1693,7 +1693,7 @@ contains
     call mmr2vmr_carma ( lchnk, raervmr, mbar, mw_carma, ncol, loffset, rmass)
     !write(iulog,*) 'mm start raervmr done'
 
-    call carma_aero_gasaerexch_sub(             &
+    call carma_aero_gasaerexch_sub( state, &
           pbuf, lchnk,    ncol,     nstep,      &
           loffset,            delt, mbar ,      &
           tfld,     pmid,     pdel,             &
