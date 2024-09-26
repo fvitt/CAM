@@ -3827,9 +3827,7 @@ contains
   !! @author  Chuck Bardeen
   !! @version Aug 2023
   subroutine carma_get_wet_radius(state, igroup, ibin, rwet, rhopwet, rc)
-    use wetr, only                    : getwetr
-
-    implicit none
+    use wetr, only: getwetr
 
     type(physics_state), intent(in)   :: state                 !! physics state variables
     integer, intent(in)               :: igroup                !! group index
@@ -3844,7 +3842,11 @@ contains
     real(r8)                          :: kappa(pcols,pver)     !! dry radius (m)
     real(r8)                          :: es                    !! saturation vapor pressure
     real(r8)                          :: qs                    !! saturation specific humidity
-    real(r8)                          :: relhum                !!relative humidity
+    real(r8)                          :: relhum                !! relative humidity
+    real(r8)                          :: wvpres                !! water eq. vaper pressure (dynes/cm2)
+    real(r8)                          :: watcon                !! water concentration (g/cm3)
+    real(r8)                          :: dryden                !! dry density (g/cm3)
+    real(r8)                          :: dryrad                !! dry radius (cm)
     integer                           :: icol
     integer                           :: iz
     integer                           :: ncol
@@ -3902,41 +3904,42 @@ contains
           if (rdry(icol, iz)>0._r8) then
              ! Get relative humidity and vapor pressure
              call wv_sat_qsat_water(state%t(icol,iz), state%pmid(icol,iz), es, qs)
+
+             ! NOTE: getwetr is in cgs units, so some conversions are needed from the
+             ! mks values
+             wvpres = es * 10._r8 ! dynes/cm2
              relhum = state%q(icol,iz,iq) / qs
+             watcon = state%q(icol,iz,iq) * rhoa(icol, iz) * 1.e-3_r8 ! g/cm3
+             dryden = rhopdry(icol,iz) * 1.e-3_r8  ! g/cm3
+             dryrad = rdry(icol,iz) * 1.e2_r8 ! cm
 
              ! If humidity affects the particle, then determine the equilbirium
              ! radius and density based upon the relative humidity.
              !
-             ! NOTE: getwetr is in cgs units, so some conversions are needed from the
-             ! mks values
              if (irhswell == I_WTPCT_H2SO4) then
 
-                ! Should r be rdry and is rhop aready known?
-                call getwetr(carma, igroup, relhum, rdry(icol, iz) * 1e2_r8, rwet(icol, iz), &
-                     rhopdry(icol, iz) * 1.e3_r8 / 1.e6_r8, rhopwet(icol,iz), rc, &
-                     h2o_mass=state%q(icol,iz,iq) * rhoa(icol, iz) * 1.e3_r8 / 1.e6_r8, &
-                     h2o_vp=es * 10._r8 / 1.e4_r8, temp=state%t(icol,iz))
-                !if (rc < 0) return
+                call getwetr(carma, igroup, relhum, dryrad, rwet(icol, iz), dryden, rhopwet(icol,iz), rc, &
+                             h2o_mass=watcon, h2o_vp=wvpres, temp=state%t(icol,iz))
                 if (rc/=RC_OK) then
                    call endrun('carma_get_wet_radius ERROR5: rc = ',rc) ! <======
                 end if
-             else if (irhswell == I_PETTERS) then
-                call carma_get_kappa(state, igroup, ibin, kappa, rc)
-                if (rc < 0) return
 
-                call getwetr(carma, igroup, relhum, rdry(icol, iz) * 1e2_r8, rwet(icol, iz), &
-                     rhopdry(icol, iz) * 1.e3_r8 / 1.e6_r8, rhopwet(icol,iz), rc, &
-                     h2o_mass=state%q(icol,iz,iq) * rhoa(icol, iz) * 1.e3_r8 / 1.e6_r8, &
-                     h2o_vp=es * 10._r8 / 1.e4_r8, temp=state%t(icol,iz), kappa=kappa(icol,iz))
-                !if (rc < 0) return
+             else if (irhswell == I_PETTERS) then
+
+                call carma_get_kappa(state, igroup, ibin, kappa, rc)
+                if (rc/=RC_OK) then
+                   call endrun('carma_get_wet_radius carma_get_kappa ERROR: rc = ',rc)
+                end if
+
+                call getwetr(carma, igroup, relhum, dryrad, rwet(icol, iz), dryden, rhopwet(icol,iz), rc, &
+                             h2o_mass=watcon, h2o_vp=wvpres, temp=state%t(icol,iz), kappa=kappa(icol,iz))
                 if (rc/=RC_OK) then
                    call endrun('carma_get_wet_radius ERROR6: rc = ',rc)
                 end if
 
              else ! I_GERBER and I_FITZGERALD
-                call getwetr(carma, igroup, relhum, rdry(icol, iz) * 1e2_r8, rwet(icol, iz), &
-                     rhopdry(icol, iz) * 1.e3_r8 / 1.e6_r8, rhopwet(icol,iz), rc)
-                !if (rc < 0) return
+
+                call getwetr(carma, igroup, relhum, dryrad, rwet(icol, iz), dryden, rhopwet(icol,iz), rc )
                 if (rc/=RC_OK) then
                    call endrun('carma_get_wet_radius ERROR7: rc = ',rc)
                 end if
@@ -3950,8 +3953,8 @@ contains
     end do
 
     ! Convert rwet and rhopwet to mks units
-    rwet(:ncol,:) = rwet(:ncol,:)  / 1.e2_r8
-    rhopwet(:ncol,:) = rhopwet(:ncol,:)  / 1.e3_r8 * 1.e6_r8
+    rwet(:ncol,:) = rwet(:ncol,:) * 1.e-2 ! cm --> m
+    rhopwet(:ncol,:) = rhopwet(:ncol,:) * 1.e3 ! g/cm3 --> kg/m3
 
     if (rc/=RC_OK) then
        call endrun('carma_get_wet_radius ERROR8: rc = ',rc)
@@ -4046,17 +4049,17 @@ contains
 
     ! Get relative humidity and vapor pressure
 
-    call wv_sat_qsat_water(state%t(icol,ilev), state%pmid(icol,ilev), es, qs)
+    call wv_sat_qsat_water(state%t(icol,ilev), state%pmid(icol,ilev), es, qs) ! es = Saturation vapor pressure in Pa
 
     ! seems like this is used in rwet calcuation to get pvapl water vapor pressure
 
-    pvapl = es * 10._r8 / 1.e4_r8
+    pvapl = es * 10._r8 ! Pa -> dynes/cm2
 
     ! need water vapor and gc_ptr is used above
 
-    rhoa = (state%pmid(icol,ilev) * 10._r8) / (R_AIR * state%t(icol,ilev))  ! grams/cm3 ???
+    rhoa = (state%pmid(icol,ilev) * 10._r8) / (R_AIR * state%t(icol,ilev))  ! grams/cm3
 
-    gc_cgs = state%q(icol,ilev,icnst4gas(carma%f_igash2o) ) * rhoa  ! grams/cm3 ???
+    gc_cgs = state%q(icol,ilev,icnst4gas(carma%f_igash2o) ) * rhoa  ! h2o grams/cm3
 
     wtpct = wtpct_tabaz(carma, state%t(icol,ilev), gc_cgs, pvapl, rc)
 

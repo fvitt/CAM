@@ -514,6 +514,8 @@ contains
       call add_default ('EXTxASYMdn'     , 1, ' ')
    end if
 
+   call addfld( 'SULFWTPCT', (/ 'lev' /), 'I', '1', 'Sulfate Weight Percent' )
+
   end subroutine aerosol_optics_cam_init
 
   !===============================================================================
@@ -655,6 +657,9 @@ contains
     real(r8) :: ssavis(pcols)
     integer :: troplev(pcols)
 
+    integer :: i, k
+    real(r8) :: SULFWTPCT(pcols, pver)
+
     nullify(aero_optics)
 
     call tropopause_findChemTrop(state, troplev)
@@ -737,6 +742,13 @@ contains
        aerostate => aero_state(iaermod)%obj
 
        nbins=aeroprops%nbins(list_idx)
+
+       do k = 1,pver
+          do i = 1,ncol
+             SULFWTPCT(i,k) = aerostate%wgtpct(i,k)
+          end do
+       end do
+       call outfld('SULFWTPCT', SULFWTPCT(1:ncol,:), ncol, lchnk)
 
        binloop: do ibin = 1, nbins
 
