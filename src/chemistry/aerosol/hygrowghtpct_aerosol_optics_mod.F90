@@ -45,7 +45,7 @@ contains
 
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------
-  function constructor(aero_props, aero_state, ilist, ibin, ncol, nlev) result(newobj)
+  function constructor(aero_props, aero_state, ilist, ibin, ncol, nlev, wgtpct_in) result(newobj)
 
     class(aerosol_properties),intent(in) :: aero_props ! aerosol_properties object
     class(aerosol_state),intent(in) :: aero_state      ! aerosol_state object
@@ -53,6 +53,7 @@ contains
     integer, intent(in) :: ibin   ! bin number
     integer, intent(in) :: ncol   ! number of columns
     integer, intent(in) :: nlev   ! number of levels
+    real(r8),intent(in) :: wgtpct_in(ncol,nlev) ! sulfate weight percent
 
     type(hygrowghtpct_aerosol_optics), pointer :: newobj
 
@@ -79,12 +80,9 @@ contains
        nullify(newobj)
        return
     end if
-    ! copy weight precent of H2SO4/H2O solution from aerosol state object
-    do k = 1,nlev
-       do i = 1,ncol
-          newobj%wgtpct(i,k) = aero_state%wgtpct(i,k)
-       end do
-    end do
+
+    ! weight precent of H2SO4/H2O solution
+    newobj%wgtpct(:ncol,:nlev) = wgtpct_in(:ncol,:nlev)
 
     call aero_props%optics_params(ilist, ibin, wgtpct=newobj%tbl_wgtpct, nwtp=newobj%nwtp)
 

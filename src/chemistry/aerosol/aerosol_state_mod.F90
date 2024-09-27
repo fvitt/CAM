@@ -251,11 +251,11 @@ module aerosol_state_mod
      !------------------------------------------------------------------------------
      ! aerosol weight precent of H2SO4/H2O solution
      !------------------------------------------------------------------------------
-     function aero_wgtpct(self, icol,ilev) result(wtp)
+     function aero_wgtpct(self, ncol, nlev) result(wtp)
        import :: aerosol_state, r8
        class(aerosol_state), intent(in) :: self
-       integer, intent(in) ::  icol,ilev
-       real(r8) :: wtp  ! weight precent of H2SO4/H2O solution for given icol, ilev
+       integer, intent(in) ::  ncol,nlev
+       real(r8) :: wtp(ncol,nlev)  ! weight precent of H2SO4/H2O solution for given icol, ilev
 
      end function aero_wgtpct
 

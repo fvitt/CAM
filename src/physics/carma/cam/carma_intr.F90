@@ -4033,39 +4033,38 @@ contains
 
   end subroutine carma_get_bin_rmass
 
-  function carma_get_wght_pct(icol,ilev,state) result(wtpct)
+  function carma_get_wght_pct(ncol,nlev,state) result(wtpct)
     use sulfate_utils, only: wtpct_tabaz
 
-    integer, intent(in) ::  icol,ilev
-    type(physics_state), intent(in)    :: state          !! Physics state variables - before CARMA
+    integer, intent(in) ::  ncol,nlev
+    type(physics_state), intent(in) :: state          !! Physics state variables - before CARMA
 
-    real(r8) :: wtpct
+    real(r8) :: wtpct(ncol,nlev)
 
     integer :: rc !! return code
-
-    real(r8) :: pvapl, es, qs, gc_cgs, rhoa
+    real(r8) :: pvapl, es, qs, gc_cgs, rhoa, icol, ilev
 
     rc = RC_OK
 
-    ! Get relative humidity and vapor pressure
+    do ilev = 1,nlev
+       do icol = 1,ncol
+          ! Get relative humidity and vapor pressure
 
-    call wv_sat_qsat_water(state%t(icol,ilev), state%pmid(icol,ilev), es, qs) ! es = Saturation vapor pressure in Pa
+          call wv_sat_qsat_water(state%t(icol,ilev), state%pmid(icol,ilev), es, qs) ! es = Saturation vapor pressure in Pa
 
-    ! seems like this is used in rwet calcuation to get pvapl water vapor pressure
+          pvapl = es * 10._r8 ! Pa -> dynes/cm2
 
-    pvapl = es * 10._r8 ! Pa -> dynes/cm2
+          rhoa = (state%pmid(icol,ilev) * 10._r8) / (R_AIR * state%t(icol,ilev))  ! grams/cm3
 
-    ! need water vapor and gc_ptr is used above
+          gc_cgs = state%q(icol,ilev,icnst4gas(carma%f_igash2o)) * rhoa  ! h2o grams/cm3
 
-    rhoa = (state%pmid(icol,ilev) * 10._r8) / (R_AIR * state%t(icol,ilev))  ! grams/cm3
+          wtpct(icol,ilev) = wtpct_tabaz(carma, state%t(icol,ilev), gc_cgs, pvapl, rc)
 
-    gc_cgs = state%q(icol,ilev,icnst4gas(carma%f_igash2o) ) * rhoa  ! h2o grams/cm3
-
-    wtpct = wtpct_tabaz(carma, state%t(icol,ilev), gc_cgs, pvapl, rc)
-
-    if (rc/=RC_OK) then
-       call endrun('carma_get_wght_pct: rc = ',rc)
-    end if
+          if (rc/=RC_OK) then
+             call endrun('carma_get_wght_pct: rc = ',rc)
+          end if
+       end do
+    end do
 
   end function carma_get_wght_pct
 

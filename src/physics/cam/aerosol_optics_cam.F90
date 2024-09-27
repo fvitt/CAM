@@ -578,6 +578,7 @@ contains
     real(r8) :: relh(pcols,pver)
     real(r8) :: sate(pcols,pver)     ! saturation vapor pressure
     real(r8) :: satq(pcols,pver)     ! saturation specific humidity
+    real(r8) :: sulfwtpct(pcols,pver) ! sulf weight percent
 
     character(len=ot_length) :: opticstype
     integer :: iaermod
@@ -658,7 +659,6 @@ contains
     integer :: troplev(pcols)
 
     integer :: i, k
-    real(r8) :: SULFWTPCT(pcols, pver)
 
     nullify(aero_optics)
 
@@ -743,12 +743,8 @@ contains
 
        nbins=aeroprops%nbins(list_idx)
 
-       do k = 1,pver
-          do i = 1,ncol
-             SULFWTPCT(i,k) = aerostate%wgtpct(i,k)
-          end do
-       end do
-       call outfld('SULFWTPCT', SULFWTPCT(1:ncol,:), ncol, lchnk)
+       sulfwtpct(:ncol,:pver) = aerostate%wgtpct(ncol,pver)
+       call outfld('SULFWTPCT', sulfwtpct(1:ncol,:), ncol, lchnk)
 
        binloop: do ibin = 1, nbins
 
@@ -771,7 +767,7 @@ contains
                                                         ibin, ncol, pver, relh(:ncol,:))
           case('hygroscopic_wtp')
              aero_optics=>hygrowghtpct_aerosol_optics(aeroprops, aerostate, list_idx, &
-                                                      ibin, ncol, pver)
+                                                      ibin, ncol, pver, sulfwtpct(:ncol,:))
           case default
              call endrun(prefix//'optics method not recognized')
           end select
@@ -1185,6 +1181,7 @@ contains
     real(r8) :: relh(pcols,pver)
     real(r8) :: sate(pcols,pver)     ! saturation vapor pressure
     real(r8) :: satq(pcols,pver)     ! saturation specific humidity
+    real(r8) :: sulfwtpct(pcols,pver) ! sulf weight percent
 
     character(len=32) :: opticstype
     integer :: iaermod
@@ -1226,6 +1223,8 @@ contains
 
        nbins=aero_props(iaermod)%obj%nbins(list_idx)
 
+       sulfwtpct(:ncol,:pver) = aerostate%wgtpct(ncol,pver)
+
        binloop: do ibin = 1, nbins
 
           call aeroprops%optics_params(list_idx, ibin, opticstype=opticstype)
@@ -1239,9 +1238,11 @@ contains
              call qsat(state%t(:ncol,:), state%pmid(:ncol,:), sate(:ncol,:), satq(:ncol,:), ncol, pver)
              relh(:ncol,:) = state%q(1:ncol,:,1) / satq(:ncol,:)
              relh(:ncol,:) = max(1.e-20_r8,relh(:ncol,:))
-             aero_optics=>hygrocoreshell_aerosol_optics(aeroprops, aerostate, list_idx, ibin, ncol, pver, relh(:ncol,:))
+             aero_optics=>hygrocoreshell_aerosol_optics(aeroprops, aerostate, list_idx, &
+                                                        ibin, ncol, pver, relh(:ncol,:))
           case('hygroscopic_wtp')
-             aero_optics=>hygrowghtpct_aerosol_optics(aeroprops, aerostate, list_idx, ibin, ncol, pver)
+             aero_optics=>hygrowghtpct_aerosol_optics(aeroprops, aerostate, list_idx, &
+                                                      ibin, ncol, pver, sulfwtpct(:ncol,:))
           case default
              call endrun(prefix//'optics method not recognized')
           end select

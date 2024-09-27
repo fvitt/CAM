@@ -447,12 +447,12 @@ contains
   !------------------------------------------------------------------------------
   ! aerosol weight precent of H2SO4/H2O solution
   !------------------------------------------------------------------------------
-  function wgtpct(self, icol,ilev) result(wtp)
+  function wgtpct(self, ncol, nlev) result(wtp)
     class(carma_aerosol_state), intent(in) :: self
-    integer, intent(in) ::  icol,ilev
-    real(r8) :: wtp  ! weight precent of H2SO4/H2O solution for given icol, ilev
+    integer, intent(in) ::  ncol, nlev
+    real(r8) :: wtp(ncol,nlev)  ! weight precent of H2SO4/H2O solution for given icol, ilev
 
-    wtp = carma_get_wght_pct(icol,ilev,self%state)
+    wtp(:,:) = carma_get_wght_pct(ncol,nlev,self%state)
 
   end function wgtpct
 

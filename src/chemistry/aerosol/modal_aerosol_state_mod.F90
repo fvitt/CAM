@@ -598,12 +598,12 @@ contains
   !------------------------------------------------------------------------------
   ! aerosol weight precent of H2SO4/H2O solution
   !------------------------------------------------------------------------------
-  function wgtpct(self, icol,ilev) result(wtp)
+  function wgtpct(self, ncol, nlev) result(wtp)
     class(modal_aerosol_state), intent(in) :: self
-    integer, intent(in) ::  icol,ilev
-    real(r8) :: wtp  ! weight precent of H2SO4/H2O solution for given icol, ilev
+    integer, intent(in) ::  ncol, nlev
+    real(r8) :: wtp(ncol,nlev)  ! weight precent of H2SO4/H2O solution for given icol, ilev
 
-    wtp = -huge(1._r8)
+    wtp(:,:) = -huge(1._r8)
 
   end function wgtpct
 
