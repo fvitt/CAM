@@ -90,7 +90,7 @@
 	call endrun('edyn3d_calc_coef')
       endif
       poten_glb(:,:,:) = 0._r8
-      
+
       !
       ! Calculate initial coefficients from s1 and s2 field line variables
       !
@@ -208,7 +208,8 @@
          do j=2,nmlat_h ! loop over all latitudes in one hemisphere not the pole (potential set later)
            if(isn.eq.1) then  ! jj is latitude index from pole to pole
             jj = j
-             fac_hl(i,j,isn) = poten_hl(ip,jj)*coef_ns2(i,j,isn,1)+ &
+            fac_hl(i,j,isn) = &
+             poten_hl(ip,jj  )*coef_ns2(i,j,isn,1)+ &
              poten_hl(ip,jj+1)*coef_ns2(i,j,isn,2)+ &
              poten_hl(i ,jj+1)*coef_ns2(i,j,isn,3)+ &
              poten_hl(im,jj+1)*coef_ns2(i,j,isn,4)+ &
@@ -216,18 +217,19 @@
              poten_hl(im,jj-1)*coef_ns2(i,j,isn,6)+ &
              poten_hl(i ,jj-1)*coef_ns2(i,j,isn,7)+ &
              poten_hl(ip,jj-1)*coef_ns2(i,j,isn,8)+ &
-             poten_hl(i  ,jj )*coef_ns2(i,j,isn,9)
+             poten_hl(i ,jj  )*coef_ns2(i,j,isn,9)
            else
             jj = nmlat_T1 - j + 1
-            fac_hl(i,j,isn) = poten_hl(ip,jj)*coef_ns2(i,j,isn,1)+ &
+            fac_hl(i,j,isn) = &
+             poten_hl(ip,jj  )*coef_ns2(i,j,isn,1)+ &
              poten_hl(ip,jj-1)*coef_ns2(i,j,isn,2)+ &
              poten_hl(i ,jj-1)*coef_ns2(i,j,isn,3)+ &
              poten_hl(im,jj-1)*coef_ns2(i,j,isn,4)+ &
-             poten_hl(im,jj   )*coef_ns2(i,j,isn,5)+ &
+             poten_hl(im,jj  )*coef_ns2(i,j,isn,5)+ &
              poten_hl(im,jj+1)*coef_ns2(i,j,isn,6)+ &
              poten_hl(i ,jj+1)*coef_ns2(i,j,isn,7)+ &
              poten_hl(ip,jj+1)*coef_ns2(i,j,isn,8)+ &
-             poten_hl(i ,jj   )*coef_ns2(i,j,isn,9)
+             poten_hl(i ,jj  )*coef_ns2(i,j,isn,9)
            endif
             if(fline_s1(i,j,isn)%zigP.gt.1.5) then
               sum  = sum  + fac_hl(i,j,isn)
@@ -564,11 +566,11 @@
        do i=mlon0_p,mlon1_p ! loop over task longitudes
          do j=1,nmlat_h ! loop over all latitudes in one hemisphere
 
-           fline_p(i,j,1)%pot = poten_lcl(i,j,1) 
-           fline_p(i,j,2)%pot = poten_lcl(i,j,2) 
+           fline_p(i,j,1)%pot = poten_lcl(i,j,1)
+           fline_p(i,j,2)%pot = poten_lcl(i,j,2)
 
          end do
-       end do  
+       end do
        !
        ! Deallocate variables used in potential solve
        !

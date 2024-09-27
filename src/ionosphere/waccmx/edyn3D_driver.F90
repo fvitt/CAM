@@ -116,6 +116,7 @@ contains
     call addfld ('Tn_opg1', (/ 'lev' /), 'I', 'K','Tn_opg1 test field' , gridname='geo_grid')
 
     call addfld ('POTENp', horiz_only, 'I', 'Volts','magnetic field line point electric potential', gridname='magfline_p')
+    call addfld ('HILATPOT', horiz_only, 'I', 'Volts','magnetic field line point electric potential', gridname='magfline_p')
 
     call edyn3D_fline_fields_alloc()
 
@@ -156,6 +157,10 @@ contains
     use edyn3D_calc_coef_fac_const_rhs, only: edyn3D_calc_coef,edyn3D_calc_FAC,edyn3D_add_coef_ns, &
                                               edyn3D_gather_coef_ns,edyn3D_const_rhs,edyn3D_scatter_poten
 
+    use sunloc_mod, only: sunloc_calc
+    use edyn3D_heelis, only: edyn3D_heelis_set_hlat_pot
+    use edyn3D_fieldline, only: poten_hl
+
     integer,  intent(in) :: nphyscol, nphyslev
     real(r8), intent(in) :: physalt(nphyslev,nphyscol)
     real(r8), intent(in) :: tn(nphyslev,nphyscol)
@@ -180,6 +185,7 @@ contains
     real(r8) :: geoglons2(mlon0_p:mlon1_p, nptss2_total)
     real(r8) :: Tn_tmp(mlon0_p:mlon1_p, nptsp_total)
     real(r8) :: potential(mlon0_p:mlon1_p, nptsp_total)
+    real(r8) :: hilat_poten(mlon0_p:mlon1_p, nptsp_total)
     real(r8) :: ed1_s1(mlon0_p:mlon1_p, nptss1_total)
     real(r8) :: ed2_s1(mlon0_p:mlon1_p, nptss1_total)
     real(r8) :: ed1_s2(mlon0_p:mlon1_p, nptss2_total)
@@ -206,6 +212,7 @@ contains
     real(r8) :: IonU_oplus(lon0:lon1,lat0:lat1,lev0:lev1)
     real(r8) :: IonV_oplus(lon0:lon1,lat0:lat1,lev0:lev1)
     real(r8) :: IonW_oplus(lon0:lon1,lat0:lat1,lev0:lev1)
+    real(r8) :: sunlon
 
     call t_startf('edyn3D_driver_timestep.1')
     call edyn3D_regridder_phys2mag(physalt,physalt,nphyscol,nphyslev,height_s1)
@@ -342,6 +349,9 @@ contains
 
       call t_startf('edyn3D_driver_timestep.2')
 
+      call sunloc_calc(sunlon)
+      call edyn3D_heelis_set_hlat_pot(sunlon)
+
       call edyn3D_get_conduct     ! - Get conductivities for edyn3D_calc_FAC
 
       call edyn3D_calc_mn_s1s2    ! - (calc conductivities, each timestep)
@@ -414,15 +424,18 @@ contains
                    k0 = 1
                    k1 = fline_p(i,j,isn)%npts
                    dk = 1
+                   jj = j
                 else
                    k0 = fline_p(i,j,isn)%npts
                    k1 = 1
                    dk = -1
+                   jj = nmlat_T1 - j + 1
                 endif
 
                 do k = k0,k1,dk
                    ncnt1 = ncnt1 + 1
                    potential(i,ncnt1) = fline_p(i,j,isn)%pot
+                   hilat_poten(i,ncnt1) = poten_hl(i,jj)
                 end do
 
              end do
@@ -512,6 +525,7 @@ contains
 
        do j = 1,nptsp_total
           call outfld('POTENp',  potential(mlon0_p:mlon1_p,j), mlon1_p-mlon0_p+1, j)
+          call outfld('HILATPOT', hilat_poten(mlon0_p:mlon1_p,j), mlon1_p-mlon0_p+1, j)
        end do
 
        do j = 1,nptss1_total
