@@ -400,6 +400,7 @@ module ionosphere_interface
 
       call addfld('IonU_phys', (/ 'lev' /), 'I', 'm/s','Zonal Ion Drift Velocity on phys grid' )
       call addfld('IonV_phys', (/ 'lev' /), 'I', 'm/s','Meridional Ion Drift Velocity on phys grid' )
+      call addfld('IonW_phys', (/ 'lev' /), 'I', 'm/s','Vertial Ion Drift Velocity on phys grid' )
 
    end subroutine ionosphere_init
 
@@ -574,6 +575,7 @@ module ionosphere_interface
     real(r8), pointer :: tn_in(:,:)
     real(r8), pointer :: ui_out(:,:)
     real(r8), pointer :: vi_out(:,:)
+    real(r8), pointer :: wi_out(:,:)
     real(r8), pointer :: tn_out(:,:)
     real(r8), pointer :: tn_out2(:,:)
     real(r8) :: phys_out(pcols,pver)
@@ -581,6 +583,7 @@ module ionosphere_interface
 
     real(r8) :: phys_ui_out(pcols,pver)
     real(r8) :: phys_vi_out(pcols,pver)
+    real(r8) :: phys_wi_out(pcols,pver)
 
   ! test 3D field line mag grid infrastructure --
 
@@ -1027,6 +1030,7 @@ module ionosphere_interface
 
       allocate(ui_out(pver,nphyscols), stat=astat)
       allocate(vi_out(pver,nphyscols), stat=astat)
+      allocate(wi_out(pver,nphyscols), stat=astat)
 
       j = 0
       do lchnk = begchunk, endchunk
@@ -1045,7 +1049,8 @@ module ionosphere_interface
          end do
       end do
 
-      call edyn3D_driver_timestep( nphyscols, pver, physalt, tn_in, sigma_ped_blck, sigma_hall_blck, u_blck, v_blck, tn_out, tn_out2, ui_out, vi_out )
+      call edyn3D_driver_timestep( nphyscols, pver, physalt, tn_in, sigma_ped_blck, sigma_hall_blck, u_blck, v_blck, &
+                                   tn_out, tn_out2, ui_out, vi_out, wi_out )
 
       j = 0
       do lchnk = begchunk, endchunk
@@ -1060,12 +1065,14 @@ module ionosphere_interface
 
                phys_ui_out(i,k) = ui_out(k,j)
                phys_vi_out(i,k) = vi_out(k,j)
+               phys_wi_out(i,k) = wi_out(k,j)
             end do
          end do
          call outfld( 'TnPhysOut', phys_out, pcols, lchnk )
          call outfld( 'Tn_phys2', phys_out2, pcols, lchnk )
          call outfld( 'IonU_phys', phys_ui_out, pcols, lchnk )
          call outfld( 'IonV_phys', phys_vi_out, pcols, lchnk )
+         call outfld( 'IonW_phys', phys_wi_out, pcols, lchnk )
       end do
 
       deallocate(physalt)

@@ -41,6 +41,7 @@ module edyn3D_fline_fields
 
   type(magfield_t) :: IonU_s1
   type(magfield_t) :: IonV_s1
+  type(magfield_t) :: IonW_s1
 
 contains
 
@@ -161,6 +162,17 @@ contains
     IonV_s1%esmf_fld_src => magField_s1_src
     allocate(IonV_s1%flines(mlon0_p:mlon1_p,nmlat_h,2))
 
+    IonW_s1%name = 'IonW_s1'
+    IonW_s1%mlon0 = mlon0_p
+    IonW_s1%mlon1 = mlon1_p
+    IonW_s1%nmlat_h = nmlat_h
+    IonW_s1%nptstot = nptsp_total
+    IonW_s1%rhandle_mag2phys => rh_s1mag2phys
+    IonW_s1%rhandle_phys2mag => rh_phys2mag_s1
+    IonW_s1%esmf_fld_des => magField_s1_des
+    IonW_s1%esmf_fld_src => magField_s1_src
+    allocate(IonW_s1%flines(mlon0_p:mlon1_p,nmlat_h,2))
+
     do h = 1,2
        do j = 1,nmlat_h
           do i = mlon0_p,mlon1_p
@@ -192,6 +204,10 @@ contains
              IonV_s1%flines(i,j,h)%npts = fline_s1(i,j,h)%npts
              allocate(IonV_s1%flines(i,j,h)%fld(fline_s1(i,j,h)%npts))
              IonV_s1%flines(i,j,h)%fld = nan
+
+             IonW_s1%flines(i,j,h)%npts = fline_s1(i,j,h)%npts
+             allocate(IonW_s1%flines(i,j,h)%fld(fline_s1(i,j,h)%npts))
+             IonW_s1%flines(i,j,h)%fld = nan
 
           end do
        end do
