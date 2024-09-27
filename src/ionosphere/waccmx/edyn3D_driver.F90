@@ -133,11 +133,14 @@ contains
 
     call addfld ('UI_s1', horiz_only, 'I', 'm/s','Zonal Ion Drift Velocity on s1 grid', gridname='magfline_s1')
     call addfld ('VI_s1', horiz_only, 'I', 'm/s','Meridional Ion Drift Velocity on s1 grid', gridname='magfline_s1')
+    call addfld ('WI_s1', horiz_only, 'I', 'm/s','Vertical Ion Drift Velocity on s1 grid', gridname='magfline_s1')
 
     call addfld ('IonU_s1', horiz_only, 'I', 'm/s','Zonal Ion Drift Velocity on s1 grid', gridname='magfline_s1')
     call addfld ('IonV_s1', horiz_only, 'I', 'm/s','Meridional Ion Drift Velocity on s1 grid', gridname='magfline_s1')
+    call addfld ('IonW_s1', horiz_only, 'I', 'm/s','Verical Ion Drift Velocity on s1 grid', gridname='magfline_s1')
     call addfld ('IonU_opg', (/ 'lev' /), 'I', 'm/s','Zonal Ion Drift Velocity on oplus grid' , gridname='geo_grid')
     call addfld ('IonV_opg', (/ 'lev' /), 'I', 'm/s','Meridional Ion Drift Velocity on oplus grid' , gridname='geo_grid')
+    call addfld ('IonW_opg', (/ 'lev' /), 'I', 'm/s','Vertical Ion Drift Velocity on oplus grid' , gridname='geo_grid')
 
   end subroutine edyn3D_driver_reg
 
@@ -146,7 +149,7 @@ contains
     use edyn3d_mpi, only: mlon0_p,mlon1_p
     use cam_history,  only: outfld
     use edyn3D_fieldline, only: fline_p, fline_s1, fline_s2
-    use edyn3D_fline_fields, only: Tn_p, height_s1, height_s2, IonV_s1, IonU_s1
+    use edyn3D_fline_fields, only: Tn_p, height_s1, height_s2, IonV_s1, IonU_s1 !, IonW_s1
     use edyn3D_fline_fields, only: sigma_ped_s1,sigma_hal_s1,sigma_ped_s2,sigma_hal_s2,un_s1,vn_s1,un_s2,vn_s2
     use edyn_mpi, only: lon0,lon1,lat0,lat1,lev0,lev1
     use regridder, only: regrid_phys2geo_3d, regrid_geo2phys_3d
@@ -186,6 +189,7 @@ contains
     real(r8) :: ve2_s2(mlon0_p:mlon1_p, nptss2_total)
     real(r8) :: ui_s1(mlon0_p:mlon1_p, nptss1_total)
     real(r8) :: vi_s1(mlon0_p:mlon1_p, nptss1_total)
+    real(r8) :: wi_s1(mlon0_p:mlon1_p, nptss1_total)
 
     integer,parameter :: ndyn = 7
     real(r8) :: efield_fline(ndyn,nhgt_fix,nmlat_T1,mlon0_p:mlon1_p)
@@ -200,6 +204,7 @@ contains
 
     real(r8) :: IonU_oplus(lon0:lon1,lat0:lat1,lev0:lev1)
     real(r8) :: IonV_oplus(lon0:lon1,lat0:lat1,lev0:lev1)
+    real(r8) :: IonW_oplus(lon0:lon1,lat0:lat1,lev0:lev1)
 
     call t_startf('edyn3D_driver_timestep.1')
     call edyn3D_regridder_phys2mag(physalt,physalt,nphyscol,nphyslev,height_s1)
@@ -448,9 +453,12 @@ contains
                                      fline_s1(i,j,isn)%ve2*fline_s1(i,j,isn)%e2(1,k)
                    vi_s1(i,ncnt2)  = fline_s1(i,j,isn)%ve1*fline_s1(i,j,isn)%e1(2,k)+ &
                                      fline_s1(i,j,isn)%ve2*fline_s1(i,j,isn)%e2(2,k)
+                   wi_s1(i,ncnt2)  = fline_s1(i,j,isn)%ve1*fline_s1(i,j,isn)%e1(3,k)+ &
+                                     fline_s1(i,j,isn)%ve2*fline_s1(i,j,isn)%e2(3,k)
 
                    IonU_s1%flines(i,j,isn)%fld(k) = ui_s1(i,ncnt2)
                    IonV_s1%flines(i,j,isn)%fld(k) = vi_s1(i,ncnt2)
+!                   IonW_s1%flines(i,j,isn)%fld(k) = vi_s1(i,ncnt2)
 
                 end do
 
@@ -461,12 +469,15 @@ contains
 
        call output_fline_field(IonU_s1)
        call output_fline_field(IonV_s1)
+!       call output_fline_field(IonW_s1)
 
        call edyn3D_regridder_mag2oplus( opalt, IonU_s1, IonU_oplus )
        call edyn3D_regridder_mag2oplus( opalt, IonV_s1, IonV_oplus )
+!       call edyn3D_regridder_mag2oplus( opalt, IonW_s1, IonW_oplus )
        do j = lat0,lat1
           call outfld( 'IonU_opg', IonU_oplus(lon0:lon1,j,lev0:lev1), lon1-lon0+1, j )
           call outfld( 'IonV_opg', IonV_oplus(lon0:lon1,j,lev0:lev1), lon1-lon0+1, j )
+!          call outfld( 'IonW_opg', IonW_oplus(lon0:lon1,j,lev0:lev1), lon1-lon0+1, j )
        end do
 
        do i = mlon0_p,mlon1_p
@@ -519,6 +530,7 @@ contains
        do j = 1,nptss1_total
           call outfld('UI_s1',  ui_s1(mlon0_p:mlon1_p,j), mlon1_p-mlon0_p+1, j)
           call outfld('VI_s1',  vi_s1(mlon0_p:mlon1_p,j), mlon1_p-mlon0_p+1, j)
+          call outfld('WI_s1',  wi_s1(mlon0_p:mlon1_p,j), mlon1_p-mlon0_p+1, j)
        end do
 
        do j = 1,nptss2_total
@@ -530,6 +542,7 @@ contains
 
     call edyn3D_regridder_mag2phys(IonU_s1, physalt, nphyscol,nphyslev, ui_out)
     call edyn3D_regridder_mag2phys(IonV_s1, physalt, nphyscol,nphyslev, vi_out)
+!    call edyn3D_regridder_mag2phys(IonW_s1, physalt, nphyscol,nphyslev, wi_out)
 
     call t_stopf('edyn3D_driver_timestep.7')
 
