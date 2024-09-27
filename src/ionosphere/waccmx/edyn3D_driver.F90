@@ -459,7 +459,7 @@ contains
 
                    IonU_s1%flines(i,j,isn)%fld(k) = ui_s1(i,ncnt2)
                    IonV_s1%flines(i,j,isn)%fld(k) = vi_s1(i,ncnt2)
-                   IonW_s1%flines(i,j,isn)%fld(k) = vi_s1(i,ncnt2)
+                   IonW_s1%flines(i,j,isn)%fld(k) = wi_s1(i,ncnt2)
 
                 end do
 
