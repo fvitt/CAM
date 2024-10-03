@@ -33,7 +33,6 @@ module physpkg
 
   use modal_aero_calcsize,    only: modal_aero_calcsize_init, modal_aero_calcsize_diag, modal_aero_calcsize_reg
   use modal_aero_wateruptake, only: modal_aero_wateruptake_init, modal_aero_wateruptake_dr, modal_aero_wateruptake_reg
-  use carma_fixer_mod, only: carma_fix_pbuf
 
   implicit none
   private
