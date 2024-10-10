@@ -35,24 +35,25 @@ contains
 
     do isn = 1,2
        do j = 1,nmlat_h
-          if (abs(ylatm(j,isn)) > pi/6._r8) then
-             if (isn==1) then
-                jj = j
-             else
-                jj = nmlat_T1 - j + 1
-             end if
 
-             xlat(:) = ylatm(j,isn)
-             xlon(:) = ylonm(1:nmlon)-sunlon
-             iflag(:) = 1 ! must be updated at each j
-
-             call heelis_flwv32(xlat,xlon,ratio,pi,iflag,nmlon,poten_hl(1:nmlon+1,jj))
+          if (isn==1) then
+             jj = j
+          else
+             jj = nmlat_T1 - j + 1
           end if
+
+          xlat(:) = ylatm(j,isn)
+          xlon(:) = ylonm(1:nmlon)-sunlon
+          iflag(:) = 1 ! must be updated at each j
+
+          call heelis_flwv32(xlat,xlon,ratio,pi,iflag,nmlon,poten_hl(1:nmlon+1,jj))
+
        end do
     end do
 
-    ! wrap around longitude point
+    ! wrap around longitude points
     poten_hl(0,:) = poten_hl(nmlon,:)
+    poten_hl(nmlon+1,:) = poten_hl(1,:)
 
   end subroutine edyn3D_heelis_set_hlat_pot
 
