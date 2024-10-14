@@ -10,7 +10,7 @@ module edyn3D_driver
   use edyn3D_mpi, only: mytid, ntask
   use edyn3D_fieldline, only: fieldline_init, fieldline_getapex
   use edyn3D_params, only: nmlon,nmlonp1,nmlat_h,nptsp_total,nptss1_total,nptss2_total, &
-                           ylonm,ylonm_s,nhgt_fix,nmlat_T1,nmlatS2_h
+                           ylonm,ylatm,ylonm_s,nhgt_fix,nmlat_T1,nmlatS2_h
 
   use edyn3D_esmf_regrid
   use edyn3D_regridder
@@ -118,6 +118,9 @@ contains
     call addfld ('POTENp', horiz_only, 'I', 'Volts','magnetic field line point electric potential', gridname='magfline_p')
     call addfld ('HILATPOT', horiz_only, 'I', 'Volts','magnetic field line point electric potential', gridname='magfline_p')
 
+    call addfld ('HL_EPOTEN', horiz_only, 'I', 'Volts','high latitude magnetic electric potential', gridname='geomag_grid')
+    call addfld ('HL_FACURR', horiz_only, 'I', '??','high latitude field aligned current', gridname='geomag_grid')
+
     call edyn3D_fline_fields_alloc()
 
     call addfld ('ED1s1', horiz_only, 'I', 'V/m','Eastward electric field on s1 grid', gridname='magfline_s1')
@@ -197,6 +200,8 @@ contains
     real(r8) :: ui_s1(mlon0_p:mlon1_p, nptss1_total)
     real(r8) :: vi_s1(mlon0_p:mlon1_p, nptss1_total)
     real(r8) :: wi_s1(mlon0_p:mlon1_p, nptss1_total)
+
+    real(r8) :: facur_hl(mlon0_p:mlon1_p,nmlat_T1)
 
     integer,parameter :: ndyn = 7
     real(r8) :: efield_fline(ndyn,nhgt_fix,nmlat_T1,mlon0_p:mlon1_p)
@@ -438,6 +443,7 @@ contains
                    hilat_poten(i,ncnt1) = poten_hl(i,jj)
                 end do
 
+                facur_hl(i,jj) = fline_p(i,j,isn)%fac_hl
              end do
           end do
        end do
@@ -528,6 +534,12 @@ contains
           call outfld('HILATPOT', hilat_poten(mlon0_p:mlon1_p,j), mlon1_p-mlon0_p+1, j)
        end do
 
+       do j = 1,nmlat_T1
+          call outfld('HL_EPOTEN', poten_hl(mlon0_p:mlon1_p,j), mlon1_p-mlon0_p+1, j)
+          call outfld('HL_FACURR', facur_hl(mlon0_p:mlon1_p,j), mlon1_p-mlon0_p+1, j)
+       end do
+
+
        do j = 1,nptss1_total
           call outfld('ED1s1',  ed1_s1(mlon0_p:mlon1_p,j), mlon1_p-mlon0_p+1, j)
           call outfld('ED2s1',  ed2_s1(mlon0_p:mlon1_p,j), mlon1_p-mlon0_p+1, j)
@@ -590,11 +602,20 @@ contains
     integer, parameter :: magp_decomp = 701 ! Must be unique within CAM
     integer, parameter :: mags1_decomp = 702 ! Must be unique within CAM
     integer, parameter :: mags2_decomp = 703 ! Must be unique within CAM
+    integer, parameter :: geomag_decomp = 704
 
     real(r8) :: xdel
 
     integer :: isn, jj, k, ncnt
     integer :: dk,k0,k1
+
+    integer :: mlat0_p, mlat1_p, nmlat
+    real(r8), parameter :: rad2deg = 180._r8 / pi
+    real(r8) :: maglat(nmlat_T1)
+    real(r8) :: maglon(mlon0_p:mlon1_p)
+
+    type(horiz_coord_t), pointer :: maglat_coord => null()
+    type(horiz_coord_t), pointer :: maglon_coord => null()
 
     if (mytid>=ntask) then
        if (mlon0_p/=1) then
@@ -797,6 +818,64 @@ contains
 
     nullify(latvalss2)
     nullify(altvalss2)
+
+
+    mlat0_p = 1
+    mlat1_p = nmlat_T1
+    nmlat = mlat1_p
+
+    do isn = 1,2
+       do j = 1,nmlat_h
+          if (isn==1) then
+             jj = j
+          else
+             jj = nmlat_T1 - j + 1
+          end if
+
+          maglat(jj) = ylatm(j,isn) * rad2deg
+       end do
+    end do
+
+    maglon(mlon0_p:mlon1_p) = ylonm(mlon0_p:mlon1_p) * rad2deg
+
+    allocate(grid_map(4, ((mlon1_p - mlon0_p + 1) * (mlat1_p - mlat0_p + 1))))
+    ind = 0
+    do i = mlat0_p, mlat1_p
+       do j = mlon0_p, mlon1_p
+          ind = ind + 1
+          grid_map(1, ind) = j
+          grid_map(2, ind) = i
+          grid_map(3, ind) = j
+          grid_map(4, ind) = i
+       end do
+    end do
+
+    allocate(coord_map(mlat1_p - mlat0_p + 1))
+    if (mlon0_p==1) then
+       coord_map = (/ (i, i = mlat0_p, mlat1_p) /)
+    else
+       coord_map = 0
+    end if
+
+    maglat_coord => horiz_coord_create('maglatp', '', nmlat, 'latitude', &
+         'degrees_north', mlat0_p, mlat1_p, maglat(mlat0_p:mlat1_p), map=coord_map)
+    nullify(coord_map)
+
+    allocate(coord_map(mlon1_p - mlon0_p + 1))
+    if (mlat0_p==1) then
+       coord_map = (/ (i, i = mlon0_p, mlon1_p) /)
+    else
+       coord_map = 0
+    end if
+    maglon_coord => horiz_coord_create('maglonp', '', nmlon, 'longitude', &
+         'degrees_east', mlon0_p, mlon1_p, maglon(mlon0_p:mlon1_p), map=coord_map)
+    deallocate(coord_map)
+    nullify(coord_map)
+
+    call cam_grid_register('geomag_grid', geomag_decomp, maglat_coord, maglon_coord, &
+           grid_map, unstruct=.false.)
+    nullify(grid_map)
+
   end subroutine reg_hist_grid
 
 !--------------------------------------------------------------------------------
