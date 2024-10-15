@@ -541,6 +541,7 @@ end subroutine micro_pumas_cam_readnl
 !================================================================================================
 
 subroutine micro_pumas_cam_register
+   use carma_flags_mod, only: carma_model
 
    ! Register microphysics constituents and fields in the physics buffer.
    !-----------------------------------------------------------------------
@@ -559,6 +560,7 @@ subroutine micro_pumas_cam_register
       longname='Grid box averaged cloud ice amount', is_convtran1=.true.)
 
    call cnst_add(cnst_names(3), mwh2o, cpair, 0._r8, ixnumliq, &
+      ndropmixed=prog_modal_aero.or.carma_model(:10)=='trop_strat', &
       longname='Grid box averaged cloud liquid number', is_convtran1=.true.)
    call cnst_add(cnst_names(4), mwh2o, cpair, 0._r8, ixnumice, &
       longname='Grid box averaged cloud ice number', is_convtran1=.true.)
