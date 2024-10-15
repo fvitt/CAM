@@ -265,22 +265,23 @@
      !
      sum = 0.
      do isn = 1,2 ! loop over both hemisphere
-       do i=mlon0_p,mlon1_p ! loop over task longitudes
-!       do i=1,nmlon ! loop over all longitudes
-         do j=2,nmlat_h ! loop over all latitudes in one hemisphere not the pole (potential set later)
+        do i=mlon0_p,mlon1_p ! loop over task longitudes
 
-           fac_hl(i,j,isn) = fac_hl(i,j,isn)-fline_s1(i,j,isn)%zigP*abs(fac_hl(i,j,isn))*corr
-           sum = sum   + fac_hl(i,j,isn)
-           ! put in coef-array
-           coef_ns2(i,j,isn,10) =   coef_ns2(i,j,isn,10)+fac_hl(i,j,isn)
+           fline_p(i,1,isn)%fac_hl = 0._r8 ! zero at the pole ???
+
+           do j=2,nmlat_h ! loop over all latitudes in one hemisphere not the pole (potential set later)
+
+              fac_hl(i,j,isn) = fac_hl(i,j,isn)-fline_s1(i,j,isn)%zigP*abs(fac_hl(i,j,isn))*corr
+              sum = sum   + fac_hl(i,j,isn)
+              ! put in coef-array
+              coef_ns2(i,j,isn,10) =   coef_ns2(i,j,isn,10)+fac_hl(i,j,isn)
+              !
+              if(fline_p(i,j,isn)%M3(1).ne.0) then
+                 fline_p(i,j,isn)%fac_hl = fac_hl(i,j,isn) / fline_p(i,j,isn)%M3(1)
+              endif
+           end do  ! end lat/fieldline loop
            !
-           if(fline_p(i,j,isn)%M3(1).ne.0) then
-!             fline_p(i,j,isn)%fac_hl = coef_ns2(i,j,isn,10)/ fline_p(i,j,isn)%M3(1)
-                fline_p(i,j,isn)%fac_hl = fac_hl(i,j,isn)/ fline_p(i,j,isn)%M3(1)
-           endif
-         end do  ! end lat/fieldline loop
-         !
-       end do  ! end longitude loop
+        end do  ! end longitude loop
      end do ! end hemisphere loop
 !
      end subroutine edyn3D_calc_FAC
