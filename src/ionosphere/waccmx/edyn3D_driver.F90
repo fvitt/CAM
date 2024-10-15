@@ -158,7 +158,8 @@ contains
     use edyn_mpi, only: lon0,lon1,lat0,lat1,lev0,lev1
     use regridder, only: regrid_phys2geo_3d, regrid_geo2phys_3d
     use edyn3D_calc_coef_fac_const_rhs, only: edyn3D_calc_coef,edyn3D_calc_FAC,edyn3D_add_coef_ns, &
-                                              edyn3D_gather_coef_ns,edyn3D_const_rhs,edyn3D_scatter_poten
+                                              edyn3D_gather_coef_ns,edyn3D_const_rhs,edyn3D_scatter_poten, &
+					      edyn3D_solve_sparse
 
     use sunloc_mod, only: sunloc_calc
     use edyn3D_heelis, only: edyn3D_heelis_set_hlat_pot
@@ -369,7 +370,7 @@ contains
 
       call edyn3D_calc_coef       ! - calc LHS & RHS
 
-      call edyn3D_calc_FAC        ! - calc high latitude
+      call edyn3D_calc_FAC(hilat_poten)        ! - calc high latitude
 
       call edyn3D_add_coef_ns     ! - add North & South coef
 
@@ -383,7 +384,8 @@ contains
 
       call t_startf('edyn3D_driver_timestep.4.solve')
       if (mytid == 0) then
-        call edyn3D_const_rhs     ! - solver - solve for rhs (electric potential)
+!        call edyn3D_const_rhs     ! - solver - solve for rhs (electric potential)
+        call edyn3D_solve_sparse
       endif
       call t_stopf('edyn3D_driver_timestep.4.solve')
 

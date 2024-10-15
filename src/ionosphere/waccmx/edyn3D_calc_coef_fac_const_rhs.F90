@@ -15,7 +15,7 @@
      private
 
      public :: edyn3D_calc_coef,edyn3D_calc_FAC,edyn3D_add_coef_ns,edyn3D_gather_coef_ns, &
-               edyn3D_const_rhs,edyn3D_scatter_poten
+               edyn3D_const_rhs,edyn3D_scatter_poten,edyn3D_solve_sparse
 
      real(r8), allocatable :: coef(:,:,:,:,:)       ! for each P-point each hemisphere and height
      real(r8), allocatable :: coef_ns(:,:,:)        ! lhs+rhs: for each P-point
@@ -161,16 +161,19 @@
 !
      end subroutine edyn3D_calc_coef
 !-----------------------------------------------------------------------------
-     subroutine edyn3D_calc_FAC
+     subroutine edyn3D_calc_FAC(hilat_poten)
      !
      ! Calculate high latitude field aligned current and add to solver coefficients
      ! for solver right hand side
      !
      use edyn3D_fieldline,only: fline_p,fieldline_s1,fline_s1,poten_hl
+     use edyn3D_params, only: nptsp_total 
 !
      implicit none
 !
-     real(r8), dimension(nmlon,nmlat_h,2) :: fac_hl
+     real(r8), intent(in), dimension(mlon0_p:mlon1_p,nptsp_total) :: hilat_poten
+!
+     real(r8), dimension(mlon0_p:mlon1_p,nmlat_h,2) :: fac_hl
      real(r8) :: sum,sumP,corr,sumn,sums
 !
      integer :: isn,i,j,jj,icof,im,ip
@@ -183,7 +186,8 @@
      !
      !  Set high latitude potential to 0.01 since not input
      !
-     poten_hl(:,:) = 0.01_r8
+!     poten_hl(:,:) = 0.01_r8
+     poten_hl(:,:) = hilat_poten(:,:)
      !
      ! Calculate field aligned current from high latitude potential and lhs coefficients
      !
@@ -209,7 +213,7 @@
            if(isn.eq.1) then  ! jj is latitude index from pole to pole
             jj = j
             fac_hl(i,j,isn) = &
-             poten_hl(ip,jj  )*coef_ns2(i,j,isn,1)+ &
+	     poten_hl(ip,jj  )*coef_ns2(i,j,isn,1)+ &
              poten_hl(ip,jj+1)*coef_ns2(i,j,isn,2)+ &
              poten_hl(i ,jj+1)*coef_ns2(i,j,isn,3)+ &
              poten_hl(im,jj+1)*coef_ns2(i,j,isn,4)+ &
@@ -221,7 +225,7 @@
            else
             jj = nmlat_T1 - j + 1
             fac_hl(i,j,isn) = &
-             poten_hl(ip,jj  )*coef_ns2(i,j,isn,1)+ &
+	     poten_hl(ip,jj  )*coef_ns2(i,j,isn,1)+ &
              poten_hl(ip,jj-1)*coef_ns2(i,j,isn,2)+ &
              poten_hl(i ,jj-1)*coef_ns2(i,j,isn,3)+ &
              poten_hl(im,jj-1)*coef_ns2(i,j,isn,4)+ &
@@ -254,6 +258,7 @@
 !     else
 !       corr = sum/sumP
 !     endif
+
      corr = sum/sumP
      !
      ! Add field aligned current to rhs coefficient and put in p grid structure
@@ -538,7 +543,384 @@
       end if
 
      end subroutine edyn3D_const_rhs
-!
+
+!-----------------------------------------------------------------------
+  subroutine edyn3D_solve_sparse
+! construct matrix LHS and RHS for solving with PARDISO or SuperLU
+
+    use edyn3D_params,only:nmlon,nmlat_h
+
+    include 'mkl_pardiso.fi'
+    include 'mkl_spblas.fi'
+
+!    real(r8),dimension(10,nmlat_h,nmlon),intent(in) :: coef
+!    real(r8),dimension(nmlat_h,nmlon),intent(out) :: poten
+
+    integer,parameter :: nlonlat = nmlon*nmlat_h, &
+      nnz_est = 9*nlonlat-2*nmlon*3
+    integer :: i,j,im,ip,it,ij,nnz
+
+! for PARDISO solver (CSR format)
+    logical,parameter :: debug = .false.
+    integer,parameter :: maxfct = 1, mnum = 1, nrhs = 1, &
+      mtype = 11, & ! real and non-symmetric matrix
+      msglvl = 1 ! print statistical information
+    integer :: sort_num,k,pos,phase,error
+    integer,dimension(9) :: work_colind
+    real(r8),dimension(9) :: work_values
+    type(MKL_PARDISO_HANDLE),dimension(64) :: pt
+    real(r8),dimension(nnz_est) :: a
+    integer,dimension(nlonlat+1) :: ia ! row pointer
+    integer,dimension(nnz_est) :: ja ! column pointer
+    integer,dimension(nlonlat) :: perm
+    integer,dimension(64) :: iparm
+    real(r8),dimension(nlonlat) :: b ! forcing: for each P-point
+    real(r8),dimension(nlonlat) :: x
+
+! for SuperLU solver (CSC format)
+    integer :: iopt,info
+    integer(kind=8) :: f_factors
+    integer,dimension(8) :: job
+    integer,dimension(nlonlat+1) :: colptr
+    integer,dimension(nnz_est) :: rowind
+    real(r8),dimension(nnz_est) :: values
+
+! ESMF CXX compiler has a weird name decoration as follows
+    interface
+       subroutine c_fortran_dgssv_(iopt,n,nnz,nrhs,values,rowind,colptr,b,ldb,f_factors,info) bind(c,name='c_fortran_dgssv_')
+
+        !bind(c,name='_Z16c_fortran_dgssv_PiS_S_S_PdS_S_S0_S_PxS_')
+        use iso_c_binding,only:c_int,c_long_long,c_double
+        integer(kind=c_int) :: iopt,n,nnz,nrhs,ldb,info
+        real(kind=c_double),dimension(nnz) :: values
+        integer(kind=c_int),dimension(nnz) :: rowind
+        integer(kind=c_int),dimension(n+1) :: colptr
+        real(kind=c_double),dimension(ldb) :: b
+        integer(kind=c_long_long) :: f_factors
+      endsubroutine c_fortran_dgssv_
+    endinterface
+
+    b = 0
+    ij = 0
+
+! for CSR matrix
+    ia = 0
+    ja = 0
+    a = 0
+
+! most rows have 9 elements unless at pole or equator
+    ia(1) = 1
+
+    do i = 1,nmlon
+      if (i == 1) then ! wrap around in longitude
+        im = nmlon
+      else
+        im = i-1
+      endif
+      if (i == nmlon) then
+        ip = 1
+      else
+        ip = i+1
+      endif
+
+! pole values
+      work_colind = 0
+      work_values = 0
+      sort_num = 0
+
+      j = 1  ! rhs=0, c9=1 and c(1:8)=0 for the pole
+      ij = (i-1)*nmlat_h+j ! ij: the row index
+      b(ij) = coef_ns_glb(i,j,10)
+
+      it = (ip-1)*nmlat_h+j ! it: the column index
+      sort_num = sort_num+1
+      work_colind(sort_num) = it
+      work_values(sort_num) = coef_ns_glb(i,j,1)
+
+      it = (ip-1)*nmlat_h+j+1
+      sort_num = sort_num+1
+      work_colind(sort_num) = it
+      work_values(sort_num) = coef_ns_glb(i,j,2)
+
+      it = (i-1)*nmlat_h+j+1
+      sort_num = sort_num+1
+      work_colind(sort_num) = it
+      work_values(sort_num) = coef_ns_glb(i,j,3)
+
+      it = (im-1)*nmlat_h+j+1
+      sort_num = sort_num+1
+      work_colind(sort_num) = it
+      work_values(sort_num) = coef_ns_glb(i,j,4)
+
+      it = (im-1)*nmlat_h+j
+      sort_num = sort_num+1
+      work_colind(sort_num) = it
+      work_values(sort_num) = coef_ns_glb(i,j,5)
+
+! No 6,7,8 are zeros
+      it = (i-1)*nmlat_h+j
+      sort_num = sort_num+1
+      work_colind(sort_num) = it
+      work_values(sort_num) = coef_ns_glb(i,j,9)
+
+! sort column indices
+      call edyn3D_insert_sort(work_colind,work_values,sort_num)
+
+! update rowptr and the sorted column indices and values
+! sort_num may be reduceed if there were zero values
+      ia(ij+1) = ia(ij)+sort_num
+      pos = ia(ij)
+      do k = 1,sort_num
+        ja(pos+k-1) = work_colind(k)
+        a(pos+k-1) = work_values(k)
+      enddo
+
+      do j = 2,nmlat_h-1 ! pole to equator
+        work_colind = 0
+        work_values = 0
+        sort_num = 0
+
+        ij = (i-1)*nmlat_h+j
+        b(ij) = coef_ns_glb(i,j,10)
+
+        it = (ip-1)*nmlat_h+j
+        sort_num = sort_num+1
+        work_colind(sort_num) = it
+        work_values(sort_num) = coef_ns_glb(i,j,1)
+
+        it = (ip-1)*nmlat_h+j+1
+        sort_num = sort_num+1
+        work_colind(sort_num) = it
+        work_values(sort_num) = coef_ns_glb(i,j,2)
+
+        it = (i-1)*nmlat_h+j+1
+        sort_num = sort_num+1
+        work_colind(sort_num) = it
+        work_values(sort_num) = coef_ns_glb(i,j,3)
+
+        it = (im-1)*nmlat_h+j+1
+        sort_num = sort_num+1
+        work_colind(sort_num) = it
+        work_values(sort_num) = coef_ns_glb(i,j,4)
+
+        it = (im-1)*nmlat_h+j
+        sort_num = sort_num+1
+        work_colind(sort_num) = it
+        work_values(sort_num) = coef_ns_glb(i,j,5)
+
+        it = (im-1)*nmlat_h+j-1
+        sort_num = sort_num+1
+        work_colind(sort_num) = it
+        work_values(sort_num) = coef_ns_glb(i,j,6)
+
+        it = (i-1)*nmlat_h+j-1
+        sort_num = sort_num+1
+        work_colind(sort_num) = it
+        work_values(sort_num) = coef_ns_glb(i,j,7)
+
+        it = (ip-1)*nmlat_h+j-1
+        sort_num = sort_num+1
+        work_colind(sort_num) = it
+        work_values(sort_num) = coef_ns_glb(i,j,8)
+
+        it = (i-1)*nmlat_h+j
+        sort_num = sort_num+1
+        work_colind(sort_num) = it
+        work_values(sort_num) = coef_ns_glb(i,j,9)
+
+        call edyn3D_insert_sort(work_colind,work_values,sort_num)
+
+! update rowptr and the sorted column indices and values
+        ia(ij+1) = ia(ij)+sort_num
+        pos = ia(ij)
+        do k = 1,sort_num
+          ja(pos+k-1) = work_colind(k)
+          a(pos+k-1) = work_values(k)
+        enddo
+      enddo
+
+! equator values
+      work_colind = 0
+      work_values = 0
+      sort_num = 0
+
+      j = nmlat_h
+      ij = (i-1)*nmlat_h+j
+      b(ij) = coef_ns_glb(i,j,10)
+
+      it = (ip-1)*nmlat_h+j
+      sort_num = sort_num+1
+      work_colind(sort_num) = it
+      work_values(sort_num) = coef_ns_glb(i,j,1)
+
+! No 2,3,4 are missing (zeros)
+      it = (im-1)*nmlat_h+j
+      sort_num = sort_num+1
+      work_colind(sort_num) = it
+      work_values(sort_num) = coef_ns_glb(i,j,5)
+
+      it = (im-1)*nmlat_h+j-1
+      sort_num = sort_num+1
+      work_colind(sort_num) = it
+      work_values(sort_num) = coef_ns_glb(i,j,6)
+
+      it = (i-1)*nmlat_h+j-1
+      sort_num = sort_num+1
+      work_colind(sort_num) = it
+      work_values(sort_num) = coef_ns_glb(i,j,7)
+
+      it = (ip-1)*nmlat_h+j-1
+      sort_num = sort_num+1
+      work_colind(sort_num) = it
+      work_values(sort_num) = coef_ns_glb(i,j,8)
+
+      it = (i-1)*nmlat_h+j
+      sort_num = sort_num+1
+      work_colind(sort_num) = it
+      work_values(sort_num) = coef_ns_glb(i,j,9)
+
+      call edyn3D_insert_sort(work_colind,work_values,sort_num)
+
+! update rowptr and the sorted column indices and values
+      ia(ij+1) = ia(ij)+sort_num
+      pos = ia(ij)
+      do k = 1,sort_num
+        ja(pos+k-1) = work_colind(k)
+        a(pos+k-1) = work_values(k)
+      enddo
+    enddo
+
+! solve the matrix LHS X = RHS
+
+! initialize PARDISO with default parameters in accordance with the matrix type
+    call pardisoinit(pt,mtype,iparm)
+
+! set some nonzero iparm elements
+    if (debug) then
+
+! 0: iparm(2) - iparm(64) are filled with default values
+      iparm(1) = 1
+
+! report the number of non-zero elements in the factors
+      iparm(18) = -1
+
+! report number of floating point operations (in 106 floating point operations)
+! that are necessary to factor the matrix A
+      iparm(19) = -1
+
+! matrix checker, 1 checks integer arrays ia and ja
+      iparm(27) = 1
+    endif
+
+! fill permutation vector with zero (not used)
+    perm = 0
+
+! analysis, numerical factorization, solve
+! this is the same as doing calls to 11, 22, 33 in order
+    phase = 13
+
+! use 32-bit integer version
+! if the number of non-zero elements is on the order of 500 million or more
+! then use pardiso_64 (64-bit integer version)
+    call pardiso(pt, maxfct, mnum, mtype, phase, nlonlat, &
+      a, ia, ja, perm, nrhs, iparm, msglvl, b, x, error)
+
+!    write(6,"('phase ',i4,' error ',i4)") phase,error
+! reformat the solution into 2D array (solution is in x)
+    it = 0
+    do i = 1,nmlon
+      do j = 1,nmlat_h
+        it = it+1
+        poten_glb(i,j,1) = x(it)
+        poten_glb(i,j,2) = x(it)
+      enddo
+    enddo
+
+! SuperLU wants CSC format (CSC is needed for serial version of SuperLU, but CSR will be fine for parallel version)
+! the above code could populate a CSC format instead of CSR initially if this was a permanent solution
+    nnz = ia(nlonlat+1)-1
+
+    job = 0
+    job(1) = 0 ! the matrix in the CSR format is converted to the CSC format
+    job(2) = 1 ! one-based indexing for the matrix in the CSR format
+    job(3) = 1 ! one-based indexing for the matrix in the CSC format
+    job(6) = 1 ! all output arrays are filled in for the output storage
+              ! (There is an error in some manual versions - must be 1!)
+
+! converts a square sparse matrix in the CSR format to the CSC format
+    call mkl_dcsrcsc(job, nlonlat, a(1:nnz), ja(1:nnz), ia, &
+      values(1:nnz), rowind(1:nnz), colptr, info)
+
+! first, factorize the matrix, the factors are stored in *f_factors* handle
+    iopt = 1
+    call c_fortran_dgssv(iopt, nlonlat, nnz, nrhs, &
+      values(1:nnz), rowind(1:nnz), colptr, b, nlonlat, f_factors, info)
+!    write(6,"('INFO from LU decomposition = ',i4)") info
+
+! second, solve the system using the existing factors
+    iopt = 2
+    call c_fortran_dgssv(iopt, nlonlat, nnz, nrhs, &
+      values(1:nnz), rowind(1:nnz), colptr, b, nlonlat, f_factors, info)
+!    write(6,"('INFO from triangular solve = ',i4)") info
+
+! last, free the storage allocated inside SuperLU
+    iopt = 3
+    call c_fortran_dgssv(iopt, nlonlat, nnz, nrhs, &
+     values(1:nnz), rowind(1:nnz), colptr, b, nlonlat, f_factors, info)
+
+! reformat the solution into 2D array (solution is in b)
+    it = 0
+    do i = 1,nmlon
+      do j = 1,nmlat_h
+        it = it+1
+        poten_glb(i,j,1) = b(it)
+        poten_glb(i,j,2) = b(it)
+      enddo
+    enddo
+
+  endsubroutine edyn3D_solve_sparse
+!-----------------------------------------------------------------------
+  subroutine edyn3D_insert_sort(array_i,array_r,len)
+! this is only an OK sorting approach for small arrays since it is O(n^2)
+! sort by the integer array and move the reals, then remove zeros
+
+    integer,dimension(9),intent(inout) :: array_i
+    real(r8),dimension(9),intent(inout) :: array_r
+    integer,intent(inout) :: len
+
+    integer :: i,j,temp_i,z
+    real(r8) :: temp_r
+    integer,dimension(9) :: keep
+
+    do i = 2,len
+      temp_i = array_i(i)
+      temp_r = array_r(i)
+      do j = i-1,1,-1
+        if (array_i(j) <= temp_i) exit
+        array_i(j+1) = array_i(j)
+        array_r(j+1) = array_r(j)
+      enddo
+      array_i(j+1) = temp_i
+      array_r(j+1) = temp_r
+    enddo
+
+! now remove zeros
+    keep = 1
+    do i = 1,len
+      if (array_r(i) ==  0) keep(i) = 0
+    enddo
+    z = 0
+    do i = 1,len
+      if (keep(i) == 1) then
+        z = z+1
+        array_i(z) = array_i(i)
+        array_r(z) = array_r(i)
+      endif
+    enddo
+    len = z
+
+  endsubroutine edyn3D_insert_sort
+
 !--------------------------------------------------------------------------------
      subroutine edyn3D_scatter_poten
        !
@@ -559,7 +941,6 @@
        ! Scatter both hemispheres
        !
        call mp_scatter_edyn3D(poten_glb,mlon0_p,mlon1_p,poten_lcl,nmlon,nmlat_h,2)
-
        !
        ! Set potential in p field line structure
        !
