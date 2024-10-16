@@ -316,7 +316,7 @@ subroutine carma_aero_gasaerexch_sub(  state, &
   use physconst, only: mwdry, rair
 
 ! !PARAMETERS:
-  type(physics_state), intent(in)    :: state    ! Physics state variables
+  type(physics_state), target, intent(in) :: state    ! Physics state variables
   type(physics_buffer_desc), pointer :: pbuf(:)
 
   integer,  intent(in)    :: lchnk                ! chunk identifier
