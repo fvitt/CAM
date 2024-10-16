@@ -4044,7 +4044,8 @@ contains
     real(r8) :: wtpct(ncol,nlev)
 
     integer :: rc !! return code
-    real(r8) :: pvapl, es, qs, gc_cgs, rhoa, icol, ilev
+    real(r8) :: pvapl, es, qs, gc_cgs, rhoa
+    integer :: icol, ilev
 
     rc = RC_OK
 
