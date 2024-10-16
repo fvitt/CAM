@@ -69,6 +69,8 @@ module carma_intr
   public :: carma_get_wght_pct
   public :: carma_effecitive_radius
 
+  public :: carma_get_bin_radius
+
   integer, parameter, public  ::     MAXCLDAERDIAG = 16
 
 contains
@@ -460,5 +462,14 @@ contains
     type(physics_state), intent(in)   :: state                 !! physics state variables
     real(r8) :: rad(pcols,pver) ! effective radius (cm)
   end function carma_effecitive_radius
+
+  !-----------------------------------------------------------------------------
+  !-----------------------------------------------------------------------------
+  subroutine carma_get_bin_radius(igroup, ibin, radius, rc)
+    integer, intent(in)               :: igroup                !! group index
+    integer, intent(in)               :: ibin                  !! bin index
+    real(r8),intent(out)              :: radius ! cm ???
+    integer, intent(out)              :: rc                    !! return code
+  end subroutine carma_get_bin_radius
 
 end module carma_intr
