@@ -54,6 +54,7 @@ module edyn_mpi
    public :: mp_exchange_tasks
    public :: mp_distribute_mag
    public :: mp_distribute_geo
+   public :: mpi_comm_edyn
 
    !
    ! Number of MPI tasks and current task id (geo or mag):

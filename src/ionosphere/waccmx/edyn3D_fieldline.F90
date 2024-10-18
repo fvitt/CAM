@@ -10,6 +10,7 @@ module edyn3D_fieldline
   use shr_kind_mod,       only: r8 => shr_kind_r8            ! 8-byte reals
   use cam_logfile,        only: iulog
   use spmd_utils,         only: masterproc
+  use infnan, only: nan, assignment(=)
 !
   implicit none
   save
@@ -378,6 +379,9 @@ module edyn3D_fieldline
           fline_p(mlon1_p+1,j,isn)%npts = fline_p(mlon1_p,j,isn)%npts
 
           fline_p(:,j,isn)%mlat_m = ylatm(j,isn)                      ! same as magnetic grid
+
+          fline_p(:,j,isn)%fac_hl = nan
+
           !
           ! r points are
           !
@@ -438,7 +442,9 @@ module edyn3D_fieldline
             allocate(fline_s1(i,j,isn)%bo(3,fline_s1(i,j,isn)%npts))
             allocate(fline_s1(i,j,isn)%be3(fline_s1(i,j,isn)%npts))
             allocate(fline_s1(i,j,isn)%D(fline_s1(i,j,isn)%npts))
+            fline_s1(i,j,isn)%D = nan
             allocate(fline_s1(i,j,isn)%F(fline_s1(i,j,isn)%npts))
+            fline_s1(i,j,isn)%F = nan
             allocate(fline_s1(i,j,isn)%d1d1(fline_s1(i,j,isn)%npts))
             allocate(fline_s1(i,j,isn)%d1d2(fline_s1(i,j,isn)%npts))
             allocate(fline_s1(i,j,isn)%d2d2(fline_s1(i,j,isn)%npts))
@@ -453,11 +459,17 @@ module edyn3D_fieldline
             allocate(fline_s1(i,j,isn)%e2(3,fline_s1(i,j,isn)%npts))
 !            allocate(fline_s1(i,j,isn)%e3(3,fline_s1(i,j,isn)%npts))
             allocate(fline_s1(i,j,isn)%M1(fline_s1(i,j,isn)%npts))
+            fline_s1(i,j,isn)%M1 = nan
             allocate(fline_s1(i,j,isn)%N1p(fline_s1(i,j,isn)%npts))
+            fline_s1(i,j,isn)%N1p = nan
             allocate(fline_s1(i,j,isn)%N1h(fline_s1(i,j,isn)%npts))
+            fline_s1(i,j,isn)%N1h = nan
             allocate(fline_s1(i,j,isn)%Je1D(fline_s1(i,j,isn)%npts))
+            fline_s1(i,j,isn)%Je1D = nan
             allocate(fline_s1(i,j,isn)%M1Je1D(fline_s1(i,j,isn)%npts))
+            fline_s1(i,j,isn)%M1Je1D = nan
             allocate(fline_s1(i,j,isn)%Je1Ion(fline_s1(i,j,isn)%npts))
+            fline_s1(i,j,isn)%Je1Ion = nan
             allocate(fline_s1(i,j,isn)%Je2Ion(fline_s1(i,j,isn)%npts))
             allocate(fline_s1(i,j,isn)%sigH(fline_s1(i,j,isn)%npts))
             allocate(fline_s1(i,j,isn)%sigP(fline_s1(i,j,isn)%npts))
@@ -599,8 +611,11 @@ module edyn3D_fieldline
               allocate(fline_s2(i,j,isn)%e2k(fline_s2(i,j,isn)%npts))
 !              allocate(fline_s2(i,j,isn)%e3(3,fline_s2(i,j,isn)%npts))
               allocate(fline_s2(i,j,isn)%M2(fline_s2(i,j,isn)%npts))
+              fline_s2(i,j,isn)%M2 = nan
               allocate(fline_s2(i,j,isn)%N2p(fline_s2(i,j,isn)%npts))
+              fline_s2(i,j,isn)%N2p = nan
               allocate(fline_s2(i,j,isn)%N2h(fline_s2(i,j,isn)%npts))
+              fline_s2(i,j,isn)%N2h = nan
               allocate(fline_s2(i,j,isn)%Je2D(fline_s2(i,j,isn)%npts))
               allocate(fline_s2(i,j,isn)%Je1Ion(fline_s2(i,j,isn)%npts))
               allocate(fline_s2(i,j,isn)%Je2Ion(fline_s2(i,j,isn)%npts))

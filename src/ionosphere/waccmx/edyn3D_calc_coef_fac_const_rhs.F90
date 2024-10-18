@@ -161,17 +161,16 @@
 !
      end subroutine edyn3D_calc_coef
 !-----------------------------------------------------------------------------
-     subroutine edyn3D_calc_FAC(hilat_poten)
+     subroutine edyn3D_calc_FAC
      !
      ! Calculate high latitude field aligned current and add to solver coefficients
      ! for solver right hand side
      !
      use edyn3D_fieldline,only: fline_p,fieldline_s1,fline_s1,poten_hl
-     use edyn3D_params, only: nptsp_total 
+     use edyn3D_params, only: nptsp_total
 !
      implicit none
 !
-     real(r8), intent(in), dimension(mlon0_p:mlon1_p,nptsp_total) :: hilat_poten
 !
      real(r8), dimension(mlon0_p:mlon1_p,nmlat_h,2) :: fac_hl
      real(r8) :: sum,sumP,corr,sumn,sums
@@ -186,8 +185,7 @@
      !
      !  Set high latitude potential to 0.01 since not input
      !
-!     poten_hl(:,:) = 0.01_r8
-     poten_hl(:,:) = hilat_poten(:,:)
+     !poten_hl(:,:) = 0.01_r8
      !
      ! Calculate field aligned current from high latitude potential and lhs coefficients
      !
@@ -263,7 +261,7 @@
      !
      ! Add field aligned current to rhs coefficient and put in p grid structure
      !
-     sum = 0.
+     sum = 0._r8
      do isn = 1,2 ! loop over both hemisphere
         do i=mlon0_p,mlon1_p ! loop over task longitudes
 

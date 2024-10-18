@@ -16,4 +16,11 @@ fincl3 = 'T','TnPhysIn','TnPhysOut','SIGMAPED','SIGMAHAL','Z3','Z3GM', 'POTENp'
 fincl4 = 'Tn_opg0','Tn_opg1'
 
 fincl5 = 'ED1s1','ED2s1','ED1s2','ED2s2', 'Ve1s1','Ve2s1','Ve1s2','Ve2s2',
-         'UI_s1','VI_s1'
+         'UI_s1','VI_s1','WI_s1','IonU_s1','IonV_s1','IonW_s1',
+         'IonU_opg','IonV_opg','IonW_opg','IonU_phys','IonV_phys','IonW_phys'
+
+fincl6 = 'HL_EPOTEN','HL_FACURR','ELECPOTEN'
+fincl7 = ' '
+fincl8 = ' '
+fincl9 = ' '
+fincl10 = ' '

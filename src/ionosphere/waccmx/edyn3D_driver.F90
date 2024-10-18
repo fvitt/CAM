@@ -1,6 +1,6 @@
 module edyn3D_driver
   use shr_kind_mod, only: r8 => shr_kind_r8
-  use spmd_utils, only: masterproc
+  use spmd_utils, only: masterproc, mpicom
   use cam_abortutils, only: endrun
 
   use edyn3D_maggrid, only: gen_highres_grid, edyn3D_gen_ggj_grid, edyn3D_gen_qd_grid, &
@@ -16,6 +16,7 @@ module edyn3D_driver
   use edyn3D_regridder
 
   use perf_mod, only: t_startf, t_stopf
+  use edyn_mpi, only: mpi_comm_edyn
 
   use physconst, only: pi
 
@@ -117,7 +118,9 @@ contains
 
     call addfld ('POTENp', horiz_only, 'I', 'Volts','magnetic field line point electric potential', gridname='magfline_p')
     call addfld ('HILATPOT', horiz_only, 'I', 'Volts','magnetic field line point electric potential', gridname='magfline_p')
+    call addfld ('HILATFAC', horiz_only, 'I', '???','high-lat field aligned currents', gridname='magfline_p')
 
+    call addfld ('ELECPOTEN', horiz_only, 'I', 'Volts','high latitude magnetic electric potential', gridname='geomag_grid')
     call addfld ('HL_EPOTEN', horiz_only, 'I', 'Volts','high latitude magnetic electric potential', gridname='geomag_grid')
     call addfld ('HL_FACURR', horiz_only, 'I', '??','high latitude field aligned current', gridname='geomag_grid')
 
@@ -190,6 +193,7 @@ contains
     real(r8) :: Tn_tmp(mlon0_p:mlon1_p, nptsp_total)
     real(r8) :: potential(mlon0_p:mlon1_p, nptsp_total)
     real(r8) :: hilat_poten(mlon0_p:mlon1_p, nptsp_total)
+    real(r8) :: hilat_fac(mlon0_p:mlon1_p, nptsp_total)
     real(r8) :: ed1_s1(mlon0_p:mlon1_p, nptss1_total)
     real(r8) :: ed2_s1(mlon0_p:mlon1_p, nptss1_total)
     real(r8) :: ed1_s2(mlon0_p:mlon1_p, nptss2_total)
@@ -203,6 +207,7 @@ contains
     real(r8) :: wi_s1(mlon0_p:mlon1_p, nptss1_total)
 
     real(r8) :: facur_hl(mlon0_p:mlon1_p,nmlat_T1)
+    real(r8) :: elecpoten(mlon0_p:mlon1_p,nmlat_T1)
 
     integer,parameter :: ndyn = 7
     real(r8) :: efield_fline(ndyn,nhgt_fix,nmlat_T1,mlon0_p:mlon1_p)
@@ -220,7 +225,11 @@ contains
     real(r8) :: IonW_oplus(lon0:lon1,lat0:lat1,lev0:lev1)
     real(r8) :: sunlon
 
-    call t_startf('edyn3D_driver_timestep.1')
+    call mpibarrier(mpicom)
+
+    call t_startf('edyn3D_driver_timestep')
+
+    call t_startf('edyn3D_driver_timestep.1.regrid')
     call edyn3D_regridder_phys2mag(physalt,physalt,nphyscol,nphyslev,height_s1)
     call edyn3D_regridder_phys2mag(physalt,physalt,nphyscol,nphyslev,height_s2)
 
@@ -248,8 +257,17 @@ contains
     call edyn3D_regridder_phys2mag(vn,physalt,nphyscol,nphyslev,vn_s1)
     call edyn3D_regridder_phys2mag(vn,physalt,nphyscol,nphyslev,vn_s2)
 
+    call edyn3D_regridder_phys2mag(tn,physalt,nphyscol,nphyslev,Tn_p)
+
+    call t_stopf('edyn3D_driver_timestep.1.regrid')
+
+    call mpibarrier(mpicom)
+
+    call t_startf('edyn3D_driver_timestep.1.output')
+
     call output_fline_field(vn_s1)
     call output_fline_field(vn_s2)
+
 
     if (mytid<ntask) then
        geogaltp=-huge(1._r8)
@@ -342,18 +360,20 @@ contains
 
     end if
 
-    call edyn3D_regridder_phys2mag(tn,physalt,nphyscol,nphyslev,Tn_p)
-
     call output_fline_field(Tn_p)
 
-    call t_stopf('edyn3D_driver_timestep.1')
+    call t_stopf('edyn3D_driver_timestep.1.output')
+
+    call mpibarrier(mpicom)
 
     !
     ! Call 3D dynamo routine for solving
     !
     if (mytid<ntask) then
 
-      call t_startf('edyn3D_driver_timestep.2')
+      call t_startf('edyn3D_driver_timestep.2.coefs')
+
+      call mpibarrier(mpi_comm_edyn)
 
       call sunloc_calc(sunlon)
       call edyn3D_heelis_set_hlat_pot(sunlon)
@@ -370,17 +390,21 @@ contains
 
       call edyn3D_calc_coef       ! - calc LHS & RHS
 
-      call edyn3D_calc_FAC(hilat_poten)        ! - calc high latitude
+      call edyn3D_calc_FAC        ! - calc high latitude
 
       call edyn3D_add_coef_ns     ! - add North & South coef
 
-      call t_stopf('edyn3D_driver_timestep.2')
+      call t_stopf('edyn3D_driver_timestep.2.coefs')
+
+      call mpibarrier(mpi_comm_edyn)
 
       call t_startf('edyn3D_driver_timestep.3.gather')
 
       call edyn3D_gather_coef_ns  ! - gather coef_ns for solver
 
       call t_stopf('edyn3D_driver_timestep.3.gather')
+
+      call mpibarrier(mpi_comm_edyn)
 
       call t_startf('edyn3D_driver_timestep.4.solve')
       if (mytid == 0) then
@@ -389,17 +413,23 @@ contains
       endif
       call t_stopf('edyn3D_driver_timestep.4.solve')
 
+      call mpibarrier(mpi_comm_edyn)
+
       call t_startf('edyn3D_driver_timestep.5.scatter')
       call edyn3D_scatter_poten   ! - Send global potential to each task
       call t_stopf('edyn3D_driver_timestep.5.scatter')
 
-      call t_startf('edyn3D_driver_timestep.6')
+      call mpibarrier(mpi_comm_edyn)
+
+      call t_startf('edyn3D_driver_timestep.6.efield')
       call edyn3D_poten_halos     ! - Get potential halo points required in next call
 
       call edyn3D_calc_efield    ! - Calculate the electric field and ion drift velocities
-      call t_stopf('edyn3D_driver_timestep.6')
+      call t_stopf('edyn3D_driver_timestep.6.efield')
 
     endif
+
+    call mpibarrier(mpicom)
 
     call t_startf('edyn3D_driver_timestep.7')
 
@@ -417,6 +447,12 @@ contains
     end do
 
     call regrid_geo2phys_3d( Tn_oplus1, Tn_out2, nphyslev, 1, nphyscol )
+
+    call t_stopf('edyn3D_driver_timestep.7')
+
+    call mpibarrier(mpicom)
+
+    call t_startf('edyn3D_driver_timestep.8')
 
     !  diagnostics ...
 
@@ -443,9 +479,11 @@ contains
                    ncnt1 = ncnt1 + 1
                    potential(i,ncnt1) = fline_p(i,j,isn)%pot
                    hilat_poten(i,ncnt1) = poten_hl(i,jj)
+                   hilat_fac(i,ncnt1) = fline_p(i,j,isn)%fac_hl
                 end do
 
                 facur_hl(i,jj) = fline_p(i,j,isn)%fac_hl
+                elecpoten(i,jj) = fline_p(i,j,isn)%pot
              end do
           end do
        end do
@@ -534,11 +572,13 @@ contains
        do j = 1,nptsp_total
           call outfld('POTENp',  potential(mlon0_p:mlon1_p,j), mlon1_p-mlon0_p+1, j)
           call outfld('HILATPOT', hilat_poten(mlon0_p:mlon1_p,j), mlon1_p-mlon0_p+1, j)
+          call outfld('HILATFAC', hilat_fac(mlon0_p:mlon1_p,j), mlon1_p-mlon0_p+1, j)
        end do
 
        do j = 1,nmlat_T1
           call outfld('HL_EPOTEN', poten_hl(mlon0_p:mlon1_p,j), mlon1_p-mlon0_p+1, j)
           call outfld('HL_FACURR', facur_hl(mlon0_p:mlon1_p,j), mlon1_p-mlon0_p+1, j)
+          call outfld('ELECPOTEN', elecpoten(mlon0_p:mlon1_p,j), mlon1_p-mlon0_p+1, j)
        end do
 
 
@@ -574,7 +614,10 @@ contains
     call edyn3D_regridder_mag2phys(IonV_s1, physalt, nphyscol,nphyslev, vi_out)
     call edyn3D_regridder_mag2phys(IonW_s1, physalt, nphyscol,nphyslev, wi_out)
 
-    call t_stopf('edyn3D_driver_timestep.7')
+    call t_stopf('edyn3D_driver_timestep.8')
+
+    call mpibarrier(mpicom)
+    call t_stopf('edyn3D_driver_timestep')
 
   end subroutine edyn3D_driver_timestep
 
@@ -612,7 +655,6 @@ contains
     integer :: dk,k0,k1
 
     integer :: mlat0_p, mlat1_p, nmlat
-    real(r8), parameter :: rad2deg = 180._r8 / pi
     real(r8) :: maglat(nmlat_T1)
     real(r8) :: maglon(mlon0_p:mlon1_p)
 
@@ -821,6 +863,7 @@ contains
     nullify(latvalss2)
     nullify(altvalss2)
 
+    ! 2-D geo-magnetic grid
 
     mlat0_p = 1
     mlat1_p = nmlat_T1
@@ -834,11 +877,11 @@ contains
              jj = nmlat_T1 - j + 1
           end if
 
-          maglat(jj) = ylatm(j,isn) * rad2deg
+          maglat(jj) = ylatm(j,isn) * r2d ! degrees
        end do
     end do
 
-    maglon(mlon0_p:mlon1_p) = ylonm(mlon0_p:mlon1_p) * rad2deg
+    maglon(mlon0_p:mlon1_p) = ylonm(mlon0_p:mlon1_p) * r2d ! degrees
 
     allocate(grid_map(4, ((mlon1_p - mlon0_p + 1) * (mlat1_p - mlat0_p + 1))))
     ind = 0
@@ -852,30 +895,20 @@ contains
        end do
     end do
 
-    allocate(coord_map(mlat1_p - mlat0_p + 1))
-    if (mlon0_p==1) then
-       coord_map = (/ (i, i = mlat0_p, mlat1_p) /)
-    else
-       coord_map = 0
-    end if
-
     maglat_coord => horiz_coord_create('maglatp', '', nmlat, 'latitude', &
-         'degrees_north', mlat0_p, mlat1_p, maglat(mlat0_p:mlat1_p), map=coord_map)
-    nullify(coord_map)
+         'degrees_north', mlat0_p, mlat1_p, maglat(mlat0_p:mlat1_p))
 
     allocate(coord_map(mlon1_p - mlon0_p + 1))
-    if (mlat0_p==1) then
-       coord_map = (/ (i, i = mlon0_p, mlon1_p) /)
-    else
-       coord_map = 0
-    end if
+
+    coord_map = (/ (i, i = mlon0_p, mlon1_p) /)
+
     maglon_coord => horiz_coord_create('maglonp', '', nmlon, 'longitude', &
          'degrees_east', mlon0_p, mlon1_p, maglon(mlon0_p:mlon1_p), map=coord_map)
-    deallocate(coord_map)
-    nullify(coord_map)
 
     call cam_grid_register('geomag_grid', geomag_decomp, maglat_coord, maglon_coord, &
-           grid_map, unstruct=.false.)
+         grid_map, unstruct=.false.)
+
+    nullify(coord_map)
     nullify(grid_map)
 
   end subroutine reg_hist_grid
