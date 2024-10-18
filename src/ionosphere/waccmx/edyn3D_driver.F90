@@ -408,8 +408,11 @@ contains
 
       call t_startf('edyn3D_driver_timestep.4.solve')
       if (mytid == 0) then
-!        call edyn3D_const_rhs     ! - solver - solve for rhs (electric potential)
-        call edyn3D_solve_sparse
+#ifdef HAS_SUPERLU_SLV
+         call edyn3D_solve_sparse
+#else
+         call edyn3D_const_rhs     ! - solver - solve for rhs (electric potential)
+#endif
       endif
       call t_stopf('edyn3D_driver_timestep.4.solve')
 

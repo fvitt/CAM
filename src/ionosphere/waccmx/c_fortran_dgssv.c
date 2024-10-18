@@ -1,3 +1,4 @@
+#ifdef HAS_SUPERLU_SLV
 
 /*
  * -- SuperLU routine (version 6.0) --
@@ -31,7 +32,7 @@ typedef struct {
  *      = 2, performs triangular solve
  *      = 3, free all the storage in the end
  *
- * f_factors (input/output) fptr* 
+ * f_factors (input/output) fptr*
  *      If iopt == 1, it is an output and contains the pointer pointing to
  *                    the structure of the factored matrices.
  *      Otherwise, it it an input.
@@ -59,7 +60,7 @@ c_fortran_dgssv_(int *iopt, int *n, int_t *nnz, int *nrhs,
     factors_t *LUfactors;
     GlobalLU_t Glu;   /* Not needed on return. */
     int_t    *rowind0;  /* counter 1-based indexing from Frotran arrays. */
-    int_t    *colptr0;  
+    int_t    *colptr0;
 
     trans = NOTRANS;
 
@@ -87,18 +88,18 @@ c_fortran_dgssv_(int *iopt, int *n, int_t *nnz, int *nrhs,
 	if ( !(etree = intMalloc(*n)) ) ABORT("Malloc fails for etree[].");
 	/*
 	 * Get column permutation vector perm_c[], according to permc_spec:
-	 *   permc_spec = 0: natural ordering 
+	 *   permc_spec = 0: natural ordering
 	 *   permc_spec = 1: minimum degree on structure of A'*A
 	 *   permc_spec = 2: minimum degree on structure of A'+A
 	 *   permc_spec = 3: approximate minimum degree for unsymmetric matrices
 	 *   permc_spec = 6: METIS ordering on structure of A'*A
-	 */    	
+	 */
 	permc_spec = options.ColPerm;
 	//	permc_spec = 0;
 	//printf("before get_perm_c: permc_spec %d, *n %d\n", permc_spec, *n);
 	get_perm_c(permc_spec, &A, perm_c);
 	//printf("after get_perm_c: permc_spec %d\n", permc_spec);
-	
+
 	sp_preorder(&options, &A, perm_c, etree, &AC);
 
 	panel_size = sp_ienv(1);
@@ -124,7 +125,7 @@ c_fortran_dgssv_(int *iopt, int *n, int_t *nnz, int *nrhs,
 		       mem_usage.for_lu/1e6, mem_usage.total_needed/1e6);
 	    }
 	}
-	
+
 	/* Save the LU factors in the factors handle */
 	LUfactors = (factors_t*) SUPERLU_MALLOC(sizeof(factors_t));
 	LUfactors->L = L;
@@ -143,7 +144,7 @@ c_fortran_dgssv_(int *iopt, int *n, int_t *nnz, int *nrhs,
 
     } else if ( *iopt == 2 ) { /* Triangular solve */
 	int iinfo;
-    
+
 	/* Initialize the statistics variables. */
 	StatInit(&stat);
 
@@ -179,4 +180,4 @@ c_fortran_dgssv_(int *iopt, int *n, int_t *nnz, int *nrhs,
     }
 }
 
-
+#endif

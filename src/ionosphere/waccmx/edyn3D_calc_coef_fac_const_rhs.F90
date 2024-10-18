@@ -4,9 +4,9 @@
      !  to solve for potential.  Based on standalone module calc_coef with gather and
      !  scatter added
      !
-     use edyn3D_params, only: nmlon,nmlat_h,nhgt_fix,nlonlat,nmlatS2_h,nmlat_T1
-     use edyn3d_mpi,       only: mlon0_p,mlon1_p,mp_poten_halos_edyn3D
-     use shr_kind_mod,  only: r8 => shr_kind_r8            ! 8-byte reals
+     use edyn3D_params,  only: nmlon,nmlat_h,nhgt_fix,nlonlat,nmlatS2_h,nmlat_T1
+     use edyn3d_mpi,     only: mlon0_p,mlon1_p,mp_poten_halos_edyn3D
+     use shr_kind_mod,   only: r8 => shr_kind_r8            ! 8-byte reals
      use cam_logfile,    only: iulog
      use spmd_utils,     only: masterproc
      use cam_abortutils, only: endrun
@@ -548,7 +548,7 @@
 ! construct matrix LHS and RHS for solving with PARDISO or SuperLU
 
     use edyn3D_params,only:nmlon,nmlat_h
-
+#ifdef HAS_SUPERLU_SLV
     include 'mkl_pardiso.fi'
     include 'mkl_spblas.fi'
 
@@ -587,8 +587,6 @@
 ! ESMF CXX compiler has a weird name decoration as follows
     interface
        subroutine c_fortran_dgssv_(iopt,n,nnz,nrhs,values,rowind,colptr,b,ldb,f_factors,info) bind(c,name='c_fortran_dgssv_')
-
-        !bind(c,name='_Z16c_fortran_dgssv_PiS_S_S_PdS_S_S0_S_PxS_')
         use iso_c_binding,only:c_int,c_long_long,c_double
         integer(kind=c_int) :: iopt,n,nnz,nrhs,ldb,info
         real(kind=c_double),dimension(nnz) :: values
@@ -877,7 +875,8 @@
       enddo
     enddo
 
-  endsubroutine edyn3D_solve_sparse
+  contains
+
 !-----------------------------------------------------------------------
   subroutine edyn3D_insert_sort(array_i,array_r,len)
 ! this is only an OK sorting approach for small arrays since it is O(n^2)
@@ -919,6 +918,10 @@
     len = z
 
   endsubroutine edyn3D_insert_sort
+
+#endif
+
+  endsubroutine edyn3D_solve_sparse
 
 !--------------------------------------------------------------------------------
      subroutine edyn3D_scatter_poten
