@@ -57,12 +57,12 @@ module edyn3D_mpi
 !   ! Magnetic computational subdomains for current task:
 !   !
 !   integer, protected :: &
-!	 ncompmagtasklon_p,  & ! number of tasks in computation magnetic longitude dimension
-!	 ncompmagtasklat_p,  & ! number of tasks in computation magnetic latitude dimension
-!	 compmagtidlon_p,    & ! computation longitude coord for current task in task table
-!	 compmagtidlat_p,    & ! computation latitude coord for current task in task table
-!	 mclon_p0=1,mclon_p1=0,& ! first and last computation mag lons for each task
-!	 mclat_p0=1,mclat_p1=0   ! first and last computation mag lats for each task
+!        ncompmagtasklon_p,  & ! number of tasks in computation magnetic longitude dimension
+!        ncompmagtasklat_p,  & ! number of tasks in computation magnetic latitude dimension
+!        compmagtidlon_p,    & ! computation longitude coord for current task in task table
+!        compmagtidlat_p,    & ! computation latitude coord for current task in task table
+!        mclon_p0=1,mclon_p1=0,& ! first and last computation mag lons for each task
+!        mclat_p0=1,mclat_p1=0   ! first and last computation mag lats for each task
    !
    ! Magnetic output subdomains for current task:
    !
@@ -77,15 +77,15 @@ module edyn3D_mpi
 
    integer :: &
         mlat0_p,mlat1_p,     &
-	mlat0_r,mlat1_r,     &
-	mlat0_s1,mlat1_s1,   &
-	mlat0_s2,mlat1_s2,   &
+        mlat0_r,mlat1_r,     &
+        mlat0_s1,mlat1_s1,   &
+        mlat0_s2,mlat1_s2,   &
         fldpts0_qdlat_p,fldpts1_qdlat_p,   &
         fldpts0_qdlat_r,fldpts1_qdlat_r,   &
         fldpts0_qdlat_s1,fldpts1_qdlat_s1, &
         fldpts0_qdlat_s2,fldpts1_qdlat_s2, &
-        fldpts0_p,fldpts1_p,	&
-        fldpts0_r,fldpts1_r,	&
+        fldpts0_p,fldpts1_p,    &
+        fldpts0_r,fldpts1_r,    &
         fldpts0_s1,fldpts1_s1,  &
         fldpts0_s2,fldpts1_s2
 
@@ -189,7 +189,7 @@ contains
       if (mytid<ntask) then
          !
          ! Allocate and set 1d table of tasks:
-	 !
+         !
          allocate(itask_table_mag(-1:nmagtasklon),stat=ier)
          if (ier /= 0) then
             write(errmsg, "(a,2(a,i0))") subname,                                &
@@ -241,7 +241,7 @@ contains
          if (debug) then
             !
             ! Report my stats to stdout:
-	    !
+            !
             write(*,"(/,a,i5,a,i5,a,2i5,a,i5)")            &
                  'mytid = ',mytid, ', magtidlon = ', magtidlon,                  &
                  'mlon0_p,1 = ', mlon0_p, mlon1_p, ' (', nmaglon_p, ') '
@@ -259,7 +259,7 @@ contains
          enddo
          !
          ! All tasks must have at least 4 longitudes:
-	 !
+         !
          do n = 0, ntask-1
 
             if (debug) then
@@ -439,30 +439,30 @@ contains
       !
 
       do ifld=1,nf
-	 ! Far west tasks send mlon0+1 to far east (periodic) tasks:
-	 if (magtidlon==0) then
-!	    sndlon0(:,ifld) = fmsub(mlon0+1,mlat0:mlat1,ifld)
-	    sndlon0(:,:,ifld) = fmsub(mlon0+1,1:nmlat,1:nflpts,ifld)
-!	    sndlon0(:,ifld) = fmsub(mlon0+1,1:nflpts,ifld)
-	    ! Interior tasks send mlon0 to west neighbor:
-	 else
-!	    sndlon0(:,ifld) = fmsub(mlon0,mlat0:mlat1,ifld)
+         ! Far west tasks send mlon0+1 to far east (periodic) tasks:
+         if (magtidlon==0) then
+!           sndlon0(:,ifld) = fmsub(mlon0+1,mlat0:mlat1,ifld)
+            sndlon0(:,:,ifld) = fmsub(mlon0+1,1:nmlat,1:nflpts,ifld)
+!           sndlon0(:,ifld) = fmsub(mlon0+1,1:nflpts,ifld)
+            ! Interior tasks send mlon0 to west neighbor:
+         else
+!           sndlon0(:,ifld) = fmsub(mlon0,mlat0:mlat1,ifld)
             sndlon0(:,:,ifld) = fmsub(mlon0,1:nmlat,1:nflpts,ifld)
 !            sndlon0(:,ifld) = fmsub(mlon0,1:nflpts,ifld)
-!	    if (mlon0 == 19) sndlon0 = 1._r8
+!           if (mlon0 == 19) sndlon0 = 1._r8
          endif
 
-	 ! Far east tasks send mlon1-1 to far west (periodic) tasks:
-	 if (magtidlon==nmagtasklon-1) then
-!	    sndlon1(:,ifld) = fmsub(mlon1-1,mlat0:mlat1,ifld)
-	    sndlon1(:,:,ifld) = fmsub(mlon1-1,1:nmlat,1:nflpts,ifld)
-!	    sndlon1(:,ifld) = fmsub(mlon1-1,1:nflpts,ifld)
-	    ! Interior tasks send mlon1 to east neighbor:
-	 else
-!	    sndlon1(:,ifld) = fmsub(mlon1,mlat0:mlat1,ifld)
+         ! Far east tasks send mlon1-1 to far west (periodic) tasks:
+         if (magtidlon==nmagtasklon-1) then
+!           sndlon1(:,ifld) = fmsub(mlon1-1,mlat0:mlat1,ifld)
+            sndlon1(:,:,ifld) = fmsub(mlon1-1,1:nmlat,1:nflpts,ifld)
+!           sndlon1(:,ifld) = fmsub(mlon1-1,1:nflpts,ifld)
+            ! Interior tasks send mlon1 to east neighbor:
+         else
+!           sndlon1(:,ifld) = fmsub(mlon1,mlat0:mlat1,ifld)
             sndlon1(:,:,ifld) = fmsub(mlon1,1:nmlat,1:nflpts,ifld)
 !            sndlon1(:,ifld) = fmsub(mlon1,1:nflpts,ifld)
-!	    if (mlon0 == 13) sndlon1 = 1._r8
+!           if (mlon0 == 13) sndlon1 = 1._r8
          endif
       enddo ! ifld=1,nf
 
@@ -522,8 +522,8 @@ contains
 !      !
 !      ! Send mlat0 to south neighbor, and mlat1 to north:
 !      do ifld=1,nf
-!	  sndlat0(:,ifld) = fmsub(:,mlat0,ifld)
-!	  sndlat1(:,ifld) = fmsub(:,mlat1,ifld)
+!         sndlat0(:,ifld) = fmsub(:,mlat0,ifld)
+!         sndlat1(:,ifld) = fmsub(:,mlat1,ifld)
 !      enddo
 !      !
 !      ! Send mlat0 to south:
@@ -550,8 +550,8 @@ contains
 !      !
 !      ! Copy mlat0-1 from rcvlat0, and mlat1+1 from rcvlat1:
 !      do ifld=1,nf
-!	  fmsub(:,mlat0-1,ifld) = rcvlat0(:,ifld)
-!	  fmsub(:,mlat1+1,ifld) = rcvlat1(:,ifld)
+!         fmsub(:,mlat0-1,ifld) = rcvlat0(:,ifld)
+!         fmsub(:,mlat1+1,ifld) = rcvlat1(:,ifld)
 !      enddo ! ifld=1,nf
 
    end subroutine mp_mag_halos_edyn3D
@@ -690,7 +690,7 @@ contains
       if (ier /= 0) call handle_mpi_err(ier,'mp_gather_edyn3D: mpi_gather to root')
 
    end subroutine mp_gather_edyn3D
-    
+
 !-----------------------------------------------------------------------
    subroutine mp_scatter_edyn3D(fmglb, mlon0, mlon1, fmsub, nmlon, nmlat, nldim)
 
@@ -705,7 +705,7 @@ contains
       integer :: irstat(MPI_STATUS_SIZE)      ! mpi receive status
 
       real(r8),allocatable :: sndbuf(:,:,:), rcvbuf(:,:,:)
-      
+
       !
       ! If mytid==0, send to other tasks (mytid>0):
       if (mytid == 0) then
@@ -720,8 +720,8 @@ contains
             do n=1,nldim
                do j=1,nmlat
                   sndbuf(1:nlonsend,j,n) = fmglb(lonsend0:lonsend1,j,n)
-               enddo 
-            enddo 
+               enddo
+            enddo
             mtag = idest+mytid
             call mpi_isend(sndbuf,len,MPI_REAL8,idest,mtag,mpi_comm_edyn3D,isend,ier)
             if (ier /= 0) call handle_mpi_err(ier,'mp_scatter_edyn3D send to idest')
@@ -730,7 +730,7 @@ contains
             deallocate(sndbuf)
          enddo ! itask=1,ntaski-1
          !
-         ! 
+         !
          do n=1,nldim
             do j=1,nmlat
                fmsub(mlon0:mlon1,j,n) = fmglb(mlon0:mlon1,j,n)

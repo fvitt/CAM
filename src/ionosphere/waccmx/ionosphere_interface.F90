@@ -393,11 +393,6 @@ module ionosphere_interface
 
       call edyn3D_driver_reg(mpicom, ionos_npes) ! set ntask,mytid
 
-      call addfld( 'TnPhysIn', (/ 'lev' /), 'I', 'K', 'Nuetral Temperature input on phys grid' )
-      call addfld( 'TnPhysOut',(/ 'lev' /), 'I', 'K', 'Nuetral Temperature output on phys grid' )
-
-      call addfld( 'Tn_phys2', (/ 'lev' /), 'I', 'K', 'Tn test field' )
-
       call addfld('IonU_phys', (/ 'lev' /), 'I', 'm/s','Zonal Ion Drift Velocity on phys grid' )
       call addfld('IonV_phys', (/ 'lev' /), 'I', 'm/s','Meridional Ion Drift Velocity on phys grid' )
       call addfld('IonW_phys', (/ 'lev' /), 'I', 'm/s','Vertial Ion Drift Velocity on phys grid' )
@@ -1035,22 +1030,17 @@ module ionosphere_interface
       j = 0
       do lchnk = begchunk, endchunk
          ncol = phys_state(lchnk)%ncol
-         call outfld( 'TnPhysIn', phys_state(lchnk)%t, pcols, lchnk )
          do i = 1, ncol
             j = j + 1
             do k = 1, pver
-               !physalt(k,j) = phys_state(lchnk)%zm(i,k) ! meters
-
                r8tmp = phys_state(lchnk)%zm(i, k) + phys_state(lchnk)%phis(i)*rga
                physalt(k,j) = r8tmp * (1._r8 + (r8tmp * rearth_inv))
-
-               tn_in(k,j) = phys_state(lchnk)%t(i,k)
             end do
          end do
       end do
 
-      call edyn3D_driver_timestep( nphyscols, pver, physalt, tn_in, sigma_ped_blck, sigma_hall_blck, u_blck, v_blck, &
-                                   tn_out, tn_out2, ui_out, vi_out, wi_out )
+      call edyn3D_driver_timestep( nphyscols, pver, physalt, sigma_ped_blck, sigma_hall_blck, u_blck, v_blck, &
+                                   ui_out, vi_out, wi_out )
 
       j = 0
       do lchnk = begchunk, endchunk
@@ -1060,16 +1050,11 @@ module ionosphere_interface
          do i = 1, ncol
             j = j + 1
             do k = 1, pver
-               phys_out(i,k) = tn_out(k,j)
-               phys_out2(i,k) = tn_out2(k,j)
-
                phys_ui_out(i,k) = ui_out(k,j)
                phys_vi_out(i,k) = vi_out(k,j)
                phys_wi_out(i,k) = wi_out(k,j)
             end do
          end do
-         call outfld( 'TnPhysOut', phys_out, pcols, lchnk )
-         call outfld( 'Tn_phys2', phys_out2, pcols, lchnk )
          call outfld( 'IonU_phys', phys_ui_out, pcols, lchnk )
          call outfld( 'IonV_phys', phys_vi_out, pcols, lchnk )
          call outfld( 'IonW_phys', phys_wi_out, pcols, lchnk )

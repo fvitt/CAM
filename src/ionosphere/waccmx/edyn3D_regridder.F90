@@ -151,7 +151,7 @@ module edyn3D_regridder
   !-----------------------------------------------------------------------
   subroutine edyn3D_regridder_mag2oplus( opalt, magfld, opfld )
     use edyn3D_esmf_regrid, only: rh_mag_p2oplus, oplusField
-    use edyn_mpi, only: lon0,lon1,lat0,lat1,lev0,lev1
+    use edyn_mpi, only: lon0,lon1,lat0,lat1
     use edyn_geogrid, only: nlevo=>nlev
     use edyn3d_params, only: hgt_fix,nhgt_fix
     use interpolate_data, only: lininterp
@@ -162,7 +162,6 @@ module edyn3D_regridder
     real(r8), intent(out) :: opfld(lon0:lon1,lat0:lat1,nlevo) ! field mapped to oplus grid
 
     real(r8) :: f_tmp(lon0:lon1,lat0:lat1,nhgt_fix)
-    integer :: lbnd1d(1), ubnd1d(1) ! 1d field bounds
     integer :: lbnd2d(2), ubnd2d(2) ! 2d field bounds
     real(ESMF_KIND_R8), pointer :: fptr2d(:,:)
 
