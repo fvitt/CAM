@@ -6,14 +6,13 @@ inithist='ENDOFRUN'
 
 ionos_npes = 45
 
-fincl2 = 'GEOGALTp','GEOGALTs1','GEOGALTs2','GEOGLATp','GEOGLONp','Tn_mag',
-         'sigma_ped_s1','sigma_ped_s2',
+fincl2 = 'sigma_ped_s1','sigma_ped_s2',
          'sigma_hal_s1','sigma_hal_s2',
-         'height_s1','height_s2', 'POTENp'
+         'height_s1','height_s2', 'POTENp','HILATPOT'
 
-fincl3 = 'T','TnPhysIn','TnPhysOut','SIGMAPED','SIGMAHAL','Z3','Z3GM', 'POTENp'
+fincl3 = 'T','SIGMAPED','SIGMAHAL','Z3','Z3GM', 'POTENp'
 
-fincl4 = 'Tn_opg0','Tn_opg1'
+fincl4 = ' '
 
 fincl5 = 'ED1s1','ED2s1','ED1s2','ED2s2', 'Ve1s1','Ve2s1','Ve1s2','Ve2s2',
          'UI_s1','VI_s1','WI_s1','IonU_s1','IonV_s1','IonW_s1',

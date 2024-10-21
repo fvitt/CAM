@@ -94,7 +94,7 @@ contains
     call addfld ('HILATPOT', horiz_only, 'I', 'Volts','magnetic field line point electric potential', gridname='magfline_p')
     call addfld ('HILATFAC', horiz_only, 'I', '???','high-lat field aligned currents', gridname='magfline_p')
 
-    call addfld ('ELECPOTEN', horiz_only, 'I', 'Volts','high latitude magnetic electric potential', gridname='geomag_grid')
+    call addfld ('ELECPOTEN', horiz_only, 'I', 'Volts','Electric potential', gridname='geomag_grid')
     call addfld ('HL_EPOTEN', horiz_only, 'I', 'Volts','high latitude magnetic electric potential', gridname='geomag_grid')
     call addfld ('HL_FACURR', horiz_only, 'I', '??','high latitude field aligned current', gridname='geomag_grid')
 
@@ -327,13 +327,21 @@ contains
 
     call mpibarrier(mpicom)
 
-    call t_startf('edyn3D_driver_timestep.9.ionvels')
+    call t_startf('edyn3D_driver_timestep.9.regrid_opalt')
 
     call regrid_phys2geo_3d( physalt, opalt, nphyslev, 1, nphyscol )
+
+    call t_stopf('edyn3D_driver_timestep.9.regrid_opalt')
+
+    call mpibarrier(mpicom)
+
+    call t_startf('edyn3D_driver_timestep.10.ionvels')
 
     !  diagnostics ...
 
     proc_tasks: if (mytid<ntask) then
+
+       call t_startf('edyn3D_driver_timestep.10.ionvels_calc')
 
        do i = mlon0_p,mlon1_p
           ncnt1 = 0
@@ -404,13 +412,26 @@ contains
           if (i == mlon0_p) nptss1_total = ncnt2
        end do
 
+
        call output_fline_field(IonU_s1)
        call output_fline_field(IonV_s1)
        call output_fline_field(IonW_s1)
 
+       call t_stopf('edyn3D_driver_timestep.10.ionvels_calc')
+
+       call mpibarrier(mpi_comm_edyn)
+
+       call t_startf('edyn3D_driver_timestep.10.ionvels_regrid2oplus')
+
        call edyn3D_regridder_mag2oplus( opalt, IonU_s1, IonU_oplus )
        call edyn3D_regridder_mag2oplus( opalt, IonV_s1, IonV_oplus )
        call edyn3D_regridder_mag2oplus( opalt, IonW_s1, IonW_oplus )
+
+       call t_stopf('edyn3D_driver_timestep.10.ionvels_regrid2oplus')
+
+       call mpibarrier(mpi_comm_edyn)
+
+       call t_startf('edyn3D_driver_timestep.10.ionvels_diags')
 
        do j = lat0,lat1
           call outfld( 'IonU_opg', IonU_oplus(lon0:lon1,j,lev0:lev1), lon1-lon0+1, j )
@@ -485,13 +506,21 @@ contains
           call outfld('Ve2s2',  ve2_s2(mlon0_p:mlon1_p,j), mlon1_p-mlon0_p+1, j)
        end do
 
+       call t_stopf('edyn3D_driver_timestep.10.ionvels_diags')
+
     end if proc_tasks
+
+    call mpibarrier(mpicom)
+
+    call t_startf('edyn3D_driver_timestep.10.ionvels_regrid2phys')
 
     call edyn3D_regridder_mag2phys(IonU_s1, physalt, nphyscol,nphyslev, ui_out)
     call edyn3D_regridder_mag2phys(IonV_s1, physalt, nphyscol,nphyslev, vi_out)
     call edyn3D_regridder_mag2phys(IonW_s1, physalt, nphyscol,nphyslev, wi_out)
 
-    call t_stopf('edyn3D_driver_timestep.9.ionvels')
+    call t_stopf('edyn3D_driver_timestep.10.ionvels_regrid2phys')
+
+    call t_stopf('edyn3D_driver_timestep.10.ionvels')
 
     call mpibarrier(mpicom)
     call t_stopf('edyn3D_driver_timestep')
