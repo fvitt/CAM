@@ -567,14 +567,24 @@ contains
 
     real(r8) :: diam(ncol,nlev)
 
-    real(r8), pointer :: wetr(:,:)
-    character(len=32) :: bin_name
+    real(r8) :: radwet(pcols,pver)   !! wet radius (m)
+    real(r8) :: rhowet(pcols,pver)   !! wet density (kg/m3)
+
+    character(len=aero_name_len) :: bin_name, shortname
+    integer :: igroup, ibin, rc, nchr
 
     call rad_cnst_get_info_by_bin(0, bin_idx, bin_name=bin_name)
 
-    call pbuf_get_field(self%pbuf, pbuf_get_index(trim(bin_name)//"_wetr"),wetr)
+    nchr = len_trim(bin_name)-2
+    shortname = bin_name(:nchr)
 
-    diam(:ncol,:nlev) = 2._r8*wetr(:ncol,:nlev)
+    call  carma_get_group_by_name(shortname, igroup, rc)
+
+    read(bin_name(nchr+1:),*) ibin
+
+    call carma_get_wet_radius(self%state, igroup, ibin, radwet, rhowet, rc)
+
+    diam(:ncol,:nlev) = 2._r8*radwet(:ncol,:nlev)
 
   end function wet_diameter
 

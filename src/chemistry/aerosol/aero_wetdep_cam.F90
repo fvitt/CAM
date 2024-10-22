@@ -21,9 +21,11 @@ module aero_wetdep_cam
   use aerosol_properties_mod, only: aero_name_len
   use aerosol_properties_mod, only: aerosol_properties
   use modal_aerosol_properties_mod, only: modal_aerosol_properties
+  use carma_aerosol_properties_mod, only: carma_aerosol_properties
 
   use aerosol_state_mod, only: aerosol_state, ptr2d_t
   use modal_aerosol_state_mod, only: modal_aerosol_state
+  use carma_aerosol_state_mod, only: carma_aerosol_state
 
   use aero_convproc, only: aero_convproc_readnl, aero_convproc_init, aero_convproc_intr
   use aero_convproc, only: convproc_do_evaprain_atonce
@@ -64,6 +66,7 @@ module aero_wetdep_cam
   real(r8),allocatable :: scavimptblvol(:,:)
 
   integer :: nmodes=0
+  integer :: nbins=0
   integer :: nspec_max=0
   integer :: nele_tot            ! total number of aerosol elements
   class(aerosol_properties), pointer :: aero_props=>null()
@@ -169,12 +172,17 @@ contains
                       history_chemistry_out=history_chemistry, &
                       convproc_do_aer_out = convproc_do_aer)
 
-    call rad_cnst_get_info(0, nmodes=nmodes)
+    call rad_cnst_get_info(0, nmodes=nmodes, nbins=nbins)
 
     if (nmodes>0) then
        aero_props => modal_aerosol_properties()
        if (.not.associated(aero_props)) then
           call endrun(subrname//' : construction of aero_props modal_aerosol_properties object failed')
+       end if
+    else if (nbins>0) then
+       aero_props => carma_aerosol_properties()
+       if (.not.associated(aero_props)) then
+          call endrun(subrname//' : construction of aero_props carma_aerosol_properties object failed')
        end if
     else
        call endrun(subrname//' : cannot determine aerosol model')
@@ -182,13 +190,13 @@ contains
 
     nele_tot = aero_props%ncnst_tot()
 
-    allocate(aero_cnst_lq(aero_props%nbins(),0:maxval(aero_props%nmasses())), stat=astat)
+    allocate(aero_cnst_lq(aero_props%nbins(),0:maxval(aero_props%nspecies())), stat=astat)
     if (astat/=0) then
        call endrun(subrname//' : not able to allocate aero_cnst_lq array')
     end if
     aero_cnst_lq(:,:) = .false.
 
-    allocate(aero_cnst_id(aero_props%nbins(),0:maxval(aero_props%nmasses())), stat=astat)
+    allocate(aero_cnst_id(aero_props%nbins(),0:maxval(aero_props%nspecies())), stat=astat)
     if (astat/=0) then
        call endrun(subrname//' : not able to allocate aero_cnst_id array')
     end if
@@ -200,7 +208,7 @@ contains
        write(binstr,'(i2.2)') m
        call addfld('SOLFACTB'//binstr,  (/ 'lev' /), 'A', '1', 'below cld sol fact')
 
-       do l = 0, aero_props%nmasses(m)
+       do l = 0, aero_props%nspecies(m)
 
           if (l == 0) then   ! number
              call aero_props%num_names( m, tmpname, tmpname_cw)
@@ -411,6 +419,11 @@ contains
        if (.not.associated(aero_state)) then
           call endrun(subrname//' : construction of aero_state modal_aerosol_state object failed')
        end if
+    else if (nbins>0) then
+       aero_state => carma_aerosol_state(state,pbuf)
+       if (.not.associated(aero_state)) then
+          call endrun(subrname//' : construction of aero_state carma_aerosol_state object failed')
+       end if
     else
        call endrun(subrname//' : cannot determine aerosol model')
     endif
@@ -467,7 +480,7 @@ contains
        if (convproc_do_evaprain_atonce) then
 
           do m = 1,aero_props%nbins()
-             do l = 0,aero_props%nmasses(m)
+             do l = 0,aero_props%nspecies(m)
                 mm = aero_props%indexer(m,l)
 
                 if (l == 0) then   ! number
@@ -544,7 +557,7 @@ contains
 
           end if
 
-          masses_loop: do l = 0,aero_props%nmasses(m)
+          masses_loop: do l = 0,aero_props%nspecies(m)
 
              ndx = aero_cnst_id(m,l)
 
@@ -572,7 +585,11 @@ contains
                 qqcw_in = nan
                 f_act_conv = nan
              else ! interstial aerosol
-                q_tmp(1:ncol,:) = raer(mm)%fld(1:ncol,:) + ptend%q(1:ncol,:,ndx)*dt
+                if (ndx>0) then
+                   q_tmp(1:ncol,:) = raer(mm)%fld(1:ncol,:) + ptend%q(1:ncol,:,ndx)*dt
+                else
+                   q_tmp(1:ncol,:) = raer(mm)%fld(1:ncol,:)
+                end if
                 if (l==0) then
                    jnv = 1
                 else
