@@ -270,6 +270,7 @@ contains
 
     integer :: idx
     real(r8) :: nanval
+    character(len=2) :: binstr
 
     aero_props => carma_aerosol_properties()
 
@@ -373,6 +374,9 @@ contains
 
     ii = 0
     do m = 1, nbins
+      write(binstr,'(i2.2)') m
+      call addfld('SOLFACTB'//binstr,  (/ 'lev' /), 'A', '1', 'below cld sol fact')
+
       do l = 1, nspec(m) ! loop through species
          ii = ii + 1
          bin_idx(m,l) = ii
@@ -427,6 +431,7 @@ contains
        call addfld (trim(fieldname_cw(mm))//'CONU',(/ 'lev' /), 'A',unit_basename//'/kg ','updraft mixing ratio??')
 
        call addfld (trim(fieldname(mm))//'WET',(/ 'lev' /), 'A',unit_basename//'/kg/s ','wet deposition tendency')
+       call addfld (trim(fieldname(mm))//'WDIN',(/ 'lev' /), 'A',unit_basename//'/kg','wet deposition input')
        call addfld (trim(fieldname(mm))//'SIC',(/ 'lev' /), 'A',unit_basename//'/kg/s ', &
             trim(fieldname(mm))//' ic wet deposition')
        call addfld (trim(fieldname(mm))//'SIS',(/ 'lev' /), 'A',unit_basename//'/kg/s ', &
@@ -694,6 +699,7 @@ contains
     real(r8) :: rho(pcols,pver)
     real(r8) :: rdry(pcols,pver)
     real(r8) :: rwet(pcols,pver)
+    character(len=2) :: binstr
 
     lchnk = state%lchnk
     ncol  = state%ncol
@@ -942,6 +948,10 @@ contains
                    sol_factb(i,k) = min(max(sol_factb(i,k), 0.1_r8), 0.8_r8)
                 end do ! ncol
              end do !pver
+
+             write(binstr,'(i2.2)') m
+             call outfld('SOLFACTB'//binstr,sol_factb, pcols, lchnk)
+
           end if !phase 1
           ! for scavenging coefficient, for CARMA this is specie independent (different than for MAM)
           if (lphase == 1) then
@@ -1053,6 +1063,7 @@ contains
                 call outfld( trim(fieldname(mm))//'SBS', bsscavt, pcols, lchnk)
                 call outfld( trim(fieldname(mm))//'SIC', icscavt, pcols, lchnk)
                 call outfld( trim(fieldname(mm))//'WET', dqdt_tmp(:,:), pcols, lchnk)
+                call outfld( trim(fieldname(mm))//'WDIN', q_tmp(:,:), pcols, lchnk)
 
                 sflx(:)=0._r8
                 do k=1,pver
