@@ -9,7 +9,7 @@
 	path = src/physics/carma/base
 	url = https://github.com/fvitt/CARMA_base.git
         fxrequired = AlwaysRequired
-        fxtag = 6d1a09eb
+        fxtag = 4dbf023
         fxDONOTUSEurl = https://github.com/ESCOMP/CARMA_base.git
 
 [submodule "pumas"]
