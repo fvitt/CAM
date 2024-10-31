@@ -939,8 +939,10 @@ contains
       type(tuvx_ptr), intent(in) :: this
 
       type(string_t), allocatable :: labels(:), all_labels(:)
-      integer :: i_label
+      integer :: i_label, i_euv
       integer :: ipht
+
+      character(len=2) :: numstr
 
       if( .not. enable_diagnostics ) then
          allocate( diagnostics( 0 ) )
@@ -951,20 +953,33 @@ contains
       ! add output for specific photolysis reaction rate constants
       ! ==========================================================
       labels = this%core_%photolysis_reaction_labels( )
-      allocate( all_labels( size( labels ) + this%n_special_rates_ ) )
+      allocate( all_labels( size( labels ) + this%n_euv_rates_ + this%n_special_rates_ ) )
+
       all_labels( 1 : size( labels ) ) = labels(:)
-      i_label = size( labels ) + 1
+      i_label = size( labels )
+
+      if( do_euv ) then
+         do i_euv = 1,this%n_euv_rates_
+            i_label = i_label + 1
+            write(numstr,fmt='(I2)') i_euv
+            all_labels( i_label ) = "jeuv_"//trim(adjustl(numstr))
+         end do
+      end if
+
+      i_label = i_label + 1
+
       if( do_jno ) then
          all_labels( i_label ) = "jno"
          i_label = i_label + 1
       end if
+
       call assert( 522515214, i_label == size( all_labels ) + 1 )
       allocate( diagnostics( size( all_labels ) ) )
       do i_label = 1, size( all_labels )
          diagnostics( i_label )%name_  = trim( all_labels( i_label )%to_char( ) )
          diagnostics( i_label )%index_ = i_label
          call addfld( "tuvx_"//diagnostics( i_label )%name_, (/ 'lev' /), 'A', 'sec-1', &
-                      'photolysis rate constant' )
+                      trim(diagnostics( i_label )%name_)//' photolysis rate constant' )
          call add_default("tuvx_"//diagnostics( i_label )%name_,3,' ')
       end do
 
@@ -1104,8 +1119,7 @@ contains
 
       do i_diag = 1, size( diagnostics )
          associate( diag => diagnostics( i_diag ) )
-            call outfld( "tuvx_"//diag%name_, photo_rates(:ncol,pver+1:2:-1,diag%index_), &
-               ncol, lchnk )
+            call outfld( "tuvx_"//diag%name_, photo_rates(:ncol,pver+1:2:-1,diag%index_), ncol, lchnk )
          end associate
       end do
 
