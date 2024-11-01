@@ -493,6 +493,9 @@ module ionosphere_interface
       use edyn_grid_comp, only: edyn_grid_comp_run2
       use shr_assert_mod, only: shr_assert_in_domain
       use shr_const_mod,  only: SHR_CONST_REARTH ! meters
+      use regridder,  only: regrid_geo2phys_3d
+
+      use edyn_mpi,      only: lon0, lon1, lat0, lat1, lev0, lev1
 
       ! - pull some fields from pbuf and dyn_in
       ! - invoke ionosphere/electro-dynamics coupling
@@ -571,6 +574,11 @@ module ionosphere_interface
     real(r8), pointer :: ui_out(:,:)
     real(r8), pointer :: vi_out(:,:)
     real(r8), pointer :: wi_out(:,:)
+
+    real(r8) :: ui_op(lon0:lon1,lat0:lat1,lev0:lev1) ! on oplus grid
+    real(r8) :: vi_op(lon0:lon1,lat0:lat1,lev0:lev1)
+    real(r8) :: wi_op(lon0:lon1,lat0:lat1,lev0:lev1)
+
     real(r8), pointer :: tn_out(:,:)
     real(r8), pointer :: tn_out2(:,:)
     real(r8) :: phys_out(pcols,pver)
@@ -1040,7 +1048,11 @@ module ionosphere_interface
       end do
 
       call edyn3D_driver_timestep( nphyscols, pver, physalt, sigma_ped_blck, sigma_hall_blck, u_blck, v_blck, &
-                                   ui_out, vi_out, wi_out )
+                                   ui_op, vi_op, wi_op )
+
+      call regrid_geo2phys_3d( ui_op, ui_out, pver, 1, nphyscols )
+      call regrid_geo2phys_3d( vi_op, vi_out, pver, 1, nphyscols )
+      call regrid_geo2phys_3d( wi_op, wi_out, pver, 1, nphyscols )
 
       j = 0
       do lchnk = begchunk, endchunk

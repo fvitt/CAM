@@ -2,6 +2,7 @@ module edyn3D_driver
   use shr_kind_mod, only: r8 => shr_kind_r8
   use spmd_utils, only: masterproc, mpicom
   use cam_abortutils, only: endrun
+  use cam_logfile, only: iulog
 
   use edyn3D_maggrid, only: gen_highres_grid, edyn3D_gen_ggj_grid, edyn3D_gen_qd_grid, &
                             edyn3D_gen_geo_grid, edyn3D_qcoef, edyn3D_calculate_mf
@@ -11,9 +12,6 @@ module edyn3D_driver
   use edyn3D_fieldline, only: fieldline_init, fieldline_getapex
   use edyn3D_params, only: nmlon,nmlonp1,nmlat_h,nptsp_total,nptss1_total,nptss2_total, &
                            ylonm,ylatm,ylonm_s,nhgt_fix,nmlat_T1,nmlatS2_h
-
-  use edyn3D_esmf_regrid
-  use edyn3D_regridder
 
   use perf_mod, only: t_startf, t_stopf
   use edyn_mpi, only: mpi_comm_edyn
@@ -65,7 +63,6 @@ contains
 
     call reg_hist_grid()
 
-    call edyn3D_esmf_regrid_init()
     call edyn3D_esmf_fields_rhandles_init()
 
     call addfld ('sigma_ped_s1', horiz_only, 'I', 'K','Ped cond. on S1 mag field line grid', &
@@ -121,7 +118,8 @@ contains
 
   end subroutine edyn3D_driver_reg
 
-  subroutine edyn3D_driver_timestep( nphyscol, nphyslev, physalt, sigPed, sigHal, un, vn, ui_out, vi_out, wi_out )
+  subroutine edyn3D_driver_timestep( nphyscol, nphyslev, physalt, sigPed, sigHal, un, vn, &
+                                     IonU_oplus, IonV_oplus, IonW_oplus )
 
     use edyn3d_mpi, only: mlon0_p,mlon1_p
     use cam_history,  only: outfld
@@ -151,9 +149,9 @@ contains
     real(r8), intent(in) :: un(nphyslev,nphyscol)
     real(r8), intent(in) :: vn(nphyslev,nphyscol)
 
-    real(r8), intent(out) :: ui_out(nphyslev,nphyscol)
-    real(r8), intent(out) :: vi_out(nphyslev,nphyscol)
-    real(r8), intent(out) :: wi_out(nphyslev,nphyscol)
+    real(r8), intent(out) :: IonU_oplus(lon0:lon1,lat0:lat1,lev0:lev1)
+    real(r8), intent(out) :: IonV_oplus(lon0:lon1,lat0:lat1,lev0:lev1)
+    real(r8), intent(out) :: IonW_oplus(lon0:lon1,lat0:lat1,lev0:lev1)
 
     real(r8) :: potential(mlon0_p:mlon1_p, nptsp_total)
     real(r8) :: hilat_poten(mlon0_p:mlon1_p, nptsp_total)
@@ -178,9 +176,6 @@ contains
 
     real(r8) :: opalt (lon0:lon1,lat0:lat1,lev0:lev1)
 
-    real(r8) :: IonU_oplus(lon0:lon1,lat0:lat1,lev0:lev1)
-    real(r8) :: IonV_oplus(lon0:lon1,lat0:lat1,lev0:lev1)
-    real(r8) :: IonW_oplus(lon0:lon1,lat0:lat1,lev0:lev1)
     real(r8) :: sunlon
 
     type(magfield_t) :: mag_s1_flds(phys2mag_nflds)
@@ -514,14 +509,6 @@ contains
     end if proc_tasks
 
     call mpibarrier(mpicom)
-
-    call t_startf('edyn3D_driver_timestep.10.ionvels_regrid2phys')
-
-    call edyn3D_regridder_mag2phys(IonU_s1, physalt, nphyscol,nphyslev, ui_out)
-    call edyn3D_regridder_mag2phys(IonV_s1, physalt, nphyscol,nphyslev, vi_out)
-    call edyn3D_regridder_mag2phys(IonW_s1, physalt, nphyscol,nphyslev, wi_out)
-
-    call t_stopf('edyn3D_driver_timestep.10.ionvels_regrid2phys')
 
     call t_stopf('edyn3D_driver_timestep.10.ionvels')
 
