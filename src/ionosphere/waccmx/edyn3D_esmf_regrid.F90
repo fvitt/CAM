@@ -359,7 +359,7 @@ contains
             factorIndexList=factorIndexList,                                   &
             factorList=factorList, srcTermProcessing=smm_srctermproc,          &
             pipelineDepth=smm_pipelinedep, rc=rc)
-       call check_error(subname,'FieldRegridStore mag2phys route handle',rc)
+       call check_error(subname,'FieldRegridStore rh_mag_p2phys route handle',rc)
 
        ! mag->oplus
        call ESMF_FieldRegridStore( &

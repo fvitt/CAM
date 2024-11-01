@@ -35,6 +35,8 @@ contains
     use mo_apex,             only: mo_apex_init1
     use edyn3D_fline_fields, only: edyn3D_fline_fields_alloc
 
+    use edyn3D_esmf_fields_rhandles, only: edyn3D_esmf_fields_rhandles_init
+
     integer, intent(in) :: mpicom, npes
 
     call mo_apex_init1()
@@ -64,13 +66,7 @@ contains
     call reg_hist_grid()
 
     call edyn3D_esmf_regrid_init()
-
-!    call apxparm(geomag_year)
-
-    call addfld ('height_s1', horiz_only, 'I', 'm','altitude', &
-                  gridname='magfline_s1')
-    call addfld ('height_s2', horiz_only, 'I', 'm','altitude', &
-                  gridname='magfline_s2')
+    call edyn3D_esmf_fields_rhandles_init()
 
     call addfld ('sigma_ped_s1', horiz_only, 'I', 'K','Ped cond. on S1 mag field line grid', &
                   gridname='magfline_s1')
@@ -130,7 +126,7 @@ contains
     use edyn3d_mpi, only: mlon0_p,mlon1_p
     use cam_history,  only: outfld
     use edyn3D_fieldline, only: fline_p, fline_s1, fline_s2
-    use edyn3D_fline_fields, only: height_s1, height_s2, IonV_s1, IonU_s1, IonW_s1
+    use edyn3D_fline_fields, only: IonV_s1, IonU_s1, IonW_s1
     use edyn3D_fline_fields, only: sigma_ped_s1,sigma_hal_s1,sigma_ped_s2,sigma_hal_s2,un_s1,vn_s1,un_s2,vn_s2
     use edyn_mpi, only: lon0,lon1,lat0,lat1,lev0,lev1
     use regridder, only: regrid_phys2geo_3d, regrid_geo2phys_3d
@@ -141,6 +137,12 @@ contains
     use sunloc_mod, only: sunloc_calc
     use edyn3D_heelis, only: edyn3D_heelis_set_hlat_pot
     use edyn3D_fieldline, only: poten_hl
+
+    use edyn3D_esmf_fields_rhandles, only: phys2mag_nflds, magFieldDes_s1, rh_phys2mag_s1, magFieldDes_s2, rh_phys2mag_s2
+    use edyn3D_esmf_fields_rhandles, only: mag2opls_nflds
+
+    use edyn3D_fline_fields, only: magfield_t
+    use edyn3D_remap_mod, only: edyn3D_remap_phys2mag, edyn3D_remap_mag2oplus
 
     integer,  intent(in) :: nphyscol, nphyslev
     real(r8), intent(in) :: physalt(nphyslev,nphyscol)
@@ -181,34 +183,32 @@ contains
     real(r8) :: IonW_oplus(lon0:lon1,lat0:lat1,lev0:lev1)
     real(r8) :: sunlon
 
+    type(magfield_t) :: mag_s1_flds(phys2mag_nflds)
+    type(magfield_t) :: mag_s2_flds(phys2mag_nflds)
+    type(magfield_t) :: mag_src_flds(mag2opls_nflds)
+    real(r8) :: physflds(nphyslev,nphyscol,phys2mag_nflds)
+    real(r8) :: oplusflds(lon0:lon1,lat0:lat1,lev0:lev1,mag2opls_nflds)
+
     call mpibarrier(mpicom)
 
     call t_startf('edyn3D_driver_timestep')
     call t_startf('edyn3D_driver_timestep.1.regrid')
 
-    call edyn3D_regridder_phys2mag(physalt,physalt,nphyscol,nphyslev,height_s1)
-    call edyn3D_regridder_phys2mag(physalt,physalt,nphyscol,nphyslev,height_s2)
+    mag_s1_flds = (/sigma_ped_s1,sigma_hal_s1,un_s1,vn_s1/)
+    mag_s2_flds = (/sigma_ped_s2,sigma_hal_s2,un_s2,vn_s2/)
+    physflds(:,:,1) = sigPed(:,:)
+    physflds(:,:,2) = sigHal(:,:)
+    physflds(:,:,3) = un(:,:)
+    physflds(:,:,4) = vn(:,:)
 
-    call edyn3D_regridder_phys2mag(sigPed,physalt,nphyscol,nphyslev,sigma_ped_s1)
-    call edyn3D_regridder_phys2mag(sigPed,physalt,nphyscol,nphyslev,sigma_ped_s2)
-
-    call edyn3D_regridder_phys2mag(sigHal,physalt,nphyscol,nphyslev,sigma_hal_s1)
-    call edyn3D_regridder_phys2mag(sigHal,physalt,nphyscol,nphyslev,sigma_hal_s2)
-
-    call edyn3D_regridder_phys2mag(un,physalt,nphyscol,nphyslev,un_s1)
-    call edyn3D_regridder_phys2mag(un,physalt,nphyscol,nphyslev,un_s2)
-
-    call edyn3D_regridder_phys2mag(vn,physalt,nphyscol,nphyslev,vn_s1)
-    call edyn3D_regridder_phys2mag(vn,physalt,nphyscol,nphyslev,vn_s2)
+    call edyn3D_remap_phys2mag(physflds, physalt, nphyscol, nphyslev, phys2mag_nflds, magFieldDes_s1, rh_phys2mag_s1, mag_s1_flds)
+    call edyn3D_remap_phys2mag(physflds, physalt, nphyscol, nphyslev, phys2mag_nflds, magFieldDes_s2, rh_phys2mag_s2, mag_s2_flds)
 
     call t_stopf('edyn3D_driver_timestep.1.regrid')
 
     call mpibarrier(mpicom)
 
     call t_startf('edyn3D_driver_timestep.2.output')
-
-    call output_fline_field(height_s1)
-    call output_fline_field(height_s2)
 
     call output_fline_field(sigma_ped_s1)
     call output_fline_field(sigma_ped_s2)
@@ -412,7 +412,6 @@ contains
           if (i == mlon0_p) nptss1_total = ncnt2
        end do
 
-
        call output_fline_field(IonU_s1)
        call output_fline_field(IonV_s1)
        call output_fline_field(IonW_s1)
@@ -423,9 +422,13 @@ contains
 
        call t_startf('edyn3D_driver_timestep.10.ionvels_regrid2oplus')
 
-       call edyn3D_regridder_mag2oplus( opalt, IonU_s1, IonU_oplus )
-       call edyn3D_regridder_mag2oplus( opalt, IonV_s1, IonV_oplus )
-       call edyn3D_regridder_mag2oplus( opalt, IonW_s1, IonW_oplus )
+       mag_src_flds = (/IonU_s1,IonV_s1,IonW_s1/)
+
+       call edyn3D_remap_mag2oplus( mag_src_flds, opalt, oplusflds )
+
+       IonU_oplus(:,:,:) = oplusflds(:,:,:,1)
+       IonV_oplus(:,:,:) = oplusflds(:,:,:,2)
+       IonW_oplus(:,:,:) = oplusflds(:,:,:,3)
 
        call t_stopf('edyn3D_driver_timestep.10.ionvels_regrid2oplus')
 

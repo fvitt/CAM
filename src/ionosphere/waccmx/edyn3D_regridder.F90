@@ -178,7 +178,7 @@ module edyn3D_regridder
                   computationalLBound=lbnd2d, computationalUBound=ubnd2d, rc=rc)
              call check_errror(subname,'ESMF_FieldGet pmagfld%esmf_fld(k)',rc)
 
-             nmlat = (magfld%nmlat_h - (k-1))*2
+             nmlat = (magfld%nmlat_h - (k-1))*2 - 1
 
              do j = lbnd2d(2), ubnd2d(2)
                 if (j>nmlat/2) then
