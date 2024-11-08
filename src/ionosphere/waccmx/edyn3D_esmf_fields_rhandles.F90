@@ -40,6 +40,13 @@ module edyn3D_esmf_fields_rhandles
   integer, public, parameter :: phys2mag_nflds = 4
   integer, public, parameter :: mag2opls_nflds = 3
 
+  type(ESMF_Mesh)  :: phys_mesh
+  type(ESMF_Grid)  :: oplusGrid
+  
+  type(ESMF_Grid),  pointer :: mag_grid_s1(:)
+  type(ESMF_Grid),  pointer :: mag_grid_s2(:)
+  type(ESMF_Grid),  pointer :: mag_grid_src(:)
+
 contains
 
   subroutine edyn3D_esmf_fields_rhandles_init
@@ -54,15 +61,9 @@ contains
     integer,allocatable :: decomp(:)
 
     character(len=cl) :: mesh_file
-    type(ESMF_Mesh)  :: phys_mesh
     type(ESMF_ArraySpec) :: arrayspec
     type(ESMF_DistGrid) :: dist_grid_2d
 
-    type(ESMF_Grid)  :: oplusGrid
-
-    type(ESMF_Grid),  pointer :: mag_grid_s1(:)
-    type(ESMF_Grid),  pointer :: mag_grid_s2(:)
-    type(ESMF_Grid),  pointer :: mag_grid_src(:)
     real(kind=ESMF_KIND_R8), pointer :: fptr2d(:,:)
 
     integer, allocatable :: petmap(:,:,:)
@@ -451,12 +452,8 @@ contains
 
     end do
 
-    deallocate(mag_grid_s1)
-    deallocate(mag_grid_s2)
-
     deallocate(petmap)
-
-
+    
   end subroutine edyn3D_esmf_fields_rhandles_init
 
   !-----------------------------------------------------------------------
