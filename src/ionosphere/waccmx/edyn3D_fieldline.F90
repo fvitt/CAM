@@ -799,7 +799,7 @@ module edyn3D_fieldline
 
                   qdlat = fline_r(i,j,isn)%mlat_qd(k)*r2d ! get quasi-dipole latitude
                   qdlon = fline_r(i,j,isn)%mlon_qd(k)*r2d ! get quasi-dipole longitude
-                  alt = fline_r(i,j,isn)%hgt_pt(k)*1e-3 ! convert height from [m] to [km]
+                  alt = fline_r(i,j,isn)%hgt_pt(k)*1e-3_r8 ! convert height from [m] to [km]
 
                   call apex_q2g(qdlat,qdlon,alt,gdlat,gdlon, ierr)
 
@@ -925,7 +925,7 @@ module edyn3D_fieldline
 !                  fline_s2(i,j,isn)%e1g1(k) = dot_product(e1,g1)  ! diagnostic
 !                  fline_s2(i,j,isn)%e2g1(k) = dot_product(e2,g1)  ! diagnostic
                   fline_s2(i,j,isn)%e2g2(k) = dot_product(e2,g2)
-                  b=  b*1.e-9
+                  b=  b*1.e-9_r8
 !                  fline_s2(i,j,isn)%bg1(k) = dot_product(b,g1)/fline_s2(i,j,isn)%Bmag(k)  ! diagnostic
 !		  fline_s2(i,j,isn)%bg2(k) = dot_product(b,g2)/fline_s2(i,j,isn)%Bmag(k)  ! diagnostic
                   fline_s2(i,j,isn)%e2k(k)  = e2(3)  ! k unit upward vector

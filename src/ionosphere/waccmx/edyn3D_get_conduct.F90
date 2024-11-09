@@ -117,8 +117,8 @@
 !	      enddo
 	      
 ! calculate conductances	      
-	      sumP = 0.
-	      sumH = 0.
+	      sumP = 0._r8
+	      sumH = 0._r8
 	      do k=1,nmax-1
 !	       if(alt(k).gt.140.) then
 	         sumP = sumP + fline_s1(i,j,isn)%sigP(k)*2*abs(fline_s1(i,j,isn)%Vmp(k+1)-fline_s1(i,j,isn)%Vmp(k))/ &

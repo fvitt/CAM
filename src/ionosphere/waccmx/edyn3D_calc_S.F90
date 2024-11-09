@@ -59,7 +59,7 @@
 !           endif
           fline_p(i,1,isn)%S(:) = val_fill  ! put fill value in the polar flux tubes
 !              
-          sum1 = 0.
+          sum1 = 0._r8
           do j=2,nmlat_h  ! loop over all latitudes in one hemisphere; not pole value
              nmax = fline_p(i,j,isn)%npts ! maximum of points on fieldline
              !

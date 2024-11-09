@@ -54,7 +54,7 @@
 ! sigC = sigP*d1*d1+(sigH*D-sigP*d1*d2)*(sigH*D+sigP*d1*d2)/sigP/(d2*d2)
 !        for i+0.5,j,k		
 	          if(k == 1 .and. (nmlat_h-j+1) == k) then ! lowest volume at equator j ==  nmlat_h
-		    fline_s1(i,j,isn)%N1h(k) = 0.
+		    fline_s1(i,j,isn)%N1h(k) = 0._r8
                     sigC = fline_s1(i,j,isn)%sigP(k)*fline_s1(i,j,isn)%d1d1(k)
                     sigC =sigC + (fline_s1(i,j,isn)%sigH(k)*fline_s1(i,j,isn)%D(k)- &
 		       fline_s1(i,j,isn)%sigP(k)*fline_s1(i,j,isn)%d1d2(k))* &
@@ -80,7 +80,7 @@
 !		   
 ! N2H(j+0.5) = M2(j+0.5)*[sigH*D+sigP*d1*d2]](j+0.5)/2/R/rho(j+0.5)/(phi(i+1)-phi(i-1)))		  
 		  fline_s2(i,j,isn)%N2h(k) = fline_s2(i,j,isn)%M2(k)*(fline_s2(i,j,isn)%sigH(k)* &
-		     fline_s2(i,j,isn)%D(k)+fline_s2(i,j,isn)%sigP(k)*fline_s2(i,j,isn)%d1d2(k))*0.5/ &
+		     fline_s2(i,j,isn)%D(k)+fline_s2(i,j,isn)%sigP(k)*fline_s2(i,j,isn)%d1d2(k))*0.5_r8/ &
 		     r0/2/rho_s(j,isn)/dlonm
 ! N2P(j+0.5) = M2(j+0.5)[sigP*d2^2](j+0.5)*sqrt(1-0.75 rho^2(j+0.5)/R/(rho(j+1)-rho(j))  
 		  fline_s2(i,j,isn)%N2p(k) = fline_s2(i,j,isn)%M2(k)*fline_s2(i,j,isn)%sigP(k)* &

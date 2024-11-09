@@ -53,11 +53,11 @@
       real(r8) :: dlon,dlat
 !      
 ! Set up geographic grid for outputting magnetic perturbations.
-      dlon = 360./float(nglon-1)
-      dlat = 180./float(nglat-1)
+      dlon = 360._r8/real(nglon-1,kind=r8)
+      dlat = 180._r8/real(nglat-1,kind=r8)
       ilateq = (nglat+1)/2
       do i=1,nglon
-        glon(i) = 0.+(i-1)*dlon
+        glon(i) = 0._r8+(i-1)*dlon
       enddo
       do i=1,nglat
         glat(i) = (i-ilateq)*dlat
@@ -116,11 +116,11 @@
 ! Contribution of FAC to external coefficients (divided by Re) and
 !  upward field coefficients at Earth's surface
       rob = re/bradius
-      robnm1 = 1./rob
+      robnm1 = 1._r8/rob
       do np=2,nggjlat
         n = np - 1
         robnm1 = robnm1*rob
-        fac2 = mu0*robnm1*float(n+1)/(float(2*n+1)*bradius)
+        fac2 = mu0*robnm1*real(n+1,r8)/(real(2*n+1,r8)*bradius)
         fac  = n*fac2
         do mp=1,min0(np,mdab)
           vextorc(mp,np) = fac2*ar(mp,np,1)
@@ -134,11 +134,11 @@
 !  upward field coefficients at bottom of each current layer.
       do kk=1,nggjhgt+1
         rob = (re + ggjbot(kk))/bradius
-        robnm1 = 1./rob
+        robnm1 = 1._r8/rob
         do np=2,nggjlat
           n = np - 1
           robnm1 = robnm1*rob
-          fac2 = mu0*robnm1*float(n+1)/(float(2*n+1)*bradius)
+          fac2 = mu0*robnm1*real(n+1,r8)/(real(2*n+1,r8)*bradius)
           fac  = n*fac2
           do mp=1,min0(np,mdab)
             vorc(mp,np,kk) = fac2*ar(mp,np,1)
@@ -163,7 +163,7 @@
 !  normalization of spherical harmonics for vectors than for scalars,
 !  and that vhags uses a unit radius.
       do np=1,nggjlat
-        xnorm = amax1(sqrt(float((np-1)*np)),1.)
+        xnorm = max(sqrt(real((np-1)*np,kind=r8)),1._r8)
         do kk=1,nggjhgt
           fac = (re+ggjhgt(kk))/xnorm
           do mp=1,mdab
@@ -178,11 +178,11 @@
 ! Calculate coefficients for layer bottoms lying above the kth current layer
         do kk=k+1,nggjhgt+1
           rob = (re + ggjbot(kk))/bradius
-          bornp2 = 1./(rob*rob)
+          bornp2 = 1._r8/(rob*rob)
           do np=2,nggjlat
             n = np - 1
             bornp2 = bornp2/rob
-            fac2 = mu0*bornp2*float(n)/(float(2*n+1)*bradius)
+            fac2 = mu0*bornp2*real(n,r8)/(real(2*n+1,r8)*bradius)
             fac  = (n+1)*fac2
             do mp=1,min0(np,mdab)
               vorc(mp,np,kk) = vorc(mp,np,kk) + fac2*cr(mp,np,k)
@@ -195,11 +195,11 @@
 ! Calculate coefficients for layer bottoms lying below the kth current layer
         do kk=1,k
           rob = (re + ggjbot(kk))/bradius
-          robnm1 = 1./rob
+          robnm1 = 1._r8/rob
           do np=2,nggjlat
             n = np - 1
             robnm1 = robnm1*rob
-            fac2 = mu0*robnm1*float(n+1)/(float(2*n+1)*bradius)
+            fac2 = mu0*robnm1*real(n+1,r8)/(real(2*n+1,r8)*bradius)
             fac  = n*fac2
             do mp=1,min0(np,mdab)
               vorc(mp,np,kk) = vorc(mp,np,kk) - fac2*cr(mp,np,k)
@@ -211,11 +211,11 @@
         enddo ! kk
 ! Calculate coefficients for ground.
         rob = re/bradius
-        robnm1 = 1./rob
+        robnm1 = 1._r8/rob
         do np=2,nggjlat
           n = np - 1
           robnm1 = robnm1*rob
-          fac2 = mu0*robnm1*float(n+1)/(float(2*n+1)*bradius)
+          fac2 = mu0*robnm1*real(n+1,r8)/(real(2*n+1,r8)*bradius)
           fac  = n*fac2
           do mp=1,min0(np,mdab)
             vextorc(mp,np) = vextorc(mp,np) - fac2*cr(mp,np,k)
@@ -239,7 +239,7 @@
         n = np - 1
         do mp=1,min0(np,mdab)
           do k=1,nggjhgt
-            fac3 = mu0*(re+ggjtop(k))/float(n*(n+1)) 
+            fac3 = mu0*(re+ggjtop(k))/real(n*(n+1),r8) 
             ar(mp,np,k) = fac3*ar(mp,np,k) 
             ai(mp,np,k) = fac3*ai(mp,np,k) 
           enddo ! k
@@ -248,13 +248,13 @@
       endif ! (delBsolution.ne.'quick_ground    ') 
 !      
 ! Calculate equivalent current coefficients for 110 km current layer.
-      bradius = re + 110.e3
+      bradius = re + 110.e3_r8
       rob = re/bradius
-      robnm1 = 1./rob
+      robnm1 = 1._r8/rob
       do np=2,nggjlat
         n = np - 1
         robnm1 = robnm1*rob
-        fac2 = mu0*robnm1*float(n+1)/(float(2*n+1)*bradius)
+        fac2 = mu0*robnm1*real(n+1,r8)/(real(2*n+1,r8)*bradius)
         fac  = n*fac2
         do mp=1,min0(np,mdab)
           psicoefc(mp,np) = vextorc(mp,np)/fac2
@@ -287,7 +287,7 @@
 !      double precision :: dwork(ldworkvhsesi)
       real(r8) :: dwork(ldworkvhsesi)
       real(r8) :: wvhses(lvhses),work2(lworkgrades),wshses(lshses)
-      real(r8), parameter :: depth = 6.e5  ! meters
+      real(r8), parameter :: depth = 6.e5_r8  ! meters
       real(r8),dimension(mdab,nggjlat) :: &
         vintorc,betaintc, &
         vintors,betaints, &
@@ -309,7 +309,7 @@
       do np=2,nggjlat
         n = np - 1
         coa2np1 = coa2np1*coa2
-        fac = coa2np1*float(n)/float(n+1)
+        fac = coa2np1*real(n,r8)/real(n+1,r8)
         do mp=1,min0(np,mdab)
           vintorc(mp,np)  =  fac*vextorc(mp,np)
           vintors(mp,np)  =  fac*vextors(mp,np)
@@ -332,7 +332,7 @@
 ! frac is fractional distance of h_LEO from ggjbot(kbelow+1) down towards
 !   ggjbot(kbelow).
       frac = (ggjbot(kbelow+1) - h_LEO)/(ggjbot(kbelow+1)-ggjbot(kbelow))
-      if (frac.lt.0.or.frac.gt.1.) then
+      if (frac.lt.0.or.frac.gt.1._r8) then
         write (6,*) 'Stopped because frac =', frac
         stop
       endif
@@ -405,25 +405,25 @@
         n = np - 1
         do mp=1,min0(np,mdab)
           vortotc(mp,np) = vintorc(mp,np)*aobnp1 + frac*vorc(mp,np,kbelow) &
-                + (1.-frac)*vorc(mp,np,kbelow+1)
+                + (1._r8-frac)*vorc(mp,np,kbelow+1)
           vortots(mp,np) = vintors(mp,np)*aobnp1 + frac*vors(mp,np,kbelow) &
-                + (1.-frac)*vors(mp,np,kbelow+1)
+                + (1._r8-frac)*vors(mp,np,kbelow+1)
           betatotc(mp,np) = betaintc(mp,np)*aobnp1*aob + frac*betac(mp,np,kbelow) &
-                + (1.-frac)*betac(mp,np,kbelow+1)
+                + (1._r8-frac)*betac(mp,np,kbelow+1)
           betatots(mp,np) = betaints(mp,np)*aobnp1*aob + frac*betas(mp,np,kbelow) &
-                + (1.-frac)*betas(mp,np,kbelow+1)
+                + (1._r8-frac)*betas(mp,np,kbelow+1)
 ! Whereas vortot and betatot refer to the bottom of the current layer,
 !   ar,ai refer to the top of the current layer, so we shift the
 !   height index by 1, and assume zero vertical current at the bottom
 !   of the lowest layer:
-          arbelow = 0.
-          aibelow = 0.
+          arbelow = 0._r8
+          aibelow = 0._r8
           if (kbelow.gt.1) then
             arbelow = ar(mp,np,kbelow-1)
             aibelow = ai(mp,np,kbelow-1)
           endif
-          torc(mp,np) = frac*arbelow + (1.-frac)*ar(mp,np,kbelow)
-          tors(mp,np) = frac*aibelow + (1.-frac)*ai(mp,np,kbelow)
+          torc(mp,np) = frac*arbelow + (1._r8-frac)*ar(mp,np,kbelow)
+          tors(mp,np) = frac*aibelow + (1._r8-frac)*ai(mp,np,kbelow)
         enddo ! mp
       enddo ! np
 !     subroutine grades(nlat,nlon,isym,nt,v,w,idvw,jdvw,a,b,mdab,ndab,
@@ -583,8 +583,8 @@
         endif
       enddo
 !
-      gradts3D = 0.
-      gradte3D = 0.
+      gradts3D = 0._r8
+      gradte3D = 0._r8
 ! Get gradient of tau at bottoms of layers
 !     subroutine grades(nlat,nlon,isym,nt,v,w,idvw,jdvw,a,b,mdab,ndab,
 !    +                  wvhses,lvhses,work,lwork,ierror)

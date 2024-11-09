@@ -20,7 +20,7 @@
 
     do i = mlon0_p,mlon1_p
       do j = 2,nmlat_h-1 ! S1 loop not the pole and equator
-        facj = sqrt(1-0.75*rho(j,1)**2)/r0/2/(rho(j+1,1)-rho(j-1,1))
+        facj = sqrt(1-0.75_r8*rho(j,1)**2)/r0/2/(rho(j+1,1)-rho(j-1,1))
         do isn = 1,2
           fline_s1(i,j,isn)%ed1 = (fline_p(i,j,isn)%pot-fline_p(i+1,j,isn)%pot)*fac/rho(j,1)
           fline_s1(i,j,isn)%ed2 = facj* &
@@ -30,7 +30,7 @@
       enddo
 
       j = 1 ! pole
-      facj = sqrt(1-0.75*rho(j,1)**2)/r0/2/(rho(j+1,1)-rho(j,1))
+      facj = sqrt(1-0.75_r8*rho(j,1)**2)/r0/2/(rho(j+1,1)-rho(j,1))
       do isn = 1,2
         fline_s1(i,j,isn)%ed1 = (fline_p(i,j,isn)%pot-fline_p(i+1,j,isn)%pot)*fac/rho(j+1,1)
         fline_s1(i,j,isn)%ed2 = facj* &
@@ -39,7 +39,7 @@
       enddo
 
       j = nmlat_h ! equator
-      facj = sqrt(1-0.75*rho(j,1)**2)/r0/2/(rho(j,1)-rho(j-1,1))
+      facj = sqrt(1-0.75_r8*rho(j,1)**2)/r0/2/(rho(j,1)-rho(j-1,1))
       do isn = 1,2
         fline_s1(i,j,isn)%ed1 = (fline_p(i,j,isn)%pot-fline_p(i+1,j,isn)%pot)*fac/rho(j,1)
         fline_s1(i,j,isn)%ed2 = facj* &
@@ -59,7 +59,7 @@
       enddo
 
       do j = 1,nmlatS2_h ! S2 loop
-        facj = sqrt(1-0.75*rho_s(j,1)**2)/r0/(rho(j+1,1)-rho(j,1))
+        facj = sqrt(1-0.75_r8*rho_s(j,1)**2)/r0/(rho(j+1,1)-rho(j,1))
         do isn = 1,2
           fline_s2(i,j,isn)%ed1 = fac/4/rho_s(j,1)* &
             (fline_p(i-1,j,isn)%pot+fline_p(i-1,j+1,isn)%pot- &

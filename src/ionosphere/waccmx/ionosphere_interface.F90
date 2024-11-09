@@ -235,6 +235,8 @@ module ionosphere_interface
       use wei05sc,         only: weimer05_init
       use phys_control,    only: phys_getopts
 
+      use edyn_esmf, only: edyn_esmf_update
+
       ! local variables:
       integer :: sIndx
       character(len=*), parameter :: subname = 'ionosphere_init'
@@ -391,7 +393,9 @@ module ionosphere_interface
 
     ! test 3D field line mag grid infrastructure
 
-      call edyn3D_driver_reg(mpicom_atm, ionos_npes) ! set ntask,mytid
+      call edyn_esmf_update
+
+      call edyn3D_driver_reg(mpicom_atm, ionos_npes)
 
       call addfld('IonU_phys', (/ 'lev' /), 'I', 'm/s','Zonal Ion Drift Velocity on phys grid' )
       call addfld('IonV_phys', (/ 'lev' /), 'I', 'm/s','Meridional Ion Drift Velocity on phys grid' )

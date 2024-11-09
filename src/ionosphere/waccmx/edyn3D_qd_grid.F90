@@ -107,7 +107,7 @@
 !      
 ! midpoints are in the middle of the volume l
       do l =1,nlat_qd-1
-        lat_qd_mp(l) = 0.5*(lat_qd_ed(l)+lat_qd_ed(l+1)) ! equally distributed
+        lat_qd_mp(l) = 0.5_r8*(lat_qd_ed(l)+lat_qd_ed(l+1)) ! equally distributed
 	!write(6,*) 'lat_qd_mp',i,lat_qd_mp(i)*rtd
       end do
 !       

@@ -188,11 +188,11 @@ module edyn3D_maggrid
       !   steps from the pole to the equator.  [Changing j->k would remove this confusion.]
       !
       do j=1,nmlat_h   ! goes from equator to pole S1, P points
-	y = (j-1)*ymax/float(nmlat_h-1)
+	y = (j-1)*ymax/real(nmlat_h-1,r8)
         !
         ! Next line added april 2015 but not used here since above line matches ADR230827 notes
         !
-!	y = (float(j)-.5_r8)*ymax/(float(nmlat_h)-.5_r8)
+!	y = (real(j,r8)-.5_r8)*ymax/(real(nmlat_h,r8)-.5_r8)
         !
         ! Region I grid points
         !
@@ -317,9 +317,9 @@ module edyn3D_maggrid
       !
       ! Calculate magnetic longitudes [radians]
       !
-      dlonm = 2._r8*pi/float(nmlon)
+      dlonm = 2._r8*pi/real(nmlon,r8)
       do j=1,nmlon
-        ylonm(j) = -pi+float(j-1)*dlonm
+        ylonm(j) = -pi+real(j-1,r8)*dlonm
       enddo ! i=1,nmlon
       !
       ! Calculate magnetic longitudes [radians] for S1-grid points which are between the P-grid points
@@ -374,9 +374,9 @@ module edyn3D_maggrid
   	  ktop_tmp = minloc(abs(k_tmp),dim=1)
   	  if (debug) write(iulog,'(a4,i4)') 'ktop',minloc(abs(k_tmp))
 
-  	dggjlon = 2._r8*pi/float(nggjlon)
+  	dggjlon = 2._r8*pi/real(nggjlon,r8)
   	do i=1,nggjlon
-  	  ggjlon(i) = float(i-1)*dggjlon
+  	  ggjlon(i) = real(i-1,r8)*dggjlon
   	enddo ! i
   ! Gaussian colatitude points (radians) and weights
   	call gaqd(nggjlat,ggjclat,wts,w,lwork,ierror)
@@ -495,9 +495,9 @@ module edyn3D_maggrid
       lon_qd_mp = ylonm    ! [rad] same as p-points
       lon_qd_ed = ylonm_s  ! [rad] same as s1-points
 !
-      dlatm = pi/float(nlat_qd-1)
+      dlatm = pi/real(nlat_qd-1,r8)
       do l =1,nlat_qd
-        lat_qd_ed(l) = pi*float(l-nlat_qd_h)/float(nlat_qd-1) ! equally distributed
+        lat_qd_ed(l) = pi*real(l-nlat_qd_h,r8)/real(nlat_qd-1,r8) ! equally distributed
         !write(6,*) 'lat_qd_ed',i,lat_qd_ed(i)*rtd
       end do
 !
@@ -527,8 +527,8 @@ module edyn3D_maggrid
 ! Set up geographic grid for outputting magnetic perturbations.  Also used for
 ! interpolation between physics grid and 3D dynamo grid
 !
-      dlon = 360._r8/float(nglon-1)
-      dlat = 180._r8/float(nglat-1)
+      dlon = 360._r8/real(nglon-1,r8)
+      dlat = 180._r8/real(nglat-1,r8)
       ilateq = (nglat+1)/2
       do i=1,nglon
         glon(i) = 0._r8+(i-1)*dlon
@@ -567,9 +567,9 @@ module edyn3D_maggrid
       R = 0._r8
 
       do m=0,nmax
-        if (m.ne.0) PMOPMMO(m) = sqrt(1._r8 + .5_r8/float(m))
+        if (m.ne.0) PMOPMMO(m) = sqrt(1._r8 + .5_r8/real(m,r8))
         do n=max0(1,m),nmax
-          R(n,m) = sqrt(float(n*n-m*m))/sqrt(float(4*n*n-1))
+          R(n,m) = sqrt(real(n*n-m*m,r8))/sqrt(real(4*n*n-1,r8))
         enddo
       enddo
 
@@ -577,10 +577,10 @@ module edyn3D_maggrid
       a(0,0,0) = 1._r8
 
       do m=1,nmax
-        a(m,m,0) = sqrt(float(2*m+1)/float(2*m))*a(m-1,m-1,0)
+        a(m,m,0) = sqrt(real(2*m+1,r8)/real(2*m,r8))*a(m-1,m-1,0)
         n = m + 1
         if (n.gt.nmax) cycle
-        a(n,m,0) = sqrt(float(2*m+3))*a(m-1,m-1,0)
+        a(n,m,0) = sqrt(real(2*m+3,r8))*a(m-1,m-1,0)
         n = m + 2
         if (n.gt.nmax) cycle
         a(n,m,0) = (1._r8 - R(n-1,m)**2 - R(n-2,m)**2)*a(n-2,m,0)/ &
@@ -609,7 +609,7 @@ module edyn3D_maggrid
         do n=m,nmax
           do p=0,n-m,2
             po2 = p/2
-            a(n,m,po2) = m*a(n,m,po2)/float(2*n-m-p)
+            a(n,m,po2) = m*a(n,m,po2)/real(2*n-m-p,r8)
 ! a contains a_nmp of notes multiplied by m and divided by (2n-m-p).
           enddo
         enddo
@@ -623,7 +623,7 @@ module edyn3D_maggrid
           do p=2,2*n-m-1,2
             po2 = p/2
             mc(n,m,po2) = a(n,m,po2) + &
-              mc(n,m,po2-1)*float(2*n-m-p+1)/float(2*n-m-p)
+              mc(n,m,po2-1)*real(2*n-m-p+1,r8)/real(2*n-m-p,r8)
 ! mc contains c_nm of notes multiplied by m.
           enddo
         enddo
@@ -640,7 +640,7 @@ module edyn3D_maggrid
             do k=1,n-m/2
               if (num.eq.2) exit
               num = num-2
-              x = x*(num-1)/float(num)
+              x = x*(num-1)/real(num,r8)
             enddo
             md(n,m) = md(n,m) + x
 ! md contains d_nm of notes multiplied by m.
@@ -649,7 +649,7 @@ module edyn3D_maggrid
           do p=2,2*n-m-2,2
             po2 = p/2
             mc(n,m,po2) = a(n,m,po2) + &
-              mc(n,m,po2-1)*float(2*n-m-p+1)/float(2*n-m-p)
+              mc(n,m,po2-1)*real(2*n-m-p+1,r8)/real(2*n-m-p,r8)
 ! mc contains c_nm of notes multiplied by m.
           enddo
         enddo
@@ -709,16 +709,16 @@ module edyn3D_maggrid
 !
         ! Set a1,a3 to 1 for equator and beyond (points before equator will be
         !  overwritten later).
-        a1 = 1.
-        a3 = 1.
+        a1 = 1._r8
+        a3 = 1._r8
         ! Set m1f,m2f,m3f to 0 beyond equator (points before equator will be
         !  overwritten later).
-        m1f = 0.
-        m2f = 0.
-        m3f = 0.
+        m1f = 0._r8
+        m2f = 0._r8
+        m3f = 0._r8
         do k=1,nhgt_fix
-           a1(1,k) = 0.
-           a3(1,k) = 0.
+           a1(1,k) = 0._r8
+           a3(1,k) = 0._r8
            jmax = nmlatS2_h - k + 1 ! number of s2 points at level k
            if (jmax.lt.1) then
 ! Error trap; this condition should never occur.
@@ -729,49 +729,49 @@ module edyn3D_maggrid
            rp = (hgt_fix_r(k+1)+re)/r0           ! r_k+0.5 /R
            rm = (hgt_fix_r(k)+re)/r0             ! r_k-0.5 /R
 !
-           fac2 = 0.5*pi*(rp - rm)*r0   ! Pi/2*((r_k+0.5)-(r_k-0.5))
-           fac3 = 2.*dlonm*(hgt_fix(k)+re)**3/r0 ! 2*dlon*r_k^3/R
+           fac2 = 0.5_r8*pi*(rp - rm)*r0   ! Pi/2*((r_k+0.5)-(r_k-0.5))
+           fac3 = 2._r8*dlonm*(hgt_fix(k)+re)**3/r0 ! 2*dlon*r_k^3/R
            do j=1,jmax     ! loop over all s2 points
               fac1 = sqrt(rm)*rho_s(j,isn)      ! sqrt[r_k-0.5/R]*rho(j+0.5)
 ! First index of a1,a3 is j+1 because this corresponds to position j+0.5.
-              a3(j+1,k) = 1. - sqrt(1.-fac1**2)
+              a3(j+1,k) = 1._r8 - sqrt(1._r8-fac1**2)
               m3f(j,k) = (hgt_fix_r(k)+re)**2 *dlonm*(a3(j+1,k)-a3(j,k))
 ! Calculate the normalized radius within the layer, rbar, that gives the most
 !  accurate value of a1 when a1 is computed by the approximation below.
 !  This calculation of rbar assumes the radius of field lines near the
 !  equator is parabolic with respect to magnetic latitude.
-              ra = 1./rho_s(j,isn)**2
+              ra = 1._r8/rho_s(j,isn)**2
 ! Prevent ra from getting large enough to affect the numerical accuracy
 !  of rbar, which rapidly asymptotes to .5*(rp+rm) as ra increases.
-              ra = min(ra,rp+16.*(rp-rm))
+              ra = min(ra,rp+16._r8*(rp-rm))
               ra = max(ra,rp)  ! ra was less than rp when it should have been equal
               !
-              rbar = ra - (2.*(sqrt(ra-rm)**3-sqrt(ra-rp)**3)/(3.*(rp-rm)))**2  ! eq. (45') page 4c r*/R
-              a1(j+1,k) = 2.*asin(sqrt(rbar)*rho_s(j,isn))/pi                   ! eq. (47')
-              m1f(j,k) = ((hgt_fix(k)+re)/r0)**2.5 *fac2*(a1(j+1,k)-a1(j,k))*r0
+              rbar = ra - (2._r8*(sqrt(ra-rm)**3-sqrt(ra-rp)**3)/(3._r8*(rp-rm)))**2  ! eq. (45') page 4c r*/R
+              a1(j+1,k) = 2._r8*asin(sqrt(rbar)*rho_s(j,isn))/pi                   ! eq. (47')
+              m1f(j,k) = ((hgt_fix(k)+re)/r0)**2.5_r8 *fac2*(a1(j+1,k)-a1(j,k))*r0
 ! Make sure fac1 does not numerically exceed 1,
 !  so that sqrt(1-fac1**2) can be computed.
               fac1 = sqrt(rp)*rho_s(j,isn)        ! sqrt[r_k+0.5/R]*rho(j+0.5)
-              fac1 = min(fac1,1.)
-              m2f(j,k) = fac3*(sqrt(1.-rm*rho_s(j,isn)**2) &
-                - sqrt(1.-fac1**2))*sqrt(1.-.75*rho_s(j,isn)**2)/rho_s(j,isn)
+              fac1 = min(fac1,1._r8)
+              m2f(j,k) = fac3*(sqrt(1._r8-rm*rho_s(j,isn)**2) &
+                - sqrt(1._r8-fac1**2))*sqrt(1._r8-.75_r8*rho_s(j,isn)**2)/rho_s(j,isn)
            enddo !j
-            m1f(jmax+1,k) = ((hgt_fix(k)+re)/r0)**2.5 *fac2*(1-a1(jmax+1,k))*r0
-           m3f(jmax+1,k) = (hgt_fix_r(k)+re)**2 *dlonm*(1.-a3(jmax+1,k))
+            m1f(jmax+1,k) = ((hgt_fix(k)+re)/r0)**2.5_r8 *fac2*(1-a1(jmax+1,k))*r0
+           m3f(jmax+1,k) = (hgt_fix_r(k)+re)**2 *dlonm*(1._r8-a3(jmax+1,k))
         enddo !k
 !
 ! Now do a3,m3f for top level
         k = nhgt_fix_r
-        a3(1,k) = 0.
+        a3(1,k) = 0._r8
         jmax = nmlatS2_h - k + 1 ! number of s2 points at k-0.5
         if (jmax.ge.1) then
            rm = (hgt_fix_r(k)+re)/r0
            do j=1,jmax     ! loop over all s2 points (level k has nmlatS2_h-k+1 s2 points)
               fac1 = sqrt(rm)*rho_s(j,isn)      ! sqrt[r_k-0.5/R]*rho(j+0.5)
-              a3(j+1,k) = 1. - sqrt(1.-fac1**2)
+              a3(j+1,k) = 1._r8 - sqrt(1._r8-fac1**2)
               m3f(j,k) = (hgt_fix_r(k)+re)**2 *dlonm*(a3(j+1,k)-a3(j,k))
             enddo !j
-            m3f(jmax+1,k) = (hgt_fix_r(k)+re)**2 *dlonm*(1.-a3(jmax+1,k))
+            m3f(jmax+1,k) = (hgt_fix_r(k)+re)**2 *dlonm*(1._r8-a3(jmax+1,k))
         endif
 !
   end subroutine edyn3D_calculate_mf
