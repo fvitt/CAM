@@ -219,7 +219,7 @@ module ionosphere_interface
    !---------------------------------------------------------------------------
    !---------------------------------------------------------------------------
    subroutine ionosphere_init()
-      use spmd_utils,      only: mpicom, iam
+      use spmd_utils,      only: mpicom_atm=>mpicom, iam
       use physics_buffer,  only: pbuf_add_field, dtype_r8
       use cam_control_mod, only: initial_run
       use cam_history,     only: addfld, add_default, horiz_only
@@ -333,13 +333,13 @@ module ionosphere_interface
 
          call alloc_maggrid( mag_nlon, mag_nlat, mag_nlev, mag_ngrid )
 
-         call mp_init(mpicom, ionos_npes, oplus_nlon, oplus_nlat, pver) ! set ntask,mytid
+         call mp_init(mpicom_atm, ionos_npes, oplus_nlon, oplus_nlat, pver) ! set ntask,mytid
 
          ! set global geographic grid (sets coordinate distribution)
          ! lon0, lon1, etc. are set here
          call set_geogrid(oplus_nlon, oplus_nlat, pver, ionos_npes, iam, pref_mid, pref_edge)
 
-         call edynamo_init(mpicom, ionos_debug_hist)
+         call edynamo_init(mpicom_atm, ionos_debug_hist)
 
          call d_pie_init(ionos_edyn_active, ionos_oplus_xport, ionos_xport_nsplit, epot_crit_colats, &
                          ionos_debug_hist)
@@ -391,7 +391,7 @@ module ionosphere_interface
 
     ! test 3D field line mag grid infrastructure
 
-      call edyn3D_driver_reg(mpicom, ionos_npes) ! set ntask,mytid
+      call edyn3D_driver_reg(mpicom_atm, ionos_npes) ! set ntask,mytid
 
       call addfld('IonU_phys', (/ 'lev' /), 'I', 'm/s','Zonal Ion Drift Velocity on phys grid' )
       call addfld('IonV_phys', (/ 'lev' /), 'I', 'm/s','Meridional Ion Drift Velocity on phys grid' )

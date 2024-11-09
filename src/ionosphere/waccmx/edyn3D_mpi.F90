@@ -47,6 +47,8 @@ module edyn3D_mpi
    public :: fldpts0_s1,fldpts1_s1
    public :: fldpts0_s2,fldpts1_s2
 
+   public :: mp_glbsum_edyn3D
+
    !
    ! Number of MPI tasks and current task id:
    !
@@ -138,34 +140,55 @@ module edyn3D_mpi
 
 contains
    !-----------------------------------------------------------------------
-   subroutine mp_init_edyn3D(mpi_comm, ionos_npes)
+   subroutine mp_init_edyn3D(mpi_comm_atm, npes_edyn3D)
       !
       ! Initialize MPI, and allocate task table.
       !
-      integer, intent(in) :: mpi_comm
-      integer, intent(in) :: ionos_npes
+      integer, intent(in) :: mpi_comm_atm
+      integer, intent(in) :: npes_edyn3D
 
       integer :: ierr
-      integer :: color, npes
+      integer :: color, npes_atm
       character(len=cl) :: errmsg
 
-      call mpi_comm_size(mpi_comm, npes, ierr)
+      character(len=*), parameter :: errprfx = '>>> mp_init_edyn3D: '
 
-      ntask = min(npes,ionos_npes)
-
-      call mpi_comm_rank(mpi_comm, mytid, ierr)
-      color = mytid/ntask !  ionos_npes
-      call mpi_comm_split(mpi_comm, color, mytid, mpi_comm_edyn3D, ierr)
-      !
-      ! Allocate array of task structures:
-      !
-      allocate(tasks(0:npes-1), stat=ierr)
+      call mpi_comm_size(mpi_comm_atm, npes_atm, ierr)
       if (ierr /= 0) then
-         write(errmsg,"('>>> mp_init: error allocating tasks(',i3,')')") ntask
+         write(errmsg,*) errprfx,'mpi_comm_size failed'
          write(iulog,*) trim(errmsg)
          call endrun(errmsg)
       endif
-   end subroutine mp_init_edyn3D
+
+      ntask = min(npes_atm,npes_edyn3D)
+
+      call mpi_comm_rank(mpi_comm_atm, mytid, ierr)
+      if (ierr /= 0) then
+         write(errmsg,*) errprfx,'mpi_comm_rank failed'
+         write(iulog,*) trim(errmsg)
+         call endrun(errmsg)
+      endif
+
+      color = mytid/ntask
+      call mpi_comm_split(mpi_comm_atm, color, mytid, mpi_comm_edyn3D, ierr)
+      if (ierr /= 0) then
+         write(errmsg,*) errprfx,'mpi_comm_split failed'
+         write(iulog,*) trim(errmsg)
+         call endrun(errmsg)
+      endif
+
+      !
+      ! Allocate array of task structures:
+      !
+      allocate(tasks(0:npes_atm-1), stat=ierr)
+      if (ierr /= 0) then
+         write(errmsg,*) errprfx,'allocate tasks array failed'
+         write(iulog,*) trim(errmsg)
+         call endrun(errmsg)
+      endif
+
+    end subroutine mp_init_edyn3D
+
    !-----------------------------------------------------------------------
    subroutine mp_distribute_mag_edyn3D(nmlon_in)
       !
@@ -267,7 +290,7 @@ contains
                     n,tasks(n)%nmaglons
             endif
 
-            if (tasks(n)%nmaglons < 4) then
+            if (tasks(n)%nmaglons < 2) then
                write(errmsg, "(3a,i0,', nmaglons = ',i5)") '>>> ', subname,      &
                     ': each task must carry at least 4 longitudes. task = ',     &
                     n, tasks(n)%nmaglons
@@ -690,6 +713,24 @@ contains
       if (ier /= 0) call handle_mpi_err(ier,'mp_gather_edyn3D: mpi_gather to root')
 
    end subroutine mp_gather_edyn3D
+
+!-----------------------------------------------------------------------
+   ! global sum accross mpi tasks
+   subroutine mp_glbsum_edyn3D(arr, gsum)
+     use edyn3D_params,  only: nmlon
+
+     real(r8), intent(in) :: arr(nmlon)
+     real(r8), intent(out) :: gsum
+
+     real(r8) :: tmp(nmlon)
+     integer :: ier
+
+     call MPI_allREDUCE(arr, tmp, nmlon, MPI_REAL8, MPI_SUM, mpi_comm_edyn3D, ier )
+     if (ier /= 0) call handle_mpi_err(ier,'mp_glbsum_edyn3D: MPI_allREDUCE error')
+
+     gsum = sum(tmp)
+
+   end subroutine mp_glbsum_edyn3D
 
 !-----------------------------------------------------------------------
    subroutine mp_scatter_edyn3D(fmglb, mlon0, mlon1, fmsub, nmlon, nmlat, nldim)

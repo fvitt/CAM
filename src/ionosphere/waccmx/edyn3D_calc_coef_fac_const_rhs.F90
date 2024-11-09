@@ -5,7 +5,7 @@
      !  scatter added
      !
      use edyn3D_params,  only: nmlon,nmlat_h,nhgt_fix,nlonlat,nmlatS2_h,nmlat_T1
-     use edyn3d_mpi,     only: mlon0_p,mlon1_p,mp_poten_halos_edyn3D
+     use edyn3d_mpi,     only: mlon0_p,mlon1_p,mp_poten_halos_edyn3D, mp_glbsum_edyn3D
      use shr_kind_mod,   only: r8 => shr_kind_r8            ! 8-byte reals
      use cam_logfile,    only: iulog
      use spmd_utils,     only: masterproc
@@ -112,7 +112,7 @@
               endif
               coef(i,j,k,2,isn) = -fline_s1(i,j,isn)%N1h(k) +  N2h_p
               coef(i,j,k,3,isn) = fline_s1(im,j,isn)%N1h(k) - &
-               fline_s1(i,j,isn)%N1h(k)+ N2p_p
+                                  fline_s1(i,j,isn)%N1h(k)+ N2p_p
               coef(i,j,k,4,isn) = fline_s1(im,j,isn)%N1h(k) - N2h_p
 !
               coef(i,j,k,5,isn) = fline_s1(im,j,isn)%N1p(k) + &
@@ -138,7 +138,7 @@
       !
       ! Initialize coefficients array then calculate left hand side and right hand side coefficients
       !
-      coef_ns2 = 0.
+      coef_ns2 = 0._r8
       !
       do i=mlon0_p,mlon1_p ! loop over task longitudes
     	do isn = 1,2   ! hemisphere loop
@@ -173,15 +173,16 @@
 !
 !
      real(r8), dimension(mlon0_p:mlon1_p,nmlat_h,2) :: fac_hl
-     real(r8) :: sum,sumP,corr,sumn,sums
+     real(r8) :: sumC(nmlon),sumP(nmlon),corr
+     real(r8) :: gsumC, gsumP
 !
      integer :: isn,i,j,jj,icof,im,ip
 !
      fac_hl = 0._r8
-     sum    = 0._r8
-     sumn   = 0._r8
-     sums   = 0._r8
-     sumP   = 0._r8
+     sumC(:) = 0._r8
+     sumP(:) = 0._r8
+     gsumC = 0._r8
+     gsumP = 0._r8
      !
      !  Set high latitude potential to 0.01 since not input
      !
@@ -233,35 +234,27 @@
              poten_hl(ip,jj+1)*coef_ns2(i,j,isn,8)+ &
              poten_hl(i ,jj  )*coef_ns2(i,j,isn,9)
            endif
-            if(fline_s1(i,j,isn)%zigP.gt.1.5) then
-              sum  = sum  + fac_hl(i,j,isn)
-              sumP = sumP + fline_s1(i,j,isn)%zigP*abs(fac_hl(i,j,isn))
-              !
-              if(isn.eq.1) sums= sums+fac_hl(i,j,isn)
-              if(isn.eq.2) sumn= sumn+fac_hl(i,j,isn)
-            else
+
+           if(fline_s1(i,j,isn)%zigP.gt.1.5_r8) then
+              sumC(i) = sumC(i) + fac_hl(i,j,isn)
+              sumP(i) = sumP(i) + fline_s1(i,j,isn)%zigP*abs(fac_hl(i,j,isn))
+           else
               fac_hl(i,j,isn) = 0._r8
-            end if
+           end if
          end do  ! end lat/fieldline loop
          !
        end do  ! end longitude loop
      end do ! end hemisphere loop
-!
-! next two lines commented out to make sure high latitude forcing is included
-!     fac_hl= 0._r8
-!     corr =  0._r8
-!
-!     if (isclose(sumP,0.0_rp)) then
-!       corr = 0
-!     else
-!       corr = sum/sumP
-!     endif
 
-     corr = sum/sumP
+     ! need global sums accross all MPI tasks
+     call mp_glbsum_edyn3D(sumC, gsumC)
+     call mp_glbsum_edyn3D(sumP, gsumP)
+
+     corr = gsumC/gsumP
+
      !
      ! Add field aligned current to rhs coefficient and put in p grid structure
      !
-     sum = 0._r8
      do isn = 1,2 ! loop over both hemisphere
         do i=mlon0_p,mlon1_p ! loop over task longitudes
 
@@ -270,11 +263,11 @@
            do j=2,nmlat_h ! loop over all latitudes in one hemisphere not the pole (potential set later)
 
               fac_hl(i,j,isn) = fac_hl(i,j,isn)-fline_s1(i,j,isn)%zigP*abs(fac_hl(i,j,isn))*corr
-              sum = sum   + fac_hl(i,j,isn)
+
               ! put in coef-array
-              coef_ns2(i,j,isn,10) =   coef_ns2(i,j,isn,10)+fac_hl(i,j,isn)
+              coef_ns2(i,j,isn,10) = coef_ns2(i,j,isn,10) + fac_hl(i,j,isn)
               !
-              if(fline_p(i,j,isn)%M3(1).ne.0) then
+              if(fline_p(i,j,isn)%M3(1) .ne. 0._r8) then
                  fline_p(i,j,isn)%fac_hl = fac_hl(i,j,isn) / fline_p(i,j,isn)%M3(1)
               endif
            end do  ! end lat/fieldline loop
@@ -315,12 +308,12 @@
      deallocate(coef,STAT=status)
      if(status /= 0) then
        write(iulog,*) 'deallocation of coef not successful'
-       call endrun('edyn3D_scatter_poten')
+       call endrun('edyn3D_add_coef_ns')
      endif
      deallocate(coef_ns2,STAT=status)
      if(status /= 0) then
        write(iulog,*) 'deallocation of coef_ns2 not successful'
-       call endrun('edyn3D_scatter_poten')
+       call endrun('edyn3D_add_coef_ns')
      endif
 
      end subroutine edyn3D_add_coef_ns

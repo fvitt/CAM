@@ -28,18 +28,18 @@ module edyn3D_driver
 
 contains
 
-  subroutine edyn3D_driver_reg(mpicom, npes)
+  subroutine edyn3D_driver_reg(mpicom_atm, npes_edyn3D)
     use cam_history,         only: addfld, horiz_only
     use mo_apex,             only: mo_apex_init1
     use edyn3D_fline_fields, only: edyn3D_fline_fields_alloc
 
     use edyn3D_esmf_fields_rhandles, only: edyn3D_esmf_fields_rhandles_init
 
-    integer, intent(in) :: mpicom, npes
+    integer, intent(in) :: mpicom_atm, npes_edyn3D
 
     call mo_apex_init1()
 
-    call mp_init_edyn3D(mpicom, npes)
+    call mp_init_edyn3D(mpicom_atm, npes_edyn3D)
 
     call gen_highres_grid()
 
