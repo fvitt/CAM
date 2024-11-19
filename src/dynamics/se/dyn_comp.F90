@@ -2200,7 +2200,10 @@ subroutine read_dyn_field_2d(fieldname, fh, dimname, buffer)
    ! to NaN.  In that case infld can return NaNs where the element GLL points
    ! are not "unique columns"
    ! Set NaNs or fillvalue points to zero
-   where (isnan(buffer) .or. (buffer==fillvalue)) buffer = 0.0_r8
+   where (isnan(buffer)) buffer = 0.0_r8
+   if (.not.isnan(fillvalue)) then
+      where (buffer==fillvalue) buffer = 0.0_r8
+   end if
 
 end subroutine read_dyn_field_2d
 
@@ -2230,7 +2233,10 @@ subroutine read_dyn_field_3d(fieldname, fh, dimname, buffer)
    ! to NaN.  In that case infld can return NaNs where the element GLL points
    ! are not "unique columns"
    ! Set NaNs or fillvalue points to zero
-   where (isnan(buffer) .or. (buffer == fillvalue)) buffer = 0.0_r8
+   where (isnan(buffer)) buffer = 0.0_r8
+   if (.not.isnan(fillvalue)) then
+      where (buffer==fillvalue) buffer = 0.0_r8
+   end if
 
 end subroutine read_dyn_field_3d
 

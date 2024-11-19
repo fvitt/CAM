@@ -2064,4 +2064,4 @@ contains
     return
   end subroutine CARMA_CheckMassAndEnergy
 
-end module
+end module carma_model_mod

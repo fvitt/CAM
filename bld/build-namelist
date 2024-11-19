@@ -1588,7 +1588,7 @@ if (defined $nl->get_value('prescribed_strataero_3modes')) {
 
 # determine if prescribed stratospheric aerosol data is needed
 if ( ($het_chem) || ($nl->get_value('prescribed_strataero_feedback') =~ /$TRUE/io ) ){
-    if ( ($carma ne 'sulfate') && !($nl->get_value('modal_strat_sulfate') =~ /$TRUE/io) ) { # if no prognostic stratospheric aerosols
+    if ( !($nl->get_value('modal_strat_sulfate') =~ /$TRUE/io) ) { # if no prognostic stratospheric aerosols
 
         unless (defined $nl->get_value('prescribed_strataero_type')) {
             add_default($nl, 'prescribed_strataero_type','val'=>'CYCLICAL');
