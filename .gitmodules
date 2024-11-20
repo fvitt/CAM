@@ -7,10 +7,10 @@
 
 [submodule "carma"]
 	path = src/physics/carma/base
-	url = https://github.com/ESCOMP/CARMA_base.git
+	url = https://github.com/fvitt/CARMA_base.git
         fxrequired = AlwaysRequired
-        fxtag = carma4_07
-        fxDONOTUSEurl = https://github.com/ESCOMP/CARMA_base.git
+        fxtag = fe31ecd
+        fxDONOTUSEurl = https://github.com/fvitt/CARMA_base.git
 
 [submodule "pumas"]
 	path = src/physics/pumas
