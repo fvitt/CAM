@@ -653,11 +653,11 @@ contains
       ! Create 3d field (i,j,k), with non-distributed vertical dimension:
       if (nlev > 0) then
          call ESMF_ArraySpecSet(arrayspec, 2, ESMF_TYPEKIND_R8, rc=rc)
-         call edyn_esmf_chkerr(subname, 'ESMF_ArraySpecSet 2D', rc)
+         call edyn_esmf_chkerr(subname, 'ESMF_ArraySpecSet 3D', rc)
          field = ESMF_FieldCreate(mesh, arrayspec, &
               gridToFieldMap=(/2/), meshloc=ESMF_MESHLOC_ELEMENT,  &
               ungriddedLBound=(/1/), ungriddedUBound=(/nlev/), rc=rc)
-         call edyn_esmf_chkerr(subname, 'ESMF_FieldCreate 2D field', rc)
+         call edyn_esmf_chkerr(subname, 'ESMF_FieldCreate 3D field', rc)
          !
          ! Create 2d field (i,j):
       else                ! create 2d field

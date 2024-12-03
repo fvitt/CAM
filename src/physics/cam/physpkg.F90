@@ -159,6 +159,8 @@ contains
     use offline_driver,     only: offline_driver_reg
     use hemco_interface,    only: HCOI_Chunk_Init
     use upper_bc,           only: ubc_fixed_conc
+    use esmf_zm_mod, only: esmf_zm_init
+    use zm_test_mod, only: zm_test_reg
 
     !---------------------------Local variables-----------------------------
     !
@@ -354,6 +356,9 @@ contains
     if (cam_snapshot_before_num > 0 .or. cam_snapshot_after_num > 0) then
         call pbuf_cam_snapshot_register()
     end if
+
+    call esmf_zm_init()
+    call zm_test_reg()
 
   end subroutine phys_register
 
@@ -776,6 +781,7 @@ contains
     use cam_budget,         only: cam_budget_init
 
     use ccpp_constituent_prop_mod, only: ccpp_const_props_init
+    use zm_test_mod,    only: zm_test_init
 
     ! Input/output arguments
     type(physics_state), pointer       :: phys_state(:)
@@ -1050,6 +1056,8 @@ contains
     dtcore_idx = pbuf_get_index('DTCORE')
     dqcore_idx = pbuf_get_index('DQCORE')
 
+    call zm_test_init()
+
   end subroutine phys_init
 
   !
@@ -1066,6 +1074,7 @@ contains
     use time_manager,   only: get_nstep
     use cam_diagnostics,only: diag_allocate, diag_physvar_ic
     use check_energy,   only: check_energy_gmean
+    use zm_test_mod,    only: zm_test_run
     use phys_control,   only: phys_getopts
     use spcam_drivers,  only: tphysbc_spcam
     use spmd_utils,     only: mpicom
@@ -1116,6 +1125,8 @@ contains
     call t_startf ('chk_en_gmean')
     call check_energy_gmean(phys_state, pbuf2d, ztodt, nstep)
     call t_stopf ('chk_en_gmean')
+
+    call zm_test_run(phys_state)
 
     call pbuf_allocate(pbuf2d, 'physpkg')
     call diag_allocate()
