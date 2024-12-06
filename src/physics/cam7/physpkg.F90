@@ -154,6 +154,8 @@ contains
     use dyn_comp,           only: dyn_register
     use offline_driver,     only: offline_driver_reg
     use hemco_interface,    only: HCOI_Chunk_Init
+    use esmf_zm_mod, only: esmf_zm_init
+    use zm_test_mod, only: zm_test_reg
 
     !---------------------------Local variables-----------------------------
     !
@@ -342,6 +344,9 @@ contains
     if (cam_snapshot_before_num > 0 .or. cam_snapshot_after_num > 0) then
         call pbuf_cam_snapshot_register()
     end if
+
+    call esmf_zm_init()
+    call zm_test_reg()
 
   end subroutine phys_register
 
@@ -773,6 +778,7 @@ contains
     use phys_grid_ctem,     only: phys_grid_ctem_init
 
     use ccpp_constituent_prop_mod, only: ccpp_const_props_init
+    use zm_test_mod,    only: zm_test_init
 
     ! Input/output arguments
     type(physics_state), pointer       :: phys_state(:)
@@ -1041,6 +1047,8 @@ contains
 
     psl_idx = pbuf_get_index('PSL')
 
+    call zm_test_init()
+
   end subroutine phys_init
 
   !
@@ -1187,6 +1195,7 @@ contains
     use metdata,         only: get_met_srf2
 #endif
     use hemco_interface, only: HCOI_Chunk_Run
+    use zm_test_mod,    only: zm_test_run
     !
     ! Input arguments
     !
@@ -1264,6 +1273,10 @@ contains
             cam_out(c),                              &
             phys_state(c), phys_tend(c), phys_buffer_chunk)
     end do                    ! Chunk loop
+
+    call t_startf ('esmf_zonal_mean')
+    call zm_test_run(phys_state)
+    call t_stopf ('esmf_zonal_mean')
 
     call t_adj_detailf(-1)
     call t_stopf('ac_physics')

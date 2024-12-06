@@ -1126,7 +1126,9 @@ contains
     call check_energy_gmean(phys_state, pbuf2d, ztodt, nstep)
     call t_stopf ('chk_en_gmean')
 
+    call t_startf ('esmf_zonal_mean')
     call zm_test_run(phys_state)
+    call t_stopf ('esmf_zonal_mean')
 
     call pbuf_allocate(pbuf2d, 'physpkg')
     call diag_allocate()
