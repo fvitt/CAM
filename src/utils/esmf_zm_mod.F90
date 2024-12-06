@@ -460,12 +460,12 @@ contains
     real(ESMF_KIND_R8), pointer :: physptr(:)
     real(ESMF_KIND_R8), pointer :: lonlatptr(:,:)
 
-    real(r8) :: lonlat_fld(lon_beg:lon_end,lat_beg:lat_end)
-
     character(len=*), parameter :: subname  = 'esmf_zm_calc_2d: '
 
-    real(r8) :: arr(mynlons,1)
+    real(r8) :: arr(lon_beg:lon_end,1)
     real(r8) :: gsum(1)
+
+    ! regrid to lat/lon
 
     call ESMF_FieldGet(physfld_2d, localDe=0, farrayPtr=physptr, rc=rc)
     call check_esmf_error(rc, subname//'ESMF_FieldGet physptr')
@@ -486,21 +486,12 @@ contains
     call ESMF_FieldGet(lonlatfld_2d, localDe=0, farrayPtr=lonlatptr, rc=rc)
     call check_esmf_error(rc, subname//'ESMF_FieldGet lonlatptr')
 
-    do ilat = lat_beg, lat_end
-       do ilon = lon_beg, lon_end
-          lonlat_fld(ilon,ilat) = lonlatptr(ilon,ilat)
-       end do
-    end do
-
     ! zonal mean
-    zmfld = huge(1._r8)
 
     do ilat = lat_beg, lat_end
-       arr(1:mynlons,1) = lonlat_fld(lon_beg:lon_end,ilat)
+       arr(lon_beg:lon_end,1) = lonlatptr(lon_beg:lon_end,ilat)
        call shr_reprosum_calc(arr, gsum, mynlons, mynlons, 1, gbl_count=nlons, commid=rows_comm)
-
        zmfld(ilat) = gsum(1)/nlons
-
     end do
 
   end function esmf_zm_calc_2d
@@ -518,13 +509,14 @@ contains
     real(ESMF_KIND_R8), pointer :: physptr(:,:)
     real(ESMF_KIND_R8), pointer :: lonlatptr(:,:,:)
 
-    real(r8) :: lonlat_fld(lon_beg:lon_end,lat_beg:lat_end,1:pver)
     real(r8) :: arr(lon_beg:lon_end,pver)
     real(r8) :: gsum(pver)
 
     character(len=*), parameter :: subname  = 'esmf_zm_calc_3d: '
 
     integer :: k
+
+    ! regrid to lat/lon
 
     call ESMF_FieldGet(physfld_3d, localDe=0, farrayPtr=physptr, rc=rc)
     call check_esmf_error(rc, subname//'ESMF_FieldGet physptr')
@@ -547,22 +539,12 @@ contains
     call ESMF_FieldGet(lonlatfld_3d, localDe=0, farrayPtr=lonlatptr, rc=rc)
     call check_esmf_error(rc, subname//'ESMF_FieldGet lonlatptr')
 
-    do ilat = lat_beg, lat_end
-       do ilon = lon_beg, lon_end
-          do ilev = 1,pver
-             lonlat_fld(ilon,ilat,ilev) = lonlatptr(ilon,ilat,ilev)
-          end do
-       end do
-    end do
-
-    zmfld = -huge(1._r8)
+    ! zonal mean
 
     do ilat = lat_beg, lat_end
-       arr(lon_beg:lon_end,:) = lonlat_fld(lon_beg:lon_end,ilat,:)
+       arr(lon_beg:lon_end,:) = lonlatptr(lon_beg:lon_end,ilat,:)
        call shr_reprosum_calc(arr, gsum, mynlons, mynlons, pver, gbl_count=nlons, commid=rows_comm)
-
        zmfld(ilat,:) = gsum(:)/nlons
-
     end do
 
   end function esmf_zm_calc_3d
