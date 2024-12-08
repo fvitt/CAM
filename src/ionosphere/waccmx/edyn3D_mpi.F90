@@ -49,6 +49,8 @@ module edyn3D_mpi
 
    public :: mp_glbsum_edyn3D
 
+   public :: mpi_comm_edyn3D
+
    !
    ! Number of MPI tasks and current task id:
    !

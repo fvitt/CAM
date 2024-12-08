@@ -3,7 +3,8 @@ module edyn3D_remap_mod
   use spmd_utils, only: masterproc
   use cam_abortutils, only: endrun
   use cam_logfile,    only: iulog
-  use edyn3D_mpi, only: ntask, mytid
+  use edyn3D_mpi, only: ntask3D=>ntask, mytid
+  use edyn_mpi,   only: ntaskOp=>ntask
   use edyn3d_params, only: hgt_fix,nhgt_fix
   use edyn3D_fline_fields, only: magfield_t
   use interpolate_data, only: lininterp
@@ -19,6 +20,8 @@ module edyn3D_remap_mod
 
 contains
 
+  !------------------------------------------------------------------------------
+  !------------------------------------------------------------------------------
   subroutine edyn3D_remap_phys2mag(physflds, physalt, nphyscol, nphyslev, nflds, desfields, routehandles, magflds)
 
     use edyn3D_esmf_fields_rhandles, only: physFieldSrc
@@ -66,7 +69,7 @@ contains
                              termorderflag=ESMF_TERMORDER_SRCSEQ, rc=rc)
        call check_error(subname,'ESMF_FieldRegrid phys2mag',rc)
 
-       if (mytid<ntask) then
+       if (mytid<ntask3D) then
 
           call ESMF_FieldGet(desfields(k), localDe=0, farrayPtr=fptr3d, &
                              computationalLBound=lbnd3d, computationalUBound=ubnd3d, rc=rc)
@@ -96,7 +99,8 @@ contains
   end subroutine edyn3D_remap_phys2mag
 
 
-
+  !------------------------------------------------------------------------------
+  !------------------------------------------------------------------------------
   subroutine edyn3D_remap_mag2oplus( magflds, opalt, oplusflds )
 
     use edyn3D_esmf_fields_rhandles, only: magFieldSrc_s1, oplusFieldDes, rh_mag2plus_s1
@@ -116,10 +120,9 @@ contains
 
     integer :: i,j,k,jj,isn,n, nmlat, rc
 
-    if (mytid<ntask) then
+    do k = 1,nhgt_fix
 
-       do k = 1,nhgt_fix
-
+       if (mytid<ntask3D) then
           call ESMF_FieldGet(magFieldSrc_s1(k), localDe=0, farrayPtr=fptr3d, &
                computationalLBound=lbnd3d, computationalUBound=ubnd3d, rc=rc)
           call check_error(subname,'ESMF_FieldGet magFieldSrc_s1(k)',rc)
@@ -140,6 +143,9 @@ contains
                 end do
              end do
           end do
+       endif
+
+       if (mytid<ntaskOp) then
 
           call ESMF_FieldRegrid(magFieldSrc_s1(k), oplusFieldDes, rh_mag2plus_s1(k), &
                termorderflag=ESMF_TERMORDER_SRCSEQ, rc=rc)
@@ -157,24 +163,20 @@ contains
              end do
           end do
 
-       end do
+       endif
 
-       do n = 1,nflds
-          do i = lon0,lon1
-             do j = lat0,lat1
-                !vert interpolate...
-                call lininterp(f_tmp(i,j,n,:), hgt_fix(:), nhgt_fix, &
-                               oplusflds(i,j,:,n), opalt(i,j,:), nlevo )
+    enddo
 
-             end do
+    do n = 1,nflds
+       do i = lon0,lon1
+          do j = lat0,lat1
+             !vert interpolate...
+             call lininterp(f_tmp(i,j,n,:), hgt_fix(:), nhgt_fix, oplusflds(i,j,:,n), opalt(i,j,:), nlevo )
           end do
        end do
-
-    end if
-
+    end do
 
   end subroutine edyn3D_remap_mag2oplus
-
 
   !-----------------------------------------------------------------------
   !-----------------------------------------------------------------------

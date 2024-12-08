@@ -92,6 +92,7 @@ module ionosphere_interface
 
    integer           :: oplus_nlon, oplus_nlat   ! Oplus grid
    integer           :: ionos_npes = -1
+   integer           :: dyn3d_npes = -1
 
    logical :: state_debug_checks = .false.
    logical :: ionos_debug_hist = .false.
@@ -124,7 +125,7 @@ module ionosphere_interface
       namelist /ionosphere_nl/ ionos_epotential_model, ionos_epotential_amie, ionos_epotential_ltr, wei05_coefs_file
       namelist /ionosphere_nl/ amienh_files, amiesh_files, wei05_coefs_file, ltr_files
       namelist /ionosphere_nl/ epot_crit_colats
-      namelist /ionosphere_nl/ ionos_npes
+      namelist /ionosphere_nl/ ionos_npes, dyn3d_npes
       namelist /ionosphere_nl/ oplus_grid, edyn_grid
       namelist /ionosphere_nl/ ionos_debug_hist
 
@@ -163,6 +164,7 @@ module ionosphere_interface
       call mpi_bcast(oplus_ring_polar_filter,1, mpi_logical, masterprocid, mpicom, ierr)
       call mpi_bcast(epot_crit_colats,    2, mpi_real8,   masterprocid, mpicom, ierr)
       call mpi_bcast(ionos_npes,          1, mpi_integer, masterprocid, mpicom, ierr)
+      call mpi_bcast(dyn3d_npes,          1, mpi_integer, masterprocid, mpicom, ierr)
       call mpi_bcast(oplus_grid,          2, mpi_integer, masterprocid, mpicom, ierr)
       call mpi_bcast(edyn_grid,           8, mpi_character, masterprocid, mpicom, ierr)
       call mpi_bcast(ionos_debug_hist,    1, mpi_logical, masterprocid, mpicom, ierr)
@@ -180,10 +182,16 @@ module ionosphere_interface
 
       ! Set npes in case of default settings
       call mpi_comm_size(mpicom, total_pes, ierr)
+
       if (ionos_npes<1) then
          ionos_npes = total_pes
       else if (ionos_npes>total_pes) then
          call endrun('ionosphere_readnl: ionos_npes > total_pes')
+      end if
+      if (dyn3d_npes<1) then
+         dyn3d_npes = ionos_npes
+      else if (dyn3d_npes>total_pes) then
+         call endrun('ionosphere_readnl: dyn3d_npes > total_pes')
       end if
 
       ! log the user settings
@@ -198,6 +206,7 @@ module ionosphere_interface
          write(iulog,'(a,2(g12.4))') &
                         'ionosphere_readnl: epot_crit_colats       = ', epot_crit_colats
          write(iulog,'(a,i0)') 'ionosphere_readnl: ionos_npes = ',ionos_npes
+         write(iulog,'(a,i0)') 'ionosphere_readnl: dyn3d_npes = ',dyn3d_npes
          write(iulog,*) 'ionosphere_readnl: oplus_adiff_limiter    = ', oplus_adiff_limiter
          write(iulog,*) 'ionosphere_readnl: oplus_shapiro_const    = ', oplus_shapiro_const
          write(iulog,*) 'ionosphere_readnl: oplus_enforce_floor    = ', oplus_enforce_floor
@@ -395,7 +404,7 @@ module ionosphere_interface
 
       call edyn_esmf_update
 
-      call edyn3D_driver_reg(mpicom_atm, ionos_npes)
+      call edyn3D_driver_reg(mpicom_atm, dyn3d_npes)
 
       call addfld('IonU_phys', (/ 'lev' /), 'I', 'm/s','Zonal Ion Drift Velocity on phys grid' )
       call addfld('IonV_phys', (/ 'lev' /), 'I', 'm/s','Meridional Ion Drift Velocity on phys grid' )

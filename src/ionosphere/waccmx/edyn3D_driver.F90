@@ -14,7 +14,7 @@ module edyn3D_driver
                            ylonm,ylatm,ylonm_s,nhgt_fix,nmlat_T1,nmlatS2_h
 
   use perf_mod, only: t_startf, t_stopf
-  use edyn_mpi, only: mpi_comm_edyn
+  use edyn3d_mpi, only: mpi_comm_edyn3d
 
   use physconst, only: pi
 
@@ -224,7 +224,7 @@ contains
     !
     ! Call 3D dynamo routine for solving
     !
-    if (mytid<ntask) then
+    proc_tasks: if (mytid<ntask) then
 
        call t_startf('edyn3D_driver_timestep.3.copy')
 
@@ -259,7 +259,7 @@ contains
 
        call t_startf('edyn3D_driver_timestep.4.coefs')
 
-       call mpibarrier(mpi_comm_edyn)
+       call mpibarrier(mpi_comm_edyn3d)
 
        call sunloc_calc(sunlon)
        call edyn3D_heelis_set_hlat_pot(sunlon)
@@ -282,7 +282,7 @@ contains
 
        call t_stopf('edyn3D_driver_timestep.4.coefs')
 
-       call mpibarrier(mpi_comm_edyn)
+       call mpibarrier(mpi_comm_edyn3d)
 
        call t_startf('edyn3D_driver_timestep.5.gather')
 
@@ -290,7 +290,7 @@ contains
 
        call t_stopf('edyn3D_driver_timestep.5.gather')
 
-       call mpibarrier(mpi_comm_edyn)
+       call mpibarrier(mpi_comm_edyn3d)
 
        call t_startf('edyn3D_driver_timestep.6.solve')
        if (mytid == 0) then
@@ -303,13 +303,13 @@ contains
 
        call t_stopf('edyn3D_driver_timestep.6.solve')
 
-       call mpibarrier(mpi_comm_edyn)
+       call mpibarrier(mpi_comm_edyn3d)
 
        call t_startf('edyn3D_driver_timestep.7.scatter')
        call edyn3D_scatter_poten   ! - Send global potential to each task
        call t_stopf('edyn3D_driver_timestep.7.scatter')
 
-       call mpibarrier(mpi_comm_edyn)
+       call mpibarrier(mpi_comm_edyn3d)
 
        call t_startf('edyn3D_driver_timestep.8.efield')
 
@@ -317,24 +317,6 @@ contains
        call edyn3D_calc_efield    ! - Calculate the electric field and ion drift velocities
 
        call t_stopf('edyn3D_driver_timestep.8.efield')
-
-    endif
-
-    call mpibarrier(mpicom)
-
-    call t_startf('edyn3D_driver_timestep.9.regrid_opalt')
-
-    call regrid_phys2geo_3d( physalt, opalt, nphyslev, 1, nphyscol )
-
-    call t_stopf('edyn3D_driver_timestep.9.regrid_opalt')
-
-    call mpibarrier(mpicom)
-
-    call t_startf('edyn3D_driver_timestep.10.ionvels')
-
-    !  diagnostics ...
-
-    proc_tasks: if (mytid<ntask) then
 
        call t_startf('edyn3D_driver_timestep.10.ionvels_calc')
 
@@ -413,29 +395,10 @@ contains
 
        call t_stopf('edyn3D_driver_timestep.10.ionvels_calc')
 
-       call mpibarrier(mpi_comm_edyn)
+       call mpibarrier(mpi_comm_edyn3d)
 
-       call t_startf('edyn3D_driver_timestep.10.ionvels_regrid2oplus')
-
-       mag_src_flds = (/IonU_s1,IonV_s1,IonW_s1/)
-
-       call edyn3D_remap_mag2oplus( mag_src_flds, opalt, oplusflds )
-
-       IonU_oplus(:,:,:) = oplusflds(:,:,:,1)
-       IonV_oplus(:,:,:) = oplusflds(:,:,:,2)
-       IonW_oplus(:,:,:) = oplusflds(:,:,:,3)
-
-       call t_stopf('edyn3D_driver_timestep.10.ionvels_regrid2oplus')
-
-       call mpibarrier(mpi_comm_edyn)
 
        call t_startf('edyn3D_driver_timestep.10.ionvels_diags')
-
-       do j = lat0,lat1
-          call outfld( 'IonU_opg', IonU_oplus(lon0:lon1,j,lev0:lev1), lon1-lon0+1, j )
-          call outfld( 'IonV_opg', IonV_oplus(lon0:lon1,j,lev0:lev1), lon1-lon0+1, j )
-          call outfld( 'IonW_opg', IonW_oplus(lon0:lon1,j,lev0:lev1), lon1-lon0+1, j )
-       end do
 
        do i = mlon0_p,mlon1_p
           ncnt3 = 0
@@ -510,7 +473,32 @@ contains
 
     call mpibarrier(mpicom)
 
-    call t_stopf('edyn3D_driver_timestep.10.ionvels')
+
+    call t_startf('edyn3D_driver_timestep.11.regrid_opalt')
+
+    call regrid_phys2geo_3d( physalt, opalt, nphyslev, 1, nphyscol )
+
+    call t_stopf('edyn3D_driver_timestep.11.regrid_opalt')
+
+    call mpibarrier(mpicom)
+
+    call t_startf('edyn3D_driver_timestep.12.ionvels_regrid2oplus')
+
+    mag_src_flds = (/IonU_s1,IonV_s1,IonW_s1/)
+
+    call edyn3D_remap_mag2oplus( mag_src_flds, opalt, oplusflds )
+
+    IonU_oplus(:,:,:) = oplusflds(:,:,:,1)
+    IonV_oplus(:,:,:) = oplusflds(:,:,:,2)
+    IonW_oplus(:,:,:) = oplusflds(:,:,:,3)
+
+    do j = lat0,lat1
+       call outfld( 'IonU_opg', IonU_oplus(lon0:lon1,j,lev0:lev1), lon1-lon0+1, j )
+       call outfld( 'IonV_opg', IonV_oplus(lon0:lon1,j,lev0:lev1), lon1-lon0+1, j )
+       call outfld( 'IonW_opg', IonW_oplus(lon0:lon1,j,lev0:lev1), lon1-lon0+1, j )
+    end do
+
+    call t_stopf('edyn3D_driver_timestep.12.ionvels_regrid2oplus')
 
     call mpibarrier(mpicom)
     call t_stopf('edyn3D_driver_timestep')
