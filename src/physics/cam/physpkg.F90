@@ -159,7 +159,7 @@ contains
     use offline_driver,     only: offline_driver_reg
     use hemco_interface,    only: HCOI_Chunk_Init
     use upper_bc,           only: ubc_fixed_conc
-    use esmf_zm_mod, only: esmf_zm_init
+    use esmf_zonal_ops, only: esmf_zonal_ops_init
     use zm_test_mod, only: zm_test_reg
 
     !---------------------------Local variables-----------------------------
@@ -357,7 +357,7 @@ contains
         call pbuf_cam_snapshot_register()
     end if
 
-    call esmf_zm_init()
+    call esmf_zonal_ops_init()
     call zm_test_reg()
 
   end subroutine phys_register

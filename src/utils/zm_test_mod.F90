@@ -6,8 +6,8 @@ module zm_test_mod
   use spmd_utils, only: masterproc
   use cam_history, only: horiz_only, addfld, outfld
 
-  use esmf_zm_mod, only: lon_beg, lon_end, lat_beg, lat_end, esmf_zm_calc_2d, esmf_zm_calc_3d
-  use esmf_zm_mod, only: nlats, glats
+  use esmf_zonal_ops, only: lon_beg, lon_end, lat_beg, lat_end, esmf_zonal_mean_2d, esmf_zonal_mean_3d
+  use esmf_zonal_ops, only: nlats, glats
 
   implicit none
 
@@ -96,11 +96,11 @@ contains
        end do
     end do
 
-    t_zm = esmf_zm_calc_3d(tfld)
-    u_zm = esmf_zm_calc_3d(ufld)
-    v_zm = esmf_zm_calc_3d(vfld)
+    t_zm = esmf_zonal_mean_3d(tfld)
+    u_zm = esmf_zonal_mean_3d(ufld)
+    v_zm = esmf_zonal_mean_3d(vfld)
 
-    ps_zm = esmf_zm_calc_2d(psfld)
+    ps_zm = esmf_zonal_mean_2d(psfld)
 
     do icol = lat_beg, lat_end
        call outfld('PS_emsfzm',ps_zm(icol),1,icol)

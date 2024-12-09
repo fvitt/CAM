@@ -1,4 +1,4 @@
-module esmf_zm_mod
+module esmf_zonal_ops
   use shr_kind_mod, only: r8 => shr_kind_r8, cl=>SHR_KIND_CL
   use ppgrid, only: pcols, pver, begchunk, endchunk
   use phys_grid, only: get_ncols_p
@@ -27,7 +27,7 @@ module esmf_zm_mod
   real(r8), allocatable :: glats(:)
   real(r8), allocatable :: glons(:)
 
-  integer, parameter :: minlats_per_pe = 1
+  integer, parameter :: minlats_per_pe = 2
   integer, parameter :: minlons_per_pe = 2
   integer :: ntasks_lat = -1
   integer :: ntasks_lon = -1
@@ -56,7 +56,7 @@ contains
 
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------
-  subroutine esmf_zm_init(nlats_in)
+  subroutine esmf_zonal_ops_init(nlats_in)
     use phys_grid, only: get_grid_dims
     use mpi, only: mpi_comm_size, mpi_comm_rank, MPI_PROC_NULL, MPI_INTEGER
 
@@ -71,7 +71,7 @@ contains
     integer :: n
     integer :: lons_per_task, lons_overflow, lats_per_task, lats_overflow
     integer :: task_cnt
-    character(len=*), parameter :: subname  = 'esmf_zm_init'
+    character(len=*), parameter :: subname  = 'esmf_zonal_ops_init'
 
     integer, allocatable :: petmap(:,:,:)
     integer :: petcnt
@@ -321,25 +321,19 @@ contains
          countsPerDEDim1=nlons_task, coordDep1=(/1/),         &
          countsPerDEDim2=nlats_task, coordDep2=(/2/), petmap=petmap, &
          indexflag=ESMF_INDEX_GLOBAL,minIndex=(/1,1/), rc=ierr)
-    if (ierr/=ESMF_SUCCESS) then
-       call endrun(subname//'ESMF_GridCreate1PeriDim ERROR')
-    end if
+    call check_esmf_error(ierr, subname//'ESMF_GridCreate1PeriDim ERROR')
 
 
     ! Set coordinates:
 
     call ESMF_GridAddCoord(lonlat_grid, staggerloc=ESMF_STAGGERLOC_CENTER, rc=ierr)
-    if (ierr/=ESMF_SUCCESS) then
-       call endrun(subname//'ESMF_GridAddCoord ERROR')
-    end if
+    call check_esmf_error(ierr, subname//'ESMF_GridAddCoord ERROR')
 
     if (mytid<npes) then
        call ESMF_GridGetCoord(lonlat_grid, coordDim=1, &
             computationalLBound=lbnd, computationalUBound=ubnd,  &
             farrayPtr=coordX, staggerloc=ESMF_STAGGERLOC_CENTER, rc=ierr)
-       if (ierr/=ESMF_SUCCESS) then
-          call endrun(subname//'ESMF_GridGetCoord for longitude coords ERROR')
-       end if
+       call check_esmf_error(ierr, subname//'ESMF_GridGetCoord for longitude coords ERROR')
 
        lbnd_lon = lbnd(1)
        ubnd_lon = ubnd(1)
@@ -350,9 +344,7 @@ contains
        call ESMF_GridGetCoord(lonlat_grid, coordDim=2, &
             computationalLBound=lbnd, computationalUBound=ubnd, &
             farrayPtr=coordY, staggerloc=ESMF_STAGGERLOC_CENTER, rc=ierr)
-       if (ierr/=ESMF_SUCCESS) then
-          call endrun(subname//'ESMF_GridGetCoord for latitude coords ERROR')
-       end if
+       call check_esmf_error(ierr, subname//'ESMF_GridGetCoord for latitude coords ERROR')
 
        lbnd_lat = lbnd(1)
        ubnd_lat = ubnd(1)
@@ -365,52 +357,35 @@ contains
 
     ! 3D phys fld
     call ESMF_ArraySpecSet(arrayspec, 2, ESMF_TYPEKIND_R8, rc=ierr)
-    if (ierr/=ESMF_SUCCESS) then
-       call endrun(subname//'ESMF_ArraySpecSet 3D phys fld ERROR')
-    end if
+    call check_esmf_error(ierr, subname//'ESMF_ArraySpecSet 3D phys fld ERROR')
 
     physfld_3d = ESMF_FieldCreate(physics_grid_mesh, arrayspec, &
-         gridToFieldMap=(/2/), meshloc=ESMF_MESHLOC_ELEMENT, &
-         ungriddedLBound=(/1/), ungriddedUBound=(/pver/), rc=ierr)
-    if (ierr/=ESMF_SUCCESS) then
-       call endrun(subname//'ESMF_FieldCreate 3D phys fld ERROR')
-    end if
+                                  gridToFieldMap=(/2/), meshloc=ESMF_MESHLOC_ELEMENT, &
+                                  ungriddedLBound=(/1/), ungriddedUBound=(/pver/), rc=ierr)
+    call check_esmf_error(ierr, subname//'ESMF_FieldCreate 3D phys fld ERROR')
 
     ! 2D phys fld
     call ESMF_ArraySpecSet(arrayspec, 1, ESMF_TYPEKIND_R8, rc=ierr)
-    if (ierr/=ESMF_SUCCESS) then
-       call endrun(subname//'ESMF_ArraySpecSet 2D phys fld ERROR')
-    end if
+    call check_esmf_error(ierr, subname//'ESMF_ArraySpecSet 2D phys fld ERROR')
 
     physfld_2d = ESMF_FieldCreate(physics_grid_mesh, arrayspec, &
-         meshloc=ESMF_MESHLOC_ELEMENT, rc=ierr)
-    if (ierr/=ESMF_SUCCESS) then
-       call endrun(subname//'ESMF_FieldCreate 2D phys fld ERROR')
-    end if
+                                  meshloc=ESMF_MESHLOC_ELEMENT, rc=ierr)
+    call check_esmf_error(ierr, subname//'ESMF_FieldCreate 2D phys fld ERROR')
 
     ! 3D lon/lat grid
     call ESMF_ArraySpecSet(arrayspec, 3, ESMF_TYPEKIND_R8, rc=ierr)
-    if (ierr/=ESMF_SUCCESS) then
-       call endrun(subname//'ESMF_ArraySpecSet 3D lonlat fld ERROR')
-    end if
+    call check_esmf_error(ierr, subname//'ESMF_ArraySpecSet 3D lonlat fld ERROR')
 
     lonlatfld_3d = ESMF_FieldCreate( lonlat_grid, arrayspec, staggerloc=ESMF_STAGGERLOC_CENTER, &
-         ungriddedLBound=(/1/), ungriddedUBound=(/pver/), rc=ierr)
-    if (ierr/=ESMF_SUCCESS) then
-       call endrun(subname//'ESMF_FieldCreate 3D lonlat fld ERROR')
-    end if
+                                     ungriddedLBound=(/1/), ungriddedUBound=(/pver/), rc=ierr)
+    call check_esmf_error(ierr, subname//'ESMF_FieldCreate 3D lonlat fld ERROR')
 
     ! 2D lon/lat grid
     call ESMF_ArraySpecSet(arrayspec, 2, ESMF_TYPEKIND_R8, rc=ierr)
-    if (ierr/=ESMF_SUCCESS) then
-       call endrun(subname//'ESMF_ArraySpecSet 2D lonlat fld ERROR')
-    end if
+    call check_esmf_error(ierr, subname//'ESMF_ArraySpecSet 2D lonlat fld ERROR')
 
-    lonlatfld_2d = ESMF_FieldCreate( lonlat_grid, arrayspec, staggerloc=ESMF_STAGGERLOC_CENTER, &
-         rc=ierr)
-    if (ierr/=ESMF_SUCCESS) then
-       call endrun(subname//'ESMF_FieldCreate 2D lonlat fld ERROR')
-    end if
+    lonlatfld_2d = ESMF_FieldCreate( lonlat_grid, arrayspec, staggerloc=ESMF_STAGGERLOC_CENTER, rc=ierr)
+    call check_esmf_error(ierr, subname//'ESMF_FieldCreate 2D lonlat fld ERROR')
 
 
     ! route handles -- phys --> lonlat mapping
@@ -427,9 +402,7 @@ contains
          routeHandle=rh_phys2lonlat_3D, factorIndexList=factorIndexList, &
          factorList=factorList, srcTermProcessing=smm_srctermproc,          &
          pipelineDepth=smm_pipelinedep, rc=ierr)
-    if (ierr/=ESMF_SUCCESS) then
-       call endrun(subname//'ESMF_FieldRegridStore 3D routehandle ERROR')
-    end if
+    call check_esmf_error(ierr, subname//'ESMF_FieldRegridStore 3D routehandle ERROR')
 
     ! 2D
 
@@ -440,17 +413,14 @@ contains
          routeHandle=rh_phys2lonlat_2D, factorIndexList=factorIndexList, &
          factorList=factorList, srcTermProcessing=smm_srctermproc,          &
          pipelineDepth=smm_pipelinedep, rc=ierr)
-    if (ierr/=ESMF_SUCCESS) then
-       call endrun(subname//'ESMF_FieldRegridStore 2D routehandle ERROR')
-    end if
+    call check_esmf_error(ierr, subname//'ESMF_FieldRegridStore 2D routehandle ERROR')
 
-
-  end subroutine esmf_zm_init
+  end subroutine esmf_zonal_ops_init
 
 
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------
-  function esmf_zm_calc_2d(physfld) result(zmfld)
+  function esmf_zonal_mean_2d(physfld) result(zmfld)
 
     real(r8),intent(in) :: physfld(pcols,begchunk:endchunk)
 
@@ -494,11 +464,11 @@ contains
        zmfld(ilat) = gsum(1)/nlons
     end do
 
-  end function esmf_zm_calc_2d
+  end function esmf_zonal_mean_2d
 
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------
-  function esmf_zm_calc_3d(physfld) result(zmfld)
+  function esmf_zonal_mean_3d(physfld) result(zmfld)
 
     real(r8),intent(in) :: physfld(pver,pcols,begchunk:endchunk)
 
@@ -547,7 +517,7 @@ contains
        zmfld(ilat,:) = gsum(:)/nlons
     end do
 
-  end function esmf_zm_calc_3d
+  end function esmf_zonal_mean_3d
 
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------
@@ -558,7 +528,7 @@ contains
     character(len=cl) :: errstr
 
     if (rc /= ESMF_SUCCESS) then
-       write(errstr,'(a,i6)') 'esmf_zm_mod::'//trim(errmsg)//' -- ESMF ERROR code: ',rc
+       write(errstr,'(a,i6)') 'esmf_zonal_ops::'//trim(errmsg)//' -- ESMF ERROR code: ',rc
        if (masterproc) write(iulog,*) trim(errstr)
        call endrun(trim(errstr))
     end if
@@ -567,4 +537,4 @@ contains
 
 
 
-end module esmf_zm_mod
+end module esmf_zonal_ops
