@@ -4,7 +4,7 @@ nhtfrq=3,3,3,3,3,3,3,3,3
 write_nstep0=.true.
 inithist='ENDOFRUN'
 
-ionos_npes = 45
+dyn3d_npes = 45
 
 fincl2 = 'un_s1', 'vn_s1','un_s2','vn_s2',
          'sigma_ped_s1','sigma_ped_s2','sigma_hal_s1','sigma_hal_s2'
