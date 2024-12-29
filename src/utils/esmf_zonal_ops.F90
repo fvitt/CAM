@@ -66,9 +66,9 @@ contains
 
     integer, parameter  :: ndelts = 8
     real(r8), parameter :: deltas(ndelts) = (/ 0.125_r8, 0.25_r8, 0.5_r8, 1.0_r8, 2.0_r8, 5.0_r8, 6.0_r8, 10._r8 /)
-    real(r8) :: delt0, diff(ndelts), delx, dely
+    real(r8) :: delt0, diff(ndelts), delx, dely, lat0
 
-    integer :: n
+    integer :: n, nx
     integer :: lons_per_task, lons_overflow, lats_per_task, lats_overflow
     integer :: task_cnt
     character(len=*), parameter :: subname  = 'esmf_zonal_ops_init'
@@ -110,17 +110,17 @@ contains
        ! user specified resolution
        nlats = nlats_in
        nlons = 2*nlats
-
+       dely = 180._r8/nlats
+       lat0 = -90._r8 + 0.5_r8 * dely
     else
        call get_grid_dims(hdim1_d,hdim2_d)
 
        if (hdim2_d>1) then
 
           ! on reg lat / lon FV grid
-          nlons = hdim1_d
           nlats = hdim2_d
-          delx = 360._r8/nlons
           dely = 180._r8/(nlats-1)
+          lat0 = -90._r8 ! include poles in grid
 
        else
 
@@ -134,21 +134,28 @@ contains
 
           ndx = minloc(diff,1)
 
-          nlats = 180._r8/deltas(ndx)
+          dely = deltas(ndx)
+          nlats = 180._r8/dely
+          lat0 = -90._r8 + 0.5_r8 * dely
 
-          nlons = 2*nlats
-          nlats = nlats+1
-
-          delx = deltas(ndx)
-          dely = delx
        end if
     end if
+
+    nx = 4
+    nlons = 2**nx
+    delx = 360._r8/nlons
+
+    do while( delx > dely )
+       nx = nx + 1
+       nlons = 2**nx
+       delx = 360._r8/nlons
+    end do
 
     allocate(glons(nlons))
     allocate(glats(nlats))
 
     glons(1) = 0._r8
-    glats(1) = -90._r8
+    glats(1) = lat0
 
     do i = 2,nlons
        glons(i) = glons(i-1) + delx
