@@ -19,7 +19,11 @@ module esmf_zonal_ops
   use ESMF, only: ESMF_KIND_I4
   use ESMF, only: ESMF_FieldGet, ESMF_FieldRegrid, ESMF_TERMORDER_SRCSEQ
 
+  use, intrinsic :: iso_c_binding
+
   implicit none
+
+  include 'fftw3-mpi.f03'
 
   integer :: nlats = -1
   integer :: nlons = -1
@@ -28,7 +32,7 @@ module esmf_zonal_ops
   real(r8), allocatable :: glons(:)
 
   integer, parameter :: minlats_per_pe = 2
-  integer, parameter :: minlons_per_pe = 2
+  integer, parameter :: minlons_per_pe = 4
   integer :: ntasks_lat = -1
   integer :: ntasks_lon = -1
   integer :: npes = -1
@@ -50,7 +54,7 @@ module esmf_zonal_ops
 
   integer :: mynlats, mynlons
 
-  integer :: rows_comm  ! communicators for each task row
+  integer :: zonal_comm ! zonal direction MPI communicator
 
 contains
 
@@ -99,6 +103,13 @@ contains
     integer(ESMF_KIND_I4), pointer :: factorIndexList(:,:)
     real(ESMF_KIND_R8),    pointer :: factorList(:)
     integer                        :: smm_srctermproc,  smm_pipelinedep
+
+
+    ! FFTW3 variables
+    integer(C_INTPTR_T) :: fftw_n
+    type(C_PTR) :: plan
+    integer(C_INTPTR_T) :: local_n, local_start
+    integer(C_INTPTR_T) :: local_ni, local_i_start, local_no, local_o_start
 
     ! create phys grid mesh
     call esmf_phys_mesh_init()
@@ -259,7 +270,7 @@ contains
 
     end do ! j=0,ntaskj-1
 
-    call mpi_comm_split(mpicom,mytidj,mytid,rows_comm,ierr)
+    call mpi_comm_split(mpicom,mytidj,mytid,zonal_comm,ierr)
 
     allocate(mytidi_send(npes))
     allocate(mytidj_send(npes))
@@ -422,6 +433,33 @@ contains
          pipelineDepth=smm_pipelinedep, rc=ierr)
     call check_esmf_error(ierr, subname//'ESMF_FieldRegridStore 2D routehandle ERROR')
 
+    ! Initialize FFTW MPI
+    call fftw_mpi_init()
+
+
+    ! Set problem size (global size of the 1D array)
+    fftw_n = nlons
+
+    print*,'FVDBG.esmf_zonal_ops_init... zonal_comm : ', zonal_comm
+    print*,'FVDBG.esmf_zonal_ops_init...lon_beg,lon_end : ', lon_beg,lon_end
+    print*,'FVDBG.esmf_zonal_ops_init... nlons,mynlons : ',  nlons,mynlons
+    print*,'FVDBG.esmf_zonal_ops_init... nlats,mynlats : ',  nlats,mynlats
+
+    ! Determine local size and offset for each process
+    !local_n = fftw_mpi_local_size_1d(fftw_n, zonal_comm, FFTW_FORWARD, FFTW_ESTIMATE, &
+    local_n = fftw_mpi_local_size_1d(fftw_n, zonal_comm, FFTW_FORWARD, FFTW_MEASURE, &
+         local_ni, local_i_start, local_no, local_o_start)
+
+    print*,'FVDBG.esmf_zonal_ops_init... npes,mytid : ',npes,mytid
+
+    print*,'FVDBG.esmf_zonal_ops_init... fftw_n : ',fftw_n
+    write(*,'(a,5i8)') 'FVDBG.esmf_zonal_ops_init... local_n, local_ni, local_i_start, local_no, local_o_start: ',&
+                                                     local_n, local_ni, local_i_start, local_no, local_o_start
+
+    if (mynlons/=local_ni .or. mynlons/=local_no .or. lon_beg/=local_i_start+1 .or. lon_beg/=local_o_start+1) then
+       call endrun(subname//': PE layout not capatible with FFTW_MPI decompition')
+    end if
+
   end subroutine esmf_zonal_ops_init
 
 
@@ -467,7 +505,7 @@ contains
 
     do ilat = lat_beg, lat_end
        arr(lon_beg:lon_end,1) = lonlatptr(lon_beg:lon_end,ilat)
-       call shr_reprosum_calc(arr, gsum, mynlons, mynlons, 1, gbl_count=nlons, commid=rows_comm)
+       call shr_reprosum_calc(arr, gsum, mynlons, mynlons, 1, gbl_count=nlons, commid=zonal_comm)
        zmfld(ilat) = gsum(1)/nlons
     end do
 
@@ -520,7 +558,7 @@ contains
 
     do ilat = lat_beg, lat_end
        arr(lon_beg:lon_end,:) = lonlatptr(lon_beg:lon_end,ilat,:)
-       call shr_reprosum_calc(arr, gsum, mynlons, mynlons, pver, gbl_count=nlons, commid=rows_comm)
+       call shr_reprosum_calc(arr, gsum, mynlons, mynlons, pver, gbl_count=nlons, commid=zonal_comm)
        zmfld(ilat,:) = gsum(:)/nlons
     end do
 
