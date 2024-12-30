@@ -1,0 +1,24 @@
+mfilt=1,1,1,1,1,1,1,1,1
+ndens=1,1,1,1,1,1,1,1,1
+nhtfrq=3,3,3,3,3,3,3,3,3
+write_nstep0=.true.
+inithist='ENDOFRUN'
+
+dyn3d_npes = 45
+
+fincl2 = 'un_s1', 'vn_s1','un_s2','vn_s2',
+         'sigma_ped_s1','sigma_ped_s2','sigma_hal_s1','sigma_hal_s2'
+
+fincl3 = 'T','SIGMAPED','SIGMAHAL','Z3','Z3GM', 'POTENp'
+
+fincl4 = 'ED1s1','ED2s1','ED1s2','ED2s2', 'Ve1s1','Ve2s1','Ve1s2','Ve2s2',
+         'UI_s1','VI_s1','WI_s1','IonU_s1','IonV_s1','IonW_s1',
+         'IonU_opg','IonV_opg','IonW_opg','IonU_phys','IonV_phys','IonW_phys'
+
+fincl5 = 'HL_EPOTEN','HL_FACURR','ELECPOTEN','POTENp','HILATPOT'
+
+fincl6 = ' '
+fincl7 = ' '
+fincl8 = ' '
+fincl9 = ' '
+fincl10 = ' '

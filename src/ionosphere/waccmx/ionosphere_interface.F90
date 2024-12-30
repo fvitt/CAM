@@ -24,6 +24,9 @@ module ionosphere_interface
    use epotential_params,   only: epot_active, epot_crit_colats
    use shr_const_mod,  only: SHR_CONST_REARTH ! meters
 
+ ! test 3D field line mag grid infrastructure
+   use edyn3D_driver, only: edyn3D_driver_reg, edyn3D_driver_timestep
+
    implicit none
 
    private
@@ -92,6 +95,7 @@ module ionosphere_interface
 
    integer           :: oplus_nlon, oplus_nlat   ! Oplus grid
    integer           :: ionos_npes = -1
+   integer           :: dyn3d_npes = -1
 
    logical :: state_debug_checks = .false.
    logical :: ionos_debug_hist = .false.
@@ -126,7 +130,7 @@ module ionosphere_interface
       namelist /ionosphere_nl/ ionos_epotential_model, ionos_epotential_amie, ionos_epotential_ltr, wei05_coefs_file
       namelist /ionosphere_nl/ amienh_files, amiesh_files, wei05_coefs_file, ltr_files
       namelist /ionosphere_nl/ epot_crit_colats
-      namelist /ionosphere_nl/ ionos_npes
+      namelist /ionosphere_nl/ ionos_npes, dyn3d_npes
       namelist /ionosphere_nl/ oplus_grid, edyn_grid
       namelist /ionosphere_nl/ ionos_debug_hist
 
@@ -165,6 +169,7 @@ module ionosphere_interface
       call mpi_bcast(oplus_ring_polar_filter,1, mpi_logical, masterprocid, mpicom, ierr)
       call mpi_bcast(epot_crit_colats,    2, mpi_real8,   masterprocid, mpicom, ierr)
       call mpi_bcast(ionos_npes,          1, mpi_integer, masterprocid, mpicom, ierr)
+      call mpi_bcast(dyn3d_npes,          1, mpi_integer, masterprocid, mpicom, ierr)
       call mpi_bcast(oplus_grid,          2, mpi_integer, masterprocid, mpicom, ierr)
       call mpi_bcast(edyn_grid,           8, mpi_character, masterprocid, mpicom, ierr)
       call mpi_bcast(ionos_debug_hist,    1, mpi_logical, masterprocid, mpicom, ierr)
@@ -182,10 +187,16 @@ module ionosphere_interface
 
       ! Set npes in case of default settings
       call mpi_comm_size(mpicom, total_pes, ierr)
+
       if (ionos_npes<1) then
          ionos_npes = total_pes
       else if (ionos_npes>total_pes) then
          call endrun('ionosphere_readnl: ionos_npes > total_pes')
+      end if
+      if (dyn3d_npes<1) then
+         dyn3d_npes = ionos_npes
+      else if (dyn3d_npes>total_pes) then
+         call endrun('ionosphere_readnl: dyn3d_npes > total_pes')
       end if
 
       ! log the user settings
@@ -200,6 +211,7 @@ module ionosphere_interface
          write(iulog,'(a,2(g12.4))') &
                         'ionosphere_readnl: epot_crit_colats       = ', epot_crit_colats
          write(iulog,'(a,i0)') 'ionosphere_readnl: ionos_npes = ',ionos_npes
+         write(iulog,'(a,i0)') 'ionosphere_readnl: dyn3d_npes = ',dyn3d_npes
          write(iulog,*) 'ionosphere_readnl: oplus_adiff_limiter    = ', oplus_adiff_limiter
          write(iulog,*) 'ionosphere_readnl: oplus_shapiro_const    = ', oplus_shapiro_const
          write(iulog,*) 'ionosphere_readnl: oplus_enforce_floor    = ', oplus_enforce_floor
@@ -221,7 +233,7 @@ module ionosphere_interface
    !---------------------------------------------------------------------------
    !---------------------------------------------------------------------------
    subroutine ionosphere_init()
-      use spmd_utils,      only: mpicom, iam
+      use spmd_utils,      only: mpicom_atm=>mpicom, iam
       use physics_buffer,  only: pbuf_add_field, dtype_r8
       use cam_control_mod, only: initial_run
       use cam_history,     only: addfld, add_default, horiz_only
@@ -236,6 +248,8 @@ module ionosphere_interface
       use ltr_module,      only: init_ltr
       use wei05sc,         only: weimer05_init
       use phys_control,    only: phys_getopts
+
+      use edyn_esmf, only: edyn_esmf_update
 
       ! local variables:
       integer :: sIndx
@@ -335,13 +349,13 @@ module ionosphere_interface
 
          call alloc_maggrid( mag_nlon, mag_nlat, mag_nlev, mag_ngrid )
 
-         call mp_init(mpicom, ionos_npes, oplus_nlon, oplus_nlat, pver) ! set ntask,mytid
+         call mp_init(mpicom_atm, ionos_npes, oplus_nlon, oplus_nlat, pver) ! set ntask,mytid
 
          ! set global geographic grid (sets coordinate distribution)
          ! lon0, lon1, etc. are set here
          call set_geogrid(oplus_nlon, oplus_nlat, pver, ionos_npes, iam, pref_mid, pref_edge)
 
-         call edynamo_init(mpicom, ionos_debug_hist)
+         call edynamo_init(mpicom_atm, ionos_debug_hist)
 
          call d_pie_init(ionos_edyn_active, ionos_oplus_xport, ionos_xport_nsplit, epot_crit_colats, &
                          ionos_debug_hist)
@@ -389,6 +403,17 @@ module ionosphere_interface
            'Geometric height', gridname='physgrid')
       call addfld ('Z3GMI',      (/ 'lev' /), 'I', 'm',                       &
            'Geometric height (Interfaces)', gridname='physgrid')
+
+
+    ! test 3D field line mag grid infrastructure
+
+      call edyn_esmf_update
+
+      call edyn3D_driver_reg(mpicom_atm, dyn3d_npes)
+
+      call addfld('IonU_phys', (/ 'lev' /), 'I', 'm/s','Zonal Ion Drift Velocity on phys grid' )
+      call addfld('IonV_phys', (/ 'lev' /), 'I', 'm/s','Meridional Ion Drift Velocity on phys grid' )
+      call addfld('IonW_phys', (/ 'lev' /), 'I', 'm/s','Vertial Ion Drift Velocity on phys grid' )
 
    end subroutine ionosphere_init
 
@@ -481,6 +506,8 @@ module ionosphere_interface
       use physics_buffer, only: physics_buffer_desc
       use cam_history,    only: outfld, write_inithist, hist_fld_active
       use shr_assert_mod, only: shr_assert_in_domain
+      use regridder,      only: regrid_geo2phys_3d
+      use edyn_mpi,       only: lon0, lon1, lat0, lat1, lev0, lev1
 
       ! - pull some fields from pbuf and dyn_in
       ! - invoke ionosphere/electro-dynamics coupling
@@ -549,6 +576,30 @@ module ionosphere_interface
       real(r8), parameter :: n2min = 1.e-6_r8  ! lower limit of N2 mixing ratios
 
       character(len=*), parameter :: subname = 'ionosphere_run2'
+
+ ! test 3D field line mag grid infrastructure ++
+    integer :: nphyscols
+
+    real(r8), pointer :: physalt(:,:)
+    real(r8), pointer :: tn_in(:,:)
+    real(r8), pointer :: ui_out(:,:)
+    real(r8), pointer :: vi_out(:,:)
+    real(r8), pointer :: wi_out(:,:)
+
+    real(r8) :: ui_op(lon0:lon1,lat0:lat1,lev0:lev1) ! on oplus grid
+    real(r8) :: vi_op(lon0:lon1,lat0:lat1,lev0:lev1)
+    real(r8) :: wi_op(lon0:lon1,lat0:lat1,lev0:lev1)
+
+    real(r8), pointer :: tn_out(:,:)
+    real(r8), pointer :: tn_out2(:,:)
+    real(r8) :: phys_out(pcols,pver)
+    real(r8) :: phys_out2(pcols,pver)
+
+    real(r8) :: phys_ui_out(pcols,pver)
+    real(r8) :: phys_vi_out(pcols,pver)
+    real(r8) :: phys_wi_out(pcols,pver)
+
+  ! test 3D field line mag grid infrastructure --
 
       ionos_cpl: if (ionos_xport_active) then
 
@@ -942,14 +993,10 @@ module ionosphere_interface
          nullify(opmmrtm1_blck)
          deallocate(phis)
          nullify(phis)
-         deallocate(u_blck)
-         nullify(u_blck)
-         deallocate(v_blck)
-         nullify(v_blck)
-         deallocate(sigma_ped_blck)
-         nullify(sigma_ped_blck)
-         deallocate(sigma_hall_blck)
-         nullify(sigma_hall_blck)
+!         deallocate(u_blck)
+!         nullify(u_blck)
+!         deallocate(v_blck)
+!         nullify(v_blck)
          deallocate(ti_blck)
          nullify(ti_blck)
          deallocate(hi_blck)
@@ -982,6 +1029,77 @@ module ionosphere_interface
          nullify(pmid_blck)
 
       end if ionos_cpl
+
+
+! test 3D field line mag grid infrastructure
+
+      nphyscols = 0
+      do lchnk = begchunk, endchunk
+         nphyscols = nphyscols + phys_state(lchnk)%ncol
+      end do
+
+      allocate(physalt(pver,nphyscols), stat=astat)
+      allocate(tn_in(pver,nphyscols), stat=astat)
+      allocate(tn_out(pver,nphyscols), stat=astat)
+      allocate(tn_out2(pver,nphyscols), stat=astat)
+
+      allocate(ui_out(pver,nphyscols), stat=astat)
+      allocate(vi_out(pver,nphyscols), stat=astat)
+      allocate(wi_out(pver,nphyscols), stat=astat)
+
+      j = 0
+      do lchnk = begchunk, endchunk
+         ncol = phys_state(lchnk)%ncol
+         do i = 1, ncol
+            j = j + 1
+            do k = 1, pver
+               r8tmp = phys_state(lchnk)%zm(i, k) + phys_state(lchnk)%phis(i)*rga
+               physalt(k,j) = r8tmp * (1._r8 + (r8tmp * rearth_inv))
+            end do
+         end do
+      end do
+
+      call edyn3D_driver_timestep( nphyscols, pver, physalt, sigma_ped_blck, sigma_hall_blck, u_blck, v_blck, &
+                                   ui_op, vi_op, wi_op )
+
+      call regrid_geo2phys_3d( ui_op, ui_out, pver, 1, nphyscols )
+      call regrid_geo2phys_3d( vi_op, vi_out, pver, 1, nphyscols )
+      call regrid_geo2phys_3d( wi_op, wi_out, pver, 1, nphyscols )
+
+      j = 0
+      do lchnk = begchunk, endchunk
+         phys_out = -huge(1._r8)
+         phys_out2 = -huge(1._r8)
+         ncol = phys_state(lchnk)%ncol
+         do i = 1, ncol
+            j = j + 1
+            do k = 1, pver
+               phys_ui_out(i,k) = ui_out(k,j)
+               phys_vi_out(i,k) = vi_out(k,j)
+               phys_wi_out(i,k) = wi_out(k,j)
+            end do
+         end do
+         call outfld( 'IonU_phys', phys_ui_out, pcols, lchnk )
+         call outfld( 'IonV_phys', phys_vi_out, pcols, lchnk )
+         call outfld( 'IonW_phys', phys_wi_out, pcols, lchnk )
+      end do
+
+      deallocate(physalt)
+      deallocate(tn_in)
+      deallocate(tn_out)
+      deallocate(tn_out2)
+      deallocate(ui_out)
+      deallocate(vi_out)
+
+      deallocate(sigma_ped_blck)
+      nullify(sigma_ped_blck)
+      deallocate(sigma_hall_blck)
+      nullify(sigma_hall_blck)
+
+      deallocate(u_blck)
+      nullify(u_blck)
+      deallocate(v_blck)
+      nullify(v_blck)
 
    end subroutine ionosphere_run2
 
