@@ -409,6 +409,11 @@ module ionosphere_interface
       call addfld('IonU_phys', (/ 'lev' /), 'I', 'm/s','Zonal Ion Drift Velocity on phys grid' )
       call addfld('IonV_phys', (/ 'lev' /), 'I', 'm/s','Meridional Ion Drift Velocity on phys grid' )
       call addfld('IonW_phys', (/ 'lev' /), 'I', 'm/s','Vertial Ion Drift Velocity on phys grid' )
+      call addfld('alt_phys', (/ 'lev' /), 'I', 'm',' ' )
+      call addfld('u_phys', (/ 'lev' /), 'I', 'm/s',' ' )
+      call addfld('v_phys', (/ 'lev' /), 'I', 'm/s',' ' )
+      call addfld('ped_phys', (/ 'lev' /), 'I', ' ',' ' )
+      call addfld('hal_phys', (/ 'lev' /), 'I', ' ',' ' )
 
    end subroutine ionosphere_init
 
@@ -600,6 +605,11 @@ module ionosphere_interface
     real(r8) :: phys_ui_out(pcols,pver)
     real(r8) :: phys_vi_out(pcols,pver)
     real(r8) :: phys_wi_out(pcols,pver)
+    real(r8) :: phys_u_out(pcols,pver)
+    real(r8) :: phys_v_out(pcols,pver)
+    real(r8) :: phys_alt_out(pcols,pver)
+    real(r8) :: phys_ped_out(pcols,pver)
+    real(r8) :: phys_hal_out(pcols,pver)
 
   ! test 3D field line mag grid infrastructure --
 
@@ -1056,8 +1066,18 @@ module ionosphere_interface
             do k = 1, pver
                r8tmp = phys_state(lchnk)%zm(i, k) + phys_state(lchnk)%phis(i)*rga
                physalt(k,j) = r8tmp * (1._r8 + (r8tmp * rearth_inv))
+               phys_alt_out(i,k) = physalt(k,j)
+               phys_ped_out(i,k) = sigma_ped_blck(k,j)
+               phys_hal_out(i,k) = sigma_hall_blck(k,j)
+               phys_u_out(i,k) = u_blck(k,j)
+               phys_v_out(i,k) = v_blck(k,j)
             end do
          end do
+         call outfld( 'alt_phys', phys_alt_out, pcols, lchnk )
+         call outfld( 'ped_phys', phys_ped_out, pcols, lchnk )
+         call outfld( 'hal_phys', phys_hal_out, pcols, lchnk )
+         call outfld( 'u_phys', phys_u_out, pcols, lchnk )
+         call outfld( 'v_phys', phys_v_out, pcols, lchnk )
       end do
 
       call edyn3D_driver_timestep( nphyscols, pver, physalt, sigma_ped_blck, sigma_hall_blck, u_blck, v_blck, &
