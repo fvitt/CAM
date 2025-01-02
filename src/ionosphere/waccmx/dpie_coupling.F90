@@ -34,17 +34,21 @@ module dpie_coupling
   logical  :: crit_user_set = .false.
   real(r8), parameter :: amie_default_crit(2) = (/ 35._r8, 40._r8 /)
 
-  logical :: debug_hist
+  logical :: debug_hist = .false.
+
+  logical :: edynamo_3d = .false.
 
 contains
   !----------------------------------------------------------------------
-  subroutine d_pie_init( edyn_active_in, oplus_xport_in, oplus_nsplit_in, crit_colats_deg, ionos_debug_hist )
+  subroutine d_pie_init( edyn_active_in, oplus_xport_in, oplus_nsplit_in, crit_colats_deg, ionos_debug_hist, edyn_3d_in)
 
     logical, intent(in) :: edyn_active_in, oplus_xport_in
     integer, intent(in) :: oplus_nsplit_in
     real(r8),intent(in) :: crit_colats_deg(:)
     logical, intent(in) :: ionos_debug_hist
+    logical, intent(in) :: edyn_3d_in
 
+    edynamo_3d = edyn_3d_in
     debug_hist = ionos_debug_hist
 
     ionos_edyn_active = edyn_active_in
@@ -115,6 +119,15 @@ contains
        call addfld ('OPtm1i',(/ 'lev' /), 'I', 'cm^3','O+ (oplus_xport output)',    gridname='geo_grid')
        call addfld ('OPtm1o',(/ 'lev' /), 'I', 'cm^3','O+ (oplus_xport output)',    gridname='geo_grid')
     endif
+
+    call addfld('IonU_phys', (/ 'lev' /), 'I', 'm/s','Zonal Ion Drift Velocity on phys grid' )
+    call addfld('IonV_phys', (/ 'lev' /), 'I', 'm/s','Meridional Ion Drift Velocity on phys grid' )
+    call addfld('IonW_phys', (/ 'lev' /), 'I', 'm/s','Vertial Ion Drift Velocity on phys grid' )
+    call addfld('alt_phys', (/ 'lev' /), 'I', 'm',' ' )
+    call addfld('u_phys', (/ 'lev' /), 'I', 'm/s',' ' )
+    call addfld('v_phys', (/ 'lev' /), 'I', 'm/s',' ' )
+    call addfld('ped_phys', (/ 'lev' /), 'I', ' ',' ' )
+    call addfld('hal_phys', (/ 'lev' /), 'I', ' ',' ' )
 
   end subroutine d_pie_init
 
@@ -267,7 +280,7 @@ contains
   end subroutine d_pie_epotent
 
   !-----------------------------------------------------------------------
-  subroutine d_pie_coupling(omega, pmid, zgi, zht, u, v, tn,                  &
+  subroutine d_pie_coupling(omega, pmid, zgi, zht, zhtmid, u, v, tn,                  &
        sigma_ped, sigma_hall, te, ti, mbar, n2mmr, o2mmr, o1mmr, o2pmmr,      &
        nopmmr, n2pmmr, opmmr, opmmrtm1, ui, vi, wi,                           &
        rmassO2p, rmassNOp, rmassN2p, rmassOp, cols, cole, plev )
@@ -287,9 +300,10 @@ contains
      use edyn_mpi,      only: lon0, lon1, lat0, lat1, lev0, lev1, ntask, mytid
      use oplus,         only: oplus_xport
      use ref_pres,      only: pref_mid
-     use regridder,  only: regrid_phys2geo_3d, regrid_phys2mag_3d, regrid_geo2phys_3d
-     use regridder,  only: regrid_geo2mag_3d, regrid_geo2mag_2d
-     use adotv_mod,  only: calc_adotv
+     use regridder,     only: regrid_phys2geo_3d, regrid_phys2mag_3d, regrid_geo2phys_3d
+     use regridder,     only: regrid_geo2mag_3d, regrid_geo2mag_2d
+     use adotv_mod,     only: calc_adotv
+     use edyn3D_driver, only: edyn3D_driver_timestep
 
      !
      ! Args:
@@ -304,6 +318,7 @@ contains
      real(r8), intent(in)    :: pmid(plev, cols:cole)       ! pressure at midpoints (Pa)
      real(r8), intent(in)    :: zgi(plev, cols:cole)        ! geopotential height (on interfaces) (m)
      real(r8), intent(in)    :: zht(plev, cols:cole)        ! geometric height (m) (Simple method - interfaces)
+     real(r8), intent(in)    :: zhtmid(plev, cols:cole)     ! geometric height (m) (Simple method - mid layer)
      real(r8), intent(in)    :: u(plev, cols:cole)          ! U-wind (m/s)
      real(r8), intent(in)    :: v(plev, cols:cole)          ! V-wind (m/s)
      real(r8), intent(in)    :: tn(plev, cols:cole)         ! neutral temperature (K)
@@ -422,6 +437,15 @@ contains
           adotv1_mag, adotv2_mag
      real(r8), dimension(mlon0:mlon1,mlat0:mlat1) :: &
           adota1_mag, adota2_mag, a1dta2_mag, be3_mag, sini_mag
+
+     real(r8) :: ui_3d(lon0:lon1,lat0:lat1,lev0:lev1) ! on oplus grid
+     real(r8) :: vi_3d(lon0:lon1,lat0:lat1,lev0:lev1)
+     real(r8) :: wi_3d(lon0:lon1,lat0:lat1,lev0:lev1)
+     real(r8) :: ui_out(plev,cole-cols+1)
+     real(r8) :: vi_out(plev,cole-cols+1)
+     real(r8) :: wi_out(plev,cole-cols+1)
+
+     integer :: nphyscols
 
      call t_startf(subname)
 
@@ -616,16 +640,48 @@ contains
        call regrid_phys2mag_3d( sigma_hall, hal_mag, plev, cols, cole )
        call regrid_phys2mag_3d( zgi, zpot_mag, plev, cols, cole )
 
-       if (mytid<ntask) then
-          zpot_mag_in(:,:,mlev0:mlev1) = zpot_mag(:,:,mlev1:mlev0:-1) * 100._r8 ! m -> cm
-          ped_mag_in(:,:,mlev0:mlev1) = ped_mag(:,:,mlev1:mlev0:-1)
-          hal_mag_in(:,:,mlev0:mlev1) = hal_mag(:,:,mlev1:mlev0:-1)
+!!$       if (edynamo_3d) then
+          call outfld_phys('alt_phys',zhtmid)
+          call outfld_phys('ped_phys',sigma_ped)
+          call outfld_phys('hal_phys',sigma_hall)
+          call outfld_phys('u_phys',u)
+          call outfld_phys('v_phys',v)
 
-          call  dynamo( zpot_mag_in, ped_mag_in, hal_mag_in, adotv1_mag, adotv2_mag, adota1_mag, &
-               adota2_mag, a1dta2_mag, be3_mag, sini_mag,  &
-               zpot_in, ui_in, vi_in, wi_in, &
-               lon0,lon1, lat0,lat1, lev0,lev1, do_integrals )
-       endif
+          nphyscols = cole - cols + 1
+          call edyn3D_driver_timestep( nphyscols, plev, zhtmid, sigma_ped, sigma_hall, u, v, &
+                                       ui_3d, vi_3d, wi_3d )
+
+          call regrid_geo2phys_3d( ui_3d, ui_out, plev, 1, nphyscols )
+          call regrid_geo2phys_3d( vi_3d, vi_out, plev, 1, nphyscols )
+          call regrid_geo2phys_3d( wi_3d, wi_out, plev, 1, nphyscols )
+
+          call outfld_phys('IonU_phys',ui_out)
+          call outfld_phys('IonV_phys',vi_out)
+          call outfld_phys('IonW_phys',wi_out)
+
+!!$          do k = 1, nlev
+!!$             do i = lon0,lon1
+!!$                do j = lat0,lat1
+!!$                   ui_in(k,i,j) = ui_3d(i,j,k) * 100._r8 ! m/s -> cm/s
+!!$                   vi_in(k,i,j) = vi_3d(i,j,k) * 100._r8 ! m/s -> cm/s
+!!$                   wi_in(k,i,j) = wi_3d(i,j,k) * 100._r8 ! m/s -> cm/s
+!!$                end do
+!!$             end do
+!!$          end do
+!!$
+!!$       else
+
+          if (mytid<ntask) then
+             zpot_mag_in(:,:,mlev0:mlev1) = zpot_mag(:,:,mlev1:mlev0:-1) * 100._r8 ! m -> cm
+             ped_mag_in(:,:,mlev0:mlev1) = ped_mag(:,:,mlev1:mlev0:-1)
+             hal_mag_in(:,:,mlev0:mlev1) = hal_mag(:,:,mlev1:mlev0:-1)
+
+             call  dynamo( zpot_mag_in, ped_mag_in, hal_mag_in, adotv1_mag, adotv2_mag, adota1_mag, &
+                           adota2_mag, a1dta2_mag, be3_mag, sini_mag,  &
+                           zpot_in, ui_in, vi_in, wi_in, &
+                           lon0,lon1, lat0,lat1, lev0,lev1, do_integrals )
+          endif
+!!$       endif
 
        call t_stopf ('dpie_ionos_dynamo')
 

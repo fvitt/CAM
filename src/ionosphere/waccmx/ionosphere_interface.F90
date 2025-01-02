@@ -104,6 +104,8 @@ module ionosphere_interface
 
    real(r8), parameter :: rearth_inv = 1._r8/SHR_CONST_REARTH ! /meters
 
+   logical :: edynamo_3d = .false.
+
  contains
 
    !---------------------------------------------------------------------------
@@ -133,6 +135,7 @@ module ionosphere_interface
       namelist /ionosphere_nl/ ionos_npes, dyn3d_npes
       namelist /ionosphere_nl/ oplus_grid, edyn_grid
       namelist /ionosphere_nl/ ionos_debug_hist
+      namelist /ionosphere_nl/ edynamo_3d
 
       oplus_grid = 0
 
@@ -358,7 +361,7 @@ module ionosphere_interface
          call edynamo_init(mpicom_atm, ionos_debug_hist)
 
          call d_pie_init(ionos_edyn_active, ionos_oplus_xport, ionos_xport_nsplit, epot_crit_colats, &
-                         ionos_debug_hist)
+                         ionos_debug_hist, edynamo_3d)
 
          call ionosphere_alloc()
 
@@ -410,10 +413,6 @@ module ionosphere_interface
       call edyn_esmf_update
 
       call edyn3D_driver_reg(mpicom_atm, dyn3d_npes)
-
-      call addfld('IonU_phys', (/ 'lev' /), 'I', 'm/s','Zonal Ion Drift Velocity on phys grid' )
-      call addfld('IonV_phys', (/ 'lev' /), 'I', 'm/s','Meridional Ion Drift Velocity on phys grid' )
-      call addfld('IonW_phys', (/ 'lev' /), 'I', 'm/s','Vertial Ion Drift Velocity on phys grid' )
 
    end subroutine ionosphere_init
 
@@ -547,6 +546,7 @@ module ionosphere_interface
       real(r8), pointer :: te_blck(:,:)
       real(r8), pointer :: zi_blck(:,:) ! Geopotential on interfaces
       real(r8), pointer :: hi_blck(:,:) ! Geometric height on interfaces
+      real(r8), pointer :: zhtmid(:,:)  ! Geometric height mid-layer
       real(r8), pointer :: ui_blck(:,:)
       real(r8), pointer :: vi_blck(:,:)
       real(r8), pointer :: wi_blck(:,:)
@@ -576,30 +576,6 @@ module ionosphere_interface
       real(r8), parameter :: n2min = 1.e-6_r8  ! lower limit of N2 mixing ratios
 
       character(len=*), parameter :: subname = 'ionosphere_run2'
-
- ! test 3D field line mag grid infrastructure ++
-    integer :: nphyscols
-
-    real(r8), pointer :: physalt(:,:)
-    real(r8), pointer :: tn_in(:,:)
-    real(r8), pointer :: ui_out(:,:)
-    real(r8), pointer :: vi_out(:,:)
-    real(r8), pointer :: wi_out(:,:)
-
-    real(r8) :: ui_op(lon0:lon1,lat0:lat1,lev0:lev1) ! on oplus grid
-    real(r8) :: vi_op(lon0:lon1,lat0:lat1,lev0:lev1)
-    real(r8) :: wi_op(lon0:lon1,lat0:lat1,lev0:lev1)
-
-    real(r8), pointer :: tn_out(:,:)
-    real(r8), pointer :: tn_out2(:,:)
-    real(r8) :: phys_out(pcols,pver)
-    real(r8) :: phys_out2(pcols,pver)
-
-    real(r8) :: phys_ui_out(pcols,pver)
-    real(r8) :: phys_vi_out(pcols,pver)
-    real(r8) :: phys_wi_out(pcols,pver)
-
-  ! test 3D field line mag grid infrastructure --
 
       ionos_cpl: if (ionos_xport_active) then
 
@@ -643,6 +619,10 @@ module ionosphere_interface
          allocate(zi_blck(pver, blksize), stat=astat)
          if (astat /= 0) then
             call endrun(subname//': failed to allocate zi_blck')
+         end if
+         allocate(zhtmid(pver, blksize), stat=astat)
+         if (astat /= 0) then
+            call endrun(subname//': failed to allocate zhtmid')
          end if
          allocate(ui_blck(pver, blksize), stat=astat)
          if (astat /= 0) then
@@ -787,12 +767,13 @@ module ionosphere_interface
                   u_blck(k, j)     = phys_state(lchnk)%u(i, k)
                   v_blck(k, j)     = phys_state(lchnk)%v(i, k)
                   !------------------------------------------------------------
-                  ! Might need geometric height on midpoints for output
+                  ! Geometric height at layer midpoints
                   !------------------------------------------------------------
+                  zhtmid(k,j) = geometric_hgt(zgp=phys_state(lchnk)%zm(i,k), zsf=phis(i)*rga)
                   if (hist_fld_active('Z3GM')) then
-                     ! geometric altitude (meters above sea level)
-                     tempm(i,k) = geometric_hgt(zgp=phys_state(lchnk)%zm(i,k), zsf=phis(i)*rga)
-                  end if
+                     tempm(i,k) =  zhtmid(k,j)
+                  endif
+
                   ! physics state fields on interfaces (but only to pver)
                   zi_blck(k, j) = phys_state(lchnk)%zi(i, k) + phis(i)*rga
                   !------------------------------------------------------------
@@ -902,7 +883,7 @@ module ionosphere_interface
          ! All fields are on physics mesh, (pver, blksize),
          !    where blksize is the total number of columns on this task
 
-         call d_pie_coupling(omega_blck, pmid_blck, zi_blck, hi_blck,         &
+         call d_pie_coupling(omega_blck, pmid_blck, zi_blck, hi_blck, zhtmid, &
               u_blck, v_blck, tn_blck, sigma_ped_blck, sigma_hall_blck,       &
               te_blck, ti_blck, mbar_blck, n2mmr_blck, o2mmr_blck,            &
               o1mmr_blck, o2pmmr_blck, nopmmr_blck, n2pmmr_blck,              &
@@ -1005,6 +986,8 @@ module ionosphere_interface
          nullify(te_blck)
          deallocate(zi_blck)
          nullify(zi_blck)
+         deallocate(zhtmid)
+         nullify(zhtmid)
          deallocate(ui_blck)
          nullify(ui_blck)
          deallocate(vi_blck)
@@ -1029,67 +1012,6 @@ module ionosphere_interface
          nullify(pmid_blck)
 
       end if ionos_cpl
-
-
-! test 3D field line mag grid infrastructure
-
-      nphyscols = 0
-      do lchnk = begchunk, endchunk
-         nphyscols = nphyscols + phys_state(lchnk)%ncol
-      end do
-
-      allocate(physalt(pver,nphyscols), stat=astat)
-      allocate(tn_in(pver,nphyscols), stat=astat)
-      allocate(tn_out(pver,nphyscols), stat=astat)
-      allocate(tn_out2(pver,nphyscols), stat=astat)
-
-      allocate(ui_out(pver,nphyscols), stat=astat)
-      allocate(vi_out(pver,nphyscols), stat=astat)
-      allocate(wi_out(pver,nphyscols), stat=astat)
-
-      j = 0
-      do lchnk = begchunk, endchunk
-         ncol = phys_state(lchnk)%ncol
-         do i = 1, ncol
-            j = j + 1
-            do k = 1, pver
-               r8tmp = phys_state(lchnk)%zm(i, k) + phys_state(lchnk)%phis(i)*rga
-               physalt(k,j) = r8tmp * (1._r8 + (r8tmp * rearth_inv))
-            end do
-         end do
-      end do
-
-      call edyn3D_driver_timestep( nphyscols, pver, physalt, sigma_ped_blck, sigma_hall_blck, u_blck, v_blck, &
-                                   ui_op, vi_op, wi_op )
-
-      call regrid_geo2phys_3d( ui_op, ui_out, pver, 1, nphyscols )
-      call regrid_geo2phys_3d( vi_op, vi_out, pver, 1, nphyscols )
-      call regrid_geo2phys_3d( wi_op, wi_out, pver, 1, nphyscols )
-
-      j = 0
-      do lchnk = begchunk, endchunk
-         phys_out = -huge(1._r8)
-         phys_out2 = -huge(1._r8)
-         ncol = phys_state(lchnk)%ncol
-         do i = 1, ncol
-            j = j + 1
-            do k = 1, pver
-               phys_ui_out(i,k) = ui_out(k,j)
-               phys_vi_out(i,k) = vi_out(k,j)
-               phys_wi_out(i,k) = wi_out(k,j)
-            end do
-         end do
-         call outfld( 'IonU_phys', phys_ui_out, pcols, lchnk )
-         call outfld( 'IonV_phys', phys_vi_out, pcols, lchnk )
-         call outfld( 'IonW_phys', phys_wi_out, pcols, lchnk )
-      end do
-
-      deallocate(physalt)
-      deallocate(tn_in)
-      deallocate(tn_out)
-      deallocate(tn_out2)
-      deallocate(ui_out)
-      deallocate(vi_out)
 
       deallocate(sigma_ped_blck)
       nullify(sigma_ped_blck)
