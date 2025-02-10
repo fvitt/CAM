@@ -1,5 +1,3 @@
-#ifdef HAS_SUPERLU_SLV
-
 /*
  * -- SuperLU routine (version 6.0) --
  * Univ. of California Berkeley, Xerox Palo Alto Research Center,
@@ -179,5 +177,3 @@ c_fortran_dgssv_(int *iopt, int *n, int_t *nnz, int *nrhs,
 	exit(-1);
     }
 }
-
-#endif

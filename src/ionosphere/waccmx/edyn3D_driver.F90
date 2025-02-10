@@ -32,7 +32,7 @@ module edyn3D_driver
   character(len=10) :: glb_coef_name(NCOEF) = ' '
   character(len=10) :: loc_coef_name(NCOEF) = ' '
 
-  logical, parameter :: global_solver = .false.
+  logical, parameter :: global_solver = .true.
 
 contains
 
