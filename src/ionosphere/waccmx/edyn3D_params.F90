@@ -10,7 +10,7 @@ module edyn3D_params
 
    private
 
-   public :: nmlat_h,nmlatS2_h,nmlat_T1,nmlat_T2,nmlon,nlonlat
+   public :: nmlat_h,nmlatS2_h,nmlat_T1,nmlat_T2,nmlon,nlonlat,ylatm_JT,jlatm_JT,phi_pol
    public :: nmlonp1,ylatm,ylonm,ylatm_s,ylonm_s,pi,rho,rho_s,rtd,dtr,rearth_m,r0,h0
    public :: m2km,km2m,nhgt_fix,nhgt_fix_r,hgt_fix,hgt_fix_r,ha,ha_s
    public :: nlat_qd,nlat_qd_h,nptsp_total,nptsr_total,nptss1_total,nptss2_total
@@ -39,8 +39,10 @@ module edyn3D_params
        nlat_qd_h=(nlat_qd+1)/2, &! half of the hemisphere (assumes point at equator) edge points j-0.5
 
        nmlon	= 180,  	&  ! number of magnetic longitudes P,S1,S2,R points
+!      nmlon	= 90,  	&  ! number of magnetic longitudes P,S1,S2,R points
        nmlonp1  = nmlon+1,	&
        nlonlat = nmlon*nmlat_h, &
+!      nhgt_fix   = 46 ,&  ! Number of height levels on which P points lie.
        nhgt_fix   = 82 , 	&  ! Number of height levels on which P points lie.
        nhgt_fix_r = nhgt_fix+1, &   ! Number of height levels encompassing the lower and upper faces of elemental volumes
        ! nglon=73, nglat=91 gives 5 x 2 deg lon-lat grid for magnetic perturbations
@@ -121,18 +123,24 @@ module edyn3D_params
        dtr = pi/180._r8,	      & ! Conversion factor when going from degrees to radians
        rtd = 180._r8/pi	                ! Conversion factor when going from radians to degrees
 
-   real(r8) :: ylonm(nmlon),      & ! magnetic longitudes of p and s2 grid; same for both hemispheres
-	       ylatm(nmlat_h,2),      & ! ylatm_s(j) is the magnetic latitude of the equatorward/lower face of an elemental volume for which the P point is at latitude ylatm(j).
-	       ylatm_s(nmlatS2_h,2),  & ! magnetic latitudes of s2-points; 2 index for hemisphere
-	       ylonm_s(nmlon),    & ! magnetic longitude of the eastern face of an elemental volume for which the P point is at longitude ylonm(i)
-	       rho(nmlat_h,2),        & ! cos of magnetic latitudes of p and s1 points; 2 index for hemisphere
-	       rho_s(nmlatS2_h,2),    & ! cos of magnetic latitudes of s2-points; 2 index for hemisphere
-	       hgt_fix(nhgt_fix),     & ! array with fixed heights for s&p-grids
-	       hgt_fix_r(nhgt_fix_r), & ! height of the lower face of an elemental volume for which the P point is at height hgt_fix(k)
-	       ha(nmlat_h),	      & ! apex height calculated in grid.f90 for ylatm points; same for both hemispheres
-	       ha_s(nmlatS2_h),       & ! apex height calculated in grid.f90 for ylatm_s points; same for both hemispheres
-               glon(nglon),           & ! geographic longitude grid for delB (degrees)
-               glat(nglat)              ! geographic latitude grid for delB (degrees)
+   real(r8) :: &
+        ylonm(nmlon),          & ! magnetic longitudes of p and s2 grid; same for both hemispheres
+        ylatm(nmlat_h,2),      & ! ylatm_s(j) is the magnetic latitude of the equatorward/lower
+                                 ! face of an elemental volume for which the P point is at latitude ylatm(j).
+        ylatm_s(nmlatS2_h,2),  & ! magnetic latitudes of s2-points; 2 index for hemisphere
+        ylonm_s(nmlon),        & ! magnetic longitude of the eastern face of an elemental volume
+                                 ! for which the P point is at longitude ylonm(i)
+        ylatm_JT = 45*dtr,     & ! transition latitude where potential becomes symmetric/asymmetric
+        jlatm_JT,              & ! latitude index corresponding to the transition latitude
+        phi_pol = 0,           & ! north pole potential
+        rho(nmlat_h,2),        & ! cos of magnetic latitudes of p and s1 points; 2 index for hemisphere
+        rho_s(nmlatS2_h,2),    & ! cos of magnetic latitudes of s2-points; 2 index for hemisphere
+        hgt_fix(nhgt_fix),     & ! array with fixed heights for s&p-grids
+        hgt_fix_r(nhgt_fix_r), & ! height of the lower face of an elemental volume for which the P point is at height hgt_fix(k)
+        ha(nmlat_h),	       & ! apex height calculated in grid.f90 for ylatm points; same for both hemispheres
+        ha_s(nmlatS2_h),       & ! apex height calculated in grid.f90 for ylatm_s points; same for both hemispheres
+        glon(nglon),           & ! geographic longitude grid for delB (degrees)
+        glat(nglat)              ! geographic latitude grid for delB (degrees)
    !
    ! M1*F, M2*F, M3*F
    !
@@ -181,7 +189,7 @@ module edyn3D_params
     ! lower boundary Je2LB defined by lower atmosphere model
     !
     logical, parameter :: use_lbJ = .false.
-    real  :: J3LB(nmlon,nmlat_h,2)    ! r-points current from lower atmosphere [A/m2]
+    real(r8) :: J3LB(0:nmlon+1,nmlat_h,2)    ! r-points current from lower atmosphere [A/m2]
     !
     ! Boundary conditions
     ! lower boundary Je2LB defined by lower atmosphere model
