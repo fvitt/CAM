@@ -955,6 +955,7 @@ module edyn3D_serial_solver
   endsubroutine solve_mkl
 !-----------------------------------------------------------------------
   subroutine solve_superlu(n,nnz,irow,jcol,values,rhs,sol)
+    use iso_c_binding, only: c_long_long
 
     integer,intent(in) :: n,nnz
     integer,dimension(nnz),intent(in) :: irow,jcol
@@ -965,7 +966,7 @@ module edyn3D_serial_solver
 ! for SuperLU sparse matrix solver (CSC format)
     integer,parameter :: nrhs = 1
     integer :: i,iopt,info
-    integer(kind=8) :: f_factors
+    integer(kind=c_long_long) :: f_factors
     integer,dimension(n+1) :: colptr
     integer,dimension(nnz) :: rowind
     real(r8),dimension(nnz) :: nzval
@@ -1148,4 +1149,4 @@ module edyn3D_serial_solver
 
   endfunction argsort
 !-----------------------------------------------------------------------
-endmodule edyn3D_serial_solver
+end module edyn3D_serial_solver

@@ -75,7 +75,7 @@ module edyn3D_params
        !   and 540303 m, and between 764409 m and 948105 m.
        !     character(len=16), parameter :: delBsolution = 'ground,LEO     '
        !     integer,parameter :: nggjhgt=18
- 	    real,parameter :: h_LEO=397139.  ! Nominal height for calculating LEO delB
+ 	    real(r8),parameter :: h_LEO=397139._r8  ! Nominal height for calculating LEO delB
        !      (h_LEO may not exceed ggjtop(nggjhgt)=948105.)
        !
        ! Heights for current layers are set to heights of rho and QD grids.
@@ -180,7 +180,7 @@ module edyn3D_params
    real(r8), parameter ::                 &
                    h0 = 8.0e4_r8,         &   ! Initial value for bottom height of dynamo grid
                    r0 =rearth_m+h0,       &   ! Mean Earth radius plus height of bottom of dynamo region (h0) [m]
-                   mu0 = 4.e-7*pi,        &
+                   mu0 = 4.e-7_r8*pi,        &
                    m2km=1.e-3_r8,         &   ! Conversion factor when going from meters to kilometers
                    km2m=1.e3_r8,          &   ! Conversion factor when going from kilometers to meters
                    val_fill=999999._r8        ! fill value

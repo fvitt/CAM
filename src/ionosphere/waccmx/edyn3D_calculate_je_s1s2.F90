@@ -27,7 +27,7 @@
        real(r8) :: bhat(3),jpar,je2_woD
       
        test_pot_loc = test_pot
-       if(.not.use_lbJ) J3LB=0.
+       if(.not.use_lbJ) J3LB=0._r8
 
         do isn = 1,2 ! loop over both hemisphere
 !          do i=1,nmlon ! loop over all longitudes
@@ -80,8 +80,8 @@
                nmax = fline_s2(i,j,isn)%npts ! maximum of points on fieldline
                do k=1,nmax
                  if(no_wind) then  ! zero winds
-                    ue1 = 0.
-                    ue2 = 0.
+                    ue1 = 0._r8
+                    ue2 = 0._r8
                  else
                    if(test_pot_loc) then
                     ue1 = fline_s2(i,j,isn)%un(k)
@@ -127,8 +127,8 @@
                k = 1
                j = nmlat_h
                if(no_wind) then  ! zero winds
-                  ue1 = 0.
-                  ue2 = 0.
+                  ue1 = 0._r8
+                  ue2 = 0._r8
                else
                  if(test_pot_loc) then
                    ue1 = fline_s1(i,j,isn)%un(k)
