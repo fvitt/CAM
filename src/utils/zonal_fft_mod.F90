@@ -103,15 +103,15 @@ contains
     call output_fld(wstar, name='WSTAR')
 
     tmpfld = u_fft * wstar
-    cospectra = wstar%re
+    cospectra = tmpfld%re
     call output_cosp(cospectra,'U')
 
     tmpfld = v_fft * wstar
-    cospectra = wstar%re
+    cospectra = tmpfld%re
     call output_cosp(cospectra,'V')
 
     tmpfld = t_fft * wstar
-    cospectra = wstar%re
+    cospectra = tmpfld%re
     call output_cosp(cospectra,'T')
 
   contains
