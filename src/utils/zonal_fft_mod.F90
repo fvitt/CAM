@@ -55,6 +55,7 @@ contains
   ! -----------------------------------------------------------------------------
   subroutine zonal_fft_calc(phys_state)
     use cam_history, only: outfld
+    use perf_mod, only: t_startf, t_stopf
 
     type(physics_state), intent(in) :: phys_state(begchunk:endchunk)
 
@@ -75,6 +76,8 @@ contains
 
     complex(r8) :: tmpfld(nftnum, lat_beg:lat_end, pver)
     real(r8) :: cospectra(nftnum, lat_beg:lat_end, pver)
+
+    call t_startf ('zonal_fft_calc')
 
     do lchnk = begchunk, endchunk
        ncol = get_ncols_p(lchnk)
@@ -113,6 +116,8 @@ contains
     tmpfld = t_fft * wstar
     cospectra = tmpfld%re
     call output_cosp(cospectra,'T')
+
+    call t_stopf ('zonal_fft_calc')
 
   contains
 

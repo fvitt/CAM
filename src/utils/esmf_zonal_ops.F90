@@ -20,6 +20,7 @@ module esmf_zonal_ops
   use ESMF, only: ESMF_FieldGet, ESMF_FieldRegrid, ESMF_TERMORDER_SRCSEQ
 
   use mpi, only: MPI_REAL8, MPI_SUCCESS, MPI_SUM
+  use perf_mod, only: t_startf, t_stopf
 
   use, intrinsic :: iso_c_binding
 
@@ -162,7 +163,7 @@ contains
     nlons = 2**nx
     delx = 360._r8/nlons
 
-    do while( delx > dely )
+    do while( delx > dely .and. nlons<1024)
        nx = nx + 1
        nlons = 2**nx
        delx = 360._r8/nlons
@@ -447,7 +448,6 @@ contains
 
   end subroutine esmf_zonal_ops_init
 
-
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------
   function esmf_zonal_mean_2d(physfld) result(zmfld)
@@ -466,6 +466,8 @@ contains
     real(r8) :: gsum(1)
 
     ! regrid to lat/lon
+
+    call t_startf('esmf_zonal_mean_2d')
 
     call ESMF_FieldGet(physfld_2d, localDe=0, farrayPtr=physptr, rc=rc)
     call check_esmf_error(rc, subname//'ESMF_FieldGet physptr')
@@ -494,6 +496,8 @@ contains
        zmfld(ilat) = gsum(1)/nlons
     end do
 
+    call t_stopf('esmf_zonal_mean_2d')
+
   end function esmf_zonal_mean_2d
 
   !------------------------------------------------------------------------------
@@ -517,6 +521,8 @@ contains
     integer :: k
 
     ! regrid to lat/lon
+
+    call t_startf('esmf_zonal_mean_3d')
 
     call ESMF_FieldGet(physfld_3d, localDe=0, farrayPtr=physptr, rc=rc)
     call check_esmf_error(rc, subname//'ESMF_FieldGet physptr')
@@ -547,6 +553,8 @@ contains
        zmfld(ilat,:) = gsum(:)/nlons
     end do
 
+    call t_stopf('esmf_zonal_mean_3d')
+
   end function esmf_zonal_mean_3d
 
   !------------------------------------------------------------------------------
@@ -572,6 +580,7 @@ contains
 
     character(len=*), parameter :: subname = ': esmf_zonal_fft_3d'
 
+    call t_startf('esmf_zonal_fft_3d')
 
     ! regrid to lat/lon
 
@@ -618,6 +627,8 @@ contains
           zfft(:,ilat,ilev) = fftw_out(:)/nlons ! normalize
        end do
     end do
+
+    call t_stopf('esmf_zonal_fft_3d')
 
   end function esmf_zonal_fft_3d
 
