@@ -5,4 +5,13 @@ write_nstep0=.true.
 inithist='ENDOFRUN'
 
 cam_physics_mesh = '$ATM_DOMAIN_MESH'
+
 fincl2 = 'T_emsfzm', 'U_emsfzm', 'V_emsfzm','PS_emsfzm'
+
+fincl3 = 'T','U','V','PS','OMEGA'
+
+fincl4 = 'U_FFT_real','U_FFT_imag', 'V_FFT_real','V_FFT_imag',
+         'OMEGA_FFT_real','OMEGA_FFT_imag', 'THETA_FFT_real','THETA_FFT_imag',
+         'WSTAR_FFT_real','WSTAR_FFT_imag',
+
+fincl5 = 'UWSTAR_cosp','VWSTAR_cosp','TWSTAR_cosp'

@@ -156,6 +156,7 @@ contains
     use hemco_interface,    only: HCOI_Chunk_Init
     use esmf_zonal_ops, only: esmf_zonal_ops_init
     use zm_test_mod, only: zm_test_reg
+    use zonal_fft_mod, only:  zonal_fft_reg
 
     !---------------------------Local variables-----------------------------
     !
@@ -347,6 +348,7 @@ contains
 
     call esmf_zonal_ops_init()
     call zm_test_reg()
+    call zonal_fft_reg()
 
   end subroutine phys_register
 
@@ -779,6 +781,7 @@ contains
 
     use ccpp_constituent_prop_mod, only: ccpp_const_props_init
     use zm_test_mod,    only: zm_test_init
+    use zonal_fft_mod, only: zonal_fft_init
 
     ! Input/output arguments
     type(physics_state), pointer       :: phys_state(:)
@@ -1048,6 +1051,7 @@ contains
     psl_idx = pbuf_get_index('PSL')
 
     call zm_test_init()
+    call zonal_fft_init()
 
   end subroutine phys_init
 
@@ -1196,6 +1200,7 @@ contains
 #endif
     use hemco_interface, only: HCOI_Chunk_Run
     use zm_test_mod,    only: zm_test_run
+    use zonal_fft_mod,  only: zonal_fft_calc
     !
     ! Input arguments
     !
@@ -1277,6 +1282,8 @@ contains
     call t_startf ('esmf_zonal_mean')
     call zm_test_run(phys_state)
     call t_stopf ('esmf_zonal_mean')
+
+    call zonal_fft_calc(phys_state)
 
     call t_adj_detailf(-1)
     call t_stopf('ac_physics')

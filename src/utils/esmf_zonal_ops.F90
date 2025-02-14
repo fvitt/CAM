@@ -438,33 +438,6 @@ contains
          factorList=factorList, srcTermProcessing=smm_srctermproc,          &
          pipelineDepth=smm_pipelinedep, rc=ierr)
     call check_esmf_error(ierr, subname//'ESMF_FieldRegridStore 2D routehandle ERROR')
-!!$
-!!$    ! Initialize FFTW MPI
-!!$    call fftw_mpi_init()
-
-!!$
-!!$    ! Set problem size (global size of the 1D array)
-!!$    fftw_n = nlons
-!!$
-!!$    print*,'FVDBG.esmf_zonal_ops_init... zonal_comm : ', zonal_comm
-!!$    print*,'FVDBG.esmf_zonal_ops_init...lon_beg,lon_end : ', lon_beg,lon_end
-!!$    print*,'FVDBG.esmf_zonal_ops_init... nlons,mynlons : ',  nlons,mynlons
-!!$    print*,'FVDBG.esmf_zonal_ops_init... nlats,mynlats : ',  nlats,mynlats
-!!$
-!!$    ! Determine local size and offset for each process
-!!$    !local_n = fftw_mpi_local_size_1d(fftw_n, zonal_comm, FFTW_FORWARD, FFTW_ESTIMATE, &
-!!$    local_n = fftw_mpi_local_size_1d(fftw_n, zonal_comm, FFTW_FORWARD, FFTW_MEASURE, &
-!!$         local_ni, local_i_start, local_no, local_o_start)
-!!$
-!!$    print*,'FVDBG.esmf_zonal_ops_init... npes,mytid : ',npes,mytid
-!!$
-!!$    print*,'FVDBG.esmf_zonal_ops_init... fftw_n : ',fftw_n
-!!$    write(*,'(a,5i8)') 'FVDBG.esmf_zonal_ops_init... local_n, local_ni, local_i_start, local_no, local_o_start: ',&
-!!$                                                     local_n, local_ni, local_i_start, local_no, local_o_start
-!!$
-!!$    if (mynlons/=local_ni .or. mynlons/=local_no .or. lon_beg/=local_i_start+1 .or. lon_beg/=local_o_start+1) then
-!!$       call endrun(subname//': PE layout not capatible with FFTW_MPI decompition')
-!!$    end if
 
     allocate(fftw_in(nlons))
     allocate(fftw_out(nlons/2+1))
@@ -597,8 +570,6 @@ contains
     real(r8) :: sndbf2(nlons,lat_beg:lat_end,1:pver)
     real(r8) :: rcvbf2(nlons,lat_beg:lat_end,1:pver)
 
-    real(r8) :: tmpfld(nlons,lat_beg:lat_end,1:pver)
-
     character(len=*), parameter :: subname = ': esmf_zonal_fft_3d'
 
 
@@ -631,21 +602,6 @@ contains
 
     ! gather all longitudes ....
 
-    do ilev = 1, pver
-       do ilat = lat_beg, lat_end
-          sndbf(:) = 0._r8
-          sndbf(lon_beg:lon_end) = lonlatptr(lon_beg:lon_end,ilat,ilev)
-          call mpi_allreduce( sndbf, rcvbf, nlons, MPI_REAL8, MPI_SUM, zonal_comm, rc )
-          if ( rc /= MPI_SUCCESS ) then
-             call endrun(subname//'mpi_allreduce failed 1')
-          end if
-          tmpfld(:,ilat,ilev) = rcvbf(:)
-       end do
-    end do
-
-
-    ! second way ...
-
     len = pver*nlons*mynlats
 
     sndbf2(:,:,:) = 0._r8
@@ -657,19 +613,9 @@ contains
 
     do ilev = 1, pver
        do ilat = lat_beg, lat_end
-          do ilon = 1,nlons
-             if (tmpfld(ilon,ilat,ilev) /= rcvbf2(ilon,ilat,ilev)) then
-                call endrun(subname//'recv buffer mismatch!!!')
-             end if
-          end do
-       end do
-    end do
-
-    do ilev = 1, pver
-       do ilat = lat_beg, lat_end
-          fftw_in(:) = tmpfld(:,ilat,ilev)
+          fftw_in(:) = rcvbf2(:,ilat,ilev)
           call fftw_execute_dft_r2c(fftw_plan, fftw_in, fftw_out)
-          zfft(:,ilat,ilev) = fftw_out(:)
+          zfft(:,ilat,ilev) = fftw_out(:)/nlons ! normalize
        end do
     end do
 
