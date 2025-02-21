@@ -606,41 +606,10 @@ contains
     !
     if (ionos_edyn_active) then
 
-       call t_startf('dpie_ionos_dynamo')
+       if (edynamo_3d) then
 
-       call calc_adotv( zpot_in(lev0:lev1,lon0:lon1,lat0:lat1), &
-            halo_un(lev0:lev1,lon0:lon1,lat0:lat1), &
-            halo_vn(lev0:lev1,lon0:lon1,lat0:lat1), &
-            wn_in(lev0:lev1,lon0:lon1,lat0:lat1), &
-            adotv1_in, adotv2_in, adota1_in, adota2_in, &
-            a1dta2_in, be3_in, sini_in, lev0, lev1, lon0, lon1, lat0, lat1)
+          call t_startf('d_pie_cpl->edyn3D_driver')
 
-       call regrid_geo2mag_3d( adotv1_in, adotv1_mag )
-       call regrid_geo2mag_3d( adotv2_in, adotv2_mag )
-       if (debug_hist) then
-          call outfld_geo('EDYN_ADOTV1', adotv1_in(:,:,lev1:lev0:-1) )
-          call outfld_geo('EDYN_ADOTV2', adotv2_in(:,:,lev1:lev0:-1) )
-
-          call outfld_geo2d( 'EDYN_ADOTA1', adota1_in )
-          call outfld_geo2d( 'EDYN_ADOTA2', adota2_in )
-          call outfld_geo2d( 'EDYN_A1DTA2', a1dta2_in )
-          call outfld_geo2d( 'EDYN_BE3' , be3_in )
-          call outfld_geo2d( 'EDYN_SINI', sini_in )
-       endif
-       call regrid_geo2mag_2d( adota1_in, adota1_mag )
-       call regrid_geo2mag_2d( adota2_in, adota2_mag )
-       call regrid_geo2mag_2d( a1dta2_in, a1dta2_mag )
-       call regrid_geo2mag_2d( be3_in, be3_mag )
-       call regrid_geo2mag_2d( sini_in, sini_mag )
-       if (debug_hist) then
-          call outfld_mag2d('ADOTA1_MAG', adota1_mag )
-          call outfld_mag2d('SINI_MAG', sini_mag )
-       endif
-       call regrid_phys2mag_3d( sigma_ped, ped_mag, plev, cols, cole )
-       call regrid_phys2mag_3d( sigma_hall, hal_mag, plev, cols, cole )
-       call regrid_phys2mag_3d( zgi, zpot_mag, plev, cols, cole )
-
-!!$       if (edynamo_3d) then
           call outfld_phys('alt_phys',zhtmid)
           call outfld_phys('ped_phys',sigma_ped)
           call outfld_phys('hal_phys',sigma_hall)
@@ -659,17 +628,55 @@ contains
           call outfld_phys('IonV_phys',vi_out)
           call outfld_phys('IonW_phys',wi_out)
 
-!!$          do k = 1, nlev
-!!$             do i = lon0,lon1
-!!$                do j = lat0,lat1
-!!$                   ui_in(k,i,j) = ui_3d(i,j,k) * 100._r8 ! m/s -> cm/s
-!!$                   vi_in(k,i,j) = vi_3d(i,j,k) * 100._r8 ! m/s -> cm/s
-!!$                   wi_in(k,i,j) = wi_3d(i,j,k) * 100._r8 ! m/s -> cm/s
-!!$                end do
-!!$             end do
-!!$          end do
-!!$
-!!$       else
+          do k = 1, nlev
+             do i = lon0,lon1
+                do j = lat0,lat1
+                   ui_in(k,i,j) = ui_3d(i,j,k) * 100._r8 ! m/s -> cm/s
+                   vi_in(k,i,j) = vi_3d(i,j,k) * 100._r8 ! m/s -> cm/s
+                   wi_in(k,i,j) = wi_3d(i,j,k) * 100._r8 ! m/s -> cm/s
+                end do
+             end do
+          end do
+
+          call t_stopf('d_pie_cpl->edyn3D_driver')
+
+       else
+
+          call t_startf('d_pie_cpl->dynamo')
+
+          call calc_adotv( zpot_in(lev0:lev1,lon0:lon1,lat0:lat1), &
+               halo_un(lev0:lev1,lon0:lon1,lat0:lat1), &
+               halo_vn(lev0:lev1,lon0:lon1,lat0:lat1), &
+               wn_in(lev0:lev1,lon0:lon1,lat0:lat1), &
+               adotv1_in, adotv2_in, adota1_in, adota2_in, &
+               a1dta2_in, be3_in, sini_in, lev0, lev1, lon0, lon1, lat0, lat1)
+
+          call regrid_geo2mag_3d( adotv1_in, adotv1_mag )
+          call regrid_geo2mag_3d( adotv2_in, adotv2_mag )
+          if (debug_hist) then
+             call outfld_geo('EDYN_ADOTV1', adotv1_in(:,:,lev1:lev0:-1) )
+             call outfld_geo('EDYN_ADOTV2', adotv2_in(:,:,lev1:lev0:-1) )
+
+             call outfld_geo2d( 'EDYN_ADOTA1', adota1_in )
+             call outfld_geo2d( 'EDYN_ADOTA2', adota2_in )
+             call outfld_geo2d( 'EDYN_A1DTA2', a1dta2_in )
+             call outfld_geo2d( 'EDYN_BE3' , be3_in )
+             call outfld_geo2d( 'EDYN_SINI', sini_in )
+          endif
+          call regrid_geo2mag_2d( adota1_in, adota1_mag )
+          call regrid_geo2mag_2d( adota2_in, adota2_mag )
+          call regrid_geo2mag_2d( a1dta2_in, a1dta2_mag )
+          call regrid_geo2mag_2d( be3_in, be3_mag )
+          call regrid_geo2mag_2d( sini_in, sini_mag )
+          if (debug_hist) then
+             call outfld_mag2d('ADOTA1_MAG', adota1_mag )
+             call outfld_mag2d('SINI_MAG', sini_mag )
+          endif
+          call regrid_phys2mag_3d( sigma_ped, ped_mag, plev, cols, cole )
+          call regrid_phys2mag_3d( sigma_hall, hal_mag, plev, cols, cole )
+          call regrid_phys2mag_3d( zgi, zpot_mag, plev, cols, cole )
+
+
 
           if (mytid<ntask) then
              zpot_mag_in(:,:,mlev0:mlev1) = zpot_mag(:,:,mlev1:mlev0:-1) * 100._r8 ! m -> cm
@@ -681,9 +688,11 @@ contains
                            zpot_in, ui_in, vi_in, wi_in, &
                            lon0,lon1, lat0,lat1, lev0,lev1, do_integrals )
           endif
-!!$       endif
 
-       call t_stopf ('dpie_ionos_dynamo')
+          call t_stopf('d_pie_cpl->dynamo')
+
+       endif
+
 
     else
        if (debug .and. masterproc) then

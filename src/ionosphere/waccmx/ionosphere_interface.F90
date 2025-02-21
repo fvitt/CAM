@@ -104,7 +104,7 @@ module ionosphere_interface
 
    real(r8), parameter :: rearth_inv = 1._r8/SHR_CONST_REARTH ! /meters
 
-   logical :: edynamo_3d = .false.
+   logical :: edynamo_3d = .true.
 
  contains
 
