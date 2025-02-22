@@ -11,7 +11,7 @@ module edyn3D_fieldline
   use cam_logfile,        only: iulog
   use spmd_utils,         only: masterproc
   use infnan, only: nan, assignment(=)
-!
+
   implicit none
   save
   private
@@ -30,24 +30,7 @@ module edyn3D_fieldline
   public :: fieldline_s2
   public :: fieldline_init
   public :: fieldline_getapex
-  public :: Je2Ion_eq
-  public :: poten_hl
 
-!   public :: tasks
-   ! Public type
-!   public :: array_ptr_type
-   ! Public interfaces
-!   public :: mp_init_edyn3D
-!   public :: mp_scatter_phim
-!   public :: mp_mag_foldhem
-!   public :: mp_gather_edyn
-!   public :: ixfind
-!   public :: mp_magpole_3d
-!   public :: setpoles
-!   public :: mp_gatherlons_f3d
-!   public :: mp_scatterlons_f3d
-!   public :: mp_exchange_tasks_edyn3D
-!   public :: mp_distribute_mag_edyn3D
   !
   ! Define p field line structure
   !
@@ -56,7 +39,6 @@ module edyn3D_fieldline
 
      real(r8) :: ha 	! apex height
      real(r8) :: mlat_m	! modified apex latitude
-!     real(r8) :: mlon_m	! modified apex longitude
 
      real(r8) :: pot       ! electric potential
      real(r8) :: pot_test  ! electric potential am 1/2015 for testing
@@ -102,7 +84,6 @@ module edyn3D_fieldline
 
      real(r8) :: ha 	! apex height
      real(r8) :: mlat_m	! modified apex latitude
-!     real(r8) :: mlon_m	! modified apex longitude
      real(r8) :: pot	! electric potential
 
      real(r8), allocatable :: mlat_qd(:)    ! quasi dipole latitude
@@ -135,7 +116,6 @@ module edyn3D_fieldline
 
      real(r8) :: ha	    ! apex height
      real(r8) :: mlat_m     ! modified apex latitude
-!     real(r8) :: mlon_m     ! modified apex longitude
      real(r8) :: zigP	    ! Pedersen Conductance
      real(r8) :: zigH	    ! Hall Conductance
      real(r8) :: Ed1	    ! Ed1 electric field
@@ -205,7 +185,6 @@ module edyn3D_fieldline
 
      real(r8) :: ha	    ! apex height
      real(r8) :: mlat_m     ! modified apex latitude
-!     real(r8) :: mlon_m     ! modified apex longitude
      real(r8) :: zigP	    ! Pedersen Conductance
      real(r8) :: zigH	    ! Hall Conductance
      real(r8) :: Ed1	    ! Ed1 electric field
@@ -279,23 +258,6 @@ module edyn3D_fieldline
   type (fieldline_s1), allocatable :: fline_s1(:,:,:)
   type (fieldline_s2), allocatable :: fline_s2(:,:,:)
 
-  type hgt_fld
-      integer :: npts		   ! # of latitudes still have points at hgt(k)
-      integer, allocatable :: ilat(:)  ! latitude index
-  end type hgt_fld
-
-  type (hgt_fld), allocatable :: hgt_fl(:)
-
-!  real(r8) :: poten_hl(nmlon,nmlat_T1)  ! high latitude potential r-points
-  real(r8) :: poten_hl(0:nmlon+1,nmlat_T1)  ! high latitude potential r-points
-  real(r8) :: poten_hl3(nmlon,nmlat_T1) ! high latitude potential r-points
-
-  real(r8),parameter ::   Je2Ion_eq(nmlon)=0._r8      ! at S1 points at k=1 and j=nmlat_h
-                                               ! otherwise could be interpolated?
-                                               ! read in or set later
-
-  type(magfld_t), allocatable :: magfld(:,:,:)
-
   public :: magfld_t
 
   contains
@@ -311,10 +273,6 @@ module edyn3D_fieldline
       !,hgt_fix_r,ha,ylatm,ylonm, & ! For r points
 
       integer :: i,j,k,nlat_k,lat_k(nmlat_h),isn,ilon,is,jns,ier,status
-!      integer :: npt_fldline          ! function
-!      integer :: npt_fldline_r        ! function
-!      real(r8) :: lamqd_from_apex_coord   ! function
-!      real(r8) :: apex_height             ! function
       allocate(gmapex_p(nmlat_h,2))
       allocate(gmapex_s(nmlatS2_h,2))
 
@@ -711,46 +669,8 @@ module edyn3D_fieldline
            enddo   ! end loop longitudes
          enddo  ! end loop latitude
       enddo  ! end loop hemisphere
-      !
-      ! Create list with lat at each fixed height
-      !
-      allocate(hgt_fl(nhgt_fix))
-      i = mlon0_p
-      isn = 1 ! southern hemisphere it will be the same in the northern hemisphere
-      do k =1, nhgt_fix  ! assumes each longitide is the same (no loop over longitude)
-	nlat_k = 0
-	do j=1,nmlat_h  ! latitude loop from pole to equator
-	  if(fline_p(i,j,isn)%npts >= k) then		! check if #of pts on fldline is => height => intersects
-	    nlat_k = nlat_k + 1   ! increase number of latitudinal points at that height k
-	    lat_k(nlat_k) = j	  ! get latitudinal index
-	  endif
-	enddo
 
-	allocate(hgt_fl(k)%ilat(nlat_k))
-	hgt_fl(k)%npts= nlat_k  		   ! number of fieldlines intersecting with that height k
-	hgt_fl(k)%ilat(1:nlat_k)= lat_k(1:nlat_k)  ! latitudinal index of fldline intersecting with that height k
-!	 !
-!	 ! Now use the list of latitudes at each height to set the neighboring points for each fieldline point
-!	 !
-!	 do j=1,hgt_fl(k)%npts ! set neighboring points for fldlne
-!	  do is = 1,2
-!	   do ilon = mlon0_p,mlon1_p
-!	    if(j==1) then
-!	       fline_p(ilon,hgt_fl(k)%ilat(j),is)%ngh_pts(1,k)  = -99
-!	       fline_p(ilon,hgt_fl(k)%ilat(j),is)%ngh_pts(2,k)  = hgt_fl(k)%ilat(j+1)
-!	    elseif(j ==  hgt_fl(k)%npts) then
-!	       fline_p(ilon,hgt_fl(k)%ilat(j),is)%ngh_pts(1,k)  = hgt_fl(k)%ilat(j-1)
-!	       fline_p(ilon,hgt_fl(k)%ilat(j),is)%ngh_pts(2,k)  = -99
-!	    else
-!	       fline_p(ilon,hgt_fl(k)%ilat(j),is)%ngh_pts(1,k)  = hgt_fl(k)%ilat(j-1)
-!	       fline_p(ilon,hgt_fl(k)%ilat(j),is)%ngh_pts(2,k)  = hgt_fl(k)%ilat(j+1)
-!	   endif
-!	  enddo  ! end lon loop
-!	 enddo  ! end is loop
-!       enddo  ! end loop field line points
-      enddo  ! end loop field line apex heights
-!!
-     contains
+    contains
 !-----------------------------------------------------------------------
       integer function npt_fldline(apex_height)
 ! calculates number of points along a fieldline

@@ -16,8 +16,7 @@ contains
   ! set poten_hl for edyn solver input
   subroutine edyn3D_heelis_set_hlat_pot(sunlon)
 
-    use edyn3D_fieldline, only: poten_hl ! (0:nmlon+1,nmlat_T1)
-    use edyn3D_params, only: nmlon, nmlat_h, nmlat_T1, ylatm, ylonm
+    use edyn3D_params, only: nmlon, nmlat_h, nmlat_T1, ylatm, ylonm, poten_hl
     use heelis_mod,only: heelis_update, heelis_flwv32
 
     real(r8),intent(in) :: sunlon ! mag longitude sun location

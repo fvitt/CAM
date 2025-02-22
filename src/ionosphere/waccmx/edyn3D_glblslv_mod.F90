@@ -13,8 +13,7 @@ contains
 
     use edyn3D_fieldline, only: fieldline_p,fieldline_s1,fieldline_s2
     use edyn3d_mpi, only: mytid, mlon0_p, mlon1_p, mp_gather_edyn3D, mp_scatter_edyn3D
-    use edyn3D_params, only: nmlon, nmlat_T1,nmlat_h,nmlatS2_h,nhgt_fix
-    use edyn3D_fieldline, only: poten_hl
+    use edyn3D_params, only: nmlon, nmlat_T1,nmlat_h,nmlatS2_h,nhgt_fix, poten_hl
     use edyn3D_calculate_coefs, only: edyn3D_calculate_coef, edyn3D_calculate_coef_ns2
     use edyn3D_calculate_coefs, only: edyn3D_calculate_coef_ns, edyn3D_calculate_bij
     use edyn3D_serial_solver, only: linear_system

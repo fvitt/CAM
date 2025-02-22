@@ -166,8 +166,8 @@
      ! Calculate high latitude field aligned current and add to solver coefficients
      ! for solver right hand side
      !
-     use edyn3D_fieldline,only: fline_p,fieldline_s1,fline_s1,poten_hl
-     use edyn3D_params, only: nptsp_total
+     use edyn3D_fieldline,only: fline_p,fieldline_s1,fline_s1
+     use edyn3D_params, only: nptsp_total, poten_hl
 !
      implicit none
 !

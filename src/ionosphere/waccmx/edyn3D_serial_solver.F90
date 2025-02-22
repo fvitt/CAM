@@ -1,11 +1,9 @@
 module edyn3D_serial_solver
 
   use shr_kind_mod,   only: r8 => shr_kind_r8            ! 8-byte reals
-  use edyn3D_params,  only: nmlat_T1,nmlon
+  use edyn3D_params, only: nmlon, nmlat_h, nmlat_T1, jlatm_JT, nlonlat=>nlonlat_T1
 
   implicit none
-
-  integer,parameter :: nlonlat = nmlat_T1*nmlon ! solve the whole globe
 
   contains
 !-----------------------------------------------------------------------
@@ -16,9 +14,7 @@ module edyn3D_serial_solver
 ! if FAC is read in, pot_hl is not used, only fac_hl is used
 ! if potential is read in, pot_hl is used, fac_hl is output
 
-    use edyn3D_params, only: nmlat_h,nmlat_T1
     use edyn3D_mpi,    only: mlon0_p,mlon1_p,mp_gather_edyn3D,mp_scatter_edyn3D,mytid
-     use cam_logfile,    only: iulog
 
     real(r8),dimension(nmlat_h,nmlon),intent(in) :: bij_full
     real(r8),dimension(2,nmlat_h,nmlon),intent(in) :: pot_hl_full
@@ -26,14 +22,12 @@ module edyn3D_serial_solver
     real(r8),dimension(10,nmlat_T1,nmlon),intent(inout) :: coef_ns_full
     real(r8),dimension(2,nmlat_h,nmlon),intent(out) :: pot_full
 
-    logical,parameter :: use_mkl = .false.
-
-!    logical,parameter :: use_mkl = &
-!#ifdef MKL
-!      .true.
-!#else
-!      .false.
-!#endif
+    logical,parameter :: use_mkl = &
+#ifdef MKL
+      .true.
+#else
+      .false.
+#endif
 
     integer,parameter :: root = 0
     integer :: i,j,jj,isn,nnz,ncnt1
@@ -50,25 +44,11 @@ module edyn3D_serial_solver
         coef_ns_full(10,j,i) = 0
       enddo
 
-!!$ write(iulog,*) "linear_system: min/max pot_hl_full ", MINVAL(pot_hl_full), MAXVAL(pot_hl_full)
-!!$
-!!$ write(iulog,*) "linear_system: min/max fac_hl_full ", MINVAL(fac_hl_full), MAXVAL(fac_hl_full)
-!!$
-!!$ write(iulog,*) "linear_system: min/max coef_ns_full ", MINVAL(coef_ns_full), MAXVAL(coef_ns_full)
-!!$
-!!$ write(iulog,*) "linear_system: coef_ns_full(9,1,1), coef_ns_full(10,1,1) ", coef_ns_full(9,1,1), coef_ns_full(10,1,1)
-!!$
 ! construct LHS matrix in COO format
       call construct_lhs(bij_full,coef_ns_full(1:9,:,:),nnz,irow,jcol,values)
 
 ! RHS is dense
       call construct_rhs(coef_ns_full(10,:,:),rhs)
-
-! determine FAC forcing (dense)
-!      if (read_fac) then ! input is corrected fac_hl, pot_hl is not used
-!        z = flatten(fac_hl_full)
-!
-!      else ! input is pot_hl, fac_hl is to be calculated (output)
 
 ! A. Maute 2023/11/21: put the high latitude potential in X
 ! and then use LHS to calculate the RHS FAC
@@ -84,23 +64,11 @@ module edyn3D_serial_solver
 
 ! reconstruct 2D distribution of FAC based on z
         fac_hl_full(:,:,1:nmlon) = unravel(z)
-!        fac_hl_full(:,:,1:nmlon) = 0.0_r8     ! test: settin HL fac to 0
-
-!! add periodic points
-!        do j = 1,nmlat_h
-!          do isn = 1,2
-!            fac_hl_full(isn,j,0) = fac_hl_full(isn,j,nmlon)
-!            fac_hl_full(isn,j,nmlon+1) = fac_hl_full(isn,j,1)
-!          enddo
-!        enddo
-!      endif
 
 ! add FAC forcing to RHS
       do i = 1,nlonlat
         rhs(i) = rhs(i)+z(i)
       enddo
-
-!!$ write(iulog,*) "linear_system: nlonlat,nnz,min/max irow,min/max jcol,min/max values,min/max rhs ", nlonlat,nnz,MINVAL(irow), MAXVAL(irow), MINVAL(jcol), MAXVAL(jcol), MINVAL(values), MAXVAL(values), MINVAL(rhs), MAXVAL(rhs)
 
       if (use_mkl) then
         call solve_mkl(nlonlat,nnz,irow(1:nnz),jcol(1:nnz),values(1:nnz),rhs,sol)
@@ -111,22 +79,6 @@ module edyn3D_serial_solver
 ! reconstruct 2D distribution of potential based on the solution
       pot_full(:,:,1:nmlon) = unravel(sol)
 
-!!$ write(iulog,*) "linear_system: min/max pot_full ", MINVAL(pot_full), MAXVAL(pot_full)
-
-!    call mp_scatter_edyn3D(pot_2r,mlon0_p,mlon1_p,pot,nmlon+2,nmlat_h,2)
-!
-!    pot_full(mlon0_p-1,:,1) = pot_2r(mlon0_p-1,:,1)
-!    pot(mlon0_p-1,:,2) = pot_2r(mlon0_p-1,:,2)
-!    pot(mlon1_p+1,:,1) = pot_2r(mlon1_p+1,:,1)
-!    pot(mlon1_p+1,:,2) = pot_2r(mlon1_p+1,:,2)
-!
-!    call mp_scatter_edyn3D(fac_hl_2r,mlon0_p,mlon1_p,fac_hl,nmlon+2,nmlat_h,2)
-!
-!    fac_hl(mlon0_p-1,:,1) = fac_hl_2r(mlon0_p-1,:,1)
-!    fac_hl(mlon0_p-1,:,2) = fac_hl_2r(mlon0_p-1,:,2)
-!    fac_hl(mlon1_p+1,:,1) = fac_hl_2r(mlon1_p+1,:,1)
-!    fac_hl(mlon1_p+1,:,2) = fac_hl_2r(mlon1_p+1,:,2)
-
   endsubroutine linear_system
 !-----------------------------------------------------------------------
   subroutine construct_lhs(bij,coef,nnz,irow,jcol,values)
@@ -134,9 +86,6 @@ module edyn3D_serial_solver
 
 ! need to set where the two hemispheres are connected
 ! This is not in the 9-point stencil but needs to be done manually
-
-    use edyn3D_params, only: nmlat_h,jlatm_JT
-!    use cons_module,only:jlatm_JT
 
     real(r8),dimension(nmlat_h,nmlon),intent(in) :: bij
     real(r8),dimension(9,nmlat_T1,nmlon),intent(in) :: coef
@@ -774,7 +723,6 @@ module edyn3D_serial_solver
 ! this is different from flatten
 
     use edyn3D_params, only: nmlat_h,phi_pol
-!    use cons_module,only:phi_pol
 
     real(r8),dimension(nmlat_T1,nmlon),intent(in) :: coef_10
     real(r8),dimension(nlonlat),intent(out) :: rhs

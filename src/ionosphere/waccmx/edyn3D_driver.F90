@@ -4,8 +4,7 @@ module edyn3D_driver
   use cam_abortutils, only: endrun
   use cam_logfile, only: iulog
 
-  use edyn3D_maggrid, only: gen_highres_grid, edyn3D_gen_ggj_grid, edyn3D_gen_qd_grid, &
-                            edyn3D_gen_geo_grid, edyn3D_qcoef, edyn3D_calculate_mf
+  use edyn3D_maggrid, only: gen_highres_grid, edyn3D_qcoef, edyn3D_calculate_mf
 
   use edyn3D_mpi, only: mp_init_edyn3D, mp_distribute_mag_edyn3D, mp_exchange_tasks_edyn3D
   use edyn3D_mpi, only: mytid, ntask
@@ -36,44 +35,48 @@ module edyn3D_driver
 
 contains
 
-  subroutine edyn3D_driver_reg(mpicom_atm, npes_edyn3D)
+  subroutine edyn3D_driver_reg(mpicom_atm, npes_edyn3D, edyn3d_nmlat_h, edyn3d_nmlon, edyn3d_nhgt)
     use cam_history,         only: addfld, horiz_only
     use mo_apex,             only: mo_apex_init1
     use edyn3D_fline_fields, only: edyn3D_fline_fields_alloc
 
     use edyn3D_esmf_fields_rhandles, only: edyn3D_esmf_fields_rhandles_init
+    use edyn3D_params, only: edyn3d_params_init
+
+    use edyn3D_params, only: edyn3D_params_alloc
 
     integer, intent(in) :: mpicom_atm, npes_edyn3D
-
+    integer, intent(in) :: edyn3d_nmlat_h, edyn3d_nmlon, edyn3d_nhgt
     integer :: m
 
     call mo_apex_init1()
 
     call mp_init_edyn3D(mpicom_atm, npes_edyn3D)
 
+    call edyn3D_params_init(edyn3d_nmlat_h, edyn3d_nmlon, edyn3d_nhgt)
+
     call gen_highres_grid()
 
-    call edyn3D_gen_ggj_grid()
+    if (mytid<ntask) then
+       call edyn3D_params_alloc
 
-    call edyn3D_gen_qd_grid()
+       call edyn3D_qcoef()
 
-    call edyn3D_gen_geo_grid()
-
-    call edyn3D_qcoef()
-
-    call edyn3D_calculate_mf()
+       call edyn3D_calculate_mf()
+    endif
 
     call mp_distribute_mag_edyn3D(nmlon)
 
     call mp_exchange_tasks_edyn3D(mpicom, iprint=0)
 
-    call fieldline_init()  ! Allocate and populate the p, r, s1, and s2 field line structures for computations
+    ! Allocate and populate the p, r, s1, and s2 field line structures for computations
+    call fieldline_init()
 
     call fieldline_getapex()
 
-    call reg_hist_grid()
+    call edyn3D_init_cons()
 
-    call edyn3D_init_cons
+    call reg_hist_grid()
 
     call edyn3D_esmf_fields_rhandles_init()
 
@@ -150,7 +153,7 @@ contains
 
     use sunloc_mod, only: sunloc_calc
     use edyn3D_heelis, only: edyn3D_heelis_set_hlat_pot
-    use edyn3D_fieldline, only: poten_hl
+    use edyn3D_params, only: poten_hl
 
     use edyn3D_esmf_fields_rhandles, only: phys2mag_nflds, magFieldDes_s1, rh_phys2mag_s1, magFieldDes_s2, rh_phys2mag_s2
     use edyn3D_esmf_fields_rhandles, only: mag2opls_nflds

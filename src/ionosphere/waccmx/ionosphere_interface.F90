@@ -25,7 +25,7 @@ module ionosphere_interface
    use shr_const_mod,  only: SHR_CONST_REARTH ! meters
 
  ! test 3D field line mag grid infrastructure
-   use edyn3D_driver, only: edyn3D_driver_reg, edyn3D_driver_timestep
+   use edyn3D_driver, only: edyn3D_driver_reg
 
    implicit none
 
@@ -95,7 +95,11 @@ module ionosphere_interface
 
    integer           :: oplus_nlon, oplus_nlat   ! Oplus grid
    integer           :: ionos_npes = -1
-   integer           :: dyn3d_npes = -1
+   integer           :: edyn3d_npes = -1
+   logical           :: edyn3d_active = .true.
+   integer           :: edyn3d_nmlat_h = 161
+   integer           :: edyn3d_nmlon = 180
+   integer           :: edyn3d_nhgt = 82
 
    logical :: state_debug_checks = .false.
    logical :: ionos_debug_hist = .false.
@@ -104,7 +108,6 @@ module ionosphere_interface
 
    real(r8), parameter :: rearth_inv = 1._r8/SHR_CONST_REARTH ! /meters
 
-   logical :: edynamo_3d = .true.
 
  contains
 
@@ -132,10 +135,10 @@ module ionosphere_interface
       namelist /ionosphere_nl/ ionos_epotential_model, ionos_epotential_amie, ionos_epotential_ltr, wei05_coefs_file
       namelist /ionosphere_nl/ amienh_files, amiesh_files, wei05_coefs_file, ltr_files
       namelist /ionosphere_nl/ epot_crit_colats
-      namelist /ionosphere_nl/ ionos_npes, dyn3d_npes
+      namelist /ionosphere_nl/ ionos_npes
       namelist /ionosphere_nl/ oplus_grid, edyn_grid
       namelist /ionosphere_nl/ ionos_debug_hist
-      namelist /ionosphere_nl/ edynamo_3d
+      namelist /ionosphere_nl/ edyn3d_active, edyn3d_npes, edyn3d_nmlat_h, edyn3d_nhgt, edyn3d_nmlon
 
       oplus_grid = 0
 
@@ -172,10 +175,14 @@ module ionosphere_interface
       call mpi_bcast(oplus_ring_polar_filter,1, mpi_logical, masterprocid, mpicom, ierr)
       call mpi_bcast(epot_crit_colats,    2, mpi_real8,   masterprocid, mpicom, ierr)
       call mpi_bcast(ionos_npes,          1, mpi_integer, masterprocid, mpicom, ierr)
-      call mpi_bcast(dyn3d_npes,          1, mpi_integer, masterprocid, mpicom, ierr)
       call mpi_bcast(oplus_grid,          2, mpi_integer, masterprocid, mpicom, ierr)
       call mpi_bcast(edyn_grid,           8, mpi_character, masterprocid, mpicom, ierr)
       call mpi_bcast(ionos_debug_hist,    1, mpi_logical, masterprocid, mpicom, ierr)
+      call mpi_bcast(edyn3d_active,       1, mpi_logical, masterprocid, mpicom, ierr)
+      call mpi_bcast(edyn3d_npes,         1, mpi_integer, masterprocid, mpicom, ierr)
+      call mpi_bcast(edyn3d_nmlat_h,      1, mpi_integer, masterprocid, mpicom, ierr)
+      call mpi_bcast(edyn3d_nmlon,        1, mpi_integer, masterprocid, mpicom, ierr)
+      call mpi_bcast(edyn3d_nhgt,         1, mpi_integer, masterprocid, mpicom, ierr)
 
       ! Extract grid settings
       oplus_nlon = oplus_grid(1)
@@ -196,10 +203,10 @@ module ionosphere_interface
       else if (ionos_npes>total_pes) then
          call endrun('ionosphere_readnl: ionos_npes > total_pes')
       end if
-      if (dyn3d_npes<1) then
-         dyn3d_npes = ionos_npes
-      else if (dyn3d_npes>total_pes) then
-         call endrun('ionosphere_readnl: dyn3d_npes > total_pes')
+      if (edyn3d_npes<1) then
+         edyn3d_npes = ionos_npes
+      else if (edyn3d_npes>total_pes) then
+         call endrun('ionosphere_readnl: edyn3d_npes > total_pes')
       end if
 
       ! log the user settings
@@ -214,7 +221,6 @@ module ionosphere_interface
          write(iulog,'(a,2(g12.4))') &
                         'ionosphere_readnl: epot_crit_colats       = ', epot_crit_colats
          write(iulog,'(a,i0)') 'ionosphere_readnl: ionos_npes = ',ionos_npes
-         write(iulog,'(a,i0)') 'ionosphere_readnl: dyn3d_npes = ',dyn3d_npes
          write(iulog,*) 'ionosphere_readnl: oplus_adiff_limiter    = ', oplus_adiff_limiter
          write(iulog,*) 'ionosphere_readnl: oplus_shapiro_const    = ', oplus_shapiro_const
          write(iulog,*) 'ionosphere_readnl: oplus_enforce_floor    = ', oplus_enforce_floor
@@ -228,6 +234,11 @@ module ionosphere_interface
             write(iulog,'(a,i0)') 'ionosphere_readnl: mag_nlev = ',mag_nlev
             write(iulog,'(a,i0)') 'ionosphere_readnl: mag_ngrid = ',mag_ngrid
          end if
+         write(iulog,*) 'ionosphere_readnl: edyn3d_active = ',edyn3d_active
+         write(iulog,'(a,i0)') 'ionosphere_readnl: edyn3d_npes = ',edyn3d_npes
+         write(iulog,'(a,i0)') 'ionosphere_readnl: edyn3d_nmlat_h = ',edyn3d_nmlat_h
+         write(iulog,'(a,i0)') 'ionosphere_readnl: edyn3d_nmlon = ',edyn3d_nmlon
+         write(iulog,'(a,i0)') 'ionosphere_readnl: edyn3d_nhgt = ',edyn3d_nhgt
       end if
       epot_active = .true.
 
@@ -361,7 +372,7 @@ module ionosphere_interface
          call edynamo_init(mpicom_atm, ionos_debug_hist)
 
          call d_pie_init(ionos_edyn_active, ionos_oplus_xport, ionos_xport_nsplit, epot_crit_colats, &
-                         ionos_debug_hist, edynamo_3d)
+                         ionos_debug_hist, edyn3d_active )
 
          call ionosphere_alloc()
 
@@ -412,8 +423,9 @@ module ionosphere_interface
 
       call edyn_esmf_update
 
-      call edyn3D_driver_reg(mpicom_atm, dyn3d_npes)
-
+      if (edyn3d_active) then
+         call edyn3D_driver_reg(mpicom_atm, edyn3d_npes, edyn3d_nmlat_h, edyn3d_nmlon, edyn3d_nhgt)
+      end if
    end subroutine ionosphere_init
 
    !----------------------------------------------------------------------------
