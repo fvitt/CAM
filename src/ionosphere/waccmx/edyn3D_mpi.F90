@@ -25,13 +25,8 @@ module edyn3D_mpi
    public :: mp_mag_halos_edyn3D
    public :: mp_poten_halos_edyn3D
    public :: mp_scatter_edyn3D
-!   public :: mp_mag_foldhem
    public :: mp_gather_edyn3D
    public :: ixfind
-!   public :: mp_magpole_3d
-!   public :: setpoles
-!   public :: mp_gatherlons_f3d
-!   public :: mp_scatterlons_f3d
    public :: mp_exchange_tasks_edyn3D
    public :: mp_distribute_mag_edyn3D
    public :: mlat0_p,mlat1_p
@@ -57,16 +52,6 @@ module edyn3D_mpi
    integer :: &
         ntask,   & ! number of mpi tasks
         mytid      ! my task id
-!   !
-!   ! Magnetic computational subdomains for current task:
-!   !
-!   integer, protected :: &
-!        ncompmagtasklon_p,  & ! number of tasks in computation magnetic longitude dimension
-!        ncompmagtasklat_p,  & ! number of tasks in computation magnetic latitude dimension
-!        compmagtidlon_p,    & ! computation longitude coord for current task in task table
-!        compmagtidlat_p,    & ! computation latitude coord for current task in task table
-!        mclon_p0=1,mclon_p1=0,& ! first and last computation mag lons for each task
-!        mclat_p0=1,mclat_p1=0   ! first and last computation mag lats for each task
    !
    ! Magnetic output subdomains for current task:
    !
@@ -93,17 +78,9 @@ module edyn3D_mpi
         fldpts0_s1,fldpts1_s1,  &
         fldpts0_s2,fldpts1_s2
 
-!   integer :: &
-!        mxcmaglon_p,  &   ! max number of computation mag subdomain lon points among all tasks
-!        mxcmaglat_p,  &   ! max number of computation mag subdomain lat points among all tasks
-!        mxhmaglon       ! max number of output mag subdomain lon points among all tasks
-
    integer, allocatable :: &
         itask_table_mag(:)      ! 1d table of tasks on mag output grid (i)
 
-!   integer :: cols_comm_comp_p_edyn3D  ! communicators for each computation task column
-!   integer :: rows_comm_comp_p_edyn3D  ! communicators for each computation task row
-   integer :: cols_comm_edyn3D  ! communicators for each output task column
    !
    ! Task type: subdomain information for all tasks, known by all tasks:
    !
@@ -124,12 +101,6 @@ module edyn3D_mpi
    !
    ! Magnetic grid parameters
    !
-!   integer :: ncmlon_p   ! number of computation longitudes
-!   integer :: ncmlat_p   ! number of computation latitudes
-
-!   type array_ptr_comp_type
-!      real(r8),pointer :: ptr(:,:,:) ! (i,j,flp)
-!   end type array_comp_ptr_type
 
    type array_ptr_type
       real(r8),pointer :: ptr(:,:) ! (i,flp)
@@ -138,7 +109,6 @@ module edyn3D_mpi
    integer, protected :: mpi_comm_edyn3D = -9999
 
    logical, parameter :: debug = .false.
-!   logical, parameter :: debug = .true.
 
 contains
    !-----------------------------------------------------------------------
@@ -198,7 +168,7 @@ contains
       integer, intent(in) :: nmlon_in ! number of longitudes
       !
       ! Local:
-      integer                     :: i, n, irank, ier, nmaglon_p, tidcol, ncells
+      integer                     :: i, n, irank, ier, nmaglon_p
       integer :: nmlon      ! number of output longitudes
       character(len=cl)          :: errmsg
       character(len=*), parameter :: subname = 'mp_distribute_edyn3D_mag'
@@ -242,7 +212,6 @@ contains
          itask_table_mag(nmagtasklon) = itask_table_mag(0)
 
          if (debug .and. masterproc) then
-!         if (debug) then
             !
             ! Print table to stdout:
             write(*,"(/,a,/a,i5,a,i5,a,i5,' Mag Task Table:')") subname,     &
@@ -418,7 +387,6 @@ contains
    end subroutine mp_exchange_tasks_edyn3D
    !-----------------------------------------------------------------------
    subroutine mp_mag_halos_edyn3D(fmsub,mlon0,mlon1,nmlat,nflpts,nf)
-!   subroutine mp_mag_halos_edyn3D(fmsub,mlon0,mlon1,nflpts,nf)
       !
       ! Exchange halo/ghost points between magnetic grid subdomains for nf fields.
       ! Only a single halo point is required in lon dimension.
@@ -428,20 +396,13 @@ contains
       !   halos are done, exchanging mlon0-1:mlon1+1 (i.e., including the
       !   longitude halos that were defined first).
       !
-
-!       use edyn3D_fieldline,only: fline_s1
-
-       ! Args:
-!      integer,intent(in) :: mlon0,mlon1,mlat0,mlat1,nf
+      ! Args:
       integer,intent(in) :: mlon0,mlon1,nmlat,nflpts,nf
-!      integer,intent(in) :: mlon0,mlon1,nflpts,nf
-!      real(r8),intent(inout) :: fmsub(mlon0-1:mlon1+1,mlat0-1:mlat1+1,nf)
-!      real(r8),intent(inout) :: fmsub(mlon0-1:mlon1+1,nflpts,nf)
       real(r8),intent(inout) :: fmsub(mlon0-1:mlon1+1,nmlat,nflpts,nf)
       !
       ! Local:
-      integer :: ifld,west,east,north,south,len,isend0,isend1, &
-           irecv0,irecv1,ier,nmlats,istat(MPI_STATUS_SIZE,4),ireq(4),nmlons
+      integer :: ifld,west,east,len,isend0,isend1, &
+           irecv0,irecv1,ier,istat(MPI_STATUS_SIZE,4),ireq(4)
       real(r8),dimension(nmlat,nflpts,nf)::sndlon0,sndlon1,rcvlon0,rcvlon1
 
       !
@@ -454,9 +415,7 @@ contains
       east  = itask_table_mag(magtidlon+1)
       !
       ! Set len
-!      nmlats = mlat1-mlat0+1
       len = nmlat*nflpts*nf
-!      len = nflpts*nf
       !
       ! Send mlon0 to the west neighbor, and mlon1 to the east.
       ! However, tasks are periodic in longitude (see itask_table_mag),
@@ -466,28 +425,18 @@ contains
       do ifld=1,nf
          ! Far west tasks send mlon0+1 to far east (periodic) tasks:
          if (magtidlon==0) then
-!           sndlon0(:,ifld) = fmsub(mlon0+1,mlat0:mlat1,ifld)
             sndlon0(:,:,ifld) = fmsub(mlon0+1,1:nmlat,1:nflpts,ifld)
-!           sndlon0(:,ifld) = fmsub(mlon0+1,1:nflpts,ifld)
             ! Interior tasks send mlon0 to west neighbor:
          else
-!           sndlon0(:,ifld) = fmsub(mlon0,mlat0:mlat1,ifld)
             sndlon0(:,:,ifld) = fmsub(mlon0,1:nmlat,1:nflpts,ifld)
-!            sndlon0(:,ifld) = fmsub(mlon0,1:nflpts,ifld)
-!           if (mlon0 == 19) sndlon0 = 1._r8
          endif
 
          ! Far east tasks send mlon1-1 to far west (periodic) tasks:
          if (magtidlon==nmagtasklon-1) then
-!           sndlon1(:,ifld) = fmsub(mlon1-1,mlat0:mlat1,ifld)
             sndlon1(:,:,ifld) = fmsub(mlon1-1,1:nmlat,1:nflpts,ifld)
-!           sndlon1(:,ifld) = fmsub(mlon1-1,1:nflpts,ifld)
             ! Interior tasks send mlon1 to east neighbor:
          else
-!           sndlon1(:,ifld) = fmsub(mlon1,mlat0:mlat1,ifld)
             sndlon1(:,:,ifld) = fmsub(mlon1,1:nmlat,1:nflpts,ifld)
-!            sndlon1(:,ifld) = fmsub(mlon1,1:nflpts,ifld)
-!           if (mlon0 == 13) sndlon1 = 1._r8
          endif
       enddo ! ifld=1,nf
 
@@ -516,68 +465,16 @@ contains
       !
       ! Copy mlon0-1 from rcvlon0, and mlon1+1 from rcvlon1:
       do ifld=1,nf
-!         fmsub(mlon0-1,mlat0:mlat1,ifld) = rcvlon0(:,ifld)
-!         fmsub(mlon1+1,mlat0:mlat1,ifld) = rcvlon1(:,ifld)
          fmsub(mlon0-1,1:nmlat,1:nflpts,ifld) = rcvlon0(:,:,ifld)
          fmsub(mlon1+1,1:nmlat,1:nflpts,ifld) = rcvlon1(:,:,ifld)
-!         fmsub(mlon0-1,1:nflpts,ifld) = rcvlon0(:,ifld)
-!         fmsub(mlon1+1,1:nflpts,ifld) = rcvlon1(:,ifld)
          !
          ! Fix special case of 2 tasks in longitude dimension:
          if (east == west) then
-!            fmsub(mlon0-1,mlat0:mlat1,ifld) = rcvlon1(:,ifld)
-!            fmsub(mlon1+1,mlat0:mlat1,ifld) = rcvlon0(:,ifld)
             fmsub(mlon0-1,1:nmlat,1:nflpts,ifld) = rcvlon1(:,:,ifld)
             fmsub(mlon1+1,1:nmlat,1:nflpts,ifld) = rcvlon0(:,:,ifld)
-!            fmsub(mlon0-1,1:nflpts,ifld) = rcvlon1(:,ifld)
-!            fmsub(mlon1+1,1:nflpts,ifld) = rcvlon0(:,ifld)
          endif
       enddo ! ifld=1,nf
-!      !
-!      ! Now exchange latitudes:
-!      sndlat0 = 0._r8 ; rcvlat0 = 0._r8
-!      sndlat1 = 0._r8 ; rcvlat1 = 0._r8
-!
-!      south = itask_table_mag(mytidi,mytidj-1)  ! neighbor to south
-!      north = itask_table_mag(mytidi,mytidj+1)  ! neighbor to north
-!      !
-!      ! Include halo longitudes that were defined by the exchanges above:
-!      nmlons = (mlon1+1)-(mlon0-1)+1
-!      len = nmlons*nf
-!      !
-!      ! Send mlat0 to south neighbor, and mlat1 to north:
-!      do ifld=1,nf
-!         sndlat0(:,ifld) = fmsub(:,mlat0,ifld)
-!         sndlat1(:,ifld) = fmsub(:,mlat1,ifld)
-!      enddo
-!      !
-!      ! Send mlat0 to south:
-!      call mpi_isend(sndlat0,len,MPI_REAL8,south,1,mpi_comm_edyn,isend0,ier)
-!      if (ier /= 0) call handle_mpi_err(ier,'mp_mag_halos send mlat0 to south')
-!      !
-!      ! Send mlat1 to north:
-!      call mpi_isend(sndlat1,len,MPI_REAL8,north,1,mpi_comm_edyn,isend1,ier)
-!      if (ier /= 0) call handle_mpi_err(ier,'mp_mag_halos send mlat1 to north')
-!      !
-!      ! Recv mlat0-1 from south:
-!      call mpi_irecv(rcvlat0,len,MPI_REAL8,south,1,mpi_comm_edyn,irecv0,ier)
-!      if (ier /= 0) call handle_mpi_err(ier,'mp_mag_halos recv mlat0-1 from south')
-!      !
-!      ! Recv mlat1+1 from north:
-!      call mpi_irecv(rcvlat1,len,MPI_REAL8,north,1,mpi_comm_edyn,irecv1,ier)
-!      if (ier /= 0) call handle_mpi_err(ier,'mp_mag_halos recv mlat1+1 from north')
-!      !
-!      ! Wait for completions:
-!      ireq = (/isend0,isend1,irecv0,irecv1/)
-!      istat = 0
-!      call mpi_waitall(4,ireq,istat,ier)
-!      if (ier /= 0) call handle_mpi_err(ier,'mp_mag_halos waitall for lats')
-!      !
-!      ! Copy mlat0-1 from rcvlat0, and mlat1+1 from rcvlat1:
-!      do ifld=1,nf
-!         fmsub(:,mlat0-1,ifld) = rcvlat0(:,ifld)
-!         fmsub(:,mlat1+1,ifld) = rcvlat1(:,ifld)
-!      enddo ! ifld=1,nf
+
 
    end subroutine mp_mag_halos_edyn3D
 
@@ -595,8 +492,8 @@ contains
       !
       ! Local:
       !
-      integer :: ifld,west,east,len,isend0,isend1, &
-           irecv0,irecv1,ier,nmlats,istat(MPI_STATUS_SIZE,4),ireq(4),nmlons
+      integer :: west,east,len,isend0,isend1, &
+           irecv0,irecv1,ier,istat(MPI_STATUS_SIZE,4),ireq(4)
       real(r8),dimension(nmlat)::sndlon0,sndlon1,rcvlon0,rcvlon1
 
       !
@@ -742,7 +639,7 @@ contains
       real(r8),intent(out) :: fmsub(mlon0:mlon1,nmlat,nldim)
 
       ! Local:
-      integer :: ier,len,i,j,n, f
+      integer :: ier,len,j,n
       integer :: nlonsend, lonsend0,lonsend1, mtag, nlonrecv
       integer :: itask, idest, isend, irecv, isrc
       integer :: irstat(MPI_STATUS_SIZE)      ! mpi receive status

@@ -70,7 +70,7 @@ module edyn3D_params
   real(r8), allocatable :: m3f(:,:)
 
   real(r8), allocatable :: poten_hl(:,:)
-  real(r8),protected, allocatable :: Je2Ion_eq(:)
+  real(r8), allocatable :: Je2Ion_eq(:)
 
   !
   ! Boundary conditions
@@ -148,10 +148,8 @@ contains
     allocate(m1f(nmlat_h,nhgt_fix))
     allocate(m2f(nmlat_h,nhgt_fix))
     allocate(m3f(nmlat_h,nhgt_fix_r))
-    allocate(J3LB(0:nmlon+1,nmlat_h,2))
+
     allocate(poten_hl(0:nmlon+1,nmlat_T1))
-    allocate(Je2Ion_eq(nmlon))
-    Je2Ion_eq = 0._r8
 
   end subroutine edyn3D_params_alloc
 

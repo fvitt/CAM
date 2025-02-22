@@ -270,6 +270,8 @@ module edyn3D_fieldline
       use edyn3D_mpi, only: ntask, mytid
       use cam_abortutils, only: endrun
 
+      use edyn3D_params, only: J3LB,Je2Ion_eq
+
       !,hgt_fix_r,ha,ylatm,ylonm, & ! For r points
 
       integer :: i,j,k,nlat_k,lat_k(nmlat_h),isn,ilon,is,jns,ier,status
@@ -301,6 +303,10 @@ module edyn3D_fieldline
       end do
 
       if (mytid>=ntask) return
+
+      allocate(J3LB(mlon0_p:mlon1_p,nmlat_h,2))
+      allocate(Je2Ion_eq(mlon0_p:mlon1_p))
+      Je2Ion_eq = 0._r8
 
       allocate(fline_p(mlon0_p-1:mlon1_p+1,nmlat_h,2),stat=ier)
       if (ier /= 0) then
