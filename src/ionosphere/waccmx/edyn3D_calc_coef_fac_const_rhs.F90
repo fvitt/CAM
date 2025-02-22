@@ -548,8 +548,6 @@
 !    real(r8),dimension(10,nmlat_h,nmlon),intent(in) :: coef
 !    real(r8),dimension(nmlat_h,nmlon),intent(out) :: poten
 
-    integer,parameter :: nlonlat = nmlon*nmlat_h, &
-      nnz_est = 9*nlonlat-2*nmlon*3
     integer :: i,j,im,ip,it,ij,nnz
 
 ! for PARDISO solver (CSR format)
@@ -561,9 +559,9 @@
     integer,dimension(9) :: work_colind
     real(r8),dimension(9) :: work_values
     type(MKL_PARDISO_HANDLE),dimension(64) :: pt
-    real(r8),dimension(nnz_est) :: a
-    integer,dimension(nlonlat+1) :: ia ! row pointer
-    integer,dimension(nnz_est) :: ja ! column pointer
+    real(r8),dimension(9*nlonlat-2*nmlon*3) :: a
+    integer,dimension(9*nlonlat-2*nmlon*3+1) :: ia ! row pointer
+    integer,dimension(9*nlonlat-2*nmlon*3) :: ja ! column pointer
     integer,dimension(nlonlat) :: perm
     integer,dimension(64) :: iparm
     real(r8),dimension(nlonlat) :: b ! forcing: for each P-point
@@ -574,8 +572,8 @@
     integer(kind=8) :: f_factors
     integer,dimension(8) :: job
     integer,dimension(nlonlat+1) :: colptr
-    integer,dimension(nnz_est) :: rowind
-    real(r8),dimension(nnz_est) :: values
+    integer,dimension(9*nlonlat-2*nmlon*3) :: rowind
+    real(r8),dimension(9*nlonlat-2*nmlon*3) :: values
 
 ! ESMF CXX compiler has a weird name decoration as follows
     interface
