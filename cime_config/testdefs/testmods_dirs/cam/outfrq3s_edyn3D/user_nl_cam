@@ -4,7 +4,11 @@ nhtfrq=3,3,3,3,3,3,3,3,3
 write_nstep0=.true.
 inithist='ENDOFRUN'
 
-dyn3d_npes = 45
+edyn3d_active = .true.
+edyn3d_nhgt = 46
+edyn3d_nmlat_h = 91
+edyn3d_nmlon = 60
+edyn3d_npes = 30
 
 fincl2 = 'un_s1', 'vn_s1','un_s2','vn_s2',
          'sigma_ped_s1','sigma_ped_s2','sigma_hal_s1','sigma_hal_s2'
