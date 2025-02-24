@@ -161,11 +161,11 @@ contains
     use edyn3D_fline_fields, only: magfield_t
     use edyn3D_remap_mod, only: edyn3D_remap_phys2mag, edyn3D_remap_mag2oplus
     use edyn3D_params,                  only: nlonlat
-    use edyn3D_calculate_coefs,         only: edyn3D_calculate_coef,edyn3D_calculate_coef_ns2,edyn3D_calculate_coef_ns, &
-                                              edyn3d_calculate_bij
-    use edyn3D_serial_solver,           only: linear_system
     use edyn3D_glblslv_mod, only: edyn3D_glblslv_poten
     use edyn3D_hemislv_mod, only: edyn3D_hemislv_poten
+    use edyn3D_je_s1s2_mod, only: edyn3D_calculate_je_s1s2
+    use edyn3D_efield_mod, only: edyn3D_calculate_efield
+    use edyn3D_current_sources_mod, only: edyn3D_calculate_S
 
     integer,  intent(in) :: nphyscol, nphyslev
     real(r8), intent(in) :: physalt(nphyslev,nphyscol)
