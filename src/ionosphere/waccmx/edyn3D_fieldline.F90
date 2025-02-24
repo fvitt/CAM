@@ -37,8 +37,8 @@ module edyn3D_fieldline
   type fieldline_p
      integer :: npts
 
-     real(r8) :: ha 	! apex height
-     real(r8) :: mlat_m	! modified apex latitude
+     real(r8) :: ha     ! apex height
+     real(r8) :: mlat_m ! modified apex latitude
 
      real(r8) :: pot       ! electric potential
      real(r8) :: pot_test  ! electric potential am 1/2015 for testing
@@ -48,16 +48,16 @@ module edyn3D_fieldline
      real(r8), allocatable :: mlon_qd(:)    ! quasi dipole longitude
      real(r8), allocatable :: hgt_pt(:)     ! height of point
 
-     real(r8), allocatable :: glat(:)	 ! geog. latitude
-     real(r8), allocatable :: glon(:)	 ! geog. longitude
-     real(r8), allocatable :: D(:)	 !  D
-     real(r8), allocatable :: F(:)	 !  F
-     real(r8), allocatable :: sinI(:)	 !  sinI
-     real(r8), allocatable :: d1k(:)	 !  d1 dot k vector
-     real(r8), allocatable :: d2k(:)	 !  d2 dot k vector
-     real(r8), allocatable :: M3(:)	 !  M3
-     real(r8), allocatable :: S(:)	 !  S
-     real(r8), allocatable :: Jr(:)	 !  Jr
+     real(r8), allocatable :: glat(:)    ! geog. latitude
+     real(r8), allocatable :: glon(:)    ! geog. longitude
+     real(r8), allocatable :: D(:)       !  D
+     real(r8), allocatable :: F(:)       !  F
+     real(r8), allocatable :: sinI(:)    !  sinI
+     real(r8), allocatable :: d1k(:)     !  d1 dot k vector
+     real(r8), allocatable :: d2k(:)     !  d2 dot k vector
+     real(r8), allocatable :: M3(:)      !  M3
+     real(r8), allocatable :: S(:)       !  S
+     real(r8), allocatable :: Jr(:)      !  Jr
      real(r8), allocatable :: I1hor(:)   !  I1horizontal
      real(r8), allocatable :: I2hor(:)   !  I2horizontal
      integer, allocatable :: ngh_pts(:,:)  ! neighboring points lat_index
@@ -82,28 +82,28 @@ module edyn3D_fieldline
   type fieldline_r
      integer :: npts
 
-     real(r8) :: ha 	! apex height
-     real(r8) :: mlat_m	! modified apex latitude
-     real(r8) :: pot	! electric potential
+     real(r8) :: ha     ! apex height
+     real(r8) :: mlat_m ! modified apex latitude
+     real(r8) :: pot    ! electric potential
 
      real(r8), allocatable :: mlat_qd(:)    ! quasi dipole latitude
      real(r8), allocatable :: mlon_qd(:)    ! quasi dipole longitude
      real(r8), allocatable :: hgt_pt(:)     ! height of point
 
-     real(r8), allocatable :: glat(:)	 ! geog. latitude
-     real(r8), allocatable :: glon(:)	 ! geog. longitude
-     real(r8), allocatable :: sinI(:)	 ! sinI coefficient
-     real(r8), allocatable :: D(:)	 ! D coefficient
-     real(r8), allocatable :: F(:)	 ! F factor
-     real(r8), allocatable :: M3(:)	 ! M3 coefficient
-     real(r8), allocatable :: I3(:)	 ! I3 current
+     real(r8), allocatable :: glat(:)    ! geog. latitude
+     real(r8), allocatable :: glon(:)    ! geog. longitude
+     real(r8), allocatable :: sinI(:)    ! sinI coefficient
+     real(r8), allocatable :: D(:)       ! D coefficient
+     real(r8), allocatable :: F(:)       ! F factor
+     real(r8), allocatable :: M3(:)      ! M3 coefficient
+     real(r8), allocatable :: I3(:)      ! I3 current
 
-     real(r8), allocatable :: a3(:)	 ! for mapping: A3(l)/A3(nlat_max)
-     real(r8), allocatable :: aa3(:)	 ! for mapping from mod.apex to quasi dipole grid A3=Sum_pole_j M3(j)
-     real(r8), allocatable :: LI3(:)	 ! for mapping from mod.apex to quasi dipole grid latitudinal integrated I3
+     real(r8), allocatable :: a3(:)      ! for mapping: A3(l)/A3(nlat_max)
+     real(r8), allocatable :: aa3(:)     ! for mapping from mod.apex to quasi dipole grid A3=Sum_pole_j M3(j)
+     real(r8), allocatable :: LI3(:)     ! for mapping from mod.apex to quasi dipole grid latitudinal integrated I3
 
-     real(r8), allocatable :: je3(:)	 ! je3 current
-     real(r8), allocatable :: Jr(:)	 ! Jr current (diagnostic)
+     real(r8), allocatable :: je3(:)     ! je3 current
+     real(r8), allocatable :: Jr(:)      ! Jr current (diagnostic)
      integer, allocatable :: ngh_pts(:,:)  ! neighboring points lat_index
   end type fieldline_r
   !
@@ -114,18 +114,18 @@ module edyn3D_fieldline
   type fieldline_s1
      integer :: npts
 
-     real(r8) :: ha	    ! apex height
+     real(r8) :: ha         ! apex height
      real(r8) :: mlat_m     ! modified apex latitude
-     real(r8) :: zigP	    ! Pedersen Conductance
-     real(r8) :: zigH	    ! Hall Conductance
-     real(r8) :: Ed1	    ! Ed1 electric field
-     real(r8) :: Ed2	    ! Ed2 electric field
-     real(r8) :: ve1	    ! ExB ion velocity field from ed2
-     real(r8) :: ve2	    ! ExB ion velocity field from ed1
+     real(r8) :: zigP       ! Pedersen Conductance
+     real(r8) :: zigH       ! Hall Conductance
+     real(r8) :: Ed1        ! Ed1 electric field
+     real(r8) :: Ed2        ! Ed2 electric field
+     real(r8) :: ve1        ! ExB ion velocity field from ed2
+     real(r8) :: ve2        ! ExB ion velocity field from ed1
 
-     real(r8), allocatable :: mlat_qd(:)	! quasi dipole latitude
-     real(r8), allocatable :: mlon_qd(:)	! quasi dipole longitude
-     real(r8), allocatable :: hgt_pt(:)	! height of point
+     real(r8), allocatable :: mlat_qd(:)        ! quasi dipole latitude
+     real(r8), allocatable :: mlon_qd(:)        ! quasi dipole longitude
+     real(r8), allocatable :: hgt_pt(:) ! height of point
 
      real(r8), allocatable :: glat(:)    ! geog. latitude
      real(r8), allocatable :: glon(:)    ! geog. longitude
@@ -183,18 +183,18 @@ module edyn3D_fieldline
   type fieldline_s2
      integer :: npts
 
-     real(r8) :: ha	    ! apex height
+     real(r8) :: ha         ! apex height
      real(r8) :: mlat_m     ! modified apex latitude
-     real(r8) :: zigP	    ! Pedersen Conductance
-     real(r8) :: zigH	    ! Hall Conductance
-     real(r8) :: Ed1	    ! Ed1 electric field
-     real(r8) :: Ed2	    ! Ed2 electric field
-     real(r8) :: ve1	    ! ExB ion velocity field from ed2
-     real(r8) :: ve2	    ! ExB ion velocity field from ed1
+     real(r8) :: zigP       ! Pedersen Conductance
+     real(r8) :: zigH       ! Hall Conductance
+     real(r8) :: Ed1        ! Ed1 electric field
+     real(r8) :: Ed2        ! Ed2 electric field
+     real(r8) :: ve1        ! ExB ion velocity field from ed2
+     real(r8) :: ve2        ! ExB ion velocity field from ed1
 
-     real(r8), allocatable :: mlat_qd(:)	! quasi dipole latitude
-     real(r8), allocatable :: mlon_qd(:)	! quasi dipole longitude
-     real(r8), allocatable :: hgt_pt(:)	! height of point
+     real(r8), allocatable :: mlat_qd(:)        ! quasi dipole latitude
+     real(r8), allocatable :: mlon_qd(:)        ! quasi dipole longitude
+     real(r8), allocatable :: hgt_pt(:) ! height of point
 
      real(r8), allocatable :: glat(:)    ! geog. latitude
      real(r8), allocatable :: glon(:)    ! geog. longitude
@@ -274,7 +274,8 @@ module edyn3D_fieldline
 
       !,hgt_fix_r,ha,ylatm,ylonm, & ! For r points
 
-      integer :: i,j,k,nlat_k,lat_k(nmlat_h),isn,ilon,is,jns,ier,status
+      integer :: i,j,k,isn,ier,status
+
       allocate(gmapex_p(nmlat_h,2))
       allocate(gmapex_s(nmlatS2_h,2))
 
@@ -350,26 +351,26 @@ module edyn3D_fieldline
           !
           ! r points are
           !
-          fline_r(:,j,isn)%ha	  = ha(j)			       ! apex_height on same fieldline as p points
+          fline_r(:,j,isn)%ha     = ha(j)                              ! apex_height on same fieldline as p points
           fline_r(mlon0_p-1:mlon1_p+1,j,isn)%npts   = npt_fldline_r(fline_r(mlon0_p,j,isn)%ha) ! points on fieldline
-          fline_r(:,j,isn)%mlat_m = ylatm(j,isn)		       ! same as magnetic grid
+          fline_r(:,j,isn)%mlat_m = ylatm(j,isn)                       ! same as magnetic grid
           !
           ! s1 points are in between p-points with respect to longitude, but ylatm is same as p points
           !
-          fline_s1(:,j,isn)%ha	 = fline_p(mlon0_p,j,isn)%ha  	     ! apex_height from p-grid
+          fline_s1(:,j,isn)%ha   = fline_p(mlon0_p,j,isn)%ha         ! apex_height from p-grid
 
-          fline_s1(mlon0_p-1:mlon1_p+1,j,isn)%npts   = fline_p(:,j,isn)%npts	       ! points on fieldline from p-grid
+          fline_s1(mlon0_p-1:mlon1_p+1,j,isn)%npts   = fline_p(:,j,isn)%npts           ! points on fieldline from p-grid
 
 !          fline_s1(mlon0_p-1,j,isn)%npts = fline_s1(mlon0_p,j,isn)%npts
 !          fline_s1(mlon1_p+1,j,isn)%npts = fline_s1(mlon1_p,j,isn)%npts
 
-          fline_s1(mlon0_p-1:mlon1_p+1,j,isn)%mlat_m = ylatm(j,isn) 		     ! magnetic latitude  from p-grid
+          fline_s1(mlon0_p-1:mlon1_p+1,j,isn)%mlat_m = ylatm(j,isn)                  ! magnetic latitude  from p-grid
           !
           ! Allocate p, r, s1, s2 field line structure variables
           !
           !
           ! fline_p and fline_s1 have halo points so use different mlon loop
-	  ! than r fieldline points to allocate
+          ! than r fieldline points to allocate
           !
           do i=mlon0_p-1,mlon1_p+1  ! loop over longitudes with halo points for p and s1
 
@@ -555,7 +556,7 @@ module edyn3D_fieldline
 
              enddo
 !
-	   enddo ! longitudes for r points
+           enddo ! longitudes for r points
 
           enddo  ! end loop latitude
           !
@@ -683,7 +684,7 @@ module edyn3D_fieldline
 ! uses apex_height of that fieldline and fixed height grid
 !
       use edyn3D_params, only: nhgt_fix,hgt_fix
-      use shr_kind_mod,  only: r8 => shr_kind_r8	    ! 8-byte reals
+      use shr_kind_mod,  only: r8 => shr_kind_r8            ! 8-byte reals
 
       real(r8),intent(in) :: apex_height
       integer :: i
@@ -725,23 +726,23 @@ module edyn3D_fieldline
       ! lat modified apex latitude of the fieldline
       ! lamqd = +/- acos([(Re+h)/(Re+hr)]^0.5*cos(lam_m)) eq. (6.2) [Richmond, 1995]
 
-	use edyn3D_params, only: rearth_m,r0
-	use shr_kind_mod,  only: r8 => shr_kind_r8	     ! 8-byte reals
+        use edyn3D_params, only: rearth_m,r0
+        use shr_kind_mod,  only: r8 => shr_kind_r8           ! 8-byte reals
 
-	implicit none
+        implicit none
 
-	real(r8),intent(in) :: lat,h
-	real(r8) :: lamqd
+        real(r8),intent(in) :: lat,h
+        real(r8) :: lamqd
 
-	real(r8) :: fac
+        real(r8) :: fac
 
-	fac = sqrt((rearth_m+h)/r0)*cos(lat)
-	!
-	! ensure fac is below 1 and will not cause problem with acos
-	!
-	if (abs(fac) > 1.0_r8) fac = sign(1.0_r8,fac)
+        fac = sqrt((rearth_m+h)/r0)*cos(lat)
+        !
+        ! ensure fac is below 1 and will not cause problem with acos
+        !
+        if (abs(fac) > 1.0_r8) fac = sign(1.0_r8,fac)
 
-	lamqd = sign(acos(fac),lat)
+        lamqd = sign(acos(fac),lat)
 
       end function lamqd_from_apex_coord
 !
@@ -901,7 +902,7 @@ module edyn3D_fieldline
                   fline_s2(i,j,isn)%e2g2(k) = dot_product(e2,g2)
                   b=  b*1.e-9_r8
 !                  fline_s2(i,j,isn)%bg1(k) = dot_product(b,g1)/fline_s2(i,j,isn)%Bmag(k)  ! diagnostic
-!		  fline_s2(i,j,isn)%bg2(k) = dot_product(b,g2)/fline_s2(i,j,isn)%Bmag(k)  ! diagnostic
+!                 fline_s2(i,j,isn)%bg2(k) = dot_product(b,g2)/fline_s2(i,j,isn)%Bmag(k)  ! diagnostic
                   fline_s2(i,j,isn)%e2k(k)  = e2(3)  ! k unit upward vector
                   fline_s2(i,j,isn)%e1g2(k) = dot_product(e1,g2)
                   fline_s2(i,j,isn)%e1k(k)  = e1(3)  ! k unit upward vector

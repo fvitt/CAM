@@ -19,8 +19,8 @@ module edyn3D_maggrid
 !
 ! Generate the field line, latitude, and longitude grid for dynamo with P, R, S1, S2 points
 !
-      use edyn3D_params, only: nmlat_h,nmlatS2_h,nmlat_T1,nmlat_T2,nmlon, &
-        nmlonp1,ylatm,ylonm,ylatm_s,ylonm_s,pi,rho,rho_s,rtd,dtr,re=>rearth_m,r0,h0, &
+      use edyn3D_params, only: nmlat_h,nmlatS2_h,nmlon, &
+        ylatm,ylonm,ylatm_s,ylonm_s,pi,rho,rho_s,rtd,dtr,re=>rearth_m,r0,h0, &
         m2km,km2m,nhgt_fix,nhgt_fix_r,hgt_fix,hgt_fix_r,ha,ha_s
 
       implicit none
@@ -29,13 +29,13 @@ module edyn3D_maggrid
       ! Local variables:
       !
       integer :: j,jns,k,isn                ! Loop indexing variables
-      real(r8) :: b,c,d,e,f,g,h,i           ! Variables used in calculating grid regions
+      real(r8) :: b,c,d,e,f,g,h            ! Variables used in calculating grid regions
       real(r8) :: d1,d2,d3,d4,d5            ! Apex latitudes for defining grid latitude regions (Degrees)
       real(r8) :: lam1,lam2,lam3,lam4,lam5  ! Same as d latitudes above but in radians (Radians)
       real(r8) :: pio2                      ! pi/2
       real(r8) :: y,y1,y2,y3,y4,y5          ! Definition variables for eight latitude regions
       real(r8) :: lam                       ! Latitude variable used in calculating ranges for latitude regions (Radians)
-      real(r8) :: th0,lamb,yb,d0,hb         ! Initial coordinate variables used to set latitude region grid points
+      real(r8) :: lamb,yb,d0,hb         ! Initial coordinate variables used to set latitude region grid points
       real(r8) :: lamc,yc,dc,hs,dhdy        ! Initial coordinate variables used to set latitude region grid points
       real(r8) :: rhob,rhoc,rho1,rho_loc    ! Cosine of magnetic latitudes
       real(r8) :: ymax                      ! y value for pole
@@ -150,7 +150,7 @@ module edyn3D_maggrid
       !   steps from the pole to the equator.  [Changing j->k would remove this confusion.]
       !
       do j=1,nmlat_h   ! goes from equator to pole S1, P points
-	y = (j-1)*ymax/real(nmlat_h-1,r8)
+        y = (j-1)*ymax/real(nmlat_h-1,r8)
         !
         ! Region I grid points
         !
@@ -160,7 +160,7 @@ module edyn3D_maggrid
         !
         ! Region II grid points
         !
-	if (y.gt.yb.and.y.le.yc) then
+        if (y.gt.yb.and.y.le.yc) then
           ha_loc = h0km + hs*y +.5_r8*dhdy*(y-yb)**2
           rho_loc = sqrt(r0km/(ha_loc+rekm))
           lam = acos(rho_loc)
@@ -168,7 +168,7 @@ module edyn3D_maggrid
         !
         ! Region III grid points
         !
-	if (y.gt.yc.and.y.le.y1) then
+        if (y.gt.yc.and.y.le.y1) then
           ha_loc = hc + c*(exp(b*(y-yc))-1)/b
           rho_loc = sqrt(r0km/(ha_loc+rekm))
           lam = acos(rho_loc)
@@ -176,40 +176,40 @@ module edyn3D_maggrid
         !
         ! Region IV grid points
         !
-	if (y.gt.y1.and.y.le.y2) then
-       	  lam = (y-y1)/d + lam1
+        if (y.gt.y1.and.y.le.y2) then
+          lam = (y-y1)/d + lam1
           rho_loc = cos(lam)
           ha_loc = r0km/rho_loc**2 - rekm
         endif
         !
         ! Region V grid points
         !
-	if (y.gt.y2.and.y.le.y3) then
-      	  lam = lam2 + (sqrt(d**2+4._r8*e*(y-y2))-d)/(2._r8*e)
+        if (y.gt.y2.and.y.le.y3) then
+          lam = lam2 + (sqrt(d**2+4._r8*e*(y-y2))-d)/(2._r8*e)
           rho_loc = cos(lam)
           ha_loc = r0km/rho_loc**2 - rekm
         endif
         !
         ! Region VI grid points
         !
-	if (y.gt.y3.and.y.le.y4) then
-      	  lam = (y-y3)/f + lam3
+        if (y.gt.y3.and.y.le.y4) then
+          lam = (y-y3)/f + lam3
           rho_loc = cos(lam)
           ha_loc = r0km/rho_loc**2 - rekm
         endif
         !
         ! Region VII grid points
         !
-	if (y.gt.y4.and.y.le.y5) then
-      	  lam = lam4 + (f-sqrt(f**2-4._r8*g*(y-y4)))/(2._r8*g)
+        if (y.gt.y4.and.y.le.y5) then
+          lam = lam4 + (f-sqrt(f**2-4._r8*g*(y-y4)))/(2._r8*g)
           rho_loc = cos(lam)
           ha_loc = r0km/rho_loc**2 - rekm
         endif
         !
         ! Region VIII grid points
         !
-	if (y.gt.y5) then
-      	  lam = (y-y5)/h + lam5
+        if (y.gt.y5) then
+          lam = (y-y5)/h + lam5
           rho_loc = cos(lam)
           ha_loc = 9999999._r8
           if (j.ne.nmlat_h) ha_loc = r0km/rho_loc**2 - rekm
@@ -218,7 +218,7 @@ module edyn3D_maggrid
         ! Copy grid points for northern hemisphere/southern hemisphere symmetry
         ! jns corresponds to j of notes, increasing from 1 at pole to J=nmlat_h at equator.
         !
-	jns = nmlat_h-j+1     ! jns: nmlat_h (eq) to 1 (pole)
+        jns = nmlat_h-j+1     ! jns: nmlat_h (eq) to 1 (pole)
         ylatm(jns,2) =  lam   ! northern hemisphere
         ylatm(jns,1) = -ylatm(jns,2) ! southern hemisphere
         rho(jns,1)   = cos(ylatm(jns,1))  ! cos(ylatm)
@@ -226,17 +226,17 @@ module edyn3D_maggrid
         !
         ! Overwrite numerical inaccuracy in calculating rho for j=nmlat_h / jns = 1:
         !
-	if (jns.eq.1) then
+        if (jns.eq.1) then
           rho(jns,1)   = 0._r8
           rho(jns,2)   = 0._r8
-	endif
-	ha(jns) = ha_loc*km2m
+        endif
+        ha(jns) = ha_loc*km2m
         !
         ! Set layer heights hgt_fix to correspond to apexes of P field lines.
         !
         if(j.le.nhgt_fix) hgt_fix(j) = ha_loc*km2m
         !if(debug .and. j.le.nhgt_fix) write(iulog,'(i3,1(x,f15.2))') j,hgt_fix(j)
-	if(debug) write(iulog,20) jns,rho(jns,2),ha_loc*km2m,90._r8*ylatm(jns,2)/pio2,ylatm(jns,2)
+        if(debug) write(iulog,20) jns,rho(jns,2),ha_loc*km2m,90._r8*ylatm(jns,2)/pio2,ylatm(jns,2)
    20   format(i4,f10.6,2f15.2,f10.4)
       enddo ! goes from equator to pole S1, P points
       !
@@ -255,18 +255,18 @@ module edyn3D_maggrid
          rho_s(j,1) = cos_avg  ! cos(ylatm_s)
          rho_s(j,2) = cos_avg  ! cos(ylatm_s)
          ha_s(j)    = (r0km/cos_avg**2 - rekm)*km2m
-	 if(debug) write(iulog,'(i4,3(1x,f10.6))') j,rho_s(j,2),90._r8*ylatm_s(j,2)/pio2,ylatm_s(j,2)
+         if(debug) write(iulog,'(i4,3(1x,f10.6))') j,rho_s(j,2),90._r8*ylatm_s(j,2)/pio2,ylatm_s(j,2)
       enddo
       !
       ! Also need R-grid point values.  Set up height levels [m] for R-grid on which Je3 is defined.
       !  These are apex heights of ylatm_s S2 points
       !
       isn=2  ! need to specify only one hemisphere
-	if(debug) write(iulog,*)   " "
+        if(debug) write(iulog,*)   " "
       do k=2,nhgt_fix_r
         j = nmlatS2_h-k+2
         hgt_fix_r(k) = apex_height(rho_s(j,isn))
-	if(debug)  write(iulog,'(i3,1(1x,f15.2))') k,hgt_fix_r(k)
+        if(debug)  write(iulog,'(i3,1(1x,f15.2))') k,hgt_fix_r(k)
       enddo
       k=1
       hgt_fix_r(1) = h0

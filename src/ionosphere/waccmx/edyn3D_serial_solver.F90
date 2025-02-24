@@ -14,7 +14,7 @@ module edyn3D_serial_solver
 ! if FAC is read in, pot_hl is not used, only fac_hl is used
 ! if potential is read in, pot_hl is used, fac_hl is output
 
-    use edyn3D_mpi,    only: mlon0_p,mlon1_p,mp_gather_edyn3D,mp_scatter_edyn3D,mytid
+    use edyn3D_mpi, only: mp_gather_edyn3D,mp_scatter_edyn3D
 
     real(r8),dimension(nmlat_h,nmlon),intent(in) :: bij_full
     real(r8),dimension(2,nmlat_h,nmlon),intent(in) :: pot_hl_full
@@ -30,7 +30,7 @@ module edyn3D_serial_solver
 #endif
 
     integer,parameter :: root = 0
-    integer :: i,j,jj,isn,nnz,ncnt1
+    integer :: i,j,nnz
     integer,dimension(10*nlonlat) :: irow,jcol
     real(r8),dimension(10*nlonlat) :: values
     real(r8),dimension(nlonlat) :: rhs,z,pot_hl_f,sol

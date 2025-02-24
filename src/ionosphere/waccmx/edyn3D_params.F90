@@ -45,11 +45,11 @@ module edyn3D_params
   integer, protected :: nlonlat_T1 = 0
   integer, protected :: nhgt_fix = 0
   integer, protected :: nhgt_fix_r = 0
+  integer :: jlatm_JT = 1 ! latitude index corresponding to the transition latitude
 
   real(r8) :: &
-       ylatm_JT = 45*dtr,     & ! transition latitude where potential becomes symmetric/asymmetric
-       jlatm_JT,              & ! latitude index corresponding to the transition latitude
-       phi_pol = 0              ! north pole potential
+       ylatm_JT = 45._r8*dtr,     & ! transition latitude where potential becomes symmetric/asymmetric
+       phi_pol = 0.0_r8             ! north pole potential
 
   real(r8), allocatable :: ylonm(:)
   real(r8), allocatable :: ylatm(:,:)

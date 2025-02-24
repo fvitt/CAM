@@ -44,9 +44,9 @@
      !
      ! coef ordering from TIEGCM
      ! ^   equatorward
-     ! coef(4) (i-1,j+1)      coef(3) (i,j+1)	 coef(2) (i+1,j+1)
-     ! coef(5) (i-1,j)        coef(9) (i,j)	 coef(1) (i+1,j)
-     ! coef(6) (i-1,j-1)      coef(7) (i,j-1)	 coef(8) (i+1,j-1)
+     ! coef(4) (i-1,j+1)      coef(3) (i,j+1)    coef(2) (i+1,j+1)
+     ! coef(5) (i-1,j)        coef(9) (i,j)      coef(1) (i+1,j)
+     ! coef(6) (i-1,j-1)      coef(7) (i,j-1)    coef(8) (i+1,j-1)
      ! v   poleward
      !
      ! relationship between P,S1, and S2 point for the same index (i,j)
@@ -54,7 +54,7 @@
      !  coefficient is calculated at P points
      !
 
-     integer :: isn,i,j,k,im,nmax,status,ic
+     integer :: isn,i,j,k,status
      real(r8) :: N2p_p,N2h_p
 
      coef = 0._r8
@@ -79,72 +79,72 @@
      ! I3^TP = Sum_i [ Sum_k^K S(i,1,k) - I3^R(i,1) ] + I3^P1/2
      !   with I3^P(1/2) = Sum_i I3(i,1,1/2)
      !        I3^R(i,1) = M3(i,1,K+1/2) * Jr^R(i,1)
-     !  	-> upper boundary is calculated later in calculate_fac_hl
+     !          -> upper boundary is calculated later in calculate_fac_hl
      !        S(i,1,k)  = -M2(i,3/2,k) * Je2^D(i,3/2,k)
-     !  	-> calculated in calculate_s and already included the minus sign on the RHS
-     !  	   includes I3^P(1/2) at S(i,1,1)
+     !          -> calculated in calculate_s and already included the minus sign on the RHS
+     !             includes I3^P(1/2) at S(i,1,1)
 
        j = 1
        do isn = 1,2
- 	 do k = 1,fline_p(i,j,isn)%npts
+         do k = 1,fline_p(i,j,isn)%npts
 
- 	   ! N2P(i,3/2,k)-N2H(i+1,3/2,k)+N2H(i-1,3/2,k)
- 	   coef(i,j,k,3,isn) = &
- 	       fline_s2(i,j,isn  )%N2p(k) &
- 	     - fline_s2(i+1,j,isn)%N2h(k) + fline_s2(i-1,j,isn)%N2h(k)
+           ! N2P(i,3/2,k)-N2H(i+1,3/2,k)+N2H(i-1,3/2,k)
+           coef(i,j,k,3,isn) = &
+               fline_s2(i,j,isn  )%N2p(k) &
+             - fline_s2(i+1,j,isn)%N2h(k) + fline_s2(i-1,j,isn)%N2h(k)
 
- 	   ! -N2P(i,3/2,k)
- 	   coef(i,j,k,9,isn) = -fline_s2(i,j,isn)%N2p(k)
+           ! -N2P(i,3/2,k)
+           coef(i,j,k,9,isn) = -fline_s2(i,j,isn)%N2p(k)
 
- 	   coef(i,j,k,10,isn) = fline_p(i,j,isn)%S(k)
- 	 enddo
+           coef(i,j,k,10,isn) = fline_p(i,j,isn)%S(k)
+         enddo
        enddo
 
        do isn = 1,2
-	 do j = 2,nmlat_h
+         do j = 2,nmlat_h
 
-  	   do k = 1,fline_p(i,j,isn)%npts
-	     if (k == nmlat_h-j+1) then ! top volume at equator
-	       N2p_p = 0
-	       N2h_p = 0
-	     else ! i,j+0.5
-!	       N2p_p = fline_s2(i,j-1,isn)%N2p(k)
-!	       N2h_p = fline_s2(i,j-1,isn)%N2h(k)
-	       N2p_p = fline_s2(i,j,isn)%N2p(k)
-	       N2h_p = fline_s2(i,j,isn)%N2h(k)
-	     endif
+           do k = 1,fline_p(i,j,isn)%npts
+             if (k == nmlat_h-j+1) then ! top volume at equator
+               N2p_p = 0
+               N2h_p = 0
+             else ! i,j+0.5
+!              N2p_p = fline_s2(i,j-1,isn)%N2p(k)
+!              N2h_p = fline_s2(i,j-1,isn)%N2h(k)
+               N2p_p = fline_s2(i,j,isn)%N2p(k)
+               N2h_p = fline_s2(i,j,isn)%N2h(k)
+             endif
 
-	     coef(i,j,k,1,isn) = &
-		 fline_s1(i,j,isn)%N1p(k) &
-	       - fline_s2(i,j-1,isn)%N2h(k) + N2h_p
-	     coef(i,j,k,2,isn) = &
-	       - fline_s1(i,j,isn)%N1h(k) &
-	       + N2h_p
-	     coef(i,j,k,3,isn) = &
-		 fline_s1(i-1,j,isn)%N1h(k) - fline_s1(i,j,isn)%N1h(k) &
-	       + N2p_p
-	     coef(i,j,k,4,isn) = &
-		 fline_s1(i-1,j,isn)%N1h(k) &
-	       - N2h_p
-	     coef(i,j,k,5,isn) = &
-		 fline_s1(i-1,j,isn)%N1p(k) &
-	       + fline_s2(i,j-1,isn)%N2h(k) - N2h_p
-	     coef(i,j,k,6,isn) = &
-	       - fline_s1(i-1,j,isn)%N1h(k) &
-	       + fline_s2(i,j-1,isn)%N2h(k)
-	     coef(i,j,k,7,isn) = &
-	       - fline_s1(i-1,j,isn)%N1h(k) + fline_s1(i,j,isn)%N1h(k) &
-	       + fline_s2(i,j-1,isn)%N2p(k)
-	     coef(i,j,k,8,isn) = &
-		 fline_s1(i,j,isn)%N1h(k) &
-	       - fline_s2(i,j-1,isn)%N2h(k)
-	     coef(i,j,k,9,isn) = &
-	       - fline_s1(i-1,j,isn)%N1p(k) - fline_s1(i,j,isn)%N1p(k) &
-	       - fline_s2(i,j-1,isn)%N2p(k) - N2p_p
+             coef(i,j,k,1,isn) = &
+                 fline_s1(i,j,isn)%N1p(k) &
+               - fline_s2(i,j-1,isn)%N2h(k) + N2h_p
+             coef(i,j,k,2,isn) = &
+               - fline_s1(i,j,isn)%N1h(k) &
+               + N2h_p
+             coef(i,j,k,3,isn) = &
+                 fline_s1(i-1,j,isn)%N1h(k) - fline_s1(i,j,isn)%N1h(k) &
+               + N2p_p
+             coef(i,j,k,4,isn) = &
+                 fline_s1(i-1,j,isn)%N1h(k) &
+               - N2h_p
+             coef(i,j,k,5,isn) = &
+                 fline_s1(i-1,j,isn)%N1p(k) &
+               + fline_s2(i,j-1,isn)%N2h(k) - N2h_p
+             coef(i,j,k,6,isn) = &
+               - fline_s1(i-1,j,isn)%N1h(k) &
+               + fline_s2(i,j-1,isn)%N2h(k)
+             coef(i,j,k,7,isn) = &
+               - fline_s1(i-1,j,isn)%N1h(k) + fline_s1(i,j,isn)%N1h(k) &
+               + fline_s2(i,j-1,isn)%N2p(k)
+             coef(i,j,k,8,isn) = &
+                 fline_s1(i,j,isn)%N1h(k) &
+               - fline_s2(i,j-1,isn)%N2h(k)
+             coef(i,j,k,9,isn) = &
+               - fline_s1(i-1,j,isn)%N1p(k) - fline_s1(i,j,isn)%N1p(k) &
+               - fline_s2(i,j-1,isn)%N2p(k) - N2p_p
 
-	     coef(i,j,k,10,isn) = fline_p(i,j,isn)%S(k)
-	   enddo ! end lat/fieldline loop
-	 enddo ! end height loop
+             coef(i,j,k,10,isn) = fline_p(i,j,isn)%S(k)
+           enddo ! end lat/fieldline loop
+         enddo ! end height loop
        enddo ! end hemisphere loop
      enddo ! end longitude loop
 
@@ -179,13 +179,13 @@
        do k = 1,nhgt_fix
 
    ! need to move C3(i,j) to the appropriate place on the LHS
-   	 coef_ns2(i,j,isn,3) = coef_ns2(i,j,isn,3)+coef(i,j,k,3,isn)
+         coef_ns2(i,j,isn,3) = coef_ns2(i,j,isn,3)+coef(i,j,k,3,isn)
 
    ! -Sum_k=1^K N2P(i,3/2,k) -> put into coef_ns2(i,j,isn,9)
-   	 coef_ns2(i,j,isn,9) = coef_ns2(i,j,isn,9)+coef(i,j,k,9,isn)
+         coef_ns2(i,j,isn,9) = coef_ns2(i,j,isn,9)+coef(i,j,k,9,isn)
 
    ! Sum_k=1^K S(i,1,k) -> put into coef_ns2(i,j,isn,1-)
-   	 coef_ns2(i,j,isn,10) = coef_ns2(i,j,isn,10)+coef(i,j,k,10,isn)
+         coef_ns2(i,j,isn,10) = coef_ns2(i,j,isn,10)+coef(i,j,k,10,isn)
 
        enddo
 
@@ -196,17 +196,17 @@
        coef_ns2(i,j,isn,10) = phi_pol ! north pole for each i Phi^N(i,1) = Phi^NP
        coef_ns2(i,j,isn,9) = 1._r8
        do ic = 1,8
- 	 coef_ns2(i,j,isn,ic) = 0._r8
+         coef_ns2(i,j,isn,ic) = 0._r8
        enddo
 
        do j = 2,nmlat_h ! no pole
- 	 do isn = 1,2
- 	   do k = 1,nhgt_fix
- 	     do ic = 1,10
- 	       coef_ns2(i,j,isn,ic) = coef_ns2(i,j,isn,ic)+coef(i,j,k,ic,isn)
- 	     enddo
- 	   enddo
- 	 enddo
+         do isn = 1,2
+           do k = 1,nhgt_fix
+             do ic = 1,10
+               coef_ns2(i,j,isn,ic) = coef_ns2(i,j,isn,ic)+coef(i,j,k,ic,isn)
+             enddo
+           enddo
+         enddo
        enddo
      enddo
 
@@ -220,75 +220,75 @@
    ! LHS+RHS for each P-point
    ! A. Maute 2023/02: solve two hemispheres
 
-       use edyn3D_params, only:nmlat_h,nmlat_T1,jlatm_JT,ylatm,ylatm_JT
+       use edyn3D_params, only:nmlat_h,nmlat_T1,jlatm_JT
        use edyn3D_mpi,only:mlon0_p,mlon1_p
 
        real(r8),dimension(mlon0_p:mlon1_p,nmlat_h,2,10),intent(in) :: coef_ns2
        real(r8),dimension(mlon0_p:mlon1_p,nmlat_T1,10),intent(out) :: coef_ns
 
        integer :: i,j,ic, &
-   	 jS,jN ! overall index from pole to equator
+         jS,jN ! overall index from pole to equator
 
        do i = mlon0_p,mlon1_p
 
    ! from pole to latm_JT, set coefficients separately in two hemispheres
-   	 do j = 1,jlatm_JT-1
-   	   jS = j
-   	   jN = nmlat_T1-j+1
+         do j = 1,jlatm_JT-1
+           jS = j
+           jN = nmlat_T1-j+1
 
-   	   do ic = 1,10
-   	     coef_ns(i,jS,ic) = coef_ns2(i,j,1,ic)
-   	     coef_ns(i,jN,ic) = coef_ns2(i,j,2,ic)
-   	   enddo
+           do ic = 1,10
+             coef_ns(i,jS,ic) = coef_ns2(i,j,1,ic)
+             coef_ns(i,jN,ic) = coef_ns2(i,j,2,ic)
+           enddo
 
-   	 enddo
+         enddo
 
-   	 j = jlatm_JT
-   	 jS = j
-   	 jN = nmlat_T1-j+1
+         j = jlatm_JT
+         jS = j
+         jN = nmlat_T1-j+1
 
    ! add values from both hemispheres
-   	 do ic = 1,5
-   	   coef_ns(i,jS,ic) = coef_ns2(i,j,1,ic)+coef_ns2(i,j,2,ic)
-   	   coef_ns(i,jN,ic) = coef_ns2(i,j,1,ic)+coef_ns2(i,j,2,ic)
-   	 enddo
+         do ic = 1,5
+           coef_ns(i,jS,ic) = coef_ns2(i,j,1,ic)+coef_ns2(i,j,2,ic)
+           coef_ns(i,jN,ic) = coef_ns2(i,j,1,ic)+coef_ns2(i,j,2,ic)
+         enddo
       do ic = 9,10
         coef_ns(i,jS,ic) = coef_ns2(i,j,1,ic)+coef_ns2(i,j,2,ic)
         coef_ns(i,jN,ic) = coef_ns2(i,j,1,ic)+coef_ns2(i,j,2,ic)
       enddo
 
    ! don't add values from the other hemisphere
-   	 do ic = 6,8
-   	   coef_ns(i,jS,ic) = coef_ns2(i,j,1,ic)
-   	   coef_ns(i,jN,ic) = coef_ns2(i,j,2,ic)
-   	 enddo
+         do ic = 6,8
+           coef_ns(i,jS,ic) = coef_ns2(i,j,1,ic)
+           coef_ns(i,jN,ic) = coef_ns2(i,j,2,ic)
+         enddo
 
    ! from latm_JT to equator, add values from both hemispheres
-   	 do j = jlatm_JT+1,nmlat_h-1
-   	   jS = j
-   	   jN = nmlat_T1-j+1
+         do j = jlatm_JT+1,nmlat_h-1
+           jS = j
+           jN = nmlat_T1-j+1
 
-   	   do ic = 1,10
-   	     coef_ns(i,jS,ic) = coef_ns2(i,j,1,ic)+coef_ns2(i,j,2,ic)
-   	     coef_ns(i,jN,ic) = coef_ns2(i,j,1,ic)+coef_ns2(i,j,2,ic)
-   	   enddo
-   	 enddo
+           do ic = 1,10
+             coef_ns(i,jS,ic) = coef_ns2(i,j,1,ic)+coef_ns2(i,j,2,ic)
+             coef_ns(i,jN,ic) = coef_ns2(i,j,1,ic)+coef_ns2(i,j,2,ic)
+           enddo
+         enddo
 
    ! set equatorial boundary condition (page 14 Art's notes)
    ! there should be just one equator value
-   	 j = nmlat_h
-   	 coef_ns(i,j,1) = coef_ns2(i,j,1,1)+coef_ns2(i,j,2,1)
-   	 coef_ns(i,j,5) = coef_ns2(i,j,1,5)+coef_ns2(i,j,2,5)
-   	 coef_ns(i,j,9) = coef_ns2(i,j,1,9)+coef_ns2(i,j,2,9)
-   	 coef_ns(i,j,10) = coef_ns2(i,j,1,10)+coef_ns2(i,j,2,10)
-   	 do ic = 6,8
-   	   coef_ns(i,j,ic) = (coef_ns2(i,j,1,ic)+coef_ns2(i,j,2,ic))/2._r8
-   	 enddo
+         j = nmlat_h
+         coef_ns(i,j,1) = coef_ns2(i,j,1,1)+coef_ns2(i,j,2,1)
+         coef_ns(i,j,5) = coef_ns2(i,j,1,5)+coef_ns2(i,j,2,5)
+         coef_ns(i,j,9) = coef_ns2(i,j,1,9)+coef_ns2(i,j,2,9)
+         coef_ns(i,j,10) = coef_ns2(i,j,1,10)+coef_ns2(i,j,2,10)
+         do ic = 6,8
+           coef_ns(i,j,ic) = (coef_ns2(i,j,1,ic)+coef_ns2(i,j,2,ic))/2._r8
+         enddo
 
    ! Q from Wu: Why isn't it (coef_ns2(i,j,1,ic)+coef_ns2(i,j,2,ic))/2?
-   	 do ic = 2,4
-   	   coef_ns(i,j,ic) = coef_ns(i,j,10-ic) ! 2,3,4 <- 8,7,6
-   	 enddo
+         do ic = 2,4
+           coef_ns(i,j,ic) = coef_ns(i,j,10-ic) ! 2,3,4 <- 8,7,6
+         enddo
        enddo
 
      end subroutine edyn3D_calculate_coef_ns
@@ -309,12 +309,12 @@
    ! Delta(Phi) is a characteristic allowed interhemispheric potential difference,
    ! R is Earth radius, and L is a characteristic N-S length scale for Phi.
    ! It is assumed that b_mult is similar for middle and auroral latitudes.
-   	 b_mult = 1e3_r8, &
+         b_mult = 1e3_r8, &
 
    ! pccolatrad is the polar cap colatitude in radians, which for now is fixed.
    ! But it can be made variable w.r.t. time and magnetic longitude in the future.
-   	 pccolatrad = 0.25_r8, & ! 14 degree
-   	 rho_pc = sin(pccolatrad)
+         pccolatrad = 0.25_r8, & ! 14 degree
+         rho_pc = sin(pccolatrad)
 
        integer :: i,j
        real(r8) :: fac3
@@ -325,33 +325,33 @@
        bij = 0
 
        do i = mlon0_p,mlon1_p
-   	 do j = 2,jlatm_JT
-   	   bij(i,j) = b_mult*(rho_s(j,1)-rho_s(j-1,1))**2/ &
-   	     (1/(coef_ns2(i,j,1,3)+coef_ns2(i,j,1,7))+ &
-   	      1/(coef_ns2(i,j,2,3)+coef_ns2(i,j,2,7)))
-!   	   bij(i,j) = b_mult*(rho_s(j,1)-rho_s(j-1,1))**2/ &
-!   	     (1/(coef_ns2(3,1,j,i)+coef_ns2(7,1,j,i))+ &
-!   	      1/(coef_ns2(3,2,j,i)+coef_ns2(7,2,j,i)))
-   	 enddo
+         do j = 2,jlatm_JT
+           bij(i,j) = b_mult*(rho_s(j,1)-rho_s(j-1,1))**2/ &
+             (1/(coef_ns2(i,j,1,3)+coef_ns2(i,j,1,7))+ &
+              1/(coef_ns2(i,j,2,3)+coef_ns2(i,j,2,7)))
+!          bij(i,j) = b_mult*(rho_s(j,1)-rho_s(j-1,1))**2/ &
+!            (1/(coef_ns2(3,1,j,i)+coef_ns2(7,1,j,i))+ &
+!             1/(coef_ns2(3,2,j,i)+coef_ns2(7,2,j,i)))
+         enddo
        enddo
 
    ! set bij to zero within polar caps, transitioning linearly
    ! to the full original value over a distance of about (1/3) pccolatrad
        do j = 1,jlatm_JT
-   	 fac3 = 3*(rho(j,1)/rho_pc-1)
+         fac3 = 3*(rho(j,1)/rho_pc-1)
 
-   	 if (fac3 <= 0) then
-   	   do i = mlon0_p,mlon1_p
-   	     bij(i,j) = 0._r8
-   	   enddo
-   	 endif
+         if (fac3 <= 0) then
+           do i = mlon0_p,mlon1_p
+             bij(i,j) = 0._r8
+           enddo
+         endif
 
    ! the same at conjugate points since bij is the same
-   	 if (fac3>0 .and. fac3<1) then
-   	   do i = mlon0_p,mlon1_p
-   	     bij(i,j) = fac3*bij(i,j)
-   	   enddo
-   	 endif
+         if (fac3>0 .and. fac3<1) then
+           do i = mlon0_p,mlon1_p
+             bij(i,j) = fac3*bij(i,j)
+           enddo
+         endif
 
    ! if fac3>=1 bij remains unmodified
        enddo

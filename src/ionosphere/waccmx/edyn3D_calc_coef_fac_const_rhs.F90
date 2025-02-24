@@ -38,9 +38,9 @@
      !
      ! coef ordering from tiegcm
      ! ^   equatorward
-     ! coef(4) (i-1,j+1)      coef(3) (i,j+1)	 coef(2) (i+1,j+1)
-     ! coef(5) (i-1,j)        coef(9) (i,j)	 coef(1) (i+1,j)
-     ! coef(6) (i-1,j-1)      coef(7) (i,j-1)	 coef(8) (i+1,j-1)
+     ! coef(4) (i-1,j+1)      coef(3) (i,j+1)    coef(2) (i+1,j+1)
+     ! coef(5) (i-1,j)        coef(9) (i,j)      coef(1) (i+1,j)
+     ! coef(6) (i-1,j-1)      coef(7) (i,j-1)    coef(8) (i+1,j-1)
      ! v   poleward
      !
      ! relationship between P,S1, and S2 point for the same index (i,j)
@@ -57,37 +57,37 @@
       allocate(coef(mlon0_p:mlon1_p,nmlat_h,nhgt_fix,9,2),STAT=status) ! for each P-point each hemisphere and height
       if (status /= 0 ) then
         write(iulog,*) 'alloc coef failed'
-	call endrun('edyn3d_calc_coef')
+        call endrun('edyn3d_calc_coef')
       endif
       allocate(coef_ns(mlon0_p:mlon1_p,nmlat_h,10),STAT=status)        ! lhs+rhs: for each P-point
       if(status /= 0 ) then
         write(iulog,*) 'alloc coef_ns failed'
-	call endrun('edyn3d_calc_coef')
+        call endrun('edyn3d_calc_coef')
       endif
       allocate(coef_ns_glb(nmlon,nmlat_h,10),STAT=status)              ! lhs+rhs: globally
       if(status /= 0 ) then
         write(iulog,*) 'alloc coef_ns_glb failed'
-	call endrun('edyn3d_calc_coef')
+        call endrun('edyn3d_calc_coef')
       endif
       allocate(rhs_ns(nlonlat),STAT=status)                            ! forcing: for each P-point globally
       if(status /= 0 ) then
         write(iulog,*) 'alloc rhs_ns failed'
-	call endrun('edyn3d_calc_coef')
+        call endrun('edyn3d_calc_coef')
       endif
       allocate(lhs_ns(nlonlat,nlonlat),STAT=status)                    ! lhs: globally
       if(status /= 0 ) then
         write(iulog,*) 'alloc lhs_ns failed'
-	call endrun('edyn3d_calc_coef')
+        call endrun('edyn3d_calc_coef')
       endif
       allocate(coef_ns2(mlon0_p:mlon1_p,nmlat_h,2,10),STAT=status)     ! lhs+rhs: for each P-point both hemispheres
       if(status /= 0 ) then
         write(iulog,*) 'alloc coef_ns2 failed'
-	call endrun('edyn3d_calc_coef')
+        call endrun('edyn3d_calc_coef')
       endif
       allocate(poten_glb(nmlon,nmlat_h,2),STAT=status)                 ! Potential: globally (both hemispheres)
       if(status /= 0 ) then
         write(iulog,*) 'alloc poten_glb failed'
-	call endrun('edyn3d_calc_coef')
+        call endrun('edyn3d_calc_coef')
       endif
       poten_glb(:,:,:) = 0._r8
 
@@ -141,21 +141,21 @@
       coef_ns2 = 0._r8
       !
       do i=mlon0_p,mlon1_p ! loop over task longitudes
-    	do isn = 1,2   ! hemisphere loop
-    	 j=1		   ! polar values are set
-    	 coef_ns2(i,j,isn,9)   = 0.5_r8  ! later added together hemispheres to get one
-    	 coef_ns2(i,j,isn,1:8) = 0._r8
-    	 coef_ns2(i,j,isn,10)  = 0._r8  ! set potential at pole
-    	 do j=2,nmlat_h ! loop over all latitudes in one hemisphere NOT THE POLE
-    	   nmax = fline_p(i,j,1)%npts ! maximum of points on fieldline
-    	   do k=1,nmax  ! height loop
-    	     do ic = 1,9 ! 9-point stencil
-    	       coef_ns2(i,j,isn,ic) = coef_ns2(i,j,isn,ic)+ coef(i,j,k,ic,isn)
-    	     end do
-    	     coef_ns2(i,j,isn,10) = coef_ns2(i,j,isn,10)+ fline_p(i,j,isn)%S(k)
-    	   end do  ! end height loop
-    	 end do  ! end lat/fieldline loop
-    	end do  ! end hemisphere loop
+        do isn = 1,2   ! hemisphere loop
+         j=1               ! polar values are set
+         coef_ns2(i,j,isn,9)   = 0.5_r8  ! later added together hemispheres to get one
+         coef_ns2(i,j,isn,1:8) = 0._r8
+         coef_ns2(i,j,isn,10)  = 0._r8  ! set potential at pole
+         do j=2,nmlat_h ! loop over all latitudes in one hemisphere NOT THE POLE
+           nmax = fline_p(i,j,1)%npts ! maximum of points on fieldline
+           do k=1,nmax  ! height loop
+             do ic = 1,9 ! 9-point stencil
+               coef_ns2(i,j,isn,ic) = coef_ns2(i,j,isn,ic)+ coef(i,j,k,ic,isn)
+             end do
+             coef_ns2(i,j,isn,10) = coef_ns2(i,j,isn,10)+ fline_p(i,j,isn)%S(k)
+           end do  ! end height loop
+         end do  ! end lat/fieldline loop
+        end do  ! end hemisphere loop
 !
       end do  ! end longitude loop
 !
@@ -195,7 +195,7 @@
 !       do i=1,nmlon ! loop over all longitudes
 
          im = i-1
-	 ip = i+1
+         ip = i+1
 
 !         if(i == 1) then ! wrap around in longitude
 !           im = nmlon
@@ -212,7 +212,7 @@
            if(isn.eq.1) then  ! jj is latitude index from pole to pole
             jj = j
             fac_hl(i,j,isn) = &
-	     poten_hl(ip,jj  )*coef_ns2(i,j,isn,1)+ &
+             poten_hl(ip,jj  )*coef_ns2(i,j,isn,1)+ &
              poten_hl(ip,jj+1)*coef_ns2(i,j,isn,2)+ &
              poten_hl(i ,jj+1)*coef_ns2(i,j,isn,3)+ &
              poten_hl(im,jj+1)*coef_ns2(i,j,isn,4)+ &
@@ -224,7 +224,7 @@
            else
             jj = nmlat_T1 - j + 1
             fac_hl(i,j,isn) = &
-	     poten_hl(ip,jj  )*coef_ns2(i,j,isn,1)+ &
+             poten_hl(ip,jj  )*coef_ns2(i,j,isn,1)+ &
              poten_hl(ip,jj-1)*coef_ns2(i,j,isn,2)+ &
              poten_hl(i ,jj-1)*coef_ns2(i,j,isn,3)+ &
              poten_hl(im,jj-1)*coef_ns2(i,j,isn,4)+ &
@@ -343,7 +343,7 @@
        !
        if (mytid==0) then
 
-	 coef_ns_glb(:,:,:) = fmglb(:,:,:)
+         coef_ns_glb(:,:,:) = fmglb(:,:,:)
 
        endif ! mytid==0
 
@@ -486,7 +486,7 @@
         do j=1,nlonlat
           !
           ! Compute norm-1 of A-> max_j SUM_i abs(a_ij)
-	  !
+          !
           colsum = colsum + abs(lhs_ns(j,i))
         end do
         anorm = max(anorm,colsum)
@@ -518,8 +518,8 @@
 !         ifail = 0
 !         call X04CAF('General',' ',nlonlat,nrhmax,rhs_ns,nlonlat,'Solution(s)',ifail)
         !
-	! Put solution into global potential array for each hemisphere to scatter to tasks
-	! Northern and southern hemisphere potential values are the same
+        ! Put solution into global potential array for each hemisphere to scatter to tasks
+        ! Northern and southern hemisphere potential values are the same
         !
 
         it=0
@@ -957,7 +957,7 @@
        deallocate(poten_glb,STAT=status)
        if(status /= 0) then
           write(iulog,*) 'deallocation of poten_glb not successful'
-	  call endrun('edyn3D_scatter_poten')
+          call endrun('edyn3D_scatter_poten')
         endif
 
        deallocate(lhs_ns,STAT=status)
