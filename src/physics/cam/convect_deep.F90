@@ -14,6 +14,7 @@ module convect_deep
    use shr_kind_mod, only: r8=>shr_kind_r8
    use ppgrid,       only: pver, pcols, pverp
    use cam_logfile,  only: iulog
+   use running_tave_mod
 
    implicit none
 
@@ -104,6 +105,7 @@ subroutine convect_deep_register
   ! If gravity waves from deep convection are on, output this field.
   if (use_gw_convect_dp .and. deep_scheme == 'ZM') then
      call pbuf_add_field('TTEND_DP','physpkg',dtype_r8,(/pcols,pver/),ttend_dp_idx)
+     call running_tave_reg()
   end if
 
 end subroutine convect_deep_register
@@ -112,7 +114,7 @@ end subroutine convect_deep_register
 
 
 
-subroutine convect_deep_init(pref_edge)
+subroutine convect_deep_init(pref_edge, pbuf2d)
 
 !----------------------------------------
 ! Purpose:  declare output fields, initialize variables needed by convection
@@ -129,6 +131,9 @@ subroutine convect_deep_init(pref_edge)
   implicit none
 
   real(r8),intent(in) :: pref_edge(plevp)        ! reference pressures at interfaces
+
+  type(physics_buffer_desc), pointer :: pbuf2d(:,:)
+
 
   select case ( deep_scheme )
   case('off')
@@ -159,6 +164,10 @@ subroutine convect_deep_init(pref_edge)
   tpert_idx  = pbuf_get_index('tpert')
 
   call addfld ('ICWMRDP', (/ 'lev' /), 'A', 'kg/kg', 'Deep Convection in-cloud water mixing ratio ' )
+
+  if (ttend_dp_idx > 0) then
+     call running_tave_init(pbuf2d)
+  end if
 
 end subroutine convect_deep_init
 !=========================================================================================
@@ -275,6 +284,7 @@ subroutine convect_deep_tend( &
   if (ttend_dp_idx > 0) then
      call pbuf_get_field(pbuf, ttend_dp_idx, ttend_dp)
      ttend_dp(:state%ncol,:pver) = ptend%s(:state%ncol,:pver)/cpair
+     call running_tave_update( ttend_dp, state%ncol, pbuf )
   end if
 
   call outfld( 'ICWMRDP ', ql  , pcols, state%lchnk )

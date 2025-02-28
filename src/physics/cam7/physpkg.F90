@@ -898,7 +898,7 @@ contains
     call cldfrc_init()
     call cldfrc2m_init()
 
-    call convect_deep_init(pref_edge)
+    call convect_deep_init(pref_edge,pbuf2d)
 
     if (.not. do_clubb_sgs) call macrop_driver_init(pbuf2d)
     call microp_aero_init(phys_state,pbuf2d)

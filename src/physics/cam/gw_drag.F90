@@ -1111,7 +1111,7 @@ subroutine gw_init()
 
   if (use_gw_convect_dp) then
 
-     ttend_dp_idx    = pbuf_get_index('TTEND_DP')
+     ttend_dp_idx = pbuf_get_index('TTEND_DP_TAVE')
 
      ! Set the deep scheme specification components.
      beres_dp_desc%storm_shift = .true.
