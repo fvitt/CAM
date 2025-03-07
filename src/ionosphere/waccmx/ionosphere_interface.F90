@@ -395,6 +395,7 @@ module ionosphere_interface
            'Geometric height (Interfaces)', gridname='physgrid')
 
       call addfld ('Early_ZIGM2' , horiz_only, 'I', ' ','EDYN_ZIGM2' ,gridname='gmag_grid')
+      call addfld ('Early_AZIGM1', horiz_only, 'I', ' ','EDYN_ZIGM2' ,gridname='gmag_grid')
 
    end subroutine ionosphere_init
 
@@ -403,7 +404,7 @@ module ionosphere_interface
    subroutine ionosphere_run1(pbuf2d)
       use physics_buffer, only: physics_buffer_desc
       use cam_history,    only: outfld, write_inithist
-      use edynamo, only: zigm2
+      use edynamo, only: azigm1, zigm2
       use savefield_waccm, only: savefld_waccm
       use edyn_mpi, only: mlon0,omlon1, mlat0,mlat1
 
@@ -422,6 +423,7 @@ module ionosphere_interface
       real(r8), pointer :: prescr_kev(:) ! prescribed characteristic mean energy
 
       call savefld_waccm(zigm2(mlon0:omlon1,mlat0:mlat1), 'Early_ZIGM2', 1, mlon0,omlon1,mlat0,mlat1)
+      call savefld_waccm(azigm1(mlon0:omlon1,mlat0:mlat1),'Early_AZIGM1',1, mlon0,omlon1,mlat0,mlat1)
 
       if( write_inithist() .and. ionos_xport_active ) then
          do lchnk = begchunk, endchunk
@@ -1075,8 +1077,7 @@ module ionosphere_interface
          dims(1) = pcols
          dims(2) = pver
          dims(3) = endchunk - begchunk + 1
-         call cam_grid_get_decomp(physgrid, dims(1:3), gdims(1:nhdims),       &
-              pio_double, iodesc3d)
+         call cam_grid_get_decomp(physgrid, dims(1:3), gdims(1:nhdims), pio_double, iodesc3d)
 
          call pio_write_darray(File, Optm1_vdesc, iodesc3d, opmmrtm1_phys, ierr)
 
@@ -1104,6 +1105,7 @@ module ionosphere_interface
    subroutine ionosphere_read_restart(File)
       use pio,              only: io_desc_t, file_desc_t, pio_inq_varid
       use pio,              only: pio_read_darray, pio_double
+      use pio,              only: pio_seterrorhandling,  PIO_BCAST_ERROR, PIO_NOERR
       use cam_grid_support, only: cam_grid_id
       use cam_grid_support, only: cam_grid_get_decomp, cam_grid_dimensions
       use edynamo,  only: azigm1, zigm2
@@ -1118,6 +1120,7 @@ module ionosphere_interface
       type(io_desc_t), pointer         :: iodesc3d
       type(io_desc_t), pointer         :: iodesc2d
       integer                          :: mag_grid_id
+      integer :: err_handling
 
       if (ionos_xport_active) then
          call ionosphere_alloc()
@@ -1141,10 +1144,17 @@ module ionosphere_interface
          dims(2) = mlat1 - mlat0 + 1
          call cam_grid_get_decomp(mag_grid_id, dims(1:2), gdims(1:nhdims), pio_double, iodesc2d)
 
+         ! handle errors ourselves
+         call pio_seterrorhandling(File, PIO_BCAST_ERROR, err_handling)
+
+         ! read vars if available on restart file
          ierr = pio_inq_varid(File, 'azigm1', azigm1_vdesc)
+         if (ierr.eq.PIO_NOERR) call pio_read_darray(File, azigm1_vdesc, iodesc2d, azigm1(mlon0:omlon1,mlat0:mlat1), ierr)
          ierr = pio_inq_varid(File,  'zigm2',  zigm2_vdesc)
-         call pio_read_darray(File, azigm1_vdesc, iodesc2d, azigm1(mlon0:omlon1,mlat0:mlat1), ierr)
-         call pio_read_darray(File,  zigm2_vdesc, iodesc2d,  zigm2(mlon0:omlon1,mlat0:mlat1), ierr)
+         if (ierr.eq.PIO_NOERR) call pio_read_darray(File,  zigm2_vdesc, iodesc2d,  zigm2(mlon0:omlon1,mlat0:mlat1), ierr)
+
+         ! restore old error handling
+         call pio_seterrorhandling(File, err_handling)
 
       end if
 

@@ -5,4 +5,4 @@ write_nstep0=.true.
 inithist='ENDOFRUN'
 pbuf_global_allocate=.false.
 
-fincl8 = 'Early_ZIGM2'
+fincl8 = 'Early_ZIGM2','Early_AZIGM1'
