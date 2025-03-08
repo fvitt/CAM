@@ -2,6 +2,7 @@ module edyn3D_serial_solver
 
   use shr_kind_mod,   only: r8 => shr_kind_r8            ! 8-byte reals
   use edyn3D_params, only: nmlon, nmlat_h, nmlat_T1, jlatm_JT, nlonlat=>nlonlat_T1
+  use perf_mod, only: t_startf, t_stopf
 
   implicit none
 
@@ -35,51 +36,57 @@ module edyn3D_serial_solver
     real(r8),dimension(10*nlonlat) :: values
     real(r8),dimension(nlonlat) :: rhs,z,pot_hl_f,sol
 
+    call t_startf('linear_system')
+
 ! Q from Wu: why coefficients at the south pole are gathered to i=1?
-      j = 1
-      coef_ns_full(9,j,1) = sum(coef_ns_full(9,j,:))
-      coef_ns_full(10,j,1) = sum(coef_ns_full(10,j,:))
-      do i = 2,nmlon
-        coef_ns_full(9,j,i) = 0
-        coef_ns_full(10,j,i) = 0
-      enddo
+    j = 1
+    coef_ns_full(9,j,1) = sum(coef_ns_full(9,j,:))
+    coef_ns_full(10,j,1) = sum(coef_ns_full(10,j,:))
+    do i = 2,nmlon
+       coef_ns_full(9,j,i) = 0
+       coef_ns_full(10,j,i) = 0
+    enddo
 
 ! construct LHS matrix in COO format
-      call construct_lhs(bij_full,coef_ns_full(1:9,:,:),nnz,irow,jcol,values)
+    call construct_lhs(bij_full,coef_ns_full(1:9,:,:),nnz,irow,jcol,values)
 
 ! RHS is dense
-      call construct_rhs(coef_ns_full(10,:,:),rhs)
+    call construct_rhs(coef_ns_full(10,:,:),rhs)
 
 ! A. Maute 2023/11/21: put the high latitude potential in X
 ! and then use LHS to calculate the RHS FAC
-        pot_hl_f = flatten(pot_hl_full)
+    pot_hl_f = flatten(pot_hl_full)
 
 ! z = matmul(lhs, pot_hl)
-        z = 0
-        do i = 1,nnz
-          z(irow(i)) = z(irow(i))+values(i)*pot_hl_f(jcol(i))
-        enddo
+    z = 0
+    do i = 1,nnz
+       z(irow(i)) = z(irow(i))+values(i)*pot_hl_f(jcol(i))
+    enddo
 
 ! no need for correction since it is from the divergence of horizontal current
 
 ! reconstruct 2D distribution of FAC based on z
-        fac_hl_full(:,:,1:nmlon) = unravel(z)
+    fac_hl_full(:,:,1:nmlon) = unravel(z)
 
 ! add FAC forcing to RHS
-      do i = 1,nlonlat
-        rhs(i) = rhs(i)+z(i)
-      enddo
+    do i = 1,nlonlat
+       rhs(i) = rhs(i)+z(i)
+    enddo
 
-      if (use_mkl) then
-        call solve_mkl(nlonlat,nnz,irow(1:nnz),jcol(1:nnz),values(1:nnz),rhs,sol)
-      else
-        call solve_superlu(nlonlat,nnz,irow(1:nnz),jcol(1:nnz),values(1:nnz),rhs,sol)
-      endif
+    call t_startf('linear_system->solve')
+    if (use_mkl) then
+       call solve_mkl(nlonlat,nnz,irow(1:nnz),jcol(1:nnz),values(1:nnz),rhs,sol)
+    else
+       call solve_superlu(nlonlat,nnz,irow(1:nnz),jcol(1:nnz),values(1:nnz),rhs,sol)
+    endif
+    call t_stopf('linear_system->solve')
 
-! reconstruct 2D distribution of potential based on the solution
-      pot_full(:,:,1:nmlon) = unravel(sol)
+    ! reconstruct 2D distribution of potential based on the solution
+    pot_full(:,:,1:nmlon) = unravel(sol)
 
-  endsubroutine linear_system
+    call t_stopf('linear_system')
+
+  end subroutine linear_system
 !-----------------------------------------------------------------------
   subroutine construct_lhs(bij,coef,nnz,irow,jcol,values)
 ! construct LHS matrix (sparse, coordinate form)
@@ -856,6 +863,8 @@ module edyn3D_serial_solver
     real(r8),dimension(nnz) :: nzval
     type(MKL_PARDISO_HANDLE),dimension(64) :: pt
 
+    call t_startf('solve_mkl')
+
 ! MKL needs CSR format
     call coo_to_csr(n,n,nnz,irow,jcol,values,rowptr,colind,nzval)
 
@@ -897,7 +906,8 @@ module edyn3D_serial_solver
     call pardiso(pt, maxfct, mnum, mtype, phase, n, &
       nzval, rowptr, colind, perm, nrhs, iparm, msglvl, rhs_cp, sol, error)
 
-    write(6,"('phase ',i4,' error ',i4)") phase,error
+    call t_stopf('solve_mkl')
+
 #endif
 
   endsubroutine solve_mkl
@@ -931,6 +941,7 @@ module edyn3D_serial_solver
       endsubroutine c_fortran_dgssv_
     endinterface
 
+    call t_startf('solve_superlu')
 ! SuperLU needs CSC format
     call coo_to_csc(n,n,nnz,irow,jcol,values,colptr,rowind,nzval)
 
@@ -942,18 +953,18 @@ module edyn3D_serial_solver
     iopt = 1
     call c_fortran_dgssv(iopt, n, nnz, nrhs, &
       nzval, rowind, colptr, sol, n, f_factors, info)
-    write(6,"('INFO from LU decomposition = ',i4)") info
 
 ! second, solve the system using the existing factors
     iopt = 2
     call c_fortran_dgssv(iopt, n, nnz, nrhs, &
       nzval, rowind, colptr, sol, n, f_factors, info)
-    write(6,"('INFO from triangular solve = ',i4)") info
 
 ! last, free the storage allocated inside SuperLU
     iopt = 3
     call c_fortran_dgssv(iopt, n, nnz, nrhs, &
       nzval, rowind, colptr, sol, n, f_factors, info)
+
+    call t_stopf('solve_superlu')
 
   endsubroutine solve_superlu
 !-----------------------------------------------------------------------
@@ -975,6 +986,8 @@ module edyn3D_serial_solver
     integer :: i,j,last_colind,nnz_i
     integer,dimension(ncol) :: jcol_i,idx
     real(r8),dimension(ncol) :: values_i
+
+    call t_startf('coo_to_csr')
 
 ! start with the first row
     last_colind = 1
@@ -1010,6 +1023,7 @@ module edyn3D_serial_solver
     enddo
 
 ! last_colind should equal nnz+1 at this point
+    call t_stopf('coo_to_csr')
 
   endsubroutine coo_to_csr
 !-----------------------------------------------------------------------
@@ -1032,6 +1046,7 @@ module edyn3D_serial_solver
     integer,dimension(nrow) :: irow_j,idx
     real(r8),dimension(nrow) :: values_j
 
+    call t_startf('coo_to_csc')
 ! start with the first column
     last_rowind = 1
     colptr(1) = last_rowind
@@ -1066,6 +1081,7 @@ module edyn3D_serial_solver
     enddo
 
 ! last_rowind should equal nnz+1 at this point
+    call t_stopf('coo_to_csc')
 
   endsubroutine coo_to_csc
 !-----------------------------------------------------------------------
@@ -1095,6 +1111,6 @@ module edyn3D_serial_solver
       endif
     enddo
 
-  endfunction argsort
+  end function argsort
 !-----------------------------------------------------------------------
 end module edyn3D_serial_solver

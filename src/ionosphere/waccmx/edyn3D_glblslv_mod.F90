@@ -18,6 +18,9 @@ contains
     use edyn3D_calculate_coefs, only: edyn3D_calculate_coef_ns, edyn3D_calculate_bij
     use edyn3D_serial_solver, only: linear_system
 
+    use perf_mod, only: t_startf, t_stopf
+    use edyn3d_mpi, only: mpi_comm_edyn3D
+
     ! args
 
     type(fieldline_p), intent(inout) :: fline_p(mlon0_p-1:mlon1_p+1,nmlat_h,2)
@@ -47,6 +50,8 @@ contains
 
     character(len=*), parameter :: prefix = 'edyn3D_glblslv_poten: '
 
+    call t_startf('edyn3D_glblslv_poten.calc_coefs')
+
     call edyn3D_calculate_coef(fline_p,fline_s1,fline_s2,coef)
 
     call edyn3D_calculate_coef_ns2(coef,coef_ns2)
@@ -54,6 +59,12 @@ contains
     call edyn3D_calculate_coef_ns(coef_ns2,coef_ns)
 
     call edyn3D_calculate_bij(coef_ns2,bij)
+
+    call t_stopf('edyn3D_glblslv_poten.calc_coefs')
+
+    call mpibarrier(mpi_comm_edyn3D)
+
+    call t_startf('edyn3D_glblslv_poten.gather_bij')
 
     allocate(fmglb(nmlon,nmlat_h,1), stat=astat)
     if (astat/=0) then
@@ -77,6 +88,11 @@ contains
 
     deallocate(fmglb)
 
+    call t_stopf('edyn3D_glblslv_poten.gather_bij')
+
+    call mpibarrier(mpi_comm_edyn3D)
+
+    call t_startf('edyn3D_glblslv_poten.gather_coefs')
 
     allocate(fmglb_T1(nmlon,nmlat_T1,10), stat=astat)
     if (astat/=0) then
@@ -99,8 +115,13 @@ contains
     end if
 
     deallocate(fmglb_T1)
+    call t_stopf('edyn3D_glblslv_poten.gather_coefs')
+
+    call mpibarrier(mpi_comm_edyn3D)
 
     if (mytid==0) then
+
+       call t_startf('edyn3D_glblslv_poten.set_pot_hl_glb')
 
        allocate(pot_hl_glb(2,nmlat_h,nmlon), stat=astat)
        if (astat/=0) then
@@ -132,11 +153,18 @@ contains
           call endrun(prefix//'fac_hl_glb array allocation failed')
        end if
 
+       call t_stopf('edyn3D_glblslv_poten.set_pot_hl_glb')
+
+       call t_startf('edyn3D_glblslv_poten.linear_system')
        call linear_system(bij_glb,pot_hl_glb,fac_hl_glb,coef_ns_glb,pot_glb)
+       call t_stopf('edyn3D_glblslv_poten.linear_system')
 
        deallocate(bij_glb,pot_hl_glb,coef_ns_glb)
 
     end if
+
+    call mpibarrier(mpi_comm_edyn3D)
+    call t_startf('edyn3D_glblslv_poten.scatter')
 
     allocate(fmglb4(nmlon,nmlat_h,4), stat=astat)
     if (astat/=0) then
@@ -170,6 +198,7 @@ contains
           fline_p(i,j,2)%fac_hl = fmsub4(i,j,4)
        end do
     end do
+    call t_stopf('edyn3D_glblslv_poten.scatter')
 
   end subroutine edyn3D_glblslv_poten
 

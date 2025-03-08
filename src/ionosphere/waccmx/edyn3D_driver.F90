@@ -211,8 +211,6 @@ contains
     real(r8) :: physflds(nphyslev,nphyscol,phys2mag_nflds)
     real(r8) :: oplusflds(lon0:lon1,lat0:lat1,lev0:lev1,mag2opls_nflds)
 
-    call mpibarrier(mpicom)
-
     call t_startf('edyn3D_driver_timestep')
     call t_startf('edyn3D_driver_timestep.1.regrid')
 
@@ -227,8 +225,6 @@ contains
     call edyn3D_remap_phys2mag(physflds, physalt, nphyscol, nphyslev, phys2mag_nflds, magFieldDes_s2, rh_phys2mag_s2, mag_s2_flds)
 
     call t_stopf('edyn3D_driver_timestep.1.regrid')
-
-    call mpibarrier(mpicom)
 
     call t_startf('edyn3D_driver_timestep.2.output')
 
@@ -245,8 +241,6 @@ contains
     call output_fline_field(vn_s2)
 
     call t_stopf('edyn3D_driver_timestep.2.output')
-
-    call mpibarrier(mpicom)
 
     !
     ! Call 3D dynamo routine for solving
@@ -286,6 +280,8 @@ contains
 
        call t_stopf('edyn3D_driver_timestep.3.copy')
 
+       call t_startf('edyn3D_driver_timestep_pre_solve')
+
        call sunloc_calc(sunlon)
        call edyn3D_heelis_set_hlat_pot(sunlon)
 
@@ -303,18 +299,25 @@ contains
        call edyn3D_coef_s1_halos
 
        call edyn3D_calculate_S(fline_p,fline_s1,fline_s2,fline_r)
+       call t_stopf('edyn3D_driver_timestep_pre_solve')
 
+       call t_startf('edyn3D_driver_timestep_solve')
        if (global_solver) then
           call edyn3D_glblslv_poten(fline_p,fline_s1,fline_s2)
        else
           call edyn3D_hemislv_poten()
        end if
+       call t_stopf('edyn3D_driver_timestep_solve')
+
+       call t_startf('edyn3D_driver_timestep_calc_Efld')
 
        ! - Get potential halo points required in next call
        call edyn3D_potential_halos(fline_p)
 
        ! - Calculate electric field and ion velocities from potential
        call edyn3D_calculate_efield(fline_p,fline_s1,fline_s2)
+
+       call t_stopf('edyn3D_driver_timestep_calc_Efld')
 
        call t_startf('edyn3D_driver_timestep.10.ionvels_calc')
 
@@ -393,9 +396,6 @@ contains
 
        call t_stopf('edyn3D_driver_timestep.10.ionvels_calc')
 
-       call mpibarrier(mpi_comm_edyn3d)
-
-
        call t_startf('edyn3D_driver_timestep.10.ionvels_diags')
 
        do i = mlon0_p,mlon1_p
@@ -469,16 +469,11 @@ contains
 
     end if proc_tasks
 
-    call mpibarrier(mpicom)
-
-
     call t_startf('edyn3D_driver_timestep.11.regrid_opalt')
 
     call regrid_phys2geo_3d( physalt, opalt, nphyslev, 1, nphyscol )
 
     call t_stopf('edyn3D_driver_timestep.11.regrid_opalt')
-
-    call mpibarrier(mpicom)
 
     call t_startf('edyn3D_driver_timestep.12.ionvels_regrid2oplus')
 
@@ -498,7 +493,6 @@ contains
 
     call t_stopf('edyn3D_driver_timestep.12.ionvels_regrid2oplus')
 
-    call mpibarrier(mpicom)
     call t_stopf('edyn3D_driver_timestep')
 
   end subroutine edyn3D_driver_timestep
