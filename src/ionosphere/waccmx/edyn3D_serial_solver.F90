@@ -925,6 +925,7 @@ module edyn3D_serial_solver
     integer,parameter :: nrhs = 1
     integer :: i,iopt,info
     integer(kind=c_long_long) :: f_factors
+
     integer,dimension(n+1) :: colptr
     integer,dimension(nnz) :: rowind
     real(r8),dimension(nnz) :: nzval
@@ -943,26 +944,39 @@ module edyn3D_serial_solver
 
     call t_startf('solve_superlu')
 ! SuperLU needs CSC format
-    call coo_to_csc(n,n,nnz,irow,jcol,values,colptr,rowind,nzval)
+!!$
+!!$    call coo_to_csc(n,n,nnz,irow,jcol,values,colptr,rowind,nzval)
+!!$
+    call coo_to_csc_eff(n, nnz, irow,jcol,values, nzval,rowind,colptr)
+
+    call t_startf('solve_superlu->solve')
 
     do i = 1,n
       sol(i) = rhs(i)
     enddo
 
+    call t_startf('solve_superlu->iopt1')
 ! first, factorize the matrix, the factors are stored in *f_factors* handle
     iopt = 1
     call c_fortran_dgssv(iopt, n, nnz, nrhs, &
       nzval, rowind, colptr, sol, n, f_factors, info)
+    call t_stopf('solve_superlu->iopt1')
 
+    call t_startf('solve_superlu->iopt2')
 ! second, solve the system using the existing factors
     iopt = 2
     call c_fortran_dgssv(iopt, n, nnz, nrhs, &
       nzval, rowind, colptr, sol, n, f_factors, info)
+    call t_stopf('solve_superlu->iopt2')
 
+    call t_startf('solve_superlu->iopt3')
 ! last, free the storage allocated inside SuperLU
     iopt = 3
     call c_fortran_dgssv(iopt, n, nnz, nrhs, &
       nzval, rowind, colptr, sol, n, f_factors, info)
+    call t_stopf('solve_superlu->iopt3')
+
+    call t_stopf('solve_superlu->solve')
 
     call t_stopf('solve_superlu')
 
@@ -1112,5 +1126,52 @@ module edyn3D_serial_solver
     enddo
 
   end function argsort
-!-----------------------------------------------------------------------
+  !-----------------------------------------------------------------------
+
+  subroutine coo_to_csc_eff(n, nnz, row, col, values, csc_values, csc_row_indices, csc_col_ptr)
+    ! from ChatGTP
+
+    integer, intent(in) :: n, nnz
+    integer, intent(in) :: row(nnz), col(nnz)
+    real(r8), intent(in) :: values(nnz)
+    real(r8), intent(out) :: csc_values(nnz)
+    integer, intent(out) :: csc_row_indices(nnz)
+    integer, intent(out) :: csc_col_ptr(n + 1)
+
+    integer :: i, j, index
+    integer :: col_count(n)
+
+    call t_startf('coo_to_csc_eff')
+
+    ! Step 1: Initialize column pointers to zero
+    csc_col_ptr(:) = 0
+
+    ! Step 2: Count occurrences of each column
+    col_count(:) = 0
+
+    do i = 1, nnz
+       col_count(col(i)) = col_count(col(i)) + 1
+    end do
+
+    ! Step 3: Compute cumulative sum to get column pointers
+    csc_col_ptr(1) = 1
+    do i = 1, n
+       csc_col_ptr(i + 1) = csc_col_ptr(i) + col_count(i)
+    end do
+
+    ! Step 4: Fill in the CSC arrays
+    col_count(:) = 0  ! Reset for tracking position
+
+    do i = 1, nnz
+       j = col(i)   ! Column index
+       index = csc_col_ptr(j) + col_count(j)  ! Position in CSC arrays
+       csc_values(index) = values(i)
+       csc_row_indices(index) = row(i)
+       col_count(j) = col_count(j) + 1  ! Increment counter
+    end do
+
+    call t_stopf('coo_to_csc_eff')
+
+  end subroutine coo_to_csc_eff
+
 end module edyn3D_serial_solver
