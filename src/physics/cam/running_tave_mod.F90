@@ -115,15 +115,15 @@ contains
        write(iulog,*) 'running_tave_update  nstep,accnum,accmax : ',nstep,accnum,accmax
     end if
 
-    tave_ptr = 0._r8
-
     ! manage the storage of the accumulated ttend arrays
-    do n = 1,accmax-1
+    do n = accmax, 2, -1
        ! shift the previous ttend entries
-       data_ptr(:ncol,:,n+1) = data_ptr(:ncol,:,n)
+       data_ptr(:ncol,:,n) = data_ptr(:ncol,:,n-1)
     end do
     ! store current ttend at position 1
     data_ptr(:ncol,:,1) = ttend(:ncol,:)
+
+    tave_ptr = 0.0_r8
 
     ! compute running time average
     do n = 1,accnum

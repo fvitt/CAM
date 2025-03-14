@@ -4,3 +4,7 @@ nhtfrq=3,3,3,3,3,3
 write_nstep0=.true.
 inithist='ENDOFRUN'
 pbuf_global_allocate=.false.
+
+use_gw_convect_dp = .true.
+fincl2 = 'NETDT','HDEPTH','MAXQ0'
+running_tave_nsteps = 5
