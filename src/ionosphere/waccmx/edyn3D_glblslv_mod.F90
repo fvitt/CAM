@@ -17,6 +17,7 @@ contains
     use edyn3D_calculate_coefs, only: edyn3D_calculate_coef, edyn3D_calculate_coef_ns2
     use edyn3D_calculate_coefs, only: edyn3D_calculate_coef_ns, edyn3D_calculate_bij
     use edyn3D_serial_solver, only: linear_system
+    use edyn3D_solver_module, only: linear_system_v2=>linear_system
 
     use perf_mod, only: t_startf, t_stopf
     use edyn3d_mpi, only: mpi_comm_edyn3D
@@ -156,7 +157,8 @@ contains
        call t_stopf('edyn3D_glblslv_poten.set_pot_hl_glb')
 
        call t_startf('edyn3D_glblslv_poten.linear_system')
-       call linear_system(bij_glb,pot_hl_glb,fac_hl_glb,coef_ns_glb,pot_glb)
+!!$       call linear_system(bij_glb,pot_hl_glb,fac_hl_glb,coef_ns_glb,pot_glb)
+       call linear_system_v2(bij_glb,pot_hl_glb,fac_hl_glb,coef_ns_glb,pot_glb)
        call t_stopf('edyn3D_glblslv_poten.linear_system')
 
        deallocate(bij_glb,pot_hl_glb,coef_ns_glb)
