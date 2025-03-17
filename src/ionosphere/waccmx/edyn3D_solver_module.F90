@@ -509,7 +509,7 @@ module edyn3D_solver_module
         values(j) = nzval1(j)
       enddo
     else
-      write(6,"('Row 1 is not in order, sorting')")
+      !write(6,"('Row 1 is not in order, sorting')")
       call argsort(nmlon+2,nlonlat,jcol1,sorted,idx)
       do j = 1,nmlon+2
         colind(j) = sorted(j)
@@ -524,7 +524,7 @@ module edyn3D_solver_module
           values(rowptr(i)+j-1) = nzval(j,i)
         enddo
       else
-        write(6,"('Row ',i6,' is not in order, sorting')") i
+        !write(6,"('Row ',i6,' is not in order, sorting')") i
         call argsort(rowcnt(i),nlonlat,jcol(1:rowcnt(i),i), &
           sorted(1:rowcnt(i)),idx(1:rowcnt(i)))
         do j = 1,rowcnt(i)
@@ -644,6 +644,7 @@ module edyn3D_solver_module
   end function solve_mkl
 !-----------------------------------------------------------------------
   function solve_superlu(n,nnz,colptr,rowind,values,rhs) result(sol)
+    use iso_c_binding, only: c_long_long
 
     integer,intent(in) :: n,nnz
     integer,dimension(n+1),intent(in) :: colptr
@@ -655,7 +656,7 @@ module edyn3D_solver_module
 ! for SuperLU sparse matrix solver
     integer,parameter :: nrhs = 1
     integer :: i,iopt,info
-    integer(kind=8) :: f_factors
+    integer(kind=c_long_long) :: f_factors
 
     interface
       subroutine c_fortran_dgssv(iopt,n,nnz,nrhs, &
@@ -679,13 +680,13 @@ module edyn3D_solver_module
     iopt = 1
     call c_fortran_dgssv(iopt, n, nnz, nrhs, &
       values, rowind, colptr, sol, n, f_factors, info)
-    write(6,"('INFO from LU decomposition = ',i4)") info
+    !write(6,"('INFO from LU decomposition = ',i4)") info
 
 ! second, solve the system using the existing factors
     iopt = 2
     call c_fortran_dgssv(iopt, n, nnz, nrhs, &
       values, rowind, colptr, sol, n, f_factors, info)
-    write(6,"('INFO from triangular solve = ',i4)") info
+    !write(6,"('INFO from triangular solve = ',i4)") info
 
 ! last, free the storage allocated inside SuperLU
     iopt = 3
@@ -705,7 +706,7 @@ module edyn3D_solver_module
     integer,dimension(nnz),intent(out) :: rowind
     real(r8),dimension(nnz),intent(out) :: values_csc
 
-    integer :: n,i,j
+    integer :: n,i,j, ndx
     integer,dimension(ncol) :: colcnt,cnt
     integer,dimension(nrow) :: sorted,idx
     real(r8),dimension(nrow) :: values
@@ -725,16 +726,16 @@ module edyn3D_solver_module
     do i = 1,nrow
       do n = rowptr(i),rowptr(i+1)-1
         j = colind(n)
-        idx = colptr(j)+cnt(j)
-        rowind(idx) = i
-        values_csc(idx) = values_csr(n)
+        ndx = colptr(j)+cnt(j)
+        rowind(ndx) = i
+        values_csc(ndx) = values_csr(n)
         cnt(j) = cnt(j)+1
       enddo
     enddo
 
     do j = 1,ncol
       if (.not. inorder(rowind(colptr(j):colptr(j+1)-1))) then
-        write(6,"('Column ',i6,' is not in order, sorting')")
+        !write(6,"('Column ',i6,' is not in order, sorting')")
         n = colptr(j+1)-colptr(j)
         call argsort(n,nrow,rowind(colptr(j):colptr(j+1)-1),sorted(1:n),idx(1:n))
         values(1:n) = values_csc(colptr(j):colptr(j+1)-1)
