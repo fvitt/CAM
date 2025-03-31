@@ -86,14 +86,7 @@ contains
     smm_srctermproc = 0
     smm_pipelinedep = 16
 
-    print*,' '
-    print*,'FVDBG Create regrid route handles ... '
-    print*,' '
-
     vertloop: do k = 1, nz
-
-       print*, '               '
-       print*,'FVDBG...k:',k
 
        ! Mag fields
 
@@ -112,10 +105,6 @@ contains
             ungriddedLBound=(/1/), ungriddedUBound=(/mag2opls_nflds/), rc=rc)
        call check_error(subname,'ESMF_FieldCreate magFieldSrc_s1',rc)
 
-
-       print*,'  '
-       print*,'FVDBG... Create phys -> mag S1 route handle ...  '
-
        ! phys->mag s1
        call ESMF_FieldRegridStore( &
             srcField=physFieldSrc, dstField=magFieldDes_s1(k), &
@@ -127,9 +116,6 @@ contains
             factorList=factorList, srcTermProcessing=smm_srctermproc,          &
             pipelineDepth=smm_pipelinedep, rc=rc)
        call check_error(subname,'FieldRegridStore rh_phys2mag_s1 route handle',rc)
-
-       print*,'  '
-       print*,'FVDBG... Create phys -> mag S2 route handle ...  '
 
        ! phys->mag s2
        call ESMF_FieldRegridStore( &
@@ -143,9 +129,6 @@ contains
             pipelineDepth=smm_pipelinedep, rc=rc)
        call check_error(subname,'FieldRegridStore rh_phys2mag_s2 route handle',rc)
 
-       print*,'  '
-       print*,'FVDBG... Create mag s2 -> oplus route handle ...  '
-
        ! mag s2 -> oplus
        call ESMF_FieldRegridStore( &
             srcField=magFieldSrc_s1(k), dstField=oplusFieldDes, &
@@ -158,15 +141,12 @@ contains
             pipelineDepth=smm_pipelinedep, rc=rc)
        call check_error(subname,'FieldRegridStore rh_mag2oplus_s2(k) route handle',rc)
 
-       print*,'FVDBG... okay carry on... '
-       print*,'  '
-
     end do vertloop
 
-
-print*,'FVDBG.edyn3d_esmf_fields_rhandles_init.. OK HERE'
-call mpi_barrier(mpicom, rc)
-call endrun('FVDBG.edyn3d_esmf_fields_rhandles_init.. OK STOP HERE')
+!!$
+!!$print*,'FVDBG.edyn3d_esmf_fields_rhandles_init.. OK HERE'
+!!$call mpi_barrier(mpicom, rc)
+!!$call endrun('FVDBG.edyn3d_esmf_fields_rhandles_init.. OK STOP HERE')
   end subroutine edyn3d_esmf_fields_rhandles_init
 
   !-----------------------------------------------------------------------
