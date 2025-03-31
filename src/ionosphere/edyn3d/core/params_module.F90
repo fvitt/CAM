@@ -15,8 +15,7 @@ module params_module
 
 ! magnetic grid parameters:
   integer,parameter :: &
-   ! nmlon = 120, & ! number of magnetic longitudes - P,S1,S2,R
-    nmlon = 8, & ! number of magnetic longitudes - P,S1,S2,R
+    nmlon = 180, & ! number of magnetic longitudes - P,S1,S2,R
 
 ! number of magnetic latitudes in one hemisphere
     nmlat_h   = 91, &        ! P,S1,R
