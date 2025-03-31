@@ -10,10 +10,13 @@ module edyn3d_esmf_fields_rhandles
 
   private
 
+  public :: physFieldSrc
   public :: magFieldSrc_s1
   public :: oplusFieldDes
 
   public :: rh_mag2oplus_s2
+  public :: rh_phys2mag_s1
+  public :: rh_phys2mag_s2
 
   public :: edyn3d_esmf_fields_rhandles_init
 

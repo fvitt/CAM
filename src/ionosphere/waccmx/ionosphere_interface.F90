@@ -533,6 +533,7 @@ module ionosphere_interface
       real(r8), pointer :: te_blck(:,:)
       real(r8), pointer :: zi_blck(:,:) ! Geopotential on interfaces
       real(r8), pointer :: hi_blck(:,:) ! Geometric height on interfaces
+      real(r8), pointer :: zhtmid(:,:)  ! Geometric height mid-layer
       real(r8), pointer :: ui_blck(:,:)
       real(r8), pointer :: vi_blck(:,:)
       real(r8), pointer :: wi_blck(:,:)
@@ -605,6 +606,10 @@ module ionosphere_interface
          allocate(zi_blck(pver, blksize), stat=astat)
          if (astat /= 0) then
             call endrun(subname//': failed to allocate zi_blck')
+         end if
+         allocate(zhtmid(pver, blksize), stat=astat)
+         if (astat /= 0) then
+            call endrun(subname//': failed to allocate zhtmid')
          end if
          allocate(ui_blck(pver, blksize), stat=astat)
          if (astat /= 0) then
@@ -749,12 +754,13 @@ module ionosphere_interface
                   u_blck(k, j)     = phys_state(lchnk)%u(i, k)
                   v_blck(k, j)     = phys_state(lchnk)%v(i, k)
                   !------------------------------------------------------------
-                  ! Might need geometric height on midpoints for output
+                  ! Geometric height at layer midpoints
                   !------------------------------------------------------------
+                  zhtmid(k,j) = geometric_hgt(zgp=phys_state(lchnk)%zm(i,k), zsf=phis(i)*rga)
                   if (hist_fld_active('Z3GM')) then
-                     ! geometric altitude (meters above sea level)
-                     tempm(i,k) = geometric_hgt(zgp=phys_state(lchnk)%zm(i,k), zsf=phis(i)*rga)
-                  end if
+                     tempm(i,k) = zhtmid(k,j)
+                  endif
+
                   ! physics state fields on interfaces (but only to pver)
                   zi_blck(k, j) = phys_state(lchnk)%zi(i, k) + phis(i)*rga
                   !------------------------------------------------------------
@@ -864,7 +870,7 @@ module ionosphere_interface
          ! All fields are on physics mesh, (pver, blksize),
          !    where blksize is the total number of columns on this task
 
-         call d_pie_coupling(omega_blck, pmid_blck, zi_blck, hi_blck,         &
+         call d_pie_coupling(omega_blck, pmid_blck, zi_blck, hi_blck, zhtmid, &
               u_blck, v_blck, tn_blck, sigma_ped_blck, sigma_hall_blck,       &
               te_blck, ti_blck, mbar_blck, n2mmr_blck, o2mmr_blck,            &
               o1mmr_blck, o2pmmr_blck, nopmmr_blck, n2pmmr_blck,              &
@@ -971,6 +977,8 @@ module ionosphere_interface
          nullify(te_blck)
          deallocate(zi_blck)
          nullify(zi_blck)
+         deallocate(zhtmid)
+         nullify(zhtmid)
          deallocate(ui_blck)
          nullify(ui_blck)
          deallocate(vi_blck)

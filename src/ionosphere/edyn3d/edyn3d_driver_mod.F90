@@ -8,6 +8,7 @@ module edyn3d_driver_mod
 
   private
   public :: edyn3d_driver_init
+  public :: edyn3d_driver_timestep
 
   real(r8), dimension(:,:,:), allocatable :: gmlat,gmlon
 
@@ -125,5 +126,35 @@ contains
 
   end subroutine edyn3d_driver_init
 
+  subroutine edyn3D_driver_timestep( nphyscol, nphyslev, physalt, sigPed, sigHal, un, vn)
+    use edyn3d_remap_mod, only: edyn3d_remap_phys2mag
+    use edyn3d_esmf_fields_rhandles, only: magFieldSrc_s1, rh_phys2mag_s1
+    use mpi_module, only: mlat0, mlat1, mlon0, mlon1
+    use params_module,only:  nhgt_fix
+
+    integer,  intent(in) :: nphyscol, nphyslev
+    real(r8), intent(in) :: physalt(nphyslev,nphyscol)
+
+    real(r8), intent(in) :: sigPed(nphyslev,nphyscol)
+    real(r8), intent(in) :: sigHal(nphyslev,nphyscol)
+    real(r8), intent(in) :: un(nphyslev,nphyscol)
+    real(r8), intent(in) :: vn(nphyslev,nphyscol)
+
+    integer, parameter :: nflds = 4
+    real(r8) :: physflds(nphyslev,nphyscol,nflds)
+    real(r8) :: magflds(nhgt_fix,2,mlat0:mlat1,mlon0:mlon1 ,nphyscol,nflds)
+
+    print*,'FVDBG.edyn3D_driver_timestep... 0'
+
+    physflds(:,:,1) = sigPed(:,:)
+    physflds(:,:,2) = sigHal(:,:)
+    physflds(:,:,3) = un(:,:)
+    physflds(:,:,4) = vn(:,:)
+
+    call edyn3d_remap_phys2mag(physflds, physalt, nphyscol, nphyslev, nflds, magFieldSrc_s1, rh_phys2mag_s1, magflds)
+
+    print*,'FVDBG.edyn3D_driver_timestep... END'
+
+  end subroutine edyn3D_driver_timestep
 
 end module edyn3d_driver_mod

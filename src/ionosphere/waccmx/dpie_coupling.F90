@@ -267,7 +267,7 @@ contains
   end subroutine d_pie_epotent
 
   !-----------------------------------------------------------------------
-  subroutine d_pie_coupling(omega, pmid, zgi, zht, u, v, tn,                  &
+  subroutine d_pie_coupling(omega, pmid, zgi, zht, zhtmid, u, v, tn,          &
        sigma_ped, sigma_hall, te, ti, mbar, n2mmr, o2mmr, o1mmr, o2pmmr,      &
        nopmmr, n2pmmr, opmmr, opmmrtm1, ui, vi, wi,                           &
        rmassO2p, rmassNOp, rmassN2p, rmassOp, cols, cole, plev )
@@ -287,9 +287,10 @@ contains
      use edyn_mpi,      only: lon0, lon1, lat0, lat1, lev0, lev1, ntask, mytid
      use oplus,         only: oplus_xport
      use ref_pres,      only: pref_mid
-     use regridder,  only: regrid_phys2geo_3d, regrid_phys2mag_3d, regrid_geo2phys_3d
-     use regridder,  only: regrid_geo2mag_3d, regrid_geo2mag_2d
-     use adotv_mod,  only: calc_adotv
+     use regridder,     only: regrid_phys2geo_3d, regrid_phys2mag_3d, regrid_geo2phys_3d
+     use regridder,     only: regrid_geo2mag_3d, regrid_geo2mag_2d
+     use adotv_mod,     only: calc_adotv
+     use edyn3d_driver_mod, only: edyn3D_driver_timestep
 
      !
      ! Args:
@@ -304,6 +305,7 @@ contains
      real(r8), intent(in)    :: pmid(plev, cols:cole)       ! pressure at midpoints (Pa)
      real(r8), intent(in)    :: zgi(plev, cols:cole)        ! geopotential height (on interfaces) (m)
      real(r8), intent(in)    :: zht(plev, cols:cole)        ! geometric height (m) (Simple method - interfaces)
+     real(r8), intent(in)    :: zhtmid(plev, cols:cole)     ! geometric height (m) (Simple method - mid layer)
      real(r8), intent(in)    :: u(plev, cols:cole)          ! U-wind (m/s)
      real(r8), intent(in)    :: v(plev, cols:cole)          ! V-wind (m/s)
      real(r8), intent(in)    :: tn(plev, cols:cole)         ! neutral temperature (K)
@@ -379,7 +381,7 @@ contains
      logical :: do_integrals
 !
 ! Pointers for multiple-field calls:
-    type(array_ptr_type),allocatable :: ptrs(:)
+     type(array_ptr_type),allocatable :: ptrs(:)
 
      character(len=*), parameter :: subname = 'd_pie_coupling'
 
@@ -422,6 +424,8 @@ contains
           adotv1_mag, adotv2_mag
      real(r8), dimension(mlon0:mlon1,mlat0:mlat1) :: &
           adota1_mag, adota2_mag, a1dta2_mag, be3_mag, sini_mag
+
+     integer :: nphyscols
 
      call t_startf(subname)
 
@@ -581,6 +585,11 @@ contains
     ! otherwise dynamo calculates them here, and they will be passed to physics.
     !
     if (ionos_edyn_active) then
+
+       nphyscols = cole - cols + 1
+       call edyn3D_driver_timestep( nphyscols, plev, zhtmid, sigma_ped, sigma_hall, u, v)
+
+
 
        call t_startf('dpie_ionos_dynamo')
 
