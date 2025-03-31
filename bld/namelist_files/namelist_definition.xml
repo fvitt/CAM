@@ -5169,6 +5169,13 @@ electro-dynamo and O+ ion transport modules.
 Default: 0 (use all atmosphere tasks)
 </entry>
 
+<entry id="ionos_edyn3d_npes" type="integer"
+       category="waccmx" group="ionosphere_nl" valid_values="" >
+Number of MPI processes on which to run the WACCM-X ionosphere
+3-D electro-dynamo.
+Default: -1 (set to ionos_npes)
+</entry>
+
 <entry id="ionos_xport_active" type="logical"  category="waccmx"
        group="ionosphere_nl" valid_values="">
 Switch to to turn on/off O+ transport in ionosphere.

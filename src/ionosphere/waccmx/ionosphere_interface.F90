@@ -24,6 +24,8 @@ module ionosphere_interface
    use epotential_params,   only: epot_active, epot_crit_colats
    use shr_const_mod,  only: SHR_CONST_REARTH ! meters
 
+   use edyn3d_driver_mod, only: edyn3d_driver_init
+
    implicit none
 
    private
@@ -92,6 +94,7 @@ module ionosphere_interface
 
    integer           :: oplus_nlon, oplus_nlat   ! Oplus grid
    integer           :: ionos_npes = -1
+   integer           :: ionos_edyn3d_npes = -1
 
    logical :: state_debug_checks = .false.
    logical :: ionos_debug_hist = .false.
@@ -126,7 +129,7 @@ module ionosphere_interface
       namelist /ionosphere_nl/ ionos_epotential_model, ionos_epotential_amie, ionos_epotential_ltr, wei05_coefs_file
       namelist /ionosphere_nl/ amienh_files, amiesh_files, wei05_coefs_file, ltr_files
       namelist /ionosphere_nl/ epot_crit_colats
-      namelist /ionosphere_nl/ ionos_npes
+      namelist /ionosphere_nl/ ionos_npes, ionos_edyn3d_npes
       namelist /ionosphere_nl/ oplus_grid, edyn_grid
       namelist /ionosphere_nl/ ionos_debug_hist
 
@@ -165,6 +168,7 @@ module ionosphere_interface
       call mpi_bcast(oplus_ring_polar_filter,1, mpi_logical, masterprocid, mpicom, ierr)
       call mpi_bcast(epot_crit_colats,    2, mpi_real8,   masterprocid, mpicom, ierr)
       call mpi_bcast(ionos_npes,          1, mpi_integer, masterprocid, mpicom, ierr)
+      call mpi_bcast(ionos_edyn3d_npes,   1, mpi_integer, masterprocid, mpicom, ierr)
       call mpi_bcast(oplus_grid,          2, mpi_integer, masterprocid, mpicom, ierr)
       call mpi_bcast(edyn_grid,           8, mpi_character, masterprocid, mpicom, ierr)
       call mpi_bcast(ionos_debug_hist,    1, mpi_logical, masterprocid, mpicom, ierr)
@@ -187,6 +191,11 @@ module ionosphere_interface
       else if (ionos_npes>total_pes) then
          call endrun('ionosphere_readnl: ionos_npes > total_pes')
       end if
+      if (ionos_edyn3d_npes<1) then
+         ionos_edyn3d_npes = ionos_npes
+      else if (ionos_edyn3d_npes>total_pes) then
+         call endrun('ionosphere_readnl: ionos_edyn3d_npes > total_pes')
+      end if
 
       ! log the user settings
       if (masterproc) then
@@ -200,6 +209,7 @@ module ionosphere_interface
          write(iulog,'(a,2(g12.4))') &
                         'ionosphere_readnl: epot_crit_colats       = ', epot_crit_colats
          write(iulog,'(a,i0)') 'ionosphere_readnl: ionos_npes = ',ionos_npes
+         write(iulog,'(a,i0)') 'ionosphere_readnl: ionos_edyn3d_npes = ',ionos_edyn3d_npes
          write(iulog,*) 'ionosphere_readnl: oplus_adiff_limiter    = ', oplus_adiff_limiter
          write(iulog,*) 'ionosphere_readnl: oplus_shapiro_const    = ', oplus_shapiro_const
          write(iulog,*) 'ionosphere_readnl: oplus_enforce_floor    = ', oplus_enforce_floor
@@ -389,6 +399,9 @@ module ionosphere_interface
            'Geometric height', gridname='physgrid')
       call addfld ('Z3GMI',      (/ 'lev' /), 'I', 'm',                       &
            'Geometric height (Interfaces)', gridname='physgrid')
+
+      ! after apex init
+      call edyn3d_driver_init(mpicom, ionos_edyn3d_npes)
 
    end subroutine ionosphere_init
 
