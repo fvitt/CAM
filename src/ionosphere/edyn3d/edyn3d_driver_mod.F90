@@ -31,7 +31,8 @@ contains
     use edyn3d_esmf_fields_rhandles, only: edyn3d_esmf_fields_rhandles_init
     use edyn3d_esmf_phys_mesh_mod, only:  edyn3d_esmf_phys_mesh_init
     use edyn3d_esmf_oplus_grid_mod, only:  edyn3d_esmf_oplus_grid_init
-    use edyn3d_esmf_mag_grid_mod, only: edyn3d_esmf_mag_grid_init
+    use edyn3d_esmf_s1_mag_grid_mod, only: edyn3d_esmf_s1_mag_grid_init
+    use edyn3d_esmf_s2_mag_grid_mod, only: edyn3d_esmf_s2_mag_grid_init
 
     use fieldline_module, only: glat_p, glon_p, glat_s1, glon_s1, glat_s2, glon_s2
 
@@ -117,9 +118,12 @@ contains
 
     end if acitve_tasks
 
+    call edyn3d_esmf_s2_mag_grid_init()
+    call edyn3d_esmf_s1_mag_grid_init()
+
     call edyn3d_esmf_phys_mesh_init()
     call edyn3d_esmf_oplus_grid_init()
-    call edyn3d_esmf_mag_grid_init()
+
     call edyn3d_esmf_fields_rhandles_init()
 
     print*,'FVDBG.edyn3d_driver_init...END'
@@ -127,8 +131,9 @@ contains
   end subroutine edyn3d_driver_init
 
   subroutine edyn3D_driver_timestep( nphyscol, nphyslev, physalt, sigPed, sigHal, un, vn)
-    use edyn3d_remap_mod, only: edyn3d_remap_phys2mag
-    use edyn3d_esmf_fields_rhandles, only: magFieldSrc_s1, rh_phys2mag_s1
+    use edyn3d_remap_mod, only: edyn3d_remap_phys2mag_s1
+    use edyn3d_remap_mod, only: edyn3d_remap_phys2mag_s2
+    use edyn3d_esmf_fields_rhandles, only: magFieldDes_s1, rh_phys2mag_s1, phys2mag_nflds
     use mpi_module, only: mlat0, mlat1, mlon0, mlon1
     use params_module,only:  nhgt_fix
 
@@ -140,9 +145,8 @@ contains
     real(r8), intent(in) :: un(nphyslev,nphyscol)
     real(r8), intent(in) :: vn(nphyslev,nphyscol)
 
-    integer, parameter :: nflds = 4
-    real(r8) :: physflds(nphyslev,nphyscol,nflds)
-    real(r8) :: magflds(nhgt_fix,2,mlat0:mlat1,mlon0:mlon1 ,nphyscol,nflds)
+    real(r8) :: physflds(nphyslev,nphyscol, phys2mag_nflds)
+    real(r8) :: magflds(nhgt_fix,2,mlat0:mlat1,mlon0:mlon1, phys2mag_nflds)
 
     print*,'FVDBG.edyn3D_driver_timestep... 0'
 
@@ -151,7 +155,8 @@ contains
     physflds(:,:,3) = un(:,:)
     physflds(:,:,4) = vn(:,:)
 
-    call edyn3d_remap_phys2mag(physflds, physalt, nphyscol, nphyslev, nflds, magFieldSrc_s1, rh_phys2mag_s1, magflds)
+!    call edyn3d_remap_phys2mag_s1(nphyscol, nphyslev, physalt, physflds, magflds)
+    call edyn3d_remap_phys2mag_s2(nphyscol, nphyslev, physalt, physflds, magflds)
 
     print*,'FVDBG.edyn3D_driver_timestep... END'
 

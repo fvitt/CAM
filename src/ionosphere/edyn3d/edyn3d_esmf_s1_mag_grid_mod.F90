@@ -1,4 +1,4 @@
-module edyn3d_esmf_mag_grid_mod
+module edyn3d_esmf_s1_mag_grid_mod
   use shr_kind_mod,   only: r8 => shr_kind_r8, cl=>shr_kind_cl
   use cam_logfile,    only: iulog
   use cam_abortutils, only: endrun
@@ -8,24 +8,24 @@ module edyn3d_esmf_mag_grid_mod
 
   implicit none
 
-  type(ESMF_Grid), allocatable :: mag_fdln_grid(:)
+  type(ESMF_Grid), allocatable :: mag_s1_fdln_grid(:)
 
 contains
 
 
   !%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>
   !       S1
-  !     o--+--o P     o P grid points at cell corners  ESMF_STAGGERLOC_CORNER
-  !  ^  |     |       + S1 staggered in longitude      ESMF_STAGGERLOC_EDGE2
-  !  L  *     * S2    * S2 staggered in latitude       ESMF_STAGGERLOC_EDGE1
+  !     o--+--o P
+  !  ^  |     |
+  !  L  *     * S2
   !  A  |     |
   !  T  o--+--o
   !     LON -->
   !%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>
 
-  subroutine edyn3d_esmf_mag_grid_init
-    use fieldline_module, only: qdlat_p, qdlat_s1, qdlat_s2, glon_s1, glat_s1, glon_s2, glat_s2, npts_p, npts_s1, npts_s2
-    use params_module, only: nz=>nhgt_fix, nmlon, nmlat_h, nmlats2_h
+  subroutine edyn3d_esmf_s1_mag_grid_init
+    use fieldline_module, only: npts_s1, glon_s1, glat_s1
+    use params_module, only: nz=>nhgt_fix, nmlon, nmlat_h
     use mpi_module, only: mytid=>mpi_rank, ntask=>mpi_size, lon_size, lat_size
     use mpi_module, only: mlon0,mlon1,mlat0,mlat1, mlon0_task, mlon1_task, mlat0_task, mlat1_task
     use mpi_module, only: nmlon_task, nmlat_task
@@ -46,21 +46,25 @@ contains
     integer :: lbnd(2),ubnd(2)
     real(kind=ESMF_KIND_R8), pointer :: loncoord(:,:), latcoord(:,:)
 
-    character(len=*), parameter :: subname = 'edyn3d_esmf_mag_grid_init'
+    character(len=*), parameter :: subname = 'edyn3d_esmf_s1_mag_grid_init'
+    real(r8), parameter :: NOTSET = -huge(1._r8)
 
-    allocate(mag_fdln_grid(nz))
+    allocate(mag_s1_fdln_grid(nz))
 
     do i = 1,lon_size
        lonCellsPerDE(i) = nmlon_task(i-1)
     end do
 
     print*,' '
-    print*,'FVDBG.edyn3d_esmf_mag_grid_init.. '
+    print*,'FVDBG.edyn3d_esmf_s1_mag_grid_init.. '
 
     vertloop: do k = 1, nz
 
        ! total number of grids cells per hemisphere
-       ncells_hlat = count(npts_s2>=k)
+       !ncells_hlat = count(npts_s1>=k)
+       ncells_hlat = nmlat_h - (k-1)
+
+       print*,' ncells_hlat:',ncells_hlat  !,'   nmlat_h-(k-1):',nmlat_h - (k-1)
 
        ! find number of lat tasks that have grid cells in level k in 1 hemisphere
        i = 0
@@ -71,7 +75,7 @@ contains
        end do
        klat_sz = i+1
 
-       print*,'FVDBG... k:',k,' number of lat tasks that have grid cells latCellsPerDE:',klat_sz
+       print*,'FVDBG... k:',k,' number of lat tasks that have grid cells klat_sz:',klat_sz
 
        ! number of global lat grid cells for level k (1 DE straddles the equator)
        allocate(latCellsPerDE(klat_sz*2-1))
@@ -83,7 +87,7 @@ contains
           ii = (i-1)*lon_size + 1
           j0 = mlat0_task(ii-1)
           j1 = mlat1_task(ii-1)
-          latCellsPerDE(i) = count( npts_s2(j0:j1)>=k )
+          latCellsPerDE(i) = count( npts_s1(j0:j1)>=k )
        end do
 
        ! adjacent to the equator
@@ -91,7 +95,7 @@ contains
        ii = (i-1)*lon_size + 1
        j0 = mlat0_task(ii-1)
        j1 = min(mlat1_task(ii-1),ncells_hlat)
-       latCellsPerDE(i) = 2*count( npts_s2(j0:j1)>=k ) ! each side of the equator
+       latCellsPerDE(i) = 2*count( npts_s1(j0:j1)>=k ) -1 ! each side of the equator (only 1 at the equator)
 
        ! norther hemisphere
        do i = klat_sz+1,klat_sz*2-1
@@ -120,8 +124,13 @@ contains
           end do
        end do
 
+       print*,'  petmap : '
+       do j = 1, klat_sz*2-1
+          print*,petmap(1:lon_size,j,1)
+       end do
+
        ! 1 periodic dimension -- periodic logitude dim
-       mag_fdln_grid(k) = ESMF_GridCreate1PeriDim(  &
+       mag_s1_fdln_grid(k) = ESMF_GridCreate1PeriDim(  &
            countsPerDEDim1=lonCellsPerDE, coordDep1=(/1,2/), &
            countsPerDEDim2=latCellsPerDE, coordDep2=(/1,2/), petmap=petmap, &
            indexflag=ESMF_INDEX_GLOBAL,rc=rc)
@@ -131,65 +140,31 @@ contains
        deallocate(latCellsPerDE)
 
        ! get number of DEs for this MPI task
-       call ESMF_GridGet(mag_fdln_grid(k), localDECount=localDECount, rc=rc)
+       call ESMF_GridGet(mag_s1_fdln_grid(k), localDECount=localDECount, rc=rc)
        call check_error(subname,'ESMF_GridGet localDECount',rc)
 
-       ! S2 coordinates
-       call ESMF_GridAddCoord(grid=mag_fdln_grid(k),staggerloc=ESMF_STAGGERLOC_EDGE1, rc=rc)
-       call check_error(subname,'ESMF_GridAddCoord mag_fdln_grid EDGE1 -- S2',rc)
-
        ! S1 coordinates
-       call ESMF_GridAddCoord(grid=mag_fdln_grid(k),staggerloc=ESMF_STAGGERLOC_EDGE2, rc=rc)
-       call check_error(subname,'ESMF_GridAddCoord mag_fdln_grid EDGE2 -- S1',rc)
+       call ESMF_GridAddCoord(grid=mag_s1_fdln_grid(k),staggerloc=ESMF_STAGGERLOC_CENTER, rc=rc)
+       call check_error(subname,'ESMF_GridAddCoord mag_s1_fdln_grid',rc)
 
        do nde = 0,localDECount-1
 
-          ! set S2 coordinates
-          ! geographic longitudes
-          call ESMF_GridGetCoord(mag_fdln_grid(k), coordDim=1, localDE=nde, &
-               computationalLBound=lbnd, computationalUBound=ubnd, &
-               staggerloc=ESMF_STAGGERLOC_EDGE1, farrayPtr=loncoord, rc=rc)
-          call check_error(subname,'ESMF_GridGetCoord  S2',rc)
-          loncoord = -huge(1._r8)
-
-          ! geographic latitudes
-          call ESMF_GridGetCoord(mag_fdln_grid(k), coordDim=2, localDE=nde, &
-               computationalLBound=lbnd, computationalUBound=ubnd, &
-               staggerloc=ESMF_STAGGERLOC_EDGE1, farrayPtr=latcoord, rc=rc)
-          call check_error(subname,'ESMF_GridGetCoord  S2',rc)
-          latcoord = -huge(1._r8)
-
-          do i = lbnd(1),ubnd(1)
-             do j = lbnd(2),ubnd(2)
-                if (j>ncells_hlat) then
-                   isn = 2
-                   jj = 2*ncells_hlat - j + 1
-                else
-                   isn = 1
-                   jj = j
-                end if
-                loncoord(i,j) = glon_s2(k,isn,jj,i)
-                latcoord(i,j) = glat_s2(k,isn,jj,i)
-             end do
-          end do
+          print*,'DE number nde: ',nde
 
           ! set S1 coordinates
           ! geographic longitudes
-          call ESMF_GridGetCoord(mag_fdln_grid(k), coordDim=1, localDE=nde, &
+          call ESMF_GridGetCoord(mag_s1_fdln_grid(k), coordDim=1, localDE=nde, &
                computationalLBound=lbnd, computationalUBound=ubnd, &
-               staggerloc=ESMF_STAGGERLOC_EDGE2, farrayPtr=loncoord, rc=rc)
+               staggerloc=ESMF_STAGGERLOC_CENTER, farrayPtr=loncoord, rc=rc)
           call check_error(subname,'ESMF_GridGetCoord  S1',rc)
-          loncoord = -huge(1._r8)
-
-          print*,' S1 grid lon lbnd : ',lbnd
-          print*,' S1 grid lon ubnd : ',ubnd
+          loncoord = NOTSET
 
           ! geographic latitudes
-          call ESMF_GridGetCoord(mag_fdln_grid(k), coordDim=2, localDE=nde, &
+          call ESMF_GridGetCoord(mag_s1_fdln_grid(k), coordDim=2, localDE=nde, &
                computationalLBound=lbnd, computationalUBound=ubnd, &
-               staggerloc=ESMF_STAGGERLOC_EDGE2, farrayPtr=latcoord, rc=rc)
+               staggerloc=ESMF_STAGGERLOC_CENTER, farrayPtr=latcoord, rc=rc)
           call check_error(subname,'ESMF_GridGetCoord  S1',rc)
-          latcoord = -huge(1._r8)
+          latcoord = NOTSET
 
           print*,' S1 grid lat lbnd : ',lbnd
           print*,' S1 grid lat ubnd : ',ubnd
@@ -198,7 +173,7 @@ contains
              do j = lbnd(2),ubnd(2)
                 if (j>ncells_hlat) then
                    isn = 2
-                   jj = 2*(ncells_hlat+1)-1 - j + 1
+                   jj = 2*(ncells_hlat-1)+1 - j + 1
                 else
                    isn = 1
                    jj = j
@@ -208,13 +183,24 @@ contains
              end do
           end do
 
+          if (any(loncoord==NOTSET)) then
+             call endrun(subname//' loncoord not set correctly')
+          end if
+          if (any(latcoord==NOTSET)) then
+             call endrun(subname//' latcoord not set correctly')
+          end if
+
        end do
 
     end do vertloop
 
     print*,' '
 
-  end subroutine edyn3d_esmf_mag_grid_init
+!!$print*,'FVDBG.edyn3d_esmf_s1_mag_grid_init.. OK HERE'
+!!$call mpi_barrier(mpicom, rc)
+!!$call endrun('FVDBG.edyn3d_esmf_s1_mag_grid_init.. OK STOP HERE')
+
+  end subroutine edyn3d_esmf_s1_mag_grid_init
   !-----------------------------------------------------------------------
   !-----------------------------------------------------------------------
   subroutine check_error(subname, routine, rc)
@@ -235,4 +221,4 @@ contains
   end subroutine check_error
 
 
-end module edyn3d_esmf_mag_grid_mod
+end module edyn3d_esmf_s1_mag_grid_mod
