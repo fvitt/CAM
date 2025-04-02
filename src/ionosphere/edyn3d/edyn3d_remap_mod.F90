@@ -58,19 +58,12 @@ contains
       end do
     end do
 
-  !  print*,'FVDBG...edyn3d_remap_phys2mag...nphyslev,nphyscol,nflds : ',nphyslev,nphyscol,nflds
-
     vertloop: do k = 1,nhgt_fix
-
-     print*,'FVDBG...edyn3d_remap_phys2mag... k: ',k
 
        call ESMF_FieldGet(field=physFieldSrc, localDe=0, farrayPtr=fptr2d, &
                           computationalLBound=lbnd2d, computationalUBound=ubnd2d, rc=rc)
        call check_error(subname,'ESMF_FieldGet physFieldSrc',rc)
        fptr2d = NOTSET
-
-      ! print*,'FVDBG... lbnd2d : ',lbnd2d
-      ! print*,'FVDBG... ubnd2d : ',ubnd2d
 
        do n = lbnd2d(2), ubnd2d(2) ! 1,nflds
           do i = lbnd2d(1), ubnd2d(1)
@@ -85,8 +78,6 @@ contains
        call ESMF_GridGet(mag_s1_fdln_grid(k), localDECount=localDECount, rc=rc)
        call check_error(subname,'ESMF_GridGet localDECount',rc)
 
-       print*,'FVDBG.edyn3d_remap_phys2mag.. localDECount=',localDECount
-
        ! total number of grids cells per hemisphere
        ncells_hlat = nmlat_h - (k-1)
 
@@ -95,13 +86,6 @@ contains
           call ESMF_FieldGet(magFieldDes_s1(k), localDe=nde, farrayPtr=fptr3d, &
                              computationalLBound=lbnd3d, computationalUBound=ubnd3d, rc=rc)
           call check_error(subname,'ESMF_FieldGet magFieldDes_s1',rc)
-
-          print*,'FVDBG.edyn3d_remap_phys2mag.. nde : ',nde
-!!$          print*,'FVDBG.edyn3d_remap_phys2mag.. lbnd3d : ',lbnd3d
-!!$          print*,'FVDBG.edyn3d_remap_phys2mag.. ubnd3d : ',ubnd3d
-!!$          print*,'FVDBG.edyn3d_remap_phys2mag.. mlon0,mlon1 : ',mlon0,mlon1
-!!$          print*,'FVDBG.edyn3d_remap_phys2mag.. mlat0,mlat1 : ',mlat0,mlat1
-!!$          print*,'FVDBG.edyn3d_remap_phys2mag.. ncells_hlat : ',ncells_hlat
 
           do n = lbnd3d(3), ubnd3d(3) ! 1,nflds
              do j = lbnd3d(2), ubnd3d(2)
@@ -123,14 +107,6 @@ contains
 
        end do DE_num
 
-!!$       print*,'FVDBG.edyn3d_remap_phys2mag...magflds min max : ', minval(magflds(k,:,:,:,:)),maxval(magflds(k,:,:,:,:))
-
-!!$       if (localDECount>0) then
-!!$          print*,'FVDBG.edyn3d_remap_phys2mag..fld n : ',n,'min max : ', minval(magflds),maxval(magflds)
-!!$       end if
-
-       print*,' '
-
     end do vertloop
 
     do isn = 1,2
@@ -147,15 +123,6 @@ contains
           end do
        end do
     end do
-
-!!$
-!!$    if (any(magflds==NOTSET) ) then
-!!$       call endrun(subname//': magflds not set correctly')
-!!$    end if
-
-!!$ print*,'FVDBG.edyn3d_esmf_s1_mag_grid_init.. OK HERE'
-!!$call mpi_barrier(mpicom, rc)
-!!$call endrun('FVDBG.edyn3d_esmf_s1_mag_grid_init.. OK STOP HERE')
 
   end subroutine edyn3d_remap_phys2mag_s1
 
@@ -196,19 +163,12 @@ contains
       end do
     end do
 
-  !  print*,'FVDBG...edyn3d_remap_phys2mag...nphyslev,nphyscol,nflds : ',nphyslev,nphyscol,nflds
-
     vertloop: do k = 1,nhgt_fix
-
-     print*,'FVDBG...edyn3d_remap_phys2mag... k: ',k
 
        call ESMF_FieldGet(field=physFieldSrc, localDe=0, farrayPtr=fptr2d, &
                           computationalLBound=lbnd2d, computationalUBound=ubnd2d, rc=rc)
        call check_error(subname,'ESMF_FieldGet physFieldSrc',rc)
        fptr2d = NOTSET
-
-      ! print*,'FVDBG... lbnd2d : ',lbnd2d
-      ! print*,'FVDBG... ubnd2d : ',ubnd2d
 
        do n = lbnd2d(2), ubnd2d(2) ! 1,nflds
           do i = lbnd2d(1), ubnd2d(1)
@@ -223,8 +183,6 @@ contains
        call ESMF_GridGet(mag_s2_fdln_grid(k), localDECount=localDECount, rc=rc)
        call check_error(subname,'ESMF_GridGet localDECount',rc)
 
-       print*,'FVDBG.edyn3d_remap_phys2mag.. localDECount=',localDECount
-
        ! total number of grids cells per hemisphere
        ncells_hlat = nmlatS2_h - (k-1)
 
@@ -233,13 +191,6 @@ contains
           call ESMF_FieldGet(magFieldDes_s2(k), localDe=nde, farrayPtr=fptr3d, &
                              computationalLBound=lbnd3d, computationalUBound=ubnd3d, rc=rc)
           call check_error(subname,'ESMF_FieldGet magFieldDes_s2',rc)
-
-          print*,'FVDBG.edyn3d_remap_phys2mag.. nde : ',nde
-!!$          print*,'FVDBG.edyn3d_remap_phys2mag.. lbnd3d : ',lbnd3d
-!!$          print*,'FVDBG.edyn3d_remap_phys2mag.. ubnd3d : ',ubnd3d
-!!$          print*,'FVDBG.edyn3d_remap_phys2mag.. mlon0,mlon1 : ',mlon0,mlon1
-!!$          print*,'FVDBG.edyn3d_remap_phys2mag.. mlat0,mlat1 : ',mlat0,mlat1
-!!$          print*,'FVDBG.edyn3d_remap_phys2mag.. ncells_hlat : ',ncells_hlat
 
           do n = lbnd3d(3), ubnd3d(3) ! 1,nflds
              do j = lbnd3d(2), ubnd3d(2)
@@ -250,7 +201,6 @@ contains
                    isn = 1
                    jj = j
                 end if
-                if (n==1) print*,'   k,isn,j,jj,mlat1,ncells_hlat', k,isn,j,jj,mlat1,ncells_hlat
                 do i = lbnd3d(1), ubnd3d(1)
                    magflds(k,isn,jj,i,n) = fptr3d(i,j,n)
                 end do
@@ -258,8 +208,6 @@ contains
           end do
 
        end do DE_num
-
-       print*,' '
 
     end do vertloop
 
@@ -277,15 +225,6 @@ contains
           end do
        end do
     end do
-
-!!$
-!!$    if (any(magflds==NOTSET) ) then
-!!$       call endrun(subname//': magflds not set correctly')
-!!$    end if
-
-print*,'FVDBG.edyn3d_esmf_s2_mag_grid_init.. OK HERE'
-call mpi_barrier(mpicom, rc)
-call endrun('FVDBG.edyn3d_esmf_s2_mag_grid_init.. OK STOP HERE')
 
   end subroutine edyn3d_remap_phys2mag_s2
 

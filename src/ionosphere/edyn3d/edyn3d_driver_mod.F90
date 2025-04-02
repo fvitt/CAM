@@ -155,7 +155,7 @@ contains
     physflds(:,:,3) = un(:,:)
     physflds(:,:,4) = vn(:,:)
 
-!    call edyn3d_remap_phys2mag_s1(nphyscol, nphyslev, physalt, physflds, magflds)
+    call edyn3d_remap_phys2mag_s1(nphyscol, nphyslev, physalt, physflds, magflds)
     call edyn3d_remap_phys2mag_s2(nphyscol, nphyslev, physalt, physflds, magflds)
 
     print*,'FVDBG.edyn3D_driver_timestep... END'

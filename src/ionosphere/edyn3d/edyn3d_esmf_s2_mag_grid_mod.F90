@@ -55,16 +55,10 @@ contains
        lonCellsPerDE(i) = nmlon_task(i-1)
     end do
 
-    print*,' '
-    print*,'FVDBG.edyn3d_esmf_s2_mag_grid_init.. '
-
     vertloop: do k = 1, nz
 
        ! total number of grids cells per hemisphere
-       !ncells_hlat = count(npts_s2>=k)
        ncells_hlat = nmlatS2_h - (k-1)
-
-       print*,'FVDBG.. ncells_hlat: ',ncells_hlat !,' nmlatS2_h - (k-1):',nmlatS2_h - (k-1)
 
        ! find number of lat tasks that have grid cells in level k in 1 hemisphere
        i = 0
@@ -74,8 +68,6 @@ contains
           n = n + nmlat_task(i)
        end do
        klat_sz = i+1
-
-       print*,'FVDBG... k:',k,' number of lat tasks that have grid cells latCellsPerDE:',klat_sz
 
        ! number of global lat grid cells for level k (1 DE straddles the equator)
        allocate(latCellsPerDE(klat_sz*2-1))
@@ -103,8 +95,6 @@ contains
           latCellsPerDE(i) = latCellsPerDE(ii) ! mirror the southern hemisphere
        end do
 
-       print*,'FVDBG... k:',k,' latCellsPerDE:',latCellsPerDE
-
        ! mpi task number for each DE (numLonDEs x numLatDEs)
        allocate(petmap(lon_size, klat_sz*2-1,1))
        petmap = -huge(1)
@@ -122,11 +112,6 @@ contains
              petmap(i,j,1) = petcnt
              petcnt = petcnt+1
           end do
-       end do
-
-       print*,'  petmap : '
-       do j = 1, klat_sz*2-1
-          print*,petmap(1:lon_size,j,1)
        end do
 
        ! 1 periodic dimension -- periodic logitude dim
@@ -149,8 +134,6 @@ contains
 
        do nde = 0,localDECount-1
 
-          print*,'DE number nde: ',nde
-
           ! set S2 coordinates
           ! geographic longitudes
           call ESMF_GridGetCoord(mag_s2_fdln_grid(k), coordDim=1, localDE=nde, &
@@ -165,9 +148,6 @@ contains
                staggerloc=ESMF_STAGGERLOC_CENTER, farrayPtr=latcoord, rc=rc)
           call check_error(subname,'ESMF_GridGetCoord  S2',rc)
           latcoord = NOTSET
-
-          print*,' S2 grid lat lbnd : ',lbnd
-          print*,' S2 grid lat ubnd : ',ubnd
 
           do i = lbnd(1),ubnd(1)
              do j = lbnd(2),ubnd(2)
@@ -193,12 +173,6 @@ contains
        end do
 
     end do vertloop
-
-    print*,' '
-
-!!$print*,'FVDBG.edyn3d_esmf_s2_mag_grid_init.. OK HERE'
-!!$call mpi_barrier(mpicom, rc)
-!!$call endrun('FVDBG.edyn3d_esmf_s2_mag_grid_init.. OK STOP HERE')
 
   end subroutine edyn3d_esmf_s2_mag_grid_init
   !-----------------------------------------------------------------------
