@@ -84,8 +84,8 @@ contains
        do icol = 1,ncol
           ufld(:pver,icol,lchnk) = phys_state(lchnk)%u(icol,:pver)
           vfld(:pver,icol,lchnk) = phys_state(lchnk)%v(icol,:pver)
-          wfld(:pver,icol,lchnk) = phys_state(lchnk)%omega(icol,:pver)
-          ! = -sheight(:ncol,:) *  phys_state(lchnk)%omega(:ncol,:) / phys_state(lchnk)%pmid(:ncol,:)
+          wfld(:pver,icol,lchnk) = -phys_state(lchnk)%omega(icol,:pver)   ! use -omega so that momentum flux direction conforms with convention
+!          wfld(:pver,icol,lchnk) = -sheight(:ncol,:) *  phys_state(lchnk)%omega(:ncol,:) / phys_state(lchnk)%pmid(:ncol,:)
           tfld(:pver,icol,lchnk) = phys_state(lchnk)%t(icol,:pver) * phys_state(lchnk)%exner(icol,:pver)
        end do
     end do
@@ -98,6 +98,7 @@ contains
 
     w_fft = esmf_zonal_fft_3d(wfld)
     call output_fld(w_fft, name='OMEGA')
+!    call output_fld(w_fft, name='W')
 
     t_fft = esmf_zonal_fft_3d(tfld)
     call output_fld(t_fft, name='THETA')
@@ -105,16 +106,19 @@ contains
     wstar = conjg(w_fft)
     call output_fld(wstar, name='WSTAR')
 
-    tmpfld = u_fft * wstar
+    tmpfld = u_fft * wstar !* 2._r8       ! times 2 to account for the other half of the spectrum
     cospectra = tmpfld%re
+    cospectra(2:,:,:) = 2._r8 * cospectra(2:,:,:)
     call output_cosp(cospectra,'U')
 
     tmpfld = v_fft * wstar
     cospectra = tmpfld%re
+    cospectra(2:,:,:) = 2._r8 * cospectra(2:,:,:)
     call output_cosp(cospectra,'V')
 
     tmpfld = t_fft * wstar
     cospectra = tmpfld%re
+    cospectra(2:,:,:) = 2._r8 * cospectra(2:,:,:)
     call output_cosp(cospectra,'T')
 
     call t_stopf ('zonal_fft_calc')

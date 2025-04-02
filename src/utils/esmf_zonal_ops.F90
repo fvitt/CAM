@@ -31,8 +31,8 @@ module esmf_zonal_ops
   integer :: nlats = -1
   integer :: nlons = -1
 
-  real(r8), allocatable :: glats(:)
-  real(r8), allocatable :: glons(:)
+  real(r8), allocatable, protected :: glats(:)
+  real(r8), allocatable, protected :: glons(:)
 
   integer, parameter :: minlats_per_pe = 2
   integer, parameter :: minlons_per_pe = 4
