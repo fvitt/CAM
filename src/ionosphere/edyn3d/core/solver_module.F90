@@ -1080,6 +1080,8 @@ module solver_module
 !-----------------------------------------------------------------------
   function solve_superlu(n,nnz,irow,jcol,values,rhs) result(sol)
 
+    use iso_c_binding,only:c_int,c_long_long,c_double
+
     integer,intent(in) :: n,nnz
     integer,dimension(nnz),intent(in) :: irow,jcol
     real(kind=rp),dimension(nnz),intent(in) :: values
@@ -1089,10 +1091,10 @@ module solver_module
 ! for SuperLU sparse matrix solver (CSC format)
     integer,parameter :: nrhs = 1
     integer :: i,iopt,info
-    integer(kind=8) :: f_factors
-    integer,dimension(n+1) :: colptr
-    integer,dimension(nnz) :: rowind
-    real(kind=rp),dimension(nnz) :: nzval
+    integer(kind=c_long_long) :: f_factors
+    integer(kind=c_int),dimension(n+1) :: colptr
+    integer(kind=c_int),dimension(nnz) :: rowind
+    real(kind=c_double),dimension(nnz) :: nzval
 
     interface
       subroutine c_fortran_dgssv(iopt,n,nnz,nrhs, &
