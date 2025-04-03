@@ -93,7 +93,6 @@ contains
 
     vertloop: do k = 1, nz
 
-       print*,' FVDBG... create rhandles lev k : ',k
        ! Mag fields
 
        magFieldDes_s2(k) = ESMF_FieldCreate( grid=mag_s2_fdln_grid(k), &

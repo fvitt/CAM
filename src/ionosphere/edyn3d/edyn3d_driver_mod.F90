@@ -90,8 +90,6 @@ contains
 
     print*,'FVDBG.edyn3d_driver_init...mlon0, mlon1, mlat0, mlat1: ', mlon0, mlon1, mlat0, mlat1
 
-
-
     acitve_tasks: if (mpi_rank<mpi_size) then
 
        print*,'FVDBG.edyn3d_driver_init...active mpi_rank: ',mpi_rank
@@ -130,12 +128,16 @@ contains
 
   end subroutine edyn3d_driver_init
 
-  subroutine edyn3D_driver_timestep( nphyscol, nphyslev, physalt, sigPed, sigHal, un, vn)
+  subroutine edyn3d_driver_timestep( nphyscol, nphyslev, physalt, sigPed, sigHal, un, vn)
     use edyn3d_remap_mod, only: edyn3d_remap_phys2mag_s1
     use edyn3d_remap_mod, only: edyn3d_remap_phys2mag_s2
+    use edyn3d_remap_mod, only: edyn3d_remap_mag2oplus, NOTSET
     use edyn3d_esmf_fields_rhandles, only: magFieldDes_s1, rh_phys2mag_s1, phys2mag_nflds
+    use edyn3D_esmf_fields_rhandles, only: mag2opls_nflds
     use mpi_module, only: mlat0, mlat1, mlon0, mlon1
     use params_module,only:  nhgt_fix
+    use edyn_mpi, only: lon0,lon1,lat0,lat1,lev0,lev1
+    use regridder, only: regrid_phys2geo_3d, regrid_geo2phys_3d
 
     integer,  intent(in) :: nphyscol, nphyslev
     real(r8), intent(in) :: physalt(nphyslev,nphyscol)
@@ -147,8 +149,20 @@ contains
 
     real(r8) :: physflds(nphyslev,nphyscol, phys2mag_nflds)
     real(r8) :: magflds(nhgt_fix,2,mlat0:mlat1,mlon0:mlon1, phys2mag_nflds)
+    real(r8) :: magflds2(nhgt_fix,2,mlat0:mlat1,mlon0:mlon1, mag2opls_nflds)
+
+    real(r8) :: opalt(lon0:lon1,lat0:lat1,lev0:lev1)
+    real(r8) :: oplusflds(lon0:lon1,lat0:lat1,lev0:lev1,mag2opls_nflds) ! field mapped to oplus grid
+
+    character(len=*), parameter :: subname = 'edyn3d_driver_timestep'
 
     print*,'FVDBG.edyn3D_driver_timestep... 0'
+
+    physflds = NOTSET
+    magflds = NOTSET
+    magflds2 = NOTSET
+    opalt = NOTSET
+    oplusflds = NOTSET
 
     physflds(:,:,1) = sigPed(:,:)
     physflds(:,:,2) = sigHal(:,:)
@@ -156,10 +170,23 @@ contains
     physflds(:,:,4) = vn(:,:)
 
     call edyn3d_remap_phys2mag_s1(nphyscol, nphyslev, physalt, physflds, magflds)
+
     call edyn3d_remap_phys2mag_s2(nphyscol, nphyslev, physalt, physflds, magflds)
+
+    magflds2(:,:,:,:,1:3) = magflds(:,:,:,:,1:3)
+
+    call regrid_phys2geo_3d( physalt, opalt, nphyslev, 1, nphyscol )
+    if (any(opalt==NOTSET)) then
+       call endrun(subname//': regrid_phys2geo_3d physalt->opalt ERROR')
+    end if
+
+    call edyn3d_remap_mag2oplus( magflds2, opalt, oplusflds )
+    if (any(oplusflds==NOTSET)) then
+       call endrun(subname//': edyn3d_remap_mag2oplus ERROR')
+    end if
 
     print*,'FVDBG.edyn3D_driver_timestep... END'
 
-  end subroutine edyn3D_driver_timestep
+  end subroutine edyn3d_driver_timestep
 
 end module edyn3d_driver_mod

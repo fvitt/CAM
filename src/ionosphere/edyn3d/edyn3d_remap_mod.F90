@@ -8,6 +8,8 @@ module edyn3d_remap_mod
   use params_module, only: hgt_fix, nhgt_fix, nmlat_h, nmlatS2_h
   use interpolate_data, only: lininterp
 
+  use mpi_module, only: mlat0, mlat1, mlon0, mlon1
+
   use ESMF
 
   implicit none
@@ -16,16 +18,17 @@ module edyn3d_remap_mod
 
   public :: edyn3d_remap_phys2mag_s1
   public :: edyn3d_remap_phys2mag_s2
-!  public :: edyn3d_remap_mag2oplus
+  public :: edyn3d_remap_mag2oplus
+  public :: NOTSET
 
   real(r8), parameter :: NOTSET = -huge(1._r8)
+
 contains
 
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------
   subroutine edyn3d_remap_phys2mag_s1(nphyscol, nphyslev, physalt, physflds, magflds)
 
-    use mpi_module, only: mlat0, mlat1, mlon0, mlon1
     use edyn3d_esmf_s1_mag_grid_mod, only: mag_s1_fdln_grid
     use fieldline_module, only: npts_s1
     use edyn3d_esmf_fields_rhandles, only: magFieldDes_s1, rh_phys2mag_s1, nflds=>phys2mag_nflds
@@ -130,7 +133,6 @@ contains
   !------------------------------------------------------------------------------
   subroutine edyn3d_remap_phys2mag_s2(nphyscol, nphyslev, physalt, physflds, magflds)
 
-    use mpi_module, only: mlat0, mlat1, mlon0, mlon1
     use edyn3d_esmf_s2_mag_grid_mod, only: mag_s2_fdln_grid
     use fieldline_module, only: npts_s2
     use edyn3d_esmf_fields_rhandles, only: magFieldDes_s2, rh_phys2mag_s2, nflds=>phys2mag_nflds
@@ -228,58 +230,72 @@ contains
 
   end subroutine edyn3d_remap_phys2mag_s2
 
-#ifdef XXXDONOTINCLUDEXXX
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------
   subroutine edyn3d_remap_mag2oplus( magflds, opalt, oplusflds )
 
-    use edyn3D_esmf_fields_rhandles, only: magFieldSrc_s1, oplusFieldDes, rh_mag2plus_s1
+    use edyn3D_esmf_fields_rhandles, only: magFieldSrc_s2, oplusFieldDes, rh_mag2oplus_s2
     use edyn3D_esmf_fields_rhandles, only: nflds => mag2opls_nflds
-    use edyn_mpi, only: lon0,lon1,lat0,lat1
+    use edyn_mpi, only: lon0,lon1,lat0,lat1,lev0,lev1
     use edyn_geogrid, only: nlevo=>nlev
+    use edyn3d_esmf_s2_mag_grid_mod, only: mag_s2_fdln_grid
 
-    character(len=*), parameter :: subname = 'edyn3d_remap_mag2oplus'
-
-    type(magfield_t) , intent(inout) :: magflds(nflds)
-    real(r8), intent(in) :: opalt(lon0:lon1,lat0:lat1,nlevo) ! oplus grid altitudes
-    real(r8), intent(out) :: oplusflds(lon0:lon1,lat0:lat1,nlevo,nflds) ! field mapped to oplus grid
+    real(r8), intent(in) :: magflds(nhgt_fix,2,mlat0:mlat1,mlon0:mlon1,nflds)
+    real(r8), intent(in) :: opalt(lon0:lon1,lat0:lat1,lev0:lev1) ! oplus grid altitudes
+    real(r8), intent(out) :: oplusflds(lon0:lon1,lat0:lat1,lev0:lev1,nflds) ! field mapped to oplus grid
 
     real(r8) :: f_tmp(lon0:lon1,lat0:lat1,nflds,nhgt_fix)
     integer :: lbnd3d(3), ubnd3d(3) ! field bounds
     real(ESMF_KIND_R8), pointer :: fptr3d(:,:,:)
 
-    integer :: i,j,k,jj,isn,n, nmlat, rc
+    integer :: i,j,k,jj,isn,n, rc
+    integer :: localDECount, nde, ncells_hlat
 
-    do k = 1,nhgt_fix
+    character(len=*), parameter :: subname = 'edyn3d_remap_mag2oplus'
 
-       if (mytid<ntask3D) then
-          call ESMF_FieldGet(magFieldSrc_s1(k), localDe=0, farrayPtr=fptr3d, &
+    oplusflds = NOTSET
+
+    vertloop: do k = 1,nhgt_fix
+
+       call ESMF_GridGet(mag_s2_fdln_grid(k), localDECount=localDECount, rc=rc)
+       call check_error(subname,'ESMF_GridGet localDECount',rc)
+
+       ! total number of grids cells per hemisphere
+       ncells_hlat = nmlatS2_h - (k-1)
+
+       DE_num: do nde = 0,localDECount-1
+
+          call ESMF_FieldGet(magFieldSrc_s2(k), localDe=nde, farrayPtr=fptr3d, &
                computationalLBound=lbnd3d, computationalUBound=ubnd3d, rc=rc)
-          call check_error(subname,'ESMF_FieldGet magFieldSrc_s1(k)',rc)
-
-          nmlat = (magflds(1)%nmlat_h - (k-1))*2
+          call check_error(subname,'ESMF_FieldGet magFieldSrc_s2(k)',rc)
+          fptr3d = NOTSET
 
           do n = lbnd3d(3), ubnd3d(3) ! 1,nflds
              do j = lbnd3d(2), ubnd3d(2)
-                if (j>nmlat/2) then
+                if (j>ncells_hlat) then
                    isn = 2
-                   jj = nmlat-j+1
+                   jj = 2*ncells_hlat - j + 1
                 else
                    isn = 1
                    jj = j
                 end if
                 do i = lbnd3d(1), ubnd3d(1)
-                   fptr3d(i,j,n) = magflds(n)%flines(i,jj,isn)%fld(k)
+                   fptr3d(i,j,n) = magflds(k,isn,jj,i,n)
                 end do
              end do
           end do
-       endif
+
+          if (any(fptr3d==NOTSET)) then
+             call endrun(subname//': fptr3d not set correctly')
+          end if
+
+       end do DE_num
+
+       call ESMF_FieldRegrid(magFieldSrc_s2(k), oplusFieldDes, rh_mag2oplus_s2(k), &
+            termorderflag=ESMF_TERMORDER_SRCSEQ, rc=rc)
+       call check_error(subname,'ESMF_FieldRegrid mag2oplus',rc)
 
        if (mytid<ntaskOp) then
-
-          call ESMF_FieldRegrid(magFieldSrc_s1(k), oplusFieldDes, rh_mag2plus_s1(k), &
-               termorderflag=ESMF_TERMORDER_SRCSEQ, rc=rc)
-          call check_error(subname,'ESMF_FieldRegrid mag2oplus',rc)
 
           call ESMF_FieldGet(field=oplusFieldDes, localDe=0, farrayPtr=fptr3d, &
                computationalLBound=lbnd3d, computationalUBound=ubnd3d, rc=rc)
@@ -295,7 +311,11 @@ contains
 
        endif
 
-    enddo
+    enddo vertloop
+
+    if (any(f_tmp==NOTSET)) then
+       call endrun(subname//': f_tmp not set correctly')
+    end if
 
     do n = 1,nflds
        do i = lon0,lon1
@@ -307,7 +327,7 @@ contains
     end do
 
   end subroutine edyn3d_remap_mag2oplus
-#endif
+
   !-----------------------------------------------------------------------
   !-----------------------------------------------------------------------
   subroutine check_error(subname, routine, rc)
