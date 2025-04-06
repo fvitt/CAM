@@ -12,10 +12,10 @@ module mpi_module
   integer :: dynamo_world=-huge(1), &
     mpi_rp=-huge(1), mpi_size=0, mpi_rank=-1, &
     lat_size=0, lon_size=0, lat_rank=-1, lon_rank=-1, &
-    nlat=0, maxlat=-1, lat0=0, lat1=-1, latd0=0, latd1=-1, &
-    nlon=0, maxlon=-1, lon0=0, lon1=-1, lond0=0, lond1=-1, &
-    nmlat=0, maxmlat=-1, mlat0=0, mlat1=-1, mlatd0=0, mlatd1=-1, &
-    nmlon=0, maxmlon=-1, mlon0=0, mlon1=-1, mlond0=0, mlond1=-1
+    nlat=0, maxlat=-1, lat0=1, lat1=0, latd0=1, latd1=0, &
+    nlon=0, maxlon=-1, lon0=1, lon1=0, lond0=1, lond1=0, &
+    nmlat=0, maxmlat=-1, mlat0=1, mlat1=0, mlatd0=1, mlatd1=0, &
+    nmlon=0, maxmlon=-1, mlon0=1, mlon1=0, mlond0=1, mlond1=0
   integer, dimension(:), allocatable :: &
     nlat_task, lat0_task, lat1_task, &
     nlon_task, lon0_task, lon1_task, &

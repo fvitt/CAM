@@ -40,6 +40,8 @@ contains
 
     use infnan, only: nan, assignment(=)
     use mpi_module, only: mlon0, mlon1, mlat0, mlat1
+    use edyn3d_hist_mag_grids_mod, only: edyn3d_hist_mag_grids_reg
+    use cam_history, only: addfld, horiz_only
 
     integer, intent(in) :: mpicom_atm, npes_edyn3D
 
@@ -90,6 +92,8 @@ contains
 
     print*,'FVDBG.edyn3d_driver_init...mlon0, mlon1, mlat0, mlat1: ', mlon0, mlon1, mlat0, mlat1
 
+    call edyn3d_hist_mag_grids_reg()
+
     acitve_tasks: if (mpi_rank<mpi_size) then
 
        print*,'FVDBG.edyn3d_driver_init...active mpi_rank: ',mpi_rank
@@ -124,6 +128,17 @@ contains
 
     call edyn3d_esmf_fields_rhandles_init()
 
+
+    call addfld ('sigma_ped_s1', horiz_only, 'I', 'K','Ped cond. on S1 mag field line grid', &
+                  gridname='magfline_s1')
+    call addfld ('sigma_hal_s1', horiz_only, 'I', 'K','Hal cond. on S1 mag field line grid', &
+                  gridname='magfline_s1')
+    call addfld ('sigma_ped_s2', horiz_only, 'I', 'K','Ped cond. on S2 mag field line grid', &
+                  gridname='magfline_s2')
+    call addfld ('sigma_hal_s2', horiz_only, 'I', 'K','Hal cond. on S2 mag field line grid', &
+                  gridname='magfline_s2')
+
+
     print*,'FVDBG.edyn3d_driver_init...END'
 
   end subroutine edyn3d_driver_init
@@ -138,6 +153,8 @@ contains
     use params_module,only:  nhgt_fix
     use edyn_mpi, only: lon0,lon1,lat0,lat1,lev0,lev1
     use regridder, only: regrid_phys2geo_3d, regrid_geo2phys_3d
+    use edyn3d_hist_mag_grids_mod, only: edyn3d_hist_mag_s1_out
+    use edyn3d_hist_mag_grids_mod, only: edyn3d_hist_mag_s2_out
 
     integer,  intent(in) :: nphyscol, nphyslev
     real(r8), intent(in) :: physalt(nphyslev,nphyscol)
@@ -171,7 +188,13 @@ contains
 
     call edyn3d_remap_phys2mag_s1(nphyscol, nphyslev, physalt, physflds, magflds)
 
+    call edyn3d_hist_mag_s1_out('sigma_ped_s1',magflds(:,:,:,:,1))
+    call edyn3d_hist_mag_s1_out('sigma_hal_s1',magflds(:,:,:,:,2))
+
     call edyn3d_remap_phys2mag_s2(nphyscol, nphyslev, physalt, physflds, magflds)
+
+    call edyn3d_hist_mag_s2_out('sigma_ped_s2',magflds(:,:,:,:,1))
+    call edyn3d_hist_mag_s2_out('sigma_hal_s2',magflds(:,:,:,:,2))
 
     magflds2(:,:,:,:,1:3) = magflds(:,:,:,:,1:3)
 
