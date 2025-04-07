@@ -147,6 +147,7 @@ contains
     use edyn3d_remap_mod, only: edyn3d_remap_phys2mag_s1
     use edyn3d_remap_mod, only: edyn3d_remap_phys2mag_s2
     use edyn3d_remap_mod, only: edyn3d_remap_mag2oplus, NOTSET
+    use edyn3d_remap_mod, only: mag_fields_bundle_t, phys_fields_bundle_t, oplus_fields_bundle_t
     use edyn3d_esmf_fields_rhandles, only: magFieldDes_s1, rh_phys2mag_s1, phys2mag_nflds
     use edyn3D_esmf_fields_rhandles, only: mag2opls_nflds
     use mpi_module, only: mlat0, mlat1, mlon0, mlon1
@@ -159,53 +160,98 @@ contains
     integer,  intent(in) :: nphyscol, nphyslev
     real(r8), intent(in) :: physalt(nphyslev,nphyscol)
 
-    real(r8), intent(in) :: sigPed(nphyslev,nphyscol)
-    real(r8), intent(in) :: sigHal(nphyslev,nphyscol)
-    real(r8), intent(in) :: un(nphyslev,nphyscol)
-    real(r8), intent(in) :: vn(nphyslev,nphyscol)
-
-    real(r8) :: physflds(nphyslev,nphyscol, phys2mag_nflds)
-    real(r8) :: magflds(nhgt_fix,2,mlat0:mlat1,mlon0:mlon1, phys2mag_nflds)
-    real(r8) :: magflds2(nhgt_fix,2,mlat0:mlat1,mlon0:mlon1, mag2opls_nflds)
+    real(r8), target, intent(in) :: sigPed(nphyslev,nphyscol)
+    real(r8), target, intent(in) :: sigHal(nphyslev,nphyscol)
+    real(r8), target, intent(in) :: un(nphyslev,nphyscol)
+    real(r8), target, intent(in) :: vn(nphyslev,nphyscol)
 
     real(r8) :: opalt(lon0:lon1,lat0:lat1,lev0:lev1)
-    real(r8) :: oplusflds(lon0:lon1,lat0:lat1,lev0:lev1,mag2opls_nflds) ! field mapped to oplus grid
+
+    type(phys_fields_bundle_t) :: phys_flds_bndl(phys2mag_nflds)
+    type(mag_fields_bundle_t) :: mags1_flds_bndl(phys2mag_nflds)
+    type(mag_fields_bundle_t) :: mags2_flds_bndl(phys2mag_nflds)
+    type(mag_fields_bundle_t) :: magsrc_flds_bndl(mag2opls_nflds)
+    type(oplus_fields_bundle_t) :: oplus_flds_bndl(mag2opls_nflds)
+
+    real(r8), target :: sigped_s1(nhgt_fix,2,mlat0:mlat1,mlon0:mlon1)
+    real(r8), target :: sighal_s1(nhgt_fix,2,mlat0:mlat1,mlon0:mlon1)
+    real(r8), target :: un_s1(nhgt_fix,2,mlat0:mlat1,mlon0:mlon1)
+    real(r8), target :: vn_s1(nhgt_fix,2,mlat0:mlat1,mlon0:mlon1)
+
+    real(r8), target :: sigped_s2(nhgt_fix,2,mlat0:mlat1,mlon0:mlon1)
+    real(r8), target :: sighal_s2(nhgt_fix,2,mlat0:mlat1,mlon0:mlon1)
+    real(r8), target :: un_s2(nhgt_fix,2,mlat0:mlat1,mlon0:mlon1)
+    real(r8), target :: vn_s2(nhgt_fix,2,mlat0:mlat1,mlon0:mlon1)
+
+    real(r8), target :: ui_oplus(lon0:lon1,lat0:lat1,lev0:lev1)
+    real(r8), target :: vi_oplus(lon0:lon1,lat0:lat1,lev0:lev1)
+    real(r8), target :: wi_oplus(lon0:lon1,lat0:lat1,lev0:lev1)
 
     character(len=*), parameter :: subname = 'edyn3d_driver_timestep'
 
     print*,'FVDBG.edyn3D_driver_timestep... 0'
 
-    physflds = NOTSET
-    magflds = NOTSET
-    magflds2 = NOTSET
-    opalt = NOTSET
-    oplusflds = NOTSET
+    sigped_s1 = NOTSET
+    sighal_s1 = NOTSET
+    un_s1 = NOTSET
+    vn_s1 = NOTSET
 
-    physflds(:,:,1) = sigPed(:,:)
-    physflds(:,:,2) = sigHal(:,:)
-    physflds(:,:,3) = un(:,:)
-    physflds(:,:,4) = vn(:,:)
+    sigped_s2 = NOTSET
+    sighal_s2 = NOTSET
+    un_s2 = NOTSET
+    vn_s2 = NOTSET
 
-    call edyn3d_remap_phys2mag_s1(nphyscol, nphyslev, physalt, physflds, magflds)
+    mags1_flds_bndl(1)%fld => sigped_s1
+    mags1_flds_bndl(2)%fld => sighal_s1
+    mags1_flds_bndl(3)%fld => un_s1
+    mags1_flds_bndl(4)%fld => vn_s1
 
-    call edyn3d_hist_mag_s1_out('sigma_ped_s1',magflds(:,:,:,:,1))
-    call edyn3d_hist_mag_s1_out('sigma_hal_s1',magflds(:,:,:,:,2))
+    mags2_flds_bndl(1)%fld => sigped_s2
+    mags2_flds_bndl(2)%fld => sighal_s2
+    mags2_flds_bndl(3)%fld => un_s2
+    mags2_flds_bndl(4)%fld => vn_s2
 
-    call edyn3d_remap_phys2mag_s2(nphyscol, nphyslev, physalt, physflds, magflds)
+    phys_flds_bndl(1)%fld => sigPed
+    phys_flds_bndl(2)%fld => sigHal
+    phys_flds_bndl(3)%fld => un
+    phys_flds_bndl(4)%fld => vn
 
-    call edyn3d_hist_mag_s2_out('sigma_ped_s2',magflds(:,:,:,:,1))
-    call edyn3d_hist_mag_s2_out('sigma_hal_s2',magflds(:,:,:,:,2))
+    call edyn3d_remap_phys2mag_s1(nphyscol, nphyslev, physalt, phys_flds_bndl, mags1_flds_bndl)
 
-    magflds2(:,:,:,:,1:3) = magflds(:,:,:,:,1:3)
+    call edyn3d_hist_mag_s1_out('sigma_ped_s1',sigped_s1)
+    call edyn3d_hist_mag_s1_out('sigma_hal_s1',sighal_s1)
+
+    call edyn3d_remap_phys2mag_s2(nphyscol, nphyslev, physalt, phys_flds_bndl, mags2_flds_bndl)
+
+    call edyn3d_hist_mag_s2_out('sigma_ped_s2',sigped_s2)
+    call edyn3d_hist_mag_s2_out('sigma_hal_s2',sighal_s2)
+
+    magsrc_flds_bndl(1)%fld => un_s2
+    magsrc_flds_bndl(2)%fld => vn_s2
+    magsrc_flds_bndl(3)%fld => sighal_s2
+
+    ui_oplus = NOTSET
+    vi_oplus = NOTSET
+    wi_oplus = NOTSET
+
+    oplus_flds_bndl(1)%fld => ui_oplus
+    oplus_flds_bndl(2)%fld => vi_oplus
+    oplus_flds_bndl(3)%fld => wi_oplus
 
     call regrid_phys2geo_3d( physalt, opalt, nphyslev, 1, nphyscol )
     if (any(opalt==NOTSET)) then
        call endrun(subname//': regrid_phys2geo_3d physalt->opalt ERROR')
     end if
 
-    call edyn3d_remap_mag2oplus( magflds2, opalt, oplusflds )
-    if (any(oplusflds==NOTSET)) then
-       call endrun(subname//': edyn3d_remap_mag2oplus ERROR')
+    call edyn3d_remap_mag2oplus( magsrc_flds_bndl, opalt, oplus_flds_bndl )
+    if (any(ui_oplus==NOTSET)) then
+       call endrun(subname//': edyn3d_remap_mag2oplus ERROR ui_oplus')
+    end if
+    if (any(vi_oplus==NOTSET)) then
+       call endrun(subname//': edyn3d_remap_mag2oplus ERROR vi_oplus')
+    end if
+    if (any(wi_oplus==NOTSET)) then
+       call endrun(subname//': edyn3d_remap_mag2oplus ERROR wi_oplus')
     end if
 
     print*,'FVDBG.edyn3D_driver_timestep... END'

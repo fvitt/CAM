@@ -19,7 +19,22 @@ module edyn3d_remap_mod
   public :: edyn3d_remap_phys2mag_s1
   public :: edyn3d_remap_phys2mag_s2
   public :: edyn3d_remap_mag2oplus
+  public :: phys_fields_bundle_t
+  public :: mag_fields_bundle_t
+  public :: oplus_fields_bundle_t
   public :: NOTSET
+
+  type :: phys_fields_bundle_t
+     real(r8),  pointer :: fld(:,:)
+  end type phys_fields_bundle_t
+
+  type :: mag_fields_bundle_t
+     real(r8),  pointer :: fld(:,:,:,:)
+  end type mag_fields_bundle_t
+
+  type :: oplus_fields_bundle_t
+     real(r8),  pointer :: fld(:,:,:)
+  end type oplus_fields_bundle_t
 
   real(r8), parameter :: NOTSET = -huge(1._r8)
 
@@ -34,10 +49,10 @@ contains
     use edyn3d_esmf_fields_rhandles, only: magFieldDes_s1, rh_phys2mag_s1, nflds=>phys2mag_nflds
     use edyn3D_esmf_fields_rhandles, only: physFieldSrc
 
-    integer,  intent(in)  :: nphyscol, nphyslev
-    real(r8), intent(in)  :: physalt(nphyslev,nphyscol)
-    real(r8), intent(in)  :: physflds(nphyslev,nphyscol,nflds)
-    real(r8), intent(out) :: magflds(nhgt_fix,2,mlat0:mlat1,mlon0:mlon1,nflds)
+    integer,  intent(in) :: nphyscol, nphyslev
+    real(r8), intent(in) :: physalt(nphyslev,nphyscol)
+    type(phys_fields_bundle_t), intent(in) :: physflds(nflds)
+    type(mag_fields_bundle_t), intent(out) :: magflds(nflds)
 
     real(r8) :: physflds_tmp(nphyscol,nhgt_fix,nflds)
 
@@ -52,13 +67,13 @@ contains
 
     character(len=*), parameter :: subname = 'edyn3d_remap_phys2mag'
 
-    magflds = NOTSET
 
     do n = 1,nflds
-      do i = 1,nphyscol
-         call lininterp(physflds(nphyslev:1:-1,i,n),physalt(nphyslev:1:-1,i),nphyslev,&
-                        physflds_tmp(i,:,n),hgt_fix(:),nhgt_fix)
-      end do
+       magflds(n)%fld = NOTSET
+       do i = 1,nphyscol
+          call lininterp(physflds(n)%fld(nphyslev:1:-1,i),physalt(nphyslev:1:-1,i),nphyslev, &
+                         physflds_tmp(i,:,n),hgt_fix(:),nhgt_fix)
+       end do
     end do
 
     vertloop: do k = 1,nhgt_fix
@@ -75,7 +90,7 @@ contains
        end do
 
        call ESMF_FieldRegrid(physFieldSrc, magFieldDes_s1(k), rh_phys2mag_s1(k), &
-                             termorderflag=ESMF_TERMORDER_SRCSEQ, rc=rc)
+            termorderflag=ESMF_TERMORDER_SRCSEQ, rc=rc)
        call check_error(subname,'ESMF_FieldRegrid phys2mag',rc)
 
        call ESMF_GridGet(mag_s1_fdln_grid(k), localDECount=localDECount, rc=rc)
@@ -87,7 +102,7 @@ contains
        DE_num: do nde = 0,localDECount-1
 
           call ESMF_FieldGet(magFieldDes_s1(k), localDe=nde, farrayPtr=fptr3d, &
-                             computationalLBound=lbnd3d, computationalUBound=ubnd3d, rc=rc)
+               computationalLBound=lbnd3d, computationalUBound=ubnd3d, rc=rc)
           call check_error(subname,'ESMF_FieldGet magFieldDes_s1',rc)
 
           do n = lbnd3d(3), ubnd3d(3) ! 1,nflds
@@ -100,10 +115,10 @@ contains
                    jj = j
                 end if
                 do i = lbnd3d(1), ubnd3d(1)
-                   magflds(k,isn,jj,i,n) = fptr3d(i,j,n)
+                   magflds(n)%fld(k,isn,jj,i) = fptr3d(i,j,n)
                 end do
                 if (j==ncells_hlat) then ! at equator set point north to south
-                   magflds(k,2,jj,:,n) = magflds(k,1,jj,:,n)
+                   magflds(n)%fld(k,2,jj,:) = magflds(n)%fld(k,1,jj,:)
                 end if
              end do
           end do
@@ -117,7 +132,7 @@ contains
           do k = 1,npts_s1(j)
              do i = mlon0,mlon1
                 do n = 1,nflds
-                   if (magflds(k,isn,j,i,n)==NOTSET) then
+                   if (magflds(n)%fld(k,isn,j,i)==NOTSET) then
                       write(*,*) subname,': magflds not set correctly at k,isn,j,i,n ',k,isn,j,i,n
                       call endrun(subname//': magflds not set correctly')
                    end if
@@ -138,10 +153,10 @@ contains
     use edyn3d_esmf_fields_rhandles, only: magFieldDes_s2, rh_phys2mag_s2, nflds=>phys2mag_nflds
     use edyn3D_esmf_fields_rhandles, only: physFieldSrc
 
-    integer,  intent(in)  :: nphyscol, nphyslev
-    real(r8), intent(in)  :: physalt(nphyslev,nphyscol)
-    real(r8), intent(in)  :: physflds(nphyslev,nphyscol,nflds)
-    real(r8), intent(out) :: magflds(nhgt_fix,2,mlat0:mlat1,mlon0:mlon1,nflds)
+    integer,  intent(in) :: nphyscol, nphyslev
+    real(r8), intent(in) :: physalt(nphyslev,nphyscol)
+    type(phys_fields_bundle_t), intent(in) :: physflds(nflds)
+    type(mag_fields_bundle_t), intent(out) :: magflds(nflds)
 
     real(r8) :: physflds_tmp(nphyscol,nhgt_fix,nflds)
 
@@ -156,13 +171,12 @@ contains
 
     character(len=*), parameter :: subname = 'edyn3d_remap_phys2mag'
 
-    magflds = NOTSET
-
     do n = 1,nflds
-      do i = 1,nphyscol
-         call lininterp(physflds(nphyslev:1:-1,i,n),physalt(nphyslev:1:-1,i),nphyslev,&
-                        physflds_tmp(i,:,n),hgt_fix(:),nhgt_fix)
-      end do
+       magflds(n)%fld = NOTSET
+       do i = 1,nphyscol
+          call lininterp(physflds(n)%fld(nphyslev:1:-1,i),physalt(nphyslev:1:-1,i),nphyslev, &
+                         physflds_tmp(i,:,n),hgt_fix(:),nhgt_fix)
+       end do
     end do
 
     vertloop: do k = 1,nhgt_fix
@@ -204,7 +218,7 @@ contains
                    jj = j
                 end if
                 do i = lbnd3d(1), ubnd3d(1)
-                   magflds(k,isn,jj,i,n) = fptr3d(i,j,n)
+                   magflds(n)%fld(k,isn,jj,i) = fptr3d(i,j,n)
                 end do
              end do
           end do
@@ -218,7 +232,7 @@ contains
           do k = 1,npts_s2(j)
              do i = mlon0,mlon1
                 do n = 1,nflds
-                   if (magflds(k,isn,j,i,n)==NOTSET) then
+                   if (magflds(n)%fld(k,isn,j,i)==NOTSET) then
                       write(*,*) subname,': magflds not set correctly at k,isn,j,i,n ',k,isn,j,i,n
                       call endrun(subname//': magflds not set correctly')
                    end if
@@ -240,9 +254,9 @@ contains
     use edyn_geogrid, only: nlevo=>nlev
     use edyn3d_esmf_s2_mag_grid_mod, only: mag_s2_fdln_grid
 
-    real(r8), intent(in) :: magflds(nhgt_fix,2,mlat0:mlat1,mlon0:mlon1,nflds)
+    type(mag_fields_bundle_t), intent(in) :: magflds(nflds)
     real(r8), intent(in) :: opalt(lon0:lon1,lat0:lat1,lev0:lev1) ! oplus grid altitudes
-    real(r8), intent(out) :: oplusflds(lon0:lon1,lat0:lat1,lev0:lev1,nflds) ! field mapped to oplus grid
+    type(oplus_fields_bundle_t), intent(out) :: oplusflds(nflds) ! field mapped to oplus grid
 
     real(r8) :: f_tmp(lon0:lon1,lat0:lat1,nflds,nhgt_fix)
     integer :: lbnd3d(3), ubnd3d(3) ! field bounds
@@ -253,7 +267,9 @@ contains
 
     character(len=*), parameter :: subname = 'edyn3d_remap_mag2oplus'
 
-    oplusflds = NOTSET
+    do n = 1,nflds
+       oplusflds(n)%fld = NOTSET
+    end do
 
     vertloop: do k = 1,nhgt_fix
 
@@ -280,7 +296,7 @@ contains
                    jj = j
                 end if
                 do i = lbnd3d(1), ubnd3d(1)
-                   fptr3d(i,j,n) = magflds(k,isn,jj,i,n)
+                   fptr3d(i,j,n) = magflds(n)%fld(k,isn,jj,i)
                 end do
              end do
           end do
@@ -321,9 +337,12 @@ contains
        do i = lon0,lon1
           do j = lat0,lat1
              !vert interpolate...
-             call lininterp(f_tmp(i,j,n,:), hgt_fix(:), nhgt_fix, oplusflds(i,j,:,n), opalt(i,j,:), nlevo )
+             call lininterp(f_tmp(i,j,n,:), hgt_fix(:), nhgt_fix, oplusflds(n)%fld(i,j,:), opalt(i,j,:), nlevo )
           end do
        end do
+       if (any(oplusflds(n)%fld==NOTSET)) then
+          call endrun(subname//': oplusflds(n)%fld not set correctly')
+       end if
     end do
 
   end subroutine edyn3d_remap_mag2oplus
