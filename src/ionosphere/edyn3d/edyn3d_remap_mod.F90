@@ -51,8 +51,8 @@ contains
 
     integer,  intent(in) :: nphyscol, nphyslev
     real(r8), intent(in) :: physalt(nphyslev,nphyscol)
-    type(phys_fields_bundle_t), intent(in) :: physflds(nflds)
-    type(mag_fields_bundle_t), intent(out) :: magflds(nflds)
+    type(phys_fields_bundle_t) :: physflds(nflds)
+    type(mag_fields_bundle_t)  :: magflds(nflds)
 
     real(r8) :: physflds_tmp(nphyscol,nhgt_fix,nflds)
 
@@ -155,8 +155,8 @@ contains
 
     integer,  intent(in) :: nphyscol, nphyslev
     real(r8), intent(in) :: physalt(nphyslev,nphyscol)
-    type(phys_fields_bundle_t), intent(in) :: physflds(nflds)
-    type(mag_fields_bundle_t), intent(out) :: magflds(nflds)
+    type(phys_fields_bundle_t) :: physflds(nflds)
+    type(mag_fields_bundle_t)  :: magflds(nflds)
 
     real(r8) :: physflds_tmp(nphyscol,nhgt_fix,nflds)
 
@@ -254,9 +254,9 @@ contains
     use edyn_geogrid, only: nlevo=>nlev
     use edyn3d_esmf_s2_mag_grid_mod, only: mag_s2_fdln_grid
 
-    type(mag_fields_bundle_t), intent(in) :: magflds(nflds)
+    type(mag_fields_bundle_t) :: magflds(nflds)
     real(r8), intent(in) :: opalt(lon0:lon1,lat0:lat1,lev0:lev1) ! oplus grid altitudes
-    type(oplus_fields_bundle_t), intent(out) :: oplusflds(nflds) ! field mapped to oplus grid
+    type(oplus_fields_bundle_t) :: oplusflds(nflds) ! field mapped to oplus grid
 
     real(r8) :: f_tmp(lon0:lon1,lat0:lat1,nflds,nhgt_fix)
     integer :: lbnd3d(3), ubnd3d(3) ! field bounds
