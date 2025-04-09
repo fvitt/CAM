@@ -6,7 +6,8 @@ module calculate_terms_module
 
   contains
 !-----------------------------------------------------------------------
-  subroutine calculate_conductance( &
+  pure subroutine calculate_conductance( &
+    mlatd0,mlatd1,mlond0,mlond1, &
     npts_p,npts_s1,npts_s2, &
     vmp_p,bmag_p,sigP_p, &
     vmp_s1,bmag_s1,sigP_s1,sigH_s1, &
@@ -16,8 +17,8 @@ module calculate_terms_module
 
     use params_module,only:nhgt_fix,nmlat_h,nmlatS2_h
     use cons_module,only:fill_value
-    use mpi_module,only:mlond0,mlond1,mlatd0,mlatd1
 
+    integer,intent(in) :: mlatd0,mlatd1,mlond0,mlond1
     integer,dimension(nmlat_h),intent(in) :: npts_p,npts_s1
     integer,dimension(nmlatS2_h),intent(in) :: npts_s2
     real(kind=rp),dimension(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1),intent(in) :: &
@@ -70,7 +71,8 @@ module calculate_terms_module
 
   endsubroutine calculate_conductance
 !-----------------------------------------------------------------------
-  subroutine calculate_n(npts_s1,npts_s2, &
+  pure subroutine calculate_n( &
+    mlatd0,mlatd1,mlond0,mlond1,npts_s1,npts_s2, &
     D_s1,M1_s1,d1d1_s1,d1d2_s1,d2d2_s1,sigP_s1,sigH_s1, &
     D_s2,M2_s2,d1d2_s2,d2d2_s2,sigP_s2,sigH_s2, &
     N1p_s1,N1h_s1,N2p_s2,N2h_s2)
@@ -78,8 +80,8 @@ module calculate_terms_module
 
     use params_module,only:nhgt_fix,nmlat_h,nmlatS2_h,ylonm,rho,rho_s
     use cons_module,only:r0,fill_value
-    use mpi_module,only:mlond0,mlond1,mlat1,mlatd0,mlatd1
 
+    integer,intent(in) :: mlatd0,mlatd1,mlond0,mlond1
     integer,dimension(nmlat_h),intent(in) :: npts_s1
     integer,dimension(nmlatS2_h),intent(in) :: npts_s2
     real(kind=rp),dimension(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1),intent(in) :: &
@@ -128,9 +130,9 @@ module calculate_terms_module
 ! N1P -> N1C
 ! N1C(i+0.5,j,k) = M1(i+0.5,j,k)*sigC(i+0.5,j,k)/R/rho(j)/(phi(i+1)-phi(i))
 ! sigC = sigP*d1^2+(sigH*D-sigP*d1*d2)*(sigH*D+sigP*d1*d2)/sigP/(d2*d2)
-    j = mlat1
+    j = nmlat_h
     k = 1
-    if (j == nmlat_h) then
+    if (j>=mlatd0 .and. j<=mlatd1) then
       do concurrent (i = mlond0:mlond1, isn = 1:2)
         N1h_s1(k,isn,j,i) = 0
         sigC = sigP_s1(k,isn,j,i)*d1d1_s1(k,isn,j,i)+ &
@@ -164,15 +166,16 @@ module calculate_terms_module
 
   endsubroutine calculate_n
 !-----------------------------------------------------------------------
-  subroutine calculate_je(npts_s1,npts_s2, &
+  pure subroutine calculate_je( &
+    mlatd0,mlatd1,mlond0,mlond1,npts_s1,npts_s2, &
     D_s1,be3_s1,d1d1_s1,d1d2_s1,d2d2_s1,sigP_s1,sigH_s1,un_s1,vn_s1, &
     D_s2,be3_s2,d1d2_s2,d2d2_s2,sigP_s2,sigH_s2,un_s2,vn_s2, &
     d1_s1,d2_s1,d1_s2,d2_s2,Je1D_s1,Je2D_s2)
 
     use params_module,only:nhgt_fix,nmlat_h,nmlatS2_h
     use cons_module,only:J3LB,fill_value
-    use mpi_module,only:mlond0,mlond1,mlat1,mlatd0,mlatd1
 
+    integer,intent(in) :: mlatd0,mlatd1,mlond0,mlond1
     integer,dimension(nmlat_h),intent(in) :: npts_s1
     integer,dimension(nmlatS2_h),intent(in) :: npts_s2
     real(kind=rp),dimension(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1),intent(in) :: &
@@ -194,9 +197,9 @@ module calculate_terms_module
     do concurrent (i = mlond0:mlond1, j = mlatd0:mlatd1, isn = 1:2, j>=2 .and. j<=nmlat_h) ! no pole
       do concurrent (k = 1:npts_s1(j))
         ue1 = un_s1(k,isn,j,i)*d1_s1(1,k,isn,j,i)+ &
-          vn_s1(k,isn,j,i)*d1_s1(2,k,isn,j,i)
+              vn_s1(k,isn,j,i)*d1_s1(2,k,isn,j,i)
         ue2 = un_s1(k,isn,j,i)*d2_s1(1,k,isn,j,i)+ &
-          vn_s1(k,isn,j,i)*d2_s1(2,k,isn,j,i)
+              vn_s1(k,isn,j,i)*d2_s1(2,k,isn,j,i)
         Je1D_s1(k,isn,j,i) = &
           sigP_s1(k,isn,j,i)*d1d1_s1(k,isn,j,i)* &
           ue2*be3_s1(k,isn,j,i)+ &
@@ -214,15 +217,15 @@ module calculate_terms_module
 ! we assume that this is Je2LB(i) = -J3LB(i,nmlat_h)
 ! not exactly since there is half a height level in between but should be close
 ! could do for only one hemisphere (since the same point) and then copy into other hemisphere
-    j = mlat1
+    j = nmlat_h
     k = 1
-    if (j == nmlat_h) then
+    if (j>=mlatd0 .and. j<=mlatd1) then
       do i = mlond0,mlond1
         do isn = 1,2
           ue1 = un_s1(k,isn,j,i)*d1_s1(1,k,isn,j,i)+ &
-            vn_s1(k,isn,j,i)*d1_s1(2,k,isn,j,i)
+                vn_s1(k,isn,j,i)*d1_s1(2,k,isn,j,i)
           ue2 = un_s1(k,isn,j,i)*d2_s1(1,k,isn,j,i)+ &
-            vn_s1(k,isn,j,i)*d2_s1(2,k,isn,j,i)
+                vn_s1(k,isn,j,i)*d2_s1(2,k,isn,j,i)
 
 ! Je2D at the equator (there is no S2 point therefore needs to be calculated)
           fac = (sigH_s1(k,isn,j,i)*D_s1(k,isn,j,i)+ &
@@ -250,9 +253,9 @@ module calculate_terms_module
     do concurrent (i = mlond0:mlond1, j = mlatd0:mlatd1, isn = 1:2, j>=1 .and. j<=nmlatS2_h)
       do concurrent (k = 1:npts_s2(j))
         ue1 = un_s2(k,isn,j,i)*d1_s2(1,k,isn,j,i)+ &
-          vn_s2(k,isn,j,i)*d1_s2(2,k,isn,j,i)
+              vn_s2(k,isn,j,i)*d1_s2(2,k,isn,j,i)
         ue2 = un_s2(k,isn,j,i)*d2_s2(1,k,isn,j,i)+ &
-          vn_s2(k,isn,j,i)*d2_s2(2,k,isn,j,i)
+              vn_s2(k,isn,j,i)*d2_s2(2,k,isn,j,i)
         Je2D_s2(k,isn,j,i) = &
           (sigH_s2(k,isn,j,i)*D_s2(k,isn,j,i)+ &
           sigP_s2(k,isn,j,i)*d1d2_s2(k,isn,j,i))* &
@@ -264,7 +267,8 @@ module calculate_terms_module
 
   endsubroutine calculate_je
 !-----------------------------------------------------------------------
-  pure function calculate_s(npts_p,M1_s1,Je1D_s1,M2_s2,Je2D_s2,M3_r) result(S_p)
+  pure function calculate_s(mlatd0,mlatd1,mlond0,mlond1,npts_p, &
+    M1_s1,Je1D_s1,M2_s2,Je2D_s2,M3_r) result(S_p)
 ! S is the wind driven and ionospheric current sources (89)
 ! I3^E are the external current sources from the magnetosphere I3^M and from the lower atmosphere
 ! see Eq (108) I3^E = -I3^M(NH+SH) + I3_lb(NH) + I3_lb(SH)
@@ -272,16 +276,20 @@ module calculate_terms_module
 
     use params_module,only:nhgt_fix,nhgt_fix_r,nmlat_h
     use cons_module,only:J3LB,fill_value
-    use mpi_module,only:mlon0,mlon1,mlond0,mlond1,mlat0,mlat1,mlatd0,mlatd1
 
+    integer,intent(in) :: mlatd0,mlatd1,mlond0,mlond1
     integer,dimension(nmlat_h),intent(in) :: npts_p
     real(kind=rp),dimension(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1),intent(in) :: &
       M1_s1,Je1D_s1,M2_s2,Je2D_s2
     real(kind=rp),dimension(nhgt_fix_r,2,mlatd0:mlatd1,mlond0:mlond1),intent(in) :: M3_r
     real(kind=rp),dimension(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1) :: S_p
 
-    integer :: i,j,isn,k
+    integer :: mlat0,mlat1,mlon0,mlon1,i,j,isn,k
 
+    mlat0 = mlatd0+1
+    mlat1 = mlatd1-1
+    mlon0 = mlond0+1
+    mlon1 = mlond1-1
     S_p = fill_value
 
 ! page 12 Eq (89) Art's script
@@ -336,7 +344,8 @@ module calculate_terms_module
 
   endfunction calculate_s
 !-----------------------------------------------------------------------
-  function correct_fac_hl(zigP_p,M3_p,fac_hl_in_p) result(fac_hl_out_p)
+  function correct_fac_hl(mlatd0,mlatd1,mlond0,mlond1, &
+    zigP_p,M3_p,fac_hl_in_p) result(fac_hl_out_p)
 ! correct the input high latitude FAC to make sure it is zero
 ! when integrated in each hemisphere
 
@@ -345,19 +354,23 @@ module calculate_terms_module
 ! M3_p is only the bottom level
 
     use params_module,only:nmlat_h
-    use mpi_module,only:reduce_sum_1d, &
-      mlon0,mlon1,mlond0,mlond1,mlat0,mlat1,mlatd0,mlatd1
+    use mpi_module,only:reduce_sum_1d
 
+    integer,intent(in) :: mlatd0,mlatd1,mlond0,mlond1
     real(kind=rp),dimension(2,mlatd0:mlatd1,mlond0:mlond1),intent(in) :: &
       zigP_p,M3_p,fac_hl_in_p
     real(kind=rp),dimension(2,mlatd0:mlatd1,mlond0:mlond1) :: fac_hl_out_p
 
     real(kind=rp),parameter :: thres = 1.5_rp
-    integer :: i,j,isn
+    integer :: mlat0,mlat1,mlon0,mlon1,i,j,isn
     real(kind=rp) :: facArea
     real(kind=rp),dimension(2) :: sumfac,sumzigP,corr
     real(kind=rp),dimension(4) :: tmp_sub,tmp_full
 
+    mlat0 = mlatd0+1
+    mlat1 = mlatd1-1
+    mlon0 = mlond0+1
+    mlon1 = mlond1-1
     fac_hl_out_p = fac_hl_in_p
 
 ! corr = - zigP*abs(Jmr)/sinI * [sum_i^N Jmr*area] / [sum_i^N abs(Jmr)*zigP/sinI*area]
@@ -368,7 +381,7 @@ module calculate_terms_module
 ! exclude halo points to avoid double counting
     do i = mlon0,mlon1
       do j = mlat0,mlat1
-        if (j >= 2) then ! no pole
+        if (j>=2 .and. j<=nmlat_h) then ! no pole
           do isn = 1,2
             if (zigP_p(isn,j,i) > thres) then
               facArea = fac_hl_out_p(isn,j,i)*M3_p(isn,j,i)
@@ -410,20 +423,25 @@ module calculate_terms_module
 
   endfunction correct_fac_hl
 !-----------------------------------------------------------------------
-  subroutine calculate_ed(pot_p,ed1_s1,ed2_s1,ed1_s2,ed2_s2)
+  pure subroutine calculate_ed(mlatd0,mlatd1,mlond0,mlond1, &
+    pot_p,ed1_s1,ed2_s1,ed1_s2,ed2_s2)
 ! calculates electric field Ed1,Ed2 at S1 and S2 points
 
     use params_module,only:nmlat_h,nmlatS2_h,ylonm,rho,rho_s
     use cons_module,only:r0,fill_value
-    use mpi_module,only:mlon0,mlon1,mlond0,mlond1,mlat0,mlat1,mlatd0,mlatd1
 
+    integer,intent(in) :: mlatd0,mlatd1,mlond0,mlond1
     real(kind=rp),dimension(2,mlatd0:mlatd1,mlond0:mlond1),intent(in) :: pot_p
     real(kind=rp),dimension(2,mlatd0:mlatd1,mlond0:mlond1),intent(out) :: &
       ed1_s1,ed2_s1,ed1_s2,ed2_s2
 
-    integer :: i,j,isn
+    integer :: mlat0,mlat1,mlon0,mlon1,i,j,isn
     real(kind=rp) :: fac,facj
 
+    mlat0 = mlatd0+1
+    mlat1 = mlatd1-1
+    mlon0 = mlond0+1
+    mlon1 = mlond1-1
     ed1_s1 = fill_value
     ed2_s1 = fill_value
     ed1_s2 = fill_value
@@ -465,7 +483,8 @@ module calculate_terms_module
 
   endsubroutine calculate_ed
 !-----------------------------------------------------------------------
-  subroutine calculate_ve( &
+  pure subroutine calculate_ve( &
+    mlatd0,mlatd1,mlond0,mlond1, &
     ed1_s1,ed2_s1,be3_s1, &
     ed1_s2,ed2_s2,be3_s2, &
     ve1_s1,ve2_s1,ve1_s2,ve2_s2)
@@ -475,15 +494,19 @@ module calculate_terms_module
 
     use params_module,only:nmlatS2_h
     use cons_module,only:fill_value
-    use mpi_module,only:mlon0,mlon1,mlond0,mlond1,mlat0,mlat1,mlatd0,mlatd1
 
+    integer,intent(in) :: mlatd0,mlatd1,mlond0,mlond1
     real(kind=rp),dimension(2,mlatd0:mlatd1,mlond0:mlond1),intent(in) :: &
       ed1_s1,ed2_s1,be3_s1,ed1_s2,ed2_s2,be3_s2
     real(kind=rp),dimension(2,mlatd0:mlatd1,mlond0:mlond1),intent(out) :: &
       ve1_s1,ve2_s1,ve1_s2,ve2_s2
 
-    integer :: i,j,isn
+    integer :: mlat0,mlat1,mlon0,mlon1,i,j,isn
 
+    mlat0 = mlatd0+1
+    mlat1 = mlatd1-1
+    mlon0 = mlond0+1
+    mlon1 = mlond1-1
     ve1_s1 = fill_value
     ve2_s1 = fill_value
     ve1_s2 = fill_value
@@ -501,7 +524,8 @@ module calculate_terms_module
 
   endsubroutine calculate_ve
 !-----------------------------------------------------------------------
-  subroutine calculate_exyz(npts_s1,npts_s2, &
+  pure subroutine calculate_exyz( &
+    mlatd0,mlatd1,mlond0,mlond1,npts_s1,npts_s2, &
     ed1_s1,ed2_s1,d1_s1,d2_s1, &
     ed1_s2,ed2_s2,d1_s2,d2_s2, &
     ex_s1,ey_s1,ez_s1,ex_s2,ey_s2,ez_s2)
@@ -509,8 +533,8 @@ module calculate_terms_module
 
     use params_module,only:nhgt_fix,nmlat_h,nmlatS2_h
     use cons_module,only:fill_value
-    use mpi_module,only:mlon0,mlon1,mlond0,mlond1,mlat0,mlat1,mlatd0,mlatd1
 
+    integer,intent(in) :: mlatd0,mlatd1,mlond0,mlond1
     integer,dimension(nmlat_h),intent(in) :: npts_s1
     integer,dimension(nmlatS2_h),intent(in) :: npts_s2
     real(kind=rp),dimension(2,mlatd0:mlatd1,mlond0:mlond1),intent(in) :: &
@@ -520,8 +544,12 @@ module calculate_terms_module
     real(kind=rp),dimension(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1),intent(out) :: &
       ex_s1,ey_s1,ez_s1,ex_s2,ey_s2,ez_s2
 
-    integer :: i,j,isn,k
+    integer :: mlat0,mlat1,mlon0,mlon1,i,j,isn,k
 
+    mlat0 = mlatd0+1
+    mlat1 = mlatd1-1
+    mlon0 = mlond0+1
+    mlon1 = mlond1-1
     ex_s1 = fill_value
     ey_s1 = fill_value
     ez_s1 = fill_value
@@ -559,7 +587,8 @@ module calculate_terms_module
 
   endsubroutine calculate_exyz
 !-----------------------------------------------------------------------
-  subroutine calculate_vxyz(npts_s1,npts_s2, &
+  pure subroutine calculate_vxyz( &
+    mlatd0,mlatd1,mlond0,mlond1,npts_s1,npts_s2, &
     ve1_s1,ve2_s1,e1_s1,e2_s1, &
     ve1_s2,ve2_s2,e1_s2,e2_s2, &
     vx_s1,vy_s1,vz_s1,vx_s2,vy_s2,vz_s2)
@@ -567,8 +596,8 @@ module calculate_terms_module
 
     use params_module,only:nhgt_fix,nmlat_h,nmlatS2_h
     use cons_module,only:fill_value
-    use mpi_module,only:mlon0,mlon1,mlond0,mlond1,mlat0,mlat1,mlatd0,mlatd1
 
+    integer,intent(in) :: mlatd0,mlatd1,mlond0,mlond1
     integer,dimension(nmlat_h),intent(in) :: npts_s1
     integer,dimension(nmlatS2_h),intent(in) :: npts_s2
     real(kind=rp),dimension(2,mlatd0:mlatd1,mlond0:mlond1),intent(in) :: &
@@ -578,8 +607,12 @@ module calculate_terms_module
     real(kind=rp),dimension(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1),intent(out) :: &
       vx_s1,vy_s1,vz_s1,vx_s2,vy_s2,vz_s2
 
-    integer :: i,j,isn,k
+    integer :: mlat0,mlat1,mlon0,mlon1,i,j,isn,k
 
+    mlat0 = mlatd0+1
+    mlat1 = mlatd1-1
+    mlon0 = mlond0+1
+    mlon1 = mlond1-1
     vx_s1 = fill_value
     vy_s1 = fill_value
     vz_s1 = fill_value
@@ -617,10 +650,12 @@ module calculate_terms_module
 
   endsubroutine calculate_vxyz
 !-----------------------------------------------------------------------
-  subroutine calculate_current(npts_s1,npts_s2,npts_r, &
-    pot_p,M1_s1,N1p_s1,N1h_s1,Je1D_s1, &
+  subroutine calculate_current( &
+    mlatd0,mlatd1,mlond0,mlond1, &
+    npts_p,npts_s1,npts_s2,npts_r, &
+    pot_p,M3_p,M1_s1,N1p_s1,N1h_s1,Je1D_s1, &
     M2_s2,N2p_s2,N2h_s2,Je2D_s2,M3_r, &
-    I1_s1,I2_s2,I3_r)
+    I1_s1,I2_s2,I3_r,Jr_p,Jr_r)
 ! Eq (83) page 10 Art's script
 ! I1(i+0.5,j,k) = N1p(i+0.5,j,k)*[Phi(i,j)-Phi(i+1,j)]
 !                -N1h(i+0.5,j,k)*[Phi(i,j-1)+Phi(i+1,j-1)-Phi(i,j+1)-Phi(i+1,j+1)]
@@ -638,42 +673,48 @@ module calculate_terms_module
 ! in variable J3LB (from lower atmosphere) in parms
 
 ! how does the index in notes relate to the index in code
-!     points       notes             code        quantities
-!   P  points   i    ,j    ,k       i  ,j  ,k   potential, S
-!   S1 points   i-0.5,j    ,k       i-1,j  ,k
-!   S2 points   i    ,j-0.5,k       i  ,j-1,k
-!   R  points   i    ,j    ,k-0.5   i  ,j  ,k
+!    points       notes             code       quantities
+! P  points   i    ,j    ,k       i  ,j  ,k   potential, S
+! S1 points   i-0.5,j    ,k       i-1,j  ,k
+! S2 points   i    ,j-0.5,k       i  ,j-1,k
+! R  points   i    ,j    ,k-0.5   i  ,j  ,k
 
-!     points       notes             code        quantities
-!   P  points   i    ,j    ,k       i,j,k       potential, S
-!   S1 points   i+0.5,j    ,k       i,j,k
-!   S2 points   i    ,j+0.5,k       i,j,k
-!   R  points   i    ,j    ,k-0.5   i,j,k
+!    points       notes           code         quantities
+! P  points   i    ,j    ,k       i,j,k       potential, S
+! S1 points   i+0.5,j    ,k       i,j,k
+! S2 points   i    ,j+0.5,k       i,j,k
+! R  points   i    ,j    ,k-0.5   i,j,k
 
     use params_module,only:nhgt_fix,nhgt_fix_r,nmlat_h,nmlatS2_h,nmlon
     use cons_module,only:J3LB,fill_value
-    use mpi_module,only:gather_mlon_3d,sync_mlat_5d,sync_mlon_5d, &
-      mlon0,mlon1,mlond0,mlond1,mlat0,mlat1,mlatd0,mlatd1
+    use mpi_module,only:gather_mlon_3d,sync_mlat_5d,sync_mlon_5d
 
-    integer,dimension(nmlat_h),intent(in) :: npts_s1,npts_r
+    integer,intent(in) :: mlatd0,mlatd1,mlond0,mlond1
+    integer,dimension(nmlat_h),intent(in) :: npts_p,npts_s1,npts_r
     integer,dimension(nmlatS2_h),intent(in) :: npts_s2
     real(kind=rp),dimension(2,mlatd0:mlatd1,mlond0:mlond1),intent(in) :: pot_p
     real(kind=rp),dimension(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1),intent(in) :: &
-      M1_s1,N1p_s1,N1h_s1,Je1D_s1,M2_s2,N2p_s2,N2h_s2,Je2D_s2
+      M3_p,M1_s1,N1p_s1,N1h_s1,Je1D_s1,M2_s2,N2p_s2,N2h_s2,Je2D_s2
     real(kind=rp),dimension(nhgt_fix_r,2,mlatd0:mlatd1,mlond0:mlond1),intent(in) :: M3_r
-    real(kind=rp),dimension(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1),intent(out) :: I1_s1,I2_s2
-    real(kind=rp),dimension(nhgt_fix_r,2,mlatd0:mlatd1,mlond0:mlond1),intent(out) :: I3_r
+    real(kind=rp),dimension(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1),intent(out) :: I1_s1,I2_s2,Jr_p
+    real(kind=rp),dimension(nhgt_fix_r,2,mlatd0:mlatd1,mlond0:mlond1),intent(out) :: I3_r,Jr_r
 
-    integer :: isn,i,j,k,iconj
-    real(kind=rp),dimension(nhgt_fix,2,mlon0:mlon1) :: Je1_sub
+    integer :: mlat0,mlat1,mlon0,mlon1,isn,i,j,k,iconj
+    real(kind=rp),dimension(nhgt_fix,2,mlond0+1:mlond1-1) :: Je1_sub
     real(kind=rp),dimension(nhgt_fix,2,nmlon) :: Je1_full
-    real(kind=rp),dimension(nhgt_fix,2,mlat0:mlat1,mlon0:mlon1) :: &
+    real(kind=rp),dimension(nhgt_fix,2,mlatd0+1:mlatd1-1,mlond0+1:mlond1-1) :: &
       I1_1,I1_2,I1_3,I2_1,I2_2,I2_3
     real(kind=rp),dimension(2,nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1) :: tmpI
 
+    mlat0 = mlatd0+1
+    mlat1 = mlatd1-1
+    mlon0 = mlond0+1
+    mlon1 = mlond1-1
     I1_s1 = fill_value
     I2_s2 = fill_value
     I3_r = fill_value
+    Jr_p = fill_value
+    Jr_r = fill_value
 
 ! for the lowest equatorial volume, j=nmlat_h and k=1, Eq (93) Art's notes
 ! I(i-0.5,j,k) = N_1^C(i-0.5,j,k)[Phi(i-1,j)-Phi(i,j)]+M1(i-0.5,j,k)Je1^S(i-0.5,j,k)
@@ -704,7 +745,7 @@ module calculate_terms_module
     do concurrent (i = mlon0:mlon1, isn = 1:2, k = 1:npts_s1(j))
       Je1_sub(k,isn,i) = I1_s1(k,isn,j+1,i)/M1_s1(k,isn,j+1,i) ! Je1(i-0.5,2,k)
     enddo
-    Je1_full = gather_mlon_3d(Je1_sub,nhgt_fix,2)  !??? is this gather needed ?  loop below is from mlon0 to mlon1
+    Je1_full = gather_mlon_3d(Je1_sub,nhgt_fix,2)
     if (j == 1) then
       do concurrent (i = mlon0:mlon1, isn = 1:2, k = 1:npts_s1(j))
         if (i > nmlon/2) then
@@ -750,6 +791,21 @@ module calculate_terms_module
           I1_s1(k-1,isn,j,i-1)-I1_s1(k-1,isn,j,i)- &
           I2_s2(k-1,isn,j,i)
         if (j /= 1) I3_r(k,isn,j,i) = I3_r(k,isn,j,i)+I2_s2(k-1,isn,j-1,i)
+      enddo
+    enddo
+
+! Jr(i,j,k) = I3(i,j,k)/M3(i,j,k) (122)
+! but top volume at equator with k=km 
+! Jr(i,j,k) = sqrt(2) Ir(i,j,k)/M3(i,j,k-0.5) (124)
+!   and Ir = (0.5-0.5^1.5)[I1(i-0.5,j,k)-I1(i+0.5,j,k)] -(0.5^0.5-0.5)I2(i,j-0.5,k)+0.5*I3(i,j,k-0.5) (123)
+    do concurrent (i = mlon0:mlon1, j = mlat0:mlat1, isn = 1:2, j >= 2)
+      k = npts_p(j)
+      Jr_p(k,isn,j,i) = I3_r(k,isn,j,i)/(sqrt(2.0_rp)*M3_r(k,isn,j,i))
+      do concurrent (k = 1:npts_p(j)-1)
+        Jr_p(k,isn,j,i) = (I3_r(k,isn,j,i)+I3_r(k+1,isn,j,i))/(2*M3_p(k,isn,j,i))
+      enddo
+      do concurrent (k = 1:npts_r(j))
+        Jr_r(k,isn,j,i) = I3_r(k,isn,j,i)/M3_r(k,isn,j,i)
       enddo
     enddo
 

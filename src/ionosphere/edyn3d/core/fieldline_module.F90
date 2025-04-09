@@ -1,18 +1,16 @@
 module fieldline_module
 
   use prec,only:rp
-  use params_module,only:nhgt_fix,nhgt_fix_r,nmlat_h,nmlatS2_h
 
   implicit none
 
-  integer,dimension(:),allocatable :: npts_p,npts_s1,npts_r
-  integer,dimension(:),allocatable :: npts_s2
-  integer,dimension(:),allocatable :: jmax_p,jmax_s1,jmax_s2,size_p,size_s1,size_s2
-  integer,dimension(:),allocatable :: jmax_r,size_r
+  integer,dimension(:),allocatable :: &
+    npts_p,npts_s1,npts_s2,npts_r, &
+    jmax_p,jmax_s1,jmax_s2,jmax_r, &
+    size_p,size_s1,size_s2,size_r
 
-  real(kind=rp),dimension(:,:,:),allocatable :: qdlat_p,qdlat_s1
-  real(kind=rp),dimension(:,:,:),allocatable :: qdlat_s2
-  real(kind=rp),dimension(:,:,:),allocatable :: qdlat_r
+  real(kind=rp),dimension(:,:,:),allocatable :: &
+    qdlat_p,qdlat_s1,qdlat_s2,qdlat_r
 
   real(kind=rp),dimension(:,:,:,:,:),allocatable,target :: f3d,f3d_r
   real(kind=rp),dimension(:,:,:,:,:,:),allocatable,target :: uvec

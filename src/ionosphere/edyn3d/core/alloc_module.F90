@@ -1,6 +1,8 @@
 module alloc_module
   use prec, only: rp
-  use fieldline_module
+  use fieldline_module, only: npts_p, npts_s2, npts_s1, npts_r, qdlat_p, qdlat_s1, qdlat_s2, qdlat_r
+  use fieldline_module, only: jmax_p, jmax_s1, jmax_s2, jmax_r, size_p, size_s1, size_s2, size_r
+  use params_module, only: nmlat_h, nmlatS2_h, nhgt_fix, nhgt_fix_r
 
   implicit none
 
@@ -45,9 +47,11 @@ contains
 ! Although S2 grids have equal latitudes with P/S1/R grids,
 ! the grid at j==nmlat_h is not defined.
 
-    use params_module,only:nhgt_fix,nhgt_fix_r
     use mpi_module,only:mlond0,mlond1,mlatd0,mlatd1
     use cons_module, only: J3LB
+    !use fieldline_module, only: f3d, f3d_r, uvec
+    !use fieldline_module, only: glat_p, glon_p, sinI_p, D_p, F_p
+    use fieldline_module
 
     integer, intent(out) :: ierr
 

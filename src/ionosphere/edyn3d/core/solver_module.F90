@@ -1,76 +1,52 @@
 module solver_module
 
   use prec,only:rp
-  use params_module,only:nmlat_T1,nmlon
 
   implicit none
 
-  integer,parameter :: nlonlat = nmlat_T1*nmlon ! solve the whole globe
-
   contains
 !-----------------------------------------------------------------------
-  subroutine linear_system(bij,pot_hl,fac_hl,coef_ns2,pot, ierr, errmsg)
+  subroutine linear_system(mlatd0,mlatd1,mlond0,mlond1, &
+    bij,pot_hl,fac_hl,coef_ns,pot)
 ! construct linear system based on bij and coef and solve in pot
 
 ! if FAC is read in, pot_hl is not used, only fac_hl is used
 ! if potential is read in, pot_hl is used, fac_hl is output
 
-    use params_module,only:nmlat_h
+    use params_module,only:nmlat_h,nmlat_T1,nmlon
     use cons_module,only:read_fac
-    use mpi_module,only:gather_mag,bcast_3d,mpi_rank, &
-      mlon0,mlon1,mlond0,mlond1,mlat0,mlat1,mlatd0,mlatd1
+    use mpi_module,only:gather_mag,bcast_3d,mpi_rank
 
+    integer,intent(in) :: mlatd0,mlatd1,mlond0,mlond1
     real(kind=rp),dimension(mlatd0:mlatd1,mlond0:mlond1),intent(in) :: bij
     real(kind=rp),dimension(2,mlatd0:mlatd1,mlond0:mlond1),intent(in) :: pot_hl
     real(kind=rp),dimension(2,mlatd0:mlatd1,mlond0:mlond1),intent(inout) :: fac_hl
-    real(kind=rp),dimension(10,2,mlatd0:mlatd1,mlond0:mlond1),intent(in) :: coef_ns2
+    real(kind=rp),dimension(10,2,mlatd0:mlatd1,mlond0:mlond1),intent(in) :: coef_ns
     real(kind=rp),dimension(2,mlatd0:mlatd1,mlond0:mlond1),intent(out) :: pot
 
-    integer, intent(out) :: ierr
-    character(len=*), intent(out) :: errmsg
-
+    logical,parameter :: use_mkl = &
 #ifdef MKL
-    logical,parameter :: use_mkl = .true.
+      .true.
 #else
-    logical,parameter :: use_mkl = .false.
+      .false.
 #endif
     integer,parameter :: root = 0
-    integer :: i,j,isn,nnz
+    integer :: nlonlat,mlat0,mlat1,mlon0,mlon1,i,j,isn,ic,nnz
+    integer,dimension(nmlat_T1*nmlon+1) :: rowptr,colptr
+    integer,dimension(12*nmlat_T1*nmlon) :: colind,rowind
+    real(kind=rp),dimension(12*nmlat_T1*nmlon) :: values_csr,values_csc
+    real(kind=rp),dimension(nmlat_h,nmlon) :: bij_full
+    real(kind=rp),dimension(2,nmlat_h,nmlon) :: pot_hl_full,fac_hl_full
+    real(kind=rp),dimension(10,2,nmlat_h,nmlon) :: coef_ns_full
+    real(kind=rp),dimension(10,nmlat_T1,nmlon) :: coef_full
+    real(kind=rp),dimension(2,nmlat_h,0:nmlon+1) :: fac_hl_2,pot_2
+    real(kind=rp),dimension(nmlat_T1*nmlon) :: rhs,z,pot_hl_f,sol
 
-    integer,dimension(:),allocatable :: irow,jcol
-    real(kind=rp),dimension(:),allocatable :: values
-    real(kind=rp),dimension(:,:),allocatable :: bij_full
-    real(kind=rp),dimension(:,:,:),allocatable :: pot_hl_full,fac_hl_full
-    real(kind=rp),dimension(:,:,:,:),allocatable :: coef_ns2_full
-    real(kind=rp),dimension(:,:,:),allocatable :: coef_full
-    real(kind=rp),dimension(:,:,:),allocatable :: fac_hl_2,pot_2
-    real(kind=rp),dimension(:),allocatable :: rhs,z,pot_hl_f,sol
-
-    character(len=*), parameter :: prefix = 'solver_module::linear_system: '
-
-    errmsg = ' '
-    ierr = 0
-
-    allocate(bij_full(nmlat_h,nmlon), stat=ierr)
-    if (ierr/=0) then
-       errmsg = prefix//'not able to allocate bij_full'
-       return
-    end if
-    allocate(pot_hl_full(2,nmlat_h,nmlon), stat=ierr)
-    if (ierr/=0) then
-       errmsg = prefix//'not able to allocate pot_hl_full'
-       return
-    end if
-    allocate(fac_hl_full(2,nmlat_h,nmlon), stat=ierr)
-    if (ierr/=0) then
-       errmsg = prefix//'not able to allocate fac_hl_full'
-       return
-    end if
-    allocate(coef_ns2_full(10,2,nmlat_h,nmlon), stat=ierr)
-    if (ierr/=0) then
-       errmsg = prefix//'not able to allocate coef_ns2_full'
-       return
-    end if
+    nlonlat = nmlat_T1*nmlon ! solve the whole globe
+    mlat0 = mlatd0+1
+    mlat1 = mlatd1-1
+    mlon0 = mlond0+1
+    mlon1 = mlond1-1
 
     bij_full = gather_mag(bij(mlat0:mlat1,mlon0:mlon1),root)
     if (read_fac) then
@@ -78,74 +54,22 @@ module solver_module
     else
       pot_hl_full = gather_mag(pot_hl(:,mlat0:mlat1,mlon0:mlon1),2,root)
     endif
-    coef_ns2_full = gather_mag(coef_ns2(:,:,mlat0:mlat1,mlon0:mlon1),10,2,root)
+    coef_ns_full = gather_mag(coef_ns(:,:,mlat0:mlat1,mlon0:mlon1),10,2,root)
 
-    allocate(fac_hl_2(2,nmlat_h,0:nmlon+1), stat=ierr)
-    if (ierr/=0) then
-       errmsg = prefix//'not able to allocate fac_hl_2'
-       return
-    end if
-    allocate(pot_2(2,nmlat_h,0:nmlon+1), stat=ierr)
-    if (ierr/=0) then
-       errmsg = prefix//'not able to allocate pot_2'
-       return
-    end if
+    if (mpi_rank == root) then
 
-    root_task: if (mpi_rank == root) then
-
-      allocate(coef_full(10,nmlat_T1,nmlon), stat=ierr)
-      if (ierr/=0) then
-         errmsg = prefix//'not able to allocate coef_full'
-         return
-      end if
-
-! set the coefficient matrix in both hemispheres
-      coef_full = calculate_coef_ns(coef_ns2_full)
-
-! Q from Wu: why coefficients at the south pole are gathered to i=1?
-      j = 1
-      coef_full(9,j,1) = sum(coef_full(9,j,:))
-      coef_full(10,j,1) = sum(coef_full(10,j,:))
-      do concurrent (i = 2:nmlon)
-        coef_full(9,j,i) = 0
-        coef_full(10,j,i) = 0
+! concatenate two hemispheres
+      do concurrent (i = 1:nmlon, j = 1:nmlat_h, ic = 1:10)
+        coef_full(ic,j,i) = coef_ns_full(ic,1,j,i)
+        coef_full(ic,nmlat_T1-j+1,i) = coef_ns_full(ic,2,j,i)
       enddo
 
-      allocate(irow(10*nlonlat), stat=ierr)
-      if (ierr/=0) then
-         errmsg = prefix//'not able to allocate irow'
-         return
-      end if
-      allocate(jcol(10*nlonlat), stat=ierr)
-      if (ierr/=0) then
-         errmsg = prefix//'not able to allocate jcol'
-         return
-      end if
-      allocate(values(10*nlonlat), stat=ierr)
-      if (ierr/=0) then
-         errmsg = prefix//'not able to allocate values'
-         return
-      end if
-
-! construct LHS matrix in COO format
-      call construct_lhs(bij_full,coef_full(1:9,:,:),nnz,irow,jcol,values)
-
-      allocate(rhs(nlonlat), stat=ierr)
-      if (ierr/=0) then
-         errmsg = prefix//'not able to allocate rhs'
-         return
-      end if
+! construct LHS matrix in CSR format
+      call construct_lhs(bij_full,coef_full(1:9,:,:),rowptr,colind,values_csr)
+      nnz = rowptr(nlonlat+1)-1
 
 ! RHS is dense
       rhs = construct_rhs(coef_full(10,:,:))
-
-      deallocate(coef_full)
-
-      allocate(z(nlonlat), stat=ierr)
-      if (ierr/=0) then
-         errmsg = prefix//'not able to allocate z'
-         return
-      end if
 
 ! determine FAC forcing (dense)
       if (read_fac) then ! input is corrected fac_hl, pot_hl is not used
@@ -153,23 +77,17 @@ module solver_module
 
       else ! input is pot_hl, fac_hl is to be calculated (output)
 
-        allocate(pot_hl_f(nlonlat), stat=ierr)
-        if (ierr/=0) then
-           errmsg = prefix//'not able to allocate pot_hl_f'
-           return
-        end if
-
 ! A. Maute 2023/11/21: put the high latitude potential in X
 ! and then use LHS to calculate the RHS FAC
         pot_hl_f = flatten(pot_hl_full)
 
 ! z = matmul(lhs, pot_hl)
         z = 0
-        do i = 1,nnz
-          z(irow(i)) = z(irow(i))+values(i)*pot_hl_f(jcol(i))
+        do i = 1,nlonlat
+          do j = rowptr(i),rowptr(i+1)-1
+            z(i) = z(i)+values_csr(j)*pot_hl_f(colind(j))
+          enddo
         enddo
-
-        deallocate(pot_hl_f)
 
 ! no need for correction since it is from the divergence of horizontal current
 
@@ -190,28 +108,17 @@ module solver_module
         rhs(i) = rhs(i)+z(i)
       enddo
 
-      deallocate(z)
-      allocate(sol(nlonlat), stat=ierr)
-      if (ierr/=0) then
-         errmsg = prefix//'not able to allocate sol'
-         return
-      end if
-
       if (use_mkl) then
-        sol = solve_mkl(nlonlat,nnz,irow(1:nnz),jcol(1:nnz),values(1:nnz),rhs)
+        sol = solve_mkl(nlonlat,nnz,rowptr,colind(1:nnz),values_csr(1:nnz),rhs)
       else
-        sol = solve_superlu(nlonlat,nnz,irow(1:nnz),jcol(1:nnz),values(1:nnz),rhs)
+        call csr_to_csc(nlonlat,nlonlat,nnz, &
+          rowptr,colind(1:nnz),values_csr(1:nnz), &
+          colptr,rowind(1:nnz),values_csc(1:nnz))
+        sol = solve_superlu(nlonlat,nnz,colptr,rowind(1:nnz),values_csc(1:nnz),rhs)
       endif
-
-      deallocate(irow)
-      deallocate(jcol)
-      deallocate(values)
-      deallocate(rhs)
 
 ! reconstruct 2D distribution of potential based on the solution
       pot_2(:,:,1:nmlon) = unravel(sol)
-
-      deallocate(sol)
 
 ! periodic points
       do j = 1,nmlat_h
@@ -220,13 +127,7 @@ module solver_module
           pot_2(isn,j,nmlon+1) = pot_2(isn,j,1)
         enddo
       enddo
-
-    endif root_task
-
-    deallocate(bij_full)
-    deallocate(pot_hl_full)
-    deallocate(fac_hl_full)
-    deallocate(coef_ns2_full)
+    endif
 
     if (.not. read_fac) then
       call bcast_3d(fac_hl_2,2,nmlat_h,nmlon+2,root)
@@ -236,177 +137,81 @@ module solver_module
       enddo
     endif
 
-    deallocate(fac_hl_2)
-
     call bcast_3d(pot_2,2,nmlat_h,nmlon+2,root)
     do concurrent (i = mlond0:mlond1, j = mlatd0:mlatd1, isn = 1:2, j>=1 .and. j<=nmlat_h)
       pot(isn,j,i) = pot_2(isn,j,i)
     enddo
 
-    deallocate(pot_2)
-
   endsubroutine linear_system
 !-----------------------------------------------------------------------
-  pure function calculate_coef_ns(coef_ns2) result(coef_ns)
-! set the coefficient matrix in both hemispheres
-! decide where to add the SH and NH stencil and where not
-! change the direction of NH stencil from coef_ns2 to coef_ns
-! LHS+RHS for each P-point
-! A. Maute 2023/02: solve two hemispheres
-
-    use params_module,only:nmlat_h
-    use cons_module,only:jlatm_JT
-
-    real(kind=rp),dimension(10,2,nmlat_h,nmlon),intent(in) :: coef_ns2
-    real(kind=rp),dimension(10,nmlat_T1,nmlon) :: coef_ns
-
-    integer :: i,j,ic,jS,jN ! overall index from pole to equator
-
-    do concurrent (i = 1:nmlon, j = 1:nmlat_h)
-      jS = j
-      jN = nmlat_T1-j+1
-
-! j should take one of the following four situations
-
-! from pole to latm_JT, set coefficients separately in two hemispheres
-      if (j <= jlatm_JT-1) then
-        do concurrent (ic = 1:10)
-          coef_ns(ic,jS,i) = coef_ns2(ic,1,j,i)
-          coef_ns(ic,jN,i) = coef_ns2(ic,2,j,i)
-        enddo
-      endif
-
-      if (j == jlatm_JT) then
-
-! add values from both hemispheres
-        do concurrent (ic = 1:5)
-          coef_ns(ic,jS,i) = coef_ns2(ic,1,j,i)+coef_ns2(ic,2,j,i)
-          coef_ns(ic,jN,i) = coef_ns2(ic,1,j,i)+coef_ns2(ic,2,j,i)
-        enddo
-        do concurrent (ic = 9:10)
-          coef_ns(ic,jS,i) = coef_ns2(ic,1,j,i)+coef_ns2(ic,2,j,i)
-          coef_ns(ic,jN,i) = coef_ns2(ic,1,j,i)+coef_ns2(ic,2,j,i)
-        enddo
-
-! don't add values from the other hemisphere
-        do concurrent (ic = 6:8)
-          coef_ns(ic,jS,i) = coef_ns2(ic,1,j,i)
-          coef_ns(ic,jN,i) = coef_ns2(ic,2,j,i)
-        enddo
-      endif
-
-! from latm_JT to equator, add values from both hemispheres
-      if (j>=jlatm_JT+1 .and. j<=nmlat_h-1) then
-        do concurrent (ic = 1:10)
-          coef_ns(ic,jS,i) = coef_ns2(ic,1,j,i)+coef_ns2(ic,2,j,i)
-          coef_ns(ic,jN,i) = coef_ns2(ic,1,j,i)+coef_ns2(ic,2,j,i)
-        enddo
-      endif
-
-! set equatorial boundary condition (page 14 Art's notes)
-! there should be just one equator value
-      if (j == nmlat_h) then
-        coef_ns(1,j,i) = coef_ns2(1,1,j,i)+coef_ns2(1,2,j,i)
-        coef_ns(5,j,i) = coef_ns2(5,1,j,i)+coef_ns2(5,2,j,i)
-        coef_ns(9,j,i) = coef_ns2(9,1,j,i)+coef_ns2(9,2,j,i)
-        coef_ns(10,j,i) = coef_ns2(10,1,j,i)+coef_ns2(10,2,j,i)
-        do concurrent (ic = 6:8)
-          coef_ns(ic,j,i) = (coef_ns2(ic,1,j,i)+coef_ns2(ic,2,j,i))/2
-        enddo
-
-! Q from Wu: Why isn't it (coef_ns2(ic,1,j,i)+coef_ns2(ic,2,j,i))/2?
-        do ic = 2,4
-          coef_ns(ic,j,i) = coef_ns(10-ic,j,i) ! 2,3,4 <- 8,7,6
-        enddo
-      endif
-    enddo
-
-  endfunction calculate_coef_ns
-!-----------------------------------------------------------------------
-  subroutine construct_lhs(bij,coef,nnz,irow,jcol,values)
-! construct LHS matrix (sparse, coordinate form)
+  pure subroutine construct_lhs(bij,coef,rowptr,colind,values)
+! construct LHS matrix (CSR format)
 
 ! need to set where the two hemispheres are connected
 ! This is not in the 9-point stencil but needs to be done manually
 
-    use params_module,only:nmlat_h
+    use params_module,only:nmlat_h,nmlat_T1,nmlon
     use cons_module,only:jlatm_JT
 
     real(kind=rp),dimension(nmlat_h,nmlon),intent(in) :: bij
     real(kind=rp),dimension(9,nmlat_T1,nmlon),intent(in) :: coef
-    integer,intent(out) :: nnz
-    integer,dimension(10*nlonlat),intent(out) :: irow,jcol
-    real(kind=rp),dimension(10*nlonlat),intent(out) :: values
+    integer,dimension(nmlat_T1*nmlon+1),intent(out) :: rowptr
+    integer,dimension(12*nmlat_T1*nmlon),intent(out) :: colind
+    real(kind=rp),dimension(12*nmlat_T1*nmlon),intent(out) :: values
 
 ! if two hemispheres are uncoupled at high latitudes, set bijSum to zero
     real(kind=rp),parameter :: bijSum = 0
-    integer :: i,j,jS,jN,ij,it,im,ip,itcon
+    integer :: nlonlat,i,j,jS,jN,ij,isub,im,ip
+    integer,dimension(nmlat_T1*nmlon) :: rowcnt
 
-    nnz = 0
+! the first row has most elements (nmlon+2)
+    integer,dimension(nmlon+2) :: jcol1
+    real(kind=rp),dimension(nmlon+2) :: nzval1
 
-! set up poles, there are no c6,c7,c8 values
+! other rows have at most 12 elements
+    integer,dimension(12,nmlat_T1*nmlon) :: jcol
+    real(kind=rp),dimension(12,nmlat_T1*nmlon) :: nzval
+
+    nlonlat = nmlat_T1*nmlon
+    rowcnt = 0
+
+! set up poles
     j = 1
-    jS = j
-    jN = nmlat_T1-j+1
 
-! for equation i=1 at the south pole
+! there are no c6,c7,c8 values at the south pole
+
+! for longitude i=1 at the south pole
     i = 1
-    ij = (i-1)*nmlat_T1+jS
-
-! A. Richmond 2023/06/20: add bij effects
-    it = (i-1)*nmlat_T1+jS
-!    lhs(ij,it) = coef(9,jS,i)-bijSum
-    nnz = nnz+1
-    irow(nnz) = ij
-    jcol(nnz) = it
-    values(nnz) = coef(9,jS,i)-bijSum
-
-! conjugate point (north pole at i=1)
-    it = (i-1)*nmlat_T1+jN
-!    lhs(ij,it) = bijSum
-    nnz = nnz+1
-    irow(nnz) = ij
-    jcol(nnz) = it
-    values(nnz) = bijSum
-
-    do i = 1,nmlon ! Sum_i=1^nmlon C3(i,1) Phi(i,2)
-      it = (i-1)*nmlat_T1+jS+1
-!      lhs(ij,it) = coef(3,jS,i)
-      nnz = nnz+1
-      irow(nnz) = ij
-      jcol(nnz) = it
-      values(nnz) = coef(3,jS,i)
+!    ij = (i-1)*nmlat_T1+j
+!    lhs(ij,(i-1)*nmlat_T1+j           ) = sum(coef(9,j,:))-bijSum ! A. Richmond 2023/06/20: add bij effects
+!    lhs(ij,(i-1)*nmlat_T1+j+1         ) = coef(3,j,i)             ! Sum_i=1^nmlon C3(i,1) Phi(i,2)
+!    lhs(ij,(i-1)*nmlat_T1+nmlat_T1-j+1) = bijSum                  ! conjugate point (north pole at i=1)
+    jcol1(1:3) = (/(i-1)*nmlat_T1+j,(i-1)*nmlat_T1+j+1,(i-1)*nmlat_T1+nmlat_T1-j+1/)
+    nzval1(1:3) = (/sum(coef(9,j,:))-bijSum,coef(3,j,i),bijSum/)
+    do isub = 2,nmlon ! Sum_i=1^nmlon C3(i,1) Phi(i,2)
+!      lhs(ij,(isub-1)*nmlat_T1+j+1) = coef(3,j,isub)
+      jcol1(isub+2) = (isub-1)*nmlat_T1+j+1
+      nzval1(isub+2) = coef(3,j,isub)
     enddo
+    rowcnt(1) = nmlon+2
 
-! for other equations (i/=1) at the south pole
+! for other longitudes (i/=1) at the south pole
     do i = 2,nmlon
-      ij = (i-1)*nmlat_T1+jS
-
-      it = (i-1)*nmlat_T1+jS
-!      lhs(ij,it) = 1
-      nnz = nnz+1
-      irow(nnz) = ij
-      jcol(nnz) = it
-      values(nnz) = 1
-
-      it = (1-1)*nmlat_T1+jS ! Phi(i,1) = Phi(1,1)
-!      lhs(ij,it) = -1
-      nnz = nnz+1
-      irow(nnz) = ij
-      jcol(nnz) = it
-      values(nnz) = -1
+      ij = (i-1)*nmlat_T1+j
+!      lhs(ij,(1-1)*nmlat_T1+j) = -1 ! Phi(i,1) = Phi(1,1)
+!      lhs(ij,(i-1)*nmlat_T1+j) = 1
+      jcol(rowcnt(ij)+1:rowcnt(ij)+2,ij) = (/(1-1)*nmlat_T1+j,(i-1)*nmlat_T1+j/)
+      nzval(rowcnt(ij)+1:rowcnt(ij)+2,ij) = (/-1,1/)
+      rowcnt(ij) = rowcnt(ij)+2
     enddo
 
 ! for each i, set Phi(i,nmlat_T1) = phi_pol at the north pole
     do i = 1,nmlon
-      ij = (i-1)*nmlat_T1+jN
-
-      it = (i-1)*nmlat_T1+jN
-!      lhs(ij,it) = 1
-      nnz = nnz+1
-      irow(nnz) = ij
-      jcol(nnz) = it
-      values(nnz) = 1
+      ij = (i-1)*nmlat_T1+nmlat_T1-j+1
+!      lhs(ij,(i-1)*nmlat_T1+nmlat_T1-j+1) = 1
+      rowcnt(ij) = rowcnt(ij)+1
+      jcol(rowcnt(ij),ij) = (i-1)*nmlat_T1+nmlat_T1-j+1
+      nzval(rowcnt(ij),ij) = 1
     enddo
 
     do i = 1,nmlon
@@ -427,149 +232,87 @@ module solver_module
         jN = nmlat_T1-j+1
 
         ij = (i-1)*nmlat_T1+jS
-
-        it = (ip-1)*nmlat_T1+jS
-!        lhs(ij,it) = coef(1,jS,i)
-        nnz = nnz+1
-        irow(nnz) = ij
-        jcol(nnz) = it
-        values(nnz) = coef(1,jS,i)
-
-        it = (ip-1)*nmlat_T1+jS+1
-!        lhs(ij,it) = coef(2,jS,i)
-        nnz = nnz+1
-        irow(nnz) = ij
-        jcol(nnz) = it
-        values(nnz) = coef(2,jS,i)
-
-        it = (i-1)*nmlat_T1+jS+1
-!        lhs(ij,it) = coef(3,jS,i)
-        nnz = nnz+1
-        irow(nnz) = ij
-        jcol(nnz) = it
-        values(nnz) = coef(3,jS,i)
-
-        it = (im-1)*nmlat_T1+jS+1
-!        lhs(ij,it) = coef(4,jS,i)
-        nnz = nnz+1
-        irow(nnz) = ij
-        jcol(nnz) = it
-        values(nnz) = coef(4,jS,i)
-
-        it = (im-1)*nmlat_T1+jS
-!        lhs(ij,it) = coef(5,jS,i)
-        nnz = nnz+1
-        irow(nnz) = ij
-        jcol(nnz) = it
-        values(nnz) = coef(5,jS,i)
-
-        it = (im-1)*nmlat_T1+jS-1
-!        lhs(ij,it) = coef(6,jS,i)
-        nnz = nnz+1
-        irow(nnz) = ij
-        jcol(nnz) = it
-        values(nnz) = coef(6,jS,i)
-
-        it = (i-1)*nmlat_T1+jS-1
-!        lhs(ij,it) = coef(7,jS,i)
-        nnz = nnz+1
-        irow(nnz) = ij
-        jcol(nnz) = it
-        values(nnz) = coef(7,jS,i)
-
-        it = (ip-1)*nmlat_T1+jS-1
-!        lhs(ij,it) = coef(8,jS,i)
-        nnz = nnz+1
-        irow(nnz) = ij
-        jcol(nnz) = it
-        values(nnz) = coef(8,jS,i)
-
-        it = (i-1)*nmlat_T1+jS
-!        lhs(ij,it) = coef(9,jS,i)-bij(j,i) ! should be 1
-        nnz = nnz+1
-        irow(nnz) = ij
-        jcol(nnz) = it
-        values(nnz) = coef(9,jS,i)-bij(j,i)
-
-        itcon = (i-1)*nmlat_T1+jN ! conjugate point
-!        lhs(ij,itcon) = bij(j,i) ! b(i,j) Phi*(i,j)
-        nnz = nnz+1
-        irow(nnz) = ij
-        jcol(nnz) = itcon
-        values(nnz) = bij(j,i)
+!        lhs(ij,(im-1)*nmlat_T1+jS-1) = coef(6,jS,i)
+!        lhs(ij,(im-1)*nmlat_T1+jS  ) = coef(5,jS,i)
+!        lhs(ij,(im-1)*nmlat_T1+jS+1) = coef(4,jS,i)
+!        lhs(ij, (i-1)*nmlat_T1+jS-1) = coef(7,jS,i)
+!        lhs(ij, (i-1)*nmlat_T1+jS  ) = coef(9,jS,i)-bij(j,i) ! should be 1
+!        lhs(ij, (i-1)*nmlat_T1+jS+1) = coef(3,jS,i)
+!        lhs(ij, (i-1)*nmlat_T1+jN  ) = bij(j,i)              ! conjugate point, b(i,j) Phi*(i,j)
+!        lhs(ij,(ip-1)*nmlat_T1+jS-1) = coef(8,jS,i)
+!        lhs(ij,(ip-1)*nmlat_T1+jS  ) = coef(1,jS,i)
+!        lhs(ij,(ip-1)*nmlat_T1+jS+1) = coef(2,jS,i)
+        if (i == 1) then
+          jcol(rowcnt(ij)+1:rowcnt(ij)+10,ij) = (/ &
+            (i-1)*nmlat_T1+jS-1,(i-1)*nmlat_T1+jS,(i-1)*nmlat_T1+jS+1,(i-1)*nmlat_T1+jN, &
+            (ip-1)*nmlat_T1+jS-1,(ip-1)*nmlat_T1+jS,(ip-1)*nmlat_T1+jS+1, &
+            (im-1)*nmlat_T1+jS-1,(im-1)*nmlat_T1+jS,(im-1)*nmlat_T1+jS+1/)
+          nzval(rowcnt(ij)+1:rowcnt(ij)+10,ij) = (/ &
+            coef(7,jS,i),coef(9,jS,i)-bij(j,i),coef(3,jS,i),bij(j,i), &
+            coef(8,jS,i),coef(1,jS,i),coef(2,jS,i), &
+            coef(6,jS,i),coef(5,jS,i),coef(4,jS,i)/)
+        elseif (i == nmlon) then
+          jcol(rowcnt(ij)+1:rowcnt(ij)+10,ij) = (/ &
+            (ip-1)*nmlat_T1+jS-1,(ip-1)*nmlat_T1+jS,(ip-1)*nmlat_T1+jS+1, &
+            (im-1)*nmlat_T1+jS-1,(im-1)*nmlat_T1+jS,(im-1)*nmlat_T1+jS+1, &
+            (i-1)*nmlat_T1+jS-1,(i-1)*nmlat_T1+jS,(i-1)*nmlat_T1+jS+1,(i-1)*nmlat_T1+jN/)
+          nzval(rowcnt(ij)+1:rowcnt(ij)+10,ij) = (/ &
+            coef(8,jS,i),coef(1,jS,i),coef(2,jS,i), &
+            coef(6,jS,i),coef(5,jS,i),coef(4,jS,i), &
+            coef(7,jS,i),coef(9,jS,i)-bij(j,i),coef(3,jS,i),bij(j,i)/)
+        else
+          jcol(rowcnt(ij)+1:rowcnt(ij)+10,ij) = (/ &
+            (im-1)*nmlat_T1+jS-1,(im-1)*nmlat_T1+jS,(im-1)*nmlat_T1+jS+1, &
+            (i-1)*nmlat_T1+jS-1,(i-1)*nmlat_T1+jS,(i-1)*nmlat_T1+jS+1,(i-1)*nmlat_T1+jN, &
+            (ip-1)*nmlat_T1+jS-1,(ip-1)*nmlat_T1+jS,(ip-1)*nmlat_T1+jS+1/)
+          nzval(rowcnt(ij)+1:rowcnt(ij)+10,ij) = (/ &
+            coef(6,jS,i),coef(5,jS,i),coef(4,jS,i), &
+            coef(7,jS,i),coef(9,jS,i)-bij(j,i),coef(3,jS,i),bij(j,i), &
+            coef(8,jS,i),coef(1,jS,i),coef(2,jS,i)/)
+        endif
+        rowcnt(ij) = rowcnt(ij)+10
 
 ! note that coef has the direction switched in the NH
         ij = (i-1)*nmlat_T1+jN
-
-        it = (ip-1)*nmlat_T1+jN
-!        lhs(ij,it) = coef(1,jN,i)
-        nnz = nnz+1
-        irow(nnz) = ij
-        jcol(nnz) = it
-        values(nnz) = coef(1,jN,i)
-
-        it = (ip-1)*nmlat_T1+jN+1
-!        lhs(ij,it) = coef(8,jN,i)
-        nnz = nnz+1
-        irow(nnz) = ij
-        jcol(nnz) = it
-        values(nnz) = coef(8,jN,i)
-
-        it = (i-1)*nmlat_T1+jN+1
-!        lhs(ij,it) = coef(7,jN,i)
-        nnz = nnz+1
-        irow(nnz) = ij
-        jcol(nnz) = it
-        values(nnz) = coef(7,jN,i)
-
-        it = (im-1)*nmlat_T1+jN+1
-!        lhs(ij,it) = coef(6,jN,i)
-        nnz = nnz+1
-        irow(nnz) = ij
-        jcol(nnz) = it
-        values(nnz) = coef(6,jN,i)
-
-        it = (im-1)*nmlat_T1+jN
-!        lhs(ij,it) = coef(5,jN,i)
-        nnz = nnz+1
-        irow(nnz) = ij
-        jcol(nnz) = it
-        values(nnz) = coef(5,jN,i)
-
-        it = (im-1)*nmlat_T1+jN-1
-!        lhs(ij,it) = coef(4,jN,i)
-        nnz = nnz+1
-        irow(nnz) = ij
-        jcol(nnz) = it
-        values(nnz) = coef(4,jN,i)
-
-        it = (i-1)*nmlat_T1+jN-1
-!        lhs(ij,it) = coef(3,jN,i)
-        nnz = nnz+1
-        irow(nnz) = ij
-        jcol(nnz) = it
-        values(nnz) = coef(3,jN,i)
-
-        it = (ip-1)*nmlat_T1+jN-1
-!        lhs(ij,it) = coef(2,jN,i)
-        nnz = nnz+1
-        irow(nnz) = ij
-        jcol(nnz) = it
-        values(nnz) = coef(2,jN,i)
-
-        it = (i-1)*nmlat_T1+jN
-!        lhs(ij,it) = coef(9,jN,i)-bij(j,i)
-        nnz = nnz+1
-        irow(nnz) = ij
-        jcol(nnz) = it
-        values(nnz) = coef(9,jN,i)-bij(j,i)
-
-        itcon = (i-1)*nmlat_T1+jS ! conjugate point
-!        lhs(ij,itcon) = bij(j,i) ! b(i,j) Phi*(i,j)
-        nnz = nnz+1
-        irow(nnz) = ij
-        jcol(nnz) = itcon
-        values(nnz) = bij(j,i)
+!        lhs(ij,(im-1)*nmlat_T1+jN-1) = coef(4,jN,i)
+!        lhs(ij,(im-1)*nmlat_T1+jN  ) = coef(5,jN,i)
+!        lhs(ij,(im-1)*nmlat_T1+jN+1) = coef(6,jN,i)
+!        lhs(ij, (i-1)*nmlat_T1+jS  ) = bij(j,i)              ! conjugate point, b(i,j) Phi*(i,j)
+!        lhs(ij, (i-1)*nmlat_T1+jN-1) = coef(3,jN,i)
+!        lhs(ij, (i-1)*nmlat_T1+jN  ) = coef(9,jN,i)-bij(j,i)
+!        lhs(ij, (i-1)*nmlat_T1+jN+1) = coef(7,jN,i)
+!        lhs(ij,(ip-1)*nmlat_T1+jN-1) = coef(2,jN,i)
+!        lhs(ij,(ip-1)*nmlat_T1+jN  ) = coef(1,jN,i)
+!        lhs(ij,(ip-1)*nmlat_T1+jN+1) = coef(8,jN,i)
+        if (i == 1) then
+          jcol(rowcnt(ij)+1:rowcnt(ij)+10,ij) = (/ &
+            (i-1)*nmlat_T1+jS,(i-1)*nmlat_T1+jN-1,(i-1)*nmlat_T1+jN,(i-1)*nmlat_T1+jN+1, &
+            (ip-1)*nmlat_T1+jN-1,(ip-1)*nmlat_T1+jN,(ip-1)*nmlat_T1+jN+1, &
+            (im-1)*nmlat_T1+jN-1,(im-1)*nmlat_T1+jN,(im-1)*nmlat_T1+jN+1/)
+          nzval(rowcnt(ij)+1:rowcnt(ij)+10,ij) = (/ &
+            bij(j,i),coef(3,jN,i),coef(9,jN,i)-bij(j,i),coef(7,jN,i), &
+            coef(2,jN,i),coef(1,jN,i),coef(8,jN,i), &
+            coef(4,jN,i),coef(5,jN,i),coef(6,jN,i)/)
+        elseif (i == nmlon) then
+          jcol(rowcnt(ij)+1:rowcnt(ij)+10,ij) = (/ &
+            (ip-1)*nmlat_T1+jN-1,(ip-1)*nmlat_T1+jN,(ip-1)*nmlat_T1+jN+1, &
+            (im-1)*nmlat_T1+jN-1,(im-1)*nmlat_T1+jN,(im-1)*nmlat_T1+jN+1, &
+            (i-1)*nmlat_T1+jS,(i-1)*nmlat_T1+jN-1,(i-1)*nmlat_T1+jN,(i-1)*nmlat_T1+jN+1/)
+          nzval(rowcnt(ij)+1:rowcnt(ij)+10,ij) = (/ &
+            coef(2,jN,i),coef(1,jN,i),coef(8,jN,i), &
+            coef(4,jN,i),coef(5,jN,i),coef(6,jN,i), &
+            bij(j,i),coef(3,jN,i),coef(9,jN,i)-bij(j,i),coef(7,jN,i)/)
+        else
+          jcol(rowcnt(ij)+1:rowcnt(ij)+10,ij) = (/ &
+            (im-1)*nmlat_T1+jN-1,(im-1)*nmlat_T1+jN,(im-1)*nmlat_T1+jN+1, &
+            (i-1)*nmlat_T1+jS,(i-1)*nmlat_T1+jN-1,(i-1)*nmlat_T1+jN,(i-1)*nmlat_T1+jN+1, &
+            (ip-1)*nmlat_T1+jN-1,(ip-1)*nmlat_T1+jN,(ip-1)*nmlat_T1+jN+1/)
+          nzval(rowcnt(ij)+1:rowcnt(ij)+10,ij) = (/ &
+            coef(4,jN,i),coef(5,jN,i),coef(6,jN,i), &
+            bij(j,i),coef(3,jN,i),coef(9,jN,i)-bij(j,i),coef(7,jN,i), &
+            coef(2,jN,i),coef(1,jN,i),coef(8,jN,i)/)
+        endif
+        rowcnt(ij) = rowcnt(ij)+10
       enddo
 
 ! at latm_JT, two hemispheres are coupled at j-1
@@ -577,183 +320,97 @@ module solver_module
       jS = j
       jN = nmlat_T1-j+1
 
-      ij = (i-1)*nmlat_T1+jS
-
-      it = (ip-1)*nmlat_T1+jS
-!      lhs(ij,it) = coef(1,jS,i)
-      nnz = nnz+1
-      irow(nnz) = ij
-      jcol(nnz) = it
-      values(nnz) = coef(1,jS,i)
-
-      it = (ip-1)*nmlat_T1+jS+1
-!      lhs(ij,it) = coef(2,jS,i)
-      nnz = nnz+1
-      irow(nnz) = ij
-      jcol(nnz) = it
-      values(nnz) = coef(2,jS,i)
-
-      it = (i-1)*nmlat_T1+jS+1
-!      lhs(ij,it) = coef(3,jS,i)
-      nnz = nnz+1
-      irow(nnz) = ij
-      jcol(nnz) = it
-      values(nnz) = coef(3,jS,i)
-
-      it = (im-1)*nmlat_T1+jS+1
-!      lhs(ij,it) = coef(4,jS,i)
-      nnz = nnz+1
-      irow(nnz) = ij
-      jcol(nnz) = it
-      values(nnz) = coef(4,jS,i)
-
-      it = (im-1)*nmlat_T1+jS
-!      lhs(ij,it) = coef(5,jS,i)
-      nnz = nnz+1
-      irow(nnz) = ij
-      jcol(nnz) = it
-      values(nnz) = coef(5,jS,i)
-
-      it = (im-1)*nmlat_T1+jS-1
-!      lhs(ij,it) = coef(6,jS,i)
-      nnz = nnz+1
-      irow(nnz) = ij
-      jcol(nnz) = it
-      values(nnz) = coef(6,jS,i)
-
-      it = (i-1)*nmlat_T1+jS-1
-!      lhs(ij,it) = coef(7,jS,i)
-      nnz = nnz+1
-      irow(nnz) = ij
-      jcol(nnz) = it
-      values(nnz) = coef(7,jS,i)
-
-      it = (ip-1)*nmlat_T1+jS-1
-!      lhs(ij,it) = coef(8,jS,i)
-      nnz = nnz+1
-      irow(nnz) = ij
-      jcol(nnz) = it
-      values(nnz) = coef(8,jS,i)
-
-      it = (i-1)*nmlat_T1+jS
-!      lhs(ij,it) = coef(9,jS,i)
-      nnz = nnz+1
-      irow(nnz) = ij
-      jcol(nnz) = it
-      values(nnz) = coef(9,jS,i)
-
 ! note that coef has the direction switched in the NH
 ! therefore the original coef_ns2 c6,c7,c8 at j-1 poleward
 ! become coef_ns2 c4,c3,c2 at j'+1 poleward
-      itcon = (im-1)*nmlat_T1+jN+1
-!      lhs(ij,itcon) = coef(6,jN,i)
-      nnz = nnz+1
-      irow(nnz) = ij
-      jcol(nnz) = itcon
-      values(nnz) = coef(6,jN,i)
-
-      itcon = (i-1)*nmlat_T1+jN+1
-!      lhs(ij,itcon) = coef(7,jN,i)
-      nnz = nnz+1
-      irow(nnz) = ij
-      jcol(nnz) = itcon
-      values(nnz) = coef(7,jN,i)
-
-      itcon = (ip-1)*nmlat_T1+jN+1
-!      lhs(ij,itcon) = coef(8,jN,i)
-      nnz = nnz+1
-      irow(nnz) = ij
-      jcol(nnz) = itcon
-      values(nnz) = coef(8,jN,i)
+      ij = (i-1)*nmlat_T1+jS
+!      lhs(ij,(im-1)*nmlat_T1+jS-1) = coef(6,jS,i)
+!      lhs(ij,(im-1)*nmlat_T1+jS  ) = coef(5,jS,i)
+!      lhs(ij,(im-1)*nmlat_T1+jS+1) = coef(4,jS,i)
+!      lhs(ij,(im-1)*nmlat_T1+jN+1) = coef(6,jN,i)
+!      lhs(ij, (i-1)*nmlat_T1+jS-1) = coef(7,jS,i)
+!      lhs(ij, (i-1)*nmlat_T1+jS  ) = coef(9,jS,i)
+!      lhs(ij, (i-1)*nmlat_T1+jS+1) = coef(3,jS,i)
+!      lhs(ij, (i-1)*nmlat_T1+jN+1) = coef(7,jN,i)
+!      lhs(ij,(ip-1)*nmlat_T1+jS-1) = coef(8,jS,i)
+!      lhs(ij,(ip-1)*nmlat_T1+jS  ) = coef(1,jS,i)
+!      lhs(ij,(ip-1)*nmlat_T1+jS+1) = coef(2,jS,i)
+!      lhs(ij,(ip-1)*nmlat_T1+jN+1) = coef(8,jN,i)
+      if (i == 1) then
+        jcol(rowcnt(ij)+1:rowcnt(ij)+12,ij) = (/ &
+          (i-1)*nmlat_T1+jS-1,(i-1)*nmlat_T1+jS,(i-1)*nmlat_T1+jS+1,(i-1)*nmlat_T1+jN+1, &
+          (ip-1)*nmlat_T1+jS-1,(ip-1)*nmlat_T1+jS,(ip-1)*nmlat_T1+jS+1,(ip-1)*nmlat_T1+jN+1, &
+          (im-1)*nmlat_T1+jS-1,(im-1)*nmlat_T1+jS,(im-1)*nmlat_T1+jS+1,(im-1)*nmlat_T1+jN+1/)
+        nzval(rowcnt(ij)+1:rowcnt(ij)+12,ij) = (/ &
+          coef(7,jS,i),coef(9,jS,i),coef(3,jS,i),coef(7,jN,i), &
+          coef(8,jS,i),coef(1,jS,i),coef(2,jS,i),coef(8,jN,i), &
+          coef(6,jS,i),coef(5,jS,i),coef(4,jS,i),coef(6,jN,i)/)
+      elseif (i == nmlon) then
+        jcol(rowcnt(ij)+1:rowcnt(ij)+12,ij) = (/ &
+          (ip-1)*nmlat_T1+jS-1,(ip-1)*nmlat_T1+jS,(ip-1)*nmlat_T1+jS+1,(ip-1)*nmlat_T1+jN+1, &
+          (im-1)*nmlat_T1+jS-1,(im-1)*nmlat_T1+jS,(im-1)*nmlat_T1+jS+1,(im-1)*nmlat_T1+jN+1, &
+          (i-1)*nmlat_T1+jS-1,(i-1)*nmlat_T1+jS,(i-1)*nmlat_T1+jS+1,(i-1)*nmlat_T1+jN+1/)
+        nzval(rowcnt(ij)+1:rowcnt(ij)+12,ij) = (/ &
+          coef(8,jS,i),coef(1,jS,i),coef(2,jS,i),coef(8,jN,i), &
+          coef(6,jS,i),coef(5,jS,i),coef(4,jS,i),coef(6,jN,i), &
+          coef(7,jS,i),coef(9,jS,i),coef(3,jS,i),coef(7,jN,i)/)
+      else
+        jcol(rowcnt(ij)+1:rowcnt(ij)+12,ij) = (/ &
+          (im-1)*nmlat_T1+jS-1,(im-1)*nmlat_T1+jS,(im-1)*nmlat_T1+jS+1,(im-1)*nmlat_T1+jN+1, &
+          (i-1)*nmlat_T1+jS-1,(i-1)*nmlat_T1+jS,(i-1)*nmlat_T1+jS+1,(i-1)*nmlat_T1+jN+1, &
+          (ip-1)*nmlat_T1+jS-1,(ip-1)*nmlat_T1+jS,(ip-1)*nmlat_T1+jS+1,(ip-1)*nmlat_T1+jN+1/)
+        nzval(rowcnt(ij)+1:rowcnt(ij)+12,ij) = (/ &
+          coef(6,jS,i),coef(5,jS,i),coef(4,jS,i),coef(6,jN,i), &
+          coef(7,jS,i),coef(9,jS,i),coef(3,jS,i),coef(7,jN,i), &
+          coef(8,jS,i),coef(1,jS,i),coef(2,jS,i),coef(8,jN,i)/)
+      endif
+      rowcnt(ij) = rowcnt(ij)+12
 
 ! note that coef has the direction switched in the NH
-      ij = (i-1)*nmlat_T1+jN
-
-      it = (ip-1)*nmlat_T1+jN
-!      lhs(ij,it) = coef(1,jN,i)
-      nnz = nnz+1
-      irow(nnz) = ij
-      jcol(nnz) = it
-      values(nnz) = coef(1,jN,i)
-
-      it = (ip-1)*nmlat_T1+jN+1
-!      lhs(ij,it) = coef(8,jN,i)
-      nnz = nnz+1
-      irow(nnz) = ij
-      jcol(nnz) = it
-      values(nnz) = coef(8,jN,i)
-
-      it = (i-1)*nmlat_T1+jN+1
-!      lhs(ij,it) = coef(7,jN,i)
-      nnz = nnz+1
-      irow(nnz) = ij
-      jcol(nnz) = it
-      values(nnz) = coef(7,jN,i)
-
-      it = (im-1)*nmlat_T1+jN+1
-!      lhs(ij,it) = coef(6,jN,i)
-      nnz = nnz+1
-      irow(nnz) = ij
-      jcol(nnz) = it
-      values(nnz) = coef(6,jN,i)
-
-      it = (im-1)*nmlat_T1+jN
-!      lhs(ij,it) = coef(5,jN,i)
-      nnz = nnz+1
-      irow(nnz) = ij
-      jcol(nnz) = it
-      values(nnz) = coef(5,jN,i)
-
-      it = (im-1)*nmlat_T1+jN-1
-!      lhs(ij,it) = coef(4,jN,i)
-      nnz = nnz+1
-      irow(nnz) = ij
-      jcol(nnz) = it
-      values(nnz) = coef(4,jN,i)
-
-      it = (i-1)*nmlat_T1+jN-1
-!      lhs(ij,it) = coef(3,jN,i)
-      nnz = nnz+1
-      irow(nnz) = ij
-      jcol(nnz) = it
-      values(nnz) = coef(3,jN,i)
-
-      it = (ip-1)*nmlat_T1+jN-1
-!      lhs(ij,it) = coef(2,jN,i)
-      nnz = nnz+1
-      irow(nnz) = ij
-      jcol(nnz) = it
-      values(nnz) = coef(2,jN,i)
-
-      it = (i-1)*nmlat_T1+jN
-!      lhs(ij,it) = coef(9,jN,i)
-      nnz = nnz+1
-      irow(nnz) = ij
-      jcol(nnz) = it
-      values(nnz) = coef(9,jN,i)
-
 ! SH coef does not have a direction switch
 ! therefore coef at j-1 is still coef at j'-1
-      itcon = (im-1)*nmlat_T1+jS-1
-!      lhs(ij,itcon) = coef(6,jS,i)
-      nnz = nnz+1
-      irow(nnz) = ij
-      jcol(nnz) = itcon
-      values(nnz) = coef(6,jS,i)
-
-      itcon = (i-1)*nmlat_T1+jS-1
-!      lhs(ij,itcon) = coef(7,jS,i)
-      nnz = nnz+1
-      irow(nnz) = ij
-      jcol(nnz) = itcon
-      values(nnz) = coef(7,jS,i)
-
-      itcon = (ip-1)*nmlat_T1+jS-1
-!      lhs(ij,itcon) = coef(8,jS,i)
-      nnz = nnz+1
-      irow(nnz) = ij
-      jcol(nnz) = itcon
-      values(nnz) = coef(8,jS,i)
+      ij = (i-1)*nmlat_T1+jN
+!      lhs(ij,(im-1)*nmlat_T1+jS-1) = coef(6,jS,i)
+!      lhs(ij,(im-1)*nmlat_T1+jN-1) = coef(4,jN,i)
+!      lhs(ij,(im-1)*nmlat_T1+jN  ) = coef(5,jN,i)
+!      lhs(ij,(im-1)*nmlat_T1+jN+1) = coef(6,jN,i)
+!      lhs(ij, (i-1)*nmlat_T1+jS-1) = coef(7,jS,i)
+!      lhs(ij, (i-1)*nmlat_T1+jN-1) = coef(3,jN,i)
+!      lhs(ij, (i-1)*nmlat_T1+jN  ) = coef(9,jN,i)
+!      lhs(ij, (i-1)*nmlat_T1+jN+1) = coef(7,jN,i)
+!      lhs(ij,(ip-1)*nmlat_T1+jS-1) = coef(8,jS,i)
+!      lhs(ij,(ip-1)*nmlat_T1+jN-1) = coef(2,jN,i)
+!      lhs(ij,(ip-1)*nmlat_T1+jN  ) = coef(1,jN,i)
+!      lhs(ij,(ip-1)*nmlat_T1+jN+1) = coef(8,jN,i)
+      if (i == 1) then
+        jcol(rowcnt(ij)+1:rowcnt(ij)+12,ij) = (/ &
+          (i-1)*nmlat_T1+jS-1,(i-1)*nmlat_T1+jN-1,(i-1)*nmlat_T1+jN,(i-1)*nmlat_T1+jN+1, &
+          (ip-1)*nmlat_T1+jS-1,(ip-1)*nmlat_T1+jN-1,(ip-1)*nmlat_T1+jN,(ip-1)*nmlat_T1+jN+1, &
+          (im-1)*nmlat_T1+jS-1,(im-1)*nmlat_T1+jN-1,(im-1)*nmlat_T1+jN,(im-1)*nmlat_T1+jN+1/)
+        nzval(rowcnt(ij)+1:rowcnt(ij)+12,ij) = (/ &
+          coef(7,jS,i),coef(3,jN,i),coef(9,jN,i),coef(7,jN,i), &
+          coef(8,jS,i),coef(2,jN,i),coef(1,jN,i),coef(8,jN,i), &
+          coef(6,jS,i),coef(4,jN,i),coef(5,jN,i),coef(6,jN,i)/)
+      elseif (i == nmlon) then
+        jcol(rowcnt(ij)+1:rowcnt(ij)+12,ij) = (/ &
+          (ip-1)*nmlat_T1+jS-1,(ip-1)*nmlat_T1+jN-1,(ip-1)*nmlat_T1+jN,(ip-1)*nmlat_T1+jN+1, &
+          (im-1)*nmlat_T1+jS-1,(im-1)*nmlat_T1+jN-1,(im-1)*nmlat_T1+jN,(im-1)*nmlat_T1+jN+1, &
+          (i-1)*nmlat_T1+jS-1,(i-1)*nmlat_T1+jN-1,(i-1)*nmlat_T1+jN,(i-1)*nmlat_T1+jN+1/)
+        nzval(rowcnt(ij)+1:rowcnt(ij)+12,ij) = (/ &
+          coef(8,jS,i),coef(2,jN,i),coef(1,jN,i),coef(8,jN,i), &
+          coef(6,jS,i),coef(4,jN,i),coef(5,jN,i),coef(6,jN,i), &
+          coef(7,jS,i),coef(3,jN,i),coef(9,jN,i),coef(7,jN,i)/)
+      else
+        jcol(rowcnt(ij)+1:rowcnt(ij)+12,ij) = (/ &
+          (im-1)*nmlat_T1+jS-1,(im-1)*nmlat_T1+jN-1,(im-1)*nmlat_T1+jN,(im-1)*nmlat_T1+jN+1, &
+          (i-1)*nmlat_T1+jS-1,(i-1)*nmlat_T1+jN-1,(i-1)*nmlat_T1+jN,(i-1)*nmlat_T1+jN+1, &
+          (ip-1)*nmlat_T1+jS-1,(ip-1)*nmlat_T1+jN-1,(ip-1)*nmlat_T1+jN,(ip-1)*nmlat_T1+jN+1/)
+        nzval(rowcnt(ij)+1:rowcnt(ij)+12,ij) = (/ &
+          coef(6,jS,i),coef(4,jN,i),coef(5,jN,i),coef(6,jN,i), &
+          coef(7,jS,i),coef(3,jN,i),coef(9,jN,i),coef(7,jN,i), &
+          coef(8,jS,i),coef(2,jN,i),coef(1,jN,i),coef(8,jN,i)/)
+      endif
+      rowcnt(ij) = rowcnt(ij)+12
 
 ! from latm_JT to equator, symmetric solution
       do j = jlatm_JT+1,nmlat_h-1
@@ -761,204 +418,146 @@ module solver_module
         jN = nmlat_T1-j+1
 
         ij = (i-1)*nmlat_T1+jS
-
-        it = (ip-1)*nmlat_T1+jS
-!        lhs(ij,it) = coef(1,jS,i)
-        nnz = nnz+1
-        irow(nnz) = ij
-        jcol(nnz) = it
-        values(nnz) = coef(1,jS,i)
-
-        it = (ip-1)*nmlat_T1+jS+1
-!        lhs(ij,it) = coef(2,jS,i)
-        nnz = nnz+1
-        irow(nnz) = ij
-        jcol(nnz) = it
-        values(nnz) = coef(2,jS,i)
-
-        it = (i-1)*nmlat_T1+jS+1
-!        lhs(ij,it) = coef(3,jS,i)
-        nnz = nnz+1
-        irow(nnz) = ij
-        jcol(nnz) = it
-        values(nnz) = coef(3,jS,i)
-
-        it = (im-1)*nmlat_T1+jS+1
-!        lhs(ij,it) = coef(4,jS,i)
-        nnz = nnz+1
-        irow(nnz) = ij
-        jcol(nnz) = it
-        values(nnz) = coef(4,jS,i)
-
-        it = (im-1)*nmlat_T1+jS
-!        lhs(ij,it) = coef(5,jS,i)
-        nnz = nnz+1
-        irow(nnz) = ij
-        jcol(nnz) = it
-        values(nnz) = coef(5,jS,i)
-
-        it = (im-1)*nmlat_T1+jS-1
-!        lhs(ij,it) = coef(6,jS,i)
-        nnz = nnz+1
-        irow(nnz) = ij
-        jcol(nnz) = it
-        values(nnz) = coef(6,jS,i)
-
-        it = (i-1)*nmlat_T1+jS-1
-!        lhs(ij,it) = coef(7,jS,i)
-        nnz = nnz+1
-        irow(nnz) = ij
-        jcol(nnz) = it
-        values(nnz) = coef(7,jS,i)
-
-        it = (ip-1)*nmlat_T1+jS-1
-!        lhs(ij,it) = coef(8,jS,i)
-        nnz = nnz+1
-        irow(nnz) = ij
-        jcol(nnz) = it
-        values(nnz) = coef(8,jS,i)
-
-        it = (i-1)*nmlat_T1+jS
-!        lhs(ij,it) = coef(9,jS,i)
-        nnz = nnz+1
-        irow(nnz) = ij
-        jcol(nnz) = it
-        values(nnz) = coef(9,jS,i)
+!        lhs(ij,(im-1)*nmlat_T1+jS-1) = coef(6,jS,i)
+!        lhs(ij,(im-1)*nmlat_T1+jS  ) = coef(5,jS,i)
+!        lhs(ij,(im-1)*nmlat_T1+jS+1) = coef(4,jS,i)
+!        lhs(ij, (i-1)*nmlat_T1+jS-1) = coef(7,jS,i)
+!        lhs(ij, (i-1)*nmlat_T1+jS  ) = coef(9,jS,i)
+!        lhs(ij, (i-1)*nmlat_T1+jS+1) = coef(3,jS,i)
+!        lhs(ij,(ip-1)*nmlat_T1+jS-1) = coef(8,jS,i)
+!        lhs(ij,(ip-1)*nmlat_T1+jS  ) = coef(1,jS,i)
+!        lhs(ij,(ip-1)*nmlat_T1+jS+1) = coef(2,jS,i)
+        if (i == 1) then
+          jcol(rowcnt(ij)+1:rowcnt(ij)+9,ij) = (/ &
+            (i-1)*nmlat_T1+jS-1,(i-1)*nmlat_T1+jS,(i-1)*nmlat_T1+jS+1, &
+            (ip-1)*nmlat_T1+jS-1,(ip-1)*nmlat_T1+jS,(ip-1)*nmlat_T1+jS+1, &
+            (im-1)*nmlat_T1+jS-1,(im-1)*nmlat_T1+jS,(im-1)*nmlat_T1+jS+1/)
+          nzval(rowcnt(ij)+1:rowcnt(ij)+9,ij) = (/ &
+            coef(7,jS,i),coef(9,jS,i),coef(3,jS,i), &
+            coef(8,jS,i),coef(1,jS,i),coef(2,jS,i), &
+            coef(6,jS,i),coef(5,jS,i),coef(4,jS,i)/)
+        elseif (i == nmlon) then
+          jcol(rowcnt(ij)+1:rowcnt(ij)+9,ij) = (/ &
+            (ip-1)*nmlat_T1+jS-1,(ip-1)*nmlat_T1+jS,(ip-1)*nmlat_T1+jS+1, &
+            (im-1)*nmlat_T1+jS-1,(im-1)*nmlat_T1+jS,(im-1)*nmlat_T1+jS+1, &
+            (i-1)*nmlat_T1+jS-1,(i-1)*nmlat_T1+jS,(i-1)*nmlat_T1+jS+1/)
+          nzval(rowcnt(ij)+1:rowcnt(ij)+9,ij) = (/ &
+            coef(8,jS,i),coef(1,jS,i),coef(2,jS,i), &
+            coef(6,jS,i),coef(5,jS,i),coef(4,jS,i), &
+            coef(7,jS,i),coef(9,jS,i),coef(3,jS,i)/)
+        else
+          jcol(rowcnt(ij)+1:rowcnt(ij)+9,ij) = (/ &
+            (im-1)*nmlat_T1+jS-1,(im-1)*nmlat_T1+jS,(im-1)*nmlat_T1+jS+1, &
+            (i-1)*nmlat_T1+jS-1,(i-1)*nmlat_T1+jS,(i-1)*nmlat_T1+jS+1, &
+            (ip-1)*nmlat_T1+jS-1,(ip-1)*nmlat_T1+jS,(ip-1)*nmlat_T1+jS+1/)
+          nzval(rowcnt(ij)+1:rowcnt(ij)+9,ij) = (/ &
+            coef(6,jS,i),coef(5,jS,i),coef(4,jS,i), &
+            coef(7,jS,i),coef(9,jS,i),coef(3,jS,i), &
+            coef(8,jS,i),coef(1,jS,i),coef(2,jS,i)/)
+        endif
+        rowcnt(ij) = rowcnt(ij)+9
 
 ! note that coef has the direction switched in the NH
         ij = (i-1)*nmlat_T1+jN
-
-        it = (ip-1)*nmlat_T1+jN
-!        lhs(ij,it) = coef(1,jN,i)
-        nnz = nnz+1
-        irow(nnz) = ij
-        jcol(nnz) = it
-        values(nnz) = coef(1,jN,i)
-
-        it = (ip-1)*nmlat_T1+jN+1
-!        lhs(ij,it) = coef(8,jN,i)
-        nnz = nnz+1
-        irow(nnz) = ij
-        jcol(nnz) = it
-        values(nnz) = coef(8,jN,i)
-
-        it = (i-1)*nmlat_T1+jN+1
-!        lhs(ij,it) = coef(7,jN,i)
-        nnz = nnz+1
-        irow(nnz) = ij
-        jcol(nnz) = it
-        values(nnz) = coef(7,jN,i)
-
-        it = (im-1)*nmlat_T1+jN+1
-!        lhs(ij,it) = coef(6,jN,i)
-        nnz = nnz+1
-        irow(nnz) = ij
-        jcol(nnz) = it
-        values(nnz) = coef(6,jN,i)
-
-        it = (im-1)*nmlat_T1+jN
-!        lhs(ij,it) = coef(5,jN,i)
-        nnz = nnz+1
-        irow(nnz) = ij
-        jcol(nnz) = it
-        values(nnz) = coef(5,jN,i)
-
-        it = (im-1)*nmlat_T1+jN-1
-!        lhs(ij,it) = coef(4,jN,i)
-        nnz = nnz+1
-        irow(nnz) = ij
-        jcol(nnz) = it
-        values(nnz) = coef(4,jN,i)
-
-        it = (i-1)*nmlat_T1+jN-1
-!        lhs(ij,it) = coef(3,jN,i)
-        nnz = nnz+1
-        irow(nnz) = ij
-        jcol(nnz) = it
-        values(nnz) = coef(3,jN,i)
-
-        it = (ip-1)*nmlat_T1+jN-1
-!        lhs(ij,it) = coef(2,jN,i)
-        nnz = nnz+1
-        irow(nnz) = ij
-        jcol(nnz) = it
-        values(nnz) = coef(2,jN,i)
-
-        it = (i-1)*nmlat_T1+jN
-!        lhs(ij,it) = coef(9,jN,i)
-        nnz = nnz+1
-        irow(nnz) = ij
-        jcol(nnz) = it
-        values(nnz) = coef(9,jN,i)
+!        lhs(ij,(im-1)*nmlat_T1+jN-1) = coef(4,jN,i)
+!        lhs(ij,(im-1)*nmlat_T1+jN  ) = coef(5,jN,i)
+!        lhs(ij,(im-1)*nmlat_T1+jN+1) = coef(6,jN,i)
+!        lhs(ij, (i-1)*nmlat_T1+jN-1) = coef(3,jN,i)
+!        lhs(ij, (i-1)*nmlat_T1+jN  ) = coef(9,jN,i)
+!        lhs(ij, (i-1)*nmlat_T1+jN+1) = coef(7,jN,i)
+!        lhs(ij,(ip-1)*nmlat_T1+jN-1) = coef(2,jN,i)
+!        lhs(ij,(ip-1)*nmlat_T1+jN  ) = coef(1,jN,i)
+!        lhs(ij,(ip-1)*nmlat_T1+jN+1) = coef(8,jN,i)
+        if (i == 1) then
+          jcol(rowcnt(ij)+1:rowcnt(ij)+9,ij) = (/ &
+            (i-1)*nmlat_T1+jN-1,(i-1)*nmlat_T1+jN,(i-1)*nmlat_T1+jN+1, &
+            (ip-1)*nmlat_T1+jN-1,(ip-1)*nmlat_T1+jN,(ip-1)*nmlat_T1+jN+1, &
+            (im-1)*nmlat_T1+jN-1,(im-1)*nmlat_T1+jN,(im-1)*nmlat_T1+jN+1/)
+          nzval(rowcnt(ij)+1:rowcnt(ij)+9,ij) = (/ &
+            coef(3,jN,i),coef(9,jN,i),coef(7,jN,i), &
+            coef(2,jN,i),coef(1,jN,i),coef(8,jN,i), &
+            coef(4,jN,i),coef(5,jN,i),coef(6,jN,i)/)
+        elseif (i == nmlon) then
+          jcol(rowcnt(ij)+1:rowcnt(ij)+9,ij) = (/ &
+            (ip-1)*nmlat_T1+jN-1,(ip-1)*nmlat_T1+jN,(ip-1)*nmlat_T1+jN+1, &
+            (im-1)*nmlat_T1+jN-1,(im-1)*nmlat_T1+jN,(im-1)*nmlat_T1+jN+1, &
+            (i-1)*nmlat_T1+jN-1,(i-1)*nmlat_T1+jN,(i-1)*nmlat_T1+jN+1/)
+          nzval(rowcnt(ij)+1:rowcnt(ij)+9,ij) = (/ &
+            coef(2,jN,i),coef(1,jN,i),coef(8,jN,i), &
+            coef(4,jN,i),coef(5,jN,i),coef(6,jN,i), &
+            coef(3,jN,i),coef(9,jN,i),coef(7,jN,i)/)
+        else
+          jcol(rowcnt(ij)+1:rowcnt(ij)+9,ij) = (/ &
+            (im-1)*nmlat_T1+jN-1,(im-1)*nmlat_T1+jN,(im-1)*nmlat_T1+jN+1, &
+            (i-1)*nmlat_T1+jN-1,(i-1)*nmlat_T1+jN,(i-1)*nmlat_T1+jN+1, &
+            (ip-1)*nmlat_T1+jN-1,(ip-1)*nmlat_T1+jN,(ip-1)*nmlat_T1+jN+1/)
+          nzval(rowcnt(ij)+1:rowcnt(ij)+9,ij) = (/ &
+            coef(4,jN,i),coef(5,jN,i),coef(6,jN,i), &
+            coef(3,jN,i),coef(9,jN,i),coef(7,jN,i), &
+            coef(2,jN,i),coef(1,jN,i),coef(8,jN,i)/)
+        endif
+        rowcnt(ij) = rowcnt(ij)+9
       enddo
 
 ! equator
       j = nmlat_h
 
       ij = (i-1)*nmlat_T1+j
+!      lhs(ij,(im-1)*nmlat_T1+j-1) = coef(6,j,i)
+!      lhs(ij,(im-1)*nmlat_T1+j  ) = coef(5,j,i)
+!      lhs(ij,(im-1)*nmlat_T1+j+1) = coef(4,j,i)
+!      lhs(ij, (i-1)*nmlat_T1+j-1) = coef(7,j,i)
+!      lhs(ij, (i-1)*nmlat_T1+j  ) = coef(9,j,i)
+!      lhs(ij, (i-1)*nmlat_T1+j+1) = coef(3,j,i)
+!      lhs(ij,(ip-1)*nmlat_T1+j-1) = coef(8,j,i)
+!      lhs(ij,(ip-1)*nmlat_T1+j  ) = coef(1,j,i)
+!      lhs(ij,(ip-1)*nmlat_T1+j+1) = coef(2,j,i)
+      if (i == 1) then
+        jcol(rowcnt(ij)+1:rowcnt(ij)+9,ij) = (/ &
+          (i-1)*nmlat_T1+j-1,(i-1)*nmlat_T1+j,(i-1)*nmlat_T1+j+1, &
+          (ip-1)*nmlat_T1+j-1,(ip-1)*nmlat_T1+j,(ip-1)*nmlat_T1+j+1, &
+          (im-1)*nmlat_T1+j-1,(im-1)*nmlat_T1+j,(im-1)*nmlat_T1+j+1/)
+        nzval(rowcnt(ij)+1:rowcnt(ij)+9,ij) = (/ &
+          coef(7,j,i),coef(9,j,i),coef(3,j,i), &
+          coef(8,j,i),coef(1,j,i),coef(2,j,i), &
+          coef(6,j,i),coef(5,j,i),coef(4,j,i)/)
+      elseif (i == nmlon) then
+        jcol(rowcnt(ij)+1:rowcnt(ij)+9,ij) = (/ &
+          (ip-1)*nmlat_T1+j-1,(ip-1)*nmlat_T1+j,(ip-1)*nmlat_T1+j+1, &
+          (im-1)*nmlat_T1+j-1,(im-1)*nmlat_T1+j,(im-1)*nmlat_T1+j+1, &
+          (i-1)*nmlat_T1+j-1,(i-1)*nmlat_T1+j,(i-1)*nmlat_T1+j+1/)
+        nzval(rowcnt(ij)+1:rowcnt(ij)+9,ij) = (/ &
+          coef(8,j,i),coef(1,j,i),coef(2,j,i), &
+          coef(6,j,i),coef(5,j,i),coef(4,j,i), &
+          coef(7,j,i),coef(9,j,i),coef(3,j,i)/)
+      else
+        jcol(rowcnt(ij)+1:rowcnt(ij)+9,ij) = (/ &
+          (im-1)*nmlat_T1+j-1,(im-1)*nmlat_T1+j,(im-1)*nmlat_T1+j+1, &
+          (i-1)*nmlat_T1+j-1,(i-1)*nmlat_T1+j,(i-1)*nmlat_T1+j+1, &
+          (ip-1)*nmlat_T1+j-1,(ip-1)*nmlat_T1+j,(ip-1)*nmlat_T1+j+1/)
+        nzval(rowcnt(ij)+1:rowcnt(ij)+9,ij) = (/ &
+          coef(6,j,i),coef(5,j,i),coef(4,j,i), &
+          coef(7,j,i),coef(9,j,i),coef(3,j,i), &
+          coef(8,j,i),coef(1,j,i),coef(2,j,i)/)
+      endif
+      rowcnt(ij) = rowcnt(ij)+9
+    enddo
 
-      it = (ip-1)*nmlat_T1+j
-!      lhs(ij,it) = coef(1,j,i)
-      nnz = nnz+1
-      irow(nnz) = ij
-      jcol(nnz) = it
-      values(nnz) = coef(1,j,i)
+    rowptr(1) = 1
+    do i = 2,nlonlat+1
+      rowptr(i) = rowptr(i-1)+rowcnt(i-1)
+    enddo
 
-      it = (ip-1)*nmlat_T1+j+1
-!      lhs(ij,it) = coef(2,j,i)
-      nnz = nnz+1
-      irow(nnz) = ij
-      jcol(nnz) = it
-      values(nnz) = coef(2,j,i)
+    do j = 1,nmlon+2
+      colind(j) = jcol1(j)
+      values(j) = nzval1(j)
+    enddo
 
-      it = (i-1)*nmlat_T1+j+1
-!      lhs(ij,it) = coef(3,j,i)
-      nnz = nnz+1
-      irow(nnz) = ij
-      jcol(nnz) = it
-      values(nnz) = coef(3,j,i)
-
-      it = (im-1)*nmlat_T1+j+1
-!      lhs(ij,it) = coef(4,j,i)
-      nnz = nnz+1
-      irow(nnz) = ij
-      jcol(nnz) = it
-      values(nnz) = coef(4,j,i)
-
-      it = (im-1)*nmlat_T1+j
-!      lhs(ij,it) = coef(5,j,i)
-      nnz = nnz+1
-      irow(nnz) = ij
-      jcol(nnz) = it
-      values(nnz) = coef(5,j,i)
-
-      it = (im-1)*nmlat_T1+j-1
-!      lhs(ij,it) = coef(6,j,i)
-      nnz = nnz+1
-      irow(nnz) = ij
-      jcol(nnz) = it
-      values(nnz) = coef(6,j,i)
-
-      it = (i-1)*nmlat_T1+j-1
-!      lhs(ij,it) = coef(7,j,i)
-      nnz = nnz+1
-      irow(nnz) = ij
-      jcol(nnz) = it
-      values(nnz) = coef(7,j,i)
-
-      it = (ip-1)*nmlat_T1+j-1
-!      lhs(ij,it) = coef(8,j,i)
-      nnz = nnz+1
-      irow(nnz) = ij
-      jcol(nnz) = it
-      values(nnz) = coef(8,j,i)
-
-      it = (i-1)*nmlat_T1+j
-!      lhs(ij,it) = coef(9,j,i)
-      nnz = nnz+1
-      irow(nnz) = ij
-      jcol(nnz) = it
-      values(nnz) = coef(9,j,i)
+    do i = 2,nlonlat
+      do j = 1,rowcnt(i)
+        colind(rowptr(i)+j-1) = jcol(j,i)
+        values(rowptr(i)+j-1) = nzval(j,i)
+      enddo
     enddo
 
   endsubroutine construct_lhs
@@ -967,11 +566,11 @@ module solver_module
 ! construct vector RHS
 ! this is different from flatten
 
-    use params_module,only:nmlat_h
+    use params_module,only:nmlat_h,nmlat_T1,nmlon
     use cons_module,only:phi_pol
 
     real(kind=rp),dimension(nmlat_T1,nmlon),intent(in) :: coef_10
-    real(kind=rp),dimension(nlonlat) :: rhs
+    real(kind=rp),dimension(nmlat_T1*nmlon) :: rhs
 
     integer :: i,j,ij
 
@@ -980,10 +579,10 @@ module solver_module
 ! set up poles, there are no c6,c7,c8 values
     j = 1
 
-! for equation i=1 at the south pole
+! for longitude i=1 at the south pole
     i = 1
     ij = (i-1)*nmlat_T1+j
-    rhs(ij) = coef_10(j,i)
+    rhs(ij) = sum(coef_10(j,:))
 
 ! for each i, set Phi(i,nmlat_T1) = phi_pol at the north pole
     do concurrent (i = 1:nmlon)
@@ -995,43 +594,36 @@ module solver_module
       ij = (i-1)*nmlat_T1+j
       rhs(ij) = coef_10(j,i)
 
-      if (j /= nmlat_h) then
-        ij = (i-1)*nmlat_T1+nmlat_T1-j+1
-        rhs(ij) = coef_10(nmlat_T1-j+1,i)
-      endif
+      ij = (i-1)*nmlat_T1+nmlat_T1-j+1
+      rhs(ij) = coef_10(nmlat_T1-j+1,i)
     enddo
 
   endfunction construct_rhs
 !-----------------------------------------------------------------------
-  function solve_mkl(n,nnz,irow,jcol,values,rhs) result(sol)
+  function solve_mkl(n,nnz,rowptr,colind,values,rhs) result(sol)
 
 #ifdef MKL
     include 'mkl_pardiso.fi'
 #endif
 
     integer,intent(in) :: n,nnz
-    integer,dimension(nnz),intent(in) :: irow,jcol
+    integer,dimension(n+1),intent(in) :: rowptr
+    integer,dimension(nnz),intent(in) :: colind
     real(kind=rp),dimension(nnz),intent(in) :: values
     real(kind=rp),dimension(n),intent(in) :: rhs
     real(kind=rp),dimension(n) :: sol
 
 #ifdef MKL
-! for PARDISO sparse matrix solver (CSR format)
-    logical,parameter :: debug = .false.
+! for PARDISO sparse matrix solver
+    logical,parameter :: debug = .true.
     integer,parameter :: maxfct = 1, mnum = 1, nrhs = 1, &
       mtype = 11, & ! real and non-symmetric matrix
       msglvl = 1 ! print statistical information
     integer :: i,phase,error
     integer,dimension(64) :: iparm
     integer,dimension(n) :: perm
-    integer,dimension(n+1) :: rowptr
-    integer,dimension(nnz) :: colind
     real(kind=rp),dimension(n) :: rhs_cp
-    real(kind=rp),dimension(nnz) :: nzval
     type(MKL_PARDISO_HANDLE),dimension(64) :: pt
-
-! MKL needs CSR format
-    call coo_to_csr(n,n,nnz,irow,jcol,values,rowptr,colind,nzval)
 
 ! initialize PARDISO with default parameters in accordance with the matrix type
     call pardisoinit(pt,mtype,iparm)
@@ -1069,7 +661,7 @@ module solver_module
 ! if the number of non-zero elements is on the order of 500 million or more
 ! then use pardiso_64 (64-bit integer version)
     call pardiso(pt, maxfct, mnum, mtype, phase, n, &
-      nzval, rowptr, colind, perm, nrhs, iparm, msglvl, rhs_cp, sol, error)
+      values, rowptr, colind, perm, nrhs, iparm, msglvl, rhs_cp, sol, error)
 
     write(6,"('phase ',i4,' error ',i4)") phase,error
 #else
@@ -1078,23 +670,19 @@ module solver_module
 
   endfunction solve_mkl
 !-----------------------------------------------------------------------
-  function solve_superlu(n,nnz,irow,jcol,values,rhs) result(sol)
-
-    use iso_c_binding,only:c_int,c_long_long,c_double
+  function solve_superlu(n,nnz,colptr,rowind,values,rhs) result(sol)
 
     integer,intent(in) :: n,nnz
-    integer,dimension(nnz),intent(in) :: irow,jcol
+    integer,dimension(n+1),intent(in) :: colptr
+    integer,dimension(nnz),intent(in) :: rowind
     real(kind=rp),dimension(nnz),intent(in) :: values
     real(kind=rp),dimension(n),intent(in) :: rhs
     real(kind=rp),dimension(n) :: sol
 
-! for SuperLU sparse matrix solver (CSC format)
+! for SuperLU sparse matrix solver
     integer,parameter :: nrhs = 1
     integer :: i,iopt,info
-    integer(kind=c_long_long) :: f_factors
-    integer(kind=c_int),dimension(n+1) :: colptr
-    integer(kind=c_int),dimension(nnz) :: rowind
-    real(kind=c_double),dimension(nnz) :: nzval
+    integer(kind=8) :: f_factors
 
     interface
       subroutine c_fortran_dgssv(iopt,n,nnz,nrhs, &
@@ -1110,9 +698,6 @@ module solver_module
       endsubroutine c_fortran_dgssv
     endinterface
 
-! SuperLU needs CSC format
-    call coo_to_csc(n,n,nnz,irow,jcol,values,colptr,rowind,nzval)
-
     do concurrent (i = 1:n)
       sol(i) = rhs(i)
     enddo
@@ -1120,174 +705,92 @@ module solver_module
 ! first, factorize the matrix, the factors are stored in *f_factors* handle
     iopt = 1
     call c_fortran_dgssv(iopt, n, nnz, nrhs, &
-      nzval, rowind, colptr, sol, n, f_factors, info)
+      values, rowind, colptr, sol, n, f_factors, info)
     write(6,"('INFO from LU decomposition = ',i4)") info
 
 ! second, solve the system using the existing factors
     iopt = 2
     call c_fortran_dgssv(iopt, n, nnz, nrhs, &
-      nzval, rowind, colptr, sol, n, f_factors, info)
+      values, rowind, colptr, sol, n, f_factors, info)
     write(6,"('INFO from triangular solve = ',i4)") info
 
 ! last, free the storage allocated inside SuperLU
     iopt = 3
     call c_fortran_dgssv(iopt, n, nnz, nrhs, &
-      nzval, rowind, colptr, sol, n, f_factors, info)
+      values, rowind, colptr, sol, n, f_factors, info)
 
   endfunction solve_superlu
 !-----------------------------------------------------------------------
-  subroutine coo_to_csr(nrow,ncol,nnz,irow,jcol,values,rowptr,colind,nzval)
-! convert sparse matrix format from COO to CSR
-
-! Compressed Sparse Row (CSR) format:
-! rowptr is the cumulative sum of the number of non-zero elements in each row
-! i.e., rowptr(i+1)-rowptr(i) is the number of non-zero elements in the ith row
-! colind(rowptr(i):rowptr(i+1)-1) are the column indices of non-zero elements in the ith column
+  pure subroutine csr_to_csc(nrow,ncol,nnz, &
+    rowptr,colind,values_csr,colptr,rowind,values_csc)
 
     integer,intent(in) :: nrow,ncol,nnz
-    integer,dimension(nnz),intent(in) :: irow,jcol
-    real(kind=rp),dimension(nnz),intent(in) :: values
-    integer,dimension(nrow+1),intent(out) :: rowptr
-    integer,dimension(nnz),intent(out) :: colind
-    real(kind=rp),dimension(nnz),intent(out) :: nzval
-
-    integer :: i,j,last_colind,nnz_i
-    integer,dimension(ncol) :: jcol_i,idx
-    real(kind=rp),dimension(ncol) :: values_i
-
-! start with the first row
-    last_colind = 1
-    rowptr(1) = last_colind
-
-! loop through rows
-    do i = 1,nrow
-
-! squeeze column indices only in the ith row
-      nnz_i = 0
-      do j = 1,nnz
-        if (irow(j) == i) then
-          nnz_i = nnz_i+1
-          jcol_i(nnz_i) = jcol(j)
-          values_i(nnz_i) = values(j)
-        endif
-      enddo
-
-! if nnz_i is zero, no element is in the ith row, the matrix is degenerate
-
-! sort values based on column indices
-      if (nnz_i > 0) then
-        idx(1:nnz_i) = argsort(jcol_i(1:nnz_i),nnz_i,1,ncol)
-        do j = 1,nnz_i
-          colind(last_colind+j-1) = jcol_i(idx(j))
-          nzval(last_colind+j-1) = values_i(idx(j))
-        enddo
-      endif
-
-! update the pointer to the new row
-      last_colind = last_colind+nnz_i
-      rowptr(i+1) = last_colind
-    enddo
-
-! last_colind should equal nnz+1 at this point
-
-  endsubroutine coo_to_csr
-!-----------------------------------------------------------------------
-  subroutine coo_to_csc(nrow,ncol,nnz,irow,jcol,values,colptr,rowind,nzval)
-! convert sparse matrix format from COO to CSC
-
-! Compressed Sparse Column (CSC) format:
-! colptr is the cumulative sum of the number of non-zero elements in each column
-! i.e., colptr(j+1)-colptr(j) is the number of non-zero elements in the jth column
-! rowind(colptr(j):colptr(j+1)-1) are the row indices of non-zero elements in the jth row
-
-    integer,intent(in) :: nrow,ncol,nnz
-    integer,dimension(nnz),intent(in) :: irow,jcol
-    real(kind=rp),dimension(nnz),intent(in) :: values
+    integer,dimension(nrow+1),intent(in) :: rowptr
+    integer,dimension(nnz),intent(in) :: colind
+    real(kind=rp),dimension(nnz),intent(in) :: values_csr
     integer,dimension(ncol+1),intent(out) :: colptr
     integer,dimension(nnz),intent(out) :: rowind
-    real(kind=rp),dimension(nnz),intent(out) :: nzval
+    real(kind=rp),dimension(nnz),intent(out) :: values_csc
 
-    integer :: i,j,last_rowind,nnz_j
-    integer,dimension(nrow) :: irow_j,idx
-    real(kind=rp),dimension(nrow) :: values_j
+    integer :: n,i,j,newidx
+    integer,dimension(ncol) :: colcnt,cnt
 
-! start with the first column
-    last_rowind = 1
-    colptr(1) = last_rowind
-
-! loop through columns
-    do j = 1,ncol
-
-! squeeze row indices only in the jth column
-      nnz_j = 0
-      do i = 1,nnz
-        if (jcol(i) == j) then
-          nnz_j = nnz_j+1
-          irow_j(nnz_j) = irow(i)
-          values_j(nnz_j) = values(i)
-        endif
-      enddo
-
-! if nnz_j is zero, no element is in the jth column, the matrix is degenerate
-
-! sort values based on row indices
-      if (nnz_j > 0) then
-        idx(1:nnz_j) = argsort(irow_j(1:nnz_j),nnz_j,1,nrow)
-        do i = 1,nnz_j
-          rowind(last_rowind+i-1) = irow_j(idx(i))
-          nzval(last_rowind+i-1) = values_j(idx(i))
-        enddo
-      endif
-
-! update the pointer to the new column
-      last_rowind = last_rowind+nnz_j
-      colptr(j+1) = last_rowind
+    colcnt = 0
+    do n = 1,nnz
+      j = colind(n)
+      colcnt(j) = colcnt(j)+1
     enddo
 
-! last_rowind should equal nnz+1 at this point
+    colptr(1) = 1
+    do j = 2,ncol+1
+      colptr(j) = colptr(j-1)+colcnt(j-1)
+    enddo
 
-  endsubroutine coo_to_csc
+    cnt = 0
+    do i = 1,nrow
+      do n = rowptr(i),rowptr(i+1)-1
+        j = colind(n)
+        newidx = colptr(j)+cnt(j)
+        rowind(newidx) = i
+        values_csc(newidx) = values_csr(n)
+        cnt(j) = cnt(j)+1
+      enddo
+    enddo
+
+  endsubroutine csr_to_csc
 !-----------------------------------------------------------------------
   pure function flatten(fin) result(fout)
 ! reorder 2D fields (lat-lon) into 1D vector (RHS)
 ! northern/southern hemispheres are either separate or averaged
 ! based on their latitude ranges (high-lat, transition, low-lat, equator)
 
-    use params_module,only:nmlat_h
+    use params_module,only:nmlat_h,nmlat_T1,nmlon
     use cons_module,only:jlatm_JT
 
     real(kind=rp),dimension(2,nmlat_h,nmlon),intent(in) :: fin
-    real(kind=rp),dimension(nlonlat) :: fout
+    real(kind=rp),dimension(nmlat_T1*nmlon) :: fout
 
     integer :: i,j,ij
-
-    do concurrent (i = 1:nmlon, j = 1:nmlat_h)
-! j should take one of the following three situations
+    real(kind=rp) :: avg
 
 ! from pole to latm_JT, two hemispheres are uncoupled
-      if (j <= jlatm_JT) then
-        ij = (i-1)*nmlat_T1+j
-        fout(ij) = fin(1,j,i)
+    do concurrent (i = 1:nmlon, j = 1:jlatm_JT)
+      ij = (i-1)*nmlat_T1+j
+      fout(ij) = fin(1,j,i)
 
-        ij = (i-1)*nmlat_T1+nmlat_T1-j+1
-        fout(ij) = fin(2,j,i)
-      endif
+      ij = (i-1)*nmlat_T1+nmlat_T1-j+1
+      fout(ij) = fin(2,j,i)
+    enddo
 
 ! from latm_JT to equator, symmetric solution
-      if (j>=jlatm_JT+1 .and. j<=nmlat_h-1) then
-        ij = (i-1)*nmlat_T1+j
-        fout(ij) = (fin(1,j,i)+fin(2,j,i))/2
+    do concurrent (i = 1:nmlon, j = jlatm_JT+1:nmlat_h)
+      avg = (fin(1,j,i)+fin(2,j,i))/2
 
-        ij = (i-1)*nmlat_T1+nmlat_T1-j+1
-        fout(ij) = (fin(1,j,i)+fin(2,j,i))/2
-      endif
+      ij = (i-1)*nmlat_T1+j
+      fout(ij) = avg
 
-! equator
-      if (j == nmlat_h) then
-        ij = (i-1)*nmlat_T1+j
-        fout(ij) = fin(1,j,i)
-!        fout(ij) = (fin(1,j,i)+fin(2,j,i))/2
-      endif
+      ij = (i-1)*nmlat_T1+nmlat_T1-j+1
+      fout(ij) = avg
     enddo
 
   endfunction flatten
@@ -1295,9 +798,9 @@ module solver_module
   pure function unravel(fin) result(fout)
 ! reorder 1D vector (RHS) into 2D fields (lat-lon)
 
-    use params_module,only:nmlat_h
+    use params_module,only:nmlat_h,nmlat_T1,nmlon
 
-    real(kind=rp),dimension(nlonlat),intent(in) :: fin
+    real(kind=rp),dimension(nmlat_T1*nmlon),intent(in) :: fin
     real(kind=rp),dimension(2,nmlat_h,nmlon) :: fout
 
     integer :: i,j,isn,ij
@@ -1312,33 +815,5 @@ module solver_module
     enddo
 
   endfunction unravel
-!-----------------------------------------------------------------------
-  pure function argsort(a,n,amin,amax) result(idx)
-! a simplified radix sort for row or column indices
-
-    integer,intent(in) :: n,amin,amax
-    integer,dimension(n),intent(in) :: a
-    integer,dimension(n) :: idx
-
-    integer :: i,cnt
-    integer,dimension(amin:amax) :: b
-
-! put all elements in place
-    b = amin-1
-    do concurrent (i = 1:n)
-      b(a(i)) = i
-    enddo
-
-! squeeze non-existent indices
-    cnt = 1
-    do i = amin,amax
-      if (b(i) /= amin-1) then
-        idx(cnt) = b(i)
-        cnt = cnt+1
-        if (cnt > n) exit
-      endif
-    enddo
-
-  endfunction argsort
 !-----------------------------------------------------------------------
 endmodule solver_module

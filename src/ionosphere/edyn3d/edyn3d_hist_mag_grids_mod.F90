@@ -19,8 +19,8 @@ module edyn3d_hist_mag_grids_mod
   integer :: s1flpt0=1, s1flpt1=0
   integer :: s2flpt0=1, s2flpt1=0
 
-  integer :: flpts1ndx(nhgt_fix,2,nmlat_h) = -1
-  integer :: flpts2ndx(nhgt_fix,2,nmlatS2_h) = -1
+  integer, allocatable :: flpts1ndx(:,:,:)
+  integer, allocatable :: flpts2ndx(:,:,:)
 
   real(r8), parameter :: NOTSET = -huge(1._r8)
 
@@ -57,6 +57,11 @@ contains
     real(r8) :: lonvals2(nmlon)
 
     character(len=*), parameter :: subname = 'edyn3d_hist_mag_grids_reg'
+
+    allocate(flpts1ndx(nhgt_fix,2,nmlat_h))
+    allocate(flpts2ndx(nhgt_fix,2,nmlatS2_h))
+    flpts1ndx = -1
+    flpts2ndx = -1
 
     if (masterproc) then
        write(iulog,*) subname,'Reg mag fieldline history grid START'

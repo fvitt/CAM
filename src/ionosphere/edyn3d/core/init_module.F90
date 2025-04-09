@@ -330,8 +330,8 @@ module init_module
         if (ra > rp1+16*dr) ra = rp1+16*dr
 
 ! Eq (45') page 4c r*/R
-        tmp = sqrt(max((ra-rm1)**3,0.0_rp))-sqrt(max((ra-rp1)**3,0.0_rp))
-        rbar = ra-4*(tmp/dr)**2/9
+        tmp = sqrt(max(ra-rm1,0.0_rp))**3-sqrt(max(ra-rp1,0.0_rp))**3
+        rbar = ra-(2*tmp/(3*dr))**2
 
         tmp = sqrt(max(rbar,0.0_rp))*rho_s(j)
         if (tmp > 1) tmp = 1
@@ -398,11 +398,7 @@ module init_module
 ! M3(i,j,k) = r(k)^2*(phi(i+0.5)-phi(i-0.5))*sqrt(1-r(k)/R*rho(j)^2)*
 !             [sqrt(1-r(k)/R*rho(j-0.5)^2)-sqrt(1-r(k)/R*rho(j+0.5)^2)]/F(i,j,k-0.5)
       do concurrent (k = 1:npts_p(j))
-        if (j == 1) then ! do not calculate at the pole
-          M3_p(k,isn,j,i) = 0
-        else
-          M3_p(k,isn,j,i) = m3f(k,j)/F_p(k,isn,j,i)
-        endif
+        M3_p(k,isn,j,i) = m3f(k,j)/F_p(k,isn,j,i)
       enddo
 
       do concurrent (k = 1:npts_s1(j))
