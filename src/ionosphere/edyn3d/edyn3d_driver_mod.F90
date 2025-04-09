@@ -14,13 +14,13 @@ module edyn3d_driver_mod
 
 contains
 
-  subroutine edyn3d_driver_init( mpicom_atm, npes_edyn3D )
+  subroutine edyn3d_driver_init( mpicom_atm, npes_edyn3D, edyn3d_nmlat_h, edyn3d_nmlon, edyn3d_nhgt )
     use mpi_module, only: mpi_init => init, setup_topology
     use mpi_module, only: mpi_rank, mpi_size, lat_size, lon_size, lat_rank, lon_rank
     use mpi_module, only: nmlon_task,mlon0_task,mlon1_task, nmlat_task,mlat0_task,mlat1_task
     use grid_module,only: generate_mag_grid
-    use init_module,only: init_cons, init_fieldline, calculate_m, get_apex, calc_magcoor_geogrid
-    use params_module,only: nlat,nlon,nmlat_h,nmlon, nhgt_fix
+    use init_module,only: init_cons, init_fieldline, calculate_m, get_apex
+    use params_module,only: nmlat_h,nmlon, nhgt_fix
     use alloc_module,only: alloc_fieldline, alloc_fieldline_lite
     use fieldline_module,only: &
          npts_p,npts_s1,npts_s2,npts_r, &
@@ -44,6 +44,7 @@ contains
     use cam_history, only: addfld, horiz_only
 
     integer, intent(in) :: mpicom_atm, npes_edyn3D
+    integer, intent(in) :: edyn3d_nmlat_h, edyn3d_nmlon, edyn3d_nhgt
 
     integer :: ierror
     character(len=*), parameter :: prefix = 'edyn3d_driver_init: '
@@ -62,7 +63,7 @@ contains
     end if
 
     ! set up magnetic latitude and longitude grids
-    call generate_mag_grid()
+    call generate_mag_grid(edyn3d_nmlat_h, edyn3d_nmlon, edyn3d_nhgt)
 
     ! set up constants
     call init_cons()
@@ -80,7 +81,7 @@ contains
 
 
     ! set up MPI decomposition
-    call setup_topology(nlat,nlon,nmlat_h,nmlon)
+    call setup_topology(nmlat_h,nmlon)
     if (masterproc) then
        write(iulog,*) prefix,'3D Edyn nmlon_task: ',nmlon_task
        write(iulog,*) prefix,'3D Edyn mlon0_task: ',mlon0_task

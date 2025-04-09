@@ -1,25 +1,21 @@
 module params_module
 ! grid parameters (geo/mag)
 
-  use prec,only:rp
+  use prec, only: rp
 
   implicit none
 
-! geographic grid parameters:
-  integer :: nlon,nlat,nlev,nlevp1
-  real(kind=rp),dimension(:),allocatable :: glon,glat,zpint
-
 ! magnetic grid parameters:
-  integer,parameter :: nmlon = 180 ! number of magnetic longitudes - P,S1,S2,R
+  integer :: nmlon = 0 ! number of magnetic longitudes - P,S1,S2,R
 
   integer :: & ! number of magnetic latitudes and fixed heights
-    nmlat_h,nmlat_T1, &   ! P,S1,R
-    nmlatS2_h,nmlat_T2, & ! S2
-    nhgt_fix, &           ! P,S1,S2
-    nhgt_fix_r            ! R
+    nmlat_h = 0, nmlat_T1 = 0, &   ! P,S1,R
+    nmlatS2_h = 0, nmlat_T2 = 0, & ! S2
+    nhgt_fix = 0, &                ! P,S1,S2
+    nhgt_fix_r = 0                 ! R
 
 ! magnetic longitudes including halo points
-  real(kind=rp),dimension(0:nmlon+1) :: &
+  real(kind=rp),dimension(:),allocatable :: &
     ylonm, & ! P,S2,R
     ylonm_s  ! S1
 

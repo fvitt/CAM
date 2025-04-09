@@ -6,7 +6,7 @@ module grid_module
 
   contains
 !-----------------------------------------------------------------------
-  subroutine generate_mag_grid
+  subroutine generate_mag_grid( edyn3d_nmlat_h, edyn3d_nmlon, edyn3d_nhgt )
 ! new grid since 2015/02 (see Art's notes 2015/02/12), updated 2015/04
 ! reference height at k=0.5, grids start at 80 km
 ! with closer latitude spacing at low latitudes and in the auroral region
@@ -15,17 +15,23 @@ module grid_module
       ylonm,ylonm_s,ylatm,ylatm_s,rho,rho_s,ha,ha_s,hgt_fix,hgt_fix_r
     use cons_module,only:re,h0,r0,pi,dtr,fill_value
 
+    integer, intent(in) :: edyn3d_nmlat_h, edyn3d_nmlon, edyn3d_nhgt
+
     real(kind=rp),parameter :: rekm = re*1e-3_rp, h0km = h0*1e-3_rp, r0km = r0*1e-3_rp, &
       d=10, f=15, h=10, yb=5, yc=18, d1=30, d2=50, d3=55, d4=75, d5=82, hs=6, dhdz=6
     integer :: i,j,k,jns
     real(kind=rp) :: lam1,lam2,lam3,lam4,lam5,hc,h1,rho1,b,c,e,g, &
       y1,y2,y3,y4,y5,ymax,y,lam,rho_loc,ha_loc,dlonm
 
-    nmlat_h = 91
+    ! set run-time grid resolution parameters
+    nmlon = edyn3d_nmlon
+    nmlat_h = edyn3d_nmlat_h
     nmlatS2_h = nmlat_h-1
-    nhgt_fix = 54
+    nhgt_fix = edyn3d_nhgt
     nhgt_fix_r = nhgt_fix+1
 
+    allocate(ylonm(0:nmlon+1))
+    allocate(ylonm_s(0:nmlon+1))
     allocate(ylatm(2,nmlat_h))
     allocate(ylatm_s(2,nmlatS2_h))
     allocate(rho(nmlat_h))

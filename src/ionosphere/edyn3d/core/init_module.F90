@@ -19,7 +19,7 @@ module init_module
     idx = minloc(abs(ylatm(2,:)-ylatm_JT))
     jlatm_JT = idx(1)
 
-  endsubroutine init_cons
+  end subroutine init_cons
 !-----------------------------------------------------------------------
   subroutine init_fieldline(npts_p,npts_s1,npts_s2,npts_r, &
     jmax_p,jmax_s1,jmax_s2,jmax_r,size_p,size_s1,size_s2,size_r, &
@@ -417,71 +417,4 @@ module init_module
     enddo
 
   endsubroutine calculate_m
-!-----------------------------------------------------------------------
-  subroutine calc_magcoor_geogrid(gmlat,gmlon)
-! find the quasi-dipole latitude/longitude corresponding to the geographic grid
-! this is only used in diagnostics for transforming from dynamo grids to geographic grids
-
-    use params_module,only:nhgt_fix,nlat,nlon,hgt_fix,glat,glon
-    use cons_module,only:h0
-    use mpi_module,only:lond0,lond1,latd0,latd1
-    use apex,only:apex_mall
-
-    real(kind=rp),dimension(nhgt_fix,latd0:latd1,lond0:lond1),intent(out) :: gmlat,gmlon
-
-    real(kind=rp),parameter :: hr = h0*1e-3_rp
-    integer :: i,j,k,ist
-    real(kind=rp) :: glon_i,glat_i, &
-! scalar arguments returned by APXMALL
-      bmag,si,alon,xlatm,vmp,w,d,be3,sim,xlatqd,f
-! non-scalar arguments returned by APXMALL
-    real(kind=rp),dimension(3) :: b,bhat,d1,d2,d3,e1,e2,e3,f1,f2,f3,g1,g2,g3
-
-    do i = lond0,lond1
-
-! wrap longitude if it is outside of (-180,180)
-      if (i < 1) then
-        glon_i = glon(i+nlon)
-      elseif (i > nlon) then
-        glon_i = glon(i-nlon)
-      else
-        glon_i = glon(i)
-      endif
-
-      do j = latd0,latd1
-
-! this can only happen at pole lat (ilevel=1, j=-1,0)
-        if (j < 1) then
-          glat_i = glat(1-j)
-          if (glon_i <= 0) then
-            glon_i = glon_i+180
-          else
-            glon_i = glon_i-180
-          endif
-
-! this can only happen at pole lat (ilevel=1, j=nlat+1,nlat+2)
-        elseif (j > nlat) then
-          glat_i = glat(nlat*2+1-j)
-          if (glon_i <= 0) then
-            glon_i = glon_i+180
-          else
-            glon_i = glon_i-180
-          endif
-
-        else
-          glat_i = glat(j)
-        endif
-
-        do k = 1,nhgt_fix
-          call apex_mall(glat_i,glon_i,hgt_fix(k)/1000,hr,b,bhat,bmag,si, &
-            alon,xlatm,vmp,w,d,be3,sim,d1,d2,d3,e1,e2,e3, &
-            xlatqd,f,f1,f2,f3,g1,g2,g3,ist)
-          gmlat(k,j,i) = xlatqd
-          gmlon(k,j,i) = alon
-        enddo
-      enddo
-    enddo
-
-  endsubroutine calc_magcoor_geogrid
-!-----------------------------------------------------------------------
-endmodule init_module
+end module init_module

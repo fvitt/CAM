@@ -12,13 +12,9 @@ module mpi_module
   integer :: dynamo_world=-huge(1), &
     mpi_rp=-huge(1), mpi_size=0, mpi_rank=-1, &
     lat_size=0, lon_size=0, lat_rank=-1, lon_rank=-1, &
-    nlat=0, maxlat=-1, lat0=1, lat1=0, latd0=1, latd1=0, &
-    nlon=0, maxlon=-1, lon0=1, lon1=0, lond0=1, lond1=0, &
     nmlat=0, maxmlat=-1, mlat0=1, mlat1=0, mlatd0=1, mlatd1=0, &
     nmlon=0, maxmlon=-1, mlon0=1, mlon1=0, mlond0=1, mlond1=0
   integer, dimension(:), allocatable :: &
-    nlat_task, lat0_task, lat1_task, &
-    nlon_task, lon0_task, lon1_task, &
     nmlat_task, mlat0_task, mlat1_task, &
     nmlon_task, mlon0_task, mlon1_task
 
@@ -85,54 +81,34 @@ module mpi_module
 
   endsubroutine init
 !-----------------------------------------------------------------------
-  subroutine setup_topology(nlat_in, nlon_in, nmlat_in, nmlon_in)
+  subroutine setup_topology(nmlat_in, nmlon_in)
 ! setup MPI decompositions in geo and mag coordinates and the connectivity matrix
 
-    integer, intent(in) :: nlat_in, nlon_in, nmlat_in, nmlon_in
+    integer, intent(in) :: nmlat_in, nmlon_in
 
     integer :: i, j, rnk, rnki, rnkj
 
-    allocate(nlat_task(0:lat_size-1))
     allocate(nmlat_task(0:lat_size-1))
-
-    allocate(nlon_task(0:lon_size-1))
     allocate(nmlon_task(0:lon_size-1))
 
-    allocate(lat0_task(0:mpi_size-1))
-    allocate(lat1_task(0:mpi_size-1))
-    allocate(lon0_task(0:mpi_size-1))
-    allocate(lon1_task(0:mpi_size-1))
+    nmlat_task = 0
+    nmlon_task = 0
+
     allocate(mlat0_task(0:mpi_size-1))
     allocate(mlat1_task(0:mpi_size-1))
     allocate(mlon0_task(0:mpi_size-1))
     allocate(mlon1_task(0:mpi_size-1))
 
-    nlat = nlat_in
-    nlon = nlon_in
+    mlat0_task = 1
+    mlon0_task = 1
+    mlat1_task = -1
+    mlon1_task = -1
+
     nmlat = nmlat_in
     nmlon = nmlon_in
 
-! setup geographic and magnetic decomposition
+! setup magnetic grid decomposition
 ! each process can have unequal number of latitudes or longitudes
-!!$    nlat_task = generate_minvar_list(nlat, lat_size)
-!!$    print*,'FVDBG0... nlat_task: ',nlat_task
-!!$    maxlat = maxval(nlat_task)
-!!$    if (lat_rank<lat_size) then
-!!$       lat0 = 1
-!!$       do j = 0, lat_rank-1
-!!$          lat0 = lat0 + nlat_task(j)
-!!$       enddo
-!!$       lat1 = lat0 + nlat_task(lat_rank) - 1
-!!$    endif
-!!$
-!!$    nlon_task = generate_minvar_list(nlon, lon_size)
-!!$    print*,'FVDBG0... nlon_task: ',nlon_task
-!!$    maxlon = maxval(nlon_task)
-!!$    lon0 = 1
-!!$    do i = 0, lon_rank-1
-!!$      lon0 = lon0 + nlon_task(i)
-!!$    enddo
-!!$    lon1 = lon0 + nlon_task(lon_rank) - 1
 
     nmlat_task = generate_minvar_list(nmlat, lat_size)
     print*,'FVDBG0... nmlat_task: ',nmlat_task
@@ -161,18 +137,6 @@ module mpi_module
       rnkj = rnk / lon_size
       rnki = modulo(rnk, lon_size)
 
-      lat0_task(rnk) = 1
-      do j = 0, rnkj-1
-        lat0_task(rnk) = lat0_task(rnk) + nlat_task(j)
-      enddo
-      lat1_task(rnk) = lat0_task(rnk) + nlat_task(rnkj) - 1
-
-      lon0_task(rnk) = 1
-      do i = 0, rnki-1
-        lon0_task(rnk) = lon0_task(rnk) + nlon_task(i)
-      enddo
-      lon1_task(rnk) = lon0_task(rnk) + nlon_task(rnki) - 1
-
       mlat0_task(rnk) = 1
       do j = 0, rnkj-1
         mlat0_task(rnk) = mlat0_task(rnk) + nmlat_task(j)
@@ -187,10 +151,6 @@ module mpi_module
     enddo
 
 ! halos
-    latd0 = lat0 - 2
-    latd1 = lat1 + 2
-    lond0 = lon0 - 2
-    lond1 = lon1 + 2
     mlatd0 = mlat0 - 1
     mlatd1 = mlat1 + 1
     mlond0 = mlon0 - 1

@@ -95,6 +95,10 @@ module ionosphere_interface
    integer           :: oplus_nlon, oplus_nlat   ! Oplus grid
    integer           :: ionos_npes = -1
    integer           :: ionos_edyn3d_npes = -1
+   logical           :: ionos_edyn3d_active = .true.
+   integer           :: ionos_edyn3d_nmlat_h = 91
+   integer           :: ionos_edyn3d_nmlon = 180
+   integer           :: ionos_edyn3d_nhgt = 54
 
    logical :: state_debug_checks = .false.
    logical :: ionos_debug_hist = .false.
@@ -132,6 +136,7 @@ module ionosphere_interface
       namelist /ionosphere_nl/ ionos_npes, ionos_edyn3d_npes
       namelist /ionosphere_nl/ oplus_grid, edyn_grid
       namelist /ionosphere_nl/ ionos_debug_hist
+      namelist /ionosphere_nl/ ionos_edyn3d_active, ionos_edyn3d_nmlat_h, ionos_edyn3d_nhgt, ionos_edyn3d_nmlon
 
       oplus_grid = 0
 
@@ -172,6 +177,10 @@ module ionosphere_interface
       call mpi_bcast(oplus_grid,          2, mpi_integer, masterprocid, mpicom, ierr)
       call mpi_bcast(edyn_grid,           8, mpi_character, masterprocid, mpicom, ierr)
       call mpi_bcast(ionos_debug_hist,    1, mpi_logical, masterprocid, mpicom, ierr)
+      call mpi_bcast(ionos_edyn3d_active, 1, mpi_logical, masterprocid, mpicom, ierr)
+      call mpi_bcast(ionos_edyn3d_nmlat_h,1, mpi_integer, masterprocid, mpicom, ierr)
+      call mpi_bcast(ionos_edyn3d_nmlon,  1, mpi_integer, masterprocid, mpicom, ierr)
+      call mpi_bcast(ionos_edyn3d_nhgt,   1, mpi_integer, masterprocid, mpicom, ierr)
 
       ! Extract grid settings
       oplus_nlon = oplus_grid(1)
@@ -223,6 +232,10 @@ module ionosphere_interface
             write(iulog,'(a,i0)') 'ionosphere_readnl: mag_nlev = ',mag_nlev
             write(iulog,'(a,i0)') 'ionosphere_readnl: mag_ngrid = ',mag_ngrid
          end if
+         write(iulog,*)        'ionosphere_readnl: ionos_edyn3d_active = ',ionos_edyn3d_active
+         write(iulog,'(a,i0)') 'ionosphere_readnl: ionos_edyn3d_nmlat_h = ',ionos_edyn3d_nmlat_h
+         write(iulog,'(a,i0)') 'ionosphere_readnl: ionos_edyn3d_nmlon = ',ionos_edyn3d_nmlon
+         write(iulog,'(a,i0)') 'ionosphere_readnl: ionos_edyn3d_nhgt = ',ionos_edyn3d_nhgt
       end if
       epot_active = .true.
 
@@ -401,7 +414,7 @@ module ionosphere_interface
            'Geometric height (Interfaces)', gridname='physgrid')
 
       ! after apex init
-      call edyn3d_driver_init(mpicom, ionos_edyn3d_npes)
+      call edyn3d_driver_init(mpicom, ionos_edyn3d_npes, ionos_edyn3d_nmlat_h, ionos_edyn3d_nmlon, ionos_edyn3d_nhgt)
 
    end subroutine ionosphere_init
 

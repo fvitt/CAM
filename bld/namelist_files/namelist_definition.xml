@@ -5176,6 +5176,33 @@ Number of MPI processes on which to run the WACCM-X ionosphere
 Default: -1 (set to ionos_npes)
 </entry>
 
+<entry id="ionos_edyn3d_active" type="logical"  category="waccmx"
+       group="ionosphere_nl" valid_values="">
+If TRUE the 3-dimensional electrodynamo is used.  Otherwise, the older ...
+Default: ???
+</entry>
+
+<entry id="ionos_edyn3d_nmlon" type="integer"
+       category="waccmx" group="ionosphere_nl" valid_values="" >
+Number of longitude magnetic field line grid points used in
+the WACCM-X ionosphere 3-D electro-dynamo.
+Default: 0 (use all atmosphere tasks)
+</entry>
+
+<entry id="ionos_edyn3d_nmlat_h" type="integer"
+       category="waccmx" group="ionosphere_nl" valid_values="" >
+Number of latitude magnetic field line grid points per hemisphere used in
+the WACCM-X ionosphere 3-D electro-dynamo.
+Default: 0 (use all atmosphere tasks)
+</entry>
+
+<entry id="ionos_edyn3d_nhgt" type="integer"
+       category="waccmx" group="ionosphere_nl" valid_values="" >
+Number of vertical level magnetic field line grid points used in
+the WACCM-X ionosphere 3-D electro-dynamo.
+Default: 0 (use all atmosphere tasks)
+</entry>
+
 <entry id="ionos_xport_active" type="logical"  category="waccmx"
        group="ionosphere_nl" valid_values="">
 Switch to to turn on/off O+ transport in ionosphere.
