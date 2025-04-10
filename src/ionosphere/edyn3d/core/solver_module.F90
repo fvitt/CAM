@@ -671,18 +671,19 @@ module solver_module
   endfunction solve_mkl
 !-----------------------------------------------------------------------
   function solve_superlu(n,nnz,colptr,rowind,values,rhs) result(sol)
+    use iso_c_binding,only:c_int,c_long_long,c_double
 
     integer,intent(in) :: n,nnz
-    integer,dimension(n+1),intent(in) :: colptr
-    integer,dimension(nnz),intent(in) :: rowind
-    real(kind=rp),dimension(nnz),intent(in) :: values
+    integer(kind=c_int),dimension(n+1),intent(in) :: colptr
+    integer(kind=c_int),dimension(nnz),intent(in) :: rowind
+    real(kind=c_double),dimension(nnz),intent(in) :: values
     real(kind=rp),dimension(n),intent(in) :: rhs
     real(kind=rp),dimension(n) :: sol
 
 ! for SuperLU sparse matrix solver
     integer,parameter :: nrhs = 1
     integer :: i,iopt,info
-    integer(kind=8) :: f_factors
+    integer(kind=c_long_long) :: f_factors
 
     interface
       subroutine c_fortran_dgssv(iopt,n,nnz,nrhs, &

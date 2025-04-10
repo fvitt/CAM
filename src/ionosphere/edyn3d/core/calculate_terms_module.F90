@@ -37,13 +37,13 @@ module calculate_terms_module
     integer :: i,j,isn,k
     real(kind=rp) :: ds,sumP,sumH
 
-    zigP_p = fill_value
     zigP_s1 = fill_value
     zigH_s1 = fill_value
     zigP_s2 = fill_value
     zigH_s2 = fill_value
 
     if (present(npts_p) .and. present(vmp_p) .and. present(bmag_p) .and. present(sigP_p) .and. present(zigP_p)) then
+       zigP_p = fill_value
        do concurrent (i = mlond0:mlond1, j = mlatd0:mlatd1, isn = 1:2, j>=1 .and. j<=nmlat_h)
           sumP = 0
           do k = 1,npts_p(j)-1
