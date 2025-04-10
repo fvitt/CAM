@@ -2,7 +2,9 @@ module edyn3d_driver_mod
   use shr_kind_mod, only: r8 => shr_kind_r8
   use cam_abortutils, only: endrun
   use cam_logfile, only: iulog
-  use spmd_utils, only: masterproc
+  use spmd_utils, only: masterproc, mpicom
+  use mpi_module, only: mpi_size, mpi_rank
+  use infnan, only: nan, assignment(=)
 
   implicit none
 
@@ -38,7 +40,6 @@ contains
 
     use prec, only: rp
 
-    use infnan, only: nan, assignment(=)
     use mpi_module, only: mlon0, mlon1, mlat0, mlat1
     use edyn3d_hist_mag_grids_mod, only: edyn3d_hist_mag_grids_reg
     use cam_history, only: addfld, horiz_only
@@ -152,11 +153,15 @@ contains
     use edyn3d_esmf_fields_rhandles, only: magFieldDes_s1, rh_phys2mag_s1, phys2mag_nflds
     use edyn3D_esmf_fields_rhandles, only: mag2opls_nflds
     use mpi_module, only: mlat0, mlat1, mlon0, mlon1
+    use mpi_module, only: mlond0, mlond1, mlatd0, mlatd1
     use params_module,only:  nhgt_fix
     use edyn_mpi, only: lon0,lon1,lat0,lat1,lev0,lev1
     use regridder, only: regrid_phys2geo_3d, regrid_geo2phys_3d
     use edyn3d_hist_mag_grids_mod, only: edyn3d_hist_mag_s1_out
     use edyn3d_hist_mag_grids_mod, only: edyn3d_hist_mag_s2_out
+    use mpi_module, only: sync_mlat_5d, sync_mlon_5d
+    use calculate_terms_module, only: calculate_conductance
+    use fieldline_module,only: npts_s1,npts_s2, bmag_s1, bmag_s2, vmp_s1, vmp_s2
 
     integer,  intent(in) :: nphyscol, nphyslev
     real(r8), intent(in) :: physalt(nphyslev,nphyscol)
@@ -187,6 +192,18 @@ contains
     real(r8), target :: ui_oplus(lon0:lon1,lat0:lat1,lev0:lev1)
     real(r8), target :: vi_oplus(lon0:lon1,lat0:lat1,lev0:lev1)
     real(r8), target :: wi_oplus(lon0:lon1,lat0:lat1,lev0:lev1)
+
+    real(r8) :: cond_ghost(2,nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1)
+    integer :: i, rc
+
+    real(r8) :: sigP_s1(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1)
+    real(r8) :: zigP_s1(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1)
+    real(r8) :: sigH_s1(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1)
+    real(r8) :: zigH_s1(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1)
+    real(r8) :: sigP_s2(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1)
+    real(r8) :: zigP_s2(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1)
+    real(r8) :: sigH_s2(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1)
+    real(r8) :: zigH_s2(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1)
 
     character(len=*), parameter :: subname = 'edyn3d_driver_timestep'
 
@@ -255,8 +272,40 @@ contains
        call endrun(subname//': edyn3d_remap_mag2oplus ERROR wi_oplus')
     end if
 
-    print*,'FVDBG.edyn3D_driver_timestep... END'
+    if (mpi_rank<mpi_size) then
+       ! exchange ghost points
+       cond_ghost = nan
+       cond_ghost(1,:,:,mlat0:mlat1,mlon0:mlon1) = sigped_s1(:,:,mlat0:mlat1,mlon0:mlon1)
+       cond_ghost(2,:,:,mlat0:mlat1,mlon0:mlon1) = sighal_s1(:,:,mlat0:mlat1,mlon0:mlon1)
+       call sync_mlat_5d(cond_ghost(:,:,:,:,mlon0:mlon1), 2, nhgt_fix, 2)
+       call sync_mlon_5d(cond_ghost, 2, nhgt_fix, 2)
 
+       sigP_s1(:,:,:,:) = cond_ghost(1,:,:,:,:)
+       sigH_s1(:,:,:,:) = cond_ghost(2,:,:,:,:)
+
+!!$       do i = mlond0, mlond1
+!!$          print*,'FVDBG cond_ghost lon',i,' mlatd0-mlatd1 ', mlatd0,'-',mlatd1, ' cond_ghost:',cond_ghost(1,1,1,mlatd0:mlatd1, i)
+!!$       end do
+
+       cond_ghost(1,:,:,mlat0:mlat1,mlon0:mlon1) = sigped_s2(:,:,mlat0:mlat1,mlon0:mlon1)
+       cond_ghost(2,:,:,mlat0:mlat1,mlon0:mlon1) = sighal_s2(:,:,mlat0:mlat1,mlon0:mlon1)
+       call sync_mlat_5d(cond_ghost(:,:,:,:,mlon0:mlon1), 2, nhgt_fix, 2)
+       call sync_mlon_5d(cond_ghost, 2, nhgt_fix, 2)
+       sigP_s2(:,:,:,:) = cond_ghost(1,:,:,:,:)
+       sigH_s2(:,:,:,:) = cond_ghost(2,:,:,:,:)
+
+       call calculate_conductance( &
+            mlatd0,mlatd1,mlond0,mlond1, &
+            npts_s1,npts_s2, &
+            vmp_s1,bmag_s1,sigP_s1,sigH_s1, &
+            vmp_s2,bmag_s2,sigP_s2,sigH_s2, &
+            zigP_s1,zigH_s1,zigP_s2,zigH_s2 )
+
+    end if
+
+    print*,'FVDBG.edyn3D_driver_timestep... END'
+!!$call mpi_barrier(mpicom, rc)
+!!$call endrun('FVDBG.edyn3D_driver_timestep...STOP')
   end subroutine edyn3d_driver_timestep
 
 end module edyn3d_driver_mod

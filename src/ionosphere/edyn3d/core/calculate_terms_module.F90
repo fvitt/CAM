@@ -8,23 +8,31 @@ module calculate_terms_module
 !-----------------------------------------------------------------------
   pure subroutine calculate_conductance( &
     mlatd0,mlatd1,mlond0,mlond1, &
-    npts_p,npts_s1,npts_s2, &
-    vmp_p,bmag_p,sigP_p, &
+    npts_s1,npts_s2, &
     vmp_s1,bmag_s1,sigP_s1,sigH_s1, &
     vmp_s2,bmag_s2,sigP_s2,sigH_s2, &
-    zigP_p,zigP_s1,zigH_s1,zigP_s2,zigH_s2)
+    zigP_s1,zigH_s1,zigP_s2,zigH_s2, &
+    npts_p, vmp_p, bmag_p, sigP_p, zigP_p)
 ! calculate field-line integrated conductance
 
     use params_module,only:nhgt_fix,nmlat_h,nmlatS2_h
     use cons_module,only:fill_value
 
+    ! Dummy Args
     integer,intent(in) :: mlatd0,mlatd1,mlond0,mlond1
-    integer,dimension(nmlat_h),intent(in) :: npts_p,npts_s1
+    integer,dimension(nmlat_h),intent(in) :: npts_s1
     integer,dimension(nmlatS2_h),intent(in) :: npts_s2
-    real(kind=rp),dimension(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1),intent(in) :: &
-      vmp_p,bmag_p,sigP_p,vmp_s1,bmag_s1,sigP_s1,sigH_s1,vmp_s2,bmag_s2,sigP_s2,sigH_s2
-    real(kind=rp),dimension(2,mlatd0:mlatd1,mlond0:mlond1),intent(out) :: &
-      zigP_p,zigP_s1,zigH_s1,zigP_s2,zigH_s2
+    real(rp),dimension(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1),intent(in) :: &
+         vmp_s1,bmag_s1,sigP_s1,sigH_s1,vmp_s2,bmag_s2,sigP_s2,sigH_s2
+    real(rp),dimension(2,mlatd0:mlatd1,mlond0:mlond1),intent(out) :: &
+         zigP_s1,zigH_s1,zigP_s2,zigH_s2
+
+    ! Optional Args
+    integer,dimension(nmlat_h), optional ,intent(in) :: npts_p
+    real(rp),dimension(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1), optional ,intent(in) :: &
+         vmp_p, bmag_p, sigP_p
+    real(rp),dimension(2,mlatd0:mlatd1,mlond0:mlond1), optional ,intent(out) :: &
+         zigP_p
 
     integer :: i,j,isn,k
     real(kind=rp) :: ds,sumP,sumH
@@ -35,15 +43,19 @@ module calculate_terms_module
     zigP_s2 = fill_value
     zigH_s2 = fill_value
 
-    do concurrent (i = mlond0:mlond1, j = mlatd0:mlatd1, isn = 1:2, j>=1 .and. j<=nmlat_h)
-      sumP = 0
-      do k = 1,npts_p(j)-1
-        ds = 2*abs(vmp_p(k+1,isn,j,i)-vmp_p(k,isn,j,i))/ &
-          (bmag_p(k+1,isn,j,i)+bmag_p(k,isn,j,i))
-        sumP = sumP+sigP_p(k,isn,j,i)*ds
-      enddo
-      zigP_p(isn,j,i) = sumP
+    if (present(npts_p) .and. present(vmp_p) .and. present(bmag_p) .and. present(sigP_p) .and. present(zigP_p)) then
+       do concurrent (i = mlond0:mlond1, j = mlatd0:mlatd1, isn = 1:2, j>=1 .and. j<=nmlat_h)
+          sumP = 0
+          do k = 1,npts_p(j)-1
+             ds = 2*abs(vmp_p(k+1,isn,j,i)-vmp_p(k,isn,j,i))/ &
+                  (bmag_p(k+1,isn,j,i)+bmag_p(k,isn,j,i))
+             sumP = sumP+sigP_p(k,isn,j,i)*ds
+          enddo
+          zigP_p(isn,j,i) = sumP
+       end do
+    end if
 
+    do concurrent (i = mlond0:mlond1, j = mlatd0:mlatd1, isn = 1:2, j>=1 .and. j<=nmlat_h)
       sumP = 0
       sumH = 0
       do k = 1,npts_s1(j)-1
@@ -795,7 +807,7 @@ module calculate_terms_module
     enddo
 
 ! Jr(i,j,k) = I3(i,j,k)/M3(i,j,k) (122)
-! but top volume at equator with k=km 
+! but top volume at equator with k=km
 ! Jr(i,j,k) = sqrt(2) Ir(i,j,k)/M3(i,j,k-0.5) (124)
 !   and Ir = (0.5-0.5^1.5)[I1(i-0.5,j,k)-I1(i+0.5,j,k)] -(0.5^0.5-0.5)I2(i,j-0.5,k)+0.5*I3(i,j,k-0.5) (123)
     do concurrent (i = mlon0:mlon1, j = mlat0:mlat1, isn = 1:2, j >= 2)
