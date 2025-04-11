@@ -1,22 +1,27 @@
-!!$!!Psudo code that calls cospext. This can be after each cospectra is calculated in zonal_fft_mod
-!!$!! After u_fft*wstar
-!!$call cospext(cspr,wvlong,wvlxbeg,wvlxend,ntime,mflxxup,mflxxun)
-!!$!! After v_fft*wstar
-!!$call cospext(cspr,wvlong,wvlxbeg,wvlxend,ntime,mflxyup,mflxyun)
-!!$
-!!$!! Calculate vertical divergence to get zonal mean zonal and meridonal forcing
-!!$
-!!$!! rbar is the zonal mean mass density
-!!$
-!!$fzonal(:,k) = -((mflxxup(:,k-1)+mfluxxun(:,k-1))*rbar(:,k-1)-(mflxxup(:,k+1)+mflxxun(:,k+1))*rbar(:,k+1))/
-!!$         (pmid(k-1)-pmid(k+1))/rbar(:,k)
-!!$fmerid(:,k) = -((mflxyup(:,k-1)+mfluxyun(:,k-1))*rbar(:,k-1)-(mflxyup(:,k+1)+mflxyun(:,k+1))*rbar(:,k+1))/
-!!$         (pmid(k-1)-pmid(k+1))/rbar(:,k)
-!!$
-!!$!! Check to make sure it's pmid
-!!$
-!!$!! Then this should be scattered to physics mesh at all longitudes at the correponding latitudes.
-
+!  !!Psudo code that calls cospext. This can be after each cospectra is calculated in zonal_fft_mod
+!  !! After u_fft*wstar
+!  call cospext(cspr,wvlong,wvlxbeg,wvlxend,ntime,mflxxup,mflxxun)
+!  !! After v_fft*wstar
+!  call cospext(cspr,wvlong,wvlxbeg,wvlxend,ntime,mflxyup,mflxyun)
+!
+!  !! Calculate vertical divergence to get zonal mean zonal and meridonal forcing
+!
+!  !! rbar is the zonal mean mass density
+!
+!  fzonal(:,k) = -((mflxxup(:,k-1)+mfluxxun(:,k-1))*rbar(:,k-1)-(mflxxup(:,k+1)+mflxxun(:,k+1))*rbar(:,k+1))/
+!                 (pmid(k-1)-pmid(k+1))/rbar(:,k)
+!  fmerid(:,k) = -((mflxyup(:,k-1)+mfluxyun(:,k-1))*rbar(:,k-1)-(mflxyup(:,k+1)+mflxyun(:,k+1))*rbar(:,k+1))/
+!                 (pmid(k-1)-pmid(k+1))/rbar(:,k)
+!
+!  !! Check to make sure it's pmid
+!
+!  !! Then this should be scattered to physics mesh at all longitudes at the correponding latitudes.
+!
+!  Will need cospectra module to compute and acculate to cospectras
+!  - write / read acculated coespectras to / from IC and restart files
+!  - compute forcings as described above on "zonal" grid
+!  - scatter forcings to physics grid
+!  ...
 
 module cospext_mod
   use shr_kind_mod, only: r8 => shr_kind_r8
@@ -34,7 +39,7 @@ contains
   !! restart runs, including short (less one day) runs. The daily forcing should also be made optional for the IC file.
   !! The run can still start without the forcing.
 
-  subroutine cospext(nftnum,lat_beg,lat_end, pver,ntime, latrad, cspr,wvlong,wvlxbeg,wvlxend, mflxup,mflxun)
+  subroutine cospext(nftnum,lat_beg,lat_end, pver,ntime, latrad, cspr, wvlxbeg,wvlxend, mflxup,mflxun)
 
     integer, intent(in) :: nftnum,lat_beg,lat_end,pver,ntime
     real(r8), intent(in) :: latrad(lat_beg:lat_end)
@@ -44,7 +49,7 @@ contains
     !! wvlxbeg: longer wavelength of the unresolved range. This is grid size depedent
     !! wvlxend: short wavelength cutoff of the unresolved range (20x10^2 m assumed in current calculation)
 
-    real(r8), intent(in) :: wvlong, wvlxbeg,wvlxend
+    real(r8), intent(in) :: wvlxbeg,wvlxend
 
     !! mflxup: total momentum flux in the positive direction over unresolved scales
     !! mflxun: total momentum flux in the negative direction over unresolved scales
@@ -66,13 +71,13 @@ contains
        circlat(j) = 2._r8 * pi * rearth * cos(latrad(j))     !! rearth is Earth radius in m
     enddo
 
-    !      kxl(:) = nint(circlat(:)/wvlong)
-    kxl(:) = nint(circlat(:)/wvlxbeg/4._r8)
-    kxm(:) = 2 * kxl(:)
-    kxr(:) = 4 * kxl(:)
     kxbeg(:)  = nint(circlat(:)/wvlxbeg)
     kxend(:)  = nint(circlat(:)/wvlxend)
 
+!! These following 3 lines calculate the scale invariance range according to the short wavelength of the resolved range
+    kxr(:) = kxbeg(:)
+    kxm(:) = kxr(:)/2
+    kxl(:) = kxm(:)/2
 
     !! The following calculation should be done equatorward of 85 deg latitude. A conditional should be set in the subroutine
 

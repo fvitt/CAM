@@ -5,12 +5,18 @@ module zonal_fft_mod
   use phys_grid, only: get_ncols_p
   use physics_types, only: physics_state
   use esmf_zonal_ops, only : lat_beg,lat_end, lon_beg,lon_end, nlons, glats, nlats
-  use esmf_zonal_ops, only : esmf_zonal_fft_3d
+  use esmf_zonal_ops, only : esmf_zonal_fft_3d, esmf_zonal_mean_3d
   use, intrinsic :: iso_c_binding
+
+  use time_manager, only: get_nstep
 
   implicit none
 
   integer :: nftnum = 0
+  integer :: ntime = 0
+
+  real(r8), allocatable :: accum_cospectra_u(:,:,:,:)
+  real(r8), allocatable :: accum_cospectra_v(:,:,:,:)
 
 contains
 
@@ -28,8 +34,10 @@ contains
 
   ! -----------------------------------------------------------------------------
   ! -----------------------------------------------------------------------------
-  subroutine zonal_fft_init
+  subroutine zonal_fft_init(ntime_in)
     use cam_history, only: addfld
+
+    integer, intent(in) :: ntime_in
 
     call addfld('U_FFT_real', (/'fft_num','lev    '/), 'I', '1', 'Real part of FT U', gridname='esmf_zonal_mean')
     call addfld('U_FFT_imag', (/'fft_num','lev    '/), 'I', '1', 'Imaginary part of FT U', gridname='esmf_zonal_mean')
@@ -49,6 +57,12 @@ contains
     call addfld('VWSTAR_cosp', (/'fft_num','lev    '/), 'I', '1', 'V*WSTAR cospectra', gridname='esmf_zonal_mean')
     call addfld('TWSTAR_cosp', (/'fft_num','lev    '/), 'I', '1', 'THETA*WSTAR cospectra', gridname='esmf_zonal_mean')
 
+    ntime = ntime_in
+    allocate(accum_cospectra_u( nftnum, lat_beg:lat_end, pver, ntime ))
+    accum_cospectra_u = 0._r8
+    allocate(accum_cospectra_v( nftnum, lat_beg:lat_end, pver, ntime ))
+    accum_cospectra_v = 0._r8
+
   end subroutine zonal_fft_init
 
   ! -----------------------------------------------------------------------------
@@ -56,6 +70,9 @@ contains
   subroutine zonal_fft_calc(phys_state)
     use cam_history, only: outfld
     use perf_mod, only: t_startf, t_stopf
+    use cospext_mod, only: cospext
+    use esmf_zonal_ops, only: glats
+    use air_composition, only: rairv  ! composition dependent gas constant (J/K/kg)
 
     type(physics_state), intent(in) :: phys_state(begchunk:endchunk)
 
@@ -72,23 +89,47 @@ contains
     real(r8) :: tfld(pver,pcols,begchunk:endchunk)
     integer :: lchnk, ncol, icol
 
-    integer :: n,k
+    integer :: n,k, nstep
+    logical :: calc_frcings
 
     complex(r8) :: tmpfld(nftnum, lat_beg:lat_end, pver)
     real(r8) :: cospectra(nftnum, lat_beg:lat_end, pver)
+    real(r8) :: latrad(lat_beg:lat_end)
+    real(r8) :: rho(pver,pcols,begchunk:endchunk) ! air mass density
+    real(r8) :: rhobar(lat_beg:lat_end, pver)
+    real(r8) :: mflxup(lat_beg:lat_end,pver), mflxun(lat_beg:lat_end,pver)
+    real(r8) :: wvlxbeg, wvlxend
+
+    real(r8),parameter :: pi = 4._r8*atan(1._r8)
+    real(r8),parameter :: deg2rad = pi/180._r8
+
+    wvlxbeg = 2.e2_r8
+    wvlxend = 20.e2_r8
 
     call t_startf ('zonal_fft_calc')
+
+    calc_frcings = .false.
+
+    nstep = mod(get_nstep()+1,ntime)
+    if (nstep==0) then
+       nstep = ntime
+       calc_frcings = .true.
+    end if
+
+    latrad(lat_beg:lat_end) = glats(lat_beg:lat_end)*deg2rad
 
     do lchnk = begchunk, endchunk
        ncol = get_ncols_p(lchnk)
        do icol = 1,ncol
           ufld(:pver,icol,lchnk) = phys_state(lchnk)%u(icol,:pver)
           vfld(:pver,icol,lchnk) = phys_state(lchnk)%v(icol,:pver)
-          wfld(:pver,icol,lchnk) = -phys_state(lchnk)%omega(icol,:pver)   ! use -omega so that momentum flux direction conforms with convention
-!          wfld(:pver,icol,lchnk) = -sheight(:ncol,:) *  phys_state(lchnk)%omega(:ncol,:) / phys_state(lchnk)%pmid(:ncol,:)
+          wfld(:pver,icol,lchnk) = phys_state(lchnk)%omega(icol,:pver)
           tfld(:pver,icol,lchnk) = phys_state(lchnk)%t(icol,:pver) * phys_state(lchnk)%exner(icol,:pver)
+          rho (:pver,icol,lchnk) = phys_state(lchnk)%pmid(icol,:pver)/(rairv(icol,:pver,lchnk)*phys_state(lchnk)%t(icol,:pver)) ! kg/m3
        end do
     end do
+
+    rhobar = esmf_zonal_mean_3d(rho)
 
     u_fft = esmf_zonal_fft_3d(ufld)
     call output_fld(u_fft, name='U')
@@ -98,7 +139,6 @@ contains
 
     w_fft = esmf_zonal_fft_3d(wfld)
     call output_fld(w_fft, name='OMEGA')
-!    call output_fld(w_fft, name='W')
 
     t_fft = esmf_zonal_fft_3d(tfld)
     call output_fld(t_fft, name='THETA')
@@ -106,20 +146,35 @@ contains
     wstar = conjg(w_fft)
     call output_fld(wstar, name='WSTAR')
 
-    tmpfld = u_fft * wstar !* 2._r8       ! times 2 to account for the other half of the spectrum
+    tmpfld = u_fft * wstar   ! times 2 to account for the other half of the spectrum
     cospectra = tmpfld%re
     cospectra(2:,:,:) = 2._r8 * cospectra(2:,:,:)
     call output_cosp(cospectra,'U')
+
+    accum_cospectra_u(:,:,:,ntime) = cospectra(:,:,:)
 
     tmpfld = v_fft * wstar
     cospectra = tmpfld%re
     cospectra(2:,:,:) = 2._r8 * cospectra(2:,:,:)
     call output_cosp(cospectra,'V')
 
+    accum_cospectra_v(:,:,:,ntime) = cospectra(:,:,:)
+
     tmpfld = t_fft * wstar
     cospectra = tmpfld%re
     cospectra(2:,:,:) = 2._r8 * cospectra(2:,:,:)
     call output_cosp(cospectra,'T')
+
+    if (calc_frcings) then
+       call cospext(nftnum, lat_beg,lat_end, pver,ntime, latrad, accum_cospectra_u, wvlxbeg,wvlxend, mflxup,mflxun)
+
+       call cospext(nftnum, lat_beg,lat_end, pver,ntime, latrad, accum_cospectra_v, wvlxbeg,wvlxend, mflxup,mflxun)
+
+       accum_cospectra_u = 0.0
+       accum_cospectra_v = 0.0
+
+
+    end if
 
     call t_stopf ('zonal_fft_calc')
 
