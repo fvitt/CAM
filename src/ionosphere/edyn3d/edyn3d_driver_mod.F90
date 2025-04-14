@@ -161,7 +161,12 @@ contains
     use edyn3d_hist_mag_grids_mod, only: edyn3d_hist_mag_s2_out
     use mpi_module, only: sync_mlat_5d, sync_mlon_5d
     use calculate_terms_module, only: calculate_conductance
-    use fieldline_module,only: npts_s1,npts_s2, bmag_s1, bmag_s2, vmp_s1, vmp_s2
+    use calculate_terms_module, only: calculate_n
+    use calculate_terms_module, only: calculate_je
+    !use fieldline_module,only: npts_s1,npts_s2, bmag_s1, bmag_s2, vmp_s1, vmp_s2
+    !use fieldline_module,only: D_s1,M1_s1,d1d1_s1,d1d2_s1,d2d2_s1, D_s2,M2_s2,d1d2_s2,d2d2_s2
+    !use fieldline_module,only: be3_s1, be3_s2, d1_s1, d2_s1, d1_s2, d2_s2
+    use fieldline_module
 
     integer,  intent(in) :: nphyscol, nphyslev
     real(r8), intent(in) :: physalt(nphyslev,nphyscol)
@@ -193,7 +198,7 @@ contains
     real(r8), target :: vi_oplus(lon0:lon1,lat0:lat1,lev0:lev1)
     real(r8), target :: wi_oplus(lon0:lon1,lat0:lat1,lev0:lev1)
 
-    real(r8) :: cond_ghost(2,nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1)
+    real(r8) :: tmp_ghost(4,nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1)
     integer :: i, rc
 
     real(r8) :: sigP_s1(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1)
@@ -204,6 +209,19 @@ contains
     real(r8) :: zigP_s2(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1)
     real(r8) :: sigH_s2(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1)
     real(r8) :: zigH_s2(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1)
+
+    real(r8) :: ntlU_s1(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1)
+    real(r8) :: ntlV_s1(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1)
+    real(r8) :: ntlU_s2(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1)
+    real(r8) :: ntlV_s2(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1)
+
+    real(r8) :: N1p_s1(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1)
+    real(r8) :: N1h_s1(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1)
+    real(r8) :: Je1D_s1(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1)
+    real(r8) :: N2p_s2(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1)
+    real(r8) :: N2h_s2(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1)
+    real(r8) :: Je2D_s2(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1)
+    real(r8) :: S_p(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1)
 
     character(len=*), parameter :: subname = 'edyn3d_driver_timestep'
 
@@ -273,33 +291,73 @@ contains
     end if
 
     if (mpi_rank<mpi_size) then
-       ! exchange ghost points
-       cond_ghost = nan
-       cond_ghost(1,:,:,mlat0:mlat1,mlon0:mlon1) = sigped_s1(:,:,mlat0:mlat1,mlon0:mlon1)
-       cond_ghost(2,:,:,mlat0:mlat1,mlon0:mlon1) = sighal_s1(:,:,mlat0:mlat1,mlon0:mlon1)
-       call sync_mlat_5d(cond_ghost(:,:,:,:,mlon0:mlon1), 2, nhgt_fix, 2)
-       call sync_mlon_5d(cond_ghost, 2, nhgt_fix, 2)
 
-       sigP_s1(:,:,:,:) = cond_ghost(1,:,:,:,:)
-       sigH_s1(:,:,:,:) = cond_ghost(2,:,:,:,:)
 
-!!$       do i = mlond0, mlond1
-!!$          print*,'FVDBG cond_ghost lon',i,' mlatd0-mlatd1 ', mlatd0,'-',mlatd1, ' cond_ghost:',cond_ghost(1,1,1,mlatd0:mlatd1, i)
-!!$       end do
+       sigP_s1 = nan
+       zigP_s1 = nan
+       sigH_s1 = nan
+       zigH_s1 = nan
 
-       cond_ghost(1,:,:,mlat0:mlat1,mlon0:mlon1) = sigped_s2(:,:,mlat0:mlat1,mlon0:mlon1)
-       cond_ghost(2,:,:,mlat0:mlat1,mlon0:mlon1) = sighal_s2(:,:,mlat0:mlat1,mlon0:mlon1)
-       call sync_mlat_5d(cond_ghost(:,:,:,:,mlon0:mlon1), 2, nhgt_fix, 2)
-       call sync_mlon_5d(cond_ghost, 2, nhgt_fix, 2)
-       sigP_s2(:,:,:,:) = cond_ghost(1,:,:,:,:)
-       sigH_s2(:,:,:,:) = cond_ghost(2,:,:,:,:)
+       sigP_s2 = nan
+       zigP_s2 = nan
+       sigH_s2 = nan
+       zigH_s2 = nan
 
+       ntlU_s1 = nan
+       ntlV_s1 = nan
+       ntlU_s2 = nan
+       ntlV_s2 = nan
+
+
+       ! exchange S1 ghost points
+       tmp_ghost = nan
+       tmp_ghost(1,:,:,mlat0:mlat1,mlon0:mlon1) = sigped_s1(:,:,mlat0:mlat1,mlon0:mlon1)
+       tmp_ghost(2,:,:,mlat0:mlat1,mlon0:mlon1) = sighal_s1(:,:,mlat0:mlat1,mlon0:mlon1)
+       tmp_ghost(3,:,:,mlat0:mlat1,mlon0:mlon1) = un_s1(:,:,mlat0:mlat1,mlon0:mlon1)
+       tmp_ghost(4,:,:,mlat0:mlat1,mlon0:mlon1) = vn_s1(:,:,mlat0:mlat1,mlon0:mlon1)
+       call sync_mlat_5d(tmp_ghost(:,:,:,:,mlon0:mlon1), 4, nhgt_fix, 2)
+       call sync_mlon_5d(tmp_ghost, 4, nhgt_fix, 2)
+
+       sigP_s1(:,:,:,:) = tmp_ghost(1,:,:,:,:)
+       sigH_s1(:,:,:,:) = tmp_ghost(2,:,:,:,:)
+       ntlU_s1(:,:,:,:) = tmp_ghost(3,:,:,:,:)
+       ntlV_s1(:,:,:,:) = tmp_ghost(4,:,:,:,:)
+
+       ! exchange S2 ghost points
+       tmp_ghost = nan
+       tmp_ghost(1,:,:,mlat0:mlat1,mlon0:mlon1) = sigped_s2(:,:,mlat0:mlat1,mlon0:mlon1)
+       tmp_ghost(2,:,:,mlat0:mlat1,mlon0:mlon1) = sighal_s2(:,:,mlat0:mlat1,mlon0:mlon1)
+       tmp_ghost(3,:,:,mlat0:mlat1,mlon0:mlon1) = un_s2(:,:,mlat0:mlat1,mlon0:mlon1)
+       tmp_ghost(4,:,:,mlat0:mlat1,mlon0:mlon1) = vn_s2(:,:,mlat0:mlat1,mlon0:mlon1)
+       call sync_mlat_5d(tmp_ghost(:,:,:,:,mlon0:mlon1), 4, nhgt_fix, 2)
+       call sync_mlon_5d(tmp_ghost, 4, nhgt_fix, 2)
+       sigP_s2(:,:,:,:) = tmp_ghost(1,:,:,:,:)
+       sigH_s2(:,:,:,:) = tmp_ghost(2,:,:,:,:)
+       ntlU_s2(:,:,:,:) = tmp_ghost(3,:,:,:,:)
+       ntlV_s2(:,:,:,:) = tmp_ghost(4,:,:,:,:)
+
+       ! calculate field-line integrated conductance - S1,S2
        call calculate_conductance( &
             mlatd0,mlatd1,mlond0,mlond1, &
             npts_s1,npts_s2, &
             vmp_s1,bmag_s1,sigP_s1,sigH_s1, &
             vmp_s2,bmag_s2,sigP_s2,sigH_s2, &
             zigP_s1,zigH_s1,zigP_s2,zigH_s2 )
+
+       ! calculate N coefficients - S1,S2
+       call calculate_n( &
+            mlatd0,mlatd1,mlond0,mlond1,npts_s1,npts_s2, &
+            D_s1,M1_s1,d1d1_s1,d1d2_s1,d2d2_s1,sigP_s1,sigH_s1, &
+            D_s2,M2_s2,d1d2_s2,d2d2_s2,sigP_s2,sigH_s2, &
+            N1p_s1,N1h_s1,N2p_s2,N2h_s2)
+
+       ! calculate JeD-coefficients (right hand side) - S1,S2
+       call calculate_je( &
+            mlatd0,mlatd1,mlond0,mlond1,npts_s1,npts_s2, &
+            D_s1,be3_s1,d1d1_s1,d1d2_s1,d2d2_s1,sigP_s1,sigH_s1,ntlU_s1,ntlV_s1, &
+            D_s2,be3_s2,d1d2_s2,d2d2_s2,sigP_s2,sigH_s2,ntlU_s2,ntlV_s2, &
+            d1_s1,d2_s1,d1_s2,d2_s2,Je1D_s1,Je2D_s2)
+
 
     end if
 
