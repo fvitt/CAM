@@ -163,6 +163,9 @@ contains
     use calculate_terms_module, only: calculate_conductance
     use calculate_terms_module, only: calculate_n
     use calculate_terms_module, only: calculate_je
+    use calculate_terms_module, only: calculate_s
+    use stencil_module, only: calculate_coef, calculate_coef_ns2, calculate_coef_ns
+
     !use fieldline_module,only: npts_s1,npts_s2, bmag_s1, bmag_s2, vmp_s1, vmp_s2
     !use fieldline_module,only: D_s1,M1_s1,d1d1_s1,d1d2_s1,d2d2_s1, D_s2,M2_s2,d1d2_s2,d2d2_s2
     !use fieldline_module,only: be3_s1, be3_s2, d1_s1, d2_s1, d1_s2, d2_s2
@@ -222,6 +225,10 @@ contains
     real(r8) :: N2h_s2(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1)
     real(r8) :: Je2D_s2(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1)
     real(r8) :: S_p(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1)
+
+    real(r8) :: coef(10,nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1)
+    real(r8) :: coef_ns2(10,2,mlatd0:mlatd1,mlond0:mlond1)
+    real(r8) :: coef_ns(10,2,mlatd0:mlatd1,mlond0:mlond1)
 
     character(len=*), parameter :: subname = 'edyn3d_driver_timestep'
 
@@ -308,6 +315,10 @@ contains
        ntlU_s2 = nan
        ntlV_s2 = nan
 
+       S_p = nan
+       coef = nan
+       coef_ns = nan
+       coef_ns2 = nan
 
        ! exchange S1 ghost points
        tmp_ghost = nan
@@ -357,6 +368,20 @@ contains
             D_s1,be3_s1,d1d1_s1,d1d2_s1,d2d2_s1,sigP_s1,sigH_s1,ntlU_s1,ntlV_s1, &
             D_s2,be3_s2,d1d2_s2,d2d2_s2,sigP_s2,sigH_s2,ntlU_s2,ntlV_s2, &
             d1_s1,d2_s1,d1_s2,d2_s2,Je1D_s1,Je2D_s2)
+
+       ! calculate S (right hand side)
+       S_p = calculate_s(mlatd0,mlatd1,mlond0,mlond1, &
+            npts_p,M1_s1,Je1D_s1,M2_s2,Je2D_s2,M3_r)
+
+       ! calculate height-dependent matrix coefficients
+       coef = calculate_coef(mlatd0,mlatd1,mlond0,mlond1, &
+            npts_p,S_p,N1p_s1,N1h_s1,N2p_s2,N2h_s2)
+
+       ! add the coefficients in height to get coefficients for each hemisphere
+       coef_ns2 = calculate_coef_ns2(mlatd0,mlatd1,mlond0,mlond1,coef)
+
+       ! set the coefficient matrix in both hemispheres
+       coef_ns = calculate_coef_ns(mlatd0,mlatd1,mlond0,mlond1,coef_ns2)
 
 
     end if
