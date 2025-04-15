@@ -7,7 +7,7 @@ module phys_grid_ctem
   use ppgrid,        only: begchunk, endchunk, pcols, pver
   use physics_types, only: physics_state
   use cam_history,   only: addfld, outfld
-  use zonal_mean_mod,only: ZonalAverage_t, ZonalMean_t
+  use zonal_mean_mod,only: ZonalProfile_t, ZonalMean_t
   use physconst,     only: pi
   use cam_logfile,   only: iulog
   use cam_abortutils,only: endrun, handle_allocate_error
@@ -29,8 +29,8 @@ module phys_grid_ctem
   public :: phys_grid_ctem_diags
   public :: phys_grid_ctem_final
 
-  type(ZonalMean_t) :: ZMobj
-  type(ZonalAverage_t) :: ZAobj
+  type(ZonalMean_t   ) :: ZMobj
+  type(ZonalProfile_t) :: ZPobj
 
   integer :: nzalat = -huge(1)
   integer :: nzmbas = -huge(1)
@@ -171,7 +171,7 @@ contains
     end if
 
     ! initialize zonal-average and zonal-mean utility objects
-    call ZAobj%init(zalats,area,nzalat,GEN_GAUSSLATS=.false.)
+    call ZPobj%init(zalats,area,nzalat,nzalat,GEN_GAUSSLATS=.false.)
     call ZMobj%init(nzmbas)
 
     ! Zonal average grid for history fields
@@ -310,20 +310,20 @@ contains
     end do
 
     ! evaluate and output fluxes on the zonal-average grid
-    call ZAobj%binAvg(uvp, uvza)
-    call ZAobj%binAvg(uwp, uwza)
-    call ZAobj%binAvg(vthp, vthza)
-    call ZAobj%binAvg(wthp, wthza)
+    uvza (:,:) = zmean_profile(uvp (:,:,:))
+    uwza (:,:) = zmean_profile(uwp (:,:,:))
+    vthza(:,:) = zmean_profile(vthp(:,:,:))
+    wthza(:,:) = zmean_profile(wthp(:,:,:))
 
     if (any(abs(uvza)>1.e20_r8)) call endrun(prefix//'bad values in uvza')
     if (any(abs(uwza)>1.e20_r8)) call endrun(prefix//'bad values in uwza')
     if (any(abs(vthza)>1.e20_r8)) call endrun(prefix//'bad values in vthza')
     if (any(abs(wthza)>1.e20_r8)) call endrun(prefix//'bad values in wthza')
 
-    call ZAobj%binAvg(uzm, uza)
-    call ZAobj%binAvg(vzm, vza)
-    call ZAobj%binAvg(wzm, wza)
-    call ZAobj%binAvg(thzm, thza)
+    uza (:,:) = zmean_profile(uzm (:,:,:))
+    vza (:,:) = zmean_profile(vzm (:,:,:))
+    wza (:,:) = zmean_profile(wzm (:,:,:))
+    thza(:,:) = zmean_profile(thzm(:,:,:))
 
     if (any(abs(uza)>1.e20_r8)) call endrun(prefix//'bad values in uza')
     if (any(abs(vza)>1.e20_r8)) call endrun(prefix//'bad values in vza')
@@ -361,6 +361,45 @@ contains
     end function zmean_fld
 
     !------------------------------------------------------------------------------
+    ! utility function for evaluating 2D zonal mean profiles
+    !------------------------------------------------------------------------------
+    function zmean_profile( fld ) result(prfzm)
+
+      real(r8), intent(in) :: fld(pcols,pver,begchunk:endchunk)
+
+      real(r8) :: prfzm(nzalat,pver)
+
+      real(r8) :: Zonal_Bamp3d(nzmbas,pver)
+      real(r8) :: Zonal_Bamp2d(nzalat,pver)
+
+      ! Calculate basis amlitudes from 3D field
+      !-----------------------------------------
+      call ZMobj%calc_amps(fld,Zonal_Bamp3d)
+
+      ! Copy 3D ampiltudes to 2D ampiltudes
+      !--------------------------------------
+      Zonal_Bamp2d(:,:) = 0._r8
+      if(nzalat<nzmbas) then
+        ! 3D representation is truncated for output grid
+        !------------------------------------------------
+        Zonal_Bamp2d(1:nzalat,:) = Zonal_Bamp3d(1:nzalat,:)
+      elseif(nzalat<nzmbas) then
+        ! 3D/2D representation have the same resolution
+        !------------------------------------------------
+        Zonal_Bamp2d(:,:) = Zonal_Bamp3d(:,:)
+      else
+        ! 3D representation interpolated to output grid
+        !------------------------------------------------
+        Zonal_Bamp2d(1:nzmbas,:) = Zonal_Bamp3d(1:nzmbas,:)
+      endif
+
+      ! Evaluate 2D profile from amlitudes
+      !-----------------------------------------
+      call ZPobj%eval_grid(Zonal_Bamp2d,prfzm)
+
+    end function zmean_profile
+
+    !------------------------------------------------------------------------------
     ! utility function returns TRUE when time to update TEM diags
     !------------------------------------------------------------------------------
     logical function do_calc()
@@ -376,7 +415,7 @@ contains
   !-----------------------------------------------------------------------------
   !-----------------------------------------------------------------------------
   subroutine phys_grid_ctem_final
-    call ZAobj%final()
+    call ZPobj%final()
     call ZMobj%final()
   end subroutine phys_grid_ctem_final
 
