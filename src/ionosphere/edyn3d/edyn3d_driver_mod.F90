@@ -165,6 +165,8 @@ contains
     use calculate_terms_module, only: calculate_je
     use calculate_terms_module, only: calculate_s
     use stencil_module, only: calculate_coef, calculate_coef_ns2, calculate_coef_ns
+    use stencil_module, only: calculate_bij
+    use solver_module, only: linear_system
 
     !use fieldline_module,only: npts_s1,npts_s2, bmag_s1, bmag_s2, vmp_s1, vmp_s2
     !use fieldline_module,only: D_s1,M1_s1,d1d1_s1,d1d2_s1,d2d2_s1, D_s2,M2_s2,d1d2_s2,d2d2_s2
@@ -229,6 +231,14 @@ contains
     real(r8) :: coef(10,nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1)
     real(r8) :: coef_ns2(10,2,mlatd0:mlatd1,mlond0:mlond1)
     real(r8) :: coef_ns(10,2,mlatd0:mlatd1,mlond0:mlond1)
+
+    real(r8) :: bij(mlatd0:mlatd1,mlond0:mlond1)
+
+    real(r8) :: pot_hl_p(2,mlatd0:mlatd1,mlond0:mlond1)
+    real(r8) :: fac_hl_p(2,mlatd0:mlatd1,mlond0:mlond1)
+    real(r8) :: pot_p(2,mlatd0:mlatd1,mlond0:mlond1)
+
+    logical,parameter :: setbij = .true.
 
     character(len=*), parameter :: subname = 'edyn3d_driver_timestep'
 
@@ -315,10 +325,18 @@ contains
        ntlU_s2 = nan
        ntlV_s2 = nan
 
+       N1p_s1 = nan
+       N1h_s1 = nan
+       Je1D_s1 = nan
+       N2p_s2 = nan
+       N2h_s2 = nan
+       Je2D_s2 = nan
+
        S_p = nan
        coef = nan
        coef_ns = nan
        coef_ns2 = nan
+       bij = nan
 
        ! exchange S1 ghost points
        tmp_ghost = nan
@@ -383,6 +401,20 @@ contains
        ! set the coefficient matrix in both hemispheres
        coef_ns = calculate_coef_ns(mlatd0,mlatd1,mlond0,mlond1,coef_ns2)
 
+       ! set field-aligned conductance (b) matrix
+       if (setbij) then
+          bij = calculate_bij(mlatd0,mlatd1,mlond0,mlond1,coef_ns2)
+       else
+          bij = 0._r8
+       endif
+
+       pot_hl_p = 0._r8
+       fac_hl_p = 0._r8
+
+       pot_p = nan
+
+       ! construct linear system and solve
+       call linear_system(mlatd0,mlatd1,mlond0,mlond1, bij,pot_hl_p,fac_hl_p,coef_ns,pot_p)
 
     end if
 
