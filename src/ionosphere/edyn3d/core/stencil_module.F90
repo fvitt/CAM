@@ -37,7 +37,7 @@ module stencil_module
 ! P(i,j) is S1(i+0.5,j) and S2(i,j+0.5) with j increasing equatorward
 ! coefficients are calculated at P points
 
-    coef = 0
+    coef = 0._rp
 
     do concurrent (i = mlon0:mlon1, j = mlat0:mlat1, isn = 1:2)
       do concurrent (k = 1:npts_p(j))
@@ -75,8 +75,8 @@ module stencil_module
 
         else
           if (k == nmlat_h-j+1) then ! top volume at equator
-            N2p_p = 0
-            N2h_p = 0
+            N2p_p = 0._rp
+            N2h_p = 0._rp
           else ! i,j+0.5
             N2p_p = N2p_s2(k,isn,j,i)
             N2h_p = N2h_s2(k,isn,j,i)
@@ -135,7 +135,7 @@ module stencil_module
     mlon0 = mlond0+1
     mlon1 = mlond1-1
 
-    coef_ns2 = 0
+    coef_ns2 = 0._rp
 
     do i = mlon0,mlon1
       do j = mlat0,mlat1
@@ -165,7 +165,7 @@ module stencil_module
           coef_ns2(10,isn,j,i) = phi_pol ! north pole for each i Phi^N(i,1) = Phi^NP
           coef_ns2(9,isn,j,i) = 1
           do concurrent (ic = 1:8)
-            coef_ns2(ic,isn,j,i) = 0
+            coef_ns2(ic,isn,j,i) = 0._rp
           enddo
 
 ! no pole (done above)
