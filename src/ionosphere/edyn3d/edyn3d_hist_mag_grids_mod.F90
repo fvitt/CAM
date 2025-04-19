@@ -1,7 +1,7 @@
 module edyn3d_hist_mag_grids_mod
   use shr_kind_mod, only: r8 => shr_kind_r8
   use fieldline_module, only: npts_s1, npts_s2
-  use params_module, only: hgt_fix, nhgt_fix, nmlon, nmlat_h, nmlatS2_h
+  use params_module, only: hgt_fix, nhgt_fix, nmlon, nmlat_h, nmlatS2_h, nmlat_T1
   use mpi_module, only: mlon0, mlon1, mlat0, mlat1
   use mpi_module, only: mytid=>mpi_rank, ntask=>mpi_size
   use cam_abortutils, only: endrun
@@ -50,8 +50,8 @@ contains
     integer(iMap),       pointer :: grid_map(:,:) => null()
     integer(iMap),       pointer :: coord_map(:) => null()
 
-    integer :: ncnt, i, j, k, isn, k0, k1, dk, ind, lcid
-    integer :: npts1_tot, npts2_tot
+    integer :: ncnt, i, j, k, isn, k0, k1, dk, ind, lcid, jj
+    integer :: npts1_tot, npts2_tot, mylatsize
 
     real(r8), pointer :: latvals1(:) => null()
     real(r8), pointer :: altvals1(:) => null()
@@ -239,15 +239,25 @@ contains
 
     ! 2D mag lon lat grid
 
-    !                    num-cols-per-chunk    x    num-chunks
-    allocate(grid_map(4, (mlon1 - mlon0 + 1)   *    (mlat1 - mlat0 + 1)*2 ))
+    mylatsize = 2*(mlat1-mlat0+1)
+    if (mlat1==nmlat_h) mylatsize = mylatsize - 1 ! only one at equator
+
+    !                    num-cols-per-chunk x num-local-chunks
+    allocate(grid_map(4,(mlon1 - mlon0 + 1) * mylatsize))
     allocate(maglats(size(grid_map, 2)))
     allocate(maglons(size(grid_map, 2)))
 
     ind = 0
-    lcid = 0 ! chunk number
-    do isn = 1,2
+    lcid = 0 ! local chunk number
+    hemi_loop: do isn = 1,2
        do j = mlat0,mlat1
+
+          if (isn==1) then
+             jj = j ! global lat index
+          else
+             jj = nmlat_T1 - j + 1
+             if (j==nmlat_h) exit hemi_loop ! only one at equator
+          end if
 
           lcid = lcid + 1
 
@@ -256,13 +266,13 @@ contains
              grid_map(1,ind) = i - mlon0 + 1 ! local column num
              grid_map(2,ind) = lcid          ! local chunk num
              grid_map(3,ind) = i             ! global lon ndx
-             grid_map(4,ind) = (isn-1)*nmlat_h + j ! global lat ndx
+             grid_map(4,ind) = jj            ! global lat ndx
              maglons(ind) = ylonm(i) * rtd
              maglats(ind) = ylatm(isn,j) * rtd
           end do
 
        end do
-    end do
+    end do hemi_loop
 
     latmin = ylatm(1,1) * rtd
     lonmin = ylonm(1) * rtd
@@ -286,7 +296,7 @@ contains
        coord_map(:) = 0_iMap
     end where
 
-    maglat_coord => horiz_coord_create('maglat', 'maglat', 2*nmlat_h, 'magnetic latitude', &
+    maglat_coord => horiz_coord_create('maglat', 'maglat', nmlat_T1, 'magnetic latitude', &
          'degrees_north', 1, size(maglats), maglats, map=coord_map)
 
     call cam_grid_register('geomag_grid', geomag_decomp, maglat_coord, maglon_coord, &
@@ -397,10 +407,12 @@ contains
 
     integer :: isn,j, lcid
 
-    lcid = 0 ! chunk number
+    lcid = 0 ! local chunk number
 
-    do isn = 1,2
+    hemi_loop: do isn = 1,2
        do j = mlat0,mlat1
+
+          if (isn==2 .and. j==nmlat_h) exit hemi_loop ! only one at equator
 
           lcid = lcid + 1
 
@@ -409,7 +421,7 @@ contains
           call outfld(fldname, tmparray(mlon0:mlon1), mlon1-mlon0+1, lcid)
 
        end do
-    end do
+    end do hemi_loop
 
   end subroutine edyn3d_hist_mlonlat_out
 

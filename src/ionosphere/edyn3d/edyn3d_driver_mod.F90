@@ -141,8 +141,8 @@ contains
                   gridname='magfline_s2')
 
     call addfld ('ELECPOTEN', horiz_only, 'I', 'Volts','Electric potential', gridname='geomag_grid')
-    call addfld ('MAGLON', horiz_only, 'I', 'deg','Test fld', gridname='geomag_grid')
-    call addfld ('MAGLAT', horiz_only, 'I', 'deg','Test fld', gridname='geomag_grid')
+    call addfld ('MLON_TEST', horiz_only, 'I', 'deg','Test fld', gridname='geomag_grid')
+    call addfld ('MLAT_TEST', horiz_only, 'I', 'deg','Test fld', gridname='geomag_grid')
 
     print*,'FVDBG.edyn3d_driver_init...END'
 
@@ -436,9 +436,8 @@ contains
           end do
        end do
 
-       call edyn3d_hist_mlonlat_out('MAGLON', maglon )
-       call edyn3d_hist_mlonlat_out('MAGLAT', maglat )
-
+       call edyn3d_hist_mlonlat_out('MLON_TEST', maglon )
+       call edyn3d_hist_mlonlat_out('MLAT_TEST', maglat )
 
     end if
 
