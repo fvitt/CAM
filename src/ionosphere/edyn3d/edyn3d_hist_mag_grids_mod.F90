@@ -15,6 +15,7 @@ module edyn3d_hist_mag_grids_mod
   public :: edyn3d_hist_mag_grids_reg
   public :: edyn3d_hist_mag_s1_out
   public :: edyn3d_hist_mag_s2_out
+  public :: edyn3d_hist_mlonlat_out
 
   integer :: s1flpt0=1, s1flpt1=0
   integer :: s2flpt0=1, s2flpt1=0
@@ -32,7 +33,7 @@ contains
     use cam_grid_support, only: horiz_coord_t, horiz_coord_create, iMap
     use cam_grid_support, only: cam_grid_register, cam_grid_attribute_register
     use fieldline_module, only: qdlat_s1, qdlat_s2
-    use params_module, only: ylonm, ylonm_s
+    use params_module, only: ylonm, ylonm_s, ylatm
     use cons_module, only: rtd
 
     integer, parameter :: mags1_decomp = 719 ! Must be unique within CAM
@@ -43,10 +44,13 @@ contains
     type(horiz_coord_t), pointer :: flns2_coord => null()
     type(horiz_coord_t), pointer :: lons1_coord => null()
     type(horiz_coord_t), pointer :: lons2_coord => null()
+    type(horiz_coord_t), pointer :: maglon_coord => null()
+    type(horiz_coord_t), pointer :: maglat_coord => null()
+
     integer(iMap),       pointer :: grid_map(:,:) => null()
     integer(iMap),       pointer :: coord_map(:) => null()
 
-    integer :: ncnt, i, j, k, isn, k0, k1, dk, ind
+    integer :: ncnt, i, j, k, isn, k0, k1, dk, ind, lcid
     integer :: npts1_tot, npts2_tot
 
     real(r8), pointer :: latvals1(:) => null()
@@ -55,6 +59,10 @@ contains
     real(r8), pointer :: altvals2(:) => null()
     real(r8) :: lonvals1(nmlon)
     real(r8) :: lonvals2(nmlon)
+
+    real(r8), pointer :: maglats(:) => null()
+    real(r8), pointer :: maglons(:) => null()
+    real(r8) :: latmin, lonmin
 
     character(len=*), parameter :: subname = 'edyn3d_hist_mag_grids_reg'
 
@@ -229,6 +237,61 @@ contains
     nullify(latvals2)
     nullify(altvals2)
 
+    ! 2D mag lon lat grid
+
+    !                    num-cols-per-chunk    x    num-chunks
+    allocate(grid_map(4, (mlon1 - mlon0 + 1)   *    (mlat1 - mlat0 + 1)*2 ))
+    allocate(maglats(size(grid_map, 2)))
+    allocate(maglons(size(grid_map, 2)))
+
+    ind = 0
+    lcid = 0 ! chunk number
+    do isn = 1,2
+       do j = mlat0,mlat1
+
+          lcid = lcid + 1
+
+          do i = mlon0,mlon1
+             ind = ind + 1
+             grid_map(1,ind) = i - mlon0 + 1 ! local column num
+             grid_map(2,ind) = lcid          ! local chunk num
+             grid_map(3,ind) = i             ! global lon ndx
+             grid_map(4,ind) = (isn-1)*nmlat_h + j ! global lat ndx
+             maglons(ind) = ylonm(i) * rtd
+             maglats(ind) = ylatm(isn,j) * rtd
+          end do
+
+       end do
+    end do
+
+    latmin = ylatm(1,1) * rtd
+    lonmin = ylonm(1) * rtd
+
+    allocate(coord_map(size(grid_map, 2)))
+
+    where(maglats == latmin)
+       coord_map(:) = grid_map(3, :)
+    elsewhere
+       coord_map(:) = 0_iMap
+    end where
+
+
+    maglon_coord => horiz_coord_create('maglon', 'maglon', nmlon, 'magnetic longitude', &
+         'degrees_east', 1, size(maglons), maglons, map=coord_map)
+
+
+    where(maglons == lonmin)
+       coord_map(:) = grid_map(4, :)
+    elsewhere
+       coord_map(:) = 0_iMap
+    end where
+
+    maglat_coord => horiz_coord_create('maglat', 'maglat', 2*nmlat_h, 'magnetic latitude', &
+         'degrees_north', 1, size(maglats), maglats, map=coord_map)
+
+    call cam_grid_register('geomag_grid', geomag_decomp, maglat_coord, maglon_coord, &
+         grid_map, unstruct=.false.)
+
     if (masterproc) then
        write(iulog,*) subname,'Reg mag fieldline history grid FINISHED'
     end if
@@ -322,5 +385,32 @@ contains
 
   end subroutine edyn3d_hist_mag_s2_out
 
+  !-----------------------------------------------------------------------------
+  !-----------------------------------------------------------------------------
+  subroutine edyn3d_hist_mlonlat_out( fldname, fldarray )
+    use cam_history, only: outfld
+
+    character(len=*), intent(in) :: fldname
+    real(r8), intent(in) :: fldarray(2,mlat0:mlat1,mlon0:mlon1)
+
+    real(r8) :: tmparray(mlon0:mlon1)
+
+    integer :: isn,j, lcid
+
+    lcid = 0 ! chunk number
+
+    do isn = 1,2
+       do j = mlat0,mlat1
+
+          lcid = lcid + 1
+
+          tmparray(:) = fldarray(isn,j,:)
+
+          call outfld(fldname, tmparray(mlon0:mlon1), mlon1-mlon0+1, lcid)
+
+       end do
+    end do
+
+  end subroutine edyn3d_hist_mlonlat_out
 
 end module edyn3d_hist_mag_grids_mod

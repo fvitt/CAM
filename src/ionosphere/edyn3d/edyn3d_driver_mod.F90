@@ -140,6 +140,9 @@ contains
     call addfld ('sigma_hal_s2', horiz_only, 'I', 'K','Hal cond. on S2 mag field line grid', &
                   gridname='magfline_s2')
 
+    call addfld ('ELECPOTEN', horiz_only, 'I', 'Volts','Electric potential', gridname='geomag_grid')
+    call addfld ('MAGLON', horiz_only, 'I', 'deg','Test fld', gridname='geomag_grid')
+    call addfld ('MAGLAT', horiz_only, 'I', 'deg','Test fld', gridname='geomag_grid')
 
     print*,'FVDBG.edyn3d_driver_init...END'
 
@@ -159,6 +162,7 @@ contains
     use regridder, only: regrid_phys2geo_3d, regrid_geo2phys_3d
     use edyn3d_hist_mag_grids_mod, only: edyn3d_hist_mag_s1_out
     use edyn3d_hist_mag_grids_mod, only: edyn3d_hist_mag_s2_out
+    use edyn3d_hist_mag_grids_mod, only: edyn3d_hist_mlonlat_out
     use mpi_module, only: sync_mlat_5d, sync_mlon_5d
     use calculate_terms_module, only: calculate_conductance
     use calculate_terms_module, only: calculate_n
@@ -172,6 +176,8 @@ contains
     !use fieldline_module,only: D_s1,M1_s1,d1d1_s1,d1d2_s1,d2d2_s1, D_s2,M2_s2,d1d2_s2,d2d2_s2
     !use fieldline_module,only: be3_s1, be3_s2, d1_s1, d2_s1, d1_s2, d2_s2
     use fieldline_module
+    use params_module, only: ylonm, ylatm
+    use cons_module, only: rtd
 
     integer,  intent(in) :: nphyscol, nphyslev
     real(r8), intent(in) :: physalt(nphyslev,nphyscol)
@@ -204,7 +210,7 @@ contains
     real(r8), target :: wi_oplus(lon0:lon1,lat0:lat1,lev0:lev1)
 
     real(r8) :: tmp_ghost(4,nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1)
-    integer :: i, rc
+    integer :: i, rc , isn, j
 
     real(r8) :: sigP_s1(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1)
     real(r8) :: zigP_s1(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1)
@@ -237,6 +243,9 @@ contains
     real(r8) :: pot_hl_p(2,mlatd0:mlatd1,mlond0:mlond1)
     real(r8) :: fac_hl_p(2,mlatd0:mlatd1,mlond0:mlond1)
     real(r8) :: pot_p(2,mlatd0:mlatd1,mlond0:mlond1)
+
+    real(r8) :: maglon(2,mlat0:mlat1,mlon0:mlon1)
+    real(r8) :: maglat(2,mlat0:mlat1,mlon0:mlon1)
 
     logical,parameter :: setbij = .true.
 
@@ -415,6 +424,21 @@ contains
 
        ! construct linear system and solve
        call linear_system(mlatd0,mlatd1,mlond0,mlond1, bij,pot_hl_p,fac_hl_p,coef_ns,pot_p)
+
+       do isn = 1,2
+          do j = mlat0,mlat1
+             do i = mlon0,mlon1
+
+                maglat(isn,j,i) = ylatm(isn,j) * rtd
+                maglon(isn,j,i) = ylonm(i) * rtd
+
+             end do
+          end do
+       end do
+
+       call edyn3d_hist_mlonlat_out('MAGLON', maglon )
+       call edyn3d_hist_mlonlat_out('MAGLAT', maglat )
+
 
     end if
 
