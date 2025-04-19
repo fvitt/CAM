@@ -76,9 +76,6 @@ module mpi_module
     lat_rank = mpi_rank / lon_size
     lon_rank = modulo(mpi_rank, lon_size)
 
-    print*,'FVDBG0... lon_size,lat_size : ',lon_size,lat_size
-    print*,'FVDBG0... lat_rank,lon_rank : ',lat_rank,lon_rank
-
   endsubroutine init
 !-----------------------------------------------------------------------
   subroutine setup_topology(nmlat_in, nmlon_in)
@@ -111,7 +108,6 @@ module mpi_module
 ! each process can have unequal number of latitudes or longitudes
 
     nmlat_task = generate_minvar_list(nmlat, lat_size)
-    print*,'FVDBG0... nmlat_task: ',nmlat_task
     maxmlat = maxval(nmlat_task)
     if (lat_rank<lat_size) then
        mlat0 = 1
@@ -122,7 +118,6 @@ module mpi_module
     endif
 
     nmlon_task = generate_minvar_list(nmlon, lon_size)
-    print*,'FVDBG0... nmlon_task: ',nmlon_task
     maxmlon = maxval(nmlon_task)
     if (lat_rank<lat_size) then
        mlon0 = 1

@@ -50,7 +50,6 @@ contains
     integer :: ierror
     character(len=*), parameter :: prefix = 'edyn3d_driver_init: '
 
-    print*,'FVDBG.edyn3d_driver_init...0'
     if (r8 /= rp) then
        call endrun(prefix//'r8 /= rp')
     end if
@@ -92,13 +91,9 @@ contains
        write(iulog,*) prefix,'3D Edyn mlat1_task: ',mlat1_task
     end if
 
-    print*,'FVDBG.edyn3d_driver_init...mlon0, mlon1, mlat0, mlat1: ', mlon0, mlon1, mlat0, mlat1
-
     call edyn3d_hist_mag_grids_reg()
 
     acitve_tasks: if (mpi_rank<mpi_size) then
-
-       print*,'FVDBG.edyn3d_driver_init...active mpi_rank: ',mpi_rank
 
        ! allocate memory for fieldline data
        call alloc_fieldline(ierror)
@@ -143,8 +138,6 @@ contains
     call addfld ('ELECPOTEN', horiz_only, 'I', 'Volts','Electric potential', gridname='geomag_grid')
     call addfld ('MLON_TEST', horiz_only, 'I', 'deg','Test fld', gridname='geomag_grid')
     call addfld ('MLAT_TEST', horiz_only, 'I', 'deg','Test fld', gridname='geomag_grid')
-
-    print*,'FVDBG.edyn3d_driver_init...END'
 
   end subroutine edyn3d_driver_init
 
@@ -250,8 +243,6 @@ contains
     logical,parameter :: setbij = .true.
 
     character(len=*), parameter :: subname = 'edyn3d_driver_timestep'
-
-    print*,'FVDBG.edyn3D_driver_timestep... 0'
 
     sigped_s1 = NOTSET
     sighal_s1 = NOTSET
@@ -425,6 +416,7 @@ contains
        ! construct linear system and solve
        call linear_system(mlatd0,mlatd1,mlond0,mlond1, bij,pot_hl_p,fac_hl_p,coef_ns,pot_p)
 
+       call edyn3d_hist_mlonlat_out('ELECPOTEN', pot_p(1:2,mlat0:mlat1,mlon0:mlon1)  )
        do isn = 1,2
           do j = mlat0,mlat1
              do i = mlon0,mlon1
@@ -441,9 +433,6 @@ contains
 
     end if
 
-    print*,'FVDBG.edyn3D_driver_timestep... END'
-!!$call mpi_barrier(mpicom, rc)
-!!$call endrun('FVDBG.edyn3D_driver_timestep...STOP')
   end subroutine edyn3d_driver_timestep
 
 end module edyn3d_driver_mod

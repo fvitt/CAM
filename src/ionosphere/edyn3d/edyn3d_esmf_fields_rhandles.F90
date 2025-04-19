@@ -148,10 +148,6 @@ contains
 
     end do vertloop
 
-!!$
-!!$print*,'FVDBG.edyn3d_esmf_fields_rhandles_init.. OK HERE'
-!!$call mpi_barrier(mpicom, rc)
-!!$call endrun('FVDBG.edyn3d_esmf_fields_rhandles_init.. OK STOP HERE')
   end subroutine edyn3d_esmf_fields_rhandles_init
 
   !-----------------------------------------------------------------------
