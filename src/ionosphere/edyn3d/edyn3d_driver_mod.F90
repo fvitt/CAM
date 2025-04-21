@@ -125,17 +125,26 @@ contains
 
     call edyn3d_esmf_fields_rhandles_init()
 
+    call addfld ('sigma_ped_s1', horiz_only, 'I', 'K','Ped cond. on S1 mag field line grid', gridname='magfline_s1')
+    call addfld ('sigma_hal_s1', horiz_only, 'I', 'K','Hal cond. on S1 mag field line grid', gridname='magfline_s1')
+    call addfld ('sigma_ped_s2', horiz_only, 'I', 'K','Ped cond. on S2 mag field line grid', gridname='magfline_s2')
+    call addfld ('sigma_hal_s2', horiz_only, 'I', 'K','Hal cond. on S2 mag field line grid', gridname='magfline_s2')
 
-    call addfld ('sigma_ped_s1', horiz_only, 'I', 'K','Ped cond. on S1 mag field line grid', &
-                  gridname='magfline_s1')
-    call addfld ('sigma_hal_s1', horiz_only, 'I', 'K','Hal cond. on S1 mag field line grid', &
-                  gridname='magfline_s1')
-    call addfld ('sigma_ped_s2', horiz_only, 'I', 'K','Ped cond. on S2 mag field line grid', &
-                  gridname='magfline_s2')
-    call addfld ('sigma_hal_s2', horiz_only, 'I', 'K','Hal cond. on S2 mag field line grid', &
-                  gridname='magfline_s2')
+    call addfld ('un_s1', horiz_only, 'I', 'm/s','Zonal wind on S1 mag field line grid', gridname='magfline_s1')
+    call addfld ('vn_s1', horiz_only, 'I', 'm/s','Meridional wind on S1 mag field line grid', gridname='magfline_s1')
+    call addfld ('un_s2', horiz_only, 'I', 'm/s','Zonal wind on S2 mag field line grid', gridname='magfline_s2')
+    call addfld ('vn_s2', horiz_only, 'I', 'm/s','Meridional wind on S2 mag field line grid', gridname='magfline_s2')
+
+    call addfld ('IonU_s1', horiz_only, 'I', 'm/s','Zonal Ion Drift Velocity on s1 grid', gridname='magfline_s1')
+    call addfld ('IonV_s1', horiz_only, 'I', 'm/s','Meridional Ion Drift Velocity on s1 grid', gridname='magfline_s1')
+    call addfld ('IonW_s1', horiz_only, 'I', 'm/s','Verical Ion Drift Velocity on s1 grid', gridname='magfline_s1')
+    call addfld ('IonU_s2', horiz_only, 'I', 'm/s','Zonal Ion Drift Velocity on s1 grid', gridname='magfline_s2')
+    call addfld ('IonV_s2', horiz_only, 'I', 'm/s','Meridional Ion Drift Velocity on s1 grid', gridname='magfline_s2')
+    call addfld ('IonW_s2', horiz_only, 'I', 'm/s','Verical Ion Drift Velocity on s1 grid', gridname='magfline_s2')
 
     call addfld ('ELECPOTEN', horiz_only, 'I', 'Volts','Electric potential', gridname='geomag_grid')
+
+
     call addfld ('MLON_TEST', horiz_only, 'I', 'deg','Test fld', gridname='geomag_grid')
     call addfld ('MLAT_TEST', horiz_only, 'I', 'deg','Test fld', gridname='geomag_grid')
 
@@ -158,9 +167,9 @@ contains
     use edyn3d_hist_mag_grids_mod, only: edyn3d_hist_mlonlat_out
     use mpi_module, only: sync_mlat_5d, sync_mlon_5d
     use calculate_terms_module, only: calculate_conductance
-    use calculate_terms_module, only: calculate_n
-    use calculate_terms_module, only: calculate_je
-    use calculate_terms_module, only: calculate_s
+    use calculate_terms_module, only: calculate_n, calculate_je, calculate_s
+    use calculate_terms_module, only: calculate_ed, calculate_ve, calculate_vxyz
+
     use stencil_module, only: calculate_coef, calculate_coef_ns2, calculate_coef_ns
     use stencil_module, only: calculate_bij
     use solver_module, only: linear_system
@@ -236,6 +245,22 @@ contains
     real(r8) :: pot_hl_p(2,mlatd0:mlatd1,mlond0:mlond1)
     real(r8) :: fac_hl_p(2,mlatd0:mlatd1,mlond0:mlond1)
     real(r8) :: pot_p(2,mlatd0:mlatd1,mlond0:mlond1)
+    real(r8) :: ed1_s1(2,mlatd0:mlatd1,mlond0:mlond1)
+    real(r8) :: ed2_s1(2,mlatd0:mlatd1,mlond0:mlond1)
+    real(r8) :: ve1_s1(2,mlatd0:mlatd1,mlond0:mlond1)
+    real(r8) :: ve2_s1(2,mlatd0:mlatd1,mlond0:mlond1)
+
+    real(r8) :: ed1_s2(2,mlatd0:mlatd1,mlond0:mlond1)
+    real(r8) :: ed2_s2(2,mlatd0:mlatd1,mlond0:mlond1)
+    real(r8) :: ve1_s2(2,mlatd0:mlatd1,mlond0:mlond1)
+    real(r8) :: ve2_s2(2,mlatd0:mlatd1,mlond0:mlond1)
+
+    real(r8) :: vx_s1(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1)
+    real(r8) :: vy_s1(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1)
+    real(r8) :: vz_s1(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1)
+    real(r8) :: vx_s2(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1)
+    real(r8) :: vy_s2(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1)
+    real(r8) :: vz_s2(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1)
 
     real(r8) :: maglon(2,mlat0:mlat1,mlon0:mlon1)
     real(r8) :: maglat(2,mlat0:mlat1,mlon0:mlon1)
@@ -273,11 +298,15 @@ contains
 
     call edyn3d_hist_mag_s1_out('sigma_ped_s1',sigped_s1)
     call edyn3d_hist_mag_s1_out('sigma_hal_s1',sighal_s1)
+    call edyn3d_hist_mag_s1_out('un_s1',un_s1)
+    call edyn3d_hist_mag_s1_out('vn_s1',vn_s1)
 
     call edyn3d_remap_phys2mag_s2(nphyscol, nphyslev, physalt, phys_flds_bndl, mags2_flds_bndl)
 
     call edyn3d_hist_mag_s2_out('sigma_ped_s2',sigped_s2)
     call edyn3d_hist_mag_s2_out('sigma_hal_s2',sighal_s2)
+    call edyn3d_hist_mag_s2_out('un_s2',un_s2)
+    call edyn3d_hist_mag_s2_out('vn_s2',vn_s2)
 
     magsrc_flds_bndl(1)%fld => un_s2
     magsrc_flds_bndl(2)%fld => vn_s2
@@ -417,6 +446,35 @@ contains
        call linear_system(mlatd0,mlatd1,mlond0,mlond1, bij,pot_hl_p,fac_hl_p,coef_ns,pot_p)
 
        call edyn3d_hist_mlonlat_out('ELECPOTEN', pot_p(1:2,mlat0:mlat1,mlon0:mlon1)  )
+
+
+       ! calculate electric fields
+       call calculate_ed( &
+            mlatd0,mlatd1,mlond0,mlond1, &
+            pot_p,ed1_s1,ed2_s1,ed1_s2,ed2_s2)
+
+       ! calculate drift velocity
+       call calculate_ve( &
+            mlatd0,mlatd1,mlond0,mlond1, &
+            ed1_s1,ed2_s1,be3_s1(1,:,:,:), &
+            ed1_s2,ed2_s2,be3_s2(1,:,:,:), &
+            ve1_s1,ve2_s1,ve1_s2,ve2_s2)
+
+       ! calculate drift velocity in geographic coordinates
+       call calculate_vxyz( &
+            mlatd0,mlatd1,mlond0,mlond1,npts_s1,npts_s2, &
+            ve1_s1,ve2_s1,e1_s1,e2_s1, &
+            ve1_s2,ve2_s2,e1_s2,e2_s2, &
+            vx_s1,vy_s1,vz_s1,vx_s2,vy_s2,vz_s2)
+
+       call edyn3d_hist_mag_s1_out('IonU_s1',vx_s1(:,:,mlat0:mlat1,mlon0:mlon1))
+       call edyn3d_hist_mag_s1_out('IonV_s1',vy_s1(:,:,mlat0:mlat1,mlon0:mlon1))
+       call edyn3d_hist_mag_s1_out('IonW_s1',vz_s1(:,:,mlat0:mlat1,mlon0:mlon1))
+
+       call edyn3d_hist_mag_s2_out('IonU_s2',vx_s2(:,:,mlat0:mlat1,mlon0:mlon1))
+       call edyn3d_hist_mag_s2_out('IonV_s2',vy_s2(:,:,mlat0:mlat1,mlon0:mlon1))
+       call edyn3d_hist_mag_s2_out('IonW_s2',vz_s2(:,:,mlat0:mlat1,mlon0:mlon1))
+
        do isn = 1,2
           do j = mlat0,mlat1
              do i = mlon0,mlon1
