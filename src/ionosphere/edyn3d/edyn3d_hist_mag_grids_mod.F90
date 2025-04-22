@@ -186,7 +186,11 @@ contains
     lonvals2(1:nmlon) = rtd*ylonm(1:nmlon)
 
     allocate(coord_map(mlon1-mlon0+1))
-    coord_map = (/ (i, i = mlon0,mlon1 ) /)
+    if (mlat0==1) then
+       coord_map = (/ (i, i = mlon0,mlon1 ) /)
+    else
+       coord_map = 0
+    end if
 
     lons1_coord => horiz_coord_create('lon_s1', '', nmlon, 'magnetic longitude', &
                                       'degrees_east', mlon0,mlon1, lonvals1(mlon0:mlon1), map=coord_map)
