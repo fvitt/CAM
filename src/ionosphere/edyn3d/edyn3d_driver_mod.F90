@@ -39,10 +39,12 @@ contains
     use fieldline_module, only: glat_p, glon_p, glat_s1, glon_s1, glat_s2, glon_s2
 
     use prec, only: rp
+    use cons_module, only: read_fac
 
     use mpi_module, only: mlon0, mlon1, mlat0, mlat1
     use edyn3d_hist_mag_grids_mod, only: edyn3d_hist_mag_grids_reg
     use cam_history, only: addfld, horiz_only
+    use edyn3d_highlat_potential, only: edyn3d_highlat_potential_alloc
 
     integer, intent(in) :: mpicom_atm, npes_edyn3D
     integer, intent(in) :: edyn3d_nmlat_h, edyn3d_nmlon, edyn3d_nhgt
@@ -115,6 +117,8 @@ contains
        call calculate_m(npts_p,npts_s1,npts_s2,npts_r, &
             F_p,F_s1,F_s2,F_r,M3_p,M1_s1,M2_s2,M3_r)
 
+       call edyn3d_highlat_potential_alloc()
+
     end if acitve_tasks
 
     call edyn3d_esmf_s2_mag_grid_init()
@@ -143,10 +147,13 @@ contains
     call addfld ('IonW_s2', horiz_only, 'I', 'm/s','Verical Ion Drift Velocity on s1 grid', gridname='magfline_s2')
 
     call addfld ('ELECPOTEN', horiz_only, 'I', 'Volts','Electric potential', gridname='geomag_grid')
-
+    call addfld ('HILAT_POT', horiz_only, 'I', 'Volts','High-Latitude potential', gridname='geomag_grid')
+    call addfld ('HILAT_FAC', horiz_only, 'I', '???','High-Latitude field-aligned current', gridname='geomag_grid')
 
     call addfld ('MLON_TEST', horiz_only, 'I', 'deg','Test fld', gridname='geomag_grid')
     call addfld ('MLAT_TEST', horiz_only, 'I', 'deg','Test fld', gridname='geomag_grid')
+
+    read_fac = .false. ! prescribed high-lat potential (pot_hl) will be provided
 
   end subroutine edyn3d_driver_init
 
@@ -173,6 +180,8 @@ contains
     use stencil_module, only: calculate_coef, calculate_coef_ns2, calculate_coef_ns
     use stencil_module, only: calculate_bij
     use solver_module, only: linear_system
+    use edyn3d_highlat_potential, only: pot_hl_p => hilat_potential
+    use edyn3d_highlat_potential, only: edyn3d_heelis_update
 
     !use fieldline_module,only: npts_s1,npts_s2, bmag_s1, bmag_s2, vmp_s1, vmp_s2
     !use fieldline_module,only: D_s1,M1_s1,d1d1_s1,d1d2_s1,d2d2_s1, D_s2,M2_s2,d1d2_s2,d2d2_s2
@@ -242,7 +251,6 @@ contains
 
     real(r8) :: bij(mlatd0:mlatd1,mlond0:mlond1)
 
-    real(r8) :: pot_hl_p(2,mlatd0:mlatd1,mlond0:mlond1)
     real(r8) :: fac_hl_p(2,mlatd0:mlatd1,mlond0:mlond1)
     real(r8) :: pot_p(2,mlatd0:mlatd1,mlond0:mlond1)
     real(r8) :: ed1_s1(2,mlatd0:mlatd1,mlond0:mlond1)
@@ -437,16 +445,19 @@ contains
           bij = 0._r8
        endif
 
-       pot_hl_p = 0._r8
        fac_hl_p = 0._r8
 
        pot_p = nan
 
+       call edyn3d_heelis_update()
+
+       call edyn3d_hist_mlonlat_out('HILAT_POT', pot_hl_p(1:2,mlat0:mlat1,mlon0:mlon1))
+
        ! construct linear system and solve
        call linear_system(mlatd0,mlatd1,mlond0,mlond1, bij,pot_hl_p,fac_hl_p,coef_ns,pot_p)
 
-       call edyn3d_hist_mlonlat_out('ELECPOTEN', pot_p(1:2,mlat0:mlat1,mlon0:mlon1)  )
-
+       call edyn3d_hist_mlonlat_out('HILAT_FAC',fac_hl_p(1:2,mlat0:mlat1,mlon0:mlon1))
+       call edyn3d_hist_mlonlat_out('ELECPOTEN', pot_p(1:2,mlat0:mlat1,mlon0:mlon1))
 
        ! calculate electric fields
        call calculate_ed( &

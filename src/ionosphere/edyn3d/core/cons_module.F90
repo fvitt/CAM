@@ -16,7 +16,7 @@ module cons_module
     phi_pol = 0, &         ! north pole potential
     fill_value = huge(0.0) ! filling value for uninitialized fields
 
-  logical,parameter :: read_fac = .true. ! whether FAC is used at high latitude
+  logical :: read_fac = .false. ! whether FAC is used at high latitude
 
   integer :: &
     jlatm_JT, & ! latitude index corresponding to the transition latitude
