@@ -16,7 +16,7 @@ module edyn3d_driver_mod
 
 contains
 
-  subroutine edyn3d_driver_init( mpicom_atm, npes_edyn3D, edyn3d_nmlat_h, edyn3d_nmlon, edyn3d_nhgt )
+  subroutine edyn3d_driver_init( mpicom_atm, npes_edyn3D, edyn3d_nmlat_h, edyn3d_nmlon, edyn3d_nhgt, hilat_pot_model, wei05_coefs_file )
     use mpi_module, only: mpi_init => init, setup_topology
     use mpi_module, only: mpi_rank, mpi_size, lat_size, lon_size, lat_rank, lon_rank
     use mpi_module, only: nmlon_task,mlon0_task,mlon1_task, nmlat_task,mlat0_task,mlat1_task
@@ -44,10 +44,12 @@ contains
     use mpi_module, only: mlon0, mlon1, mlat0, mlat1
     use edyn3d_hist_mag_grids_mod, only: edyn3d_hist_mag_grids_reg
     use cam_history, only: addfld, horiz_only
-    use edyn3d_highlat_potential, only: edyn3d_highlat_potential_alloc
+    use edyn3d_highlat_potential, only: edyn3d_highlat_potential_init
 
     integer, intent(in) :: mpicom_atm, npes_edyn3D
     integer, intent(in) :: edyn3d_nmlat_h, edyn3d_nmlon, edyn3d_nhgt
+    character(len=*),intent(in) :: hilat_pot_model
+    character(len=*),intent(in) :: wei05_coefs_file
 
     integer :: ierror
     character(len=*), parameter :: prefix = 'edyn3d_driver_init: '
@@ -117,8 +119,6 @@ contains
        call calculate_m(npts_p,npts_s1,npts_s2,npts_r, &
             F_p,F_s1,F_s2,F_r,M3_p,M1_s1,M2_s2,M3_r)
 
-       call edyn3d_highlat_potential_alloc()
-
     end if acitve_tasks
 
     call edyn3d_esmf_s2_mag_grid_init()
@@ -155,6 +155,8 @@ contains
 
     read_fac = .false. ! prescribed high-lat potential (pot_hl) will be provided
 
+    call edyn3d_highlat_potential_init(hilat_pot_model,wei05_coefs_file)
+
   end subroutine edyn3d_driver_init
 
   subroutine edyn3d_driver_timestep( nphyscol, nphyslev, physalt, sigPed, sigHal, un, vn)
@@ -180,8 +182,7 @@ contains
     use stencil_module, only: calculate_coef, calculate_coef_ns2, calculate_coef_ns
     use stencil_module, only: calculate_bij
     use solver_module, only: linear_system
-    use edyn3d_highlat_potential, only: pot_hl_p => hilat_potential
-    use edyn3d_highlat_potential, only: edyn3d_heelis_update
+    use edyn3d_highlat_potential, only: edyn3d_highlat_potential_get
 
     !use fieldline_module,only: npts_s1,npts_s2, bmag_s1, bmag_s2, vmp_s1, vmp_s2
     !use fieldline_module,only: D_s1,M1_s1,d1d1_s1,d1d2_s1,d2d2_s1, D_s2,M2_s2,d1d2_s2,d2d2_s2
@@ -251,6 +252,7 @@ contains
 
     real(r8) :: bij(mlatd0:mlatd1,mlond0:mlond1)
 
+    real(r8) :: pot_hl_p(2,mlatd0:mlatd1,mlond0:mlond1)
     real(r8) :: fac_hl_p(2,mlatd0:mlatd1,mlond0:mlond1)
     real(r8) :: pot_p(2,mlatd0:mlatd1,mlond0:mlond1)
     real(r8) :: ed1_s1(2,mlatd0:mlatd1,mlond0:mlond1)
@@ -449,7 +451,7 @@ contains
 
        pot_p = nan
 
-       call edyn3d_heelis_update()
+       call edyn3d_highlat_potential_get(pot_hl_p)
 
        call edyn3d_hist_mlonlat_out('HILAT_POT', pot_hl_p(1:2,mlat0:mlat1,mlon0:mlon1))
 

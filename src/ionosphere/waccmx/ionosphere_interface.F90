@@ -25,6 +25,7 @@ module ionosphere_interface
    use shr_const_mod,  only: SHR_CONST_REARTH ! meters
 
    use edyn3d_driver_mod, only: edyn3d_driver_init
+   use edyn3d_highlat_potential, only: edyn3d_highlat_potential_update
 
    implicit none
 
@@ -414,7 +415,8 @@ module ionosphere_interface
            'Geometric height (Interfaces)', gridname='physgrid')
 
       ! after apex init
-      call edyn3d_driver_init(mpicom, ionos_edyn3d_npes, ionos_edyn3d_nmlat_h, ionos_edyn3d_nmlon, ionos_edyn3d_nhgt)
+      call edyn3d_driver_init(mpicom, ionos_edyn3d_npes, ionos_edyn3d_nmlat_h, ionos_edyn3d_nmlon, ionos_edyn3d_nhgt, &
+                              ionos_epotential_model, wei05_coefs_file)
 
    end subroutine ionosphere_init
 
@@ -496,6 +498,8 @@ module ionosphere_interface
          call d_pie_epotent( ionos_epotential_model, epot_crit_colats )
 
       end if prescribed_epot
+
+      call edyn3d_highlat_potential_update()
 
    end subroutine ionosphere_run1
 
