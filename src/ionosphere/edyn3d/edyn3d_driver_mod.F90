@@ -5,6 +5,7 @@ module edyn3d_driver_mod
   use spmd_utils, only: masterproc, mpicom
   use mpi_module, only: mpi_size, mpi_rank
   use infnan, only: nan, assignment(=)
+  use perf_mod, only: t_startf, t_stopf
 
   implicit none
 
@@ -58,16 +59,18 @@ contains
        call endrun(prefix//'r8 /= rp')
     end if
 
+    ! init mpi for 3D edynamo
     call mpi_init( mpicom_atm, npes_edyn3D )
 
+    ! set up magnetic latitude and longitude grids
+    call generate_mag_grid(edyn3d_nmlat_h, edyn3d_nmlon, edyn3d_nhgt)
+
+    ! log grid info:
     if (masterproc) then
        write(iulog,*) prefix,'3D Edyn grid params nmlat_h,nmlon,nhgt_fix: ',nmlat_h,nmlon,nhgt_fix
        write(iulog,*) prefix,'3D Edyn mpi_rank, mpi_size: ',mpi_rank,mpi_size
        write(iulog,*) prefix,'3D Edyn lon_size, lat_size: ',lon_size,lat_size
     end if
-
-    ! set up magnetic latitude and longitude grids
-    call generate_mag_grid(edyn3d_nmlat_h, edyn3d_nmlon, edyn3d_nhgt)
 
     ! set up constants
     call init_cons()
@@ -86,14 +89,6 @@ contains
 
     ! set up MPI decomposition
     call setup_topology(nmlat_h,nmlon)
-    if (masterproc) then
-       write(iulog,*) prefix,'3D Edyn nmlon_task: ',nmlon_task
-       write(iulog,*) prefix,'3D Edyn mlon0_task: ',mlon0_task
-       write(iulog,*) prefix,'3D Edyn mlon1_task: ',mlon1_task
-       write(iulog,*) prefix,'3D Edyn nmlat_task: ',nmlat_task
-       write(iulog,*) prefix,'3D Edyn mlat0_task: ',mlat0_task
-       write(iulog,*) prefix,'3D Edyn mlat1_task: ',mlat1_task
-    end if
 
     call edyn3d_hist_mag_grids_reg()
 
@@ -279,6 +274,8 @@ contains
 
     character(len=*), parameter :: subname = 'edyn3d_driver_timestep'
 
+    call t_startf(subname)
+
     sigped_s1 = NOTSET
     sighal_s1 = NOTSET
     un_s1 = NOTSET
@@ -304,47 +301,23 @@ contains
     phys_flds_bndl(3)%fld => un
     phys_flds_bndl(4)%fld => vn
 
+    call t_startf(subname//'->remap_phys2mag_s1')
     call edyn3d_remap_phys2mag_s1(nphyscol, nphyslev, physalt, phys_flds_bndl, mags1_flds_bndl)
+    call t_stopf(subname//'->remap_phys2mag_s1')
 
     call edyn3d_hist_mag_s1_out('sigma_ped_s1',sigped_s1)
     call edyn3d_hist_mag_s1_out('sigma_hal_s1',sighal_s1)
     call edyn3d_hist_mag_s1_out('un_s1',un_s1)
     call edyn3d_hist_mag_s1_out('vn_s1',vn_s1)
 
+    call t_startf(subname//'->remap_phys2mag_s2')
     call edyn3d_remap_phys2mag_s2(nphyscol, nphyslev, physalt, phys_flds_bndl, mags2_flds_bndl)
+    call t_stopf(subname//'->remap_phys2mag_s2')
 
     call edyn3d_hist_mag_s2_out('sigma_ped_s2',sigped_s2)
     call edyn3d_hist_mag_s2_out('sigma_hal_s2',sighal_s2)
     call edyn3d_hist_mag_s2_out('un_s2',un_s2)
     call edyn3d_hist_mag_s2_out('vn_s2',vn_s2)
-
-    magsrc_flds_bndl(1)%fld => un_s2
-    magsrc_flds_bndl(2)%fld => vn_s2
-    magsrc_flds_bndl(3)%fld => sighal_s2
-
-    ui_oplus = NOTSET
-    vi_oplus = NOTSET
-    wi_oplus = NOTSET
-
-    oplus_flds_bndl(1)%fld => ui_oplus
-    oplus_flds_bndl(2)%fld => vi_oplus
-    oplus_flds_bndl(3)%fld => wi_oplus
-
-    call regrid_phys2geo_3d( physalt, opalt, nphyslev, 1, nphyscol )
-    if (any(opalt==NOTSET)) then
-       call endrun(subname//': regrid_phys2geo_3d physalt->opalt ERROR')
-    end if
-
-    call edyn3d_remap_mag2oplus( magsrc_flds_bndl, opalt, oplus_flds_bndl )
-    if (any(ui_oplus==NOTSET)) then
-       call endrun(subname//': edyn3d_remap_mag2oplus ERROR ui_oplus')
-    end if
-    if (any(vi_oplus==NOTSET)) then
-       call endrun(subname//': edyn3d_remap_mag2oplus ERROR vi_oplus')
-    end if
-    if (any(wi_oplus==NOTSET)) then
-       call endrun(subname//': edyn3d_remap_mag2oplus ERROR wi_oplus')
-    end if
 
     if (mpi_rank<mpi_size) then
 
@@ -377,6 +350,7 @@ contains
        coef_ns2 = nan
        bij = nan
 
+       call t_startf(subname//'->ghost_exchange')
        ! exchange S1 ghost points
        tmp_ghost = nan
        tmp_ghost(1,:,:,mlat0:mlat1,mlon0:mlon1) = sigped_s1(:,:,mlat0:mlat1,mlon0:mlon1)
@@ -403,6 +377,7 @@ contains
        sigH_s2(:,:,:,:) = tmp_ghost(2,:,:,:,:)
        ntlU_s2(:,:,:,:) = tmp_ghost(3,:,:,:,:)
        ntlV_s2(:,:,:,:) = tmp_ghost(4,:,:,:,:)
+       call t_stopf(subname//'->ghost_exchange')
 
        ! calculate field-line integrated conductance - S1,S2
        call calculate_conductance( &
@@ -456,7 +431,9 @@ contains
        call edyn3d_hist_mlonlat_out('HILAT_POT', pot_hl_p(1:2,mlat0:mlat1,mlon0:mlon1))
 
        ! construct linear system and solve
+       call t_startf(subname//'->linear_system_solve')
        call linear_system(mlatd0,mlatd1,mlond0,mlond1, bij,pot_hl_p,fac_hl_p,coef_ns,pot_p)
+       call t_stopf(subname//'->linear_system_solve')
 
        call edyn3d_hist_mlonlat_out('HILAT_FAC',fac_hl_p(1:2,mlat0:mlat1,mlon0:mlon1))
        call edyn3d_hist_mlonlat_out('ELECPOTEN', pot_p(1:2,mlat0:mlat1,mlon0:mlon1))
@@ -503,6 +480,8 @@ contains
        call edyn3d_hist_mlonlat_out('MLAT_TEST', maglat )
 
     end if
+
+    call t_stopf(subname)
 
   end subroutine edyn3d_driver_timestep
 

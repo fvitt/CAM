@@ -1,4 +1,5 @@
 module solver_module
+  use perf_mod, only: t_startf, t_stopf
 
   use prec,only:rp
 
@@ -15,7 +16,7 @@ module solver_module
 
     use params_module,only:nmlat_h,nmlat_T1,nmlon
     use cons_module,only:read_fac
-    use mpi_module,only:gather_mag,bcast_3d,mpi_rank
+    use mpi_module,only:gather_mag,bcast_3d,mpi_rank, dynamo_world
 
     integer,intent(in) :: mlatd0,mlatd1,mlond0,mlond1
     real(kind=rp),dimension(mlatd0:mlatd1,mlond0:mlond1),intent(in) :: bij
@@ -42,11 +43,17 @@ module solver_module
     real(kind=rp),dimension(2,nmlat_h,0:nmlon+1) :: fac_hl_2,pot_2
     real(kind=rp),dimension(nmlat_T1*nmlon) :: rhs,z,pot_hl_f,sol
 
+    integer :: ier
+
+    call t_startf('linear_system')
+
     nlonlat = nmlat_T1*nmlon ! solve the whole globe
     mlat0 = mlatd0+1
     mlat1 = mlatd1-1
     mlon0 = mlond0+1
     mlon1 = mlond1-1
+
+    call t_startf('linear_system->gather_mag')
 
     bij_full = gather_mag(bij(mlat0:mlat1,mlon0:mlon1),root)
     if (read_fac) then
@@ -55,6 +62,8 @@ module solver_module
       pot_hl_full = gather_mag(pot_hl(:,mlat0:mlat1,mlon0:mlon1),2,root)
     endif
     coef_ns_full = gather_mag(coef_ns(:,:,mlat0:mlat1,mlon0:mlon1),10,2,root)
+
+    call t_stopf('linear_system->gather_mag')
 
     if (mpi_rank == root) then
 
@@ -114,7 +123,11 @@ module solver_module
         call csr_to_csc(nlonlat,nlonlat,nnz, &
           rowptr,colind(1:nnz),values_csr(1:nnz), &
           colptr,rowind(1:nnz),values_csc(1:nnz))
+
+        call t_startf('linear_system->solve_superlu')
         sol = solve_superlu(nlonlat,nnz,colptr,rowind(1:nnz),values_csc(1:nnz),rhs)
+        call t_stopf('linear_system->solve_superlu')
+
       endif
 
 ! reconstruct 2D distribution of potential based on the solution
@@ -129,6 +142,9 @@ module solver_module
       enddo
     endif
 
+    call mpi_barrier (dynamo_world, ier)
+
+    call t_startf('linear_system->bcast_3d')
     if (.not. read_fac) then
       call bcast_3d(fac_hl_2,2,nmlat_h,nmlon+2,root)
 
@@ -141,6 +157,9 @@ module solver_module
     do concurrent (i = mlond0:mlond1, j = mlatd0:mlatd1, isn = 1:2, j>=1 .and. j<=nmlat_h)
       pot(isn,j,i) = pot_2(isn,j,i)
     enddo
+    call t_stopf('linear_system->bcast_3d')
+
+    call t_stopf('linear_system')
 
   endsubroutine linear_system
 !-----------------------------------------------------------------------
