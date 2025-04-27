@@ -3,14 +3,25 @@ module edyn3d_esmf_oplus_grid_mod
   use cam_logfile,    only: iulog
   use cam_abortutils, only: endrun
   use spmd_utils,     only: masterproc
+  use edyn3d_esmf_error_mod, only: check_error
 
-  use ESMF
+  use ESMF, only: ESMF_COORDSYS_SPH_DEG, ESMF_INDEX_GLOBAL, ESMF_KIND_R8, ESMF_Grid,  ESMF_GridCreate1PeriDim
+  use ESMF, only: ESMF_GridAddCoord, ESMF_GridGetCoord, ESMF_STAGGERLOC_CENTER
+  use ESMF, only: ESMF_GridDestroy
 
-  type(ESMF_Grid)  :: oplus_grid
+  private
+
+  public :: edyn3d_esmf_oplus_grid_init
+  public :: edyn3d_esmf_oplus_grid_destroy
+  public :: oplus_grid
+
+  type(ESMF_Grid), protected :: oplus_grid
 
 contains
 
-  subroutine edyn3d_esmf_oplus_grid_init
+  !-----------------------------------------------------------------------------
+  !-----------------------------------------------------------------------------
+  subroutine edyn3d_esmf_oplus_grid_init()
 
     use edyn_geogrid, only: opluslon=>glon, opluslat=>glat ! oplus grid coordinates
     use edyn_mpi, only: edyn_ntask=>ntask, edyn_ntaski=>ntaski, edyn_ntaskj=>ntaskj, edyn_tasks=>tasks
@@ -20,7 +31,7 @@ contains
     integer :: petcnt
     integer :: nlons_task(edyn_ntaski) ! # number of lons per task
     integer :: nlats_task(edyn_ntaskj) ! # number of lats per task
-    integer :: i,j, n, rc
+    integer :: i,j, n, rc, astat
     real(ESMF_KIND_R8), pointer   :: coordX(:), coordY(:)
     integer :: lbnd(1), ubnd(1)
 
@@ -31,7 +42,10 @@ contains
     nlons_task = 0
     nlats_task = 0
 
-    allocate(petmap(edyn_ntaski,edyn_ntaskj,1))
+    allocate(petmap(edyn_ntaski,edyn_ntaskj,1), stat=astat)
+    if (astat/=0) then
+       call endrun(subname//' : not able to allocate petmap array')
+    end if
 
     petcnt = 0
     do j = 1,edyn_ntaskj
@@ -67,6 +81,8 @@ contains
            indexflag=ESMF_INDEX_GLOBAL,minIndex=(/1,1/), rc=rc)
     call check_error(subname,'ESMF_GridCreate1PeriDim oplus_grid',rc)
 
+    deallocate(petmap)
+
     ! set up coordinates:
 
     call ESMF_GridAddCoord(oplus_grid, staggerloc=ESMF_STAGGERLOC_CENTER, rc=rc)
@@ -98,23 +114,16 @@ contains
 
   end subroutine edyn3d_esmf_oplus_grid_init
 
-  !-----------------------------------------------------------------------
-  !-----------------------------------------------------------------------
-  subroutine check_error(subname, routine, rc)
+  !-----------------------------------------------------------------------------
+  !-----------------------------------------------------------------------------
+  subroutine edyn3d_esmf_oplus_grid_destroy()
 
-    character(len=*), intent(in) :: subname
-    character(len=*), intent(in) :: routine
-    integer,          intent(in) :: rc
+    integer :: rc
+    character(len=*), parameter :: subname = 'dyn3d_esmf_oplus_grid_destroy'
 
-    character(len=cl) :: errmsg
+    call ESMF_GridDestroy(oplus_grid, rc=rc)
+    call check_error(subname,'ESMF_GridDestroy oplus_grid', rc)
 
-    if (rc /= ESMF_SUCCESS) then
-       write(errmsg, '(4a,i0)') trim(subname), ': Error return from ', trim(routine), ', rc = ', rc
-       if (masterproc) then
-          write(iulog, '(2a)') 'ERROR: ', trim(errmsg)
-       end if
-       call endrun(trim(errmsg))
-    end if
-  end subroutine check_error
+  end subroutine edyn3d_esmf_oplus_grid_destroy
 
 end module edyn3d_esmf_oplus_grid_mod

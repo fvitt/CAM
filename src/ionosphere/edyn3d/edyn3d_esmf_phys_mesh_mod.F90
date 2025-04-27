@@ -3,30 +3,38 @@ module edyn3d_esmf_phys_mesh_mod
   use cam_logfile,    only: iulog
   use cam_abortutils, only: endrun
   use spmd_utils,     only: masterproc
+  use edyn3d_esmf_error_mod, only: check_error
 
-  use ESMF
+  use ESMF, only: ESMF_Mesh, ESMF_DistGrid, ESMF_FILEFORMAT_ESMFMESH
+  use ESMF, only: ESMF_DistGridCreate, ESMF_MeshCreate, ESMF_DistGridDestroy, ESMF_MeshDestroy
 
   implicit none
 
-  type(ESMF_Mesh)  :: phys_mesh
+  private
+  public :: phys_mesh
+  public :: edyn3d_esmf_phys_mesh_init
+  public :: edyn3d_esmf_phys_mesh_destroy
+
+  type(ESMF_Mesh), protected :: phys_mesh
+  type(ESMF_DistGrid) :: dist_grid_2d
 
 contains
 
-  subroutine edyn3d_esmf_phys_mesh_init
+  !-----------------------------------------------------------------------------
+  !-----------------------------------------------------------------------------
+  subroutine edyn3d_esmf_phys_mesh_init()
     use phys_control, only: phys_getopts
     use ppgrid, only: begchunk, endchunk
     use phys_grid, only: get_ncols_p, get_gcol_p
 
-    integer :: total_cols, rc
+    integer :: total_cols, rc, astat
     integer :: ncols, chnk, col, dindex
     character(len=cl) :: mesh_file
     integer,allocatable :: decomp(:)
-    type(ESMF_DistGrid) :: dist_grid_2d
 
     character(len=*), parameter :: subname = 'edyn3d_esmf_phys_mesh_init'
 
     ! physics grid / field
-
 
     call phys_getopts(physics_grid_out=mesh_file)
 
@@ -35,7 +43,10 @@ contains
     do chnk = begchunk, endchunk
        total_cols = total_cols + get_ncols_p(chnk)
     end do
-    allocate(decomp(total_cols))
+    allocate(decomp(total_cols), stat=astat)
+    if (astat/=0) then
+       call endrun(subname//' : not able to allocate decomp array')
+    end if
     dindex = 0
     do chnk = begchunk, endchunk
        ncols = get_ncols_p(chnk)
@@ -57,23 +68,19 @@ contains
 
   end subroutine edyn3d_esmf_phys_mesh_init
 
-  !-----------------------------------------------------------------------
-  !-----------------------------------------------------------------------
-  subroutine check_error(subname, routine, rc)
+  !-----------------------------------------------------------------------------
+  !-----------------------------------------------------------------------------
+  subroutine edyn3d_esmf_phys_mesh_destroy()
+    integer :: rc
+    character(len=*), parameter :: subname = 'edyn3d_esmf_phys_mesh_destroy'
 
-    character(len=*), intent(in) :: subname
-    character(len=*), intent(in) :: routine
-    integer,          intent(in) :: rc
+    call ESMF_MeshDestroy(phys_mesh, rc=rc)
+    call check_error(subname,'ESMF_MeshDestroy phys_mesh',rc)
 
-    character(len=cl) :: errmsg
+    call ESMF_DistGridDestroy(dist_grid_2d, rc=rc)
+    call check_error(subname,'ESMF_DistGridDestroy dist_grid_2d',rc)
 
-    if (rc /= ESMF_SUCCESS) then
-       write(errmsg, '(4a,i0)') trim(subname), ': Error return from ', trim(routine), ', rc = ', rc
-       if (masterproc) then
-          write(iulog, '(2a)') 'ERROR: ', trim(errmsg)
-       end if
-       call endrun(trim(errmsg))
-    end if
-  end subroutine check_error
+  end subroutine edyn3d_esmf_phys_mesh_destroy
+
 
 end module edyn3d_esmf_phys_mesh_mod

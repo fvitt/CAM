@@ -1133,12 +1133,15 @@ module ionosphere_interface
    subroutine ionosphere_final
 
       use edyn_esmf, only: edyn_esmf_final
+      use edyn3d_driver_mod, only: edyn3d_driver_final
 
       call edyn_esmf_final()
 
       if (allocated(opmmrtm1_phys)) then
          deallocate(opmmrtm1_phys)
       end if
+
+      call edyn3d_driver_final()
 
    end subroutine ionosphere_final
 

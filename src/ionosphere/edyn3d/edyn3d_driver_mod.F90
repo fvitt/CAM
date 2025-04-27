@@ -12,11 +12,12 @@ module edyn3d_driver_mod
   private
   public :: edyn3d_driver_init
   public :: edyn3d_driver_timestep
-
-  real(r8), dimension(:,:,:), allocatable :: gmlat,gmlon
+  public :: edyn3d_driver_final
 
 contains
 
+  !-----------------------------------------------------------------------------
+  !-----------------------------------------------------------------------------
   subroutine edyn3d_driver_init( mpicom_atm, npes_edyn3D, edyn3d_nmlat_h, edyn3d_nmlon, edyn3d_nhgt, hilat_pot_model, wei05_coefs_file )
     use mpi_module, only: mpi_init => init, setup_topology
     use mpi_module, only: mpi_rank, mpi_size, lat_size, lon_size, lat_rank, lon_rank
@@ -154,6 +155,8 @@ contains
 
   end subroutine edyn3d_driver_init
 
+  !-----------------------------------------------------------------------------
+  !-----------------------------------------------------------------------------
   subroutine edyn3d_driver_timestep( nphyscol, nphyslev, physalt, sigPed, sigHal, un, vn)
     use edyn3d_remap_mod, only: edyn3d_remap_phys2mag_s1
     use edyn3d_remap_mod, only: edyn3d_remap_phys2mag_s2
@@ -484,5 +487,22 @@ contains
     call t_stopf(subname)
 
   end subroutine edyn3d_driver_timestep
+
+  !-----------------------------------------------------------------------------
+  !-----------------------------------------------------------------------------
+  subroutine edyn3d_driver_final()
+    use edyn3d_esmf_fields_rhandles, only: edyn3d_esmf_fields_rhandles_destroy
+    use edyn3d_esmf_oplus_grid_mod, only: edyn3d_esmf_oplus_grid_destroy
+    use edyn3d_esmf_phys_mesh_mod, only: edyn3d_esmf_phys_mesh_destroy
+    use edyn3d_esmf_s1_mag_grid_mod, only: edyn3d_esmf_s1_mag_grid_destroy
+    use edyn3d_esmf_s2_mag_grid_mod, only: edyn3d_esmf_s2_mag_grid_destroy
+
+    call edyn3d_esmf_fields_rhandles_destroy()
+    call edyn3d_esmf_oplus_grid_destroy()
+    call edyn3d_esmf_phys_mesh_destroy()
+    call edyn3d_esmf_s1_mag_grid_destroy()
+    call edyn3d_esmf_s2_mag_grid_destroy()
+
+  end subroutine edyn3d_driver_final
 
 end module edyn3d_driver_mod

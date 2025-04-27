@@ -3,8 +3,12 @@ module edyn3d_esmf_fields_rhandles
   use cam_logfile,    only: iulog
   use cam_abortutils, only: endrun
   use spmd_utils,     only: masterproc, mpicom
+  use edyn3d_esmf_error_mod, only: check_error
 
-  use ESMF
+  use ESMF, only: ESMF_KIND_I4, ESMF_KIND_R8, ESMF_TYPEKIND_R8, ESMF_MESHLOC_ELEMENT, ESMF_STAGGERLOC_CENTER
+  use ESMF, only: ESMF_Field, ESMF_RouteHandle, ESMF_ArraySpec, ESMF_ArraySpecSet, ESMF_FieldCreate
+  use ESMF, only: ESMF_FieldRegridStore, ESMF_REGRIDMETHOD_BILINEAR, ESMF_POLEMETHOD_ALLAVG, ESMF_EXTRAPMETHOD_NEAREST_IDAVG
+  use ESMF, only: ESMF_FieldDestroy, ESMF_RouteHandleDestroy
 
   implicit none
 
@@ -21,6 +25,7 @@ module edyn3d_esmf_fields_rhandles
   public :: rh_phys2mag_s2
 
   public :: edyn3d_esmf_fields_rhandles_init
+  public :: edyn3d_esmf_fields_rhandles_destroy
 
   type(ESMF_Field) :: physFieldSrc
   type(ESMF_Field) :: oplusFieldDes
@@ -42,14 +47,16 @@ module edyn3d_esmf_fields_rhandles
 
 contains
 
-  subroutine edyn3d_esmf_fields_rhandles_init
+  !-----------------------------------------------------------------------------
+  !-----------------------------------------------------------------------------
+  subroutine edyn3d_esmf_fields_rhandles_init()
     use params_module, only: nz=>nhgt_fix
     use edyn3d_esmf_phys_mesh_mod, only: phys_mesh
     use edyn3d_esmf_oplus_grid_mod, only: oplus_grid
     use edyn3d_esmf_s1_mag_grid_mod, only: mag_s1_fdln_grid
     use edyn3d_esmf_s2_mag_grid_mod, only: mag_s2_fdln_grid
 
-    integer :: k, rc
+    integer :: k, rc, astat
     type(ESMF_ArraySpec) :: arrayspec
 
     integer :: smm_srctermproc, smm_pipelinedep
@@ -78,13 +85,31 @@ contains
 
     ! nz vertical mag field-line levels
 
-    allocate(magFieldDes_s1(nz))
-    allocate(magFieldDes_s2(nz))
-    allocate(magFieldSrc_s2(nz))
+    allocate(magFieldDes_s1(nz), stat=astat)
+    if (astat/=0) then
+       call endrun(subname//' : not able to allocate magFieldDes_s1')
+    end if
+    allocate(magFieldDes_s2(nz), stat=astat)
+    if (astat/=0) then
+       call endrun(subname//' : not able to allocate magFieldDes_s2')
+    end if
+    allocate(magFieldSrc_s2(nz), stat=astat)
+    if (astat/=0) then
+       call endrun(subname//' : not able to allocate magFieldSrc_s2')
+    end if
 
-    allocate(rh_phys2mag_s1(nz))
-    allocate(rh_phys2mag_s2(nz))
-    allocate(rh_mag2oplus_s2(nz))
+    allocate(rh_phys2mag_s1(nz), stat=astat)
+    if (astat/=0) then
+       call endrun(subname//' : not able to allocate rh_phys2mag_s1')
+    end if
+    allocate(rh_phys2mag_s2(nz), stat=astat)
+    if (astat/=0) then
+       call endrun(subname//' : not able to allocate rh_phys2mag_s2')
+    end if
+    allocate(rh_mag2oplus_s2(nz), stat=astat)
+    if (astat/=0) then
+       call endrun(subname//' : not able to allocate rh_mag2oplus_s2')
+    end if
 
     ! Create route handles
 
@@ -150,23 +175,47 @@ contains
 
   end subroutine edyn3d_esmf_fields_rhandles_init
 
-  !-----------------------------------------------------------------------
-  !-----------------------------------------------------------------------
-  subroutine check_error(subname, routine, rc)
+  !-----------------------------------------------------------------------------
+  !-----------------------------------------------------------------------------
+  subroutine edyn3d_esmf_fields_rhandles_destroy()
+    use params_module, only: nz=>nhgt_fix
 
-    character(len=*), intent(in) :: subname
-    character(len=*), intent(in) :: routine
-    integer,          intent(in) :: rc
+    integer :: k, rc
+    character(len=*), parameter :: subname = 'edyn3d_esmf_fields_rhandles_destroy'
 
-    character(len=cl) :: errmsg
+    call ESMF_FieldDestroy(physFieldSrc, rc=rc)
+    call check_error(subname,'ESMF_FieldDestroy physFieldSrc', rc)
 
-    if (rc /= ESMF_SUCCESS) then
-       write(errmsg, '(4a,i0)') trim(subname), ': Error return from ', trim(routine), ', rc = ', rc
-       if (masterproc) then
-          write(iulog, '(2a)') 'ERROR: ', trim(errmsg)
-       end if
-       call endrun(trim(errmsg))
-    end if
-  end subroutine check_error
+    call ESMF_FieldDestroy(oplusFieldDes, rc=rc)
+    call check_error(subname,'ESMF_FieldDestroy oplusFieldDes', rc)
+
+    do k = 1, nz
+       call ESMF_FieldDestroy(magFieldDes_s2(k), rc=rc)
+       call check_error(subname,'ESMF_FieldDestroy magFieldDes_s2', rc)
+
+       call ESMF_FieldDestroy(magFieldDes_s1(k), rc=rc)
+       call check_error(subname,'ESMF_FieldDestroy magFieldDes_s1', rc)
+
+       call ESMF_FieldDestroy(magFieldSrc_s2(k), rc=rc)
+       call check_error(subname,'ESMF_FieldDestroy magFieldSrc_s2', rc)
+
+       call ESMF_RouteHandleDestroy(rh_phys2mag_s1(k), rc=rc)
+       call check_error(subname,'ESMF_RouteHandleDestroy rh_phys2mag_s1', rc)
+
+       call ESMF_RouteHandleDestroy(rh_phys2mag_s2(k), rc=rc)
+       call check_error(subname,'ESMF_RouteHandleDestroy rh_phys2mag_s2', rc)
+
+       call ESMF_RouteHandleDestroy(rh_mag2oplus_s2(k), rc=rc)
+       call check_error(subname,'ESMF_RouteHandleDestroy rh_mag2oplus_s2', rc)
+    end do
+
+    deallocate(magFieldDes_s2)
+    deallocate(magFieldDes_s1)
+    deallocate(magFieldSrc_s2)
+    deallocate(rh_phys2mag_s1)
+    deallocate(rh_phys2mag_s2)
+    deallocate(rh_mag2oplus_s2)
+
+  end subroutine edyn3d_esmf_fields_rhandles_destroy
 
 end module edyn3D_esmf_fields_rhandles

@@ -3,15 +3,22 @@ module edyn3d_esmf_s1_mag_grid_mod
   use cam_logfile,    only: iulog
   use cam_abortutils, only: endrun
   use spmd_utils,     only: masterproc, mpicom
+  use edyn3d_esmf_error_mod, only: check_error
 
-  use ESMF
+  use ESMF, only: ESMF_Grid, ESMF_KIND_R8, ESMF_GridCreate1PeriDim, ESMF_INDEX_GLOBAL
+  use ESMF, only: ESMF_GridGet, ESMF_GridAddCoord, ESMF_GridGetCoord, ESMF_STAGGERLOC_CENTER
+  use ESMF, only: ESMF_GridDestroy
 
   implicit none
 
-  type(ESMF_Grid), allocatable :: mag_s1_fdln_grid(:)
+  private
+  public :: edyn3d_esmf_s1_mag_grid_init
+  public :: edyn3d_esmf_s1_mag_grid_destroy
+  public :: mag_s1_fdln_grid
+
+  type(ESMF_Grid), allocatable, protected :: mag_s1_fdln_grid(:)
 
 contains
-
 
   !%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>
   !       S1
@@ -23,14 +30,16 @@ contains
   !     LON -->
   !%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>%>
 
-  subroutine edyn3d_esmf_s1_mag_grid_init
+  !-----------------------------------------------------------------------------
+  !-----------------------------------------------------------------------------
+  subroutine edyn3d_esmf_s1_mag_grid_init()
     use fieldline_module, only: npts_s1, glon_s1, glat_s1
     use params_module, only: nz=>nhgt_fix, nmlon, nmlat_h
     use mpi_module, only: mytid=>mpi_rank, ntask=>mpi_size, lon_size, lat_size
     use mpi_module, only: mlon0,mlon1,mlat0,mlat1, mlon0_task, mlon1_task, mlat0_task, mlat1_task
     use mpi_module, only: nmlon_task, nmlat_task
 
-    integer :: rc
+    integer :: rc, astat
     !logical :: found_eq
     integer :: i,j,k,n, ii,jj, isn, nde
     integer, allocatable :: petmap(:,:,:)
@@ -49,7 +58,10 @@ contains
     character(len=*), parameter :: subname = 'edyn3d_esmf_s1_mag_grid_init'
     real(r8), parameter :: NOTSET = -huge(1._r8)
 
-    allocate(mag_s1_fdln_grid(nz))
+    allocate(mag_s1_fdln_grid(nz), stat=astat)
+    if (astat/=0) then
+       call endrun(subname//' : not able to allocate mag_s1_fdln_grid array')
+    end if
 
     do i = 1,lon_size
        lonCellsPerDE(i) = nmlon_task(i-1)
@@ -70,7 +82,11 @@ contains
        klat_sz = i+1
 
        ! number of global lat grid cells for level k (1 DE straddles the equator)
-       allocate(latCellsPerDE(klat_sz*2-1))
+       allocate(latCellsPerDE(klat_sz*2-1), stat=astat)
+       if (astat/=0) then
+          call endrun(subname//' : not able to allocate latCellsPerDE array')
+       end if
+
        latCellsPerDE = -huge(1)
 
        ! south pole to north pole
@@ -96,7 +112,11 @@ contains
        end do
 
        ! mpi task number for each DE (numLonDEs x numLatDEs)
-       allocate(petmap(lon_size, klat_sz*2-1,1))
+       allocate(petmap(lon_size, klat_sz*2-1,1), stat=astat)
+       if (astat/=0) then
+          call endrun(subname//' : not able to allocate latCellsPerDE array')
+       end if
+
        petmap = -huge(1)
 
        petcnt = 0
@@ -175,23 +195,22 @@ contains
     end do vertloop
 
   end subroutine edyn3d_esmf_s1_mag_grid_init
-  !-----------------------------------------------------------------------
-  !-----------------------------------------------------------------------
-  subroutine check_error(subname, routine, rc)
 
-    character(len=*), intent(in) :: subname
-    character(len=*), intent(in) :: routine
-    integer,          intent(in) :: rc
+  !-----------------------------------------------------------------------------
+  !-----------------------------------------------------------------------------
+  subroutine edyn3d_esmf_s1_mag_grid_destroy()
+    use params_module, only: nz=>nhgt_fix
 
-    character(len=cl) :: errmsg
+    integer :: k, rc
+    character(len=*), parameter :: subname = 'edyn3d_esmf_s1_mag_grid_destroy'
 
-    if (rc /= ESMF_SUCCESS) then
-       write(errmsg, '(4a,i0)') trim(subname), ': Error return from ', trim(routine), ', rc = ', rc
-       if (masterproc) then
-          write(iulog, '(2a)') 'ERROR: ', trim(errmsg)
-       end if
-       call endrun(trim(errmsg))
-    end if
-  end subroutine check_error
+    do k = 1, nz
+       call ESMF_GridDestroy(mag_s1_fdln_grid(k), rc=rc)
+       call check_error(subname, 'ESMF_GridDestroy', rc)
+    end do
+
+    deallocate(mag_s1_fdln_grid)
+
+  end subroutine edyn3d_esmf_s1_mag_grid_destroy
 
 end module edyn3d_esmf_s1_mag_grid_mod
