@@ -496,12 +496,15 @@ contains
     use edyn3d_esmf_phys_mesh_mod, only: edyn3d_esmf_phys_mesh_destroy
     use edyn3d_esmf_s1_mag_grid_mod, only: edyn3d_esmf_s1_mag_grid_destroy
     use edyn3d_esmf_s2_mag_grid_mod, only: edyn3d_esmf_s2_mag_grid_destroy
+    use edyn3d_hist_mag_grids_mod, only: edyn3d_hist_mag_grids_final
 
     call edyn3d_esmf_fields_rhandles_destroy()
     call edyn3d_esmf_oplus_grid_destroy()
     call edyn3d_esmf_phys_mesh_destroy()
     call edyn3d_esmf_s1_mag_grid_destroy()
     call edyn3d_esmf_s2_mag_grid_destroy()
+
+    call edyn3d_hist_mag_grids_final()
 
   end subroutine edyn3d_driver_final
 

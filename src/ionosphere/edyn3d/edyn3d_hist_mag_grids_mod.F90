@@ -16,6 +16,7 @@ module edyn3d_hist_mag_grids_mod
   public :: edyn3d_hist_mag_s1_out
   public :: edyn3d_hist_mag_s2_out
   public :: edyn3d_hist_mlonlat_out
+  public :: edyn3d_hist_mag_grids_final
 
   integer :: s1flpt0=1, s1flpt1=0
   integer :: s2flpt0=1, s2flpt1=0
@@ -63,11 +64,18 @@ contains
     real(r8), pointer :: maglats(:) => null()
     real(r8), pointer :: maglons(:) => null()
     real(r8) :: latmin, lonmin
+    integer :: astat
 
     character(len=*), parameter :: subname = 'edyn3d_hist_mag_grids_reg'
 
-    allocate(flpts1ndx(nhgt_fix,2,nmlat_h))
-    allocate(flpts2ndx(nhgt_fix,2,nmlatS2_h))
+    allocate(flpts1ndx(nhgt_fix,2,nmlat_h), stat=astat)
+    if (astat /= 0) then
+       call endrun(subname//': not able to allocate flpts1ndx')
+    end if
+    allocate(flpts2ndx(nhgt_fix,2,nmlatS2_h), stat=astat)
+    if (astat /= 0) then
+       call endrun(subname//': not able to allocate flpts2ndx')
+    end if
     flpts1ndx = -1
     flpts2ndx = -1
 
@@ -91,8 +99,16 @@ contains
     end do
     npts1_tot = 2*ncnt
 
-    allocate(latvals1(npts1_tot))
-    allocate(altvals1(npts1_tot))
+    allocate(latvals1(npts1_tot), stat=astat)
+    if (astat /= 0) then
+       call endrun(subname//': not able to allocate latvals1')
+    end if
+
+    allocate(altvals1(npts1_tot), stat=astat)
+    if (astat /= 0) then
+       call endrun(subname//': not able to allocate altvals1')
+    end if
+
     latvals1 = huge(1._r8)
     altvals1 = -huge(1._r8)
 
@@ -130,8 +146,14 @@ contains
     end do
     npts2_tot = 2*ncnt
 
-    allocate(latvals2(npts2_tot))
-    allocate(altvals2(npts2_tot))
+    allocate(latvals2(npts2_tot), stat=astat)
+    if (astat /= 0) then
+       call endrun(subname//': not able to allocate latvals2')
+    end if
+    allocate(altvals2(npts2_tot), stat=astat)
+    if (astat /= 0) then
+       call endrun(subname//': not able to allocate altvals2')
+    end if
     latvals2 = huge(1._r8)
     altvals2 = -huge(1._r8)
 
@@ -161,7 +183,10 @@ contains
        if (j==min(mlat1,nmlatS2_h)) s2flpt1 = ncnt
     end do
 
-    allocate(coord_map(s1flpt1-s1flpt0+1))
+    allocate(coord_map(s1flpt1-s1flpt0+1), stat=astat)
+    if (astat /= 0) then
+       call endrun(subname//': not able to allocate coord_map')
+    end if
     if (mlon0==1) then
        coord_map = (/ (i, i = s1flpt0,s1flpt1 ) /)
     else
@@ -171,7 +196,10 @@ contains
                                       'degrees_north', s1flpt0,s1flpt1, latvals1(s1flpt0:s1flpt1), map=coord_map)
     nullify(coord_map)
 
-    allocate(coord_map(s2flpt1-s2flpt0+1))
+    allocate(coord_map(s2flpt1-s2flpt0+1), stat=astat)
+    if (astat /= 0) then
+       call endrun(subname//': not able to allocate coord_map')
+    end if
     if (mlon0==1) then
        coord_map = (/ (i, i = s2flpt0,s2flpt1 ) /)
     else
@@ -185,7 +213,10 @@ contains
     lonvals1(1:nmlon) = rtd*ylonm_s(1:nmlon)
     lonvals2(1:nmlon) = rtd*ylonm(1:nmlon)
 
-    allocate(coord_map(mlon1-mlon0+1))
+    allocate(coord_map(mlon1-mlon0+1), stat=astat)
+    if (astat /= 0) then
+       call endrun(subname//': not able to allocate coord_map')
+    end if
     if (mlat0==1) then
        coord_map = (/ (i, i = mlon0,mlon1 ) /)
     else
@@ -198,7 +229,10 @@ contains
                                       'degrees_east', mlon0,mlon1, lonvals2(mlon0:mlon1), map=coord_map)
     nullify(coord_map)
 
-    allocate(grid_map(4, ((mlon1 - mlon0 + 1) * (s1flpt1 - s1flpt0 + 1))))
+    allocate(grid_map(4, ((mlon1 - mlon0 + 1) * (s1flpt1 - s1flpt0 + 1))), stat=astat)
+    if (astat /= 0) then
+       call endrun(subname//': not able to allocate grid_map')
+    end if
     grid_map = -huge(1_iMap)
     ind = 0
     do i = s1flpt0, s1flpt1
@@ -215,7 +249,10 @@ contains
 
     nullify(grid_map)
 
-    allocate(grid_map(4, ((mlon1 - mlon0 + 1) * (s2flpt1 - s2flpt0 + 1))))
+    allocate(grid_map(4, ((mlon1 - mlon0 + 1) * (s2flpt1 - s2flpt0 + 1))), stat=astat)
+    if (astat /= 0) then
+       call endrun(subname//': not able to allocate grid_map')
+    end if
     grid_map = -huge(1_iMap)
     ind = 0
     do i = s2flpt0, s2flpt1
@@ -247,9 +284,18 @@ contains
     if (mlat1==nmlat_h) mylatsize = mylatsize - 1 ! only one at equator
 
     !                    num-cols-per-chunk x num-local-chunks
-    allocate(grid_map(4,(mlon1 - mlon0 + 1) * mylatsize))
-    allocate(maglats(size(grid_map, 2)))
-    allocate(maglons(size(grid_map, 2)))
+    allocate(grid_map(4,(mlon1 - mlon0 + 1) * mylatsize), stat=astat)
+    if (astat /= 0) then
+       call endrun(subname//': not able to allocate grid_map')
+    end if
+    allocate(maglats(size(grid_map, 2)), stat=astat)
+    if (astat /= 0) then
+       call endrun(subname//': not able to allocate maglats')
+    end if
+    allocate(maglons(size(grid_map, 2)), stat=astat)
+    if (astat /= 0) then
+       call endrun(subname//': not able to allocate maglons')
+    end if
 
     ind = 0
     lcid = 0 ! local chunk number
@@ -281,7 +327,10 @@ contains
     latmin = ylatm(1,1) * rtd
     lonmin = ylonm(1) * rtd
 
-    allocate(coord_map(size(grid_map, 2)))
+    allocate(coord_map(size(grid_map, 2)), stat=astat)
+    if (astat /= 0) then
+       call endrun(subname//': not able to allocate grid_map')
+    end if
 
     where(maglats == latmin)
        coord_map(:) = grid_map(3, :)
@@ -428,5 +477,14 @@ contains
     end do hemi_loop
 
   end subroutine edyn3d_hist_mlonlat_out
+
+  !-----------------------------------------------------------------------------
+  !-----------------------------------------------------------------------------
+  subroutine edyn3d_hist_mag_grids_final()
+
+    deallocate(flpts1ndx)
+    deallocate(flpts2ndx)
+
+  end subroutine edyn3d_hist_mag_grids_final
 
 end module edyn3d_hist_mag_grids_mod
