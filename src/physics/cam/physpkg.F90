@@ -1060,7 +1060,7 @@ contains
     dqcore_idx = pbuf_get_index('DQCORE')
 
     call zm_test_init()
-    call zonal_fft_init(ntime_in=12)
+    call zonal_fft_init(ntime_in=16)
 
   end subroutine phys_init
 

@@ -57,6 +57,11 @@ contains
     call addfld('VWSTAR_cosp', (/'fft_num','lev    '/), 'I', '1', 'V*WSTAR cospectra', gridname='esmf_zonal_mean')
     call addfld('TWSTAR_cosp', (/'fft_num','lev    '/), 'I', '1', 'THETA*WSTAR cospectra', gridname='esmf_zonal_mean')
 
+    call addfld('MFLXXUP', (/'lev'/), 'I', '1', 'Positive unresolved zonal momentum flux', gridname='esmf_zonal_mean')
+    call addfld('MFLXXUN', (/'lev'/), 'I', '1', 'Negative unresolved zonal momentum flux', gridname='esmf_zonal_mean')
+    call addfld('MFLXYUP', (/'lev'/), 'I', '1', 'Positive unresolved meridianal momentum flux', gridname='esmf_zonal_mean')
+    call addfld('MFLXYUN', (/'lev'/), 'I', '1', 'Negative unresolved meridianal momentum flux', gridname='esmf_zonal_mean')
+
     ntime = ntime_in
     allocate(accum_cospectra_u( nftnum, lat_beg:lat_end, pver, ntime ))
     accum_cospectra_u = 0._r8
@@ -97,14 +102,17 @@ contains
     real(r8) :: latrad(lat_beg:lat_end)
     real(r8) :: rho(pver,pcols,begchunk:endchunk) ! air mass density
     real(r8) :: rhobar(lat_beg:lat_end, pver)
-    real(r8) :: mflxup(lat_beg:lat_end,pver), mflxun(lat_beg:lat_end,pver)
+
+    real(r8) :: mflxxup(lat_beg:lat_end,pver), mflxxun(lat_beg:lat_end,pver)
+    real(r8) :: mflxyup(lat_beg:lat_end,pver), mflxyun(lat_beg:lat_end,pver)
+
     real(r8) :: wvlxbeg, wvlxend
 
     real(r8),parameter :: pi = 4._r8*atan(1._r8)
     real(r8),parameter :: deg2rad = pi/180._r8
 
-    wvlxbeg = 2.e2_r8
-    wvlxend = 20.e2_r8
+    wvlxbeg = 200.e3_r8  ! 200 km
+    wvlxend = 20.e3_r8   ! 20 km
 
     call t_startf ('zonal_fft_calc')
 
@@ -166,14 +174,21 @@ contains
     call output_cosp(cospectra,'T')
 
     if (calc_frcings) then
-       call cospext(nftnum, lat_beg,lat_end, pver,ntime, latrad, accum_cospectra_u, wvlxbeg,wvlxend, mflxup,mflxun)
+       ! zonal component
+       call cospext(nftnum, lat_beg,lat_end, pver,ntime, latrad, accum_cospectra_u, wvlxbeg,wvlxend, mflxxup,mflxxun)
 
-       call cospext(nftnum, lat_beg,lat_end, pver,ntime, latrad, accum_cospectra_v, wvlxbeg,wvlxend, mflxup,mflxun)
+       ! meridianal component
+       call cospext(nftnum, lat_beg,lat_end, pver,ntime, latrad, accum_cospectra_v, wvlxbeg,wvlxend, mflxyup,mflxyun)
+
+       do icol = lat_beg, lat_end
+          call outfld('MFLXXUP', mflxxup(icol,:),1,icol)
+          call outfld('MFLXXUN', mflxxun(icol,:),1,icol)
+          call outfld('MFLXYUP', mflxyup(icol,:),1,icol)
+          call outfld('MFLXYUN', mflxyun(icol,:),1,icol)
+       end do
 
        accum_cospectra_u = 0.0
        accum_cospectra_v = 0.0
-
-
     end if
 
     call t_stopf ('zonal_fft_calc')

@@ -6,7 +6,7 @@
 !
 !  !! Calculate vertical divergence to get zonal mean zonal and meridonal forcing
 !
-!  !! rbar is the zonal mean mass density
+!  !! rbar is the zonal mean mass density ( u = unresolved scale , x = zonal direction, y = meridianal)
 !
 !  fzonal(:,k) = -((mflxxup(:,k-1)+mfluxxun(:,k-1))*rbar(:,k-1)-(mflxxup(:,k+1)+mflxxun(:,k+1))*rbar(:,k+1))/
 !                 (pmid(k-1)-pmid(k+1))/rbar(:,k)
@@ -24,14 +24,15 @@
 !  ...
 
 module cospext_mod
-  use shr_kind_mod, only: r8 => shr_kind_r8
-  use physconst, only: pi, rearth ! meters
+  use shr_kind_mod, only: r8 => SHR_KIND_R8
+  use shr_const_mod,only: pi => SHR_CONST_PI
+  use shr_const_mod,only: rearth => SHR_CONST_REARTH ! meters
 
   implicit none
 
+  real(r8), parameter :: NOTSET = -huge(1._r8)
+
 contains
-
-
 
   !! This subroutine should be called once per day. The cospectra should be collected either every hour (if the calculation is
   !! is expensive), or every time step (if the calculation is not so expensive), or somewhere in between.
@@ -91,21 +92,19 @@ contains
 
 
   subroutine spectral_separate(nftnum,lat_beg,lat_end,pver,ntime,cspr,csprp,csprn)
-    integer, intent(in) :: nftnum,lat_beg,lat_end,pver,ntime
 
+    integer, intent(in) :: nftnum,lat_beg,lat_end,pver,ntime
     real(r8), intent(in) :: cspr(nftnum, lat_beg:lat_end, pver, ntime)  !! co-spectra resolved by the model
+
     !! csprp: cospectra that is positive and averaged over the accumulated time period
     !! csprn: cospectra that is negative and averaged over the accumulated time period
-
     real(r8), intent(out) :: csprp(nftnum, lat_beg:lat_end, pver),csprn(nftnum, lat_beg:lat_end, pver)
 
     !! csprps: cospectra that is positive at each time slice
     !! csprns: cospectra that is negative at each time slice
     real(r8) :: csprps(nftnum,lat_beg:lat_end,pver,ntime),csprns(nftnum,lat_beg:lat_end,pver,ntime)
-    real(r8) :: wrk(nftnum), wrk1(ntime)
-    integer :: indxp(nftnum), indxn(nftnum)  !! dimension upto nftnum, not sure whether to use allocatable or just nftnum
-    integer :: indxp1(nftnum), indxn1(nftnum)  !! dimension upto nftnum
-    integer :: i,j,k,it
+    real(r8) :: wrk1(ntime)
+    integer :: i,j,k
     integer :: npos, nneg
 
     csprps = 0._r8
@@ -114,43 +113,32 @@ contains
     csprn = 0._r8
 
     !! separate out the positve and negative spectral component at each time step
-    do it = 1, ntime
-       do k = 1, pver
-          do j = lat_beg,lat_end
-             wrk = cspr(:, j, k, it)
-             indxp = pack(([(i, i=1, size(wrk))]), wrk > 0)      ! Not too sure about this. Translated from IDL by ChatGPT
-             npos = size(indxp)
-             indxn = pack(([(i, i=1, size(wrk))]), wrk < 0)
-             nneg = size(indxn)
-             if (npos > 0) then
-                csprps(indxp, j, k, it) = wrk(indxp)
-             endif
-             if (nneg > 0) then
-                csprns(indxn, j, k, it) = wrk(indxn)
-             endif
-          end do
-       end do
-    end do
+
+    where(cspr>0._r8)
+       csprps = cspr
+    end where
+    where(cspr<0._r8)
+       csprns = cspr
+    end where
 
     !! Find the average positive and negative cospectral components
 
     do k = 1, pver
        do j = lat_beg, lat_end
           do i = 1, nftnum
+
              wrk1 = csprps(i, j, k, :)
-             indxp1 = pack(([(it, it = 1, size(wrk1))]), wrk1 /= 0)
-             npos = size(indxp1)
+             npos = count(wrk1/=0._r8)
              if (npos /= 0) then
-                csprp(i, j, k) = sum(wrk1(indxp1)) / real(npos)
-             endif
+                csprp(i, j, k) = sum(wrk1) / real(npos,kind=r8)
+             end if
 
              wrk1 = csprns(i, j, k, :)
-             indxn1 = pack(([(it, it = 1, size(wrk1))]), wrk1 /= 0)
-             nneg = size(indxn1)
-
+             nneg = count(wrk1/=0._r8)
              if (nneg /= 0) then
-                csprn(i, j, k) = sum(wrk1(indxn1)) / real(nneg)
-             endif
+                csprn(i, j, k) = sum(wrk1) / real(nneg,kind=r8)
+             end if
+
           end do
        end do
     end do
@@ -168,9 +156,15 @@ contains
 
     do k = 1,pver
        do j=lat_beg,lat_end
-          silm = sum(spct(kxl(j):2*kxl(j),j,k))
-          simr = sum(spct(2*kxl(j):4*kxl(j),j,k))
-          slp(j,k) = 1._r8-log(simr/silm)/log(2._r8)
+          if (kxl(j)>0) then
+             silm = sum(spct(kxl(j):2*kxl(j),j,k))
+             simr = sum(spct(2*kxl(j):4*kxl(j),j,k))
+             if (silm>0.0_r8 .and. simr>0.0_r8) then
+                slp(j,k) = 1._r8-log(simr/silm)/log(2._r8)
+             else
+                slp(j,k) = NOTSET
+             end if
+          end if
        enddo
     enddo
 
@@ -180,26 +174,38 @@ contains
   subroutine scale_unres(nftnum,lat_beg,lat_end,pver,kxl,kxbeg,kxend,csprp,csprn,slpp,slpn,mflxup,mflxun)
 
     integer,  intent(in)  :: nftnum,lat_beg,lat_end,pver
-    real(r8), intent(in)  :: csprp(nftnum,lat_beg:lat_end,pver),csprn(nftnum,lat_beg:lat_end,pver)
-    integer,  intent(in)  :: kxl(lat_beg:lat_end),kxbeg(lat_beg:lat_end),kxend(lat_beg:lat_end)
-    real(r8), intent(in)  :: slpp(lat_beg:lat_end,pver),slpn(lat_beg:lat_end,pver)
+    real(r8), intent(in)  :: csprp(nftnum,lat_beg:lat_end,pver)
+    real(r8), intent(in)  :: csprn(nftnum,lat_beg:lat_end,pver)
+    integer,  intent(in)  :: kxl(lat_beg:lat_end)
+    integer,  intent(in)  :: kxbeg(lat_beg:lat_end)
+    integer,  intent(in)  :: kxend(lat_beg:lat_end)
+    real(r8), intent(in)  :: slpp(lat_beg:lat_end,pver)
+    real(r8), intent(in)  :: slpn(lat_beg:lat_end,pver)
 
-    real(r8), intent(out) :: mflxup(lat_beg:lat_end,pver),mflxun(lat_beg:lat_end,pver)
+    real(r8), intent(out) :: mflxup(lat_beg:lat_end,pver)
+    real(r8), intent(out) :: mflxun(lat_beg:lat_end,pver)
 
     real(r8) :: siresp, siresn, bp, bn, fp, fn
     integer :: j,k
 
+    mflxup = 0._r8
+    mflxun = 0._r8
+
     do k=1,pver
        do j=lat_beg,lat_end
           if (kxl(j) > 2) then
-             siresp = sum(csprp(kxl(j):kxbeg(j),j,k),1)
-             siresn = sum(csprn(kxl(j):kxbeg(j),j,k),1)
-             bp = 1._r8-slpp(j,k)
-             fp = (real(kxend(j))**bp-real(kxbeg(j))**bp)/(real(kxbeg(j))**bp-real(kxl(j))**bp)
-             mflxup(j,k) = siresp*fp
-             bn = 1._r8-slpn(j,k)
-             fn = (real(kxend(j))**bn-real(kxbeg(j))**bn)/(real(kxbeg(j))**bn-real(kxl(j))**bn)
-             mflxun(j,k) = siresn*fn
+             if (slpp(j,k)/=NOTSET.and.slpp(j,k)/=1._r8) then
+                siresp = sum(csprp(kxl(j):kxbeg(j),j,k),1)
+                bp = 1._r8-slpp(j,k)
+                fp = (real(kxend(j),r8)**bp-real(kxbeg(j),r8)**bp)/(real(kxbeg(j),r8)**bp-real(kxl(j),r8)**bp)
+                mflxup(j,k) = siresp*fp
+             end if
+             if (slpn(j,k)/=NOTSET.and.slpn(j,k)/=1._r8) then
+                siresn = sum(csprn(kxl(j):kxbeg(j),j,k),1)
+                bn = 1._r8-slpn(j,k)
+                fn = (real(kxend(j),r8)**bn-real(kxbeg(j),r8)**bn)/(real(kxbeg(j),r8)**bn-real(kxl(j),r8)**bn)
+                mflxun(j,k) = siresn*fn
+             end if
           endif
        enddo
     enddo
