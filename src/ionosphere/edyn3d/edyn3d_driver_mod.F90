@@ -142,12 +142,13 @@ contains
     call addfld ('IonV_s2', horiz_only, 'I', 'm/s','Meridional Ion Drift Velocity on s1 grid', gridname='magfline_s2')
     call addfld ('IonW_s2', horiz_only, 'I', 'm/s','Verical Ion Drift Velocity on s1 grid', gridname='magfline_s2')
 
+    call addfld ('IonU_opg', (/ 'lev' /), 'I', 'm/s','Zonal Ion Drift Velocity on oplus grid' , gridname='geo_grid')
+    call addfld ('IonV_opg', (/ 'lev' /), 'I', 'm/s','Meridional Ion Drift Velocity on oplus grid' , gridname='geo_grid')
+    call addfld ('IonW_opg', (/ 'lev' /), 'I', 'm/s','Vertical Ion Drift Velocity on oplus grid' , gridname='geo_grid')
+
     call addfld ('ELECPOTEN', horiz_only, 'I', 'Volts','Electric potential', gridname='geomag_grid')
     call addfld ('HILAT_POT', horiz_only, 'I', 'Volts','High-Latitude potential', gridname='geomag_grid')
     call addfld ('HILAT_FAC', horiz_only, 'I', '???','High-Latitude field-aligned current', gridname='geomag_grid')
-
-    call addfld ('MLON_TEST', horiz_only, 'I', 'deg','Test fld', gridname='geomag_grid')
-    call addfld ('MLAT_TEST', horiz_only, 'I', 'deg','Test fld', gridname='geomag_grid')
 
     read_fac = .false. ! prescribed high-lat potential (pot_hl) will be provided
 
@@ -188,6 +189,7 @@ contains
     use fieldline_module
     use params_module, only: ylonm, ylatm
     use cons_module, only: rtd
+    use cam_history,  only: outfld
 
     integer,  intent(in) :: nphyscol, nphyslev
     real(r8), intent(in) :: physalt(nphyslev,nphyscol)
@@ -266,9 +268,9 @@ contains
     real(r8) :: vx_s1(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1)
     real(r8) :: vy_s1(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1)
     real(r8) :: vz_s1(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1)
-    real(r8) :: vx_s2(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1)
-    real(r8) :: vy_s2(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1)
-    real(r8) :: vz_s2(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1)
+    real(r8),target :: vx_s2(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1)
+    real(r8),target :: vy_s2(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1)
+    real(r8),target :: vz_s2(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1)
 
     real(r8) :: maglon(2,mlat0:mlat1,mlon0:mlon1)
     real(r8) :: maglat(2,mlat0:mlat1,mlon0:mlon1)
@@ -446,14 +448,14 @@ contains
             mlatd0,mlatd1,mlond0,mlond1, &
             pot_p,ed1_s1,ed2_s1,ed1_s2,ed2_s2)
 
-       ! calculate drift velocity
+       ! calculate drift velocities
        call calculate_ve( &
             mlatd0,mlatd1,mlond0,mlond1, &
             ed1_s1,ed2_s1,be3_s1(1,:,:,:), &
             ed1_s2,ed2_s2,be3_s2(1,:,:,:), &
             ve1_s1,ve2_s1,ve1_s2,ve2_s2)
 
-       ! calculate drift velocity in geographic coordinates
+       ! calculate drift velocities in geographic coordinates
        call calculate_vxyz( &
             mlatd0,mlatd1,mlond0,mlond1,npts_s1,npts_s2, &
             ve1_s1,ve2_s1,e1_s1,e2_s1, &
@@ -467,22 +469,30 @@ contains
        call edyn3d_hist_mag_s2_out('IonU_s2',vx_s2(:,:,mlat0:mlat1,mlon0:mlon1))
        call edyn3d_hist_mag_s2_out('IonV_s2',vy_s2(:,:,mlat0:mlat1,mlon0:mlon1))
        call edyn3d_hist_mag_s2_out('IonW_s2',vz_s2(:,:,mlat0:mlat1,mlon0:mlon1))
-
-       do isn = 1,2
-          do j = mlat0,mlat1
-             do i = mlon0,mlon1
-
-                maglat(isn,j,i) = ylatm(isn,j) * rtd
-                maglon(isn,j,i) = ylonm(i) * rtd
-
-             end do
-          end do
-       end do
-
-       call edyn3d_hist_mlonlat_out('MLON_TEST', maglon )
-       call edyn3d_hist_mlonlat_out('MLAT_TEST', maglat )
-
     end if
+
+    ! map ion vels to oplus xport grid (geographic)
+    magsrc_flds_bndl(1)%fld => vx_s2
+    magsrc_flds_bndl(2)%fld => vy_s2
+    magsrc_flds_bndl(3)%fld => vz_s2
+
+    oplus_flds_bndl(1)%fld => ui_oplus
+    oplus_flds_bndl(2)%fld => vi_oplus
+    oplus_flds_bndl(3)%fld => wi_oplus
+
+    call t_startf(subname//'->regrid_phys2geo_3d')
+    call regrid_phys2geo_3d( physalt, opalt, nphyslev, 1, nphyscol )
+    call t_stopf(subname//'->regrid_phys2geo_3d')
+
+    call t_startf(subname//'->remap_mag2oplus')
+    call edyn3d_remap_mag2oplus( magsrc_flds_bndl, opalt, oplus_flds_bndl )
+    call t_stopf(subname//'->remap_mag2oplus')
+
+    do j = lat0,lat1
+       call outfld( 'IonU_opg', ui_oplus(lon0:lon1,j,lev0:lev1), lon1-lon0+1, j )
+       call outfld( 'IonV_opg', vi_oplus(lon0:lon1,j,lev0:lev1), lon1-lon0+1, j )
+       call outfld( 'IonW_opg', wi_oplus(lon0:lon1,j,lev0:lev1), lon1-lon0+1, j )
+    end do
 
     call t_stopf(subname)
 
