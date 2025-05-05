@@ -4,13 +4,14 @@ module gw_nlgw
 ! This module predicts gravity wave forcings via PyTorch NNs trained to include non-local gravity wave effects
 !
 
-use gw_utils, only: r8
+use gw_utils, only: r8, r4
 use ppgrid,   only: pver !vertical levels
 use physics_types,  only: physics_state, physics_ptend
 use spmd_utils,     only: mpicom, mstrid=>masterprocid, masterproc, mpi_real8
 use cam_abortutils, only: endrun
 use cam_logfile,    only: iulog
-use physconst, only: cappa
+use physconst,      only: cappa, pi
+use interpolate_data, only: lininterp
 
 use ftorch
 
@@ -21,7 +22,6 @@ public :: gw_nlgw_dp_ml, gw_nlgw_dp_init, gw_nlgw_dp_finalize
 private
 
 integer, parameter :: p0 = 100000 ! 1000 hPa (Pa)
-integer, parameter :: num_levels = 122 ! From WACCM
 
 type(torch_model) :: nlgw_model ! pytorch model
 
@@ -41,20 +41,64 @@ real(r8), dimension(:,:), allocatable :: &
   pmid      ! midpoint pressure (Pa)
 
 real(r8), dimension(:,:), allocatable :: &
+  uflux,   &! zonal wind flux
+  vflux,   &! meridional wind flux
   utgw,    &! zonal wind tendency
   vtgw      ! meridional wind tendency
 
-real(r8), dimension(:,:), allocatable, target :: net_inputs
-real(r8), dimension(:,:), allocatable, target :: net_outputs
+real(r4), dimension(:,:), allocatable, target :: net_inputs
+real(r4), dimension(:,:), allocatable, target :: net_outputs
 
 ! normalisation means and std devs
 real(r8) :: u_mean, v_mean, omega_mean, theta_mean, lat_mean, lon_mean
 real(r8) :: u_std, v_std, omega_std, theta_std, lat_std, lon_std
 
-real(r8) :: utgw_mean, vtgw_mean
-real(r8) :: utgw_std, vtgw_std
+real(r8) :: uflux_mean, vflux_mean
+real(r8) :: uflux_std, vflux_std
 
-real(r8) :: era5_ak = (
+integer, parameter :: pver_interp = 122 ! number of levels in ERA5
+
+real(r8), parameter :: era5_ak(137) = [ &
+            1.000000000e+00_r8, 2.550781250e+00_r8, 3.884765625e+00_r8, 5.746093750e+00_r8, 8.289062500e+00_r8, 1.167968750e+01_r8, 1.610937500e+01_r8, 2.179687500e+01_r8, &
+            2.898437500e+01_r8, 3.793750000e+01_r8, 4.890625000e+01_r8, 6.225000000e+01_r8, 7.818750000e+01_r8, 9.712500000e+01_r8, 1.194375000e+02_r8, 1.453750000e+02_r8, &
+            1.752500000e+02_r8, 2.096250000e+02_r8, 2.487500000e+02_r8, 2.930000000e+02_r8, 3.427500000e+02_r8, 3.982500000e+02_r8, 4.600000000e+02_r8, 5.285000000e+02_r8, &
+            6.040000000e+02_r8, 6.865000000e+02_r8, 7.770000000e+02_r8, 8.750000000e+02_r8, 9.820000000e+02_r8, 1.097000000e+03_r8, 1.221000000e+03_r8, 1.355000000e+03_r8, &
+            1.498000000e+03_r8, 1.651000000e+03_r8, 1.813000000e+03_r8, 1.987000000e+03_r8, 2.170000000e+03_r8, 2.366000000e+03_r8, 2.572000000e+03_r8, 2.788000000e+03_r8, &
+            3.018000000e+03_r8, 3.258000000e+03_r8, 3.512000000e+03_r8, 3.776000000e+03_r8, 4.054000000e+03_r8, 4.344000000e+03_r8, 4.644000000e+03_r8, 4.960000000e+03_r8, &
+            5.288000000e+03_r8, 5.624000000e+03_r8, 5.976000000e+03_r8, 6.340000000e+03_r8, 6.720000000e+03_r8, 7.112000000e+03_r8, 7.520000000e+03_r8, 7.944000000e+03_r8, &
+            8.384000000e+03_r8, 8.840000000e+03_r8, 9.320000000e+03_r8, 9.816000000e+03_r8, 1.032800000e+04_r8, 1.084800000e+04_r8, 1.139200000e+04_r8, 1.193600000e+04_r8, &
+            1.248800000e+04_r8, 1.304800000e+04_r8, 1.360000000e+04_r8, 1.416000000e+04_r8, 1.470400000e+04_r8, 1.524000000e+04_r8, 1.576800000e+04_r8, 1.628000000e+04_r8, &
+            1.676800000e+04_r8, 1.723200000e+04_r8, 1.768000000e+04_r8, 1.811200000e+04_r8, 1.849600000e+04_r8, 1.886400000e+04_r8, 1.918400000e+04_r8, 1.948800000e+04_r8, &
+            1.974400000e+04_r8, 1.995200000e+04_r8, 2.014400000e+04_r8, 2.027200000e+04_r8, 2.036800000e+04_r8, 2.043200000e+04_r8, 2.043200000e+04_r8, 2.040000000e+04_r8, &
+            2.030400000e+04_r8, 2.017600000e+04_r8, 1.998400000e+04_r8, 1.974400000e+04_r8, 1.945600000e+04_r8, 1.910400000e+04_r8, 1.870400000e+04_r8, 1.825600000e+04_r8, &
+            1.774400000e+04_r8, 1.718400000e+04_r8, 1.657600000e+04_r8, 1.592800000e+04_r8, 1.524800000e+04_r8, 1.453600000e+04_r8, 1.380000000e+04_r8, 1.304800000e+04_r8, &
+            1.228800000e+04_r8, 1.152000000e+04_r8, 1.075200000e+04_r8, 9.992000000e+03_r8, 9.248000000e+03_r8, 8.520000000e+03_r8, 7.816000000e+03_r8, 7.136000000e+03_r8, &
+            6.488000000e+03_r8, 5.868000000e+03_r8, 5.280000000e+03_r8, 4.724000000e+03_r8, 4.208000000e+03_r8, 3.722000000e+03_r8, 3.274000000e+03_r8, 2.858000000e+03_r8, &
+            2.476000000e+03_r8, 2.128000000e+03_r8, 1.810000000e+03_r8, 1.524000000e+03_r8, 1.265000000e+03_r8, 1.035000000e+03_r8, 8.310000000e+02_r8, 6.515000000e+02_r8, &
+            4.962500000e+02_r8, 3.635000000e+02_r8, 2.525000000e+02_r8, 1.622500000e+02_r8, 9.243750000e+01_r8, 4.281250000e+01_r8, 1.329687500e+01_r8, 1.878906250e+00_r8, &
+            0.000000000e+00_r8]
+
+real(r8), parameter :: era5_bk(137) = [ &
+            0.0000000000e+00_r8, 0.0000000000e+00_r8, 0.0000000000e+00_r8, 0.0000000000e+00_r8, 0.0000000000e+00_r8, 0.0000000000e+00_r8, 0.0000000000e+00_r8, 0.0000000000e+00_r8, &
+            0.0000000000e+00_r8, 0.0000000000e+00_r8, 0.0000000000e+00_r8, 0.0000000000e+00_r8, 0.0000000000e+00_r8, 0.0000000000e+00_r8, 0.0000000000e+00_r8, 0.0000000000e+00_r8, &
+            0.0000000000e+00_r8, 0.0000000000e+00_r8, 0.0000000000e+00_r8, 0.0000000000e+00_r8, 0.0000000000e+00_r8, 0.0000000000e+00_r8, 0.0000000000e+00_r8, 0.0000000000e+00_r8, &
+            0.0000000000e+00_r8, 0.0000000000e+00_r8, 0.0000000000e+00_r8, 0.0000000000e+00_r8, 0.0000000000e+00_r8, 0.0000000000e+00_r8, 0.0000000000e+00_r8, 0.0000000000e+00_r8, &
+            0.0000000000e+00_r8, 0.0000000000e+00_r8, 0.0000000000e+00_r8, 0.0000000000e+00_r8, 0.0000000000e+00_r8, 0.0000000000e+00_r8, 0.0000000000e+00_r8, 0.0000000000e+00_r8, &
+            0.0000000000e+00_r8, 0.0000000000e+00_r8, 0.0000000000e+00_r8, 0.0000000000e+00_r8, 0.0000000000e+00_r8, 0.0000000000e+00_r8, 0.0000000000e+00_r8, 0.0000000000e+00_r8, &
+            0.0000000000e+00_r8, 0.0000000000e+00_r8, 0.0000000000e+00_r8, 0.0000000000e+00_r8, 0.0000000000e+00_r8, 0.0000000000e+00_r8, 2.9802322387e-06_r8, 1.5974044799e-05_r8, &
+            4.1007995605e-05_r8, 8.4996223449e-05_r8, 1.5604496002e-04_r8, 2.6893615722e-04_r8, 4.5108795166e-04_r8, 7.2622299194e-04_r8, 1.1224746704e-03_r8, 1.6717910766e-03_r8, &
+            2.4242401123e-03_r8, 3.4141540527e-03_r8, 4.6730041503e-03_r8, 6.2561035156e-03_r8, 8.1939697265e-03_r8, 1.0536193847e-02_r8, 1.3313293457e-02_r8, 1.6571044921e-02_r8, &
+            2.0339965820e-02_r8, 2.4658203125e-02_r8, 2.9571533203e-02_r8, 3.5095214843e-02_r8, 4.1290283203e-02_r8, 4.8156738281e-02_r8, 5.5755615234e-02_r8, 6.4086914062e-02_r8, &
+            7.3181152343e-02_r8, 8.3129882812e-02_r8, 9.3872070312e-02_r8, 1.0546875000e-01_r8, 1.1798095703e-01_r8, 1.3134765625e-01_r8, 1.4575195312e-01_r8, 1.6101074218e-01_r8, &
+            1.7724609375e-01_r8, 1.9458007812e-01_r8, 2.1289062500e-01_r8, 2.3229980468e-01_r8, 2.5268554687e-01_r8, 2.7441406250e-01_r8, 2.9687500000e-01_r8, 3.2080078125e-01_r8, &
+            3.4570312500e-01_r8, 3.7133789062e-01_r8, 3.9770507812e-01_r8, 4.2480468750e-01_r8, 4.5214843750e-01_r8, 4.7998046875e-01_r8, 5.0781250000e-01_r8, 5.3564453125e-01_r8, &
+            5.6298828125e-01_r8, 5.9033203125e-01_r8, 6.1669921875e-01_r8, 6.4306640625e-01_r8, 6.6796875000e-01_r8, 6.9287109375e-01_r8, 7.1630859375e-01_r8, 7.3876953125e-01_r8, &
+            7.6025390625e-01_r8, 7.8076171875e-01_r8, 8.0029296875e-01_r8, 8.1835937500e-01_r8, 8.3544921875e-01_r8, 8.5156250000e-01_r8, 8.6669921875e-01_r8, 8.8085937500e-01_r8, &
+            8.9355468750e-01_r8, 9.0576171875e-01_r8, 9.1699218750e-01_r8, 9.2675781250e-01_r8, 9.3652343750e-01_r8, 9.4482421875e-01_r8, 9.5263671875e-01_r8, 9.5996093750e-01_r8, &
+            9.6630859375e-01_r8, 9.7216796875e-01_r8, 9.7753906250e-01_r8, 9.8242187500e-01_r8, 9.8632812500e-01_r8, 9.9023437500e-01_r8, 9.9365234375e-01_r8, 9.9609375000e-01_r8, &
+            9.9902343750e-01_r8]
+
+
 
 contains
 
@@ -68,8 +112,6 @@ subroutine gw_nlgw_dp_ml(state_in, ptend)
   type(physics_ptend), intent(inout) :: ptend
 
   !---------------------------Local storage-------------------------------
-  integer :: i
-
   type(torch_tensor) :: tensor_in(1), tensor_out(1)
   integer :: ninputs = 1, noutputs = 1
   integer, dimension(2) :: layout = [1 , 2]
@@ -87,11 +129,13 @@ subroutine gw_nlgw_dp_ml(state_in, ptend)
   allocate(theta(ncol,pver))
   allocate(omega(ncol,pver))
 
+  allocate(uflux(ncol,pver))
+  allocate(vflux(ncol,pver))
   allocate(utgw(ncol,pver))
   allocate(vtgw(ncol,pver))
 
-  allocate(net_inputs(ncol, 4*num_levels+3))
-  allocate(net_outputs(ncol, 2*num_levels))
+  allocate(net_inputs(ncol, 4*pver_interp+3))
+  allocate(net_outputs(ncol, 2*pver_interp))
 
   ! dims = (ncol) TODO check ncol size vs gw_drag
   lat = state_in%lat
@@ -122,8 +166,8 @@ subroutine gw_nlgw_dp_ml(state_in, ptend)
   call extract_output()
   call denormalise_data()
 
-!  utgw = -d(u_flux)/dp
-!  vtgw = -d(v_flux)/dp
+  call flux_to_forcing(uflux, utgw)
+  call flux_to_forcing(vflux, vtgw)
 
   ! update the tendencies
   ptend%u(:ncol,:) = ptend%u(:ncol,:) + utgw(:,:)
@@ -144,6 +188,8 @@ subroutine gw_nlgw_dp_ml(state_in, ptend)
   deallocate(theta)
   deallocate(omega)
 
+  deallocate(uflux)
+  deallocate(vflux)
   deallocate(utgw)
   deallocate(vtgw)
 
@@ -155,8 +201,8 @@ end subroutine gw_nlgw_dp_ml
 
 subroutine gw_nlgw_dp_init(neural_net_path, norms_path)
 
-  character(len=132), intent(in) :: neural_net_path  ! Filepath to PyTorch Torchscript net
-  character(len=132), intent(in) :: norms_path       ! Filepath to NetCDF normalisation weights
+  character(len=*), intent(in) :: neural_net_path  ! Filepath to PyTorch Torchscript net
+  character(len=*), intent(in) :: norms_path       ! Filepath to NetCDF normalisation weights
 
   ! Load the convective drag net from TorchScript file
   call torch_model_load(nlgw_model, neural_net_path, device_type=torch_kCUDA, device_index=0)
@@ -231,15 +277,26 @@ subroutine read_norms()
   theta_std = 1000._r8
   omega_std = 0.017021397434040318_r8
 
-  utgw_mean = -0.0005112474139891424_r8
-  vtgw_mean = -0.0002982954242187403_r8
-  utgw_std = 0.0050768547492663395_r8
-  vtgw_std = 0.003792741148955207_r8
+  uflux_mean = -0.0005112474139891424_r8
+  vflux_mean = -0.0002982954242187403_r8
+  uflux_std = 0.0050768547492663395_r8
+  vflux_std = 0.003792741148955207_r8
 
 end subroutine read_norms
 
 subroutine normalise_data()
 
+  ! print * , "min/max lat = " , minval(lat)   , " : " , maxval(lat)
+  ! print * , "min/max lon = " , minval(lon)   , " : " , maxval(lon)
+  ! print * , "min/max phi = " , minval(phis)  , " : " , maxval(phis)
+  ! print * , "min/max u   = " , minval(u)     , " : " , maxval(u)
+  ! print * , "min/max v   = " , minval(v)     , " : " , maxval(v)
+  ! print * , "min/max the = " , minval(theta) , " : " , maxval(theta)
+  ! print * , "min/max ome = " , minval(omega) , " : " , maxval(omega)
+
+  ! lat lon are in radians (convert to degrees first)
+  lat = lat * 180. / pi
+  lon = lon * 180. / pi
   lat = (lat-lat_mean)/lat_std
   lon = (lon-lon_mean)/lon_std
   phis = phis / 50000._r8
@@ -247,60 +304,131 @@ subroutine normalise_data()
   v = (v-v_mean)/v_std
   theta = (theta-theta_mean)/theta_std
   omega = (omega-omega_mean)/omega_std
-  omega = omega ** (1.0/3.0) ! cube root of omega
+  omega = cbrt(omega)
 
-  ! TODO :: currently there is no scaling for phis?
-
-  print * , "min/max lat = " , minval(lat)   , " : " , maxval(lat)
-  print * , "min/max lon = " , minval(lon)   , " : " , maxval(lon)
-  print * , "min/max phi = " , minval(phis)  , " : " , maxval(phis)
-  print * , "min/max u   = " , minval(u)     , " : " , maxval(u)
-  print * , "min/max v   = " , minval(v)     , " : " , maxval(v)
-  print * , "min/max the = " , minval(theta) , " : " , maxval(theta)
-  print * , "min/max ome = " , minval(omega) , " : " , maxval(omega)
+  ! print * , "min/max lat = " , minval(lat)   , " : " , maxval(lat)
+  ! print * , "min/max lon = " , minval(lon)   , " : " , maxval(lon)
+  ! print * , "min/max phi = " , minval(phis)  , " : " , maxval(phis)
+  ! print * , "min/max u   = " , minval(u)     , " : " , maxval(u)
+  ! print * , "min/max v   = " , minval(v)     , " : " , maxval(v)
+  ! print * , "min/max the = " , minval(theta) , " : " , maxval(theta)
+  ! print * , "min/max ome = " , minval(omega) , " : " , maxval(omega)
 
 end subroutine normalise_data
 
 subroutine construct_input()
 
-  integer :: idx_beg, idx_end
+  ! temporary arrays for interpolated values
+  real(r8), dimension(:,:), allocatable :: &
+    u_interp,       &! zonal wind (m/s)
+    v_interp,       &! meridional wind (m/s)
+    omega_interp,   &! vertical pressure velocity (Pa/s)
+    theta_interp,   &! potential temperature (K)
+    pmid_interp      ! midpoint pressure (Pa)
+
+  integer :: idx_beg, idx_end, i
+
+  allocate(pmid_interp(ncol,pver_interp))
+  allocate(u_interp(ncol,pver_interp))
+  allocate(v_interp(ncol,pver_interp))
+  allocate(theta_interp(ncol,pver_interp))
+  allocate(omega_interp(ncol,pver_interp))
+
+  do i = 1, ncol
+    pmid_interp(i,:) = era5_ak(137-pver_interp+1:) + ps(i) * era5_bk(137-pver_interp+1:)
+    call lininterp(u(i,:), pmid(i,:), pver, u_interp(i,:), pmid_interp(i,:), pver_interp)
+    call lininterp(v(i,:), pmid(i,:), pver, v_interp(i,:), pmid_interp(i,:), pver_interp)
+    call lininterp(theta(i,:), pmid(i,:), pver, theta_interp(i,:), pmid_interp(i,:), pver_interp)
+    call lininterp(omega(i,:), pmid(i,:), pver, omega_interp(i,:), pmid_interp(i,:), pver_interp)
+  end do
 
   net_inputs(:,1) = lat
   net_inputs(:,2) = lon
   net_inputs(:,3) = phis
 
-  call interp(u, u_interp)
+  idx_end = 3 ! last index written to was phis at position 3
+  idx_beg = idx_end + 1
+  idx_end = idx_beg + pver_interp - 1
+  net_inputs(:,idx_beg:idx_end) = u_interp
+  idx_beg = idx_end + 1
+  idx_end = idx_beg + pver_interp - 1
+  net_inputs(:,idx_beg:idx_end) = v_interp
+  idx_beg = idx_end + 1
+  idx_end = idx_beg + pver_interp - 1
+  net_inputs(:,idx_beg:idx_end) = theta_interp
+  idx_beg = idx_end + 1
+  idx_end = idx_beg + pver_interp - 1
+  net_inputs(:,idx_beg:idx_end) = omega_interp
 
-  idx_beg = idx_end + 1
-  idx_end = idx_beg + num_levels
-  net_inputs(:,idx_beg:idx_end) = u
-  idx_beg = idx_end + 1
-  idx_end = idx_beg + num_levels
-  net_inputs(:,idx_beg:idx_end) = v
-  idx_beg = idx_end + 1
-  idx_end = idx_beg + num_levels
-  net_inputs(:,idx_beg:idx_end) = theta
-  idx_beg = idx_end + 1
-  idx_end = idx_beg + num_levels
-  net_inputs(:,idx_beg:idx_end) = omega
-
-!  u(0km:80km) 93 level -> input(0:50km) 122 levels xi0  = 0 xi121 = 50
-! TODO add interpolation (msg Aman about pressure level grids)
+  deallocate(pmid_interp)
+  deallocate(u_interp)
+  deallocate(v_interp)
+  deallocate(theta_interp)
+  deallocate(omega_interp)
 
 end subroutine construct_input
 
 subroutine extract_output()
 
-  u_flux(:, :) = net_outputs(:,:num_levels)
-  v_flux(:, :) = net_outputs(:,num_levels+1:)
+  ! temporary arrays for interpolated values
+  real(r8), dimension(:,:), allocatable :: &
+    uflux_interp,       &! zonal wind (m/s)
+    vflux_interp,       &! meridional wind (m/s)
+    pmid_interp          ! midpoint pressure (Pa)
+
+  integer :: idx_beg, idx_end, i
+
+  allocate(pmid_interp(ncol,pver_interp))
+  allocate(uflux_interp(ncol,pver_interp))
+  allocate(vflux_interp(ncol,pver_interp))
+
+  uflux_interp(:, :) = net_outputs(:,:pver_interp)
+  vflux_interp(:, :) = net_outputs(:,pver_interp+1:)
+
+  do i = 1, ncol
+    pmid_interp(i,:) = era5_ak(137-pver_interp+1:) + ps(i) * era5_bk(137-pver_interp+1:)
+    call lininterp(uflux_interp(i,:), pmid_interp(i,:), pver_interp, uflux(i,:), pmid(i,:), pver)
+    call lininterp(vflux_interp(i,:), pmid_interp(i,:), pver_interp, vflux(i,:), pmid(i,:), pver)
+  end do
+
+  deallocate(pmid_interp)
+  deallocate(uflux_interp)
+  deallocate(vflux_interp)
 
 end subroutine extract_output
 
 subroutine denormalise_data()
 
-  u_flux = u_flux**3 * u_flux_std + u_flux_mean
-  v_flux = v_flux**3 * v_flux_std + v_flux_mean
+  uflux = uflux**3._r8 * uflux_std + uflux_mean
+  vflux = vflux**3._r8 * vflux_std + vflux_mean
 
 end subroutine denormalise_data
+
+elemental function cbrt(a) result(root)
+  real(r8), intent(in) :: a
+  real(r8), parameter :: one_third = 1._r8/3._r8
+  real(r8) :: root
+  root = sign(abs(a)**one_third, a)
+end function cbrt
+
+subroutine flux_to_forcing(flux, forcing)
+
+  real(r8), intent(in), dimension(:,:) :: flux
+  real(r8), intent(out), dimension(:,:) :: forcing ! forcing = -d(u'\omega')/d(p), units = m/s^2
+
+  integer :: level, col
+
+  ! convert fluxes to tendencies
+  ! pressure profile must be in Pascals
+
+  do col = 1, ncol
+    forcing(col,1) = -1*(flux(col,2) - flux(col,1))/(pmid(col,2) - pmid(col,1))
+    do level = 2, pver-1
+      forcing(col,level) = (flux(col,level+1) - flux(col,level-1)) / (pmid(col,level)*(log(pmid(col,level+1)) - log(pmid(col,level-1))))
+    end do
+    forcing(col,pver) = -1*(flux(col,pver) - flux(col,pver-1)) / (pmid(col,pver) - pmid(col,pver-1))
+  end do
+
+end subroutine flux_to_forcing
 
 end module gw_nlgw

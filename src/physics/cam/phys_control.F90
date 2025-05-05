@@ -93,11 +93,12 @@ logical :: prog_modal_aero ! determines whether prognostic modal aerosols are pr
 logical, public, protected :: use_hetfrz_classnuc = .false.
 
 ! Which gravity wave sources are used?
-logical, public, protected :: use_gw_oro = .true.         ! Orography.
+logical, public, protected :: use_gw_oro = .false.         ! Orography.
 logical, public, protected :: use_gw_front = .false.      ! Frontogenesis.
 logical, public, protected :: use_gw_front_igw = .false.  ! Frontogenesis to inertial spectrum.
 logical, public, protected :: use_gw_convect_dp = .false. ! Deep convection.
 logical, public, protected :: use_gw_convect_sh = .false. ! Shallow convection.
+logical, public, protected :: use_gw_nlgw = .true.       ! non local GW ML model
 
 ! FV dycore angular momentum correction
 logical, public, protected :: fv_am_correction = .false.
