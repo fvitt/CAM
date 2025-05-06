@@ -214,10 +214,14 @@ module gw_drag
   character(len=1), parameter :: beres_sh_pf = "S"
 
   ! namelist
-  logical          :: history_amwg                   ! output the variables used by the AMWG diag package
+  logical  :: history_amwg           ! output the variables used by the AMWG diag package
   logical  :: gw_lndscl_sgh = .true. ! scale SGH by land frac
   real(r8) :: gw_prndl = 0.25_r8
   real(r8) :: gw_qbo_hdepth_scaling = 1._r8 ! heating depth scaling factor
+
+  logical  :: gw_beres_storm_shift = .false.
+  real(r8) :: gw_beres_hdepth_floor = -huge(1._r8)
+  character(len=10) :: gw_beres_hdepth_scheme = 'none'
 
   ! Width of gaussian used to create frontogenesis tau profile [m s-1].
   real(r8) :: front_gaussian_width = -huge(1._r8)
@@ -264,7 +268,7 @@ subroutine gw_drag_readnl(nlfile)
        gw_lndscl_sgh, gw_prndl, gw_apply_tndmax, gw_qbo_hdepth_scaling, &
        gw_top_taper, front_gaussian_width, alpha_gw_movmtn, use_gw_rdg_resid, &
        effgw_rdg_resid, effgw_movmtn_pbl, movmtn_source, movmtn_psteer, &
-       movmtn_plaunch
+       movmtn_plaunch, gw_beres_storm_shift, gw_beres_hdepth_floor, gw_beres_hdepth_scheme
 
   !----------------------------------------------------------------------
 
@@ -385,6 +389,12 @@ subroutine gw_drag_readnl(nlfile)
   call mpi_bcast(effgw_rdg_resid, 1, mpi_real8, mstrid, mpicom, ierr)
   if (ierr /= 0) call endrun(sub//": FATAL: mpi_bcast: effgw_rdg_resid")
 
+  call mpi_bcast(gw_beres_storm_shift, 1, mpi_logical, mstrid, mpicom, ierr)
+  if (ierr /= 0) call endrun(sub//": FATAL: mpi_bcast: gw_beres_storm_shift")
+  call mpi_bcast(gw_beres_hdepth_floor, 1, mpi_real8, mstrid, mpicom, ierr)
+  if (ierr /= 0) call endrun(sub//": FATAL: mpi_bcast: gw_beres_hdepth_floor")
+  call mpi_bcast(gw_beres_hdepth_scheme, len(gw_beres_hdepth_scheme), mpi_character, mstrid, mpicom, ierr)
+  if (ierr /= 0) call endrun(sub//": FATAL: mpi_bcast: gw_beres_hdepth_scheme")
 
   ! Check if pgwv was set.
   call shr_assert(pgwv >= 0, &
@@ -1114,7 +1124,7 @@ subroutine gw_init()
      ttend_dp_idx    = pbuf_get_index('TTEND_DP')
 
      ! Set the deep scheme specification components.
-     beres_dp_desc%storm_shift = .false.
+     beres_dp_desc%storm_shift = gw_beres_storm_shift
 
      do k = 0, pver
         ! 700 hPa index
@@ -1928,7 +1938,7 @@ subroutine gw_tend(state, pbuf, dt, ptend, cam_in, flx_heat)
 
      ! Determine wave sources for Beres deep scheme
      call gw_beres_src(ncol, band_mid, beres_dp_desc, &
-          u, v, ttend_dp(:ncol,:), zm, src_level, tend_level, tau, &
+          u, v, ttend_dp(:ncol,:), zm, gw_beres_hdepth_floor, gw_beres_hdepth_scheme, src_level, tend_level, tau, &
           ubm, ubi, xv, yv, phase_speeds, hdepth, maxq0)
 
      ! Solve for the drag profile with Beres source spectrum.
@@ -2016,7 +2026,7 @@ subroutine gw_tend(state, pbuf, dt, ptend, cam_in, flx_heat)
 
      ! Determine wave sources for Beres shallow scheme
      call gw_beres_src(ncol, band_mid, beres_sh_desc, &
-          u, v, ttend_sh(:ncol,:), zm, src_level, tend_level, tau, &
+          u, v, ttend_sh(:ncol,:), zm, gw_beres_hdepth_floor, gw_beres_hdepth_scheme, src_level, tend_level, tau, &
           ubm, ubi, xv, yv, phase_speeds, hdepth, maxq0)
 
      ! Solve for the drag profile with Beres source spectrum.

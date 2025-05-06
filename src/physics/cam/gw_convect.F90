@@ -6,6 +6,7 @@ module gw_convect
 !
 
 use gw_utils, only: r8
+use cam_abortutils, only: endrun
 
 implicit none
 private
@@ -35,7 +36,7 @@ contains
 !==========================================================================
 
 subroutine gw_beres_src(ncol, band, desc, u, v, &
-     netdt, zm, src_level, tend_level, tau, ubm, ubi, xv, yv, &
+     netdt, zm, hdepth_floor, hdepth_scheme, src_level, tend_level, tau, ubm, ubi, xv, yv, &
      c, hdepth, maxq0)
 !-----------------------------------------------------------------------
 ! Driver for multiple gravity wave drag parameterization.
@@ -68,6 +69,8 @@ subroutine gw_beres_src(ncol, band, desc, u, v, &
   real(r8), intent(in) :: netdt(:,:)
   ! Midpoint altitudes.
   real(r8), intent(in) :: zm(ncol,pver)
+  real(r8), intent(in) :: hdepth_floor
+  character(len=*), intent(in) :: hdepth_scheme
 
   ! Indices of top gravity wave source level and lowest level where wind
   ! tendencies are allowed.
@@ -158,39 +161,74 @@ subroutine gw_beres_src(ncol, band, desc, u, v, &
   ! First find the indices for the top and bottom of the heating range.
   boti = 0
   topi = 0
-  do k = pver, 1, -1
-     do i = 1, ncol
-        if (boti(i) == 0) then
-           ! Detect if we are outside the top of range (where z = 20 km).
-           if (zm(i,k) >= 20000._r8) then
-              boti(i) = k
-              topi(i) = k
-           else
-              ! First spot where heating rate is positive.
-              if (netdt(i,k) > 0.0_r8) boti(i) = k
-           end if
-        end if
-     end do
-     ! When all done, exit
-     if (all(boti /= 0)) exit
-  end do
 
-  do k = 1, pver
-     do i = 1, ncol
-        if (topi(i) == 0) then
-                ! First spot where heating rate is positive.
-              if ((netdt(i,k) > 0.0_r8) .AND. (zm(i,k) <= 20000._r8)) topi(i) = k-1
-        end if
+  if (hdepth_scheme=='bottom-up') then
+     do k = pver, 1, -1
+        do i = 1, ncol
+           if (boti(i) == 0) then
+              ! Detect if we are outside the maximum range (where z = 20 km).
+              if (zm(i,k) >= 20000._r8) then
+                 boti(i) = k
+                 topi(i) = k
+              else
+                 ! First spot where heating rate is positive.
+                 if (netdt(i,k) > 0.0_r8) boti(i) = k
+              end if
+           else if (topi(i) == 0) then
+              ! Detect if we are outside the maximum range (z = 20 km).
+              if (zm(i,k) >= 20000._r8) then
+                 topi(i) = k
+              else
+                 ! First spot where heating rate is no longer positive.
+                 if (.not. (netdt(i,k) > 0.0_r8)) topi(i) = k
+              end if
+           end if
+        end do
+        ! When all done, exit.
+        if (all(topi /= 0)) exit
      end do
-     ! When all done, exit
-     if (all(topi /= 0)) exit
-  end do
+  else if (hdepth_scheme=='top-down') then
+     do k = pver, 1, -1
+        do i = 1, ncol
+           if (boti(i) == 0) then
+              ! Detect if we are outside the top of range (where z = 20 km).
+              if (zm(i,k) >= 20000._r8) then
+                 boti(i) = k
+                 topi(i) = k
+              else
+                 ! First spot where heating rate is positive.
+                 if (netdt(i,k) > 0.0_r8) boti(i) = k
+              end if
+           end if
+        end do
+        ! When all done, exit
+        if (all(boti /= 0)) exit
+     end do
+
+     do k = 1, pver
+        do i = 1, ncol
+           if (topi(i) == 0) then
+              ! First spot where heating rate is positive.
+              if ((netdt(i,k) > 0.0_r8) .AND. (zm(i,k) <= 20000._r8)) topi(i) = k-1
+           end if
+        end do
+        ! When all done, exit
+        if (all(topi /= 0)) exit
+     end do
+  else
+     call endrun('gw_beres_src: hdepth_scheme '//trim(hdepth_scheme)//' not recognized')
+  end if
 
   ! Heating depth in m.
   hdepth = [ ( (zm(i,topi(i))-zm(i,boti(i))), i = 1, ncol ) ]
 
   ! J. Richter: this is an effective reduction of the GW phase speeds (needed to drive the QBO)
-  hdepth = max(1000._r8, hdepth*qbo_hdepth_scaling)
+  if (hdepth_floor>0._r8) then
+     hdepth = max(hdepth_floor, hdepth*qbo_hdepth_scaling)
+  else
+     hdepth = hdepth*qbo_hdepth_scaling
+  end if
+
   hd_idx = index_of_nearest(hdepth, desc%hd)
 
   ! hd_idx=0 signals that a heating depth is too shallow, i.e. that it is

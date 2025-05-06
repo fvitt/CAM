@@ -867,6 +867,13 @@
 <movmtn_plaunch                         > 32500.0d0  </movmtn_plaunch>
 <movmtn_source                          > 1       </movmtn_source>
 
+<gw_beres_storm_shift>.true.</gw_beres_storm_shift>
+<gw_beres_hdepth_floor>0.0d0</gw_beres_hdepth_floor>
+<gw_beres_hdepth_scheme>bottom-up</gw_beres_hdepth_scheme>
+
+<gw_beres_storm_shift phys="cam7">.false.</gw_beres_storm_shift>
+<gw_beres_hdepth_floor phys="cam7">1000.0d0</gw_beres_hdepth_floor>
+<gw_beres_hdepth_scheme phys="cam7">top-down</gw_beres_hdepth_scheme>
 
 <!-- Dry Convective Adjustment options -->
 <dadadj_niter>15</dadadj_niter>

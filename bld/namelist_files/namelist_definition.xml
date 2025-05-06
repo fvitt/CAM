@@ -1436,6 +1436,24 @@ the QBO.
 Default: set by build-namelist
 </entry>
 
+<entry id="gw_beres_storm_shift" type="logical" category="gw_drag"
+       group="gw_drag_nl" valid_values="" >
+Beres GW storm shift switch ....
+Default: set by build-namelist
+</entry>
+
+<entry id="gw_beres_hdepth_floor" type="real" category="gw_drag"
+       group="gw_drag_nl" valid_values="" >
+Floor applied to heating depth in Beres GW scheme.
+Default: set by build-namelist
+</entry>
+
+<entry id="gw_beres_hdepth_scheme" type="char*10" category="gw_drag"
+       group="gw_drag_nl" valid_values="bottom-up,top-down " >
+Scheme used to find heating depth ...
+Default: set by build-namelist
+</entry>
+
 <entry id="gw_lndscl_sgh" type="logical" category="gw_drag"
        group="gw_drag_nl" valid_values="" >
 Scale SGH by land fraction in gravity wave drag
@@ -3226,7 +3244,7 @@ Default: .false.
 
 <entry id="zmconv_parcel_hscale" type="real" category="conv"
        group="zmconv_nl" valid_values="" >
- The fraction of the boundary layer (PBL) depth, over which to mix the initial ZM convective parcel properties (fraction). 
+ The fraction of the boundary layer (PBL) depth, over which to mix the initial ZM convective parcel properties (fraction).
 Default: 0.5
 </entry>
 
