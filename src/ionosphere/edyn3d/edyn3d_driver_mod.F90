@@ -158,7 +158,7 @@ contains
 
   !-----------------------------------------------------------------------------
   !-----------------------------------------------------------------------------
-  subroutine edyn3d_driver_timestep( nphyscol, nphyslev, physalt, sigPed, sigHal, un, vn)
+  subroutine edyn3d_driver_timestep( nphyscol, nphyslev, physalt, sigPed, sigHal, un, vn, ui_oplus, vi_oplus, wi_oplus )
     use edyn3d_remap_mod, only: edyn3d_remap_phys2mag_s1
     use edyn3d_remap_mod, only: edyn3d_remap_phys2mag_s2
     use edyn3d_remap_mod, only: edyn3d_remap_mag2oplus, NOTSET
@@ -198,6 +198,10 @@ contains
     real(r8), target, intent(in) :: sigHal(nphyslev,nphyscol)
     real(r8), target, intent(in) :: un(nphyslev,nphyscol)
     real(r8), target, intent(in) :: vn(nphyslev,nphyscol)
+    real(r8), target, intent(out) :: ui_oplus(lon0:lon1,lat0:lat1,lev0:lev1)
+    real(r8), target, intent(out) :: vi_oplus(lon0:lon1,lat0:lat1,lev0:lev1)
+    real(r8), target, intent(out) :: wi_oplus(lon0:lon1,lat0:lat1,lev0:lev1)
+
 
     real(r8) :: opalt(lon0:lon1,lat0:lat1,lev0:lev1)
 
@@ -216,10 +220,6 @@ contains
     real(r8), target :: sighal_s2(nhgt_fix,2,mlat0:mlat1,mlon0:mlon1)
     real(r8), target :: un_s2(nhgt_fix,2,mlat0:mlat1,mlon0:mlon1)
     real(r8), target :: vn_s2(nhgt_fix,2,mlat0:mlat1,mlon0:mlon1)
-
-    real(r8), target :: ui_oplus(lon0:lon1,lat0:lat1,lev0:lev1)
-    real(r8), target :: vi_oplus(lon0:lon1,lat0:lat1,lev0:lev1)
-    real(r8), target :: wi_oplus(lon0:lon1,lat0:lat1,lev0:lev1)
 
     real(r8) :: tmp_ghost(4,nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1)
     integer :: i, rc , isn, j

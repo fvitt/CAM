@@ -36,15 +36,19 @@ module dpie_coupling
 
   logical :: debug_hist
 
+  logical :: edynamo_3d = .false.
+
 contains
   !----------------------------------------------------------------------
-  subroutine d_pie_init( edyn_active_in, oplus_xport_in, oplus_nsplit_in, crit_colats_deg, ionos_debug_hist )
+  subroutine d_pie_init( edyn_active_in, oplus_xport_in, oplus_nsplit_in, crit_colats_deg, ionos_debug_hist, edyn_3d_in )
 
     logical, intent(in) :: edyn_active_in, oplus_xport_in
     integer, intent(in) :: oplus_nsplit_in
     real(r8),intent(in) :: crit_colats_deg(:)
     logical, intent(in) :: ionos_debug_hist
+    logical, intent(in) :: edyn_3d_in
 
+    edynamo_3d = edyn_3d_in
     debug_hist = ionos_debug_hist
 
     ionos_edyn_active = edyn_active_in
@@ -114,6 +118,17 @@ contains
        call addfld ('OPLUS', (/ 'lev' /), 'I', 'cm^3','O+ (oplus_xport output)',    gridname='geo_grid')
        call addfld ('OPtm1i',(/ 'lev' /), 'I', 'cm^3','O+ (oplus_xport output)',    gridname='geo_grid')
        call addfld ('OPtm1o',(/ 'lev' /), 'I', 'cm^3','O+ (oplus_xport output)',    gridname='geo_grid')
+    endif
+
+    if (edynamo_3d) then
+       call addfld('IonU_phys', (/ 'lev' /), 'I', 'm/s','Zonal Ion Drift Velocity on phys grid' )
+       call addfld('IonV_phys', (/ 'lev' /), 'I', 'm/s','Meridional Ion Drift Velocity on phys grid' )
+       call addfld('IonW_phys', (/ 'lev' /), 'I', 'm/s','Vertial Ion Drift Velocity on phys grid' )
+       call addfld('alt_phys', (/ 'lev' /), 'I', 'm',' ' )
+       call addfld('u_phys', (/ 'lev' /), 'I', 'm/s',' ' )
+       call addfld('v_phys', (/ 'lev' /), 'I', 'm/s',' ' )
+       call addfld('ped_phys', (/ 'lev' /), 'I', ' ',' ' )
+       call addfld('hal_phys', (/ 'lev' /), 'I', ' ',' ' )
     endif
 
   end subroutine d_pie_init
@@ -425,6 +440,13 @@ contains
      real(r8), dimension(mlon0:mlon1,mlat0:mlat1) :: &
           adota1_mag, adota2_mag, a1dta2_mag, be3_mag, sini_mag
 
+     real(r8) :: ui_3d(lon0:lon1,lat0:lat1,lev0:lev1) ! on oplus grid
+     real(r8) :: vi_3d(lon0:lon1,lat0:lat1,lev0:lev1)
+     real(r8) :: wi_3d(lon0:lon1,lat0:lat1,lev0:lev1)
+     real(r8) :: ui_out(plev,cole-cols+1)
+     real(r8) :: vi_out(plev,cole-cols+1)
+     real(r8) :: wi_out(plev,cole-cols+1)
+
      integer :: nphyscols
 
      call t_startf(subname)
@@ -586,58 +608,89 @@ contains
     !
     if (ionos_edyn_active) then
 
-       nphyscols = cole - cols + 1
-       call edyn3D_driver_timestep( nphyscols, plev, zhtmid, sigma_ped, sigma_hall, u, v)
+       if (edynamo_3d) then
 
+          call t_startf('d_pie_cpl->edyn3D_driver')
 
+          call outfld_phys('alt_phys',zhtmid)
+          call outfld_phys('ped_phys',sigma_ped)
+          call outfld_phys('hal_phys',sigma_hall)
+          call outfld_phys('u_phys',u)
+          call outfld_phys('v_phys',v)
 
-       call t_startf('dpie_ionos_dynamo')
+          nphyscols = cole - cols + 1
+          call edyn3D_driver_timestep( nphyscols, plev, zhtmid, sigma_ped, sigma_hall, u, v, &
+                                       ui_3d, vi_3d, wi_3d )
 
-       call calc_adotv( zpot_in(lev0:lev1,lon0:lon1,lat0:lat1), &
-            halo_un(lev0:lev1,lon0:lon1,lat0:lat1), &
-            halo_vn(lev0:lev1,lon0:lon1,lat0:lat1), &
-            wn_in(lev0:lev1,lon0:lon1,lat0:lat1), &
-            adotv1_in, adotv2_in, adota1_in, adota2_in, &
-            a1dta2_in, be3_in, sini_in, lev0, lev1, lon0, lon1, lat0, lat1)
+          call regrid_geo2phys_3d( ui_3d, ui_out, plev, 1, nphyscols )
+          call regrid_geo2phys_3d( vi_3d, vi_out, plev, 1, nphyscols )
+          call regrid_geo2phys_3d( wi_3d, wi_out, plev, 1, nphyscols )
 
-       call regrid_geo2mag_3d( adotv1_in, adotv1_mag )
-       call regrid_geo2mag_3d( adotv2_in, adotv2_mag )
-       if (debug_hist) then
-          call outfld_geo('EDYN_ADOTV1', adotv1_in(:,:,lev1:lev0:-1) )
-          call outfld_geo('EDYN_ADOTV2', adotv2_in(:,:,lev1:lev0:-1) )
+          call outfld_phys('IonU_phys',ui_out)
+          call outfld_phys('IonV_phys',vi_out)
+          call outfld_phys('IonW_phys',wi_out)
 
-          call outfld_geo2d( 'EDYN_ADOTA1', adota1_in )
-          call outfld_geo2d( 'EDYN_ADOTA2', adota2_in )
-          call outfld_geo2d( 'EDYN_A1DTA2', a1dta2_in )
-          call outfld_geo2d( 'EDYN_BE3' , be3_in )
-          call outfld_geo2d( 'EDYN_SINI', sini_in )
+          do k = 1, nlev
+             do i = lon0,lon1
+                do j = lat0,lat1
+                   ui_in(k,i,j) = ui_3d(i,j,k) * 100._r8 ! m/s -> cm/s
+                   vi_in(k,i,j) = vi_3d(i,j,k) * 100._r8 ! m/s -> cm/s
+                   wi_in(k,i,j) = wi_3d(i,j,k) * 100._r8 ! m/s -> cm/s
+                end do
+             end do
+          end do
+
+          call t_stopf('d_pie_cpl->edyn3D_driver')
+
+       else
+
+          call t_startf('d_pie_cpl->dynamo')
+
+          call calc_adotv( zpot_in(lev0:lev1,lon0:lon1,lat0:lat1), &
+               halo_un(lev0:lev1,lon0:lon1,lat0:lat1), &
+               halo_vn(lev0:lev1,lon0:lon1,lat0:lat1), &
+               wn_in(lev0:lev1,lon0:lon1,lat0:lat1), &
+               adotv1_in, adotv2_in, adota1_in, adota2_in, &
+               a1dta2_in, be3_in, sini_in, lev0, lev1, lon0, lon1, lat0, lat1)
+
+          call regrid_geo2mag_3d( adotv1_in, adotv1_mag )
+          call regrid_geo2mag_3d( adotv2_in, adotv2_mag )
+          if (debug_hist) then
+             call outfld_geo('EDYN_ADOTV1', adotv1_in(:,:,lev1:lev0:-1) )
+             call outfld_geo('EDYN_ADOTV2', adotv2_in(:,:,lev1:lev0:-1) )
+
+             call outfld_geo2d( 'EDYN_ADOTA1', adota1_in )
+             call outfld_geo2d( 'EDYN_ADOTA2', adota2_in )
+             call outfld_geo2d( 'EDYN_A1DTA2', a1dta2_in )
+             call outfld_geo2d( 'EDYN_BE3' , be3_in )
+             call outfld_geo2d( 'EDYN_SINI', sini_in )
+          endif
+          call regrid_geo2mag_2d( adota1_in, adota1_mag )
+          call regrid_geo2mag_2d( adota2_in, adota2_mag )
+          call regrid_geo2mag_2d( a1dta2_in, a1dta2_mag )
+          call regrid_geo2mag_2d( be3_in, be3_mag )
+          call regrid_geo2mag_2d( sini_in, sini_mag )
+          if (debug_hist) then
+             call outfld_mag2d('ADOTA1_MAG', adota1_mag )
+             call outfld_mag2d('SINI_MAG', sini_mag )
+          endif
+          call regrid_phys2mag_3d( sigma_ped, ped_mag, plev, cols, cole )
+          call regrid_phys2mag_3d( sigma_hall, hal_mag, plev, cols, cole )
+          call regrid_phys2mag_3d( zgi, zpot_mag, plev, cols, cole )
+
+          if (mytid<ntask) then
+             zpot_mag_in(:,:,mlev0:mlev1) = zpot_mag(:,:,mlev1:mlev0:-1) * 100._r8 ! m -> cm
+             ped_mag_in(:,:,mlev0:mlev1) = ped_mag(:,:,mlev1:mlev0:-1)
+             hal_mag_in(:,:,mlev0:mlev1) = hal_mag(:,:,mlev1:mlev0:-1)
+
+             call  dynamo( zpot_mag_in, ped_mag_in, hal_mag_in, adotv1_mag, adotv2_mag, adota1_mag, &
+                  adota2_mag, a1dta2_mag, be3_mag, sini_mag,  &
+                  zpot_in, ui_in, vi_in, wi_in, &
+                  lon0,lon1, lat0,lat1, lev0,lev1, do_integrals )
+          endif
+
+          call t_stopf('d_pie_cpl->dynamo')
        endif
-       call regrid_geo2mag_2d( adota1_in, adota1_mag )
-       call regrid_geo2mag_2d( adota2_in, adota2_mag )
-       call regrid_geo2mag_2d( a1dta2_in, a1dta2_mag )
-       call regrid_geo2mag_2d( be3_in, be3_mag )
-       call regrid_geo2mag_2d( sini_in, sini_mag )
-       if (debug_hist) then
-          call outfld_mag2d('ADOTA1_MAG', adota1_mag )
-          call outfld_mag2d('SINI_MAG', sini_mag )
-       endif
-       call regrid_phys2mag_3d( sigma_ped, ped_mag, plev, cols, cole )
-       call regrid_phys2mag_3d( sigma_hall, hal_mag, plev, cols, cole )
-       call regrid_phys2mag_3d( zgi, zpot_mag, plev, cols, cole )
-
-       if (mytid<ntask) then
-          zpot_mag_in(:,:,mlev0:mlev1) = zpot_mag(:,:,mlev1:mlev0:-1) * 100._r8 ! m -> cm
-          ped_mag_in(:,:,mlev0:mlev1) = ped_mag(:,:,mlev1:mlev0:-1)
-          hal_mag_in(:,:,mlev0:mlev1) = hal_mag(:,:,mlev1:mlev0:-1)
-
-          call  dynamo( zpot_mag_in, ped_mag_in, hal_mag_in, adotv1_mag, adotv2_mag, adota1_mag, &
-               adota2_mag, a1dta2_mag, be3_mag, sini_mag,  &
-               zpot_in, ui_in, vi_in, wi_in, &
-               lon0,lon1, lat0,lat1, lev0,lev1, do_integrals )
-       endif
-
-       call t_stopf ('dpie_ionos_dynamo')
-
     else
        if (debug .and. masterproc) then
           write(iulog,"('dpie_coupling (dynamo NOT called): nstep=',i8)") nstep

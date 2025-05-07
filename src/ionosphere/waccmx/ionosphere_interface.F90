@@ -96,7 +96,7 @@ module ionosphere_interface
    integer           :: oplus_nlon, oplus_nlat   ! Oplus grid
    integer           :: ionos_npes = -1
    integer           :: ionos_edyn3d_npes = -1
-   logical           :: ionos_edyn3d_active = .true.
+   logical           :: ionos_edyn3d_active = .false.
    integer           :: ionos_edyn3d_nmlat_h = 91
    integer           :: ionos_edyn3d_nmlon = 180
    integer           :: ionos_edyn3d_nhgt = 54
@@ -368,7 +368,7 @@ module ionosphere_interface
          call edynamo_init(mpicom, ionos_debug_hist)
 
          call d_pie_init(ionos_edyn_active, ionos_oplus_xport, ionos_xport_nsplit, epot_crit_colats, &
-                         ionos_debug_hist)
+                         ionos_debug_hist, ionos_edyn3d_active)
 
          call ionosphere_alloc()
 
@@ -414,9 +414,11 @@ module ionosphere_interface
       call addfld ('Z3GMI',      (/ 'lev' /), 'I', 'm',                       &
            'Geometric height (Interfaces)', gridname='physgrid')
 
-      ! after apex init
-      call edyn3d_driver_init(mpicom, ionos_edyn3d_npes, ionos_edyn3d_nmlat_h, ionos_edyn3d_nmlon, ionos_edyn3d_nhgt, &
-                              ionos_epotential_model, wei05_coefs_file)
+      if (ionos_edyn3d_active) then
+         ! after apex init
+         call edyn3d_driver_init(mpicom, ionos_edyn3d_npes, ionos_edyn3d_nmlat_h, ionos_edyn3d_nmlon, ionos_edyn3d_nhgt, &
+                                 ionos_epotential_model, wei05_coefs_file)
+      end if
 
    end subroutine ionosphere_init
 
@@ -499,7 +501,9 @@ module ionosphere_interface
 
       end if prescribed_epot
 
-      call edyn3d_highlat_potential_update()
+      if (ionos_edyn3d_active) then
+         call edyn3d_highlat_potential_update()
+      end if
 
    end subroutine ionosphere_run1
 
@@ -1141,7 +1145,9 @@ module ionosphere_interface
          deallocate(opmmrtm1_phys)
       end if
 
-      call edyn3d_driver_final()
+      if (ionos_edyn3d_active) then
+         call edyn3d_driver_final()
+      end if
 
    end subroutine ionosphere_final
 
