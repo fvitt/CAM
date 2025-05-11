@@ -32,6 +32,9 @@ contains
 
     character(len=*), parameter :: subname  = 'esmf_phys2lonlat_init: '
 
+    smm_srctermproc = 0
+    smm_pipelinedep = 16
+
     ! create ESMF fields
 
     ! 3D phys fld
