@@ -56,8 +56,6 @@ contains
     integer, parameter :: minlats_per_pe = 2
     integer, parameter :: minlons_per_pe = 4
 
-    integer, allocatable :: itask_table(:,:)
-
     integer, allocatable :: petmap(:,:,:)
     integer :: petcnt
 
@@ -149,36 +147,17 @@ contains
        call endrun(subname//'mynlons < minlons_per_pe')
     end if
 
-    !
-    ! Allocate and set 2d table of tasks:
-    !
-    allocate(itask_table(-1:ntasks_lon,0:ntasks_lat-1),stat=ierr)
-    if (ierr /= 0) then
-       write(iulog,"(a,': Error allocating itask_table: ntaski,j=',2i4)") subname,ntasks_lon,ntasks_lat
-       call endrun(subname//'Error allocating itask_table')
-    endif
-
-    ! setup MPI task table
-
-    itask_table(:,:) = MPI_PROC_NULL
-
     irank = 0
     mytidi = -1
     mytidj = -1
     do j =  0, ntasks_lat-1
        do i = 0, ntasks_lon-1
-          itask_table(i,j) = irank
           if (mytid == irank) then
              mytidi = i
              mytidj = j
           end if
           irank = irank+1
        end do
-       !
-       ! Tasks are periodic in longitude:
-       !
-       itask_table(-1,j) = itask_table(ntasks_lon-1,j)
-       itask_table(ntasks_lon,j) = itask_table(0,j)
 
     end do ! j=0,ntaskj-1
 
@@ -228,8 +207,6 @@ contains
           end if
        end do loop2
     end do
-
-    deallocate(itask_table)
 
     deallocate(mytidi_send)
     deallocate(mytidj_send)
