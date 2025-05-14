@@ -19,22 +19,33 @@ module edyn3d_remap_mod
   public :: edyn3d_remap_phys2mag_s1
   public :: edyn3d_remap_phys2mag_s2
   public :: edyn3d_remap_mag2oplus
+  public :: edyn3d_remap_refp_mag2oplus
   public :: phys_fields_bundle_t
   public :: mag_fields_bundle_t
   public :: oplus_fields_bundle_t
+  public :: mag_2d_fields_bundle_t
+  public :: oplus_2d_fields_bundle_t
   public :: NOTSET
 
   type :: phys_fields_bundle_t
-     real(r8),  pointer :: fld(:,:)
+     real(r8), pointer :: fld(:,:) => null()
   end type phys_fields_bundle_t
 
   type :: mag_fields_bundle_t
-     real(r8),  pointer :: fld(:,:,:,:)
+     real(r8), pointer :: fld(:,:,:,:) => null()
   end type mag_fields_bundle_t
 
   type :: oplus_fields_bundle_t
-     real(r8),  pointer :: fld(:,:,:)
+     real(r8), pointer :: fld(:,:,:) => null()
   end type oplus_fields_bundle_t
+
+  type :: mag_2d_fields_bundle_t
+     real(r8), pointer :: fld(:,:,:) => null()
+  end type mag_2d_fields_bundle_t
+
+  type :: oplus_2d_fields_bundle_t
+     real(r8), pointer :: fld(:,:) => null()
+  end type oplus_2d_fields_bundle_t
 
   real(r8), parameter :: NOTSET = -huge(1._r8)
 
@@ -346,6 +357,86 @@ contains
     end do
 
   end subroutine edyn3d_remap_mag2oplus
+
+  !------------------------------------------------------------------------------
+  !------------------------------------------------------------------------------
+  subroutine edyn3d_remap_refp_mag2oplus( magflds,  oplusflds )
+    use edyn3D_esmf_fields_rhandles, only: magFieldSrc_ref_p, oplusFieldDes_ref_p, rh_mag2oplus_ref_p
+    use edyn3D_esmf_fields_rhandles, only: nflds => mag2opls_ref_p_nflds
+    use edyn3d_esmf_mag_ref_p_grid_mod, only: mag_ref_p_fdln_grid
+    use edyn_mpi, only: lon0,lon1,lat0,lat1
+
+    type(mag_2d_fields_bundle_t) :: magflds(nflds)
+    type(oplus_2d_fields_bundle_t) :: oplusflds(nflds) ! field mapped to oplus grid
+
+    integer :: lbnd3d(3), ubnd3d(3) ! field bounds
+    real(ESMF_KIND_R8), pointer :: fptr3d(:,:,:)
+
+    integer :: localDECount, nde, rc
+    integer :: n, j, i, jj, isn
+
+    character(len=*), parameter :: subname = 'edyn3d_remap_refp_mag2oplus'
+
+    do n = 1,nflds
+       oplusflds(n)%fld = NOTSET
+    end do
+
+    call ESMF_GridGet(mag_ref_p_fdln_grid, localDECount=localDECount, rc=rc)
+    call check_error(subname,'ESMF_GridGet localDECount',rc)
+
+    DE_num: do nde = 0,localDECount-1
+
+       call ESMF_FieldGet(magFieldSrc_ref_p, localDe=nde, farrayPtr=fptr3d, &
+            computationalLBound=lbnd3d, computationalUBound=ubnd3d, rc=rc)
+       call check_error(subname,'ESMF_FieldGet magFieldSrc_ref_p',rc)
+
+       fptr3d = NOTSET
+
+       do n = lbnd3d(3), ubnd3d(3) ! 1,nflds
+          do j = lbnd3d(2), ubnd3d(2)
+             if (j>nmlat_h) then
+                isn = 2
+                jj = 2*(nmlat_h-1)+1 - j + 1
+             else
+                isn = 1
+                jj = j
+             end if
+             do i = lbnd3d(1), ubnd3d(1)
+                fptr3d(i,j,n) = magflds(n)%fld(isn,jj,i)
+             end do
+          end do
+
+       end do
+
+    end do DE_num
+
+    call ESMF_FieldRegrid(magFieldSrc_ref_p, oplusFieldDes_ref_p, rh_mag2oplus_ref_p, &
+         termorderflag=ESMF_TERMORDER_SRCSEQ, rc=rc)
+    call check_error(subname,'ESMF_FieldRegrid mag2oplus',rc)
+
+    if (mytid<ntaskOp) then
+
+       call ESMF_FieldGet(field=oplusFieldDes_ref_p, localDe=0, farrayPtr=fptr3d, &
+            computationalLBound=lbnd3d, computationalUBound=ubnd3d, rc=rc)
+       call check_error(subname,'ESMF_FieldGet oplusFieldDes',rc)
+
+       do n = lbnd3d(3), ubnd3d(3) ! 1,nflds
+          do j = lbnd3d(2), ubnd3d(2)
+             do i = lbnd3d(1), ubnd3d(1)
+                oplusflds(n)%fld(i,j) = fptr3d(i,j,n)
+             end do
+          end do
+
+          if (any(oplusflds(n)%fld == NOTSET)) then
+             call endrun(subname//': oplusflds(n)%fld not set correctly')
+          end if
+
+       end do
+
+    endif
+
+  end subroutine edyn3d_remap_refp_mag2oplus
+
 
   !-----------------------------------------------------------------------
   !-----------------------------------------------------------------------

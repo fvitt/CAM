@@ -20,9 +20,13 @@ module edyn3d_esmf_fields_rhandles
   public :: magFieldSrc_s2
   public :: oplusFieldDes
 
+  public :: magFieldSrc_ref_p
+  public :: oplusFieldDes_ref_p
+
   public :: rh_mag2oplus_s2
   public :: rh_phys2mag_s1
   public :: rh_phys2mag_s2
+  public :: rh_mag2oplus_ref_p
 
   public :: edyn3d_esmf_fields_rhandles_init
   public :: edyn3d_esmf_fields_rhandles_destroy
@@ -30,20 +34,21 @@ module edyn3d_esmf_fields_rhandles
   type(ESMF_Field) :: physFieldSrc
   type(ESMF_Field) :: oplusFieldDes
 
+  type(ESMF_Field) :: magFieldSrc_ref_p
+  type(ESMF_Field) :: oplusFieldDes_ref_p
+
   type(ESMF_Field), allocatable :: magFieldDes_s1(:)
   type(ESMF_Field), allocatable :: magFieldDes_s2(:)
   type(ESMF_Field), allocatable :: magFieldSrc_s2(:)
 
-  type(ESMF_RouteHandle) :: rh_phys2oplus
-  type(ESMF_RouteHandle) :: rh_oplus2phys
-
   type(ESMF_RouteHandle), allocatable :: rh_phys2mag_s1(:)
   type(ESMF_RouteHandle), allocatable :: rh_phys2mag_s2(:)
-
   type(ESMF_RouteHandle), allocatable :: rh_mag2oplus_s2(:)
+  type(ESMF_RouteHandle) :: rh_mag2oplus_ref_p
 
   integer, public, parameter :: phys2mag_nflds = 4
   integer, public, parameter :: mag2opls_nflds = 3
+  integer, public, parameter :: mag2opls_ref_p_nflds = 3
 
 contains
 
@@ -55,6 +60,7 @@ contains
     use edyn3d_esmf_oplus_grid_mod, only: oplus_grid
     use edyn3d_esmf_s1_mag_grid_mod, only: mag_s1_fdln_grid
     use edyn3d_esmf_s2_mag_grid_mod, only: mag_s2_fdln_grid
+    use edyn3d_esmf_mag_ref_p_grid_mod, only: mag_ref_p_fdln_grid
 
     integer :: k, rc, astat
     type(ESMF_ArraySpec) :: arrayspec
@@ -81,6 +87,10 @@ contains
 
     oplusFieldDes = ESMF_FieldCreate(oplus_grid, arrayspec, staggerloc=ESMF_STAGGERLOC_CENTER, &
          name="oplusFieldDes", ungriddedLBound=(/1/), ungriddedUBound=(/mag2opls_nflds/), rc=rc)
+    call check_error(subname,'ESMF_FieldCreate oplusFieldDes',rc)
+
+    oplusFieldDes_ref_p = ESMF_FieldCreate(oplus_grid, arrayspec, staggerloc=ESMF_STAGGERLOC_CENTER, &
+         name="oplusFieldDes", ungriddedLBound=(/1/), ungriddedUBound=(/mag2opls_ref_p_nflds/), rc=rc)
     call check_error(subname,'ESMF_FieldCreate oplusFieldDes',rc)
 
     ! nz vertical mag field-line levels
@@ -173,6 +183,24 @@ contains
 
     end do vertloop
 
+    magFieldSrc_ref_p = ESMF_FieldCreate( grid=mag_ref_p_fdln_grid, &
+         staggerloc=ESMF_STAGGERLOC_CENTER, typekind=ESMF_TYPEKIND_R8, &
+         ungriddedLBound=(/1/), ungriddedUBound=(/mag2opls_ref_p_nflds/), rc=rc)
+    call check_error(subname,'ESMF_FieldCreate magFieldSrc_s2',rc)
+
+    ! mag ref p -> oplus
+    call ESMF_FieldRegridStore( &
+         srcField=magFieldSrc_ref_p, dstField=oplusFieldDes_ref_p, &
+         routehandle=rh_mag2oplus_ref_p, &
+         regridMethod=ESMF_REGRIDMETHOD_BILINEAR,                           &
+         polemethod=ESMF_POLEMETHOD_ALLAVG,                                 &
+         extrapMethod=ESMF_EXTRAPMETHOD_NEAREST_IDAVG,                      &
+         factorIndexList=factorIndexList,                                   &
+         factorList=factorList, srcTermProcessing=smm_srctermproc,          &
+         pipelineDepth=smm_pipelinedep, rc=rc)
+    call check_error(subname,'FieldRegridStore rh_mag2oplus_s2(k) route handle',rc)
+
+
   end subroutine edyn3d_esmf_fields_rhandles_init
 
   !-----------------------------------------------------------------------------
@@ -188,6 +216,12 @@ contains
 
     call ESMF_FieldDestroy(oplusFieldDes, rc=rc)
     call check_error(subname,'ESMF_FieldDestroy oplusFieldDes', rc)
+
+    call ESMF_FieldDestroy(magFieldSrc_ref_p, rc=rc)
+    call check_error(subname,'ESMF_FieldDestroy magFieldSrc_ref_p', rc)
+
+    call ESMF_FieldDestroy(oplusFieldDes_ref_p, rc=rc)
+    call check_error(subname,'ESMF_FieldDestroy oplusFieldDes_ref_p', rc)
 
     do k = 1, nz
        call ESMF_FieldDestroy(magFieldDes_s2(k), rc=rc)
@@ -208,6 +242,9 @@ contains
        call ESMF_RouteHandleDestroy(rh_mag2oplus_s2(k), rc=rc)
        call check_error(subname,'ESMF_RouteHandleDestroy rh_mag2oplus_s2', rc)
     end do
+
+    call ESMF_RouteHandleDestroy(rh_mag2oplus_ref_p, rc=rc)
+    call check_error(subname,'ESMF_RouteHandleDestroy rh_mag2oplus_ref_p', rc)
 
     deallocate(magFieldDes_s2)
     deallocate(magFieldDes_s1)

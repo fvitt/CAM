@@ -37,6 +37,7 @@ contains
     use edyn3d_esmf_oplus_grid_mod, only:  edyn3d_esmf_oplus_grid_init
     use edyn3d_esmf_s1_mag_grid_mod, only: edyn3d_esmf_s1_mag_grid_init
     use edyn3d_esmf_s2_mag_grid_mod, only: edyn3d_esmf_s2_mag_grid_init
+    use edyn3d_esmf_mag_ref_p_grid_mod, only: edyn3d_esmf_mag_ref_p_grid_init
 
     use fieldline_module, only: glat_p, glon_p, glat_s1, glon_s1, glat_s2, glon_s2
 
@@ -119,6 +120,7 @@ contains
 
     call edyn3d_esmf_s2_mag_grid_init()
     call edyn3d_esmf_s1_mag_grid_init()
+    call edyn3d_esmf_mag_ref_p_grid_init()
 
     call edyn3d_esmf_phys_mesh_init()
     call edyn3d_esmf_oplus_grid_init()
@@ -150,6 +152,10 @@ contains
     call addfld ('HILAT_POT', horiz_only, 'I', 'Volts','High-Latitude potential', gridname='geomag_grid')
     call addfld ('HILAT_FAC', horiz_only, 'I', '???','High-Latitude field-aligned current', gridname='geomag_grid')
 
+    call addfld ('POTEN_opg', horiz_only, 'I', 'Volts', 'Electric potential', gridname='geo_grid')
+    call addfld ('HLPOT_opg', horiz_only, 'I', 'Volts', 'High-latitude potential', gridname='geo_grid')
+    call addfld ('HLFAC_opg', horiz_only, 'I', '???', 'High-Latitude field-aligned current', gridname='geo_grid')
+
     read_fac = .false. ! prescribed high-lat potential (pot_hl) will be provided
 
     call edyn3d_highlat_potential_init(hilat_pot_model,wei05_coefs_file)
@@ -161,8 +167,10 @@ contains
   subroutine edyn3d_driver_timestep( nphyscol, nphyslev, physalt, sigPed, sigHal, un, vn, ui_oplus, vi_oplus, wi_oplus )
     use edyn3d_remap_mod, only: edyn3d_remap_phys2mag_s1
     use edyn3d_remap_mod, only: edyn3d_remap_phys2mag_s2
+    use edyn3d_remap_mod, only: edyn3d_remap_refp_mag2oplus
     use edyn3d_remap_mod, only: edyn3d_remap_mag2oplus, NOTSET
     use edyn3d_remap_mod, only: mag_fields_bundle_t, phys_fields_bundle_t, oplus_fields_bundle_t
+    use edyn3d_remap_mod, only: mag_2d_fields_bundle_t, oplus_2d_fields_bundle_t
     use edyn3d_esmf_fields_rhandles, only: magFieldDes_s1, rh_phys2mag_s1, phys2mag_nflds
     use edyn3D_esmf_fields_rhandles, only: mag2opls_nflds
     use mpi_module, only: mlat0, mlat1, mlon0, mlon1
@@ -211,6 +219,9 @@ contains
     type(mag_fields_bundle_t) :: magsrc_flds_bndl(mag2opls_nflds)
     type(oplus_fields_bundle_t) :: oplus_flds_bndl(mag2opls_nflds)
 
+    type(mag_2d_fields_bundle_t) :: magsrc_2d_flds_bndl(mag2opls_nflds)
+    type(oplus_2d_fields_bundle_t) :: oplus_2d_flds_bndl(mag2opls_nflds)
+
     real(r8), target :: sigped_s1(nhgt_fix,2,mlat0:mlat1,mlon0:mlon1)
     real(r8), target :: sighal_s1(nhgt_fix,2,mlat0:mlat1,mlon0:mlon1)
     real(r8), target :: un_s1(nhgt_fix,2,mlat0:mlat1,mlon0:mlon1)
@@ -252,9 +263,9 @@ contains
 
     real(r8) :: bij(mlatd0:mlatd1,mlond0:mlond1)
 
-    real(r8) :: pot_hl_p(2,mlatd0:mlatd1,mlond0:mlond1)
-    real(r8) :: fac_hl_p(2,mlatd0:mlatd1,mlond0:mlond1)
-    real(r8) :: pot_p(2,mlatd0:mlatd1,mlond0:mlond1)
+    real(r8), target :: pot_hl_p(2,mlatd0:mlatd1,mlond0:mlond1)
+    real(r8), target :: fac_hl_p(2,mlatd0:mlatd1,mlond0:mlond1)
+    real(r8), target :: pot_p(2,mlatd0:mlatd1,mlond0:mlond1)
     real(r8) :: ed1_s1(2,mlatd0:mlatd1,mlond0:mlond1)
     real(r8) :: ed2_s1(2,mlatd0:mlatd1,mlond0:mlond1)
     real(r8) :: ve1_s1(2,mlatd0:mlatd1,mlond0:mlond1)
@@ -274,6 +285,10 @@ contains
 
     real(r8) :: maglon(2,mlat0:mlat1,mlon0:mlon1)
     real(r8) :: maglat(2,mlat0:mlat1,mlon0:mlon1)
+
+    real(r8),target :: hlfac_op(lon0:lon1,lat0:lat1)
+    real(r8),target :: hlpot_op(lon0:lon1,lat0:lat1)
+    real(r8),target :: poten_op(lon0:lon1,lat0:lat1)
 
     logical,parameter :: setbij = .true.
 
@@ -471,6 +486,22 @@ contains
        call edyn3d_hist_mag_s2_out('IonW_s2',vz_s2(:,:,mlat0:mlat1,mlon0:mlon1))
     end if
 
+    ! map to oplus geographic grid and output diagnostics
+    magsrc_2d_flds_bndl(1)%fld => fac_hl_p
+    magsrc_2d_flds_bndl(2)%fld => pot_hl_p
+    magsrc_2d_flds_bndl(3)%fld => pot_p
+    oplus_2d_flds_bndl(1)%fld => hlfac_op
+    oplus_2d_flds_bndl(2)%fld => hlpot_op
+    oplus_2d_flds_bndl(3)%fld => poten_op
+
+    call edyn3d_remap_refp_mag2oplus( magsrc_2d_flds_bndl, oplus_2d_flds_bndl )
+
+    do j = lat0,lat1
+       call outfld( 'HLFAC_opg', hlfac_op(lon0:lon1,j), lon1-lon0+1, j )
+       call outfld( 'HLPOT_opg', hlpot_op(lon0:lon1,j), lon1-lon0+1, j )
+       call outfld( 'POTEN_opg', poten_op(lon0:lon1,j), lon1-lon0+1, j )
+    end do
+
     ! map ion vels to oplus xport grid (geographic)
     magsrc_flds_bndl(1)%fld => vx_s2
     magsrc_flds_bndl(2)%fld => vy_s2
@@ -506,6 +537,7 @@ contains
     use edyn3d_esmf_phys_mesh_mod, only: edyn3d_esmf_phys_mesh_destroy
     use edyn3d_esmf_s1_mag_grid_mod, only: edyn3d_esmf_s1_mag_grid_destroy
     use edyn3d_esmf_s2_mag_grid_mod, only: edyn3d_esmf_s2_mag_grid_destroy
+    use edyn3d_esmf_mag_ref_p_grid_mod, only: edyn3d_esmf_mag_ref_p_grid_destroy
     use edyn3d_hist_mag_grids_mod, only: edyn3d_hist_mag_grids_final
 
     call edyn3d_esmf_fields_rhandles_destroy()
@@ -513,6 +545,7 @@ contains
     call edyn3d_esmf_phys_mesh_destroy()
     call edyn3d_esmf_s1_mag_grid_destroy()
     call edyn3d_esmf_s2_mag_grid_destroy()
+    call edyn3d_esmf_mag_ref_p_grid_destroy()
 
     call edyn3d_hist_mag_grids_final()
 
