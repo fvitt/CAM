@@ -137,19 +137,19 @@ subroutine gw_nlgw_dp_ml(state_in, ptend)
   allocate(net_inputs(ncol, 4*pver_interp+3))
   allocate(net_outputs(ncol, 2*pver_interp))
 
-  ! dims = (ncol) TODO check ncol size vs gw_drag
-  lat = state_in%lat
-  lon = state_in%lon
-  ps = state_in%ps
-  phis = state_in%phis
+  ! dims = (ncol)
+  lat = state_in%lat(:ncol)
+  lon = state_in%lon(:ncol)
+  ps = state_in%ps(:ncol)
+  phis = state_in%phis(:ncol)
 
   ! dims = (ncol, pver)
-  u = state_in%u
-  v = state_in%v
-  t = state_in%t
-  pmid = state_in%pmid
+  u = state_in%u(:ncol,:pver)
+  v = state_in%v(:ncol,:pver)
+  t = state_in%t(:ncol,:pver)
+  pmid = state_in%pmid(:ncol,:pver)
   theta = t * (p0 / pmid) ** cappa
-  omega = state_in%omega
+  omega = state_in%omega(:ncol,:pver)
 
   ! Normalise and construct the input
   call normalise_data()
@@ -170,8 +170,8 @@ subroutine gw_nlgw_dp_ml(state_in, ptend)
   call flux_to_forcing(vflux, vtgw)
 
   ! update the tendencies
-  ptend%u(:ncol,:) = ptend%u(:ncol,:) + utgw(:,:)
-  ptend%v(:ncol,:) = ptend%v(:ncol,:) + vtgw(:,:)
+  ptend%u(:ncol,:pver) = ptend%u(:ncol,:pver) + utgw(:ncol,:pver)
+  ptend%v(:ncol,:pver) = ptend%v(:ncol,:pver) + vtgw(:ncol,:pver)
 
   ! Clean up the tensors
   call torch_delete(tensor_in)
