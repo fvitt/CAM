@@ -7,6 +7,7 @@ module ctem_mod
   use ref_pres, only: pref_mid
   use esmf_lonlat_grid_mod, only: beglon=>lon_beg, endlon=>lon_end, beglat=>lat_beg, endlat=>lat_end
   use cam_history,   only: addfld, outfld
+  use perf_mod, only: t_startf, t_stopf
 
   implicit none
 
@@ -191,6 +192,10 @@ contains
     real(r8) :: outtmp(beglon:endlon,pver)
     integer :: outcnt
 
+    call t_startf('ctem_calc')
+
+    call t_startf('ctem_calc-setarrs')
+
     do lchnk = begchunk,endchunk
        ncol = phys_state(lchnk)%ncol
        do i = 1,ncol
@@ -212,6 +217,9 @@ contains
        end do
     end do
 
+    call t_stopf('ctem_calc-setarrs')
+
+    call t_startf('ctem_calc-regrid')
 
     ! regrid to lon/lat grid
     call esmf_phys2lonlat_regrid(u_phys, u_lonlat)
@@ -220,7 +228,11 @@ contains
     call esmf_phys2lonlat_regrid(t_phys, t_lonlat)
     call esmf_phys2lonlat_regrid(p_phys, p_lonlat)
 
+    call t_stopf('ctem_calc-regrid')
+
     outcnt = endlon-beglon+1
+
+    call t_startf('ctem_calc-interp')
 
     ! vertically intepolate to ref press
     do i = beglon,endlon
@@ -241,12 +253,19 @@ contains
        end do
     end do
 
+    call t_stopf('ctem_calc-interp')
+
+    call t_startf('ctem_calc-zonal_mean-uvwt')
 
     ! calculate zonal means from interpolated fields
     call esmf_zonal_mean_calc(ui_lonlat, u_zm)
     call esmf_zonal_mean_calc(vi_lonlat, v_zm)
     call esmf_zonal_mean_calc(wi_lonlat, w_zm)
     call esmf_zonal_mean_calc(ti_lonlat, t_zm)
+
+    call t_stopf('ctem_calc-zonal_mean-uvwt')
+
+    call t_startf('ctem_calc-calc_deviations')
 
     ! Calculate zonal deviations from zonal means
     do j = beglat,endlat
@@ -258,16 +277,28 @@ contains
        end do
     end do
 
+    call t_stopf('ctem_calc-calc_deviations')
+
+    call t_startf('ctem_calc-calc_fluxes')
+
     ! Calculate fluxes
     vtp(:,:,:) = vd_lonlat(:,:,:) * td_lonlat(:,:,:)
     wtp(:,:,:) = wd_lonlat(:,:,:) * td_lonlat(:,:,:)
     uwp(:,:,:) = ud_lonlat(:,:,:) * wd_lonlat(:,:,:)
     uvp(:,:,:) = ud_lonlat(:,:,:) * vd_lonlat(:,:,:)
 
+    call t_stopf('ctem_calc-calc_fluxes')
+
+    call t_startf('ctem_calc-zonal_mean-p')
+
     call esmf_zonal_mean_calc(vtp, vtp_zm)
     call esmf_zonal_mean_calc(wtp, wtp_zm)
     call esmf_zonal_mean_calc(uwp, uwp_zm)
     call esmf_zonal_mean_calc(uvp, uvp_zm)
+
+    call t_stopf('ctem_calc-zonal_mean-p')
+
+    call t_startf('ctem_calc-output')
 
     ! output diagnostics
     do j = beglat,endlat
@@ -299,7 +330,10 @@ contains
        call outfld('UWzm', uwp_zm(j,:),1,j)
     end do
 
-  end subroutine ctem_calc
+    call t_stopf('ctem_calc-output')
 
+    call t_stopf('ctem_calc')
+
+  end subroutine ctem_calc
 
 end module ctem_mod

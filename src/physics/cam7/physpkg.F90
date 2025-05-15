@@ -156,6 +156,8 @@ contains
     use hemco_interface,    only: HCOI_Chunk_Init
     use surface_emissions_mod, only: surface_emissions_reg
     use elevated_emissions_mod, only: elevated_emissions_reg
+    use zm_test_mod, only: zm_test_reg
+    use ctem_mod, only: ctem_reg
 
     !---------------------------Local variables-----------------------------
     !
@@ -347,6 +349,9 @@ contains
     if (cam_snapshot_before_num > 0 .or. cam_snapshot_after_num > 0) then
         call pbuf_cam_snapshot_register()
     end if
+
+    call zm_test_reg()
+    call ctem_reg()
 
   end subroutine phys_register
 
@@ -770,6 +775,8 @@ contains
     use elevated_emissions_mod, only: elevated_emissions_init
 
     use ccpp_constituent_prop_mod, only: ccpp_const_props_init
+    use zm_test_mod, only: zm_test_init
+    use ctem_mod, only: ctem_init
 
     ! Input/output arguments
     type(physics_state), pointer       :: phys_state(:)
@@ -1047,6 +1054,9 @@ contains
 
     psl_idx = pbuf_get_index('PSL')
 
+    call zm_test_init()
+    call ctem_init()
+
   end subroutine phys_init
 
   !
@@ -1070,6 +1080,7 @@ contains
 #if ( defined OFFLINE_DYN )
      use metdata,       only: get_met_srf1
 #endif
+    use ctem_mod, only: ctem_calc
     !
     ! Input arguments
     !
@@ -1114,6 +1125,8 @@ contains
 
     call pbuf_allocate(pbuf2d, 'physpkg')
     call diag_allocate()
+
+    call ctem_calc(phys_state)
 
     !-----------------------------------------------------------------------
     ! Advance time information

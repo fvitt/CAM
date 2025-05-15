@@ -54,7 +54,7 @@ contains
     integer, allocatable :: nlats_task(:)
 
     integer, parameter :: minlats_per_pe = 2
-    integer, parameter :: minlons_per_pe = 4
+    integer, parameter :: minlons_per_pe = 2
 
     integer, allocatable :: petmap(:,:,:)
     integer :: petcnt
