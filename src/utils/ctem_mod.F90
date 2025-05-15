@@ -8,10 +8,54 @@ module ctem_mod
   use esmf_lonlat_grid_mod, only: beglon=>lon_beg, endlon=>lon_end, beglat=>lat_beg, endlat=>lat_end
   use cam_history,   only: addfld, outfld
   use perf_mod, only: t_startf, t_stopf
+  use cam_logfile, only: iulog
+  use cam_abortutils, only: endrun
 
   implicit none
 
+  integer :: ctem_diags_numlats = 0
+  logical :: ctem_diags_active = .false.
+
 contains
+
+  !-----------------------------------------------------------------------------
+  !-----------------------------------------------------------------------------
+  subroutine ctem_readnl(nlfile)
+    use namelist_utils, only : find_group_name
+    use spmd_utils, only : mpicom, masterprocid, mpi_integer, mpi_success
+    use string_utils, only : to_lower
+
+    character(len=*), intent(in) :: nlfile
+    integer :: unitn, ierr, m, n, ndx_co, ndx_ar
+
+    character(len=*), parameter :: prefix = 'ctem_readnl: '
+
+    namelist /ctem_diags_nl/ ctem_diags_numlats
+
+    if (masterproc) then
+       ! read namelist
+       open( newunit=unitn, file=trim(nlfile), status='old' )
+       call find_group_name(unitn, 'ctem_diags_nl', status=ierr)
+       if (ierr == 0) then
+          read(unitn, ctem_diags_nl, iostat=ierr)
+          if (ierr /= 0) then
+             call endrun(prefix//'ctem_diags_nl: ERROR reading namelist')
+          end if
+       end if
+       close(unitn)
+    end if
+
+    call mpi_bcast(ctem_diags_numlats, 1, mpi_integer, masterprocid, mpicom, ierr)
+    if (ierr /= mpi_success) call endrun(prefix//'mpi_bcast error : ctem_diags_numlats')
+
+    ctem_diags_active = ctem_diags_numlats > 0
+
+    if (masterproc) then
+       write(iulog,*) prefix//'ctem_diags_numlats: ', ctem_diags_numlats
+       write(iulog,*) prefix//'ctem_diags_active : ', ctem_diags_active
+    end if
+
+  end subroutine ctem_readnl
 
   !-----------------------------------------------------------------------------
   !-----------------------------------------------------------------------------
@@ -19,6 +63,9 @@ contains
 
     use cam_grid_support, only: horiz_coord_t, horiz_coord_create, iMap, cam_grid_register
     use esmf_lonlat_grid_mod, only: glats, nlat, glons, nlon
+    use esmf_lonlat_grid_mod, only: esmf_lonlat_grid_init
+    use esmf_phys_mesh_mod, only: esmf_phys_mesh_init
+    use esmf_phys2lonlat_mod, only: esmf_phys2lonlat_init
 
     integer :: ind, j, astat
 
@@ -35,6 +82,13 @@ contains
     type(horiz_coord_t), pointer :: lon_coord
     type(horiz_coord_t), pointer :: lat_coord
     integer :: i
+
+    if (.not.ctem_diags_active) return
+
+    ! initialize grids and mapping
+    call esmf_lonlat_grid_init(ctem_diags_numlats)
+    call esmf_phys_mesh_init()
+    call esmf_phys2lonlat_init()
 
     ! Zonal mean grid for history fields
     zmlons = 0._r8
@@ -105,13 +159,13 @@ contains
 
     nullify(grid_map)
 
-
   end subroutine ctem_reg
-
 
   !-----------------------------------------------------------------------------
   !-----------------------------------------------------------------------------
   subroutine ctem_init()
+
+    if (.not.ctem_diags_active) return
 
     ! fields on reg lon lat grid
     call addfld ('THreg', (/'lev'/), 'A','K',      'Potential temp', gridname='ctem_reg' )
@@ -191,6 +245,8 @@ contains
 
     real(r8) :: outtmp(beglon:endlon,pver)
     integer :: outcnt
+
+    if (.not.ctem_diags_active) return
 
     call t_startf('ctem_calc')
 

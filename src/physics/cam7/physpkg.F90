@@ -156,7 +156,6 @@ contains
     use hemco_interface,    only: HCOI_Chunk_Init
     use surface_emissions_mod, only: surface_emissions_reg
     use elevated_emissions_mod, only: elevated_emissions_reg
-    use zm_test_mod, only: zm_test_reg
     use ctem_mod, only: ctem_reg
 
     !---------------------------Local variables-----------------------------
@@ -350,7 +349,6 @@ contains
         call pbuf_cam_snapshot_register()
     end if
 
-    call zm_test_reg()
     call ctem_reg()
 
   end subroutine phys_register
@@ -775,7 +773,6 @@ contains
     use elevated_emissions_mod, only: elevated_emissions_init
 
     use ccpp_constituent_prop_mod, only: ccpp_const_props_init
-    use zm_test_mod, only: zm_test_init
     use ctem_mod, only: ctem_init
 
     ! Input/output arguments
@@ -1054,7 +1051,6 @@ contains
 
     psl_idx = pbuf_get_index('PSL')
 
-    call zm_test_init()
     call ctem_init()
 
   end subroutine phys_init
@@ -1126,6 +1122,7 @@ contains
     call pbuf_allocate(pbuf2d, 'physpkg')
     call diag_allocate()
 
+    ! TEM diagnostics
     call ctem_calc(phys_state)
 
     !-----------------------------------------------------------------------

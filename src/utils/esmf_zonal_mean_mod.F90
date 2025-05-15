@@ -16,8 +16,6 @@ contains
     use esmf_phys_mesh_mod, only: esmf_phys_mesh_init
     use esmf_phys2lonlat_mod, only: esmf_phys2lonlat_init
 
-    zonal_mean_nlats = 90
-
     call esmf_lonlat_grid_init(zonal_mean_nlats)
     call esmf_phys_mesh_init()
     call esmf_phys2lonlat_init()
