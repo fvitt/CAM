@@ -8,3 +8,6 @@ cam_physics_mesh = '$ATM_DOMAIN_MESH'
 ctem_diags_numlats = 90
 fincl2 = 'THreg','Ureg','Vreg','Wreg','VTHreg','WTHreg','UVreg', 'UWreg'
 fincl3 = 'Uzm', 'Vzm','Wzm', 'THzm','VTHzm','WTHzm','UVzm', 'UWzm'
+
+do_circulation_diags = .false.
+fincl7 = ' '
