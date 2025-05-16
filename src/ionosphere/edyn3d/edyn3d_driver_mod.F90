@@ -148,13 +148,23 @@ contains
     call addfld ('IonV_opg', (/ 'lev' /), 'I', 'm/s','Meridional Ion Drift Velocity on oplus grid' , gridname='geo_grid')
     call addfld ('IonW_opg', (/ 'lev' /), 'I', 'm/s','Vertical Ion Drift Velocity on oplus grid' , gridname='geo_grid')
 
-    call addfld ('ELECPOTEN', horiz_only, 'I', 'Volts','Electric potential', gridname='geomag_grid')
-    call addfld ('HILAT_POT', horiz_only, 'I', 'Volts','High-Latitude potential', gridname='geomag_grid')
-    call addfld ('HILAT_FAC', horiz_only, 'I', '???','High-Latitude field-aligned current', gridname='geomag_grid')
+    call addfld ('ELECPOTEN', horiz_only, 'I', 'Volts','Electric potential', gridname='geomag_p')
+    call addfld ('HILAT_POT', horiz_only, 'I', 'Volts','High-Latitude potential', gridname='geomag_p')
+    call addfld ('HILAT_FAC', horiz_only, 'I', '???','High-Latitude field-aligned current', gridname='geomag_p')
 
     call addfld ('POTEN_opg', horiz_only, 'I', 'Volts', 'Electric potential', gridname='geo_grid')
     call addfld ('HLPOT_opg', horiz_only, 'I', 'Volts', 'High-latitude potential', gridname='geo_grid')
     call addfld ('HLFAC_opg', horiz_only, 'I', '???', 'High-Latitude field-aligned current', gridname='geo_grid')
+
+    call addfld ('ED1s1', horiz_only, 'I', 'V/m','Electric field component', gridname='geomag_s1')
+    call addfld ('ED2s1', horiz_only, 'I', 'V/m','Electric field component', gridname='geomag_s1')
+    call addfld ('ED1s2', horiz_only, 'I', 'V/m','Electric field component', gridname='geomag_s2')
+    call addfld ('ED2s2', horiz_only, 'I', 'V/m','Electric field component', gridname='geomag_s2')
+
+    call addfld ('Ve1s1', horiz_only, 'I', 'm/s','Ion Drift Velocity', gridname='geomag_s1')
+    call addfld ('Ve2s1', horiz_only, 'I', 'm/s','Ion Drift Velocity', gridname='geomag_s1')
+    call addfld ('Ve1s2', horiz_only, 'I', 'm/s','Ion Drift Velocity', gridname='geomag_s2')
+    call addfld ('Ve2s2', horiz_only, 'I', 'm/s','Ion Drift Velocity', gridname='geomag_s2')
 
     read_fac = .false. ! prescribed high-lat potential (pot_hl) will be provided
 
@@ -181,6 +191,7 @@ contains
     use edyn3d_hist_mag_grids_mod, only: edyn3d_hist_mag_s1_out
     use edyn3d_hist_mag_grids_mod, only: edyn3d_hist_mag_s2_out
     use edyn3d_hist_mag_grids_mod, only: edyn3d_hist_mlonlat_out
+    use edyn3d_hist_mag_grids_mod, only: edyn3d_hist_mlonlat_s_out
     use mpi_module, only: sync_mlat_5d, sync_mlon_5d
     use calculate_terms_module, only: calculate_conductance
     use calculate_terms_module, only: calculate_n, calculate_je, calculate_s
@@ -476,6 +487,16 @@ contains
             ve1_s1,ve2_s1,e1_s1,e2_s1, &
             ve1_s2,ve2_s2,e1_s2,e2_s2, &
             vx_s1,vy_s1,vz_s1,vx_s2,vy_s2,vz_s2)
+
+       call edyn3d_hist_mlonlat_out('ED1s1', ed1_s1(1:2,mlat0:mlat1,mlon0:mlon1))
+       call edyn3d_hist_mlonlat_out('ED2s1', ed2_s1(1:2,mlat0:mlat1,mlon0:mlon1))
+       call edyn3d_hist_mlonlat_s_out('ED1s2', ed1_s2(1:2,mlat0:mlat1,mlon0:mlon1))
+       call edyn3d_hist_mlonlat_s_out('ED2s2', ed2_s2(1:2,mlat0:mlat1,mlon0:mlon1))
+
+       call edyn3d_hist_mlonlat_out('Ve1s1', ve1_s1(1:2,mlat0:mlat1,mlon0:mlon1))
+       call edyn3d_hist_mlonlat_out('Ve2s1', ve2_s1(1:2,mlat0:mlat1,mlon0:mlon1))
+       call edyn3d_hist_mlonlat_s_out('Ve1s2', ve1_s2(1:2,mlat0:mlat1,mlon0:mlon1))
+       call edyn3d_hist_mlonlat_s_out('Ve2s2', ve2_s2(1:2,mlat0:mlat1,mlon0:mlon1))
 
        call edyn3d_hist_mag_s1_out('IonU_s1',vx_s1(:,:,mlat0:mlat1,mlon0:mlon1))
        call edyn3d_hist_mag_s1_out('IonV_s1',vy_s1(:,:,mlat0:mlat1,mlon0:mlon1))

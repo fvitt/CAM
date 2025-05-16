@@ -1,7 +1,7 @@
 module edyn3d_hist_mag_grids_mod
   use shr_kind_mod, only: r8 => shr_kind_r8
   use fieldline_module, only: npts_s1, npts_s2
-  use params_module, only: hgt_fix, nhgt_fix, nmlon, nmlat_h, nmlatS2_h, nmlat_T1
+  use params_module, only: hgt_fix, nhgt_fix, nmlon, nmlat_h, nmlatS2_h, nmlat_T1, nmlat_T2
   use mpi_module, only: mlon0, mlon1, mlat0, mlat1
   use mpi_module, only: mytid=>mpi_rank, ntask=>mpi_size
   use cam_abortutils, only: endrun
@@ -16,6 +16,7 @@ module edyn3d_hist_mag_grids_mod
   public :: edyn3d_hist_mag_s1_out
   public :: edyn3d_hist_mag_s2_out
   public :: edyn3d_hist_mlonlat_out
+  public :: edyn3d_hist_mlonlat_s_out
   public :: edyn3d_hist_mag_grids_final
 
   integer :: s1flpt0=1, s1flpt1=0
@@ -34,19 +35,25 @@ contains
     use cam_grid_support, only: horiz_coord_t, horiz_coord_create, iMap
     use cam_grid_support, only: cam_grid_register, cam_grid_attribute_register
     use fieldline_module, only: qdlat_s1, qdlat_s2
-    use params_module, only: ylonm, ylonm_s, ylatm
+    use params_module, only: ylonm, ylonm_s, ylatm, ylatm_s
     use cons_module, only: rtd
 
-    integer, parameter :: mags1_decomp = 719 ! Must be unique within CAM
-    integer, parameter :: mags2_decomp = 694
-    integer, parameter :: geomag_decomp = 762
+    integer, parameter :: magfln_s1_decomp = 701 ! Must be unique within CAM
+    integer, parameter :: magfln_s2_decomp = 702
+    integer, parameter :: geomag_p_decomp =  703
+    integer, parameter :: geomag_s1_decomp = 704
+    integer, parameter :: geomag_s2_decomp = 705
 
     type(horiz_coord_t), pointer :: flns1_coord => null()
     type(horiz_coord_t), pointer :: flns2_coord => null()
     type(horiz_coord_t), pointer :: lons1_coord => null()
     type(horiz_coord_t), pointer :: lons2_coord => null()
+
     type(horiz_coord_t), pointer :: maglon_coord => null()
     type(horiz_coord_t), pointer :: maglat_coord => null()
+
+    type(horiz_coord_t), pointer :: maglon_s_coord => null() ! S1
+    type(horiz_coord_t), pointer :: maglat_s_coord => null() ! S2
 
     integer(iMap),       pointer :: grid_map(:,:) => null()
     integer(iMap),       pointer :: coord_map(:) => null()
@@ -63,6 +70,8 @@ contains
 
     real(r8), pointer :: maglats(:) => null()
     real(r8), pointer :: maglons(:) => null()
+    real(r8), pointer :: maglats_s(:) => null()
+    real(r8), pointer :: maglons_s(:) => null()
     real(r8) :: latmin, lonmin
     integer :: astat
 
@@ -245,7 +254,7 @@ contains
        end do
     end do
 
-    call cam_grid_register('magfline_s1', mags1_decomp, flns1_coord, lons1_coord, grid_map, unstruct=.false.)
+    call cam_grid_register('magfline_s1', magfln_s1_decomp, flns1_coord, lons1_coord, grid_map, unstruct=.false.)
 
     nullify(grid_map)
 
@@ -265,7 +274,7 @@ contains
        end do
     end do
 
-    call cam_grid_register('magfline_s2', mags2_decomp, flns2_coord, lons2_coord, grid_map, unstruct=.false.)
+    call cam_grid_register('magfline_s2', magfln_s2_decomp, flns2_coord, lons2_coord, grid_map, unstruct=.false.)
 
     nullify(grid_map)
 
@@ -297,6 +306,11 @@ contains
        call endrun(subname//': not able to allocate maglons')
     end if
 
+    allocate(maglons_s(size(grid_map, 2)), stat=astat)
+    if (astat /= 0) then
+       call endrun(subname//': not able to allocate maglons')
+    end if
+
     ind = 0
     lcid = 0 ! local chunk number
     hemi_loop: do isn = 1,2
@@ -318,6 +332,7 @@ contains
              grid_map(3,ind) = i             ! global lon ndx
              grid_map(4,ind) = jj            ! global lat ndx
              maglons(ind) = ylonm(i) * rtd
+             maglons_s(ind) = ylonm_s(i) * rtd
              maglats(ind) = ylatm(isn,j) * rtd
           end do
 
@@ -342,6 +357,9 @@ contains
     maglon_coord => horiz_coord_create('maglon', 'maglon', nmlon, 'magnetic longitude', &
          'degrees_east', 1, size(maglons), maglons, map=coord_map)
 
+    maglon_s_coord => horiz_coord_create('maglon_s', 'maglon_s', nmlon, 'magnetic longitude', &
+         'degrees_east', 1, size(maglons_s), maglons_s, map=coord_map)
+
 
     where(maglons == lonmin)
        coord_map(:) = grid_map(4, :)
@@ -352,8 +370,75 @@ contains
     maglat_coord => horiz_coord_create('maglat', 'maglat', nmlat_T1, 'magnetic latitude', &
          'degrees_north', 1, size(maglats), maglats, map=coord_map)
 
-    call cam_grid_register('geomag_grid', geomag_decomp, maglat_coord, maglon_coord, &
+    call cam_grid_register('geomag_p', geomag_p_decomp, maglat_coord, maglon_coord, &
          grid_map, unstruct=.false.)
+
+    call cam_grid_register('geomag_s1', geomag_s1_decomp, maglat_coord, maglon_s_coord, &
+         grid_map, unstruct=.false.)
+
+
+    nullify(grid_map)
+    nullify(coord_map)
+
+    ! Staggered (S2) 2D mag lon lat grid
+
+    mylatsize = 2*(min(mlat1,nmlats2_h)-mlat0+1)
+
+    allocate(grid_map(4,(mlon1 - mlon0 + 1) * mylatsize), stat=astat)
+    if (astat /= 0) then
+       call endrun(subname//': not able to allocate grid_map')
+    end if
+    allocate(maglats_s(size(grid_map, 2)), stat=astat)
+    if (astat /= 0) then
+       call endrun(subname//': not able to allocate maglats')
+    end if
+
+    ind = 0
+    lcid = 0 ! local chunk number
+    do isn = 1,2
+       do j = mlat0,min(mlat1,nmlats2_h)
+
+          if (isn==1) then
+             jj = j ! global lat index
+          else
+             jj = nmlat_T2 - j + 1
+          end if
+
+          lcid = lcid + 1
+
+          do i = mlon0,mlon1
+             ind = ind + 1
+             grid_map(1,ind) = i - mlon0 + 1 ! local column num
+             grid_map(2,ind) = lcid          ! local chunk num
+             grid_map(3,ind) = i             ! global lon ndx
+             grid_map(4,ind) = jj            ! global lat ndx
+
+             maglats_s(ind) = ylatm_s(isn,j) * rtd
+
+          end do
+
+       end do
+    end do
+
+    allocate(coord_map(size(grid_map, 2)), stat=astat)
+    if (astat /= 0) then
+       call endrun(subname//': not able to allocate grid_map')
+    end if
+
+    where(maglons == lonmin)
+       coord_map(:) = grid_map(4, :)
+    elsewhere
+       coord_map(:) = 0_iMap
+    end where
+
+    maglat_s_coord => horiz_coord_create('maglat_s', 'maglat_s', nmlat_T2, 'magnetic latitude', &
+         'degrees_north', 1, size(maglats_s), maglats_s, map=coord_map)
+
+    call cam_grid_register('geomag_s2', geomag_s2_decomp, maglat_s_coord, maglon_coord, &
+         grid_map, unstruct=.false.)
+
+    nullify(grid_map)
+    nullify(coord_map)
 
     if (masterproc) then
        write(iulog,*) subname,'Reg mag fieldline history grid FINISHED'
@@ -477,6 +562,34 @@ contains
     end do hemi_loop
 
   end subroutine edyn3d_hist_mlonlat_out
+
+  !-----------------------------------------------------------------------------
+  !-----------------------------------------------------------------------------
+  subroutine edyn3d_hist_mlonlat_s_out( fldname, fldarray )
+    use cam_history, only: outfld
+
+    character(len=*), intent(in) :: fldname
+    real(r8), intent(in) :: fldarray(2,mlat0:mlat1,mlon0:mlon1)
+
+    real(r8) :: tmparray(mlon0:mlon1)
+
+    integer :: isn,j, lcid
+
+    lcid = 0 ! local chunk number
+
+    hemi_loop: do isn = 1,2
+       do j = mlat0,min(mlat1,nmlats2_h)
+
+          lcid = lcid + 1
+
+          tmparray(:) = fldarray(isn,j,:)
+
+          call outfld(fldname, tmparray(mlon0:mlon1), mlon1-mlon0+1, lcid)
+
+       end do
+    end do hemi_loop
+
+  end subroutine edyn3d_hist_mlonlat_s_out
 
   !-----------------------------------------------------------------------------
   !-----------------------------------------------------------------------------
