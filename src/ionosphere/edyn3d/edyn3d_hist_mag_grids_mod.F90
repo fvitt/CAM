@@ -380,6 +380,10 @@ contains
     nullify(grid_map)
     nullify(coord_map)
 
+    nullify(maglats)
+    nullify(maglons)
+    nullify(maglons_s)
+
     ! Staggered (S2) 2D mag lon lat grid
 
     mylatsize = 2*(min(mlat1,nmlats2_h)-mlat0+1)
@@ -391,6 +395,10 @@ contains
     allocate(maglats_s(size(grid_map, 2)), stat=astat)
     if (astat /= 0) then
        call endrun(subname//': not able to allocate maglats')
+    end if
+    allocate(maglons(size(grid_map, 2)), stat=astat)
+    if (astat /= 0) then
+       call endrun(subname//': not able to allocate maglons')
     end if
 
     ind = 0
@@ -413,6 +421,7 @@ contains
              grid_map(3,ind) = i             ! global lon ndx
              grid_map(4,ind) = jj            ! global lat ndx
 
+             maglons(ind) = ylonm(i) * rtd
              maglats_s(ind) = ylatm_s(isn,j) * rtd
 
           end do
@@ -439,6 +448,8 @@ contains
 
     nullify(grid_map)
     nullify(coord_map)
+    nullify(maglats_s)
+    nullify(maglons)
 
     if (masterproc) then
        write(iulog,*) subname,'Reg mag fieldline history grid FINISHED'
