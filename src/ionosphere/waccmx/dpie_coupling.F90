@@ -620,15 +620,15 @@ contains
 
           nphyscols = cole - cols + 1
           call edyn3D_driver_timestep( nphyscols, plev, zhtmid, sigma_ped, sigma_hall, u, v, &
-                                       ui_3d, vi_3d, wi_3d )
+                                       ui_3d, vi_3d, wi_3d ) !  bottom up vert in returned ion vels
 
           call regrid_geo2phys_3d( ui_3d, ui_out, plev, 1, nphyscols )
           call regrid_geo2phys_3d( vi_3d, vi_out, plev, 1, nphyscols )
           call regrid_geo2phys_3d( wi_3d, wi_out, plev, 1, nphyscols )
 
-          call outfld_phys('IonU_phys',ui_out)
-          call outfld_phys('IonV_phys',vi_out)
-          call outfld_phys('IonW_phys',wi_out)
+          call outfld_phys('IonU_phys',ui_out(plev:1:-1,:))
+          call outfld_phys('IonV_phys',vi_out(plev:1:-1,:))
+          call outfld_phys('IonW_phys',wi_out(plev:1:-1,:))
 
           do k = 1, nlev
              do i = lon0,lon1

@@ -537,13 +537,14 @@ contains
     call t_stopf(subname//'->regrid_phys2geo_3d')
 
     call t_startf(subname//'->remap_mag2oplus')
-    call edyn3d_remap_mag2oplus( magsrc_flds_bndl, opalt, oplus_flds_bndl )
+    ! invert the oplus altitudes (need bottom-up order)
+    call edyn3d_remap_mag2oplus( magsrc_flds_bndl, opalt(:,:,lev1:lev0:-1), oplus_flds_bndl )
     call t_stopf(subname//'->remap_mag2oplus')
 
     do j = lat0,lat1
-       call outfld( 'IonU_opg', ui_oplus(lon0:lon1,j,lev0:lev1), lon1-lon0+1, j )
-       call outfld( 'IonV_opg', vi_oplus(lon0:lon1,j,lev0:lev1), lon1-lon0+1, j )
-       call outfld( 'IonW_opg', wi_oplus(lon0:lon1,j,lev0:lev1), lon1-lon0+1, j )
+       call outfld( 'IonU_opg', ui_oplus(lon0:lon1,j,lev1:lev0:-1), lon1-lon0+1, j )
+       call outfld( 'IonV_opg', vi_oplus(lon0:lon1,j,lev1:lev0:-1), lon1-lon0+1, j )
+       call outfld( 'IonW_opg', wi_oplus(lon0:lon1,j,lev1:lev0:-1), lon1-lon0+1, j )
     end do
 
     call t_stopf(subname)
