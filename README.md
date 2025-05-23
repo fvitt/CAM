@@ -102,7 +102,7 @@ gw_convect_dp_ml_norms='/path/to/norms'
 * `gw_convect_dp_ml_compare` (`logical`)
 
    Whether or not to run a piggybacking comparison of the ML deep convection gravity waves to the original scheme. Only one
-   scheme will be used to advance the simulation as dictated by `gw_convect_deep_ml`. Default: `.false.`
+   scheme will be used to advance the simulation as dictated by the value of `gw_convect_dp_ml`. Default: `.false.`
 
 * `gw_convect_dp_ml_net_path`
 
