@@ -1314,6 +1314,7 @@ contains
     use phys_grid_ctem, only: phys_grid_ctem_final
     use nudging,        only: Nudge_Model, nudging_final
     use hemco_interface, only: HCOI_Chunk_Final
+    use ctem_mod, only: ctem_final
 
     !-----------------------------------------------------------------------
     !
@@ -1340,9 +1341,11 @@ contains
     if(Nudge_Model) call nudging_final()
 
     if(use_hemco) then
-        ! cleanup hemco
-        call HCOI_Chunk_Final
+       ! cleanup hemco
+       call HCOI_Chunk_Final
     endif
+
+    call ctem_final()
 
   end subroutine phys_final
 

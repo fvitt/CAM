@@ -3,18 +3,31 @@ module esmf_zonal_mean_mod
   use cam_logfile, only: iulog
   use cam_abortutils, only: endrun
   use spmd_utils, only: masterproc
+  use cam_history_support, only : fillvalue
 
   implicit none
 
-  integer :: zonal_mean_nlats = 0
+  private
+
+  public :: esmf_zonal_mean_reg
+  public :: esmf_zonal_mean_calc
+
+  interface esmf_zonal_mean_calc
+     module procedure esmf_zonal_mean_calc_2d
+     module procedure esmf_zonal_mean_calc_3d
+  end interface esmf_zonal_mean_calc
 
 contains
 
+  !%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%
+  !%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%
   subroutine esmf_zonal_mean_reg
 
     use esmf_lonlat_grid_mod, only: esmf_lonlat_grid_init
     use esmf_phys_mesh_mod, only: esmf_phys_mesh_init
     use esmf_phys2lonlat_mod, only: esmf_phys2lonlat_init
+
+    integer, parameter :: zonal_mean_nlats = 90
 
     call esmf_lonlat_grid_init(zonal_mean_nlats)
     call esmf_phys_mesh_init()
@@ -22,7 +35,9 @@ contains
 
   end subroutine esmf_zonal_mean_reg
 
-  subroutine esmf_zonal_mean_calc(lonlatarr, zmarr)
+  !%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%
+  !%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%
+  subroutine esmf_zonal_mean_calc_3d(lonlatarr, zmarr, wght)
     use ppgrid, only: pver
     use esmf_lonlat_grid_mod, only: lon_beg,lon_end,lat_beg,lat_end, nlon
     use esmf_lonlat_grid_mod, only: zonal_comm
@@ -31,21 +46,72 @@ contains
     real(r8), intent(in) :: lonlatarr(lon_beg:lon_end,lat_beg:lat_end,pver)
     real(r8), intent(out) :: zmarr(lat_beg:lat_end,pver)
 
+    real(r8), optional, intent(in) :: wght(lon_beg:lon_end,lat_beg:lat_end,pver)
+
     real(r8) :: tmparr(lon_beg:lon_end,pver)
     real(r8) :: gsum(pver)
 
-    integer :: numlons, ilat
+    real(r8) :: wsum(pver)
+
+    integer :: numlons, ilat, ilev
 
     numlons = lon_end-lon_beg+1
 
     ! zonal mean
+    if (present(wght)) then
 
-    do ilat = lat_beg, lat_end
-       tmparr(lon_beg:lon_end,:) = lonlatarr(lon_beg:lon_end,ilat,:)
-       call shr_reprosum_calc(tmparr, gsum, numlons, numlons, pver, gbl_count=nlon, commid=zonal_comm)
-       zmarr(ilat,:) = gsum(:)/nlon
-    end do
+       do ilat = lat_beg, lat_end
 
-  end subroutine esmf_zonal_mean_calc
+          tmparr(lon_beg:lon_end,:) = wght(lon_beg:lon_end,ilat,:)
+          call shr_reprosum_calc(tmparr, wsum, numlons, numlons, pver, gbl_count=nlon, commid=zonal_comm)
+
+          tmparr(lon_beg:lon_end,:) = wght(lon_beg:lon_end,ilat,:)*lonlatarr(lon_beg:lon_end,ilat,:)
+          call shr_reprosum_calc(tmparr, gsum, numlons, numlons, pver, gbl_count=nlon, commid=zonal_comm)
+
+          do ilev = 1,pver
+             if (wsum(ilev)>0._r8) then
+                zmarr(ilat,ilev) = gsum(ilev)/wsum(ilev)
+             else
+                zmarr(ilat,ilev) = fillvalue
+             end if
+          end do
+
+       end do
+
+    else
+
+       do ilat = lat_beg, lat_end
+          tmparr(lon_beg:lon_end,:) = lonlatarr(lon_beg:lon_end,ilat,:)
+          call shr_reprosum_calc(tmparr, gsum, numlons, numlons, pver, gbl_count=nlon, commid=zonal_comm)
+          zmarr(ilat,:) = gsum(:)/nlon
+       end do
+
+    end if
+
+  end subroutine esmf_zonal_mean_calc_3d
+
+  !%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%
+  !%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%
+  subroutine esmf_zonal_mean_calc_2d(lonlatarr, zmarr)
+    use esmf_lonlat_grid_mod, only: lon_beg,lon_end,lat_beg,lat_end, nlon
+    use esmf_lonlat_grid_mod, only: zonal_comm
+    use shr_reprosum_mod,only: shr_reprosum_calc
+
+    real(r8), intent(in) :: lonlatarr(lon_beg:lon_end,lat_beg:lat_end)
+    real(r8), intent(out) :: zmarr(lat_beg:lat_end)
+
+    real(r8) :: gsum(lat_beg:lat_end)
+
+    integer :: numlons, numlats
+
+    numlons = lon_end-lon_beg+1
+    numlats = lat_end-lat_beg+1
+
+    ! zonal mean
+
+    call shr_reprosum_calc(lonlatarr, gsum, numlons, numlons, numlats, gbl_count=nlon, commid=zonal_comm)
+    zmarr(:) = gsum(:)/nlon
+
+  end subroutine esmf_zonal_mean_calc_2d
 
 end module esmf_zonal_mean_mod

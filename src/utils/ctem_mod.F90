@@ -6,7 +6,8 @@ module ctem_mod
   use spmd_utils, only: masterproc
   use ref_pres, only: pref_mid
   use esmf_lonlat_grid_mod, only: beglon=>lon_beg, endlon=>lon_end, beglat=>lat_beg, endlat=>lat_end
-  use cam_history,   only: addfld, outfld
+  use cam_history,  only: addfld, outfld, horiz_only
+  use cam_history_support, only : fillvalue
   use perf_mod, only: t_startf, t_stopf
   use cam_logfile, only: iulog
   use cam_abortutils, only: endrun
@@ -168,15 +169,15 @@ contains
     if (.not.ctem_diags_active) return
 
     ! fields on reg lon lat grid
-    call addfld ('THreg', (/'lev'/), 'A','K',      'Potential temp', gridname='ctem_reg' )
-    call addfld ('Ureg',  (/'lev'/), 'A','m s-1',  'Zonal-Mean zonal wind', gridname='ctem_reg' )
-    call addfld ('Vreg',  (/'lev'/), 'A','m s-1',  'Zonal-Mean meridional wind', gridname='ctem_reg' )
-    call addfld ('Wreg',  (/'lev'/), 'A','m s-1',  'Zonal-Mean vertical wind', gridname='ctem_reg' )
+    call addfld ('THtem', (/'lev'/), 'A','K',      'Potential temp', gridname='ctem_reg' )
+    call addfld ('Utem',  (/'lev'/), 'A','m s-1',  'Zonal-Mean zonal wind', gridname='ctem_reg' )
+    call addfld ('Vtem',  (/'lev'/), 'A','m s-1',  'Zonal-Mean meridional wind', gridname='ctem_reg' )
+    call addfld ('Wtem',  (/'lev'/), 'A','m s-1',  'Zonal-Mean vertical wind', gridname='ctem_reg' )
 
-    call addfld ('VTHreg',(/'lev'/), 'A','K m s-1','Meridional Heat Flux:', gridname='ctem_reg')
-    call addfld ('WTHreg',(/'lev'/), 'A','K m s-1','Vertical Heat Flux:', gridname='ctem_reg')
-    call addfld ('UVreg', (/'lev'/), 'A','m2 s-2', 'Meridional Flux of Zonal Momentum', gridname='ctem_reg')
-    call addfld ('UWreg', (/'lev'/), 'A','m2 s-2', 'Vertical Flux of Zonal Momentum', gridname='ctem_reg')
+    call addfld ('VTHtem',(/'lev'/), 'A','K m s-1','Meridional Heat Flux:', gridname='ctem_reg')
+    call addfld ('WTHtem',(/'lev'/), 'A','K m s-1','Vertical Heat Flux:', gridname='ctem_reg')
+    call addfld ('UVtem', (/'lev'/), 'A','m2 s-2', 'Meridional Flux of Zonal Momentum', gridname='ctem_reg')
+    call addfld ('UWtem', (/'lev'/), 'A','m2 s-2', 'Vertical Flux of Zonal Momentum', gridname='ctem_reg')
 
     ! fields on zonal mean grid
     call addfld ('Uzm',  (/'lev'/), 'A','m s-1',  'Zonal-Mean zonal wind', gridname='ctem_zm' )
@@ -187,6 +188,10 @@ contains
     call addfld ('WTHzm',(/'lev'/), 'A','K m s-1','Vertical Heat Flux:', gridname='ctem_zm')
     call addfld ('UVzm', (/'lev'/), 'A','m2 s-2', 'Meridional Flux of Zonal Momentum', gridname='ctem_zm')
     call addfld ('UWzm', (/'lev'/), 'A','m2 s-2', 'Vertical Flux of Zonal Momentum', gridname='ctem_zm')
+
+    call addfld ('PSzm',  horiz_only, 'A', 'Pa', 'Zonal-Mean surface pressure', gridname='ctem_zm' )
+    call addfld ('PStem', horiz_only, 'A', 'Pa', 'Surface Pressure', gridname='ctem_reg')
+    call addfld ('MSKtem',horiz_only, 'A','1',  'TEM mask', gridname='ctem_reg' )
 
   end subroutine ctem_init
 
@@ -207,12 +212,15 @@ contains
     real(r8) :: w_phys(pver,pcols,begchunk:endchunk)
     real(r8) :: t_phys(pver,pcols,begchunk:endchunk)
     real(r8) :: p_phys(pver,pcols,begchunk:endchunk)
+    real(r8) :: ps_phys(pcols,begchunk:endchunk)
 
     real(r8) :: u_lonlat(beglon:endlon,beglat:endlat,pver)
     real(r8) :: v_lonlat(beglon:endlon,beglat:endlat,pver)
     real(r8) :: w_lonlat(beglon:endlon,beglat:endlat,pver)
     real(r8) :: t_lonlat(beglon:endlon,beglat:endlat,pver)
     real(r8) :: p_lonlat(beglon:endlon,beglat:endlat,pver)
+    real(r8) :: ps_lonlat(beglon:endlon,beglat:endlat)
+    real(r8) :: mskind1(beglon:endlon,beglat:endlat) ! vertical index where mountain masking begins
 
     real(r8) :: ui_lonlat(beglon:endlon,beglat:endlat,pver)
     real(r8) :: vi_lonlat(beglon:endlon,beglat:endlat,pver)
@@ -224,6 +232,7 @@ contains
     real(r8) :: v_zm(beglat:endlat,pver)
     real(r8) :: w_zm(beglat:endlat,pver)
     real(r8) :: t_zm(beglat:endlat,pver)
+    real(r8) :: ps_zm(beglat:endlat)
 
     real(r8) :: ud_lonlat(beglon:endlon,beglat:endlat,pver)
     real(r8) :: vd_lonlat(beglon:endlon,beglat:endlat,pver)
@@ -245,6 +254,8 @@ contains
 
     real(r8) :: outtmp(beglon:endlon,pver)
     integer :: outcnt
+
+    real(r8) :: wght(beglon:endlon,beglat:endlat,pver)
 
     if (.not.ctem_diags_active) return
 
@@ -270,6 +281,9 @@ contains
 
           ! mid point press
           p_phys(:,i,lchnk) = phys_state(lchnk)%pmid(i,:)
+
+          ps_phys(i,lchnk) = phys_state(lchnk)%ps(i)
+
        end do
     end do
 
@@ -284,15 +298,28 @@ contains
     call esmf_phys2lonlat_regrid(t_phys, t_lonlat)
     call esmf_phys2lonlat_regrid(p_phys, p_lonlat)
 
+    call esmf_phys2lonlat_regrid(ps_phys, ps_lonlat)
+
     call t_stopf('ctem_calc-regrid')
 
-    outcnt = endlon-beglon+1
+    call esmf_zonal_mean_calc(ps_lonlat, ps_zm)
 
     call t_startf('ctem_calc-interp')
 
     ! vertically intepolate to ref press
     do i = beglon,endlon
        do j = beglat,endlat
+
+          mskind1(i,j) = pver
+
+          do k = 1,pver
+             if (ps_lonlat(i,j)>=pref_mid(k)) then
+                wght(i,j,k) = 1._r8
+                mskind1(i,j) = k ! vertical index where masking begins
+             else
+                wght(i,j,k) = 0._r8
+             end if
+          end do
 
           call lininterp( u_lonlat(i,j,:), p_lonlat(i,j,:), pver, &
                           ui_lonlat(i,j,:), pref_mid(:), pver )
@@ -314,71 +341,84 @@ contains
     call t_startf('ctem_calc-zonal_mean-uvwt')
 
     ! calculate zonal means from interpolated fields
-    call esmf_zonal_mean_calc(ui_lonlat, u_zm)
-    call esmf_zonal_mean_calc(vi_lonlat, v_zm)
-    call esmf_zonal_mean_calc(wi_lonlat, w_zm)
-    call esmf_zonal_mean_calc(ti_lonlat, t_zm)
+    call esmf_zonal_mean_calc(ui_lonlat, u_zm, wght=wght)
+    call esmf_zonal_mean_calc(vi_lonlat, v_zm, wght=wght)
+    call esmf_zonal_mean_calc(wi_lonlat, w_zm, wght=wght)
+    call esmf_zonal_mean_calc(ti_lonlat, t_zm, wght=wght)
 
     call t_stopf('ctem_calc-zonal_mean-uvwt')
 
-    call t_startf('ctem_calc-calc_deviations')
+    call t_startf('ctem_calc-calc_dev_flx')
 
-    ! Calculate zonal deviations from zonal means
-    do j = beglat,endlat
-       do i = beglon,endlon
-          ud_lonlat(i,j,:) = ui_lonlat(i,j,:) - u_zm(j,:)
-          vd_lonlat(i,j,:) = vi_lonlat(i,j,:) - v_zm(j,:)
-          wd_lonlat(i,j,:) = wi_lonlat(i,j,:) - w_zm(j,:)
-          td_lonlat(i,j,:) = ti_lonlat(i,j,:) - t_zm(j,:)
+    ! Calculate zonal deviations and fluxes
+    do k = 1,pver
+       do j = beglat,endlat
+          do i = beglon,endlon
+             if (wght(i,j,k)>0._r8) then
+                ud_lonlat(i,j,k) = ui_lonlat(i,j,k) - u_zm(j,k)
+                vd_lonlat(i,j,k) = vi_lonlat(i,j,k) - v_zm(j,k)
+                wd_lonlat(i,j,k) = wi_lonlat(i,j,k) - w_zm(j,k)
+                td_lonlat(i,j,k) = ti_lonlat(i,j,k) - t_zm(j,k)
+                vtp(i,j,k) = vd_lonlat(i,j,k) * td_lonlat(i,j,k)
+                wtp(i,j,k) = wd_lonlat(i,j,k) * td_lonlat(i,j,k)
+                uwp(i,j,k) = ud_lonlat(i,j,k) * wd_lonlat(i,j,k)
+                uvp(i,j,k) = ud_lonlat(i,j,k) * vd_lonlat(i,j,k)
+             else
+                ud_lonlat(i,j,k) = fillvalue
+                vd_lonlat(i,j,k) = fillvalue
+                wd_lonlat(i,j,k) = fillvalue
+                td_lonlat(i,j,k) = fillvalue
+                vtp(i,j,k) = fillvalue
+                wtp(i,j,k) = fillvalue
+                uwp(i,j,k) = fillvalue
+                uvp(i,j,k) = fillvalue
+             end if
+          end do
        end do
     end do
 
-    call t_stopf('ctem_calc-calc_deviations')
-
-    call t_startf('ctem_calc-calc_fluxes')
-
-    ! Calculate fluxes
-    vtp(:,:,:) = vd_lonlat(:,:,:) * td_lonlat(:,:,:)
-    wtp(:,:,:) = wd_lonlat(:,:,:) * td_lonlat(:,:,:)
-    uwp(:,:,:) = ud_lonlat(:,:,:) * wd_lonlat(:,:,:)
-    uvp(:,:,:) = ud_lonlat(:,:,:) * vd_lonlat(:,:,:)
-
-    call t_stopf('ctem_calc-calc_fluxes')
+    call t_stopf('ctem_calc-calc_dev_flx')
 
     call t_startf('ctem_calc-zonal_mean-p')
 
-    call esmf_zonal_mean_calc(vtp, vtp_zm)
-    call esmf_zonal_mean_calc(wtp, wtp_zm)
-    call esmf_zonal_mean_calc(uwp, uwp_zm)
-    call esmf_zonal_mean_calc(uvp, uvp_zm)
+    call esmf_zonal_mean_calc(vtp, vtp_zm, wght=wght)
+    call esmf_zonal_mean_calc(wtp, wtp_zm, wght=wght)
+    call esmf_zonal_mean_calc(uwp, uwp_zm, wght=wght)
+    call esmf_zonal_mean_calc(uvp, uvp_zm, wght=wght)
 
     call t_stopf('ctem_calc-zonal_mean-p')
 
     call t_startf('ctem_calc-output')
 
+    outcnt = endlon-beglon+1
+
     ! output diagnostics
     do j = beglat,endlat
        outtmp(beglon:endlon,1:pver) = ti_lonlat(beglon:endlon,j,1:pver)
-       call outfld('THreg',outtmp, outcnt, j)
+       call outfld('THtem',outtmp, outcnt, j)
        outtmp(beglon:endlon,1:pver) = ui_lonlat(beglon:endlon,j,1:pver)
-       call outfld('Ureg',outtmp, outcnt, j)
+       call outfld('Utem',outtmp, outcnt, j)
        outtmp(beglon:endlon,1:pver) = vi_lonlat(beglon:endlon,j,1:pver)
-       call outfld('Vreg',outtmp, outcnt, j)
+       call outfld('Vtem',outtmp, outcnt, j)
        outtmp(beglon:endlon,1:pver) = wi_lonlat(beglon:endlon,j,1:pver)
-       call outfld('Wreg',outtmp, outcnt, j)
+       call outfld('Wtem',outtmp, outcnt, j)
        outtmp(beglon:endlon,1:pver) = vtp(beglon:endlon,j,1:pver)
-       call outfld('VTHreg',outtmp, outcnt, j)
+       call outfld('VTHtem',outtmp, outcnt, j)
        outtmp(beglon:endlon,1:pver) = wtp(beglon:endlon,j,1:pver)
-       call outfld('WTHreg',outtmp, outcnt, j)
+       call outfld('WTHtem',outtmp, outcnt, j)
        outtmp(beglon:endlon,1:pver) = uvp(beglon:endlon,j,1:pver)
-       call outfld('UVreg',outtmp, outcnt, j)
+       call outfld('UVtem',outtmp, outcnt, j)
        outtmp(beglon:endlon,1:pver) = uwp(beglon:endlon,j,1:pver)
-       call outfld('UWreg',outtmp, outcnt, j)
+       call outfld('UWtem',outtmp, outcnt, j)
+
+       call outfld('PStem', ps_lonlat(:,j), outcnt, j)
+       call outfld('MSKtem',mskind1(:,j), outcnt, j)
 
        call outfld('Uzm',  u_zm(j,:), 1,j)
        call outfld('Vzm',  v_zm(j,:), 1,j)
        call outfld('Wzm',  w_zm(j,:), 1,j)
        call outfld('THzm', t_zm(j,:), 1,j)
+       call outfld('PSzm', ps_zm(j), 1,j)
 
        call outfld('VTHzm',vtp_zm(j,:),1,j)
        call outfld('WTHzm',wtp_zm(j,:),1,j)
@@ -391,5 +431,18 @@ contains
     call t_stopf('ctem_calc')
 
   end subroutine ctem_calc
+
+  !-----------------------------------------------------------------------------
+  !-----------------------------------------------------------------------------
+  subroutine ctem_final()
+    use esmf_phys2lonlat_mod, only: esmf_phys2lonlat_destroy
+    use esmf_lonlat_grid_mod, only: esmf_lonlat_grid_destroy
+    use esmf_phys_mesh_mod, only: esmf_phys_mesh_destroy
+
+    call esmf_phys2lonlat_destroy()
+    call esmf_lonlat_grid_destroy()
+    call esmf_phys_mesh_destroy()
+
+  end subroutine ctem_final
 
 end module ctem_mod
