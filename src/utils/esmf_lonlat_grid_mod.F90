@@ -282,6 +282,9 @@ contains
     call ESMF_GridDestroy(lonlat_grid, rc=rc)
     call check_esmf_error(rc, subname//'ESMF_GridDestroy lonlat_grid')
 
+    deallocate(glats)
+    deallocate(glons)
+
   end subroutine esmf_lonlat_grid_destroy
 
   !------------------------------------------------------------------------------

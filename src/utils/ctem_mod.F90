@@ -204,21 +204,22 @@ contains
     use esmf_phys2lonlat_mod, only: esmf_phys2lonlat_regrid
     use esmf_zonal_mean_mod, only: esmf_zonal_mean_calc
     use interpolate_data, only: lininterp
+    use esmf_phys2lonlat_mod, only: fields_bundle_t, nflds
 
     type(physics_state), intent(in) :: phys_state(begchunk:endchunk)
 
-    real(r8) :: u_phys(pver,pcols,begchunk:endchunk)
-    real(r8) :: v_phys(pver,pcols,begchunk:endchunk)
-    real(r8) :: w_phys(pver,pcols,begchunk:endchunk)
-    real(r8) :: t_phys(pver,pcols,begchunk:endchunk)
-    real(r8) :: p_phys(pver,pcols,begchunk:endchunk)
+    real(r8), target :: u_phys(pver,pcols,begchunk:endchunk)
+    real(r8), target :: v_phys(pver,pcols,begchunk:endchunk)
+    real(r8), target :: w_phys(pver,pcols,begchunk:endchunk)
+    real(r8), target :: t_phys(pver,pcols,begchunk:endchunk)
+    real(r8), target :: p_phys(pver,pcols,begchunk:endchunk)
     real(r8) :: ps_phys(pcols,begchunk:endchunk)
 
-    real(r8) :: u_lonlat(beglon:endlon,beglat:endlat,pver)
-    real(r8) :: v_lonlat(beglon:endlon,beglat:endlat,pver)
-    real(r8) :: w_lonlat(beglon:endlon,beglat:endlat,pver)
-    real(r8) :: t_lonlat(beglon:endlon,beglat:endlat,pver)
-    real(r8) :: p_lonlat(beglon:endlon,beglat:endlat,pver)
+    real(r8), target :: u_lonlat(beglon:endlon,beglat:endlat,pver)
+    real(r8), target :: v_lonlat(beglon:endlon,beglat:endlat,pver)
+    real(r8), target :: w_lonlat(beglon:endlon,beglat:endlat,pver)
+    real(r8), target :: t_lonlat(beglon:endlon,beglat:endlat,pver)
+    real(r8), target :: p_lonlat(beglon:endlon,beglat:endlat,pver)
     real(r8) :: ps_lonlat(beglon:endlon,beglat:endlat)
     real(r8) :: mskind1(beglon:endlon,beglat:endlat) ! vertical index where mountain masking begins
 
@@ -257,6 +258,9 @@ contains
 
     real(r8) :: wght(beglon:endlon,beglat:endlat,pver)
 
+    type(fields_bundle_t) :: physflds(nflds)
+    type(fields_bundle_t) :: lonlatflds(nflds)
+
     if (.not.ctem_diags_active) return
 
     call t_startf('ctem_calc')
@@ -292,17 +296,28 @@ contains
     call t_startf('ctem_calc-regrid')
 
     ! regrid to lon/lat grid
-    call esmf_phys2lonlat_regrid(u_phys, u_lonlat)
-    call esmf_phys2lonlat_regrid(v_phys, v_lonlat)
-    call esmf_phys2lonlat_regrid(w_phys, w_lonlat)
-    call esmf_phys2lonlat_regrid(t_phys, t_lonlat)
-    call esmf_phys2lonlat_regrid(p_phys, p_lonlat)
+
+    physflds(1)%fld => u_phys
+    physflds(2)%fld => v_phys
+    physflds(3)%fld => w_phys
+    physflds(4)%fld => t_phys
+    physflds(5)%fld => p_phys
+
+    lonlatflds(1)%fld => u_lonlat
+    lonlatflds(2)%fld => v_lonlat
+    lonlatflds(3)%fld => w_lonlat
+    lonlatflds(4)%fld => t_lonlat
+    lonlatflds(5)%fld => p_lonlat
+
+    call esmf_phys2lonlat_regrid(physflds, lonlatflds)
 
     call esmf_phys2lonlat_regrid(ps_phys, ps_lonlat)
 
     call t_stopf('ctem_calc-regrid')
 
+    call t_startf('ctem_calc-zonal_mean-ps')
     call esmf_zonal_mean_calc(ps_lonlat, ps_zm)
+    call t_stopf('ctem_calc-zonal_mean-ps')
 
     call t_startf('ctem_calc-interp')
 
