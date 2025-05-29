@@ -56,7 +56,7 @@ real(r8) :: u_std, v_std, omega_std, theta_std, lat_std, lon_std
 real(r8) :: uflux_mean, vflux_mean
 real(r8) :: uflux_std, vflux_std
 
-integer, parameter :: pver_interp = 122 ! number of levels in ERA5
+integer, parameter :: pver_interp = 137 ! number of levels in ERA5
 
 real(r8), parameter :: era5_ak(137) = [ &
             1.000000000e+00_r8, 2.550781250e+00_r8, 3.884765625e+00_r8, 5.746093750e+00_r8, 8.289062500e+00_r8, 1.167968750e+01_r8, 1.610937500e+01_r8, 2.179687500e+01_r8, &
@@ -265,34 +265,26 @@ subroutine read_norms()
 
   lat_mean = 0._r8
   lon_mean = 0._r8
-  u_mean = 6.395471175756457_r8
-  v_mean = 0.020313991225046_r8
+  u_mean = 6.717847278462159_r8
+  v_mean = -0.002744777264668839_r8
   theta_mean = 0._r8
-  omega_mean = 0.0016040905945274022_r8
+  omega_mean = 0.0013401482063147452_r8
 
   lat_std = 90._r8
   lon_std = 360._r8
-  u_std = 3._r8 * 22.175504140184618_r8
-  v_std = 3._r8 * 9.84143148277375_r8
+  u_std = 20.760385183200206_r8
+  v_std = 9.877389116738264_r8
   theta_std = 1000._r8
-  omega_std = 0.017021397434040318_r8
+  omega_std = 0.11202126259282257_r8
 
-  uflux_mean = -0.0005112474139891424_r8
-  vflux_mean = -0.0002982954242187403_r8
-  uflux_std = 0.0050768547492663395_r8
-  vflux_std = 0.003792741148955207_r8
+  uflux_mean = -0.0004691528666736032_r8
+  vflux_mean = -0.0002586195082961397_r8
+  uflux_std = 0.032814051953840274_r8
+  vflux_std = 0.03024781201672967_r8
 
 end subroutine read_norms
 
 subroutine normalise_data()
-
-  ! print * , "min/max lat = " , minval(lat)   , " : " , maxval(lat)
-  ! print * , "min/max lon = " , minval(lon)   , " : " , maxval(lon)
-  ! print * , "min/max phi = " , minval(phis)  , " : " , maxval(phis)
-  ! print * , "min/max u   = " , minval(u)     , " : " , maxval(u)
-  ! print * , "min/max v   = " , minval(v)     , " : " , maxval(v)
-  ! print * , "min/max the = " , minval(theta) , " : " , maxval(theta)
-  ! print * , "min/max ome = " , minval(omega) , " : " , maxval(omega)
 
   ! lat lon are in radians (convert to degrees first)
   lat = lat * 180. / pi
@@ -300,19 +292,12 @@ subroutine normalise_data()
   lat = (lat-lat_mean)/lat_std
   lon = (lon-lon_mean)/lon_std
   phis = phis / 50000._r8
-  u = (u-u_mean)/u_std
-  v = (v-v_mean)/v_std
+
+  u = (u-u_mean)/(3._r8 * u_std)
+  v = (v-v_mean)/(3._r8 * v_std)
   theta = (theta-theta_mean)/theta_std
   omega = (omega-omega_mean)/omega_std
   omega = cbrt(omega)
-
-  ! print * , "min/max lat = " , minval(lat)   , " : " , maxval(lat)
-  ! print * , "min/max lon = " , minval(lon)   , " : " , maxval(lon)
-  ! print * , "min/max phi = " , minval(phis)  , " : " , maxval(phis)
-  ! print * , "min/max u   = " , minval(u)     , " : " , maxval(u)
-  ! print * , "min/max v   = " , minval(v)     , " : " , maxval(v)
-  ! print * , "min/max the = " , minval(theta) , " : " , maxval(theta)
-  ! print * , "min/max ome = " , minval(omega) , " : " , maxval(omega)
 
 end subroutine normalise_data
 
@@ -335,7 +320,7 @@ subroutine construct_input()
   allocate(omega_interp(ncol,pver_interp))
 
   do i = 1, ncol
-    pmid_interp(i,:) = era5_ak(137-pver_interp+1:) + ps(i) * era5_bk(137-pver_interp+1:)
+    pmid_interp(i,:) = era5_ak(:) + ps(i) * era5_bk(:)
     call lininterp(u(i,:), pmid(i,:), pver, u_interp(i,:), pmid_interp(i,:), pver_interp)
     call lininterp(v(i,:), pmid(i,:), pver, v_interp(i,:), pmid_interp(i,:), pver_interp)
     call lininterp(theta(i,:), pmid(i,:), pver, theta_interp(i,:), pmid_interp(i,:), pver_interp)
@@ -386,7 +371,7 @@ subroutine extract_output()
   vflux_interp(:, :) = net_outputs(:,pver_interp+1:)
 
   do i = 1, ncol
-    pmid_interp(i,:) = era5_ak(137-pver_interp+1:) + ps(i) * era5_bk(137-pver_interp+1:)
+    pmid_interp(i,:) = era5_ak(:) + ps(i) * era5_bk(:)
     call lininterp(uflux_interp(i,:), pmid_interp(i,:), pver_interp, uflux(i,:), pmid(i,:), pver)
     call lininterp(vflux_interp(i,:), pmid_interp(i,:), pver_interp, vflux(i,:), pmid(i,:), pver)
   end do
