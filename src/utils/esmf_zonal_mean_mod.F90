@@ -11,6 +11,8 @@ module esmf_zonal_mean_mod
 
   public :: esmf_zonal_mean_reg
   public :: esmf_zonal_mean_calc
+  public :: esmf_zonal_mean_masked
+  public :: esmf_zonal_mean_wsums
 
   interface esmf_zonal_mean_calc
      module procedure esmf_zonal_mean_calc_2d
@@ -113,5 +115,67 @@ contains
     zmarr(:) = gsum(:)/nlon
 
   end subroutine esmf_zonal_mean_calc_2d
+
+  !%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%
+  !%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%
+  function esmf_zonal_mean_wsums(wght) result(wsums)
+    use esmf_lonlat_grid_mod, only: lon_beg,lon_end,lat_beg,lat_end, nlon
+    use esmf_lonlat_grid_mod, only: zonal_comm
+    use shr_reprosum_mod,only: shr_reprosum_calc
+    use ppgrid, only: pver
+
+    real(r8), intent(in) :: wght(lon_beg:lon_end,lat_beg:lat_end,pver)
+
+    real(r8) :: wsums(lat_beg:lat_end,pver)
+    real(r8) :: tmparr(lon_beg:lon_end,pver)
+    integer :: numlons, ilat
+
+    numlons = lon_end-lon_beg+1
+
+    do ilat = lat_beg, lat_end
+
+       tmparr(lon_beg:lon_end,:) = wght(lon_beg:lon_end,ilat,:)
+       call shr_reprosum_calc(tmparr, wsums(ilat,1:pver), numlons, numlons, pver, gbl_count=nlon, commid=zonal_comm)
+
+    end do
+
+  end function esmf_zonal_mean_wsums
+
+  !%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%
+  !%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%
+  subroutine esmf_zonal_mean_masked(lonlatarr, wght, wsums, zmarr)
+    use esmf_lonlat_grid_mod, only: lon_beg,lon_end,lat_beg,lat_end, nlon
+    use esmf_lonlat_grid_mod, only: zonal_comm
+    use shr_reprosum_mod,only: shr_reprosum_calc
+    use ppgrid, only: pver
+
+    real(r8), intent(in) :: lonlatarr(lon_beg:lon_end,lat_beg:lat_end,pver)
+    real(r8), intent(in) :: wght(lon_beg:lon_end,lat_beg:lat_end,pver)
+    real(r8), intent(in) :: wsums(lat_beg:lat_end,pver)
+    real(r8), intent(out) :: zmarr(lat_beg:lat_end,pver)
+
+    real(r8) :: tmparr(lon_beg:lon_end,pver)
+    integer :: numlons, ilat, ilev
+    real(r8) :: gsum(pver)
+
+    numlons = lon_end-lon_beg+1
+
+    do ilat = lat_beg, lat_end
+
+       tmparr(lon_beg:lon_end,:) = wght(lon_beg:lon_end,ilat,:)*lonlatarr(lon_beg:lon_end,ilat,:)
+       call shr_reprosum_calc(tmparr, gsum, numlons, numlons, pver, gbl_count=nlon, commid=zonal_comm)
+
+       do ilev = 1,pver
+          if (wsums(ilat,ilev)>0._r8) then
+             zmarr(ilat,ilev) = gsum(ilev)/wsums(ilat,ilev)
+          else
+             zmarr(ilat,ilev) = fillvalue
+          end if
+       end do
+
+    end do
+
+
+  end subroutine esmf_zonal_mean_masked
 
 end module esmf_zonal_mean_mod

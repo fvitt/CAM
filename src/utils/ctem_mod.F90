@@ -202,7 +202,7 @@ contains
     use shr_const_mod, only: rgas => shr_const_rgas ! J/K/kmole
     use shr_const_mod, only: grav => shr_const_g ! m/s2
     use esmf_phys2lonlat_mod, only: esmf_phys2lonlat_regrid
-    use esmf_zonal_mean_mod, only: esmf_zonal_mean_calc
+    use esmf_zonal_mean_mod, only: esmf_zonal_mean_calc, esmf_zonal_mean_wsums, esmf_zonal_mean_masked
     use interpolate_data, only: lininterp
     use esmf_phys2lonlat_mod, only: fields_bundle_t, nflds
 
@@ -249,6 +249,7 @@ contains
     real(r8) :: wtp_zm(beglat:endlat,pver)
     real(r8) :: uwp_zm(beglat:endlat,pver)
     real(r8) :: uvp_zm(beglat:endlat,pver)
+    real(r8) :: wsums(beglat:endlat,pver)
 
     integer  :: lchnk, ncol, i, j, k
     real(r8) :: sheight(pver) ! pressure scale height (m)
@@ -355,11 +356,14 @@ contains
 
     call t_startf('ctem_calc-zonal_mean-uvwt')
 
+
     ! calculate zonal means from interpolated fields
-    call esmf_zonal_mean_calc(ui_lonlat, u_zm, wght=wght)
-    call esmf_zonal_mean_calc(vi_lonlat, v_zm, wght=wght)
-    call esmf_zonal_mean_calc(wi_lonlat, w_zm, wght=wght)
-    call esmf_zonal_mean_calc(ti_lonlat, t_zm, wght=wght)
+    wsums = esmf_zonal_mean_wsums(wght)
+
+    call esmf_zonal_mean_masked(ui_lonlat, wght, wsums, u_zm)
+    call esmf_zonal_mean_masked(vi_lonlat, wght, wsums, v_zm)
+    call esmf_zonal_mean_masked(wi_lonlat, wght, wsums, w_zm)
+    call esmf_zonal_mean_masked(ti_lonlat, wght, wsums, t_zm)
 
     call t_stopf('ctem_calc-zonal_mean-uvwt')
 
@@ -396,10 +400,10 @@ contains
 
     call t_startf('ctem_calc-zonal_mean-p')
 
-    call esmf_zonal_mean_calc(vtp, vtp_zm, wght=wght)
-    call esmf_zonal_mean_calc(wtp, wtp_zm, wght=wght)
-    call esmf_zonal_mean_calc(uwp, uwp_zm, wght=wght)
-    call esmf_zonal_mean_calc(uvp, uvp_zm, wght=wght)
+    call esmf_zonal_mean_masked(vtp, wght, wsums, vtp_zm)
+    call esmf_zonal_mean_masked(wtp, wght, wsums, wtp_zm)
+    call esmf_zonal_mean_masked(uwp, wght, wsums, uwp_zm)
+    call esmf_zonal_mean_masked(uvp, wght, wsums, uvp_zm)
 
     call t_stopf('ctem_calc-zonal_mean-p')
 
