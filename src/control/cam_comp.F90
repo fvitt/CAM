@@ -294,7 +294,6 @@ subroutine cam_run2( cam_out, cam_in )
    call t_startf ('phys_run2')
    call phys_run2(phys_state, dtime_phys, phys_tend, pbuf2d,  cam_out, cam_in )
    call t_stopf  ('phys_run2')
-
    !
    ! Second phase of dynamics (at least couple from physics to dynamics)
    !
@@ -309,6 +308,12 @@ subroutine cam_run2( cam_out, cam_in )
    call t_startf('ionosphere_run2')
    call ionosphere_run2( phys_state, dyn_in, pbuf2d )
    call t_stopf ('ionosphere_run2')
+
+   call t_barrierf ('sync_stepon_run2', mpicom)
+   call t_startf ('stepon_run2')
+   call stepon_run2( phys_state, phys_tend, dyn_in, dyn_out )
+   call t_stopf  ('stepon_run2')
+
 
    if (is_first_step() .or. is_first_restart_step()) then
       call t_startf ('cam_run2_memusage')

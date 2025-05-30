@@ -1,8 +1,10 @@
 module charge_neutrality
 
   use shr_kind_mod, only : r8 => shr_kind_r8
+  use cam_logfile,  only : iulog
   use ppgrid,       only : pcols, pver
   use mo_chem_utls, only : get_spc_ndx
+  use chem_mods,    only : gas_pcnst
 
   implicit none
 
@@ -14,13 +16,33 @@ module charge_neutrality
      module procedure charge_fix_mmr   ! for fixing charge balance after vertical diffusion
   end interface
 
-  integer, parameter :: pos_ion_n = 22
+!WUHU FENG,John Plane and Dan Marsh, 18/09/2018  
+! integer, parameter :: pos_ion_n = 20
+!  integer, parameter :: pos_ion_n = 29
+!ADD Mg
+!  integer, parameter :: pos_ion_n = 35
+!ADD Si
+!  integer, parameter :: pos_ion_n = 39
+!ADD Ca
+!  integer, parameter :: pos_ion_n = 45
+!ADD K 
+   integer, parameter :: pos_ion_n = 51
   character(len=16), parameter :: pos_ion_names(pos_ion_n) = (/ &
        'Np              ','N2p             ','Op              ','O2p             ','NOp             ', &
        'O4p             ','O2p_H2O         ','Hp_H2O          ','Hp_2H2O         ','Hp_3H2O         ', &
        'Hp_4H2O         ','Hp_5H2O         ','H3Op_OH         ','Hp_3N1          ','Hp_4N1          ', &
        'NOp_H2O         ','NOp_2H2O        ','NOp_3H2O        ','NOp_CO2         ','NOp_N2          ', &
-       'Op2P            ','Op2D            ' /)
+!WUHU FENG,John Plane and Dan Marsh
+       'Nap             ','NaOp            ','NaN2p           ','NaCO2p          ','NaH2Op          ', &
+       'Mgp             ','MgOp            ','MgO2p           ','MgCO2p          ','MgH2Op          ', &
+       'MgN2p           ',                                                                             &
+       'Sip             ','SiOp            ','SiO2p           ','SiOHp           ',                   &
+       'Cap             ','CaOp            ','CaO2p           ','CaCO2p          ','CaH2Op          ', &
+       'CaN2p           ',                                                                             &
+       'Kp              ','KOp             ','KO2p            ','KCO2p           ','KH2Op           ', &
+       'KN2p            ',                                                                             &
+       'Fep             ','FeOp            ','FeO2p           ','FeN2p           '                  /) 
+!WUHU FENG,John Plane and Dan Marsh
 
   integer, parameter :: neg_ion_n = 21
   character(len=16), parameter :: neg_ion_names(neg_ion_n) = (/ &
@@ -46,7 +68,7 @@ contains
     !-----------------------------------------------------------------------      
     !        ... local variables
     !-----------------------------------------------------------------------      
-    integer  :: i, n
+    integer  :: i, k, n
     integer  :: elec_ndx
     real(r8) :: wrk(ncol,pver)
 
@@ -71,12 +93,7 @@ contains
           endif
        enddo
 
-       where ( wrk(:,:)<0._r8 )
-          wrk(:,:)=0._r8
-       end where
-
-       vmr(:ncol,:,elec_ndx) = wrk(:ncol,:)
-      
+       vmr(:ncol,:,elec_ndx) = max(0._r8,wrk(:ncol,:))
     end if
 
   end subroutine charge_fix_vmr
@@ -92,6 +109,7 @@ contains
     use chem_mods,           only : adv_mass
     use physics_buffer,      only : pbuf_get_field,physics_buffer_desc ! Needed to get variables from physics buffer
     use physics_types,       only : physics_state
+    use infnan,              only : nan, assignment(=)
 
     !-----------------------------------------------------------------------      
     !        ... dummy arguments
@@ -109,10 +127,10 @@ contains
 
     real(r8), dimension(:,:,:), pointer :: q         ! model mass mixing ratios
     real(r8), dimension(:,:),   pointer :: qs        ! Pointer to access fields in pbuf
+    real(r8), dimension(:,:),   pointer :: mbar
 
+    real(r8) :: vmr(pcols,pver,gas_pcnst)  
     character(len=16) :: name
-    real(r8) :: vmr(state%ncol,pver)  
-    real(r8) :: wrk(state%ncol,pver)
 
     !-----------------------------------------------------------------------      
     elec_ndx = get_spc_ndx('e')
@@ -124,7 +142,8 @@ contains
        lchnk = state%lchnk
        ncol  = state%ncol
        q => state%q
-       wrk(:,:) = 0._r8
+       mbar => mbarv(:ncol,:,lchnk)
+       vmr = nan
 
        do i = 1,pos_ion_n+neg_ion_n
           if (i .le. pos_ion_n) then
@@ -137,36 +156,25 @@ contains
           if (n>0) then
              call cnst_get_ind( name, nc, abort=.false. )
              if (nc>0) then
-                vmr(:ncol,:) = mbarv(:ncol,:,lchnk) * q(:ncol,:,nc) / adv_mass(n)
+                vmr(:ncol,:,n) = mbar(:ncol,:) * q(:ncol,:,nc) / adv_mass(n)
              else
-                ! not transported
                 ns = slvd_index( name )
-                if (ns>0) then
-                   call pbuf_get_field(pbuf, slvd_pbf_ndx, qs, start=(/1,1,ns/), kount=(/pcols,pver,1/) )
-                   vmr(:ncol,:) = mbarv(:ncol,:,lchnk) * qs(:ncol,:) / adv_mass(n)
-                endif
+                call pbuf_get_field(pbuf, slvd_pbf_ndx, qs, start=(/1,1,ns/), kount=(/pcols,pver,1/) )
+                vmr(:ncol,:,n) = mbar(:ncol,:) * qs(:ncol,:) / adv_mass(n)
              endif
-             if (i .le. pos_ion_n) then
-                wrk(:ncol,:) = wrk(:ncol,:) + vmr(:ncol,:)
-             else
-                wrk(:ncol,:) = wrk(:ncol,:) - vmr(:ncol,:)
-             endif
-          end if
-       end do
+          endif
+       enddo
 
-       where ( wrk(:,:)<0._r8 )
-          wrk(:,:)=0._r8
-       end where
+       call charge_balance( ncol, vmr )
 
        call cnst_get_ind( 'e', nc, abort=.false. )  
 
        if (nc>0) then 
-          q(:ncol,:,nc) = adv_mass(elec_ndx) * wrk(:ncol,:) / mbarv(:ncol,:,lchnk)
+          q(:ncol,:,nc) = adv_mass(elec_ndx) * vmr(:ncol,:,elec_ndx) / mbar(:ncol,:)
        else
-          ! not transported
           ns = slvd_index( 'e' )
           call pbuf_get_field(pbuf, slvd_pbf_ndx, qs, start=(/1,1,ns/), kount=(/pcols,pver,1/) )
-          qs(:ncol,:) = adv_mass(elec_ndx) * wrk(:ncol,:) / mbarv(:ncol,:,lchnk)
+          qs(:ncol,:) = adv_mass(elec_ndx) * vmr(:ncol,:,elec_ndx) / mbar(:ncol,:)
        endif
 
     endif

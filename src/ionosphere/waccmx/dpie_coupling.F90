@@ -18,7 +18,7 @@ module dpie_coupling
   use edyn_params     ,only: dtr, rtd
   use edyn_mpi,        only: switch_model_format
   use aurora_params,   only: amie_period ! turns on overwrite of energy fields in aurora phys
-  
+
   implicit none
 
   private
@@ -28,6 +28,7 @@ module dpie_coupling
 
   logical :: ionos_edyn_active, ionos_oplus_xport    ! if true, call oplus_xport for O+ transport
   integer :: nspltop  ! nsplit for oplus_xport
+  integer :: vxbnspltop  ! nsplit for oplus_xport
 
   logical :: debug = .false.
 
@@ -37,15 +38,17 @@ module dpie_coupling
   
 contains
 !----------------------------------------------------------------------
-  subroutine d_pie_init( edyn_active_in, oplus_xport_in, oplus_nsplit_in, crit_colats_deg )
+  subroutine d_pie_init( edyn_active_in, oplus_xport_in, oplus_nsplit_in ,vxb_nsplit_in, crit_colats_deg)
 
     logical, intent(in) :: edyn_active_in, oplus_xport_in
     integer, intent(in) :: oplus_nsplit_in
+    integer, intent(in) :: vxb_nsplit_in
     real(r8),intent(in) :: crit_colats_deg(:)
 
     ionos_edyn_active = edyn_active_in
     ionos_oplus_xport = oplus_xport_in
     nspltop = oplus_nsplit_in
+    vxbnspltop = vxb_nsplit_in
 
     crit_user_set = all( crit_colats_deg(:) > 0._r8 )
     if (crit_user_set) then
@@ -70,11 +73,39 @@ contains
     call addfld ('DPIE_TI   ',(/ 'lev' /), 'I', 'deg K   ','DPIE_TI'   , gridname='fv_centers')
 
     call addfld ('DPIE_OPMMR' ,(/ 'lev' /), 'I', 'mmr'  ,'DPIE_OPMMR'  , gridname='fv_centers')
+    call addfld ('DPIE_NOPMMR' ,(/ 'lev' /), 'I', 'mmr'  ,'DPIE_NOPMMR'  , gridname='fv_centers')
+    call addfld ('DPIE_O2PMMR' ,(/ 'lev' /), 'I', 'mmr'  ,'DPIE_O2PMMR'  , gridname='fv_centers')
+    call addfld ('DPIE_FePMMR' ,(/ 'lev' /), 'I', 'mmr'  ,'DPIE_FePMMR'  , gridname='fv_centers') !Jianfei Wu
+    call addfld ('DPIE_MgPMMR' ,(/ 'lev' /), 'I', 'mmr'  ,'DPIE_MgPMMR'  , gridname='fv_centers') !Jianfei Wu
+    call addfld ('DPIE_NaPMMR' ,(/ 'lev' /), 'I', 'mmr'  ,'DPIE_NaPMMR'  , gridname='fv_centers') !Jianfei Wu
+!More metal ions transport, WUhu Feng, 11 April 2022
+    call addfld ('DPIE_CaPMMR' ,(/ 'lev' /), 'I', 'mmr'  ,'DPIE_CaPMMR'  , gridname='fv_centers') !Jianfei Wu
+    call addfld ('DPIE_KPMMR' ,(/ 'lev' /), 'I', 'mmr'  ,'DPIE_KPMMR'  , gridname='fv_centers') !Jianfei Wu
+    call addfld ('DPIE_SiPMMR' ,(/ 'lev' /), 'I', 'mmr'  ,'DPIE_SiPMMR'  , gridname='fv_centers') !Jianfei Wu
     call addfld ('DPIE_O2P',(/ 'lev' /), 'I', 'm^3','DPIE_O2P(dpie input)', gridname='fv_centers')
     call addfld ('DPIE_NOP',(/ 'lev' /), 'I', 'm^3','DPIE_NOP(dpie input)', gridname='fv_centers')
     call addfld ('DPIE_N2P',(/ 'lev' /), 'I', 'm^3','DPIE_N2P(dpie input)', gridname='fv_centers')
 
     call addfld ('OPLUS',   (/ 'lev' /), 'I', 'cm^3','O+ (oplus_xport output)', gridname='fv_centers')
+    call addfld ('NOPLUS',   (/ 'lev' /), 'I', 'cm^3','O+ (noplus_xport output)', gridname='fv_centers')
+    call addfld ('O2PLUS',   (/ 'lev' /), 'I', 'cm^3','O+ (o2plus_xport output)', gridname='fv_centers')
+    call addfld ('FePLUS',   (/ 'lev' /), 'I', 'cm^3','Fe+ (feplus_xport output)', gridname='fv_centers')
+    call addfld ('MgPLUS',   (/ 'lev' /), 'I', 'cm^3','Mg+ (mgplus_xport output)', gridname='fv_centers')
+    call addfld ('NaPLUS',   (/ 'lev' /), 'I', 'cm^3','Na+ (naplus_xport output)', gridname='fv_centers')
+    call addfld ('Fep_Xi',   (/ 'lev' /), 'I', 'ratio','Fe+ ratio of collision to gyro', gridname='fv_centers')
+    call addfld ('Mgp_Xi',   (/ 'lev' /), 'I', 'ratio','Mg+ ratio of collision to gyro', gridname='fv_centers')
+    call addfld ('Nap_Xi',   (/ 'lev' /), 'I', 'ratio','Na+ ratio of collision to gyro', gridname='fv_centers')
+!More metal ions transport, WUhu Feng, 11 April 2022
+      call addfld ('CaPLUS',   (/ 'lev' /), 'I', 'cm^3','Ca+ (caplus_xport output)', gridname='fv_centers')
+      call addfld ('KPLUS',   (/ 'lev' /), 'I', 'cm^3','K+ (kplus_xport output)', gridname='fv_centers')
+      call addfld ('SiPLUS',   (/ 'lev' /), 'I', 'cm^3','Si+ (siplus_xport output)', gridname='fv_centers')
+      call addfld ('Cap_Xi',   (/ 'lev' /), 'I', 'ratio','Ca+ ratio of collision to gyro', gridname='fv_centers')
+      call addfld ('Kp_Xi',   (/ 'lev' /), 'I', 'ratio','K+ ratio of collision to gyro', gridname='fv_centers')
+      call addfld ('Sip_Xi',   (/ 'lev' /), 'I', 'ratio','Si+ ratio of collision to gyro', gridname='fv_centers')
+
+
+    call addfld ('NOp_Xi',   (/ 'lev' /), 'I', 'ratio','NO+ ratio of collision to gyro', gridname='fv_centers')
+    call addfld ('O2p_Xi',   (/ 'lev' /), 'I', 'ratio','O2+ ratio of collision to gyro', gridname='fv_centers')
     call addfld ('WACCM_UI'   ,(/ 'lev' /), 'I', 'm/s'  ,'WACCM_UI (dpie output)', gridname='fv_centers')
     call addfld ('WACCM_VI'   ,(/ 'lev' /), 'I', 'm/s'  ,'WACCM_VI (dpie output)', gridname='fv_centers')
     call addfld ('WACCM_WI'   ,(/ 'lev' /), 'I', 'm/s'  ,'WACCM_WI (dpie output)', gridname='fv_centers')
@@ -85,8 +116,18 @@ contains
     call addfld ('Z3GM'   ,(/ 'lev' /), 'I', 'm'   ,'Geometric height'                        , gridname='fv_centers')
     call addfld ('Z3GMI  ',(/ 'lev' /), 'I', 'm' ,'Geometric height (Interfaces)', gridname='fv_centers')
     call addfld ('OpDens' ,(/ 'lev' /), 'I', 'cm^3','O+ Number Density'                       , gridname='fv_centers')
-    call addfld ('EDens'  ,(/ 'lev' /), 'I', 'cm^3','e Number Density (sum of O2+,NO+,N2+,O+)', gridname='fv_centers')
+    call addfld ('NOpDens' ,(/ 'lev' /), 'I', 'cm^3','NO+ Number Density'                       , gridname='fv_centers')
+    call addfld ('O2pDens' ,(/ 'lev' /), 'I', 'cm^3','O2+ Number Density'                       , gridname='fv_centers')
+    call addfld ('FepDens' ,(/ 'lev' /), 'I', 'cm^3','Fe+ Number Density'                     , gridname='fv_centers')
+    call addfld ('MgpDens' ,(/ 'lev' /), 'I', 'cm^3','Mg+ Number Density'                     , gridname='fv_centers')
+    call addfld ('NapDens' ,(/ 'lev' /), 'I', 'cm^3','Na+ Number Density'                     , gridname='fv_centers')
+!More metal ions transport, WUhu Feng, 11 April 2022
+      call addfld ('CapDens' ,(/ 'lev' /), 'I', 'cm^3','Ca+ Number Density' , gridname='fv_centers')
+      call addfld ('KpDens' ,(/ 'lev' /), 'I', 'cm^3','K+ Number Density' , gridname='fv_centers')
+      call addfld ('SipDens' ,(/ 'lev' /), 'I', 'cm^3','Si+ Number Density' , gridname='fv_centers')
 
+    call addfld ('EDens'  ,(/ 'lev' /), 'I', 'cm^3','e Number Density (sum of O2+,NO+,N2+,O+)', gridname='fv_centers')
+ 
   end subroutine d_pie_init
 
 !-----------------------------------------------------------------------
@@ -97,7 +138,7 @@ contains
     use heelis,      only: heelis_model
     use wei05sc,     only: weimer05  ! driver for weimer high-lat convection model
     use edyn_esmf,   only: edyn_esmf_update
-    use solar_parms_data,only: solar_parms_advance
+    use solar_parms_data, only: solar_parms_advance
     use solar_wind_data, only: solar_wind_advance
     use solar_wind_data, only: bzimf=>solar_wind_bzimf, byimf=>solar_wind_byimf
     use solar_wind_data, only: swvel=>solar_wind_swvel, swden=>solar_wind_swden
@@ -227,10 +268,19 @@ contains
   end subroutine d_pie_epotent
 
 !-----------------------------------------------------------------------
-  subroutine d_pie_coupling(omega,pe,zgi,zgpmid,u,v,tn,                 &
-    sigma_ped,sigma_hall,te,ti,o2mmr,o1mmr,h1mmr,o2pmmr,                &
-    nopmmr,n2pmmr,opmmr,opmmrtm1,ui,vi,wi,                              &
+  subroutine d_pie_coupling(omega,pe,zgi,zgpmid,u,v,tn,    &
+    sigma_ped,sigma_hall,te,ti,o2mmr,o1mmr,h1mmr,o2pmmr,o2pmmrtm1,         &
+!More metal ions transport, WUhu Feng, 11 April 2022
+!   nopmmr,nopmmrtm1,n2pmmr,opmmr,opmmrtm1,fepmmr,fepmmrtm1,mgpmmr,mgpmmrtm1,napmmr,napmmrtm1,ui,vi,wi,  &
+    nopmmr,nopmmrtm1,n2pmmr,opmmr,opmmrtm1,fepmmr,fepmmrtm1,mgpmmr,mgpmmrtm1,napmmr,napmmrtm1, &
+      capmmr,capmmrtm1,                                                   &
+      kpmmr,kpmmrtm1,                                                     &
+      sipmmr,sipmmrtm1,                                                   &
+    ui,vi,wi,  &
     rmassO2,rmassO1,rmassH,rmassN2,rmassO2p, rmassNOp,rmassN2p,rmassOp, &
+    rmassFep,rmassMgp,rmassNap,&  !Jianfei Wu added
+!More metal ions transport, WUhu Feng, 11 April 2022
+    rmassCap,rmassKp,rmassSip,              &
     i0,i1,j0,j1)
 !
 ! Call dynamo to calculate electric potential, electric field, and ion drifts.
@@ -248,6 +298,7 @@ contains
     use edynamo,      only: dynamo
     use edyn_mpi,      only: mp_geo_halos,mp_pole_halos
     use oplus,         only: oplus_xport
+    use vxb,         only: vxb_xport ! Metal ion xport Jianfei Wu
     use ref_pres,      only: pref_mid
 !
 ! Args:
@@ -272,11 +323,32 @@ contains
     real(r8),intent(in) :: o2mmr(i0:i1,j0:j1,nlev)      ! O2 mass mixing ratio (for oplus)
     real(r8),intent(in) :: o1mmr(i0:i1,j0:j1,nlev)      ! O mass mixing ratio (for oplus)
     real(r8),intent(in) :: h1mmr(i0:i1,j0:j1,nlev)      ! H mass mixing ratio (for oplus)
-    real(r8),intent(in) :: o2pmmr(i0:i1,j0:j1,nlev)     ! O2+ mass mixing ratio (for oplus)
-    real(r8),intent(in) :: nopmmr(i0:i1,j0:j1,nlev)     ! NO+ mass mixing ratio (for oplus)
     real(r8),intent(in) :: n2pmmr(i0:i1,j0:j1,nlev)     ! N2+ mass mixing ratio (for oplus)
     real(r8),intent(inout) :: opmmr(i0:i1,j0:j1,nlev)   ! O+ mass mixing ratio (oplus_xport output)
     real(r8),intent(inout) :: opmmrtm1(i0:i1,j0:j1,nlev)   ! O+ previous time step (oplus_xport output)
+    real(r8),intent(inout) :: nopmmr(i0:i1,j0:j1,nlev)   ! O+ mass mixing ratio (oplus_xport output)
+    real(r8),intent(inout) :: nopmmrtm1(i0:i1,j0:j1,nlev)   ! O+ previous time step (oplus_xport output)
+    real(r8),intent(inout) :: o2pmmr(i0:i1,j0:j1,nlev)   ! O+ mass mixing ratio (oplus_xport output)
+    real(r8),intent(inout) :: o2pmmrtm1(i0:i1,j0:j1,nlev)   ! O+ previous time step (oplus_xport output)
+    !--------------------------------------------------------------------------------------------------
+    !Jianfei Wu added
+    !-------------------------------------------------------------------------------------------------
+    real(r8),intent(inout) :: fepmmr(i0:i1,j0:j1,nlev)   ! Fe+ mass mixing ratio (oplus_xport output)
+    real(r8),intent(inout) :: fepmmrtm1(i0:i1,j0:j1,nlev)   ! Fe+ previous time step (oplus_xport output)
+    real(r8),intent(inout) :: mgpmmr(i0:i1,j0:j1,nlev)   ! Mg+ mass mixing ratio (oplus_xport output)
+    real(r8),intent(inout) :: mgpmmrtm1(i0:i1,j0:j1,nlev)   ! Mg+ previous time step (oplus_xport output)
+    real(r8),intent(inout) :: napmmr(i0:i1,j0:j1,nlev)   ! Na+ mass mixing ratio (oplus_xport output)
+    real(r8),intent(inout) :: napmmrtm1(i0:i1,j0:j1,nlev)   ! Na+ previous time step (oplus_xport output)
+
+!More metal ions transport, WUhu Feng, 11 April 2022
+      real(r8),intent(inout) :: capmmr(i0:i1,j0:j1,nlev)   ! Ca+ mass mixing ratio (oplus_xport output)
+      real(r8),intent(inout) :: capmmrtm1(i0:i1,j0:j1,nlev)   ! Ca+ previous time step (oplus_xport output)
+      real(r8),intent(inout) :: kpmmr(i0:i1,j0:j1,nlev)   ! K+ mass mixing ratio (oplus_xport output)
+      real(r8),intent(inout) :: kpmmrtm1(i0:i1,j0:j1,nlev)   ! K+ previous time step (oplus_xport output)
+      real(r8),intent(inout) :: sipmmr(i0:i1,j0:j1,nlev)   ! Si+ mass mixing ratio (oplus_xport output)
+      real(r8),intent(inout) :: sipmmrtm1(i0:i1,j0:j1,nlev)   ! Si+ previous time step (oplus_xport output)
+
+    !-------------------------Jianfei Wu end
     real(r8),intent(inout) :: ui(i0:i1,j0:j1,nlev)      ! zonal ion drift (edynamo or empirical)
     real(r8),intent(inout) :: vi(i0:i1,j0:j1,nlev)      ! meridional ion drift (edynamo or empirical)
     real(r8),intent(inout) :: wi(i0:i1,j0:j1,nlev)      ! vertical ion drift (edynamo or empirical)
@@ -288,6 +360,18 @@ contains
     real(r8),intent(in) :: rmassNOp                     ! NO+ molecular weight kg/kmol
     real(r8),intent(in) :: rmassN2p                     ! N2+ molecular weight kg/kmol
     real(r8),intent(in) :: rmassOp                      ! O+ molecular weight kg/kmol
+    !--------------------------------------------------------------------------------
+    ! Jianfei Wu added
+    !-------------------------------------------------------------------------------
+    real(r8),intent(in) :: rmassFep                     ! Fe+ molecular weight kg/kmol
+    real(r8),intent(in) :: rmassMgp                     ! Mg+ molecular weight kg/kmol
+    real(r8),intent(in) :: rmassNap                     ! Na+ molecular weight kg/kmol
+!More metal ions transport, WUhu Feng, 11 April 2022
+      real(r8),intent(in) :: rmassCap                     ! Ca+ molecular weight kg/kmol
+      real(r8),intent(in) :: rmassKp                     ! K+ molecular weight kg/kmol
+      real(r8),intent(in) :: rmassSip                     ! Si+ molecular weight kg/kmol
+
+    !-------------------------Jianfei Wu end
 !
 ! Local:
 !
@@ -300,7 +384,7 @@ contains
 
     real(r8) :: secs           ! time of day in seconds
 
-    real(r8), parameter :: n2min = 1.e-6_r8  ! lower limit of N2 mixing ratios
+    real(r8), parameter :: n2min = 1.e-10_r8  ! lower limit of N2 mixing ratios
     real(r8), parameter :: small = 1.e-25_r8 ! for fields not currently available
     real(r8) :: zht  (i0:i1,j0:j1,nlev) ! geometric height (m) (Simple method - interfaces)
     real(r8) :: zhtmid(i0:i1,j0:j1,nlev)! geometric height (m) (Simple method - midpoints)
@@ -312,15 +396,46 @@ contains
     real(r8) :: re = 6.370e6_r8         ! earth radius (m)
 
     real(r8),dimension(i0:i1,j0:j1,nlev) :: & ! ion number densities (m^3)
-      o2p,nop,n2p,op,ne, optm1
+      o2p,o2ptm1,nop,noptm1,n2p,op,ne, optm1, &
+      fep,feptm1,  &  !!!Jianfei Wu added
+      mgp,mgptm1,  &  !!!Jianfei Wu added
+      nap,naptm1,  &  !!!Jianfei Wu added
+!More metal ions transport, WUhu Feng, 11 April 2022
+        cap,captm1,  &
+        kp,kptm1,  &
+        sip,siptm1,  &
+      o2,o1,n2  !!!Jianfei Wu added
 
     real(r8),dimension(nlev,i0:i1,j0:j1) :: opmmr_kij
+    real(r8),dimension(nlev,i0:i1,j0:j1) :: nopmmr_kij
+    real(r8),dimension(nlev,i0:i1,j0:j1) :: o2pmmr_kij
+    !--------------------------------------------------------------------------------
+    ! Jianfei Wu added
+    !-------------------------------------------------------------------------------
+    real(r8),dimension(nlev,i0:i1,j0:j1) :: fepmmr_kij
+    real(r8),dimension(nlev,i0:i1,j0:j1) :: mgpmmr_kij
+    real(r8),dimension(nlev,i0:i1,j0:j1) :: napmmr_kij
+!More metal ions transport, WUhu Feng, 11 April 2022
+      real(r8),dimension(nlev,i0:i1,j0:j1) :: capmmr_kij
+      real(r8),dimension(nlev,i0:i1,j0:j1) :: kpmmr_kij
+      real(r8),dimension(nlev,i0:i1,j0:j1) :: sipmmr_kij
+    !-------Jianfei Wu end----------------------------------------------------------
 !
 ! Args for dynamo:
     real(r8),target :: edyn_tn   (nlev,i0:i1,j0:j1)
     real(r8),target :: edyn_un   (nlev,i0:i1,j0:j1)
     real(r8),target :: edyn_vn   (nlev,i0:i1,j0:j1)
     real(r8),target :: edyn_wn   (nlev,i0:i1,j0:j1) ! vertical wind (cm/s)
+    real(r8),target :: edyn_fexi   (nlev,i0:i1,j0:j1) ! Jianfei Wu added Fe+ xi/(1+xi^2)
+    real(r8),target :: edyn_mgxi   (nlev,i0:i1,j0:j1) ! Jianfei Wu added Fe+ xi/(1+xi^2)
+    real(r8),target :: edyn_naxi   (nlev,i0:i1,j0:j1) ! Jianfei Wu added Fe+ xi/(1+xi^2)
+!More metal ions transport, WUhu Feng, 11 April 2022
+      real(r8),target :: edyn_caxi   (nlev,i0:i1,j0:j1) ! WF added Ca+ xi/(1+xi^2)
+      real(r8),target :: edyn_kxi   (nlev,i0:i1,j0:j1) ! WF added K+ xi/(1+xi^2)
+      real(r8),target :: edyn_sixi   (nlev,i0:i1,j0:j1) !WF  added Si+ xi/(1+xi^2)
+
+    real(r8),target :: edyn_nopxi   (nlev,i0:i1,j0:j1) ! Jianfei Wu added Fe+ xi/(1+xi^2)
+    real(r8),target :: edyn_o2pxi   (nlev,i0:i1,j0:j1) ! Jianfei Wu added Fe+ xi/(1+xi^2)
     real(r8),target :: edyn_zht  (nlev,i0:i1,j0:j1) ! geometric height (cm)
     real(r8),target :: edyn_mbar (nlev,i0:i1,j0:j1)
     real(r8),target :: edyn_ped  (nlev,i0:i1,j0:j1)
@@ -328,6 +443,9 @@ contains
     real(r8),target :: edyn_ui   (nlev,i0:i1,j0:j1)
     real(r8),target :: edyn_vi   (nlev,i0:i1,j0:j1)
     real(r8),target :: edyn_wi   (nlev,i0:i1,j0:j1)
+    real(r8),target :: edyn_eeex   (nlev,i0:i1,j0:j1)
+    real(r8),target :: edyn_eeey   (nlev,i0:i1,j0:j1)
+    real(r8),target :: edyn_eeez   (nlev,i0:i1,j0:j1)
 !
 ! Additional fields needed by oplus_xport:
     real(r8),target :: edyn_te   (nlev,i0:i1,j0:j1)
@@ -337,10 +455,42 @@ contains
     real(r8),target :: edyn_n2   (nlev,i0:i1,j0:j1)
     real(r8),target :: edyn_op   (nlev,i0:i1,j0:j1)
     real(r8),target :: edyn_optm1(nlev,i0:i1,j0:j1)
+    real(r8),target :: edyn_nop   (nlev,i0:i1,j0:j1)
+    real(r8),target :: edyn_noptm1(nlev,i0:i1,j0:j1)
+    real(r8),target :: edyn_o2p   (nlev,i0:i1,j0:j1)
+    real(r8),target :: edyn_o2ptm1(nlev,i0:i1,j0:j1)
+    real(r8),target :: edyn_o2n   (nlev,i0:i1,j0:j1)
+    real(r8),target :: edyn_o1n   (nlev,i0:i1,j0:j1)
+    real(r8),target :: edyn_n2n   (nlev,i0:i1,j0:j1)
+    !--------------------------------------------------------------------------------
+    ! Jianfei Wu added
+    !-------------------------------------------------------------------------------
+    real(r8),target :: edyn_fep   (nlev,i0:i1,j0:j1)
+    real(r8),target :: edyn_feptm1(nlev,i0:i1,j0:j1)
+    real(r8),target :: edyn_mgp   (nlev,i0:i1,j0:j1)
+    real(r8),target :: edyn_mgptm1(nlev,i0:i1,j0:j1)
+    real(r8),target :: edyn_nap   (nlev,i0:i1,j0:j1)
+    real(r8),target :: edyn_naptm1(nlev,i0:i1,j0:j1)
+    !-------Jianfei Wu end----------------------------------------------------------
+
     real(r8),target :: edyn_om   (nlev,i0:i1,j0:j1) ! omega vertical motion (1/s)
     real(r8),target :: edyn_zgi  (nlev,i0:i1,j0:j1) ! geopotential height (cm) (interfaces)
     real(r8),target :: op_out    (nlev,i0:i1,j0:j1) ! oplus_xport output
     real(r8),target :: opnm_out  (nlev,i0:i1,j0:j1) ! oplus_xport output at time n-1
+    real(r8),target :: nop_out    (nlev,i0:i1,j0:j1) ! oplus_xport output
+    real(r8),target :: nopnm_out  (nlev,i0:i1,j0:j1) ! oplus_xport output at time n-1
+    real(r8),target :: o2p_out    (nlev,i0:i1,j0:j1) ! oplus_xport output
+    real(r8),target :: o2pnm_out  (nlev,i0:i1,j0:j1) ! oplus_xport output at time n-1
+    !--------------------------------------------------------------------------------
+    ! Jianfei Wu added
+    !-------------------------------------------------------------------------------
+    real(r8),target :: fep_out    (nlev,i0:i1,j0:j1) ! oplus_xport output
+    real(r8),target :: fepnm_out  (nlev,i0:i1,j0:j1) ! oplus_xport output at time n-1
+    real(r8),target :: mgp_out    (nlev,i0:i1,j0:j1) ! oplus_xport output
+    real(r8),target :: mgpnm_out  (nlev,i0:i1,j0:j1) ! oplus_xport output at time n-1
+    real(r8),target :: nap_out    (nlev,i0:i1,j0:j1) ! oplus_xport output
+    real(r8),target :: napnm_out  (nlev,i0:i1,j0:j1) ! oplus_xport output at time n-1
+    !-------Jianfei Wu end----------------------------------------------------------
     real(r8),target :: edyn_ne   (nlev,i0:i1,j0:j1) ! electron density diagnostic
 
     real(r8),target :: halo_tn  (nlev,i0-2:i1+2,j0-2:j1+2) ! neutral temperature (deg K)
@@ -352,8 +502,24 @@ contains
     real(r8),target :: halo_o2  (nlev,i0-2:i1+2,j0-2:j1+2) ! o2 (mmr)
     real(r8),target :: halo_o1  (nlev,i0-2:i1+2,j0-2:j1+2) ! o (mmr)
     real(r8),target :: halo_n2  (nlev,i0-2:i1+2,j0-2:j1+2) ! n2 (mmr)
+    real(r8),target :: halo_ne  (nlev,i0-2:i1+2,j0-2:j1+2) ! ne (mmr)
+    real(r8),target :: halo_op  (nlev,i0-2:i1+2,j0-2:j1+2) ! ne (mmr)
     real(r8),target :: halo_mbar(nlev,i0-2:i1+2,j0-2:j1+2) ! mean molecular weight
     real(r8), allocatable :: polesign(:)
+!More metal ions transport, WUhu Feng, 11 April 2022
+      real(r8),target :: edyn_cap   (nlev,i0:i1,j0:j1)
+      real(r8),target :: edyn_captm1(nlev,i0:i1,j0:j1)
+      real(r8),target :: edyn_kp   (nlev,i0:i1,j0:j1)
+      real(r8),target :: edyn_kptm1(nlev,i0:i1,j0:j1)
+      real(r8),target :: edyn_sip   (nlev,i0:i1,j0:j1)
+      real(r8),target :: edyn_siptm1(nlev,i0:i1,j0:j1)
+      real(r8),target :: cap_out    (nlev,i0:i1,j0:j1) ! oplus_xport output
+      real(r8),target :: capnm_out  (nlev,i0:i1,j0:j1) ! oplus_xport output at time n-1
+      real(r8),target :: kp_out    (nlev,i0:i1,j0:j1) ! oplus_xport output
+      real(r8),target :: kpnm_out  (nlev,i0:i1,j0:j1) ! oplus_xport output at time n-1
+      real(r8),target :: sip_out    (nlev,i0:i1,j0:j1) ! oplus_xport output
+      real(r8),target :: sipnm_out  (nlev,i0:i1,j0:j1) ! oplus_xport output at time n-1
+
 !
     real(r8) :: nmf2  (i0:i1,j0:j1) ! Electron number density at F2 peak (m-3 converted to cm-3)
     real(r8) :: hmf2  (i0:i1,j0:j1) ! Height of electron number density F2 peak (m converted to km)
@@ -405,9 +571,19 @@ contains
     do k=1,nlev
       do j=j0,j1
         do i=i0,i1
-          n2mmr(i,j,k) = max(1.0_r8-(o1mmr(i,j,k)+o2mmr(i,j,k)+h1mmr(i,j,k)),n2min)
+          n2mmr(i,j,k) = max(1.0_r8-(o1mmr(i,j,k)+o2mmr(i,j,k)+h1mmr(i,j,k)&
+!More metal ions transport, WUhu Feng, 11 April 2022
+!             +2.0_r8*fepmmr(i,j,k)+2.0_r8*mgpmmr(i,j,k)+2.0_r8*napmmr(i,j,k)),n2min)
+              +2.0_r8*fepmmr(i,j,k)+2.0_r8*mgpmmr(i,j,k)+2.0_r8*napmmr(i,j,k)  &
+              +2.0_r8*capmmr(i,j,k)+2.0_r8*kpmmr(i,j,k)+2.0_r8*sipmmr(i,j,k)),n2min)
+
           mbar(i,j,k) = 1.0_r8/(o1mmr(i,j,k)/rmassO1+o2mmr(i,j,k)/rmassO2 &
-                               +h1mmr(i,j,k)/rmassH+n2mmr(i,j,k)/rmassN2)
+                               +h1mmr(i,j,k)/rmassH+n2mmr(i,j,k)/rmassN2&
+                               +2.0_r8*fepmmr(i,j,k)/rmassFep+2.0_r8*mgpmmr(i,j,k)/rmassMgp+&
+!More metal ions transport, WUhu Feng, 11 April 2022
+     +2.0_r8*capmmr(i,j,k)/rmassCap+2.0_r8*kpmmr(i,j,k)/rmassKp+2.0_r8*sipmmr(i,j,k)/rmassSip+&
+                               2.0_r8*napmmr(i,j,k)/rmassNap)
+
         enddo
       enddo
     enddo
@@ -437,7 +613,11 @@ contains
 ! O2+, NO+, N2+, O+:
           o2p(i,j,k) = o2pmmr(i,j,k) * mbar(i,j,k) / rmassO2p * &
             pmid(i,k,j) / (kboltz * tn(i,j,k))
+          o2ptm1(i,j,k)  = o2pmmrtm1(i,j,k)  * mbar(i,j,k) / rmassO2p  * &
+            pmid(i,k,j) / (kboltz * tn(i,j,k))
           nop(i,j,k) = nopmmr(i,j,k) * mbar(i,j,k) / rmassNOp * &
+            pmid(i,k,j) / (kboltz * tn(i,j,k))
+          noptm1(i,j,k)  = nopmmrtm1(i,j,k)  * mbar(i,j,k) / rmassNOp  * &
             pmid(i,k,j) / (kboltz * tn(i,j,k))
           n2p(i,j,k) = n2pmmr(i,j,k) * mbar(i,j,k) / rmassN2p * &
             pmid(i,k,j) / (kboltz * tn(i,j,k))
@@ -445,6 +625,43 @@ contains
             pmid(i,k,j) / (kboltz * tn(i,j,k))
           optm1(i,j,k)  = opmmrtm1(i,j,k)  * mbar(i,j,k) / rmassOp  * &
             pmid(i,k,j) / (kboltz * tn(i,j,k))
+        !-----------------------------------------------------------
+        !Jianfei Wu added 
+        !to calculate collision frequency (xi)
+        !-----------------------------------------------------------
+          fep(i,j,k)  = fepmmr(i,j,k)  * mbar(i,j,k) / rmassFep  * &
+            pmid(i,k,j) / (kboltz * tn(i,j,k))
+          feptm1(i,j,k)  = fepmmrtm1(i,j,k)  * mbar(i,j,k) / rmassFep  * &
+            pmid(i,k,j) / (kboltz * tn(i,j,k))
+          mgp(i,j,k)  = mgpmmr(i,j,k)  * mbar(i,j,k) / rmassMgp  * &
+            pmid(i,k,j) / (kboltz * tn(i,j,k))
+          mgptm1(i,j,k)  = mgpmmrtm1(i,j,k)  * mbar(i,j,k) / rmassMgp  * &
+            pmid(i,k,j) / (kboltz * tn(i,j,k))
+          nap(i,j,k)  = napmmr(i,j,k)  * mbar(i,j,k) / rmassNap  * &
+            pmid(i,k,j) / (kboltz * tn(i,j,k))
+          naptm1(i,j,k)  = napmmrtm1(i,j,k)  * mbar(i,j,k) / rmassNap  * &
+            pmid(i,k,j) / (kboltz * tn(i,j,k))
+          o2(i,j,k)  = o2mmr(i,j,k)  * mbar(i,j,k) / rmassO2  * &
+            pmid(i,k,j) / (kboltz * tn(i,j,k))
+          o1(i,j,k)  = o1mmr(i,j,k)  * mbar(i,j,k) / rmassO1  * &
+            pmid(i,k,j) / (kboltz * tn(i,j,k))
+          n2(i,j,k)  = n2mmr(i,j,k)  * mbar(i,j,k) / rmassN2  * &
+            pmid(i,k,j) / (kboltz * tn(i,j,k))
+        !-------Jianfei Wu end------------------------------------
+!More metal ions transport, WUhu Feng, 11 April 2022
+           cap(i,j,k)  = capmmr(i,j,k)  * mbar(i,j,k) / rmassCap  * &
+              pmid(i,k,j) / (kboltz * tn(i,j,k))
+            captm1(i,j,k)  = capmmrtm1(i,j,k)  * mbar(i,j,k) / rmassCap  * &
+              pmid(i,k,j) / (kboltz * tn(i,j,k))
+            kp(i,j,k)  = kpmmr(i,j,k)  * mbar(i,j,k) / rmassKp  * &
+              pmid(i,k,j) / (kboltz * tn(i,j,k))
+            kptm1(i,j,k)  = kpmmrtm1(i,j,k)  * mbar(i,j,k) / rmassKp  * &
+              pmid(i,k,j) / (kboltz * tn(i,j,k))
+            siptm1(i,j,k)  = sipmmrtm1(i,j,k)  * mbar(i,j,k) / rmassSip  * &
+              pmid(i,k,j) / (kboltz * tn(i,j,k))
+            sip(i,j,k)  = sipmmr(i,j,k)  * mbar(i,j,k) / rmassSip  * &
+              pmid(i,k,j) / (kboltz * tn(i,j,k))
+
         enddo
       enddo
     enddo ! k=1,nlev
@@ -455,13 +672,31 @@ contains
       call outfld('DPIE_NOP',nop(i0:i1,j,1:nlev),i1-i0+1,j)
       call outfld('DPIE_N2P',n2p(i0:i1,j,1:nlev),i1-i0+1,j)
       call outfld('OpDens'  ,op (i0:i1,j,1:nlev)/1.E6_r8,i1-i0+1,j)
+      call outfld('NOpDens'  ,nop (i0:i1,j,1:nlev)/1.E6_r8,i1-i0+1,j)
+      call outfld('O2pDens'  ,o2p (i0:i1,j,1:nlev)/1.E6_r8,i1-i0+1,j)
+      call outfld('FepDens'  ,fep (i0:i1,j,1:nlev)/1.E6_r8,i1-i0+1,j)
+      call outfld('MgpDens'  ,mgp (i0:i1,j,1:nlev)/1.E6_r8,i1-i0+1,j)
+      call outfld('NapDens'  ,nap (i0:i1,j,1:nlev)/1.E6_r8,i1-i0+1,j)
+!More metal ions transport, WUhu Feng, 11 April 2022
+       call outfld('CapDens'  ,cap (i0:i1,j,1:nlev)/1.E6_r8,i1-i0+1,j)
+        call outfld('KpDens'  ,kp (i0:i1,j,1:nlev)/1.E6_r8,i1-i0+1,j)
+        call outfld('SipDens'  ,sip (i0:i1,j,1:nlev)/1.E6_r8,i1-i0+1,j)
+
       do k=1,nlev
         do i=i0,i1
-          ne(i,j,k) = o2p(i,j,k)+nop(i,j,k)+n2p(i,j,k)+op(i,j,k)
+          ne(i,j,k) = o2p(i,j,k)+nop(i,j,k)+n2p(i,j,k)+op(i,j,k)&
+!More metal ions transport, WUhu Feng, 11 April 2022
+                +cap(i,j,k)+kp(i,j,k)+sip(i,j,k)                &
+              +fep(i,j,k)+mgp(i,j,k)+nap(i,j,k)
         enddo
       enddo
       call outfld('EDens'   ,ne (i0:i1,j,1:nlev)/1.E6_r8,i1-i0+1,j)
     enddo ! j=j0,j1
+    !---------------------------------------------------------------
+    ! Calculate the ratio of collision frequency to gyrofrequency xi.
+    ! Return xi/(1+xi^2) of Fep, Nap, and Kp
+    !---------------------------------------------------------------
+
 
     !-------------------------------------------------------------------------------
     !  Derive diagnostics nmF2 and hmF2 for output based on TIE-GCM algorithm
@@ -516,6 +751,15 @@ contains
     do j=j0,j1
       do i=i0,i1
         opmmr_kij(:,i,j) = opmmr(i,j,:)
+        nopmmr_kij(:,i,j) = nopmmr(i,j,:)
+        o2pmmr_kij(:,i,j) = o2pmmr(i,j,:)
+        fepmmr_kij(:,i,j) = fepmmr(i,j,:) !Jianfei Wu
+        mgpmmr_kij(:,i,j) = mgpmmr(i,j,:) !Jianfei Wu
+        napmmr_kij(:,i,j) = napmmr(i,j,:) !Jianfei Wu
+!More metal ions transport, WUhu Feng, 11 April 2022
+         sipmmr_kij(:,i,j) = sipmmr(i,j,:)
+          kpmmr_kij(:,i,j) = kpmmr(i,j,:)
+          capmmr_kij(:,i,j) = capmmr(i,j,:)
       enddo
     enddo
    call savefld_waccm(opmmr_kij,'DPIE_OPMMR',nlev,i0,i1,j0,j1) ! mmr
@@ -546,6 +790,33 @@ contains
       edyn_om   (k,i0:i1,j0:j1) = -(omega(i0:i1,j0:j1,k) / pmid(i0:i1,k,j0:j1)) ! Pa/s -> 1/s
       edyn_op   (k,i0:i1,j0:j1) = op     (i0:i1,j0:j1,k) / 1.e6_r8  ! m^3 -> cm^3
       edyn_optm1(k,i0:i1,j0:j1) = optm1  (i0:i1,j0:j1,k) / 1.e6_r8  ! m^3 -> cm^3
+      edyn_nop   (k,i0:i1,j0:j1) = nop     (i0:i1,j0:j1,k) / 1.e6_r8  ! m^3 -> cm^3
+      edyn_noptm1(k,i0:i1,j0:j1) = noptm1  (i0:i1,j0:j1,k) / 1.e6_r8  ! m^3 -> cm^3
+      edyn_o2p   (k,i0:i1,j0:j1) = o2p     (i0:i1,j0:j1,k) / 1.e6_r8  ! m^3 -> cm^3
+      edyn_o2ptm1(k,i0:i1,j0:j1) = o2ptm1  (i0:i1,j0:j1,k) / 1.e6_r8  ! m^3 -> cm^3
+      !-----------------------------------------------------------
+      !Jianfei Wu added 
+      !to 
+      !-----------------------------------------------------------
+      edyn_o2n   (k,i0:i1,j0:j1) = o2  (i0:i1,j0:j1,k)
+      edyn_o1n   (k,i0:i1,j0:j1) = o1  (i0:i1,j0:j1,k)
+      edyn_n2n   (k,i0:i1,j0:j1) = n2  (i0:i1,j0:j1,k)
+      edyn_fep   (k,i0:i1,j0:j1) = fep     (i0:i1,j0:j1,k) / 1.e6_r8  ! m^3 -> cm^3
+      edyn_feptm1(k,i0:i1,j0:j1) = feptm1  (i0:i1,j0:j1,k) / 1.e6_r8  ! m^3 -> cm^3
+      edyn_mgp   (k,i0:i1,j0:j1) = mgp     (i0:i1,j0:j1,k) / 1.e6_r8  ! m^3 -> cm^3
+      edyn_mgptm1(k,i0:i1,j0:j1) = mgptm1  (i0:i1,j0:j1,k) / 1.e6_r8  ! m^3 -> cm^3
+      edyn_nap   (k,i0:i1,j0:j1) = nap     (i0:i1,j0:j1,k) / 1.e6_r8  ! m^3 -> cm^3
+      edyn_naptm1(k,i0:i1,j0:j1) = naptm1  (i0:i1,j0:j1,k) / 1.e6_r8  ! m^3 -> cm^3
+
+      !-------Jianfei Wu end------------------------------------
+!More metal ions transport, WUhu Feng, 11 April 2022
+        edyn_sip   (k,i0:i1,j0:j1) = sip     (i0:i1,j0:j1,k) / 1.e6_r8  ! m^3 -> cm^3
+        edyn_siptm1(k,i0:i1,j0:j1) = siptm1  (i0:i1,j0:j1,k) / 1.e6_r8  ! m^3 -> cm^3
+        edyn_kp   (k,i0:i1,j0:j1) = kp     (i0:i1,j0:j1,k) / 1.e6_r8  ! m^3 -> cm^3
+        edyn_kptm1(k,i0:i1,j0:j1) = kptm1  (i0:i1,j0:j1,k) / 1.e6_r8  ! m^3 -> cm^3
+        edyn_cap   (k,i0:i1,j0:j1) = cap     (i0:i1,j0:j1,k) / 1.e6_r8  ! m^3 -> cm^3
+        edyn_captm1(k,i0:i1,j0:j1) = captm1  (i0:i1,j0:j1,k) / 1.e6_r8  ! m^3 -> cm^3
+
     enddo
 !
 ! At first timestep, allocate optm1 module data, and initialize local
@@ -607,7 +878,9 @@ contains
 ! (phase shift longitude data and invert the vertical dimension).
 !
     if (ionos_edyn_active) then
-       nfields = 21
+!More metal ions transport, WUhu Feng, 11 April 2022
+!      nfields = 34  !21-->28  Jainfei Wu
+       nfields = 40  
        allocate(ptrs(nfields))
        !
        ! Fields needed for edynamo:
@@ -620,12 +893,54 @@ contains
        ptrs(13)%ptr => edyn_o1  ; ptrs(14)%ptr => edyn_n2    ; ptrs(15)%ptr => edyn_om   
        ptrs(16)%ptr => edyn_op  ; ptrs(17)%ptr => edyn_optm1 ; ptrs(18)%ptr => edyn_ne
        ptrs(19)%ptr => edyn_ui  ; ptrs(20)%ptr => edyn_vi    ; ptrs(21)%ptr => edyn_wi
+      !-----------------------------------------------------------
+      !Jianfei Wu added 
+      !to 
+      !-----------------------------------------------------------
+       ptrs(22)%ptr => edyn_fep  ; ptrs(23)%ptr => edyn_feptm1   
+       ptrs(24)%ptr => edyn_o1n  ; ptrs(25)%ptr => edyn_n2n    ; ptrs(26)%ptr => edyn_o2n   
+       ptrs(27)%ptr => edyn_mgp  ; ptrs(28)%ptr => edyn_mgptm1   
+       ptrs(29)%ptr => edyn_nap  ; ptrs(30)%ptr => edyn_naptm1   
+       ptrs(31)%ptr => edyn_nop  ; ptrs(32)%ptr => edyn_noptm1   
+       ptrs(33)%ptr => edyn_o2p  ; ptrs(34)%ptr => edyn_o2ptm1   
+!More metal ions transport, WUhu Feng, 11 April 2022
+       ptrs(35)%ptr => edyn_cap  ; ptrs(36)%ptr => edyn_captm1   
+       ptrs(37)%ptr => edyn_kp  ; ptrs(38)%ptr => edyn_kptm1   
+       ptrs(39)%ptr => edyn_sip  ; ptrs(40)%ptr => edyn_siptm1   
+      !-------Jianfei Wu end------------------------------------
        !
        ! Convert from WACCM to TIEGCM format:
        call switch_model_format(ptrs,1,nlev,i0,i1,j0,j1,nfields)
        deallocate(ptrs)
     endif
 !
+    edyn_fexi=0._r8
+    edyn_mgxi=0._r8
+    edyn_naxi=0._r8
+    edyn_nopxi=0._r8
+    edyn_o2pxi=0._r8
+    call calc_xi(edyn_o2n,edyn_o1n,edyn_n2n,rmassFep,rmassN2, rmassO2, rmassO1, edyn_fexi,i0,i1,j0,j1,nlev)
+    call calc_xi(edyn_o2n,edyn_o1n,edyn_n2n,rmassMgp,rmassN2, rmassO2, rmassO1, edyn_mgxi,i0,i1,j0,j1,nlev)
+    call calc_xi(edyn_o2n,edyn_o1n,edyn_n2n,rmassNap,rmassN2, rmassO2, rmassO1, edyn_naxi,i0,i1,j0,j1,nlev)
+    call calc_xi(edyn_o2n,edyn_o1n,edyn_n2n,rmassNOp,rmassN2, rmassO2, rmassO1, edyn_nopxi,i0,i1,j0,j1,nlev)
+    call calc_xi(edyn_o2n,edyn_o1n,edyn_n2n,rmassO2p,rmassN2, rmassO2, rmassO1, edyn_o2pxi,i0,i1,j0,j1,nlev)
+
+    call savefld_waccm(edyn_fexi,'Fep_Xi',nlev,i0,i1,j0,j1) 
+    call savefld_waccm(edyn_mgxi,'Mgp_Xi',nlev,i0,i1,j0,j1) 
+    call savefld_waccm(edyn_naxi,'Nap_Xi',nlev,i0,i1,j0,j1) 
+    call savefld_waccm(edyn_nopxi,'NOp_Xi',nlev,i0,i1,j0,j1) 
+    call savefld_waccm(edyn_o2pxi,'O2p_Xi',nlev,i0,i1,j0,j1) 
+!More metal ions transport, WUhu Feng, 11 April 2022
+
+      edyn_caxi=0._r8
+      edyn_kxi=0._r8
+      edyn_sixi=0._r8
+      call calc_xi(edyn_o2n,edyn_o1n,edyn_n2n,rmassCap,rmassN2, rmassO2, rmassO1, edyn_caxi,i0,i1,j0,j1,nlev)
+      call calc_xi(edyn_o2n,edyn_o1n,edyn_n2n,rmassKp,rmassN2, rmassO2, rmassO1, edyn_kxi,i0,i1,j0,j1,nlev)
+      call calc_xi(edyn_o2n,edyn_o1n,edyn_n2n,rmassSip,rmassN2, rmassO2, rmassO1, edyn_sixi,i0,i1,j0,j1,nlev)
+      call savefld_waccm(edyn_caxi,'Cap_Xi',nlev,i0,i1,j0,j1)
+      call savefld_waccm(edyn_kxi,'Kp_Xi',nlev,i0,i1,j0,j1)
+      call savefld_waccm(edyn_sixi,'Sip_Xi',nlev,i0,i1,j0,j1)
 ! Call electrodynamo (edynamo.F90)
 ! If using time3d conductances, tell dynamo to *not* do fieldline 
 ! integrations (i.e., do_integrals == false). In this case, edynamo
@@ -659,11 +974,37 @@ contains
               MINVAL(edyn_op(:,i0:i1,j0:j1)), MAXVAL(edyn_op(:,i0:i1,j0:j1))   
          write(iulog,*) 'dpie_coupling: before dynamo MIN/MAX edynz_optm1 ', &
               MINVAL(edyn_optm1(:,i0:i1,j0:j1)), MAXVAL(edyn_optm1(:,i0:i1,j0:j1)) 
+         write(iulog,*) 'dpie_coupling: before dynamo MIN/MAX edynz_fep ', &
+              MINVAL(edyn_fep(:,i0:i1,j0:j1)), MAXVAL(edyn_fep(:,i0:i1,j0:j1))   
+         write(iulog,*) 'dpie_coupling: before dynamo MIN/MAX edynz_feptm1 ', &
+              MINVAL(edyn_feptm1(:,i0:i1,j0:j1)), MAXVAL(edyn_feptm1(:,i0:i1,j0:j1)) 
+         write(iulog,*) 'dpie_coupling: before dynamo MIN/MAX edynz_mgp ', &
+              MINVAL(edyn_mgp(:,i0:i1,j0:j1)), MAXVAL(edyn_mgp(:,i0:i1,j0:j1))   
+         write(iulog,*) 'dpie_coupling: before dynamo MIN/MAX edynz_mgptm1 ', &
+              MINVAL(edyn_mgptm1(:,i0:i1,j0:j1)), MAXVAL(edyn_mgptm1(:,i0:i1,j0:j1)) 
+         write(iulog,*) 'dpie_coupling: before dynamo MIN/MAX edynz_nap ', &
+              MINVAL(edyn_nap(:,i0:i1,j0:j1)), MAXVAL(edyn_nap(:,i0:i1,j0:j1))   
+         write(iulog,*) 'dpie_coupling: before dynamo MIN/MAX edynz_naptm1 ', &
+              MINVAL(edyn_naptm1(:,i0:i1,j0:j1)), MAXVAL(edyn_naptm1(:,i0:i1,j0:j1)) 
+!More metal ions transport, WUhu Feng, 11 April 2022
+           write(iulog,*) 'dpie_coupling: before dynamo MIN/MAX edynz_cap ', &
+                MINVAL(edyn_cap(:,i0:i1,j0:j1)), MAXVAL(edyn_cap(:,i0:i1,j0:j1))
+           write(iulog,*) 'dpie_coupling: before dynamo MIN/MAX edynz_captm1 ', &
+                MINVAL(edyn_captm1(:,i0:i1,j0:j1)), MAXVAL(edyn_captm1(:,i0:i1,j0:j1))
+           write(iulog,*) 'dpie_coupling: before dynamo MIN/MAX edynz_kp ', &
+                MINVAL(edyn_kp(:,i0:i1,j0:j1)), MAXVAL(edyn_kp(:,i0:i1,j0:j1))
+           write(iulog,*) 'dpie_coupling: before dynamo MIN/MAX edynz_kptm1 ', &
+                MINVAL(edyn_kptm1(:,i0:i1,j0:j1)), MAXVAL(edyn_kptm1(:,i0:i1,j0:j1))
+           write(iulog,*) 'dpie_coupling: before dynamo MIN/MAX edynz_sip ', &
+                MINVAL(edyn_sip(:,i0:i1,j0:j1)), MAXVAL(edyn_sip(:,i0:i1,j0:j1))
+           write(iulog,*) 'dpie_coupling: before dynamo MIN/MAX edynz_siptm1 ', &
+                MINVAL(edyn_siptm1(:,i0:i1,j0:j1)), MAXVAL(edyn_siptm1(:,i0:i1,j0:j1))
+
        endif
 
        call t_startf('dpie_ionos_dynamo')
        call dynamo(edyn_tn, edyn_un, edyn_vn, edyn_wn, edyn_zgi,   &
-                   edyn_ped, edyn_hall, edyn_ui, edyn_vi, edyn_wi, &
+                   edyn_ped, edyn_hall, edyn_ui, edyn_vi, edyn_wi,edyn_eeex, edyn_eeey, edyn_eeez, &
                    1,nlev,i0,i1,j0,j1,do_integrals)
        call t_stopf ('dpie_ionos_dynamo')
 
@@ -712,6 +1053,8 @@ contains
                halo_o2(k,i,j)   = edyn_o2(k,i,j)
                halo_o1(k,i,j)   = edyn_o1(k,i,j)
                halo_n2(k,i,j)   = edyn_n2(k,i,j)
+               halo_ne(k,i,j)   = edyn_ne(k,i,j)
+               halo_op(k,i,j)   = edyn_op(k,i,j)
                halo_mbar(k,i,j) = edyn_mbar(k,i,j)
             enddo
          enddo
@@ -723,12 +1066,13 @@ contains
       !
       ! Set two halo points in lat,lon:
       !
-      nfields=10
+      nfields=12
       allocate(ptrs(nfields),polesign(nfields))
       ptrs(1)%ptr => halo_tn ; ptrs(2)%ptr => halo_te ; ptrs(3)%ptr => halo_ti
       ptrs(4)%ptr => halo_un ; ptrs(5)%ptr => halo_vn ; ptrs(6)%ptr => halo_om
       ptrs(7)%ptr => halo_o2 ; ptrs(8)%ptr => halo_o1 ; ptrs(9)%ptr => halo_n2
-      ptrs(10)%ptr => halo_mbar
+      ptrs(10)%ptr => halo_mbar ;ptrs(11)%ptr => halo_ne
+      ptrs(12)%ptr =>halo_op
 
       polesign = 1._r8
       polesign(4:5) = -1._r8 ! un,vn
@@ -759,6 +1103,91 @@ contains
               i0,i1,j0,j1,nspltop,isplit)
 
       enddo ! isplit=1,nspltop
+      do isplit=1,vxbnspltop
+
+         if (isplit > 1) then
+            !----- Jianfei Wu-----------------------
+            edyn_fep = fep_out
+            edyn_feptm1 = fepnm_out
+            edyn_mgp = mgp_out
+            edyn_mgptm1 = mgpnm_out
+            edyn_nap = nap_out
+            edyn_naptm1 = napnm_out
+            edyn_nop = nop_out
+            edyn_noptm1 = nopnm_out
+            edyn_o2p = o2p_out
+            edyn_o2ptm1 = o2pnm_out
+            !-----------------------------------
+!More metal ions transport, WUhu Feng, 11 April 2022
+              edyn_cap = cap_out
+              edyn_captm1 = capnm_out
+              edyn_kp = kp_out
+              edyn_kptm1 = kpnm_out
+              edyn_sip = sip_out
+              edyn_siptm1 = sipnm_out
+
+         endif
+        !------------------------------------------------------------------------------
+        ! Jianfei Wu added calculate density of Fe+ Na+ and K+
+        !------------------------------------------------------------------------------
+         call vxb_xport(halo_tn,halo_te,halo_ti,halo_ne,halo_op,halo_un,halo_vn,halo_om,  &
+              edyn_zgi,halo_o2,halo_o1,halo_n2,edyn_fep,edyn_feptm1,edyn_fexi,       &
+              halo_mbar,edyn_ui,edyn_vi,edyn_wi,&
+              edyn_eeex,edyn_eeey,edyn_eeez,pmid_inv,    &
+              fep_out,fepnm_out, rmassFep,&
+              i0,i1,j0,j1,vxbnspltop,isplit)
+
+         call vxb_xport(halo_tn,halo_te,halo_ti,halo_ne,halo_op,halo_un,halo_vn,halo_om,  &
+              edyn_zgi,halo_o2,halo_o1,halo_n2,edyn_mgp,edyn_mgptm1,edyn_mgxi,       &
+              halo_mbar,edyn_ui,edyn_vi,edyn_wi,&
+              edyn_eeex,edyn_eeey,edyn_eeez,pmid_inv,    &
+              mgp_out,mgpnm_out, rmassMgp,&
+              i0,i1,j0,j1,vxbnspltop,isplit)
+
+         call vxb_xport(halo_tn,halo_te,halo_ti,halo_ne,halo_op,halo_un,halo_vn,halo_om,  &
+              edyn_zgi,halo_o2,halo_o1,halo_n2,edyn_nap,edyn_naptm1,edyn_naxi,       &
+              halo_mbar,edyn_ui,edyn_vi,edyn_wi,&
+              edyn_eeex,edyn_eeey,edyn_eeez,pmid_inv,    &
+              nap_out,napnm_out, rmassNap,&
+              i0,i1,j0,j1,vxbnspltop,isplit)
+
+         call vxb_xport(halo_tn,halo_te,halo_ti,halo_ne,halo_op,halo_un,halo_vn,halo_om,  &
+              edyn_zgi,halo_o2,halo_o1,halo_n2,edyn_nop,edyn_noptm1,edyn_nopxi,       &
+              halo_mbar,edyn_ui,edyn_vi,edyn_wi,&
+              edyn_eeex,edyn_eeey,edyn_eeez,pmid_inv,    &
+              nop_out,nopnm_out, rmassNOp,&
+              i0,i1,j0,j1,vxbnspltop,isplit)
+         call vxb_xport(halo_tn,halo_te,halo_ti,halo_ne,halo_op,halo_un,halo_vn,halo_om,  &
+              edyn_zgi,halo_o2,halo_o1,halo_n2,edyn_o2p,edyn_o2ptm1,edyn_o2pxi,       &
+              halo_mbar,edyn_ui,edyn_vi,edyn_wi,&
+              edyn_eeex,edyn_eeey,edyn_eeez,pmid_inv,    &
+              o2p_out,o2pnm_out, rmassO2p,&
+              i0,i1,j0,j1,vxbnspltop,isplit)
+!More metal ions transport, WUhu Feng, 11 April 2022
+
+         call vxb_xport(halo_tn,halo_te,halo_ti,halo_ne,halo_op,halo_un,halo_vn,halo_om,  &
+              edyn_zgi,halo_o2,halo_o1,halo_n2,edyn_cap,edyn_captm1,edyn_naxi,       &
+              halo_mbar,edyn_ui,edyn_vi,edyn_wi,&
+              edyn_eeex,edyn_eeey,edyn_eeez,pmid_inv,    &
+              cap_out,capnm_out, rmassCap,&
+              i0,i1,j0,j1,vxbnspltop,isplit)
+
+         call vxb_xport(halo_tn,halo_te,halo_ti,halo_ne,halo_op,halo_un,halo_vn,halo_om,  &
+              edyn_zgi,halo_o2,halo_o1,halo_n2,edyn_kp,edyn_kptm1,edyn_naxi,       &
+              halo_mbar,edyn_ui,edyn_vi,edyn_wi,&
+              edyn_eeex,edyn_eeey,edyn_eeez,pmid_inv,    &
+              kp_out,kpnm_out, rmassKp,&
+              i0,i1,j0,j1,vxbnspltop,isplit)
+
+         call vxb_xport(halo_tn,halo_te,halo_ti,halo_ne,halo_op,halo_un,halo_vn,halo_om,  &
+              edyn_zgi,halo_o2,halo_o1,halo_n2,edyn_sip,edyn_siptm1,edyn_naxi,       &
+              halo_mbar,edyn_ui,edyn_vi,edyn_wi,&
+              edyn_eeex,edyn_eeey,edyn_eeez,pmid_inv,    &
+              sip_out,sipnm_out, rmassSip,&
+              i0,i1,j0,j1,vxbnspltop,isplit)
+          !---------------------Jianfei Wu end----------------------------------------
+
+      enddo ! isplit=1,nspltop
       call t_stopf ('dpie_oplus_xport')
 
       if (debug.and.masterproc) then
@@ -766,6 +1195,22 @@ contains
               nstep,nspltop
          write(iulog,"('  op_out   min,max (cm^3)=',2es12.4)") minval(op_out)  ,maxval(op_out)
          write(iulog,"('  opnm_out min,max (cm^3)=',2es12.4)") minval(opnm_out),maxval(opnm_out)
+         !----------Jianfei Wu--------------------------------------------------------------
+         write(iulog,"('  fep_out   min,max (cm^3)=',2es12.4)") minval(fep_out)  ,maxval(fep_out)
+         write(iulog,"('  fepnm_out min,max (cm^3)=',2es12.4)") minval(fepnm_out),maxval(fepnm_out)
+         write(iulog,"('  mgp_out   min,max (cm^3)=',2es12.4)") minval(mgp_out)  ,maxval(mgp_out)
+         write(iulog,"('  mgpnm_out min,max (cm^3)=',2es12.4)") minval(mgpnm_out),maxval(mgpnm_out)
+         write(iulog,"('  nap_out   min,max (cm^3)=',2es12.4)") minval(nap_out)  ,maxval(nap_out)
+         write(iulog,"('  napnm_out min,max (cm^3)=',2es12.4)") minval(napnm_out),maxval(napnm_out)
+         !------------------------------------------------------------------------------------
+!More metal ions transport, WUhu Feng, 11 April 2022
+          write(iulog,"('  cap_out   min,max (cm^3)=',2es12.4)") minval(cap_out) ,maxval(cap_out)
+           write(iulog,"('  capnm_out min,max (cm^3)=',2es12.4)") minval(capnm_out),maxval(capnm_out)
+           write(iulog,"('  kp_out   min,max (cm^3)=',2es12.4)") minval(kp_out) ,maxval(kp_out)
+           write(iulog,"('  kpnm_out min,max (cm^3)=',2es12.4)") minval(kpnm_out),maxval(kpnm_out)
+           write(iulog,"('  sip_out   min,max (cm^3)=',2es12.4)") minval(sip_out) ,maxval(sip_out)
+           write(iulog,"('  sipnm_out min,max (cm^3)=',2es12.4)") minval(sipnm_out),maxval(sipnm_out)
+
       endif
 
    endif ! ionos_oplus_xport
@@ -773,16 +1218,41 @@ contains
 ! Convert ion drifts and O+ output from TIEGCM to WACCM format:
 !
    if (ionos_edyn_active) then
-      nfields = 5 ! ui,vi,wi,op,opnm
+!More metal ions transport, WUhu Feng, 11 April 2022
+!     nfields = 15 ! ui,vi,wi,op,opnm Jianfei Wu 5-->9 
+      nfields = 21 ! ui,vi,wi,op,opnm Jianfei Wu 5-->9 
       allocate(ptrs(nfields))
       ptrs(1)%ptr => edyn_ui ; ptrs(2)%ptr => edyn_vi ; ptrs(3)%ptr => edyn_wi
       ptrs(4)%ptr => op_out  ; ptrs(5)%ptr => opnm_out
+      ptrs(6)%ptr => fep_out  ; ptrs(7)%ptr => fepnm_out
+      ptrs(8)%ptr => mgp_out  ; ptrs(9)%ptr => mgpnm_out
+      ptrs(10)%ptr => nap_out  ; ptrs(11)%ptr => napnm_out
+      ptrs(12)%ptr => nop_out  ; ptrs(13)%ptr => nopnm_out
+      ptrs(14)%ptr => o2p_out  ; ptrs(15)%ptr => o2pnm_out
+!More metal ions transport, WUhu Feng, 11 April 2022
+        ptrs(16)%ptr => cap_out  ; ptrs(17)%ptr => capnm_out
+        ptrs(18)%ptr => kp_out  ; ptrs(19)%ptr => kpnm_out
+        ptrs(20)%ptr => sip_out  ; ptrs(21)%ptr => sipnm_out
+
       call switch_model_format(ptrs,1,nlev,i0,i1,j0,j1,nfields)
       deallocate(ptrs)
    endif
 !
     if (ionos_oplus_xport) then
       call savefld_waccm(op_out,'OPLUS',nlev,i0,i1,j0,j1) ! cm^3
+      !---------------------------------------------------------
+      !-----------Jianfei Wu  save Fe+, Na+, and K+------------
+      !--------------------------------------------------------
+      call savefld_waccm(fep_out,'FePLUS',nlev,i0,i1,j0,j1) ! cm^3
+      call savefld_waccm(mgp_out,'MgPLUS',nlev,i0,i1,j0,j1) ! cm^3
+      call savefld_waccm(nap_out,'NaPLUS',nlev,i0,i1,j0,j1) ! cm^3
+      call savefld_waccm(nop_out,'NOPLUS',nlev,i0,i1,j0,j1) ! cm^3
+      call savefld_waccm(o2p_out,'O2PLUS',nlev,i0,i1,j0,j1) ! cm^3
+!More metal ions transport, WUhu Feng, 11 April 2022
+        call savefld_waccm(cap_out,'CaPLUS',nlev,i0,i1,j0,j1) ! cm^3
+        call savefld_waccm(kp_out,'KPLUS',nlev,i0,i1,j0,j1) ! cm^3
+        call savefld_waccm(sip_out,'SiPLUS',nlev,i0,i1,j0,j1) ! cm^3
+
 !
 ! Pass new O+ for current and previous time step back to physics (convert from cm^3 to m^3 and back to mmr).
 !
@@ -794,6 +1264,53 @@ contains
             op_out(k,i,j) = opmmr(i,j,k) ! for save to waccm hist in mmr
             opmmrtm1(i,j,k) = opnm_out(k,i,j)*1.e6_r8 * rmassOp / mbar(i,j,k) * &
               (kboltz * tn(i,j,k)) / pmid(i,k,j)
+            nopmmr(i,j,k) = nop_out(k,i,j)*1.e6_r8 * rmassNOp / mbar(i,j,k) * &
+              (kboltz * tn(i,j,k)) / pmid(i,k,j)
+            nop_out(k,i,j) = nopmmr(i,j,k) ! for save to waccm hist in mmr
+            nopmmrtm1(i,j,k) = nopnm_out(k,i,j)*1.e6_r8 * rmassNOp / mbar(i,j,k) * &
+              (kboltz * tn(i,j,k)) / pmid(i,k,j)
+            o2pmmr(i,j,k) = o2p_out(k,i,j)*1.e6_r8 * rmassO2p / mbar(i,j,k) * &
+              (kboltz * tn(i,j,k)) / pmid(i,k,j)
+            o2p_out(k,i,j) = o2pmmr(i,j,k) ! for save to waccm hist in mmr
+            o2pmmrtm1(i,j,k) = o2pnm_out(k,i,j)*1.e6_r8 * rmassO2p / mbar(i,j,k) * &
+              (kboltz * tn(i,j,k)) / pmid(i,k,j)
+          !----------------Jianfei Wu added Fe+ Na+ and K+-------------------
+          !
+          !--------------------------------------------------------------------
+            fepmmr(i,j,k) = fep_out(k,i,j)*1.e6_r8 * rmassFep / mbar(i,j,k) * &
+              (kboltz * tn(i,j,k)) / pmid(i,k,j)
+            fep_out(k,i,j) = fepmmr(i,j,k) ! for save to waccm hist in mmr
+            fepmmrtm1(i,j,k) = fepnm_out(k,i,j)*1.e6_r8 * rmassFep / mbar(i,j,k) * &
+              (kboltz * tn(i,j,k)) / pmid(i,k,j)
+            mgpmmr(i,j,k) = mgp_out(k,i,j)*1.e6_r8 * rmassMgp / mbar(i,j,k) * &
+              (kboltz * tn(i,j,k)) / pmid(i,k,j)
+            mgp_out(k,i,j) = mgpmmr(i,j,k) ! for save to waccm hist in mmr
+            mgpmmrtm1(i,j,k) = mgpnm_out(k,i,j)*1.e6_r8 * rmassMgp / mbar(i,j,k) * &
+              (kboltz * tn(i,j,k)) / pmid(i,k,j)
+            napmmr(i,j,k) = nap_out(k,i,j)*1.e6_r8 * rmassNap / mbar(i,j,k) * &
+              (kboltz * tn(i,j,k)) / pmid(i,k,j)
+            nap_out(k,i,j) = napmmr(i,j,k) ! for save to waccm hist in mmr
+            napmmrtm1(i,j,k) = napnm_out(k,i,j)*1.e6_r8 * rmassNap / mbar(i,j,k) * &
+              (kboltz * tn(i,j,k)) / pmid(i,k,j)
+          !-------------Jianfei Wu end------------------------------------------
+!More metal ions transport, WUhu Feng, 11 April 2022
+             capmmr(i,j,k) = cap_out(k,i,j)*1.e6_r8 * rmassCap / mbar(i,j,k) * &
+                (kboltz * tn(i,j,k)) / pmid(i,k,j)
+              cap_out(k,i,j) = capmmr(i,j,k) ! for save to waccm hist in mmr
+              capmmrtm1(i,j,k) = capnm_out(k,i,j)*1.e6_r8 * rmassCap / mbar(i,j,k) * &
+                (kboltz * tn(i,j,k)) / pmid(i,k,j)
+              kpmmr(i,j,k) = kp_out(k,i,j)*1.e6_r8 * rmassKp / mbar(i,j,k) * &
+                (kboltz * tn(i,j,k)) / pmid(i,k,j)
+              kp_out(k,i,j) = kpmmr(i,j,k) ! for save to waccm hist in mmr
+              kpmmrtm1(i,j,k) = kpnm_out(k,i,j)*1.e6_r8 * rmassKp / mbar(i,j,k) * &
+                (kboltz * tn(i,j,k)) / pmid(i,k,j)
+              sipmmr(i,j,k) = sip_out(k,i,j)*1.e6_r8 * rmassSip / mbar(i,j,k) * &
+                (kboltz * tn(i,j,k)) / pmid(i,k,j)
+              sip_out(k,i,j) = sipmmr(i,j,k) ! for save to waccm hist in mmr
+              sipmmrtm1(i,j,k) = sipnm_out(k,i,j)*1.e6_r8 * rmassSip / mbar(i,j,k) * &
+                (kboltz * tn(i,j,k)) / pmid(i,k,j)
+ 
+
           enddo
         enddo
       enddo
@@ -815,6 +1332,14 @@ contains
     call savefld_waccm(edyn_ui/100._r8,'WACCM_UI',nlev,i0,i1,j0,j1)
     call savefld_waccm(edyn_vi/100._r8,'WACCM_VI',nlev,i0,i1,j0,j1)
     call savefld_waccm(edyn_wi/100._r8,'WACCM_WI',nlev,i0,i1,j0,j1)
+    call savefld_waccm(fep_out,'DPIE_FePMMR',nlev,i0,i1,j0,j1) ! mmr Jianfei Wu
+    call savefld_waccm(mgp_out,'DPIE_MgPMMR',nlev,i0,i1,j0,j1) ! mmr Jianfei Wu
+    call savefld_waccm(nap_out,'DPIE_NaPMMR',nlev,i0,i1,j0,j1) ! mmr Jianfei Wu
+!More metal ions transport, WUhu Feng, 11 April 2022
+      call savefld_waccm(cap_out,'DPIE_CaPMMR',nlev,i0,i1,j0,j1)
+      call savefld_waccm(kp_out,'DPIE_KPMMR',nlev,i0,i1,j0,j1)
+      call savefld_waccm(sip_out,'DPIE_SiPMMR',nlev,i0,i1,j0,j1)
+
 
     call t_stopf('d_pie_coupling')
 
@@ -851,6 +1376,52 @@ contains
       enddo
     enddo
   end subroutine calc_wn
+  !-----------------------------------------------------------------------
+  subroutine calc_xi(o2,o1,n2,rmass,rmassN2, rmassO2, rmassO1, ans,i0,i1,j0,j1,nlev)
+      use physconst, only: pi
+      use getapex  , only: bmod2
+! Calculate ratio between collision frequency and gyrofrequency
+!
+! Inputs:
+    integer,intent(in) :: i0,i1,j0,j1,nlev
+    real(r8),dimension(nlev,i0:i1,j0:j1),intent(in) :: &
+      o2,   &  ! m^3
+      o1,&  ! 
+      n2     ! 
+    real(r8),intent(in) :: rmass,rmassN2,rmassO2,rmassO1 ! m/s^2
+!
+! Output:
+    real(r8),intent(out) :: ans(nlev,i0:i1,j0:j1)    ! xi/(1+xi^2) output
+    real(r8):: collision(nlev,i0:i1,j0:j1) ! dimensioned for vectorization
+!
+! Local:
+    integer :: i,j,k
+    real(r8) :: fixpart  
+    real(r8) :: gyrofrequency(nlev,i0:i1,j0:j1) ! dimensioned for vectorization
+
+      real(r8),parameter :: na=6.02e26_r8   !kg-mol^-1
+      real(r8),parameter :: ele=1.6e-19_r8   !C
+      real(r8),parameter :: eps=8.85e-12_r8   !epsilon F/m
+      real(r8),parameter :: alpha_n2=1.74e-30_r8   !polarizability of N2 m^3
+      real(r8),parameter :: alpha_o2=1.6e-30_r8   !polarizability of O2 m^3
+      real(r8),parameter :: alpha_o1=8.02e-31_r8   !polarizability of O m^3
+      !real(r8),parameter :: rmass_fe=56._r8, rmass_na=23._r8, &
+      !                    rmass_k=39._r8
+
+      fixpart=2._r8*pi*ele*sqrt(1/(4._r8*pi*eps))
+    do k=1,nlev
+      do j=j0,j1
+        do i=i0,i1
+            collision(k,i,j)=(sqrt(alpha_n2/(rmass*rmassN2/((rmass+rmassN2)*na)))*(rmassN2/(rmass+rmassN2))*n2(k,i,j)+ &
+                sqrt(alpha_o2/(rmass*rmassO2/((rmass+rmassO2)*na)))*(rmassO2/(rmass+rmassO2))*o2(k,i,j)+ &
+                sqrt(alpha_o1/(rmass*rmassO1/((rmass+rmassO1)*na)))*(rmassO1/(rmass+rmassO1))*o1(k,i,j))*fixpart
+            gyrofrequency(k,i,j)=ele*bmod2(i,j)*1.0e-4_r8/(rmass/na)   !1e-4 gauss-->T
+            ans(k,i,j)=collision(k,i,j)/gyrofrequency(k,i,j)
+!            ans(i,j,k)=ratio(i,j,k)/(1._r8+ratio(i,j,k)**2)
+        enddo
+      enddo
+    enddo
+  end subroutine calc_xi
 !-----------------------------------------------------------------------
   subroutine calc_pfrac(sunlon,pfrac)
 !
@@ -916,11 +1487,10 @@ contains
 !
       do i=1,nmlonp1
         pfrac(i,j) = (colatc(i,j)-crit(1))/(crit(2)-crit(1))
-        if (pfrac(i,j) < 0._r8) pfrac(i,j)  = 0._r8
+        if (pfrac(i,j) < 0._r8) pfrac(i,j) = 0._r8
         if (pfrac(i,j) >= 1._r8) pfrac(i,j) = 1._r8
       enddo ! i=1,nmlonp1
     enddo ! j=1,nmlat0
-!   
   end subroutine calc_pfrac
 !-----------------------------------------------------------------------
   subroutine sunloc(iday,secs,sunlons)

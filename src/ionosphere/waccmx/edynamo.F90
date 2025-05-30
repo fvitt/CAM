@@ -133,12 +133,14 @@ module edynamo
 
   contains
 !-----------------------------------------------------------------------
-  subroutine dynamo(tn,un,vn,wn,zpot,ped,hall,ui,vi,wi, &
+  subroutine dynamo(tn,un,vn,wn,zpot,ped,hall,ui,vi,wi,eeex,eeey,eeez, &
     lev0,lev1,lon0,lon1,lat0,lat1,do_integrals)
   use edyn_mpi,only:      &
     mp_mag_halos,         & ! set magnetic halo points
     mp_scatter_phim         ! scatter solution to slave tasks
   use edyn_solve,only: rim_glb   ! pde solver output (nmlonp1,nmlat,2)
+  use edyn_geogrid ,only: nlat
+  use cam_abortutils,only: endrun
 !
 ! Main driver for edynamo.
 ! Note alloc_edyn and esmf_init are called from edyn_init.
@@ -161,10 +163,21 @@ module edynamo
       zpot,       & ! geopotential height (cm)
       ped,        & ! pedersen conductivity (S/m)
       hall,       & ! hall conductivity (S/m)
+      eeex,         & ! zonal ion drift (cm/s)
+      eeey,         & ! meridional ion drift (cm/s)
+      eeez,         & ! meridional ion drift (cm/s)
       ui,         & ! zonal ion drift (cm/s)
       vi,         & ! meridional ion drift (cm/s)
       wi            ! vertical ion drift (cm/s)
 #ifdef WACCMX_EDYN_ESMF
+!
+! Local:
+    real(r8) :: & ! Global coefficients for PDE solver
+      coefglb_rhs(nmlonp1,nmlat), &
+      coefglb_cofum(nmlonp1,nmlat,9)
+    real(r8) :: fmin,fmax ! for debug
+    integer :: k
+
     if (debug) then
        nstep = get_nstep()
        write(iulog,"('Enter dynamo: nstep=',i5,' do_integrals=',l1)") nstep,do_integrals
@@ -250,7 +263,7 @@ module edynamo
 ! Calculate ion drift velocities:
 !
 
-    call ionvel(zpot,ui,vi,wi)
+    call ionvel(zpot,ui,vi,wi,eeex,eeey,eeez)
     if (debug) write(iulog,"('edynamo debug: after ionvel')")
 #else
     call endrun('ERROR: To use edymamo must build with cppdef WACCMX_EDYN_ESMF')
@@ -265,11 +278,11 @@ module edynamo
 ! Provide needed inputs to the dynamo by regridding the fields
 ! from geographic to magnetic.
 !
-  use edyn_params ,only: h0,kbotdyn
+  use edyn_params ,only: h0,dtr,kbotdyn,cm2km
   use getapex     ,only: & ! (nlonp1,0:nlatp1)
       zb,                & ! downward component of magnetic field
       bmod                 ! magnitude of magnetic field (gauss?)
-  use edyn_geogrid,only: nlev
+  use edyn_geogrid,only: nlon,nlev
 
   use edyn_mpi,only:   &
 !   mp_periodic_f2d, & ! set 2d periodic points
@@ -278,6 +291,7 @@ module edynamo
     
   use edyn_esmf,only:   & ! use-associate grid definitions and subroutines
     geo_src_grid,     & ! geographic source grid (ESMF_Grid type)
+    mag_des_grid,     & ! magnetic destination grid (ESMF_Grid type)
     edyn_esmf_regrid,      & ! subroutine that calls ESMF to regrid a field
     edyn_esmf_set2d_geo,   & ! set values of a 2d ESMF field on geographic grid
     edyn_esmf_set3d_geo,   & ! set values of a 3d ESMF field on geographic grid
@@ -319,7 +333,7 @@ module edynamo
     mag_be3           ! mag field strength (T)
 
   use edyn_esmf,only: edyn_esmf_update_step ! indicates ESMF updated the current time step with updated geo-mag coordinates
-  use edyn_esmf,only: edyn_esmf_update_flag
+
 !
 ! Args: Input fields on geographic grid:
 !
@@ -337,7 +351,7 @@ module edynamo
 !
 ! Local:
 !
-    integer :: j,i,k
+    integer :: j,i,k,rc
     real(r8),dimension(lev0:lev1,lon0:lon1,lat0:lat1) :: &
       scheight,  & ! scale height (no longer necessary since wn calculated outside)
       adotv1,    & ! ue1 (m/s)
@@ -349,6 +363,10 @@ module edynamo
       a1dta2,    & ! (d(1) dot d(2)) /D
       be3          ! mag field strength (T)
 
+!   real(r8),dimension(lon0:lon1,lat0:lat1) :: & ! temp for debug
+!     zb_diag,bmod_diag
+
+    real(r8) :: f2d(lon0:lon1,lat0:lat1,4)
 !
 ! See nf_3dgeo above:
     real(r8),dimension(lev0:lev1,lon0:lon1,lat0:lat1,nf_3dgeo) :: f3d
@@ -494,7 +512,6 @@ module edynamo
       call edyn_esmf_get_2dfield(mag_adota2,adota2_mag, "ADOTA2  ")
       call edyn_esmf_get_2dfield(mag_a1dta2,a1dta2_mag, "A1A2M   ")
       call edyn_esmf_get_2dfield(mag_be3   ,be3_mag   , "BE3     ")
-      call edyn_esmf_update_flag(.false.)
     endif
 !
 ! fmeq_in are input fields on 3d mag subdomains.
@@ -580,7 +597,7 @@ module edynamo
 ! Calculate adotv1,2, adota1,2, a1dta2 and be3.
 !
   use edyn_params ,only: r0,h0
-  use edyn_geogrid,only: jspole,jnpole
+  use edyn_geogrid,only: nlon,jspole,jnpole
   use getapex,     only: &
     dvec,                & ! (nlonp1,nlat,3,2)
     dddarr,              & ! (nlonp1,nlat)
@@ -669,7 +686,7 @@ module edynamo
 ! Allocate and initialize arrays for parallel dynamo (module data)
 ! (called once per run)
 !
-    integer :: istat
+    integer :: istat,n
     integer :: mlon00,mlon11,mlat00,mlat11
 !
     mlon00=mlon0-1 ; mlon11=mlon1+1
@@ -800,20 +817,22 @@ module edynamo
     use edyn_maggrid,  only: ylatm
 !
 ! Local:
-    integer :: i,j,k
+    integer :: ier,i,j,k
     real(r8) :: &
       sinlm,    &  ! sin(lam_m)
       clm2,     &  ! cos^2(lam_m)
+      absinim,  &  ! | sin I_m |
       ra,       &  ! (R_E + H_0)/cos^2(lam_m)
       sqomrra,  &  ! sqrt(1/ R_0/R_A) = sin(lam_m)
       sqrra,    &  ! sqrt(R_0/R_A)
       afac,     &  ! 2*sqrt(R_A-R_0) (afac is NaN at mag poles)
       htfac        ! sqrt(R_A -3/4*R_0)
 
-    real(r8) :: rora,del,omdel,sig1,sig2,ue1,ue2
-    real(r8),dimension(mlon0:mlon1) :: aam
-    real(r8),dimension(mlon0:mlon1,mlev0:mlev1) :: rrm, &
-       rtramrm, htfunc, htfunc2
+    real(r8) :: rora,del,omdel,sig1,sig2,ue1,ue2,jgr,jmp,fac,je1pg,je2pg
+    real(r8),dimension(mlon0:mlon1) :: sindm, cosdm, ram, aam, cosiam, &
+      csthdam, rtadram
+    real(r8),dimension(mlon0:mlon1,mlev0:mlev1) :: rrm, sinidm, cosidm, &
+      costhdm, rtramrm, htfunc, htfunc2
 !
 ! Initialize coefficients:
 !
@@ -833,6 +852,7 @@ module edynamo
 
       sinlm   = sin(ylatm(j))
       clm2    = 1._r8 - sinlm*sinlm
+      absinim = abs(sinlm)/sqrt(1._r8-0.75_r8*clm2)
       ra      = r0/clm2
       sqomrra = sqrt(1._r8-r0/ra)
       sqrra   = sqrt(r0/ra)
@@ -1263,7 +1283,7 @@ module edynamo
 !   by sub complete_integrals.
 !
 ! Local:
-    integer :: j,i
+    integer :: j,i,ii
     real(r8),dimension(nmlat) :: tint1
     real(r8) :: &
       rim2_npm1(nmlonp1), & ! global rim2 at nmlat-1
@@ -1519,7 +1539,7 @@ module edynamo
 ! to geographic grid (sub pefield), and subsequent calculation of ion drifts 
 ! by sub ionvel (not in edynamo).
 !
-  use edyn_params ,only: re,pi_dyn,r0,kbotdyn
+  use edyn_params ,only: h0,re,pi_dyn,r0,kbotdyn
   use edyn_maggrid,only: ylatm,dlatm,dlonm,rcos0s,dt1dts,dt0dts,table
   use edyn_mpi    ,only: &
     mp_mag_halos        ,& 
@@ -1534,7 +1554,7 @@ module edynamo
     real(r8),parameter :: eps = 1.e-10_r8, unitvm(nmlon)=1._r8
     integer,parameter :: mxneed=nmlat+2
     integer :: i,j,k,n,mlon00,mlon11,mlat00,mlat11
-    real(r8) :: csth0,cosltm,sym,pi,phims,phimn,real8
+    real(r8) :: csth0,cosltm,sinltm,sym,pi,phims,phimn,siniq,real8
     real(r8),dimension(nmlonp1) :: thetam,pslot,qslot
     integer,dimension(nmlonp1) :: islot,jslot,ip1f,ip2f,ip3f
 
@@ -1782,8 +1802,10 @@ module edynamo
         sym = 1._r8
         if (j < nmlath) sym = -1._r8
         cosltm = cos(ylatm(j))
+        sinltm = sin(ylatm(j))
         do i=mlon0,mlon1
           if (i==nmlonp1) cycle
+          siniq = 2._r8*sinltm/sqrt(4._r8-3._r8*cosltm**2)
 
           thetam(i)=(re+zpotm3d(i,j,kbotdyn))/(re+zpotm3d(i,j,k))
           thetam(i) = acos(sqrt(thetam(i))*cosltm*(1._r8-eps))
@@ -1957,9 +1979,9 @@ module edynamo
 !-----------------------------------------------------------------------
   subroutine pefield
   use edyn_params ,only: pi
-  use edyn_maggrid,only: dt0dts,dlatm,dlonm,rcos0s
+  use edyn_maggrid,only: dt0dts,dlatm,dlonm,rcos0s,table
   use edyn_geogrid,only: nlev
-  use edyn_mpi    ,only: mp_magpole_3d,mp_mag_halos,mp_magpoles
+  use edyn_mpi    ,only: mp_magpole_3d,mp_mag_halos,mp_magpoles,mytid
   use edyn_esmf   ,only: mag_ephi3d,mag_elam3d,mag_emz3d,mag_phi3d,&
                          geo_ephi3d,geo_elam3d,geo_emz3d,geo_phi3d
 !
@@ -1971,6 +1993,7 @@ module edynamo
   real(r8) :: csth0,real8
   real(r8) :: fpoles(nmlonp1,2,nmlev) ! global lons at poles
   real(r8),dimension(lon0:lon1,lat0:lat1,nlev) :: exgeo,eygeo,ezgeo
+  real(r8),dimension(lon0:lon1,nlev) :: diag_ik
 !
 ! Copy phim3d to local phi3d, and set halo points:
     do j=mlat0,mlat1
@@ -2088,7 +2111,7 @@ module edynamo
 
   end subroutine pefield
 !-----------------------------------------------------------------------
-  subroutine ionvel(z,ui,vi,wi)
+  subroutine ionvel(z,ui,vi,wi,eeex,eeey,eeez)
 !
 ! Calculate 3d ExB ion drifts from electric field (sub pefield)
 ! on geographic grid.
@@ -2104,12 +2127,13 @@ module edynamo
     real(r8),intent(in),dimension(lev0:lev1,lon0:lon1,lat0:lat1) :: &
       z  ! geopotential from input (cm)
     real(r8),intent(out),dimension(lev0:lev1,lon0:lon1,lat0:lat1) :: &
-      ui,vi,wi
+      ui,vi,wi,eeex,eeey,eeez
 !
 ! Local:
     integer :: i,ii,k,j
     real(r8),dimension(lev0:lev1,lon0:lon1) :: eex,eey,eez
     real(r8),dimension(lev0:lev1,lon0:lon1,lat0:lat1) :: rjac_out
+    real(r8),dimension(lon0:lon1,nlev) :: diag_ik
 
 ! mag field diagnostics
     call savefld_waccm_switch(bmod(lon0:lon1,lat0:lat1),'BMOD',1,lon0,lon1,lat0,lat1)
@@ -2161,6 +2185,15 @@ module edynamo
             1.e6_r8/bmod(ii,j)**2
           wi(k,i,j) =  (eex(k,i)*xb(ii,j)-eey(k,i)*yb(ii,j))* &
             1.e6_r8/bmod(ii,j)**2
+
+          eeex(k,i,j) = eex(k,i)*1.e6_r8/bmod(ii,j)
+          eeey(k,i,j) = eey(k,i)*1.e6_r8/bmod(ii,j)
+          eeez(k,i,j) = eez(k,i)*1.e6_r8/bmod(ii,j)
+          !if ((j < 6 .or.  j>90)) then
+          !eeex(k,i,j) = eeex(k,i,j)*0.75_r8
+          !eeey(k,i,j) = eeey(k,i,j)*0.75_r8
+          !eeez(k,i,j) = eeez(k,i,j)*0.75_r8
+          !endif
         enddo ! i=lon0,lon1
       enddo ! k=lev0,lev1
 
@@ -2174,6 +2207,9 @@ module edynamo
         ui(:,i,j) = ui(:,i,j)*100._r8
         vi(:,i,j) = vi(:,i,j)*100._r8
         wi(:,i,j) = wi(:,i,j)*100._r8
+        eeex(:,i,j) = eeex(:,i,j)*100._r8
+        eeey(:,i,j) = eeey(:,i,j)*100._r8
+        eeez(:,i,j) = eeez(:,i,j)*100._r8
       enddo
     enddo ! j=lat0,lat1 
 
