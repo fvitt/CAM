@@ -1,4 +1,12 @@
-module ctem_mod
+!-----------------------------------------------------------------------------
+! For physics grid (and dycore) independent circulation diagnostics
+! -- terms of the Transformed Eulerian Mean (TEM) equation
+!
+! This uses ESMF utilities to remap dynamical fields (U,V, etc) from the physics
+! grid to a regular longitude / latitude grid where it is convenient to compute
+! the zonal mean terms of the TEM equation
+!-----------------------------------------------------------------------------
+module ctem_diags_mod
   use shr_kind_mod, only: r8 => shr_kind_r8
   use ppgrid, only: begchunk, endchunk, pcols, pver, pverp
   use physics_types, only: physics_state
@@ -14,6 +22,14 @@ module ctem_mod
 
   implicit none
 
+  private
+
+  public :: ctem_diags_readnl
+  public :: ctem_diags_reg
+  public :: ctem_diags_init
+  public :: ctem_diags_calc
+  public :: ctem_diags_final
+
   integer :: ctem_diags_numlats = 0
   logical :: ctem_diags_active = .false.
 
@@ -21,15 +37,15 @@ contains
 
   !-----------------------------------------------------------------------------
   !-----------------------------------------------------------------------------
-  subroutine ctem_readnl(nlfile)
+  subroutine ctem_diags_readnl(nlfile)
     use namelist_utils, only : find_group_name
     use spmd_utils, only : mpicom, masterprocid, mpi_integer, mpi_success
     use string_utils, only : to_lower
 
     character(len=*), intent(in) :: nlfile
-    integer :: unitn, ierr, m, n, ndx_co, ndx_ar
+    integer :: unitn, ierr
 
-    character(len=*), parameter :: prefix = 'ctem_readnl: '
+    character(len=*), parameter :: prefix = 'ctem_diags_readnl: '
 
     namelist /ctem_diags_nl/ ctem_diags_numlats
 
@@ -56,22 +72,19 @@ contains
        write(iulog,*) prefix//'ctem_diags_active : ', ctem_diags_active
     end if
 
-  end subroutine ctem_readnl
+  end subroutine ctem_diags_readnl
 
   !-----------------------------------------------------------------------------
   !-----------------------------------------------------------------------------
-  subroutine ctem_reg()
-
+  subroutine ctem_diags_reg()
     use cam_grid_support, only: horiz_coord_t, horiz_coord_create, iMap, cam_grid_register
     use esmf_lonlat_grid_mod, only: glats, nlat, glons, nlon
     use esmf_lonlat_grid_mod, only: esmf_lonlat_grid_init
     use esmf_phys_mesh_mod, only: esmf_phys_mesh_init
     use esmf_phys2lonlat_mod, only: esmf_phys2lonlat_init
 
-    integer :: ind, j, astat
-
-    integer, parameter :: zm_decomp  = 854 ! Must be unique within CAM
-    integer, parameter :: reg_decomp = 654
+    integer, parameter :: zm_decomp  = 331 ! Must be unique within CAM
+    integer, parameter :: reg_decomp = 332
 
     type(horiz_coord_t), pointer :: zmlon_coord
     type(horiz_coord_t), pointer :: zmlat_coord
@@ -82,7 +95,7 @@ contains
     integer(iMap),       pointer :: coord_map(:) => null()
     type(horiz_coord_t), pointer :: lon_coord
     type(horiz_coord_t), pointer :: lat_coord
-    integer :: i
+    integer :: i, j, ind, astat
 
     if (.not.ctem_diags_active) return
 
@@ -156,28 +169,28 @@ contains
 
     nullify(coord_map)
 
-    call cam_grid_register('ctem_reg', reg_decomp, lat_coord, lon_coord, grid_map, unstruct=.false.)
+    call cam_grid_register('ctem_lonlat', reg_decomp, lat_coord, lon_coord, grid_map, unstruct=.false.)
 
     nullify(grid_map)
 
-  end subroutine ctem_reg
+  end subroutine ctem_diags_reg
 
   !-----------------------------------------------------------------------------
   !-----------------------------------------------------------------------------
-  subroutine ctem_init()
+  subroutine ctem_diags_init()
 
     if (.not.ctem_diags_active) return
 
     ! fields on reg lon lat grid
-    call addfld ('THtem', (/'lev'/), 'A','K',      'Potential temp', gridname='ctem_reg' )
-    call addfld ('Utem',  (/'lev'/), 'A','m s-1',  'Zonal-Mean zonal wind', gridname='ctem_reg' )
-    call addfld ('Vtem',  (/'lev'/), 'A','m s-1',  'Zonal-Mean meridional wind', gridname='ctem_reg' )
-    call addfld ('Wtem',  (/'lev'/), 'A','m s-1',  'Zonal-Mean vertical wind', gridname='ctem_reg' )
+    call addfld ('THtem', (/'lev'/), 'A','K',      'Potential temp', gridname='ctem_lonlat' )
+    call addfld ('Utem',  (/'lev'/), 'A','m s-1',  'Zonal-Mean zonal wind', gridname='ctem_lonlat' )
+    call addfld ('Vtem',  (/'lev'/), 'A','m s-1',  'Zonal-Mean meridional wind', gridname='ctem_lonlat' )
+    call addfld ('Wtem',  (/'lev'/), 'A','m s-1',  'Zonal-Mean vertical wind', gridname='ctem_lonlat' )
 
-    call addfld ('VTHtem',(/'lev'/), 'A','K m s-1','Meridional Heat Flux:', gridname='ctem_reg')
-    call addfld ('WTHtem',(/'lev'/), 'A','K m s-1','Vertical Heat Flux:', gridname='ctem_reg')
-    call addfld ('UVtem', (/'lev'/), 'A','m2 s-2', 'Meridional Flux of Zonal Momentum', gridname='ctem_reg')
-    call addfld ('UWtem', (/'lev'/), 'A','m2 s-2', 'Vertical Flux of Zonal Momentum', gridname='ctem_reg')
+    call addfld ('VTHtem',(/'lev'/), 'A','K m s-1','Meridional Heat Flux:', gridname='ctem_lonlat')
+    call addfld ('WTHtem',(/'lev'/), 'A','K m s-1','Vertical Heat Flux:', gridname='ctem_lonlat')
+    call addfld ('UVtem', (/'lev'/), 'A','m2 s-2', 'Meridional Flux of Zonal Momentum', gridname='ctem_lonlat')
+    call addfld ('UWtem', (/'lev'/), 'A','m2 s-2', 'Vertical Flux of Zonal Momentum', gridname='ctem_lonlat')
 
     ! fields on zonal mean grid
     call addfld ('Uzm',  (/'lev'/), 'A','m s-1',  'Zonal-Mean zonal wind', gridname='ctem_zm' )
@@ -190,14 +203,14 @@ contains
     call addfld ('UWzm', (/'lev'/), 'A','m2 s-2', 'Vertical Flux of Zonal Momentum', gridname='ctem_zm')
 
     call addfld ('PSzm',  horiz_only, 'A', 'Pa', 'Zonal-Mean surface pressure', gridname='ctem_zm' )
-    call addfld ('PStem', horiz_only, 'A', 'Pa', 'Surface Pressure', gridname='ctem_reg')
-    call addfld ('MSKtem',horiz_only, 'A','1',  'TEM mask', gridname='ctem_reg' )
+    call addfld ('PStem', horiz_only, 'A', 'Pa', 'Surface Pressure', gridname='ctem_lonlat')
+    call addfld ('MSKtem',horiz_only, 'A','1',  'TEM mask', gridname='ctem_lonlat' )
 
-  end subroutine ctem_init
+  end subroutine ctem_diags_init
 
   !-----------------------------------------------------------------------------
   !-----------------------------------------------------------------------------
-  subroutine ctem_calc(phys_state)
+  subroutine ctem_diags_calc(phys_state)
     use air_composition, only: mbarv ! g/mole
     use shr_const_mod, only: rgas => shr_const_rgas ! J/K/kmole
     use shr_const_mod, only: grav => shr_const_g ! m/s2
@@ -227,7 +240,6 @@ contains
     real(r8) :: vi_lonlat(beglon:endlon,beglat:endlat,pver)
     real(r8) :: wi_lonlat(beglon:endlon,beglat:endlat,pver)
     real(r8) :: ti_lonlat(beglon:endlon,beglat:endlat,pver)
-    real(r8) :: pi_lonlat(beglon:endlon,beglat:endlat,pver)
 
     real(r8) :: u_zm(beglat:endlat,pver)
     real(r8) :: v_zm(beglat:endlat,pver)
@@ -264,9 +276,9 @@ contains
 
     if (.not.ctem_diags_active) return
 
-    call t_startf('ctem_calc')
+    call t_startf('ctem_diags_calc')
 
-    call t_startf('ctem_calc-setarrs')
+    call t_startf('ctem_diags_calc-setarrs')
 
     do lchnk = begchunk,endchunk
        ncol = phys_state(lchnk)%ncol
@@ -292,9 +304,9 @@ contains
        end do
     end do
 
-    call t_stopf('ctem_calc-setarrs')
+    call t_stopf('ctem_diags_calc-setarrs')
 
-    call t_startf('ctem_calc-regrid')
+    call t_startf('ctem_diags_calc-regrid')
 
     ! regrid to lon/lat grid
 
@@ -314,13 +326,13 @@ contains
 
     call esmf_phys2lonlat_regrid(ps_phys, ps_lonlat)
 
-    call t_stopf('ctem_calc-regrid')
+    call t_stopf('ctem_diags_calc-regrid')
 
-    call t_startf('ctem_calc-zonal_mean-ps')
+    call t_startf('ctem_diags_calc-zonal_mean-ps')
     call esmf_zonal_mean_calc(ps_lonlat, ps_zm)
-    call t_stopf('ctem_calc-zonal_mean-ps')
+    call t_stopf('ctem_diags_calc-zonal_mean-ps')
 
-    call t_startf('ctem_calc-interp')
+    call t_startf('ctem_diags_calc-interp')
 
     ! vertically intepolate to ref press
     do i = beglon,endlon
@@ -352,12 +364,12 @@ contains
        end do
     end do
 
-    call t_stopf('ctem_calc-interp')
+    call t_stopf('ctem_diags_calc-interp')
 
-    call t_startf('ctem_calc-zonal_mean-uvwt')
-
+    call t_startf('ctem_diags_calc-zonal_mean-uvwt')
 
     ! calculate zonal means from interpolated fields
+    ! mask out mountains from the zonal mean calculations
     wsums = esmf_zonal_mean_wsums(wght)
 
     call esmf_zonal_mean_masked(ui_lonlat, wght, wsums, u_zm)
@@ -365,9 +377,9 @@ contains
     call esmf_zonal_mean_masked(wi_lonlat, wght, wsums, w_zm)
     call esmf_zonal_mean_masked(ti_lonlat, wght, wsums, t_zm)
 
-    call t_stopf('ctem_calc-zonal_mean-uvwt')
+    call t_stopf('ctem_diags_calc-zonal_mean-uvwt')
 
-    call t_startf('ctem_calc-calc_dev_flx')
+    call t_startf('ctem_diags_calc-calc_dev_flx')
 
     ! Calculate zonal deviations and fluxes
     do k = 1,pver
@@ -396,18 +408,18 @@ contains
        end do
     end do
 
-    call t_stopf('ctem_calc-calc_dev_flx')
+    call t_stopf('ctem_diags_calc-calc_dev_flx')
 
-    call t_startf('ctem_calc-zonal_mean-p')
+    call t_startf('ctem_diags_calc-zonal_mean-p')
 
     call esmf_zonal_mean_masked(vtp, wght, wsums, vtp_zm)
     call esmf_zonal_mean_masked(wtp, wght, wsums, wtp_zm)
     call esmf_zonal_mean_masked(uwp, wght, wsums, uwp_zm)
     call esmf_zonal_mean_masked(uvp, wght, wsums, uvp_zm)
 
-    call t_stopf('ctem_calc-zonal_mean-p')
+    call t_stopf('ctem_diags_calc-zonal_mean-p')
 
-    call t_startf('ctem_calc-output')
+    call t_startf('ctem_diags_calc-output')
 
     outcnt = endlon-beglon+1
 
@@ -445,23 +457,25 @@ contains
        call outfld('UWzm', uwp_zm(j,:),1,j)
     end do
 
-    call t_stopf('ctem_calc-output')
+    call t_stopf('ctem_diags_calc-output')
 
-    call t_stopf('ctem_calc')
+    call t_stopf('ctem_diags_calc')
 
-  end subroutine ctem_calc
+  end subroutine ctem_diags_calc
 
   !-----------------------------------------------------------------------------
   !-----------------------------------------------------------------------------
-  subroutine ctem_final()
+  subroutine ctem_diags_final()
     use esmf_phys2lonlat_mod, only: esmf_phys2lonlat_destroy
     use esmf_lonlat_grid_mod, only: esmf_lonlat_grid_destroy
     use esmf_phys_mesh_mod, only: esmf_phys_mesh_destroy
+
+    if (.not.ctem_diags_active) return
 
     call esmf_phys2lonlat_destroy()
     call esmf_lonlat_grid_destroy()
     call esmf_phys_mesh_destroy()
 
-  end subroutine ctem_final
+  end subroutine ctem_diags_final
 
-end module ctem_mod
+end module ctem_diags_mod

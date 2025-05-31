@@ -1,5 +1,5 @@
 !-------------------------------------------------------------------------------
-! Initializes the CAM physics grid mesh
+! Encapsulates the CAM physics grid mesh
 !-------------------------------------------------------------------------------
 module esmf_phys_mesh_mod
   use shr_kind_mod,   only: r8 => shr_kind_r8, cs=>shr_kind_cs, cl=>shr_kind_cl
@@ -9,6 +9,7 @@ module esmf_phys_mesh_mod
   use ESMF,           only: ESMF_DistGrid, ESMF_DistGridCreate, ESMF_MeshCreate
   use ESMF,           only: ESMF_FILEFORMAT_ESMFMESH,ESMF_MeshGet,ESMF_Mesh, ESMF_SUCCESS
   use ESMF,           only: ESMF_MeshDestroy, ESMF_DistGridDestroy
+  use esmf_check_error_mod, only: check_esmf_error
 
   implicit none
 
@@ -197,21 +198,5 @@ contains
     call check_esmf_error(rc, subname//'ESMF_DistGridDestroy dist_grid_2d')
 
   end subroutine esmf_phys_mesh_destroy
-
-  !------------------------------------------------------------------------------
-  !------------------------------------------------------------------------------
-  subroutine check_esmf_error( rc, errmsg )
-    integer, intent(in) :: rc
-    character(len=*), intent(in) :: errmsg
-
-    character(len=cl) :: errstr
-
-    if (rc /= ESMF_SUCCESS) then
-       write(errstr,'(a,i6)') 'esmf_phys_mesh_mod::'//trim(errmsg)//' -- ESMF ERROR code: ',rc
-       if (masterproc) write(iulog,*) trim(errstr)
-       call endrun(trim(errstr))
-    end if
-
-  end subroutine check_esmf_error
 
 end module esmf_phys_mesh_mod

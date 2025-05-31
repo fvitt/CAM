@@ -1,11 +1,22 @@
+!------------------------------------------------------------------------------
+! Provides methods for mapping from physics grid to regular longitude / latitude
+! grid via ESMF regridding capabilities
+!------------------------------------------------------------------------------
 module esmf_phys2lonlat_mod
-  use shr_kind_mod, only: r8 => shr_kind_r8, cl=>SHR_KIND_CL
+  use shr_kind_mod, only: r8 => shr_kind_r8
   use cam_logfile,  only: iulog
   use cam_abortutils, only: endrun
   use spmd_utils, only: masterproc
   use ppgrid, only: pver
 
-  use ESMF
+  use ESMF, only: ESMF_RouteHandle, ESMF_Field, ESMF_ArraySpec, ESMF_ArraySpecSet
+  use ESMF, only: ESMF_FieldCreate, ESMF_FieldRegridStore
+  use ESMF, only: ESMF_FieldGet, ESMF_FieldRegrid
+  use ESMF, only: ESMF_KIND_I4, ESMF_KIND_R8, ESMF_TYPEKIND_R8
+  use ESMF, only: ESMF_REGRIDMETHOD_BILINEAR, ESMF_POLEMETHOD_ALLAVG, ESMF_EXTRAPMETHOD_NEAREST_IDAVG
+  use ESMF, only: ESMF_TERMORDER_SRCSEQ, ESMF_MESHLOC_ELEMENT, ESMF_STAGGERLOC_CENTER
+  use ESMF, only: ESMF_FieldDestroy, ESMF_RouteHandleDestroy
+  use esmf_check_error_mod, only: check_esmf_error
 
   implicit none
 
@@ -219,21 +230,5 @@ contains
     call check_esmf_error(rc, subname//'ESMF_FieldDestroy physfld_2d')
 
   end subroutine esmf_phys2lonlat_destroy
-
-  !------------------------------------------------------------------------------
-  !------------------------------------------------------------------------------
-  subroutine check_esmf_error( rc, errmsg )
-    integer, intent(in) :: rc
-    character(len=*), intent(in) :: errmsg
-
-    character(len=cl) :: errstr
-
-    if (rc /= ESMF_SUCCESS) then
-       write(errstr,'(a,i6)') 'esmf_zonal_mod::'//trim(errmsg)//' -- ESMF ERROR code: ',rc
-       if (masterproc) write(iulog,*) trim(errstr)
-       call endrun(trim(errstr))
-    end if
-
-  end subroutine check_esmf_error
 
 end module esmf_phys2lonlat_mod

@@ -162,7 +162,7 @@ contains
     use upper_bc,           only: ubc_fixed_conc
     use surface_emissions_mod, only: surface_emissions_reg
     use elevated_emissions_mod, only: elevated_emissions_reg
-    use ctem_mod, only: ctem_reg
+    use ctem_diags_mod, only: ctem_diags_reg
 
     !---------------------------Local variables-----------------------------
     !
@@ -359,7 +359,7 @@ contains
         call pbuf_cam_snapshot_register()
     end if
 
-    call ctem_reg()
+    call ctem_diags_reg()
 
   end subroutine phys_register
 
@@ -778,7 +778,7 @@ contains
     use elevated_emissions_mod, only: elevated_emissions_init
 
     use ccpp_constituent_prop_mod, only: ccpp_const_props_init
-    use ctem_mod, only: ctem_init
+    use ctem_diags_mod, only: ctem_diags_init
 
     ! Input/output arguments
     type(physics_state), pointer       :: phys_state(:)
@@ -1057,7 +1057,7 @@ contains
     dtcore_idx = pbuf_get_index('DTCORE')
     dqcore_idx = pbuf_get_index('DQCORE')
 
-    call ctem_init()
+    call ctem_diags_init()
 
   end subroutine phys_init
 
@@ -1083,7 +1083,7 @@ contains
 #if ( defined OFFLINE_DYN )
      use metdata,       only: get_met_srf1
 #endif
-    use ctem_mod, only: ctem_calc
+    use ctem_diags_mod, only: ctem_diags_calc
     !
     ! Input arguments
     !
@@ -1129,7 +1129,7 @@ contains
     call diag_allocate()
 
     ! TEM diagnostics
-    call ctem_calc(phys_state)
+    call ctem_diags_calc(phys_state)
 
     !-----------------------------------------------------------------------
     ! Advance time information
@@ -1320,7 +1320,7 @@ contains
     use microp_aero, only : microp_aero_final
     use phys_grid_ctem, only : phys_grid_ctem_final
     use nudging, only: Nudge_Model, nudging_final
-    use ctem_mod, only: ctem_final
+    use ctem_diags_mod, only: ctem_diags_final
 
     !-----------------------------------------------------------------------
     !
@@ -1351,7 +1351,7 @@ contains
         call HCOI_Chunk_Final
     endif
 
-    call ctem_final()
+    call ctem_diags_final()
 
   end subroutine phys_final
 

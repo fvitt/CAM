@@ -1,3 +1,7 @@
+!------------------------------------------------------------------------------
+! Provides methods for calculating zonal means on the ESMF regular longitude
+! / latitude grid
+!------------------------------------------------------------------------------
 module esmf_zonal_mean_mod
   use shr_kind_mod, only: r8 => shr_kind_r8
   use cam_logfile, only: iulog
@@ -9,7 +13,6 @@ module esmf_zonal_mean_mod
 
   private
 
-  public :: esmf_zonal_mean_reg
   public :: esmf_zonal_mean_calc
   public :: esmf_zonal_mean_masked
   public :: esmf_zonal_mean_wsums
@@ -21,24 +24,10 @@ module esmf_zonal_mean_mod
 
 contains
 
-  !%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%
-  !%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%
-  subroutine esmf_zonal_mean_reg
-
-    use esmf_lonlat_grid_mod, only: esmf_lonlat_grid_init
-    use esmf_phys_mesh_mod, only: esmf_phys_mesh_init
-    use esmf_phys2lonlat_mod, only: esmf_phys2lonlat_init
-
-    integer, parameter :: zonal_mean_nlats = 90
-
-    call esmf_lonlat_grid_init(zonal_mean_nlats)
-    call esmf_phys_mesh_init()
-    call esmf_phys2lonlat_init()
-
-  end subroutine esmf_zonal_mean_reg
-
-  !%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%
-  !%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%
+  !------------------------------------------------------------------------------
+  ! Calculates zonal means of 3D fields. The wght option can be used to mask out
+  ! regions such as mountains.
+  !------------------------------------------------------------------------------
   subroutine esmf_zonal_mean_calc_3d(lonlatarr, zmarr, wght)
     use ppgrid, only: pver
     use esmf_lonlat_grid_mod, only: lon_beg,lon_end,lat_beg,lat_end, nlon
@@ -92,8 +81,9 @@ contains
 
   end subroutine esmf_zonal_mean_calc_3d
 
-  !%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%
-  !%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%
+  !------------------------------------------------------------------------------
+  ! Computes zonal mean for 2D lon / lat fields.
+  !------------------------------------------------------------------------------
   subroutine esmf_zonal_mean_calc_2d(lonlatarr, zmarr)
     use esmf_lonlat_grid_mod, only: lon_beg,lon_end,lat_beg,lat_end, nlon
     use esmf_lonlat_grid_mod, only: zonal_comm
@@ -116,8 +106,9 @@ contains
 
   end subroutine esmf_zonal_mean_calc_2d
 
-  !%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%
-  !%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%
+  !------------------------------------------------------------------------------
+  ! Computes longitude sums of grid cell weights.
+  !------------------------------------------------------------------------------
   function esmf_zonal_mean_wsums(wght) result(wsums)
     use esmf_lonlat_grid_mod, only: lon_beg,lon_end,lat_beg,lat_end, nlon
     use esmf_lonlat_grid_mod, only: zonal_comm
@@ -141,8 +132,9 @@ contains
 
   end function esmf_zonal_mean_wsums
 
-  !%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%
-  !%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%
+  !------------------------------------------------------------------------------
+  ! Masks out regions (e.g. mountains) from zonal mean calculation.
+  !------------------------------------------------------------------------------
   subroutine esmf_zonal_mean_masked(lonlatarr, wght, wsums, zmarr)
     use esmf_lonlat_grid_mod, only: lon_beg,lon_end,lat_beg,lat_end, nlon
     use esmf_lonlat_grid_mod, only: zonal_comm
@@ -150,9 +142,9 @@ contains
     use ppgrid, only: pver
 
     real(r8), intent(in) :: lonlatarr(lon_beg:lon_end,lat_beg:lat_end,pver)
-    real(r8), intent(in) :: wght(lon_beg:lon_end,lat_beg:lat_end,pver)
-    real(r8), intent(in) :: wsums(lat_beg:lat_end,pver)
-    real(r8), intent(out) :: zmarr(lat_beg:lat_end,pver)
+    real(r8), intent(in) :: wght(lon_beg:lon_end,lat_beg:lat_end,pver) ! grid cell weights
+    real(r8), intent(in) :: wsums(lat_beg:lat_end,pver) ! pre-computed sums of grid cell weights
+    real(r8), intent(out) :: zmarr(lat_beg:lat_end,pver) ! zonal means
 
     real(r8) :: tmparr(lon_beg:lon_end,pver)
     integer :: numlons, ilat, ilev
@@ -174,7 +166,6 @@ contains
        end do
 
     end do
-
 
   end subroutine esmf_zonal_mean_masked
 

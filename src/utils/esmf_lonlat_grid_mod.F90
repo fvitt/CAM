@@ -1,12 +1,20 @@
+!-------------------------------------------------------------------------------
+! Encapsulates an ESMF regular longitude / latitude grid
+!-------------------------------------------------------------------------------
 module esmf_lonlat_grid_mod
-  use shr_kind_mod, only: r8 => shr_kind_r8, cl=>SHR_KIND_CL
+  use shr_kind_mod, only: r8 => shr_kind_r8
   use spmd_utils, only: masterproc, mpicom
   use cam_logfile, only: iulog
   use cam_abortutils, only: endrun
 
-  use ESMF
+  use ESMF, only: ESMF_Grid, ESMF_GridCreate1PeriDim, ESMF_GridAddCoord
+  use ESMF, only: ESMF_GridGetCoord, ESMF_GridDestroy
+  use ESMF, only: ESMF_KIND_R8, ESMF_INDEX_GLOBAL, ESMF_STAGGERLOC_CENTER
+  use esmf_check_error_mod, only: check_esmf_error
 
   implicit none
+
+  public
 
   type(ESMF_Grid), protected :: lonlat_grid
 
@@ -287,20 +295,5 @@ contains
 
   end subroutine esmf_lonlat_grid_destroy
 
-  !------------------------------------------------------------------------------
-  !------------------------------------------------------------------------------
-  subroutine check_esmf_error( rc, errmsg )
-    integer, intent(in) :: rc
-    character(len=*), intent(in) :: errmsg
-
-    character(len=cl) :: errstr
-
-    if (rc /= ESMF_SUCCESS) then
-       write(errstr,'(a,i6)') 'esmf_zonal_mod::'//trim(errmsg)//' -- ESMF ERROR code: ',rc
-       if (masterproc) write(iulog,*) trim(errstr)
-       call endrun(trim(errstr))
-    end if
-
-  end subroutine check_esmf_error
 
 end module esmf_lonlat_grid_mod
