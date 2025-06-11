@@ -203,6 +203,7 @@ module gw_drag
   logical :: gw_convect_dp_ml_compare = .false.
   character(len=132) :: gw_convect_dp_ml_net_path
   character(len=132) :: gw_convect_dp_ml_norms
+  character(len=132) :: gw_nlgw_model_path
 
 !==========================================================================
 contains
@@ -246,7 +247,8 @@ subroutine gw_drag_readnl(nlfile)
        gw_lndscl_sgh, gw_prndl, gw_apply_tndmax, gw_qbo_hdepth_scaling, &
        gw_top_taper, front_gaussian_width, &
        gw_convect_dp_ml, gw_convect_dp_ml_compare, &
-       gw_convect_dp_ml_net_path, gw_convect_dp_ml_norms
+       gw_convect_dp_ml_net_path, gw_convect_dp_ml_norms, &
+       gw_nlgw_model_path
   !----------------------------------------------------------------------
 
   if (use_simple_phys) return
@@ -361,6 +363,9 @@ subroutine gw_drag_readnl(nlfile)
 
   call mpi_bcast(gw_convect_dp_ml_norms, len(gw_convect_dp_ml_norms), mpi_character, mstrid, mpicom, ierr)
   if (ierr /= 0) call endrun(sub//": FATAL: mpi_bcast: gw_convect_dp_ml_norms")
+
+  call mpi_bcast(gw_nlgw_model_path, len(gw_nlgw_model_path), mpi_character, mstrid, mpicom, ierr)
+  if (ierr /= 0) call endrun(sub//": FATAL: mpi_bcast: gw_nlgw_model_path")
 
   ! Check if fcrit2 was set.
   call shr_assert(fcrit2 /= unset_r8, &
@@ -573,7 +578,7 @@ subroutine gw_init()
        errMsg(__FILE__, __LINE__))
 
   if ( use_gw_nlgw ) then
-    call gw_nlgw_dp_init("/glade/u/home/tmeltzer/nonlocal_gwfluxes/era5_training/nlgw_ann-cnn_gpu_scripted.pt", "norms.nc")
+    call gw_nlgw_dp_init(gw_nlgw_model_path)
   end if
 
   if ( use_gw_oro ) then

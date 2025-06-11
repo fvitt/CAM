@@ -199,19 +199,17 @@ subroutine gw_nlgw_dp_ml(state_in, ptend)
 end subroutine gw_nlgw_dp_ml
 
 
-subroutine gw_nlgw_dp_init(neural_net_path, norms_path)
+subroutine gw_nlgw_dp_init(model_path)
 
-  character(len=*), intent(in) :: neural_net_path  ! Filepath to PyTorch Torchscript net
-  character(len=*), intent(in) :: norms_path       ! Filepath to NetCDF normalisation weights
+  character(len=*), intent(in) :: model_path  ! Filepath to PyTorch Torchscript net
 
   ! Load the convective drag net from TorchScript file
-  call torch_model_load(nlgw_model, neural_net_path, device_type=torch_kCUDA, device_index=0)
+  call torch_model_load(nlgw_model, model_path, device_type=torch_kCUDA, device_index=0)
   ! read in normalisation weights
   call read_norms()
 
   if (masterproc) then
-     write(iulog,*)'gw_convect_net loaded from: ', neural_net_path
-     ! write(iulog,*)'Normalisation weights loaded from: ', norms_path
+     write(iulog,*)'nlgw model loaded from: ', model_path
   endif
 
 end subroutine gw_nlgw_dp_init
@@ -229,39 +227,8 @@ end subroutine gw_nlgw_dp_finalize
 
 subroutine read_norms()
 
-  ! use netcdf
-  ! use error_messages, only: handle_ncerr
-
-  ! character(len=132), intent(in) :: norms_path  ! Filepath to NetCDF normalisation weights
-
-  ! integer :: ncid, varid, retva, ierr
-  ! character(len=*), parameter :: sub = 'gw_nlgw/F90 read_norms: '
-
-  ! Load normalisation weights from file in master process then broadcast
-  ! if (masterproc) then
-  !   ! Open the NetCDF file
-  !   call handle_ncerr( nf90_open(trim(norms_path), NF90_NOWRITE, ncid), &
-  !                      "Error opening NetCDF norms file in gw_ml.F90")
-
-  !   ! We do not need to read in dimensions here as we assume inputs match the grid.
-
-  !   ! Read in variables (means and deviations).
-  !   call handle_ncerr( nf90_inq_varid(ncid, 'U_mean', varid), &
-  !                      "Error getting U_mean varid from NetCDF Norms file in gw_ml.F90")
-  !   call handle_ncerr( nf90_get_var(ncid, varid, u_mean), &
-  !                      "Error getting U_mean varid from NetCDF Norms file in gw_ml.F90")
-
-  ! endif
-
-  ! Broadcast normalisation variables to other processes
-  ! call mpi_bcast(utgw_std, pver, mpi_real8, mstrid, mpicom, ierr)
-  ! if (ierr /= 0) call endrun(sub//": FATAL: mpi_bcast: utgw_std from gw_ml.F90")
-
   ! TODO
-  ! - remove hardcoded means/std devs
-  ! - replace with netcdf load and mpi broadcast
-  ! - verify with Aman that these are correct
-  ! - verify that the denormalization is correctly applied
+  ! - replace hardcoded means/std devs with netcdf file?
 
   lat_mean = 0._r8
   lon_mean = 0._r8
