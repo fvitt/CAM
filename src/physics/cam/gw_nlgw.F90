@@ -41,10 +41,10 @@ real(r8), dimension(:,:), allocatable :: &
   pmid      ! midpoint pressure (Pa)
 
 real(r8), dimension(:,:), allocatable :: &
-  uflux,   &! zonal wind flux
-  vflux,   &! meridional wind flux
-  utgw,    &! zonal wind tendency
-  vtgw      ! meridional wind tendency
+  uflux,   &! zonal wind flux (Pa)
+  vflux,   &! meridional wind flux (Pa)
+  utgw,    &! zonal wind tendency (m/s^2)
+  vtgw      ! meridional wind tendency (m/s^2)
 
 real(r4), dimension(:,:), allocatable, target :: net_inputs
 real(r4), dimension(:,:), allocatable, target :: net_outputs
