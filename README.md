@@ -116,7 +116,7 @@ gw_convect_dp_ml_norms='/path/to/norms'
 
    Absolute filepath to the deep convection gravity wave normalisation weights (NetCDF) used when `gw_convect_dp_ml` is set to `.true.`.
 
-#### ML parameterisation for convection
+#### ML parameterisation for non local gravity waves
 
 To run CAM using the non local gravity wave ML model to replace all parameterisations use the following configuration
 ```fortran
