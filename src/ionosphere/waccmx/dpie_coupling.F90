@@ -94,6 +94,13 @@ contains
        call addfld ('DPIE_NOP',(/ 'lev' /), 'I', 'm^-3','DPIE_NOP(dpie input)', gridname='physgrid')
        call addfld ('DPIE_N2P',(/ 'lev' /), 'I', 'm^-3','DPIE_N2P(dpie input)', gridname='physgrid')
 
+       call addfld ('DPIE_FEP',(/ 'lev' /), 'I', 'm^-3','DPIE Fep(dpie input)', gridname='physgrid')
+       call addfld ('DPIE_MGP',(/ 'lev' /), 'I', 'm^-3','DPIE Mgp(dpie input)', gridname='physgrid')
+       call addfld ('DPIE_NAP',(/ 'lev' /), 'I', 'm^-3','DPIE Nap(dpie input)', gridname='physgrid')
+       call addfld ('DPIE_CAP',(/ 'lev' /), 'I', 'm^-3','DPIE Cap(dpie input)', gridname='physgrid')
+       call addfld ('DPIE_KP', (/ 'lev' /), 'I', 'm^-3','DPIE Kp (dpie input)', gridname='physgrid')
+       call addfld ('DPIE_SIP',(/ 'lev' /), 'I', 'm^-3','DPIE Sip(dpie input)', gridname='physgrid')
+
        call addfld ('WACCM_UI'   ,(/ 'lev' /), 'I', 'm/s'  ,'WACCM_UI (dpie output)', gridname='physgrid')
        call addfld ('WACCM_VI'   ,(/ 'lev' /), 'I', 'm/s'  ,'WACCM_VI (dpie output)', gridname='physgrid')
        call addfld ('WACCM_WI'   ,(/ 'lev' /), 'I', 'm/s'  ,'WACCM_WI (dpie output)', gridname='physgrid')
@@ -270,7 +277,9 @@ contains
   subroutine d_pie_coupling(omega, pmid, zgi, zht, u, v, tn,                  &
        sigma_ped, sigma_hall, te, ti, mbar, n2mmr, o2mmr, o1mmr, o2pmmr,      &
        nopmmr, n2pmmr, opmmr, opmmrtm1, ui, vi, wi,                           &
-       rmassO2p, rmassNOp, rmassN2p, rmassOp, cols, cole, plev )
+       rmassO2p, rmassNOp, rmassN2p, rmassOp, cols, cole, plev, &
+       rmassFep, rmassMgp, rmassNap, rmassCap, rmassKp, rmassSip, &
+       Fepmmr, Mgpmmr, Napmmr, Capmmr, Kpmmr, Sipmmr )
      !
      ! Call dynamo to calculate electric potential and electric field
      ! Note: dynamo calculates ion drifts.
@@ -327,6 +336,20 @@ contains
      real(r8), intent(in)    :: rmassNOp                    ! NO+ molecular weight kg/kmol
      real(r8), intent(in)    :: rmassN2p                    ! N2+ molecular weight kg/kmol
      real(r8), intent(in)    :: rmassOp                     ! O+ molecular weight kg/kmol
+
+     real(r8), intent(in)    :: rmassFep                    ! Fe+ molecular weight kg/kmol
+     real(r8), intent(in)    :: rmassMgp                    ! Mg+ molecular weight kg/kmol
+     real(r8), intent(in)    :: rmassNap                    ! Na+ molecular weight kg/kmol
+     real(r8), intent(in)    :: rmassCap                    ! Ca+ molecular weight kg/kmol
+     real(r8), intent(in)    :: rmassKp                     ! K+ molecular weight kg/kmol
+     real(r8), intent(in)    :: rmassSip                    ! Si+ molecular weight kg/kmol
+     real(r8), pointer :: Fepmmr(:,:)
+     real(r8), pointer :: Mgpmmr(:,:)
+     real(r8), pointer :: Napmmr(:,:)
+     real(r8), pointer :: Capmmr(:,:)
+     real(r8), pointer :: Kpmmr(:,:)
+     real(r8), pointer :: Sipmmr(:,:)
+
      !
      ! Local:
      !
@@ -346,6 +369,7 @@ contains
 
      real(r8),dimension(plev, cols:cole) :: & ! ion number densities (m^3)
           o2p, nop, n2p, op, ne, optm1
+     real(r8),dimension(plev, cols:cole) :: Fep, Mgp, Nap, Cap, Kp, Sip
 
      real(r8) :: op_in(nlev,lon0:lon1,lat0:lat1)
      real(r8) :: optm1_in(nlev,lon0:lon1,lat0:lat1)
@@ -464,6 +488,40 @@ contains
         end do
      end do ! k=1,nlev
 
+     Fep=fillvalue; Mgp=fillvalue; Nap=fillvalue; Cap=fillvalue; Kp=fillvalue; Sip=fillvalue;
+
+     if (associated(Fepmmr)) then
+        Fep(1:nlev,cols:cole) = Fepmmr(1:nlev,cols:cole) * mbar(1:nlev,cols:cole) / rmassFep * &
+             pmid(1:nlev,cols:cole) / (kboltz * tn(1:nlev,cols:cole))
+        ne(1:nlev,cols:cole) = ne(1:nlev,cols:cole) + Fep(1:nlev,cols:cole)
+     end if
+     if (associated(Mgpmmr)) then
+        Mgp(1:nlev,cols:cole) = Mgpmmr(1:nlev,cols:cole) * mbar(1:nlev,cols:cole) / rmassMgp * &
+             pmid(1:nlev,cols:cole) / (kboltz * tn(1:nlev,cols:cole))
+        ne(1:nlev,cols:cole) = ne(1:nlev,cols:cole) + Mgp(1:nlev,cols:cole)
+     end if
+     if (associated(Napmmr)) then
+        Nap(1:nlev,cols:cole) = Napmmr(1:nlev,cols:cole) * mbar(1:nlev,cols:cole) / rmassNap * &
+             pmid(1:nlev,cols:cole) / (kboltz * tn(1:nlev,cols:cole))
+        ne(1:nlev,cols:cole) = ne(1:nlev,cols:cole) + Nap(1:nlev,cols:cole)
+     end if
+     if (associated(Capmmr)) then
+        Cap(1:nlev,cols:cole) = Capmmr(1:nlev,cols:cole) * mbar(1:nlev,cols:cole) / rmassCap * &
+             pmid(1:nlev,cols:cole) / (kboltz * tn(1:nlev,cols:cole))
+        ne(1:nlev,cols:cole) = ne(1:nlev,cols:cole) + Cap(1:nlev,cols:cole)
+     end if
+     if (associated(Kpmmr)) then
+        Kp(1:nlev,cols:cole) = Kpmmr(1:nlev,cols:cole) * mbar(1:nlev,cols:cole) / rmassKp * &
+             pmid(1:nlev,cols:cole) / (kboltz * tn(1:nlev,cols:cole))
+        ne(1:nlev,cols:cole) = ne(1:nlev,cols:cole) + Kp(1:nlev,cols:cole)
+     end if
+     if (associated(Sipmmr)) then
+        Sip(1:nlev,cols:cole) = Sipmmr(1:nlev,cols:cole) * mbar(1:nlev,cols:cole) / rmassSip * &
+             pmid(1:nlev,cols:cole) / (kboltz * tn(1:nlev,cols:cole))
+        ne(1:nlev,cols:cole) = ne(1:nlev,cols:cole) + Sip(1:nlev,cols:cole)
+     end if
+
+
      if (debug_hist) then
         call outfld_phys('DPIE_TN',tn)
         call outfld_phys('DPIE_UN',u* 100._r8)
@@ -486,6 +544,14 @@ contains
         call outfld_phys('DPIE_O2P',o2p)
         call outfld_phys('DPIE_NOP',nop)
         call outfld_phys('DPIE_N2P',n2p)
+
+        call outfld_phys('DPIE_FEP',Fep)
+        call outfld_phys('DPIE_MGP',Mgp)
+        call outfld_phys('DPIE_NAP',Nap)
+        call outfld_phys('DPIE_CAP',Cap)
+        call outfld_phys('DPIE_KP', Kp)
+        call outfld_phys('DPIE_SIP',Sip)
+
      endif
      call outfld_phys('EDens',ne/1.E6_r8)
      call outfld_phys('OpDens',op/1.E6_r8)
