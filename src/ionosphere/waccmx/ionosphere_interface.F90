@@ -95,21 +95,21 @@ module ionosphere_interface
    integer :: sIndxKp=-1 !Jianfei Wu added for Fe+ Na+ and K+
    integer :: sIndxSip=-1 !Jianfei Wu added for Fe+ Na+ and K+
 
-   real(r8) :: rmassFep    ! Fe+ molecular weight kg/kmol
-   real(r8) :: rmassMgp    ! Fe+ molecular weight kg/kmol
-   real(r8) :: rmassNap    ! Fe+ molecular weight kg/kmol
-   real(r8) :: rmassCap    ! Fe+ molecular weight kg/kmol
-   real(r8) :: rmassKp    ! Fe+ molecular weight kg/kmol
-   real(r8) :: rmassSip    ! Fe+ molecular weight kg/kmol
+   real(r8) :: rmassFep = 0._r8  ! Fe+ molecular weight kg/kmol
+   real(r8) :: rmassMgp = 0._r8  ! Fe+ molecular weight kg/kmol
+   real(r8) :: rmassNap = 0._r8  ! Fe+ molecular weight kg/kmol
+   real(r8) :: rmassCap = 0._r8  ! Fe+ molecular weight kg/kmol
+   real(r8) :: rmassKp  = 0._r8  ! Fe+ molecular weight kg/kmol
+   real(r8) :: rmassSip = 0._r8  ! Fe+ molecular weight kg/kmol
 
-   real(r8) :: rmassO2    ! O2 molecular weight kg/kmol
-   real(r8) :: rmassO1    ! O atomic weight kg/kmol
-   real(r8) :: rmassH     ! H atomic weight kg/kmol
-   real(r8) :: rmassN2    ! N2 molecular weight kg/kmol
-   real(r8) :: rmassO2p   ! O2+ molecular weight kg/kmol
-   real(r8) :: rmassNOp   ! NO+ molecular weight kg/kmol
-   real(r8) :: rmassN2p   ! N2+ molecular weight kg/kmol
-   real(r8) :: rmassOp    ! O+ molecular weight kg/kmol
+   real(r8) :: rmassO2  = 0._r8  ! O2 molecular weight kg/kmol
+   real(r8) :: rmassO1  = 0._r8  ! O atomic weight kg/kmol
+   real(r8) :: rmassH   = 0._r8  ! H atomic weight kg/kmol
+   real(r8) :: rmassN2  = 0._r8  ! N2 molecular weight kg/kmol
+   real(r8) :: rmassO2p = 0._r8  ! O2+ molecular weight kg/kmol
+   real(r8) :: rmassNOp = 0._r8  ! NO+ molecular weight kg/kmol
+   real(r8) :: rmassN2p = 0._r8  ! N2+ molecular weight kg/kmol
+   real(r8) :: rmassOp  = 0._r8  ! O+ molecular weight kg/kmol
 
    ! ionos_edyn_active == .true. will activate the edynamo which will
    !   generate ion drift velocities used in oplus transport, otherwise
@@ -637,7 +637,7 @@ module ionosphere_interface
       real(r8), pointer :: Sipmmrtm1_blck(:,:)=>null() ! Si+ previous time step (blocks)
 
      ! Temp fields for outfld
-      real(r8)          :: r8tmp
+      real(r8), pointer :: mass_tmp(:,:)
       real(r8), pointer :: tempm(:,:) => null() ! Temp midpoint field for outfld
       real(r8), pointer :: tempi(:,:) => null() ! Temp interface field for outfld
       real(r8), parameter :: n2min = 1.e-6_r8  ! lower limit of N2 mixing ratios
@@ -706,6 +706,10 @@ module ionosphere_interface
          allocate(tn_blck(pver, blksize), stat=astat)
          if (astat /= 0) then
             call endrun(subname//': failed to allocate tn_blck')
+         end if
+         allocate(mass_tmp(pver, blksize), stat=astat)
+         if (astat /= 0) then
+            call endrun(subname//': failed to allocate mass_tmp')
          end if
          allocate(n2mmr_blck(pver, blksize), stat=astat)
          if (astat /= 0) then
@@ -1106,22 +1110,52 @@ module ionosphere_interface
          !---------------------------------------------------------------------
          ! Compute and save mean molecular weight:
          !---------------------------------------------------------------------
-         j = 0
-         do lchnk = begchunk, endchunk
-            ncol = get_ncols_p(lchnk)
-            do i = 1, ncol
-               j = j + 1
-               do k = 1, pver
-                  r8tmp = o1mmr_blck(k,j) + o2mmr_blck(k,j) + h1mmr_blck(k,j)
-                  n2mmr_blck(k, j) = max(1.0_r8 - r8tmp, n2min)
-                  r8tmp =          o1mmr_blck(k, j) / rmassO1
-                  r8tmp = r8tmp + (o2mmr_blck(k, j) / rmassO2)
-                  r8tmp = r8tmp + (h1mmr_blck(k, j) / rmassH)
-                  r8tmp = r8tmp + (n2mmr_blck(k, j) / rmassN2)
-                  mbar_blck(k, j) = 1.0_r8 / r8tmp
-               end do
-            end do
-         end do
+         mass_tmp(:,:) = o1mmr_blck(:,:) + o2mmr_blck(:,:) + h1mmr_blck(:,:)
+         if (associated( Fepmmr_blck )) then
+            mass_tmp(:,:) = mass_tmp(:,:) + 2.0_r8*Fepmmr_blck(:,:) ! why factor of 2 ???
+         end if
+         if (associated( Mgpmmr_blck )) then
+            mass_tmp(:,:) = mass_tmp(:,:) + 2.0_r8*Mgpmmr_blck(:,:)
+         end if
+         if (associated( Napmmr_blck )) then
+            mass_tmp(:,:) = mass_tmp(:,:) + 2.0_r8*Napmmr_blck(:,:)
+         end if
+         if (associated( Capmmr_blck )) then
+            mass_tmp(:,:) = mass_tmp(:,:) + 2.0_r8*Capmmr_blck(:,:)
+         end if
+         if (associated( Kpmmr_blck )) then
+            mass_tmp(:,:) = mass_tmp(:,:) + 2.0_r8*Kpmmr_blck(:,:)
+         end if
+         if (associated( Sipmmr_blck )) then
+            mass_tmp(:,:) = mass_tmp(:,:) + 2.0_r8*Sipmmr_blck(:,:)
+         end if
+
+         n2mmr_blck(:,:) = max(1.0_r8 - mass_tmp(:,:) , n2min)
+
+         mass_tmp(:,:) =                  o1mmr_blck(:,:) / rmassO1
+         mass_tmp(:,:) = mass_tmp(:,:) + (o2mmr_blck(:,:) / rmassO2)
+         mass_tmp(:,:) = mass_tmp(:,:) + (h1mmr_blck(:,:) / rmassO2)
+         mass_tmp(:,:) = mass_tmp(:,:) + (n2mmr_blck(:,:) / rmassO2)
+         if (associated( Fepmmr_blck )) then
+            mass_tmp(:,:) = mass_tmp(:,:) + (2._r8*Fepmmr_blck(:,:) / rmassFep)
+         end if
+         if (associated( Mgpmmr_blck )) then
+            mass_tmp(:,:) = mass_tmp(:,:) + (2._r8*Mgpmmr_blck(:,:) / rmassMgp)
+         end if
+         if (associated( Napmmr_blck )) then
+            mass_tmp(:,:) = mass_tmp(:,:) + (2._r8*Napmmr_blck(:,:) / rmassNap)
+         end if
+         if (associated( Capmmr_blck )) then
+            mass_tmp(:,:) = mass_tmp(:,:) + (2._r8*Capmmr_blck(:,:) / rmassCap)
+         end if
+         if (associated( Kpmmr_blck )) then
+            mass_tmp(:,:) = mass_tmp(:,:) + (2._r8*Kpmmr_blck(:,:) / rmassKp)
+         end if
+         if (associated( Sipmmr_blck )) then
+            mass_tmp(:,:) = mass_tmp(:,:) + (2._r8*Sipmmr_blck(:,:) / rmassSip)
+         end if
+
+         mbar_blck(:,:) = 1.0_r8 / mass_tmp(:,:)
 
          if (state_debug_checks) then
             call shr_assert_in_domain(te_blck, is_nan=.false., varname="te_blck", msg="NaN found in te_blck in ionosphere_run2")
@@ -1146,7 +1180,9 @@ module ionosphere_interface
               opmmr_blck, opmmrtm1_blck, ui_blck, vi_blck, wi_blck,           &
               rmassO2p, rmassNOp, rmassN2p, rmassOp, 1, blksize, pver,        &
               rmassFep, rmassMgp, rmassNap, rmassCap, rmassKp, rmassSip,      &
-              Fepmmr_blck, Mgpmmr_blck, Napmmr_blck, Capmmr_blck, Kpmmr_blck, Sipmmr_blck )
+              Fepmmr_blck, Mgpmmr_blck, Napmmr_blck, Capmmr_blck, Kpmmr_blck, Sipmmr_blck, &
+              O2pmmrtm1_blck, NOpmmrtm1_blck, Fepmmrtm1_blck, Mgpmmrtm1_blck, Napmmrtm1_blck, &
+              Capmmrtm1_blck, Kpmmrtm1_blck, Sipmmrtm1_blck )
 
          call t_stopf ('d_pie_coupling')
 

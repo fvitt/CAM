@@ -279,7 +279,8 @@ contains
        nopmmr, n2pmmr, opmmr, opmmrtm1, ui, vi, wi,                           &
        rmassO2p, rmassNOp, rmassN2p, rmassOp, cols, cole, plev, &
        rmassFep, rmassMgp, rmassNap, rmassCap, rmassKp, rmassSip, &
-       Fepmmr, Mgpmmr, Napmmr, Capmmr, Kpmmr, Sipmmr )
+       Fepmmr, Mgpmmr, Napmmr, Capmmr, Kpmmr, Sipmmr, &
+       NOpmmrtm1, O2pmmrtm1, Fepmmrtm1, Mgpmmrtm1, Napmmrtm1, Capmmrtm1, Kpmmrtm1, Sipmmrtm1)
      !
      ! Call dynamo to calculate electric potential and electric field
      ! Note: dynamo calculates ion drifts.
@@ -349,6 +350,14 @@ contains
      real(r8), pointer :: Capmmr(:,:)
      real(r8), pointer :: Kpmmr(:,:)
      real(r8), pointer :: Sipmmr(:,:)
+     real(r8), pointer :: NOpmmrtm1(:,:)
+     real(r8), pointer :: O2pmmrtm1(:,:)
+     real(r8), pointer :: Fepmmrtm1(:,:)
+     real(r8), pointer :: Mgpmmrtm1(:,:)
+     real(r8), pointer :: Napmmrtm1(:,:)
+     real(r8), pointer :: Capmmrtm1(:,:)
+     real(r8), pointer :: Kpmmrtm1(:,:)
+     real(r8), pointer :: Sipmmrtm1(:,:)
 
      !
      ! Local:
@@ -380,6 +389,12 @@ contains
      real(r8) :: wn_in(nlev,lon0:lon1,lat0:lat1) ! vertical velocity (cm/s)
      real(r8) :: op_out(nlev,lon0:lon1,lat0:lat1)
      real(r8) :: optm1_out(nlev,lon0:lon1,lat0:lat1)
+
+     real(r8),dimension(plev, cols:cole) :: NOptm1, O2ptm1
+     real(r8),dimension(plev, cols:cole) :: Feptm1, Mgptm1, Naptm1, Captm1, Kptm1, Siptm1
+
+     real(r8) :: NOptm1_in(nlev,lon0:lon1,lat0:lat1)
+     real(r8) :: O2ptm1_in(nlev,lon0:lon1,lat0:lat1)
 
      real(r8),target :: halo_tn(nlev,lon0-2:lon1+2,lat0-2:lat1+2) ! neutral temperature (deg K)
      real(r8),target :: halo_te(nlev,lon0-2:lon1+2,lat0-2:lat1+2) ! electron temperature (deg K)
@@ -436,6 +451,22 @@ contains
             optm1_geo, &
             pmid_geo, &
             mbar_geo
+
+     real(r8), dimension(lon0:lon1,lat0:lat1,lev0:lev1) :: & ! 3d fields on geo grid
+          NOptm1_geo, &
+          O2ptm1_geo, &
+          Feptm1_geo, &
+          Mgptm1_geo, &
+          Naptm1_geo, &
+          Captm1_geo, &
+          Kptm1_geo, &
+          Siptm1_geo, &
+          Fep_geo, &
+          Mgp_geo, &
+          Nap_geo, &
+          Cap_geo, &
+          Kp_geo, &
+          Sip_geo
 
      real(r8), dimension(lon0:lon1,lat0:lat1,lev0:lev1) :: &
           adotv1_in, adotv2_in
@@ -521,6 +552,30 @@ contains
         ne(1:nlev,cols:cole) = ne(1:nlev,cols:cole) + Sip(1:nlev,cols:cole)
      end if
 
+     if (associated(NOpmmrtm1)) then
+        NOptm1(:,:) = NOpmmrtm1(:,:) * mbar(:,:) / rmassOp / pmid(:,:) / (kboltz * tn(:,:))
+     end if
+     if (associated(O2pmmrtm1)) then
+        O2ptm1(:,:) = O2pmmrtm1(:,:) * mbar(:,:) / rmassOp / pmid(:,:) / (kboltz * tn(:,:))
+     end if
+     if (associated(Fepmmrtm1)) then
+        Feptm1(:,:) = Fepmmrtm1(:,:) * mbar(:,:) / rmassOp / pmid(:,:) / (kboltz * tn(:,:))
+     end if
+     if (associated(Mgpmmrtm1)) then
+        Mgptm1(:,:) = Mgpmmrtm1(:,:) * mbar(:,:) / rmassOp / pmid(:,:) / (kboltz * tn(:,:))
+     end if
+     if (associated(Napmmrtm1)) then
+        Naptm1(:,:) = Napmmrtm1(:,:) * mbar(:,:) / rmassOp / pmid(:,:) / (kboltz * tn(:,:))
+     end if
+     if (associated(Capmmrtm1)) then
+        Captm1(:,:) = Capmmrtm1(:,:) * mbar(:,:) / rmassOp / pmid(:,:) / (kboltz * tn(:,:))
+     end if
+     if (associated(Kpmmrtm1)) then
+        Kptm1(:,:) = Kpmmrtm1(:,:) * mbar(:,:) / rmassOp / pmid(:,:) / (kboltz * tn(:,:))
+     end if
+     if (associated(Sipmmrtm1)) then
+        Siptm1(:,:) = Sipmmrtm1(:,:) * mbar(:,:) / rmassOp / pmid(:,:) / (kboltz * tn(:,:))
+     end if
 
      if (debug_hist) then
         call outfld_phys('DPIE_TN',tn)
@@ -738,6 +793,52 @@ contains
        call regrid_phys2geo_3d( optm1, optm1_geo, plev, cols, cole )
        call regrid_phys2geo_3d( pmid, pmid_geo, plev, cols, cole )
        call regrid_phys2geo_3d( mbar, mbar_geo, plev, cols, cole )
+
+       if (associated(NOpmmrtm1)) then
+          call regrid_phys2geo_3d( NOptm1, NOptm1_geo, plev, cols, cole )
+       end if
+       if (associated(O2pmmrtm1)) then
+          call regrid_phys2geo_3d( O2ptm1, O2ptm1_geo, plev, cols, cole )
+       end if
+
+       if (associated(Fepmmrtm1)) then
+          call regrid_phys2geo_3d( Feptm1, Feptm1_geo, plev, cols, cole )
+       end if
+       if (associated(Mgpmmrtm1)) then
+          call regrid_phys2geo_3d( Mgptm1, Mgptm1_geo, plev, cols, cole )
+       end if
+       if (associated(Napmmrtm1)) then
+          call regrid_phys2geo_3d( Naptm1, Naptm1_geo, plev, cols, cole )
+       end if
+       if (associated(Capmmrtm1)) then
+          call regrid_phys2geo_3d( Captm1, Captm1_geo, plev, cols, cole )
+       end if
+       if (associated(Kpmmrtm1)) then
+          call regrid_phys2geo_3d( Kptm1, Kptm1_geo, plev, cols, cole )
+       end if
+       if (associated(Sipmmrtm1)) then
+          call regrid_phys2geo_3d( Siptm1, Siptm1_geo, plev, cols, cole )
+       end if
+
+       if (associated(Fepmmr)) then
+          call regrid_phys2geo_3d( Fep, Fep_geo, plev, cols, cole )
+       end if
+       if (associated(Mgpmmr)) then
+          call regrid_phys2geo_3d( Mgp, Mgp_geo, plev, cols, cole )
+       end if
+       if (associated(Napmmr)) then
+          call regrid_phys2geo_3d( Nap, Nap_geo, plev, cols, cole )
+       end if
+       if (associated(Capmmr)) then
+          call regrid_phys2geo_3d( Cap, Cap_geo, plev, cols, cole )
+       end if
+       if (associated(Kpmmr)) then
+          call regrid_phys2geo_3d( Kp, Kp_geo, plev, cols, cole )
+       end if
+       if (associated(Sipmmr)) then
+          call regrid_phys2geo_3d( Sip, Sip_geo, plev, cols, cole )
+       end if
+
 
        if (mytid<ntask) then
 
