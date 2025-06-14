@@ -27,6 +27,7 @@ module dpie_coupling
   logical  :: ionos_edyn_active ! if true, call oplus_xport for O+ transport
   logical  :: ionos_oplus_xport ! if true, call oplus_xport for O+ transport
   integer  :: nspltop           ! nsplit for oplus_xport
+  integer :: vxbnspltop=10  ! nsplit for oplus_xport
 
   logical  :: debug = .false.
 
@@ -50,6 +51,7 @@ contains
     ionos_edyn_active = edyn_active_in
     ionos_oplus_xport = oplus_xport_in
     nspltop = oplus_nsplit_in
+    vxbnspltop = oplus_nsplit_in
 
     crit_user_set = all( crit_colats_deg(:) > 0._r8 )
     if (crit_user_set) then
@@ -277,6 +279,7 @@ contains
   subroutine d_pie_coupling(omega, pmid, zgi, zht, u, v, tn,                  &
        sigma_ped, sigma_hall, te, ti, mbar, n2mmr, o2mmr, o1mmr, o2pmmr,      &
        nopmmr, n2pmmr, opmmr, opmmrtm1, ui, vi, wi,                           &
+       rmassN2, rmassO2, rmassO1, &
        rmassO2p, rmassNOp, rmassN2p, rmassOp, cols, cole, plev, &
        rmassFep, rmassMgp, rmassNap, rmassCap, rmassKp, rmassSip, &
        Fepmmr, Mgpmmr, Napmmr, Capmmr, Kpmmr, Sipmmr, &
@@ -300,6 +303,7 @@ contains
      use regridder,  only: regrid_phys2geo_3d, regrid_phys2mag_3d, regrid_geo2phys_3d
      use regridder,  only: regrid_geo2mag_3d, regrid_geo2mag_2d
      use adotv_mod,  only: calc_adotv
+     use vxb, only: vxb_xport
 
      !
      ! Args:
@@ -325,14 +329,15 @@ contains
      real(r8), intent(in)    :: n2mmr(plev, cols:cole)      ! N2 mass mixing ratio (for oplus)
      real(r8), intent(in)    :: o2mmr(plev, cols:cole)      ! O2 mass mixing ratio (for oplus)
      real(r8), intent(in)    :: o1mmr(plev, cols:cole)      ! O mass mixing ratio (for oplus)
-     real(r8), intent(in)    :: o2pmmr(plev, cols:cole)     ! O2+ mass mixing ratio (for oplus)
-     real(r8), intent(in)    :: nopmmr(plev, cols:cole)     ! NO+ mass mixing ratio (for oplus)
+     real(r8), intent(inout) :: o2pmmr(plev, cols:cole)     ! O2+ mass mixing ratio (for oplus)
+     real(r8), intent(inout) :: nopmmr(plev, cols:cole)     ! NO+ mass mixing ratio (for oplus)
      real(r8), intent(in)    :: n2pmmr(plev, cols:cole)     ! N2+ mass mixing ratio (for oplus)
      real(r8), intent(inout) :: opmmr(plev, cols:cole)      ! O+ mass mixing ratio (oplus_xport output)
      real(r8), intent(inout) :: opmmrtm1(plev, cols:cole)   ! O+ previous time step (oplus_xport output)
      real(r8), intent(inout) :: ui(plev, cols:cole)         ! zonal ion drift (edynamo or empirical)
      real(r8), intent(inout) :: vi(plev, cols:cole)         ! meridional ion drift (edynamo or empirical)
      real(r8), intent(inout) :: wi(plev, cols:cole)         ! vertical ion drift (edynamo or empirical)
+     real(r8), intent(in)    :: rmassN2, rmassO2, rmassO1
      real(r8), intent(in)    :: rmassO2p                    ! O2+ molecular weight kg/kmol
      real(r8), intent(in)    :: rmassNOp                    ! NO+ molecular weight kg/kmol
      real(r8), intent(in)    :: rmassN2p                    ! N2+ molecular weight kg/kmol
@@ -397,23 +402,53 @@ contains
      real(r8),dimension(plev, cols:cole) :: NOptm1, O2ptm1
      real(r8),dimension(plev, cols:cole) :: Feptm1, Mgptm1, Naptm1, Captm1, Kptm1, Siptm1
 
-     real(r8) :: NOp_in(nlev,lon0:lon1,lat0:lat1)
+     real(r8) :: O2pxi_in(nlev,lon0:lon1,lat0:lat1)
      real(r8) :: O2p_in(nlev,lon0:lon1,lat0:lat1)
-     real(r8) :: NOptm1_in(nlev,lon0:lon1,lat0:lat1)
      real(r8) :: O2ptm1_in(nlev,lon0:lon1,lat0:lat1)
+     real(r8) :: O2p_out(nlev,lon0:lon1,lat0:lat1)
+     real(r8) :: O2ptm1_out(nlev,lon0:lon1,lat0:lat1)
 
+     real(r8) :: NOpxi_in(nlev,lon0:lon1,lat0:lat1)
+     real(r8) :: NOp_in(nlev,lon0:lon1,lat0:lat1)
+     real(r8) :: NOptm1_in(nlev,lon0:lon1,lat0:lat1)
+     real(r8) :: NOp_out(nlev,lon0:lon1,lat0:lat1)
+     real(r8) :: NOptm1_out(nlev,lon0:lon1,lat0:lat1)
+
+     real(r8) :: Fepxi_in(nlev,lon0:lon1,lat0:lat1)
      real(r8) :: Fep_in(nlev,lon0:lon1,lat0:lat1)
      real(r8) :: Feptm1_in(nlev,lon0:lon1,lat0:lat1)
+     real(r8) :: Fep_out(nlev,lon0:lon1,lat0:lat1)
+     real(r8) :: Feptm1_out(nlev,lon0:lon1,lat0:lat1)
+
+     real(r8) :: Mgpxi_in(nlev,lon0:lon1,lat0:lat1)
      real(r8) :: Mgp_in(nlev,lon0:lon1,lat0:lat1)
      real(r8) :: Mgptm1_in(nlev,lon0:lon1,lat0:lat1)
+     real(r8) :: Mgp_out(nlev,lon0:lon1,lat0:lat1)
+     real(r8) :: Mgptm1_out(nlev,lon0:lon1,lat0:lat1)
+
+     real(r8) :: Napxi_in(nlev,lon0:lon1,lat0:lat1)
      real(r8) :: Nap_in(nlev,lon0:lon1,lat0:lat1)
      real(r8) :: Naptm1_in(nlev,lon0:lon1,lat0:lat1)
+     real(r8) :: Nap_out(nlev,lon0:lon1,lat0:lat1)
+     real(r8) :: Naptm1_out(nlev,lon0:lon1,lat0:lat1)
+
+     real(r8) :: Capxi_in(nlev,lon0:lon1,lat0:lat1)
      real(r8) :: Cap_in(nlev,lon0:lon1,lat0:lat1)
      real(r8) :: Captm1_in(nlev,lon0:lon1,lat0:lat1)
+     real(r8) :: Cap_out(nlev,lon0:lon1,lat0:lat1)
+     real(r8) :: Captm1_out(nlev,lon0:lon1,lat0:lat1)
+
+     real(r8) :: Kpxi_in(nlev,lon0:lon1,lat0:lat1)
      real(r8) :: Kp_in(nlev,lon0:lon1,lat0:lat1)
      real(r8) :: Kptm1_in(nlev,lon0:lon1,lat0:lat1)
+     real(r8) :: Kp_out(nlev,lon0:lon1,lat0:lat1)
+     real(r8) :: Kptm1_out(nlev,lon0:lon1,lat0:lat1)
+
+     real(r8) :: Sipxi_in(nlev,lon0:lon1,lat0:lat1)
      real(r8) :: Sip_in(nlev,lon0:lon1,lat0:lat1)
      real(r8) :: Siptm1_in(nlev,lon0:lon1,lat0:lat1)
+     real(r8) :: Sip_out(nlev,lon0:lon1,lat0:lat1)
+     real(r8) :: Siptm1_out(nlev,lon0:lon1,lat0:lat1)
 
      real(r8),target :: halo_tn(nlev,lon0-2:lon1+2,lat0-2:lat1+2) ! neutral temperature (deg K)
      real(r8),target :: halo_te(nlev,lon0-2:lon1+2,lat0-2:lat1+2) ! electron temperature (deg K)
@@ -424,6 +459,8 @@ contains
      real(r8),target :: halo_o2(nlev,lon0-2:lon1+2,lat0-2:lat1+2) ! o2 (mmr)
      real(r8),target :: halo_o1(nlev,lon0-2:lon1+2,lat0-2:lat1+2) ! o (mmr)
      real(r8),target :: halo_n2(nlev,lon0-2:lon1+2,lat0-2:lat1+2) ! n2 (mmr)
+     real(r8),target :: halo_ne(nlev,lon0-2:lon1+2,lat0-2:lat1+2) ! n2 (mmr)
+     real(r8),target :: halo_op(nlev,lon0-2:lon1+2,lat0-2:lat1+2) ! o (mmr)
      real(r8),target :: halo_mbar(nlev,lon0-2:lon1+2,lat0-2:lat1+2) ! mean molecular weight
      real(r8), allocatable :: polesign(:)
     !
@@ -466,6 +503,7 @@ contains
             o2_geo, &
             o_geo, &
             n2_geo, &
+            ne_geo, &
             op_geo, &
             optm1_geo, &
             pmid_geo, &
@@ -816,6 +854,7 @@ contains
        call regrid_phys2geo_3d( optm1, optm1_geo, plev, cols, cole )
        call regrid_phys2geo_3d( pmid, pmid_geo, plev, cols, cole )
        call regrid_phys2geo_3d( mbar, mbar_geo, plev, cols, cole )
+       call regrid_phys2geo_3d( ne, ne_geo, plev, cols, cole )
 
        if (associated(NOpmmrtm1)) then
           call regrid_phys2geo_3d( NOp, NOp_geo, plev, cols, cole )
@@ -879,6 +918,8 @@ contains
                    halo_o2(kk,i,j)   = o2_geo(i,j,k)
                    halo_o1(kk,i,j)   = o_geo(i,j,k)
                    halo_n2(kk,i,j)   = n2_geo(i,j,k)
+                   halo_ne(kk,i,j)   = ne_geo(i,j,k)
+                   halo_op(kk,i,j)   = op_geo(i,j,k)
                    halo_mbar(kk,i,j) = mbar_geo(i,j,k)
                    op_in(kk,i,j)     = op_geo(i,j,k) / 1.e6_r8  ! m^3 -> cm^3
                    optm1_in(kk,i,j)  = optm1_geo(i,j,k) / 1.e6_r8  ! m^3 -> cm^3
@@ -925,12 +966,14 @@ contains
           !
           ! Set two halo points in lat,lon:
           !
-          nfields = 10
+          nfields = 12
           allocate(ptrs(nfields), polesign(nfields))
           ptrs(1)%ptr => halo_tn ; ptrs(2)%ptr => halo_te ; ptrs(3)%ptr => halo_ti
           ptrs(4)%ptr => halo_un ; ptrs(5)%ptr => halo_vn ; ptrs(6)%ptr => halo_om
           ptrs(7)%ptr => halo_o2 ; ptrs(8)%ptr => halo_o1 ; ptrs(9)%ptr => halo_n2
           ptrs(10)%ptr => halo_mbar
+          ptrs(11)%ptr => halo_ne
+          ptrs(12)%ptr => halo_op
 
           polesign = 1._r8
           polesign(4:5) = -1._r8 ! un,vn
@@ -963,6 +1006,124 @@ contains
                   lon0, lon1, lat0, lat1, nspltop, isplit)
 
           end do ! isplit=1,nspltop
+
+          if (associated(O2pmmrtm1)) then
+             call calc_xi(halo_o2(:,lon0:lon1,lat0:lat1),halo_o1(:,lon0:lon1,lat0:lat1),halo_n2(:,lon0:lon1,lat0:lat1),&
+                          rmassO2p, rmassN2, rmassO2, rmassO1, O2pxi_in, lon0, lon1, lat0, lat1, nlev)
+             do isplit = 1,vxbnspltop
+                if (isplit > 1) then
+                   O2p_in = O2p_out
+                   O2ptm1_in = O2ptm1_out
+                end if
+                call vxb_xport(halo_tn, halo_te, halo_ti, halo_ne, halo_op, halo_un, halo_vn, halo_om,  &
+                     zpot_in, halo_o2, halo_o1, halo_n2, O2p_in, O2ptm1_in, O2pxi_in,       &
+                     halo_mbar, ui_in, vi_in, wi_in,  eobx, eoby, eobz, pmid_inv,    &
+                     O2p_out, O2ptm1_out, rmassO2p, lon0, lon1, lat0, lat1, vxbnspltop, isplit )
+             end do
+          endif
+
+          if (associated(NOpmmrtm1)) then
+             call calc_xi(halo_o2(:,lon0:lon1,lat0:lat1),halo_o1(:,lon0:lon1,lat0:lat1),halo_n2(:,lon0:lon1,lat0:lat1),&
+                          rmassNOp, rmassN2, rmassO2, rmassO1, NOpxi_in, lon0, lon1, lat0, lat1, nlev)
+             do isplit = 1,vxbnspltop
+                if (isplit > 1) then
+                   NOp_in = NOp_out
+                   NOptm1_in = NOptm1_out
+                end if
+                call vxb_xport(halo_tn, halo_te, halo_ti, halo_ne, halo_op, halo_un, halo_vn, halo_om,  &
+                     zpot_in, halo_o2, halo_o1, halo_n2, NOp_in, NOptm1_in, NOpxi_in,       &
+                     halo_mbar, ui_in, vi_in, wi_in,  eobx, eoby, eobz, pmid_inv,    &
+                     NOp_out, NOptm1_out, rmassNOp, lon0, lon1, lat0, lat1, vxbnspltop, isplit )
+             end do
+          endif
+
+
+          if (associated(Fepmmrtm1)) then
+             call calc_xi(halo_o2(:,lon0:lon1,lat0:lat1),halo_o1(:,lon0:lon1,lat0:lat1),halo_n2(:,lon0:lon1,lat0:lat1),&
+                          rmassFep, rmassN2, rmassO2, rmassO1, Fepxi_in, lon0, lon1, lat0, lat1, nlev)
+             do isplit = 1,vxbnspltop
+                if (isplit > 1) then
+                   Fep_in = Fep_out
+                   Feptm1_in = Feptm1_out
+                end if
+                call vxb_xport(halo_tn, halo_te, halo_ti, halo_ne, halo_op, halo_un, halo_vn, halo_om,  &
+                     zpot_in, halo_o2, halo_o1, halo_n2, Fep_in, Feptm1_in, Fepxi_in,       &
+                     halo_mbar, ui_in, vi_in, wi_in,  eobx, eoby, eobz, pmid_inv,    &
+                     Fep_out, Feptm1_out, rmassFep, lon0, lon1, lat0, lat1, vxbnspltop, isplit )
+             end do
+          endif
+
+          if (associated(Mgpmmrtm1)) then
+             call calc_xi(halo_o2(:,lon0:lon1,lat0:lat1),halo_o1(:,lon0:lon1,lat0:lat1),halo_n2(:,lon0:lon1,lat0:lat1),&
+                          rmassMgp, rmassN2, rmassO2, rmassO1, Mgpxi_in, lon0, lon1, lat0, lat1, nlev)
+             do isplit = 1,vxbnspltop
+                if (isplit > 1) then
+                   Mgp_in = Mgp_out
+                   Mgptm1_in = Mgptm1_out
+                end if
+                call vxb_xport(halo_tn, halo_te, halo_ti, halo_ne, halo_op, halo_un, halo_vn, halo_om,  &
+                     zpot_in, halo_o2, halo_o1, halo_n2, Mgp_in, Mgptm1_in, Mgpxi_in,       &
+                     halo_mbar, ui_in, vi_in, wi_in,  eobx, eoby, eobz, pmid_inv,    &
+                     Mgp_out, Mgptm1_out, rmassMgp, lon0, lon1, lat0, lat1, vxbnspltop, isplit )
+             end do
+          endif
+          if (associated(Napmmrtm1)) then
+             call calc_xi(halo_o2(:,lon0:lon1,lat0:lat1),halo_o1(:,lon0:lon1,lat0:lat1),halo_n2(:,lon0:lon1,lat0:lat1),&
+                          rmassNap, rmassN2, rmassO2, rmassO1, Napxi_in, lon0, lon1, lat0, lat1, nlev)
+             do isplit = 1,vxbnspltop
+                if (isplit > 1) then
+                   Nap_in = Nap_out
+                   Naptm1_in = Naptm1_out
+                end if
+                call vxb_xport(halo_tn, halo_te, halo_ti, halo_ne, halo_op, halo_un, halo_vn, halo_om,  &
+                     zpot_in, halo_o2, halo_o1, halo_n2, Nap_in, Naptm1_in, Napxi_in,       &
+                     halo_mbar, ui_in, vi_in, wi_in,  eobx, eoby, eobz, pmid_inv,    &
+                     Nap_out, Naptm1_out, rmassNap, lon0, lon1, lat0, lat1, vxbnspltop, isplit )
+             end do
+          endif
+          if (associated(Capmmrtm1)) then
+             call calc_xi(halo_o2(:,lon0:lon1,lat0:lat1),halo_o1(:,lon0:lon1,lat0:lat1),halo_n2(:,lon0:lon1,lat0:lat1),&
+                          rmassCap, rmassN2, rmassO2, rmassO1, Capxi_in, lon0, lon1, lat0, lat1, nlev)
+             do isplit = 1,vxbnspltop
+                if (isplit > 1) then
+                   Cap_in = Cap_out
+                   Captm1_in = Captm1_out
+                end if
+                call vxb_xport(halo_tn, halo_te, halo_ti, halo_ne, halo_op, halo_un, halo_vn, halo_om,  &
+                     zpot_in, halo_o2, halo_o1, halo_n2, Cap_in, Captm1_in, Capxi_in,       &
+                     halo_mbar, ui_in, vi_in, wi_in,  eobx, eoby, eobz, pmid_inv,    &
+                     Cap_out, Captm1_out, rmassCap, lon0, lon1, lat0, lat1, vxbnspltop, isplit )
+             end do
+          endif
+          if (associated(Kpmmrtm1)) then
+             call calc_xi(halo_o2(:,lon0:lon1,lat0:lat1),halo_o1(:,lon0:lon1,lat0:lat1),halo_n2(:,lon0:lon1,lat0:lat1),&
+                          rmassKp, rmassN2, rmassO2, rmassO1, Kpxi_in, lon0, lon1, lat0, lat1, nlev)
+             do isplit = 1,vxbnspltop
+                if (isplit > 1) then
+                   Kp_in = Kp_out
+                   Kptm1_in = Kptm1_out
+                end if
+                call vxb_xport(halo_tn, halo_te, halo_ti, halo_ne, halo_op, halo_un, halo_vn, halo_om,  &
+                     zpot_in, halo_o2, halo_o1, halo_n2, Kp_in, Kptm1_in, Kpxi_in,       &
+                     halo_mbar, ui_in, vi_in, wi_in,  eobx, eoby, eobz, pmid_inv,    &
+                     Kp_out, Kptm1_out, rmassKp, lon0, lon1, lat0, lat1, vxbnspltop, isplit )
+             end do
+          endif
+          if (associated(Sipmmrtm1)) then
+             call calc_xi(halo_o2(:,lon0:lon1,lat0:lat1),halo_o1(:,lon0:lon1,lat0:lat1),halo_n2(:,lon0:lon1,lat0:lat1),&
+                          rmassSip, rmassN2, rmassO2, rmassO1, Sipxi_in, lon0, lon1, lat0, lat1, nlev)
+             do isplit = 1,vxbnspltop
+                if (isplit > 1) then
+                   Sip_in = Sip_out
+                   Siptm1_in = Siptm1_out
+                end if
+                call vxb_xport(halo_tn, halo_te, halo_ti, halo_ne, halo_op, halo_un, halo_vn, halo_om,  &
+                     zpot_in, halo_o2, halo_o1, halo_n2, Sip_in, Siptm1_in, Sipxi_in,       &
+                     halo_mbar, ui_in, vi_in, wi_in,  eobx, eoby, eobz, pmid_inv,    &
+                     Sip_out, Siptm1_out, rmassSip, lon0, lon1, lat0, lat1, vxbnspltop, isplit )
+             end do
+          endif
+
           call t_stopf ('dpie_oplus_xport')
           if (debug.and.masterproc) then
              write(iulog,"('dpie_coupling after subcycling oplus_xport: nstep=',i8,' nspltop=',i3)") &
@@ -990,6 +1151,56 @@ contains
                    wi_geo(i,j,k) = wi_in(kk,i,j)/100._r8 ! cm/s -> m/s
                 end do
              end do
+             if (associated(NOpmmrtm1)) then
+                NOp_geo(:,:,k) = NOp_out(kk,:,:)*1.e6_r8 * rmassNOp / mbar_geo(:,:,k) * &
+                                 (kboltz * tn_geo(:,:,k)) / pmid_geo(:,:,k)
+                NOptm1_geo(:,:,k) = NOptm1_out(kk,:,:)*1.e6_r8 * rmassNOp / mbar_geo(:,:,k) * &
+                                 (kboltz * tn_geo(:,:,k)) / pmid_geo(:,:,k)
+             end if
+             if (associated(O2pmmrtm1)) then
+                O2p_geo(:,:,k) = O2p_out(kk,:,:)*1.e6_r8 * rmassO2p / mbar_geo(:,:,k) * &
+                                 (kboltz * tn_geo(:,:,k)) / pmid_geo(:,:,k)
+                O2ptm1_geo(:,:,k) = O2ptm1_out(kk,:,:)*1.e6_r8 * rmassO2p / mbar_geo(:,:,k) * &
+                                 (kboltz * tn_geo(:,:,k)) / pmid_geo(:,:,k)
+             end if
+
+             if (associated(Fepmmrtm1)) then
+                Fep_geo(:,:,k) = Fep_out(kk,:,:)*1.e6_r8 * rmassFep / mbar_geo(:,:,k) * &
+                                 (kboltz * tn_geo(:,:,k)) / pmid_geo(:,:,k)
+                Feptm1_geo(:,:,k) = Feptm1_out(kk,:,:)*1.e6_r8 * rmassFep / mbar_geo(:,:,k) * &
+                                 (kboltz * tn_geo(:,:,k)) / pmid_geo(:,:,k)
+             end if
+             if (associated(Mgpmmrtm1)) then
+                Mgp_geo(:,:,k) = Mgp_out(kk,:,:)*1.e6_r8 * rmassMgp / mbar_geo(:,:,k) * &
+                                 (kboltz * tn_geo(:,:,k)) / pmid_geo(:,:,k)
+                Mgptm1_geo(:,:,k) = Mgptm1_out(kk,:,:)*1.e6_r8 * rmassMgp / mbar_geo(:,:,k) * &
+                                 (kboltz * tn_geo(:,:,k)) / pmid_geo(:,:,k)
+             end if
+             if (associated(Napmmrtm1)) then
+                Nap_geo(:,:,k) = Nap_out(kk,:,:)*1.e6_r8 * rmassNap / mbar_geo(:,:,k) * &
+                                 (kboltz * tn_geo(:,:,k)) / pmid_geo(:,:,k)
+                Naptm1_geo(:,:,k) = Naptm1_out(kk,:,:)*1.e6_r8 * rmassNap / mbar_geo(:,:,k) * &
+                                 (kboltz * tn_geo(:,:,k)) / pmid_geo(:,:,k)
+             end if
+             if (associated(Capmmrtm1)) then
+                Cap_geo(:,:,k) = Cap_out(kk,:,:)*1.e6_r8 * rmassCap / mbar_geo(:,:,k) * &
+                                 (kboltz * tn_geo(:,:,k)) / pmid_geo(:,:,k)
+                Captm1_geo(:,:,k) = Captm1_out(kk,:,:)*1.e6_r8 * rmassCap / mbar_geo(:,:,k) * &
+                                 (kboltz * tn_geo(:,:,k)) / pmid_geo(:,:,k)
+             end if
+             if (associated(Kpmmrtm1)) then
+                Kp_geo(:,:,k) = Kp_out(kk,:,:)*1.e6_r8 * rmassKp / mbar_geo(:,:,k) * &
+                                 (kboltz * tn_geo(:,:,k)) / pmid_geo(:,:,k)
+                Kptm1_geo(:,:,k) = Kptm1_out(kk,:,:)*1.e6_r8 * rmassKp / mbar_geo(:,:,k) * &
+                                 (kboltz * tn_geo(:,:,k)) / pmid_geo(:,:,k)
+             end if
+             if (associated(Sipmmrtm1)) then
+                Sip_geo(:,:,k) = Sip_out(kk,:,:)*1.e6_r8 * rmassSip / mbar_geo(:,:,k) * &
+                                 (kboltz * tn_geo(:,:,k)) / pmid_geo(:,:,k)
+                Siptm1_geo(:,:,k) = Siptm1_out(kk,:,:)*1.e6_r8 * rmassSip / mbar_geo(:,:,k) * &
+                                 (kboltz * tn_geo(:,:,k)) / pmid_geo(:,:,k)
+             end if
+
           end do
 
        endif
@@ -999,6 +1210,40 @@ contains
        call regrid_geo2phys_3d( ui_geo, ui, plev, cols, cole )
        call regrid_geo2phys_3d( vi_geo, vi, plev, cols, cole )
        call regrid_geo2phys_3d( wi_geo, wi, plev, cols, cole )
+
+       if (associated(NOpmmrtm1)) then
+          call regrid_geo2phys_3d( NOp_geo, NOpmmr, plev, cols, cole )
+          call regrid_geo2phys_3d( NOptm1_geo, NOpmmrtm1, plev, cols, cole )
+       end if
+       if (associated(O2pmmrtm1)) then
+          call regrid_geo2phys_3d( O2p_geo, O2pmmr, plev, cols, cole )
+          call regrid_geo2phys_3d( O2ptm1_geo, O2pmmrtm1, plev, cols, cole )
+       end if
+
+       if (associated(Fepmmrtm1)) then
+          call regrid_geo2phys_3d( Fep_geo, Fepmmr, plev, cols, cole )
+          call regrid_geo2phys_3d( Feptm1_geo, Fepmmrtm1, plev, cols, cole )
+       end if
+       if (associated(Mgpmmrtm1)) then
+          call regrid_geo2phys_3d( Mgp_geo, Mgpmmr, plev, cols, cole )
+          call regrid_geo2phys_3d( Mgptm1_geo, Mgpmmrtm1, plev, cols, cole )
+       end if
+       if (associated(Napmmrtm1)) then
+          call regrid_geo2phys_3d( Nap_geo, Napmmr, plev, cols, cole )
+          call regrid_geo2phys_3d( Naptm1_geo, Napmmrtm1, plev, cols, cole )
+       end if
+       if (associated(Capmmrtm1)) then
+          call regrid_geo2phys_3d( Cap_geo, Capmmr, plev, cols, cole )
+          call regrid_geo2phys_3d( Captm1_geo, Capmmrtm1, plev, cols, cole )
+       end if
+       if (associated(Kpmmrtm1)) then
+          call regrid_geo2phys_3d( Kp_geo, Kpmmr, plev, cols, cole )
+          call regrid_geo2phys_3d( Kptm1_geo, Kpmmrtm1, plev, cols, cole )
+       end if
+       if (associated(Sipmmrtm1)) then
+          call regrid_geo2phys_3d( Sip_geo, Sipmmr, plev, cols, cole )
+          call regrid_geo2phys_3d( Siptm1_geo, Sipmmrtm1, plev, cols, cole )
+       end if
 
     end if ! ionos_oplus_xport
 
@@ -1116,6 +1361,50 @@ contains
     end do ! j=1,nmlat0
     !
   end subroutine calc_pfrac
+  !-----------------------------------------------------------------------
+  subroutine calc_xi(o2,o1,n2,rmass,rmassN2, rmassO2, rmassO1, ans,i0,i1,j0,j1,nlev)
+    use physconst, only: pi
+    use getapex  , only: bmod2
+    ! Calculate ratio between collision frequency and gyrofrequency
+    !
+    ! Inputs:
+    integer,intent(in) :: i0,i1,j0,j1,nlev
+    real(r8),dimension(nlev,i0:i1,j0:j1),intent(in) :: &
+         o2,   &  ! m^3
+         o1,&  !
+         n2     !
+    real(r8),intent(in) :: rmass,rmassN2,rmassO2,rmassO1 ! m/s^2
+    !
+    ! Output:
+    real(r8),intent(out) :: ans(nlev,i0:i1,j0:j1)    ! xi/(1+xi^2) output
+    real(r8):: collision(nlev,i0:i1,j0:j1) ! dimensioned for vectorization
+    !
+    ! Local:
+    integer :: i,j,k
+    real(r8) :: fixpart
+    real(r8) :: gyrofrequency(nlev,i0:i1,j0:j1) ! dimensioned for vectorization
+
+    real(r8),parameter :: na=6.02e26_r8   !kg-mol^-1
+    real(r8),parameter :: ele=1.6e-19_r8   !C
+    real(r8),parameter :: eps=8.85e-12_r8   !epsilon F/m
+    real(r8),parameter :: alpha_n2=1.74e-30_r8   !polarizability of N2 m^3
+    real(r8),parameter :: alpha_o2=1.6e-30_r8   !polarizability of O2 m^3
+    real(r8),parameter :: alpha_o1=8.02e-31_r8   !polarizability of O m^3
+
+    fixpart=2._r8*pi*ele*sqrt(1/(4._r8*pi*eps))
+    do k=1,nlev
+       do j=j0,j1
+          do i=i0,i1
+             collision(k,i,j)=(sqrt(alpha_n2/(rmass*rmassN2/((rmass+rmassN2)*na)))*(rmassN2/(rmass+rmassN2))*n2(k,i,j)+ &
+                               sqrt(alpha_o2/(rmass*rmassO2/((rmass+rmassO2)*na)))*(rmassO2/(rmass+rmassO2))*o2(k,i,j)+ &
+                               sqrt(alpha_o1/(rmass*rmassO1/((rmass+rmassO1)*na)))*(rmassO1/(rmass+rmassO1))*o1(k,i,j))*fixpart
+             gyrofrequency(k,i,j)=ele*bmod2(i,j)*1.0e-4_r8/(rmass/na)   !1e-4 gauss-->T
+             ans(k,i,j)=collision(k,i,j)/gyrofrequency(k,i,j)
+          enddo
+       enddo
+    enddo
+  end subroutine calc_xi
+  !-----------------------------------------------------------------------
   !-----------------------------------------------------------------------
   subroutine sunloc(iday, secs, sunlon)
     !

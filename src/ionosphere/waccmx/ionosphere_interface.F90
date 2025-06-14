@@ -283,6 +283,7 @@ module ionosphere_interface
       use ltr_module,      only: init_ltr
       use wei05sc,         only: weimer05_init
       use phys_control,    only: phys_getopts
+      use vxb, only: vxb_init
 
       ! local variables:
       integer :: sIndx
@@ -351,6 +352,8 @@ module ionosphere_interface
 
          call oplus_init(oplus_adiff_limiter, oplus_shapiro_const, oplus_enforce_floor, &
                          oplus_ring_polar_filter, ionos_debug_hist)
+
+         call vxb_init( oplus_adiff_limiter, oplus_shapiro_const, oplus_enforce_floor ) !Jianfei Wu
 
          call addfld('OpTM1&IC', (/ 'lev' /), 'I', 'kg/kg', 'O+ at time step minus 1', gridname='physgrid')
          call add_default ('OpTM1&IC',0, 'I')
@@ -1178,6 +1181,7 @@ module ionosphere_interface
               te_blck, ti_blck, mbar_blck, n2mmr_blck, o2mmr_blck,            &
               o1mmr_blck, o2pmmr_blck, nopmmr_blck, n2pmmr_blck,              &
               opmmr_blck, opmmrtm1_blck, ui_blck, vi_blck, wi_blck,           &
+              rmassN2, rmassO2, rmassO1, &
               rmassO2p, rmassNOp, rmassN2p, rmassOp, 1, blksize, pver,        &
               rmassFep, rmassMgp, rmassNap, rmassCap, rmassKp, rmassSip,      &
               Fepmmr_blck, Mgpmmr_blck, Napmmr_blck, Capmmr_blck, Kpmmr_blck, Sipmmr_blck, &
