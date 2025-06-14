@@ -1134,8 +1134,8 @@ module ionosphere_interface
 
          mass_tmp(:,:) =                  o1mmr_blck(:,:) / rmassO1
          mass_tmp(:,:) = mass_tmp(:,:) + (o2mmr_blck(:,:) / rmassO2)
-         mass_tmp(:,:) = mass_tmp(:,:) + (h1mmr_blck(:,:) / rmassO2)
-         mass_tmp(:,:) = mass_tmp(:,:) + (n2mmr_blck(:,:) / rmassO2)
+         mass_tmp(:,:) = mass_tmp(:,:) + (h1mmr_blck(:,:) / rmassH )
+         mass_tmp(:,:) = mass_tmp(:,:) + (n2mmr_blck(:,:) / rmassN2)
          if (associated( Fepmmr_blck )) then
             mass_tmp(:,:) = mass_tmp(:,:) + (2._r8*Fepmmr_blck(:,:) / rmassFep)
          end if
