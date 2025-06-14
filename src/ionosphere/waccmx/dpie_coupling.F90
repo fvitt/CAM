@@ -387,14 +387,33 @@ contains
      real(r8) :: vi_in(nlev,lon0:lon1,lat0:lat1)
      real(r8) :: wi_in(nlev,lon0:lon1,lat0:lat1)
      real(r8) :: wn_in(nlev,lon0:lon1,lat0:lat1) ! vertical velocity (cm/s)
+     real(r8) :: eobx(nlev,lon0:lon1,lat0:lat1) ! zonal  E-field/B-field term
+     real(r8) :: eoby(nlev,lon0:lon1,lat0:lat1) ! meridional  E-field/B-field term
+     real(r8) :: eobz(nlev,lon0:lon1,lat0:lat1) ! vertical  E-field/B-field term
+
      real(r8) :: op_out(nlev,lon0:lon1,lat0:lat1)
      real(r8) :: optm1_out(nlev,lon0:lon1,lat0:lat1)
 
      real(r8),dimension(plev, cols:cole) :: NOptm1, O2ptm1
      real(r8),dimension(plev, cols:cole) :: Feptm1, Mgptm1, Naptm1, Captm1, Kptm1, Siptm1
 
+     real(r8) :: NOp_in(nlev,lon0:lon1,lat0:lat1)
+     real(r8) :: O2p_in(nlev,lon0:lon1,lat0:lat1)
      real(r8) :: NOptm1_in(nlev,lon0:lon1,lat0:lat1)
      real(r8) :: O2ptm1_in(nlev,lon0:lon1,lat0:lat1)
+
+     real(r8) :: Fep_in(nlev,lon0:lon1,lat0:lat1)
+     real(r8) :: Feptm1_in(nlev,lon0:lon1,lat0:lat1)
+     real(r8) :: Mgp_in(nlev,lon0:lon1,lat0:lat1)
+     real(r8) :: Mgptm1_in(nlev,lon0:lon1,lat0:lat1)
+     real(r8) :: Nap_in(nlev,lon0:lon1,lat0:lat1)
+     real(r8) :: Naptm1_in(nlev,lon0:lon1,lat0:lat1)
+     real(r8) :: Cap_in(nlev,lon0:lon1,lat0:lat1)
+     real(r8) :: Captm1_in(nlev,lon0:lon1,lat0:lat1)
+     real(r8) :: Kp_in(nlev,lon0:lon1,lat0:lat1)
+     real(r8) :: Kptm1_in(nlev,lon0:lon1,lat0:lat1)
+     real(r8) :: Sip_in(nlev,lon0:lon1,lat0:lat1)
+     real(r8) :: Siptm1_in(nlev,lon0:lon1,lat0:lat1)
 
      real(r8),target :: halo_tn(nlev,lon0-2:lon1+2,lat0-2:lat1+2) ! neutral temperature (deg K)
      real(r8),target :: halo_te(nlev,lon0-2:lon1+2,lat0-2:lat1+2) ! electron temperature (deg K)
@@ -451,6 +470,10 @@ contains
             optm1_geo, &
             pmid_geo, &
             mbar_geo
+
+     real(r8), dimension(lon0:lon1,lat0:lat1,lev0:lev1) :: & ! 3d fields on geo grid
+          NOp_geo, &
+          O2p_geo
 
      real(r8), dimension(lon0:lon1,lat0:lat1,lev0:lev1) :: & ! 3d fields on geo grid
           NOptm1_geo, &
@@ -744,7 +767,7 @@ contains
 
           call  dynamo( zpot_mag_in, ped_mag_in, hal_mag_in, adotv1_mag, adotv2_mag, adota1_mag, &
                adota2_mag, a1dta2_mag, be3_mag, sini_mag,  &
-               zpot_in, ui_in, vi_in, wi_in, &
+               zpot_in, ui_in, vi_in, wi_in, eobx,eoby,eobz, &
                lon0,lon1, lat0,lat1, lev0,lev1, do_integrals )
        endif
 
@@ -795,9 +818,11 @@ contains
        call regrid_phys2geo_3d( mbar, mbar_geo, plev, cols, cole )
 
        if (associated(NOpmmrtm1)) then
+          call regrid_phys2geo_3d( NOp, NOp_geo, plev, cols, cole )
           call regrid_phys2geo_3d( NOptm1, NOptm1_geo, plev, cols, cole )
        end if
        if (associated(O2pmmrtm1)) then
+          call regrid_phys2geo_3d( O2p, O2p_geo, plev, cols, cole )
           call regrid_phys2geo_3d( O2ptm1, O2ptm1_geo, plev, cols, cole )
        end if
 
@@ -859,6 +884,39 @@ contains
                    optm1_in(kk,i,j)  = optm1_geo(i,j,k) / 1.e6_r8  ! m^3 -> cm^3
                 end do
              end do
+             if (associated(NOpmmrtm1)) then
+                NOp_in(kk,:,:)    = NOp_geo(:,:,k) / 1.e6_r8  ! m^3 -> cm^3
+                NOptm1_in(kk,:,:) = NOptm1_geo(:,:,k) / 1.e6_r8  ! m^3 -> cm^3
+             endif
+             if (associated(O2pmmrtm1)) then
+                O2p_in(kk,:,:)    = O2p_geo(:,:,k) / 1.e6_r8  ! m^3 -> cm^3
+                O2ptm1_in(kk,:,:) = O2ptm1_geo(:,:,k) / 1.e6_r8  ! m^3 -> cm^3
+             endif
+             if (associated(Fepmmrtm1)) then
+                Fep_in(kk,:,:)    = Fep_geo(:,:,k) / 1.e6_r8  ! m^3 -> cm^3
+                Feptm1_in(kk,:,:) = Feptm1_geo(:,:,k) / 1.e6_r8  ! m^3 -> cm^3
+             endif
+             if (associated(Mgpmmrtm1)) then
+                Mgp_in(kk,:,:)    = Mgp_geo(:,:,k) / 1.e6_r8  ! m^3 -> cm^3
+                Mgptm1_in(kk,:,:) = Mgptm1_geo(:,:,k) / 1.e6_r8  ! m^3 -> cm^3
+             endif
+             if (associated(Napmmrtm1)) then
+                Nap_in(kk,:,:)    = Nap_geo(:,:,k) / 1.e6_r8  ! m^3 -> cm^3
+                Naptm1_in(kk,:,:) = Naptm1_geo(:,:,k) / 1.e6_r8  ! m^3 -> cm^3
+             endif
+             if (associated(Capmmrtm1)) then
+                Cap_in(kk,:,:)    = Cap_geo(:,:,k) / 1.e6_r8  ! m^3 -> cm^3
+                Captm1_in(kk,:,:) = Captm1_geo(:,:,k) / 1.e6_r8  ! m^3 -> cm^3
+             endif
+             if (associated(Kpmmrtm1)) then
+                Kp_in(kk,:,:)    = Kp_geo(:,:,k) / 1.e6_r8  ! m^3 -> cm^3
+                Kptm1_in(kk,:,:) = Kptm1_geo(:,:,k) / 1.e6_r8  ! m^3 -> cm^3
+             endif
+             if (associated(Sipmmrtm1)) then
+                Sip_in(kk,:,:)    = Sip_geo(:,:,k) / 1.e6_r8  ! m^3 -> cm^3
+                Siptm1_in(kk,:,:) = Siptm1_geo(:,:,k) / 1.e6_r8  ! m^3 -> cm^3
+             endif
+
           end do
           !
           ! Define halo points on inputs:

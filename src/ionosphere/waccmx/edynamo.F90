@@ -112,7 +112,7 @@ contains
 !-----------------------------------------------------------------------
   subroutine dynamo( zpot_mag_in, ped_mag, hall_mag, adotv1_mag, adotv2_mag, adota1_mag, &
                      adota2_mag, a1dta2_mag,be3_mag, sini_mag, zpot, &
-                     ui, vi, wi, lon0,lon1, lat0,lat1, lev0,lev1, do_integrals )
+                     ui, vi, wi, eobx,eoby,eobz, lon0,lon1, lat0,lat1, lev0,lev1, do_integrals )
       use edyn_mpi, only: &
            mp_mag_halos,         &  ! set magnetic halo points
            mp_scatter_phim          ! scatter solution to slave tasks
@@ -150,6 +150,10 @@ contains
          ui,         & ! zonal ion drift (cm/s)
          vi,         & ! meridional ion drift (cm/s)
          wi            ! vertical ion drift (cm/s)
+    real(r8), dimension(lev0:lev1,lon0:lon1,lat0:lat1), intent(out) :: &
+         eobx,         & ! zonal  E-field/B-field term
+         eoby,         & ! meridional  E-field/B-field term
+         eobz            ! vertical  E-field/B-field term
 
     logical,intent(in) :: do_integrals
 
@@ -261,7 +265,7 @@ contains
 ! Calculate ion drift velocities:
 !
 
-    call ionvel(zpot,ui,vi,wi, lon0,lon1, lat0,lat1, lev0,lev1)
+    call ionvel(zpot,ui,vi,wi, eobx,eoby,eobz, lon0,lon1, lat0,lat1, lev0,lev1)
     if (debug) then
        write(iulog,"('edynamo debug: after ionvel')")
     end if
@@ -1814,7 +1818,7 @@ contains
   !-----------------------------------------------------------------------
   !-----------------------------------------------------------------------
 
-  subroutine ionvel(z,ui,vi,wi,lon0,lon1, lat0,lat1, lev0,lev1)
+  subroutine ionvel(z,ui,vi,wi, eobx,eoby,eobz,  lon0,lon1, lat0,lat1, lev0,lev1)
 !
 ! Calculate 3d ExB ion drifts from electric field (sub pefield)
 ! on geographic grid.
@@ -1833,7 +1837,7 @@ contains
     real(r8),intent(in), dimension(lev0:lev1,lon0:lon1,lat0:lat1) :: &
       z  ! geopotential from input (cm)
     real(r8),intent(out), dimension(lev0:lev1,lon0:lon1,lat0:lat1) :: &
-      ui,vi,wi
+      ui,vi,wi, eobx,eoby,eobz
 !
 ! Local:
     integer :: i,k,j
@@ -1877,6 +1881,9 @@ contains
              ui(k,i,j) = -(eey(k,i,j)*zb(i,j)+eez(k,i,j)*xb(i,j))*1.e6_r8/(bmod(i,j)**2)
              vi(k,i,j) =  (eez(k,i,j)*yb(i,j)+eex(k,i,j)*zb(i,j))*1.e6_r8/(bmod(i,j)**2)
              wi(k,i,j) =  (eex(k,i,j)*xb(i,j)-eey(k,i,j)*yb(i,j))*1.e6_r8/(bmod(i,j)**2)
+             eobx(k,i,j) = eex(k,i,j)*1.e6_r8/bmod(i,j)
+             eoby(k,i,j) = eey(k,i,j)*1.e6_r8/bmod(i,j)
+             eobz(k,i,j) = eez(k,i,j)*1.e6_r8/bmod(i,j)
           enddo
        enddo
 !
