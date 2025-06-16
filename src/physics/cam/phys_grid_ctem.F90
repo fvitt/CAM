@@ -6,7 +6,7 @@ module phys_grid_ctem
   use shr_kind_mod,  only: r8 => shr_kind_r8
   use ppgrid,        only: begchunk, endchunk, pcols, pver
   use physics_types, only: physics_state
-  use cam_history,   only: addfld, outfld
+  use cam_history,   only: addfld, outfld, horiz_only
   use zonal_mean_mod,only: ZonalAverage_t, ZonalMean_t
   use physconst,     only: pi
   use cam_logfile,   only: iulog
@@ -217,6 +217,8 @@ contains
     call addfld ('UWzm', (/'lev'/), 'A','m2 s-2', 'Vertical Flux of Zonal Momentum', gridname='ctem_zavg_phys')
     call addfld ('THphys',(/'lev'/), 'A', 'K',    'Potential temp', gridname='physgrid' )
 
+    call addfld ('PSzm',horiz_only, 'A','m s-1',  'Zonal-Mean surface pressure', gridname='ctem_zavg_phys' )
+
   end subroutine phys_grid_ctem_init
 
   !-----------------------------------------------------------------------------
@@ -230,14 +232,19 @@ contains
     real(r8) :: v(pcols,pver,begchunk:endchunk)
     real(r8) :: w(pcols,pver,begchunk:endchunk)
 
+    real(r8) :: uv(pcols,pver,begchunk:endchunk)
+    real(r8) :: uw(pcols,pver,begchunk:endchunk)
+    real(r8) :: vth(pcols,pver,begchunk:endchunk)
+    real(r8) :: wth(pcols,pver,begchunk:endchunk)
+
     real(r8) :: uzm(pcols,pver,begchunk:endchunk)
     real(r8) :: vzm(pcols,pver,begchunk:endchunk)
     real(r8) :: wzm(pcols,pver,begchunk:endchunk)
 
-    real(r8) :: ud(pcols,pver,begchunk:endchunk)
-    real(r8) :: vd(pcols,pver,begchunk:endchunk)
-    real(r8) :: wd(pcols,pver,begchunk:endchunk)
-    real(r8) :: thd(pcols,pver,begchunk:endchunk)
+    real(r8) :: uvzm(pcols,pver,begchunk:endchunk)
+    real(r8) :: uwzm(pcols,pver,begchunk:endchunk)
+    real(r8) :: vthzm(pcols,pver,begchunk:endchunk)
+    real(r8) :: wthzm(pcols,pver,begchunk:endchunk)
 
     real(r8) :: uvp(pcols,pver,begchunk:endchunk)
     real(r8) :: uwp(pcols,pver,begchunk:endchunk)
@@ -262,6 +269,10 @@ contains
 
     real(r8) :: sheight(pcols,pver) ! pressure scale height (m)
 
+    real(r8) :: ps(pcols,begchunk:endchunk)
+    real(r8) :: pszm(pcols,begchunk:endchunk)
+    real(r8) :: psza(nzalat)
+
     if (.not.do_calc()) return
 
     do lchnk = begchunk,endchunk
@@ -280,13 +291,35 @@ contains
        u(:ncol,:,lchnk) =  phys_state(lchnk)%u(:ncol,:)
        v(:ncol,:,lchnk) =  phys_state(lchnk)%v(:ncol,:)
 
+       ! surface pressure
+       ps(:ncol,lchnk) = phys_state(lchnk)%ps(:ncol)
+
+    end do
+
+    ! calculate the product of the variables
+    do lchnk = begchunk,endchunk
+       ncol = phys_state(lchnk)%ncol
+       do k = 1,pver
+          uv(:ncol,k,lchnk)  = u(:ncol,k,lchnk) * v(:ncol,k,lchnk)
+          uw(:ncol,k,lchnk)  = u(:ncol,k,lchnk) * w(:ncol,k,lchnk)
+          vth(:ncol,k,lchnk) = v(:ncol,k,lchnk) * theta(:ncol,k,lchnk)
+          wth(:ncol,k,lchnk) = w(:ncol,k,lchnk) * theta(:ncol,k,lchnk)
+       end do
     end do
 
     ! zonal means evaluated on the physics grid (3D) to be used in the deviations calculation below
-    uzm(:,:,:) = zmean_fld(u(:,:,:))
-    vzm(:,:,:) = zmean_fld(v(:,:,:))
-    wzm(:,:,:) = zmean_fld(w(:,:,:))
-    thzm(:,:,:) = zmean_fld(theta(:,:,:))
+    uzm(:,:,:) = zmean_fld_3D(u(:,:,:))
+    vzm(:,:,:) = zmean_fld_3D(v(:,:,:))
+    wzm(:,:,:) = zmean_fld_3D(w(:,:,:))
+    thzm(:,:,:)= zmean_fld_3D(theta(:,:,:))
+
+    uvzm(:,:,:)  = zmean_fld_3D(uv(:,:,:))
+    uwzm(:,:,:)  = zmean_fld_3D(uw(:,:,:))
+    vthzm(:,:,:) = zmean_fld_3D(vth(:,:,:))
+    wthzm(:,:,:) = zmean_fld_3D(wth(:,:,:))
+
+    pszm(:,:) = zmean_fld_2D(ps(:,:))
+
 
     ! diagnostic output
     do lchnk = begchunk, endchunk
@@ -296,16 +329,13 @@ contains
     do lchnk = begchunk,endchunk
        ncol = phys_state(lchnk)%ncol
        do k = 1,pver
-          ! zonal deviations
-          thd(:ncol,k,lchnk) = theta(:ncol,k,lchnk) - thzm(:ncol,k,lchnk)
-          ud(:ncol,k,lchnk) = u(:ncol,k,lchnk) - uzm(:ncol,k,lchnk)
-          vd(:ncol,k,lchnk) = v(:ncol,k,lchnk) - vzm(:ncol,k,lchnk)
-          wd(:ncol,k,lchnk) = w(:ncol,k,lchnk) - wzm(:ncol,k,lchnk)
-          ! fluxes
-          uvp(:ncol,k,lchnk) = ud(:ncol,k,lchnk) * vd(:ncol,k,lchnk)
-          uwp(:ncol,k,lchnk) = ud(:ncol,k,lchnk) * wd(:ncol,k,lchnk)
-          vthp(:ncol,k,lchnk) = vd(:ncol,k,lchnk) * thd(:ncol,k,lchnk)
-          wthp(:ncol,k,lchnk) = wd(:ncol,k,lchnk) * thd(:ncol,k,lchnk)
+
+          ! u'v' = (uv)zm - uzm*vzm
+          uvp(:ncol,k,lchnk)  = uvzm(:ncol,k,lchnk) - uzm(:ncol,k,lchnk) * vzm(:ncol,k,lchnk)
+          uwp(:ncol,k,lchnk)  = uwzm(:ncol,k,lchnk) - uzm(:ncol,k,lchnk) * wzm(:ncol,k,lchnk)
+          vthp(:ncol,k,lchnk) = vthzm(:ncol,k,lchnk) -vzm(:ncol,k,lchnk) * thzm(:ncol,k,lchnk)
+          wthp(:ncol,k,lchnk) = wthzm(:ncol,k,lchnk) -wzm(:ncol,k,lchnk) * thzm(:ncol,k,lchnk)
+
        end do
     end do
 
@@ -324,11 +354,13 @@ contains
     call ZAobj%binAvg(vzm, vza)
     call ZAobj%binAvg(wzm, wza)
     call ZAobj%binAvg(thzm, thza)
+    call ZAobj%binAvg(pszm, psza)
 
     if (any(abs(uza)>1.e20_r8)) call endrun(prefix//'bad values in uza')
     if (any(abs(vza)>1.e20_r8)) call endrun(prefix//'bad values in vza')
     if (any(abs(wza)>1.e20_r8)) call endrun(prefix//'bad values in wza')
     if (any(abs(thza)>1.e20_r8)) call endrun(prefix//'bad values in thza')
+    if (any(abs(psza)>1.e20_r8)) call endrun(prefix//'bad values in psza')
 
     ! diagnostic output
     do j = 1,nzalat
@@ -347,18 +379,24 @@ contains
     !------------------------------------------------------------------------------
     ! utility function for evaluating 3D zonal mean fields
     !------------------------------------------------------------------------------
-    function zmean_fld( fld ) result(fldzm)
-
+    function zmean_fld_3D( fld ) result(fldzm)
       real(r8), intent(in) :: fld(pcols,pver,begchunk:endchunk)
-
       real(r8) :: fldzm(pcols,pver,begchunk:endchunk)
-
       real(r8) :: Zonal_Bamp3d(nzmbas,pver)
-
       call ZMobj%calc_amps(fld,Zonal_Bamp3d)
       call ZMobj%eval_grid(Zonal_Bamp3d,fldzm)
+    end function zmean_fld_3D
 
-    end function zmean_fld
+    !------------------------------------------------------------------------------
+    ! utility function for evaluating 2D zonal mean fields
+    !------------------------------------------------------------------------------
+    function zmean_fld_2D( fld ) result(fldzm)
+      real(r8), intent(in) :: fld(pcols,begchunk:endchunk)
+      real(r8) :: fldzm(pcols,begchunk:endchunk)
+      real(r8) :: Zonal_Bamp2d(nzmbas)
+      call ZMobj%calc_amps(fld,Zonal_Bamp2d)
+      call ZMobj%eval_grid(Zonal_Bamp2d,fldzm)
+    end function zmean_fld_2D
 
     !------------------------------------------------------------------------------
     ! utility function returns TRUE when time to update TEM diags

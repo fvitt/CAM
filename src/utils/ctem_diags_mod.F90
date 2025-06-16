@@ -243,6 +243,7 @@ contains
     real(r8), target :: w_phys(pver,pcols,begchunk:endchunk)
     real(r8), target :: t_phys(pver,pcols,begchunk:endchunk)
     real(r8), target :: p_phys(pver,pcols,begchunk:endchunk)
+
     real(r8) :: ps_phys(pcols,begchunk:endchunk)
 
     real(r8), target :: u_lonlat(beglon:endlon,beglat:endlat,pver)
@@ -258,16 +259,22 @@ contains
     real(r8) :: wi_lonlat(beglon:endlon,beglat:endlat,pver)
     real(r8) :: ti_lonlat(beglon:endlon,beglat:endlat,pver)
 
+    real(r8) :: uv_lonlat(beglon:endlon,beglat:endlat,pver)
+    real(r8) :: uw_lonlat(beglon:endlon,beglat:endlat,pver)
+    real(r8) :: vt_lonlat(beglon:endlon,beglat:endlat,pver)
+    real(r8) :: wt_lonlat(beglon:endlon,beglat:endlat,pver)
+
     real(r8) :: u_zm(beglat:endlat,pver)
     real(r8) :: v_zm(beglat:endlat,pver)
     real(r8) :: w_zm(beglat:endlat,pver)
     real(r8) :: t_zm(beglat:endlat,pver)
-    real(r8) :: ps_zm(beglat:endlat)
 
-    real(r8) :: ud_lonlat(beglon:endlon,beglat:endlat,pver)
-    real(r8) :: vd_lonlat(beglon:endlon,beglat:endlat,pver)
-    real(r8) :: wd_lonlat(beglon:endlon,beglat:endlat,pver)
-    real(r8) :: td_lonlat(beglon:endlon,beglat:endlat,pver)
+    real(r8) :: uv_zm(beglat:endlat,pver)
+    real(r8) :: uw_zm(beglat:endlat,pver)
+    real(r8) :: vt_zm(beglat:endlat,pver)
+    real(r8) :: wt_zm(beglat:endlat,pver)
+
+    real(r8) :: ps_zm(beglat:endlat)
 
     real(r8) :: vtp(beglon:endlon,beglat:endlat,pver)
     real(r8) :: wtp(beglon:endlon,beglat:endlat,pver)
@@ -316,6 +323,7 @@ contains
           ! mid point press
           p_phys(:,i,lchnk) = phys_state(lchnk)%pmid(i,:)
 
+          ! surface pressure
           ps_phys(i,lchnk) = phys_state(lchnk)%ps(i)
 
        end do
@@ -383,6 +391,11 @@ contains
 
     call t_stopf('ctem_diags_calc-interp')
 
+    uv_lonlat = ui_lonlat * vi_lonlat
+    uw_lonlat = ui_lonlat * wi_lonlat
+    vt_lonlat = vi_lonlat * ti_lonlat
+    wt_lonlat = wi_lonlat * ti_lonlat
+
     call t_startf('ctem_diags_calc-zonal_mean-uvwt')
 
     ! calculate zonal means from interpolated fields
@@ -394,32 +407,33 @@ contains
     call esmf_zonal_mean_masked(wi_lonlat, wght, wsums, w_zm)
     call esmf_zonal_mean_masked(ti_lonlat, wght, wsums, t_zm)
 
+    call esmf_zonal_mean_masked(uv_lonlat, wght, wsums, uv_zm)
+    call esmf_zonal_mean_masked(uw_lonlat, wght, wsums, uw_zm)
+    call esmf_zonal_mean_masked(vt_lonlat, wght, wsums, vt_zm)
+    call esmf_zonal_mean_masked(wt_lonlat, wght, wsums, wt_zm)
+
     call t_stopf('ctem_diags_calc-zonal_mean-uvwt')
 
     call t_startf('ctem_diags_calc-calc_dev_flx')
 
-    ! Calculate zonal deviations and fluxes
+    ! Calculate fluxes
     do k = 1,pver
        do j = beglat,endlat
           do i = beglon,endlon
              if (wght(i,j,k)>0._r8) then
-                ud_lonlat(i,j,k) = ui_lonlat(i,j,k) - u_zm(j,k)
-                vd_lonlat(i,j,k) = vi_lonlat(i,j,k) - v_zm(j,k)
-                wd_lonlat(i,j,k) = wi_lonlat(i,j,k) - w_zm(j,k)
-                td_lonlat(i,j,k) = ti_lonlat(i,j,k) - t_zm(j,k)
-                vtp(i,j,k) = vd_lonlat(i,j,k) * td_lonlat(i,j,k)
-                wtp(i,j,k) = wd_lonlat(i,j,k) * td_lonlat(i,j,k)
-                uwp(i,j,k) = ud_lonlat(i,j,k) * wd_lonlat(i,j,k)
-                uvp(i,j,k) = ud_lonlat(i,j,k) * vd_lonlat(i,j,k)
+
+                ! u'v' = (uv)zm - uzm*vzm
+
+                uvp(i,j,k) = uv_zm(j,k) - (u_zm(j,k)*v_zm(j,k))
+                uwp(i,j,k) = uw_zm(j,k) - (u_zm(j,k)*w_zm(j,k))
+                vtp(i,j,k) = vt_zm(j,k) - (v_zm(j,k)*t_zm(j,k))
+                wtp(i,j,k) = wt_zm(j,k) - (w_zm(j,k)*t_zm(j,k))
+
              else
-                ud_lonlat(i,j,k) = fillvalue
-                vd_lonlat(i,j,k) = fillvalue
-                wd_lonlat(i,j,k) = fillvalue
-                td_lonlat(i,j,k) = fillvalue
+                uvp(i,j,k) = fillvalue
+                uwp(i,j,k) = fillvalue
                 vtp(i,j,k) = fillvalue
                 wtp(i,j,k) = fillvalue
-                uwp(i,j,k) = fillvalue
-                uvp(i,j,k) = fillvalue
              end if
           end do
        end do
