@@ -7,7 +7,7 @@ module gw_nlgw
 use gw_utils, only: r8, r4
 use ppgrid,   only: pver !vertical levels
 use physics_types,  only: physics_state, physics_ptend
-use spmd_utils,     only: mpicom, mstrid=>masterprocid, masterproc, mpi_real8
+use spmd_utils,     only: mpicom, mstrid=>masterprocid, masterproc, mpi_real8, iam
 use cam_abortutils, only: endrun
 use cam_logfile,    only: iulog
 use physconst,      only: cappa, pi
@@ -116,6 +116,10 @@ subroutine gw_nlgw_dp_ml(state_in, ptend)
   integer :: ninputs = 1, noutputs = 1
   integer, dimension(2) :: layout = [1 , 2]
 
+  integer :: device_id
+
+  device_id = mod(iam, 2)
+
   ncol = state_in%ncol
 
   allocate(lat(ncol))
@@ -156,7 +160,7 @@ subroutine gw_nlgw_dp_ml(state_in, ptend)
   call construct_input()
 
   ! send all columns from this process
-  call torch_tensor_from_array(tensor_in(1), net_inputs, layout, torch_kCUDA)
+  call torch_tensor_from_array(tensor_in(1), net_inputs, layout, torch_kCUDA, device_id)
   call torch_tensor_from_array(tensor_out(1), net_outputs, layout, torch_kCPU)
 
   ! Run net forward on data
@@ -202,9 +206,12 @@ end subroutine gw_nlgw_dp_ml
 subroutine gw_nlgw_dp_init(model_path)
 
   character(len=*), intent(in) :: model_path  ! Filepath to PyTorch Torchscript net
+  integer :: device_id
+
+  device_id = mod(iam, 2)
 
   ! Load the convective drag net from TorchScript file
-  call torch_model_load(nlgw_model, model_path, device_type=torch_kCUDA, device_index=0)
+  call torch_model_load(nlgw_model, model_path, device_type=torch_kCUDA, device_index=device_id)
   ! read in normalisation weights
   call read_norms()
 
