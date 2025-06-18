@@ -30,9 +30,13 @@ module esmf_phys2lonlat_mod
 
   type(ESMF_RouteHandle) :: rh_phys2lonlat_3d
   type(ESMF_RouteHandle) :: rh_phys2lonlat_2d
+  type(ESMF_RouteHandle) :: rh_phys2lonlat_winds
 
   type(ESMF_Field) :: physfld_3d
   type(ESMF_Field) :: lonlatfld_3d
+
+  type(ESMF_Field) :: physfld_winds
+  type(ESMF_Field) :: lonlatfld_winds
 
   type(ESMF_Field) :: physfld_2d
   type(ESMF_Field) :: lonlatfld_2d
@@ -40,13 +44,14 @@ module esmf_phys2lonlat_mod
   interface esmf_phys2lonlat_regrid
      module procedure esmf_phys2lonlat_regrid_2d
      module procedure esmf_phys2lonlat_regrid_3d
+     module procedure esmf_phys2lonlat_regrid_winds
   end interface esmf_phys2lonlat_regrid
 
   type :: fields_bundle_t
      real(r8), pointer :: fld(:,:,:) => null()
   end type fields_bundle_t
 
-  integer, parameter :: nflds = 5
+  integer, parameter :: nflds = 3
 
 contains
 
@@ -100,6 +105,29 @@ contains
     lonlatfld_2d = ESMF_FieldCreate( lonlat_grid, arrayspec, staggerloc=ESMF_STAGGERLOC_CENTER, rc=rc)
     call check_esmf_error(rc, subname//'ESMF_FieldCreate 2D lonlat fld ERROR')
 
+
+    ! Wind vector fields
+
+    ! 3D phys fld
+    call ESMF_ArraySpecSet(arrayspec, 2, ESMF_TYPEKIND_R8, rc=rc)
+    call check_esmf_error(rc, subname//'ESMF_ArraySpecSet 3D phys fld ERROR')
+
+    physfld_winds = ESMF_FieldCreate(physics_grid_mesh, arrayspec, &
+                                  gridToFieldMap=(/2/), meshloc=ESMF_MESHLOC_ELEMENT, &
+                                  ungriddedLBound=(/1/), ungriddedUBound=(/2/), rc=rc)
+    call check_esmf_error(rc, subname//'ESMF_FieldCreate 3D phys fld ERROR')
+
+    ! 3D lon lat grid
+    call ESMF_ArraySpecSet(arrayspec, 3, ESMF_TYPEKIND_R8, rc=rc)
+    call check_esmf_error(rc, subname//'ESMF_ArraySpecSet 3D lonlat fld ERROR')
+
+    lonlatfld_winds = ESMF_FieldCreate( lonlat_grid, arrayspec, staggerloc=ESMF_STAGGERLOC_CENTER, &
+                                     ungriddedLBound=(/1/), ungriddedUBound=(/2/), rc=rc)
+    call check_esmf_error(rc, subname//'ESMF_FieldCreate 3D lonlat fld ERROR')
+
+
+
+
     call ESMF_FieldRegridStore(srcField=physfld_3d, dstField=lonlatfld_3d, &
          regridMethod=ESMF_REGRIDMETHOD_BILINEAR,                          &
          polemethod=ESMF_POLEMETHOD_ALLAVG,                                &
@@ -114,6 +142,16 @@ contains
          polemethod=ESMF_POLEMETHOD_ALLAVG,                                &
          extrapMethod=ESMF_EXTRAPMETHOD_NEAREST_IDAVG,                     &
          routeHandle=rh_phys2lonlat_2d, factorIndexList=factorIndexList,   &
+         factorList=factorList, srcTermProcessing=smm_srctermproc,         &
+         pipelineDepth=smm_pipelinedep, rc=rc)
+    call check_esmf_error(rc, subname//'ESMF_FieldRegridStore 3D routehandle ERROR')
+
+    call ESMF_FieldRegridStore(srcField=physfld_winds, dstField=lonlatfld_winds, &
+         regridMethod=ESMF_REGRIDMETHOD_BILINEAR,                          &
+         polemethod=ESMF_POLEMETHOD_ALLAVG,                                &
+         extrapMethod=ESMF_EXTRAPMETHOD_NEAREST_IDAVG,                     &
+         routeHandle=rh_phys2lonlat_winds, factorIndexList=factorIndexList,&
+         vectorRegrid=.true.,                                              &
          factorList=factorList, srcTermProcessing=smm_srctermproc,         &
          pipelineDepth=smm_pipelinedep, rc=rc)
     call check_esmf_error(rc, subname//'ESMF_FieldRegridStore 3D routehandle ERROR')
@@ -167,6 +205,53 @@ contains
 
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------
+  subroutine esmf_phys2lonlat_regrid_winds(physu, physv, lonlatu, lonlatv)
+    use esmf_lonlat_grid_mod, only: lon_beg,lon_end,lat_beg,lat_end
+    use ppgrid, only: pcols, pver, begchunk, endchunk
+    use phys_grid, only: get_ncols_p
+
+    real(r8),intent(in) :: physu(pver,pcols,begchunk:endchunk)
+    real(r8),intent(in) :: physv(pver,pcols,begchunk:endchunk)
+    real(r8),intent(out) :: lonlatu(lon_beg:lon_end,lat_beg:lat_end,pver)
+    real(r8),intent(out) :: lonlatv(lon_beg:lon_end,lat_beg:lat_end,pver)
+
+    integer :: i, ichnk, ncol, ilev, icol, rc
+    real(ESMF_KIND_R8), pointer :: physptr(:,:)
+    real(ESMF_KIND_R8), pointer :: lonlatptr(:,:,:)
+
+    character(len=*), parameter :: subname = 'esmf_phys2lonlat_regrid_winds: '
+
+    call ESMF_FieldGet(physfld_winds, localDe=0, farrayPtr=physptr, rc=rc)
+    call check_esmf_error(rc, subname//'ESMF_FieldGet physptr')
+
+    do ilev = 1,pver
+
+       i = 0
+       do ichnk = begchunk, endchunk
+          ncol = get_ncols_p(ichnk)
+          do icol = 1,ncol
+             i = i+1
+             physptr(1,i) = physu(ilev,icol,ichnk)
+             physptr(2,i) = physv(ilev,icol,ichnk)
+          end do
+       end do
+
+       call ESMF_FieldRegrid(physfld_winds, lonlatfld_winds, rh_phys2lonlat_winds, &
+            termorderflag=ESMF_TERMORDER_SRCSEQ, rc=rc)
+       call check_esmf_error(rc, subname//'ESMF_FieldRegrid physfld_winds->lonlatfld_winds')
+
+       call ESMF_FieldGet(lonlatfld_winds, localDe=0, farrayPtr=lonlatptr, rc=rc)
+       call check_esmf_error(rc, subname//'ESMF_FieldGet lonlatptr')
+
+       lonlatu(lon_beg:lon_end,lat_beg:lat_end,ilev) =  lonlatptr(lon_beg:lon_end,lat_beg:lat_end,1)
+       lonlatv(lon_beg:lon_end,lat_beg:lat_end,ilev) =  lonlatptr(lon_beg:lon_end,lat_beg:lat_end,2)
+
+    end do
+
+  end subroutine esmf_phys2lonlat_regrid_winds
+
+  !------------------------------------------------------------------------------
+  !------------------------------------------------------------------------------
   subroutine esmf_phys2lonlat_regrid_2d(physarr, lonlatarr)
     use esmf_lonlat_grid_mod, only: lon_beg,lon_end,lat_beg,lat_end
     use ppgrid, only: pcols, pver, begchunk, endchunk
@@ -195,7 +280,7 @@ contains
 
     call ESMF_FieldRegrid(physfld_2d, lonlatfld_2d, rh_phys2lonlat_2d, &
               termorderflag=ESMF_TERMORDER_SRCSEQ, rc=rc)
-    call check_esmf_error(rc, subname//'ESMF_FieldRegrid physfld_3d->lonlatfld_3d')
+    call check_esmf_error(rc, subname//'ESMF_FieldRegrid physfld_2d->lonlatfld_2d')
 
     call ESMF_FieldGet(lonlatfld_2d, localDe=0, farrayPtr=lonlatptr, rc=rc)
     call check_esmf_error(rc, subname//'ESMF_FieldGet lonlatptr')
