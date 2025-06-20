@@ -125,9 +125,6 @@ contains
                                      ungriddedLBound=(/1/), ungriddedUBound=(/2/), rc=rc)
     call check_esmf_error(rc, subname//'ESMF_FieldCreate 3D lonlat fld ERROR')
 
-
-
-
     call ESMF_FieldRegridStore(srcField=physfld_3d, dstField=lonlatfld_3d, &
          regridMethod=ESMF_REGRIDMETHOD_BILINEAR,                          &
          polemethod=ESMF_POLEMETHOD_ALLAVG,                                &
@@ -144,7 +141,7 @@ contains
          routeHandle=rh_phys2lonlat_2d, factorIndexList=factorIndexList,   &
          factorList=factorList, srcTermProcessing=smm_srctermproc,         &
          pipelineDepth=smm_pipelinedep, rc=rc)
-    call check_esmf_error(rc, subname//'ESMF_FieldRegridStore 3D routehandle ERROR')
+    call check_esmf_error(rc, subname//'ESMF_FieldRegridStore 2D routehandle ERROR')
 
     call ESMF_FieldRegridStore(srcField=physfld_winds, dstField=lonlatfld_winds, &
          regridMethod=ESMF_REGRIDMETHOD_BILINEAR,                          &
@@ -154,7 +151,7 @@ contains
          vectorRegrid=.true.,                                              &
          factorList=factorList, srcTermProcessing=smm_srctermproc,         &
          pipelineDepth=smm_pipelinedep, rc=rc)
-    call check_esmf_error(rc, subname//'ESMF_FieldRegridStore 3D routehandle ERROR')
+    call check_esmf_error(rc, subname//'ESMF_FieldRegridStore wind vector routehandle ERROR')
 
   end subroutine esmf_phys2lonlat_init
 
@@ -305,11 +302,17 @@ contains
     call ESMF_FieldDestroy(lonlatfld_3d, rc=rc)
     call check_esmf_error(rc, subname//'ESMF_FieldDestroy lonlatfld_3d')
 
+    call ESMF_FieldDestroy(lonlatfld_winds, rc=rc)
+    call check_esmf_error(rc, subname//'ESMF_FieldDestroy lonlatfld_3d')
+
     call ESMF_FieldDestroy(lonlatfld_2d, rc=rc)
     call check_esmf_error(rc, subname//'ESMF_FieldDestroy lonlatfld_2d')
 
     call ESMF_FieldDestroy(physfld_3d, rc=rc)
     call check_esmf_error(rc, subname//'ESMF_FieldDestroy physfld_3d')
+
+    call ESMF_FieldDestroy(physfld_winds, rc=rc)
+    call check_esmf_error(rc, subname//'ESMF_FieldDestroy physfld_2d')
 
     call ESMF_FieldDestroy(physfld_2d, rc=rc)
     call check_esmf_error(rc, subname//'ESMF_FieldDestroy physfld_2d')
