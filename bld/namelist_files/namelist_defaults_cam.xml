@@ -167,6 +167,7 @@
 <ncdata hgrid="ne5np4"   nlev="70"  aquaplanet="1" chem="waccm_ma_mam4">atm/waccm/ic/aqua_waccm_ma_ne5np4_70L_c220729.nc</ncdata>
 <ncdata hgrid="ne5np4"   nlev="70"  aquaplanet="1" chem="waccm_ma_mam5">atm/waccm/ic/aqua_waccm_ma_ne5np4_70L_c220729.nc</ncdata>
 <ncdata hgrid="ne5np4"   nlev="126" waccmx="1"     >atm/waccm/ic/waccmx_aqua_ne5np4_126L_c210304.nc</ncdata>
+<ncdata hgrid="ne5np4"   nlev="130" waccmx="1"     >atm/waccm/ic/waccmx_ne5_L130_c250622.nc</ncdata>
 
 <ncdata hgrid="ne16np4"  nlev="26"                 >atm/cam/inic/se/ape_topo_cam4_ne16np4_L26_c171020.nc</ncdata>
 <ncdata hgrid="ne16np4"  nlev="26"  aquaplanet="1" >atm/cam/inic/se/ape_cam4_ne16np4_L26_c170417.nc</ncdata>

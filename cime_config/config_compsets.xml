@@ -203,6 +203,11 @@
   </compset>
 
   <compset>
+    <alias>QPXmetal</alias>
+    <lname>2000_CAM60%WXIEM_SLND_SICE_DOCN%AQP3_SROF_SGLC_SWAV</lname>
+  </compset>
+
+  <compset>
     <alias>QPMOZ</alias>
     <lname>2000_CAM40%TMOZ_SLND_SICE_DOCN%AQP3_SROF_SGLC_SWAV</lname>
   </compset>
@@ -646,6 +651,11 @@
   <compset>
     <alias>FXmadHIST</alias>
     <lname>HIST_CAM60%WXIED_CLM50%SP_CICE%PRES_DOCN%DOM_MOSART_SGLC_SWAV</lname>
+  </compset>
+
+  <compset>
+    <alias>FXmetalHIST</alias>
+    <lname>HIST_CAM60%WXIEM_CLM50%SP_CICE%PRES_DOCN%DOM_MOSART_SGLC_SWAV</lname>
   </compset>
 
   <compset>

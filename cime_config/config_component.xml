@@ -9,7 +9,7 @@
     ===============
    -->
     <desc atm="CAM70[%LT][%MT][%WA][%WX][%CSO][%CT1S][%CT4S][%CT0MA][%CT1MA][%CT4MA][%PORT]"                                                                                                                                                                                                                                                                                             >CAM cam7 physics:</desc>
-    <desc atm="CAM60[%1PCT][%4xCO2][%CARMATS][%CARMAWM][%CT1S][%CT2S][%CFIRE][%CVBSX][%NUDG][%PORT][%RCO2][%SCAM][%SDYN][%WCCM][%WCMD][%WCSC][%WCTS][%WXIE][%WXIED][%HEMCO][%GEOSCHEM][%SCAMARM95][%SCAMARM97][%SCAMATEX][%SCAMBOMEX][%SCAMCGILSS11][%SCAMCGILSS12][%SCAMCGILSS6][%SCAMDYCOMSRF01][%SCAMDYCOMSRF02][%SCAMGATE3][%SCAMMPACE][%SCAMRICO][%SCAMSPARTICUS][%SCAMTOGA2][%SCAMTWP06][%SCAMCAMFRC]" >CAM cam6 physics:</desc>
+    <desc atm="CAM60[%1PCT][%4xCO2][%CARMATS][%CARMAWM][%CT1S][%CT2S][%CFIRE][%CVBSX][%NUDG][%PORT][%RCO2][%SCAM][%SDYN][%WCCM][%WCMD][%WCSC][%WCTS][%WXIE][%WXIED][%WXIEM][%HEMCO][%GEOSCHEM][%SCAMARM95][%SCAMARM97][%SCAMATEX][%SCAMBOMEX][%SCAMCGILSS11][%SCAMCGILSS12][%SCAMCGILSS6][%SCAMDYCOMSRF01][%SCAMDYCOMSRF02][%SCAMGATE3][%SCAMMPACE][%SCAMRICO][%SCAMSPARTICUS][%SCAMTOGA2][%SCAMTWP06][%SCAMCAMFRC]" >CAM cam6 physics:</desc>
     <desc atm="CAM50[%CT1S][%CLB][%PORT][%RCO2][%MAM7][%SCAM][%SDYN][%WCSC][%WCTS][%SCAMARM95][%SCAMARM97][%SCAMATEX][%SCAMBOMEX][%SCAMCGILSS11][%SCAMCGILSS12][%SCAMCGILSS6][%SCAMDYCOMSRF01][%SCAMDYCOMSRF02][%SCAMGATE3][%SCAMMPACE][%SCAMRICO][%SCAMSPARTICUS][%SCAMTOGA2][%SCAMTWP06][%SCAMCAMFRC]"                                                                                 >CAM cam5 physics:</desc>
     <desc atm="CAM40[%PORT][%RCO2][%SCAM][%SDYN][%TMOZ][%WX][%WXIE][%WXIED][%WCCM][%WCMD][%SCAMARM95][%SCAMARM97][%SCAMATEX][%SCAMBOMEX][%SCAMCGILSS11][%SCAMCGILSS12][%SCAMCGILSS6][%SCAMDYCOMSRF01][%SCAMDYCOMSRF02][%SCAMGATE3][%SCAMMPACE][%SCAMRICO][%SCAMSPARTICUS][%SCAMTOGA2][%SCAMTWP06][%SCAMCAMFRC]"                                                                          >CAM cam4 physics:</desc>
     <desc atm="CAM[%ADIAB][%TJ16][%GRAYRAD][%HS94][%KESSLER][%RCO2]"  >CAM simplified and non-versioned physics :</desc>
@@ -70,6 +70,7 @@
     <desc option="WCMD"         >WACCM with middle atmosphere chemistry with enhanced D-region ion chemistry:</desc>
     <desc option="WXIE"         >WACCM-X enhanced ionosphere, transport, and electrodynamics:</desc>
     <desc option="WXIED"        >WACCM-X enhanced ionosphere, transport, and electrodynamics with D-region ion chemistry:</desc>
+    <desc option="WXIEM"        >WACCM-X enhanced ionosphere, transport, and electrodynamics with metal ion chemistry:</desc>
     <desc option="WCSC"         >WACCM specified chemistry:</desc>
     <desc option="WCTS"         >WACCM with tropospheric, stratospheric, mesospheric, and lower thermospheric chemistry:</desc>
 
@@ -169,6 +170,7 @@
       <value compset="_CAM40%WXIED">-chem waccm_mad</value>
       <value compset="_CAM60%WXIE(_|%)">-chem waccm_ma_mam5</value>
       <value compset="_CAM60%WXIED">-chem waccm_mad_mam5</value>
+      <value compset="_CAM60%WXIEM">-chem waccm_ma_mam5_metal</value>
 
       <value compset="_CAM.*%SDYN">-offline_dyn</value>
       <value compset="_CAM\d0%SDYN_CLM">-nlev 56</value>
