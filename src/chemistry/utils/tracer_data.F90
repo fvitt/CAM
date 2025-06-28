@@ -92,10 +92,10 @@ module tracer_data
      real(r8) :: one_yr = 0
      real(r8) :: curr_mod_time ! model time - calendar day
      real(r8) :: next_mod_time ! model time - calendar day - next time step
-     integer :: nlon
-     integer :: nlat
-     integer :: nlev
-     integer :: nilev
+     integer :: nlon = 0
+     integer :: nlat = 0
+     integer :: nlev = 0
+     integer :: nilev = 0
      integer :: ps_coords(3) ! LATDIM | LONDIM | TIMDIM
      integer :: ps_order(3) ! LATDIM | LONDIM | TIMDIM
      real(r8), pointer, dimension(:) :: lons => null()
@@ -104,7 +104,6 @@ module tracer_data
      real(r8), pointer, dimension(:) :: ilevs => null()
      real(r8), pointer, dimension(:) :: hyam => null()
      real(r8), pointer, dimension(:) :: hybm => null()
-     real(r8), pointer, dimension(:,:) :: ps => null()
      real(r8), pointer, dimension(:) :: hyai => null()
      real(r8), pointer, dimension(:) :: hybi => null()
      real(r8), pointer, dimension(:,:) :: weight_x => null(), weight_y => null()
@@ -115,7 +114,7 @@ module tracer_data
      integer, pointer, dimension(:) :: count0_x=>null(), count0_y=>null()
      integer, pointer, dimension(:,:) :: index0_x=>null(), index0_y=>null()
      logical :: dist
-     
+
      real(r8)                        :: p0
      type(var_desc_t) :: ps_id
      logical,  allocatable, dimension(:) :: in_pbuf
@@ -334,12 +333,6 @@ contains
        lat_dimid = old_dimid
     endif
 
-    allocate( file%ps(file%nlon,file%nlat), stat=astat )
-    if( astat /= 0 ) then
-       write(iulog,*) 'trcdata_init: file%ps allocation error = ',astat
-       call endrun('trcdata_init: failed to allocate x array')
-    end if
-
     call pio_seterrorhandling(File%curr_fileid, PIO_BCAST_ERROR)
     ierr = pio_inq_varid( file%curr_fileid, 'PS', file%ps_id )
     file%has_ps = (ierr==PIO_NOERR)
@@ -429,11 +422,6 @@ contains
           ierr = pio_get_var( file%curr_fileid, varid, file%hybi )
        endif
 
-       allocate( file         %ps  (pcols,begchunk:endchunk), stat=astat   )
-       if( astat/= 0 ) then
-          write(iulog,*) 'trcdata_init: failed to allocate file%ps array; error = ',astat
-          call endrun
-       end if
        allocate( file%ps_in(1)%data(pcols,begchunk:endchunk), stat=astat   )
        if( astat/= 0 ) then
           write(iulog,*) 'trcdata_init: failed to allocate file%ps_in(1)%data array; error = ',astat
@@ -751,7 +739,7 @@ contains
             enddo
            endif
         endif
-   
+
         call mpi_bcast(file%weight_x, plon*file%nlon, mpi_real8 , mstrid, mpicom,ierr)
         if (ierr /= 0) call endrun(sub//": FATAL: mpi_bcast: file%weight_x")
         call mpi_bcast(file%weight_y, plat*file%nlat, mpi_real8 , mstrid, mpicom,ierr)
@@ -1749,7 +1737,7 @@ contains
 
         call xy_interp(file%nlon,file%nlat,file%nlev,plon,plat,pcols,ncols, &
                        file%weight0_x,file%weight0_y,wrk3d_in,loc_arr(:,:,c-begchunk+1),  &
-                       lons,lats,file%count0_x,file%count0_y,file%index0_x,file%index0_y) 
+                       lons,lats,file%count0_x,file%count0_y,file%index0_x,file%index0_y)
       enddo
      else
       do c = begchunk,endchunk
@@ -2446,7 +2434,7 @@ contains
     real(r8)              :: src_x(nsrc+1)         ! source coordinates
     real(r8), intent(in)      :: trg_x(pcols,ntrg+1)         ! target coordinates
     real(r8), intent(in)      :: src(pcols,nsrc)             ! source array
-    logical, intent(in)   :: use_flight_distance                    ! .true. = flight distance, .false. = mixing ratio 
+    logical, intent(in)   :: use_flight_distance                    ! .true. = flight distance, .false. = mixing ratio
     real(r8), intent(out)     :: trg(pcols,ntrg)             ! target array
 
     real(r8) :: ps(pcols), p0, hyai(nsrc+1), hybi(nsrc+1)
