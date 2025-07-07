@@ -108,19 +108,20 @@ end subroutine mo_apex_readnl
 
 !======================================================================
 !======================================================================
-subroutine mo_apex_init1()
+subroutine mo_apex_init1(alts_in)
    use time_manager,  only: get_curr_date
    use phys_grid,     only: get_grid_dims
 
-   integer  :: i, j, ist          ! indices
+   real(r8),optional, intent(in) :: alts_in(:) ! km
 
+   integer  :: i, j, ist          ! indices
    integer :: nglats
    integer :: nglons
-   integer, parameter :: ngalts = 11             ! number of altitudes
+   integer :: ngalts
 
    real(r8), allocatable :: gridlats(:)
    real(r8), allocatable :: gridlons(:)
-   real(r8) :: gridalts(ngalts)                  ! altitudes passed to apxmka
+   real(r8), allocatable :: gridalts(:)
 
    integer :: ngcols, hdim1_d, hdim2_d
    integer :: yr, mon, day, sec
@@ -149,9 +150,19 @@ subroutine mo_apex_init1()
 !-------------------------------------------------------------------------------
 ! altitude grid (km)
 !-------------------------------------------------------------------------------
-   do i = 1,ngalts
-      gridalts(i) = 75._r8 + dble(i-1)*50._r8
-   end do
+   if (present(alts_in)) then
+      ngalts = size(alts_in)
+   else
+      ngalts = 2
+   end if
+
+   allocate(gridalts(ngalts))
+
+   if (present(alts_in)) then
+      gridalts(:) = alts_in
+   else
+      gridalts(:) = (/ 90._r8, 170._r8 /)
+   end if
 
 !-------------------------------------------------------------------------------
 ! Initialize APEX with a regular lat/lon grid ...
