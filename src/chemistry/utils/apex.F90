@@ -375,7 +375,7 @@ subroutine apex_mka(date,gplat,gplon,gpalt,nlat,nlon,nalt,ier)
       stmcpm = st*ctp*cp - ct*stp
       stmspm = st*sp
       do k=1,nalt
-         
+
          call apex_sub(date,gplat(j),gplon(i),gpalt(k),&
           aht,alat,phia,bmag,xmag,ymag,zdown,vmp)
 
@@ -510,10 +510,7 @@ subroutine apex_mall(glat,glon,alt,hr, b,bhat,bmag,si,alon,xlatm,vmp,w,&
 
 end subroutine apex_mall
 !-----------------------------------------------------------------------
-subroutine apex_q2g(qdlat_in,qdlon,alt,gdlat,gdlon,ier)
-! 20160811 ADR If qdlat_in is +/- 90, move it a little off the pole so
-!  that when gdlat, gdlon are used in apxmall the directions of the base
-!  vectors vary appropriately with longitude.
+subroutine apex_q2g(qdlat,qdlon,alt,gdlat,gdlon,ier)
 !
 ! Convert from quasi-dipole to geodetic coordinates. This subroutine
 ! (input magnetic, output geodetic) is the functional inverse of
@@ -522,7 +519,7 @@ subroutine apex_q2g(qdlat_in,qdlon,alt,gdlat,gdlon,ier)
 !
 ! Args:
   real(r8),intent(in) ::  & ! inputs
-    qdlat_in,             & ! quasi-dipole latitude (deg)
+    qdlat,                & ! quasi-dipole latitude (deg)
     qdlon,                & ! quasi-dipole longitude (deg)
     alt                     ! altitude (km)
 
@@ -534,7 +531,7 @@ subroutine apex_q2g(qdlat_in,qdlon,alt,gdlat,gdlon,ier)
 ! Local:
   real(r8) :: x0,y0,z0,xnorm,xdif,ydif,zdif,dist2,hgrd2e,hgrd2n,hgrd2,&
     angdist,distlon,glatx,cal,sal,coslm,slm,cad,sad,slp,clm2,slm2,&
-    sad2,cal2,clp2,clp,dylon, qdlat
+    sad2,cal2,clp2,clp,dylon
   real(r8) :: ylat,ylon ! first guess output by gm2gc, input to intrp
   integer :: iter
   integer,parameter :: niter=30
@@ -551,10 +548,6 @@ subroutine apex_q2g(qdlat_in,qdlon,alt,gdlat,gdlon,ier)
   character(len=5) :: edge
 
   ier = 0 ; gdlat = 0._r8 ; gdlon = 0._r8
-!
-! Keep qdlat away from poles
-  qdlat = max(qdlat_in,-90.+sqrt(precise)*rtd)
-  qdlat = min(qdlat   , 90.-sqrt(precise)*rtd)
 !
 ! Determine quasi-cartesian coordinates on a unit sphere of the
 ! desired magnetic lat,lon in quasi-dipole coordinates.
@@ -924,16 +917,16 @@ subroutine basevec(hr,xlatm,grclm,clmgrp,rgrlp,b,clm,r3_2, &
   f2(2) =  d1(1)*r3_2
   f = f1(1)*f2(2) - f1(2)*f2(1)
 ! Added output 2015 February 17
-  f1(3) = 0.
-  f2(3) = 0.
+  f1(3) = 0._r8
+  f2(3) = 0._r8
   g1(1) = r3_2*d1(1)/f
   g1(2) = r3_2*d1(2)/f
   g1(3) = r3_2*d1(3)/f
   g2(1) = rgrlp(1)/f
   g2(2) = rgrlp(2)/f
   g2(3) = rgrlp(3)/f
-  g3(1) = 0.
-  g3(2) = 0.
+  g3(1) = 0._r8
+  g3(2) = 0._r8
   g3(3) = f
   f3(1) = g1(2)*g2(3) - g1(3)*g2(2)
   f3(2) = g1(3)*g2(1) - g1(1)*g2(3)
@@ -2227,18 +2220,21 @@ subroutine solgmlon(xlat,xlon,colat,elon,mlon)
   real(r8),intent(out) :: mlon
 !
 ! Local:
+  real(r8),parameter ::           &
+    rtod=5.72957795130823e1_r8,  &
+    dtor=1.745329251994330e-2_r8
   real(r8) :: ctp,stp,ang,cang,sang,cte,ste,stfcpa,stfspa
 
-  ctp = cos(colat*dtr)
+  ctp = cos(colat*dtor)
   stp = sqrt(1._r8 - ctp*ctp)
-  ang = (xlon-elon)*dtr
+  ang = (xlon-elon)*dtor
   cang = cos(ang)
   sang = sin(ang)
-  cte = sin(xlat*dtr)
+  cte = sin(xlat*dtor)
   ste = sqrt(1._r8-cte*cte)
   stfcpa = ste*ctp*cang - cte*stp
   stfspa = sang*ste
-  mlon = atan2(stfspa,stfcpa)*rtd
+  mlon = atan2(stfspa,stfcpa)*rtod
 
 end subroutine solgmlon
 !-----------------------------------------------------------------------
