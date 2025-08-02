@@ -24,6 +24,9 @@ module ionosphere_interface
    use epotential_params,   only: epot_active, epot_crit_colats
    use shr_const_mod,  only: SHR_CONST_REARTH ! meters
 
+   use edyn3d_driver_mod, only: edyn3d_driver_init
+   use edyn3d_highlat_potential, only: edyn3d_highlat_potential_update
+
    implicit none
 
    private
@@ -92,6 +95,11 @@ module ionosphere_interface
 
    integer           :: oplus_nlon, oplus_nlat   ! Oplus grid
    integer           :: ionos_npes = -1
+   integer           :: ionos_edyn3d_npes = -1
+   logical           :: ionos_edyn3d_active = .false.
+   integer           :: ionos_edyn3d_nmlat_h = 91
+   integer           :: ionos_edyn3d_nmlon = 180
+   integer           :: ionos_edyn3d_nhgt = 54
 
    logical :: state_debug_checks = .false.
    logical :: ionos_debug_hist = .false.
@@ -126,9 +134,10 @@ module ionosphere_interface
       namelist /ionosphere_nl/ ionos_epotential_model, ionos_epotential_amie, ionos_epotential_ltr, wei05_coefs_file
       namelist /ionosphere_nl/ amienh_files, amiesh_files, wei05_coefs_file, ltr_files
       namelist /ionosphere_nl/ epot_crit_colats
-      namelist /ionosphere_nl/ ionos_npes
+      namelist /ionosphere_nl/ ionos_npes, ionos_edyn3d_npes
       namelist /ionosphere_nl/ oplus_grid, edyn_grid
       namelist /ionosphere_nl/ ionos_debug_hist
+      namelist /ionosphere_nl/ ionos_edyn3d_active, ionos_edyn3d_nmlat_h, ionos_edyn3d_nhgt, ionos_edyn3d_nmlon
 
       oplus_grid = 0
 
@@ -165,9 +174,14 @@ module ionosphere_interface
       call mpi_bcast(oplus_ring_polar_filter,1, mpi_logical, masterprocid, mpicom, ierr)
       call mpi_bcast(epot_crit_colats,    2, mpi_real8,   masterprocid, mpicom, ierr)
       call mpi_bcast(ionos_npes,          1, mpi_integer, masterprocid, mpicom, ierr)
+      call mpi_bcast(ionos_edyn3d_npes,   1, mpi_integer, masterprocid, mpicom, ierr)
       call mpi_bcast(oplus_grid,          2, mpi_integer, masterprocid, mpicom, ierr)
       call mpi_bcast(edyn_grid,           8, mpi_character, masterprocid, mpicom, ierr)
       call mpi_bcast(ionos_debug_hist,    1, mpi_logical, masterprocid, mpicom, ierr)
+      call mpi_bcast(ionos_edyn3d_active, 1, mpi_logical, masterprocid, mpicom, ierr)
+      call mpi_bcast(ionos_edyn3d_nmlat_h,1, mpi_integer, masterprocid, mpicom, ierr)
+      call mpi_bcast(ionos_edyn3d_nmlon,  1, mpi_integer, masterprocid, mpicom, ierr)
+      call mpi_bcast(ionos_edyn3d_nhgt,   1, mpi_integer, masterprocid, mpicom, ierr)
 
       ! Extract grid settings
       oplus_nlon = oplus_grid(1)
@@ -187,6 +201,11 @@ module ionosphere_interface
       else if (ionos_npes>total_pes) then
          call endrun('ionosphere_readnl: ionos_npes > total_pes')
       end if
+      if (ionos_edyn3d_npes<1) then
+         ionos_edyn3d_npes = ionos_npes
+      else if (ionos_edyn3d_npes>total_pes) then
+         call endrun('ionosphere_readnl: ionos_edyn3d_npes > total_pes')
+      end if
 
       ! log the user settings
       if (masterproc) then
@@ -200,6 +219,7 @@ module ionosphere_interface
          write(iulog,'(a,2(g12.4))') &
                         'ionosphere_readnl: epot_crit_colats       = ', epot_crit_colats
          write(iulog,'(a,i0)') 'ionosphere_readnl: ionos_npes = ',ionos_npes
+         write(iulog,'(a,i0)') 'ionosphere_readnl: ionos_edyn3d_npes = ',ionos_edyn3d_npes
          write(iulog,*) 'ionosphere_readnl: oplus_adiff_limiter    = ', oplus_adiff_limiter
          write(iulog,*) 'ionosphere_readnl: oplus_shapiro_const    = ', oplus_shapiro_const
          write(iulog,*) 'ionosphere_readnl: oplus_enforce_floor    = ', oplus_enforce_floor
@@ -213,6 +233,10 @@ module ionosphere_interface
             write(iulog,'(a,i0)') 'ionosphere_readnl: mag_nlev = ',mag_nlev
             write(iulog,'(a,i0)') 'ionosphere_readnl: mag_ngrid = ',mag_ngrid
          end if
+         write(iulog,*)        'ionosphere_readnl: ionos_edyn3d_active = ',ionos_edyn3d_active
+         write(iulog,'(a,i0)') 'ionosphere_readnl: ionos_edyn3d_nmlat_h = ',ionos_edyn3d_nmlat_h
+         write(iulog,'(a,i0)') 'ionosphere_readnl: ionos_edyn3d_nmlon = ',ionos_edyn3d_nmlon
+         write(iulog,'(a,i0)') 'ionosphere_readnl: ionos_edyn3d_nhgt = ',ionos_edyn3d_nhgt
       end if
       epot_active = .true.
 
@@ -234,7 +258,7 @@ module ionosphere_interface
       use ref_pres,        only: pref_edge ! target ailev(pverp) interface levels
       use amie_module,     only: init_amie
       use ltr_module,      only: init_ltr
-      use wei05sc,         only: weimer05_init
+      use weimer_highlat_potential, only: weimer_highlat_potential_init
       use phys_control,    only: phys_getopts
 
       ! local variables:
@@ -344,7 +368,7 @@ module ionosphere_interface
          call edynamo_init(mpicom, ionos_debug_hist)
 
          call d_pie_init(ionos_edyn_active, ionos_oplus_xport, ionos_xport_nsplit, epot_crit_colats, &
-                         ionos_debug_hist)
+                         ionos_debug_hist, ionos_edyn3d_active)
 
          call ionosphere_alloc()
 
@@ -356,8 +380,14 @@ module ionosphere_interface
 
       end if op_transport
 
-      ! This has to be after edynamo_init (where maggrid is initialized)
-      call mo_apex_init1()
+      if (ionos_edyn3d_active) then
+         ! 3D edynamo
+         call edyn3d_driver_init(mpicom, ionos_edyn3d_npes, ionos_edyn3d_nmlat_h, ionos_edyn3d_nmlon, ionos_edyn3d_nhgt, &
+              ionos_epotential_model, wei05_coefs_file)
+      else
+         ! This has to be after edynamo_init (where maggrid is initialized)
+         call mo_apex_init1()
+      end if
 
       if (ionos_edyn_active) then
          call addfld ('UI',(/ 'lev' /),'I','m/s', 'UI Zonal ion drift from edynamo')
@@ -381,7 +411,7 @@ module ionosphere_interface
          call addfld ('ltr_kev_phys', horiz_only, 'I', 'keV',  'LTR mean energy')
       end if
       if ( trim(ionos_epotential_model) == 'weimer' ) then
-         call weimer05_init(wei05_coefs_file)
+         call weimer_highlat_potential_init(wei05_coefs_file)
       end if
 
       ! d_pie_coupling diagnostics
@@ -471,6 +501,10 @@ module ionosphere_interface
 
       end if prescribed_epot
 
+      if (ionos_edyn3d_active) then
+         call edyn3d_highlat_potential_update()
+      end if
+
    end subroutine ionosphere_run1
 
    !---------------------------------------------------------------------------
@@ -520,6 +554,7 @@ module ionosphere_interface
       real(r8), pointer :: te_blck(:,:)
       real(r8), pointer :: zi_blck(:,:) ! Geopotential on interfaces
       real(r8), pointer :: hi_blck(:,:) ! Geometric height on interfaces
+      real(r8), pointer :: zhtmid(:,:)  ! Geometric height mid-layer
       real(r8), pointer :: ui_blck(:,:)
       real(r8), pointer :: vi_blck(:,:)
       real(r8), pointer :: wi_blck(:,:)
@@ -592,6 +627,10 @@ module ionosphere_interface
          allocate(zi_blck(pver, blksize), stat=astat)
          if (astat /= 0) then
             call endrun(subname//': failed to allocate zi_blck')
+         end if
+         allocate(zhtmid(pver, blksize), stat=astat)
+         if (astat /= 0) then
+            call endrun(subname//': failed to allocate zhtmid')
          end if
          allocate(ui_blck(pver, blksize), stat=astat)
          if (astat /= 0) then
@@ -736,12 +775,13 @@ module ionosphere_interface
                   u_blck(k, j)     = phys_state(lchnk)%u(i, k)
                   v_blck(k, j)     = phys_state(lchnk)%v(i, k)
                   !------------------------------------------------------------
-                  ! Might need geometric height on midpoints for output
+                  ! Geometric height at layer midpoints
                   !------------------------------------------------------------
+                  zhtmid(k,j) = geometric_hgt(zgp=phys_state(lchnk)%zm(i,k), zsf=phis(i)*rga)
                   if (hist_fld_active('Z3GM')) then
-                     ! geometric altitude (meters above sea level)
-                     tempm(i,k) = geometric_hgt(zgp=phys_state(lchnk)%zm(i,k), zsf=phis(i)*rga)
-                  end if
+                     tempm(i,k) = zhtmid(k,j)
+                  endif
+
                   ! physics state fields on interfaces (but only to pver)
                   zi_blck(k, j) = phys_state(lchnk)%zi(i, k) + phis(i)*rga
                   !------------------------------------------------------------
@@ -840,11 +880,6 @@ module ionosphere_interface
             end do
          end do
 
-         if (state_debug_checks) then
-            call shr_assert_in_domain(te_blck, is_nan=.false., varname="te_blck", msg="NaN found in te_blck in ionosphere_run2")
-            call shr_assert_in_domain(ti_blck, is_nan=.false., varname="ti_blck", msg="NaN found in ti_blck in ionosphere_run2")
-         end if
-
          call t_startf('d_pie_coupling')
 
          ! Compute geometric height and some diagnostic fields needed by
@@ -856,7 +891,7 @@ module ionosphere_interface
          ! All fields are on physics mesh, (pver, blksize),
          !    where blksize is the total number of columns on this task
 
-         call d_pie_coupling(omega_blck, pmid_blck, zi_blck, hi_blck,         &
+         call d_pie_coupling(omega_blck, pmid_blck, zi_blck, hi_blck, zhtmid, &
               u_blck, v_blck, tn_blck, sigma_ped_blck, sigma_hall_blck,       &
               te_blck, ti_blck, mbar_blck, n2mmr_blck, o2mmr_blck,            &
               o1mmr_blck, o2pmmr_blck, nopmmr_blck, n2pmmr_blck,              &
@@ -866,10 +901,10 @@ module ionosphere_interface
          call t_stopf ('d_pie_coupling')
 
          if (state_debug_checks) then
-            call shr_assert_in_domain(ui_blck, is_nan=.false., varname="ui_blck", msg="NaN found in ui_blck in ionosphere_run2")
-            call shr_assert_in_domain(vi_blck, is_nan=.false., varname="vi_blck", msg="NaN found in vi_blck in ionosphere_run2")
-            call shr_assert_in_domain(wi_blck, is_nan=.false., varname="wi_blck", msg="NaN found in wi_blck in ionosphere_run2")
-            call shr_assert_in_domain(opmmr_blck, is_nan=.false., varname="opmmr_blck", msg="NaN found in opmmr_blck in ionosphere_run2")
+            call shr_assert_in_domain(ui_blck, is_nan=.false., varname="ui_blck", msg="ionosphere_run2: NaN found in ui_blck ")
+            call shr_assert_in_domain(vi_blck, is_nan=.false., varname="vi_blck", msg="ionosphere_run2: NaN found in vi_blck")
+            call shr_assert_in_domain(wi_blck, is_nan=.false., varname="wi_blck", msg="ionosphere_run2: NaN found in wi_blck")
+            call shr_assert_in_domain(opmmr_blck, is_nan=.false., varname="opmmr_blck", msg="ionosphere_run2: NaN found in opmmr_blck")
          end if
 
          !
@@ -963,6 +998,8 @@ module ionosphere_interface
          nullify(te_blck)
          deallocate(zi_blck)
          nullify(zi_blck)
+         deallocate(zhtmid)
+         nullify(zhtmid)
          deallocate(ui_blck)
          nullify(ui_blck)
          deallocate(vi_blck)
@@ -1100,11 +1137,16 @@ module ionosphere_interface
    subroutine ionosphere_final
 
       use edyn_esmf, only: edyn_esmf_final
+      use edyn3d_driver_mod, only: edyn3d_driver_final
 
       call edyn_esmf_final()
 
       if (allocated(opmmrtm1_phys)) then
          deallocate(opmmrtm1_phys)
+      end if
+
+      if (ionos_edyn3d_active) then
+         call edyn3d_driver_final()
       end if
 
    end subroutine ionosphere_final

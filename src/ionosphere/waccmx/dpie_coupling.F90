@@ -36,15 +36,19 @@ module dpie_coupling
 
   logical :: debug_hist
 
+  logical :: edynamo_3d = .false.
+
 contains
   !----------------------------------------------------------------------
-  subroutine d_pie_init( edyn_active_in, oplus_xport_in, oplus_nsplit_in, crit_colats_deg, ionos_debug_hist )
+  subroutine d_pie_init( edyn_active_in, oplus_xport_in, oplus_nsplit_in, crit_colats_deg, ionos_debug_hist, edyn_3d_in )
 
     logical, intent(in) :: edyn_active_in, oplus_xport_in
     integer, intent(in) :: oplus_nsplit_in
     real(r8),intent(in) :: crit_colats_deg(:)
     logical, intent(in) :: ionos_debug_hist
+    logical, intent(in) :: edyn_3d_in
 
+    edynamo_3d = edyn_3d_in
     debug_hist = ionos_debug_hist
 
     ionos_edyn_active = edyn_active_in
@@ -116,6 +120,17 @@ contains
        call addfld ('OPtm1o',(/ 'lev' /), 'I', 'cm^3','O+ (oplus_xport output)',    gridname='geo_grid')
     endif
 
+    if (edynamo_3d) then
+       call addfld('IonU_phys', (/ 'lev' /), 'I', 'm/s','Zonal Ion Drift Velocity on phys grid' )
+       call addfld('IonV_phys', (/ 'lev' /), 'I', 'm/s','Meridional Ion Drift Velocity on phys grid' )
+       call addfld('IonW_phys', (/ 'lev' /), 'I', 'm/s','Vertial Ion Drift Velocity on phys grid' )
+       call addfld('alt_phys', (/ 'lev' /), 'I', 'm',' ' )
+       call addfld('u_phys', (/ 'lev' /), 'I', 'm/s',' ' )
+       call addfld('v_phys', (/ 'lev' /), 'I', 'm/s',' ' )
+       call addfld('ped_phys', (/ 'lev' /), 'I', ' ',' ' )
+       call addfld('hal_phys', (/ 'lev' /), 'I', ' ',' ' )
+    endif
+
   end subroutine d_pie_init
 
   !-----------------------------------------------------------------------
@@ -123,7 +138,7 @@ contains
     use edyn_solve,       only: pfrac    ! NH fraction of potential (nmlonp1,nmlat0)
     use time_manager,     only: get_curr_date
     use heelis,           only: heelis_model
-    use wei05sc,          only: weimer05  ! driver for weimer high-lat convection model
+    use weimer_highlat_potential, only: weimer_highlat_potential_update
     use edyn_esmf,        only: edyn_esmf_update
     use solar_parms_data, only: solar_parms_advance
     use solar_wind_data,  only: solar_wind_advance
@@ -132,8 +147,9 @@ contains
     use solar_wind_data,  only: swvel=>solar_wind_swvel
     use solar_wind_data,  only: swden=>solar_wind_swden
     use edyn_mpi,         only: mlat0, mlat1, mlon0, mlon1, omlon1, ntask, mytid
-    use edyn_maggrid,     only: nmlonp1, nmlat
+    use edyn_maggrid,     only: nmlonp1,nmlon,nmlat, ylonm,ylatm
     use regridder,  only: regrid_mag2phys_2d
+    use sunloc_mod, only: sunloc_calc
 
     ! Args:
     !
@@ -153,7 +169,6 @@ contains
     !
     logical :: amie_inputs, ltr_inputs
 
-    real(r8)             :: secs               ! time of day in seconds
     integer              :: iyear,imo,iday,tod ! tod is time-of-day in seconds
     real(r8)             :: sunlon
 
@@ -167,10 +182,6 @@ contains
 
     call edyn_esmf_update()
 
-    call get_curr_date(iyear, imo,iday, tod)
-    ! tod is integer time-of-day in seconds
-    secs = real(tod, r8)
-
     ! update solar wind data (IMF, etc.)
     call solar_wind_advance()
 
@@ -180,7 +191,7 @@ contains
        !
        ! Get sun's longitude at latitudes (geographic):
        !
-       call sunloc(iday, secs, sunlon) ! sunlon is returned
+       call sunloc_calc(sunlon)
        !
        ! Get high-latitude convection from empirical model (heelis or weimer).
        ! High-latitude potential phihm (edyn_solve) is defined for edynamo.
@@ -189,7 +200,12 @@ contains
           call heelis_model(sunlon) ! heelis.F90
        elseif (trim(highlat_potential_model) == 'weimer') then
           !
-          call weimer05(byimf, bzimf, swvel, swden, sunlon)
+          call weimer_highlat_potential_update( byimf, bzimf, swvel, swden, sunlon, &
+               nmlon,nmlat, ylonm,ylatm, phihm(:nmlon,:nmlat))
+
+          ! Periodic points:
+          phihm(nmlonp1,:) = phihm(1,:)
+
           if (debug .and. masterproc) then
              write(iulog, "(a,2f8.2,a,2f8.2)")                                   &
                   'dpie_coupling call weimer05: byimf,bzimf=',                   &
@@ -210,6 +226,8 @@ contains
        if (.not. (present(kev_phys).and.present(efx_phys)) ) then
           call endrun('d_pie_epotent: kev_phys and efx_phys must be present')
        end if
+
+       call get_curr_date(iyear, imo,iday, tod)
 
        iprint = 1
        if (amie_inputs) then
@@ -267,7 +285,7 @@ contains
   end subroutine d_pie_epotent
 
   !-----------------------------------------------------------------------
-  subroutine d_pie_coupling(omega, pmid, zgi, zht, u, v, tn,                  &
+  subroutine d_pie_coupling(omega, pmid, zgi, zht, zhtmid, u, v, tn,          &
        sigma_ped, sigma_hall, te, ti, mbar, n2mmr, o2mmr, o1mmr, o2pmmr,      &
        nopmmr, n2pmmr, opmmr, opmmrtm1, ui, vi, wi,                           &
        rmassO2p, rmassNOp, rmassN2p, rmassOp, cols, cole, plev )
@@ -287,9 +305,10 @@ contains
      use edyn_mpi,      only: lon0, lon1, lat0, lat1, lev0, lev1, ntask, mytid
      use oplus,         only: oplus_xport
      use ref_pres,      only: pref_mid
-     use regridder,  only: regrid_phys2geo_3d, regrid_phys2mag_3d, regrid_geo2phys_3d
-     use regridder,  only: regrid_geo2mag_3d, regrid_geo2mag_2d
-     use adotv_mod,  only: calc_adotv
+     use regridder,     only: regrid_phys2geo_3d, regrid_phys2mag_3d, regrid_geo2phys_3d
+     use regridder,     only: regrid_geo2mag_3d, regrid_geo2mag_2d
+     use adotv_mod,     only: calc_adotv
+     use edyn3d_driver_mod, only: edyn3D_driver_timestep
 
      !
      ! Args:
@@ -304,6 +323,7 @@ contains
      real(r8), intent(in)    :: pmid(plev, cols:cole)       ! pressure at midpoints (Pa)
      real(r8), intent(in)    :: zgi(plev, cols:cole)        ! geopotential height (on interfaces) (m)
      real(r8), intent(in)    :: zht(plev, cols:cole)        ! geometric height (m) (Simple method - interfaces)
+     real(r8), intent(in)    :: zhtmid(plev, cols:cole)     ! geometric height (m) (Simple method - mid layer)
      real(r8), intent(in)    :: u(plev, cols:cole)          ! U-wind (m/s)
      real(r8), intent(in)    :: v(plev, cols:cole)          ! V-wind (m/s)
      real(r8), intent(in)    :: tn(plev, cols:cole)         ! neutral temperature (K)
@@ -379,7 +399,7 @@ contains
      logical :: do_integrals
 !
 ! Pointers for multiple-field calls:
-    type(array_ptr_type),allocatable :: ptrs(:)
+     type(array_ptr_type),allocatable :: ptrs(:)
 
      character(len=*), parameter :: subname = 'd_pie_coupling'
 
@@ -422,6 +442,15 @@ contains
           adotv1_mag, adotv2_mag
      real(r8), dimension(mlon0:mlon1,mlat0:mlat1) :: &
           adota1_mag, adota2_mag, a1dta2_mag, be3_mag, sini_mag
+
+     real(r8) :: ui_3d(lon0:lon1,lat0:lat1,lev0:lev1) ! on oplus grid
+     real(r8) :: vi_3d(lon0:lon1,lat0:lat1,lev0:lev1)
+     real(r8) :: wi_3d(lon0:lon1,lat0:lat1,lev0:lev1)
+     real(r8) :: ui_out(plev,cole-cols+1)
+     real(r8) :: vi_out(plev,cole-cols+1)
+     real(r8) :: wi_out(plev,cole-cols+1)
+
+     integer :: nphyscols
 
      call t_startf(subname)
 
@@ -582,53 +611,89 @@ contains
     !
     if (ionos_edyn_active) then
 
-       call t_startf('dpie_ionos_dynamo')
+       if (edynamo_3d) then
 
-       call calc_adotv( zpot_in(lev0:lev1,lon0:lon1,lat0:lat1), &
-            halo_un(lev0:lev1,lon0:lon1,lat0:lat1), &
-            halo_vn(lev0:lev1,lon0:lon1,lat0:lat1), &
-            wn_in(lev0:lev1,lon0:lon1,lat0:lat1), &
-            adotv1_in, adotv2_in, adota1_in, adota2_in, &
-            a1dta2_in, be3_in, sini_in, lev0, lev1, lon0, lon1, lat0, lat1)
+          call t_startf('d_pie_cpl->edyn3D_driver')
 
-       call regrid_geo2mag_3d( adotv1_in, adotv1_mag )
-       call regrid_geo2mag_3d( adotv2_in, adotv2_mag )
-       if (debug_hist) then
-          call outfld_geo('EDYN_ADOTV1', adotv1_in(:,:,lev1:lev0:-1) )
-          call outfld_geo('EDYN_ADOTV2', adotv2_in(:,:,lev1:lev0:-1) )
+          call outfld_phys('alt_phys',zhtmid)
+          call outfld_phys('ped_phys',sigma_ped)
+          call outfld_phys('hal_phys',sigma_hall)
+          call outfld_phys('u_phys',u)
+          call outfld_phys('v_phys',v)
 
-          call outfld_geo2d( 'EDYN_ADOTA1', adota1_in )
-          call outfld_geo2d( 'EDYN_ADOTA2', adota2_in )
-          call outfld_geo2d( 'EDYN_A1DTA2', a1dta2_in )
-          call outfld_geo2d( 'EDYN_BE3' , be3_in )
-          call outfld_geo2d( 'EDYN_SINI', sini_in )
+          nphyscols = cole - cols + 1
+          call edyn3D_driver_timestep( nphyscols, plev, zhtmid, sigma_ped, sigma_hall, u, v, &
+                                       ui_3d, vi_3d, wi_3d ) !  bottom up vert in returned ion vels
+
+          call regrid_geo2phys_3d( ui_3d, ui_out, plev, 1, nphyscols )
+          call regrid_geo2phys_3d( vi_3d, vi_out, plev, 1, nphyscols )
+          call regrid_geo2phys_3d( wi_3d, wi_out, plev, 1, nphyscols )
+
+          call outfld_phys('IonU_phys',ui_out(plev:1:-1,:))
+          call outfld_phys('IonV_phys',vi_out(plev:1:-1,:))
+          call outfld_phys('IonW_phys',wi_out(plev:1:-1,:))
+
+          do k = 1, nlev
+             do i = lon0,lon1
+                do j = lat0,lat1
+                   ui_in(k,i,j) = ui_3d(i,j,k) * 100._r8 ! m/s -> cm/s
+                   vi_in(k,i,j) = vi_3d(i,j,k) * 100._r8 ! m/s -> cm/s
+                   wi_in(k,i,j) = wi_3d(i,j,k) * 100._r8 ! m/s -> cm/s
+                end do
+             end do
+          end do
+
+          call t_stopf('d_pie_cpl->edyn3D_driver')
+
+       else
+
+          call t_startf('d_pie_cpl->dynamo')
+
+          call calc_adotv( zpot_in(lev0:lev1,lon0:lon1,lat0:lat1), &
+               halo_un(lev0:lev1,lon0:lon1,lat0:lat1), &
+               halo_vn(lev0:lev1,lon0:lon1,lat0:lat1), &
+               wn_in(lev0:lev1,lon0:lon1,lat0:lat1), &
+               adotv1_in, adotv2_in, adota1_in, adota2_in, &
+               a1dta2_in, be3_in, sini_in, lev0, lev1, lon0, lon1, lat0, lat1)
+
+          call regrid_geo2mag_3d( adotv1_in, adotv1_mag )
+          call regrid_geo2mag_3d( adotv2_in, adotv2_mag )
+          if (debug_hist) then
+             call outfld_geo('EDYN_ADOTV1', adotv1_in(:,:,lev1:lev0:-1) )
+             call outfld_geo('EDYN_ADOTV2', adotv2_in(:,:,lev1:lev0:-1) )
+
+             call outfld_geo2d( 'EDYN_ADOTA1', adota1_in )
+             call outfld_geo2d( 'EDYN_ADOTA2', adota2_in )
+             call outfld_geo2d( 'EDYN_A1DTA2', a1dta2_in )
+             call outfld_geo2d( 'EDYN_BE3' , be3_in )
+             call outfld_geo2d( 'EDYN_SINI', sini_in )
+          endif
+          call regrid_geo2mag_2d( adota1_in, adota1_mag )
+          call regrid_geo2mag_2d( adota2_in, adota2_mag )
+          call regrid_geo2mag_2d( a1dta2_in, a1dta2_mag )
+          call regrid_geo2mag_2d( be3_in, be3_mag )
+          call regrid_geo2mag_2d( sini_in, sini_mag )
+          if (debug_hist) then
+             call outfld_mag2d('ADOTA1_MAG', adota1_mag )
+             call outfld_mag2d('SINI_MAG', sini_mag )
+          endif
+          call regrid_phys2mag_3d( sigma_ped, ped_mag, plev, cols, cole )
+          call regrid_phys2mag_3d( sigma_hall, hal_mag, plev, cols, cole )
+          call regrid_phys2mag_3d( zgi, zpot_mag, plev, cols, cole )
+
+          if (mytid<ntask) then
+             zpot_mag_in(:,:,mlev0:mlev1) = zpot_mag(:,:,mlev1:mlev0:-1) * 100._r8 ! m -> cm
+             ped_mag_in(:,:,mlev0:mlev1) = ped_mag(:,:,mlev1:mlev0:-1)
+             hal_mag_in(:,:,mlev0:mlev1) = hal_mag(:,:,mlev1:mlev0:-1)
+
+             call  dynamo( zpot_mag_in, ped_mag_in, hal_mag_in, adotv1_mag, adotv2_mag, adota1_mag, &
+                  adota2_mag, a1dta2_mag, be3_mag, sini_mag,  &
+                  zpot_in, ui_in, vi_in, wi_in, &
+                  lon0,lon1, lat0,lat1, lev0,lev1, do_integrals )
+          endif
+
+          call t_stopf('d_pie_cpl->dynamo')
        endif
-       call regrid_geo2mag_2d( adota1_in, adota1_mag )
-       call regrid_geo2mag_2d( adota2_in, adota2_mag )
-       call regrid_geo2mag_2d( a1dta2_in, a1dta2_mag )
-       call regrid_geo2mag_2d( be3_in, be3_mag )
-       call regrid_geo2mag_2d( sini_in, sini_mag )
-       if (debug_hist) then
-          call outfld_mag2d('ADOTA1_MAG', adota1_mag )
-          call outfld_mag2d('SINI_MAG', sini_mag )
-       endif
-       call regrid_phys2mag_3d( sigma_ped, ped_mag, plev, cols, cole )
-       call regrid_phys2mag_3d( sigma_hall, hal_mag, plev, cols, cole )
-       call regrid_phys2mag_3d( zgi, zpot_mag, plev, cols, cole )
-
-       if (mytid<ntask) then
-          zpot_mag_in(:,:,mlev0:mlev1) = zpot_mag(:,:,mlev1:mlev0:-1) * 100._r8 ! m -> cm
-          ped_mag_in(:,:,mlev0:mlev1) = ped_mag(:,:,mlev1:mlev0:-1)
-          hal_mag_in(:,:,mlev0:mlev1) = hal_mag(:,:,mlev1:mlev0:-1)
-
-          call  dynamo( zpot_mag_in, ped_mag_in, hal_mag_in, adotv1_mag, adotv2_mag, adota1_mag, &
-               adota2_mag, a1dta2_mag, be3_mag, sini_mag,  &
-               zpot_in, ui_in, vi_in, wi_in, &
-               lon0,lon1, lat0,lat1, lev0,lev1, do_integrals )
-       endif
-
-       call t_stopf ('dpie_ionos_dynamo')
-
     else
        if (debug .and. masterproc) then
           write(iulog,"('dpie_coupling (dynamo NOT called): nstep=',i8)") nstep
@@ -891,63 +956,6 @@ contains
     end do ! j=1,nmlat0
     !
   end subroutine calc_pfrac
-  !-----------------------------------------------------------------------
-  subroutine sunloc(iday, secs, sunlon)
-    !
-    ! Given day of year and ut, return sun's longitude in dipole coordinates
-    ! in sunlon
-    !
-    use getapex,      only: alonm ! (nlonp1,0:nlatp1)
-    use edyn_geogrid, only: nlon, nlat, dphi, dlamda
-    use edyn_params,  only: pi
-    !
-    ! Args:
-    integer,intent(in)   :: iday          ! day of year
-    real(r8),intent(in)  :: secs          ! ut in seconds
-    real(r8),intent(out) :: sunlon        ! output
-    !
-    ! Local:
-    integer :: j, i, ii, isun, jsun
-    real(r8) :: glats, glons, pisun, pjsun, sndlons, csdlons
-    real(r8) :: rlonm(nlon+4, nlat) ! (nlon+4,nlat)
-    real(r8) :: r8_isun, r8_jsun
-
-    !
-    ! Sun's geographic coordinates:
-    glats   = asin(.398749_r8*sin(2._r8 * pi * real(iday-80, r8) / 365._r8))
-    glons   = pi * (1._r8 - (2._r8 * secs / 86400._r8))
-
-    do j = 1, nlat
-       do i = 1, nlon
-          ii = i + 2
-          rlonm(ii, j) = alonm(i, j)
-       end do
-       do i = 1, 2
-          rlonm(i, j) = rlonm(i+nlon, j)
-          rlonm(i+nlon+2, j) = rlonm(i+2, j)
-       end do
-    end do
-
-    pisun = ((glons + pi) / dlamda) + 1._r8
-    pjsun = ((glats + (.5_r8 * (pi - dphi))) / dphi) + 1._r8
-    isun = int(pisun)
-    jsun = int(pjsun)
-    r8_isun = real(isun, r8)
-    r8_jsun = real(jsun, r8)
-    pisun = pisun - r8_isun
-    pjsun = pjsun - r8_jsun
-
-    sndlons = (1._r8-pisun) * (1._r8-pjsun) * sin(rlonm(isun+2, jsun)) +      &
-         pisun*(1._r8-pjsun)       *          sin(rlonm(isun+3,jsun)) +       &
-         pisun*pjsun               *          sin(rlonm(isun+3,jsun+1)) +     &
-         (1._r8-pisun)*pjsun       *          sin(rlonm(isun+2,jsun+1))
-    csdlons = (1._r8-pisun) * (1._r8-pjsun) * cos(rlonm(isun+2,jsun)) +       &
-         pisun*(1._r8-pjsun)       *          cos(rlonm(isun+3,jsun))+        &
-         pisun*pjsun               *          cos(rlonm(isun+3,jsun+1))+      &
-         (1._r8-pisun)*pjsun       *          cos(rlonm(isun+2,jsun+1))
-    sunlon = atan2(sndlons, csdlons)
-
-  end subroutine sunloc
 
   !-----------------------------------------------------------------------
   !-----------------------------------------------------------------------
