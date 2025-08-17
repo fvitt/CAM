@@ -328,7 +328,7 @@ contains
        lbnd_lon = lbnd(1)
        ubnd_lon = ubnd(1)
        do i = lbnd_lon, ubnd_lon
-          coordX(i) = glons(i) + (0.5_r8 * delx)
+          coordX(i) = glons(i) - (0.5_r8 * delx)
        end do
 
        call ESMF_GridGetCoord(lonlat_grid, coordDim=2, &
