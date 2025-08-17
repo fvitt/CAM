@@ -1,5 +1,986 @@
 ===============================================================
 
+Tag name: cam6_4_107
+Originator(s): JulioTBacmeister, perverwhee, cacraigucar
+Date: August 13, 2025
+One-line Summary: RRTMGP mods to support MT configurations
+Github PR URL: https://github.com/ESCOMP/CAM/pull/1353
+
+Purpose of changes (include the issue number and title text for each relevant GitHub issue):
+  - RRTMGP error with mpas and L93 mid-top configuration: https://github.com/ESCOMP/AM/issues/1279
+  - Removes extra logic needed to use RRTMGP in the MT configuration where minimum pressures may fall below 1 Pa - the lower
+    limit of validity for RRTMGP
+  - MT will now use cooling rates from Fomichev radiation above 10 Pa.
+
+Describe any changes made to build system: N/A
+
+Describe any changes made to the namelist:
+  - introduce p_top_for_rrtmgp: Top pressure level for RRTMGP
+
+List any changes to the defaults for the boundary datasets: N/A
+
+Describe any substantial timing or memory changes: N/A
+
+Code reviewed by: peverwhee, cacraigucar
+
+List all files eliminated:
+D       src/physics/waccm/nlte_fomichev.F90
+            - Moved to ESCOMP/atmospheric_physics
+
+List all files added and what they do:
+
+List all existing files that have been modified, and describe the changes:
+M       .gitmodules
+           - Update atmos_phys external tag
+
+M       bld/build-namelist
+M       bld/namelist_files/namelist_defaults_cam.xml
+M       bld/namelist_files/namelist_definition.xml
+           - introduce p_top_for_rrtmgp
+
+M       src/physics/cam/radheat.F90
+M       src/physics/rrtmgp/radiation.F90
+           - Julio's modifications as described above
+
+If there were any failures reported from running test_driver.sh on any test
+platform, and checkin with these failures has been OK'd by the gatekeeper,
+then copy the lines from the td.*.status files for the failed tests to the
+appropriate machine below.  All failed tests must be justified.
+
+  - Numerous NLFAIL due to the new p_top_for_rrtmgp namelist
+
+derecho/intel/aux_cam:
+  ERP_Ld3.ne30pg3_ne30pg3_mt232.FHISTC_MTt4s.derecho_intel.cam-outfrq1d_aoa (Overall: DIFF) details:
+  SMS_D_Ln9.ne30pg3_ne30pg3_mt232.FHISTC_MTso.derecho_intel.cam-outfrq9s (Overall: DIFF) details:
+  SMS_D_Ln9_P1280x1.ne30pg3_ne30pg3_mt232.FHISTC_MTt1s.derecho_intel.cam-outfrq9s_Leung_dust (Overall: DIFF) details:
+    - MT answer changes are expected
+
+  SMS_D_Ln9_P1280x1.ne0CONUSne30x8_ne0CONUSne30x8_mt12.FCHIST.derecho_intel.cam-outfrq9s (Overall: FAIL) details:
+    - pre-existing failure due to build-namelist error requiring CLM/CTSM external update.
+
+derecho/nvhpc/aux_cam: BFB
+
+izumi/nag/aux_cam: all BFB
+
+izumi/gnu/aux_cam: all BFB
+
+CAM tag used for the baseline comparison tests if different than previous
+tag:
+
+Summarize any changes to answers, i.e.,
+- what code configurations:
+- what platforms/compilers:
+- nature of change (roundoff; larger than roundoff but same climate; new
+  climate):
+
+If bitwise differences were observed, how did you show they were no worse
+than roundoff?
+
+If this tag changes climate describe the run(s) done to evaluate the new
+climate in enough detail that it(they) could be reproduced, i.e.,
+- source tag (all code used must be in the repository):
+- platform/compilers:
+- configure commandline:
+- build-namelist command (or complete namelist):
+- MSS location of output:
+
+MSS location of control simulations used to validate new climate:
+
+URL for AMWG diagnostics output used to validate new climate:
+
+===============================================================
+===============================================================
+
+Tag name: cam6_4_106
+Originator(s): kuanchihwang
+Date: July 23, 2025
+One-line Summary: Add "_mpas" suffix and use "ncol" dimension for MPAS-specific output variables
+Github PR URL: https://github.com/ESCOMP/CAM/pull/1338
+
+Purpose of changes (include the issue number and title text for each relevant GitHub issue):
+
+  This PR changes how MPAS-specific output variables are written to history files:
+
+    1. Add the "_mpas" suffix, making it clear that these variables are specific to MPAS and
+       are different from the standard CAM ones.
+    2. Change the dimension name from "nCells" to "ncol", improving the compatibility with
+       certain tools like ncremap from NetCDF Operator.
+
+  Restart files are not affected.
+
+  Closes #1323 (MPAS outputs w, theta, and rho)
+
+Describe any changes made to build system:
+
+  None
+
+Describe any changes made to the namelist:
+
+  None
+
+List any changes to the defaults for the boundary datasets:
+
+  None
+
+Describe any substantial timing or memory changes:
+
+  None
+
+Code reviewed by:
+
+  PeterHjortLauritzen, cacraigucar
+
+List all files eliminated:
+
+  None
+
+List all files added and what they do:
+
+  None
+
+List all existing files that have been modified, and describe the changes:
+
+  M       src/dynamics/mpas/stepon.F90
+    * Add the "_mpas" suffix to MPAS-specific output variables
+    * Change the dimension name of MPAS-specific output variables from "nCells" to "ncol"
+
+If there were any failures reported from running test_driver.sh on any test
+platform, and checkin with these failures has been OK'd by the gatekeeper,
+then copy the lines from the td.*.status files for the failed tests to the
+appropriate machine below.  All failed tests must be justified.
+
+derecho/intel/aux_cam:
+
+  SMS_D_Ln9_P1280x1.ne0CONUSne30x8_ne0CONUSne30x8_mt12.FCHIST.derecho_intel.cam-outfrq9s (Overall: FAIL) details:
+    FAIL SMS_D_Ln9_P1280x1.ne0CONUSne30x8_ne0CONUSne30x8_mt12.FCHIST.derecho_intel.cam-outfrq9s SETUP
+      * Pre-existing failures due to build-namelist error requiring CLM/CTSM external update
+
+derecho/nvhpc/aux_cam:
+
+  All pass
+
+izumi/nag/aux_cam:
+
+  All pass
+
+izumi/gnu/aux_cam:
+
+  All pass
+
+CAM tag used for the baseline comparison tests if different than previous
+tag:
+
+  cam6_4_105
+
+Summarize any changes to answers:
+
+  None
+
+===============================================================
+
+Tag name: cam6_4_105
+Originator(s): eaton
+Date: 22 July 2025
+One-line Summary: update ccs_config_cesm submodule
+Github PR URL: https://github.com/ESCOMP/CAM/pull/1347
+
+Purpose of changes (include the issue number and title text for each relevant GitHub issue):
+
+. Update the ccs_config_cesm submodule.  Nearly all CAM tests have diffs
+  due to this update.  In addition to the update to gnu-12 on izumi (which
+  was needed to enable COSP to run), the esmf libs on derecho went from
+  esmf-8.6.0 to esmf-8.8.1 and there were changes to the nvhpc
+  configuration.
+
+Describe any changes made to build system: none
+
+Describe any changes made to the namelist: none
+
+List any changes to the defaults for the boundary datasets: none
+
+Describe any substantial timing or memory changes: none
+
+Code reviewed by: cacraig
+
+List all files eliminated: none
+
+List all files added and what they do: none
+
+List all existing files that have been modified, and describe the changes:
+
+.gitmodules
+- update:
+  ccs_config_cesm1.0.40_izumi_update0.1 -> ccs_config_cesm1.0.53
+
+If there were any failures reported from running test_driver.sh on any test
+platform, and checkin with these failures has been OK'd by the gatekeeper,
+then copy the lines from the td.*.status files for the failed tests to the
+appropriate machine below.  All failed tests must be justified.
+
+derecho/intel/aux_cam:
+
+ERC_D_Ln9.f09_f09_mt232.FHIST_BDRD.derecho_intel.cam-outfrq9s (Overall: DIFF)
+ERC_D_Ln9.mpasa120_mpasa120.F2000climo.derecho_intel.cam-outfrq9s_mpasa120 (Overall: DIFF)
+ERC_D_Ln9.mpasa120_mpasa120.FHISTC_LTso.derecho_intel.cam-outfrq9s_mpasa120 (Overall: DIFF)
+ERC_D_Ln9.ne30pg3_ne30pg3_mt232.FHISTC_LTso.derecho_intel.cam-outfrq9s (Overall: DIFF)
+SMS_C2_D_Ln9.ne16pg3_ne16pg3_mg17.FHISTC_WXma.derecho_intel.cam-outfrq9s (Overall: DIFF)
+SMS_D_Ln9.f09_f09_mg17.FCts2nudged.derecho_intel.cam-outfrq9s_leapday (Overall: DIFF)
+SMS_D_Ln9.f09_f09_mg17.FCvbsxHIST.derecho_intel.cam-outfrq9s (Overall: DIFF)
+SMS_D_Ln9.f09_f09_mg17.FSD.derecho_intel.cam-outfrq9s (Overall: DIFF)
+SMS_D_Ln9.f19_f19_mg17.FWma2000climo.derecho_intel.cam-outfrq9s (Overall: DIFF)
+SMS_D_Ln9.f19_f19_mg17.FWma2000climo.derecho_intel.cam-outfrq9s_waccm_ma_mam4 (Overall: DIFF)
+SMS_D_Ln9.ne0ARCTICne30x4_ne0ARCTICne30x4_mt12.FHIST.derecho_intel.cam-outfrq9s (Overall: DIFF)
+SMS_D_Ln9.ne16_ne16_mg17.QPX2000.derecho_intel.cam-outfrq9s_amie (Overall: DIFF)
+SMS_D_Ln9.ne30pg3_ne30pg3_mt232.FHISTC_MTso.derecho_intel.cam-outfrq9s (Overall: DIFF)
+SMS_D_Ln9_P1280x1.ne30pg3_ne30pg3_mt232.FHISTC_MTt1s.derecho_intel.cam-outfrq9s_Leung_dust (Overall: DIFF)
+- diffs due to esmf lib updates
+
+ERC_D_Ln9.f19_f19_mg17.QPC6.derecho_intel.cam-outfrq3s_cosp (Overall: DIFF)
+ERC_D_Ln9.f19_f19_mg17.QPMOZ.derecho_intel.cam-outfrq3s (Overall: DIFF)
+ERC_D_Ln9.mpasa120_mpasa120.QPC7.derecho_intel.cam-outfrq9s_mpasa120 (Overall: DIFF)
+ERC_D_Ln9.ne16_ne16_mg17.QPC5HIST.derecho_intel.cam-outfrq3s_usecase (Overall: DIFF)
+ERC_D_Ln9.ne30pg2_ne30pg2_mt232.QPC7.derecho_intel.cam-outfrq9s (Overall: DIFF)
+ERI_D_Ln18.f45_f45_mg37.QPC41850.derecho_intel.cam-co2rmp_usecase (Overall: DIFF)
+ERP_D_Ln9_P64x2.f09_f09_mg17.QSC6.derecho_intel.cam-outfrq9s (Overall: DIFF)
+SCT_D_Ln7.ne3_ne3_mg37.QPC5.derecho_intel.cam-scm_prep (Overall: DIFF)
+SMS_D_Ld2.f19_f19_mg17.QPC5HIST.derecho_intel.cam-volc_usecase (Overall: DIFF)
+SMS_D_Ln9.f19_f19_mg17.QPC2000climo.derecho_intel.cam-outfrq3s_usecase (Overall: DIFF)
+SMS_D_Ln9.f19_f19_mg17.QPC5M7.derecho_intel.cam-outfrq9s (Overall: DIFF)
+- diffs in cpl.hi files, but CAM is BFB.
+
+SMS_D_Ln9_P1280x1.ne0CONUSne30x8_ne0CONUSne30x8_mt12.FCHIST.derecho_intel.cam-outfrq9s (Overall: FAIL)
+- pre-existing failure due to build-namelist error requiring CLM/CTSM external update.
+
+derecho/nvhpc/aux_cam:
+
+ERS_Ln9.ne30pg3_ne30pg3_mg17.F2000dev.derecho_nvhpc.cam-outfrq9s_gpu_default (Overall: DIFF)
+- updates to nvhpc settings
+
+izumi/nag/aux_cam:
+
+ERC_D_Ln27.ne3pg3_ne3pg3_mt232.FKESSLER.izumi_nag.cam-outfrq9s (Overall: NLFAIL)
+ERC_D_Ln9.f10_f10_mg37.QPC5.izumi_nag.cam-carma_sea_salt (Overall: NLFAIL)
+ERC_D_Ln9.f10_f10_mg37.QPC5.izumi_nag.cam-outfrq3s_cosp (Overall: NLFAIL)
+ERC_D_Ln9.f10_f10_mg37.QPC5.izumi_nag.cam-outfrq3s_subcol (Overall: NLFAIL)
+ERC_D_Ln9.f10_f10_mg37.QPWmaC6.izumi_nag.cam-outfrq3s (Overall: NLFAIL)
+ERC_D_Ln9.f10_f10_mt232.FHIST.izumi_nag.cam-outfrq3s_cospsathist (Overall: NLFAIL)
+ERC_D_Ln9.mpasa480_mpasa480_mt232.FHS94.izumi_nag.cam-outfrq9s (Overall: NLFAIL)
+ERC_D_Ln9.mpasa480_mpasa480_mt232.QPC7.izumi_nag.cam-outfrq9s_mpasa480 (Overall: NLFAIL)
+ERC_D_Ln9.ne16_ne16_mg17.QPC4.izumi_nag.cam-outfrq3s_usecase (Overall: NLFAIL)
+ERC_D_Ln9.ne16pg3_ne16pg3_mg17.QPC4.izumi_nag.cam-outfrq3s_usecase (Overall: NLFAIL)
+ERC_D_Ln9.ne3pg3_ne3pg3_mt232.FHISTC_LTso.izumi_nag.cam-cosp_rad_diags (Overall: NLFAIL)
+ERC_D_Ln9.ne3pg3_ne3pg3_mt232.FHISTC_LTso.izumi_nag.cam-outfrq9s_nochem (Overall: NLFAIL)
+ERC_D_Ln9.ne5_ne5_mg37.QPC5.izumi_nag.cam-outfrq3s_ttrac (Overall: NLFAIL)
+ERC_D_Ln9_P1x1.ne3pg3_ne3pg3_mt232.FADIAB.izumi_nag.cam-outfrq9s (Overall: NLFAIL)
+ERI_D_Ln18.f10_f10_mg37.QPC5.izumi_nag.cam-outfrq3s_eoyttrac (Overall: NLFAIL)
+PLB_D_Ln9.f10_f10_mg37.QPC5.izumi_nag.cam-ttrac_loadbal0 (Overall: NLFAIL)
+PLB_D_Ln9.f10_f10_mg37.QPC5.izumi_nag.cam-ttrac_loadbal1 (Overall: NLFAIL)
+PLB_D_Ln9.f10_f10_mg37.QPC5.izumi_nag.cam-ttrac_loadbal3 (Overall: NLFAIL)
+SMS_D_Ld2.f45_f45_mg37.PC5.izumi_nag.cam-outfrq24h_port (Overall: NLFAIL)
+SMS_D_Ln3.ne5pg3_ne5pg3_mg37.QPX2000.izumi_nag.cam-outfrq3s (Overall: NLFAIL)
+SMS_D_Ln6.ne5_ne5_mg37.QPWmaC4.izumi_nag.cam-outfrq3s_physgrid_tem (Overall: NLFAIL)
+SMS_D_Ln9.f10_f10_mg37.QPC5.izumi_nag.cam-rad_diag_mam (Overall: NLFAIL)
+SMS_D_Ln9.f10_f10_mt232.F1850.izumi_nag.cam-outfrq9s (Overall: NLFAIL)
+SUB_D_Ln9.f10_f10_mg37.QPC5.izumi_nag.cam-outfrq3s (Overall: NLFAIL)
+TMC_D.f10_f10_mg37.QPC5.izumi_nag.cam-outfrq3s_eoyttrac (Overall: NLFAIL)
+- diffs in nuopc.runconfig for pio_stride.  solutions are BFB
+
+izumi/gnu/aux_cam:
+
+ERC_D_Ln9.f10_f10_mg37.QPC4.izumi_gnu.cam-outfrq3s_diags (Overall: NLFAIL)
+ERC_D_Ln9.f10_f10_mg37.QPC5.izumi_gnu.cam-rad_diag (Overall: NLFAIL)
+ERC_D_Ln9.ne5_ne5_mg37.QPC4.izumi_gnu.cam-outfrq3s_nudging_ne5_L26 (Overall: NLFAIL)
+ERC_D_Ln9.ne5_ne5_mg37.QPC5.izumi_gnu.cam-outfrq3s_ba (Overall: NLFAIL)
+SMS_D_Ln3.ne3pg3_ne3pg3_mt232.PC7.izumi_gnu.cam-pc7_ne3pg3 (Overall: NLFAIL)
+- diffs in nuopc.runconfig for pio_stride.  solutions are BFB
+
+ERC_D_Ln9.f19_f19_mt232.FHIST.izumi_gnu.cam-lonlat_fv_diags (Overall: DIFF)
+ERC_D_Ln9.mpasa480_mpasa480_mt232.FHISTC_LTso.izumi_gnu.cam-outfrq9s_mpasa480 (Overall: DIFF)
+ERC_D_Ln9.ne3pg3_ne3pg3_mt232.FGRAYRAD.izumi_gnu.cam-outfrq9s (Overall: DIFF)
+ERC_D_Ln9.ne3pg3_ne3pg3_mt232.FHIST_C4.izumi_gnu.cam-outfrq9s (Overall: DIFF)
+ERC_D_Ln9.ne3pg3_ne3pg3_mt232.FHIST.izumi_gnu.cam-nochem_clubbmf (Overall: DIFF)
+ERC_D_Ln9.ne3pg3_ne3pg3_mt232.FTJ16.izumi_gnu.cam-outfrq9s (Overall: DIFF)
+ERP_D_Ln9.C48_C48_mg17.QPC6.izumi_gnu.cam-outfrq9s (Overall: DIFF)
+ERP_D_Ln9.ne3pg3_ne3pg3_mg37.QPC7.izumi_gnu.cam-outfrq9s (Overall: DIFF)
+ERP_Ln9.ne5_ne5_mg37.QPC5.izumi_gnu.cam-outfrq9s (Overall: DIFF)
+ERP_Ln9_P24x2.f45_f45_mg37.QPWmaC6.izumi_gnu.cam-outfrq9s_mee_fluxes (Overall: DIFF)
+ERS_Ln9_P24x1.mpasa480_mpasa480.F2000climo.izumi_gnu.cam-outfrq9s_mpasa480 (Overall: DIFF)
+SCT_D_Ln7.ne3_ne3_mg37.QPC6.izumi_gnu.cam-scm_prep_c6 (Overall: DIFF)
+SMS_D_Ln3.f10_f10_mg37.QPMOZ.izumi_gnu.cam-outfrq3s_chemproc (Overall: DIFF)
+SMS_D_Ln9.f10_f10_mg37.QPWmaC4.izumi_gnu.cam-outfrq9s_apmee (Overall: DIFF)
+SMS_D_Ln9.f19_f19_mt232.FW4madSD.izumi_gnu.cam-outfrq9s (Overall: DIFF)
+SMS_D_Ln9.ne5pg3_ne5pg3_mg37.QPC5.izumi_gnu.cam-outfrq3s_ttrac (Overall: DIFF)
+- diffs in nuopc.runconfig for pio_stride.  solution diffs due to updating compiler.
+
+CAM tag used for the baseline comparison tests if different than previous
+tag:
+
+Summarize any changes to answers: Answer changes due to compiler and
+library updates.
+
+===============================================================
+===============================================================
+
+Tag name: cam6_4_104
+Originator(s): jimmielin
+Date: Jul 14, 2025
+One-line Summary: Reorder tautms/taublj add terms for future vertical diffusion refactoring
+Github PR URL: https://github.com/ESCOMP/CAM/pull/1343
+
+Purpose of changes (include the issue number and title text for each relevant GitHub issue):
+ - reorders terms for summation of taublj and tautms to be at the end of taures instead of in the middle to facilitate future decoupling of the TMS and Beljaars code from the diffusion solver (part of #1314; part of #1205)
+ - update git submodule hashes to be consistent with .gitmodules fxTag to pass GitHub action test
+
+Describe any changes made to build system: N/A
+
+Describe any changes made to the namelist: N/A
+
+List any changes to the defaults for the boundary datasets: N/A
+
+Describe any substantial timing or memory changes: N/A
+
+Code reviewed by: cacraig
+
+List all files eliminated: N/A
+
+List all files added and what they do: N/A
+
+List all existing files that have been modified, and describe the changes:
+M       src/physics/cam/diffusion_solver.F90
+  - reorder terms for vertical diffusion surface stresses.
+
+M       cime
+M       components/cice
+M       libraries/FMS
+M       src/atmos_phys
+M       tools/CUPiD
+  - checkout git submodules corresponding to .gitmodules file for consistency
+    (no externals are updated -- only makes submodule hashes in repository consistent with .gitmodules file)
+
+If there were any failures reported from running test_driver.sh on any test
+platform, and checkin with these failures has been OK'd by the gatekeeper,
+then copy the lines from the td.*.status files for the failed tests to the
+appropriate machine below.  All failed tests must be justified.
+
+derecho/intel/aux_cam:
+  ERC_D_Ln9.f09_f09_mt232.FHIST_BDRD.derecho_intel.cam-outfrq9s (Overall: DIFF) details:
+  ERC_D_Ln9.mpasa120_mpasa120.F2000climo.derecho_intel.cam-outfrq9s_mpasa120 (Overall: DIFF) details:
+  ERC_D_Ln9.mpasa120_mpasa120.FHISTC_LTso.derecho_intel.cam-outfrq9s_mpasa120 (Overall: DIFF) details:
+  ERC_D_Ln9.ne30pg3_ne30pg3_mt232.FHISTC_LTso.derecho_intel.cam-outfrq9s (Overall: DIFF) details:
+  ERP_Ld3.ne16pg3_ne16pg3_mg17.FHISTC_WAt1ma.derecho_intel.cam-reduced_hist1d (Overall: DIFF) details:
+  ERP_Ld3.ne30pg3_ne30pg3_mt232.FHISTC_MTt4s.derecho_intel.cam-outfrq1d_aoa (Overall: DIFF) details:
+  ERP_Ln9.C96_C96_mg17.F2000climo.derecho_intel.cam-outfrq9s_mg3 (Overall: DIFF) details:
+  ERP_Ln9.f09_f09_mg17.FCSD_HCO.derecho_intel.cam-outfrq9s (Overall: DIFF) details:
+  ERP_Ln9.f19_f19_mg17.FWsc1850.derecho_intel.cam-outfrq9s (Overall: DIFF) details:
+  ERP_Ln9.ne30pg3_ne30pg3_mg17.FCnudged.derecho_intel.cam-outfrq9s (Overall: DIFF) details:
+  ERP_Ln9.ne30pg3_ne30pg3_mg17.FHISTC_WAma.derecho_intel.cam-outfrq9s (Overall: DIFF) details:
+  ERS_Ln9.f09_f09_mg17.FX2000.derecho_intel.cam-outfrq9s (Overall: DIFF) details:
+  ERS_Ln9.f19_f19_mg17.FXSD.derecho_intel.cam-outfrq9s (Overall: DIFF) details:
+  ERS_Ln9.ne30pg3_ne30pg3_mg17.FHISTC_WXma.derecho_intel.cam-outfrq9s_ctem (Overall: DIFF) details:
+  SMS_C2_D_Ln9.ne16pg3_ne16pg3_mg17.FHISTC_WXma.derecho_intel.cam-outfrq9s (Overall: DIFF) details:
+  SMS_D_Ln9.f09_f09_mg17.FCts2nudged.derecho_intel.cam-outfrq9s_leapday (Overall: DIFF) details:
+  SMS_D_Ln9.f09_f09_mg17.FCvbsxHIST.derecho_intel.cam-outfrq9s (Overall: DIFF) details:
+  SMS_D_Ln9.f09_f09_mg17.FSD.derecho_intel.cam-outfrq9s (Overall: DIFF) details:
+  SMS_D_Ln9.f19_f19_mg17.FWma2000climo.derecho_intel.cam-outfrq9s (Overall: DIFF) details:
+  SMS_D_Ln9.f19_f19_mg17.FWma2000climo.derecho_intel.cam-outfrq9s_waccm_ma_mam4 (Overall: DIFF) details:
+  SMS_D_Ln9.ne0ARCTICne30x4_ne0ARCTICne30x4_mt12.FHIST.derecho_intel.cam-outfrq9s (Overall: DIFF) details:
+  SMS_D_Ln9.ne30pg3_ne30pg3_mt232.FHISTC_MTso.derecho_intel.cam-outfrq9s (Overall: DIFF) details:
+  SMS_D_Ln9_P1280x1.ne30pg3_ne30pg3_mt232.FHISTC_MTt1s.derecho_intel.cam-outfrq9s_Leung_dust (Overall: DIFF) details:
+  SMS_Ld1.f09_f09_mg17.FCHIST_GC.derecho_intel.cam-outfrq1d (Overall: DIFF) details:
+  SMS_Ld1.f09_f09_mg17.FW2000climo.derecho_intel.cam-outfrq1d (Overall: DIFF) details:
+  SMS_Ld1.ne30pg3_ne30pg3_mg17.FC2010climo.derecho_intel.cam-outfrq1d (Overall: DIFF) details:
+  SMS_Lh12.f09_f09_mg17.FCSD_HCO.derecho_intel.cam-outfrq3h (Overall: DIFF) details:
+  SMS_Ln9.f09_f09_mg17.F2010climo.derecho_intel.cam-nudging (Overall: DIFF) details:
+  SMS_Ln9.f09_f09_mg17.FW1850.derecho_intel.cam-reduced_hist3s (Overall: DIFF) details:
+  SMS_Ln9.f19_f19_mg17.F2000climo.derecho_intel.cam-silhs (Overall: DIFF) details:
+  SMS_Ln9.ne30pg3_ne30pg3_mg17.FW2000climo.derecho_intel.cam-outfrq9s_rrtmgp (Overall: DIFF) details:
+    - new answers due to changes in order where Beljaars/TMS added to residual surface stress.
+
+  SMS_D_Ln9_P1280x1.ne0CONUSne30x8_ne0CONUSne30x8_mt12.FCHIST.derecho_intel.cam-outfrq9s (Overall: FAIL) details:
+    - pre-existing failure due to build-namelist error requiring CLM/CTSM external update.
+
+derecho/nvhpc/aux_cam:
+  ERS_Ln9.ne30pg3_ne30pg3_mg17.F2000dev.derecho_nvhpc.cam-outfrq9s_gpu_default (Overall: DIFF) details:
+    - new answers due to changes in order where Beljaars/TMS added to residual surface stress.
+
+izumi/nag/aux_cam:
+  ERC_D_Ln9.f10_f10_mt232.FHIST.izumi_nag.cam-outfrq3s_cospsathist (Overall: DIFF) details:
+  ERC_D_Ln9.ne3pg3_ne3pg3_mt232.FHISTC_LTso.izumi_nag.cam-cosp_rad_diags (Overall: DIFF) details:
+  ERC_D_Ln9.ne3pg3_ne3pg3_mt232.FHISTC_LTso.izumi_nag.cam-outfrq9s_nochem (Overall: DIFF) details:
+  SMS_D_Ln9.f10_f10_mt232.F1850.izumi_nag.cam-outfrq9s (Overall: DIFF) details:
+    - new answers due to changes in order where Beljaars/TMS added to residual surface stress.
+
+izumi/gnu/aux_cam:
+  ERC_D_Ln9.f19_f19_mt232.FHIST.izumi_gnu.cam-lonlat_fv_diags (Overall: DIFF) details:
+  ERC_D_Ln9.mpasa480_mpasa480_mt232.FHISTC_LTso.izumi_gnu.cam-outfrq9s_mpasa480 (Overall: DIFF) details:
+  ERC_D_Ln9.ne3pg3_ne3pg3_mt232.FHIST.izumi_gnu.cam-nochem_clubbmf (Overall: DIFF) details:
+  ERS_Ln9_P24x1.mpasa480_mpasa480.F2000climo.izumi_gnu.cam-outfrq9s_mpasa480 (Overall: DIFF) details:
+    - new answers due to changes in order where Beljaars/TMS added to residual surface stress.
+
+
+CAM tag used for the baseline comparison tests if different than previous
+tag:
+
+Summarize any changes to answers:
+Answer changes for all configurations using diffusion solver and Beljaars -or- TMS,
+due to change in order of operations in computing residual surface stress.
+Not all compsets change. CAM4 compsets are unaffected because they do not have orographic drag,
+so the change in adding zeros will not affect answers. "Q"/aquaplanet compsets did not see
+answer changes.
+
+
+===============================================================
+
+
+Tag name: cam6_4_103
+Originator(s): fvitt
+Date: 11 Jul 2025
+One-line Summary: High-resolution (ne120) WACCM-X
+Github PR URL: https://github.com/ESCOMP/CAM/pull/1317
+
+Purpose of changes (include the issue number and title text for each relevant GitHub issue):
+
+ Sets default namelist parameters for ne120 resolution WACCM-X.
+
+Describe any changes made to build system: N/A
+
+Describe any changes made to the namelist:
+ New namelist option:
+ . se_min_temperature
+    Used by spectral element dynamical core to apply floor to temperature.
+    If set to a value greater than zero the floor is applied.
+    Otherwise, no floor is applied.
+    Default: 0.
+
+List any changes to the defaults for the boundary datasets: N/A
+
+Describe any substantial timing or memory changes: N/A
+
+Code reviewed by: cacraigucar
+
+List all files eliminated:
+A       cime_config/testdefs/testmods_dirs/cam/outfrq1h_wcmxhires/shell_commands
+A       cime_config/testdefs/testmods_dirs/cam/outfrq1h_wcmxhires/user_nl_cam
+A       cime_config/testdefs/testmods_dirs/cam/outfrq1h_wcmxhires/user_nl_clm
+ - new regression test for ne120 waccmx
+
+List all files added and what they do:
+M       bld/build-namelist
+ - set the following default namelist parameters for waccm-x:
+  . oplus_shapiro_const
+  . se_min_temperature
+
+M       bld/configure
+ - set nlev to 273 for ne120 waccmx
+
+M       bld/namelist_files/namelist_defaults_cam.xml
+ - default namelist settings for ne120 waccmx
+
+M       bld/namelist_files/namelist_definition.xml
+ - new se_min_temperature namelist option
+
+M       cime_config/config_pes.xml
+ - default PE-layout for ne120 waccmx on derecho
+
+M       cime_config/testdefs/testlist_cam.xml
+ - new regression test for ne120 waccmx
+
+M       src/dynamics/se/dycore/control_mod.F90
+M       src/dynamics/se/dycore/prim_advance_mod.F90
+M       src/dynamics/se/dyn_comp.F90
+ - apply optional floor to temperature
+
+List all existing files that have been modified, and describe the changes:
+
+If there were any failures reported from running test_driver.sh on any test
+platform, and checkin with these failures has been OK'd by the gatekeeper,
+then copy the lines from the td.*.status files for the failed tests to the
+appropriate machine below.  All failed tests must be justified.
+
+derecho/intel/aux_cam:
+  NLFAIL ERS_Ln9.f09_f09_mg17.FX2000.derecho_intel.cam-outfrq9s
+  NLFAIL ERS_Ln9.f19_f19_mg17.FXSD.derecho_intel.cam-outfrq9s
+  NLFAIL ERS_Ln9.ne30pg3_ne30pg3_mg17.FHISTC_WXma.derecho_intel.cam-outfrq9s_ctem
+  NLFAIL SMS_C2_D_Ln9.ne16pg3_ne16pg3_mg17.FHISTC_WXma.derecho_intel.cam-outfrq9s
+  NLFAIL SMS_D_Ln9.ne16_ne16_mg17.QPX2000.derecho_intel.cam-outfrq9s_amie
+ - expected namelist compare failures due to new oplus_shapiro_const namelist parameter
+   for waccm-x
+
+  FAIL SMS_D_Ln9_P1280x1.ne0CONUSne30x8_ne0CONUSne30x8_mt12.FCHIST.derecho_intel.cam-outfrq9s
+ - pre-existing failure due to build-namelist error requiring CLM/CTSM external update
+
+derecho/nvhpc/aux_cam: All PASS
+
+izumi/nag/aux_cam:
+  NLFAIL SMS_D_Ln3.ne5pg3_ne5pg3_mg37.QPX2000.izumi_nag.cam-outfrq3s
+ - expected namelist compare failure due to new oplus_shapiro_const namelist parameter
+   for waccm-x
+
+izumi/gnu/aux_cam: All PASS
+
+Summarize any changes to answers: bit-for-bit
+
+===============================================================
+===============================================================
+
+Tag name: cam6_4_102
+Originator(s): eaton
+Date: 8 July 2025
+One-line Summary: refactor some cam6 tests
+Github PR URL: https://github.com/ESCOMP/CAM/pull/1341
+
+Purpose of changes (include the issue number and title text for each relevant GitHub issue):
+
+. Many cam6 tests are currently run in an aquaplanet mode which unsets the
+  use case.  This results in a non-standard configuration.  The focus of
+  these mods is to shift the aquaplanet tests to use F compsets which
+  result in a standard model configuration.  Also reduce the number of
+  tests by combining testmods with the intention of reducing overall test
+  time.
+. When a test is modified, update the mask from POP to MOM and update
+  ERP to ERC to eliminate an unnecessary build.
+
+Describe any changes made to build system: none
+
+Describe any changes made to the namelist: none
+
+List any changes to the defaults for the boundary datasets: none
+
+Describe any substantial timing or memory changes: none
+
+Code reviewed by: cacraig
+
+List all files eliminated:
+
+cime_config/testdefs/testmods_dirs/cam/ghgrmp_e8/*
+cime_config/testdefs/testmods_dirs/cam/nuopc_cap/*
+cime_config/testdefs/testmods_dirs/cam/outfrq3s_am/*
+cime_config/testdefs/testmods_dirs/cam/outfrq3s_co2cycle_usecase/*
+cime_config/testdefs/testmods_dirs/cam/outfrq3s_ttrac_usecase/*
+cime_config/testdefs/testmods_dirs/cam/outfrq3s_unicon/*
+. no longer needed - associated tests have been removed or refactored.
+
+List all files added and what they do:
+
+cime_config/testdefs/testmods_dirs/cam/lonlat_fv_diags/*
+. The limited area outputs are moved to here from ghgrmp_e8
+. The FV angular momentum fixer/diags and circulation diags are moved here
+  from outfrq3s_am
+. Add check_finidat_year_consistency=.false. to user_nl_clm (for ERI test)
+
+cime_config/testdefs/testmods_dirs/cam/nochem_clubbmf/*
+. test '-chem none' and clubb mass fluxes (CLUBB+MF)
+  - combines testmods outfrq9s_clubbmf and outfrq3s_ba
+
+cime_config/testdefs/testmods_dirs/cam/outfrq9s_bwic/user_nl_clm
+. add check_finidat_year_consistency=.false. for ERI test
+
+List all existing files that have been modified, and describe the changes:
+
+cime_config/testdefs/testslist_cam.xml
+. remove these cam6 tests that are testing features covered by other tests.
+  ERP_Ln9.f09_f09_mg17.F2000climo.derecho_intel.cam-outfrq9s
+  ERP_Ln9.f09_f09_mg17.F2010climo.derecho_intel.cam-outfrq9s
+  ERC_D_Ln9_P144x1.ne16pg3_ne16pg3_mg17.QPC6HIST.derecho_intel.cam-outfrq3s_ttrac_usecase
+  SMS_P48x1_D_Ln3.f09_f09_mg17.QPC6HIST.izumi_nag.cam-outfrq3s_co2cycle_usecase
+. combine testmods from ghgrmp_e8 and outfrq3s_am into lonlat_fv_diags;
+  use with FHIST compset; update the mask:
+  replace
+  ERI_D_Ln18.f19_f19_mg17.QPC6.izumi_nag.cam-ghgrmp_e8 and
+  ERC_D_Ln9.f10_f10_mg37.QPC6.izumi_nag.cam-outfrq3s_am
+  by
+  ERC_D_Ln9.f19_f19_mt232.FHIST.izumi_gnu.cam-lonlat_fv_diags
+. run test with FHIST and update mask:
+  replace
+  ERC_D_Ln9.f10_f10_mg37.QPC6.izumi_nag.cam-outfrq3s_cospsathist
+  by
+  ERC_D_Ln9.f10_f10_mt232.FHIST.izumi_nag.cam-outfrq3s_cospsathist
+. combine testmods outfrq9s_clubbmf and outfrq3s_ba and
+  replace
+  ERP_Ln9.ne5pg3_ne5pg3_mg37.QPC6.izumi_nag.cam-outfrq9s_clubbmf
+  SMS_D_Ln9.f10_f10_mg37.QPC6.izumi_nag.cam-outfrq3s_ba
+  by
+  ERC_D_Ln9.ne3pg3_ne3pg3_mt232.FHIST.izumi_gnu.cam-nochem_clubbmf
+. remove the categories aux_cam_short and aux_cam_one as they aren't being
+  used.
+. update the mask and change ERP to ERC:
+  replace
+  ERP_Ln9.f09_f09_mg17.FHIST_BDRD.derecho_intel.cam-outfrq9s
+  by
+  ERC_D_Ln9.f09_f09_mt232.FHIST_BDRD.derecho_intel.cam-outfrq9s
+
+cime_config/testdefs/testmods_dirs/cam/cosp_rad_diags/shell_commands
+cime_config/testdefs/testmods_dirs/cam/outfrq3s_cosp/shell_commands
+cime_config/testdefs/testmods_dirs/cam/outfrq3s_cospsathist/shell_commands
+. remove the conditional logic around the xmlchange command that sets the
+  -cosp option.  This logic is not needed because -cosp is never set by the
+  compset definition.  The logic was failing on my linux desktop.
+
+cime_config/testdefs/testmods_dirs/cam/outfrq3s_cospsathist/shell_commands
+. don't unset the use case
+. don't write restart file every 3 steps
+cime_config/testdefs/testmods_dirs/cam/outfrq3s_cospsathist/user_nl_cam
+. extend fexcl1 list of cloudsat fields that depend on task count
+
+If there were any failures reported from running test_driver.sh on any test
+platform, and checkin with these failures has been OK'd by the gatekeeper,
+then copy the lines from the td.*.status files for the failed tests to the
+appropriate machine below.  All failed tests must be justified.
+
+derecho/intel/aux_cam:
+
+ERC_D_Ln9.f09_f09_mt232.FHIST_BDRD.derecho_intel.cam-outfrq9s (Overall: DIFF)
+- new test - no baseline
+
+ERR_Ln9.ne16pg3_ne16pg3_mt232.FHISTC_LTso.derecho_intel.cam-outfrq9s_bwic (Overall: DIFF)
+- diffs from change in outfrq9s_bwic testmods which now produce clm output
+
+SMS_D_Ln9_P1280x1.ne0CONUSne30x8_ne0CONUSne30x8_mt12.FCHIST.derecho_intel.cam-outfrq9s (Overall: FAIL) details:
+- pre-existing failure due to build-namelist error requiring CLM/CTSM external update
+
+derecho/nvhpc/aux_cam: All PASS.
+
+izumi/nag/aux_cam:
+
+ERC_D_Ln9.f10_f10_mt232.FHIST.izumi_nag.cam-outfrq3s_cospsathist (Overall: DIFF)
+- new test - no baseline
+
+izumi/gnu/aux_cam:
+
+ERC_D_Ln9.f19_f19_mt232.FHIST.izumi_gnu.cam-lonlat_fv_diags (Overall: DIFF)
+ERC_D_Ln9.ne3pg3_ne3pg3_mt232.FHIST.izumi_gnu.cam-nochem_clubbmf (Overall: DIFF)
+- new tests - no baselines
+
+CAM tag used for the baseline comparison tests if different than previous
+tag:
+
+Summarize any changes to answers: All answers BFB.
+
+===============================================================
+===============================================================
+
+Tag name: cam6_4_101
+Originator(s): jimmielin
+Date: July 1, 2025
+One-line Summary: Write cam_in%cflx for all constituents in snapshots, not just Q
+Github PR URL: https://github.com/ESCOMP/CAM/pull/1336
+
+Purpose of changes (include the issue number and title text for each relevant GitHub issue):
+- For CAM snaphots, write cam_in%cflx for all constituents instead of just Q as it was declared horiz_only. Now write out as cam_in_cflx_(constituent name) - https://github.com/ESCOMP/CAM/issues/1335
+
+Describe any changes made to build system: N/A
+
+Describe any changes made to the namelist: N/A
+
+List any changes to the defaults for the boundary datasets: N/A
+
+Describe any substantial timing or memory changes: N/A
+
+Code reviewed by: cacraig
+
+List all files eliminated: N/A
+
+List all files added and what they do: N/A
+
+List all existing files that have been modified, and describe the changes:
+M       src/control/cam_snapshot_common.F90
+  - fix #1335
+M       src/control/cam_history.F90
+  - fix typo in comment
+
+If there were any failures reported from running test_driver.sh on any test
+platform, and checkin with these failures has been OK'd by the gatekeeper,
+then copy the lines from the td.*.status files for the failed tests to the
+appropriate machine below.  All failed tests must be justified.
+
+derecho/intel/aux_cam:
+
+SMS_D_Ln9_P1280x1.ne0CONUSne30x8_ne0CONUSne30x8_mt12.FCHIST.derecho_intel.cam-outfrq9s (Overall: FAIL)
+- pre-existing failure due to build-namelist error requiring CLM/CTSM external update
+
+derecho/nvhpc/aux_cam: All PASS
+
+izumi/nag/aux_cam: All PASS
+
+izumi/gnu/aux_cam: All PASS
+
+CAM tag used for the baseline comparison tests if different than previous
+tag:
+
+Summarize any changes to answers: B4B - only new fields to snapshots
+
+===============================================================
+
+Tag name: cam6_4_100
+Originator(s): peverwhee, gdicker1
+Date: 26 June 2025
+One-line Summary: Memory leak fixes
+Github PR URL: https://github.com/ESCOMP/CAM/pull/1333
+
+Purpose of changes (include the issue number and title text for each relevant GitHub issue):
+
+- closes #1318 - NVHPC compilers have a memory leak due to valid code being treated as allocation on assign in coords_1d.F90
+  - brings in new atmospheric_physics tag to address the leak
+
+- fixes leak in RRTMGP and modifies interfaces
+
+Describe any changes made to build system: none
+
+Describe any changes made to the namelist: none
+
+List any changes to the defaults for the boundary datasets: none
+
+Describe any substantial timing or memory changes: none
+
+Code reviewed by: cacraig
+
+List all files eliminated: n/a
+
+List all files added and what they do: n/a
+
+List all existing files that have been modified, and describe the changes:
+
+.gitmodules
+- update to atmospheric_physics tag atmos_phys0_14_001
+
+src/atmos_phys
+- update submodule
+
+src/physics/rrtmgp/radiation.F90
+- modify calling list to rrtmgp_post to match new atmospheric_physics tag
+
+If there were any failures reported from running test_driver.sh on any test
+platform, and checkin with these failures has been OK'd by the gatekeeper,
+then copy the lines from the td.*.status files for the failed tests to the
+appropriate machine below.  All failed tests must be justified.
+
+derecho/intel/aux_cam:
+
+SMS_D_Ln9_P1280x1.ne0CONUSne30x8_ne0CONUSne30x8_mt12.FCHIST.derecho_intel.cam-outfrq9s (Overall: FAIL)
+- pre-existing failure due to build-namelist error requiring CLM/CTSM external update
+
+derecho/nvhpc/aux_cam: All PASS
+
+izumi/nag/aux_cam: All PASS
+
+izumi/gnu/aux_cam: All PASS
+
+CAM tag used for the baseline comparison tests if different than previous
+tag:
+
+Summarize any changes to answers: BFB
+
+===============================================================
+
+Tag name: cam6_4_099
+Originator(s): eaton
+Date: 24 June 2025
+One-line Summary: New F compset for cam4; updates to CAM testing.
+Github PR URL: https://github.com/ESCOMP/CAM/pull/1331
+
+Purpose of changes (include the issue number and title text for each relevant GitHub issue):
+
+. Resolve #1329 - Create an F compset for CAM4
+  - Add compset FHIST_C4
+
+. Modify some MPAS tests.
+
+. Replace cam6 version of a "nochem" test by a cam7-lt version.
+
+. Resolve #1332 - ne0ARCTICne30x4 test fails with 1280 tasks and fixed CTSM,
+                  because of too few processors
+  - increase pe count from 1280 to 1920.  Make this the default in the
+    config_pes.xml file.
+
+. Resolve #1326 - Add MPAS-O and MPAS-SI from EarthWorksOrg/EarthWorks
+  - add "mpaso" as a valid value in the configure definition file
+
+Describe any changes made to build system: none
+
+Describe any changes made to the namelist: none
+
+List any changes to the defaults for the boundary datasets: none
+
+Describe any substantial timing or memory changes: none
+
+Code reviewed by: cacraig
+
+List all files eliminated:
+
+cime_config/testdefs/testmods_dirs/cam/outfrq3s_refined
+. remove unused testmods.  se_refined_mesh is set by namelist defaults.
+
+List all files added and what they do:
+
+bld/config_files/definition.xml
+. add 'mpaso' as a valid value for the -ocn argument.
+
+bld/namelist_files/use_cases/1850-2005_cam4.xml
+. This file copied from cam5_4_01.  Then modify as follows:
+  - remove setting start_ymd (done in config_component.xml)
+  - remove default output for AR5 runs
+  - remove SST datasets (now handled by DOM)
+
+List all existing files that have been modified, and describe the changes:
+
+bld/build-namelist
+bld/namelist_files/namelist_defaults_cam.xml
+. refactor how stream_ndep_year_* values are set.
+
+cime_config/config_compsets.xml
+. add FHIST for CAM4:
+  FHIST_C4 = HIST_CAM40_CLM50%SP_CICE%PRES_DOCN%DOM_MOSART_SGLC_SWAV
+
+cime_config/config_pes.xml
+. remove old settings for cheyenne
+. modify settings for mpasa120 on derecho to use 4 nodes for any compset
+. remove izumi setting that forces WACCM compsets on 1.9x2.5 grid to use
+  192 tasks.  The only 2 deg WACCM test in aux_cam runs fine with the
+  default 24 tasks.
+. set default pe count for ne0ARCTICne30x4 to 1920.  The ARCTIC test had
+  pes set in the test definition to 1280.
+
+cime_config/testdefs/testlist_cam.xml
+. remove P512 from test specifications for mpasa120 grid.  It's now the
+  default config on derecho.
+. move the '-chem none' test from cam6 to cam7-lt.  This test uses cam7
+  physics with prescribed GHGs and bulk aerosols.
+  Replace
+  SMS_Ln9.f19_f19_mg17.FHIST.derecho_intel.cam-outfrq9s_nochem
+  by
+  ERC_D_Ln9.ne3pg3_ne3pg3_mt232.FHISTC_LTso.izumi_nag.cam-outfrq9s_nochem
+. move F1850 test to low res on izumi.  change to SMS since cam6 restarts
+  throughoutly tested elsewhere.
+  Replace
+  ERP_Ln9.f09_f09_mg17.F1850.derecho_intel.cam-outfrq9s
+  by
+  SMS_D_Ln9.f10_f10_mt232.F1850.izumi_nag.cam-outfrq9s
+. add new FHIST test for cam4
+  ERC_D_Ln9.ne3pg3_ne3pg3_mt232.FHIST_C4.izumi_gnu.cam-outfrq9s
+. Change test to run on single izumi node and update to MOM mask.
+  Replace
+  SMS_P48x1_D_Ln9.f19_f19_mg17.FW4madSD.izumi_gnu.cam-outfrq9s
+  by
+  SMS_D_Ln9.f19_f19_mt232.FW4madSD.izumi_gnu.cam-outfrq9s
+. add new test
+  ERC_D_Ln9.mpasa480_mpasa480_mt232.FHISTC_LTso.izumi_gnu.cam-outfrq9s_mpasa480
+. remove - unicon is being removed.
+  ERC_D_Ln9.f10_f10_mg37.QPC5.izumi_gnu.cam-outfrq3s_unicon
+. Increase PEs for ARCTIC test by modifying config_pes.xml and remove the
+  specification from the test definition.
+  Replace
+  SMS_D_Ln9_P1280x1.ne0CONUSne30x8_ne0CONUSne30x8_mt12.FCHIST.derecho_intel.cam-outfrq9s
+  by
+  SMS_D_Ln9.ne0CONUSne30x8_ne0CONUSne30x8_mt12.FCHIST.derecho_intel.cam-outfrq9s
+
+If there were any failures reported from running test_driver.sh on any test
+platform, and checkin with these failures has been OK'd by the gatekeeper,
+then copy the lines from the td.*.status files for the failed tests to the
+appropriate machine below.  All failed tests must be justified.
+
+derecho/intel/aux_cam:
+ERC_D_Ln9.mpasa120_mpasa120.F2000climo.derecho_intel.cam-outfrq9s_mpasa120 (Overall: DIFF)
+ERC_D_Ln9.mpasa120_mpasa120.FHISTC_LTso.derecho_intel.cam-outfrq9s_mpasa120 (Overall: DIFF)
+ERC_D_Ln9.mpasa120_mpasa120.QPC7.derecho_intel.cam-outfrq9s_mpasa120 (Overall: DIFF)
+SMS_D_Ln9.ne0ARCTICne30x4_ne0ARCTICne30x4_mt12.FHIST.derecho_intel.cam-outfrq9s (Overall: DIFF)
+- new tests - no baselines
+
+SMS_D_Ln9_P1280x1.ne0CONUSne30x8_ne0CONUSne30x8_mt12.FCHIST.derecho_intel.cam-outfrq9s (Overall: FAIL)
+- pre-existing failure due to build-namelist error requiring CLM/CTSM external update
+
+derecho/nvhpc/aux_cam: All PASS
+
+izumi/nag/aux_cam:
+
+ERC_D_Ln9.ne3pg3_ne3pg3_mt232.FHISTC_LTso.izumi_nag.cam-outfrq9s_nochem (Overall: DIFF)
+SMS_D_Ln9.f10_f10_mt232.F1850.izumi_nag.cam-outfrq9s (Overall: DIFF)
+- new tests, no baselines
+
+izumi/gnu/aux_cam:
+
+ERC_D_Ln9.mpasa480_mpasa480_mt232.FHISTC_LTso.izumi_gnu.cam-outfrq9s_mpasa480 (Overall: DIFF) details:
+ERC_D_Ln9.ne3pg3_ne3pg3_mt232.FHIST_C4.izumi_gnu.cam-outfrq9s (Overall: DIFF) details:
+SMS_D_Ln9.f19_f19_mt232.FW4madSD.izumi_gnu.cam-outfrq9s (Overall: DIFF) details:
+- new tests, no baselines
+
+CAM tag used for the baseline comparison tests if different than previous
+tag:
+
+Summarize any changes to answers: BFB
+
+===============================================================
+===============================================================
+
+Tag name: cam6_4_098
+Originator(s): peverwhee
+Date: 23 Jun 2025
+One-line Summary: CAM updates to bring in CCPP-ized RRTMGP longwave modules
+Github PR URL: https://github.com/ESCOMP/CAM/pull/1290
+
+Purpose of changes (include the issue number and title text for each relevant GitHub issue):
+- Moves RRTMGP LW modules to atmospheric_physics and updates radiation
+   interfaces (addresses #1192 - Conversion of RRTMGP to CCPP)
+- Updates git-fleximod to v1.0.1
+
+The method here uses regridding capabilities provided in the ESMF library to map the dynamical
+fields needed in TEM diagnostics from the physics grid to a distributed regular longitude -
+latitude grid. The TEM diagnostics are computed on this regular longitude - latitude grid and
+computing zonal means is straightforward.
+
+Describe any changes made to build system:
+M   bld/configure
+- add RRTMGP atmos_phys directories to the build
+
+Describe any changes made to the namelist: N/A
+
+List any changes to the defaults for the boundary datasets: N/A
+
+Describe any substantial timing or memory changes: N/A
+
+Code reviewed by: nusbaume, cacraigucar
+
+List all files eliminated: N/A
+
+List all files added and what they do:
+A   utils/cam_ccpp/machine.F90
+- Used for code shared with NOAA
+
+List all existing files that have been modified, and describe the changes:
+M   src/atmos_phys
+- updated submodule
+M   src/physics/cam/cloud_rad_props.F90
+- call CCPPized cloud LW modules
+M   src/physics/cam/radheat.F90
+- call CCPPized dry static energy calcluator
+M   src/physics/rrtmgp/radiation.F90
+- update interface to cloud_rad_props_init
+M   src/physics/rrtmgp/mcica_subcol_gen.F90
+M   src/physics/rrtmgp/rad_solar_var.F90
+M   src/physics/rrtmgp/radconstants.F90
+M   src/physics/rrtmgp/radiation.F90
+M   src/physics/rrtmgp/rrtmgp_inputs_cam.F90
+- updates to use new CCPPized interfaces in src/atmos_phys/schemes/rrtmgp
+
+If there were any failures reported from running test_driver.sh on any test
+platform, and checkin with these failures has been OK'd by the gatekeeper,
+then copy the lines from the td.*.status files for the failed tests to the
+appropriate machine below.  All failed tests must be justified.
+
+derecho/intel/aux_cam:
+
+  FAIL SMS_D_Ln9_P1280x1.ne0CONUSne30x8_ne0CONUSne30x8_mt12.FCHIST.derecho_intel.cam-outfrq9s
+  - pre-existing failure due to build-namelist error requiring CLM/CTSM external update
+
+derecho/nvhpc/aux_cam: All PASS
+
+izumi/nag/aux_cam: All PASS
+
+izumi/gnu/aux_cam: All PASS
+
+Summarize any changes to answers: bit-for-bit unchanged
+
+===============================================================
+
 Tag name: cam6_4_097
 Originator(s): fvitt
 Date: 13 Jun 2025
