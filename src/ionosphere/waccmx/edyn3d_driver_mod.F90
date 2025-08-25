@@ -20,8 +20,7 @@ contains
   !-----------------------------------------------------------------------------
   subroutine edyn3d_driver_init( mpicom_atm, npes_edyn3D, edyn3d_nmlat_h, edyn3d_nmlon, edyn3d_nhgt, hilat_pot_model, wei05_coefs_file )
     use mpi_module, only: mpi_init => init, setup_topology
-    use mpi_module, only: mpi_rank, mpi_size, lat_size, lon_size, lat_rank, lon_rank
-    use mpi_module, only: nmlon_task,mlon0_task,mlon1_task, nmlat_task,mlat0_task,mlat1_task
+    use mpi_module, only: mpi_rank, mpi_size, lat_size, lon_size
     use grid_module,only: generate_mag_grid
     use init_module,only: init_cons, init_fieldline, calculate_m, get_apex
     use params_module,only: nmlat_h,nmlon, nhgt_fix, hgt_fix_r
@@ -43,7 +42,6 @@ contains
 
     use prec, only: rp
 
-    use mpi_module, only: mlon0, mlon1, mlat0, mlat1
     use edyn3d_hist_mag_grids_mod, only: edyn3d_hist_mag_grids_reg
     use cam_history, only: addfld, horiz_only
     use edyn3d_highlat_potential, only: edyn3d_highlat_potential_init
@@ -91,7 +89,6 @@ contains
          jmax_p,jmax_s1,jmax_s2,jmax_r, &
          size_p,size_s1,size_s2,size_r, &
          qdlat_p,qdlat_s1,qdlat_s2,qdlat_r)
-
 
     ! set up MPI decomposition
     call setup_topology(nmlat_h,nmlon)
@@ -183,7 +180,7 @@ contains
     use edyn3d_remap_mod, only: edyn3d_remap_mag2oplus, NOTSET
     use edyn3d_remap_mod, only: mag_fields_bundle_t, phys_fields_bundle_t, oplus_fields_bundle_t
     use edyn3d_remap_mod, only: mag_2d_fields_bundle_t, oplus_2d_fields_bundle_t
-    use edyn3d_esmf_fields_rhandles, only: magFieldDes_s1, rh_phys2mag_s1, phys2mag_nflds
+    use edyn3d_esmf_fields_rhandles, only: phys2mag_nflds
     use edyn3D_esmf_fields_rhandles, only: mag2opls_nflds
     use mpi_module, only: mlat0, mlat1, mlon0, mlon1
     use mpi_module, only: mlond0, mlond1, mlatd0, mlatd1
@@ -205,12 +202,10 @@ contains
     use solver_module, only: linear_system
     use edyn3d_highlat_potential, only: edyn3d_highlat_potential_get
 
-    !use fieldline_module,only: npts_s1,npts_s2, bmag_s1, bmag_s2, vmp_s1, vmp_s2
-    !use fieldline_module,only: D_s1,M1_s1,d1d1_s1,d1d2_s1,d2d2_s1, D_s2,M2_s2,d1d2_s2,d2d2_s2
-    !use fieldline_module,only: be3_s1, be3_s2, d1_s1, d2_s1, d1_s2, d2_s2
-    use fieldline_module
-    use params_module, only: ylonm, ylatm
-    use cons_module, only: rtd
+    use fieldline_module, only: be3_s1,be3_s2,bmag_p,D1_s1,D1_s2,d1d1_s1,d1d2_s1,d1d2_s2
+    use fieldline_module, only: d2_s1,d2_s2,d2d2_s1,d2d2_s2,d_s1,d_s2,e1_s1,e1_s2,e2_s1,e2_s2
+    use fieldline_module, only: M1_s1,M2_s2,npts_p,npts_s1,npts_s2,vmp_p,M3_r
+
     use cam_history,  only: outfld
 
     integer,  intent(in) :: nphyscol, nphyslev
@@ -223,7 +218,6 @@ contains
     real(r8), target, intent(out) :: ui_oplus(lon0:lon1,lat0:lat1,lev0:lev1)
     real(r8), target, intent(out) :: vi_oplus(lon0:lon1,lat0:lat1,lev0:lev1)
     real(r8), target, intent(out) :: wi_oplus(lon0:lon1,lat0:lat1,lev0:lev1)
-
 
     real(r8) :: opalt(lon0:lon1,lat0:lat1,lev0:lev1)
 
@@ -247,7 +241,7 @@ contains
     real(r8), target :: vn_s2(nhgt_fix,2,mlat0:mlat1,mlon0:mlon1)
 
     real(r8) :: tmp_ghost(4,nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1)
-    integer :: i, rc , isn, j
+    integer :: j
 
     real(r8) :: sigP_s1(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1)
     real(r8) :: zigP_s1(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1)
@@ -299,9 +293,6 @@ contains
     real(r8),target :: vx_s2(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1)
     real(r8),target :: vy_s2(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1)
     real(r8),target :: vz_s2(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1)
-
-    real(r8) :: maglon(2,mlat0:mlat1,mlon0:mlon1)
-    real(r8) :: maglat(2,mlat0:mlat1,mlon0:mlon1)
 
     real(r8),target :: hlfac_op(lon0:lon1,lat0:lat1)
     real(r8),target :: hlpot_op(lon0:lon1,lat0:lat1)

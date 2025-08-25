@@ -67,7 +67,7 @@ contains
 
     real(r8) :: physflds_tmp(nphyscol,nhgt_fix,nflds)
 
-    integer :: n, i, j, k, isn, jj, nmlat, rc
+    integer :: n, i, j, k, isn, jj, rc
     integer :: ncells_hlat, localDECount, nde
 
     real(kind=ESMF_KIND_R8), pointer :: fptr2d(:,:)
@@ -171,7 +171,7 @@ contains
 
     real(r8) :: physflds_tmp(nphyscol,nhgt_fix,nflds)
 
-    integer :: n, i, j, k, isn, jj, nmlat, rc
+    integer :: n, i, j, k, isn, jj, rc
     integer :: ncells_hlat, localDECount, nde
 
     real(kind=ESMF_KIND_R8), pointer :: fptr2d(:,:)
@@ -364,7 +364,6 @@ contains
     use edyn3D_esmf_fields_rhandles, only: magFieldSrc_ref_p, oplusFieldDes_ref_p, rh_mag2oplus_ref_p
     use edyn3D_esmf_fields_rhandles, only: nflds => mag2opls_ref_p_nflds
     use edyn3d_esmf_mag_ref_p_grid_mod, only: mag_ref_p_fdln_grid
-    use edyn_mpi, only: lon0,lon1,lat0,lat1
 
     type(mag_2d_fields_bundle_t) :: magflds(nflds)
     type(oplus_2d_fields_bundle_t) :: oplusflds(nflds) ! field mapped to oplus grid

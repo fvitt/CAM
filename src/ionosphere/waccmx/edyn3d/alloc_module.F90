@@ -48,9 +48,6 @@ contains
 ! the grid at j==nmlat_h is not defined.
 
     use mpi_module,only:mlond0,mlond1,mlatd0,mlatd1
-    use cons_module, only: J3LB
-    !use fieldline_module, only: f3d, f3d_r, uvec
-    !use fieldline_module, only: glat_p, glon_p, sinI_p, D_p, F_p
     use fieldline_module
 
     integer, intent(out) :: ierr

@@ -34,10 +34,9 @@ contains
   !-----------------------------------------------------------------------------
   subroutine edyn3d_esmf_p_mag_grid_init()
     use fieldline_module, only: npts_p, glon_p, glat_p
-    use params_module, only: nz=>nhgt_fix, nmlon, nmlat_h
-    use mpi_module, only: mytid=>mpi_rank, ntask=>mpi_size, lon_size, lat_size
-    use mpi_module, only: mlon0,mlon1,mlat0,mlat1, mlon0_task, mlon1_task, mlat0_task, mlat1_task
-    use mpi_module, only: nmlon_task, nmlat_task
+    use params_module, only: nz=>nhgt_fix, nmlat_h
+    use mpi_module, only: mlat0_task, mlat1_task
+    use mpi_module, only: lon_size, nmlon_task, nmlat_task
 
     integer :: rc, astat
     !logical :: found_eq

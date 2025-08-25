@@ -467,7 +467,7 @@ contains
 
     real(r8) :: tmparray(mlon0:mlon1,s1flpt0:s1flpt1)
 
-    integer :: n, i, j, k, isn, k0, k1, dk
+    integer :: n, j, k, isn, k0, k1, dk
 
     tmparray = NOTSET
 
@@ -511,7 +511,7 @@ contains
 
     real(r8) :: tmparray(mlon0:mlon1,s2flpt0:s2flpt1)
 
-    integer :: n, i, j, k, isn, k0, k1, dk
+    integer :: n, j, k, isn, k0, k1, dk
 
     tmparray = NOTSET
 

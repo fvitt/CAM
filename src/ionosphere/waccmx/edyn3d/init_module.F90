@@ -10,7 +10,7 @@ module init_module
 ! Set derived constants
 
     use params_module,only:nmlat_h,nmlon,ylatm
-    use cons_module,only:days_in_month,ndays,ylatm_JT,jlatm_JT,J3LB
+    use cons_module,only:ylatm_JT,jlatm_JT,J3LB
     use solver_module,only:nlonlat
 
     integer,dimension(1) :: idx
@@ -139,7 +139,7 @@ module init_module
 
     real(kind=rp),parameter :: hr = h0*1e-3_rp
     integer :: i,j,isn,k,icomp, &
-      nlat,nlon,nalt,ist ! for generating interpolation grids in apex
+      ist ! for generating interpolation grids in apex
     real(kind=rp) :: qdlat,qdlon,alt,gdlat,gdlon, &
 ! scalar arguments returned by APXMALL
       bmag,si,alon,xlatm,vmp,w,d,be3,sim,xlatqd,f

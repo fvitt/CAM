@@ -77,7 +77,7 @@ module mpi_module
 
     integer, intent(in) :: nmlat_in, nmlon_in
 
-    integer :: i, j, rnk, rnki, rnkj, ndest, iconj
+    integer :: i, j, rnk, rnki, rnkj
 
     allocate(nmlat_task(0:lat_size-1))
 
