@@ -42,7 +42,6 @@ contains
     use fieldline_module, only: glat_p, glon_p, glat_s1, glon_s1, glat_s2, glon_s2
 
     use prec, only: rp
-    use cons_module, only: read_fac
 
     use mpi_module, only: mlon0, mlon1, mlat0, mlat1
     use edyn3d_hist_mag_grids_mod, only: edyn3d_hist_mag_grids_reg
@@ -84,7 +83,7 @@ contains
 
     call alloc_fieldline_lite(ierror)
     if (ierror/=0) then
-       call endrun(prefix//'alloc_fieldline failed')
+       call endrun(prefix//'alloc_fieldline_lite failed')
     end if
 
     ! set up field-line grids
@@ -171,8 +170,6 @@ contains
     call addfld ('Ve1s2', horiz_only, 'I', 'm/s','Ion Drift Velocity', gridname='geomag_s2')
     call addfld ('Ve2s2', horiz_only, 'I', 'm/s','Ion Drift Velocity', gridname='geomag_s2')
 
-    read_fac = .false. ! prescribed high-lat potential (pot_hl) will be provided
-
     call edyn3d_highlat_potential_init(hilat_pot_model,wei05_coefs_file)
 
   end subroutine edyn3d_driver_init
@@ -199,11 +196,12 @@ contains
     use edyn3d_hist_mag_grids_mod, only: edyn3d_hist_mlonlat_s_out
     use mpi_module, only: sync_mlat_5d, sync_mlon_5d
     use calculate_terms_module, only: calculate_conductance
-    use calculate_terms_module, only: calculate_n, calculate_je, calculate_s
+    use calculate_terms_module, only: calculate_n, calculate_je
     use calculate_terms_module, only: calculate_ed, calculate_ve, calculate_vxyz
 
-    use stencil_module, only: calculate_coef, calculate_coef_ns2, calculate_coef_ns
+    use stencil_module, only: calculate_coef2d, calculate_coef3d
     use stencil_module, only: calculate_bij
+    use stencil_module, only: calculate_src3d,calculate_src2d
     use solver_module, only: linear_system
     use edyn3d_highlat_potential, only: edyn3d_highlat_potential_get
 
@@ -273,9 +271,12 @@ contains
     real(r8) :: Je2D_s2(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1)
     real(r8) :: S_p(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1)
 
-    real(r8) :: coef(10,nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1)
-    real(r8) :: coef_ns2(10,2,mlatd0:mlatd1,mlond0:mlond1)
-    real(r8) :: coef_ns(10,2,mlatd0:mlatd1,mlond0:mlond1)
+    real(r8) :: coef3d(9,nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1)
+    real(r8) :: coef2d(9,2,mlatd0:mlatd1,mlond0:mlond1)
+    real(r8) :: zigP_p(2,mlatd0:mlatd1,mlond0:mlond1)
+    real(r8) :: sigP_p(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1)
+    real(r8) :: src3d(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1)
+    real(r8) :: src2d(2,mlatd0:mlatd1,mlond0:mlond1)
 
     real(r8) :: bij(mlatd0:mlatd1,mlond0:mlond1)
 
@@ -379,11 +380,15 @@ contains
        N2p_s2 = nan
        N2h_s2 = nan
        Je2D_s2 = nan
-
        S_p = nan
-       coef = nan
-       coef_ns = nan
-       coef_ns2 = nan
+
+       coef2d = nan
+       coef3d = nan
+       zigP_p = nan
+       sigP_p = nan
+       src3d = nan
+       src2d = nan
+
        bij = nan
 
        call t_startf(subname//'->ghost_exchange')
@@ -415,13 +420,10 @@ contains
        ntlV_s2(:,:,:,:) = tmp_ghost(4,:,:,:,:)
        call t_stopf(subname//'->ghost_exchange')
 
-       ! calculate field-line integrated conductance - S1,S2
+       ! calculate field-line integrated conductance - P
        call calculate_conductance( &
             mlatd0,mlatd1,mlond0,mlond1, &
-            npts_s1,npts_s2, &
-            vmp_s1,bmag_s1,sigP_s1,sigH_s1, &
-            vmp_s2,bmag_s2,sigP_s2,sigH_s2, &
-            zigP_s1,zigH_s1,zigP_s2,zigH_s2 )
+            npts_p,vmp_p,bmag_p,sigP_p,zigP_p)
 
        ! calculate N coefficients - S1,S2
        call calculate_n( &
@@ -430,30 +432,30 @@ contains
             D_s2,M2_s2,d1d2_s2,d2d2_s2,sigP_s2,sigH_s2, &
             N1p_s1,N1h_s1,N2p_s2,N2h_s2)
 
-       ! calculate JeD-coefficients (right hand side) - S1,S2
+       ! calculate wind driven currents (Je1D,Je2D) - S1,S2
        call calculate_je( &
             mlatd0,mlatd1,mlond0,mlond1,npts_s1,npts_s2, &
             D_s1,be3_s1,d1d1_s1,d1d2_s1,d2d2_s1,sigP_s1,sigH_s1,ntlU_s1,ntlV_s1, &
             D_s2,be3_s2,d1d2_s2,d2d2_s2,sigP_s2,sigH_s2,ntlU_s2,ntlV_s2, &
             d1_s1,d2_s1,d1_s2,d2_s2,Je1D_s1,Je2D_s2)
 
-       ! calculate S (right hand side)
-       S_p = calculate_s(mlatd0,mlatd1,mlond0,mlond1, &
-            npts_p,M1_s1,Je1D_s1,M2_s2,Je2D_s2,M3_r)
-
        ! calculate height-dependent matrix coefficients
-       coef = calculate_coef(mlatd0,mlatd1,mlond0,mlond1, &
-            npts_p,S_p,N1p_s1,N1h_s1,N2p_s2,N2h_s2)
+       coef3d = calculate_coef3d(mlatd0,mlatd1,mlond0,mlond1, &
+            npts_p,npts_s2,N1p_s1,N1h_s1,N2p_s2,N2h_s2)
 
-       ! add the coefficients in height to get coefficients for each hemisphere
-       coef_ns2 = calculate_coef_ns2(mlatd0,mlatd1,mlond0,mlond1,coef)
+       ! add the coefficients in height to get the coefficients for each hemisphere
+       coef2d = calculate_coef2d(mlatd0,mlatd1,mlond0,mlond1,coef3d)
 
-       ! set the coefficient matrix in both hemispheres
-       coef_ns = calculate_coef_ns(mlatd0,mlatd1,mlond0,mlond1,coef_ns2)
+       ! calculate wind driven ionospheric current sources
+       src3d = calculate_src3d(mlatd0,mlatd1,mlond0,mlond1, &
+            npts_p,npts_s2,M1_s1,Je1D_s1,M2_s2,Je2D_s2,M3_r(1,:,:,:))
+
+       ! add the source in height to get the source for each hemisphere
+       src2d = calculate_src2d(mlatd0,mlatd1,mlond0,mlond1,src3d)
 
        ! set field-aligned conductance (b) matrix
        if (setbij) then
-          bij = calculate_bij(mlatd0,mlatd1,mlond0,mlond1,coef_ns2)
+          bij = calculate_bij(mlatd0,mlatd1,mlond0,mlond1,coef2d)
        else
           bij = 0._r8
        endif
@@ -468,7 +470,7 @@ contains
 
        ! construct linear system and solve
        call t_startf(subname//'->linear_system_solve')
-       call linear_system(mlatd0,mlatd1,mlond0,mlond1, bij,pot_hl_p,fac_hl_p,coef_ns,pot_p)
+       call linear_system(mlatd0,mlatd1,mlond0,mlond1, bij,pot_hl_p,fac_hl_p,src2d,coef2d,pot_p)
        call t_stopf(subname//'->linear_system_solve')
 
        call edyn3d_hist_mlonlat_out('HILAT_FAC',fac_hl_p(1:2,mlat0:mlat1,mlon0:mlon1))

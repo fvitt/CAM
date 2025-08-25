@@ -57,11 +57,6 @@ contains
 
     ierr = 0
 
-    allocate(J3LB(2,nmlat_h,mlond0:mlond1), stat=ierr)
-    if (ierr /= 0) return
-
-    J3LB = 0._rp
-
     allocate(f3d(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1,32), stat=ierr)
     if (ierr /= 0) return
     allocate(f3d_r(nhgt_fix_r,2,mlatd0:mlatd1,mlond0:mlond1,6), stat=ierr)

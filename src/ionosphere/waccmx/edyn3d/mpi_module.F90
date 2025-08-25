@@ -1,11 +1,8 @@
-#define PARALLEL
 module mpi_module
 
   use prec, only: rp
-#ifdef PARALLEL
   use MPI
   use iso_fortran_env, only: real32,real64
-#endif
 
   implicit none
 
@@ -14,6 +11,7 @@ module mpi_module
     lat_size=0, lon_size=0, lat_rank=-1, lon_rank=-1, &
     nmlat=0, maxmlat=-1, mlat0=1, mlat1=0, mlatd0=1, mlatd1=0, &
     nmlon=0, maxmlon=-1, mlon0=1, mlon1=0, mlond0=1, mlond1=0
+
   integer, dimension(:), allocatable :: &
     nmlat_task, mlat0_task, mlat1_task, &
     nmlon_task, mlon0_task, mlon1_task
@@ -22,6 +20,11 @@ module mpi_module
     module procedure gather_mag_2d, gather_mag_3d, gather_mag_4d, gather_mag_5d
   endinterface
 
+  interface bcast ! broadcast fields
+    module procedure bcast_2d, bcast_3d
+  endinterface bcast
+
+
   contains
 !-----------------------------------------------------------------------
   subroutine init(mpi_comm_host, npes_edyn3d)
@@ -29,7 +32,6 @@ module mpi_module
     integer, intent(in) :: mpi_comm_host
     integer, intent(in) :: npes_edyn3d
 
-#ifdef PARALLEL
     integer :: ierror
     integer :: color, npes_host
 
@@ -52,23 +54,15 @@ module mpi_module
     color = mpi_rank/mpi_size
     call mpi_comm_split(mpi_comm_host, color, mpi_rank, dynamo_world, ierror)
 
-#else
-    mpi_rp = rp
-    mpi_size = 1
-    mpi_rank = 0
-#endif
 
 ! factorize MPI process number to the nearest two numbers
     do lat_size = int(sqrt(real(mpi_size, kind=rp))), 1, -1
       lon_size = mpi_size / lat_size
       if (lon_size*lat_size == mpi_size) exit ! lon_size >= lat_size
     enddo
-!!$    do lon_size = int(sqrt(real(mpi_size, kind=rp))), 1, -1
-!!$      lat_size = mpi_size / lon_size
-!!$      if (lat_size*lon_size == mpi_size) exit ! lon_size >= lat_size
-!!$    enddo
 
-! stack along latitudes first then longitudes
+! 2D index increases faster in latitudes
+! (stack along latitudes first then longitudes)
 ! (lat_size=3)
 !  8  9 10 11
 !  4  5  6  7
@@ -79,53 +73,42 @@ module mpi_module
   endsubroutine init
 !-----------------------------------------------------------------------
   subroutine setup_topology(nmlat_in, nmlon_in)
-! setup MPI decompositions in geo and mag coordinates and the connectivity matrix
+! setup MPI decompositions in mag coordinates and the connectivity matrix
 
     integer, intent(in) :: nmlat_in, nmlon_in
 
-    integer :: i, j, rnk, rnki, rnkj
+    integer :: i, j, rnk, rnki, rnkj, ndest, iconj
 
     allocate(nmlat_task(0:lat_size-1))
-    allocate(nmlon_task(0:lon_size-1))
 
-    nmlat_task = 0
-    nmlon_task = 0
+    allocate(nmlon_task(0:lon_size-1))
 
     allocate(mlat0_task(0:mpi_size-1))
     allocate(mlat1_task(0:mpi_size-1))
     allocate(mlon0_task(0:mpi_size-1))
     allocate(mlon1_task(0:mpi_size-1))
 
-    mlat0_task = 1
-    mlon0_task = 1
-    mlat1_task = -1
-    mlon1_task = -1
-
     nmlat = nmlat_in
     nmlon = nmlon_in
 
-! setup magnetic grid decomposition
+! setup magnetic decomposition
 ! each process can have unequal number of latitudes or longitudes
 
     nmlat_task = generate_minvar_list(nmlat, lat_size)
     maxmlat = maxval(nmlat_task)
-    if (lat_rank<lat_size) then
-       mlat0 = 1
-       do j = 0, lat_rank-1
-          mlat0 = mlat0 + nmlat_task(j)
-       enddo
-       mlat1 = mlat0 + nmlat_task(lat_rank) - 1
-    endif
+    mlat0 = 1
+    do j = 0, lat_rank-1
+      mlat0 = mlat0 + nmlat_task(j)
+    enddo
+    mlat1 = mlat0 + nmlat_task(lat_rank) - 1
 
     nmlon_task = generate_minvar_list(nmlon, lon_size)
     maxmlon = maxval(nmlon_task)
-    if (lat_rank<lat_size) then
-       mlon0 = 1
-       do i = 0, lon_rank-1
-          mlon0 = mlon0 + nmlon_task(i)
-       enddo
-       mlon1 = mlon0 + nmlon_task(lon_rank) - 1
-    endif
+    mlon0 = 1
+    do i = 0, lon_rank-1
+      mlon0 = mlon0 + nmlon_task(i)
+    enddo
+    mlon1 = mlon0 + nmlon_task(lon_rank) - 1
 
 ! each process keeps a record of the lat-lon decomposition
     do concurrent (rnk = 0:mpi_size-1)
@@ -153,30 +136,17 @@ module mpi_module
 
   endsubroutine setup_topology
 !-----------------------------------------------------------------------
-  subroutine finalize
 
-#ifdef PARALLEL
-    use MPI
 
-    integer :: ierror
-
-    call MPI_Finalize(ierror)
-    if (ierror /= MPI_SUCCESS) call handle_error('MPI_Finalize', ierror)
-#endif
-
-  endsubroutine finalize
 !-----------------------------------------------------------------------
   subroutine sync_mlat_5d(var, l, m, n)
 ! longitude halo points are not included
 
-#ifdef PARALLEL
     use MPI
-#endif
 
     integer, intent(in) :: l, m, n
     real(kind=rp), dimension(l, m, n, mlatd0:mlatd1, mlon0:mlon1), intent(inout) :: var
 
-#ifdef PARALLEL
     integer :: below, above, cnt, i, lc, mc, nc, ierror
     integer, dimension(4) :: request
     real(kind=rp), dimension(l, m, n, maxmlon) :: &
@@ -236,23 +206,17 @@ module mpi_module
         var(lc, mc, nc, mlatd1, i) = recv_from_above(lc, mc, nc, i-mlon0+1)
       enddo
     endif
-#endif
 
   endsubroutine sync_mlat_5d
 !-----------------------------------------------------------------------
   subroutine sync_mlon_5d(var, l, m, n)
 
-#ifdef PARALLEL
     use MPI
-#endif
 
     integer, intent(in) :: l, m, n
     real(kind=rp), dimension(l, m, n, mlatd0:mlatd1, mlond0:mlond1), intent(inout) :: var
 
-    integer :: j, lc, mc, nc
-
-#ifdef PARALLEL
-    integer :: left, right, cnt, ierror
+    integer :: j, lc, mc, nc, left, right, cnt, ierror
     integer, dimension(4) :: request
     real(kind=rp), dimension(l, m, n, maxmlat+4) :: &
       send_to_left, send_to_right, recv_from_left, recv_from_right
@@ -304,29 +268,18 @@ module mpi_module
       var(lc, mc, nc, j, mlond0) = recv_from_left(lc, mc, nc, j-mlatd0+1)
       var(lc, mc, nc, j, mlond1) = recv_from_right(lc, mc, nc, j-mlatd0+1)
     enddo
-#else
-    do concurrent (j = mlatd0:mlatd1, nc = 1:n, mc = 1:m, lc = 1:l)
-      var(lc, mc, nc, j, mlond0) = var(lc, mc, nc, j, mlon1)
-      var(lc, mc, nc, j, mlond1) = var(lc, mc, nc, j, mlon0)
-    enddo
-#endif
 
   endsubroutine sync_mlon_5d
 !-----------------------------------------------------------------------
   function gather_mlon_3d(varin, m, n) result(varout)
 
-#ifdef PARALLEL
     use MPI
-#endif
 
     integer, intent(in) :: m, n
     real(kind=rp), dimension(m, n, mlon0:mlon1), intent(in) :: varin
     real(kind=rp), dimension(m, n, nmlon) :: varout
 
-    integer :: i, mc, nc
-
-#ifdef PARALLEL
-    integer :: cnt, rnki, i0, i1, ierror
+    integer :: i, mc, nc, cnt, rnki, i0, i1, ierror
     integer, dimension(0:lon_size*2-1) :: request
     real(kind=rp), dimension(m, n, maxmlon) :: sendbuf
     real(kind=rp), dimension(m, n, maxmlon, 0:lon_size-1) :: recvbuf
@@ -363,28 +316,18 @@ module mpi_module
         varout(mc, nc, i) = recvbuf(mc, nc, i-i0+1, rnki)
       enddo
     enddo
-#else
-    do concurrent (i = mlon0:mlon1, nc = 1:n, mc = 1:m)
-      varout(mc, nc, i) = varin(mc, nc, i)
-    enddo
-#endif
 
   endfunction gather_mlon_3d
 !-----------------------------------------------------------------------
   function gather_mag_2d(varin, root) result(varout)
 
-#ifdef PARALLEL
     use MPI
-#endif
 
     integer, intent(in) :: root
     real(kind=rp), dimension(mlat0:mlat1, mlon0:mlon1), intent(in) :: varin
     real(kind=rp), dimension(nmlat, nmlon) :: varout
 
-    integer :: i, j
-
-#ifdef PARALLEL
-    integer :: cnt, rnk, i0, i1, j0, j1, ierror
+    integer :: i, j, cnt, rnk, i0, i1, j0, j1, ierror
     real(kind=rp), dimension(maxmlat, maxmlon) :: sendbuf
     real(kind=rp), dimension(maxmlat, maxmlon, 0:mpi_size-1) :: recvbuf
 
@@ -417,28 +360,18 @@ module mpi_module
         enddo
       enddo
     endif
-#else
-    do concurrent (i = mlon0:mlon1, j = mlat0:mlat1)
-      varout(j, i) = varin(j, i)
-    enddo
-#endif
 
   endfunction gather_mag_2d
 !-----------------------------------------------------------------------
   function gather_mag_3d(varin, n, root) result(varout)
 
-#ifdef PARALLEL
     use MPI
-#endif
 
     integer, intent(in) :: n, root
     real(kind=rp), dimension(n, mlat0:mlat1, mlon0:mlon1), intent(in) :: varin
     real(kind=rp), dimension(n, nmlat, nmlon) :: varout
 
-    integer :: i, j, nc
-
-#ifdef PARALLEL
-    integer :: cnt, rnk, i0, i1, j0, j1, ierror
+    integer :: i, j, nc, cnt, rnk, i0, i1, j0, j1, ierror
     real(kind=rp), dimension(n, maxmlat, maxmlon) :: sendbuf
     real(kind=rp), dimension(n, maxmlat, maxmlon, 0:mpi_size-1) :: recvbuf
 
@@ -471,28 +404,18 @@ module mpi_module
         enddo
       enddo
     endif
-#else
-    do concurrent (i = mlon0:mlon1, j = mlat0:mlat1, nc = 1:n)
-      varout(nc, j, i) = varin(nc, j, i)
-    enddo
-#endif
 
   endfunction gather_mag_3d
 !-----------------------------------------------------------------------
   function gather_mag_4d(varin, m, n, root) result(varout)
 
-#ifdef PARALLEL
     use MPI
-#endif
 
     integer, intent(in) :: m, n, root
     real(kind=rp), dimension(m, n, mlat0:mlat1, mlon0:mlon1), intent(in) :: varin
     real(kind=rp), dimension(m, n, nmlat, nmlon) :: varout
 
-    integer :: i, j, mc, nc
-
-#ifdef PARALLEL
-    integer :: cnt, rnk, i0, i1, j0, j1, ierror
+    integer :: i, j, mc, nc, cnt, rnk, i0, i1, j0, j1, ierror
     real(kind=rp), dimension(m, n, maxmlat, maxmlon) :: sendbuf
     real(kind=rp), dimension(m, n, maxmlat, maxmlon, 0:mpi_size-1) :: recvbuf
 
@@ -525,28 +448,18 @@ module mpi_module
         enddo
       enddo
     endif
-#else
-    do concurrent (i = mlon0:mlon1, j = mlat0:mlat1, nc = 1:n, mc = 1:m)
-      varout(mc, nc, j, i) = varin(mc, nc, j, i)
-    enddo
-#endif
 
   endfunction gather_mag_4d
 !-----------------------------------------------------------------------
   function gather_mag_5d(varin, l, m, n, root) result(varout)
 
-#ifdef PARALLEL
     use MPI
-#endif
 
     integer, intent(in) :: l, m, n, root
     real(kind=rp), dimension(l, m, n, mlat0:mlat1, mlon0:mlon1), intent(in) :: varin
     real(kind=rp), dimension(l, m, n, nmlat, nmlon) :: varout
 
-    integer :: i, j, lc, mc, nc
-
-#ifdef PARALLEL
-    integer :: cnt, rnk, i0, i1, j0, j1, ierror
+    integer :: i, j, lc, mc, nc, cnt, rnk, i0, i1, j0, j1, ierror
     real(kind=rp), dimension(l, m, n, maxmlat, maxmlon) :: sendbuf
     real(kind=rp), dimension(l, m, n, maxmlat, maxmlon, 0:mpi_size-1) :: recvbuf
 
@@ -579,24 +492,43 @@ module mpi_module
         enddo
       enddo
     endif
-#else
-    do concurrent (i = mlon0:mlon1, j = mlat0:mlat1, nc = 1:n, mc = 1:m, lc = 1:l)
-      varout(lc, mc, nc, j, i) = varin(lc, mc, nc, j, i)
-    enddo
-#endif
 
   endfunction gather_mag_5d
 !-----------------------------------------------------------------------
+  subroutine bcast_2d(var, m, n, root)
+
+    use MPI
+
+    integer, intent(in) :: m, n, root
+    real(kind=rp), dimension(m, n), intent(inout) :: var
+
+    integer :: cnt, mc, nc, ierror
+    real(kind=rp), dimension(m, n) :: buffer
+
+    cnt = m * n
+
+! load to work array
+    do concurrent (nc = 1:n, mc = 1:m)
+      buffer(mc, nc) = var(mc, nc)
+    enddo
+
+    call MPI_Bcast(buffer, cnt, mpi_rp, root, dynamo_world, ierror)
+    if (ierror /= MPI_SUCCESS) call handle_error('MPI_Bcast', ierror)
+
+! unpack to model fields
+    do concurrent (nc = 1:n, mc = 1:m)
+      var(mc, nc) = buffer(mc, nc)
+    enddo
+
+  endsubroutine bcast_2d
+!-----------------------------------------------------------------------
   subroutine bcast_3d(var, l, m, n, root)
 
-#ifdef PARALLEL
     use MPI
-#endif
 
     integer, intent(in) :: l, m, n, root
     real(kind=rp), dimension(l, m, n), intent(inout) :: var
 
-#ifdef PARALLEL
     integer :: cnt, lc, mc, nc, ierror
     real(kind=rp), dimension(l, m, n) :: buffer
 
@@ -614,21 +546,17 @@ module mpi_module
     do concurrent (nc = 1:n, mc = 1:m, lc = 1:l)
       var(lc, mc, nc) = buffer(lc, mc, nc)
     enddo
-#endif
 
   endsubroutine bcast_3d
 !-----------------------------------------------------------------------
   function reduce_sum_1d(varin, n, root) result(varout)
 
-#ifdef PARALLEL
     use MPI
-#endif
 
     integer, intent(in) :: n, root
     real(kind=rp), dimension(n), intent(in) :: varin
     real(kind=rp), dimension(n) :: varout
 
-#ifdef PARALLEL
     integer :: ierror
 
     if (root < 0) then
@@ -640,26 +568,27 @@ module mpi_module
         MPI_SUM, root, dynamo_world, ierror)
       if (ierror /= MPI_SUCCESS) call handle_error('MPI_Reduce', ierror)
     endif
-#else
-    integer :: nc
-
-    do concurrent (nc = 1:n)
-      varout(nc) = varin(nc)
-    enddo
-#endif
 
   endfunction reduce_sum_1d
 !-----------------------------------------------------------------------
+  subroutine finalize
+
+    use MPI
+
+    integer :: ierror
+
+    call MPI_Finalize(ierror)
+    if (ierror /= MPI_SUCCESS) call handle_error('MPI_Finalize', ierror)
+
+  endsubroutine finalize
+!-----------------------------------------------------------------------
   subroutine handle_error(funcname, errorcode)
 
-#ifdef PARALLEL
     use MPI
-#endif
 
     character(len=*), intent(in) :: funcname
     integer, intent(in) :: errorcode
 
-#ifdef PARALLEL
     character(len=MPI_MAX_ERROR_STRING) :: string
     integer :: resultlen, ierror
 
@@ -667,7 +596,6 @@ module mpi_module
     write(6, "('MPI error encountered: ', a, ', when calling ', a, '. Finalizing...')") &
       trim(string), trim(funcname)
     call MPI_Finalize(ierror)
-#endif
 
   endsubroutine handle_error
 !-----------------------------------------------------------------------
