@@ -864,10 +864,15 @@ subroutine coreshell_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
            scatseasalt(:ncol)  = 0._r8
            absseasalt(:ncol)   = 0._r8
            hygroseasalt(:ncol) = 0._r8
-           absaluminum(:ncol)   = 0._r8
-           hygroaluminum(:ncol) = 0._r8
-           hygrocalc(:ncol) = 0._r8
-           hygrodiam(:ncol) = 0._r8
+           scataluminum(:ncol) = 0._r8
+           absaluminum(:ncol)  = 0._r8
+           hygroaluminum(:ncol)= 0._r8
+           scatcalc(:ncol)     = 0._r8
+           abscalc(:ncol)      = 0._r8
+           hygrocalc(:ncol)    = 0._r8
+           absdiam(:ncol)      = 0._r8
+           scatdiam(:ncol)     = 0._r8
+           hygrodiam(:ncol)    = 0._r8
 
            ! aerosol species loop
            do l = 1, nspec
@@ -1108,13 +1113,14 @@ subroutine coreshell_aero_sw(list_idx, state, pbuf, nnite, idxnite, &
 
               dryvol_m3(:ncol) = four_thirds_pi * (dryr(:ncol,k)**3)
               wetvol_m3(:ncol) = four_thirds_pi * (wetr(:ncol,k)**3)
-              watervol(:ncol) = wetvol(:ncol)-dryvol(:ncol)
               where (dryvol_m3(:ncol)>0._r8)
                  wet_dry_frac(:ncol) = wetvol_m3(:ncol)/dryvol_m3(:ncol)
               elsewhere
                  wet_dry_frac(:ncol) = 0.0_r8
               end where
               wetvol(:ncol) = dryvol(:ncol)*wet_dry_frac(:ncol)
+
+              watervol(:ncol) = wetvol(:ncol)-dryvol(:ncol)
 
               ! aerosol extinction (/m)
               do i = 1, ncol
