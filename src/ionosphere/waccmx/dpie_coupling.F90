@@ -123,6 +123,12 @@ contains
        call addfld ('OPLUS', (/ 'lev' /), 'I', 'cm^3','O+ (oplus_xport output)',    gridname='geo_grid')
        call addfld ('OPtm1i',(/ 'lev' /), 'I', 'cm^3','O+ (oplus_xport output)',    gridname='geo_grid')
        call addfld ('OPtm1o',(/ 'lev' /), 'I', 'cm^3','O+ (oplus_xport output)',    gridname='geo_grid')
+
+       call addfld ('FePtm1i',(/ 'lev' /), 'I', 'cm^3','Fe+ (oplus_xport output)',    gridname='geo_grid')
+       call addfld ('FePtm1o',(/ 'lev' /), 'I', 'cm^3','Fe+ (oplus_xport output)',    gridname='geo_grid')
+
+       call addfld ('MgPtm1i',(/ 'lev' /), 'I', 'cm^3','Mg+ (oplus_xport output)',    gridname='geo_grid')
+       call addfld ('MgPtm1o',(/ 'lev' /), 'I', 'cm^3','Mg+ (oplus_xport output)',    gridname='geo_grid')
     endif
 
   end subroutine d_pie_init
@@ -1039,6 +1045,10 @@ contains
 
 
           if (associated(Fepmmrtm1)) then
+             if (debug_hist) then
+                call outfld_geokij( 'FePtm1i',Feptm1_in, lev0,lev1, lon0,lon1, lat0,lat1 )
+             endif
+
              call calc_xi(halo_o2(:,lon0:lon1,lat0:lat1),halo_o1(:,lon0:lon1,lat0:lat1),halo_n2(:,lon0:lon1,lat0:lat1),&
                           rmassFep, rmassN2, rmassO2, rmassO1, Fepxi_in, lon0, lon1, lat0, lat1, nlev)
              do isplit = 1,vxbnspltop
@@ -1054,6 +1064,9 @@ contains
           endif
 
           if (associated(Mgpmmrtm1)) then
+             if (debug_hist) then
+                call outfld_geokij( 'MgPtm1i',Mgptm1_in, lev0,lev1, lon0,lon1, lat0,lat1 )
+             endif
              call calc_xi(halo_o2(:,lon0:lon1,lat0:lat1),halo_o1(:,lon0:lon1,lat0:lat1),halo_n2(:,lon0:lon1,lat0:lat1),&
                           rmassMgp, rmassN2, rmassO2, rmassO1, Mgpxi_in, lon0, lon1, lat0, lat1, nlev)
              do isplit = 1,vxbnspltop
@@ -1134,6 +1147,8 @@ contains
           if (debug_hist) then
              call outfld_geokij( 'OPLUS', op_out, lev0,lev1, lon0,lon1, lat0,lat1 )
              call outfld_geokij( 'OPtm1o',optm1_out, lev0,lev1, lon0,lon1, lat0,lat1 )
+             call outfld_geokij( 'FePtm1o',Feptm1_out, lev0,lev1, lon0,lon1, lat0,lat1 )
+             call outfld_geokij( 'MgPtm1o',Mgptm1_out, lev0,lev1, lon0,lon1, lat0,lat1 )
           endif
           !
           ! Pass new O+ for current and previous time step back to physics (convert from cm^3 to m^3 and back to mmr).
