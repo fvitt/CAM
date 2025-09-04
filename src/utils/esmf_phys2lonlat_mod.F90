@@ -48,7 +48,7 @@ module esmf_phys2lonlat_mod
      real(r8), pointer :: fld(:,:,:) => null()
   end type fields_bundle_t
 
-  integer, parameter :: nflds = 5
+  integer, parameter :: nflds = 4
 
 contains
 
