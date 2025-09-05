@@ -1,6 +1,6 @@
 module edyn3d_hist_mag_grids_mod
   use shr_kind_mod, only: r8 => shr_kind_r8
-  use fieldline_module, only: npts_s1, npts_s2
+  use dynamo_interface_mod, only: npts_s1, npts_s2
   use params_module, only: hgt_fix, nhgt_fix, nmlon, nmlat_h, nmlatS2_h, nmlat_T1, nmlat_T2
   use mpi_module, only: mlon0, mlon1, mlat0, mlat1
   use mpi_module, only: mytid=>mpi_rank, ntask=>mpi_size
@@ -34,7 +34,7 @@ contains
   subroutine edyn3d_hist_mag_grids_reg
     use cam_grid_support, only: horiz_coord_t, horiz_coord_create, iMap
     use cam_grid_support, only: cam_grid_register, cam_grid_attribute_register
-    use fieldline_module, only: qdlat_s1, qdlat_s2
+    use dynamo_interface_mod, only: qdlat_s1, qdlat_s2
     use params_module, only: ylonm, ylonm_s, ylatm, ylatm_s
     use edyn_params, only: rtd
 

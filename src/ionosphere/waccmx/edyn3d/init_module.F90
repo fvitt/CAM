@@ -129,13 +129,22 @@ module init_module
 
   endsubroutine init_fieldline
 !-----------------------------------------------------------------------
-  subroutine get_apex()
+  subroutine get_apex( npts_p,npts_s1,npts_s2,npts_r, &
+                       qdlat_p,qdlat_s1,qdlat_s2,qdlat_r)
 
-    use params_module,only:hgt_fix,hgt_fix_r,nmlat_h,nmlatS2_h,ylonm,ylonm_s
+    use params_module,only:nhgt_fix,nhgt_fix_r,nmlat_h,nmlatS2_h, &
+      hgt_fix,hgt_fix_r,ha,ha_s,ylatm,ylatm_s
+    use params_module,only:ylonm,ylonm_s
     use cons_module,only:h0,rtd
     use fieldline_module
     use apex,only: apex_mall,apex_q2g
     use mpi_module,only:mlond0,mlond1,mlatd0,mlatd1
+
+    integer,dimension(nmlat_h),intent(in) :: npts_p,npts_s1,npts_r
+    integer,dimension(nmlatS2_h),intent(in) :: npts_s2
+    real(kind=rp),dimension(nhgt_fix,2,nmlat_h),intent(in) :: qdlat_p,qdlat_s1
+    real(kind=rp),dimension(nhgt_fix,2,nmlatS2_h),intent(in) :: qdlat_s2
+    real(kind=rp),dimension(nhgt_fix_r,2,nmlat_h),intent(in) :: qdlat_r
 
     real(kind=rp),parameter :: hr = h0*1e-3_rp
     integer :: i,j,isn,k,icomp, &

@@ -4,14 +4,6 @@ module fieldline_module
 
   implicit none
 
-  integer,dimension(:),allocatable :: &
-    npts_p,npts_s1,npts_s2,npts_r, &
-    jmax_p,jmax_s1,jmax_s2,jmax_r, &
-    size_p,size_s1,size_s2,size_r
-
-  real(kind=rp),dimension(:,:,:),allocatable :: &
-    qdlat_p,qdlat_s1,qdlat_s2,qdlat_r
-
   real(kind=rp),dimension(:,:,:,:,:),allocatable,target :: f3d,f3d_r
   real(kind=rp),dimension(:,:,:,:,:,:),allocatable,target :: uvec
 

@@ -12,7 +12,7 @@ module dynamo_interface_mod
   use mpi_module, only: sync_mlat_5d, sync_mlon_5d
 
   use params_module, only: read_pot, read_fac
-  use params_module, only: nmlat_h, nmlon, nhgt_fix
+  use params_module, only: nmlat_h, nmlatS2_h, nmlon, nhgt_fix, nhgt_fix_r
 
   use mpi_module, only: mpi_init => init, setup_topology
   use mpi_module, only: mpi_rank, mpi_size
@@ -22,19 +22,14 @@ module dynamo_interface_mod
   use init_module, only: init_cons, init_fieldline
   use init_module, only: get_apex, calculate_m
 
-  use alloc_module, only: alloc_fieldline, alloc_fieldline_lite
-  use alloc_module, only: alloc_fieldline, alloc_fieldline_lite
+  use alloc_module, only: alloc_fieldline
 
-  use fieldline_module, only: npts_p,npts_s1,npts_s2,npts_r
-  use fieldline_module, only: jmax_p,jmax_s1,jmax_s2,jmax_r
-  use fieldline_module, only: size_p,size_s1,size_s2,size_r
-  use fieldline_module, only: qdlat_p,qdlat_s1,qdlat_s2,qdlat_r
   use fieldline_module, only: glat_p, glon_p, glat_s1, glon_s1, glat_s2, glon_s2
   use fieldline_module, only: F_p,F_s1,F_s2,F_r,M3_p,M1_s1,M2_s2,M3_r
 
   use fieldline_module, only: be3_s1,be3_s2,bmag_p,D1_s1,D1_s2,d1d1_s1,d1d2_s1,d1d2_s2
   use fieldline_module, only: d2_s1,d2_s2,d2d2_s1,d2d2_s2,d_s1,d_s2,e1_s1,e1_s2,e2_s1,e2_s2
-  use fieldline_module, only: M1_s1,M2_s2,npts_p,npts_s1,npts_s2,vmp_p,M3_r
+  use fieldline_module, only: M1_s1,M2_s2
 
   use calculate_terms_module, only: calculate_n, calculate_je
   use calculate_terms_module, only: calculate_ed, calculate_ve, calculate_vxyz
@@ -52,6 +47,16 @@ module dynamo_interface_mod
   public :: dynamo_init1
   public :: dynamo_init2
   public :: dynamo_calc
+
+  public :: glat_p, glon_p, glat_s1, glon_s1, glat_s2, glon_s2
+
+  integer,public, protected, dimension(:),allocatable :: &
+    npts_p,npts_s1,npts_s2,npts_r, &
+    jmax_p,jmax_s1,jmax_s2,jmax_r, &
+    size_p,size_s1,size_s2,size_r
+
+  real(kind=rp),public, protected, dimension(:,:,:),allocatable :: &
+    qdlat_p,qdlat_s1,qdlat_s2,qdlat_r
 
   logical, parameter :: setbij = .true.
 
@@ -78,7 +83,6 @@ contains
        end if
     end if
 
-
     read_pot = set_hilat_pot_in
     read_fac = set_hilat_fac_in
 
@@ -91,9 +95,9 @@ contains
     ! set up constants
     call init_cons()
 
-    call alloc_fieldline_lite(ierror)
+    call allocate_fields(ierror)
     if (ierror/=0) then
-       write(*,*) prefix, 'alloc_fieldline_lite failed'
+       write(*,*) prefix, 'allocate_fields failed'
        stop ierror
     end if
 
@@ -105,6 +109,37 @@ contains
 
     ! set up MPI decomposition
     call setup_topology(nmlat_h,nmlon)
+
+  contains
+
+    subroutine allocate_fields(ierr)
+      integer, intent(out) :: ierr
+
+      ierr = 0
+
+      allocate( npts_p(nmlat_h), npts_s1(nmlat_h), npts_r(nmlat_h), stat=ierr)
+      if (ierr /= 0) return
+      allocate(npts_s2(nmlatS2_h), stat=ierr)
+      if (ierr /= 0) return
+      allocate(qdlat_p(nhgt_fix,2,nmlat_h),qdlat_s1(nhgt_fix,2,nmlat_h), stat=ierr)
+      if (ierr /= 0) return
+      allocate(qdlat_s2(nhgt_fix,2,nmlatS2_h), stat=ierr)
+      if (ierr /= 0) return
+      allocate(qdlat_r(nhgt_fix_r,2,nmlat_h), stat=ierr)
+      if (ierr /= 0) return
+
+      qdlat_p = -huge(1._rp)
+      qdlat_s1 = -huge(1._rp)
+      qdlat_r = -huge(1._rp)
+      qdlat_s2 = -huge(1._rp)
+
+      allocate(jmax_p(nhgt_fix),jmax_s1(nhgt_fix),jmax_s2(nhgt_fix),size_p(nhgt_fix),&
+               size_s1(nhgt_fix),size_s2(nhgt_fix), stat=ierr)
+      if (ierr /= 0) return
+      allocate(jmax_r(nhgt_fix_r),size_r(nhgt_fix_r), stat=ierr)
+      if (ierr /= 0) return
+
+    end subroutine allocate_fields
 
   end subroutine dynamo_init1
 
@@ -132,7 +167,8 @@ contains
        glon_s2 = -huge(1._rp)
 
        ! get apex coordinates and unit vectors
-       call get_apex()
+       call get_apex( npts_p,npts_s1,npts_s2,npts_r, &
+            qdlat_p,qdlat_s1,qdlat_s2,qdlat_r )
 
        ! calculate M coefficients - P,S1,S2,R
        call calculate_m(npts_p,npts_s1,npts_s2,npts_r, &

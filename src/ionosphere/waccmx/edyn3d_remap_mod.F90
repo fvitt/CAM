@@ -56,7 +56,7 @@ contains
   subroutine edyn3d_remap_phys2mag_s1(nphyscol, nphyslev, physalt, physflds, magflds)
 
     use edyn3d_esmf_s1_mag_grid_mod, only: mag_s1_fdln_grid
-    use fieldline_module, only: npts_s1
+    use dynamo_interface_mod, only: npts_s1
     use edyn3d_esmf_fields_rhandles, only: magFieldDes_s1, rh_phys2mag_s1, nflds=>phys2mag_nflds
     use edyn3D_esmf_fields_rhandles, only: physFieldSrc
 
@@ -160,7 +160,7 @@ contains
   subroutine edyn3d_remap_phys2mag_s2(nphyscol, nphyslev, physalt, physflds, magflds)
 
     use edyn3d_esmf_s2_mag_grid_mod, only: mag_s2_fdln_grid
-    use fieldline_module, only: npts_s2
+    use dynamo_interface_mod, only: npts_s2
     use edyn3d_esmf_fields_rhandles, only: magFieldDes_s2, rh_phys2mag_s2, nflds=>phys2mag_nflds
     use edyn3D_esmf_fields_rhandles, only: physFieldSrc
 

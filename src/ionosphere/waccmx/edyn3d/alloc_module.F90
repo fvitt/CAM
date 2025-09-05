@@ -1,42 +1,14 @@
 module alloc_module
   use prec, only: rp
-  use fieldline_module, only: npts_p, npts_s2, npts_s1, npts_r, qdlat_p, qdlat_s1, qdlat_s2, qdlat_r
-  use fieldline_module, only: jmax_p, jmax_s1, jmax_s2, jmax_r, size_p, size_s1, size_s2, size_r
   use params_module, only: nmlat_h, nmlatS2_h, nhgt_fix, nhgt_fix_r
+  use mpi_module, only: mlond0,mlond1,mlatd0,mlatd1
+  use fieldline_module
 
   implicit none
 
 contains
+
 !-----------------------------------------------------------------------
-  subroutine alloc_fieldline_lite(ierr)
-    integer, intent(out) :: ierr
-
-    ierr = 0
-
-    allocate( npts_p(nmlat_h), npts_s1(nmlat_h), npts_r(nmlat_h), stat=ierr)
-    if (ierr /= 0) return
-    allocate(npts_s2(nmlatS2_h), stat=ierr)
-    if (ierr /= 0) return
-    allocate(qdlat_p(nhgt_fix,2,nmlat_h),qdlat_s1(nhgt_fix,2,nmlat_h), stat=ierr)
-    if (ierr /= 0) return
-    allocate(qdlat_s2(nhgt_fix,2,nmlatS2_h), stat=ierr)
-    if (ierr /= 0) return
-    allocate(qdlat_r(nhgt_fix_r,2,nmlat_h), stat=ierr)
-    if (ierr /= 0) return
-
-    qdlat_p = -huge(1._rp)
-    qdlat_s1 = -huge(1._rp)
-    qdlat_r = -huge(1._rp)
-    qdlat_s2 = -huge(1._rp)
-
-    allocate(jmax_p(nhgt_fix),jmax_s1(nhgt_fix),jmax_s2(nhgt_fix),size_p(nhgt_fix),size_s1(nhgt_fix),size_s2(nhgt_fix), stat=ierr)
-    if (ierr /= 0) return
-    allocate(jmax_r(nhgt_fix_r),size_r(nhgt_fix_r), stat=ierr)
-    if (ierr /= 0) return
-
-
-  end subroutine alloc_fieldline_lite
-
 !-----------------------------------------------------------------------
   subroutine alloc_fieldline(ierr)
 
@@ -46,9 +18,6 @@ contains
 
 ! Although S2 grids have equal latitudes with P/S1/R grids,
 ! the grid at j==nmlat_h is not defined.
-
-    use mpi_module,only:mlond0,mlond1,mlatd0,mlatd1
-    use fieldline_module
 
     integer, intent(out) :: ierr
 

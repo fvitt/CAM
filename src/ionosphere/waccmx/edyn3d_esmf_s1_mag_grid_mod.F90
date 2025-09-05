@@ -33,7 +33,7 @@ contains
   !-----------------------------------------------------------------------------
   !-----------------------------------------------------------------------------
   subroutine edyn3d_esmf_s1_mag_grid_init()
-    use fieldline_module, only: npts_s1, glon_s1, glat_s1
+    use dynamo_interface_mod, only: npts_s1, glon_s1, glat_s1
     use params_module, only: nz=>nhgt_fix, nmlat_h
     use mpi_module, only: mlat0_task, mlat1_task
     use mpi_module, only: nmlon_task, nmlat_task, lon_size

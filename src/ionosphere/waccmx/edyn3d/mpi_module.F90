@@ -6,13 +6,13 @@ module mpi_module
 
   implicit none
 
-  integer :: dynamo_world=-huge(1), &
+  integer, protected :: dynamo_world=-huge(1), &
     mpi_rp=-huge(1), mpi_size=0, mpi_rank=-1, &
     lat_size=0, lon_size=0, lat_rank=-1, lon_rank=-1, &
     nmlat=0, maxmlat=-1, mlat0=1, mlat1=0, mlatd0=1, mlatd1=0, &
     nmlon=0, maxmlon=-1, mlon0=1, mlon1=0, mlond0=1, mlond1=0
 
-  integer, dimension(:), allocatable :: &
+  integer, protected, dimension(:), allocatable :: &
     nmlat_task, mlat0_task, mlat1_task, &
     nmlon_task, mlon0_task, mlon1_task
 
