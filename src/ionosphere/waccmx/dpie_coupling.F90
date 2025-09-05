@@ -108,6 +108,8 @@ contains
        call addfld ('WACCM_VI'   ,(/ 'lev' /), 'I', 'm/s'  ,'WACCM_VI (dpie output)', gridname='physgrid')
        call addfld ('WACCM_WI'   ,(/ 'lev' /), 'I', 'm/s'  ,'WACCM_WI (dpie output)', gridname='physgrid')
        call addfld ('WACCM_OP'   ,(/ 'lev' /), 'I', 'kg/kg'  ,'WACCM_OP (dpie output)', gridname='physgrid')
+       call addfld ('WACCM_FeP'  ,(/ 'lev' /), 'I', 'kg/kg'  ,'WACCM_FeP (dpie output)', gridname='physgrid')
+       call addfld ('WACCM_MgP'  ,(/ 'lev' /), 'I', 'kg/kg'  ,'WACCM_MgP (dpie output)', gridname='physgrid')
 
        call addfld ('EDYN_ADOTV1 ', (/ 'lev' /), 'I', '        ','EDYN_ADOTV1' , gridname='geo_grid')
        call addfld ('EDYN_ADOTV2 ', (/ 'lev' /), 'I', '        ','EDYN_ADOTV2' , gridname='geo_grid')
@@ -1298,6 +1300,8 @@ contains
        call outfld_phys('WACCM_VI',vi)
        call outfld_phys('WACCM_WI',wi)
        call outfld_phys('WACCM_OP',opmmr)
+       call outfld_phys('WACCM_FeP',fepmmr)
+       call outfld_phys('WACCM_MgP',mgpmmr)
     endif
     call t_stopf('d_pie_coupling')
 
