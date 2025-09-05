@@ -16,17 +16,57 @@ module fieldline_module
   real(kind=rp),dimension(:,:,:,:,:,:),allocatable,target :: uvec
 
   real(kind=rp),dimension(:,:,:,:),pointer :: &
-    glat_p,glon_p,sinI_p,D_p,F_p,vmp_p,bmag_p,M3_p, &
-    glat_s1,glon_s1,sinI_s1,D_s1,F_s1, &
-    vmp_s1,bmag_s1,be3_s1,M1_s1, &
-    d1d1_s1,d1d2_s1,d2d2_s1, &
-    glat_s2,glon_s2,sinI_s2,D_s2,F_s2, &
-    vmp_s2,bmag_s2,be3_s2,M2_s2, &
-    d1d1_s2,d1d2_s2,d2d2_s2, &
-    glat_r,glon_r,sinI_r,D_r,F_r,M3_r
+       glat_p=>null(), &
+       glon_p=>null(), &
+       sinI_p=>null(), &
+       D_p=>null(), &
+       F_p=>null(), &
+       vmp_p=>null(), &
+       bmag_p=>null(), &
+       M3_p=>null(), &
+       glat_s1=>null(), &
+       glon_s1=>null(), &
+       sinI_s1=>null(), &
+       D_s1=>null(), &
+       F_s1=>null(), &
+       vmp_s1=>null(), &
+       bmag_s1=>null(), &
+       be3_s1=>null(), &
+       M1_s1=>null(), &
+       d1d1_s1=>null(), &
+       d1d2_s1=>null(), &
+       d2d2_s1=>null(), &
+       glat_s2=>null(), &
+       glon_s2=>null(), &
+       sinI_s2=>null(), &
+       D_s2=>null(), &
+       F_s2=>null(), &
+       vmp_s2=>null(), &
+       bmag_s2=>null(), &
+       be3_s2=>null(), &
+       M2_s2=>null(), &
+       d1d1_s2=>null(), &
+       d1d2_s2=>null(), &
+       d2d2_s2=>null(), &
+       glat_r=>null(), &
+       glon_r=>null(), &
+       sinI_r=>null(), &
+       D_r=>null(), &
+       F_r=>null(), &
+       M3_r=>null()
 
   real(kind=rp),dimension(:,:,:,:,:),pointer :: &
-    d1_s1,d2_s1,d3_s1,e1_s1,e2_s1,e3_s1, &
-    d1_s2,d2_s2,d3_s2,e1_s2,e2_s2,e3_s2
+       d1_s1=>null(), &
+       d2_s1=>null(), &
+       d3_s1=>null(), &
+       e1_s1=>null(), &
+       e2_s1=>null(), &
+       e3_s1=>null(), &
+       d1_s2=>null(), &
+       d2_s2=>null(), &
+       d3_s2=>null(), &
+       e1_s2=>null(), &
+       e2_s2=>null(), &
+       e3_s2=>null()
 
 endmodule fieldline_module

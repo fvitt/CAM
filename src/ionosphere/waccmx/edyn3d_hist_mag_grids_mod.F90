@@ -36,7 +36,7 @@ contains
     use cam_grid_support, only: cam_grid_register, cam_grid_attribute_register
     use fieldline_module, only: qdlat_s1, qdlat_s2
     use params_module, only: ylonm, ylonm_s, ylatm, ylatm_s
-    use cons_module, only: rtd
+    use edyn_params, only: rtd
 
     integer, parameter :: magfln_s1_decomp = 701 ! Must be unique within CAM
     integer, parameter :: magfln_s2_decomp = 702

@@ -72,7 +72,7 @@ contains
   !-----------------------------------------------------------------------
   subroutine sunloc_calc2(sunlon)
     use apex,only:apex_mall
-    use cons_module, only: rtd, dtr
+    use edyn_params, only: rtd, dtr
 
     real(r8),intent(out) :: sunlon ! magnetic longitude
 
