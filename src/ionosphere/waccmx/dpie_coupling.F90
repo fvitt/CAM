@@ -62,7 +62,16 @@ contains
     call addfld ('HMF2'       , horiz_only , 'I', 'km'  ,'Height of the F2 Layer'      , gridname='physgrid')
     call addfld ('NMF2'       , horiz_only , 'I', 'cm-3','Peak Density of the F2 Layer', gridname='physgrid')
 
-    call addfld ('OpDens' ,(/ 'lev' /), 'I', 'cm^-3','O+ Number Density'                       , gridname='physgrid')
+    call addfld ('OpDens'  ,(/ 'lev' /), 'I', 'cm^-3','O+  Number Density', gridname='physgrid')
+    call addfld ('NOpDens' ,(/ 'lev' /), 'I', 'cm^-3','NO+ Number Density', gridname='physgrid')
+    call addfld ('O2pDens' ,(/ 'lev' /), 'I', 'cm^-3','O2+ Number Density', gridname='physgrid')
+    call addfld ('FepDens' ,(/ 'lev' /), 'I', 'cm^-3','Fe+ Number Density', gridname='physgrid')
+    call addfld ('MgpDens' ,(/ 'lev' /), 'I', 'cm^-3','Mg+ Number Density', gridname='physgrid')
+    call addfld ('NapDens' ,(/ 'lev' /), 'I', 'cm^-3','Na+ Number Density', gridname='physgrid')
+    call addfld ('CapDens' ,(/ 'lev' /), 'I', 'cm^-3','Ca+ Number Density', gridname='physgrid')
+    call addfld ('KpDens'  ,(/ 'lev' /), 'I', 'cm^-3','K+  Number Density', gridname='physgrid')
+    call addfld ('SipDens' ,(/ 'lev' /), 'I', 'cm^-3','Si+ Number Density', gridname='physgrid')
+
     call addfld ('EDens'  ,(/ 'lev' /), 'I', 'cm^-3','e Number Density (sum of O2+,NO+,N2+,O+)', gridname='physgrid')
 
     call addfld ('prescr_efxp'  , horiz_only, 'I','mW/m2','Prescribed energy flux on geo grid'     ,gridname='physgrid')
@@ -93,6 +102,8 @@ contains
        call addfld ('HAL_phys',(/ 'lev' /), 'I', 'S/m','Hall Conductivity'   , gridname='physgrid')
 
        call addfld ('DPIE_OPMMR' ,(/ 'lev' /), 'I', 'mmr'  ,'DPIE_OPMMR'  , gridname='physgrid')
+       call addfld ('DPIE_FePMMR' ,(/ 'lev' /), 'I', 'mmr'  ,'DPIE_FeMMR'  , gridname='physgrid')
+       call addfld ('DPIE_MgPMMR' ,(/ 'lev' /), 'I', 'mmr'  ,'DPIE_MgMMR'  , gridname='physgrid')
        call addfld ('DPIE_O2P',(/ 'lev' /), 'I', 'm^-3','DPIE_O2P(dpie input)', gridname='physgrid')
        call addfld ('DPIE_NOP',(/ 'lev' /), 'I', 'm^-3','DPIE_NOP(dpie input)', gridname='physgrid')
        call addfld ('DPIE_N2P',(/ 'lev' /), 'I', 'm^-3','DPIE_N2P(dpie input)', gridname='physgrid')
@@ -692,6 +703,15 @@ contains
      endif
      call outfld_phys('EDens',ne/1.E6_r8)
      call outfld_phys('OpDens',op/1.E6_r8)
+     call outfld_phys('NOpDens',nop/1.E6_r8)
+     call outfld_phys('O2pDens',o2p/1.E6_r8)
+
+     call outfld_phys('FepDens',Fep/1.E6_r8)
+     call outfld_phys('MgpDens',Mgp/1.E6_r8)
+     call outfld_phys('NapDens',Nap/1.E6_r8)
+     call outfld_phys('CapDens',Cap/1.E6_r8)
+     call outfld_phys('KpDens' ,Kp/1.E6_r8)
+     call outfld_phys('SipDens',Sip/1.E6_r8)
 
      !-------------------------------------------------------------------------
      !  Derive diagnostics nmF2 and hmF2 for output based on TIE-GCM algorithm
@@ -740,6 +760,8 @@ contains
      end if
      if (debug_hist) then
         call outfld_phys('DPIE_OPMMR', opmmr)
+        call outfld_phys('DPIE_FePMMR', fepmmr)
+        call outfld_phys('DPIE_MgPMMR', mgpmmr)
         call outfld_phys('PED_phys', sigma_ped )
         call outfld_phys('HAL_phys', sigma_hall )
      endif
