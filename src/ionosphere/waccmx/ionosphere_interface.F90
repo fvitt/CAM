@@ -120,6 +120,7 @@ module ionosphere_interface
    logical, public,  protected :: ionos_oplus_xport = .true.    ! if true, call sub oplus (based on tiegcm oplus.F)
    integer, public,  protected :: ionos_xport_nsplit = 5        ! number of substeps for O+ transport per model time step
    logical, public,  protected :: oplus_ring_polar_filter = .false. ! switch to apply ring polar filter
+   integer, public,  protected :: vxb_xport_nsplit = 15        ! number of substeps for O+ transport per model time step
 
    real(r8) :: oplus_adiff_limiter = 1.5e+8_r8  ! limiter for ambipolar diffusion coefficient
    real(r8) :: oplus_shapiro_const = 0.03_r8    ! shapiro constant for spatial smoother
@@ -168,7 +169,7 @@ module ionosphere_interface
       integer :: total_pes
       character(len=*), parameter :: subname = 'ionosphere_readnl'
 
-      namelist /ionosphere_nl/ ionos_xport_active, ionos_edyn_active, ionos_oplus_xport, ionos_xport_nsplit
+      namelist /ionosphere_nl/ ionos_xport_active, ionos_edyn_active, ionos_oplus_xport, ionos_xport_nsplit, vxb_xport_nsplit
       namelist /ionosphere_nl/ oplus_adiff_limiter, oplus_shapiro_const, oplus_enforce_floor, oplus_ring_polar_filter
       namelist /ionosphere_nl/ ionos_epotential_model, ionos_epotential_amie, ionos_epotential_ltr, wei05_coefs_file
       namelist /ionosphere_nl/ amienh_files, amiesh_files, wei05_coefs_file, ltr_files
@@ -199,6 +200,7 @@ module ionosphere_interface
       call mpi_bcast(ionos_edyn_active,   1, mpi_logical, masterprocid, mpicom, ierr)
       call mpi_bcast(ionos_oplus_xport,   1, mpi_logical, masterprocid, mpicom, ierr)
       call mpi_bcast(ionos_xport_nsplit,  1, mpi_integer, masterprocid, mpicom, ierr)
+      call mpi_bcast(vxb_xport_nsplit,    1, mpi_integer, masterprocid, mpicom, ierr)
       call mpi_bcast(oplus_adiff_limiter, 1, mpi_real8,   masterprocid, mpicom, ierr)
       call mpi_bcast(ionos_epotential_model, len(ionos_epotential_model), mpi_character, masterprocid, mpicom, ierr)
       call mpi_bcast(ionos_epotential_amie,1, mpi_logical, masterprocid, mpicom, ierr)
@@ -241,6 +243,7 @@ module ionosphere_interface
          write(iulog,*) 'ionosphere_readnl: ionos_edyn_active      = ', ionos_edyn_active
          write(iulog,*) 'ionosphere_readnl: ionos_oplus_xport      = ', ionos_oplus_xport
          write(iulog,*) 'ionosphere_readnl: ionos_xport_nsplit     = ', ionos_xport_nsplit
+         write(iulog,*) 'ionosphere_readnl: vxb_xport_nsplit       = ', vxb_xport_nsplit
          write(iulog,*) 'ionosphere_readnl: ionos_epotential_model = ', trim(ionos_epotential_model)
          write(iulog,*) 'ionosphere_readnl: ionos_epotential_amie  = ', ionos_epotential_amie
          write(iulog,*) 'ionosphere_readnl: ionos_epotential_ltr   = ', ionos_epotential_ltr
@@ -345,7 +348,7 @@ module ionosphere_interface
 
          call edynamo_init(mpicom, ionos_debug_hist)
 
-         call d_pie_init(ionos_edyn_active, ionos_oplus_xport, ionos_xport_nsplit, epot_crit_colats, &
+         call d_pie_init(ionos_edyn_active, ionos_oplus_xport, ionos_xport_nsplit,vxb_xport_nsplit, epot_crit_colats, &
                          ionos_debug_hist)
 
          call ionosphere_alloc()

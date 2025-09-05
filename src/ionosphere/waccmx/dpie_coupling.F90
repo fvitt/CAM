@@ -27,7 +27,7 @@ module dpie_coupling
   logical  :: ionos_edyn_active ! if true, call oplus_xport for O+ transport
   logical  :: ionos_oplus_xport ! if true, call oplus_xport for O+ transport
   integer  :: nspltop           ! nsplit for oplus_xport
-  integer :: vxbnspltop=10  ! nsplit for oplus_xport
+  integer  :: nsplt_vxb=-1      ! nsplit for oplus_xport
 
   logical  :: debug = .false.
 
@@ -39,10 +39,11 @@ module dpie_coupling
 
 contains
   !----------------------------------------------------------------------
-  subroutine d_pie_init( edyn_active_in, oplus_xport_in, oplus_nsplit_in, crit_colats_deg, ionos_debug_hist )
+  subroutine d_pie_init( edyn_active_in, oplus_xport_in, oplus_nsplit_in, vxb_nsplit_in, crit_colats_deg, ionos_debug_hist )
 
     logical, intent(in) :: edyn_active_in, oplus_xport_in
     integer, intent(in) :: oplus_nsplit_in
+    integer, intent(in) :: vxb_nsplit_in
     real(r8),intent(in) :: crit_colats_deg(:)
     logical, intent(in) :: ionos_debug_hist
 
@@ -51,7 +52,7 @@ contains
     ionos_edyn_active = edyn_active_in
     ionos_oplus_xport = oplus_xport_in
     nspltop = oplus_nsplit_in
-    vxbnspltop = oplus_nsplit_in
+    nsplt_vxb = vxb_nsplit_in
 
     crit_user_set = all( crit_colats_deg(:) > 0._r8 )
     if (crit_user_set) then
@@ -129,7 +130,19 @@ contains
 
        call addfld ('MgPtm1i',(/ 'lev' /), 'I', 'cm^3','Mg+ (oplus_xport output)',    gridname='geo_grid')
        call addfld ('MgPtm1o',(/ 'lev' /), 'I', 'cm^3','Mg+ (oplus_xport output)',    gridname='geo_grid')
+
     endif
+
+
+    call addfld ('OPi',(/ 'lev' /), 'I', 'cm^3','O+ (oplus_xport output)',    gridname='geo_grid')
+    call addfld ('OPo',(/ 'lev' /), 'I', 'cm^3','O+ (oplus_xport output)',    gridname='geo_grid')
+
+    call addfld ('FePi',(/ 'lev' /), 'I', 'cm^3','Fe+ (oplus_xport output)',    gridname='geo_grid')
+    call addfld ('FePo',(/ 'lev' /), 'I', 'cm^3','Fe+ (oplus_xport output)',    gridname='geo_grid')
+
+    call addfld ('MgPi',(/ 'lev' /), 'I', 'cm^3','Mg+ (oplus_xport output)',    gridname='geo_grid')
+    call addfld ('MgPo',(/ 'lev' /), 'I', 'cm^3','Mg+ (oplus_xport output)',    gridname='geo_grid')
+
 
   end subroutine d_pie_init
 
@@ -998,6 +1011,9 @@ contains
              call outfld_geokij( 'OPtm1i',optm1_in, lev0,lev1, lon0,lon1, lat0,lat1 )
           endif
           call t_startf('dpie_oplus_xport')
+
+          call outfld_geokij( 'OPi',op_in, lev0,lev1, lon0,lon1, lat0,lat1 )
+
           do isplit = 1, nspltop
 
              if (isplit > 1) then
@@ -1013,10 +1029,12 @@ contains
 
           end do ! isplit=1,nspltop
 
+          call outfld_geokij( 'OPo',op_out, lev0,lev1, lon0,lon1, lat0,lat1 )
+
           if (associated(O2pmmrtm1)) then
              call calc_xi(halo_o2(:,lon0:lon1,lat0:lat1),halo_o1(:,lon0:lon1,lat0:lat1),halo_n2(:,lon0:lon1,lat0:lat1),&
                           rmassO2p, rmassN2, rmassO2, rmassO1, O2pxi_in, lon0, lon1, lat0, lat1, nlev)
-             do isplit = 1,vxbnspltop
+             do isplit = 1,nsplt_vxb
                 if (isplit > 1) then
                    O2p_in = O2p_out
                    O2ptm1_in = O2ptm1_out
@@ -1024,14 +1042,14 @@ contains
                 call vxb_xport(halo_tn, halo_te, halo_ti, halo_ne, halo_op, halo_un, halo_vn, halo_om,  &
                      zpot_in, halo_o2, halo_o1, halo_n2, O2p_in, O2ptm1_in, O2pxi_in,       &
                      halo_mbar, ui_in, vi_in, wi_in,  eobx, eoby, eobz, pmid_inv,    &
-                     O2p_out, O2ptm1_out, rmassO2p, lon0, lon1, lat0, lat1, vxbnspltop, isplit )
+                     O2p_out, O2ptm1_out, rmassO2p, lon0, lon1, lat0, lat1, nsplt_vxb, isplit )
              end do
           endif
 
           if (associated(NOpmmrtm1)) then
              call calc_xi(halo_o2(:,lon0:lon1,lat0:lat1),halo_o1(:,lon0:lon1,lat0:lat1),halo_n2(:,lon0:lon1,lat0:lat1),&
                           rmassNOp, rmassN2, rmassO2, rmassO1, NOpxi_in, lon0, lon1, lat0, lat1, nlev)
-             do isplit = 1,vxbnspltop
+             do isplit = 1,nsplt_vxb
                 if (isplit > 1) then
                    NOp_in = NOp_out
                    NOptm1_in = NOptm1_out
@@ -1039,7 +1057,7 @@ contains
                 call vxb_xport(halo_tn, halo_te, halo_ti, halo_ne, halo_op, halo_un, halo_vn, halo_om,  &
                      zpot_in, halo_o2, halo_o1, halo_n2, NOp_in, NOptm1_in, NOpxi_in,       &
                      halo_mbar, ui_in, vi_in, wi_in,  eobx, eoby, eobz, pmid_inv,    &
-                     NOp_out, NOptm1_out, rmassNOp, lon0, lon1, lat0, lat1, vxbnspltop, isplit )
+                     NOp_out, NOptm1_out, rmassNOp, lon0, lon1, lat0, lat1, nsplt_vxb, isplit )
              end do
           endif
 
@@ -1048,28 +1066,37 @@ contains
              if (debug_hist) then
                 call outfld_geokij( 'FePtm1i',Feptm1_in, lev0,lev1, lon0,lon1, lat0,lat1 )
              endif
+             call outfld_geokij( 'FePi',Fep_in, lev0,lev1, lon0,lon1, lat0,lat1 )
 
              call calc_xi(halo_o2(:,lon0:lon1,lat0:lat1),halo_o1(:,lon0:lon1,lat0:lat1),halo_n2(:,lon0:lon1,lat0:lat1),&
                           rmassFep, rmassN2, rmassO2, rmassO1, Fepxi_in, lon0, lon1, lat0, lat1, nlev)
-             do isplit = 1,vxbnspltop
+             do isplit = 1,nsplt_vxb
                 if (isplit > 1) then
                    Fep_in = Fep_out
                    Feptm1_in = Feptm1_out
                 end if
+
                 call vxb_xport(halo_tn, halo_te, halo_ti, halo_ne, halo_op, halo_un, halo_vn, halo_om,  &
                      zpot_in, halo_o2, halo_o1, halo_n2, Fep_in, Feptm1_in, Fepxi_in,       &
                      halo_mbar, ui_in, vi_in, wi_in,  eobx, eoby, eobz, pmid_inv,    &
-                     Fep_out, Feptm1_out, rmassFep, lon0, lon1, lat0, lat1, vxbnspltop, isplit )
+                     Fep_out, Feptm1_out, rmassFep, lon0, lon1, lat0, lat1, nsplt_vxb, isplit )
              end do
+
+             call outfld_geokij( 'FePo',Fep_out, lev0,lev1, lon0,lon1, lat0,lat1 )
+
+
           endif
 
           if (associated(Mgpmmrtm1)) then
              if (debug_hist) then
                 call outfld_geokij( 'MgPtm1i',Mgptm1_in, lev0,lev1, lon0,lon1, lat0,lat1 )
              endif
+
+             call outfld_geokij( 'MgPi',Mgp_in, lev0,lev1, lon0,lon1, lat0,lat1 )
+
              call calc_xi(halo_o2(:,lon0:lon1,lat0:lat1),halo_o1(:,lon0:lon1,lat0:lat1),halo_n2(:,lon0:lon1,lat0:lat1),&
                           rmassMgp, rmassN2, rmassO2, rmassO1, Mgpxi_in, lon0, lon1, lat0, lat1, nlev)
-             do isplit = 1,vxbnspltop
+             do isplit = 1,nsplt_vxb
                 if (isplit > 1) then
                    Mgp_in = Mgp_out
                    Mgptm1_in = Mgptm1_out
@@ -1077,13 +1104,17 @@ contains
                 call vxb_xport(halo_tn, halo_te, halo_ti, halo_ne, halo_op, halo_un, halo_vn, halo_om,  &
                      zpot_in, halo_o2, halo_o1, halo_n2, Mgp_in, Mgptm1_in, Mgpxi_in,       &
                      halo_mbar, ui_in, vi_in, wi_in,  eobx, eoby, eobz, pmid_inv,    &
-                     Mgp_out, Mgptm1_out, rmassMgp, lon0, lon1, lat0, lat1, vxbnspltop, isplit )
+                     Mgp_out, Mgptm1_out, rmassMgp, lon0, lon1, lat0, lat1, nsplt_vxb, isplit )
              end do
+
+
+             call outfld_geokij( 'MgPo',Mgp_out, lev0,lev1, lon0,lon1, lat0,lat1 )
+
           endif
           if (associated(Napmmrtm1)) then
              call calc_xi(halo_o2(:,lon0:lon1,lat0:lat1),halo_o1(:,lon0:lon1,lat0:lat1),halo_n2(:,lon0:lon1,lat0:lat1),&
                           rmassNap, rmassN2, rmassO2, rmassO1, Napxi_in, lon0, lon1, lat0, lat1, nlev)
-             do isplit = 1,vxbnspltop
+             do isplit = 1,nsplt_vxb
                 if (isplit > 1) then
                    Nap_in = Nap_out
                    Naptm1_in = Naptm1_out
@@ -1091,13 +1122,13 @@ contains
                 call vxb_xport(halo_tn, halo_te, halo_ti, halo_ne, halo_op, halo_un, halo_vn, halo_om,  &
                      zpot_in, halo_o2, halo_o1, halo_n2, Nap_in, Naptm1_in, Napxi_in,       &
                      halo_mbar, ui_in, vi_in, wi_in,  eobx, eoby, eobz, pmid_inv,    &
-                     Nap_out, Naptm1_out, rmassNap, lon0, lon1, lat0, lat1, vxbnspltop, isplit )
+                     Nap_out, Naptm1_out, rmassNap, lon0, lon1, lat0, lat1, nsplt_vxb, isplit )
              end do
           endif
           if (associated(Capmmrtm1)) then
              call calc_xi(halo_o2(:,lon0:lon1,lat0:lat1),halo_o1(:,lon0:lon1,lat0:lat1),halo_n2(:,lon0:lon1,lat0:lat1),&
                           rmassCap, rmassN2, rmassO2, rmassO1, Capxi_in, lon0, lon1, lat0, lat1, nlev)
-             do isplit = 1,vxbnspltop
+             do isplit = 1,nsplt_vxb
                 if (isplit > 1) then
                    Cap_in = Cap_out
                    Captm1_in = Captm1_out
@@ -1105,13 +1136,13 @@ contains
                 call vxb_xport(halo_tn, halo_te, halo_ti, halo_ne, halo_op, halo_un, halo_vn, halo_om,  &
                      zpot_in, halo_o2, halo_o1, halo_n2, Cap_in, Captm1_in, Capxi_in,       &
                      halo_mbar, ui_in, vi_in, wi_in,  eobx, eoby, eobz, pmid_inv,    &
-                     Cap_out, Captm1_out, rmassCap, lon0, lon1, lat0, lat1, vxbnspltop, isplit )
+                     Cap_out, Captm1_out, rmassCap, lon0, lon1, lat0, lat1, nsplt_vxb, isplit )
              end do
           endif
           if (associated(Kpmmrtm1)) then
              call calc_xi(halo_o2(:,lon0:lon1,lat0:lat1),halo_o1(:,lon0:lon1,lat0:lat1),halo_n2(:,lon0:lon1,lat0:lat1),&
                           rmassKp, rmassN2, rmassO2, rmassO1, Kpxi_in, lon0, lon1, lat0, lat1, nlev)
-             do isplit = 1,vxbnspltop
+             do isplit = 1,nsplt_vxb
                 if (isplit > 1) then
                    Kp_in = Kp_out
                    Kptm1_in = Kptm1_out
@@ -1119,13 +1150,13 @@ contains
                 call vxb_xport(halo_tn, halo_te, halo_ti, halo_ne, halo_op, halo_un, halo_vn, halo_om,  &
                      zpot_in, halo_o2, halo_o1, halo_n2, Kp_in, Kptm1_in, Kpxi_in,       &
                      halo_mbar, ui_in, vi_in, wi_in,  eobx, eoby, eobz, pmid_inv,    &
-                     Kp_out, Kptm1_out, rmassKp, lon0, lon1, lat0, lat1, vxbnspltop, isplit )
+                     Kp_out, Kptm1_out, rmassKp, lon0, lon1, lat0, lat1, nsplt_vxb, isplit )
              end do
           endif
           if (associated(Sipmmrtm1)) then
              call calc_xi(halo_o2(:,lon0:lon1,lat0:lat1),halo_o1(:,lon0:lon1,lat0:lat1),halo_n2(:,lon0:lon1,lat0:lat1),&
                           rmassSip, rmassN2, rmassO2, rmassO1, Sipxi_in, lon0, lon1, lat0, lat1, nlev)
-             do isplit = 1,vxbnspltop
+             do isplit = 1,nsplt_vxb
                 if (isplit > 1) then
                    Sip_in = Sip_out
                    Siptm1_in = Siptm1_out
@@ -1133,7 +1164,7 @@ contains
                 call vxb_xport(halo_tn, halo_te, halo_ti, halo_ne, halo_op, halo_un, halo_vn, halo_om,  &
                      zpot_in, halo_o2, halo_o1, halo_n2, Sip_in, Siptm1_in, Sipxi_in,       &
                      halo_mbar, ui_in, vi_in, wi_in,  eobx, eoby, eobz, pmid_inv,    &
-                     Sip_out, Siptm1_out, rmassSip, lon0, lon1, lat0, lat1, vxbnspltop, isplit )
+                     Sip_out, Siptm1_out, rmassSip, lon0, lon1, lat0, lat1, nsplt_vxb, isplit )
              end do
           endif
 
