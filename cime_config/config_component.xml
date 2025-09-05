@@ -10,7 +10,7 @@
    -->
     <desc atm="CAM60[%SMBB][%SMBBext][%SMYLE][%1PCT][%4xCO2][%CCTS][%CFIRE][%CVBSX][%PORT][%RCO2][%SCAM][%SDYN][%WCCM][%WCMD][%WCSC][%WCTS]">CAM cam6 physics:</desc>
     <desc atm="CAM50[%CCTS][%CLB][%PORT][%RCO2][%SCAM][%SDYN][%WCSC][%WCTS]"              >CAM cam5 physics:</desc>
-    <desc atm="CAM40[%PORT][%RCO2][%SCAM][%SDYN][%TMOZ][%WXIE][%WXIED][%WCMD]"                   >CAM cam4 physics:</desc>
+    <desc atm="CAM40[%PORT][%RCO2][%SCAM][%SDYN][%TMOZ][%WXIE][%WXIED][%WXIEM][%WCMD]"                   >CAM cam4 physics:</desc>
     <desc atm="CAM[%ADIAB][%DABIP04][%TJ16][%HS94][%KESSLER][%RCO2][%SPCAMS][%SPCAMCLBS][%SPCAMM][%SPCAMCLBM]">CAM simplified and non-versioned physics :</desc>
 
   <!--
@@ -56,6 +56,7 @@
     <desc option="WCMD"         >WACCM with middle atmosphere chemistry with enhanced D-region ion chemistry:</desc>
     <desc option="WXIE"         >WACCM-X enhanced ionosphere, transport, and electrodynamics:</desc>
     <desc option="WXIED"        >WACCM-X enhanced ionosphere, transport, and electrodynamics with D-region ion chemistry:</desc>
+    <desc option="WXIEM"        >WACCM-X enhanced ionosphere, transport, and electrodynamics with metal ion chemistry:</desc>
     <desc option="WCSC"         >WACCM specified chemistry:</desc>
     <desc option="WCTS"         >WACCM with tropospheric, stratospheric, mesospheric, and lower thermospheric chemistry:</desc>
 
@@ -143,6 +144,7 @@
       <value compset="_CAM40%WXIE">-ionosphere wxie</value>
       <value compset="_CAM40%WXIE(_|%)">-chem waccm_ma</value>
       <value compset="_CAM40%WXIED">-chem waccm_mad</value>
+      <value compset="_CAM40%WXIEM">-chem waccm_ma_metalions</value>
       <value compset="_CAM40%WCMD">-chem waccm_mad</value>
 
       <value compset="_CAM.*%SDYN">-offline_dyn</value>
@@ -252,7 +254,7 @@
       <value compset="SSP245_CAM60%WCTS" >waccm_tsmlt_ssp245_cam6</value>
       <value compset="SSP370_CAM60%WCTS" >waccm_tsmlt_ssp370_cam6</value>
       <value compset="SSP534_CAM60%WCTS" >waccm_tsmlt_ssp534_cam6</value>
-      <value compset="SSP534EXT_CAM60%WCTS">waccm_tsmlt_ssp534ext_cam6</value> 
+      <value compset="SSP534EXT_CAM60%WCTS">waccm_tsmlt_ssp534ext_cam6</value>
       <value compset="SSP585_CAM60%WCTS" >waccm_tsmlt_ssp585_cam6</value>
       <value compset="SSP585EXT_CAM60%WCTS">waccm_tsmlt_ssp585ext_cam6</value>
       <value compset="RCP2_CAM40"        >2005-2100_cam4_rcp26</value>

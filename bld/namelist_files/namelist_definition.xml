@@ -3916,6 +3916,12 @@ Number of ion transport steps per physics timestep.
 Default: 5
 </entry>
 
+<entry id="vxb_xport_nsplit" type="integer"  category="waccmx"
+       group="ionosphere_nl" valid_values="">
+Number of VxB ion transport steps per physics timestep.
+Default: 15
+</entry>
+
 <entry id="ionos_edyn_active" type="logical"  category="waccmx"
        group="ionosphere_nl" valid_values="">
 Switch to invoke electro-dynamo to compute ion drift velocities used in

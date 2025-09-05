@@ -8,7 +8,7 @@ module ionosphere_interface
   use dpie_coupling,       only: d_pie_init
   use dpie_coupling,       only: d_pie_epotent
   use dpie_coupling,       only: d_pie_coupling         ! WACCM-X ionosphere/electrodynamics coupling
-  use short_lived_species, only: slvd_index,slvd_pbf_ndx => pbf_idx ! Routines to access short lived species 
+  use short_lived_species, only: slvd_index,slvd_pbf_ndx => pbf_idx ! Routines to access short lived species
 
   use chem_mods,           only: adv_mass      ! Array holding mass values for short lived species
   use mo_chem_utls,        only: get_spc_ndx   ! Routine to get index of adv_mass array for short lived species
@@ -45,7 +45,7 @@ module ionosphere_interface
   public :: ionosphere_read_restart
   public :: ionosphere_final
 
-  ! private data 
+  ! private data
 
   ! this needs to persist from time-step to time-step and across restarts
   real(r8), allocatable :: opmmrtm1_blck(:,:,:)   ! O+ at previous time step(blocks)
@@ -56,22 +56,22 @@ module ionosphere_interface
   real(r8), allocatable :: mgpmmrtm1_blck(:,:,:)   ! Fe+ at previous time step(blocks)
   real(r8), allocatable :: napmmrtm1_blck(:,:,:)   ! Fe+ at previous time step(blocks)
 
-  type(var_desc_t) :: Feptm1_vdesc 
-  type(var_desc_t) :: Mgptm1_vdesc 
-  type(var_desc_t) :: Naptm1_vdesc 
+  type(var_desc_t) :: Feptm1_vdesc
+  type(var_desc_t) :: Mgptm1_vdesc
+  type(var_desc_t) :: Naptm1_vdesc
 !Add more metal ions, Wuhu Feng, 11 April 2022
 
     real(r8), allocatable :: capmmrtm1_blck(:,:,:)   ! Ca+ at previous time step(blocks)
     real(r8), allocatable :: kpmmrtm1_blck(:,:,:)   ! K+ at previous time step(blocks)
     real(r8), allocatable :: sipmmrtm1_blck(:,:,:)   ! Si+ at previous time step(blocks)
- 
+
     type(var_desc_t) :: captm1_vdesc
     type(var_desc_t) :: kptm1_vdesc
     type(var_desc_t) :: siptm1_vdesc
 !-------------------------------------------------------
-  type(var_desc_t) :: Optm1_vdesc 
-  type(var_desc_t) :: NOptm1_vdesc 
-  type(var_desc_t) :: O2ptm1_vdesc 
+  type(var_desc_t) :: Optm1_vdesc
+  type(var_desc_t) :: NOptm1_vdesc
+  type(var_desc_t) :: O2ptm1_vdesc
   integer :: index_ped, index_hall, index_te, index_ti
   integer :: index_ui, index_vi, index_wi
 
@@ -82,10 +82,10 @@ module ionosphere_interface
   integer :: ixnap=-1  !Jianfei Wu added for Fe+ Na+ and K+
 
   ! indices for accessing ions in pbuf when non-advected
-  integer :: sIndxOp=-1, sIndxO2p=-1, sIndxNOp=-1, sIndxN2p=-1  
-  integer :: sIndxFep=-1 !Jianfei Wu added for Fe+ Na+ and K+ 
-  integer :: sIndxMgp=-1 !Jianfei Wu added for Fe+ Na+ and K+ 
-  integer :: sIndxNap=-1 !Jianfei Wu added for Fe+ Na+ and K+ 
+  integer :: sIndxOp=-1, sIndxO2p=-1, sIndxNOp=-1, sIndxN2p=-1
+  integer :: sIndxFep=-1 !Jianfei Wu added for Fe+ Na+ and K+
+  integer :: sIndxMgp=-1 !Jianfei Wu added for Fe+ Na+ and K+
+  integer :: sIndxNap=-1 !Jianfei Wu added for Fe+ Na+ and K+
 !Add more metal ions, Wuhu Feng, 11 April 2022
 
     integer :: ixcap=-1  !Jianfei Wu added for Fe+ Na+ and K+
@@ -117,7 +117,7 @@ module ionosphere_interface
   logical, public,  protected :: ionos_edyn_active = .true.   ! if true, edynamo will generate ion drifts
   logical, public,  protected :: ionos_xport_active = .true.  ! if true, call d_pie_coupling from dp_coupling
   !
-  ! ionos_edyn_active = .true. will activate the edynamo which will generate ion drift velocities 
+  ! ionos_edyn_active = .true. will activate the edynamo which will generate ion drift velocities
   !  used in oplus transport, otherwise empirical ion drifts calculated in exbdrift (physics) will be used.
   !
   logical, public,  protected :: ionos_oplus_xport = .true.    ! if true, call sub oplus (based on tiegcm oplus.F)
@@ -238,7 +238,7 @@ contains
 
     if ( ionos_epotential_amie ) then
        call pbuf_add_field('AMIE_efxg', 'global', dtype_r8, (/pcols/), indxAMIEefxg)  ! Energy flux from AMIE
-       call pbuf_add_field('AMIE_kevg', 'global', dtype_r8, (/pcols/), indxAMIEkevg)  ! Mean energy from AMIE  
+       call pbuf_add_field('AMIE_kevg', 'global', dtype_r8, (/pcols/), indxAMIEkevg)  ! Mean energy from AMIE
     endif
     if (initial_run) then
        call ionosphere_read_ic()
@@ -359,7 +359,7 @@ contains
             endif
          endif
          if (masterproc) write(iulog,"('SIndxCap:',i4' rMassCap',f8.3)") SIndxCap,rMassCap
- 
+
          call cnst_get_ind('Kp',ixkp, abort=.false.)
          if (ixkp > 0) then
             rMassKp = cnst_mw(ixkp)
@@ -375,7 +375,7 @@ contains
             endif
          endif
          if (masterproc) write(iulog,"('SIndxKp:',i4' rMassKp',f8.3)") SIndxKp,rMassKp
- 
+
          call cnst_get_ind('Sip',ixsip, abort=.false.)
          if (ixsip > 0) then
             rMassSip = cnst_mw(ixsip)
@@ -434,7 +434,7 @@ contains
 
        call d_pie_init( ionos_edyn_active, ionos_oplus_xport, ionos_xport_nsplit , vxb_xport_nsplit, epot_crit_colats)
        if ( grid%iam < grid%npes_xy ) then
-          
+
           allocate(glon(plon))
           allocate(glat(plat))
           call get_horiz_grid_d( plon, lon_d_out=glon )
@@ -474,7 +474,7 @@ contains
     endif op_transport
 
     if (ionos_edyn_active) then
-       call addfld ('UI',(/ 'lev' /),'I','m/s', 'UI Zonal ion drift from edynamo') 
+       call addfld ('UI',(/ 'lev' /),'I','m/s', 'UI Zonal ion drift from edynamo')
        call addfld ('VI',(/ 'lev' /),'I','m/s', 'VI Meridional ion drift from edynamo')
        call addfld ('WI',(/ 'lev' /),'I','m/s', 'WI Vertical ion drift from edynamo')
        call addfld ('UI&IC', (/ 'lev' /), 'I','m/s', 'Zonal ion drift velocity')
@@ -486,12 +486,17 @@ contains
     endif
     if ( ionos_epotential_amie ) then
        call init_amie(amienh_file,amiesh_file)
-       call addfld ('amie_efx_phys',horiz_only,'I','mW/m2', 'AMIE energy flux') 
+       call addfld ('amie_efx_phys',horiz_only,'I','mW/m2', 'AMIE energy flux')
        call addfld ('amie_kev_phys',horiz_only,'I','keV'  , 'AMIE mean energy')
     end if
     if ( trim(ionos_epotential_model) == 'weimer' ) then
        call weimer05_init(wei05_coefs_file)
     endif
+
+    call addfld('Fep_phys0', (/ 'lev' /), 'I', 'kg/kg', 'Fep before d_pie_cpl ', gridname='physgrid')
+    call addfld('Fep_phys1', (/ 'lev' /), 'I', 'kg/kg', 'Fep after d_pie_cpl ', gridname='physgrid')
+    call addfld('Mgp_phys0', (/ 'lev' /), 'I', 'kg/kg', 'Mgp before d_pie_cpl ', gridname='physgrid')
+    call addfld('Mgp_phys1', (/ 'lev' /), 'I', 'kg/kg', 'Mgp after d_pie_cpl ', gridname='physgrid')
 
   end subroutine ionosphere_init
 
@@ -515,7 +520,7 @@ contains
 
     real(r8), pointer :: pbuf_amie_efxg(:)     ! Pointer to access AMIE energy flux in pbuf
     real(r8), pointer :: pbuf_amie_kevg(:)     ! Pointer to access AMIE mean energy in pbuf
-    
+
     integer :: lats(pcols)           ! array of latitude indices
     integer :: lons(pcols)           ! array of longitude in
     integer :: blksiz                ! number of columns in 2D block
@@ -552,7 +557,7 @@ contains
                 tmp(i,k) = opmmrtm1_blck(i,j,k)
              enddo
           enddo
-          call outfld ('OpTM1&IC', tmp, idim, j) 
+          call outfld ('OpTM1&IC', tmp, idim, j)
        enddo
 
        deallocate( tmp )
@@ -601,7 +606,7 @@ contains
           allocate( bbuffer(tsize*block_buf_nrecs),stat=astat )
           allocate( cbuffer(tsize*chunk_buf_nrecs),stat=astat )
 
-          if (iam < grid%npes_xy) then 
+          if (iam < grid%npes_xy) then
              call block_to_chunk_send_pters(iam+1,blksiz,pver+1,tsize,bpter)
           endif
 
@@ -640,7 +645,7 @@ contains
        deallocate(amie_efxg,amie_kevg)
 
     else
-       
+
        ! set cross tail potential before physics -- aurora uses weimer derived potential
        call d_pie_epotent( ionos_epotential_model, epot_crit_colats )
 
@@ -750,7 +755,7 @@ contains
 
     type (t_fvdycore_grid), pointer :: grid
 
-    ionos_cpl: if (ionos_xport_active) then 
+    ionos_cpl: if (ionos_xport_active) then
 
        grid => get_dyn_state_grid()
        iam = grid%iam
@@ -792,7 +797,7 @@ contains
        u3s    => dyn_in%u3s
        v3s    => dyn_in%v3s
 
-       if (iam < grid%npes_xy) then 
+       if (iam < grid%npes_xy) then
           call d2a3dijk( grid, u3s, v3s, wuxy, wvxy )
        endif
 
@@ -806,6 +811,11 @@ contains
        endif
        !-------------------------Jianfei Wu------------------------------------------
        !----------------------------------------------------------------------------------
+
+       do lchnk = begchunk,endchunk
+          call outfld('Fep_phys0', phys_state(lchnk)%q(:,:,ixFep), pcols, lchnk)
+          call outfld('Mgp_phys0', phys_state(lchnk)%q(:,:,ixMgp), pcols, lchnk)
+       end do
 
        phys2blcks_local: if (local_dp_map) then
 
@@ -826,7 +836,7 @@ contains
                 end do
              enddo
 
-             ! Get ion and electron temperatures 
+             ! Get ion and electron temperatures
              call pbuf_get_field(pbuf_chnk, index_te, te_phys)
              call pbuf_get_field(pbuf_chnk, index_ti, ti_phys)
              do k=1,km
@@ -892,7 +902,7 @@ contains
           tsize = 19
 
           nSIons = 0
-          if (sIndxOp > 0)  then 
+          if (sIndxOp > 0)  then
              ibuffOp = tsize + nSIons
              nSIons = nSIons + 1
           endif
@@ -918,7 +928,7 @@ contains
              call pbuf_get_field(pbuf_chnk, index_ped,  sigma_ped_phys)
              call pbuf_get_field(pbuf_chnk, index_hall, sigma_hall_phys)
 
-             ! Get ion and electron temperatures 
+             ! Get ion and electron temperatures
              call pbuf_get_field(pbuf_chnk, index_te,  te_phys)
              call pbuf_get_field(pbuf_chnk, index_ti,  ti_phys)
 
@@ -926,7 +936,7 @@ contains
              call pbuf_get_field(pbuf_chnk, index_ui,  ui_phys)
              call pbuf_get_field(pbuf_chnk, index_vi,  vi_phys)
              call pbuf_get_field(pbuf_chnk, index_wi,  wi_phys)
- 
+
              !--------------------------------------------------------
              ! Get ions from physics buffer if non-transported
              !--------------------------------------------------------
@@ -983,7 +993,7 @@ contains
           call transpose_chunk_to_block(tsize, cbuffer, bbuffer)
           call t_stopf  ('chunk_to_block')
 
-          if (iam < grid%npes_xy) then 
+          if (iam < grid%npes_xy) then
              call chunk_to_block_recv_pters(iam+1,blksiz,pver+1,tsize,bpter)
           endif
 
@@ -1049,7 +1059,7 @@ contains
        h1mmr_blck  => tracer(ifirstxy:ilastxy,jfirstxy:jlastxy,1:km,ixh)
 
        !
-       !   Make geopotential height (m) for d_pie_coupling. 
+       !   Make geopotential height (m) for d_pie_coupling.
        !
        do k=1,km
           do j=jfirstxy,jlastxy
@@ -1062,7 +1072,7 @@ contains
 
        call t_startf('d_pie_coupling')
 
-       if (iam < grid%npes_xy) then 
+       if (iam < grid%npes_xy) then
           ! waccmx ionosphere electro-dynamics -- transports O+ and provides updates to ion drift velocities
           call d_pie_coupling(omega_blck,pexy,zi_blck,zm_blck,wuxy,wvxy,tn_blck,                        &
                sigma_ped_blck,sigma_hall_blck,te_blck,ti_blck,                      &
@@ -1085,7 +1095,7 @@ contains
        !  Put data back in to state%q or pbuf
        !----------------------------------------
        if (ixop > 0) then
-          tracer(ifirstxy:ilastxy,jfirstxy:jlastxy,1:km,ixop) = opmmr_blck(ifirstxy:ilastxy,jfirstxy:jlastxy,1:km)           
+          tracer(ifirstxy:ilastxy,jfirstxy:jlastxy,1:km,ixop) = opmmr_blck(ifirstxy:ilastxy,jfirstxy:jlastxy,1:km)
        endif
        !-------------------Jianfei Wu-----------------------------------------------------------------------------
        !-------------------Jianfei Wu-----------------------------------------------------------------------------
@@ -1164,7 +1174,7 @@ contains
           allocate( bbuffer(tsize*block_buf_nrecs),stat=astat )
           allocate( cbuffer(tsize*chunk_buf_nrecs),stat=astat )
 
-          if (iam < grid%npes_xy) then 
+          if (iam < grid%npes_xy) then
              call block_to_chunk_send_pters(iam+1,blksiz,km+1,tsize,bpter)
           endif
 
@@ -1260,6 +1270,11 @@ contains
           deallocate(cbuffer)
 
        endif blcks2phys_local
+
+       do lchnk = begchunk,endchunk
+          call outfld('Fep_phys1', phys_state(lchnk)%q(:,:,ixFep), pcols, lchnk)
+          call outfld('Mgp_phys1', phys_state(lchnk)%q(:,:,ixMgp), pcols, lchnk)
+       end do
 
        if (sIndxOp>0) then
           deallocate(opmmr_blck)
@@ -1522,26 +1537,26 @@ contains
 !Wuhu Feng, more metal ions
          call infld('CapTM1', fh_ini, 'lon', 'lat', 'lev', ifirstxy, ilastxy, jfirstxy, jlastxy, &
               1, km, capmmrtm1_blck, readvar, gridname='fv_centers')
- 
+
          if (.not.readvar) then
             call infld('Cap', fh_ini, 'lon', 'lat', 'lev', ifirstxy, ilastxy, jfirstxy, jlastxy, &
                  1, km, capmmrtm1_blck, readvar, gridname='fv_centers')
          endif
          call infld('KpTM1', fh_ini, 'lon', 'lat', 'lev', ifirstxy, ilastxy, jfirstxy, jlastxy, &
               1, km, kpmmrtm1_blck, readvar, gridname='fv_centers')
- 
+
          if (.not.readvar) then
             call infld('Kp', fh_ini, 'lon', 'lat', 'lev', ifirstxy, ilastxy, jfirstxy, jlastxy, &
                  1, km, kpmmrtm1_blck, readvar, gridname='fv_centers')
          endif
          call infld('SipTM1', fh_ini, 'lon', 'lat', 'lev', ifirstxy, ilastxy, jfirstxy, jlastxy, &
               1, km, sipmmrtm1_blck, readvar, gridname='fv_centers')
- 
+
          if (.not.readvar) then
             call infld('Sip', fh_ini, 'lon', 'lat', 'lev', ifirstxy, ilastxy, jfirstxy, jlastxy, &
                  1, km, sipmmrtm1_blck, readvar, gridname='fv_centers')
          endif
- 
+
 !--------------------------------------------------------------------------------------
 
     endif
@@ -1694,7 +1709,7 @@ contains
 function get_restart_decomp(hdim1, hdim2, nlev) result(ldof)
    use dyn_grid, only: get_dyn_grid_parm
 
-   ! Get the integer mapping of a variable in the dynamics decomp in memory.  
+   ! Get the integer mapping of a variable in the dynamics decomp in memory.
    ! The canonical ordering is as on the file. A 0 value indicates that the
    ! variable is not on the file (eg halo or boundary values)
 
@@ -1715,7 +1730,7 @@ function get_restart_decomp(hdim1, hdim2, nlev) result(ldof)
 
    lcnt = (endlatxy-beglatxy+1)*nlev*(endlonxy-beglonxy+1)
    allocate(ldof(lcnt))
-   ldof(:) = 0	
+   ldof(:) = 0
 
    lcnt = 0
    do k = 1, nlev

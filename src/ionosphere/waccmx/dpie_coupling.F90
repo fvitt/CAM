@@ -35,7 +35,7 @@ module dpie_coupling
   real(r8) :: crad(2), crit(2)
   logical :: crit_user_set = .false.
   real(r8), parameter :: amie_default_crit(2) = (/ 35._r8, 40._r8 /)
-  
+
 contains
 !----------------------------------------------------------------------
   subroutine d_pie_init( edyn_active_in, oplus_xport_in, oplus_nsplit_in ,vxb_nsplit_in, crit_colats_deg)
@@ -54,7 +54,7 @@ contains
     if (crit_user_set) then
        crit(:) = crit_colats_deg(:)*dtr
     endif
-    
+
     ! Dynamo inputs (called from dpie_coupling. Fields are in waccm format, in CGS units):
     call addfld ('DPIE_OMEGA',(/ 'lev' /), 'I', 'Pa/s    ','OMEGA input to DPIE coupling', gridname='fv_centers')
     call addfld ('DPIE_MBAR' ,(/ 'lev' /), 'I', '        ','MBAR Mean Mass from dpie_coupling', gridname='fv_centers')
@@ -109,7 +109,10 @@ contains
     call addfld ('WACCM_UI'   ,(/ 'lev' /), 'I', 'm/s'  ,'WACCM_UI (dpie output)', gridname='fv_centers')
     call addfld ('WACCM_VI'   ,(/ 'lev' /), 'I', 'm/s'  ,'WACCM_VI (dpie output)', gridname='fv_centers')
     call addfld ('WACCM_WI'   ,(/ 'lev' /), 'I', 'm/s'  ,'WACCM_WI (dpie output)', gridname='fv_centers')
- 
+    call addfld ('WACCM_OP'   ,(/ 'lev' /), 'I', 'kg/kg'  ,'WACCM_OP (dpie output)', gridname='fv_centers')
+    call addfld ('WACCM_FeP'  ,(/ 'lev' /), 'I', 'kg/kg'  ,'WACCM_FeP (dpie output)', gridname='fv_centers')
+    call addfld ('WACCM_MgP'  ,(/ 'lev' /), 'I', 'kg/kg'  ,'WACCM_MgP (dpie output)', gridname='fv_centers')
+
     call addfld ('HMF2'       , horiz_only , 'I', 'km'  ,'Height of the F2 Layer'      , gridname='fv_centers')
     call addfld ('NMF2'       , horiz_only , 'I', 'cm-3','Peak Density of the F2 Layer', gridname='fv_centers')
 
@@ -127,7 +130,24 @@ contains
       call addfld ('SipDens' ,(/ 'lev' /), 'I', 'cm^3','Si+ Number Density' , gridname='fv_centers')
 
     call addfld ('EDens'  ,(/ 'lev' /), 'I', 'cm^3','e Number Density (sum of O2+,NO+,N2+,O+)', gridname='fv_centers')
- 
+
+    call addfld ('OPtm1i',(/ 'lev' /), 'I', 'cm^3','O+ (oplus_xport output)',    gridname='fv_centers')
+    call addfld ('OPtm1o',(/ 'lev' /), 'I', 'cm^3','O+ (oplus_xport output)',    gridname='fv_centers')
+
+    call addfld ('FePtm1i',(/ 'lev' /), 'I', 'cm^3','Fe+ (oplus_xport output)',    gridname='fv_centers')
+    call addfld ('FePtm1o',(/ 'lev' /), 'I', 'cm^3','Fe+ (oplus_xport output)',    gridname='fv_centers')
+
+    call addfld ('MgPtm1i',(/ 'lev' /), 'I', 'cm^3','Mg+ (oplus_xport output)',    gridname='fv_centers')
+    call addfld ('MgPtm1o',(/ 'lev' /), 'I', 'cm^3','Mg+ (oplus_xport output)',    gridname='fv_centers')
+
+    call addfld ('OPi', (/ 'lev' /), 'I', 'cm^3','O+  (oplus_xport output)',  gridname='fv_centers')
+    call addfld ('FePi',(/ 'lev' /), 'I', 'cm^3','Fe+ (feplus_xport output)', gridname='fv_centers')
+    call addfld ('MgPi',(/ 'lev' /), 'I', 'cm^3','Mg+ (mgplus_xport output)', gridname='fv_centers')
+
+    call addfld ('OPo', (/ 'lev' /), 'I', 'cm^3','O+  (oplus_xport output)',  gridname='fv_centers')
+    call addfld ('FePo',(/ 'lev' /), 'I', 'cm^3','Fe+ (feplus_xport output)', gridname='fv_centers')
+    call addfld ('MgPo',(/ 'lev' /), 'I', 'cm^3','Mg+ (mgplus_xport output)', gridname='fv_centers')
+
   end subroutine d_pie_init
 
 !-----------------------------------------------------------------------
@@ -169,11 +189,11 @@ contains
     !
     ! AMIE fields (extra dimension added for longitude switch)
     !
-    real(r8) :: amie_efxm(nmlonp1,nmlat), amie_kevm(nmlonp1,nmlat)  ! auroral energy flux and 
+    real(r8) :: amie_efxm(nmlonp1,nmlat), amie_kevm(nmlonp1,nmlat)  ! auroral energy flux and
     real(r8) :: amie_phihm(nmlonp1,nmlat)
     real(r8),allocatable,target :: amie_efxg (:,:,:) ! AMIE energy flux
     real(r8),allocatable,target :: amie_kevg (:,:,:) ! AMIE characteristic mean energy
-    
+
     call edyn_esmf_update()
 
     call get_curr_date(iyear,imo,iday,tod) ! tod is integer time-of-day in seconds
@@ -204,7 +224,7 @@ contains
                byimf,bzimf,swvel,swden
        endif
     else
-       call endrun('dpie_coupling: Unknown highlat_potential_model') 
+       call endrun('dpie_coupling: Unknown highlat_potential_model')
     endif
 
     if (present(efxg)) then ! the presence of efxg indicate the user want to use prescribed potential
@@ -212,7 +232,7 @@ contains
        amie_ibkg = 0
        iamie = 1
        if (masterproc) write(iulog,"('Calling getamie >>> iamie=',i2)") iamie
-       
+
        call getamie(iyear,imo,iday,tod,sunlons(1),amie_ibkg,iprint,iamie, &
             amie_phihm,amie_efxm,amie_kevm,crad,efxg,kevg)
 
@@ -257,11 +277,11 @@ contains
 
        endif
 
-       call savefld_waccm(efxg,'amie_efxg',1,i0,i1,j0,j1) 
-       call savefld_waccm(kevg,'amie_kevg',1,i0,i1,j0,j1) 
+       call savefld_waccm(efxg,'amie_efxg',1,i0,i1,j0,j1)
+       call savefld_waccm(kevg,'amie_kevg',1,i0,i1,j0,j1)
 
     endif
- 
+
     call calc_pfrac(sunlons(1),pfrac) ! returns pfrac for dynamo (edyn_solve)
 
     crit_out(:) = crit(:)*rtd ! degrees
@@ -527,7 +547,7 @@ contains
       height(3),    &  ! Surrounding heights when locating electron density F2 peak
       nde(3)           ! Surround densities when locating electron density F2 peak
     real(r8) h12,h22,h32,deltx,atx,ax,btx,bx,ctx,cx ! Variables used for weighting when locating F2 peak
-! 
+!
     logical :: do_integrals
 !
 ! Pointers for multiple-field calls:
@@ -552,7 +572,7 @@ contains
     do k=1,nlev
       pmid(i0:i1,k,j0:j1) = 0.5_r8*(pe(i0:i1,k,j0:j1)+pe(i0:i1,k+1,j0:j1))
     enddo
-   
+
     !---------------------------------------------------------------
     ! Convert geopotential z to geometric height zht (m):
     !---------------------------------------------------------------
@@ -563,8 +583,8 @@ contains
     ! Need geometric height on midpoints for output
     !---------------------------------------------------------------
 
-    zhtmid(:,:,1:nlev) = zgpmid(:,:,1:nlev) *(1._r8 + zgpmid(:,:,1:nlev) / re ) 
-    
+    zhtmid(:,:,1:nlev) = zgpmid(:,:,1:nlev) *(1._r8 + zgpmid(:,:,1:nlev) / re )
+
     !------------------------------------------------------------------------------------------
     ! Convert virtual potential temperature to temperature and compute mean molecular weight:
     !------------------------------------------------------------------------------------------
@@ -587,7 +607,7 @@ contains
         enddo
       enddo
     enddo
-   
+
     !-----------------------------------------------------------------------------------------------
     ! Save analytically derived geometric height on interfaces and midpoints, omega (Pa/s) and mbar.
     !-----------------------------------------------------------------------------------------------
@@ -626,7 +646,7 @@ contains
           optm1(i,j,k)  = opmmrtm1(i,j,k)  * mbar(i,j,k) / rmassOp  * &
             pmid(i,k,j) / (kboltz * tn(i,j,k))
         !-----------------------------------------------------------
-        !Jianfei Wu added 
+        !Jianfei Wu added
         !to calculate collision frequency (xi)
         !-----------------------------------------------------------
           fep(i,j,k)  = fepmmr(i,j,k)  * mbar(i,j,k) / rmassFep  * &
@@ -700,12 +720,12 @@ contains
 
     !-------------------------------------------------------------------------------
     !  Derive diagnostics nmF2 and hmF2 for output based on TIE-GCM algorithm
-    !------------------------------------------------------------------------------- 
+    !-------------------------------------------------------------------------------
     jloop: do j=j0,j1
       iloop: do i=i0,i1
 
         kx = 0
-        kloop: do k=2,nlev 
+        kloop: do k=2,nlev
           if (ne(i,j,k) >= ne(i,j,k-1) .and. ne(i,j,k) >= ne(i,j,k+1)) then
             kx = k
             exit kloop
@@ -714,7 +734,7 @@ contains
 
         if (kx==0) then
           hmf2(i,j) = fillvalue
-          nmf2(i,j) = fillvalue 
+          nmf2(i,j) = fillvalue
           exit iloop
         endif
 
@@ -795,8 +815,8 @@ contains
       edyn_o2p   (k,i0:i1,j0:j1) = o2p     (i0:i1,j0:j1,k) / 1.e6_r8  ! m^3 -> cm^3
       edyn_o2ptm1(k,i0:i1,j0:j1) = o2ptm1  (i0:i1,j0:j1,k) / 1.e6_r8  ! m^3 -> cm^3
       !-----------------------------------------------------------
-      !Jianfei Wu added 
-      !to 
+      !Jianfei Wu added
+      !to
       !-----------------------------------------------------------
       edyn_o2n   (k,i0:i1,j0:j1) = o2  (i0:i1,j0:j1,k)
       edyn_o1n   (k,i0:i1,j0:j1) = o1  (i0:i1,j0:j1,k)
@@ -868,45 +888,45 @@ contains
 !
     do j=j0,j1
       do i=i0,i1
-        do k=1,nlev 
+        do k=1,nlev
           edyn_ne(k,i,j) = ne(i,j,k)*1.e-6_r8 ! m^3 -> cm^3
         enddo
       enddo
     enddo
 !
-! Convert input fields from "WACCM format" to "TIEGCM format" 
+! Convert input fields from "WACCM format" to "TIEGCM format"
 ! (phase shift longitude data and invert the vertical dimension).
 !
     if (ionos_edyn_active) then
 !More metal ions transport, WUhu Feng, 11 April 2022
 !      nfields = 34  !21-->28  Jainfei Wu
-       nfields = 40  
+       nfields = 40
        allocate(ptrs(nfields))
        !
        ! Fields needed for edynamo:
-       ptrs(1)%ptr => edyn_tn    ; ptrs(2)%ptr => edyn_un   ; ptrs(3)%ptr => edyn_vn 
+       ptrs(1)%ptr => edyn_tn    ; ptrs(2)%ptr => edyn_un   ; ptrs(3)%ptr => edyn_vn
        ptrs(4)%ptr => edyn_wn    ; ptrs(5)%ptr => edyn_zht  ; ptrs(6)%ptr => edyn_zgi
        ptrs(7)%ptr => edyn_mbar  ; ptrs(8)%ptr => edyn_ped  ; ptrs(9)%ptr => edyn_hall
        !
        ! Additional fields needed for oplus (and Ne for diag):
-       ptrs(10)%ptr => edyn_te  ; ptrs(11)%ptr => edyn_ti    ; ptrs(12)%ptr => edyn_o2   
-       ptrs(13)%ptr => edyn_o1  ; ptrs(14)%ptr => edyn_n2    ; ptrs(15)%ptr => edyn_om   
+       ptrs(10)%ptr => edyn_te  ; ptrs(11)%ptr => edyn_ti    ; ptrs(12)%ptr => edyn_o2
+       ptrs(13)%ptr => edyn_o1  ; ptrs(14)%ptr => edyn_n2    ; ptrs(15)%ptr => edyn_om
        ptrs(16)%ptr => edyn_op  ; ptrs(17)%ptr => edyn_optm1 ; ptrs(18)%ptr => edyn_ne
        ptrs(19)%ptr => edyn_ui  ; ptrs(20)%ptr => edyn_vi    ; ptrs(21)%ptr => edyn_wi
       !-----------------------------------------------------------
-      !Jianfei Wu added 
-      !to 
+      !Jianfei Wu added
+      !to
       !-----------------------------------------------------------
-       ptrs(22)%ptr => edyn_fep  ; ptrs(23)%ptr => edyn_feptm1   
-       ptrs(24)%ptr => edyn_o1n  ; ptrs(25)%ptr => edyn_n2n    ; ptrs(26)%ptr => edyn_o2n   
-       ptrs(27)%ptr => edyn_mgp  ; ptrs(28)%ptr => edyn_mgptm1   
-       ptrs(29)%ptr => edyn_nap  ; ptrs(30)%ptr => edyn_naptm1   
-       ptrs(31)%ptr => edyn_nop  ; ptrs(32)%ptr => edyn_noptm1   
-       ptrs(33)%ptr => edyn_o2p  ; ptrs(34)%ptr => edyn_o2ptm1   
+       ptrs(22)%ptr => edyn_fep  ; ptrs(23)%ptr => edyn_feptm1
+       ptrs(24)%ptr => edyn_o1n  ; ptrs(25)%ptr => edyn_n2n    ; ptrs(26)%ptr => edyn_o2n
+       ptrs(27)%ptr => edyn_mgp  ; ptrs(28)%ptr => edyn_mgptm1
+       ptrs(29)%ptr => edyn_nap  ; ptrs(30)%ptr => edyn_naptm1
+       ptrs(31)%ptr => edyn_nop  ; ptrs(32)%ptr => edyn_noptm1
+       ptrs(33)%ptr => edyn_o2p  ; ptrs(34)%ptr => edyn_o2ptm1
 !More metal ions transport, WUhu Feng, 11 April 2022
-       ptrs(35)%ptr => edyn_cap  ; ptrs(36)%ptr => edyn_captm1   
-       ptrs(37)%ptr => edyn_kp  ; ptrs(38)%ptr => edyn_kptm1   
-       ptrs(39)%ptr => edyn_sip  ; ptrs(40)%ptr => edyn_siptm1   
+       ptrs(35)%ptr => edyn_cap  ; ptrs(36)%ptr => edyn_captm1
+       ptrs(37)%ptr => edyn_kp  ; ptrs(38)%ptr => edyn_kptm1
+       ptrs(39)%ptr => edyn_sip  ; ptrs(40)%ptr => edyn_siptm1
       !-------Jianfei Wu end------------------------------------
        !
        ! Convert from WACCM to TIEGCM format:
@@ -925,11 +945,11 @@ contains
     call calc_xi(edyn_o2n,edyn_o1n,edyn_n2n,rmassNOp,rmassN2, rmassO2, rmassO1, edyn_nopxi,i0,i1,j0,j1,nlev)
     call calc_xi(edyn_o2n,edyn_o1n,edyn_n2n,rmassO2p,rmassN2, rmassO2, rmassO1, edyn_o2pxi,i0,i1,j0,j1,nlev)
 
-    call savefld_waccm(edyn_fexi,'Fep_Xi',nlev,i0,i1,j0,j1) 
-    call savefld_waccm(edyn_mgxi,'Mgp_Xi',nlev,i0,i1,j0,j1) 
-    call savefld_waccm(edyn_naxi,'Nap_Xi',nlev,i0,i1,j0,j1) 
-    call savefld_waccm(edyn_nopxi,'NOp_Xi',nlev,i0,i1,j0,j1) 
-    call savefld_waccm(edyn_o2pxi,'O2p_Xi',nlev,i0,i1,j0,j1) 
+    call savefld_waccm(edyn_fexi,'Fep_Xi',nlev,i0,i1,j0,j1)
+    call savefld_waccm(edyn_mgxi,'Mgp_Xi',nlev,i0,i1,j0,j1)
+    call savefld_waccm(edyn_naxi,'Nap_Xi',nlev,i0,i1,j0,j1)
+    call savefld_waccm(edyn_nopxi,'NOp_Xi',nlev,i0,i1,j0,j1)
+    call savefld_waccm(edyn_o2pxi,'O2p_Xi',nlev,i0,i1,j0,j1)
 !More metal ions transport, WUhu Feng, 11 April 2022
 
       edyn_caxi=0._r8
@@ -942,7 +962,7 @@ contains
       call savefld_waccm(edyn_kxi,'Kp_Xi',nlev,i0,i1,j0,j1)
       call savefld_waccm(edyn_sixi,'Sip_Xi',nlev,i0,i1,j0,j1)
 ! Call electrodynamo (edynamo.F90)
-! If using time3d conductances, tell dynamo to *not* do fieldline 
+! If using time3d conductances, tell dynamo to *not* do fieldline
 ! integrations (i.e., do_integrals == false). In this case, edynamo
 ! conductances zigmxx,rim1,2 from time3d will be set by subroutine
 ! transform_glbin in time3d module.
@@ -957,35 +977,35 @@ contains
        if (debug.and.masterproc) then
          write(iulog,"('dpie_coupling call dynamo... nstep=',i8)") nstep
          write(iulog,*) 'dpie_coupling: before dynamo MIN/MAX edyn_tn ', &
-               MINVAL(edyn_tn(:,i0:i1,j0:j1)), MAXVAL(edyn_tn(:,i0:i1,j0:j1))   
+               MINVAL(edyn_tn(:,i0:i1,j0:j1)), MAXVAL(edyn_tn(:,i0:i1,j0:j1))
          write(iulog,*) 'dpie_coupling: before dynamo MIN/MAX edyn_un ', &
-              MINVAL(edyn_un(:,i0:i1,j0:j1)), MAXVAL(edyn_un(:,i0:i1,j0:j1))   
+              MINVAL(edyn_un(:,i0:i1,j0:j1)), MAXVAL(edyn_un(:,i0:i1,j0:j1))
          write(iulog,*) 'dpie_coupling: before dynamo MIN/MAX edyn_vn ', &
-              MINVAL(edyn_un(:,i0:i1,j0:j1)), MAXVAL(edyn_vn(:,i0:i1,j0:j1))   
+              MINVAL(edyn_un(:,i0:i1,j0:j1)), MAXVAL(edyn_vn(:,i0:i1,j0:j1))
          write(iulog,*) 'dpie_coupling: before dynamo MIN/MAX edyn_wn ', &
-              MINVAL(edyn_wn(:,i0:i1,j0:j1)), MAXVAL(edyn_wn(:,i0:i1,j0:j1))   
+              MINVAL(edyn_wn(:,i0:i1,j0:j1)), MAXVAL(edyn_wn(:,i0:i1,j0:j1))
          write(iulog,*) 'dpie_coupling: before dynamo MIN/MAX edynz_zgi ', &
-              MINVAL(edyn_zgi(:,i0:i1,j0:j1)), MAXVAL(edyn_zgi(:,i0:i1,j0:j1))   
+              MINVAL(edyn_zgi(:,i0:i1,j0:j1)), MAXVAL(edyn_zgi(:,i0:i1,j0:j1))
          write(iulog,*) 'dpie_coupling: before dynamo MIN/MAX edynz_ped ', &
-              MINVAL(edyn_ped(:,i0:i1,j0:j1)), MAXVAL(edyn_ped(:,i0:i1,j0:j1))   
+              MINVAL(edyn_ped(:,i0:i1,j0:j1)), MAXVAL(edyn_ped(:,i0:i1,j0:j1))
          write(iulog,*) 'dpie_coupling: before dynamo MIN/MAX edynz_hall ', &
-              MINVAL(edyn_hall(:,i0:i1,j0:j1)), MAXVAL(edyn_hall(:,i0:i1,j0:j1))   
+              MINVAL(edyn_hall(:,i0:i1,j0:j1)), MAXVAL(edyn_hall(:,i0:i1,j0:j1))
          write(iulog,*) 'dpie_coupling: before dynamo MIN/MAX edynz_op ', &
-              MINVAL(edyn_op(:,i0:i1,j0:j1)), MAXVAL(edyn_op(:,i0:i1,j0:j1))   
+              MINVAL(edyn_op(:,i0:i1,j0:j1)), MAXVAL(edyn_op(:,i0:i1,j0:j1))
          write(iulog,*) 'dpie_coupling: before dynamo MIN/MAX edynz_optm1 ', &
-              MINVAL(edyn_optm1(:,i0:i1,j0:j1)), MAXVAL(edyn_optm1(:,i0:i1,j0:j1)) 
+              MINVAL(edyn_optm1(:,i0:i1,j0:j1)), MAXVAL(edyn_optm1(:,i0:i1,j0:j1))
          write(iulog,*) 'dpie_coupling: before dynamo MIN/MAX edynz_fep ', &
-              MINVAL(edyn_fep(:,i0:i1,j0:j1)), MAXVAL(edyn_fep(:,i0:i1,j0:j1))   
+              MINVAL(edyn_fep(:,i0:i1,j0:j1)), MAXVAL(edyn_fep(:,i0:i1,j0:j1))
          write(iulog,*) 'dpie_coupling: before dynamo MIN/MAX edynz_feptm1 ', &
-              MINVAL(edyn_feptm1(:,i0:i1,j0:j1)), MAXVAL(edyn_feptm1(:,i0:i1,j0:j1)) 
+              MINVAL(edyn_feptm1(:,i0:i1,j0:j1)), MAXVAL(edyn_feptm1(:,i0:i1,j0:j1))
          write(iulog,*) 'dpie_coupling: before dynamo MIN/MAX edynz_mgp ', &
-              MINVAL(edyn_mgp(:,i0:i1,j0:j1)), MAXVAL(edyn_mgp(:,i0:i1,j0:j1))   
+              MINVAL(edyn_mgp(:,i0:i1,j0:j1)), MAXVAL(edyn_mgp(:,i0:i1,j0:j1))
          write(iulog,*) 'dpie_coupling: before dynamo MIN/MAX edynz_mgptm1 ', &
-              MINVAL(edyn_mgptm1(:,i0:i1,j0:j1)), MAXVAL(edyn_mgptm1(:,i0:i1,j0:j1)) 
+              MINVAL(edyn_mgptm1(:,i0:i1,j0:j1)), MAXVAL(edyn_mgptm1(:,i0:i1,j0:j1))
          write(iulog,*) 'dpie_coupling: before dynamo MIN/MAX edynz_nap ', &
-              MINVAL(edyn_nap(:,i0:i1,j0:j1)), MAXVAL(edyn_nap(:,i0:i1,j0:j1))   
+              MINVAL(edyn_nap(:,i0:i1,j0:j1)), MAXVAL(edyn_nap(:,i0:i1,j0:j1))
          write(iulog,*) 'dpie_coupling: before dynamo MIN/MAX edynz_naptm1 ', &
-              MINVAL(edyn_naptm1(:,i0:i1,j0:j1)), MAXVAL(edyn_naptm1(:,i0:i1,j0:j1)) 
+              MINVAL(edyn_naptm1(:,i0:i1,j0:j1)), MAXVAL(edyn_naptm1(:,i0:i1,j0:j1))
 !More metal ions transport, WUhu Feng, 11 April 2022
            write(iulog,*) 'dpie_coupling: before dynamo MIN/MAX edynz_cap ', &
                 MINVAL(edyn_cap(:,i0:i1,j0:j1)), MAXVAL(edyn_cap(:,i0:i1,j0:j1))
@@ -1023,7 +1043,7 @@ contains
        endif
     endif
 !
-! Call O+ transport routine.  Now all inputs to oplus_xport should be in 
+! Call O+ transport routine.  Now all inputs to oplus_xport should be in
 ! tiegcm-format wrt longitude (-180->180), vertical (bot2top), and units (CGS).
 ! (Composition is mmr, ne is cm^3, winds are cm/s)
 ! Output op_out and opnm_out will be in cm^3, converted to mmr below.
@@ -1076,17 +1096,25 @@ contains
 
       polesign = 1._r8
       polesign(4:5) = -1._r8 ! un,vn
-     
+
       call mp_geo_halos(ptrs,1,nlev,i0,i1,j0,j1,nfields)
       !
       ! Set latitude halo points over the poles (this does not change the poles).
       ! (the 2nd halo over the poles will not actually be used (assuming lat loops
-      !  are lat=2,plat-1), because jp1,jm1 will be the pole itself, and jp2,jm2 
+      !  are lat=2,plat-1), because jp1,jm1 will be the pole itself, and jp2,jm2
       !  will be the first halo over the pole)
       !
       call mp_pole_halos(ptrs,1,nlev,i0,i1,j0,j1,nfields,polesign)
       deallocate(ptrs,polesign)
       call t_stopf('dpie_halo')
+
+      call savefld_waccm(edyn_optm1(nlev:1:-1,:,:),'OPtm1i',nlev,i0,i1,j0,j1)
+      call savefld_waccm(edyn_feptm1(nlev:1:-1,:,:),'FePtm1i',nlev,i0,i1,j0,j1)
+      call savefld_waccm(edyn_mgptm1(nlev:1:-1,:,:),'MgPtm1i',nlev,i0,i1,j0,j1)
+
+      call savefld_waccm(edyn_op(nlev:1:-1,:,:), 'OPi', nlev,i0,i1,j0,j1)
+      call savefld_waccm(edyn_fep(nlev:1:-1,:,:),'FePi',nlev,i0,i1,j0,j1)
+      call savefld_waccm(edyn_mgp(nlev:1:-1,:,:),'MgPi',nlev,i0,i1,j0,j1)
 
       call t_startf('dpie_oplus_xport')
       do isplit=1,nspltop
@@ -1126,7 +1154,8 @@ contains
               edyn_sip = sip_out
               edyn_siptm1 = sipnm_out
 
-         endif
+           endif
+
         !------------------------------------------------------------------------------
         ! Jianfei Wu added calculate density of Fe+ Na+ and K+
         !------------------------------------------------------------------------------
@@ -1190,6 +1219,14 @@ contains
       enddo ! isplit=1,nspltop
       call t_stopf ('dpie_oplus_xport')
 
+      call savefld_waccm(op_out(nlev:1:-1,:,:), 'OPo', nlev,i0,i1,j0,j1)
+      call savefld_waccm(fep_out(nlev:1:-1,:,:),'FePo',nlev,i0,i1,j0,j1)
+      call savefld_waccm(mgp_out(nlev:1:-1,:,:),'MgPo',nlev,i0,i1,j0,j1)
+
+      call savefld_waccm( opnm_out,'OPtm1o', nlev,i0,i1,j0,j1)
+      call savefld_waccm(fepnm_out,'FePtm1o',nlev,i0,i1,j0,j1)
+      call savefld_waccm(mgpnm_out,'MgPtm1o',nlev,i0,i1,j0,j1)
+
       if (debug.and.masterproc) then
          write(iulog,"('dpie_coupling after subcycling oplus_xport: nstep=',i8,' nspltop=',i3)") &
               nstep,nspltop
@@ -1219,8 +1256,8 @@ contains
 !
    if (ionos_edyn_active) then
 !More metal ions transport, WUhu Feng, 11 April 2022
-!     nfields = 15 ! ui,vi,wi,op,opnm Jianfei Wu 5-->9 
-      nfields = 21 ! ui,vi,wi,op,opnm Jianfei Wu 5-->9 
+!     nfields = 15 ! ui,vi,wi,op,opnm Jianfei Wu 5-->9
+      nfields = 21 ! ui,vi,wi,op,opnm Jianfei Wu 5-->9
       allocate(ptrs(nfields))
       ptrs(1)%ptr => edyn_ui ; ptrs(2)%ptr => edyn_vi ; ptrs(3)%ptr => edyn_wi
       ptrs(4)%ptr => op_out  ; ptrs(5)%ptr => opnm_out
@@ -1249,9 +1286,9 @@ contains
       call savefld_waccm(nop_out,'NOPLUS',nlev,i0,i1,j0,j1) ! cm^3
       call savefld_waccm(o2p_out,'O2PLUS',nlev,i0,i1,j0,j1) ! cm^3
 !More metal ions transport, WUhu Feng, 11 April 2022
-        call savefld_waccm(cap_out,'CaPLUS',nlev,i0,i1,j0,j1) ! cm^3
-        call savefld_waccm(kp_out,'KPLUS',nlev,i0,i1,j0,j1) ! cm^3
-        call savefld_waccm(sip_out,'SiPLUS',nlev,i0,i1,j0,j1) ! cm^3
+      call savefld_waccm(cap_out,'CaPLUS',nlev,i0,i1,j0,j1) ! cm^3
+      call savefld_waccm(kp_out,'KPLUS',nlev,i0,i1,j0,j1) ! cm^3
+      call savefld_waccm(sip_out,'SiPLUS',nlev,i0,i1,j0,j1) ! cm^3
 
 !
 ! Pass new O+ for current and previous time step back to physics (convert from cm^3 to m^3 and back to mmr).
@@ -1309,7 +1346,7 @@ contains
               sip_out(k,i,j) = sipmmr(i,j,k) ! for save to waccm hist in mmr
               sipmmrtm1(i,j,k) = sipnm_out(k,i,j)*1.e6_r8 * rmassSip / mbar(i,j,k) * &
                 (kboltz * tn(i,j,k)) / pmid(i,k,j)
- 
+
 
           enddo
         enddo
@@ -1336,10 +1373,13 @@ contains
     call savefld_waccm(mgp_out,'DPIE_MgPMMR',nlev,i0,i1,j0,j1) ! mmr Jianfei Wu
     call savefld_waccm(nap_out,'DPIE_NaPMMR',nlev,i0,i1,j0,j1) ! mmr Jianfei Wu
 !More metal ions transport, WUhu Feng, 11 April 2022
-      call savefld_waccm(cap_out,'DPIE_CaPMMR',nlev,i0,i1,j0,j1)
-      call savefld_waccm(kp_out,'DPIE_KPMMR',nlev,i0,i1,j0,j1)
-      call savefld_waccm(sip_out,'DPIE_SiPMMR',nlev,i0,i1,j0,j1)
+    call savefld_waccm(cap_out,'DPIE_CaPMMR',nlev,i0,i1,j0,j1)
+    call savefld_waccm(kp_out,'DPIE_KPMMR',nlev,i0,i1,j0,j1)
+    call savefld_waccm(sip_out,'DPIE_SiPMMR',nlev,i0,i1,j0,j1)
 
+    call savefld_waccm(op_out,'WACCM_OP',nlev,i0,i1,j0,j1) ! mmr
+    call savefld_waccm(fep_out,'WACCM_FeP',nlev,i0,i1,j0,j1) ! mmr
+    call savefld_waccm(mgp_out,'WACCM_MgP',nlev,i0,i1,j0,j1) ! mmr
 
     call t_stopf('d_pie_coupling')
 
@@ -1386,8 +1426,8 @@ contains
     integer,intent(in) :: i0,i1,j0,j1,nlev
     real(r8),dimension(nlev,i0:i1,j0:j1),intent(in) :: &
       o2,   &  ! m^3
-      o1,&  ! 
-      n2     ! 
+      o1,&  !
+      n2     !
     real(r8),intent(in) :: rmass,rmassN2,rmassO2,rmassO1 ! m/s^2
 !
 ! Output:
@@ -1396,7 +1436,7 @@ contains
 !
 ! Local:
     integer :: i,j,k
-    real(r8) :: fixpart  
+    real(r8) :: fixpart
     real(r8) :: gyrofrequency(nlev,i0:i1,j0:j1) ! dimensioned for vectorization
 
       real(r8),parameter :: na=6.02e26_r8   !kg-mol^-1
@@ -1464,8 +1504,8 @@ contains
        dskofc(:) =  0._r8
     endif
 
-!    
-! offc(2), dskofc(2) are for northern hemisphere aurora 
+!
+! offc(2), dskofc(2) are for northern hemisphere aurora
 !
     ofdc = sqrt(offc(2)**2+dskofc(2)**2)
     cosofc = cos(ofdc)
@@ -1495,7 +1535,7 @@ contains
 !-----------------------------------------------------------------------
   subroutine sunloc(iday,secs,sunlons)
 !
-! Given day of year and ut, return sun's longitudes in dipole coordinates 
+! Given day of year and ut, return sun's longitudes in dipole coordinates
 ! in sunlons(nlat)
 !
     use getapex       ,only: alonm     ! (nlonp1,0:nlatp1)
