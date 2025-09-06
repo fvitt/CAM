@@ -1,0 +1,1 @@
+compare chem_mech.in to pp_waccm_ma/chem_mech.in in cam tag cam6_0_028 (or earlier)

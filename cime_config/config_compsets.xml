@@ -664,6 +664,16 @@
   </compset>
 
   <compset>
+    <alias>FX4metalHIST</alias>
+    <lname>HIST_CAM40%WXIEM_CLM50%SP_CICE%PRES_DOCN%DOM_RTM_SGLC_SWAV</lname>
+  </compset>
+
+  <compset>
+    <alias>FX4metal2000</alias>
+    <lname>2000_CAM40%WXIEM_CLM50%SP_CICE%PRES_DOCN%DOM_RTM_SGLC_SWAV</lname>
+  </compset>
+
+  <compset>
     <alias>FXSD</alias>
     <lname>HIST_CAM60%WXIE%SDYN_CLM50%SP_CICE%PRES_DOCN%DOM_MOSART_SGLC_SWAV</lname>
   </compset>
