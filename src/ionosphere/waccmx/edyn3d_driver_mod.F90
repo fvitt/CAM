@@ -59,10 +59,8 @@ contains
     ! initialize APEX -- after dynamo_init1 and before dynamo_init2
     call mo_apex_init1( alts_in=hgt_fix_r*1.e-3_r8 ) ! m --> km
 
-    acitve_tasks: if (mpi_rank<mpi_size) then
-       ! after apex init
-       call dynamo_init2()
-    end if acitve_tasks
+    ! after apex init
+    call dynamo_init2()
 
     ! setup cam history grids
     call edyn3d_hist_mag_grids_reg()

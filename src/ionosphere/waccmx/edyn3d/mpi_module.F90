@@ -80,35 +80,46 @@ module mpi_module
     integer :: i, j, rnk, rnki, rnkj
 
     allocate(nmlat_task(0:lat_size-1))
-
     allocate(nmlon_task(0:lon_size-1))
+
+    nmlat_task = 0
+    nmlon_task = 0
 
     allocate(mlat0_task(0:mpi_size-1))
     allocate(mlat1_task(0:mpi_size-1))
     allocate(mlon0_task(0:mpi_size-1))
     allocate(mlon1_task(0:mpi_size-1))
 
+    mlat0_task = 1
+    mlon0_task = 1
+    mlat1_task = -1
+    mlon1_task = -1
+
     nmlat = nmlat_in
     nmlon = nmlon_in
 
-! setup magnetic decomposition
+! setup magnetic grid decomposition
 ! each process can have unequal number of latitudes or longitudes
 
     nmlat_task = generate_minvar_list(nmlat, lat_size)
     maxmlat = maxval(nmlat_task)
-    mlat0 = 1
-    do j = 0, lat_rank-1
-      mlat0 = mlat0 + nmlat_task(j)
-    enddo
-    mlat1 = mlat0 + nmlat_task(lat_rank) - 1
+    if (lat_rank<lat_size) then
+       mlat0 = 1
+       do j = 0, lat_rank-1
+          mlat0 = mlat0 + nmlat_task(j)
+       enddo
+       mlat1 = mlat0 + nmlat_task(lat_rank) - 1
+    endif
 
     nmlon_task = generate_minvar_list(nmlon, lon_size)
     maxmlon = maxval(nmlon_task)
-    mlon0 = 1
-    do i = 0, lon_rank-1
-      mlon0 = mlon0 + nmlon_task(i)
-    enddo
-    mlon1 = mlon0 + nmlon_task(lon_rank) - 1
+    if (lat_rank<lat_size) then
+       mlon0 = 1
+       do i = 0, lon_rank-1
+          mlon0 = mlon0 + nmlon_task(i)
+       enddo
+       mlon1 = mlon0 + nmlon_task(lon_rank) - 1
+    endif
 
 ! each process keeps a record of the lat-lon decomposition
     do concurrent (rnk = 0:mpi_size-1)

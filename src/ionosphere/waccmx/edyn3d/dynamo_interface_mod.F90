@@ -150,7 +150,7 @@ contains
     integer :: ierror
     character(len=*), parameter :: prefix = 'dynamo_init: '
 
-    acitve_tasks: if (mpi_rank<mpi_size) then
+    active_tasks: if (mpi_rank<mpi_size) then
 
        ! allocate memory for fieldline data
        call alloc_fieldline(ierror)
@@ -174,7 +174,7 @@ contains
        call calculate_m(npts_p,npts_s1,npts_s2,npts_r, &
             F_p,F_s1,F_s2,F_r,M3_p,M1_s1,M2_s2,M3_r)
 
-    end if acitve_tasks
+    end if active_tasks
 
   end subroutine dynamo_init2
 
