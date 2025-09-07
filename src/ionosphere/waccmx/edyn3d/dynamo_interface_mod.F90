@@ -22,7 +22,7 @@ module dynamo_interface_mod
   use init_module, only: init_cons, init_fieldline
   use init_module, only: get_apex, calculate_m
 
-  use alloc_module, only: alloc_fieldline
+  use alloc_module, only: alloc_fieldline, dealloc_fieldline
 
   use fieldline_module, only: F_p,F_s1,F_s2,F_r,M3_p,M1_s1,M2_s2,M3_r
   use fieldline_module, only: be3_s1,be3_s2,bmag_p,D1_s1,D1_s2,d1d1_s1,d1d2_s1,d1d2_s2
@@ -44,23 +44,25 @@ module dynamo_interface_mod
   public :: dynamo_init1
   public :: dynamo_init2
   public :: dynamo_calc
+  public :: dynamo_final
+
+  integer,public, protected, dimension(:),allocatable :: &
+    npts_p, npts_s1, npts_s2, npts_r, &
+    jmax_p, jmax_s1, jmax_s2, jmax_r, &
+    size_p, size_s1, size_s2, size_r
 
   real(kind=rp),public, protected, dimension(:,:,:,:),allocatable :: &
        glat_p, glon_p, glat_s1, glon_s1, glat_s2, glon_s2, glat_r, glon_r
 
-  integer,public, protected, dimension(:),allocatable :: &
-    npts_p,npts_s1,npts_s2,npts_r, &
-    jmax_p,jmax_s1,jmax_s2,jmax_r, &
-    size_p,size_s1,size_s2,size_r
-
   real(kind=rp),public, protected, dimension(:,:,:),allocatable :: &
-    qdlat_p,qdlat_s1,qdlat_s2,qdlat_r
+    qdlat_p, qdlat_s1, qdlat_s2, qdlat_r
 
   logical, parameter :: setbij = .true.
 
 contains
 
   !------------------------------------------------------------------------------
+  ! phase 1 of initialization -- called before APEX is initialized
   !------------------------------------------------------------------------------
   subroutine dynamo_init1( set_hilat_pot_in, set_hilat_fac_in, &
        mpicom_atm, npes_edyn3D, edyn3d_nmlat_h, edyn3d_nmlon, edyn3d_nhgt, real_kind )
@@ -142,6 +144,7 @@ contains
   end subroutine dynamo_init1
 
   !------------------------------------------------------------------------------
+  ! phase 2 of initialization -- called after APEX is initialized
   !------------------------------------------------------------------------------
   subroutine dynamo_init2()
 
@@ -433,5 +436,27 @@ contains
 
   end subroutine dynamo_calc
 
+
+  !------------------------------------------------------------------------------
+  !------------------------------------------------------------------------------
+  subroutine dynamo_final()
+
+    call dealloc_fieldline()
+
+    if (allocated(glat_p)) deallocate(glat_p)
+    if (allocated(glon_p)) deallocate(glon_p)
+    if (allocated(glat_s1)) deallocate(glat_s1)
+    if (allocated(glon_s1)) deallocate(glon_s1)
+    if (allocated(glat_s2)) deallocate(glat_s2)
+    if (allocated(glon_s2)) deallocate(glon_s2)
+    if (allocated(glat_r)) deallocate(glat_r)
+    if (allocated(glon_r)) deallocate(glon_r)
+
+    if (allocated(qdlat_p)) deallocate(qdlat_p)
+    if (allocated(qdlat_s1)) deallocate(qdlat_s1)
+    if (allocated(qdlat_s2)) deallocate(qdlat_s2)
+    if (allocated(qdlat_r)) deallocate(qdlat_r)
+
+  end subroutine dynamo_final
 
 end module dynamo_interface_mod

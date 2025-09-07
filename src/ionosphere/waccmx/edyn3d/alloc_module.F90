@@ -82,4 +82,66 @@ contains
 
   endsubroutine alloc_fieldline
 !-----------------------------------------------------------------------
+
+!-----------------------------------------------------------------------
+!-----------------------------------------------------------------------
+  subroutine dealloc_fieldline()
+
+    if (allocated(f3d)) deallocate(f3d)
+    if (allocated(f3d_r)) deallocate(f3d_r)
+    if (allocated(uvec)) deallocate(uvec)
+
+    nullify(sinI_p)
+    nullify(D_p)
+    nullify(F_p)
+    nullify(vmp_p)
+    nullify(bmag_p)
+    nullify(M3_p)
+
+    nullify(sinI_s1)
+    nullify(D_s1)
+    nullify(F_s1)
+    nullify(vmp_s1)
+    nullify(bmag_s1)
+    nullify(be3_s1)
+    nullify(M1_s1)
+    nullify(d1d1_s1)
+    nullify(d1d2_s1)
+    nullify(d2d2_s1)
+
+
+    nullify(sinI_s2)
+    nullify(D_s2)
+    nullify(F_s2)
+    nullify(vmp_s2)
+    nullify(bmag_s2)
+    nullify(be3_s2)
+    nullify(M2_s2)
+    nullify(d1d1_s2)
+    nullify(d1d2_s2)
+    nullify(d2d2_s2)
+
+    nullify(sinI_r)
+    nullify(D_r)
+    nullify(F_r)
+    nullify(M3_r)
+
+    nullify(d1_s1)
+    nullify(d2_s1)
+    nullify(d3_s1)
+    nullify(e1_s1)
+    nullify(e2_s1)
+    nullify(e3_s1)
+
+
+    nullify(d1_s2)
+    nullify(d2_s2)
+    nullify(d3_s2)
+    nullify(e1_s2)
+    nullify(e2_s2)
+    nullify(e3_s2)
+
+  end subroutine dealloc_fieldline
+!-----------------------------------------------------------------------
+
 endmodule alloc_module

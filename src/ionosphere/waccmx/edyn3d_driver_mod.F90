@@ -340,6 +340,7 @@ contains
   !-----------------------------------------------------------------------------
   !-----------------------------------------------------------------------------
   subroutine edyn3d_driver_final()
+    use dynamo_interface_mod, only: dynamo_final
     use edyn3d_esmf_fields_rhandles, only: edyn3d_esmf_fields_rhandles_destroy
     use edyn3d_esmf_oplus_grid_mod, only: edyn3d_esmf_oplus_grid_destroy
     use edyn3d_esmf_phys_mesh_mod, only: edyn3d_esmf_phys_mesh_destroy
@@ -356,6 +357,8 @@ contains
     call edyn3d_esmf_mag_ref_p_grid_destroy()
 
     call edyn3d_hist_mag_grids_final()
+
+    call dynamo_final()
 
   end subroutine edyn3d_driver_final
 
