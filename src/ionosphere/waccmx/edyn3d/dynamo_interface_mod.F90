@@ -24,12 +24,9 @@ module dynamo_interface_mod
 
   use alloc_module, only: alloc_fieldline
 
-  use fieldline_module, only: glat_p, glon_p, glat_s1, glon_s1, glat_s2, glon_s2
   use fieldline_module, only: F_p,F_s1,F_s2,F_r,M3_p,M1_s1,M2_s2,M3_r
-
   use fieldline_module, only: be3_s1,be3_s2,bmag_p,D1_s1,D1_s2,d1d1_s1,d1d2_s1,d1d2_s2
   use fieldline_module, only: d2_s1,d2_s2,d2d2_s1,d2d2_s2,d_s1,d_s2,e1_s1,e1_s2,e2_s1,e2_s2
-  use fieldline_module, only: M1_s1,M2_s2
 
   use calculate_terms_module, only: calculate_n, calculate_je
   use calculate_terms_module, only: calculate_ed, calculate_ve, calculate_vxyz
@@ -48,7 +45,8 @@ module dynamo_interface_mod
   public :: dynamo_init2
   public :: dynamo_calc
 
-  public :: glat_p, glon_p, glat_s1, glon_s1, glat_s2, glon_s2
+  real(kind=rp),public, protected, dimension(:,:,:,:),allocatable :: &
+       glat_p, glon_p, glat_s1, glon_s1, glat_s2, glon_s2, glat_r, glon_r
 
   integer,public, protected, dimension(:),allocatable :: &
     npts_p,npts_s1,npts_s2,npts_r, &
@@ -73,7 +71,7 @@ contains
     integer,optional, intent(in) :: real_kind
 
     integer :: ierror
-    character(len=*), parameter :: prefix = 'dynamo_init: '
+    character(len=*), parameter :: prefix = 'dynamo_init1: '
 
     if (present(real_kind)) then
        if (real_kind /= rp) then
@@ -95,9 +93,9 @@ contains
     ! set up constants
     call init_cons()
 
-    call allocate_fields(ierror)
+    call alloc_qdipole_fields(ierror)
     if (ierror/=0) then
-       write(*,*) prefix, 'allocate_fields failed'
+       write(*,*) prefix, 'alloc_qdipole_fields failed'
        stop ierror
     end if
 
@@ -112,7 +110,7 @@ contains
 
   contains
 
-    subroutine allocate_fields(ierr)
+    subroutine alloc_qdipole_fields(ierr)
       integer, intent(out) :: ierr
 
       ierr = 0
@@ -139,7 +137,7 @@ contains
       allocate(jmax_r(nhgt_fix_r),size_r(nhgt_fix_r), stat=ierr)
       if (ierr /= 0) return
 
-    end subroutine allocate_fields
+    end subroutine alloc_qdipole_fields
 
   end subroutine dynamo_init1
 
@@ -148,7 +146,7 @@ contains
   subroutine dynamo_init2()
 
     integer :: ierror
-    character(len=*), parameter :: prefix = 'dynamo_init: '
+    character(len=*), parameter :: prefix = 'dynamo_init2: '
 
     active_tasks: if (mpi_rank<mpi_size) then
 
@@ -156,6 +154,12 @@ contains
        call alloc_fieldline(ierror)
        if (ierror/=0) then
           write(*,*) prefix, 'alloc_fieldline failed'
+          stop ierror
+       end if
+
+       call alloc_coord_fields(ierror)
+       if (ierror/=0) then
+          write(*,*) prefix, 'alloc_coord_fields failed'
           stop ierror
        end if
 
@@ -167,14 +171,42 @@ contains
        glon_s2 = -huge(1._rp)
 
        ! get apex coordinates and unit vectors
-       call get_apex( npts_p,npts_s1,npts_s2,npts_r, &
-            qdlat_p,qdlat_s1,qdlat_s2,qdlat_r )
+       call get_apex( npts_p, npts_s1, npts_s2, npts_r, &
+            qdlat_p, qdlat_s1, qdlat_s2, qdlat_r, &
+            glat_p, glon_p, glat_s1, glon_s1, glat_s2, glon_s2, glat_r, glon_r )
 
        ! calculate M coefficients - P,S1,S2,R
        call calculate_m(npts_p,npts_s1,npts_s2,npts_r, &
             F_p,F_s1,F_s2,F_r,M3_p,M1_s1,M2_s2,M3_r)
 
     end if active_tasks
+
+  contains
+
+    subroutine alloc_coord_fields(ierr)
+      integer, intent(out) :: ierr
+
+      ierr = 0
+
+      allocate( glat_p(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1), stat=ierr)
+      if (ierr /= 0) return
+      allocate( glon_p(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1), stat=ierr)
+      if (ierr /= 0) return
+      allocate( glat_s1(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1), stat=ierr)
+      if (ierr /= 0) return
+      allocate( glon_s1(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1), stat=ierr)
+      if (ierr /= 0) return
+      allocate( glat_s2(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1), stat=ierr)
+      if (ierr /= 0) return
+      allocate( glon_s2(nhgt_fix,2,mlatd0:mlatd1,mlond0:mlond1), stat=ierr)
+      if (ierr /= 0) return
+
+      allocate( glat_r(nhgt_fix_r,2,mlatd0:mlatd1,mlond0:mlond1), stat=ierr)
+      if (ierr /= 0) return
+      allocate( glon_r(nhgt_fix_r,2,mlatd0:mlatd1,mlond0:mlond1), stat=ierr)
+      if (ierr /= 0) return
+
+    end subroutine alloc_coord_fields
 
   end subroutine dynamo_init2
 

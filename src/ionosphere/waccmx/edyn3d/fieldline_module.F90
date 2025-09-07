@@ -8,16 +8,12 @@ module fieldline_module
   real(kind=rp),dimension(:,:,:,:,:,:),allocatable,target :: uvec
 
   real(kind=rp),dimension(:,:,:,:),pointer :: &
-       glat_p=>null(), &
-       glon_p=>null(), &
        sinI_p=>null(), &
        D_p=>null(), &
        F_p=>null(), &
        vmp_p=>null(), &
        bmag_p=>null(), &
        M3_p=>null(), &
-       glat_s1=>null(), &
-       glon_s1=>null(), &
        sinI_s1=>null(), &
        D_s1=>null(), &
        F_s1=>null(), &
@@ -28,8 +24,6 @@ module fieldline_module
        d1d1_s1=>null(), &
        d1d2_s1=>null(), &
        d2d2_s1=>null(), &
-       glat_s2=>null(), &
-       glon_s2=>null(), &
        sinI_s2=>null(), &
        D_s2=>null(), &
        F_s2=>null(), &
@@ -40,8 +34,6 @@ module fieldline_module
        d1d1_s2=>null(), &
        d1d2_s2=>null(), &
        d2d2_s2=>null(), &
-       glat_r=>null(), &
-       glon_r=>null(), &
        sinI_r=>null(), &
        D_r=>null(), &
        F_r=>null(), &
