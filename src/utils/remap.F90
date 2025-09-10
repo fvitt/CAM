@@ -24,6 +24,11 @@ module nlgw_remap_mod
   public :: nlgw_regrid
   public :: nlgw_regrid_final
 
+  ! these arrays contain the regridded variables of interest for the NN
+  real(r8), dimension(:, :), allocatable, public :: phis_grid
+  real(r8), dimension(:,:,:), allocatable, public :: u_grid, v_grid, w_grid, t_grid
+  real(r8), dimension(:,:,:), allocatable, public :: utgw_grid, vtgw_grid
+
 contains
 
   !-----------------------------------------------------------------------------
@@ -138,8 +143,6 @@ contains
     real(r8) :: phis_lonlat(beglon:endlon,beglat:endlat)
 
     real(r8), allocatable :: flat_array(:)
-    real(r8), dimension(:, :), allocatable :: phis_grid
-    real(r8), dimension(:,:,:), allocatable :: u_grid, v_grid, w_grid, t_grid
 
     integer  :: lchnk, ncol, i, sendcnt, disp_sum
     integer  :: lonsize, latsize
@@ -255,15 +258,6 @@ contains
     ! convert fluxes to tendencies after regridding back to cubed sphere
     ! that way we dont need pmid
 
-    if (masterproc) then
-      ! TODO ALL deallocates here
-      deallocate(u_grid)
-      deallocate(v_grid)
-      deallocate(w_grid)
-      deallocate(t_grid)
-      deallocate(phis_grid)
-    end if
-
     call t_stopf('nlgw_gather')
 
   end subroutine nlgw_regrid
@@ -338,6 +332,18 @@ contains
     call esmf_phys2lonlat_destroy()
     call esmf_lonlat_grid_destroy()
     call esmf_phys_mesh_destroy()
+
+    if (masterproc) then
+      ! TODO ALL deallocates here
+      deallocate(phis_grid)
+      deallocate(u_grid)
+      deallocate(v_grid)
+      deallocate(w_grid)
+      deallocate(t_grid)
+      deallocate(utgw_grid)
+      deallocate(vtgw_grid)
+    end if
+
 
   end subroutine nlgw_regrid_final
 
