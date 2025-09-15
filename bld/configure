@@ -2099,7 +2099,7 @@ sub write_filepath
     if ($waccmx) {
         print $fh "$camsrcdir/src/physics/waccmx\n";
         if ($ionos =~ /wxie/) {
-            print $fh "$camsrcdir/src/ionosphere/waccmx/edyn3d\n";
+            print $fh "$camsrcdir/src/ionosphere/waccmx/edyn3d/source\n";
             print $fh "$camsrcdir/src/ionosphere/waccmx\n";
         }
     }
