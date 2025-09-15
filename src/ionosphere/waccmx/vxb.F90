@@ -993,23 +993,6 @@ module vxb
 
         enddo ! k=kbot,nlev-1
       enddo ! i=i0,i1
-!$omp parallel do private( k )
-
-!      do i=i0,i1
-!        do k=kbot,ktop
-!          explicit(k,i,lat)=explicit(k,i,lat)+0.5_r8*(xiop(k,i,lat)+xiop(k+1,i,lat))*dvvxb(k,i,lat)+ &
-!              0.5_r8*(xiop(k,i,lat)+xiop(k+1,i,lat))/bmod2(i,lat)*dve(k,i,lat)+&
-!              0.5_r8*(xxxiop(k,i,lat)+xxxiop(k+1,i,lat))*dvv(k,i,lat)+&!              0.5_r8*(xxiop(k,i,lat)+xxiop(k+1,i,lati))*dvexb(k,i,lat)
- !             0.5_r8*(xxiop(k,i,lat)+xxiop(k+1,i,lat))*dvexb(k,i,lat)
-!            if (explicit(k,i,lat) < -0.1_r8) then
-!                explicit(k,i,lat)=-0.1_r8
-!            endif
-!            if (explicit(k,i,lat) > 0.1_r8) then
-!                explicit(k,i,lat)=0.1_r8
-!            endif
- !       enddo ! k=kbot,nlev
- !     enddo ! i=i0,i1
-
 
 !$omp parallel do private(i,k)
       do i=i0,i1
@@ -1584,8 +1567,8 @@ module vxb
 ! Halo longitudes i-1 and i+1 must have been set before this routine is
 ! called. ('by' is use-associated above)
 !
-!$omp parallel do private( i, k )
     ans = 0._r8
+!$omp parallel do private( i, k )
     do i=lon0,lon1
       do k=lev0,lev1
           if (nij  (k,i) > 1.e3_r8) then
