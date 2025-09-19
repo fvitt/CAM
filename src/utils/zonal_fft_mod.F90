@@ -9,6 +9,8 @@ module zonal_fft_mod
   use, intrinsic :: iso_c_binding
 
   use time_manager, only: get_nstep
+  use spmd_utils, only: masterproc
+  use cam_logfile, only: iulog
 
   implicit none
 
@@ -119,7 +121,10 @@ contains
     calc_frcings = .false.
 
     nstep = mod(get_nstep()+1,ntime)
+    if (masterproc) write(iulog,'(a,3I7)') 'zonal_fft_calc ... model-step, nstep : ',get_nstep(),nstep
+
     if (nstep==0) then
+       if (masterproc) write(iulog,'(a,3I7)') 'zonal_fft_calc calc frcng step.. model-step, nstep,ntime:',get_nstep(),nstep,ntime
        nstep = ntime
        calc_frcings = .true.
     end if
@@ -159,14 +164,14 @@ contains
     cospectra(2:,:,:) = 2._r8 * cospectra(2:,:,:)
     call output_cosp(cospectra,'U')
 
-    accum_cospectra_u(:,:,:,ntime) = cospectra(:,:,:)
+    accum_cospectra_u(:,:,:,nstep) = cospectra(:,:,:)
 
     tmpfld = v_fft * wstar
     cospectra = tmpfld%re
     cospectra(2:,:,:) = 2._r8 * cospectra(2:,:,:)
     call output_cosp(cospectra,'V')
 
-    accum_cospectra_v(:,:,:,ntime) = cospectra(:,:,:)
+    accum_cospectra_v(:,:,:,nstep) = cospectra(:,:,:)
 
     tmpfld = t_fft * wstar
     cospectra = tmpfld%re

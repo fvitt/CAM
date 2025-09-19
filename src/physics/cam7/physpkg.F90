@@ -1051,7 +1051,7 @@ contains
     psl_idx = pbuf_get_index('PSL')
 
     call zm_test_init()
-    call zonal_fft_init()
+    call zonal_fft_init(ntime_in=16)
 
   end subroutine phys_init
 

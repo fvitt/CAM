@@ -160,7 +160,7 @@ contains
              silm = sum(spct(kxl(j):2*kxl(j),j,k))
              simr = sum(spct(2*kxl(j):4*kxl(j),j,k))
              if (silm>0.0_r8 .and. simr>0.0_r8) then
-                slp(j,k) = 1._r8-log(simr/silm)/log(2._r8)
+                slp(j,k) = MAX(1._r8-log(simr/silm)/log(2._r8),-1._r8)
              else
                 slp(j,k) = NOTSET
              end if
@@ -200,12 +200,30 @@ contains
                 fp = (real(kxend(j),r8)**bp-real(kxbeg(j),r8)**bp)/(real(kxbeg(j),r8)**bp-real(kxl(j),r8)**bp)
                 mflxup(j,k) = siresp*fp
              end if
+             if (slpp(j,k)/=NOTSET.and.slpp(j,k)==1._r8) then
+                siresp = sum(csprp(kxl(j):kxbeg(j),j,k),1)
+                fp = log(real(kxend(j),r8)/real(kxbeg(j),r8))/log(real(kxbeg(j),r8)/real(kxl(j),r8))
+                mflxup(j,k) = siresp*fp
+             end if
+             if (slpp(j,k)==NOTSET) then
+                mflxup(j,k) = 0._r8
+             end if
+                
              if (slpn(j,k)/=NOTSET.and.slpn(j,k)/=1._r8) then
                 siresn = sum(csprn(kxl(j):kxbeg(j),j,k),1)
                 bn = 1._r8-slpn(j,k)
                 fn = (real(kxend(j),r8)**bn-real(kxbeg(j),r8)**bn)/(real(kxbeg(j),r8)**bn-real(kxl(j),r8)**bn)
                 mflxun(j,k) = siresn*fn
              end if
+             if (slpn(j,k)/=NOTSET.and.slpn(j,k)==1._r8) then
+                siresp = sum(csprn(kxl(j):kxbeg(j),j,k),1)
+                fn = log(real(kxend(j),r8)/real(kxbeg(j),r8))/log(real(kxbeg(j),r8)/real(kxl(j),r8))
+                mflxun(j,k) = siresn*fn
+             end if
+             if (slpn(j,k)==NOTSET) then
+                mflxun(j,k) = 0._r8
+             end if
+             
           endif
        enddo
     enddo
