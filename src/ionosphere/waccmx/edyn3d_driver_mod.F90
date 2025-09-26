@@ -31,7 +31,6 @@ contains
 
     use edyn3d_hist_mag_grids_mod, only: edyn3d_hist_mag_grids_reg
     use cam_history, only: addfld, horiz_only
-    use edyn3d_highlat_potential, only: edyn3d_highlat_potential_init
 
     use mo_apex, only: mo_apex_init1
     use dynamo_interface_mod, only: dynamo_init1, dynamo_init2
@@ -76,9 +75,6 @@ contains
     ! setup ESMF regrid weights
     call edyn3d_esmf_fields_rhandles_init()
 
-    ! initialize high-latitude electric potential inputs
-    call edyn3d_highlat_potential_init(hilat_pot_model,wei05_coefs_file)
-
     ! cam history fields
     call addfld ('sigma_ped_s1', horiz_only, 'I', 'K','Ped cond. on S1 mag field line grid', gridname='magfline_s1')
     call addfld ('sigma_hal_s1', horiz_only, 'I', 'K','Hal cond. on S1 mag field line grid', gridname='magfline_s1')
@@ -119,6 +115,10 @@ contains
     call addfld ('Ve1s2', horiz_only, 'I', 'm/s','Ion Drift Velocity', gridname='geomag_s2')
     call addfld ('Ve2s2', horiz_only, 'I', 'm/s','Ion Drift Velocity', gridname='geomag_s2')
 
+    call addfld ('prescr_phihm' , horiz_only, 'I','VOLTS','Prescribed Electric Potential-mag grid' ,gridname='geomag_p')
+    call addfld ('prescr_efxm'  , horiz_only, 'I','mW/m2','Prescribed energy flux on mag grid'     ,gridname='geomag_p')
+    call addfld ('prescr_kevm'  , horiz_only, 'I','keV  ','Prescribed mean energy on mag grid'     ,gridname='geomag_p')
+
   end subroutine edyn3d_driver_init
 
   !-----------------------------------------------------------------------------
@@ -143,7 +143,7 @@ contains
     use edyn3d_hist_mag_grids_mod, only: edyn3d_hist_mlonlat_s_out
 
     use dynamo_interface_mod, only: dynamo_calc
-    use edyn3d_highlat_potential, only: edyn3d_highlat_potential_get
+    use high_lat_pot_mod, only: edyn3d_highlat_potential_get
 
     use cam_history,  only: outfld
 

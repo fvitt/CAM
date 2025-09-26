@@ -1185,9 +1185,8 @@ contains
   end subroutine gather_edyn
 !-----------------------------------------------------------------------
   subroutine highlat_poten()
-     use edyn_solve, only: &
-          phihm,           & ! high-latitude potential (nmlonp1,nmlat)
-          pfrac              ! NH fraction of potential (nmlonp1,nmlat0)
+    use edyn_solve, only: pfrac ! NH fraction of potential (nmlonp1,nmlat0)
+    use high_lat_pot_mod, only: phihm ! high-latitude potential
 !
 ! Global PDE solution rim_glb(:,:,1) has been scattered to mag subdomains
 ! in rim1, and halos set (this overwrites previous rim1 from fieldline

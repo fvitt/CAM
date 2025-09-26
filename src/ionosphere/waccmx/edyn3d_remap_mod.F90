@@ -20,6 +20,7 @@ module edyn3d_remap_mod
   public :: edyn3d_remap_phys2mag_s2
   public :: edyn3d_remap_mag2oplus
   public :: edyn3d_remap_refp_mag2oplus
+  public :: edyn3d_remap_mag2phys
   public :: phys_fields_bundle_t
   public :: mag_fields_bundle_t
   public :: oplus_fields_bundle_t
@@ -436,6 +437,57 @@ contains
 
   end subroutine edyn3d_remap_refp_mag2oplus
 
+  !------------------------------------------------------------------------------
+  !------------------------------------------------------------------------------
+  subroutine edyn3d_remap_mag2phys( magfld, physfld )
+    use edyn3D_esmf_fields_rhandles, only: magFieldSrc, physFieldDes, rh_mag2phys
+    use edyn3d_esmf_mag_ref_p_grid_mod, only: mag_ref_p_fdln_grid
+
+    real(r8), intent(in) :: magfld(:,:)
+    real(r8), intent(out) :: physfld(:)
+
+    integer :: lbnd2d(2), ubnd2d(2) ! field bounds
+    integer :: lbnd1d(1), ubnd1d(1)
+    real(ESMF_KIND_R8), pointer :: fptr2d(:,:), fptr1d(:)
+
+    integer :: localDECount, nde, rc, i,j
+
+    character(len=*), parameter :: subname = 'edyn3d_remap_mag2phys'
+
+    physfld = NOTSET
+
+    call ESMF_GridGet(mag_ref_p_fdln_grid, localDECount=localDECount, rc=rc)
+    call check_error(subname,'ESMF_GridGet localDECount',rc)
+
+    DE_num: do nde = 0,localDECount-1
+
+       call ESMF_FieldGet(magFieldSrc, localDe=nde, farrayPtr=fptr2d, &
+            computationalLBound=lbnd2d, computationalUBound=ubnd2d, rc=rc)
+       call check_error(subname,'ESMF_FieldGet magFieldSrc',rc)
+
+       fptr2d = NOTSET
+
+       do i = lbnd2d(1), ubnd2d(1)
+          do j = lbnd2d(2), ubnd2d(2)
+             fptr2d(i,j) = magfld(i,j)
+          end do
+       end do
+
+    end do DE_num
+
+    call ESMF_FieldRegrid(magFieldSrc, physFieldDes, rh_mag2phys, &
+         termorderflag=ESMF_TERMORDER_SRCSEQ, rc=rc)
+    call check_error(subname,'ESMF_FieldRegrid mag2phys',rc)
+
+    call ESMF_FieldGet(field=physFieldDes, localDe=0, farrayPtr=fptr1d, &
+                       computationalLBound=lbnd1d, computationalUBound=ubnd1d, rc=rc)
+    call check_error(subname,'ESMF_FieldGet physFieldDes',rc)
+
+    do i = lbnd1d(1), ubnd1d(1)
+       physfld(i) = fptr1d(i)
+    end do
+
+  end subroutine edyn3d_remap_mag2phys
 
   !-----------------------------------------------------------------------
   !-----------------------------------------------------------------------

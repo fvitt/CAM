@@ -501,10 +501,6 @@ module ionosphere_interface
 
       end if prescribed_epot
 
-      if (ionos_edyn3d_active) then
-         call edyn3d_highlat_potential_update()
-      end if
-
    end subroutine ionosphere_run1
 
    !---------------------------------------------------------------------------

@@ -13,7 +13,7 @@ module dpie_coupling
   use perf_mod,            only: t_startf, t_stopf
   use amie_module,         only: getamie
   use ltr_module,          only: getltr
-  use edyn_solve,          only: phihm
+  use high_lat_pot_mod,    only: phihm
   use edyn_params,         only: dtr, rtd
   use aurora_params,       only: prescribed_period ! turns on overwrite of energy fields in aurora phys
 
@@ -68,10 +68,6 @@ contains
 
     call addfld ('prescr_efxp'  , horiz_only, 'I','mW/m2','Prescribed energy flux on geo grid'     ,gridname='physgrid')
     call addfld ('prescr_kevp'  , horiz_only, 'I','keV  ','Prescribed mean energy on geo grid'     ,gridname='physgrid')
-
-    call addfld ('prescr_phihm' , horiz_only, 'I','VOLTS','Prescribed Electric Potential-mag grid' ,gridname='gmag_grid')
-    call addfld ('prescr_efxm'  , horiz_only, 'I','mW/m2','Prescribed energy flux on mag grid'     ,gridname='gmag_grid')
-    call addfld ('prescr_kevm'  , horiz_only, 'I','keV  ','Prescribed mean energy on mag grid'     ,gridname='gmag_grid')
 
     if (debug_hist) then
        ! Dynamo inputs (called from dpie_coupling. Fields are in waccm format, in CGS units):
@@ -129,6 +125,12 @@ contains
        call addfld('v_phys', (/ 'lev' /), 'I', 'm/s',' ' )
        call addfld('ped_phys', (/ 'lev' /), 'I', ' ',' ' )
        call addfld('hal_phys', (/ 'lev' /), 'I', ' ',' ' )
+
+       ! NOTE: prescr_* fields are added later in edyn3d_driver_init (after geomag_p hist grid is registered)
+    else
+       call addfld ('prescr_phihm' , horiz_only, 'I','VOLTS','Prescribed Electric Potential-mag grid' ,gridname='gmag_grid')
+       call addfld ('prescr_efxm'  , horiz_only, 'I','mW/m2','Prescribed energy flux on mag grid'     ,gridname='gmag_grid')
+       call addfld ('prescr_kevm'  , horiz_only, 'I','keV  ','Prescribed mean energy on mag grid'     ,gridname='gmag_grid')
     endif
 
   end subroutine d_pie_init
@@ -146,10 +148,20 @@ contains
     use solar_wind_data,  only: byimf=>solar_wind_byimf
     use solar_wind_data,  only: swvel=>solar_wind_swvel
     use solar_wind_data,  only: swden=>solar_wind_swden
+
     use edyn_mpi,         only: mlat0, mlat1, mlon0, mlon1, omlon1, ntask, mytid
-    use edyn_maggrid,     only: nmlonp1,nmlon,nmlat, ylonm,ylatm
+    use edyn_maggrid,     only: edyn_nmlonp1=>nmlonp1,edyn_nmlon=>nmlon,edyn_nmlat=>nmlat
+    use edyn_maggrid,     only: edyn_ylonm=>ylonm,edyn_ylatm=>ylatm
+
+    use params_module, only: nmlat_h, edyn3d_nmlat=>nmlat_T1, edyn3d_nmlon=>nmlon
+    use params_module, only: edyn3d_ylonm=>ylonm, edyn3d_ylatm=>ylatm
+
     use regridder,  only: regrid_mag2phys_2d
+    use edyn3d_remap_mod, only: edyn3d_remap_mag2phys
     use sunloc_mod, only: sunloc_calc
+    use infnan, only: nan, assignment(=)
+
+    use mpi_module, only: gmlon0=>mlon0, gmlon1=>mlon1, gmlat0=>mlat0, gmlat1=>mlat1
 
     ! Args:
     !
@@ -174,11 +186,23 @@ contains
 
     integer              :: iprint
     integer              :: j, iamie, iltr, ierr
+    integer :: nmlonp1, nmlon, nmlat
     !
     ! AMIE fields (extra dimension added for longitude switch)
     !
-    real(r8) :: prescr_efxm(nmlonp1,nmlat), prescr_kevm(nmlonp1,nmlat)
-    real(r8) :: prescr_phihm(nmlonp1,nmlat)
+    real(r8), allocatable :: prescr_efxm(:,:), prescr_kevm(:,:), prescr_phihm(:,:)
+    real(r8), allocatable :: ylonm(:), ylatm(:)
+
+    if (edynamo_3d) then
+      nmlonp1 = edyn3d_nmlon+1
+      nmlon = edyn3d_nmlon
+      nmlat = edyn3d_nmlat
+    else
+      nmlonp1 = edyn_nmlonp1
+      nmlon = edyn_nmlon
+      nmlat = edyn_nmlat
+    end if
+
 
     call edyn_esmf_update()
 
@@ -188,6 +212,30 @@ contains
     ! update kp -- phys timestep init happens later ...
     call solar_parms_advance()
     if ( mytid<ntask ) then
+
+       allocate(prescr_efxm(nmlonp1,nmlat), prescr_kevm(nmlonp1,nmlat))
+       allocate(prescr_phihm(nmlonp1,nmlat))
+       allocate(ylonm(nmlonp1))
+       allocate(ylatm(nmlat))
+
+       if (edynamo_3d) then
+
+         ylonm(1:nmlon) = edyn3d_ylonm(1:nmlon)
+         ylonm(nmlonp1) = edyn3d_ylonm(1)
+         ylatm(1:nmlat_h) = edyn3d_ylatm(1,1:nmlat_h)
+         ylatm(nmlat_h:)  = edyn3d_ylatm(2,nmlat_h:1:-1)
+
+       else
+         ylonm(1:nmlonp1) = edyn_ylonm(1:nmlonp1)
+         ylatm(1:nmlat) = edyn_ylatm(1:nmlat)
+       end if
+
+
+       if (.not. allocated(phihm)) then
+          allocate(phihm(nmlonp1,nmlat))
+          phihm = nan
+       endif
+
        !
        ! Get sun's longitude at latitudes (geographic):
        !
@@ -197,11 +245,16 @@ contains
        ! High-latitude potential phihm (edyn_solve) is defined for edynamo.
        !
        if (trim(highlat_potential_model) == 'heelis') then
-          call heelis_model(sunlon) ! heelis.F90
+          call heelis_model(sunlon, &
+               nmlon,nmlat, ylonm(:nmlon),ylatm(:nmlat), phihm(:nmlon,:nmlat))
+
+          ! Periodic points:
+          phihm(nmlonp1,:) = phihm(1,:)
+
        elseif (trim(highlat_potential_model) == 'weimer') then
           !
           call weimer_highlat_potential_update( byimf, bzimf, swvel, swden, sunlon, &
-               nmlon,nmlat, ylonm,ylatm, phihm(:nmlon,:nmlat))
+               nmlon,nmlat, ylonm(:nmlon),ylatm(:nmlat), phihm(:nmlon,:nmlat))
 
           ! Periodic points:
           phihm(nmlonp1,:) = phihm(1,:)
@@ -235,7 +288,7 @@ contains
              write(iulog,*) 'Calling getamie >>> '
           end if
 
-          call getamie(iyear, imo, iday, tod, sunlon, iprint, iamie, &
+          call getamie(iyear, imo, iday, nmlonp1,nmlat, ylonm, ylatm, tod, sunlon, iprint, iamie, &
                prescr_phihm, prescr_efxm, prescr_kevm, crad)
 
           if (masterproc) then
@@ -256,11 +309,23 @@ contains
           prescribed_period = iltr == 1
        end if
 
-       do j = mlat0, mlat1
-          call outfld('prescr_phihm',prescr_phihm(mlon0:omlon1,j),omlon1-mlon0+1,j)
-          call outfld('prescr_efxm', prescr_efxm(mlon0:omlon1,j), omlon1-mlon0+1,j)
-          call outfld('prescr_kevm', prescr_kevm(mlon0:omlon1,j), omlon1-mlon0+1,j)
-       end do
+       if (edynamo_3d) then
+
+          do j = gmlat0, gmlat1
+             call outfld('prescr_phihm',prescr_phihm(gmlon0:gmlon1,j), gmlon1-gmlon0+1,j)
+             call outfld('prescr_efxm', prescr_efxm(gmlon0:gmlon1,j),  gmlon1-gmlon0+1,j)
+             call outfld('prescr_kevm', prescr_kevm(gmlon0:gmlon1,j),  gmlon1-gmlon0+1,j)
+          end do
+
+       else
+
+          do j = mlat0, mlat1
+             call outfld('prescr_phihm',prescr_phihm(mlon0:omlon1,j),omlon1-mlon0+1,j)
+             call outfld('prescr_efxm', prescr_efxm(mlon0:omlon1,j), omlon1-mlon0+1,j)
+             call outfld('prescr_kevm', prescr_kevm(mlon0:omlon1,j), omlon1-mlon0+1,j)
+          end do
+
+       endif
 
        if (prescribed_period) then
           phihm = prescr_phihm
@@ -268,8 +333,13 @@ contains
 
        call mpi_bcast(prescribed_period, 1, mpi_logical, masterprocid, mpicom, ierr)
 
-       call regrid_mag2phys_2d(prescr_kevm(mlon0:mlon1,mlat0:mlat1), kev_phys, cols, cole)
-       call regrid_mag2phys_2d(prescr_efxm(mlon0:mlon1,mlat0:mlat1), efx_phys, cols, cole)
+       if (edynamo_3d) then
+          call edyn3d_remap_mag2phys(prescr_kevm, kev_phys)
+          call edyn3d_remap_mag2phys(prescr_efxm, efx_phys)
+       else
+          call regrid_mag2phys_2d(prescr_kevm(mlon0:mlon1,mlat0:mlat1), kev_phys, cols, cole)
+          call regrid_mag2phys_2d(prescr_efxm(mlon0:mlon1,mlat0:mlat1), efx_phys, cols, cole)
+       end if
 
        call outfld_phys1d( 'prescr_efxp', efx_phys )
        call outfld_phys1d( 'prescr_kevp', kev_phys )
@@ -277,6 +347,11 @@ contains
     end if prescribed_inputs
 
     if ( mytid<ntask ) then
+
+       deallocate(prescr_efxm, prescr_kevm)
+       deallocate(prescr_phihm)
+       deallocate(ylonm)
+       deallocate(ylatm)
 
        call calc_pfrac(sunlon, pfrac) ! returns pfrac for dynamo (edyn_solve)
 
@@ -308,7 +383,7 @@ contains
      use regridder,     only: regrid_phys2geo_3d, regrid_phys2mag_3d, regrid_geo2phys_3d
      use regridder,     only: regrid_geo2mag_3d, regrid_geo2mag_2d
      use adotv_mod,     only: calc_adotv
-     use edyn3d_driver_mod, only: edyn3D_driver_timestep
+     use edyn3d_driver_mod, only: edyn3d_driver_timestep
 
      !
      ! Args:
@@ -613,7 +688,7 @@ contains
 
        if (edynamo_3d) then
 
-          call t_startf('d_pie_cpl->edyn3D_driver')
+          call t_startf('d_pie_cpl->edyn3d_driver')
 
           call outfld_phys('alt_phys',zhtmid)
           call outfld_phys('ped_phys',sigma_ped)
@@ -622,7 +697,7 @@ contains
           call outfld_phys('v_phys',v)
 
           nphyscols = cole - cols + 1
-          call edyn3D_driver_timestep( nphyscols, plev, zhtmid, sigma_ped, sigma_hall, u, v, &
+          call edyn3d_driver_timestep( nphyscols, plev, zhtmid, sigma_ped, sigma_hall, u, v, &
                                        ui_3d, vi_3d, wi_3d ) !  bottom up vert in returned ion vels
 
           call regrid_geo2phys_3d( ui_3d, ui_out, plev, 1, nphyscols )
@@ -643,7 +718,7 @@ contains
              end do
           end do
 
-          call t_stopf('d_pie_cpl->edyn3D_driver')
+          call t_stopf('d_pie_cpl->edyn3d_driver')
 
        else
 

@@ -7,9 +7,6 @@ module amie_module
   use shr_kind_mod,   only: r8 => shr_kind_r8, cl => shr_kind_cl
   use cam_logfile,    only: iulog
   use spmd_utils,     only: masterproc
-  use edyn_maggrid,   only: nmlat, nmlonp1
-  use edyn_maggrid,   only: ylonm     ! magnetic latitudes (nmlat) (radians)
-  use edyn_maggrid,   only: ylatm     ! magnetic longtitudes (nmlonp1) (radians)
   use cam_pio_utils,  only: cam_pio_openfile, cam_pio_closefile
   use pio,            only: pio_inq_dimid, pio_inquire_dimension
   use pio,            only: pio_inquire, pio_inq_varid
@@ -470,7 +467,7 @@ contains
   end subroutine update_3d_fields
 
   !-----------------------------------------------------------------------
-  subroutine getamie(iyear, imo, iday, iutsec, sunlon, iprint,  &
+  subroutine getamie(iyear, imo, iday, nmlonp1,nmlat, ylonm, ylatm, iutsec, sunlon, iprint,  &
                      iamie, phihm, amie_efxm, amie_kevm, crad)
     use cam_history_support, only: fillvalue
     use rgrd_mod,            only: rgrd2
@@ -487,6 +484,9 @@ contains
     integer,  intent(in)    :: iyear
     integer,  intent(in)    :: imo
     integer,  intent(in)    :: iday
+    integer,  intent(in)    :: nmlonp1,nmlat
+    real(r8), intent(in)    :: ylonm(nmlonp1) ! magnetic longtitudes (radians)
+    real(r8), intent(in)    :: ylatm(nmlat  ) ! magnetic latitudes (radians)
     real(r8), intent(in)    :: sunlon
     integer,  intent(in)    :: iutsec
     integer,  intent(in)    :: iprint

@@ -1,11 +1,6 @@
 module heelis
   use shr_kind_mod  ,only: r8 => shr_kind_r8 ! 8-byte reals
-  use edyn_maggrid  ,only: nmlon,nmlonp1,nmlat,ylonm,ylatm
   use heelis_mod    ,only: heelis_update, heelis_flwv32
-!
-! phihm and pfrac are output of this module:
-!
-  use edyn_solve, only: phihm ! output high-latitude potential (nmlonp1,nmlat)
 
   implicit none
   save
@@ -19,13 +14,16 @@ module heelis
 
   contains
 !-----------------------------------------------------------------------
-  subroutine heelis_model(sunlon)
+  subroutine heelis_model(sunlon, nmlon,nmlat,ylonm,ylatm, phihm)
     use aurora_params, only: aurora_params_set
 
 ! Driver for Heelis empirical model to calculate high-latitude potential.
 !
 ! Args:
     real(r8),intent(in) :: sunlon  ! sun's location
+    integer, intent(in) :: nmlon,nmlat
+    real(r8),intent(in) :: ylonm(nmlon),ylatm(nmlat)
+    real(r8),intent(out) :: phihm(nmlon,nmlat)
 
 !
 ! Set auroral parameters:
@@ -37,18 +35,21 @@ module heelis
 ! Calculate  the heelis potential phihm in geomagnetic coordinates:
 ! (potm calls sub flwv32)
 !
-    call potm(sunlon)
+    call potm(sunlon, nmlon,nmlat,ylonm,ylatm, phihm)
 
   end subroutine heelis_model
 
 !-----------------------------------------------------------------------
-  subroutine potm(sunlon)
+  subroutine potm(sunlon, nmlon,nmlat,ylonm,ylatm, phihm)
     use edyn_params, only: pi_dyn ! pi used in dynamo calculations
 !
 ! Calculate heelis potential in geomagnetic coordinates.
 !
 ! Args:
     real(r8),intent(in) :: sunlon
+    integer, intent(in) :: nmlon,nmlat
+    real(r8),intent(in) :: ylonm(nmlon),ylatm(nmlat)
+    real(r8),intent(out) :: phihm(nmlon,nmlat)
 !
 ! Local:
     integer :: j
@@ -69,11 +70,7 @@ module heelis
         phihm(1:nmlon,j) = 0._r8
       endif
     enddo ! j=1,nmlat
-!
-! Periodic point:
-    do j=1,nmlat
-      phihm(nmlonp1,j) = phihm(1,j)
-    enddo ! j=1,nmlat
+
   end subroutine potm
 !-----------------------------------------------------------------------
 end module heelis

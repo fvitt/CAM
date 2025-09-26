@@ -31,8 +31,14 @@ module edyn3d_esmf_fields_rhandles
   public :: edyn3d_esmf_fields_rhandles_init
   public :: edyn3d_esmf_fields_rhandles_destroy
 
+  public :: magFieldSrc
+  public :: physFieldDes
+  public :: rh_mag2phys
+
   type(ESMF_Field) :: physFieldSrc
   type(ESMF_Field) :: oplusFieldDes
+  type(ESMF_Field) :: magFieldSrc
+  type(ESMF_Field) :: physFieldDes
 
   type(ESMF_Field) :: magFieldSrc_ref_p
   type(ESMF_Field) :: oplusFieldDes_ref_p
@@ -45,6 +51,7 @@ module edyn3d_esmf_fields_rhandles
   type(ESMF_RouteHandle), allocatable :: rh_phys2mag_s2(:)
   type(ESMF_RouteHandle), allocatable :: rh_mag2oplus_s2(:)
   type(ESMF_RouteHandle) :: rh_mag2oplus_ref_p
+  type(ESMF_RouteHandle) :: rh_mag2phys
 
   integer, public, parameter :: phys2mag_nflds = 4
   integer, public, parameter :: mag2opls_nflds = 3
@@ -200,6 +207,27 @@ contains
          pipelineDepth=smm_pipelinedep, rc=rc)
     call check_error(subname,'FieldRegridStore rh_mag2oplus_s2(k) route handle',rc)
 
+    magFieldSrc = ESMF_FieldCreate( grid=mag_ref_p_fdln_grid, &
+         staggerloc=ESMF_STAGGERLOC_CENTER, typekind=ESMF_TYPEKIND_R8, rc=rc)
+    call check_error(subname,'ESMF_FieldCreate magFieldSrc',rc)
+
+    call ESMF_ArraySpecSet(arrayspec, 1, ESMF_TYPEKIND_R8, rc=rc)
+    call check_error(subname,'ESMF_ArraySpecSet',rc)
+
+    physFieldDes = ESMF_FieldCreate(phys_mesh, arrayspec, meshloc=ESMF_MESHLOC_ELEMENT, rc=rc)
+    call check_error(subname,'ESMF_FieldCreate physFieldDes',rc)
+
+    ! mag ref p -> phys
+    call ESMF_FieldRegridStore( &
+         srcField=magFieldSrc, dstField=physFieldDes, &
+         routehandle=rh_mag2phys, &
+         regridMethod=ESMF_REGRIDMETHOD_BILINEAR,                           &
+         polemethod=ESMF_POLEMETHOD_ALLAVG,                                 &
+         extrapMethod=ESMF_EXTRAPMETHOD_NEAREST_IDAVG,                      &
+         factorIndexList=factorIndexList,                                   &
+         factorList=factorList, srcTermProcessing=smm_srctermproc,          &
+         pipelineDepth=smm_pipelinedep, rc=rc)
+    call check_error(subname,'FieldRegridStore rh_mag2oplus_s2(k) route handle',rc)
 
   end subroutine edyn3d_esmf_fields_rhandles_init
 
@@ -223,6 +251,12 @@ contains
     call ESMF_FieldDestroy(oplusFieldDes_ref_p, rc=rc)
     call check_error(subname,'ESMF_FieldDestroy oplusFieldDes_ref_p', rc)
 
+    call ESMF_FieldDestroy(magFieldSrc, rc=rc)
+    call check_error(subname,'ESMF_FieldDestroy magFieldSrc', rc)
+
+    call ESMF_FieldDestroy(physFieldDes, rc=rc)
+    call check_error(subname,'ESMF_FieldDestroy physFieldDes', rc)
+
     do k = 1, nz
        call ESMF_FieldDestroy(magFieldDes_s2(k), rc=rc)
        call check_error(subname,'ESMF_FieldDestroy magFieldDes_s2', rc)
@@ -245,6 +279,9 @@ contains
 
     call ESMF_RouteHandleDestroy(rh_mag2oplus_ref_p, rc=rc)
     call check_error(subname,'ESMF_RouteHandleDestroy rh_mag2oplus_ref_p', rc)
+
+    call ESMF_RouteHandleDestroy(rh_mag2phys, rc=rc)
+    call check_error(subname,'ESMF_RouteHandleDestroy rh_mag2phys', rc)
 
     deallocate(magFieldDes_s2)
     deallocate(magFieldDes_s1)

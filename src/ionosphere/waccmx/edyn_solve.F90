@@ -10,6 +10,7 @@ module edyn_solve
   use edyn_maggrid ,only: res_nlev, res_ngrid
   use spmd_utils,   only: masterproc
   use edyn_solver_coefs, only: nc, cee, cofum
+  use high_lat_pot_mod, only: phihm
 
   implicit none
   private
@@ -82,7 +83,6 @@ module edyn_solve
 ! phihm is high-latitude potential, set by the high-latitude potential model (e.g. Heelis)
 ! or is prescribed (e.g. AMIE)
 !
-  real(r8), allocatable, public :: phihm(:,:) ! high-latitude potential
   real(r8), allocatable, public :: pfrac(:,:) ! NH fraction of potential
 
   contains
@@ -100,7 +100,7 @@ module edyn_solve
     allocate(phisolv(0:nmlonp1,0:nmlat+1))
 
     phisolv(:,:) = 0._r8
-    
+
     nmlon0=nmlon+1
     nmlat0=(nmlat +1)/2
     nmlon1=(nmlon0+1)/2
@@ -143,10 +143,8 @@ module edyn_solve
     c6 => cee(nc6:)
     c7 => cee(nc7:)
 
-    allocate(phihm(nmlonp1,nmlat))
     allocate(pfrac(nmlonp1,nmlat0))
 
-    phihm = nan
     pfrac = nan
 
   end subroutine edyn_solve_init
