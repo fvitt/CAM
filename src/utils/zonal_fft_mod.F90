@@ -8,7 +8,6 @@ module zonal_fft_mod
   use esmf_zonal_ops, only : esmf_zonal_fft_3d, esmf_zonal_mean_3d
   use, intrinsic :: iso_c_binding
 
-  use time_manager, only: get_nstep
   use spmd_utils, only: masterproc
   use cam_logfile, only: iulog
 
@@ -96,8 +95,7 @@ contains
     real(r8) :: tfld(pver,pcols,begchunk:endchunk)
     integer :: lchnk, ncol, icol
 
-    integer :: n,k, nstep
-    logical :: calc_frcings
+    integer :: i,k, n
 
     complex(r8) :: tmpfld(nftnum, lat_beg:lat_end, pver)
     real(r8) :: cospectra(nftnum, lat_beg:lat_end, pver)
@@ -117,17 +115,6 @@ contains
     wvlxend = 20.e3_r8   ! 20 km
 
     call t_startf ('zonal_fft_calc')
-
-    calc_frcings = .false.
-
-    nstep = mod(get_nstep()+1,ntime)
-    if (masterproc) write(iulog,'(a,3I7)') 'zonal_fft_calc ... model-step, nstep : ',get_nstep(),nstep
-
-    if (nstep==0) then
-       if (masterproc) write(iulog,'(a,3I7)') 'zonal_fft_calc calc frcng step.. model-step, nstep,ntime:',get_nstep(),nstep,ntime
-       nstep = ntime
-       calc_frcings = .true.
-    end if
 
     latrad(lat_beg:lat_end) = glats(lat_beg:lat_end)*deg2rad
 
@@ -159,42 +146,42 @@ contains
     wstar = conjg(w_fft)
     call output_fld(wstar, name='WSTAR')
 
+    do i = 1,ntime-1
+       accum_cospectra_u(:,:,:,i) = accum_cospectra_u(:,:,:,i+1)
+       accum_cospectra_v(:,:,:,i) = accum_cospectra_v(:,:,:,i+1)
+    end do
+
     tmpfld = u_fft * wstar   ! times 2 to account for the other half of the spectrum
     cospectra = tmpfld%re
     cospectra(2:,:,:) = 2._r8 * cospectra(2:,:,:)
     call output_cosp(cospectra,'U')
 
-    accum_cospectra_u(:,:,:,nstep) = cospectra(:,:,:)
+    accum_cospectra_u(:,:,:,ntime) = cospectra(:,:,:)
 
     tmpfld = v_fft * wstar
     cospectra = tmpfld%re
     cospectra(2:,:,:) = 2._r8 * cospectra(2:,:,:)
     call output_cosp(cospectra,'V')
 
-    accum_cospectra_v(:,:,:,nstep) = cospectra(:,:,:)
+    accum_cospectra_v(:,:,:,ntime) = cospectra(:,:,:)
 
     tmpfld = t_fft * wstar
     cospectra = tmpfld%re
     cospectra(2:,:,:) = 2._r8 * cospectra(2:,:,:)
     call output_cosp(cospectra,'T')
 
-    if (calc_frcings) then
-       ! zonal component
-       call cospext(nftnum, lat_beg,lat_end, pver,ntime, latrad, accum_cospectra_u, wvlxbeg,wvlxend, mflxxup,mflxxun)
+    ! zonal component
+    call cospext(nftnum, lat_beg,lat_end, pver,ntime, latrad, accum_cospectra_u, wvlxbeg,wvlxend, mflxxup,mflxxun)
 
-       ! meridianal component
-       call cospext(nftnum, lat_beg,lat_end, pver,ntime, latrad, accum_cospectra_v, wvlxbeg,wvlxend, mflxyup,mflxyun)
+    ! meridianal component
+    call cospext(nftnum, lat_beg,lat_end, pver,ntime, latrad, accum_cospectra_v, wvlxbeg,wvlxend, mflxyup,mflxyun)
 
-       do icol = lat_beg, lat_end
-          call outfld('MFLXXUP', mflxxup(icol,:),1,icol)
-          call outfld('MFLXXUN', mflxxun(icol,:),1,icol)
-          call outfld('MFLXYUP', mflxyup(icol,:),1,icol)
-          call outfld('MFLXYUN', mflxyun(icol,:),1,icol)
-       end do
-
-       accum_cospectra_u = 0.0
-       accum_cospectra_v = 0.0
-    end if
+    do icol = lat_beg, lat_end
+       call outfld('MFLXXUP', mflxxup(icol,:),1,icol)
+       call outfld('MFLXXUN', mflxxun(icol,:),1,icol)
+       call outfld('MFLXYUP', mflxyup(icol,:),1,icol)
+       call outfld('MFLXYUN', mflxyun(icol,:),1,icol)
+    end do
 
     call t_stopf ('zonal_fft_calc')
 
