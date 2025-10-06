@@ -5338,6 +5338,13 @@ Give the user the ability to input prescribed high-latitude electric potential.
 Default: FALSE
 </entry>
 
+<entry id="ionos_use_amie_fac" type="logical"  category="waccmx"
+       group="ionosphere_nl" valid_values="">
+Use AMIE prescribed high-latitude field-aligned currents in dynamo,
+rather than high-latitude electric potential.
+Default: FALSE
+</entry>
+
 <entry id="amienh_files" type="char*256(20)" input_pathname="abs" category="waccmx"
        group="ionosphere_nl" valid_values="" >
 List of full pathnames of AMIE electic potential inputs for northern hemisphere.

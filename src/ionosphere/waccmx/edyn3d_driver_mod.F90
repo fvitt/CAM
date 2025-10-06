@@ -14,11 +14,14 @@ module edyn3d_driver_mod
   public :: edyn3d_driver_timestep
   public :: edyn3d_driver_final
 
+  logical :: read_hl_fac = .false.
+
 contains
 
   !-----------------------------------------------------------------------------
   !-----------------------------------------------------------------------------
-  subroutine edyn3d_driver_init( mpicom_atm, npes_edyn3D, edyn3d_nmlat_h, edyn3d_nmlon, edyn3d_nhgt, hilat_pot_model, wei05_coefs_file )
+  subroutine edyn3d_driver_init( mpicom_atm, npes_edyn3D, edyn3d_nmlat_h, edyn3d_nmlon, &
+                                 edyn3d_nhgt, hilat_pot_model, wei05_coefs_file, read_hl_fac_in )
     use mpi_module, only: mpi_rank, mpi_size, lat_size, lon_size
     use params_module,only: nmlat_h, nmlon, nhgt_fix, hgt_fix_r
 
@@ -39,11 +42,16 @@ contains
     integer, intent(in) :: edyn3d_nmlat_h, edyn3d_nmlon, edyn3d_nhgt
     character(len=*),intent(in) :: hilat_pot_model
     character(len=*),intent(in) :: wei05_coefs_file
+    logical, intent(in) :: read_hl_fac_in
 
     character(len=*), parameter :: prefix = 'edyn3d_driver_init: '
 
+    read_hl_fac = read_hl_fac_in
+
     ! before apex init
-    call dynamo_init1( set_hilat_pot_in=.true., set_hilat_fac_in=.false., &
+    call dynamo_init1( &
+         set_hilat_pot_in=.not.read_hl_fac, &
+         set_hilat_fac_in=read_hl_fac, &
          mpicom_atm=mpicom_atm, npes_edyn3D=npes_edyn3D, &
          edyn3d_nmlat_h=edyn3d_nmlat_h, edyn3d_nmlon=edyn3d_nmlon, edyn3d_nhgt=edyn3d_nhgt, &
          real_kind=r8 )
@@ -99,11 +107,11 @@ contains
 
     call addfld ('ELECPOTEN', horiz_only, 'I', 'Volts','Electric potential', gridname='geomag_p')
     call addfld ('HILAT_POT', horiz_only, 'I', 'Volts','High-Latitude potential', gridname='geomag_p')
-    call addfld ('HILAT_FAC', horiz_only, 'I', '???','High-Latitude field-aligned current', gridname='geomag_p')
+    call addfld ('HILAT_FAC', horiz_only, 'I', 'Amps m-2','High-Latitude field-aligned current', gridname='geomag_p')
 
     call addfld ('POTEN_opg', horiz_only, 'I', 'Volts', 'Electric potential', gridname='geo_grid')
     call addfld ('HLPOT_opg', horiz_only, 'I', 'Volts', 'High-latitude potential', gridname='geo_grid')
-    call addfld ('HLFAC_opg', horiz_only, 'I', '???', 'High-Latitude field-aligned current', gridname='geo_grid')
+    call addfld ('HLFAC_opg', horiz_only, 'I', 'Amps m-2', 'High-Latitude field-aligned current', gridname='geo_grid')
 
     call addfld ('ED1s1', horiz_only, 'I', 'V/m','Electric field component', gridname='geomag_s1')
     call addfld ('ED2s1', horiz_only, 'I', 'V/m','Electric field component', gridname='geomag_s1')
@@ -145,8 +153,10 @@ contains
 
     use dynamo_interface_mod, only: dynamo_calc
     use high_lat_pot_mod, only: edyn3d_highlat_potential_get
+    use high_lat_pot_mod, only: edyn3d_highlat_currents_get
 
     use cam_history,  only: outfld
+    use cam_history_support, only: fillvalue
 
     integer,  intent(in) :: nphyscol, nphyslev
     real(r8), intent(in) :: physalt(nphyslev,nphyscol)
@@ -259,7 +269,13 @@ contains
 
     if (mpi_rank<mpi_size) then
 
-       call edyn3d_highlat_potential_get(pot_hl_p)
+       if (read_hl_fac) then
+          call edyn3d_highlat_currents_get(fac_hl_p)
+          pot_hl_p = fillvalue
+       else
+          call edyn3d_highlat_potential_get(pot_hl_p)
+          fac_hl_p = fillvalue
+       end if
 
        call dynamo_calc( &
             sigped_s1, sighal_s1, un_s1, vn_s1, &

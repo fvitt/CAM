@@ -89,6 +89,7 @@ module ionosphere_interface
 
    character(len=16) :: ionos_epotential_model = 'none'
    logical           :: ionos_epotential_amie = .false.
+   logical           :: ionos_use_amie_fac = .false.
    logical           :: ionos_epotential_ltr = .false.
    integer           :: indxefx=-1, indxkev=-1
 
@@ -131,7 +132,7 @@ module ionosphere_interface
       namelist /ionosphere_nl/ ionos_xport_active, ionos_edyn_active, ionos_oplus_xport, ionos_xport_nsplit
       namelist /ionosphere_nl/ oplus_adiff_limiter, oplus_shapiro_const, oplus_enforce_floor, oplus_ring_polar_filter
       namelist /ionosphere_nl/ ionos_epotential_model, ionos_epotential_amie, ionos_epotential_ltr, wei05_coefs_file
-      namelist /ionosphere_nl/ amienh_files, amiesh_files, wei05_coefs_file, ltr_files
+      namelist /ionosphere_nl/ amienh_files, amiesh_files, wei05_coefs_file, ltr_files, ionos_use_amie_fac
       namelist /ionosphere_nl/ epot_crit_colats
       namelist /ionosphere_nl/ ionos_npes, ionos_edyn3d_npes
       namelist /ionosphere_nl/ oplus_grid, edyn_grid
@@ -163,6 +164,7 @@ module ionosphere_interface
       call mpi_bcast(oplus_adiff_limiter, 1, mpi_real8,   masterprocid, mpicom, ierr)
       call mpi_bcast(ionos_epotential_model, len(ionos_epotential_model), mpi_character, masterprocid, mpicom, ierr)
       call mpi_bcast(ionos_epotential_amie,1, mpi_logical, masterprocid, mpicom, ierr)
+      call mpi_bcast(ionos_use_amie_fac,   1, mpi_logical, masterprocid, mpicom, ierr)
       call mpi_bcast(ionos_epotential_ltr,1, mpi_logical, masterprocid, mpicom, ierr)
       call mpi_bcast(wei05_coefs_file, len(wei05_coefs_file), mpi_character, masterprocid, mpicom, ierr)
       call mpi_bcast(amienh_files, max_num_files*len(amienh_files(1)), mpi_character, masterprocid, mpicom, ierr)
@@ -214,6 +216,7 @@ module ionosphere_interface
          write(iulog,*) 'ionosphere_readnl: ionos_xport_nsplit     = ', ionos_xport_nsplit
          write(iulog,*) 'ionosphere_readnl: ionos_epotential_model = ', trim(ionos_epotential_model)
          write(iulog,*) 'ionosphere_readnl: ionos_epotential_amie  = ', ionos_epotential_amie
+         write(iulog,*) 'ionosphere_readnl: ionos_use_amie_fac     = ', ionos_use_amie_fac
          write(iulog,*) 'ionosphere_readnl: ionos_epotential_ltr   = ', ionos_epotential_ltr
          write(iulog,'(a,2(g12.4))') &
                         'ionosphere_readnl: epot_crit_colats       = ', epot_crit_colats
@@ -382,7 +385,7 @@ module ionosphere_interface
       if (ionos_edyn3d_active) then
          ! 3D edynamo
          call edyn3d_driver_init(mpicom, ionos_edyn3d_npes, ionos_edyn3d_nmlat_h, ionos_edyn3d_nmlon, ionos_edyn3d_nhgt, &
-              ionos_epotential_model, wei05_coefs_file)
+              ionos_epotential_model, wei05_coefs_file, ionos_use_amie_fac)
       else
          ! This has to be after edynamo_init (where maggrid is initialized)
          call mo_apex_init1()
