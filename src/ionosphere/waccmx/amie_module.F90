@@ -41,10 +41,13 @@ module amie_module
   !
   real(r8), allocatable, dimension(:,:,:), save :: & ! (lonp1,latp1,ntimes)
        pot_nh_input, pot_sh_input,                   &
+       fac_nh_input, fac_sh_input,                   &
        ekv_nh_input, ekv_sh_input,                   &
        efx_nh_input, efx_sh_input
   real(r8), allocatable, dimension(:,:), save ::           &  ! (lonp1,latp1)
-       pot_nh_amie, pot_sh_amie, ekv_nh_amie, ekv_sh_amie, &
+       pot_nh_amie, pot_sh_amie, &
+       fac_nh_amie, fac_sh_amie, &
+       ekv_nh_amie, ekv_sh_amie, &
        efx_nh_amie, efx_sh_amie
   integer,  allocatable, dimension(:), save ::                 & ! (ntimes)
        year, month, day, jday
@@ -236,6 +239,10 @@ contains
        allocate(pot_nh_amie(lonp1, latp1), stat=ier)
        call check_alloc(ier, subname, 'pot_nh_amie', lonp1=lonp1, latp1=latp1)
     end if
+    if (.not. allocated(fac_nh_amie)) then
+       allocate(fac_nh_amie(lonp1, latp1), stat=ier)
+       call check_alloc(ier, subname, 'fac_nh_amie', lonp1=lonp1, latp1=latp1)
+    end if
     if (.not. allocated(ekv_nh_amie)) then
        allocate(ekv_nh_amie(lonp1, latp1), stat=ier)
        call check_alloc(ier, subname, 'ekv_nh_amie', lonp1=lonp1, latp1=latp1)
@@ -249,6 +256,11 @@ contains
     if (.not. allocated(pot_nh_input)) then
        allocate(pot_nh_input(lonp1, latp1, 2), stat=ier)
        call check_alloc(ier, subname, 'pot_nh_input', &
+            lonp1=lonp1, latp1=latp1, ntimes=ntimes)
+    end if
+    if (.not. allocated(fac_nh_input)) then
+       allocate(fac_nh_input(lonp1, latp1, 2), stat=ier)
+       call check_alloc(ier, subname, 'fac_nh_input', &
             lonp1=lonp1, latp1=latp1, ntimes=ntimes)
     end if
     if (.not. allocated(ekv_nh_input)) then
@@ -401,6 +413,10 @@ contains
        allocate(pot_sh_amie(lonp1, latp1), stat=ier)
        call check_alloc(ier, subname, 'pot_sh_amie', lonp1=lonp1, latp1=latp1)
     end if
+    if (.not. allocated(fac_sh_amie)) then
+       allocate(fac_sh_amie(lonp1, latp1), stat=ier)
+       call check_alloc(ier, subname, 'fac_sh_amie', lonp1=lonp1, latp1=latp1)
+    end if
     if (.not. allocated(ekv_sh_amie)) then
        allocate(ekv_sh_amie(lonp1, latp1), stat=ier)
        call check_alloc(ier, subname, 'ekv_sh_amie', lonp1=lonp1, latp1=latp1)
@@ -416,6 +432,11 @@ contains
        call check_alloc(ier, subname, 'pot_sh_input', &
             lonp1=lonp1, latp1=latp1, ntimes=ntimes)
     end if
+    if (.not. allocated(fac_sh_input)) then
+       allocate(fac_sh_input(lonp1, latp1, 2), stat=ier)
+       call check_alloc(ier, subname, 'fac_sh_input', &
+            lonp1=lonp1, latp1=latp1, ntimes=ntimes)
+    end if
     if (.not. allocated(ekv_sh_input)) then
        allocate(ekv_sh_input(lonp1, latp1, 2), stat=ier)
        call check_alloc(ier, subname, 'ekv_sh_input', &
@@ -429,18 +450,20 @@ contains
   end subroutine rdamie_sh
 
   !-----------------------------------------------------------------------
-  subroutine update_3d_fields( ncid, offset, kount, pot_3d,ekv_3d,efx_3d )
+  subroutine update_3d_fields( ncid, offset, kount, &
+                               pot_3d, fac_3d, ekv_3d, efx_3d )
 
     type(file_desc_t), intent(in) :: ncid
     integer, intent(in)  :: offset(:)
     integer, intent(in)  :: kount(:)
     real(r8),intent(out) :: pot_3d(:,:,:)
+    real(r8),intent(out) :: fac_3d(:,:,:)
     real(r8),intent(out) :: ekv_3d(:,:,:)
     real(r8),intent(out) :: efx_3d(:,:,:)
 
 
     integer :: istat
-    integer :: idv_pot, idv_ekv, idv_efx
+    integer :: idv_pot, idv_fac, idv_ekv, idv_efx
     character(len=*), parameter :: subname = 'update_3d_fields'
 
     !
@@ -451,6 +474,12 @@ contains
     call check_ncerr(istat, subname, 'AMIE pot id')
     istat = pio_get_var(ncid, idv_pot, offset, kount, pot_3d)
     call check_ncerr(istat, subname, 'AMIE pot')
+    !
+    ! field_aligned current
+    istat = pio_inq_varid(ncid, 'FAC', idv_fac)
+    call check_ncerr(istat, subname, 'AMIE fac id')
+    istat = pio_get_var(ncid, idv_fac, offset, kount, fac_3d)
+    call check_ncerr(istat, subname, 'AMIE fac')
     !
     ! mean energy
     istat = pio_inq_varid(ncid, 'ekv', idv_ekv)
@@ -468,7 +497,7 @@ contains
 
   !-----------------------------------------------------------------------
   subroutine getamie(iyear, imo, iday, nmlonp1,nmlat, ylonm, ylatm, iutsec, sunlon, iprint,  &
-                     iamie, phihm, amie_efxm, amie_kevm, crad)
+                     iamie, phihm, amie_facm, amie_efxm, amie_kevm, crad)
     use cam_history_support, only: fillvalue
     use rgrd_mod,            only: rgrd2
 
@@ -492,6 +521,7 @@ contains
     integer,  intent(in)    :: iprint
     integer,  intent(out)   :: iamie
     real(r8), intent(out)   :: phihm(nmlonp1,nmlat)
+    real(r8), intent(out)   :: amie_facm(nmlonp1,nmlat) ! on geomag grid
     real(r8), intent(out)   :: amie_efxm(nmlonp1,nmlat) ! on geomag grid
     real(r8), intent(out)   :: amie_kevm(nmlonp1,nmlat) ! on geomag grid
     real(r8), intent(out)   :: crad(2)
@@ -499,6 +529,7 @@ contains
     !
     !     Local:
     real(r8)                    :: potm(lonp1,jmxm)
+    real(r8)                    :: facm(lonp1,jmxm)
     real(r8)                    :: efxm(lonp1,jmxm), ekvm(lonp1,jmxm)
     real(r8)                    :: alat(jmxm), alon(lonp1)
     real(r8)                    :: alatm(jmxm), alonm(lonp1)
@@ -514,6 +545,7 @@ contains
     character(len=*), parameter :: subname = 'getamie'
 
     phihm = fillvalue
+    amie_facm = fillvalue
     amie_efxm = fillvalue
     amie_kevm = fillvalue
     crad = fillvalue
@@ -559,6 +591,7 @@ contains
 
 !     get SH AMIE data
     pot_sh_amie(:,:) = 0._r8
+    fac_sh_amie(:,:) = 0._r8
     ekv_sh_amie(:,:) = 0._r8
     efx_sh_amie(:,:) = 0._r8
     cusplat_sh_amie = 0._r8
@@ -587,16 +620,21 @@ contains
     offset = (/1,1,iset1/)
     kount = (/lonp1,latp1,2/)
 
-    call update_3d_fields( ncid_sh, offset, kount, pot_sh_input,ekv_sh_input,efx_sh_input )
+    call update_3d_fields( ncid_sh, offset, kount, &
+                           pot_sh_input,fac_sh_input,ekv_sh_input,efx_sh_input )
     if (iboxcar == 0) then
        pot_sh_amie(:,:) = (f1*pot_sh_input(:,:,1) + &
                            f2*pot_sh_input(:,:,2))
+       fac_sh_amie(:,:) = (f1*fac_sh_input(:,:,1) + &
+                           f2*fac_sh_input(:,:,2))
        ekv_sh_amie(:,:) = (f1*ekv_sh_input(:,:,1) + &
                            f2*ekv_sh_input(:,:,2))
        efx_sh_amie(:,:) = (f1*efx_sh_input(:,:,1) + &
                            f2*efx_sh_input(:,:,2))
     else
        call boxcar_ave(pot_sh_input,pot_sh_amie,lonp1,latp1, &
+            nn,iset1,iboxcar)
+       call boxcar_ave(fac_sh_input,fac_sh_amie,lonp1,latp1, &
             nn,iset1,iboxcar)
        call boxcar_ave(efx_sh_input,efx_sh_amie,lonp1,latp1, &
             nn,iset1,iboxcar)
@@ -606,6 +644,7 @@ contains
 !
 !     get NH AMIE data
     pot_nh_amie(:,:) = 0._r8
+    fac_nh_amie(:,:) = 0._r8
     ekv_nh_amie(:,:) = 0._r8
     efx_nh_amie(:,:) = 0._r8
     cusplat_nh_amie = 0._r8
@@ -633,17 +672,22 @@ contains
     offset = (/1,1,iset1/)
     kount = (/lonp1,latp1,2/)
 
-    call update_3d_fields( ncid_nh, offset, kount, pot_nh_input,ekv_nh_input,efx_nh_input )
+    call update_3d_fields( ncid_nh, offset, kount, &
+                           pot_nh_input,fac_nh_input,ekv_nh_input,efx_nh_input )
 
     if (iboxcar == 0) then
        pot_nh_amie(:,:) = (f1*pot_nh_input(:,:,1) + &
                            f2*pot_nh_input(:,:,2))
+       fac_nh_amie(:,:) = (f1*fac_nh_input(:,:,1) + &
+                           f2*fac_nh_input(:,:,2))
        ekv_nh_amie(:,:) = (f1*ekv_nh_input(:,:,1) + &
                            f2*ekv_nh_input(:,:,2))
        efx_nh_amie(:,:) = (f1*efx_nh_input(:,:,1) + &
                            f2*efx_nh_input(:,:,2))
     else
        call boxcar_ave(pot_nh_input,pot_nh_amie,lonp1,latp1, &
+            nn,iset1,iboxcar)
+       call boxcar_ave(fac_nh_input,fac_nh_amie,lonp1,latp1, &
             nn,iset1,iboxcar)
        call boxcar_ave(efx_nh_input,efx_nh_amie,lonp1,latp1, &
             nn,iset1,iboxcar)
@@ -702,6 +746,8 @@ contains
           do j = latp1+1, ithmx
              potm(i,j) = 0._r8
              potm(i,jmxm+1-j) = 0._r8
+             facm(i,j) = 0._r8
+             facm(i,jmxm+1-j) = 0._r8
              ekvm(i,j) = (1._r8-del)*ekv_sh_amie(m,latp1) + &
                   del*ekv_sh_amie(mp1,latp1)
              ekvm(i,jmxm+1-j) = (1._r8-del)*ekv_nh_amie(m,latp1) +  &
@@ -715,6 +761,10 @@ contains
                   del*pot_sh_amie(mp1,j)
              potm(i,jmxm+1-j) = (1._r8-del)*pot_nh_amie(m,j) + &
                   del*pot_nh_amie(mp1,j)
+             facm(i,j) = (1._r8-del)*fac_sh_amie(m,j) + &
+                  del*fac_sh_amie(mp1,j)
+             facm(i,jmxm+1-j) = (1._r8-del)*fac_nh_amie(m,j) + &
+                  del*fac_nh_amie(mp1,j)
              ekvm(i,j) = (1._r8-del)*ekv_sh_amie(m,j) + &
                   del*ekv_sh_amie(mp1,j)
              ekvm(i,jmxm+1-j) = (1._r8-del)*ekv_nh_amie(m,j) + &
@@ -787,6 +837,8 @@ contains
        !     ylatm from -pi/2 to pi/2, and ylonm from -pi to pi
        call rgrd2(lonp1, jmxm, alonm, alatm, potm, nmlonp1, nmlat,  &
             ylonm, ylatm, phihm, intpol, w, lw, iw, liw, ier)
+       call rgrd2(lonp1, jmxm, alonm, alatm, facm, nmlonp1, nmlat,  &
+            ylonm, ylatm, amie_facm, intpol, w, lw, iw, liw, ier)
        call rgrd2(lonp1, jmxm, alonm, alatm, ekvm, nmlonp1, nmlat,  &
             ylonm, ylatm, amie_kevm, intpol, w, lw, iw, liw, ier)
        call rgrd2(lonp1, jmxm, alonm, alatm, efxm, nmlonp1, nmlat,  &
@@ -802,6 +854,7 @@ contains
                subname, ': AMIE iset1 f1,f2,year,mon,day,ut = ', iset1,          &
                f1, f2, year(iset1), month(iset1), day(iset1), amie_nh_ut(iset1)
           write(iulog,*) subname, ': max,min phihm= ', maxval(phihm), minval(phihm)
+          write(iulog,*) subname, ': max,min amie_facm= ', maxval(amie_facm), minval(amie_facm)
        end if
     end if active_task
 

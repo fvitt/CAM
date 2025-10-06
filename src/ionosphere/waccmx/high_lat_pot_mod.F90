@@ -1,9 +1,10 @@
 module high_lat_pot_mod
 
   use shr_kind_mod, only: r8 => shr_kind_r8 ! 8-byte reals
- 
+
   real(r8), allocatable, public :: phihm(:,:) ! high-latitude potential
- 
+  real(r8), allocatable, public :: fachm(:,:) ! high-latitude field-aligned current
+
  contains
 
   !-----------------------------------------------------------------------------
@@ -12,7 +13,7 @@ module high_lat_pot_mod
 
     use mpi_module, only: mlond0, mlond1, mlatd0, mlatd1, mlon0, mlon1
     use params_module, only: nmlat_h, nmlat_T1, nmlon
- 
+
     real(r8), intent(out) :: hl_pot(2,mlatd0:mlatd1,mlond0:mlond1)
 
     integer :: h,i,j,jj

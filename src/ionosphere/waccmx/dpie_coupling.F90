@@ -13,7 +13,6 @@ module dpie_coupling
   use perf_mod,            only: t_startf, t_stopf
   use amie_module,         only: getamie
   use ltr_module,          only: getltr
-  use high_lat_pot_mod,    only: phihm
   use edyn_params,         only: dtr, rtd
   use aurora_params,       only: prescribed_period ! turns on overwrite of energy fields in aurora phys
 
@@ -149,6 +148,7 @@ contains
     use solar_wind_data,  only: swvel=>solar_wind_swvel
     use solar_wind_data,  only: swden=>solar_wind_swden
 
+    use high_lat_pot_mod, only: phihm, fachm
     use edyn_mpi,         only: mlat0, mlat1, mlon0, mlon1, omlon1, ntask, mytid
     use edyn_maggrid,     only: edyn_nmlonp1=>nmlonp1,edyn_nmlon=>nmlon,edyn_nmlat=>nmlat
     use edyn_maggrid,     only: edyn_ylonm=>ylonm,edyn_ylatm=>ylatm
@@ -191,7 +191,8 @@ contains
     !
     ! AMIE fields (extra dimension added for longitude switch)
     !
-    real(r8), allocatable :: prescr_efxm(:,:), prescr_kevm(:,:), prescr_phihm(:,:)
+    real(r8), allocatable :: prescr_efxm(:,:), prescr_kevm(:,:)
+    real(r8), allocatable :: prescr_phihm(:,:), prescr_fachm(:,:)
     real(r8), allocatable :: ylonm(:), ylatm(:)
     integer :: lcid, h, jj
 
@@ -222,10 +223,14 @@ contains
     if (.not. allocated(phihm)) then
        allocate(phihm(nmlonp1,nmlat))
     endif
+    if (.not. allocated(fachm)) then
+       allocate(fachm(nmlonp1,nmlat))
+    endif
 
     call edyn_esmf_update()
 
     phihm = nan
+    fachm = nan
     sunlon = nan
 
     ! update solar wind data (IMF, etc.)
@@ -281,10 +286,12 @@ contains
 
        allocate(prescr_efxm(nmlonp1,nmlat), prescr_kevm(nmlonp1,nmlat))
        allocate(prescr_phihm(nmlonp1,nmlat))
+       allocate(prescr_fachm(nmlonp1,nmlat))
 
        prescr_efxm = nan
        prescr_kevm = nan
        prescr_phihm = nan
+       prescr_fachm = nan
 
        iprint = 1
        if (amie_inputs) then
@@ -293,7 +300,7 @@ contains
           end if
 
           call getamie(iyear, imo, iday, nmlonp1,nmlat, ylonm, ylatm, tod, sunlon, iprint, iamie, &
-               prescr_phihm, prescr_efxm, prescr_kevm, crad)
+               prescr_phihm, prescr_fachm, prescr_efxm, prescr_kevm, crad)
 
           if (masterproc) then
              write(iulog,"('After Calling getamie >>> iamie = ', i2)") iamie
@@ -330,6 +337,7 @@ contains
                 lcid = lcid+1
 
                 call outfld('prescr_phihm',prescr_phihm(gmlon0:gmlon1,jj), gmlon1-gmlon0+1, lcid)
+                call outfld('prescr_fachm',prescr_fachm(gmlon0:gmlon1,jj), gmlon1-gmlon0+1, lcid)
                 call outfld('prescr_efxm', prescr_efxm(gmlon0:gmlon1,jj),  gmlon1-gmlon0+1, lcid)
                 call outfld('prescr_kevm', prescr_kevm(gmlon0:gmlon1,jj),  gmlon1-gmlon0+1, lcid)
 
@@ -348,6 +356,7 @@ contains
 
        if (prescribed_period) then
           phihm = prescr_phihm
+          fachm = prescr_fachm
        end if
 
        call mpi_bcast(prescribed_period, 1, mpi_logical, masterprocid, mpicom, ierr)
@@ -365,6 +374,7 @@ contains
 
        deallocate(prescr_efxm, prescr_kevm)
        deallocate(prescr_phihm)
+       deallocate(prescr_fachm)
 
     end if prescribed_inputs
 

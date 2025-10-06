@@ -115,9 +115,10 @@ contains
     call addfld ('Ve1s2', horiz_only, 'I', 'm/s','Ion Drift Velocity', gridname='geomag_s2')
     call addfld ('Ve2s2', horiz_only, 'I', 'm/s','Ion Drift Velocity', gridname='geomag_s2')
 
-    call addfld ('prescr_phihm' , horiz_only, 'I','VOLTS','Prescribed Electric Potential-mag grid' ,gridname='geomag_p')
-    call addfld ('prescr_efxm'  , horiz_only, 'I','mW/m2','Prescribed energy flux on mag grid'     ,gridname='geomag_p')
-    call addfld ('prescr_kevm'  , horiz_only, 'I','keV  ','Prescribed mean energy on mag grid'     ,gridname='geomag_p')
+    call addfld ('prescr_phihm', horiz_only, 'I','VOLTS','Prescribed Electric Potential', gridname='geomag_p')
+    call addfld ('prescr_fachm', horiz_only, 'I','uA m-2','Prescribed field-aligned current',gridname='geomag_p')
+    call addfld ('prescr_efxm' , horiz_only, 'I','mW m-2','Prescribed energy flux on mag grid',gridname='geomag_p')
+    call addfld ('prescr_kevm' , horiz_only, 'I','keV','Prescribed mean energy on mag grid',gridname='geomag_p')
 
   end subroutine edyn3d_driver_init
 
