@@ -153,7 +153,8 @@ contains
     use edyn_maggrid,     only: edyn_nmlonp1=>nmlonp1,edyn_nmlon=>nmlon,edyn_nmlat=>nmlat
     use edyn_maggrid,     only: edyn_ylonm=>ylonm,edyn_ylatm=>ylatm
 
-    use params_module, only: nmlat_h, edyn3d_nmlat=>nmlat_T1, edyn3d_nmlon=>nmlon
+    use params_module, only: nmlat_h, nmlat_T1
+    use params_module, only: edyn3d_nmlat=>nmlat_T1, edyn3d_nmlon=>nmlon
     use params_module, only: edyn3d_ylonm=>ylonm, edyn3d_ylatm=>ylatm
 
     use regridder,  only: regrid_mag2phys_2d
@@ -192,6 +193,7 @@ contains
     !
     real(r8), allocatable :: prescr_efxm(:,:), prescr_kevm(:,:), prescr_phihm(:,:)
     real(r8), allocatable :: ylonm(:), ylatm(:)
+    integer :: lcid, h, jj
 
     if (edynamo_3d) then
       nmlonp1 = edyn3d_nmlon+1
@@ -313,11 +315,26 @@ contains
 
        if (edynamo_3d) then
 
-          do j = gmlat0, gmlat1
-             call outfld('prescr_phihm',prescr_phihm(gmlon0:gmlon1,j), gmlon1-gmlon0+1,j)
-             call outfld('prescr_efxm', prescr_efxm(gmlon0:gmlon1,j),  gmlon1-gmlon0+1,j)
-             call outfld('prescr_kevm', prescr_kevm(gmlon0:gmlon1,j),  gmlon1-gmlon0+1,j)
-          end do
+          lcid = 0 ! local chunk number
+          hemi_loop: do h = 1,2
+             do j = gmlat0,gmlat1
+
+                if (h==2.and.j==nmlat_h) exit hemi_loop
+
+                if (h==1) then
+                   jj = j
+                else
+                   jj = nmlat_T1 - j + 1
+                end if
+
+                lcid = lcid+1
+
+                call outfld('prescr_phihm',prescr_phihm(gmlon0:gmlon1,jj), gmlon1-gmlon0+1, lcid)
+                call outfld('prescr_efxm', prescr_efxm(gmlon0:gmlon1,jj),  gmlon1-gmlon0+1, lcid)
+                call outfld('prescr_kevm', prescr_kevm(gmlon0:gmlon1,jj),  gmlon1-gmlon0+1, lcid)
+
+             end do
+          end do hemi_loop
 
        else
 
