@@ -97,7 +97,7 @@ contains
     integer,                     intent(in)    :: nmlon
     integer,                     intent(inout) :: iflag(nmlon)
     real(r8),dimension(nmlon),   intent(in)    :: dlat,dlon,ratio
-    real(r8),dimension(nmlon+1), intent(out)   :: poten
+    real(r8),dimension(nmlon),   intent(out)   :: poten
 !
 ! Local:
     integer :: i,n,ihem

@@ -299,7 +299,7 @@
       real(r8) :: pot_midlat(0:nmlon,0:nmlat)         ! potential from L. Scherliess model
       real(r8) :: pot_highlat(0:nmlon,0:nmlat)        ! potential from Heelis
       real(r8) :: pot_highlats(0:nmlon,0:nmlat)       ! smoothed potential from Heelis
-      real(r8) :: poten(nmlon+1)
+      real(r8) :: poten(nmlon)
       integer,dimension(nmlon) :: iflag
       real(r8),dimension(nmlon) :: dlat,dlon,ratio
 
