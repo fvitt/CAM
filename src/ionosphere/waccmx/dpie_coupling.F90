@@ -162,7 +162,7 @@ contains
     use infnan, only: nan, assignment(=)
 
     use mpi_module, only: gmlon0=>mlon0, gmlon1=>mlon1, gmlat0=>mlat0, gmlat1=>mlat1
-
+    use mpi_module, only: edyn3d_ntask=>mpi_size
     ! Args:
     !
     character(len=*),  intent(in)  :: highlat_potential_model
@@ -186,7 +186,7 @@ contains
 
     integer              :: iprint
     integer              :: j, iamie, iltr, ierr
-    integer :: nmlonp1, nmlon, nmlat
+    integer :: nmlonp1, nmlon, nmlat, numtasks
     !
     ! AMIE fields (extra dimension added for longitude switch)
     !
@@ -197,77 +197,72 @@ contains
       nmlonp1 = edyn3d_nmlon+1
       nmlon = edyn3d_nmlon
       nmlat = edyn3d_nmlat
+      numtasks = edyn3d_ntask
     else
       nmlonp1 = edyn_nmlonp1
       nmlon = edyn_nmlon
       nmlat = edyn_nmlat
+      numtasks = ntask
     end if
 
+    allocate(ylonm(nmlonp1))
+    allocate(ylatm(nmlat))
+
+    if (edynamo_3d) then
+       ylonm(1:nmlonp1) = edyn3d_ylonm(1:nmlonp1)
+       ylatm(1:nmlat_h) = edyn3d_ylatm(1,1:nmlat_h)
+       ylatm(nmlat_h:)  = edyn3d_ylatm(2,nmlat_h:1:-1)
+    else
+       ylonm(1:nmlonp1) = edyn_ylonm(1:nmlonp1)
+       ylatm(1:nmlat) = edyn_ylatm(1:nmlat)
+    end if
+
+    if (.not. allocated(phihm)) then
+       allocate(phihm(nmlonp1,nmlat))
+    endif
 
     call edyn_esmf_update()
+
+    phihm = nan
+    sunlon = nan
 
     ! update solar wind data (IMF, etc.)
     call solar_wind_advance()
 
     ! update kp -- phys timestep init happens later ...
     call solar_parms_advance()
-    if ( mytid<ntask ) then
 
-       allocate(prescr_efxm(nmlonp1,nmlat), prescr_kevm(nmlonp1,nmlat))
-       allocate(prescr_phihm(nmlonp1,nmlat))
-       allocate(ylonm(nmlonp1))
-       allocate(ylatm(nmlat))
+    !
+    ! Get sun's longitude at latitudes (geographic):
+    !
+    call sunloc_calc(sunlon)
+    !
+    ! Get high-latitude convection from empirical model (heelis or weimer).
+    ! High-latitude potential phihm (edyn_solve) is defined for edynamo.
+    !
+    if (trim(highlat_potential_model) == 'heelis') then
+       call heelis_model(sunlon, &
+            nmlon,nmlat, ylonm(:nmlon),ylatm(:nmlat), phihm(:nmlon,:nmlat))
 
-       if (edynamo_3d) then
+       ! Periodic points:
+       phihm(nmlonp1,:) = phihm(1,:)
 
-         ylonm(1:nmlon) = edyn3d_ylonm(1:nmlon)
-         ylonm(nmlonp1) = edyn3d_ylonm(1)
-         ylatm(1:nmlat_h) = edyn3d_ylatm(1,1:nmlat_h)
-         ylatm(nmlat_h:)  = edyn3d_ylatm(2,nmlat_h:1:-1)
+    elseif (trim(highlat_potential_model) == 'weimer') then
+       !
+       call weimer_highlat_potential_update( byimf, bzimf, swvel, swden, sunlon, &
+            nmlon,nmlat, ylonm(:nmlon),ylatm(:nmlat), phihm(:nmlon,:nmlat))
 
-       else
-         ylonm(1:nmlonp1) = edyn_ylonm(1:nmlonp1)
-         ylatm(1:nmlat) = edyn_ylatm(1:nmlat)
+       ! Periodic points:
+       phihm(nmlonp1,:) = phihm(1,:)
+
+       if (debug .and. masterproc) then
+          write(iulog, "(a,2f8.2,a,2f8.2)")                                   &
+               'dpie_coupling call weimer05: byimf,bzimf=',                   &
+               byimf, bzimf, ' swvel,swden=', swvel, swden
        end if
-
-
-       if (.not. allocated(phihm)) then
-          allocate(phihm(nmlonp1,nmlat))
-          phihm = nan
-       endif
-
-       !
-       ! Get sun's longitude at latitudes (geographic):
-       !
-       call sunloc_calc(sunlon)
-       !
-       ! Get high-latitude convection from empirical model (heelis or weimer).
-       ! High-latitude potential phihm (edyn_solve) is defined for edynamo.
-       !
-       if (trim(highlat_potential_model) == 'heelis') then
-          call heelis_model(sunlon, &
-               nmlon,nmlat, ylonm(:nmlon),ylatm(:nmlat), phihm(:nmlon,:nmlat))
-
-          ! Periodic points:
-          phihm(nmlonp1,:) = phihm(1,:)
-
-       elseif (trim(highlat_potential_model) == 'weimer') then
-          !
-          call weimer_highlat_potential_update( byimf, bzimf, swvel, swden, sunlon, &
-               nmlon,nmlat, ylonm(:nmlon),ylatm(:nmlat), phihm(:nmlon,:nmlat))
-
-          ! Periodic points:
-          phihm(nmlonp1,:) = phihm(1,:)
-
-          if (debug .and. masterproc) then
-             write(iulog, "(a,2f8.2,a,2f8.2)")                                   &
-                  'dpie_coupling call weimer05: byimf,bzimf=',                   &
-                  byimf, bzimf, ' swvel,swden=', swvel, swden
-          end if
-       else
-          call endrun('d_pie_epotent: Unknown highlat_potential_model')
-       end if
-    endif
+    else
+       call endrun('d_pie_epotent: Unknown highlat_potential_model')
+    end if
 
     amie_inputs=.false.
     ltr_inputs=.false.
@@ -281,6 +276,13 @@ contains
        end if
 
        call get_curr_date(iyear, imo,iday, tod)
+
+       allocate(prescr_efxm(nmlonp1,nmlat), prescr_kevm(nmlonp1,nmlat))
+       allocate(prescr_phihm(nmlonp1,nmlat))
+
+       prescr_efxm = nan
+       prescr_kevm = nan
+       prescr_phihm = nan
 
        iprint = 1
        if (amie_inputs) then
@@ -344,19 +346,20 @@ contains
        call outfld_phys1d( 'prescr_efxp', efx_phys )
        call outfld_phys1d( 'prescr_kevp', kev_phys )
 
-    end if prescribed_inputs
-
-    if ( mytid<ntask ) then
-
        deallocate(prescr_efxm, prescr_kevm)
        deallocate(prescr_phihm)
-       deallocate(ylonm)
-       deallocate(ylatm)
 
+    end if prescribed_inputs
+
+    deallocate(ylonm)
+    deallocate(ylatm)
+
+    if ( mytid<numtasks ) then
        call calc_pfrac(sunlon, pfrac) ! returns pfrac for dynamo (edyn_solve)
 
        crit_out(:) = crit(:)*rtd ! degrees
     endif
+
   end subroutine d_pie_epotent
 
   !-----------------------------------------------------------------------

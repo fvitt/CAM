@@ -25,7 +25,6 @@ module ionosphere_interface
    use shr_const_mod,  only: SHR_CONST_REARTH ! meters
 
    use edyn3d_driver_mod, only: edyn3d_driver_init
-   use edyn3d_highlat_potential, only: edyn3d_highlat_potential_update
 
    implicit none
 

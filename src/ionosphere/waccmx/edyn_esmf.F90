@@ -218,13 +218,13 @@ contains
          return
       end if
 
-      if (mytid<ntask) then
-         !
-         ! Get apex coordinates.
-         !
-         call get_apex()     ! get apex coordinates (allocates alonm)
-         call magfield()     ! calculate magnetic field parameters
+      !
+      ! Get apex coordinates.
+      !
+      call get_apex()     ! get apex coordinates (allocates alonm)
 
+      if (mytid<ntask) then
+         call magfield()     ! calculate magnetic field parameters
       endif
 
       smm_srctermproc = 0
