@@ -107,6 +107,14 @@
         fxtag = clubb_4ncar_20240605_73d60f6_gpufixes_posinf
         fxDONOTUSEurl = https://github.com/larson-group/clubb_release
 
+[submodule "3D-Dynamo"]
+	path = src/ionosphere/waccmx/3dim_dynamo
+	url = https://github.com/NCAR/3DimensionalDynamo.git
+        fxrequired = AlwaysRequired
+        fxsparse = ../.edyn3d_sparse_checkout
+        fxtag = v0.01
+        fxDONOTUSEurl = https://github.com/NCAR/3DimensionalDynamo.git
+
 [submodule "rtm"]
 path = components/rtm
 url = https://github.com/ESCOMP/RTM
