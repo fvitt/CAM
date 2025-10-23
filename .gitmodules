@@ -115,7 +115,7 @@
 
 [submodule "3D-dynamo"]
 	path = src/ionosphere/waccmx/edyn3d
-	url = https://github.com/NCAR/3DimensionalDynamo
+	url = https://github.com/NCAR/3DimensionalDynamo.git
         fxrequired = AlwaysRequired
         fxsparse = ../.edyn3d_sparse_checkout
         fxtag = v0.01
