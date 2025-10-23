@@ -15,6 +15,8 @@ module edyn3d_esmf_fields_rhandles
   private
 
   public :: physFieldSrc
+  public :: physFieldSrc_p
+  public :: magFieldDes_p
   public :: magFieldDes_s1
   public :: magFieldDes_s2
   public :: magFieldSrc_s2
@@ -24,6 +26,7 @@ module edyn3d_esmf_fields_rhandles
   public :: oplusFieldDes_ref_p
 
   public :: rh_mag2oplus_s2
+  public :: rh_phys2mag_p
   public :: rh_phys2mag_s1
   public :: rh_phys2mag_s2
   public :: rh_mag2oplus_ref_p
@@ -36,6 +39,7 @@ module edyn3d_esmf_fields_rhandles
   public :: rh_mag2phys
 
   type(ESMF_Field) :: physFieldSrc
+  type(ESMF_Field) :: physFieldSrc_p
   type(ESMF_Field) :: oplusFieldDes
   type(ESMF_Field) :: magFieldSrc
   type(ESMF_Field) :: physFieldDes
@@ -43,10 +47,12 @@ module edyn3d_esmf_fields_rhandles
   type(ESMF_Field) :: magFieldSrc_ref_p
   type(ESMF_Field) :: oplusFieldDes_ref_p
 
+  type(ESMF_Field), allocatable :: magFieldDes_p(:)
   type(ESMF_Field), allocatable :: magFieldDes_s1(:)
   type(ESMF_Field), allocatable :: magFieldDes_s2(:)
   type(ESMF_Field), allocatable :: magFieldSrc_s2(:)
 
+  type(ESMF_RouteHandle), allocatable :: rh_phys2mag_p(:)
   type(ESMF_RouteHandle), allocatable :: rh_phys2mag_s1(:)
   type(ESMF_RouteHandle), allocatable :: rh_phys2mag_s2(:)
   type(ESMF_RouteHandle), allocatable :: rh_mag2oplus_s2(:)
@@ -65,6 +71,7 @@ contains
     use params_module, only: nz=>nhgt_fix
     use edyn3d_esmf_phys_mesh_mod, only: phys_mesh
     use edyn3d_esmf_oplus_grid_mod, only: oplus_grid
+    use edyn3d_esmf_p_mag_grid_mod, only: mag_p_fdln_grid
     use edyn3d_esmf_s1_mag_grid_mod, only: mag_s1_fdln_grid
     use edyn3d_esmf_s2_mag_grid_mod, only: mag_s2_fdln_grid
     use edyn3d_esmf_mag_ref_p_grid_mod, only: mag_ref_p_fdln_grid
@@ -87,6 +94,12 @@ contains
                                     ungriddedLBound=(/1/), ungriddedUBound=(/phys2mag_nflds/), rc=rc)
     call check_error(subname,'ESMF_FieldCreate physFieldSrc',rc)
 
+    call ESMF_ArraySpecSet(arrayspec, 1, ESMF_TYPEKIND_R8, rc=rc)
+    call check_error(subname,'ESMF_ArraySpecSet',rc)
+
+    physFieldSrc_p = ESMF_FieldCreate(phys_mesh, arrayspec, meshloc=ESMF_MESHLOC_ELEMENT, rc=rc)
+    call check_error(subname,'ESMF_FieldCreate physFieldSrc_p',rc)
+
     ! Oplus field
 
     call ESMF_ArraySpecSet(arrayspec, 3, ESMF_TYPEKIND_R8, rc=rc)
@@ -102,6 +115,10 @@ contains
 
     ! nz vertical mag field-line levels
 
+    allocate(magFieldDes_p(nz), stat=astat)
+    if (astat/=0) then
+       call endrun(subname//' : not able to allocate magFieldDes_p')
+    end if
     allocate(magFieldDes_s1(nz), stat=astat)
     if (astat/=0) then
        call endrun(subname//' : not able to allocate magFieldDes_s1')
@@ -115,6 +132,10 @@ contains
        call endrun(subname//' : not able to allocate magFieldSrc_s2')
     end if
 
+    allocate(rh_phys2mag_p(nz), stat=astat)
+    if (astat/=0) then
+       call endrun(subname//' : not able to allocate rh_phys2mag_p')
+    end if
     allocate(rh_phys2mag_s1(nz), stat=astat)
     if (astat/=0) then
        call endrun(subname//' : not able to allocate rh_phys2mag_s1')
@@ -137,15 +158,19 @@ contains
 
        ! Mag fields
 
-       magFieldDes_s2(k) = ESMF_FieldCreate( grid=mag_s2_fdln_grid(k), &
-            staggerloc=ESMF_STAGGERLOC_CENTER, typekind=ESMF_TYPEKIND_R8, &
-            ungriddedLBound=(/1/), ungriddedUBound=(/phys2mag_nflds/), rc=rc)
-       call check_error(subname,'ESMF_FieldCreate magFieldDes_s2',rc)
+       magFieldDes_p(k) = ESMF_FieldCreate( grid=mag_p_fdln_grid(k), &
+            staggerloc=ESMF_STAGGERLOC_CENTER, typekind=ESMF_TYPEKIND_R8, rc=rc)
+       call check_error(subname,'ESMF_FieldCreate magFieldDes_p',rc)
 
        magFieldDes_s1(k) = ESMF_FieldCreate( grid=mag_s1_fdln_grid(k), &
             staggerloc=ESMF_STAGGERLOC_CENTER, typekind=ESMF_TYPEKIND_R8, &
             ungriddedLBound=(/1/), ungriddedUBound=(/phys2mag_nflds/), rc=rc)
        call check_error(subname,'ESMF_FieldCreate magFieldDes_s1',rc)
+
+       magFieldDes_s2(k) = ESMF_FieldCreate( grid=mag_s2_fdln_grid(k), &
+            staggerloc=ESMF_STAGGERLOC_CENTER, typekind=ESMF_TYPEKIND_R8, &
+            ungriddedLBound=(/1/), ungriddedUBound=(/phys2mag_nflds/), rc=rc)
+       call check_error(subname,'ESMF_FieldCreate magFieldDes_s2',rc)
 
        magFieldSrc_s2(k) = ESMF_FieldCreate( grid=mag_s2_fdln_grid(k), &
             staggerloc=ESMF_STAGGERLOC_CENTER, typekind=ESMF_TYPEKIND_R8, &
@@ -156,6 +181,18 @@ contains
        call ESMF_FieldRegridStore( &
             srcField=physFieldSrc, dstField=magFieldDes_s1(k), &
             routehandle=rh_phys2mag_s1(k), &
+            regridMethod=ESMF_REGRIDMETHOD_BILINEAR,                           &
+            polemethod=ESMF_POLEMETHOD_ALLAVG,                                 &
+            extrapMethod=ESMF_EXTRAPMETHOD_NEAREST_IDAVG,                      &
+            factorIndexList=factorIndexList,                                   &
+            factorList=factorList, srcTermProcessing=smm_srctermproc,          &
+            pipelineDepth=smm_pipelinedep, rc=rc)
+       call check_error(subname,'FieldRegridStore rh_phys2mag_s1 route handle',rc)
+
+       ! phys->mag p
+       call ESMF_FieldRegridStore( &
+            srcField=physFieldSrc_p, dstField=magFieldDes_p(k), &
+            routehandle=rh_phys2mag_p(k), &
             regridMethod=ESMF_REGRIDMETHOD_BILINEAR,                           &
             polemethod=ESMF_POLEMETHOD_ALLAVG,                                 &
             extrapMethod=ESMF_EXTRAPMETHOD_NEAREST_IDAVG,                      &
@@ -242,6 +279,9 @@ contains
     call ESMF_FieldDestroy(physFieldSrc, rc=rc)
     call check_error(subname,'ESMF_FieldDestroy physFieldSrc', rc)
 
+    call ESMF_FieldDestroy(physFieldSrc_p, rc=rc)
+    call check_error(subname,'ESMF_FieldDestroy physFieldSrc_p', rc)
+
     call ESMF_FieldDestroy(oplusFieldDes, rc=rc)
     call check_error(subname,'ESMF_FieldDestroy oplusFieldDes', rc)
 
@@ -258,6 +298,9 @@ contains
     call check_error(subname,'ESMF_FieldDestroy physFieldDes', rc)
 
     do k = 1, nz
+       call ESMF_FieldDestroy(magFieldDes_p(k), rc=rc)
+       call check_error(subname,'ESMF_FieldDestroy magFieldDes_p', rc)
+
        call ESMF_FieldDestroy(magFieldDes_s2(k), rc=rc)
        call check_error(subname,'ESMF_FieldDestroy magFieldDes_s2', rc)
 
@@ -266,6 +309,9 @@ contains
 
        call ESMF_FieldDestroy(magFieldSrc_s2(k), rc=rc)
        call check_error(subname,'ESMF_FieldDestroy magFieldSrc_s2', rc)
+
+       call ESMF_RouteHandleDestroy(rh_phys2mag_p(k), rc=rc)
+       call check_error(subname,'ESMF_RouteHandleDestroy rh_phys2mag_p', rc)
 
        call ESMF_RouteHandleDestroy(rh_phys2mag_s1(k), rc=rc)
        call check_error(subname,'ESMF_RouteHandleDestroy rh_phys2mag_s1', rc)
@@ -283,9 +329,11 @@ contains
     call ESMF_RouteHandleDestroy(rh_mag2phys, rc=rc)
     call check_error(subname,'ESMF_RouteHandleDestroy rh_mag2phys', rc)
 
+    deallocate(magFieldDes_p)
     deallocate(magFieldDes_s2)
     deallocate(magFieldDes_s1)
     deallocate(magFieldSrc_s2)
+    deallocate(rh_phys2mag_p)
     deallocate(rh_phys2mag_s1)
     deallocate(rh_phys2mag_s2)
     deallocate(rh_mag2oplus_s2)

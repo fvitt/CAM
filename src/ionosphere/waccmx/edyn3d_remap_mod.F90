@@ -16,6 +16,7 @@ module edyn3d_remap_mod
 
   private
 
+  public :: edyn3d_remap_phys2mag_p
   public :: edyn3d_remap_phys2mag_s1
   public :: edyn3d_remap_phys2mag_s2
   public :: edyn3d_remap_mag2oplus
@@ -54,6 +55,105 @@ contains
 
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------
+  subroutine edyn3d_remap_phys2mag_p(nphyscol, nphyslev, physalt, physfld, magfld)
+
+    use edyn3d_esmf_p_mag_grid_mod, only: mag_p_fdln_grid
+    use dynamo_interface_mod, only: npts_p
+    use edyn3d_esmf_fields_rhandles, only: magFieldDes_p, rh_phys2mag_p
+    use edyn3D_esmf_fields_rhandles, only: physFieldSrc_p
+
+    integer,  intent(in) :: nphyscol, nphyslev
+    real(r8), intent(in) :: physalt(nphyslev,nphyscol)
+
+    real(r8), intent(in) :: physfld(nphyslev,nphyscol)
+    real(r8), intent(out) :: magfld(nhgt_fix, 2, mlat0:mlat1, mlon0:mlon1)
+
+    real(r8) :: physfld_tmp(nphyscol,nhgt_fix)
+
+    integer :: i, j, k, isn, jj, rc
+    integer :: ncells_hlat, localDECount, nde
+
+    real(kind=ESMF_KIND_R8), pointer :: fptr2d(:,:)
+    real(kind=ESMF_KIND_R8), pointer :: fptr1d(:)
+
+    integer :: lbnd2d(2), ubnd2d(2)
+    integer :: lbnd1d(1), ubnd1d(1)
+
+    character(len=*), parameter :: subname = 'edyn3d_remap_phys2mag_p'
+
+
+    magfld = NOTSET
+
+    do i = 1,nphyscol
+       call lininterp(physfld(nphyslev:1:-1,i),physalt(nphyslev:1:-1,i),nphyslev, &
+            physfld_tmp(i,:),hgt_fix(:),nhgt_fix)
+    end do
+
+    vertloop: do k = 1,nhgt_fix
+
+       call ESMF_FieldGet(field=physFieldSrc_p, localDe=0, farrayPtr=fptr1d, &
+                          computationalLBound=lbnd1d, computationalUBound=ubnd1d, rc=rc)
+       call check_error(subname,'ESMF_FieldGet physFieldSrc_p',rc)
+
+       fptr1d = NOTSET
+
+       do i = lbnd1d(1), ubnd1d(1)
+          fptr1d(i) = physfld_tmp(i,k)
+       end do
+
+       call ESMF_FieldRegrid(physFieldSrc_p, magFieldDes_p(k), rh_phys2mag_p(k), &
+            termorderflag=ESMF_TERMORDER_SRCSEQ, rc=rc)
+       call check_error(subname,'ESMF_FieldRegrid phys2mag_p',rc)
+
+       call ESMF_GridGet(mag_p_fdln_grid(k), localDECount=localDECount, rc=rc)
+       call check_error(subname,'ESMF_GridGet localDECount',rc)
+
+       ! total number of grids cells per hemisphere
+       ncells_hlat = nmlat_h - (k-1)
+
+       DE_num: do nde = 0,localDECount-1
+
+          call ESMF_FieldGet(magFieldDes_p(k), localDe=nde, farrayPtr=fptr2d, &
+               computationalLBound=lbnd2d, computationalUBound=ubnd2d, rc=rc)
+          call check_error(subname,'ESMF_FieldGet magFieldDes_s1',rc)
+
+          do j = lbnd2d(2), ubnd2d(2)
+             if (j>ncells_hlat) then
+                isn = 2
+                jj = 2*(ncells_hlat-1)+1 - j + 1
+             else
+                isn = 1
+                jj = j
+             end if
+             do i = lbnd2d(1), ubnd2d(1)
+                magfld(k,isn,jj,i) = fptr2d(i,j)
+             end do
+             if (j==ncells_hlat) then ! at equator set point north to south
+                magfld(k,2,jj,:) = magfld(k,1,jj,:)
+             end if
+          end do
+
+       end do DE_num
+
+    end do vertloop
+
+    do isn = 1,2
+       do j = mlat0,mlat1
+          do k = 1,npts_p(j)
+             do i = mlon0,mlon1
+                if (magfld(k,isn,j,i)==NOTSET) then
+                   write(*,*) subname,': magfld not set correctly at k,isn,j,i ',k,isn,j,i
+                   call endrun(subname//': magfld not set correctly')
+                end if
+             end do
+          end do
+       end do
+    end do
+
+  end subroutine edyn3d_remap_phys2mag_p
+
+  !------------------------------------------------------------------------------
+  !------------------------------------------------------------------------------
   subroutine edyn3d_remap_phys2mag_s1(nphyscol, nphyslev, physalt, physflds, magflds)
 
     use edyn3d_esmf_s1_mag_grid_mod, only: mag_s1_fdln_grid
@@ -77,7 +177,7 @@ contains
     integer :: lbnd2d(2), ubnd2d(2) !
     integer :: lbnd3d(3), ubnd3d(3) !
 
-    character(len=*), parameter :: subname = 'edyn3d_remap_phys2mag'
+    character(len=*), parameter :: subname = 'edyn3d_remap_phys2mag_s1'
 
 
     do n = 1,nflds
@@ -181,7 +281,7 @@ contains
     integer :: lbnd2d(2), ubnd2d(2) !
     integer :: lbnd3d(3), ubnd3d(3) !
 
-    character(len=*), parameter :: subname = 'edyn3d_remap_phys2mag'
+    character(len=*), parameter :: subname = 'edyn3d_remap_phys2mag_s2'
 
     do n = 1,nflds
        magflds(n)%fld = NOTSET

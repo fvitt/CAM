@@ -36,7 +36,7 @@ contains
     use dynamo_interface_mod, only: npts_p, glon_p, glat_p
     use params_module, only: nz=>nhgt_fix, nmlat_h
     use mpi_module, only: mlat0_task, mlat1_task
-    use mpi_module, only: lon_size, nmlon_task, nmlat_task
+    use mpi_module, only: nmlon_task, nmlat_task, lon_size
 
     integer :: rc, astat
     !logical :: found_eq
@@ -71,12 +71,12 @@ contains
        ! total number of grids cells per hemisphere
        ncells_hlat = nmlat_h - (k-1)
 
-       ! find number of lat tasks that have more than 1 grid cell in level k in 1 hemisphere
+       ! find number of lat tasks that have grid cells in level k in 1 hemisphere
        i = 0
-       n = num_lats_in_task(i)
+       n = nmlat_task(i)
        do while (n < ncells_hlat)
           i = i + 1
-          n = n + num_lats_in_task(i)
+          n = n + nmlat_task(i)
        end do
        klat_sz = i+1
 
@@ -89,7 +89,6 @@ contains
        latCellsPerDE = -huge(1)
 
        ! south pole to north pole
-
        ! southern hemisphere first
        do i = 1,klat_sz-1
           ii = (i-1)*lon_size + 1
@@ -193,18 +192,6 @@ contains
        end do
 
     end do vertloop
-
-  contains
-
-    integer function num_lats_in_task( itsk )
-      integer, intent(in) :: itsk
-
-      if (nmlat_task(itsk)>1) then
-         num_lats_in_task = nmlat_task(itsk)
-      else
-         num_lats_in_task = 0
-      end if
-    end function num_lats_in_task
 
   end subroutine edyn3d_esmf_p_mag_grid_init
 

@@ -28,6 +28,7 @@ contains
     use edyn3d_esmf_fields_rhandles, only: edyn3d_esmf_fields_rhandles_init
     use edyn3d_esmf_phys_mesh_mod, only:  edyn3d_esmf_phys_mesh_init
     use edyn3d_esmf_oplus_grid_mod, only:  edyn3d_esmf_oplus_grid_init
+    use edyn3d_esmf_p_mag_grid_mod, only: edyn3d_esmf_p_mag_grid_init
     use edyn3d_esmf_s1_mag_grid_mod, only: edyn3d_esmf_s1_mag_grid_init
     use edyn3d_esmf_s2_mag_grid_mod, only: edyn3d_esmf_s2_mag_grid_init
     use edyn3d_esmf_mag_ref_p_grid_mod, only: edyn3d_esmf_mag_ref_p_grid_init
@@ -73,8 +74,9 @@ contains
     call edyn3d_hist_mag_grids_reg()
 
     ! setup ESMF grids
-    call edyn3d_esmf_s2_mag_grid_init()
+    call edyn3d_esmf_p_mag_grid_init()
     call edyn3d_esmf_s1_mag_grid_init()
+    call edyn3d_esmf_s2_mag_grid_init()
     call edyn3d_esmf_mag_ref_p_grid_init()
 
     call edyn3d_esmf_phys_mesh_init()
@@ -108,6 +110,7 @@ contains
     call addfld ('ELECPOTEN', horiz_only, 'I', 'Volts','Electric potential', gridname='geomag_p')
     call addfld ('HILAT_POT', horiz_only, 'I', 'Volts','High-Latitude potential', gridname='geomag_p')
     call addfld ('HILAT_FAC', horiz_only, 'I', 'Amps m-2','High-Latitude field-aligned current', gridname='geomag_p')
+    call addfld ('PEDCONDNC', horiz_only, 'I', 'S','Pedersen Conductance', gridname='geomag_p')
 
     call addfld ('POTEN_opg', horiz_only, 'I', 'Volts', 'Electric potential', gridname='geo_grid')
     call addfld ('HLPOT_opg', horiz_only, 'I', 'Volts', 'High-latitude potential', gridname='geo_grid')
@@ -133,6 +136,7 @@ contains
   !-----------------------------------------------------------------------------
   !-----------------------------------------------------------------------------
   subroutine edyn3d_driver_timestep( nphyscol, nphyslev, physalt, sigPed, sigHal, un, vn, ui_oplus, vi_oplus, wi_oplus )
+    use edyn3d_remap_mod, only: edyn3d_remap_phys2mag_p
     use edyn3d_remap_mod, only: edyn3d_remap_phys2mag_s1
     use edyn3d_remap_mod, only: edyn3d_remap_phys2mag_s2
     use edyn3d_remap_mod, only: edyn3d_remap_refp_mag2oplus
@@ -190,6 +194,7 @@ contains
     real(r8), target :: un_s2(nhgt_fix,2,mlat0:mlat1,mlon0:mlon1)
     real(r8), target :: vn_s2(nhgt_fix,2,mlat0:mlat1,mlon0:mlon1)
 
+    real(r8), target :: sigped_p(nhgt_fix,2,mlat0:mlat1,mlon0:mlon1)
     real(r8), target :: pot_hl_p(2,mlatd0:mlatd1,mlond0:mlond1)
     real(r8), target :: fac_hl_p(2,mlatd0:mlatd1,mlond0:mlond1)
     real(r8), target :: hlfac_op(lon0:lon1,lat0:lat1)
@@ -206,6 +211,7 @@ contains
 
     real(r8), target :: elec_pot_p(2,mlat0:mlat1,mlon0:mlon1)
 
+    real(r8) :: ped_cond_p(2,mlat0:mlat1,mlon0:mlon1)
     real(r8) :: efld1_s1(2,mlat0:mlat1,mlon0:mlon1)
     real(r8) :: efld2_s1(2,mlat0:mlat1,mlon0:mlon1)
 
@@ -224,6 +230,7 @@ contains
 
     call t_startf(subname)
 
+    sigped_p = NOTSET
     sigped_s1 = NOTSET
     sighal_s1 = NOTSET
     un_s1 = NOTSET
@@ -233,6 +240,8 @@ contains
     sighal_s2 = NOTSET
     un_s2 = NOTSET
     vn_s2 = NOTSET
+
+    call edyn3d_remap_phys2mag_p(nphyscol, nphyslev, physalt, sigPed, sigped_p)
 
     mags1_flds_bndl(1)%fld => sigped_s1
     mags1_flds_bndl(2)%fld => sighal_s1
@@ -280,15 +289,16 @@ contains
        call dynamo_calc( &
             sigped_s1, sighal_s1, un_s1, vn_s1, &
             sigped_s2, sighal_s2, un_s2, vn_s2, &
-            pot_hl_p, fac_hl_p, &
+            sigped_p, pot_hl_p, fac_hl_p, &
             ui_s1, vi_s1, wi_s1, ui_s2, vi_s2, wi_s2, &
-            elec_pot_p, &
+            elec_pot_p, ped_cond_p, &
             efld1_s1, efld2_s1, efld1_s2, efld2_s2, &
             ionvel1_s1, ionvel2_s1, ionvel1_s2, ionvel2_s2)
 
        call edyn3d_hist_mlonlat_out('HILAT_POT',   pot_hl_p(1:2,mlat0:mlat1,mlon0:mlon1))
        call edyn3d_hist_mlonlat_out('HILAT_FAC',   fac_hl_p(1:2,mlat0:mlat1,mlon0:mlon1))
        call edyn3d_hist_mlonlat_out('ELECPOTEN', elec_pot_p(1:2,mlat0:mlat1,mlon0:mlon1))
+       call edyn3d_hist_mlonlat_out('PEDCONDNC', ped_cond_p(1:2,mlat0:mlat1,mlon0:mlon1))
 
        call edyn3d_hist_mlonlat_out('ED1s1', efld1_s1)
        call edyn3d_hist_mlonlat_out('ED2s1', efld2_s1)
@@ -361,6 +371,7 @@ contains
     use edyn3d_esmf_fields_rhandles, only: edyn3d_esmf_fields_rhandles_destroy
     use edyn3d_esmf_oplus_grid_mod, only: edyn3d_esmf_oplus_grid_destroy
     use edyn3d_esmf_phys_mesh_mod, only: edyn3d_esmf_phys_mesh_destroy
+    use edyn3d_esmf_p_mag_grid_mod, only: edyn3d_esmf_p_mag_grid_destroy
     use edyn3d_esmf_s1_mag_grid_mod, only: edyn3d_esmf_s1_mag_grid_destroy
     use edyn3d_esmf_s2_mag_grid_mod, only: edyn3d_esmf_s2_mag_grid_destroy
     use edyn3d_esmf_mag_ref_p_grid_mod, only: edyn3d_esmf_mag_ref_p_grid_destroy
@@ -369,6 +380,7 @@ contains
     call edyn3d_esmf_fields_rhandles_destroy()
     call edyn3d_esmf_oplus_grid_destroy()
     call edyn3d_esmf_phys_mesh_destroy()
+    call edyn3d_esmf_p_mag_grid_destroy()
     call edyn3d_esmf_s1_mag_grid_destroy()
     call edyn3d_esmf_s2_mag_grid_destroy()
     call edyn3d_esmf_mag_ref_p_grid_destroy()
