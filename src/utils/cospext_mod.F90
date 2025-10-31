@@ -82,8 +82,8 @@ contains
        circlat(j) = 2._r8 * pi * rearth * cos(latrad(j))     !! rearth is Earth radius in m
     enddo
 
-    kxbeg(:)  = nint(circlat(:)/wvlxbeg)
-    kxend(:)  = nint(circlat(:)/wvlxend)
+    kxbeg(:)  = nint(circlat(:)/wvlxbeg) ! wvl_r maximum resolved zonal wavenumber
+    kxend(:)  = nint(circlat(:)/wvlxend) ! wvl_c zonal wavenumber of cutoff wavelength
 
     !! These following 3 lines calculate the scale invariance range according to the short wavelength of the resolved range
     kxr(:) = kxbeg(:)
@@ -187,17 +187,20 @@ contains
 
       real(r8) :: silm, simr  ! integration of spct over kxl to 2*kxl, and over 2*kxl to 4*kxl
       integer :: j,k
+      real(r8), parameter :: nominal_slope = 7._r8/6._r8
 
       do k = 1,pver
          do j=lat0,lat1
-            if (kxl(j)>0) then
+            if (kxbeg(j) > 45) then
                silm = sum(spct(kxl(j):2*kxl(j),j,k))
                simr = sum(spct(2*kxl(j):4*kxl(j),j,k))
                if (silm>0.0_r8 .and. simr>0.0_r8) then
-                  slp(j,k) = MAX(1._r8-log(simr/silm)/log(2._r8),-1._r8)
+                  slp(j,k) = MAX(1._r8-log(simr/silm)/log(2._r8),-0.3_r8)
                else
                   slp(j,k) = NOTSET
                end if
+            else
+               slp(j,k) = nominal_slope
             end if
          enddo
       enddo
