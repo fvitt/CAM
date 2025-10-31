@@ -229,11 +229,11 @@ contains
 
       do k=1,pver
          do j=lat0,lat1
-            if (kxl(j) > 2) then
+            if (kxbeg(j) > 10) then
                if (slpp(j,k)/=NOTSET.and.slpp(j,k)/=1._r8) then
                   siresp = sum(csprp(kxl(j):kxbeg(j),j,k),1)
                   bp = 1._r8-slpp(j,k)
-                  fp = (real(kxend(j),r8)**bp-real(kxbeg(j),r8)**bp)/(real(kxbeg(j),r8)**bp-real(kxl(j),r8)**bp)
+                  fp = (real(kxend(j),r8)**bp-real(kxbeg(j),r8)**bp)/(real(kxbeg(j),r8)**bp-10._r8**bp)
                   mflxup(j,k) = siresp*fp
                end if
                if (slpp(j,k)/=NOTSET.and.slpp(j,k)==1._r8) then
@@ -248,7 +248,7 @@ contains
                if (slpn(j,k)/=NOTSET.and.slpn(j,k)/=1._r8) then
                   siresn = sum(csprn(kxl(j):kxbeg(j),j,k),1)
                   bn = 1._r8-slpn(j,k)
-                  fn = (real(kxend(j),r8)**bn-real(kxbeg(j),r8)**bn)/(real(kxbeg(j),r8)**bn-real(kxl(j),r8)**bn)
+                  fn = (real(kxend(j),r8)**bn-real(kxbeg(j),r8)**bn)/(real(kxbeg(j),r8)**bn-10._r8**bn)
                   mflxun(j,k) = siresn*fn
                end if
                if (slpn(j,k)/=NOTSET.and.slpn(j,k)==1._r8) then
