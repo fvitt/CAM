@@ -849,7 +849,7 @@ subroutine radiation_tend( &
    real(r8) :: c_cld_tau_w_f(nswbands,pcols,pver) ! combined cloud forward scattered fraction * w * tau
    real(r8) :: c_cld_lw_abs (nlwbands,pcols,pver) ! combined cloud absorption optics depth (LW)
 
-   real(r8) :: sfac(1:nswbands)     ! time varying scaling factors due to Solar Spectral Irrad at 1 A.U. per band
+   real(r8) :: sfac(nswbands,pcols)     ! time varying scaling factors due to Solar Spectral Irrad at 1 A.U. per band
 
    integer :: icall                 ! index through climate/diagnostic radiation calls
    logical :: active_calls(0:N_DIAG)
@@ -1194,7 +1194,7 @@ subroutine radiation_tend( &
 
       if (dosw) then
 
-         call get_variability(sfac)
+         call get_variability(lchnk,sfac)
 
          ! Get the active climate/diagnostic shortwave calculations
          call rad_cnst_get_call_list(active_calls)

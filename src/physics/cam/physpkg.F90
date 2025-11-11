@@ -769,6 +769,7 @@ contains
     use sslt_rebin,         only: sslt_rebin_init
     use tropopause,         only: tropopause_init
     use solar_data,         only: solar_data_init
+    use solar_shade,        only: solar_shade_init
     use dadadj_cam,         only: dadadj_cam_init
     use cam_abortutils,     only: endrun
     use nudging,            only: Nudge_Model, nudging_init
@@ -857,6 +858,7 @@ contains
 
     ! solar irradiance data modules
     call solar_data_init()
+    call solar_shade_init()
 
     ! Initialize rad constituents and their properties
     call rad_cnst_init()
