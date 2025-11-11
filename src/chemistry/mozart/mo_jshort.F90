@@ -13,6 +13,8 @@
       use spmd_utils,        only : masterproc
       use ppgrid,            only : pver
       use phys_control,      only : waccmx_is
+      use infnan, only : nan, assignment(=)
+      use ppgrid,           only : pcols, begchunk, endchunk
 
       implicit none
 
@@ -64,8 +66,8 @@
       real(r8), allocatable :: bde_o2_b(:)
       real(r8), allocatable :: bde_o3_a(:)
       real(r8), allocatable :: bde_o3_b(:)
-      real(r8), allocatable :: etfphot(:)
-      real(r8), allocatable :: etfphot_ms93(:)
+      real(r8), allocatable :: etfphot(:,:,:)
+      real(r8), allocatable :: etfphot_ms93(:,:,:)
       real(r8), allocatable :: xs_o2src(:)
       real(r8), allocatable :: xs_o3a(:)
       real(r8), allocatable :: xs_o3b(:)
@@ -120,18 +122,18 @@
          write(iulog,*) 'jshort_init: we range'
          write(iulog,'(1p,5g15.7)') minval(we(:)),maxval(we(:))
       end if
-      call rebin( data_nbins, nw, data_we, we, data_etf, etfphot )
-      if(masterproc) then
-         write(iulog,*) 'jshort_init: etfphot'
-         write(iulog,'(1p,5g15.7)') etfphot(:)
-         write(iulog,*) '-------------------------------------------'
-         write(iulog,*) ' '
-         write(iulog,*) 'jshort_init: diagnostics for ms93'
-         call rebin( data_nbins, nw_ms93, data_we, we_ms, data_etf, etfphot_ms93 )
-         write(iulog,'(1p,5g15.7)') etfphot_ms93(:)
-         write(iulog,*) '-------------------------------------------'
-         write(iulog,*) ' '
-      end if
+!!$      call rebin( data_nbins, nw, data_we, we, data_etf, etfphot )
+!!$      if(masterproc) then
+!!$         write(iulog,*) 'jshort_init: etfphot'
+!!$         write(iulog,'(1p,5g15.7)') etfphot(:)
+!!$         write(iulog,*) '-------------------------------------------'
+!!$         write(iulog,*) ' '
+!!$         write(iulog,*) 'jshort_init: diagnostics for ms93'
+!!$         call rebin( data_nbins, nw_ms93, data_we, we_ms, data_etf, etfphot_ms93 )
+!!$         write(iulog,'(1p,5g15.7)') etfphot_ms93(:)
+!!$         write(iulog,*) '-------------------------------------------'
+!!$         write(iulog,*) ' '
+!!$      end if
 !------------------------------------------------------------------------------
 !     ... loads Chebyshev polynomial Coeff
 !------------------------------------------------------------------------------
@@ -266,18 +268,22 @@
       if( ierr /= 0 ) then
 	 call alloc_err( ierr, 'get_crs', 'wlintv', nw )
       end if
-      allocate( etfphot(nw),stat=ierr )
+      allocate( etfphot(nw,pcols,begchunk:endchunk),stat=ierr )
       if( ierr /= 0 ) then
 	 call alloc_err( ierr, 'get_crs', 'etfphot', nw )
       end if
+      etfphot = nan
+
       allocate( bde_o2_a(nw),bde_o2_b(nw),bde_o3_a(nw),bde_o3_b(nw),stat=ierr )
       if( ierr /= 0 ) then
 	 call alloc_err( ierr, 'get_crs', 'bde_o2_a ... bde_o3_b', nw )
       end if
-      allocate( etfphot_ms93(nw_ms93),stat=ierr )
+      allocate( etfphot_ms93(nw_ms93,pcols,begchunk:endchunk),stat=ierr )
       if( ierr /= 0 ) then
 	 call alloc_err( ierr, 'get_crs', 'etfphot_ms93', nw_ms93 )
       end if
+      etfphot_ms93 = nan
+
       allocate( xs_o2src(nw),stat=ierr )
       if( ierr /= 0 ) then
 	 call alloc_err( ierr, 'get_crs', 'xs_o2src', nw )
@@ -502,17 +508,27 @@
 
       use mo_util,        only : rebin
       use solar_irrad_data,     only : data_nbins=>nbins, data_we => we, data_etf => sol_etf
+      use solar_shade, only: sun_shade
+      use phys_grid, only : get_ncols_p
 
       implicit none
 
-      call rebin( data_nbins, nw,      data_we, we,    data_etf, etfphot )
-      call rebin( data_nbins, nw_ms93, data_we, we_ms, data_etf, etfphot_ms93 )
+      integer :: i, c, ncols
+
+      do c = begchunk,endchunk
+         ncols = get_ncols_p(c)
+         do i = 1,ncols
+            ! apply sun shade factor to input ETF
+            call rebin( data_nbins, nw,      data_we, we,    data_etf(:)*sun_shade(:,i,c), etfphot(:,i,c) )
+            call rebin( data_nbins, nw_ms93, data_we, we_ms, data_etf(:)*sun_shade(:,i,c), etfphot_ms93(:,i,c) )
+         end do
+      end do
 
       end subroutine jshort_timestep_init
 
       subroutine jshort_hrates( nlev, zen, o2_vmr, o3_vmr, o2cc, &
                                 o3cc, tlev, zkm, mw, qrs, cparg, &
-                                lchnk, long, co2cc, scco2, do_diag )
+                                lchnk, icol, co2cc, scco2, do_diag )
 !==============================================================================!
 !   Subroutine Jshort                                                          !
 !==============================================================================!
@@ -572,7 +588,7 @@
 !------------------------------------------------------------------------------
        integer, intent(in)     :: nlev                 ! model vertical levels
        integer, intent(in)     :: lchnk                ! chunk index
-       integer, intent(in)     :: long                 ! chunk index
+       integer, intent(in)     :: icol                 ! column index
        real(r8), intent(in)    :: zen                  ! Zenith angle (degrees)
        real(r8), intent(in)    :: o2_vmr(nlev)         ! o2 conc (mol/mol)
        real(r8), intent(in)    :: o3_vmr(nlev)         ! o3 conc (mol/mol)
@@ -722,7 +738,7 @@
 !         corrected for O2 and O3 absorption
 !------------------------------------------------------------------------------
       do wn = 1,nw                                  ! nw = 33 (nsrb_tot+nsrc_tot)
-         fnorm(:,wn) = etfphot(wn)*trans_o2(:,wn)*trans_o3(:,wn)
+         fnorm(:,wn) = etfphot(wn,icol,lchnk)*trans_o2(:,wn)*trans_o3(:,wn)
       end do
 
 !------------------------------------------------------------------------------
@@ -740,7 +756,7 @@
 !------------------------------------------------------------------------------
 !     ... lyman alpha
 !------------------------------------------------------------------------------
-      jo2_lya(:) = etfphot(1)*ro2la(:)*wlintv(1)
+      jo2_lya(:) = etfphot(1,icol,lchnk)*ro2la(:)*wlintv(1)
 
       wrk(1:nsrc_tot) = xs_o2src(1:nsrc_tot)*wlintv(1:nsrc_tot) &
 					    *bde_o2_a(1:nsrc_tot)
@@ -750,7 +766,7 @@
 !------------------------------------------------------------------------------
       if( do_diag ) then
       write(iulog,*) '-------------------------------------------------'
-      write(iulog,*) 'jshort_hrates: fnorm,wrk at long,lchnk = ',long,lchnk
+      write(iulog,*) 'jshort_hrates: fnorm,wrk at icol,lchnk = ',icol,lchnk
       write(iulog,'(1p,5g12.5)') fnorm(nlev,1:nsrc_tot)
       write(iulog,*) ' '
       write(iulog,'(1p,5g12.5)') wrk(1:nsrc_tot)
@@ -774,7 +790,7 @@
 
       if( do_diag ) then
       write(iulog,*) '-------------------------------------------------'
-      write(iulog,*) 'jshort_hrates: lya,bde_o2_a,qrs(nlev) at long,lchnk = ',long,lchnk
+      write(iulog,*) 'jshort_hrates: lya,bde_o2_a,qrs(nlev) at icol,lchnk = ',icol,lchnk
       write(iulog,'(1p,5g12.5)') jo2_lya(nlev),bde_o2_a(2),qrs(nlev,1)
       write(iulog,*) '-------------------------------------------------'
       end if
@@ -791,7 +807,7 @@
       qrs(:,1)  = qrs(:,1) + jo2_lya(:)*.53_r8*bde_o2_a(2)
       if( do_diag ) then
       write(iulog,*) '-------------------------------------------------'
-      write(iulog,*) 'jshort_hrates: o2(1),qrs(nlev) at long,lchnk = ',long,lchnk
+      write(iulog,*) 'jshort_hrates: o2(1),qrs(nlev) at icol,lchnk = ',icol,lchnk
       write(iulog,'(1p,5g12.5)') o2_vmr(1),qrs(nlev,1)
       write(iulog,*) '-------------------------------------------------'
       end if
@@ -832,7 +848,7 @@
 
       end subroutine jshort_hrates
 
-      subroutine jshort_photo( nlev, zen, n2cc, o2cc, o3cc, &
+      subroutine jshort_photo( icol, lchnk, nlev, zen, n2cc, o2cc, o3cc, &
                                nocc, tlev, zkm, jo2_sht, jno_sht, jsht )
 !==============================================================================!
 !   Subroutine Jshort                                                          !
@@ -899,6 +915,7 @@
 !------------------------------------------------------------------------------
 !     ... dummy arguments
 !------------------------------------------------------------------------------
+        integer, intent(in)     :: icol, lchnk          ! column, chunk index
 	integer, intent(in)     :: nlev                 ! model vertical levels
 	real(r8), intent(in)    :: zen	                ! Zenith angle (degrees)
         real(r8), intent(in)    :: n2cc(nlev)           ! Molecular Nitrogen conc (mol/cm^3)
@@ -1048,7 +1065,7 @@
 !         corrected for O2 and O3 absorption
 !------------------------------------------------------------------------------
       do wn = 1,nw                               ! nw = 33 (nsrb_tot+nsrc_tot)
-         fnorm(:,wn) = etfphot(wn)*trans_o2(:,wn)*trans_o3(:,wn)
+         fnorm(:,wn) = etfphot(wn,icol,lchnk)*trans_o2(:,wn)*trans_o3(:,wn)
       end do
 
 !------------------------------------------------------------------------------
@@ -1066,7 +1083,7 @@
 !------------------------------------------------------------------------------
 !     ... Lyman Alpha
 !------------------------------------------------------------------------------
-      jo2_lya(:) = etfphot(1)*ro2la(:)*wlintv(1)
+      jo2_lya(:) = etfphot(1,icol,lchnk)*ro2la(:)*wlintv(1)
 
       wrk(1:nsrc_tot) = xs_o2src(1:nsrc_tot)*wlintv(1:nsrc_tot)
       wrk(1)          = 0._r8
@@ -1103,7 +1120,7 @@
 !------------------------------------------------------------------------------
 !     ... Derive the NO rate constant Minsch. and Siskind, JGR, 98, 20401, 1993
 !------------------------------------------------------------------------------
-      call calc_jno( nlev, etfphot_ms93, n2cc, o2scol, o3scol, &
+      call calc_jno( nlev, etfphot_ms93(:,icol,lchnk), n2cc, o2scol, o3scol, &
                      noscol, jno_sht )
 
 !------------------------------------------------------------------------------
