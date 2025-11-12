@@ -124,7 +124,7 @@ module cam_history_support
     character(len=field_op_len) :: field_op = ''        ! 'sum' or 'dif'
     integer                     :: op_field1_id         ! first field id or -1
     integer                     :: op_field2_id         ! second field id or -1
-    
+
     character(len=max_fieldname_len) :: name ! field name
     character(len=max_chars) :: long_name    ! long name
     character(len=max_chars) :: units        ! units
@@ -218,8 +218,8 @@ module cam_history_support
     type(var_desc_t) :: sol_tsiid        ! var id for total solar irradiance (W/m2)
     type(var_desc_t) :: datesecid        ! var id for curent seconds of current date
 #if ( defined BFB_CAM_SCAM_IOP )
-    type(var_desc_t) :: bdateid         ! var id for base date
-    type(var_desc_t) :: tsecid        ! var id for curent seconds of current date
+    type(var_desc_t) :: bdateid          ! var id for base date
+    type(var_desc_t) :: tsecid           ! var id for curent seconds of current date
 #endif
     type(var_desc_t) :: nstephid         ! var id for current timestep
     type(var_desc_t) :: timeid           ! var id for time
@@ -237,6 +237,9 @@ module cam_history_support
     type(var_desc_t) :: swdenid          ! var id solar wind density
     type(var_desc_t) :: colat_crit1_id   ! critical colatitude
     type(var_desc_t) :: colat_crit2_id   ! critical colatitude
+    type(var_desc_t) :: edyn3d_nmlat_h_id! 3-D dynamo num of latitutes per hemisphere
+    type(var_desc_t) :: edyn3d_nhgt_id   ! 3-D dynamo num of heights
+    type(var_desc_t) :: edyn3d_nmlon_id  ! 3-D dynamo num of longitudes
 
   end type active_entry
 
@@ -534,7 +537,7 @@ contains
     ! Dummy arguments
     class(hentry)                    :: this
     real(r8),          intent(out)   :: gval
-    
+
     gval=this%hbuf_integral
 
   end subroutine hentry_get_global
@@ -544,11 +547,11 @@ contains
     ! Dummy arguments
     class(hentry)                    :: this
     real(r8),          intent(in)    :: gval
-    
+
     this%hbuf_integral=gval
 
   end subroutine hentry_put_global
-  
+
   ! history_patch_write_attrs: Define coordinate variables and attributes
   !               for a patch
   subroutine history_patch_write_attrs(this, File)

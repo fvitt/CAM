@@ -90,6 +90,7 @@ contains
     call addfld ('sigma_hal_s1', horiz_only, 'I', 'K','Hal cond. on S1 mag field line grid', gridname='magfline_s1')
     call addfld ('sigma_ped_s2', horiz_only, 'I', 'K','Ped cond. on S2 mag field line grid', gridname='magfline_s2')
     call addfld ('sigma_hal_s2', horiz_only, 'I', 'K','Hal cond. on S2 mag field line grid', gridname='magfline_s2')
+    call addfld ('sigma_ped_p',  horiz_only, 'I', 'K','Ped cond. on p mag field line grid',  gridname='magfline_p')
 
     call addfld ('un_s1', horiz_only, 'I', 'm/s','Zonal wind on S1 mag field line grid', gridname='magfline_s1')
     call addfld ('vn_s1', horiz_only, 'I', 'm/s','Meridional wind on S1 mag field line grid', gridname='magfline_s1')
@@ -266,6 +267,8 @@ contains
     call edyn3d_hist_mag_s1_out('sigma_hal_s1',sighal_s1)
     call edyn3d_hist_mag_s1_out('un_s1',un_s1)
     call edyn3d_hist_mag_s1_out('vn_s1',vn_s1)
+
+    call edyn3d_hist_mag_s1_out('sigma_ped_p',sigped_p)
 
     call t_startf(subname//'->remap_phys2mag_s2')
     call edyn3d_remap_phys2mag_s2(nphyscol, nphyslev, physalt, phys_flds_bndl, mags2_flds_bndl)

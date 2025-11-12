@@ -21,7 +21,7 @@ module ionosphere_interface
    use edyn_init,           only: edynamo_init
    use pio,                 only: var_desc_t
    use perf_mod,            only: t_startf, t_stopf
-   use epotential_params,   only: epot_active, epot_crit_colats
+   use epotential_params,   only: epot_active, epot_crit_colats, edyn3d_active, edyn3d_nmlat_h, edyn3d_nmlon, edyn3d_nhgt
    use shr_const_mod,  only: SHR_CONST_REARTH ! meters
 
    use edyn3d_driver_mod, only: edyn3d_driver_init
@@ -241,6 +241,13 @@ module ionosphere_interface
          write(iulog,'(a,i0)') 'ionosphere_readnl: ionos_edyn3d_nhgt = ',ionos_edyn3d_nhgt
       end if
       epot_active = .true.
+
+      if (ionos_edyn3d_active) then
+         edyn3d_active = ionos_edyn3d_active
+         edyn3d_nmlat_h = ionos_edyn3d_nmlat_h
+         edyn3d_nmlon = ionos_edyn3d_nmlon
+         edyn3d_nhgt = ionos_edyn3d_nhgt
+      end if
 
    end subroutine ionosphere_readnl
 

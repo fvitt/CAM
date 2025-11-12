@@ -43,6 +43,7 @@ contains
     integer, parameter :: geomag_p_decomp =  703
     integer, parameter :: geomag_s1_decomp = 704
     integer, parameter :: geomag_s2_decomp = 705
+    integer, parameter :: magfln_p_decomp = 706
 
     type(horiz_coord_t), pointer :: flns1_coord => null()
     type(horiz_coord_t), pointer :: flns2_coord => null()
@@ -255,6 +256,7 @@ contains
     end do
 
     call cam_grid_register('magfline_s1', magfln_s1_decomp, flns1_coord, lons1_coord, grid_map, unstruct=.false.)
+    call cam_grid_register('magfline_p',  magfln_p_decomp,  flns1_coord, lons2_coord, grid_map, unstruct=.false.)
 
     nullify(grid_map)
 

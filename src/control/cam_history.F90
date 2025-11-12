@@ -58,7 +58,7 @@ module cam_history
    use solar_parms_data,    only: f107=>solar_parms_f107, f107a=>solar_parms_f107a, f107p=>solar_parms_f107p
    use solar_wind_data,     only: solar_wind_on, byimf=>solar_wind_byimf, bzimf=>solar_wind_bzimf
    use solar_wind_data,     only: swvel=>solar_wind_swvel, swden=>solar_wind_swden
-   use epotential_params,   only: epot_active, epot_crit_colats
+   use epotential_params,   only: epot_active, epot_crit_colats, edyn3d_active, edyn3d_nmlat_h, edyn3d_nmlon, edyn3d_nhgt
    use cam_grid_support,    only: maxsplitfiles
 
   implicit none
@@ -4650,6 +4650,11 @@ end subroutine print_active_fldlst
                               'Second co-latitude of electro-potential critical angle')
              ierr=pio_put_att (tape(t)%Files(f), tape(t)%colat_crit2_id, 'units', 'degrees')
            endif
+           if (edyn3d_active) then
+             ierr=pio_def_var (tape(t)%Files(f),'edyn3d_nmlat_h',PIO_INT,tape(t)%edyn3d_nmlat_h_id)
+             ierr=pio_def_var (tape(t)%Files(f),'edyn3d_nhgt',   PIO_INT,tape(t)%edyn3d_nhgt_id)
+             ierr=pio_def_var (tape(t)%Files(f),'edyn3d_nmlon',  PIO_INT,tape(t)%edyn3d_nmlon_id)
+           end if
          end if
 
          if (f == instantaneous_file_index) then
@@ -5018,6 +5023,15 @@ end subroutine print_active_fldlst
 #endif
          ierr = pio_put_var(tape(t)%Files(f), tape(t)%nbsecid, (/nbsec/))
          call cam_pio_handle_error(ierr, 'h_define: cannot put nbsec')
+
+         if (edyn3d_active) then
+            ierr = pio_put_var(tape(t)%Files(f), tape(t)%edyn3d_nmlat_h_id, (/edyn3d_nmlat_h/))
+            call cam_pio_handle_error(ierr, 'h_define: cannot put edyn3d_nmlat_h')
+            ierr = pio_put_var(tape(t)%Files(f), tape(t)%edyn3d_nhgt_id, (/edyn3d_nhgt/))
+            call cam_pio_handle_error(ierr, 'h_define: cannot put edyn3d_nmlat_h')
+            ierr = pio_put_var(tape(t)%Files(f), tape(t)%edyn3d_nmlon_id, (/edyn3d_nmlon/))
+            call cam_pio_handle_error(ierr, 'h_define: cannot put edyn3d_nmlat_h')
+         end if
          !
          ! Reduced grid info
          !
