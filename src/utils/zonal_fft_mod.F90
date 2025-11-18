@@ -4,12 +4,13 @@ module zonal_fft_mod
   use ppgrid, only: pcols, pver, begchunk, endchunk
   use phys_grid, only: get_ncols_p
   use physics_types, only: physics_state
-  use esmf_zonal_ops, only : lat_beg,lat_end, lon_beg,lon_end, nlons, glats, nlats
+  use esmf_zonal_ops, only : lat_beg,lat_end, lon_beg,lon_end, nlons, glats, nlats, zonal_comm
   use esmf_zonal_ops, only : esmf_zonal_fft_3d, esmf_zonal_mean_3d
   use, intrinsic :: iso_c_binding
 
   use spmd_utils, only: masterproc
   use cam_logfile, only: iulog
+  use cam_abortutils, only: endrun
 
   implicit none
 
@@ -58,10 +59,17 @@ contains
     call addfld('VWSTAR_cosp', (/'fft_num','lev    '/), 'I', '1', 'V*WSTAR cospectra', gridname='esmf_zonal_mean')
     call addfld('TWSTAR_cosp', (/'fft_num','lev    '/), 'I', '1', 'THETA*WSTAR cospectra', gridname='esmf_zonal_mean')
 
+    call addfld('RHOBAR',  (/'lev'/), 'I', 'kg/m3', 'Zonal mean air density', gridname='esmf_zonal_mean')
+
     call addfld('MFLXXUP', (/'lev'/), 'I', '1', 'Positive unresolved zonal momentum flux', gridname='esmf_zonal_mean')
     call addfld('MFLXXUN', (/'lev'/), 'I', '1', 'Negative unresolved zonal momentum flux', gridname='esmf_zonal_mean')
     call addfld('MFLXYUP', (/'lev'/), 'I', '1', 'Positive unresolved meridianal momentum flux', gridname='esmf_zonal_mean')
     call addfld('MFLXYUN', (/'lev'/), 'I', '1', 'Negative unresolved meridianal momentum flux', gridname='esmf_zonal_mean')
+
+    call addfld('FLXXR', (/'lev'/), 'I', '1', 'Resolved zonal momentum flux', gridname='esmf_zonal_mean')
+    call addfld('FLXXU', (/'lev'/), 'I', '1', 'Unresolved zonal momentum flux', gridname='esmf_zonal_mean')
+    call addfld('FLXYR', (/'lev'/), 'I', '1', 'Resolved meridianal momentum flux', gridname='esmf_zonal_mean')
+    call addfld('FLXYU', (/'lev'/), 'I', '1', 'Unresolved meridianal momentum flux', gridname='esmf_zonal_mean')
 
     ntime = ntime_in
     allocate(accum_cospectra_u( nftnum, lat_beg:lat_end, pver, ntime ))
@@ -79,6 +87,7 @@ contains
     use cospext_mod, only: cospext
     use esmf_zonal_ops, only: glats
     use air_composition, only: rairv  ! composition dependent gas constant (J/K/kg)
+    use ref_pres, only: pref_mid
 
     type(physics_state), intent(in) :: phys_state(begchunk:endchunk)
 
@@ -105,11 +114,15 @@ contains
 
     real(r8) :: mflxxup(lat_beg:lat_end,pver), mflxxun(lat_beg:lat_end,pver)
     real(r8) :: mflxyup(lat_beg:lat_end,pver), mflxyun(lat_beg:lat_end,pver)
+    real(r8) :: flxxr(lat_beg:lat_end,pver), flxxu(lat_beg:lat_end,pver)
+    real(r8) :: flxyr(lat_beg:lat_end,pver), flxyu(lat_beg:lat_end,pver)
 
     real(r8) :: wvlxbeg, wvlxend
+    real(r8) :: mflux_glb(nlats,pver)
 
-    real(r8),parameter :: pi = 4._r8*atan(1._r8)
-    real(r8),parameter :: deg2rad = pi/180._r8
+    real(r8), parameter :: pi = 4._r8*atan(1._r8)
+    real(r8), parameter :: deg2rad = pi/180._r8
+    character(len=*), parameter :: subname  = 'zonal_fft_calc'
 
     wvlxbeg = 200.e3_r8  ! 200 km
     wvlxend = 20.e3_r8   ! 20 km
@@ -170,22 +183,57 @@ contains
     cospectra(2:,:,:) = 2._r8 * cospectra(2:,:,:)
     call output_cosp(cospectra,'T')
 
+    do icol = lat_beg, lat_end
+       call outfld('RHOBAR', rhobar(icol,:),1,icol)
+    end do
+
     ! zonal component
-    call cospext(nftnum, lat_beg,lat_end, pver,ntime, latrad, accum_cospectra_u, wvlxbeg,wvlxend, mflxxup,mflxxun)
+    call cospext(nftnum, lat_beg,lat_end, pver,ntime, latrad, accum_cospectra_u, wvlxbeg,wvlxend, pref_mid, rhobar, mflxxup,mflxxun, flxxr,flxxu)
 
     ! meridianal component
-    call cospext(nftnum, lat_beg,lat_end, pver,ntime, latrad, accum_cospectra_v, wvlxbeg,wvlxend, mflxyup,mflxyun)
+    call cospext(nftnum, lat_beg,lat_end, pver,ntime, latrad, accum_cospectra_v, wvlxbeg,wvlxend, pref_mid, rhobar, mflxyup,mflxyun, flxyr,flxyu)
 
     do icol = lat_beg, lat_end
        call outfld('MFLXXUP', mflxxup(icol,:),1,icol)
        call outfld('MFLXXUN', mflxxun(icol,:),1,icol)
        call outfld('MFLXYUP', mflxyup(icol,:),1,icol)
        call outfld('MFLXYUN', mflxyun(icol,:),1,icol)
+
+       call outfld('FLXXR', flxxr(icol,:),1,icol)
+       call outfld('FLXXU', flxxu(icol,:),1,icol)
+       call outfld('FLXYR', flxyr(icol,:),1,icol)
+       call outfld('FLXYU', flxyu(icol,:),1,icol)
+
     end do
+
+    ! gather and smooth
 
     call t_stopf ('zonal_fft_calc')
 
   contains
+
+    function gather_fluxes( flx_loc ) result(flxglb)
+      use mpi, only: MPI_REAL8, MPI_SUCCESS, MPI_SUM
+
+      real(r8),intent(in) :: flx_loc(lat_beg:lat_end,1:pver)
+
+      real(r8) :: flxglb(nlats,pver)
+      real(r8) :: sndbuf(nlats,pver)
+      integer :: rc, len
+
+      len = nlats*pver
+
+      flxglb = 0._r8
+      sndbuf = 0._r8
+      sndbuf(lat_beg:lat_end,1:pver) = flx_loc(lat_beg:lat_end,1:pver)
+
+      call mpi_allreduce(sndbuf,flxglb,len,MPI_REAL8,MPI_SUM,zonal_comm,rc)
+      if ( rc /= MPI_SUCCESS ) then
+         call endrun('zonal_fft_mod::gather_fluxes: mpi_allreduce FAILED')
+      end if
+
+    end function gather_fluxes
+
 
     subroutine output_fld(out_fft, name)
 

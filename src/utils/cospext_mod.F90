@@ -43,7 +43,7 @@ contains
   !! restart runs, including short (less one day) runs. The daily forcing should also be made optional for the IC file.
   !! The run can still start without the forcing.
   !=============================================================================
-  subroutine cospext(nftnum,lat_beg,lat_end, pver,ntime, latrad, cspr, wvlxbeg,wvlxend, mflxup,mflxun)
+  subroutine cospext(nftnum,lat_beg,lat_end, pver,ntime, latrad, cspr, wvlxbeg,wvlxend, press, rhozm, mflxup,mflxun, flxr,flxu)
 
     integer, intent(in) :: nftnum,lat_beg,lat_end,pver,ntime
     real(r8), intent(in) :: latrad(lat_beg:lat_end)
@@ -54,10 +54,16 @@ contains
     !! wvlxend: short wavelength cutoff of the unresolved range (20x10^2 m assumed in current calculation)
 
     real(r8), intent(in) :: wvlxbeg,wvlxend
+    real(r8), intent(in) :: press(pver)
+    real(r8), intent(in) :: rhozm(lat_beg:lat_end,pver)
 
-    !! mflxup: total momentum flux in the positive direction over unresolved scales
-    !! mflxun: total momentum flux in the negative direction over unresolved scales
+    ! resolved and unresolved fluxes
+    real(r8), intent(out) :: flxr(lat_beg:lat_end,pver), flxu(lat_beg:lat_end,pver)
+
+    !! mflxup: total momentum flux in the positive direction -- resolved and unresolved
+    !! mflxun: total momentum flux in the negative direction
     real(r8), intent(out) :: mflxup(lat_beg:lat_end,pver), mflxun(lat_beg:lat_end,pver)
+    real(r8) :: mflxrp(lat_beg:lat_end,pver), mflxrn(lat_beg:lat_end,pver)
 
     !! kxl: zonal wavenumber corresponding to wvlong
     !! kxm: 2*kxl, kxr: 4*kxl (wavenumbers used to calculate spectral slope (Liu, 2019)
@@ -105,7 +111,13 @@ contains
     call spectral_separate(cspr,csprp,csprn,csprpi,csprni)
     call spectral_slope( csprpi,kxl,slpp)
     call spectral_slope(-csprni,kxl,slpn)
-    call scale_unres(kxl,kxbeg,kxend,csprp,csprn,slpp,slpn,mflxup,mflxun)
+    call momentum_fluxes(kxl,kxbeg,kxend,csprp,csprn,slpp,slpn,mflxup,mflxun, mflxrp,mflxrn )
+
+    ! Calculate the vertical divergence of the resolved and unresolved fluxes
+    do j = lat_beg,lat_end
+       flxr(j,:) = -vertdiv( press(:), rhozm(j,:)*(mflxrp(j,:) + mflxrn(j,:)) )/rhozm(j,:)
+       flxu(j,:) = -vertdiv( press(:), rhozm(j,:)*(mflxup(j,:) + mflxun(j,:)) )/rhozm(j,:)
+    end do
 
   contains
 
@@ -208,7 +220,7 @@ contains
     end subroutine spectral_slope
 
     !===========================================================================
-    subroutine scale_unres(kxl,kxbeg,kxend, csprp,csprn,slpp,slpn,mflxup,mflxun)
+    subroutine momentum_fluxes(kxl,kxbeg,kxend, csprp,csprn,slpp,slpn, mflxup,mflxun, mflxrp,mflxrn )
 
       real(r8), intent(in)  :: csprp(nftnum,lat_beg:lat_end,pver)
       real(r8), intent(in)  :: csprn(nftnum,lat_beg:lat_end,pver)
@@ -220,10 +232,14 @@ contains
 
       real(r8), intent(out) :: mflxup(lat_beg:lat_end,pver)
       real(r8), intent(out) :: mflxun(lat_beg:lat_end,pver)
+      real(r8), intent(out) :: mflxrp(lat_beg:lat_end,pver)
+      real(r8), intent(out) :: mflxrn(lat_beg:lat_end,pver)
 
-      real(r8) :: siresp, siresn, bp, bn, fp, fn
+      real(r8) :: bp, bn, fp, fn
       integer :: j,k
 
+      mflxrp = 0._r8
+      mflxrn = 0._r8
       mflxup = 0._r8
       mflxun = 0._r8
 
@@ -231,32 +247,34 @@ contains
          do j=lat0,lat1
             if (kxbeg(j) > 10) then
                if (slpp(j,k)/=NOTSET.and.slpp(j,k)/=1._r8) then
-                  siresp = sum(csprp(kxl(j):kxbeg(j),j,k),1)
+                  mflxrp(j,k) = sum(csprp(10:kxbeg(j),j,k),1)
                   bp = 1._r8-slpp(j,k)
                   fp = (real(kxend(j),r8)**bp-real(kxbeg(j),r8)**bp)/(real(kxbeg(j),r8)**bp-10._r8**bp)
-                  mflxup(j,k) = siresp*fp
+                  mflxup(j,k) = mflxrp(j,k)*fp
                end if
                if (slpp(j,k)/=NOTSET.and.slpp(j,k)==1._r8) then
-                  siresp = sum(csprp(kxl(j):kxbeg(j),j,k),1)
+                  mflxrp(j,k) = sum(csprp(10:kxbeg(j),j,k),1)
                   fp = log(real(kxend(j),r8)/real(kxbeg(j),r8))/log(real(kxbeg(j),r8)/real(kxl(j),r8))
-                  mflxup(j,k) = siresp*fp
+                  mflxup(j,k) = mflxrp(j,k)*fp
                end if
                if (slpp(j,k)==NOTSET) then
+                  mflxrp(j,k) = 0._r8
                   mflxup(j,k) = 0._r8
                end if
 
                if (slpn(j,k)/=NOTSET.and.slpn(j,k)/=1._r8) then
-                  siresn = sum(csprn(kxl(j):kxbeg(j),j,k),1)
+                  mflxrn(j,k) = sum(csprp(10:kxbeg(j),j,k),1)
                   bn = 1._r8-slpn(j,k)
                   fn = (real(kxend(j),r8)**bn-real(kxbeg(j),r8)**bn)/(real(kxbeg(j),r8)**bn-10._r8**bn)
-                  mflxun(j,k) = siresn*fn
+                  mflxun(j,k) = mflxrn(j,k)*fn
                end if
                if (slpn(j,k)/=NOTSET.and.slpn(j,k)==1._r8) then
-                  siresp = sum(csprn(kxl(j):kxbeg(j),j,k),1)
+                  mflxrn(j,k) = sum(csprp(10:kxbeg(j),j,k),1)
                   fn = log(real(kxend(j),r8)/real(kxbeg(j),r8))/log(real(kxbeg(j),r8)/real(kxl(j),r8))
-                  mflxun(j,k) = siresn*fn
+                  mflxun(j,k) = mflxrn(j,k)*fn
                end if
                if (slpn(j,k)==NOTSET) then
+                  mflxrn(j,k) = 0._r8
                   mflxun(j,k) = 0._r8
                end if
 
@@ -264,7 +282,7 @@ contains
          enddo
       enddo
 
-    end subroutine scale_unres
+    end subroutine momentum_fluxes
 
     !=============================================================================
     ! interpolate to replace zeros in the cospectra
@@ -332,6 +350,27 @@ contains
       end if
 
     end function interp_cospec
+
+    !===========================================================================
+    ! vertical divergence
+    function vertdiv( z, y ) result(dydz)
+
+      real(r8),intent(in) :: z(pver)
+      real(r8),intent(in) :: y(pver)
+      real(r8) :: dydz(pver)
+
+      integer :: k
+
+      ! compute vertical derivative dy/dz (vertical divergence)
+      do k = 2,pver-1
+         dydz(k) = (y(k+1)-y(k-1)) / (z(k+1)-z(k-1))
+      end do
+
+      ! boundary points: use one-sided differences
+      dydz(   1) = (y(2) - y(1)) / (z(2) - z(1))
+      dydz(pver) = (y(pver) - y(pver-1)) / (z(pver) - z(pver-1))
+
+    end function vertdiv
 
   end subroutine cospext
 

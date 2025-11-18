@@ -28,8 +28,8 @@ module esmf_zonal_ops
 
   include 'fftw3.f03'
 
-  integer :: nlats = -1
-  integer :: nlons = -1
+  integer :: nlats = -1 ! number of global lats
+  integer :: nlons = -1 ! number of global lons
 
   real(r8), allocatable, protected :: glats(:)
   real(r8), allocatable, protected :: glons(:)
@@ -57,7 +57,7 @@ module esmf_zonal_ops
 
   integer :: mynlats, mynlons
 
-  integer :: zonal_comm ! zonal direction MPI communicator
+  integer :: zonal_comm = -huge(1) ! zonal direction MPI communicator
 
   type(C_PTR) :: fftw_plan
   real(C_DOUBLE), allocatable :: fftw_in(:)
