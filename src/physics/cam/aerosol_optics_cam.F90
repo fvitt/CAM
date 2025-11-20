@@ -30,6 +30,7 @@ module aerosol_optics_cam
   use refractive_aerosol_optics_mod, only: refractive_aerosol_optics
   use hygrocoreshell_aerosol_optics_mod, only: hygrocoreshell_aerosol_optics
   use hygrowghtpct_aerosol_optics_mod, only: hygrowghtpct_aerosol_optics
+  use insoluble_aerosol_optics_mod, only: insoluble_aerosol_optics
 
   implicit none
 
@@ -398,6 +399,12 @@ contains
         flag_xyfill=.true.)
    call addfld ('AODSS',         horiz_only, 'A','  ',    'Aerosol optical depth 550 nm from seasalt, day only',      &
         flag_xyfill=.true.)
+   call addfld ('AODALUM',         horiz_only, 'A','  ',    'Aerosol optical depth 550 nm from alumina, day only',      &
+        flag_xyfill=.true.)
+   call addfld ('AODCACO3',         horiz_only, 'A','  ',    'Aerosol optical depth 550 nm from CaCO3, day only',      &
+        flag_xyfill=.true.)
+   call addfld ('AODDIAMOND',         horiz_only, 'A','  ',    'Aerosol optical depth 550 nm from diamond, day only',      &
+        flag_xyfill=.true.)
    call addfld ('AODABSBC',      horiz_only, 'A','  ',    'Aerosol absorption optical depth 550 nm from BC, day only',&
         flag_xyfill=.true.)
    call addfld ('BURDENDUST',    horiz_only, 'A','kg/m2', 'Dust aerosol burden, day only'        ,                    &
@@ -411,6 +418,12 @@ contains
    call addfld ('BURDENBC',      horiz_only, 'A','kg/m2', 'Black carbon aerosol burden, day only',                    &
         flag_xyfill=.true.)
    call addfld ('BURDENSEASALT', horiz_only, 'A','kg/m2', 'Seasalt aerosol burden, day only'     ,                    &
+        flag_xyfill=.true.)
+   call addfld ('BURDENALUM', horiz_only, 'A','kg/m2', 'Alumina aerosol burden, day only'     ,                    &
+        flag_xyfill=.true.)
+   call addfld ('BURDENCACO3', horiz_only, 'A','kg/m2', 'CaCO3 aerosol burden, day only'     ,                    &
+        flag_xyfill=.true.)
+   call addfld ('BURDENDIAMOND', horiz_only, 'A','kg/m2', 'Diamond aerosol burden, day only'     ,                    &
         flag_xyfill=.true.)
    call addfld ('SSAVIS',        horiz_only, 'A','  ',    'Aerosol single-scatter albedo, day only',                  &
         flag_xyfill=.true.)
@@ -427,6 +440,12 @@ contains
         flag_xyfill=.true.)
    call addfld ('AODSSdn',         horiz_only, 'A','  ',    'Aerosol optical depth 550 nm from seasalt, day night',      &
         flag_xyfill=.true.)
+   call addfld ('AODALUMdn',         horiz_only, 'A','  ',    'Aerosol optical depth 550 nm from alumina, day night',      &
+        flag_xyfill=.true.)
+   call addfld ('AODCACO3dn',         horiz_only, 'A','  ',    'Aerosol optical depth 550 nm from CaCO3, day night',      &
+        flag_xyfill=.true.)
+   call addfld ('AODDIAMONDdn',         horiz_only, 'A','  ',    'Aerosol optical depth 550 nm from diamond, day night',      &
+        flag_xyfill=.true.)
    call addfld ('AODABSBCdn',      horiz_only, 'A','  ',    'Aerosol absorption optical depth 550 nm from BC, day night',&
         flag_xyfill=.true.)
    call addfld ('BURDENDUSTdn',    horiz_only, 'A','kg/m2', 'Dust aerosol burden, day night'        ,                    &
@@ -440,6 +459,12 @@ contains
    call addfld ('BURDENBCdn',      horiz_only, 'A','kg/m2', 'Black carbon aerosol burden, day night',                    &
         flag_xyfill=.true.)
    call addfld ('BURDENSEASALTdn', horiz_only, 'A','kg/m2', 'Seasalt aerosol burden, day night'     ,                    &
+        flag_xyfill=.true.)
+   call addfld ('BURDENALUMdn', horiz_only, 'A','kg/m2', 'Alumina aerosol burden, day night'     ,                    &
+        flag_xyfill=.true.)
+   call addfld ('BURDENCACO3dn', horiz_only, 'A','kg/m2', 'CaCO3 aerosol burden, day night'     ,                    &
+        flag_xyfill=.true.)
+   call addfld ('BURDENDIAMONDdn', horiz_only, 'A','kg/m2', 'Diamond aerosol burden, day night'     ,                    &
         flag_xyfill=.true.)
    call addfld ('SSAVISdn',        horiz_only, 'A','  ',    'Aerosol single-scatter albedo, day night',                  &
         flag_xyfill=.true.)
@@ -472,6 +497,9 @@ contains
       call add_default ('AODSOA'       , 1, ' ')
       call add_default ('AODBC'        , 1, ' ')
       call add_default ('AODSS'        , 1, ' ')
+      call add_default ('AODALUM'      , 1, ' ')
+      call add_default ('AODCACO3'      , 1, ' ')
+      call add_default ('AODDIAMOND'     , 1, ' ')
       call add_default ('BURDEN01'      , 1, ' ')
       call add_default ('BURDEN02'      , 1, ' ')
       call add_default ('BURDEN03'      , 1, ' ')
@@ -481,6 +509,9 @@ contains
       call add_default ('BURDENSOA'    , 1, ' ')
       call add_default ('BURDENBC'     , 1, ' ')
       call add_default ('BURDENSEASALT', 1, ' ')
+      call add_default ('BURDENALUM',    1, ' ')
+      call add_default ('BURDENCACO3',   1, ' ')
+      call add_default ('BURDENDIAMOND',  1, ' ')
       call add_default ('SSAVIS'       , 1, ' ')
       call add_default ('EXTINCT'      , 1, ' ')
       call add_default ('AODxASYM'     , 1, ' ')
@@ -500,6 +531,9 @@ contains
       call add_default ('AODSOAdn'       , 1, ' ')
       call add_default ('AODBCdn'        , 1, ' ')
       call add_default ('AODSSdn'        , 1, ' ')
+      call add_default ('AODALUMdn'      , 1, ' ')
+      call add_default ('AODCACO3dn'      , 1, ' ')
+      call add_default ('AODDIAMONDdn'     , 1, ' ')
       call add_default ('BURDENdn01'      , 1, ' ')
       call add_default ('BURDENdn02'      , 1, ' ')
       call add_default ('BURDENdn03'      , 1, ' ')
@@ -509,6 +543,9 @@ contains
       call add_default ('BURDENSOAdn'    , 1, ' ')
       call add_default ('BURDENBCdn'     , 1, ' ')
       call add_default ('BURDENSEASALTdn', 1, ' ')
+      call add_default ('BURDENALUMdn',    1, ' ')
+      call add_default ('BURDENCACO3dn',   1, ' ')
+      call add_default ('BURDENDIAMONDdn',  1, ' ')
       call add_default ('SSAVISdn'       , 1, ' ')
       call add_default ('EXTINCTdn'      , 1, ' ')
       call add_default ('AODxASYMdn'     , 1, ' ')
@@ -626,12 +663,23 @@ contains
     real(r8) :: scatsulf(pcols)
     real(r8) :: abssulf(pcols)
 
+    real(r8) :: scatalum(pcols)
+    real(r8) :: absalum(pcols)
+
+    real(r8) :: scatcalc(pcols)
+    real(r8) :: abscalc(pcols)
+
+    real(r8) :: scatdiam(pcols)
+    real(r8) :: absdiam(pcols)
+
     real(r8) :: burden(pcols)
     real(r8) :: burdendust(pcols), burdenso4(pcols), burdenbc(pcols), &
-                burdenpom(pcols), burdensoa(pcols), burdenseasalt(pcols)
+                burdenpom(pcols), burdensoa(pcols), burdenseasalt(pcols), &
+                burdenalum(pcols), burdencalc(pcols), burdendiam(pcols)
 
     real(r8) :: hygrodust(pcols), hygrosulf(pcols), hygrobc(pcols), &
-                hygropom(pcols), hygrosoa(pcols), hygrosslt(pcols)
+                hygropom(pcols), hygrosoa(pcols), hygrosslt(pcols), &
+                hygroalum(pcols), hygrocalc(pcols), hygrodiam(pcols)
 
     real(r8) :: aodbin(pcols)
 
@@ -651,7 +699,8 @@ contains
 
     ! total species AOD
     real(r8) :: dustaod(pcols), sulfaod(pcols), bcaod(pcols), &
-                pomaod(pcols), soaaod(pcols), ssltaod(pcols)
+                pomaod(pcols), soaaod(pcols), ssltaod(pcols), &
+                alumaod(pcols), calcaod(pcols), diamaod(pcols)
 
     real(r8) :: aodvisst(pcols) ! stratospheric extinction optical depth
     real(r8) :: aoduvst(pcols)  ! stratospheric extinction optical depth in uv
@@ -705,6 +754,9 @@ contains
     soaaod = 0.0_r8
     bcaod = 0.0_r8
     ssltaod = 0.0_r8
+    alumaod = 0.0_r8
+    calcaod = 0.0_r8
+    diamaod = 0.0_r8
 
     if (num_aero_models<1) return
 
@@ -772,6 +824,17 @@ contains
           case('hygroscopic_wtp')
              aero_optics=>hygrowghtpct_aerosol_optics(aeroprops, aerostate, list_idx, &
                                                       ibin, ncol, pver, sulfwtpct(:ncol,:))
+          case('nonhygro', 'insoluble')
+             aero_optics=>insoluble_aerosol_optics(aeroprops, aerostate, list_idx, ibin)
+  
+
+          !case('insoluble')
+          !   l = nspec
+          !   call rad_cnst_get_bin_props_by_idx(list_idx, m, l, density_aer=specdens, &
+          !        sw_nonhygro_ext=n_ext, sw_nonhygro_ssa=n_ssa, sw_nonhygro_asm=n_asm)
+
+          !case('zero')
+          ! zero aerosols types have no optical effect, so do nothing.
           case default
              call endrun(prefix//'optics method not recognized')
           end select
@@ -852,6 +915,15 @@ contains
       scatsslt(:ncol)  = 0._r8
       abssslt(:ncol)   = 0._r8
       hygrosslt(:ncol) = 0._r8
+      scatalum(:ncol)  = 0._r8
+      absalum(:ncol)   = 0._r8
+      hygroalum(:ncol) = 0._r8
+      scatcalc(:ncol)  = 0._r8
+      abscalc(:ncol)   = 0._r8
+      hygrocalc(:ncol) = 0._r8
+      scatdiam(:ncol)  = 0._r8
+      absdiam(:ncol)   = 0._r8
+      hygrodiam(:ncol) = 0._r8
     end subroutine init_diags
 
     !===============================================================================
@@ -924,6 +996,21 @@ contains
                scatsslt(icol) = vol(icol) * specrefindex(iwav)%re
                abssslt(icol) = -vol(icol) * specrefindex(iwav)%im
                hygrosslt(icol)= vol(icol)*hygro_aer
+            case('alumina')
+               burdenalum(icol) = burdenalum(icol) + specmmr(icol,ilev)*mass(icol,ilev)
+               scatalum(icol) = vol(icol) * specrefindex(iwav)%re
+               absalum(icol) = -vol(icol) * specrefindex(iwav)%im
+               hygroalum(icol)= vol(icol)*hygro_aer
+            case('calcite')
+               burdencalc(icol) = burdencalc(icol) + specmmr(icol,ilev)*mass(icol,ilev)
+               scatcalc(icol) = vol(icol) * specrefindex(iwav)%re
+               abscalc(icol) = -vol(icol) * specrefindex(iwav)%im
+               hygrocalc(icol)= vol(icol)*hygro_aer
+            case('diamond')
+               burdendiam(icol) = burdendiam(icol) + specmmr(icol,ilev)*mass(icol,ilev)
+               scatdiam(icol) = vol(icol) * specrefindex(iwav)%re
+               absdiam(icol) = -vol(icol) * specrefindex(iwav)%im
+               hygrodiam(icol)= vol(icol)*hygro_aer
             end select
          end do
 
@@ -937,11 +1024,11 @@ contains
             scath2o = watervol(icol,ilev)*crefwsw(iwav)%re
             absh2o = -watervol(icol,ilev)*crefwsw(iwav)%im
             sumscat = scatsulf(icol) + scatpom(icol) + scatsoa(icol) + scatbc(icol) + &
-                 scatdust(icol) + scatsslt(icol) + scath2o
+                 scatdust(icol) + scatsslt(icol) + scatalum(icol) + scatcalc(icol) + scatdiam(icol) + scath2o 
             sumabs  = abssulf(icol) + abspom(icol) + abssoa(icol) + absbc(icol) + &
-                 absdust(icol) + abssslt(icol) + absh2o
+                 absdust(icol) + abssslt(icol) + absalum(icol) + abscalc(icol) + absdiam(icol) +absh2o
             sumhygro = hygrosulf(icol) + hygropom(icol) + hygrosoa(icol) + hygrobc(icol) + &
-                 hygrodust(icol) + hygrosslt(icol)
+                 hygrodust(icol) + hygrosslt(icol) + hygroalum(icol) + hygrocalc(icol) + hygrodiam(icol) 
 
             scatdust(icol) = (scatdust(icol) + scath2o*hygrodust(icol)/sumhygro)/sumscat
             absdust(icol)  = (absdust(icol) + absh2o*hygrodust(icol)/sumhygro)/sumabs
@@ -961,10 +1048,16 @@ contains
             scatsslt(icol) = (scatsslt(icol) + scath2o*hygrosslt(icol)/sumhygro)/sumscat
             abssslt(icol)  = (abssslt(icol) + absh2o*hygrosslt(icol)/sumhygro)/sumabs
 
+            scatalum(icol) = (scatalum(icol) + scath2o*hygroalum(icol)/sumhygro)/sumscat
+            absalum(icol)  = (absalum(icol) + absh2o*hygroalum(icol)/sumhygro)/sumabs
+
+            scatcalc(icol) = (scatcalc(icol) + scath2o*hygrocalc(icol)/sumhygro)/sumscat
+            abscalc(icol)  = (abscalc(icol) + absh2o*hygrocalc(icol)/sumhygro)/sumabs
+
+            scatdiam(icol) = (scatdiam(icol) + scath2o*hygrodiam(icol)/sumhygro)/sumscat
+            absdiam(icol)  = (absdiam(icol) + absh2o*hygrodiam(icol)/sumhygro)/sumabs
 
             aodabsbc(icol) = aodabsbc(icol) + absbc(icol)*dopaer(icol)*(1.0_r8-palb(icol))
-
-
 
             aodc          = (absdust(icol)*(1.0_r8 - palb(icol)) + palb(icol)*scatdust(icol))*dopaer(icol)
             dustaod(icol) = dustaod(icol) + aodc
@@ -983,6 +1076,15 @@ contains
 
             aodc          = (abssslt(icol)*(1.0_r8 - palb(icol)) + palb(icol)*scatsslt(icol))*dopaer(icol)
             ssltaod(icol) = ssltaod(icol) + aodc
+
+            aodc          = (absalum(icol)*(1.0_r8 - palb(icol)) + palb(icol)*scatalum(icol))*dopaer(icol)
+            alumaod(icol) = alumaod(icol) + aodc
+
+            aodc          = (abscalc(icol)*(1.0_r8 - palb(icol)) + palb(icol)*scatcalc(icol))*dopaer(icol)
+            calcaod(icol) = calcaod(icol) + aodc
+
+            aodc          = (absdiam(icol)*(1.0_r8 - palb(icol)) + palb(icol)*scatdiam(icol))*dopaer(icol)
+            diamaod(icol) = diamaod(icol) + aodc
 
          end if
       else if (iwav==idx_nir_diag) then
@@ -1095,6 +1197,9 @@ contains
          call outfld('BURDENSOAdn' ,    burdensoa,     pcols, lchnk)
          call outfld('BURDENBCdn'  ,    burdenbc,      pcols, lchnk)
          call outfld('BURDENSEASALTdn', burdenseasalt, pcols, lchnk)
+         call outfld('BURDENALUMdn',    burdenalum, pcols, lchnk)
+         call outfld('BURDENCACO3dn',   burdencalc, pcols, lchnk)
+         call outfld('BURDENDIAMONDdn', burdendiam, pcols, lchnk)
 
          call outfld('AODABSBCdn',      aodabsbc,      pcols, lchnk)
 
@@ -1104,6 +1209,9 @@ contains
          call outfld('AODSOAdn',        soaaod,        pcols, lchnk)
          call outfld('AODBCdn',         bcaod,         pcols, lchnk)
          call outfld('AODSSdn',         ssltaod,       pcols, lchnk)
+         call outfld('AODALUMdn',       alumaod,       pcols, lchnk)
+         call outfld('AODCACO3dn',      calcaod,       pcols, lchnk)
+         call outfld('AODDIAMONDdn',    diamaod,       pcols, lchnk)
 
 
          do icol = 1, nnite
@@ -1136,6 +1244,9 @@ contains
          call outfld('BURDENSOA' ,    burdensoa,     pcols, lchnk)
          call outfld('BURDENBC'  ,    burdenbc,      pcols, lchnk)
          call outfld('BURDENSEASALT', burdenseasalt, pcols, lchnk)
+         call outfld('BURDENALUM',    burdenalum, pcols, lchnk)
+         call outfld('BURDENCACO3',   burdencalc, pcols, lchnk)
+         call outfld('BURDENDIAMOND', burdendiam, pcols, lchnk)
          call outfld('AODABSBC',      aodabsbc,      pcols, lchnk)
          call outfld('AODDUST',       dustaod,       pcols, lchnk)
          call outfld('AODSO4',        sulfaod,       pcols, lchnk)
@@ -1143,6 +1254,9 @@ contains
          call outfld('AODSOA',        soaaod,        pcols, lchnk)
          call outfld('AODBC',         bcaod,         pcols, lchnk)
          call outfld('AODSS',         ssltaod,       pcols, lchnk)
+         call outfld('AODALUM',       alumaod,       pcols, lchnk)
+         call outfld('AODCACO3',      calcaod,       pcols, lchnk)
+         call outfld('AODDIAMOND',    diamaod,       pcols, lchnk)
 
       end if
 
@@ -1247,6 +1361,10 @@ contains
           case('hygroscopic_wtp')
              aero_optics=>hygrowghtpct_aerosol_optics(aeroprops, aerostate, list_idx, &
                                                       ibin, ncol, pver, sulfwtpct(:ncol,:))
+          case('nonhygro', 'insoluble')
+             aero_optics=>insoluble_aerosol_optics(aeroprops, aerostate, list_idx, ibin)
+  
+                                    
           case default
              call endrun(prefix//'optics method not recognized')
           end select

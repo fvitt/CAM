@@ -661,6 +661,16 @@ contains
              if (trim(spectype) == 'seasalt') then
                 mw_carma(mm) = 57._r8
              end if
+             if (trim(spectype) == 'alumina') then
+                mw_carma(mm) = 102._r8
+             end if
+             if (trim(spectype) == 'calcite') then
+                mw_carma(mm) = 100.1_r8
+             end if
+             if (trim(spectype) == 'diamond') then
+                mw_carma(mm) = 12._r8
+             end if
+
           end if
           mmrcw(:ncol,:,mm) = qqcw(mm)%fld(:ncol,:)
           vmrcw(:ncol,:,mm) = qqcw(mm)%fld(:ncol,:)
@@ -890,7 +900,8 @@ contains
                 trim(spectype) == 's-organic' .or. &
                 trim(spectype) == 'p-organic' .or. &
                 trim(spectype) == 'black-c'   .or. &
-                trim(spectype) == 'ammonium') then
+                trim(spectype) == 'ammonia' .or.  &
+                trim(spectype) == 'calcite') then
                 chm_mass = chm_mass + aer_bin_mmr(icol,ilev)
              end if
 

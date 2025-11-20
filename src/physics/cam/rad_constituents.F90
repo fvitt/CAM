@@ -276,14 +276,15 @@ logical :: verbose = .true.
 character(len=1), parameter :: nl = achar(10)
 
 integer, parameter :: num_mode_types = 9
-integer, parameter :: num_spec_types = 8
+integer, parameter :: num_spec_types = 11
 character(len=14), parameter :: mode_type_names(num_mode_types) = (/ &
    'accum         ', 'aitken        ', 'primary_carbon', 'fine_seasalt  ', &
    'fine_dust     ', 'coarse        ', 'coarse_seasalt', 'coarse_dust   ', &
    'coarse_strat  '  /)
 character(len=9), parameter :: spec_type_names(num_spec_types) = (/ &
    'sulfate  ', 'ammonium ', 'nitrate  ', 'p-organic', &
-   's-organic', 'black-c  ', 'seasalt  ', 'dust     '/)
+   's-organic', 'black-c  ', 'seasalt  ', 'dust     ', &
+   'alumina  ', 'calcite  ', 'diamond  '/)
 
 integer, parameter :: num_bin_morphs  = 2
 character(len=8), parameter :: bin_morph_names(num_bin_morphs) = &
@@ -3531,7 +3532,10 @@ subroutine rad_cnst_get_bin_props(list_idx, bin_idx, opticstype, &
    extpsw, abspsw, asmpsw, absplw, corefrac, nfrac, &
    wgtpct, nwtp, bcdust, nbcdust, kap, nkap, relh, nrelh, &
    sw_hygro_ext_wtp, sw_hygro_ssa_wtp, sw_hygro_asm_wtp, lw_hygro_ext_wtp, &
-   sw_hygro_coreshell_ext, sw_hygro_coreshell_ssa, sw_hygro_coreshell_asm, lw_hygro_coreshell_ext, dryrad )
+   sw_hygro_coreshell_ext, sw_hygro_coreshell_ssa, sw_hygro_coreshell_asm, lw_hygro_coreshell_ext, &
+   sw_nonhygro_ext, sw_nonhygro_ssa, sw_nonhygro_asm, &
+   sw_nonhygro_scat, sw_nonhygro_ascat, lw_ext, &
+   dryrad )
 
    ! Return requested properties for the bin from the specified
    ! climate or diagnostic list.
@@ -3559,6 +3563,12 @@ subroutine rad_cnst_get_bin_props(list_idx, bin_idx, opticstype, &
    real(r8),          optional, pointer     :: sw_hygro_coreshell_ssa(:,:,:,:,:)
    real(r8),          optional, pointer     :: sw_hygro_coreshell_asm(:,:,:,:,:)
    real(r8),          optional, pointer     :: lw_hygro_coreshell_ext(:,:,:,:,:)
+   real(r8),          optional, pointer     :: sw_nonhygro_ext(:)
+   real(r8),          optional, pointer     :: sw_nonhygro_ssa(:)
+   real(r8),          optional, pointer     :: sw_nonhygro_asm(:)
+   real(r8),          optional, pointer     :: sw_nonhygro_scat(:)
+   real(r8),          optional, pointer     :: sw_nonhygro_ascat(:)
+   real(r8),          optional, pointer     :: lw_ext(:)
    real(r8),  optional, pointer     :: wgtpct(:)
    real(r8),  optional, pointer     :: bcdust(:)
    real(r8),  optional, pointer     :: kap(:)
@@ -3607,6 +3617,14 @@ subroutine rad_cnst_get_bin_props(list_idx, bin_idx, opticstype, &
    if (present(sw_hygro_coreshell_ssa)) call physprop_get(id, sw_hygro_coreshell_ssa=sw_hygro_coreshell_ssa)
    if (present(sw_hygro_coreshell_asm)) call physprop_get(id, sw_hygro_coreshell_asm=sw_hygro_coreshell_asm)
    if (present(lw_hygro_coreshell_ext)) call physprop_get(id, lw_hygro_coreshell_abs=lw_hygro_coreshell_ext)
+
+   if (present(sw_nonhygro_ext))   call physprop_get(id, sw_nonhygro_ext=sw_nonhygro_ext)
+   if (present(sw_nonhygro_ssa))   call physprop_get(id, sw_nonhygro_ssa=sw_nonhygro_ssa)
+   if (present(sw_nonhygro_asm))   call physprop_get(id, sw_nonhygro_asm=sw_nonhygro_asm)
+   if (present(sw_nonhygro_scat))  call physprop_get(id, sw_nonhygro_scat=sw_nonhygro_scat)
+   if (present(sw_nonhygro_ascat)) call physprop_get(id, sw_nonhygro_ascat=sw_nonhygro_ascat)
+   if (present(lw_ext))            call physprop_get(id, lw_abs=lw_ext)
+
    if (present(wgtpct))                 call physprop_get(id, wgtpct=wgtpct)
    if (present(bcdust))                 call physprop_get(id, bcdust=bcdust)
    if (present(kap))                    call physprop_get(id, kap=kap)

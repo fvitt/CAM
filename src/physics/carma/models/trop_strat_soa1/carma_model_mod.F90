@@ -64,8 +64,8 @@ module carma_model_mod
   public CARMAMODEL_WetDeposition
 
   ! Declare public constants
-  integer, public, parameter      :: NGROUP   = 2               !! Number of particle groups
-  integer, public, parameter      :: NELEM    = 7               !! Number of particle elements
+  integer, public, parameter      :: NGROUP   = 3               !! Number of particle groups
+  integer, public, parameter      :: NELEM    = 8               !! Number of particle elements
   integer, public, parameter      :: NBIN     = 20              !! Number of particle bins
   integer, public, parameter      :: NSOLUTE  = 0               !! Number of particle solutes
   integer, public, parameter      :: NGAS     = 2               !! Number of gases
@@ -95,9 +95,11 @@ module carma_model_mod
   integer, public, parameter      :: I_BC             = 4       !! BC composition
   integer, public, parameter      :: I_DUST           = 5       !! dust composition
   integer, public, parameter      :: I_SALT           = 6       !! sea salt composition
+  integer, public, parameter      :: I_ALUMINA        = 7       !! alumina
 
   integer, public, parameter      :: I_GRP_PRSUL     = 1        !! sulfate aerosol
   integer, public, parameter      :: I_GRP_MXAER     = 2        !! mixed aerosol
+  integer, public, parameter      :: I_GRP_ALUM      = 3        !! aluminum
 
   integer, public, parameter      :: I_ELEM_PRSUL     = 1       !! sulfate aerosol;  nameing needs to only have 2 charaters  before the element name to work with
                                                                 !! partsof the code reading different elements
@@ -107,6 +109,7 @@ module carma_model_mod
   integer, public, parameter      :: I_ELEM_MXBC      = 5       !! black carbon
   integer, public, parameter      :: I_ELEM_MXDUST    = 6       !! dust aerosol
   integer, public, parameter      :: I_ELEM_MXSALT    = 7       !! sea salt aerosol
+  integer, public, parameter      :: I_ELEM_ALUM      = 8       !! alumina
 
   integer, public, parameter      :: I_GAS_H2O        = 1       !! water vapor
   integer, public, parameter      :: I_GAS_H2SO4      = 2       !! sulphuric acid
@@ -122,6 +125,7 @@ module carma_model_mod
   real(kind=f), public, parameter         :: RHO_DUST = 2.65_f          !! dry density of dust particles (g/cm^3) -Lin Su
   real(kind=f), public, parameter         :: RHO_SALT = 2.65_f          !! dry density of sea salt particles (g/cm)
   real(kind=f), public, parameter         :: RHO_SULFATE  = 1.923_f     !! dry density of sulfate particles (g/cm3)
+  real(kind=f), public, parameter         :: RHO_ALUMINA = 3.95_f      !! dry density of aluminum particles (g/cm3)/cm3)
 
  ! see CARMA_SmokeEmissionRead
 ! real(kind=f), allocatable, dimension(:,:)     ::   Chla                                       ! Chlorophy11 data (mg/m3)
@@ -141,6 +145,7 @@ module carma_model_mod
   real(kind=f)                    :: clay_mf(NBIN)=-huge(1._f) !! clay mass fraction (fraction)
   real(kind=f), allocatable, dimension(:,:) :: soil_factor  !! Soil Erosion Factor (fraction)
   real(kind=f), public, parameter :: WTMOL_H2SO4    = 98.078479_f    !! molecular weight of sulphuric acid
+  real(kind=f), public, parameter :: WTMOL_ALO3    = 101.961_f    !! molecular weight alumina
 
 ! NOTE: The WeibullK distribution is not currently supported, since the coefficients are not
 ! generated. This can be added later.
@@ -149,6 +154,15 @@ module carma_model_mod
   real(kind=f), public, parameter     :: vmrat_PRSUL    = 3.67_f     ! volume ratio
   real(kind=f), public, parameter     :: rmin_MXAER     = 5e-6_f     ! minimum radius (cm)
   real(kind=f), public, parameter     :: vmrat_MXAER    = 2.2588_f    !2.4610_f        ! volume ratio
+  real(kind=f), public, parameter     :: rmin_ALUM      = 21.5e-6_f   !  215nm monomer radius
+  real(kind=f), public, parameter     :: vmrat_ALUM     = 2.0_f       ! volume ratio
+  real(kind=f), public, parameter     :: rmon_ALUM      = 21.5e-6_f   !  215nm monomer radius
+
+! satellite aerosol fractal dimension, aluminum oxide, Weisenstein 2015, Karasev et al., 2001, 2004
+  real(kind=f)                        :: df_ALUM(NBIN) = 1.6_f
+! satellite aerosol fractal packing coefficient, UPDATED VALUE NEEDED!!!
+  real(kind=f)                        :: falpha_ALUM = 1._f
+
 
 ! Physics buffer index for sulfate surface area density
   integer      :: ipbuf4soa(NBIN) = -1
@@ -158,10 +172,23 @@ module carma_model_mod
   real(kind=f) :: aeronet_fraction(NBIN)  !! fraction of BC dV/dlnr in each bin (100%)
   real(kind=f) :: so4inj_dist(NBIN)       !! SO4 injection distribution across bins using a log normal distr. using r=0.95 and sigma =1.5
   real(kind=f) :: so4inj_dist1(NBIN)      !! SO4 injection distribution across bins using a log normal distr. using r=0.95 and sigma =1.5
+  real(kind=f) :: alinj_dist(NBIN)       !! AL injection distribution injeciton in the first bin
 
   integer :: bc_srfemis_ndx=-1, oc_srfemis_ndx=-1
   integer :: so4_elevemis_ndx=-1
+  integer :: al_elevemis_ndx=-1
   integer :: carma_dustmap(NBIN)        !! mapping of the CARMA dust bins to the surface dust bins.
+
+  ! Variables for satellite and lab optics data
+  integer                             :: sat_nwave            ! number of wavelengths in file
+  real(r8), allocatable, dimension(:) :: sat_wave
+  real(r8), allocatable, dimension(:) :: sat_real
+  real(r8), allocatable, dimension(:) :: sat_imag
+  integer                             :: lab_nwave            ! number of wavelengths in lab file
+  real(r8), allocatable, dimension(:) :: lab_wave
+  real(r8), allocatable, dimension(:) :: lab_real
+  real(r8), allocatable, dimension(:) :: lab_imag
+
 
   ! define refractive indices dependon composition and wavelength
   !
@@ -246,6 +273,9 @@ contains
   !!  @author  Chuck Bardeen
   subroutine CARMAMODEL_DefineModel(carma, rc)
 
+    use ioFileMod,    only: getfil                        
+    use wrap_nf
+
     use physics_buffer, only: pbuf_add_field, dtype_r8
 
     type(carma_type), intent(inout)    :: carma     !! the carma object
@@ -260,6 +290,31 @@ contains
 
     integer                            :: igroup,ibin
     character(len=8)                   :: sname                ! short (CAM) name
+    integer                            :: i
+    integer                            :: j
+    real(kind=f)                       :: wave(NWAVE)               ! CAM band wavelength centers (cm)
+    real(kind=f)                       :: interp     
+  
+!Variables needed to make satellite aerosols radiatively active, C.Maloney
+    real(kind=f)                       :: sataer_falpha = 1._f      ! satellite aerosol fractal packing coefficient, UPDATED VALUE NEEDED!!!
+    complex(kind=f)                    :: refidx_sataer(NWAVE)      ! satellite aerosol refractive index at each CAM wavelength
+    character(len=256)                 :: satfile
+    integer                            :: satfid
+    integer                            :: sat_wave_did
+    integer                            :: sat_wave_vid
+    integer                            :: sat_real_vid
+    integer                            :: sat_imag_vid
+
+!Variables to read labarotory file from John Dykema 
+    real(kind=f)                       :: labaer_falpha = 1._f      ! satellite aerosol fractal packing coefficient, UPDATED VALUE NEEDED!!!
+    complex(kind=f)                    :: refidx_labaer(NWAVE)      ! satellite aerosol refractive index at each CAM wavelength
+    character(len=256)                 :: labfile
+    integer                            :: labfid
+    integer                            :: lab_wave_did
+    integer                            :: lab_wave_vid
+    integer                            :: lab_real_vid
+    integer                            :: lab_imag_vid
+
 
     ! Default return code.
     rc = RC_OK
@@ -274,7 +329,88 @@ contains
       if (do_print) write(LUNOPRT,*) '  carma_soilerosion_file = ', carma_soilerosion_file
       if (do_print) write(LUNOPRT,*) '  carma_seasalt_emis = ', trim(carma_seasalt_emis)
       if (do_print) write(LUNOPRT,*) '  carma_dustemisfactor = ', carma_dustemisfactor
+      if (do_print) write(LUNOPRT,*) '  al2o3lab_file = ', trim(al2o3lab_file)
+      ! if (do_print) write(LUNOPRT,*) '  caco3lab_file = ', trim(caco3lab_file)
+      ! if (do_print) write(LUNOPRT,*) '  diamondlab_file = ', trim(diamondlab_file)
     end if
+
+    if (masterproc) then
+
+        ! Open the netcdf file (read only)
+        !call getfil(al2o3sat_file, satfile, satfid)
+        !if (do_print) write(LUNOPRT,*) 'carma_init(): Reading satellite aerosol refractive indexes from ', satfile
+        !call wrap_open(satfile, 0, satfid)
+
+        ! Alocate the table arrays
+        !call wrap_inq_dimid(satfid, "wavelength", sat_wave_did)
+        !call wrap_inq_dimlen(satfid, sat_wave_did, sat_nwave)
+
+        ! Open the lab netcdf file (read only)
+        call getfil(al2o3lab_file, labfile, labfid)
+        !call getfil(caco3lab_file, labfile, labfid)
+        !call getfil(diamondlab_file, labfile, labfid)
+        !if (do_print) write(LUNOPRT,*) 'carma_init(): Reading labarotory aerosol refractive indexes from ', labfile
+
+        call wrap_open(labfile, 0, labfid)
+
+        ! Alocate the table arrays
+        call wrap_inq_dimid(labfid, "wavelength", lab_wave_did)
+        call wrap_inq_dimlen(labfid, lab_wave_did, lab_nwave)
+      endif
+
+
+!#if ( defined SPMD )
+!        call mpibcast(sat_nwave, 1, mpiint, 0, mpicom)
+!#endif
+
+        allocate(sat_wave(sat_nwave))
+        allocate(sat_real(sat_nwave))
+        allocate(sat_imag(sat_nwave))
+
+        allocate(lab_wave(lab_nwave))
+        allocate(lab_real(lab_nwave))
+        allocate(lab_imag(lab_nwave))
+
+
+        if (masterproc) then
+
+          ! Read in the tables.
+          call wrap_inq_varid(labfid, 'wavelength', lab_wave_vid)
+          call wrap_get_var_realx(labfid, lab_wave_vid, lab_wave)
+          !lab_wave = lab_wave * 1e-4          ! already in  cm
+
+          call wrap_inq_varid(labfid, 'real', lab_real_vid)
+          call wrap_get_var_realx(labfid, lab_real_vid, lab_real)
+
+          call wrap_inq_varid(labfid, 'imag', lab_imag_vid)
+          call wrap_get_var_realx(labfid, lab_imag_vid, lab_imag)
+
+          ! Close the file.
+          call wrap_close(labfid)
+        end if
+
+
+    ! same for lab ref index:
+      do i = 1, NWAVE
+        do j = 1, lab_nwave
+          if (wave(i) <= lab_wave(j)) then
+            if ((j > 1) .and. (wave(i) /= lab_wave(j))) then
+              interp = (wave(i) - lab_wave(j-1)) / (lab_wave(j) - lab_wave(j-1))
+              refidx_labaer(i) = cmplx(lab_real(j-1) + interp*(lab_real(j) - lab_real(j-1)), lab_imag(j-1) + interp*(lab_imag(j) - lab_imag(j-1)))
+            else
+              refidx_labaer(i) = cmplx(lab_real(j), lab_imag(j))
+            endif
+
+            exit
+          else if (j == lab_nwave) then
+            refidx_labaer(i) = cmplx(lab_real(j), lab_imag(j))
+          end if
+        end do
+        if  (refidx_labaer(i) .ne.0.0_f) then
+         write(*,*) 'prefidx lab ', wave(i)*1e4_f, refidx_labaer(i)
+        end if
+      end do
+
 
     ! Define the Groups
     !
@@ -307,6 +443,13 @@ contains
                            scavcoef=0.1_f, shortname="MXAER", irhswell=I_PETTERS, do_mie=.true., imiertn=I_MIERTN_TOON1981, &
                            iopticstype = I_OPTICS_MIXED_YU_H2O, &
                            neutral_volfrc=-1._f)
+    if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddGroup failed.')
+
+    call CARMAGROUP_Create(carma, I_GRP_ALUM, "aluminum", rmin_ALUM, vmrat_ALUM, I_SPHERE, 1._f, .false., &
+                        rc, irhswell=I_NO_SWELLING, do_wetdep=.false., do_drydep=.true., &
+                        is_fractal=.TRUE., rmon=rmon_ALUM, df=df_ALUM, falpha=falpha_ALUM, &
+                        solfac=0.1_f, scavcoef=0.1_f, iopticstype = I_OPTICS_FIXED,&
+                        shortname="PRALU", do_mie=.true., imiertn=I_MIERTN_BOTET1997, is_sulfate=.false.)
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddGroup failed.')
 
 
@@ -345,6 +488,11 @@ contains
                              RHO_SALT, I_COREMASS, I_SALT, rc, kappa=Kappa_SALT, shortname="MXSALT")
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddElement failed.')
 
+    refidx(:,1) = refidx_labaer(:)
+    call CARMAELEMENT_Create(carma, I_ELEM_ALUM, I_GRP_ALUM, "Alumina", RHO_ALUMINA, I_INVOLATILE, I_ALUMINA, &
+                     rc, shortname="PRALUM", refidx=refidx)
+    if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddElement failed.')
+
 
     ! Define the Solutes
 
@@ -379,6 +527,9 @@ contains
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddCoagulation failed.')
 
     call CARMA_AddCoagulation(carma, I_GRP_MXAER, I_GRP_MXAER, I_GRP_MXAER, I_COLLEC_DATA, rc)
+    if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddCoagulation failed.')
+
+    call CARMA_AddCoagulation(carma, I_GRP_ALUM, I_GRP_ALUM, I_GRP_ALUM, I_COLLEC_FUCHS, rc)
     if (rc < 0) call endrun('CARMA_DefineModel::CARMA_AddCoagulation failed.')
 
     !----------------- add pbuf ------------------
@@ -637,7 +788,9 @@ contains
     real(r8)     :: smoke(pcols)            ! smoke emission flux (molecues/cm2/s)
     real(r8)     :: rhoa(pcols,pver)        ! density of air  g/cm3
     real(r8)     :: so4_inj(pcols,pver)     ! so4 emission flux (molecues/cm3/s)
+    real(r8)     :: al_inj(pcols,pver)      ! alo3 emission flux (molecues/cm3/s)
     real(r8)     :: so4_tendency_factor(pcols,pver)     ! Convertion factor from molec/cm3/s to kg/kg/s
+    real(r8)     :: al_tendency_factor(pcols,pver)     ! Convertion factor from molec/cm3/s to kg/kg/s
     integer      :: igroup                  ! the index of the carma aerosol group
     character(len=32) :: shortname          ! the shortname of the group
 
@@ -672,11 +825,13 @@ contains
                                                             ! (12 g/mol)/avocadro constant (6e-23 #/mol) *10
     real(r8), pointer :: BCemis_ptr(:), OCemis_ptr(:)
     real(r8), pointer :: SO4elevemis_ptr(:,:)
+    real(r8), pointer :: ALelevemis_ptr(:,:)
 
     ! Default return code.
     rc = RC_OK
     smoke(:) = -huge(1._r8)
     so4_inj(:,:) = -huge(1._r8)
+    al_inj(:,:) = -huge(1._r8)
     ch = carma_dustemisfactor
 
     ! Determine the day of year.
@@ -737,7 +892,10 @@ contains
     if(carma_SO4elevemis== 'Specified')then
       call pbuf_get_field(pbuf, so4_elevemis_ndx, SO4elevemis_ptr)
     end if
-
+    if(carma_ALelevemis== 'Specified')then
+      call pbuf_get_field(pbuf, al_elevemis_ndx, ALelevemis_ptr)
+    end if
+     
     ! Organic carbon emssions
     if (ielem == I_ELEM_MXOC) then
        if (carma_BCOCemissions == 'Yu2015') then
@@ -802,6 +960,43 @@ contains
           end do
        end if
     end if
+
+    if(carma_ALelevemis == 'Specified') then
+       ! Alumina emissions
+       if (ielem == I_ELEM_ALUM)  then
+          ! convert from #/kg to kg/kg  = 1.e-3 *  mw/avog (6e-23)    !kg/kg
+          ! convert from #/cm3/s to kg/kg/s = 1.e3 * density of air * mw / avog
+          !AVG: molec/mol R_AIR: units?
+          !rhoa
+          !number Density
+          !rhoa(:ncol,:) = 10._r8 * state%pmid(:ncol,:) / (R_AIR * state%t(:ncol,:))
+          !pmid is in Pa (Pa->dynes (factor of 10.), T (K), -> g/cm3
+
+          !so4_tendency_factor(:ncol,:) = rhoa(:ncol,:) * WTMOL_H2SO4 / AVG  !molec/cm3/s to kg/kg
+
+          al_inj(:ncol,:) = ALelevemis_ptr(:ncol,:)
+
+
+          ! set so4_inj larger 0. because of potential negative missing values
+          do icol = 1,ncol
+             do p = 1,pver
+                rhoa(icol,p) = 10._r8 * state%pmid(icol,p) / (R_AIR * state%t(icol,p))
+                !pmid is in Pa (Pa->dynes (factor of 10.), T (K), -> g/cm3
+                !emis = molec/cm3/s
+                !rhoa = g/cm3
+                !mw = g/mol
+                !avg =  molec/mol
+                !so4_tendency_factor(icol,p) = rhoa(icol,p) * WTMOL_H2SO4 / AVG  !molec/cm3/s to kg/kg
+                al_tendency_factor(icol,p) =  WTMOL_ALO3 / AVG / rhoa(icol,p)  !molec/cm3/s to kg/kg
+                al_inj(icol,p) = max(0._r8,al_inj(icol,p))
+                if (al_inj(icol,p).gt.0._r8) then
+                   tendency(icol,p) = al_inj(icol,p)*alinj_dist(ibin)*al_tendency_factor(icol,p)
+                end if
+             end do
+          end do
+       end if
+     end if
+
 
     ! Dust emissions
     if (ielem == I_ELEM_MXDUST) then
@@ -1110,6 +1305,11 @@ contains
     ! Define specific for SO4 injection, e.g.,mean dry radius: 0.095, sigma = 1.5
     so4inj_dist(:) = 0.0_r8
     so4inj_dist1(:) = 0.0_r8
+    alinj_dist(:) = 0.0_r8
+
+    ! Note injection of all AL in first bin
+    alinj_dist(1) = 1.0_r8    ! injection alumina in the bin for now
+
     rgeo=0.095e-4_f                    ! mean radius for aerosol injections in cm
     siglog=log(1.5_r8)    ! assumed log normal distribtuion around mean radius for aerosol injections
     siglogsq=siglog**2_f
@@ -1650,7 +1850,7 @@ contains
           do ikap = 1, nkap
 
             ! Determine the wet radius.
-            call getwetr(carma, igroup, mie_rh(irh), r(ibin), rwet, rho(ibin), rhopwet, rc, kappa=kap(ikap), temp=270._f)
+            call getwetr(carma, igroup, ibin, mie_rh(irh), r(ibin), rwet, rho(ibin), rhopwet, rc, kappa=kap(ikap), temp=270._f)
             rwetbin(irh) = rwet
 
             ! Calculate at each wavelength.
@@ -2102,7 +2302,7 @@ contains
           do ikap = 1, nkap
 
             ! Determine the wet radius.
-            call getwetr(carma, igroup, mie_rh(irh), r(ibin), rwet, rho(ibin), rhopwet, rc, kappa=kap(ikap), temp=270._f)
+            call getwetr(carma, igroup, ibin, mie_rh(irh), r(ibin), rwet, rho(ibin), rhopwet, rc, kappa=kap(ikap), temp=270._f)
             rwetbin(irh) = rwet
 
             ! Calculate at each wavelength.
@@ -2493,7 +2693,7 @@ contains
           ! NOTE: Weight percent is normal a result of the getwetr calculation. To build the
           ! table based upon weight percent, we need to pass in the desired value and a
           ! reference temperature. In that case, the RH is ignored.
-          call getwetr(carma, igroup, mie_rh(1), r(ibin), rwet, rho(ibin), rhopwet, rc, wgtpct=mie_wtp(iwtp)*100._f, temp=270._f)
+          call getwetr(carma, igroup, ibin, mie_rh(1), r(ibin), rwet, rho(ibin), rhopwet, rc, wgtpct=mie_wtp(iwtp)*100._f, temp=270._f)
           if (rc < 0) call endrun('carma_CreateOpticsFile::wetr failed.')
 
           ! Calculate at each wavelength.

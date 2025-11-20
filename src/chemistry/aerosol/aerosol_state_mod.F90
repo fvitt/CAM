@@ -956,6 +956,15 @@ contains
        if (trim(spectype) == 'seasalt') then
           solmmr(:ncol,:) = solmmr(:ncol,:) + aer_mmr(:ncol,:)*0.8_r8
        end if
+       if (trim(spectype) == 'alumina') then
+          solmmr(:ncol,:) = solmmr(:ncol,:) + aer_mmr(:ncol,:)*0.1_r8
+       end if
+       if (trim(spectype) == 'calcite') then
+          solmmr(:ncol,:) = solmmr(:ncol,:) + aer_mmr(:ncol,:)*0.1_r8
+       end if
+       if (trim(spectype) == 'diamond') then
+          solmmr(:ncol,:) = solmmr(:ncol,:) + aer_mmr(:ncol,:)*0.1_r8
+       end if
 
     end do   !nspec
 

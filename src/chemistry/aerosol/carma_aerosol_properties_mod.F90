@@ -318,7 +318,8 @@ contains
        refrtabsw, refitabsw, refrtablw, refitablw, ncoef, prefr, prefi, sw_hygro_ext_wtp, &
        sw_hygro_ssa_wtp, sw_hygro_asm_wtp, lw_hygro_ext_wtp, wgtpct, nwtp, &
        sw_hygro_coreshell_ext, sw_hygro_coreshell_ssa, sw_hygro_coreshell_asm, lw_hygro_coreshell_ext, &
-       corefrac, bcdust, kap, relh, nfrac, nbcdust, nkap, nrelh )
+       corefrac, bcdust, kap, relh, nfrac, nbcdust, nkap, nrelh, &
+       sw_insoluble_ext, sw_insoluble_ssa, sw_insoluble_asm, lw_insoluble_ext )
 
     class(carma_aerosol_properties), intent(in) :: self
     integer, intent(in) :: bin_ndx             ! bin index
@@ -360,6 +361,13 @@ contains
     integer,   optional, intent(out) :: nbcdust     ! bc/(bc + dust) fraction dimension size
     integer,   optional, intent(out) :: nkap        ! hygroscopicity dimension size
     integer,   optional, intent(out) :: nrelh       ! relative humidity dimension size
+
+    ! non-hygroscopic (insoluble)
+    real(r8),  optional, pointer :: sw_insoluble_ext(:) ! short wave extinction table
+    real(r8),  optional, pointer :: sw_insoluble_ssa(:) ! short wave single-scatter albedo table
+    real(r8),  optional, pointer :: sw_insoluble_asm(:) ! short wave asymmetry table
+    real(r8),  optional, pointer :: lw_insoluble_ext(:) ! long wave absorption table
+
 
     if (present(extpsw)) then
        nullify(extpsw)
@@ -407,6 +415,10 @@ contains
                                 sw_hygro_coreshell_ssa=sw_hygro_coreshell_ssa, &
                                 sw_hygro_coreshell_asm=sw_hygro_coreshell_asm, &
                                 lw_hygro_coreshell_ext=lw_hygro_coreshell_ext, &
+                                sw_nonhygro_ext=sw_insoluble_ext, &
+                                sw_nonhygro_ssa=sw_insoluble_ssa, &
+                                sw_nonhygro_asm=sw_insoluble_asm, &
+                                lw_ext=lw_insoluble_ext, &
                                 corefrac=corefrac, &
                                 bcdust=bcdust, &
                                 kap=kap, &
@@ -723,6 +735,9 @@ contains
     do ispec = 1, self%nspecies(bin_ndx)
        call self%species_type(bin_ndx,ispec, spectype)
        if (trim(spectype) == 'sulfate') then
+          call self%get(bin_ndx,ispec,density=rho)
+       end if
+       if (trim(spectype) == 'alumina') then
           call self%get(bin_ndx,ispec,density=rho)
        end if
     end do

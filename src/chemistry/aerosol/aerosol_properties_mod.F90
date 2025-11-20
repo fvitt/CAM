@@ -124,7 +124,8 @@ module aerosol_properties_mod
           refrtabsw, refitabsw, refrtablw, refitablw, ncoef, prefr, prefi, sw_hygro_ext_wtp, &
           sw_hygro_ssa_wtp, sw_hygro_asm_wtp, lw_hygro_ext_wtp, wgtpct, nwtp, &
           sw_hygro_coreshell_ext, sw_hygro_coreshell_ssa, sw_hygro_coreshell_asm, lw_hygro_coreshell_ext, &
-          corefrac, bcdust, kap, relh, nfrac, nbcdust, nkap, nrelh )
+          corefrac, bcdust, kap, relh, nfrac, nbcdust, nkap, nrelh, &
+          sw_insoluble_ext, sw_insoluble_ssa, sw_insoluble_asm, lw_insoluble_ext )
 
        import :: aerosol_properties, r8
 
@@ -168,6 +169,12 @@ module aerosol_properties_mod
        integer,   optional, intent(out) :: nbcdust     ! bc/(bc + dust) fraction dimension size
        integer,   optional, intent(out) :: nkap        ! hygroscopicity dimension size
        integer,   optional, intent(out) :: nrelh       ! relative humidity dimension size
+
+       ! non-hygroscopic (insoluble)
+       real(r8),  optional, pointer :: sw_insoluble_ext(:) ! short wave extinction table
+       real(r8),  optional, pointer :: sw_insoluble_ssa(:) ! short wave single-scatter albedo table
+       real(r8),  optional, pointer :: sw_insoluble_asm(:) ! short wave asymmetry table
+       real(r8),  optional, pointer :: lw_insoluble_ext(:) ! long wave absorption table
 
      end subroutine aero_optics_params
 
