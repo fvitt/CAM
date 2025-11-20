@@ -327,19 +327,17 @@ contains
 
     ! regrid to lon/lat grid
 
-    physflds(1)%fld => u_phys
-    physflds(2)%fld => v_phys
-    physflds(3)%fld => w_phys
-    physflds(4)%fld => t_phys
-    physflds(5)%fld => p_phys
+    physflds(1)%fld => w_phys
+    physflds(2)%fld => t_phys
+    physflds(3)%fld => p_phys
 
-    lonlatflds(1)%fld => u_lonlat
-    lonlatflds(2)%fld => v_lonlat
-    lonlatflds(3)%fld => w_lonlat
-    lonlatflds(4)%fld => t_lonlat
-    lonlatflds(5)%fld => p_lonlat
+    lonlatflds(1)%fld => w_lonlat
+    lonlatflds(2)%fld => t_lonlat
+    lonlatflds(3)%fld => p_lonlat
 
     call esmf_phys2lonlat_regrid(physflds, lonlatflds)
+
+    call esmf_phys2lonlat_regrid(u_phys,v_phys, u_lonlat,v_lonlat)
 
     call esmf_phys2lonlat_regrid(ps_phys, ps_lonlat)
 
