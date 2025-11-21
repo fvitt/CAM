@@ -58,6 +58,7 @@ module esmf_zonal_ops
   integer :: mynlats, mynlons
 
   integer :: zonal_comm = -huge(1) ! zonal direction MPI communicator
+  integer :: merid_comm = -huge(1) ! zonal direction MPI communicator
 
   type(C_PTR) :: fftw_plan
   real(C_DOUBLE), allocatable :: fftw_in(:)
@@ -278,6 +279,7 @@ contains
     end do ! j=0,ntaskj-1
 
     call mpi_comm_split(mpicom,mytidj,mytid,zonal_comm,ierr)
+    call mpi_comm_split(mpicom,mytidi,mytid,merid_comm,ierr)
 
     allocate(mytidi_send(npes))
     allocate(mytidj_send(npes))

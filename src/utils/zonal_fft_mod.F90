@@ -4,7 +4,7 @@ module zonal_fft_mod
   use ppgrid, only: pcols, pver, begchunk, endchunk
   use phys_grid, only: get_ncols_p
   use physics_types, only: physics_state
-  use esmf_zonal_ops, only : lat_beg,lat_end, lon_beg,lon_end, nlons, glats, nlats, zonal_comm
+  use esmf_zonal_ops, only : lat_beg,lat_end, lon_beg,lon_end, nlons, glats, nlats, merid_comm
   use esmf_zonal_ops, only : esmf_zonal_fft_3d, esmf_zonal_mean_3d
   use, intrinsic :: iso_c_binding
 
@@ -70,6 +70,11 @@ contains
     call addfld('FLXXU', (/'lev'/), 'I', '1', 'Unresolved zonal momentum flux', gridname='esmf_zonal_mean')
     call addfld('FLXYR', (/'lev'/), 'I', '1', 'Resolved meridianal momentum flux', gridname='esmf_zonal_mean')
     call addfld('FLXYU', (/'lev'/), 'I', '1', 'Unresolved meridianal momentum flux', gridname='esmf_zonal_mean')
+
+    call addfld('SFLXXR', (/'lev'/), 'I', '1', 'Smoothed Resolved zonal momentum flux', gridname='esmf_zonal_mean')
+    call addfld('SFLXXU', (/'lev'/), 'I', '1', 'Smoothed Unresolved zonal momentum flux', gridname='esmf_zonal_mean')
+    call addfld('SFLXYR', (/'lev'/), 'I', '1', 'Smoothed Resolved meridianal momentum flux', gridname='esmf_zonal_mean')
+    call addfld('SFLXYU', (/'lev'/), 'I', '1', 'Smoothed Unresolved meridianal momentum flux', gridname='esmf_zonal_mean')
 
     ntime = ntime_in
     allocate(accum_cospectra_u( nftnum, lat_beg:lat_end, pver, ntime ))
@@ -208,10 +213,74 @@ contains
 
     ! gather and smooth
 
+    flxxr = gather_and_smooth(flxxr)
+    flxxu = gather_and_smooth(flxxu)
+    flxyr = gather_and_smooth(flxyr)
+    flxyu = gather_and_smooth(flxyu)
+
+    do icol = lat_beg, lat_end
+
+       call outfld('SFLXXR', flxxr(icol,:),1,icol)
+       call outfld('SFLXXU', flxxu(icol,:),1,icol)
+       call outfld('SFLXYR', flxyr(icol,:),1,icol)
+       call outfld('SFLXYU', flxyu(icol,:),1,icol)
+
+    end do
+
     call t_stopf ('zonal_fft_calc')
 
   contains
 
+    !==========================================================================
+    function gather_and_smooth( flux ) result (sflx)
+      real(r8),intent(in) :: flux(lat_beg:lat_end,1:pver)
+      real(r8) :: sflx(lat_beg:lat_end,1:pver)
+
+      real(r8) :: flxglb1(nlats,pver)
+      real(r8) :: flxglb2(nlats,pver)
+
+      integer :: k
+
+      sflx = 0._r8
+
+      flxglb1 = gather_fluxes(flux)
+
+      do k = 1,pver
+         flxglb2(1:nlats,k) = smooth(flxglb1(1:nlats,k),nlats,11)
+      end do
+      sflx(lat_beg:lat_end,:) = flxglb2(lat_beg:lat_end,:)
+
+    end function gather_and_smooth
+
+    !==========================================================================
+    function smooth(data, n_points, window_size) result(smoothed_data)
+
+      real(r8), intent(in) :: data(n_points)
+      integer, intent(in) :: n_points, window_size
+
+      real(r8) :: smoothed_data(n_points)
+
+      integer :: ilat, j, start_idx, end_idx, count
+      real(r8) :: sum_val
+
+      smoothed_data = data ! Initialize with original data
+
+      do ilat = 1, n_points
+         sum_val = 0.0_r8
+         count = 0
+         start_idx = max(1,      ilat - ((window_size-1)/2))
+         end_idx = min(n_points, ilat + ((window_size-1)/2))
+
+         do j = start_idx, end_idx
+            sum_val = sum_val + data(j)
+            count = count + 1
+         end do
+         smoothed_data(ilat) = sum_val / real(count,kind=r8)
+      end do
+
+    end function smooth
+
+    !==========================================================================
     function gather_fluxes( flx_loc ) result(flxglb)
       use mpi, only: MPI_REAL8, MPI_SUCCESS, MPI_SUM
 
@@ -227,14 +296,14 @@ contains
       sndbuf = 0._r8
       sndbuf(lat_beg:lat_end,1:pver) = flx_loc(lat_beg:lat_end,1:pver)
 
-      call mpi_allreduce(sndbuf,flxglb,len,MPI_REAL8,MPI_SUM,zonal_comm,rc)
+      call mpi_allreduce(sndbuf,flxglb,len,MPI_REAL8,MPI_SUM, merid_comm, rc)
       if ( rc /= MPI_SUCCESS ) then
          call endrun('zonal_fft_mod::gather_fluxes: mpi_allreduce FAILED')
       end if
 
     end function gather_fluxes
 
-
+    !==========================================================================
     subroutine output_fld(out_fft, name)
 
       complex(C_DOUBLE_COMPLEX), intent(in) :: out_fft(nftnum, lat_beg:lat_end, pver)
@@ -256,6 +325,7 @@ contains
 
     end subroutine output_fld
 
+    !==========================================================================
     subroutine output_cosp(out_fld, name)
 
       real(r8), intent(in) :: out_fld(nftnum, lat_beg:lat_end, pver)
