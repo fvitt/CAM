@@ -4530,6 +4530,12 @@ end subroutine print_active_fldlst
          str = 'seconds of base day'
          ierr=pio_put_att (tape(t)%Files(f), tape(t)%nsbaseid, 'long_name', trim(str))
 
+         if (edyn3d_active) then
+             ierr=pio_def_var (tape(t)%Files(f),'edyn3d_nmlat_h',PIO_INT,tape(t)%edyn3d_nmlat_h_id)
+             ierr=pio_def_var (tape(t)%Files(f),'edyn3d_nhgt',   PIO_INT,tape(t)%edyn3d_nhgt_id)
+             ierr=pio_def_var (tape(t)%Files(f),'edyn3d_nmlon',  PIO_INT,tape(t)%edyn3d_nmlon_id)
+         end if
+
          ierr=pio_def_var (tape(t)%Files(f),'nbdate',PIO_INT,tape(t)%nbdateid)
          str = 'base date (YYYYMMDD)'
          ierr=pio_put_att (tape(t)%Files(f), tape(t)%nbdateid, 'long_name', trim(str))
@@ -4650,11 +4656,6 @@ end subroutine print_active_fldlst
                               'Second co-latitude of electro-potential critical angle')
              ierr=pio_put_att (tape(t)%Files(f), tape(t)%colat_crit2_id, 'units', 'degrees')
            endif
-           if (edyn3d_active) then
-             ierr=pio_def_var (tape(t)%Files(f),'edyn3d_nmlat_h',PIO_INT,tape(t)%edyn3d_nmlat_h_id)
-             ierr=pio_def_var (tape(t)%Files(f),'edyn3d_nhgt',   PIO_INT,tape(t)%edyn3d_nhgt_id)
-             ierr=pio_def_var (tape(t)%Files(f),'edyn3d_nmlon',  PIO_INT,tape(t)%edyn3d_nmlon_id)
-           end if
          end if
 
          if (f == instantaneous_file_index) then
