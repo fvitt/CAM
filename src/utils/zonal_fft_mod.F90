@@ -66,15 +66,15 @@ contains
     call addfld('MFLXYUP', (/'lev'/), 'I', '1', 'Positive unresolved meridianal momentum flux', gridname='esmf_zonal_mean')
     call addfld('MFLXYUN', (/'lev'/), 'I', '1', 'Negative unresolved meridianal momentum flux', gridname='esmf_zonal_mean')
 
-    call addfld('FLXXR', (/'lev'/), 'I', '1', 'Resolved zonal momentum flux', gridname='esmf_zonal_mean')
-    call addfld('FLXXU', (/'lev'/), 'I', '1', 'Unresolved zonal momentum flux', gridname='esmf_zonal_mean')
-    call addfld('FLXYR', (/'lev'/), 'I', '1', 'Resolved meridianal momentum flux', gridname='esmf_zonal_mean')
-    call addfld('FLXYU', (/'lev'/), 'I', '1', 'Unresolved meridianal momentum flux', gridname='esmf_zonal_mean')
+    call addfld('FRCXR', (/'lev'/), 'I', '1', 'Resolved zonal momentum flux', gridname='esmf_zonal_mean')
+    call addfld('FRCXU', (/'lev'/), 'I', '1', 'Unresolved zonal momentum flux', gridname='esmf_zonal_mean')
+    call addfld('FRCYR', (/'lev'/), 'I', '1', 'Resolved meridianal momentum flux', gridname='esmf_zonal_mean')
+    call addfld('FRCYU', (/'lev'/), 'I', '1', 'Unresolved meridianal momentum flux', gridname='esmf_zonal_mean')
 
-    call addfld('SFLXXR', (/'lev'/), 'I', '1', 'Smoothed Resolved zonal momentum flux', gridname='esmf_zonal_mean')
-    call addfld('SFLXXU', (/'lev'/), 'I', '1', 'Smoothed Unresolved zonal momentum flux', gridname='esmf_zonal_mean')
-    call addfld('SFLXYR', (/'lev'/), 'I', '1', 'Smoothed Resolved meridianal momentum flux', gridname='esmf_zonal_mean')
-    call addfld('SFLXYU', (/'lev'/), 'I', '1', 'Smoothed Unresolved meridianal momentum flux', gridname='esmf_zonal_mean')
+    call addfld('SFRCXR', (/'lev'/), 'I', '1', 'Smoothed Resolved zonal momentum flux', gridname='esmf_zonal_mean')
+    call addfld('SFRCXU', (/'lev'/), 'I', '1', 'Smoothed Unresolved zonal momentum flux', gridname='esmf_zonal_mean')
+    call addfld('SFRCYR', (/'lev'/), 'I', '1', 'Smoothed Resolved meridianal momentum flux', gridname='esmf_zonal_mean')
+    call addfld('SFRCYU', (/'lev'/), 'I', '1', 'Smoothed Unresolved meridianal momentum flux', gridname='esmf_zonal_mean')
 
     ntime = ntime_in
     allocate(accum_cospectra_u( nftnum, lat_beg:lat_end, pver, ntime ))
@@ -119,8 +119,8 @@ contains
 
     real(r8) :: mflxxup(lat_beg:lat_end,pver), mflxxun(lat_beg:lat_end,pver)
     real(r8) :: mflxyup(lat_beg:lat_end,pver), mflxyun(lat_beg:lat_end,pver)
-    real(r8) :: flxxr(lat_beg:lat_end,pver), flxxu(lat_beg:lat_end,pver)
-    real(r8) :: flxyr(lat_beg:lat_end,pver), flxyu(lat_beg:lat_end,pver)
+    real(r8) :: frcxr(lat_beg:lat_end,pver), frcxu(lat_beg:lat_end,pver)
+    real(r8) :: frcyr(lat_beg:lat_end,pver), frcyu(lat_beg:lat_end,pver)
 
     real(r8) :: wvlxbeg, wvlxend
     real(r8) :: mflux_glb(nlats,pver)
@@ -193,10 +193,10 @@ contains
     end do
 
     ! zonal component
-    call cospext(nftnum, lat_beg,lat_end, pver,ntime, latrad, accum_cospectra_u, wvlxbeg,wvlxend, pref_mid, rhobar, mflxxup,mflxxun, flxxr,flxxu)
+    call cospext(nftnum, lat_beg,lat_end, pver,ntime, latrad, accum_cospectra_u, wvlxbeg,wvlxend, pref_mid, rhobar, mflxxup,mflxxun, frcxr,frcxu)
 
     ! meridianal component
-    call cospext(nftnum, lat_beg,lat_end, pver,ntime, latrad, accum_cospectra_v, wvlxbeg,wvlxend, pref_mid, rhobar, mflxyup,mflxyun, flxyr,flxyu)
+    call cospext(nftnum, lat_beg,lat_end, pver,ntime, latrad, accum_cospectra_v, wvlxbeg,wvlxend, pref_mid, rhobar, mflxyup,mflxyun, frcyr,frcyu)
 
     do icol = lat_beg, lat_end
        call outfld('MFLXXUP', mflxxup(icol,:),1,icol)
@@ -204,26 +204,26 @@ contains
        call outfld('MFLXYUP', mflxyup(icol,:),1,icol)
        call outfld('MFLXYUN', mflxyun(icol,:),1,icol)
 
-       call outfld('FLXXR', flxxr(icol,:),1,icol)
-       call outfld('FLXXU', flxxu(icol,:),1,icol)
-       call outfld('FLXYR', flxyr(icol,:),1,icol)
-       call outfld('FLXYU', flxyu(icol,:),1,icol)
+       call outfld('FRCXR', frcxr(icol,:),1,icol)
+       call outfld('FRCXU', frcxu(icol,:),1,icol)
+       call outfld('FRCYR', frcyr(icol,:),1,icol)
+       call outfld('FRCYU', frcyu(icol,:),1,icol)
 
     end do
 
     ! gather and smooth
 
-    flxxr = gather_and_smooth(flxxr)
-    flxxu = gather_and_smooth(flxxu)
-    flxyr = gather_and_smooth(flxyr)
-    flxyu = gather_and_smooth(flxyu)
+    frcxr = gather_and_smooth(frcxr)
+    frcxu = gather_and_smooth(frcxu)
+    frcyr = gather_and_smooth(frcyr)
+    frcyu = gather_and_smooth(frcyu)
 
     do icol = lat_beg, lat_end
 
-       call outfld('SFLXXR', flxxr(icol,:),1,icol)
-       call outfld('SFLXXU', flxxu(icol,:),1,icol)
-       call outfld('SFLXYR', flxyr(icol,:),1,icol)
-       call outfld('SFLXYU', flxyu(icol,:),1,icol)
+       call outfld('SFRCXR', frcxr(icol,:),1,icol)
+       call outfld('SFRCXU', frcxu(icol,:),1,icol)
+       call outfld('SFRCYR', frcyr(icol,:),1,icol)
+       call outfld('SFRCYU', frcyu(icol,:),1,icol)
 
     end do
 

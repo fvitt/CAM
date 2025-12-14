@@ -43,7 +43,7 @@ contains
   !! restart runs, including short (less one day) runs. The daily forcing should also be made optional for the IC file.
   !! The run can still start without the forcing.
   !=============================================================================
-  subroutine cospext(nftnum,lat_beg,lat_end, pver,ntime, latrad, cspr, wvlxbeg,wvlxend, press, rhozm, mflxup,mflxun, flxr,flxu)
+  subroutine cospext(nftnum,lat_beg,lat_end, pver,ntime, latrad, cspr, wvlxbeg,wvlxend, press, rhozm, mflxup,mflxun, force_r, force_u)
 
     integer, intent(in) :: nftnum,lat_beg,lat_end,pver,ntime
     real(r8), intent(in) :: latrad(lat_beg:lat_end)
@@ -57,8 +57,8 @@ contains
     real(r8), intent(in) :: press(pver)
     real(r8), intent(in) :: rhozm(lat_beg:lat_end,pver)
 
-    ! resolved and unresolved fluxes
-    real(r8), intent(out) :: flxr(lat_beg:lat_end,pver), flxu(lat_beg:lat_end,pver)
+    ! resolved and unresolved forces
+    real(r8), intent(out) :: force_r(lat_beg:lat_end,pver), force_u(lat_beg:lat_end,pver)
 
     !! mflxup: total momentum flux in the positive direction -- resolved and unresolved
     !! mflxun: total momentum flux in the negative direction
@@ -113,10 +113,10 @@ contains
     call spectral_slope(-csprni,kxl,slpn)
     call momentum_fluxes(kxl,kxbeg,kxend,csprp,csprn,slpp,slpn,mflxup,mflxun, mflxrp,mflxrn )
 
-    ! Calculate the vertical divergence of the resolved and unresolved fluxes
+    ! Calculate the vertical divergence of the resolved and unresolved fluxes (tendencies or forces)
     do j = lat_beg,lat_end
-       flxr(j,:) = -vertdiv( press(:), rhozm(j,:)*(mflxrp(j,:) + mflxrn(j,:)) )/rhozm(j,:)
-       flxu(j,:) = -vertdiv( press(:), rhozm(j,:)*(mflxup(j,:) + mflxun(j,:)) )/rhozm(j,:)
+       force_r(j,:) = -vertdiv( press(:), rhozm(j,:)*(mflxrp(j,:) + mflxrn(j,:)) )/rhozm(j,:)
+       force_u(j,:) = -vertdiv( press(:), rhozm(j,:)*(mflxup(j,:) + mflxun(j,:)) )/rhozm(j,:)
     end do
 
   contains
@@ -263,13 +263,13 @@ contains
                end if
 
                if (slpn(j,k)/=NOTSET.and.slpn(j,k)/=1._r8) then
-                  mflxrn(j,k) = sum(csprp(10:kxbeg(j),j,k),1)
+                  mflxrn(j,k) = sum(csprn(10:kxbeg(j),j,k),1)
                   bn = 1._r8-slpn(j,k)
                   fn = (real(kxend(j),r8)**bn-real(kxbeg(j),r8)**bn)/(real(kxbeg(j),r8)**bn-10._r8**bn)
                   mflxun(j,k) = mflxrn(j,k)*fn
                end if
                if (slpn(j,k)/=NOTSET.and.slpn(j,k)==1._r8) then
-                  mflxrn(j,k) = sum(csprp(10:kxbeg(j),j,k),1)
+                  mflxrn(j,k) = sum(csprn(10:kxbeg(j),j,k),1)
                   fn = log(real(kxend(j),r8)/real(kxbeg(j),r8))/log(real(kxbeg(j),r8)/real(kxl(j),r8))
                   mflxun(j,k) = mflxrn(j,k)*fn
                end if
