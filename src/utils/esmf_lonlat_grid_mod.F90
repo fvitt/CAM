@@ -29,7 +29,8 @@ module esmf_lonlat_grid_mod
   real(r8), allocatable, protected :: glats(:)
   real(r8), allocatable, protected :: glons(:)
 
-  integer, protected :: zonal_comm ! zonal direction MPI communicator
+  integer, protected :: zonal_comm = -huge(1) ! zonal direction MPI communicator
+  integer, protected :: merid_comm = -huge(1) ! meridianal direction MPI communicator
 
 contains
 
@@ -176,6 +177,7 @@ contains
     end do ! j=0,ntaskj-1
 
     call mpi_comm_split(mpicom,mytidj,mytid,zonal_comm,ierr)
+    call mpi_comm_split(mpicom,mytidi,mytid,merid_comm,ierr)
 
     allocate(mytidi_send(npes), stat=astat)
     if (astat/=0) then
