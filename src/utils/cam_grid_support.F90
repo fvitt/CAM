@@ -291,7 +291,7 @@ module cam_grid_support
   end interface
 
   !! Grid variables
-  integer, parameter                  :: maxhgrids =  16   ! arbitrary limit
+  integer, parameter                  :: maxhgrids = 30   ! arbitrary limit
   integer, save                       :: registeredhgrids = 0
   type(cam_grid_t), save              :: cam_grids(maxhgrids)
 
@@ -1688,7 +1688,7 @@ contains
           end select
        end if
     end if
-    
+
   end function cam_grid_get_areawt
 
   ! Find the longitude and latitude of a range of map entries

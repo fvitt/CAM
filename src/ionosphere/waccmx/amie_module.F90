@@ -761,10 +761,14 @@ contains
                   del*pot_sh_amie(mp1,j)
              potm(i,jmxm+1-j) = (1._r8-del)*pot_nh_amie(m,j) + &
                   del*pot_nh_amie(mp1,j)
-             facm(i,j) = (1._r8-del)*fac_sh_amie(m,j) + &
-                  del*fac_sh_amie(mp1,j)
-             facm(i,jmxm+1-j) = (1._r8-del)*fac_nh_amie(m,j) + &
-                  del*fac_nh_amie(mp1,j)
+
+             ! reverse the sign of field-aligned currents to match
+             ! direction expected in 3D dynamo
+             facm(i,j) = -1._r8*((1._r8-del)*fac_sh_amie(m,j) + &
+                  del*fac_sh_amie(mp1,j))
+             facm(i,jmxm+1-j) = -1._r8*((1._r8-del)*fac_nh_amie(m,j) + &
+                  del*fac_nh_amie(mp1,j))
+
              ekvm(i,j) = (1._r8-del)*ekv_sh_amie(m,j) + &
                   del*ekv_sh_amie(mp1,j)
              ekvm(i,jmxm+1-j) = (1._r8-del)*ekv_nh_amie(m,j) + &
