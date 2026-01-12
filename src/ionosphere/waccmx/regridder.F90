@@ -121,6 +121,21 @@ contains
   end subroutine regrid_geo2phys_3d
 
   !-----------------------------------------------------------------------------
+  ! map 2D fields from oplus grid to physics grid
+  !-----------------------------------------------------------------------------
+  subroutine regrid_geo2phys_2d( geofld, physfld, cols, cole )
+    integer,  intent(in)  :: cols, cole
+    real(r8), intent(in)  :: geofld(lon0:lon1,lat0:lat1)
+    real(r8), intent(out) :: physfld(cols:cole)
+
+
+    call edyn_esmf_set2d_geo( geo_2dfld, geofld, lon0, lon1, lat0, lat1)
+    call edyn_esmf_regrid_geo2phys(geo_2dfld, phys_2dfld, 2)
+    call edyn_esmf_get_1dfield(phys_2dfld, physfld, cols, cole  )
+
+  end subroutine regrid_geo2phys_2d
+
+  !-----------------------------------------------------------------------------
   ! map 3D fields from physics grid to magnetic
   !-----------------------------------------------------------------------------
   subroutine regrid_phys2mag_3d( physfld, magfld, plev, cols, cole )

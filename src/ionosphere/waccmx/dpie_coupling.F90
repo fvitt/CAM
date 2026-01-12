@@ -288,7 +288,7 @@ contains
      use oplus,         only: oplus_xport
      use ref_pres,      only: pref_mid
      use regridder,  only: regrid_phys2geo_3d, regrid_phys2mag_3d, regrid_geo2phys_3d
-     use regridder,  only: regrid_geo2mag_3d, regrid_geo2mag_2d
+     use regridder,  only: regrid_geo2mag_3d, regrid_geo2mag_2d, regrid_geo2phys_2d
      use adotv_mod,  only: calc_adotv
 
      !
@@ -422,6 +422,10 @@ contains
           adotv1_mag, adotv2_mag
      real(r8), dimension(mlon0:mlon1,mlat0:mlat1) :: &
           adota1_mag, adota2_mag, a1dta2_mag, be3_mag, sini_mag
+
+     real(r8) :: op_2d_test(cols:cole)      ! test array
+
+     op_2d_test(:) = -huge(1._r8)
 
      call t_startf(subname)
 
@@ -774,6 +778,12 @@ contains
        call regrid_geo2phys_3d( ui_geo, ui, plev, cols, cole )
        call regrid_geo2phys_3d( vi_geo, vi, plev, cols, cole )
        call regrid_geo2phys_3d( wi_geo, wi, plev, cols, cole )
+
+!!$       call regrid_geo2phys_2d( op_geo(:,:,10), op_2d_test, cols, cole )
+!!$       ! opmmr(10, : ) == op_2d_test(:) ??
+!!$       if (any( opmmr(10,cols:cole) /= op_2d_test(cols:cole) ) ) then
+!!$          call endrun('DEBUG regrid_geo2phys_2d ERROR !!!!!!!!!!!!!!')
+!!$       end if
 
     end if ! ionos_oplus_xport
 
