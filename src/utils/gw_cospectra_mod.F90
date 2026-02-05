@@ -8,6 +8,7 @@ module gw_cospectra_mod
   use esmf_zonal_fft_mod, only : esmf_zonal_fft_3d, esmf_zonal_fft_init
   use esmf_zonal_mean_mod, only: esmf_zonal_mean_calc
   use esmf_phys2lonlat_mod, only: esmf_phys2lonlat_regrid
+  use esmf_lonlat2phys_mod, only: esmf_lonlat2phys_init
 
   use, intrinsic :: iso_c_binding
 
@@ -81,11 +82,16 @@ contains
     call addfld('SFRCYR', (/'lev'/), 'I', '1', 'Smoothed Resolved meridianal momentum flux', gridname='ctem_zm')
     call addfld('SFRCYU', (/'lev'/), 'I', '1', 'Smoothed Unresolved meridianal momentum flux', gridname='ctem_zm')
 
+    call addfld('SFRCXU_phys', (/'lev'/), 'I', '1', 'Smoothed Unresolved zonal momentum flux', gridname='physgrid')
+    call addfld('SFRCYU_phys', (/'lev'/), 'I', '1', 'Smoothed Unresolved meridianal momentum flux', gridname='physgrid')
+
     ntime = ntime_in
     allocate(accum_cospectra_u( nftnum, lat_beg:lat_end, pver, ntime ))
     accum_cospectra_u = 0._r8
     allocate(accum_cospectra_v( nftnum, lat_beg:lat_end, pver, ntime ))
     accum_cospectra_v = 0._r8
+
+    call esmf_lonlat2phys_init()
 
   end subroutine gw_cospectra_init
 
@@ -97,7 +103,8 @@ contains
     use cospext_mod, only: cospext
     use air_composition, only: rairv  ! composition dependent gas constant (J/K/kg)
     use ref_pres, only: pref_mid
-    use esmf_phys2lonlat_mod, only: fields_bundle_t, nflds
+    use esmf_phys2lonlat_mod, only: p2l_bdl=>fields_bundle_t, phys2lonlat_nflds=>nflds
+    use esmf_lonlat2phys_mod, only: l2p_bdl=>fields_bundle_t, lonlat2phys_nflds=>nflds, esmf_lonlat2phys_regrid
 
     type(physics_state), intent(in) :: phys_state(begchunk:endchunk)
 
@@ -120,10 +127,13 @@ contains
     real(r8),target :: w_lonlat(lon_beg:lon_end,lat_beg:lat_end,pver)
     real(r8),target :: t_lonlat(lon_beg:lon_end,lat_beg:lat_end,pver)
 
-    type(fields_bundle_t) :: physflds(nflds)
-    type(fields_bundle_t) :: lonlatflds(nflds)
+    type(p2l_bdl) :: physflds(phys2lonlat_nflds)
+    type(p2l_bdl) :: lonlatflds(phys2lonlat_nflds)
 
-    integer :: i,k, n
+    type(l2p_bdl) :: physfrcs(lonlat2phys_nflds)
+    type(l2p_bdl) :: lonlatfrcs(lonlat2phys_nflds)
+
+    integer :: i,j,k, n
 
     complex(r8) :: tmpfld(nftnum, lat_beg:lat_end, pver)
     real(r8) :: cospectra(nftnum, lat_beg:lat_end, pver)
@@ -135,6 +145,12 @@ contains
     real(r8) :: mflxyup(lat_beg:lat_end,pver), mflxyun(lat_beg:lat_end,pver)
     real(r8) :: frcxr(lat_beg:lat_end,pver), frcxu(lat_beg:lat_end,pver)
     real(r8) :: frcyr(lat_beg:lat_end,pver), frcyu(lat_beg:lat_end,pver)
+
+    real(r8),target :: frcxu_lonlat(lon_beg:lon_end,lat_beg:lat_end,pver)
+    real(r8),target :: frcyu_lonlat(lon_beg:lon_end,lat_beg:lat_end,pver)
+
+    real(r8),target :: frcxu_phys(pcols,pver,begchunk:endchunk)
+    real(r8),target :: frcyu_phys(pcols,pver,begchunk:endchunk)
 
     real(r8) :: wvlxbeg, wvlxend
     real(r8) :: mflux_glb(nlat,pver)
@@ -253,6 +269,33 @@ contains
        call outfld('SFRCYR', frcyr(icol,:),1,icol)
        call outfld('SFRCYU', frcyu(icol,:),1,icol)
 
+    end do
+
+    frcxu_lonlat = -huge(1._r8)
+    frcyu_lonlat = -huge(1._r8)
+
+    do k = 1,pver
+       do j = lat_beg,lat_end
+          frcxu_lonlat(lon_beg:lon_end,j,k) = frcxu(j,k)
+          frcyu_lonlat(lon_beg:lon_end,j,k) = frcyu(j,k)
+       end do
+    end do
+
+    frcxu_phys = -huge(1._r8)
+    frcyu_phys = -huge(1._r8)
+
+    lonlatfrcs(1)%fld => frcxu_lonlat
+    lonlatfrcs(2)%fld => frcyu_lonlat
+    physfrcs(1)%fld => frcxu_phys
+    physfrcs(2)%fld => frcyu_phys
+
+
+    call esmf_lonlat2phys_regrid( lonlatfrcs, physfrcs )
+
+    do lchnk = begchunk, endchunk
+       ncol = get_ncols_p(lchnk)
+       call outfld('SFRCXU_phys',frcxu_phys(:,:,lchnk), pcols, lchnk)
+       call outfld('SFRCYU_phys',frcyu_phys(:,:,lchnk), pcols, lchnk)
     end do
 
     call t_stopf ('gw_cospectra_calc')
