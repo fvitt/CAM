@@ -228,7 +228,7 @@ contains
        allocate(fachm(nmlonp1,nmlat))
     endif
 
-    call edyn_esmf_update()
+    call edyn_esmf_update(edynamo_3d)
 
     phihm = nan
     fachm = nan

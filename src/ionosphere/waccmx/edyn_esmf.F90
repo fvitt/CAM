@@ -95,6 +95,8 @@ module edyn_esmf
    integer, allocatable :: petmap(:,:,:)
    logical :: initialized=.false.
 
+   logical :: edynamo_3d = .false.
+
 contains
 
    !-----------------------------------------------------------------------
@@ -121,7 +123,9 @@ contains
    !-----------------------------------------------------------------------
    subroutine edyn_esmf_final
 
-     call edyn_esmf_destroy_mag_objs()
+     if (.not.edynamo_3d) then
+        call edyn_esmf_destroy_mag_objs()
+     end if
      call edyn_esmf_destroy_nonmag_objs()
 
    end subroutine edyn_esmf_final
@@ -192,9 +196,12 @@ contains
 
    !-----------------------------------------------------------------------
    !-----------------------------------------------------------------------
-   subroutine edyn_esmf_update
+   subroutine edyn_esmf_update(edyn3d_in)
+
       use getapex, only: get_apex, magfield, alonm
       use mo_apex, only: geomag_year_updated
+
+      logical, intent(in) :: edyn3d_in
 
       ! Create ESMF grids for physics, geographic (ion transport), and
       ! magnetic grids, and create ESMF fields as necessary on each grid.
@@ -214,6 +221,8 @@ contains
 
       character(len=*), parameter :: subname = 'edyn_esmf_update'
 
+      edynamo_3d = edyn3d_in
+
       if (.not.geomag_year_updated .and. initialized) then
          return
       end if
@@ -230,7 +239,7 @@ contains
       smm_srctermproc = 0
       smm_pipelinedep = 16
 
-      if (initialized) then
+      if (initialized .and. .not.edynamo_3d) then
          call edyn_esmf_destroy_mag_objs()
       endif
       if (.not.initialized) then
@@ -239,21 +248,23 @@ contains
          !
          call create_geo_grid(geo_grid)  ! geo (Oplus) grid
       endif
-      !
-      ! Make magnetic grid for phys2mag regridding:
-      !
-      call create_mag_grid(mag_des_grid, 'des')  ! mag destination grid
-      !
-      ! Make grid for mag2phys regridding:
-      !
-      call create_mag_grid(mag_src_grid, 'src')
-      !
-      ! Create empty fields on geographic grid or phyiscs mesh that
-      !   will be transformed to the magnetic grid and passed as input
-      !   to the dynamo. This does not assign any values.
-      !
-      ! 3d fields (inputs to edynamo) on physics mesh for phys2mag:
-      !
+      if (.not.edynamo_3d) then
+         !
+         ! Make magnetic grid for phys2mag regridding:
+         !
+         call create_mag_grid(mag_des_grid, 'des')  ! mag destination grid
+         !
+         ! Make grid for mag2phys regridding:
+         !
+         call create_mag_grid(mag_src_grid, 'src')
+         !
+         ! Create empty fields on geographic grid or phyiscs mesh that
+         !   will be transformed to the magnetic grid and passed as input
+         !   to the dynamo. This does not assign any values.
+         !
+         ! 3d fields (inputs to edynamo) on physics mesh for phys2mag:
+         !
+      end if
       if (.not.initialized) then
          call edyn_esmf_create_physfield(phys_2dfld, phys_mesh, 'PHYS_2DFLD', 0)
          call edyn_esmf_create_physfield(phys_3dfld, phys_mesh, 'PHYS_3DFLD', nlev)
@@ -262,11 +273,13 @@ contains
          call edyn_esmf_create_geofield(geo_3dfld, geo_grid, 'GEO_3DFLD', nlev)
       endif
 
-      call edyn_esmf_create_magfield(mag_des_2dfld, mag_des_grid, 'MAG_DES_2DFLD', 0)
-      call edyn_esmf_create_magfield(mag_des_3dfld, mag_des_grid, 'MAG_DES_3DFLD', nlev)
+      if (.not.edynamo_3d) then
+         call edyn_esmf_create_magfield(mag_des_2dfld, mag_des_grid, 'MAG_DES_2DFLD', 0)
+         call edyn_esmf_create_magfield(mag_des_3dfld, mag_des_grid, 'MAG_DES_3DFLD', nlev)
 
-      call edyn_esmf_create_magfield(mag_src_2dfld, mag_src_grid, 'MAG_SRC_2DFLD', 0)
-      call edyn_esmf_create_magfield(mag_src_3dfld, mag_src_grid, 'MAG_SRC_3DFLD', nlev)
+         call edyn_esmf_create_magfield(mag_src_2dfld, mag_src_grid, 'MAG_SRC_2DFLD', 0)
+         call edyn_esmf_create_magfield(mag_src_3dfld, mag_src_grid, 'MAG_SRC_3DFLD', nlev)
+      end if
 
       if (debug .and. masterproc) then
          !
@@ -335,42 +348,46 @@ contains
       ! that are regridded in the given direction.
       !
 
-      !
-      ! Compute and store route handle for phys2mag 2d fields:
-      !
-      call ESMF_FieldRegridStore(srcField=phys_2dfld, dstField=mag_des_2dfld, &
-           regridMethod=ESMF_REGRIDMETHOD_BILINEAR,                           &
-           polemethod=ESMF_POLEMETHOD_ALLAVG,                                 &
-           extrapMethod=ESMF_EXTRAPMETHOD_NEAREST_IDAVG,                      &
-           routeHandle=routehandle_phys2mag_2d,                               &
-           factorIndexList=factorIndexList,                                   &
-           factorList=factorList, srcTermProcessing=smm_srctermproc,          &
-           pipelineDepth=smm_pipelinedep, rc=rc)
-      call edyn_esmf_chkerr(subname, 'ESMF_FieldRegridStore for 2D phys2mag', rc)
+      if (.not.edynamo_3d) then
+         !
+         ! Compute and store route handle for phys2mag 2d fields:
+         !
+         call ESMF_FieldRegridStore(srcField=phys_2dfld, dstField=mag_des_2dfld, &
+              regridMethod=ESMF_REGRIDMETHOD_BILINEAR,                           &
+              polemethod=ESMF_POLEMETHOD_ALLAVG,                                 &
+              extrapMethod=ESMF_EXTRAPMETHOD_NEAREST_IDAVG,                      &
+              routeHandle=routehandle_phys2mag_2d,                               &
+              factorIndexList=factorIndexList,                                   &
+              factorList=factorList, srcTermProcessing=smm_srctermproc,          &
+              pipelineDepth=smm_pipelinedep, rc=rc)
+         call edyn_esmf_chkerr(subname, 'ESMF_FieldRegridStore for 2D phys2mag', rc)
 
-      !
-      ! Compute and store route handle for phys2mag 3d fields:
-      !
-      call ESMF_FieldRegridStore(srcField=phys_3dfld, dstField=mag_des_3dfld, &
-           regridMethod=ESMF_REGRIDMETHOD_BILINEAR,                           &
-           polemethod=ESMF_POLEMETHOD_ALLAVG,                                 &
-           extrapMethod=ESMF_EXTRAPMETHOD_NEAREST_IDAVG,                      &
-           routeHandle=routehandle_phys2mag, factorIndexList=factorIndexList, &
-           factorList=factorList, srcTermProcessing=smm_srctermproc,          &
-           pipelineDepth=smm_pipelinedep, rc=rc)
-      call edyn_esmf_chkerr(subname, 'ESMF_FieldRegridStore for 3D phys2mag', rc)
-      !
-      ! Compute and store route handle for mag2phys 2d (amie) fields:
-      !
-      call ESMF_FieldRegridStore(srcField=mag_src_2dfld, dstField=phys_2dfld,&
-           regridMethod=ESMF_REGRIDMETHOD_BILINEAR,                           &
-           polemethod=ESMF_POLEMETHOD_ALLAVG,                                 &
-           extrapMethod=ESMF_EXTRAPMETHOD_NEAREST_IDAVG,                      &
-           routeHandle=routehandle_mag2phys_2d,                               &
-           factorIndexList=factorIndexList,                                   &
-           factorList=factorList, srcTermProcessing=smm_srctermproc,          &
-           pipelineDepth=smm_pipelinedep, rc=rc)
-      call edyn_esmf_chkerr(subname, 'ESMF_FieldRegridStore for 2D mag2phys', rc)
+         !
+         ! Compute and store route handle for phys2mag 3d fields:
+         !
+         call ESMF_FieldRegridStore(srcField=phys_3dfld, dstField=mag_des_3dfld, &
+              regridMethod=ESMF_REGRIDMETHOD_BILINEAR,                           &
+              polemethod=ESMF_POLEMETHOD_ALLAVG,                                 &
+              extrapMethod=ESMF_EXTRAPMETHOD_NEAREST_IDAVG,                      &
+              routeHandle=routehandle_phys2mag, factorIndexList=factorIndexList, &
+              factorList=factorList, srcTermProcessing=smm_srctermproc,          &
+              pipelineDepth=smm_pipelinedep, rc=rc)
+         call edyn_esmf_chkerr(subname, 'ESMF_FieldRegridStore for 3D phys2mag', rc)
+         !
+         ! Compute and store route handle for mag2phys 2d (amie) fields:
+         !
+         call ESMF_FieldRegridStore(srcField=mag_src_2dfld, dstField=phys_2dfld,&
+              regridMethod=ESMF_REGRIDMETHOD_BILINEAR,                           &
+              polemethod=ESMF_POLEMETHOD_ALLAVG,                                 &
+              extrapMethod=ESMF_EXTRAPMETHOD_NEAREST_IDAVG,                      &
+              routeHandle=routehandle_mag2phys_2d,                               &
+              factorIndexList=factorIndexList,                                   &
+              factorList=factorList, srcTermProcessing=smm_srctermproc,          &
+              pipelineDepth=smm_pipelinedep, rc=rc)
+         call edyn_esmf_chkerr(subname, 'ESMF_FieldRegridStore for 2D mag2phys', rc)
+
+      end if
+
       if (.not.initialized) then
          !
          ! Compute and store route handle for phys2geo 3d fields:
@@ -396,38 +413,41 @@ contains
               pipelineDepth=smm_pipelinedep, rc=rc)
          call edyn_esmf_chkerr(subname, 'ESMF_FieldRegridStore for 3D geo2phys', rc)
       endif
-      !
-      ! Compute and store route handle for geo2mag 3d fields:
-      !
-      call ESMF_FieldRegridStore(srcField=geo_3dfld, dstField=mag_des_3dfld,  &
-           regridMethod=ESMF_REGRIDMETHOD_BILINEAR,                           &
-           polemethod=ESMF_POLEMETHOD_ALLAVG,                                 &
-           routeHandle=routehandle_geo2mag, factorIndexList=factorIndexList,  &
-           factorList=factorList, srcTermProcessing=smm_srctermproc,          &
-           pipelineDepth=smm_pipelinedep, rc=rc)
-      call edyn_esmf_chkerr(subname, 'ESMF_FieldRegridStore for 3D geo2mag', rc)
-      !
-      ! Compute and store route handle for geo2mag 2d fields:
-      !
-      call ESMF_FieldRegridStore(srcField=geo_2dfld, dstField=mag_des_2dfld,  &
-           regridMethod=ESMF_REGRIDMETHOD_BILINEAR,                           &
-           polemethod=ESMF_POLEMETHOD_ALLAVG,                                 &
-           routeHandle=routehandle_geo2mag_2d,                                &
-           factorIndexList=factorIndexList,                                   &
-           factorList=factorList, srcTermProcessing=smm_srctermproc,          &
-           pipelineDepth=smm_pipelinedep, rc=rc)
-      call edyn_esmf_chkerr(subname, 'ESMF_FieldRegridStore for 2D geo2mag', rc)
 
-      !
-      ! Compute and store route handle for mag2geo 3d fields:
-      !
-      call ESMF_FieldRegridStore(srcField=mag_src_3dfld, dstField=geo_3dfld,  &
-           regridMethod=ESMF_REGRIDMETHOD_BILINEAR,                           &
-           polemethod=ESMF_POLEMETHOD_ALLAVG,                                 &
-           routeHandle=routehandle_mag2geo, factorIndexList=factorIndexList,  &
-           factorList=factorList, srcTermProcessing=smm_srctermproc,          &
-           pipelineDepth=smm_pipelinedep, rc=rc)
-      call edyn_esmf_chkerr(subname, 'ESMF_FieldRegridStore for 3D mag2geo', rc)
+      if (.not.edynamo_3d) then
+         !
+         ! Compute and store route handle for geo2mag 3d fields:
+         !
+         call ESMF_FieldRegridStore(srcField=geo_3dfld, dstField=mag_des_3dfld,  &
+              regridMethod=ESMF_REGRIDMETHOD_BILINEAR,                           &
+              polemethod=ESMF_POLEMETHOD_ALLAVG,                                 &
+              routeHandle=routehandle_geo2mag, factorIndexList=factorIndexList,  &
+              factorList=factorList, srcTermProcessing=smm_srctermproc,          &
+              pipelineDepth=smm_pipelinedep, rc=rc)
+         call edyn_esmf_chkerr(subname, 'ESMF_FieldRegridStore for 3D geo2mag', rc)
+         !
+         ! Compute and store route handle for geo2mag 2d fields:
+         !
+         call ESMF_FieldRegridStore(srcField=geo_2dfld, dstField=mag_des_2dfld,  &
+              regridMethod=ESMF_REGRIDMETHOD_BILINEAR,                           &
+              polemethod=ESMF_POLEMETHOD_ALLAVG,                                 &
+              routeHandle=routehandle_geo2mag_2d,                                &
+              factorIndexList=factorIndexList,                                   &
+              factorList=factorList, srcTermProcessing=smm_srctermproc,          &
+              pipelineDepth=smm_pipelinedep, rc=rc)
+         call edyn_esmf_chkerr(subname, 'ESMF_FieldRegridStore for 2D geo2mag', rc)
+
+         !
+         ! Compute and store route handle for mag2geo 3d fields:
+         !
+         call ESMF_FieldRegridStore(srcField=mag_src_3dfld, dstField=geo_3dfld,  &
+              regridMethod=ESMF_REGRIDMETHOD_BILINEAR,                           &
+              polemethod=ESMF_POLEMETHOD_ALLAVG,                                 &
+              routeHandle=routehandle_mag2geo, factorIndexList=factorIndexList,  &
+              factorList=factorList, srcTermProcessing=smm_srctermproc,          &
+              pipelineDepth=smm_pipelinedep, rc=rc)
+         call edyn_esmf_chkerr(subname, 'ESMF_FieldRegridStore for 3D mag2geo', rc)
+      end if
 
       initialized=.true.
 
