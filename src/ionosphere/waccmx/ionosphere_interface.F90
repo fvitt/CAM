@@ -374,7 +374,7 @@ module ionosphere_interface
          ! lon0, lon1, etc. are set here
          call set_geogrid(oplus_nlon, oplus_nlat, pver, ionos_npes, iam, pref_mid, pref_edge)
 
-         call edynamo_init(mpicom, ionos_debug_hist)
+         call edynamo_init(mpicom, ionos_debug_hist, ionos_edyn3d_active)
 
          call d_pie_init(ionos_edyn_active, ionos_oplus_xport, ionos_xport_nsplit, epot_crit_colats, &
                          ionos_debug_hist, ionos_edyn3d_active)

@@ -12,9 +12,11 @@ module edyn_init
    private
    public :: edynamo_init
 
+   logical :: edyn3d = .false.
+
 contains
 !-----------------------------------------------------------------------
-  subroutine edynamo_init(mpicomm,ionos_debug_hist)
+  subroutine edynamo_init(mpicomm,ionos_debug_hist, edyn3d_in)
 
       !
       ! One-time initialization, called from ionosphere_init
@@ -30,23 +32,29 @@ contains
       ! Args:
       integer, intent(in) :: mpicomm
       logical, intent(in) :: ionos_debug_hist
+      logical, intent(in) :: edyn3d_in
 
       debug_hist = ionos_debug_hist
+      edyn3d = edyn3d_in
 
       if (masterproc) then
          write(iulog,"('Enter edynamo_init:')")
       endif
 
-      call set_maggrid ()   ! set parameter-based global magnetic grid
+      if (.not.edyn3d) then
+         call set_maggrid ()   ! set parameter-based global magnetic grid
 
-      call edyn_solve_init
+         call edyn_solve_init
 
-      call mp_distribute_mag(nmlonp1, nmlat, nmlath, nmlev)
+         call mp_distribute_mag(nmlonp1, nmlat, nmlath, nmlev)
+      end if
 
       call register_grids()
       call mp_exchange_tasks(mpicomm, 0, gmlat) ! single arg is iprint
 
-      call alloc_edyn()      ! allocate dynamo arrays
+      if (.not.edyn3d) then
+         call alloc_edyn()      ! allocate dynamo arrays
+      end if
 
       call edyn_phys_grid_init()
 
