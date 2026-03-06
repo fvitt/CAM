@@ -24,6 +24,9 @@ module gw_cospectra_mod
   real(r8), allocatable :: accum_cospectra_u(:,:,:,:)
   real(r8), allocatable :: accum_cospectra_v(:,:,:,:)
 
+  real(r8), pointer, protected, public :: frcxu_phys(:,:,:) => null() !(pcols,pver,begchunk:endchunk)
+  real(r8), pointer, protected, public :: frcyu_phys(:,:,:) => null() !(pcols,pver,begchunk:endchunk)
+
 contains
 
   ! -----------------------------------------------------------------------------
@@ -82,8 +85,8 @@ contains
     call addfld('SFRCYR', (/'lev'/), 'I', '1', 'Smoothed Resolved meridianal momentum flux', gridname='ctem_zm')
     call addfld('SFRCYU', (/'lev'/), 'I', '1', 'Smoothed Unresolved meridianal momentum flux', gridname='ctem_zm')
 
-    call addfld('SFRCXU_phys', (/'lev'/), 'I', '1', 'Smoothed Unresolved zonal momentum flux', gridname='physgrid')
-    call addfld('SFRCYU_phys', (/'lev'/), 'I', '1', 'Smoothed Unresolved meridianal momentum flux', gridname='physgrid')
+    call addfld('SFRCXU_phys', (/'lev'/), 'I', 'meters/sec2', 'Smoothed Unresolved zonal forcing', gridname='physgrid')
+    call addfld('SFRCYU_phys', (/'lev'/), 'I', 'meters/sec2', 'Smoothed Unresolved meridianal zonal forcing', gridname='physgrid')
 
     ntime = ntime_in
     allocate(accum_cospectra_u( nftnum, lat_beg:lat_end, pver, ntime ))
@@ -92,6 +95,12 @@ contains
     accum_cospectra_v = 0._r8
 
     call esmf_lonlat2phys_init()
+
+    allocate(frcxu_phys(pcols,pver,begchunk:endchunk))
+    frcxu_phys = -huge(1._r8)
+
+    allocate(frcyu_phys(pcols,pver,begchunk:endchunk))
+    frcyu_phys = -huge(1._r8)
 
   end subroutine gw_cospectra_init
 
@@ -148,9 +157,6 @@ contains
 
     real(r8),target :: frcxu_lonlat(lon_beg:lon_end,lat_beg:lat_end,pver)
     real(r8),target :: frcyu_lonlat(lon_beg:lon_end,lat_beg:lat_end,pver)
-
-    real(r8),target :: frcxu_phys(pcols,pver,begchunk:endchunk)
-    real(r8),target :: frcyu_phys(pcols,pver,begchunk:endchunk)
 
     real(r8) :: wvlxbeg, wvlxend
     real(r8) :: mflux_glb(nlat,pver)

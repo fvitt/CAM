@@ -21,6 +21,8 @@ module gw_drag_cam
                             use_gw_convect_dp, use_gw_convect_sh,       &
                             use_simple_phys, use_gw_movmtn_pbl, phys_getopts
 
+  use gw_cospectra_mod, only: frcxu_phys, frcyu_phys
+
   implicit none
   private
 
@@ -2141,6 +2143,10 @@ subroutine gw_drag_cam_tend(state, pbuf, dt, ptend, cam_in, flx_heat)
         end do
      end if
   end do
+
+  ! forcings from extended cospectra
+  ptend%u(:ncol,:) = ptend%u(:ncol,:) + frcxu_phys(:ncol,:,lchnk)
+  ptend%v(:ncol,:) = ptend%v(:ncol,:) + frcyu_phys(:ncol,:,lchnk)
 
   ! Write totals to history file.
   call outfld('EKGW', egwdffi_tot , pcols, lchnk)
