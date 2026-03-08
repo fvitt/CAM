@@ -16,16 +16,20 @@ module gw_cospectra_mod
   use cam_logfile, only: iulog
   use cam_abortutils, only: endrun
 
+  use pio
+
   implicit none
 
   integer :: nftnum = 0
-  integer :: ntime = 0
+  integer, parameter :: ntime = 8
 
   real(r8), allocatable :: accum_cospectra_u(:,:,:,:)
   real(r8), allocatable :: accum_cospectra_v(:,:,:,:)
 
   real(r8), pointer, protected, public :: frcxu_phys(:,:,:) => null() !(pcols,pver,begchunk:endchunk)
   real(r8), pointer, protected, public :: frcyu_phys(:,:,:) => null() !(pcols,pver,begchunk:endchunk)
+
+  type(var_desc_t) :: rest_accum_u_desc, rest_accum_v_desc
 
 contains
 
@@ -39,14 +43,17 @@ contains
     ! add history coordinate for FT number
     call add_hist_coord('fft_num', nftnum, 'Fourier Transform Number')
 
+    allocate(accum_cospectra_u( nftnum, lat_beg:lat_end, pver, ntime ))
+    accum_cospectra_u = 0._r8
+    allocate(accum_cospectra_v( nftnum, lat_beg:lat_end, pver, ntime ))
+    accum_cospectra_v = 0._r8
+
   end subroutine gw_cospectra_reg
 
   ! -----------------------------------------------------------------------------
   ! -----------------------------------------------------------------------------
-  subroutine gw_cospectra_init(ntime_in)
+  subroutine gw_cospectra_init()
     use cam_history, only: addfld
-
-    integer, intent(in) :: ntime_in
 
     call esmf_zonal_fft_init()
 
@@ -88,19 +95,12 @@ contains
     call addfld('SFRCXU_phys', (/'lev'/), 'I', 'meters/sec2', 'Smoothed Unresolved zonal forcing', gridname='physgrid')
     call addfld('SFRCYU_phys', (/'lev'/), 'I', 'meters/sec2', 'Smoothed Unresolved meridianal zonal forcing', gridname='physgrid')
 
-    ntime = ntime_in
-    allocate(accum_cospectra_u( nftnum, lat_beg:lat_end, pver, ntime ))
-    accum_cospectra_u = 0._r8
-    allocate(accum_cospectra_v( nftnum, lat_beg:lat_end, pver, ntime ))
-    accum_cospectra_v = 0._r8
-
     call esmf_lonlat2phys_init()
 
     allocate(frcxu_phys(pcols,pver,begchunk:endchunk))
-    frcxu_phys = -huge(1._r8)
-
+    frcxu_phys = 0._r8
     allocate(frcyu_phys(pcols,pver,begchunk:endchunk))
-    frcyu_phys = -huge(1._r8)
+    frcyu_phys = 0._r8
 
   end subroutine gw_cospectra_init
 
@@ -374,6 +374,8 @@ contains
       sndbuf = 0._r8
       sndbuf(lat_beg:lat_end,1:pver) = flx_loc(lat_beg:lat_end,1:pver)
 
+     ! print*,'FVDBG.gather_fluxes....merid_comm: ',merid_comm
+
       call mpi_allreduce(sndbuf,flxglb,len,MPI_REAL8,MPI_SUM, merid_comm, rc)
       if ( rc /= MPI_SUCCESS ) then
          call endrun('gw_cospectra_mod::gather_fluxes: mpi_allreduce FAILED')
@@ -424,5 +426,111 @@ contains
 
   end subroutine gw_cospectra_calc
 
+  ! -----------------------------------------------------------------------------
+  ! -----------------------------------------------------------------------------
+  subroutine gw_cospectra_restart_init(file)
+
+    type(file_desc_t),  intent(inout) :: file
+
+    integer :: ierr
+    integer :: nftnum_dimid, nlat_dimid, ntime_dimid, nlev_dimid
+
+    ierr = pio_def_dim(file, 'gw_csp_nftnum', nftnum, nftnum_dimid)
+    ierr = pio_def_dim(file, 'gw_csp_nlat', nlat, nlat_dimid)
+    ierr = pio_def_dim(file, 'gw_csp_ntime', ntime, ntime_dimid)
+    ierr = pio_inq_dimid(file, 'lev', nlev_dimid)
+
+    ierr = pio_def_var(file, 'gw_csp_accum_u', pio_double, &
+         (/nftnum_dimid, nlat_dimid, nlev_dimid, ntime_dimid/),rest_accum_u_desc)
+    ierr = pio_def_var(file, 'gw_csp_accum_v', pio_double, &
+         (/nftnum_dimid, nlat_dimid, nlev_dimid, ntime_dimid/),rest_accum_v_desc)
+
+  end subroutine gw_cospectra_restart_init
+
+  ! -----------------------------------------------------------------------------
+  ! -----------------------------------------------------------------------------
+  subroutine gw_cospectra_restart_write(file)
+    use mpi, only: MPI_REAL8, MPI_SUCCESS, MPI_SUM
+    use esmf_lonlat_grid_mod, only: merid_comm
+
+    type(file_desc_t), intent(inout) :: file
+
+    integer :: ierr, len
+    integer :: strt(4), cnt(4)
+
+    real(r8) :: sndbuf(nlat, pver, ntime )
+    real(r8) :: tmparr(nlat, pver, ntime )
+    integer :: i
+
+    cnt(1) = 1
+    cnt(2) = nlat
+    cnt(3) = pver
+    cnt(4) = ntime
+
+    strt(:) = 1
+
+    len = nlat*pver*ntime
+
+    do i = 1,nftnum
+       strt(1) = i
+
+       sndbuf = 0._r8
+       tmparr = 0._r8
+
+       sndbuf(lat_beg:lat_end,:,:) = accum_cospectra_u(i,lat_beg:lat_end,:,:)
+
+       call mpi_allreduce(sndbuf,tmparr, len, MPI_REAL8,MPI_SUM, merid_comm, ierr)
+       if ( ierr /= MPI_SUCCESS ) then
+          call endrun('gw_cospectra_mod::gw_cospectra_restart_write: mpi_allreduce FAILED')
+       end if
+
+       ierr = pio_put_var(file, rest_accum_u_desc, strt, cnt, tmparr)
+
+       sndbuf(lat_beg:lat_end,:,:) = accum_cospectra_v(i,lat_beg:lat_end,:,:)
+
+       call mpi_allreduce(sndbuf,tmparr, len, MPI_REAL8,MPI_SUM, merid_comm, ierr)
+       if ( ierr /= MPI_SUCCESS ) then
+          call endrun('gw_cospectra_mod::gw_cospectra_restart_write: mpi_allreduce FAILED')
+       end if
+
+       ierr = pio_put_var(file, rest_accum_v_desc, strt, cnt, tmparr)
+
+    end do
+
+  end subroutine gw_cospectra_restart_write
+
+  ! -----------------------------------------------------------------------------
+  ! -----------------------------------------------------------------------------
+  subroutine gw_cospectra_restart_read(file)
+    type(file_desc_t), intent(inout) :: file
+
+    integer :: ierr
+    integer :: strt(4), cnt(4)
+    real(r8) :: tmparr(nlat, pver, ntime )
+    integer :: i
+
+    ierr = pio_inq_varid(file, 'gw_csp_accum_u', rest_accum_u_desc)
+    ierr = pio_inq_varid(file, 'gw_csp_accum_v', rest_accum_v_desc)
+
+    cnt(1) = 1
+    cnt(2) = nlat
+    cnt(3) = pver
+    cnt(4) = ntime
+
+    strt(:) = 1
+
+    do i = 1,nftnum
+
+       strt(1) = i
+
+       ierr = pio_get_var(file, rest_accum_u_desc, strt, cnt, tmparr)
+       accum_cospectra_u(i,lat_beg:lat_end,:,:) = tmparr(lat_beg:lat_end,:,:)
+
+       ierr = pio_get_var(file, rest_accum_v_desc, strt, cnt, tmparr)
+       accum_cospectra_v(i,lat_beg:lat_end,:,:) = tmparr(lat_beg:lat_end,:,:)
+
+    end do
+
+  end subroutine gw_cospectra_restart_read
 
 end module gw_cospectra_mod

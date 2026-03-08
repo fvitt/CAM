@@ -1068,7 +1068,7 @@ contains
     dqcore_idx = pbuf_get_index('DQCORE')
 
     call ctem_diags_init()
-    call gw_cospectra_init(ntime_in=2)
+    call gw_cospectra_init()
 
   end subroutine phys_init
 

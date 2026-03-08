@@ -62,6 +62,7 @@ module restart_physics
     use subcol_utils,        only: is_subcol_on
     use subcol,              only: subcol_init_restart
     use carma_intr,          only: carma_restart_init
+    use gw_cospectra_mod,    only: gw_cospectra_restart_init
 
     type(file_desc_t), intent(inout) :: file
     type(physics_buffer_desc), pointer :: pbuf2d(:,:)
@@ -136,6 +137,7 @@ module restart_physics
     end if
 
     call carma_restart_init(file)
+    call gw_cospectra_restart_init(file)
 
   end subroutine init_restart_physics
 
@@ -161,6 +163,7 @@ module restart_physics
       use subcol_utils,        only: is_subcol_on
       use subcol,              only: subcol_write_restart
       use carma_intr,          only: carma_restart_write
+      use gw_cospectra_mod,    only: gw_cospectra_restart_write
       !
       ! Input arguments
       !
@@ -334,6 +337,7 @@ module restart_physics
 
       call radiation_write_restart(file)
       call carma_restart_write(file)
+      call gw_cospectra_restart_write(file)
 
     end subroutine write_restart_physics
 
@@ -358,6 +362,7 @@ module restart_physics
      use subcol,              only: subcol_read_restart
      use pio,                 only: pio_read_darray
      use carma_intr,          only: carma_restart_read
+     use gw_cospectra_mod,    only: gw_cospectra_restart_read
      !
      ! Arguments
      !
@@ -595,6 +600,7 @@ module restart_physics
 
      call radiation_read_restart(file)
      call carma_restart_read(file)
+     call gw_cospectra_restart_read(file)
 
    end subroutine read_restart_physics
 
