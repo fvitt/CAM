@@ -374,8 +374,6 @@ contains
       sndbuf = 0._r8
       sndbuf(lat_beg:lat_end,1:pver) = flx_loc(lat_beg:lat_end,1:pver)
 
-     ! print*,'FVDBG.gather_fluxes....merid_comm: ',merid_comm
-
       call mpi_allreduce(sndbuf,flxglb,len,MPI_REAL8,MPI_SUM, merid_comm, rc)
       if ( rc /= MPI_SUCCESS ) then
          call endrun('gw_cospectra_mod::gather_fluxes: mpi_allreduce FAILED')
@@ -450,87 +448,81 @@ contains
   ! -----------------------------------------------------------------------------
   ! -----------------------------------------------------------------------------
   subroutine gw_cospectra_restart_write(file)
-    use mpi, only: MPI_REAL8, MPI_SUCCESS, MPI_SUM
-    use esmf_lonlat_grid_mod, only: merid_comm
+    use cam_pio_utils, only: pio_subsystem
 
     type(file_desc_t), intent(inout) :: file
 
-    integer :: ierr, len
-    integer :: strt(4), cnt(4)
+    integer :: ierr
+    type(io_desc_t) :: iodesc
+    integer(PIO_OFFSET_KIND), pointer :: ldof(:)
 
-    real(r8) :: sndbuf(nlat, pver, ntime )
-    real(r8) :: tmparr(nlat, pver, ntime )
-    integer :: i
+    ldof => get_restart_decomp()
+    call pio_initdecomp(pio_subsystem, pio_double, (/nftnum, nlat, pver, ntime/), ldof, iodesc)
+    deallocate(ldof)
 
-    cnt(1) = 1
-    cnt(2) = nlat
-    cnt(3) = pver
-    cnt(4) = ntime
+    call pio_write_darray(file, rest_accum_u_desc, iodesc, accum_cospectra_u, ierr)
+    call pio_write_darray(file, rest_accum_v_desc, iodesc, accum_cospectra_v, ierr)
 
-    strt(:) = 1
-
-    len = nlat*pver*ntime
-
-    do i = 1,nftnum
-       strt(1) = i
-
-       sndbuf = 0._r8
-       tmparr = 0._r8
-
-       sndbuf(lat_beg:lat_end,:,:) = accum_cospectra_u(i,lat_beg:lat_end,:,:)
-
-       call mpi_allreduce(sndbuf,tmparr, len, MPI_REAL8,MPI_SUM, merid_comm, ierr)
-       if ( ierr /= MPI_SUCCESS ) then
-          call endrun('gw_cospectra_mod::gw_cospectra_restart_write: mpi_allreduce FAILED')
-       end if
-
-       ierr = pio_put_var(file, rest_accum_u_desc, strt, cnt, tmparr)
-
-       sndbuf(lat_beg:lat_end,:,:) = accum_cospectra_v(i,lat_beg:lat_end,:,:)
-
-       call mpi_allreduce(sndbuf,tmparr, len, MPI_REAL8,MPI_SUM, merid_comm, ierr)
-       if ( ierr /= MPI_SUCCESS ) then
-          call endrun('gw_cospectra_mod::gw_cospectra_restart_write: mpi_allreduce FAILED')
-       end if
-
-       ierr = pio_put_var(file, rest_accum_v_desc, strt, cnt, tmparr)
-
-    end do
+    call pio_freedecomp(file, iodesc)
 
   end subroutine gw_cospectra_restart_write
 
   ! -----------------------------------------------------------------------------
   ! -----------------------------------------------------------------------------
   subroutine gw_cospectra_restart_read(file)
+    use cam_pio_utils, only: pio_subsystem
+
     type(file_desc_t), intent(inout) :: file
 
     integer :: ierr
-    integer :: strt(4), cnt(4)
-    real(r8) :: tmparr(nlat, pver, ntime )
-    integer :: i
+    type(io_desc_t) :: iodesc
+    integer(PIO_OFFSET_KIND), pointer :: ldof(:)
 
     ierr = pio_inq_varid(file, 'gw_csp_accum_u', rest_accum_u_desc)
     ierr = pio_inq_varid(file, 'gw_csp_accum_v', rest_accum_v_desc)
 
-    cnt(1) = 1
-    cnt(2) = nlat
-    cnt(3) = pver
-    cnt(4) = ntime
+    ldof => get_restart_decomp()
+    call pio_initdecomp(pio_subsystem, pio_double, (/nftnum, nlat, pver, ntime/), ldof, iodesc)
+    deallocate(ldof)
 
-    strt(:) = 1
+    call pio_read_darray(file, rest_accum_u_desc, iodesc, accum_cospectra_u, ierr)
 
-    do i = 1,nftnum
+    call pio_read_darray(file, rest_accum_v_desc, iodesc, accum_cospectra_v, ierr)
 
-       strt(1) = i
-
-       ierr = pio_get_var(file, rest_accum_u_desc, strt, cnt, tmparr)
-       accum_cospectra_u(i,lat_beg:lat_end,:,:) = tmparr(lat_beg:lat_end,:,:)
-
-       ierr = pio_get_var(file, rest_accum_v_desc, strt, cnt, tmparr)
-       accum_cospectra_v(i,lat_beg:lat_end,:,:) = tmparr(lat_beg:lat_end,:,:)
-
-    end do
+    call pio_freedecomp(file, iodesc)
 
   end subroutine gw_cospectra_restart_read
+
+  ! utility routines
+  !------------------------------------------------------------------------------
+  !------------------------------------------------------------------------------
+  function get_restart_decomp() result(ldof)
+
+    integer(PIO_OFFSET_KIND), pointer :: ldof(:)
+
+    ! local variables
+    integer :: i, k, j, t
+    integer :: lcnt
+
+    lcnt = ntime*pver*(lat_end-lat_beg+1)*nftnum
+    allocate(ldof(lcnt))
+    ldof(:) = 0
+
+    lcnt = 0
+
+    do t = 1, ntime
+       do k = 1,pver
+          do j = lat_beg,lat_end
+             do i = 1,nftnum
+
+                lcnt = lcnt + 1
+                ldof(lcnt) = i + (j-1)*nftnum + (k-1)*nftnum*nlat + (t-1)*nftnum*nlat*pver
+
+             end do
+          end do
+       end do
+    end do
+
+  end function get_restart_decomp
 
 end module gw_cospectra_mod
