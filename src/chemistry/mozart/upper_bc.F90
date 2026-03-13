@@ -21,6 +21,7 @@ module upper_bc
   use cam_history,   only: addfld, horiz_only, outfld, fieldname_len
 
   use upper_bc_file, only: upper_bc_file_readnl, upper_bc_file_specified, upper_bc_file_adv, upper_bc_file_get
+  use helium_ubc_mod,only: helium_ubc_readnl, helium_ubc_init
   use infnan,        only: nan, assignment(=)
 
   implicit none
@@ -206,6 +207,8 @@ contains
        call upper_bc_file_readnl(nlfile)
     end if
 
+    call helium_ubc_readnl(nlfile)
+
   end subroutine ubc_readnl
 
 !===============================================================================
@@ -230,6 +233,8 @@ contains
     character(len=32) :: str
     character(len=*), parameter :: prefix = 'ubc_init: '
     !-----------------------------------------------------------------------
+
+    call helium_ubc_init()
 
     call cnst_get_ind('H', h_ndx, abort=.false.) ! for H fluxes UBC (WACCMX)
 

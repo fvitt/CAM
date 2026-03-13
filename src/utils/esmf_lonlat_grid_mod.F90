@@ -107,7 +107,7 @@ contains
 
     decomp_loop: do ntasks_lon = 1,nlon
        ntasks_lat = npes/ntasks_lon
-       if ( (minlats_per_pe*ntasks_lat<nlat) .and. (ntasks_lat*ntasks_lon==npes) ) then
+       if ( (minlats_per_pe*ntasks_lat<=nlat) .and. (ntasks_lat*ntasks_lon==npes) ) then
           exit decomp_loop
        endif
     end do decomp_loop

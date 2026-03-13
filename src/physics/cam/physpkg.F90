@@ -1091,6 +1091,7 @@ contains
      use metdata,       only: get_met_srf1
 #endif
     use ctem_diags_mod, only: ctem_diags_calc
+    use helium_ubc_mod, only: helium_ubc_calc
     !
     ! Input arguments
     !
@@ -1137,6 +1138,9 @@ contains
 
     ! TEM diagnostics
     call ctem_diags_calc(phys_state)
+
+    ! update Helium upper boundary fluxes
+    call helium_ubc_calc(phys_state)
 
     !-----------------------------------------------------------------------
     ! Advance time information
