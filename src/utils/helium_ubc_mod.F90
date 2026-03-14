@@ -105,10 +105,10 @@ contains
     allocate(helium_ubc_fluxes(pcols,begchunk:endchunk))
     helium_ubc_fluxes = 0._r8
 
-    call cnst_get_ind( 'H', he_cnst_ndx ) !!!! Change to 'HE' !!!!
+    call cnst_get_ind( 'O', he_cnst_ndx ) !!!! Change to 'HE' !!!!
 
-    call addfld('HEFLUX_TST1', horiz_only,  'A', ' ', 'He Flux Test fld1' )
-    call addfld('HEFLUX_TST2', horiz_only,  'A', ' ', 'He Flux Test fld2' )
+    call addfld('HE_UBC_FLXi', horiz_only,  'A', 'Units??', 'Initial phyics grid He flux' )
+    call addfld('HE_UBC_FLUX', horiz_only,  'A', 'Units??', 'Upper boundary He fluxes' )
 
   end subroutine helium_ubc_init
 
@@ -129,19 +129,17 @@ contains
 
     real(r8) :: flx_lonlat(lon_beg:lon_end,lat_beg:lat_end)
     real(r8) :: tn, he_mmr
-    real(r8) :: barm(pcols,pver)   ! mean molecular weight (g/mole)
+    real(r8) :: barm(pcols,pver) ! mean molecular weight (g/mole)
 
     integer :: lchnk, ncol, i, j, m,n
-    !complex(C_DOUBLE_COMPLEX) :: zout(nlon, lat_beg:lat_end)
     complex(r8) :: zin (nlon_he, lat_beg:lat_end)
     complex(r8) :: zout(nlon_he, lat_beg:lat_end)
 
-    real(kind=r8),dimension(nlat_he,nlon_he+2) :: fx_f ! Fourier coefficients ordered in real/image pairs
-    real(kind=r8),dimension(0:nmax-1,0:nmax) :: amn    ! a(m,n) spectral coefficient
-    real(kind=r8),dimension(  nmax-1,  nmax) :: bmn    ! b(m,n) spectral coefficient
+    ! Fourier coefficients ordered in real/image pairs
+    real(kind=r8),dimension(nlat_he,nlon_he+2) :: fx_f
 
-!    flx_arg(:ncol) = -4._r8*p0*sqrt((gask*tni(:ncol)/(rmass_he*grav))**3)* &
-!         barm(:ncol)*(1._r8+tni(:ncol)/3330._r8)*hei(:ncol)/(re**2*sqrt(2._r8*pi*grav)*rmass_he)
+    real(kind=r8),dimension(0:nmax-1,0:nmax) :: amn ! a(m,n) spectral coefficient
+    real(kind=r8),dimension(  nmax-1,  nmax) :: bmn ! b(m,n) spectral coefficient
 
     do lchnk = begchunk,endchunk
        ncol = phys_state(lchnk)%ncol
@@ -152,7 +150,7 @@ contains
           flx_phys(i,lchnk) = -4._r8*p0*sqrt((gask*tn/(rmass_he*grav))**3)*barm(i,1) &
                *(1._r8+tn/3330._r8)*he_mmr/(re**2*sqrt(2._r8*pi*grav)*rmass_he)
        end do
-       call outfld('HEFLUX_TST1', flx_phys(:ncol,lchnk), ncol, lchnk)
+       call outfld('HE_UBC_FLXi', flx_phys(:ncol,lchnk), ncol, lchnk)
     end do
 
     call regrid_phys2lonlat(flx_phys,flx_lonlat)
@@ -237,7 +235,7 @@ contains
 
     do lchnk = begchunk,endchunk
        ncol = phys_state(lchnk)%ncol
-       call outfld('HEFLUX_TST2', tmp_phys(:ncol,lchnk), ncol, lchnk)
+       call outfld('HE_UBC_FLUX', tmp_phys(:ncol,lchnk), ncol, lchnk)
     end do
 
   contains
