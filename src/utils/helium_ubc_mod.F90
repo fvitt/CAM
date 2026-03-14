@@ -8,9 +8,9 @@ module helium_ubc_mod
   use physics_types, only: physics_state
 
   use esmf_phys_mesh_mod, only: esmf_phys_mesh_init
-  use esmf_lonlat_grid_mod, only: esmf_lonlat_grid_init, lon_beg,lon_end,lat_beg,lat_end
-!  use esmf_zonal_fft_mod, only : esmf_zonal_fft_3d, esmf_zonal_fft_init
+  use esmf_lonlat_grid_mod, only: esmf_lonlat_grid_init, lon_beg,lon_end,lat_beg,lat_end, nlon_he=>nlon
   use esmf_lonlatphys_regrid_mod, only: esmf_lonlatphys_regrid_init, regrid_lonlat2phys, regrid_phys2lonlat
+  use helium_zonal_fft_mod, only: helium_zonal_fft_init, helium_zonal_fft_forward, helium_zonal_fft_backward
 
   implicit none
 
@@ -110,7 +110,7 @@ contains
 
     call esmf_lonlatphys_regrid_init()
 
-!    call esmf_zonal_fft_init()
+    call helium_zonal_fft_init()
 
     allocate(helium_ubc_fluxes(pcols,begchunk:endchunk))
     helium_ubc_fluxes = 0._r8
@@ -129,13 +129,22 @@ contains
 
     type(physics_state), intent(in) :: phys_state(begchunk:endchunk)
 
+    integer,parameter :: nmax = 35
+    integer,parameter :: truncdeg = 8
 
     real(r8) :: flx_phys(pcols,begchunk:endchunk)
     real(r8) :: tmp_phys(pcols,begchunk:endchunk)
 
     real(r8) :: flx_lonlat(lon_beg:lon_end,lat_beg:lat_end)
     real(r8) :: tn, he_mmr
-    integer :: lchnk, ncol, i
+    integer :: lchnk, ncol, i, j, m,n
+    !complex(C_DOUBLE_COMPLEX) :: zout(nlon, lat_beg:lat_end)
+    complex(r8) :: zin (nlon_he, lat_beg:lat_end)
+    complex(r8) :: zout(nlon_he, lat_beg:lat_end)
+
+    real(kind=r8),dimension(nlat_he,nlon_he+2) :: fx_f ! Fourier coefficients ordered in real/image pairs
+    real(kind=r8),dimension(0:nmax-1,0:nmax) :: amn    ! a(m,n) spectral coefficient
+    real(kind=r8),dimension(  nmax-1,  nmax) :: bmn    ! b(m,n) spectral coefficient
 
 !    flx_arg(:ncol) = -4._r8*p0*sqrt((gask*tni(:ncol)/(rmass_he*grav))**3)* &
 !         barm(:ncol)*(1._r8+tni(:ncol)/3330._r8)*hei(:ncol)/(re**2*sqrt(2._r8*pi*grav)*rmass_he)
@@ -152,12 +161,116 @@ contains
 
     call regrid_phys2lonlat(flx_phys,flx_lonlat)
 
+! Forward transform from gridpoint to Fourier space:
+    zout = helium_zonal_fft_forward(flx_lonlat)
+
+    fx_f(:,:) = 0._r8
+
+! reorder complex Fourier coefficients to real/image pairs
+    do j = lat_beg,lat_end
+       do i = 1,nlon_he/2+1
+          fx_f(j,i*2-1) = zout(i,j)%re ! real(zout(i),kind=r8)
+          fx_f(j,i*2)   = zout(i,j)%im ! aimag(zout(i))
+       enddo
+    enddo
+
+! FFTW leaves an extra N after forward Fourier transform
+    do j = lat_beg,lat_end
+       do i = 1,nlon_he+2
+          fx_f(j,i) = fx_f(j,i)/nlon_he
+       enddo
+    enddo
+
+    ! global fluxes are needed for A and B accumulations
+    fx_f(:,:) = allgather_flx(fx_f)
+
+! order of coefficients:
+! A(0),B(0),A(1),B(1),A(2),B(2),...,A(N/2),B(N/2)
+! where B(0)=B(N/2)=0
+
+! Fit (now on global grid)
+    amn = 0
+    bmn = 0
+    do n = 0,truncdeg ! for no truncation, sum to nmax-1
+       do j = 1,nlat_he
+          amn(0,n) = amn(0,n)+zmn(j,0,n)*fx_f(j,1)
+       enddo
+       do m = 1,n
+          do j = 1,nlat_he
+             amn(m,n) = amn(m,n)+zmn(j,m,n)*fx_f(j,2*m+1)
+             bmn(m,n) = bmn(m,n)+zmn(j,m,n)*fx_f(j,2*m+2)
+          enddo
+       enddo
+    enddo
+
+! Synthesis
+    fx_f = 0
+    do n = 0,truncdeg ! for no truncation, sum to nmax-1
+       do j = lat_beg,lat_end
+          fx_f(j,1) = fx_f(j,1)-n*(n+1)*amn(0,n)*pmn(j,0,n) ! A(0)
+       enddo
+       do m = 1,n
+          do j = lat_beg,lat_end
+             fx_f(j,2*m+1) = fx_f(j,2*m+1)-n*(n+1)*amn(m,n)*pmn(j,m,n) ! A(1),A(2),...
+             fx_f(j,2*m+2) = fx_f(j,2*m+2)-n*(n+1)*bmn(m,n)*pmn(j,m,n) ! B(1),B(2),...
+          enddo
+       enddo
+    enddo
+
+! reconstruct complex Fourier coefficients from real/image pairs
+    do j = lat_beg,lat_end
+       zin(1,j) = fx_f(j,1)
+       zin(nlon_he/2+1,j) = fx_f(j,nlon_he+1)
+       do i = 2,nlon_he/2
+          zin(i,j)           = cmplx(fx_f(j,i*2-1), fx_f(j,i*2),kind=r8)
+          zin(nlon_he+2-i,j) = cmplx(fx_f(j,i*2-1),-fx_f(j,i*2),kind=r8)
+       enddo
+    end do
+
+! Inverse transform from Fourier space to gridpoint:
+    zout = helium_zonal_fft_backward(zin)
+
+    do j = lat_beg,lat_end
+       do i = lon_beg,lon_end
+          flx_lonlat(i,j) = zout(i,j)%re ! real(zin(i),kind=rp)
+       end do
+    end do
+
+! regrid lon-lat to phyics column grid
     call regrid_lonlat2phys(flx_lonlat,tmp_phys)
 
     do lchnk = begchunk,endchunk
        ncol = phys_state(lchnk)%ncol
        call outfld('HEFLUX_TST2', tmp_phys(:ncol,lchnk), ncol, lchnk)
     end do
+
+  contains
+
+    function allgather_flx(fx_in) result(fx_glb)
+      use mpi, only: MPI_REAL8, MPI_SUCCESS, MPI_SUM
+      use esmf_lonlat_grid_mod, only: merid_comm
+
+      real(r8), intent(in) :: fx_in(nlat_he,nlon_he+2)
+
+      real(r8) :: fx_glb(nlat_he,nlon_he+2)
+      real(r8) :: sndbf(nlat_he,nlon_he+2)
+      real(r8) :: rcvbf(nlat_he,nlon_he+2)
+      integer :: len, rc
+
+      character(len=*),parameter :: subname = 'helium_ubc_calc.allgather_flx: '
+
+      len = nlat_he*(nlon_he+2)
+      rcvbf(:,:) = 0._r8
+      sndbf(:,:) = 0._r8
+      sndbf(lat_beg:lat_end,:) = fx_f(lat_beg:lat_end,:)
+      call mpi_allreduce( sndbf, rcvbf, len, MPI_REAL8, MPI_SUM, merid_comm, rc )
+      if ( rc /= MPI_SUCCESS ) then
+         call endrun(subname//'mpi_allreduce failed')
+      end if
+
+      fx_glb(:,:) = rcvbf(:,:)
+
+    end function allgather_flx
 
   end subroutine helium_ubc_calc
 
