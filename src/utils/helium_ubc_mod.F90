@@ -20,7 +20,7 @@ module helium_ubc_mod
   public :: helium_ubc_calc
   public :: helium_ubc_fluxes
 
-  real(r8), protected, allocatable :: helium_ubc_fluxes(:,:)
+  real(r8), protected, pointer :: helium_ubc_fluxes(:,:) => null()
 
   character(len=cl) :: helium_ubc_coefs = 'NONE'
 
@@ -37,6 +37,8 @@ module helium_ubc_mod
   integer :: nlat_he = -1
 
   real(r8),dimension(:,:,:),allocatable :: pmn,zmn
+
+  logical :: he_ubc_active = .false.
 
 contains
 
@@ -69,6 +71,8 @@ contains
     call mpi_bcast(helium_ubc_coefs, len(helium_ubc_coefs), mpi_character, masterprocid, host_mpicom, ierr)
     if (ierr /= mpi_success) call endrun(prefix//'mpi_bcast error : helium_ubc_coefs')
 
+    he_ubc_active = (helium_ubc_coefs /= 'NONE') .and. (len_trim(helium_ubc_coefs)>0)
+
     ! write params to atm log
     if (masterproc) then
        write(iulog,*) prefix, 'helium_ubc_coefs file path: ',helium_ubc_coefs
@@ -86,6 +90,8 @@ contains
 
     integer :: ierr
     character(len=*), parameter :: prefix = 'helium_ubc_init: '
+
+    if (.not.he_ubc_active) return
 
     call read_coefs_file()
 
@@ -125,7 +131,6 @@ contains
     integer,parameter :: truncdeg = 8
 
     real(r8) :: flx_phys(pcols,begchunk:endchunk)
-    real(r8) :: tmp_phys(pcols,begchunk:endchunk)
 
     real(r8) :: flx_lonlat(lon_beg:lon_end,lat_beg:lat_end)
     real(r8) :: tn, he_mmr
@@ -140,6 +145,8 @@ contains
 
     real(kind=r8),dimension(0:nmax-1,0:nmax) :: amn ! a(m,n) spectral coefficient
     real(kind=r8),dimension(  nmax-1,  nmax) :: bmn ! b(m,n) spectral coefficient
+
+    if (.not.he_ubc_active) return
 
     do lchnk = begchunk,endchunk
        ncol = phys_state(lchnk)%ncol
@@ -226,16 +233,16 @@ contains
 
     do j = lat_beg,lat_end
        do i = lon_beg,lon_end
-          flx_lonlat(i,j) = zout(i,j)%re ! real(zin(i),kind=rp)
+          flx_lonlat(i,j) = zout(i,j)%re
        end do
     end do
 
 ! regrid lon-lat to phyics column grid
-    call regrid_lonlat2phys(flx_lonlat,tmp_phys)
+    call regrid_lonlat2phys( flx_lonlat, helium_ubc_fluxes )
 
     do lchnk = begchunk,endchunk
        ncol = phys_state(lchnk)%ncol
-       call outfld('HE_UBC_FLUX', tmp_phys(:ncol,lchnk), ncol, lchnk)
+       call outfld('HE_UBC_FLUX', helium_ubc_fluxes(:ncol,lchnk), ncol, lchnk)
     end do
 
   contains
