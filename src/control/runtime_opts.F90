@@ -105,6 +105,7 @@ subroutine read_namelist(nlfilename, single_column, scmlat, scmlon)
    use elevated_emissions_mod, only: elevated_emissions_readnl
    use atm_stream_ndep,     only: stream_ndep_readnl
    use ctem_diags_mod, only: ctem_diags_readnl
+   use helium_ubc_mod, only: helium_ubc_readnl
 
    !---------------------------Arguments-----------------------------------
 
@@ -211,6 +212,7 @@ subroutine read_namelist(nlfilename, single_column, scmlat, scmlon)
    call elevated_emissions_readnl(nlfilename)
    call stream_ndep_readnl(nlfilename)
    call ctem_diags_readnl(nlfilename)
+   call helium_ubc_readnl(nlfilename)
 
 end subroutine read_namelist
 

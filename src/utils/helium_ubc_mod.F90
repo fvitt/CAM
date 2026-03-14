@@ -84,23 +84,13 @@ contains
     use constituents, only: cnst_mw, cnst_get_ind
     use cam_history, only: addfld, horiz_only
 
-    integer :: host_npes, he_npes
     integer :: ierr
     character(len=*), parameter :: prefix = 'helium_ubc_init: '
 
-    call mpi_comm_size(host_mpicom, host_npes, ierr)
-    if (ierr /= mpi_success) then
-       call endrun(prefix//'MPI ERROR -- mpi_comm_size')
-    end if
-
     call read_coefs_file()
-
-    he_npes = min(host_npes, nlat_he/2)
 
     ! write to atm log
     if (masterproc) then
-       write(iulog,*) prefix, 'host model npes : ', host_npes
-       write(iulog,*) prefix, 'helium_ubc_npes : ', he_npes
        write(iulog,*) prefix, 'helium_ubc_nlats: ', nlat_he
        write(iulog,*) prefix, 'host model mpicom: ',host_mpicom
     end if
@@ -115,7 +105,7 @@ contains
     allocate(helium_ubc_fluxes(pcols,begchunk:endchunk))
     helium_ubc_fluxes = 0._r8
 
-    call cnst_get_ind( 'H', he_cnst_ndx )
+    call cnst_get_ind( 'H', he_cnst_ndx ) !!!! Change to 'HE' !!!!
 
     call addfld('HEFLUX_TST1', horiz_only,  'A', ' ', 'He Flux Test fld1' )
     call addfld('HEFLUX_TST2', horiz_only,  'A', ' ', 'He Flux Test fld2' )
@@ -126,6 +116,8 @@ contains
   !-----------------------------------------------------------------------------
   subroutine helium_ubc_calc(phys_state)
     use cam_history, only: outfld
+    use mo_mean_mass, only: set_mean_mass
+    use chemistry, only: imozart
 
     type(physics_state), intent(in) :: phys_state(begchunk:endchunk)
 
@@ -137,6 +129,8 @@ contains
 
     real(r8) :: flx_lonlat(lon_beg:lon_end,lat_beg:lat_end)
     real(r8) :: tn, he_mmr
+    real(r8) :: barm(pcols,pver)   ! mean molecular weight (g/mole)
+
     integer :: lchnk, ncol, i, j, m,n
     !complex(C_DOUBLE_COMPLEX) :: zout(nlon, lat_beg:lat_end)
     complex(r8) :: zin (nlon_he, lat_beg:lat_end)
@@ -151,10 +145,12 @@ contains
 
     do lchnk = begchunk,endchunk
        ncol = phys_state(lchnk)%ncol
+       call set_mean_mass( ncol, phys_state(lchnk)%q(:,:,imozart:), barm )
        do i = 1,ncol
           tn = phys_state(lchnk)%t(i,1) ! top layer temperature
           he_mmr = phys_state(lchnk)%q(i,1, he_cnst_ndx)
-          flx_phys(i,lchnk) = -4._r8*p0*sqrt((gask*tn/(rmass_he*grav))**3) ! ...
+          flx_phys(i,lchnk) = -4._r8*p0*sqrt((gask*tn/(rmass_he*grav))**3)*barm(i,1) &
+               *(1._r8+tn/3330._r8)*he_mmr/(re**2*sqrt(2._r8*pi*grav)*rmass_he)
        end do
        call outfld('HEFLUX_TST1', flx_phys(:ncol,lchnk), ncol, lchnk)
     end do
