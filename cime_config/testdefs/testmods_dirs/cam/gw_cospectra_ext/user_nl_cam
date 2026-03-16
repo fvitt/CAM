@@ -6,6 +6,8 @@ inithist='ENDOFRUN'
 
 ctem_diags_numlats = 360
 
+gw_cospectra_accum_ntimes=6
+
 cam_physics_mesh = '$ATM_DOMAIN_MESH'
 
 fincl2 = 'THtem','Utem','Vtem','Wtem','VTHtem','WTHtem','UVtem', 'UWtem', 'MSKtem', 'PStem',

@@ -1602,6 +1602,14 @@ If TRUE gravity wave ridge scheme will contribute to vertical diffusion tendenci
 Default: TRUE
 </entry>
 
+<entry id="gw_cospectra_accum_ntimes" type="integer" category="gw_drag"
+       group="gw_cospectra_nl" valid_values="" >
+Number of time steps over which wind components (U and V) are accumulated
+which are input into the spectral extrapolation of gravity waves beyond
+wavelengths that are resolved.  The extrapolated forcings contribute U and V
+tendencies if {{ hilight }}gw_cospectra_accum_ntimes{{ closehilight }} &gt; 0.
+Default: 0</entry>
+
 <!-- Greenhouse Gases: CO2, CH4, N2O, CFC11, CFC12 (original CAM versions) -->
 
 <entry id="bndtvghg" type="char*256" input_pathname="abs" category="ghg_cam"

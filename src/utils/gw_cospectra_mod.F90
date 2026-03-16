@@ -1,6 +1,6 @@
 module gw_cospectra_mod
 
-  use shr_kind_mod, only: r8 => shr_kind_r8
+  use shr_kind_mod, only: r8 => shr_kind_r8, cx => SHR_KIND_CX
   use ppgrid, only: pcols, pver, begchunk, endchunk
   use phys_grid, only: get_ncols_p
   use physics_types, only: physics_state
@@ -20,21 +20,77 @@ module gw_cospectra_mod
 
   implicit none
 
-  integer :: nftnum = 0
-  integer, parameter :: ntime = 8
+  private
+  public :: gw_cospectra_readnl
+  public :: gw_cospectra_reg
+  public :: gw_cospectra_init
+  public :: gw_cospectra_calc
+  public :: gw_cospectra_restart_init
+  public :: gw_cospectra_restart_write
+  public :: gw_cospectra_restart_read
 
-  real(r8), allocatable :: accum_cospectra_u(:,:,:,:)
-  real(r8), allocatable :: accum_cospectra_v(:,:,:,:)
+  logical, protected, public :: gw_cospectra_active = .false.
 
   real(r8), pointer, protected, public :: frcxu_phys(:,:,:) => null() !(pcols,pver,begchunk:endchunk)
   real(r8), pointer, protected, public :: frcyu_phys(:,:,:) => null() !(pcols,pver,begchunk:endchunk)
+
+  integer :: nftnum = 0
+  integer :: ntime = 0
+
+  real(r8), allocatable :: accum_cospectra_u(:,:,:,:)
+  real(r8), allocatable :: accum_cospectra_v(:,:,:,:)
 
 contains
 
   ! -----------------------------------------------------------------------------
   ! -----------------------------------------------------------------------------
+  subroutine gw_cospectra_readnl(nlfile)
+    use namelist_utils, only : find_group_name
+    use spmd_utils, only : mpicom, masterprocid, mpi_integer, mpi_success
+
+    character(len=*), intent(in) :: nlfile
+    integer :: unitn, ierr
+    character(len=cx) :: iomsg
+
+    integer :: gw_cospectra_accum_ntimes
+    character(len=*), parameter :: prefix = 'gw_cospectra_readnl: '
+
+    namelist /gw_cospectra_nl/ gw_cospectra_accum_ntimes
+
+    if (masterproc) then
+       ! read namelist
+       open( newunit=unitn, file=trim(nlfile), status='old' )
+       call find_group_name(unitn, 'gw_cospectra_nl', status=ierr)
+       if (ierr == 0) then
+          read(unitn, gw_cospectra_nl, iostat=ierr, iomsg=iomsg)
+          if (ierr /= 0) then
+             call endrun(prefix//'gw_cospectra_nl: ERROR reading namelist: '//trim(iomsg))
+          end if
+       else
+          gw_cospectra_accum_ntimes = 0
+       end if
+       close(unitn)
+    end if
+
+    call mpi_bcast(gw_cospectra_accum_ntimes, 1, mpi_integer, masterprocid, mpicom, ierr)
+    if (ierr /= mpi_success) call endrun(prefix//'mpi_bcast error : gw_cospectra_accum_ntimes')
+
+    ntime = gw_cospectra_accum_ntimes
+    gw_cospectra_active = ntime > 0
+
+    if (masterproc) then
+       write(iulog,*) prefix//'gw_cospectra_accum_ntimes: ', ntime
+       write(iulog,*) prefix//'gw_cospectra_active : ', gw_cospectra_active
+    end if
+
+  end subroutine gw_cospectra_readnl
+
+  ! -----------------------------------------------------------------------------
+  ! -----------------------------------------------------------------------------
   subroutine gw_cospectra_reg
     use cam_history_support, only: add_hist_coord
+
+    if (.not.gw_cospectra_active) return
 
     nftnum = nlon/2+1
 
@@ -52,6 +108,8 @@ contains
   ! -----------------------------------------------------------------------------
   subroutine gw_cospectra_init()
     use cam_history, only: addfld
+
+    if (.not.gw_cospectra_active) return
 
     call esmf_zonal_fft_init()
 
@@ -162,6 +220,8 @@ contains
     real(r8), parameter :: pi = 4._r8*atan(1._r8)
     real(r8), parameter :: deg2rad = pi/180._r8
     character(len=*), parameter :: subname  = 'gw_cospectra_calc'
+
+    if (.not.gw_cospectra_active) return
 
     wvlxbeg = 200.e3_r8  ! 200 km
     wvlxend = 20.e3_r8   ! 20 km
@@ -433,6 +493,8 @@ contains
     type(var_desc_t) :: rest_accum_u_desc, rest_accum_v_desc
     character(len=2) :: numstr
 
+    if (.not.gw_cospectra_active) return
+
     ierr = pio_def_dim(file, 'gw_csp_nftnum', nftnum, nftnum_dimid)
     ierr = pio_def_dim(file, 'gw_csp_nlat', nlat, nlat_dimid)
     ierr = pio_inq_dimid(file, 'lev', nlev_dimid)
@@ -459,6 +521,8 @@ contains
     integer(PIO_OFFSET_KIND), pointer :: ldof(:)
     character(len=2) :: numstr
     type(var_desc_t) :: u_desc, v_desc
+
+    if (.not.gw_cospectra_active) return
 
     ldof => get_restart_decomp(active=lon_beg==1)
     call pio_initdecomp(pio_subsystem, pio_double, (/nftnum, nlat, pver/), ldof, iodesc)
@@ -489,6 +553,8 @@ contains
     integer(PIO_OFFSET_KIND), pointer :: ldof(:)
     character(len=2) :: numstr
     type(var_desc_t) :: u_desc, v_desc
+
+    if (.not.gw_cospectra_active) return
 
     ldof => get_restart_decomp(active=.true.)
     call pio_initdecomp(pio_subsystem, pio_double, (/nftnum, nlat, pver/), ldof, iodesc)
