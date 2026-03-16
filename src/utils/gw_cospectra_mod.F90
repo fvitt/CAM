@@ -29,8 +29,6 @@ module gw_cospectra_mod
   real(r8), pointer, protected, public :: frcxu_phys(:,:,:) => null() !(pcols,pver,begchunk:endchunk)
   real(r8), pointer, protected, public :: frcyu_phys(:,:,:) => null() !(pcols,pver,begchunk:endchunk)
 
-  type(var_desc_t) :: rest_accum_u_desc, rest_accum_v_desc
-
 contains
 
   ! -----------------------------------------------------------------------------
@@ -430,18 +428,22 @@ contains
 
     type(file_desc_t),  intent(inout) :: file
 
-    integer :: ierr
-    integer :: nftnum_dimid, nlat_dimid, ntime_dimid, nlev_dimid
+    integer :: ierr, t
+    integer :: nftnum_dimid, nlat_dimid, nlev_dimid
+    type(var_desc_t) :: rest_accum_u_desc, rest_accum_v_desc
+    character(len=2) :: numstr
 
     ierr = pio_def_dim(file, 'gw_csp_nftnum', nftnum, nftnum_dimid)
     ierr = pio_def_dim(file, 'gw_csp_nlat', nlat, nlat_dimid)
-    ierr = pio_def_dim(file, 'gw_csp_ntime', ntime, ntime_dimid)
     ierr = pio_inq_dimid(file, 'lev', nlev_dimid)
 
-    ierr = pio_def_var(file, 'gw_csp_accum_u', pio_double, &
-         (/nftnum_dimid, nlat_dimid, nlev_dimid, ntime_dimid/),rest_accum_u_desc)
-    ierr = pio_def_var(file, 'gw_csp_accum_v', pio_double, &
-         (/nftnum_dimid, nlat_dimid, nlev_dimid, ntime_dimid/),rest_accum_v_desc)
+    do t = 1,ntime
+       write(numstr,'(I2.2)') t
+       ierr = pio_def_var(file, 'gw_csp_accum_u_t'//numstr, pio_double, &
+            (/nftnum_dimid, nlat_dimid, nlev_dimid/),rest_accum_u_desc)
+       ierr = pio_def_var(file, 'gw_csp_accum_v_t'//numstr, pio_double, &
+            (/nftnum_dimid, nlat_dimid, nlev_dimid/),rest_accum_v_desc)
+    end do
 
   end subroutine gw_cospectra_restart_init
 
@@ -452,16 +454,24 @@ contains
 
     type(file_desc_t), intent(inout) :: file
 
-    integer :: ierr
+    integer :: ierr, t
     type(io_desc_t) :: iodesc
     integer(PIO_OFFSET_KIND), pointer :: ldof(:)
+    character(len=2) :: numstr
+    type(var_desc_t) :: u_desc, v_desc
 
     ldof => get_restart_decomp()
-    call pio_initdecomp(pio_subsystem, pio_double, (/nftnum, nlat, pver, ntime/), ldof, iodesc)
+    call pio_initdecomp(pio_subsystem, pio_double, (/nftnum, nlat, pver/), ldof, iodesc)
     deallocate(ldof)
 
-    call pio_write_darray(file, rest_accum_u_desc, iodesc, accum_cospectra_u, ierr)
-    call pio_write_darray(file, rest_accum_v_desc, iodesc, accum_cospectra_v, ierr)
+    do t = 1,ntime
+       write(numstr,'(I2.2)') t
+       ierr = pio_inq_varid(file, 'gw_csp_accum_u_t'//numstr, u_desc)
+       ierr = pio_inq_varid(file, 'gw_csp_accum_v_t'//numstr, v_desc)
+
+       call pio_write_darray(file, u_desc, iodesc, accum_cospectra_u(:,:,:,t), ierr)
+       call pio_write_darray(file, v_desc, iodesc, accum_cospectra_v(:,:,:,t), ierr)
+    end do
 
     call pio_freedecomp(file, iodesc)
 
@@ -474,20 +484,24 @@ contains
 
     type(file_desc_t), intent(inout) :: file
 
-    integer :: ierr
+    integer :: ierr, t
     type(io_desc_t) :: iodesc
     integer(PIO_OFFSET_KIND), pointer :: ldof(:)
-
-    ierr = pio_inq_varid(file, 'gw_csp_accum_u', rest_accum_u_desc)
-    ierr = pio_inq_varid(file, 'gw_csp_accum_v', rest_accum_v_desc)
+    character(len=2) :: numstr
+    type(var_desc_t) :: u_desc, v_desc
 
     ldof => get_restart_decomp()
-    call pio_initdecomp(pio_subsystem, pio_double, (/nftnum, nlat, pver, ntime/), ldof, iodesc)
+    call pio_initdecomp(pio_subsystem, pio_double, (/nftnum, nlat, pver/), ldof, iodesc)
     deallocate(ldof)
 
-    call pio_read_darray(file, rest_accum_u_desc, iodesc, accum_cospectra_u, ierr)
+    do t = 1,ntime
+       write(numstr,'(I2.2)') t
+       ierr = pio_inq_varid(file, 'gw_csp_accum_u_t'//numstr, u_desc)
+       ierr = pio_inq_varid(file, 'gw_csp_accum_v_t'//numstr, v_desc)
 
-    call pio_read_darray(file, rest_accum_v_desc, iodesc, accum_cospectra_v, ierr)
+       call pio_read_darray(file, u_desc, iodesc, accum_cospectra_u(:,:,:,t), ierr)
+       call pio_read_darray(file, v_desc, iodesc, accum_cospectra_v(:,:,:,t), ierr)
+    end do
 
     call pio_freedecomp(file, iodesc)
 
@@ -501,24 +515,20 @@ contains
     integer(PIO_OFFSET_KIND), pointer :: ldof(:)
 
     ! local variables
-    integer :: i, k, j, t
+    integer :: i, k, j
     integer :: lcnt
 
-    lcnt = ntime*pver*(lat_end-lat_beg+1)*nftnum
+    lcnt = pver*(lat_end-lat_beg+1)*nftnum
     allocate(ldof(lcnt))
     ldof(:) = 0
 
     lcnt = 0
 
-    do t = 1, ntime
-       do k = 1,pver
-          do j = lat_beg,lat_end
-             do i = 1,nftnum
-
-                lcnt = lcnt + 1
-                ldof(lcnt) = i + (j-1)*nftnum + (k-1)*nftnum*nlat + (t-1)*nftnum*nlat*pver
-
-             end do
+    do k = 1,pver
+       do j = lat_beg,lat_end
+          do i = 1,nftnum
+             lcnt = lcnt + 1
+             ldof(lcnt) = i + (j-1)*nftnum + (k-1)*nftnum*nlat
           end do
        end do
     end do
