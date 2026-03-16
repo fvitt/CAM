@@ -460,7 +460,7 @@ contains
     character(len=2) :: numstr
     type(var_desc_t) :: u_desc, v_desc
 
-    ldof => get_restart_decomp()
+    ldof => get_restart_decomp(active=lon_beg==1)
     call pio_initdecomp(pio_subsystem, pio_double, (/nftnum, nlat, pver/), ldof, iodesc)
     deallocate(ldof)
 
@@ -490,7 +490,7 @@ contains
     character(len=2) :: numstr
     type(var_desc_t) :: u_desc, v_desc
 
-    ldof => get_restart_decomp()
+    ldof => get_restart_decomp(active=.true.)
     call pio_initdecomp(pio_subsystem, pio_double, (/nftnum, nlat, pver/), ldof, iodesc)
     deallocate(ldof)
 
@@ -510,7 +510,9 @@ contains
   ! utility routines
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------
-  function get_restart_decomp() result(ldof)
+  function get_restart_decomp(active) result(ldof)
+
+    logical, intent(in) :: active
 
     integer(PIO_OFFSET_KIND), pointer :: ldof(:)
 
@@ -522,16 +524,17 @@ contains
     allocate(ldof(lcnt))
     ldof(:) = 0
 
-    lcnt = 0
-
-    do k = 1,pver
-       do j = lat_beg,lat_end
-          do i = 1,nftnum
-             lcnt = lcnt + 1
-             ldof(lcnt) = i + (j-1)*nftnum + (k-1)*nftnum*nlat
+    if (active) then
+       lcnt = 0
+       do k = 1,pver
+          do j = lat_beg,lat_end
+             do i = 1,nftnum
+                lcnt = lcnt + 1
+                ldof(lcnt) = i + (j-1)*nftnum + (k-1)*nftnum*nlat
+             end do
           end do
        end do
-    end do
+    endif
 
   end function get_restart_decomp
 
