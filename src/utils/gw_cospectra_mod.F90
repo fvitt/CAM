@@ -330,8 +330,8 @@ contains
     !==========================================================================
     function smooth(data, n_points, window_size) result(smoothed_data)
 
-      real(r8), intent(in) :: data(n_points)
       integer, intent(in) :: n_points, window_size
+      real(r8), intent(in) :: data(n_points)
 
       real(r8) :: smoothed_data(n_points)
 
