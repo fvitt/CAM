@@ -12,16 +12,19 @@ module dpie_coupling
   use edyn_mpi,            only: array_ptr_type
   use perf_mod,            only: t_startf, t_stopf
   use amie_module,         only: getamie
+  use meped_module,        only: getmeped, imeped
   use ltr_module,          only: getltr
   use edyn_solve,          only: phihm
   use edyn_params,         only: dtr, rtd
   use aurora_params,       only: prescribed_period ! turns on overwrite of energy fields in aurora phys
+  use aurora_params,       only: prescribed_meped_period
 
   implicit none
 
   private
   public :: d_pie_init
   public :: d_pie_epotent  ! sets electric potential
+  public :: d_pie_meped
   public :: d_pie_coupling ! handles coupling with edynamo and ion transport
 
   logical  :: ionos_edyn_active ! if true, call oplus_xport for O+ transport
@@ -68,6 +71,11 @@ contains
     call addfld ('prescr_phihm' , horiz_only, 'I','VOLTS','Prescribed Electric Potential-mag grid' ,gridname='gmag_grid')
     call addfld ('prescr_efxm'  , horiz_only, 'I','mW/m2','Prescribed energy flux on mag grid'     ,gridname='gmag_grid')
     call addfld ('prescr_kevm'  , horiz_only, 'I','keV  ','Prescribed mean energy on mag grid'     ,gridname='gmag_grid')
+! For MEPED data
+    call addfld ('prescr_efx_e'  , horiz_only, 'I','mW/m2','Prescribed MEPED electron energy flux on geo grid',gridname='physgrid')
+    call addfld ('prescr_kev_e'  , horiz_only, 'I','keV  ','Prescribed MEPED electron mean energy on geo grid',gridname='physgrid')
+    call addfld ('prescr_efx_p'  , horiz_only, 'I','mW/m2','Prescribed MEPED proton energy flux on geo grid',gridname='physgrid')
+    call addfld ('prescr_kev_p'  , horiz_only, 'I','keV  ','Prescribed MEPED proton mean energy on geo grid',gridname='physgrid')
 
     if (debug_hist) then
        ! Dynamo inputs (called from dpie_coupling. Fields are in waccm format, in CGS units):
@@ -238,12 +246,6 @@ contains
           prescribed_period = iltr == 1
        end if
 
-       do j = mlat0, mlat1
-          call outfld('prescr_phihm',prescr_phihm(mlon0:omlon1,j),omlon1-mlon0+1,j)
-          call outfld('prescr_efxm', prescr_efxm(mlon0:omlon1,j), omlon1-mlon0+1,j)
-          call outfld('prescr_kevm', prescr_kevm(mlon0:omlon1,j), omlon1-mlon0+1,j)
-       end do
-
        if (prescribed_period) then
           phihm = prescr_phihm
        end if
@@ -267,6 +269,79 @@ contains
   end subroutine d_pie_epotent
 
   !-----------------------------------------------------------------------
+  subroutine d_pie_meped( cols, cole, efx_e_phys, kev_e_phys, &
+                efx_p_phys, kev_p_phys,meped_in)
+
+    use time_manager,     only: get_curr_date, get_calday
+    use edyn_mpi,         only: lat0, lat1, lon0, lon1, mytid
+    use edyn_geogrid, only: nlat, nlonp1
+    use regridder, only: regrid_geo2phys_2d
+
+! Input MEPED EPP data files here -- G. Lu, 1/12/2026
+    ! Args:
+    !
+    integer, intent(in) :: cols, cole
+
+    ! Prescribed MEPED energy flux
+    real(r8), intent(out) :: efx_e_phys(:), efx_p_phys(:)
+    ! Prescribed MEPED mean energy
+    real(r8), intent(out) :: kev_e_phys(:), kev_p_phys(:)
+
+    logical, optional, intent(in) :: meped_in
+
+
+    !
+    ! local vars
+    !
+    real(r8)             :: secs               ! time of day in seconds
+    integer              :: iyear,imo,iday,tod ! tod is time-of-day in seconds
+    real(r8)             :: day_of_yr
+    integer              :: jday, ymd
+
+    integer              :: iprint
+    integer              :: j, iltr, ierr
+    !
+    ! AMIE fields (extra dimension added for longitude switch)
+    !
+    real(r8) :: efx_e_geo(nlonp1,nlat), kev_e_geo(nlonp1,nlat)
+    real(r8) :: efx_p_geo(nlonp1,nlat), kev_p_geo(nlonp1,nlat)
+
+ !   call edyn_esmf_update()
+
+    call get_curr_date(iyear, imo,iday, tod)
+    ! tod is integer time-of-day in seconds
+    secs = real(tod, r8)
+    ymd       = 10000*iyear + 100*imo + iday
+    day_of_yr = get_calday(ymd, tod)
+    jday = int(day_of_yr)
+
+    iprint = 1
+    if (meped_in) then
+       if (masterproc) then
+          write(iulog,*) 'Calling getmeped >>> '
+       end if
+
+       call getmeped(iyear, jday, secs, iprint, imeped, &
+               efx_e_geo, kev_e_geo, efx_p_geo, kev_p_geo)
+
+       prescribed_meped_period = imeped == 1
+
+       call mpi_bcast(prescribed_meped_period, 1, mpi_logical, masterprocid, mpicom, ierr)
+
+       call regrid_geo2phys_2d(efx_e_geo(lon0:lon1,lat0:lat1),efx_e_phys, cols, cole)
+       call regrid_geo2phys_2d(kev_e_geo(lon0:lon1,lat0:lat1),kev_e_phys, cols, cole)
+       call regrid_geo2phys_2d(efx_p_geo(lon0:lon1,lat0:lat1),efx_p_phys, cols, cole)
+       call regrid_geo2phys_2d(kev_p_geo(lon0:lon1,lat0:lat1),kev_p_phys, cols, cole)
+
+       call outfld_phys1d( 'prescr_efx_e', efx_e_phys )
+       call outfld_phys1d( 'prescr_kev_e', kev_e_phys )
+       call outfld_phys1d( 'prescr_efx_p', efx_p_phys )
+       call outfld_phys1d( 'prescr_kev_p', kev_p_phys )
+
+    end if
+
+  end subroutine d_pie_meped
+  !-----------------------------------------------------------------------
   subroutine d_pie_coupling(omega, pmid, zgi, zht, u, v, tn,                  &
        sigma_ped, sigma_hall, te, ti, mbar, n2mmr, o2mmr, o1mmr, o2pmmr,      &
        nopmmr, n2pmmr, opmmr, opmmrtm1, ui, vi, wi,                           &
@@ -288,7 +363,7 @@ contains
      use oplus,         only: oplus_xport
      use ref_pres,      only: pref_mid
      use regridder,  only: regrid_phys2geo_3d, regrid_phys2mag_3d, regrid_geo2phys_3d
-     use regridder,  only: regrid_geo2mag_3d, regrid_geo2mag_2d
+     use regridder,  only: regrid_geo2mag_3d, regrid_geo2mag_2d, regrid_geo2phys_2d
      use adotv_mod,  only: calc_adotv
 
      !
@@ -825,6 +900,7 @@ contains
     use edyn_maggrid  ,only: nmlonp1,ylonm,ylatm
     use edyn_solve    ,only: nmlat0
     use aurora_params ,only: offc, dskofc, theta0, aurora_params_set
+    use amie_module   ,only: aurllbN_amie,aurllbS_amie
 
     implicit none
     !
@@ -842,7 +918,12 @@ contains
 
     if (.not. crit_user_set) then
        if (prescribed_period) then
-          crit(:) = amie_default_crit(:)*dtr
+         !crit(:) = amie_default_crit(:)*dtr
+          crit1deg = max(aurllbN_amie,aurllbS_amie)
+          crit(1) = (crit1deg - 5._r8)*dtr
+          crit(2) =  crit(1) + 10._r8*dtr
+       !  write(6,"('dpie: aurllN/S,crit1deg,crit(:) = ',5f8.2)") &
+       !           aurllbN_amie,aurllbS_amie,crit1deg,crit(:)/dtr
        else
           crit1deg = max(15._r8,0.5_r8*(theta0(1)+theta0(2))*rtd + 5._r8)
           crit1deg = min(30._r8,crit1deg)
@@ -889,6 +970,8 @@ contains
           end if
        end do ! i=1,nmlonp1
     end do ! j=1,nmlat0
+   !write(6,"('dpie: colatc = ',/,(10f7.3))")colatc(1,:)/dtr
+   !write(6,"('dpie: pfrac = ',/,(10f7.3))")pfrac(1,:)
     !
   end subroutine calc_pfrac
   !-----------------------------------------------------------------------

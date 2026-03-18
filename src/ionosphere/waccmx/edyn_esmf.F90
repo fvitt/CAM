@@ -83,6 +83,7 @@ module edyn_esmf
    type(ESMF_RouteHandle) ::     & ! ESMF route handles for regridding
         routehandle_phys2geo,    & ! for physics to geo 3-D regrid
         routehandle_geo2phys,    & ! for geo to physics 3-D regrid
+        routehandle_geo2phys_2d, & ! for geo to physics 2-D regrid
         routehandle_phys2mag,    & ! for physics to mag 3-D regrid
         routehandle_geo2mag,     & ! for geo to mag 3-D regrid
         routehandle_mag2geo,     & ! for geo to mag 3-D regrid
@@ -173,6 +174,9 @@ contains
      call edyn_esmf_chkerr(subname, 'ESMF_RouteHandleDestroy routehandle_phys2geo', rc)
      call ESMF_RouteHandleDestroy(routehandle_geo2phys, rc=rc )
      call edyn_esmf_chkerr(subname, 'ESMF_RouteHandleDestroy routehandle_geo2phys', rc)
+
+     call ESMF_RouteHandleDestroy(routehandle_geo2phys_2d, rc=rc )
+     call edyn_esmf_chkerr(subname, 'ESMF_RouteHandleDestroy routehandle_geo2phys_2d', rc)
 
      call ESMF_FieldDestroy(phys_3dfld, rc=rc )
      call edyn_esmf_chkerr(subname, 'ESMF_FieldDestroy phys_3dfld', rc)
@@ -395,6 +399,19 @@ contains
               factorList=factorList, srcTermProcessing=smm_srctermproc,          &
               pipelineDepth=smm_pipelinedep, rc=rc)
          call edyn_esmf_chkerr(subname, 'ESMF_FieldRegridStore for 3D geo2phys', rc)
+
+         !
+         ! Compute and store route handle for geo2phys 2d fields:
+         !
+         call ESMF_FieldRegridStore(srcField=geo_2dfld, dstField=phys_2dfld,&
+              regridMethod=ESMF_REGRIDMETHOD_BILINEAR,                           &
+              polemethod=ESMF_POLEMETHOD_ALLAVG,                                 &
+              extrapMethod=ESMF_EXTRAPMETHOD_NEAREST_IDAVG,                      &
+              routeHandle=routehandle_geo2phys_2d, factorIndexList=factorIndexList, &
+              factorList=factorList, srcTermProcessing=smm_srctermproc,          &
+              pipelineDepth=smm_pipelinedep, rc=rc)
+         call edyn_esmf_chkerr(subname, 'ESMF_FieldRegridStore for 2D geo2phys', rc)
+
       endif
       !
       ! Compute and store route handle for geo2mag 3d fields:
@@ -1190,10 +1207,10 @@ contains
       character(len=*), parameter :: subname = 'edyn_esmf_regrid_geo2phys'
       !
       if (ndim == 2) then
-       !  call ESMF_FieldRegrid(srcfield, dstfield, routehandle_geo2phys_2d,      &
-       !    termorderflag=ESMF_TERMORDER_SRCSEQ, rc=rc)
-       !  call edyn_esmf_chkerr(subname, 'ESMF_FieldRegrid geo2phys 2D', rc)
-         call endrun(subname//': routehandle_geo2phys_2d not implemented')
+         call ESMF_FieldRegrid(srcfield, dstfield, routehandle_geo2phys_2d,      &
+           termorderflag=ESMF_TERMORDER_SRCSEQ, rc=rc)
+         call edyn_esmf_chkerr(subname, 'ESMF_FieldRegrid geo2phys 2D', rc)
+       !  call endrun(subname//': routehandle_geo2phys_2d not implemented')
       else
          call ESMF_FieldRegrid( srcfield, dstfield, routehandle_geo2phys,        &
               termorderflag=ESMF_TERMORDER_SRCSEQ, rc=rc)

@@ -5340,6 +5340,30 @@ List of full pathnames of LTR electic potential inputs for both hemispheres.
 Default: NONE.
 </entry>
 
+<entry id="meped_inputs" type="logical"  category="waccmx"
+       group="ionosphere_nl" valid_values="">
+Give the user the ability to input prescribed high-latitude electric potential.
+Default: FALSE
+</entry>
+
+<entry id="meped_files" type="char*256(20)" input_pathname="abs" category="waccmx"
+       group="ionosphere_nl" valid_values="" >
+List of full pathnames of AMIE electic potential inputs for southern hemisphere.
+Default: NONE.
+</entry>
+
+<entry id="spe_inputs" type="logical"  category="waccmx"
+       group="solar_data_opts" valid_values="">
+Give the user the ability to input prescribed high-latitude electric potential.
+Default: FALSE
+</entry>
+
+<entry id="spe_files" type="char*256(20)" input_pathname="abs" category="waccmx"
+       group="solar_data_opts" valid_values="" >
+List of full pathnames of AMIE electic potential inputs for southern hemisphere.
+Default: NONE.
+</entry>
+
 <!-- HEMCO -->
 
 <entry id="hemco_data_root" type="char*256" input_pathname="abs" category="hemco"

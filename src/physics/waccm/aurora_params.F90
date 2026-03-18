@@ -21,5 +21,6 @@ module aurora_params
   real(r8) :: phin(2) = -huge(1.0_r8)
 
   logical  :: prescribed_period = .false. ! true during a period of prescribed high-latitude electric potential
+  logical  :: prescribed_meped_period = .false.
 
 end module aurora_params

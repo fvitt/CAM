@@ -24,6 +24,7 @@ module amie_module
   private
   public :: init_amie
   public :: getamie
+  public :: aurllbN_amie,aurllbS_amie
 
   ! Define parameters for AMIE input data file:
   integer, parameter ::  &
@@ -60,6 +61,7 @@ module amie_module
        cusplat_nh_amie, cuspmlt_nh_amie, cusplat_sh_amie,      &
        cuspmlt_sh_amie, hpi_sh_amie, hpi_nh_amie, pcp_sh_amie, &
        pcp_nh_amie
+  real(r8) :: aurllbN_amie,aurllbS_amie
   !
   type(file_desc_t) :: ncid_nh
   type(file_desc_t) :: ncid_sh
@@ -512,6 +514,8 @@ contains
     real(r8)                    :: del, xmlt, dmlat, dlatm, dlonm, dmltm, rot
     integer                     :: offset(3), kount(3)
     character(len=*), parameter :: subname = 'getamie'
+    real(r8)                    :: aurorabnd(lonp1,2)
+    real(r8)                    :: nfluxllb,efluxllb,aflxm
 
     phihm = fillvalue
     amie_efxm = fillvalue
@@ -791,6 +795,44 @@ contains
             ylonm, ylatm, amie_kevm, intpol, w, lw, iw, liw, ier)
        call rgrd2(lonp1, jmxm, alonm, alatm, efxm, nmlonp1, nmlat,  &
             ylonm, ylatm, amie_efxm, intpol, w, lw, iw, liw, ier)
+
+    !
+! Search low-latitude auroral boundary similar to GEMARA
+      nfluxllb = 1.0e7_r8
+      efluxllb = 0.5_r8
+      aurllbN_amie = 0.0_r8
+      aurllbS_amie = 0.0_r8
+      aurorabnd = 0.0_r8
+      do i=1,lonp1              ! Northern Hemisphere
+        do j=jmxm+1-latp1,jmxm-12
+!         aflxm = efxm(i,j)/(ekvm(i,j)*1.602e-9)
+!         if (aflxm>=nfluxllb) exit
+          if (efxm(i,j)>=efluxllb) exit
+        end do
+        j = min(j,jmxm)
+        aurorabnd(i,1) = max(90.0_r8-alatm(j)*rtd,15.0_r8)
+        do j=latp1,12,-1        ! Southern Hemisphere
+!         aflxm = efxm(i,j)/(ekvm(i,j)*1.602e-9) 
+!         if (aflxm>=nfluxllb) exit
+          if (efxm(i,j)>=efluxllb) exit
+        end do
+        j = max(j,1)
+        aurorabnd(i,2) = max(90.0_r8+alatm(j)*rtd,15.0_r8)
+      end do
+      aurllbN_amie = maxval(aurorabnd(:,1))
+      aurllbS_amie = maxval(aurorabnd(:,2))
+      if (iprint > 0 .and. masterproc) then
+     !write(6,"('latp1,lonp1,efluxllb=',2i4,f7.2)")latp1,lonp1,efluxllb
+     !write(6,"('alatm(*) = ',/,(8f7.2))") alatm(:)*rtd
+     !write(6,"('efxm(26,*) = ',/,(8f7.2))") efxm(26,:)
+     !write(6,"('efxm(18,*) = ',/,(8f7.2))") efxm(18,:)
+     !write(6,"('ekvm(1,*) = ',/,(8f7.2tiegcm_amie.job))") ekvm(1,:)
+     !write(6,"('aurorabnd(:,1) = ',/,(8f7.2))") aurorabnd(:,1)
+     !write(6,"('aurorabnd(:,2) = ',/,(8f7.2))") aurorabnd(:,2)
+        write(6,"('aurllbN_amie,aurllbS_amie = ',2f7.2)") &
+              aurllbN_amie,aurllbS_amie
+      end if
+
 
        if (iprint > 0 .and. masterproc) then
           write(iulog, *) subname, ': Max, min amie_efxm = ', &

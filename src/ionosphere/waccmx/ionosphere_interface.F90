@@ -7,6 +7,7 @@ module ionosphere_interface
 
    use dpie_coupling,       only: d_pie_init
    use dpie_coupling,       only: d_pie_epotent
+   use dpie_coupling,       only: d_pie_meped
    use dpie_coupling,       only: d_pie_coupling         ! WACCM-X ionosphere/electrodynamics coupling
    use short_lived_species, only: slvd_index, slvd_pbf_ndx => pbf_idx ! Routines to access short lived species
 
@@ -83,12 +84,16 @@ module ionosphere_interface
    character(len=cl) :: amienh_files(max_num_files) = 'NONE'
    character(len=cl) :: amiesh_files(max_num_files) = 'NONE'
    character(len=cl) :: ltr_files(max_num_files) = 'NONE'
+   character(len=cl) :: meped_files(max_num_files) = 'NONE'
 
 
    character(len=16) :: ionos_epotential_model = 'none'
    logical           :: ionos_epotential_amie = .false.
    logical           :: ionos_epotential_ltr = .false.
+   logical           :: meped_inputs = .false.
    integer           :: indxefx=-1, indxkev=-1
+   integer           :: indxefx_e=-1, indxkev_e=-1
+   integer           :: indxefx_p=-1, indxkev_p=-1
 
    integer           :: oplus_nlon, oplus_nlat   ! Oplus grid
    integer           :: ionos_npes = -1
@@ -125,6 +130,8 @@ module ionosphere_interface
       namelist /ionosphere_nl/ oplus_adiff_limiter, oplus_shapiro_const, oplus_enforce_floor, oplus_ring_polar_filter
       namelist /ionosphere_nl/ ionos_epotential_model, ionos_epotential_amie, ionos_epotential_ltr, wei05_coefs_file
       namelist /ionosphere_nl/ amienh_files, amiesh_files, wei05_coefs_file, ltr_files
+      namelist /ionosphere_nl/ meped_inputs
+      namelist /ionosphere_nl/ meped_files
       namelist /ionosphere_nl/ epot_crit_colats
       namelist /ionosphere_nl/ ionos_npes
       namelist /ionosphere_nl/ oplus_grid, edyn_grid
@@ -160,6 +167,8 @@ module ionosphere_interface
       call mpi_bcast(amienh_files, max_num_files*len(amienh_files(1)), mpi_character, masterprocid, mpicom, ierr)
       call mpi_bcast(amiesh_files, max_num_files*len(amiesh_files(1)), mpi_character, masterprocid, mpicom, ierr)
       call mpi_bcast(ltr_files, max_num_files*len(ltr_files(1)), mpi_character, masterprocid, mpicom, ierr)
+      call mpi_bcast(meped_inputs,1, mpi_logical, masterprocid, mpicom, ierr)
+      call mpi_bcast(meped_files, max_num_files*len(meped_files(1)), mpi_character, masterprocid, mpicom, ierr)
       call mpi_bcast(oplus_shapiro_const, 1, mpi_real8,   masterprocid, mpicom, ierr)
       call mpi_bcast(oplus_enforce_floor, 1, mpi_logical, masterprocid, mpicom, ierr)
       call mpi_bcast(oplus_ring_polar_filter,1, mpi_logical, masterprocid, mpicom, ierr)
@@ -197,6 +206,7 @@ module ionosphere_interface
          write(iulog,*) 'ionosphere_readnl: ionos_epotential_model = ', trim(ionos_epotential_model)
          write(iulog,*) 'ionosphere_readnl: ionos_epotential_amie  = ', ionos_epotential_amie
          write(iulog,*) 'ionosphere_readnl: ionos_epotential_ltr   = ', ionos_epotential_ltr
+         write(iulog,*) 'ionosphere_readnl: meped_inputs            = ', meped_inputs
          write(iulog,'(a,2(g12.4))') &
                         'ionosphere_readnl: epot_crit_colats       = ', epot_crit_colats
          write(iulog,'(a,i0)') 'ionosphere_readnl: ionos_npes = ',ionos_npes
@@ -234,6 +244,7 @@ module ionosphere_interface
       use ref_pres,        only: pref_edge ! target ailev(pverp) interface levels
       use amie_module,     only: init_amie
       use ltr_module,      only: init_ltr
+      use meped_module,    only: init_meped
       use wei05sc,         only: weimer05_init
       use phys_control,    only: phys_getopts
 
@@ -246,6 +257,13 @@ module ionosphere_interface
       if ( ionos_epotential_amie .or. ionos_epotential_ltr) then
          call pbuf_add_field('AUREFX', 'global', dtype_r8, (/pcols/), indxefx)  ! Prescribed Energy flux
          call pbuf_add_field('AURKEV', 'global', dtype_r8, (/pcols/), indxkev)  ! Prescribed Mean energy
+      end if
+! Set pointer for MEPED data
+      if ( meped_inputs ) then
+         call pbuf_add_field('MEPED_EFX_E', 'global', dtype_r8, (/pcols/), indxefx_e)  ! Prescribed MEPED electron Energy flux
+         call pbuf_add_field('MEPED_KEV_E', 'global', dtype_r8, (/pcols/), indxkev_e)  ! Prescribed MEPED electron Mean energy
+         call pbuf_add_field('MEPED_EFX_P', 'global', dtype_r8, (/pcols/), indxefx_p)  ! Prescribed MEPED proton Energy flux
+         call pbuf_add_field('MEPED_KEV_P', 'global', dtype_r8, (/pcols/), indxkev_p)  ! Prescribed MEPED proton Mean energy
       end if
       if (initial_run) then
          ! Read initial conditions (O+) on physics grid
@@ -383,6 +401,13 @@ module ionosphere_interface
       if ( trim(ionos_epotential_model) == 'weimer' ) then
          call weimer05_init(wei05_coefs_file)
       end if
+      if ( meped_inputs ) then
+         call init_meped(meped_files)
+         call addfld ('meped_efx_e_phys', horiz_only, 'I', 'mW/m2', 'MEPED electron  energy flux')
+         call addfld ('meped_kev_e_phys', horiz_only, 'I', 'keV', 'MEPED electron  mean energy')
+         call addfld ('meped_efx_p_phys', horiz_only, 'I', 'mW/m2', 'MEPED proton  energy flux')
+         call addfld ('meped_kev_p_phys', horiz_only, 'I', 'keV', 'MEPED proton  mean energy')
+      end if
 
       ! d_pie_coupling diagnostics
       call addfld ('Z3GM',       (/ 'lev' /), 'I', 'm',                       &
@@ -407,10 +432,18 @@ module ionosphere_interface
 
       real(r8), pointer :: pbuf_efx(:) ! Pointer to prescribed energy flux in pbuf
       real(r8), pointer :: pbuf_kev(:) ! Pointer to prescribed mean energy in pbuf
+      real(r8), pointer :: pbuf_efx_e(:) ! Pointer to prescribed MEPED electron energy flux in pbuf
+      real(r8), pointer :: pbuf_kev_e(:) ! Pointer to prescribed MEPED electron mean energy in pbuf
+      real(r8), pointer :: pbuf_efx_p(:) ! Pointer to prescribed MEPED protn energy flux in pbuf
+      real(r8), pointer :: pbuf_kev_p(:) ! Pointer to prescribed MEPED protn mean energy in pbuf
 
       integer :: ncol
       real(r8), pointer :: prescr_efx(:) ! prescribed energy flux
       real(r8), pointer :: prescr_kev(:) ! prescribed characteristic mean energy
+      real(r8), pointer :: prescr_efx_e(:) ! prescribed MEPED electron energy flux
+      real(r8), pointer :: prescr_kev_e(:) ! prescribed MEPED electron mean energy
+      real(r8), pointer :: prescr_efx_p(:) ! prescribed MEPED protn energy flux
+      real(r8), pointer :: prescr_kev_p(:) ! prescribed MEPED protn mean energy
 
       if( write_inithist() .and. ionos_xport_active ) then
          do lchnk = begchunk, endchunk
@@ -468,8 +501,61 @@ module ionosphere_interface
          ! set cross tail potential before physics --
          !   aurora uses weimer derived potential
          call d_pie_epotent( ionos_epotential_model, epot_crit_colats )
-
       end if prescribed_epot
+
+      nullify(prescr_efx_e)
+      nullify(prescr_kev_e)
+      nullify(prescr_efx_p)
+      nullify(prescr_kev_p)
+      if ( meped_inputs ) then
+         blksize = 0
+         do lchnk = begchunk, endchunk
+            blksize = blksize + get_ncols_p(lchnk)
+         end do
+
+         allocate(prescr_efx_e(blksize))
+         allocate(prescr_kev_e(blksize))
+         allocate(prescr_efx_p(blksize))
+         allocate(prescr_kev_p(blksize))
+
+         ! data assimilated potential
+         call d_pie_meped(cols=1, cole=blksize, &
+              efx_e_phys=prescr_efx_e, kev_e_phys=prescr_kev_e, &
+              efx_p_phys=prescr_efx_p, kev_p_phys=prescr_kev_p, &
+              meped_in=meped_inputs)
+
+         ! transform to pbuf for meped...
+         j = 0
+         chnk_loop2: do lchnk = begchunk, endchunk
+            ncol = get_ncols_p(lchnk)
+            pbuf_chnk => pbuf_get_chunk(pbuf2d, lchnk)
+            call pbuf_get_field(pbuf_chnk, indxefx_e, pbuf_efx_e)
+            call pbuf_get_field(pbuf_chnk, indxkev_e, pbuf_kev_e)
+            call pbuf_get_field(pbuf_chnk, indxefx_p, pbuf_efx_p)
+            call pbuf_get_field(pbuf_chnk, indxkev_p, pbuf_kev_p)
+
+            do i = 1, ncol
+               j = j + 1
+               pbuf_efx_e(i) = prescr_efx_e(j)
+               pbuf_kev_e(i) = prescr_kev_e(j)
+               pbuf_efx_p(i) = prescr_efx_p(j)
+               pbuf_kev_p(i) = prescr_kev_p(j)
+            end do
+
+            call outfld('meped_efx_e_phys', pbuf_efx_e, pcols, lchnk)
+            call outfld('meped_kev_e_phys', pbuf_kev_e, pcols, lchnk)
+            call outfld('meped_efx_p_phys', pbuf_efx_p, pcols, lchnk)
+            call outfld('meped_kev_p_phys', pbuf_kev_p, pcols, lchnk)
+
+         end do chnk_loop2
+
+         deallocate(prescr_efx_e, prescr_kev_e, prescr_efx_p, prescr_kev_p)
+         nullify(prescr_efx_e)
+         nullify(prescr_kev_e)
+         nullify(prescr_efx_p)
+         nullify(prescr_kev_p)
+
+      endif
 
    end subroutine ionosphere_run1
 

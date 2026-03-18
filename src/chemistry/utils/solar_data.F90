@@ -18,12 +18,14 @@ module solar_data
   character(len=shr_kind_cl) :: solar_parms_data_file = 'NONE'
   character(len=shr_kind_cl) :: solar_euv_data_file   = 'NONE'
   character(len=shr_kind_cl) :: solar_wind_data_file  = 'NONE'
+  character(len=shr_kind_cl) :: spe_files = 'NONE'
 
   character(len=8)   :: solar_data_type = 'SERIAL'      ! "FIXED" or "SERIAL"
   integer            :: solar_data_ymd = -99999999      ! YYYYMMDD for "FIXED" type
   integer            :: solar_data_tod = 0              ! seconds of day for "FIXED" type
   real(r8)           :: solar_const = -9999._r8         ! constant TSI (W/m2)
   logical            :: solar_htng_spctrl_scl = .false. ! do rad heating spectral scaling
+  logical :: spe_inputs = .false.
 
  contains
 
@@ -35,7 +37,8 @@ module solar_data
     use spmd_utils,      only: mpicom, masterprocid, mpi_character, mpi_integer, mpi_logical, mpi_real8
     use solar_parms_data,only: solar_parms_on
     use solar_wind_data, only: solar_wind_on
-    
+    use spe_data,        only: spe_on
+
     ! arguments
     character(len=*), intent(in) :: nlfile  ! filepath for file containing namelist input
 
@@ -44,8 +47,9 @@ module solar_data
 
     namelist /solar_data_opts/ &
          solar_irrad_data_file, solar_parms_data_file, solar_euv_data_file, solar_wind_data_file, &
-         solar_data_type, solar_data_ymd, solar_data_tod, solar_const, solar_htng_spctrl_scl
-    
+         solar_data_type, solar_data_ymd, solar_data_tod, solar_const, solar_htng_spctrl_scl, &
+         spe_files, spe_inputs
+
     if (use_simple_phys) return
 
     if (masterproc) then
@@ -67,6 +71,8 @@ module solar_data
     call mpi_bcast(solar_parms_data_file, len(solar_parms_data_file), mpi_character, masterprocid, mpicom, ierr)
     call mpi_bcast(solar_euv_data_file,   len(solar_euv_data_file),   mpi_character, masterprocid, mpicom, ierr)
     call mpi_bcast(solar_wind_data_file,  len(solar_wind_data_file),  mpi_character, masterprocid, mpicom, ierr)
+    call mpi_bcast(spe_files,  len(spe_files),  mpi_character, masterprocid, mpicom, ierr)
+    call mpi_bcast(spe_inputs, 1,               mpi_logical,   masterprocid, mpicom, ierr)
 
     call mpi_bcast(solar_data_type, len(solar_data_type), mpi_character, masterprocid, mpicom, ierr)
     call mpi_bcast(solar_data_ymd,  1,                    mpi_integer,   masterprocid, mpicom, ierr)
@@ -75,7 +81,7 @@ module solar_data
     call mpi_bcast(solar_htng_spctrl_scl,1,               mpi_logical,   masterprocid, mpicom, ierr)
 
     if ( (solar_irrad_data_file.ne.'NONE') .and. (solar_const>0._r8) ) then
-       call endrun('solar_data_readnl: ERROR cannot specify both solar_irrad_data_file and solar_const')      
+       call endrun('solar_data_readnl: ERROR cannot specify both solar_irrad_data_file and solar_const')
     endif
 
     if ( (solar_data_ymd>0 .or. solar_data_tod>0) .and. trim(solar_data_type)=='SERIAL' ) then
@@ -92,10 +98,13 @@ module solar_data
        write(iulog,*) 'solar_data_readnl: solar_data_ymd  = ',solar_data_ymd
        write(iulog,*) 'solar_data_readnl: solar_data_tod  = ',solar_data_tod
        write(iulog,*) 'solar_data_readnl: solar_htng_spctrl_scl  = ',solar_htng_spctrl_scl
+       write(iulog,*) 'solar_data_readnl: spe_files = ',trim(spe_files)
+       write(iulog,*) 'solar_data_readnl: spe_inputs = ',spe_inputs
     endif
 
     solar_parms_on = solar_parms_data_file.ne.'NONE'
     solar_wind_on = solar_wind_data_file.ne.'NONE'
+    spe_on = spe_inputs .and. (spe_files.ne.'NONE')
 
   end subroutine solar_data_readnl
 
@@ -106,6 +115,7 @@ module solar_data
     use solar_parms_data, only: solar_parms_init
     use solar_wind_data,  only: solar_wind_init
     use solar_euv_data,   only: solar_euv_init
+    use spe_data,  only: spe_init
 
     logical :: fixed_solar
     fixed_solar = trim(solar_data_type) == 'FIXED'
@@ -115,6 +125,7 @@ module solar_data
     call solar_parms_init( solar_parms_data_file, fixed_solar, solar_data_ymd, solar_data_tod )
     call solar_wind_init( solar_wind_data_file, fixed_solar, solar_data_ymd, solar_data_tod )
     call solar_euv_init( solar_euv_data_file, fixed_solar, solar_data_ymd, solar_data_tod )
+    call spe_init( spe_files, fixed_solar, solar_data_ymd, solar_data_tod )
 
    end subroutine solar_data_init
 
@@ -126,11 +137,15 @@ module solar_data
      use solar_parms_data, only: solar_parms_advance
      use solar_wind_data,  only: solar_wind_advance
      use solar_euv_data,   only: solar_euv_advance
+     use spe_data,   only: spe_advance
 
      call solar_irrad_advance()
      call solar_parms_advance()
      call solar_wind_advance()
      call solar_euv_advance()
+     call spe_advance()
+     
+     if (masterproc) write(6,"('solar_data: after calling spe_advance')")
 
    end subroutine solar_data_advance
 
