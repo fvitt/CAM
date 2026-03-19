@@ -426,8 +426,8 @@ module meped_module
         ave_p_flux(:,j) = 0._r8
         ave_p_ekev(:,j) = 30._r8
         do i=1,nxglon
-          ind = int(xglon(i)/2._r8)
-          if (xglon(i) < 0.) ind = int((360._r8+xglon(i))/2._r8)
+          ind = int((xglon(i))/2._r8) + 1
+          if (xglon(i) < 0.) ind = int((360._r8+xglon(i))/2._r8) + 1
           if (xglat(j) < -30._r8) then
               jnd = int((-29.5_r8-xglat(j))/1._r8)
               ave_e_flux(i,j) = ave_e_flux_sh(ind,jnd)

@@ -1155,10 +1155,12 @@ level_loop : &
 !
 ! Add MEPED ionization rates
       if (prescribed_meped_period .and. indxEfx_e>0 .and. indxEfx_p>0) then
-         falfa3(:) = alfa3(:)*flux3(:)
-         qmeped_e(:,k) = falfa3(:)*alfa3_ion(:)*barm_t(:)
-         falfa3p(:) = p0ez_mbar(:)*flux3p(:)*1.e6_r8/(tk_mbar(:)*35._r8)
-         qmeped_p(:,k) = falfa3p(:)*alfa3p_bion(:)
+         where( do_aurora(:) )
+            falfa3(:) = alfa3(:)*flux3(:)
+            qmeped_e(:,k) = falfa3(:)*alfa3_ion(:)*barm_t(:)
+            falfa3p(:) = p0ez_mbar(:)*flux3p(:)*1.e6_r8/(tk_mbar(:)*35._r8)
+            qmeped_p(:,k) = falfa3p(:)*alfa3p_bion(:)
+         endwhere
       endif
 
 !         if (masterproc .and. k .eq.80 ) then
@@ -1356,16 +1358,22 @@ level_loop : &
 !
 ! Add MEPED ionization rates
           if (prescribed_meped_period .and. indxEfx_e>0 .and. indxEfx_p>0) then
-            alfa3_ion(:) = const0
-            alfa3p_bion(:) = const0
-            xalfa3(:)    = p0ez(:)/alfa3(:)
-            xalfa3p(:) = ((tk_mbar(:)/0.00271_r8)**0.58140_r8)/alfa3p(:) ! MEPED protons
-            call cion( xalfa3, alfa3_ion, alfa3, do_aurora, ncol )
-            call bion( xalfa3p,alfa3p_bion,ncol, mask=do_aurora )
-            falfa3(:) = alfa3(:)*flux3(3)
-            qmeped_e(:,k) = falfa3(:)*alfa3_ion(:)*barm_t(:)
-            falfa3p(:) = p0ez_mbar(:)*flux3p(:)*1.e6_r8/(tk_mbar(:)*35._r8)
-            qmeped_p(:,k) = falfa3p(:)*alfa3p_bion(:)
+             where( do_aurora(:) )
+                alfa3_ion(:) = const0
+                alfa3p_bion(:) = const0
+                xalfa3(:) = p0ez(:)/alfa3(:)
+                xalfa3p(:) = ((tk_mbar(:)/0.00271_r8)**0.58140_r8)/alfa3p(:) ! MEPED protons
+             end where
+
+             call cion( xalfa3, alfa3_ion, alfa3, do_aurora, ncol )
+             call bion( xalfa3p,alfa3p_bion,ncol, mask=do_aurora )
+
+             where( do_aurora(:) )
+                falfa3(:) = alfa3(:)*flux3(3)
+                qmeped_e(:,k) = falfa3(:)*alfa3_ion(:)*barm_t(:)
+                falfa3p(:) = p0ez_mbar(:)*flux3p(:)*1.e6_r8/(tk_mbar(:)*35._r8)
+                qmeped_p(:,k) = falfa3p(:)*alfa3p_bion(:)
+             end where
           endif
 !
 ! Add solar proton ionization rate masked by drizl
