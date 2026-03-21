@@ -24,6 +24,8 @@ module atm_import_export
   use srf_field_check   , only : set_active_Faoo_fco2_ocn
   use atm_stream_ndep   , only : stream_ndep_init, stream_ndep_interp, stream_ndep_is_initialized
   use atm_stream_ndep   , only : ndep_stream_active
+  use meped_input_stream, only : meped_input_stream_init, meped_input_stream_advance
+  use meped_input_stream, only : stream_meped_is_active, stream_meped_is_initialized
   use chemistry         , only : chem_has_ndep_flx
   use cam_control_mod   , only : aqua_planet, simple_phys
 
@@ -1144,6 +1146,17 @@ contains
 
        end if
 
+    end if
+
+    if (stream_meped_is_active .and. .not.stream_meped_is_initialized) then
+       call meped_input_stream_init(model_mesh, model_clock, rc)
+       if (ChkErr(rc,__LINE__,u_FILE_u)) return
+       stream_meped_is_initialized = .true.
+    end if
+
+    if (stream_meped_is_active) then
+       call meped_input_stream_advance(rc)
+       if (ChkErr(rc,__LINE__,u_FILE_u)) return
     end if
 
   end subroutine export_fields

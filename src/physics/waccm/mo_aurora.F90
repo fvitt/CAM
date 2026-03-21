@@ -57,6 +57,8 @@
       use aurora_params, only: power=>hpower, plevel, aurora_params_set
       use aurora_params, only: ctpoten, theta0, dskofa, offa, phid, rrad
       use aurora_params, only: prescribed_period
+      use meped_input_stream, only: meped_north_varlist, meped_south_varlist, stream_meped_is_active
+      use meped_input_stream, only: meped_e_flux, meped_p_flux, meped_e_ekev, meped_p_ekev
 
       implicit none
 
@@ -299,6 +301,23 @@
         call addfld( 'QSUM', (/ 'lev' /), 'I','/s',      &
              'total ion production' )
 
+        if (stream_meped_is_active) then
+           call addfld(meped_north_varlist(1), horiz_only, 'A', ' ','MEPED input')
+           call addfld(meped_north_varlist(2), horiz_only, 'A', ' ','MEPED input')
+           call addfld(meped_north_varlist(3), horiz_only, 'A', ' ','MEPED input')
+           call addfld(meped_north_varlist(4), horiz_only, 'A', ' ','MEPED input')
+
+           call addfld(meped_south_varlist(1), horiz_only, 'A', ' ','MEPED input')
+           call addfld(meped_south_varlist(2), horiz_only, 'A', ' ','MEPED input')
+           call addfld(meped_south_varlist(3), horiz_only, 'A', ' ','MEPED input')
+           call addfld(meped_south_varlist(4), horiz_only, 'A', ' ','MEPED input')
+
+           call addfld('meped_e_flux', horiz_only, 'A', 'mW/m^2','MEPED input')
+           call addfld('meped_e_ekev', horiz_only, 'A', 'keV','MEPED input')
+           call addfld('meped_p_flux', horiz_only, 'A', 'mW/m^2','MEPED input')
+           call addfld('meped_p_ekev', horiz_only, 'A', 'keV','MEPED input')
+        end if
+
       end subroutine aurora_inti
 
       subroutine aurora_timestep_init( )
@@ -481,6 +500,13 @@
 !-----------------------------------------------------------------------
       call outfld( 'ALONM', r2d*alonm(:ncol,lchnk), ncol, lchnk )
       call outfld( 'ALATM', r2d*alatm(:ncol,lchnk), ncol, lchnk )
+
+      if (stream_meped_is_active) then
+         call outfld( 'meped_e_flux', meped_e_flux(:ncol,lchnk), ncol, lchnk )
+         call outfld( 'meped_e_ekev', meped_e_ekev(:ncol,lchnk), ncol, lchnk )
+         call outfld( 'meped_p_flux', meped_p_flux(:ncol,lchnk), ncol, lchnk )
+         call outfld( 'meped_p_ekev', meped_p_ekev(:ncol,lchnk), ncol, lchnk )
+      end if
 
 !-----------------------------------------------------------------------
 !    aurora is active for columns poleward of 30 deg
