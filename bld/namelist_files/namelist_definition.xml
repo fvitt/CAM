@@ -7909,6 +7909,40 @@ Nitrogen deposition stream data filename.
 Grid mesh file corresponding to stream_ndep_data_filename.
 </entry>
 
+<!-- MEPED input stream -->
+
+<entry id="meped_filepath" type="char*256" input_pathname="abs" category="WACCM"
+       group="meped_stream_nl" valid_values="" >
+MEPED stream data filename.
+</entry>
+
+<entry id="meped_north_mesh" type="char*256" input_pathname="abs" category="WACCM"
+       group="meped_stream_nl" valid_values="" >
+Grid mesh file corresponding to northern hemisphere of the MEPED stream data inputs.
+</entry>
+
+<entry id="meped_south_mesh" type="char*256" input_pathname="abs" category="WACCM"
+       group="meped_stream_nl" valid_values="" >
+Grid mesh file corresponding to southern hemisphere of the MEPED stream data inputs.
+</entry>
+
+<entry id="stream_meped_year_first" type="integer" category="WACCM"
+       group="meped_stream_nl" valid_values="" >
+Year first to use in MEPED stream data.
+</entry>
+
+<entry id="stream_meped_year_last" type="integer" category="WACCM"
+       group="meped_stream_nl" valid_values="" >
+Year last to use in MEPED stream data.
+</entry>
+
+<entry id="stream_meped_year_align" type="integer" category="WACCM"
+       group="meped_stream_nl" valid_values="" >
+Model year to align with stream_meped_year_first in MEPED stream data.
+</entry>
+
+<!-- MEGEN emissions -->
+
 <entry id="megan_factors_file" type="char*256" input_pathname="abs" category="VOC_emissions"
        group="megan_emis_nl" valid_values="" >
 File containing MEGAN emissions factors.

@@ -1,29 +1,38 @@
 module meped_input_stream
 
-  use shr_kind_mod, only : r8 => shr_kind_r8, CL => shr_kind_cl, CS => shr_kind_cs
-  use shr_log_mod, only : errMsg => shr_log_errMsg
-  use dshr_strdata_mod, only : shr_strdata_type
-  use spmd_utils, only : iam
-  use cam_logfile, only : iulog
+  use shr_kind_mod, only: r8 => shr_kind_r8, CL => shr_kind_cl, CS => shr_kind_cs
+  use shr_log_mod, only: errMsg => shr_log_errMsg
+  use dshr_strdata_mod, only: shr_strdata_type
+  use spmd_utils, only: iam, masterproc
+  use cam_logfile, only: iulog
+  use cam_abortutils, only: endrun
+  use ppgrid, only: pcols, begchunk,endchunk
 
-  use ESMF, only : ESMF_Clock, ESMF_Mesh
-  use ESMF, only : ESMF_SUCCESS, ESMF_LOGERR_PASSTHRU, ESMF_END_ABORT
-  use ESMF, only : ESMF_Finalize, ESMF_LogFoundError
-
-  use ppgrid, only : pcols, begchunk,endchunk
-  use cam_history, only: addfld, add_default, horiz_only, outfld
+  use ESMF, only: ESMF_Clock, ESMF_Mesh
+  use ESMF, only: ESMF_SUCCESS, ESMF_LOGERR_PASSTHRU, ESMF_END_ABORT
+  use ESMF, only: ESMF_Finalize, ESMF_LogFoundError
 
   implicit none
+
+  private
+  public :: meped_input_stream_readnl
+  public :: meped_input_stream_init
+  public :: meped_input_stream_advance
+  public :: stream_meped_is_active
+  public :: meped_e_flux
+  public :: meped_p_flux
+  public :: meped_e_ekev
+  public :: meped_p_ekev
 
   type(shr_strdata_type) :: stream_north ! input data stream for northern hemisphere
   type(shr_strdata_type) :: stream_south ! input data stream for southern hemisphere
 
-  character(len=*), parameter :: meped_filepath = &
-       '/data/terminator-data1/home/fvitt/camdev/ganglu_epp/inputs/med_ring_exponential_oct03.ncf5.time2.nc'
-  character(len=*), parameter :: meped_north_mesh = &
-       '/data/terminator-data1/home/fvitt/camdev/ganglu_epp/inputs/ESMFmesh_MEDEP_north_nomask_c260320.cdf5.nc'
-  character(len=*), parameter :: meped_south_mesh = &
-       '/data/terminator-data1/home/fvitt/camdev/ganglu_epp/inputs/ESMFmesh_MEDEP_south_nomask_c260320.cdf5.nc'
+  character(len=CL) :: meped_filepath = 'NONE'
+  !     '/data/terminator-data1/home/fvitt/camdev/ganglu_epp/inputs/med_ring_exponential_oct03.ncf5.time2.nc'
+  character(len=CL) :: meped_north_mesh = 'NONE'
+  !     '/data/terminator-data1/home/fvitt/camdev/ganglu_epp/inputs/ESMFmesh_MEDEP_north_nomask_c260320.cdf5.nc'
+  character(len=CL) :: meped_south_mesh = 'NONE'
+  !     '/data/terminator-data1/home/fvitt/camdev/ganglu_epp/inputs/ESMFmesh_MEDEP_south_nomask_c260320.cdf5.nc'
 
   character(len=*), parameter :: meped_north_varlist(*) = (/'e_flux_nh','e_ekev_nh','p_flux_nh','p_ekev_nh'/)
   character(len=*), parameter :: meped_south_varlist(*) = (/'e_flux_sh','e_ekev_sh','p_flux_sh','p_ekev_sh'/)
@@ -33,16 +42,85 @@ module meped_input_stream
   real(r8),protected, pointer :: meped_e_ekev(:,:) => null()
   real(r8),protected, pointer :: meped_p_ekev(:,:) => null()
 
-  integer, parameter :: stream_meped_year_first = 2003 ! first year in stream to use
-  integer, parameter :: stream_meped_year_last  = 2003 ! last year in stream to use
-  integer, parameter :: stream_meped_year_align = 2003 ! align stream_year_firstndep with
+  integer :: stream_meped_year_first = -huge(1) ! 2003 ! first year in stream to use
+  integer :: stream_meped_year_last  = -huge(1) ! 2003 ! last year in stream to use
+  integer :: stream_meped_year_align = -huge(1) ! 2003 ! align stream_meped_year_first with
 
-  logical :: stream_meped_is_initialized = .false.
-  logical,protected :: stream_meped_is_active = .true.
+  logical,protected :: stream_meped_is_active = .false.
 
 contains
 
+  !-----------------------------------------------------------------------------
+  !-----------------------------------------------------------------------------
+  subroutine meped_input_stream_readnl(nlfile)
+    use shr_nl_mod, only: shr_nl_find_group_name
+    use spmd_utils, only: mpicom, mpi_character, mpi_integer, mpi_success
 
+    ! input/output variables
+    character(len=*), intent(in) :: nlfile
+
+    ! local variables
+    integer                 :: nu_nml                 ! unit for namelist file
+    integer                 :: nml_error              ! namelist i/o error flag
+    integer                 :: ierr
+    character(*), parameter :: subname = 'meped_input_stream_readnl: '
+
+    namelist /meped_stream_nl/ &
+         meped_filepath, &
+         meped_north_mesh, &
+         meped_south_mesh, &
+         stream_meped_year_first, &
+         stream_meped_year_last, &
+         stream_meped_year_align
+
+    ! Read meped_stream_nl namelist
+    if (masterproc) then
+       open( newunit=nu_nml, file=trim(nlfile), status='old', iostat=nml_error )
+       if (nml_error /= 0) then
+          call endrun(subname//'ERROR opening '//trim(nlfile)//errMsg(__FILE__, __LINE__))
+       end if
+       call shr_nl_find_group_name(nu_nml, 'meped_stream_nl', status=nml_error)
+       if (nml_error == 0) then
+          read(nu_nml, nml=meped_stream_nl, iostat=nml_error)
+          if (nml_error /= 0) then
+             call endrun(subname//'ERROR reading meped_stream_nl namelist'//errMsg(__FILE__, __LINE__))
+          end if
+       end if
+       close(nu_nml)
+    endif
+
+    call mpi_bcast(meped_filepath, len(meped_filepath), mpi_character, 0, mpicom, ierr)
+    if (ierr/=mpi_success) call endrun(trim(subname)//"FATAL: mpi_bcast: meped_filepath")
+    call mpi_bcast(meped_north_mesh, len(meped_north_mesh), mpi_character, 0, mpicom, ierr)
+    if (ierr/=mpi_success) call endrun(trim(subname)//"FATAL: mpi_bcast: meped_north_mesh")
+    call mpi_bcast(meped_south_mesh, len(meped_south_mesh), mpi_character, 0, mpicom, ierr)
+    if (ierr/=mpi_success) call endrun(trim(subname)//"FATAL: mpi_bcast: meped_south_mesh")
+
+    call mpi_bcast(stream_meped_year_first, 1, mpi_integer, 0, mpicom, ierr)
+    if (ierr /= 0) call endrun(trim(subname)//"FATAL: mpi_bcast: stream_meped_year_first")
+    call mpi_bcast(stream_meped_year_last, 1, mpi_integer, 0, mpicom, ierr)
+    if (ierr /= 0) call endrun(trim(subname)//"FATAL: mpi_bcast: stream_meped_year_last")
+    call mpi_bcast(stream_meped_year_align, 1, mpi_integer, 0, mpicom, ierr)
+    if (ierr /= 0) call endrun(trim(subname)//"FATAL: mpi_bcast: stream_meped_year_align")
+
+    stream_meped_is_active = (meped_filepath/='NONE') .and. (len_trim(meped_filepath)>0)
+
+    if (masterproc) then
+       write(iulog,*) subname,'stream_meped_is_active = ',stream_meped_is_active
+       if (stream_meped_is_active) then
+          write(iulog,*) subname,'meped_filepath = ',trim(meped_filepath)
+          write(iulog,*) subname,'meped_north_mesh = ',trim(meped_north_mesh)
+          write(iulog,*) subname,'meped_south_mesh = ',trim(meped_south_mesh)
+          write(iulog,*) subname,'stream_meped_year_first = ',stream_meped_year_first
+          write(iulog,*) subname,'stream_meped_year_last = ',stream_meped_year_last
+          write(iulog,*) subname,'stream_meped_year_align = ',stream_meped_year_align
+       end if
+    end if
+
+  end subroutine meped_input_stream_readnl
+
+  !-----------------------------------------------------------------------------
+  !-----------------------------------------------------------------------------
   subroutine meped_input_stream_init(model_mesh, model_clock, rc)
     use dshr_strdata_mod, only: shr_strdata_init_from_inline
 
@@ -51,7 +129,11 @@ contains
     type(ESMF_Mesh) , intent(in)  :: model_mesh
     integer         , intent(out) :: rc
 
+    integer :: astat ! allocate status
+    character(*), parameter :: subname = 'meped_input_stream_init: '
+
     rc = ESMF_SUCCESS
+    if (.not.stream_meped_is_active) return
 
     ! Initialize northern hemisphere input stream
     call shr_strdata_init_from_inline(stream_north,                 &
@@ -105,24 +187,32 @@ contains
        call ESMF_Finalize(endflag=ESMF_END_ABORT)
     end if
 
-    allocate(meped_e_flux(pcols,begchunk:endchunk))
-    meped_e_flux = 0._r8
-    allocate(meped_e_ekev(pcols,begchunk:endchunk))
-    meped_e_ekev = 0._r8
-    allocate(meped_p_flux(pcols,begchunk:endchunk))
-    meped_p_flux = 0._r8
-    allocate(meped_p_ekev(pcols,begchunk:endchunk))
-    meped_p_ekev = 0._r8
+    allocate(meped_e_flux(pcols,begchunk:endchunk), stat=astat)
+    if( astat /= 0 ) call endrun(subname//'Failed to allocate meped_e_flux')
+    meped_e_flux(:,:) = 0._r8
+
+    allocate(meped_e_ekev(pcols,begchunk:endchunk), stat=astat)
+    if( astat /= 0 ) call endrun(subname//'Failed to allocate meped_e_ekev')
+    meped_e_ekev(:,:) = 0._r8
+
+    allocate(meped_p_flux(pcols,begchunk:endchunk), stat=astat)
+    if( astat /= 0 ) call endrun(subname//'Failed to allocate meped_p_flux')
+    meped_p_flux(:,:) = 0._r8
+
+    allocate(meped_p_ekev(pcols,begchunk:endchunk), stat=astat)
+    if( astat /= 0 ) call endrun(subname//'Failed to allocate meped_p_ekev')
+    meped_p_ekev(:,:) = 0._r8
 
   end subroutine meped_input_stream_init
 
-  subroutine meped_input_stream_advance(rc)
+  !-----------------------------------------------------------------------------
+  ! Updates MEPED input streams for current model date and time
+  !-----------------------------------------------------------------------------
+  subroutine meped_input_stream_advance()
     use dshr_methods_mod , only : dshr_fldbun_getfldptr
     use dshr_strdata_mod , only : shr_strdata_advance
     use time_manager     , only : get_curr_date
     use phys_grid        , only : get_ncols_p
-
-    integer, intent(out)  :: rc
 
     integer :: year
     integer :: mon
@@ -140,25 +230,29 @@ contains
     real(r8), pointer :: dataptr3s(:)
     real(r8), pointer :: dataptr4s(:)
 
+    integer :: rc
     integer :: i, c, n, ncol
 
     real(r8) :: tmp1(pcols), tmp2(pcols), tmp3(pcols), tmp4(pcols)
 
-    ! Advance input streams
+    if (.not.stream_meped_is_active) return
+
+    ! get current model date, time
     call get_curr_date(year, mon, day, sec)
     mcdate = year*10000 + mon*100 + day
 
+    ! update input streams
     call shr_strdata_advance(stream_north, ymd=mcdate, tod=sec, logunit=iulog, istr='north-meped', rc=rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, line=__LINE__, file=__FILE__)) then
        call ESMF_Finalize(endflag=ESMF_END_ABORT)
     end if
-
     call shr_strdata_advance(stream_south, ymd=mcdate, tod=sec, logunit=iulog, istr='south-meped', rc=rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, line=__LINE__, file=__FILE__)) then
        call ESMF_Finalize(endflag=ESMF_END_ABORT)
     end if
 
-    ! Get pointer for stream data that is time and spatially interpolated to model time and grid
+    ! Get pointers for stream data that is time and spatially interpolated to model time and grid
+    ! southern hemisphere
     call dshr_fldbun_getFldPtr(stream_north%pstrm(1)%fldbun_model, meped_north_varlist(1), fldptr1=dataptr1n, rc=rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, line=__LINE__, file=__FILE__)) then
        call ESMF_Finalize(endflag=ESMF_END_ABORT)
@@ -176,23 +270,7 @@ contains
        call ESMF_Finalize(endflag=ESMF_END_ABORT)
     end if
 
-    n = 0
-    do c = begchunk,endchunk
-       ncol = get_ncols_p(c)
-       do i = 1,ncol
-          n = n+1
-          tmp1(i) = dataptr1n(n)
-          tmp2(i) = dataptr2n(n)
-          tmp3(i) = dataptr3n(n)
-          tmp4(i) = dataptr4n(n)
-       end do
-       call outfld(meped_north_varlist(1), tmp1, pcols, c)
-       call outfld(meped_north_varlist(2), tmp2, pcols, c)
-       call outfld(meped_north_varlist(3), tmp3, pcols, c)
-       call outfld(meped_north_varlist(4), tmp4, pcols, c)
-    end do
-
-
+    ! southern hemisphere
     call dshr_fldbun_getFldPtr(stream_south%pstrm(1)%fldbun_model, meped_south_varlist(1), fldptr1=dataptr1s, rc=rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, line=__LINE__, file=__FILE__)) then
        call ESMF_Finalize(endflag=ESMF_END_ABORT)
@@ -210,22 +288,7 @@ contains
        call ESMF_Finalize(endflag=ESMF_END_ABORT)
     end if
 
-    n = 0
-    do c = begchunk,endchunk
-       ncol = get_ncols_p(c)
-       do i = 1,ncol
-          n = n+1
-          tmp1(i) = dataptr1s(n)
-          tmp2(i) = dataptr2s(n)
-          tmp3(i) = dataptr3s(n)
-          tmp4(i) = dataptr4s(n)
-       end do
-       call outfld(meped_south_varlist(1), tmp1, pcols, c)
-       call outfld(meped_south_varlist(2), tmp2, pcols, c)
-       call outfld(meped_south_varlist(3), tmp3, pcols, c)
-       call outfld(meped_south_varlist(4), tmp4, pcols, c)
-    end do
-
+    ! set gridded MEPED arrays
     n = 0
     do c = begchunk,endchunk
        ncol = get_ncols_p(c)
@@ -237,8 +300,6 @@ contains
           meped_p_ekev(i,c) = dataptr4n(n) + dataptr4s(n)
        end do
     end do
-
-    rc = ESMF_SUCCESS
 
   end subroutine meped_input_stream_advance
 

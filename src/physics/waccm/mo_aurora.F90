@@ -57,8 +57,8 @@
       use aurora_params, only: power=>hpower, plevel, aurora_params_set
       use aurora_params, only: ctpoten, theta0, dskofa, offa, phid, rrad
       use aurora_params, only: prescribed_period
-      use meped_input_stream, only: meped_north_varlist, meped_south_varlist, stream_meped_is_active
       use meped_input_stream, only: meped_e_flux, meped_p_flux, meped_e_ekev, meped_p_ekev
+      use meped_input_stream, only: stream_meped_is_active, meped_input_stream_advance
 
       implicit none
 
@@ -302,16 +302,6 @@
              'total ion production' )
 
         if (stream_meped_is_active) then
-           call addfld(meped_north_varlist(1), horiz_only, 'A', ' ','MEPED input')
-           call addfld(meped_north_varlist(2), horiz_only, 'A', ' ','MEPED input')
-           call addfld(meped_north_varlist(3), horiz_only, 'A', ' ','MEPED input')
-           call addfld(meped_north_varlist(4), horiz_only, 'A', ' ','MEPED input')
-
-           call addfld(meped_south_varlist(1), horiz_only, 'A', ' ','MEPED input')
-           call addfld(meped_south_varlist(2), horiz_only, 'A', ' ','MEPED input')
-           call addfld(meped_south_varlist(3), horiz_only, 'A', ' ','MEPED input')
-           call addfld(meped_south_varlist(4), horiz_only, 'A', ' ','MEPED input')
-
            call addfld('meped_e_flux', horiz_only, 'A', 'mW/m^2','MEPED input')
            call addfld('meped_e_ekev', horiz_only, 'A', 'keV','MEPED input')
            call addfld('meped_p_flux', horiz_only, 'A', 'mW/m^2','MEPED input')
@@ -415,6 +405,10 @@
 !-----------------------------------------------------------------------
       e0  = 0.5_r8 * (e1 + e2)
       ree = (e2 - e1) / (e1 + e2)
+
+      if (stream_meped_is_active) then
+         call meped_input_stream_advance()
+      end if
 
       end subroutine aurora_timestep_init
 
