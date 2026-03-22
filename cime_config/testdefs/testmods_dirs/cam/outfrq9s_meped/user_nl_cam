@@ -1,0 +1,15 @@
+mfilt=1,1,1,1,1,1,1,1,1,1
+ndens=1,1,1,1,1,1,1,1,1,1
+nhtfrq=9,9,9,9,9,9,9,9,9,9
+write_nstep0=.true.
+inithist='ENDOFRUN'
+
+ meped_filepath   = '$DIN_LOC_ROOT/atm/waccm/medep/med_ring_exponential_03oct2003_c260322.nc'
+ meped_north_mesh = '$DIN_LOC_ROOT/atm/waccm/medep/ESMFmesh_MEDEP_north_c260322.nc'
+ meped_south_mesh = '$DIN_LOC_ROOT/atm/waccm/medep/ESMFmesh_MEDEP_south_c260322.nc'
+
+ stream_meped_year_first = 2003
+ stream_meped_year_last  = 2003
+ stream_meped_year_align = 2003
+
+fincl2 = 'meped_e_flux','meped_e_ekev','meped_p_flux','meped_p_ekev'
