@@ -231,7 +231,7 @@ module meped_module
 
     istat = pio_inq_varid(ncid, 'e_flux_sh', idv_e_flux_sh)
     call check_ncerr(istat, subname, 'inq_varid idv_e_flux_sh')
-    istat = pio_get_var(ncid, idv_e_flux_nh, e_flux_sh)
+    istat = pio_get_var(ncid, idv_e_flux_sh, e_flux_sh)
     call check_ncerr(istat, subname, 'get_var e_flux_sh')
 
     istat = pio_inq_varid(ncid, 'e_ekev_nh', idv_e_ekev_nh)
@@ -241,7 +241,7 @@ module meped_module
 
     istat = pio_inq_varid(ncid, 'e_ekev_sh', idv_e_ekev_sh)
     call check_ncerr(istat, subname, 'inq_varid idv_e_ekev_sh')
-    istat = pio_get_var(ncid, idv_e_ekev_nh, e_ekev_sh)
+    istat = pio_get_var(ncid, idv_e_ekev_sh, e_ekev_sh)
     call check_ncerr(istat, subname, 'get_var e_ekev_sh')
 
     ! PROTONS
@@ -252,7 +252,7 @@ module meped_module
 
     istat = pio_inq_varid(ncid, 'p_flux_sh', idv_p_flux_sh)
     call check_ncerr(istat, subname, 'inq_varid idv_p_flux_sh')
-    istat = pio_get_var(ncid, idv_p_flux_nh, p_flux_sh)
+    istat = pio_get_var(ncid, idv_p_flux_sh, p_flux_sh)
     call check_ncerr(istat, subname, 'get_var p_flux_sh')
 
     istat = pio_inq_varid(ncid, 'p_ekev_nh', idv_p_ekev_nh)
@@ -262,7 +262,7 @@ module meped_module
 
     istat = pio_inq_varid(ncid, 'p_ekev_sh', idv_p_ekev_sh)
     call check_ncerr(istat, subname, 'inq_varid idv_p_ekev_sh')
-    istat = pio_get_var(ncid, idv_p_ekev_nh, p_ekev_sh)
+    istat = pio_get_var(ncid, idv_p_ekev_sh, p_ekev_sh)
     call check_ncerr(istat, subname, 'get_var p_ekev_sh')
 
   end subroutine rdmeped
