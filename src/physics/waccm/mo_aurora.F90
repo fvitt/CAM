@@ -1,4 +1,3 @@
-
       module mo_aurora
 !-----------------------------------------------------------------------
 !
@@ -53,12 +52,15 @@
       use shr_kind_mod,  only: r8 => shr_kind_r8
       use mo_constants,  only: pi, gask => rgas_cgs
       use cam_logfile,   only: iulog
+      use cam_history,   only: outfld
       use spmd_utils,    only: masterproc
       use aurora_params, only: power=>hpower, plevel, aurora_params_set
       use aurora_params, only: ctpoten, theta0, dskofa, offa, phid, rrad
       use aurora_params, only: prescribed_period
       use meped_input_stream, only: meped_e_flux, meped_p_flux, meped_e_ekev, meped_p_ekev
       use meped_input_stream, only: stream_meped_is_active, meped_input_stream_advance
+      use shr_const_mod, only: SHR_CONST_AVOGAD ! molecules/kmole (6.02214e26)
+      use shr_const_mod, only: SHR_CONST_BOLTZ  ! Boltzmann's constant (1.38065e-23 J/K/molecule)
 
       implicit none
 
@@ -67,18 +69,20 @@
          module procedure aurora_hrate
       end interface
 
-      save
-
-
       private
       public :: aurora_inti, aurora_timestep_init, aurora
       public :: aurora_register
+
+      logical, parameter  :: use_cion = .true.
+      logical, parameter  :: use_dion = .false.
 
       integer, parameter  :: isouth = 1
       integer, parameter  :: inorth = 2
 
       ! g = 8.7 m/s^2? Because this is 400 km up?
       real(r8), parameter :: grav   = 870._r8          ! (cm/s^2)
+      real(r8), parameter :: boltz  = SHR_CONST_BOLTZ*1.e7 ! 1.38E-16_r8      ! boltzman's constant (erg/K)
+      real(r8), parameter :: avo    = SHR_CONST_AVOGAD*1.e-3_r8 ! 6.023e23_r8 ! avogadro number (molecules/mole)
 
       integer  :: lev1 = 1
       real(r8) :: rmass_o1
@@ -173,16 +177,15 @@
       use infnan,       only : nan, assignment(=)
       use physics_buffer, only: physics_buffer_desc, pbuf_set_field
 
-      implicit none
-
       type(physics_buffer_desc), pointer :: pbuf2d(:,:)
 !-----------------------------------------------------------------------
 ! 	... local variables
 !-----------------------------------------------------------------------
       integer             :: k, m
       real(r8), parameter :: e = 1.e-10_r8
+      !real(r8), parameter :: plb = 5.e-4_r8*exp( 7._r8 ) * .1_r8             ! Pa
+      real(r8), parameter :: plb = 5500._r8             ! Pa at ~20km
 
-      real(r8) :: plb
       real(r8) :: alfa_1, alfa_2, alfa21, alfa22
       real(r8) :: e21, e22
       integer  :: op_ndx,o2p_ndx,np_ndx,n2p_ndx,e_ndx
@@ -268,7 +271,6 @@
 !-----------------------------------------------------------------------
 ! 	... set auroral lower bndy index
 !-----------------------------------------------------------------------
-      plb = 5.e-4_r8*exp( 7._r8 ) * .1_r8             ! Pa
       do k = 1,pver
 	 if( pref_mid(k) >= plb ) then
 	    lev1 = k-1
@@ -300,6 +302,14 @@
              'Magnetic longitude at each geographic coordinate')
         call addfld( 'QSUM', (/ 'lev' /), 'I','/s',      &
              'total ion production' )
+        call addfld( 'QAURORA', (/ 'lev' /), 'I','/s',      &
+             'aurora ion production' )
+        call addfld( 'QSPE', (/ 'lev' /), 'I','/s',      &
+             'solar proton ion production' )
+        call addfld( 'QMEPED_E', (/ 'lev' /), 'I','/s',      &
+             'MEPED electron ion production' )
+        call addfld( 'QMEPED_P', (/ 'lev' /), 'I','/s',      &
+             'MEPED proton ion production' )
 
         if (stream_meped_is_active) then
            call addfld('meped_e_flux', horiz_only, 'A', 'mW/m^2','MEPED input')
@@ -422,10 +432,7 @@
       use mo_apex,     only : alatm, alonm                      ! magnetic latitude,longitude grid (radians)
       use mo_apex,     only : maglon0
       use ppgrid,      only : pcols, pver
-      use cam_history, only : outfld
       use physics_buffer,only: physics_buffer_desc,pbuf_get_field
-
-      implicit none
 
 !-----------------------------------------------------------------------
 ! 	... dummy arguments
@@ -473,6 +480,7 @@
       real(r8) :: flux(ncol)
       real(r8) :: flux2(ncol)
       real(r8) :: drizl(ncol)
+      real(r8) :: flux3(ncol), alfa3(ncol), flux3p(ncol), alfa3p(ncol)
       logical  :: do_aurora(ncol)
 
       real(r8) :: dayfrac, rotation
@@ -571,15 +579,15 @@
 !-----------------------------------------------------------------------
 ! 	... make alfa, flux, and drizzle
 !-----------------------------------------------------------------------
-      call aurora_heat( flux, flux2, alfa, alfa2, &
+      call aurora_heat( flux, flux2, flux3, alfa, alfa2, alfa3, alfa3p, flux3p, &
                         drizl, do_aurora, hemis, &
-                        alon, colat, ncol, pbuf )
+                        alon, colat, ncol, lchnk, pbuf )
 
 !-----------------------------------------------------------------------
 ! 	... auroral additions to ionization rates
 !-----------------------------------------------------------------------
-      call aurora_ions( drizl, cusp, alfa, alfa2, &
-                        flux, flux2, tn, o2, &
+      call aurora_ions( drizl, cusp, alfa, alfa2, alfa3, &
+                        flux, flux2, flux3, alfa3p, flux3p, tn, o2, &
                         o1, mbar, qo2p, qop, qn2p, &
                         qnp, pmid, do_aurora, ncol, lchnk, pbuf )
 
@@ -596,8 +604,6 @@
       use mo_apex, only : maglon0
       use ppgrid,  only : pcols, pver
       use physics_buffer,only: physics_buffer_desc
-
-      implicit none
 
 !-----------------------------------------------------------------------
 ! 	... dummy arguments
@@ -645,6 +651,7 @@
       real(r8) :: alfa2(ncol)
       real(r8) :: flux(ncol)
       real(r8) :: flux2(ncol)
+      real(r8) :: flux3(ncol),alfa3(ncol),flux3p(ncol),alfa3p(ncol)
       real(r8) :: drizl(ncol)
       real(r8) :: qsum(ncol,pver)                      ! total ion production (1/s)
       logical  :: do_aurora(ncol)
@@ -729,16 +736,16 @@
 !-----------------------------------------------------------------------
 ! 	... make alfa, flux, and drizzle
 !-----------------------------------------------------------------------
-      call aurora_heat( flux, flux2, alfa, alfa2, &
+      call aurora_heat( flux, flux2, flux3, alfa, alfa2, alfa3, alfa3p, flux3p, &
                         drizl, do_aurora, hemis, &
-                        alon, colat, ncol, pbuf )
+                        alon, colat, ncol, lchnk, pbuf )
 
 !-----------------------------------------------------------------------
 ! 	... auroral additions to ionization rates
 !-----------------------------------------------------------------------
-      call total_ion_prod( drizl, cusp, alfa, alfa2, &
-                           flux, flux2, tn, &
-                           mbar, qsum, pmid, do_aurora, &
+      call total_ion_prod( drizl, cusp, alfa, alfa2, alfa3, &
+                           flux, flux2, flux3, alfa3p, flux3p, &
+                           tn, mbar, qsum, pmid, do_aurora, &
                            ncol )
 
 !-----------------------------------------------------------------------
@@ -754,8 +761,6 @@
 !-----------------------------------------------------------------------
 ! 	... calculate horizontal variation of polar cusp heating
 !-----------------------------------------------------------------------
-
-      implicit none
 
 !-----------------------------------------------------------------------
 ! 	... dummy arguments
@@ -783,20 +788,18 @@
 
       end subroutine aurora_cusp
 
-      subroutine aurora_heat( flux, flux2, alfa, alfa2, &
+      subroutine aurora_heat( flux, flux2, flux3, alfa, alfa2, alfa3, alfa3p, flux3p, &
                               drizl, do_aurora, hemis, &
-                              alon, colat, ncol, pbuf )
+                              alon, colat, ncol, lchnk, pbuf )
 !-----------------------------------------------------------------------
 ! 	... calculate alfa, flux, and drizzle
 !-----------------------------------------------------------------------
       use physics_buffer,only: physics_buffer_desc,pbuf_get_field
 
-      implicit none
-
 !-----------------------------------------------------------------------
 ! 	... dummy arguments
 !-----------------------------------------------------------------------
-      integer, intent(in)     :: ncol
+      integer, intent(in)     :: ncol, lchnk
       integer, intent(in)     :: hemis(ncol)
       real(r8), intent(in)    :: colat(ncol)
       real(r8), intent(in)    :: alon(ncol)
@@ -805,6 +808,7 @@
       real(r8), intent(inout) :: drizl(ncol)
       real(r8), intent(inout) :: alfa(ncol)
       real(r8), intent(inout) :: alfa2(ncol)
+      real(r8), intent(inout) :: flux3(ncol),alfa3(ncol),alfa3p(ncol),flux3p(ncol)
       logical, intent(in)     :: do_aurora(ncol)
       type(physics_buffer_desc),pointer :: pbuf(:)
 
@@ -892,10 +896,28 @@
          enddo
       endif
 
+! Initializing MEPED parameters
+      flux3(:) = 0._r8
+      alfa3(:) = 0._r8
+      flux3p(:) = 0._r8
+      alfa3p(:) = 0._r8
+!
+! Define MEPED data for alfa3 and flux3
+      if (stream_meped_is_active) then
+         do n=1,ncol
+            alfa3(n) = max(meped_e_ekev(n,lchnk),30._r8)/2._r8
+            flux3(n) = max(meped_e_flux(n,lchnk)/(2._r8*alfa3(n)*1.602e-9_r8),1.e-20_r8)
+            ! Convert keV to Mev for MEPED proton
+            alfa3p(n) = max(meped_p_ekev(n,lchnk)*1.e-3_r8,30.e-3_r8)
+            ! Convert from mW/m2/s to MeV/cm2/s
+            flux3p(n) = max(meped_p_flux(n,lchnk)/1.602e-6_r8,1.e-20_r8)
+         enddo
+      endif
+!
       end subroutine aurora_heat
 
-      subroutine aurora_ions( drizl, cusp, alfa1, alfa2, &
-                              flux1, flux2, tn, o2, &
+      subroutine aurora_ions( drizl, cusp, alfa1, alfa2, alfa3, &
+                              flux1, flux2, flux3, alfa3p, flux3p, tn, o2, &
                               o1, mbar, qo2p, qop, qn2p, &
                               qnp, pmid, do_aurora, ncol, lchnk, pbuf )
 !-----------------------------------------------------------------------
@@ -906,8 +928,6 @@
       use cam_history, only : outfld
 
       use physics_buffer,only: physics_buffer_desc, pbuf_get_field
-
-      implicit none
 
 !-----------------------------------------------------------------------
 ! 	... dummy arguments
@@ -920,7 +940,8 @@
                              alfa1, &
                              alfa2, &
                              flux1, &
-                             flux2
+                             flux2, &
+                             alfa3, flux3, alfa3p, flux3p
       real(r8), dimension(pcols,pver), intent(in) :: &
                              tn, &                     ! midpoint neutral temperature (K)
                              pmid                      ! midpoint pressure (Pa)
@@ -945,6 +966,7 @@
       integer  :: k
       real(r8), dimension(ncol) :: &
         p0ez, &
+        p0ez_mbar, tk_mbar,&
         press, &                                   ! pressure at interface levels (dyne/cm^2)
         tempi, &                                   ! temperature at interface levels (K)
         xalfa1, &
@@ -961,6 +983,8 @@
         barm, &
         falfa1, &
         falfa2, &
+        alfa3_ion, alfa3p_bion, &
+        xalfa3, xalfa3p, falfa3, falfa3p, &
         fcusp, &
         fdrizl, &
         xn2
@@ -970,11 +994,16 @@
         qn2p_aur                                   ! auroral ionization for O2+, O+, N2+
       real(r8) :: qia(5)                           ! low energy proton source (not in use, 1/02)
       real(r8) :: wrk(ncol,pver)
+      real(r8), dimension(ncol,pver) ::  qmeped_e, qmeped_p, qaurora
 
       real(r8), pointer   :: aurIPRateSum(:,:) ! Pointer to pbuf auroral ion production sum for O2+,O+,N2+ (s-1 cm-3)
 
       qia(:) = 0._r8
       wrk(:,:) = 0._r8
+      qmeped_e(:,:) = 0._r8
+      qmeped_p(:,:) = 0._r8
+      tk_mbar(:) = 0._r8
+      p0ez(:) = 0._r8
 
       !-----------------------------------------------------------
       !  Point to production rates array in physics buffer where
@@ -993,12 +1022,15 @@ level_loop : &
              press(:ncol) = 10._r8*pmid(:ncol,k)              ! from Pa to dyne/cm^2
              tempi(:ncol) = tn(:ncol,k)
              barm(:)      = mbar(:,k)
+             barm_t(:) = grav*barm(:)/(35.e-3_r8*gask*tempi(:))
              p0ez(:)      = (press(:)/(grav*4.e-6_r8))**.606_r8
+             p0ez_mbar(:) = press(:)*barm(:)/(boltz*tempi(:))/avo
+             tk_mbar(:) = gask*tempi(:)/(grav*barm(:))*p0ez_mbar(:)
+
              xalfa1(:)    = p0ez(:)/alfa1(:)
              xalfa2(:)    = p0ez(:)/alfa2(:)
              xcusp (:)    = p0ez(:)/alfac
              xdrizl(:)    = p0ez(:)/alfad
-
 !-----------------------------------------------------------------------
 ! 	... initialize (whole array operations):
 !-----------------------------------------------------------------------
@@ -1010,10 +1042,26 @@ level_loop : &
 !-----------------------------------------------------------------------
 ! 	... auroral electrons
 !-----------------------------------------------------------------------
-          call aion( xalfa1, alfa1_ion, do_aurora, ncol )
-          call aion( xalfa2, alfa2_ion, do_aurora, ncol )
           call aion( xcusp , cusp_ion, do_aurora, ncol  )
           call aion( xdrizl, drizl_ion, do_aurora, ncol )
+          if (.not.use_cion) then
+             call aion( xalfa1, alfa1_ion, do_aurora, ncol )
+             call aion( xalfa2, alfa2_ion, do_aurora, ncol )
+          else
+             call cion( xalfa1, alfa1_ion, alfa1, do_aurora, ncol )
+             call cion( xalfa2, alfa2_ion, alfa2, do_aurora, ncol )
+          endif
+
+! MEPED electrons & protons:
+          if (stream_meped_is_active) then
+             alfa3_ion(:) = const0
+             alfa3p_bion(:) = const0
+             xalfa3(:)    = p0ez(:)/alfa3(:)
+             xalfa3p(:) = ((tk_mbar(:)/0.00271_r8)**0.58140_r8)/alfa3p(:) ! MEPED protons
+             call cion( xalfa3, alfa3_ion, alfa3, do_aurora, ncol )
+             call bion( xalfa3p,alfa3p_bion,ncol, mask=do_aurora )
+          endif
+
           where( do_aurora(:) )
              falfa1(:) = alfa1(:)*flux1(:)  ! s7
              falfa2(:) = alfa2(:)*flux2(:)  ! s8
@@ -1024,13 +1072,25 @@ level_loop : &
                        + fcusp(:)*cusp_ion (:) &     ! s9*s5
                        + fdrizl(:)*drizl_ion(:)       ! s10*s6
           endwhere
+!
+! Add MEPED ionization rates
+          if (stream_meped_is_active) then
+             where( do_aurora(:) )
+                falfa3(:) = alfa3(:)*flux3(:)
+                qmeped_e(:,k) = falfa3(:)*alfa3_ion(:)*barm_t(:)
+                falfa3p(:) = p0ez_mbar(:)*flux3p(:)*1.e6_r8/(tk_mbar(:)*35._r8)
+                qmeped_p(:,k) = falfa3p(:)*alfa3p_bion(:)
+             endwhere
+          endif
 
 !-----------------------------------------------------------------------
 ! 	... form production
 !-----------------------------------------------------------------------
           where( do_aurora(:) )
-             barm_t(:) = grav*barm(:)/(35.e-3_r8*gask*tempi(:))
+             qaurora(:,k) = (falfa1(:)*alfa1_ion(:)+falfa2(:)*alfa2_ion(:))*barm_t(:)
              qsum(:)   = qsum(:)*barm_t(:)               ! s1 = s1*s11
+! Add qmeped_e, qmeped_p, qspe to qsum
+             qsum(:)   = qsum(:)+qmeped_e(:,k)+qmeped_p(:,k) !+qspe(:,k)
              wrk(:,k)  = qsum(:)
 !-----------------------------------------------------------------------
 ! 	... denominator of equations (13-16) in Roble,1987.
@@ -1069,20 +1129,22 @@ level_loop : &
       endif
 
       call outfld( 'QSUM', wrk, ncol, lchnk )
+      !call outfld( 'QSPE', qspe, ncol, lchnk )
+      call outfld( 'QMEPED_E', qmeped_e, ncol, lchnk )
+      call outfld( 'QMEPED_P', qmeped_p, ncol, lchnk )
+      call outfld( 'QAURORA', qaurora, ncol, lchnk )
 
       end subroutine aurora_ions
 
-      subroutine total_ion_prod( drizl, cusp, alfa1, alfa2, &
-                                 flux1, flux2, tn, &
-                                 mbar, tpions, pmid, do_aurora, &
+      subroutine total_ion_prod( drizl, cusp, alfa1, alfa2, alfa3, &
+                                 flux1, flux2, flux3, alfa3p, flux3p, &
+                                 tn, mbar, tpions, pmid, do_aurora, &
                                  ncol )
 !-----------------------------------------------------------------------
 ! 	... calculate auroral additions to ionization rates
 !-----------------------------------------------------------------------
 
       use ppgrid,      only : pcols, pver
-
-      implicit none
 
 !-----------------------------------------------------------------------
 ! 	... dummy arguments
@@ -1094,7 +1156,8 @@ level_loop : &
                              alfa1, &
                              alfa2, &
                              flux1, &
-                             flux2
+                             flux2, &
+                             alfa3, flux3, alfa3p, flux3p
       real(r8), dimension(pcols,pver), intent(in) :: &
                              tn, &                     ! midpoint neutral temperature (K)
                              pmid                      ! midpoint pressure (Pa)
@@ -1114,6 +1177,7 @@ level_loop : &
         p0ez, &
         press, &                                   ! pressure at interface levels (dyne/cm^2)
         tempi, &                                   ! temperature at interface levels (K)
+        tk_mbar, p0ez_mbar, &
         xalfa1, &
         xalfa2, &
         xcusp, &
@@ -1127,9 +1191,18 @@ level_loop : &
         barm, &
         falfa1, &
         falfa2, &
+        alfa3_ion, alfa3p_bion, &
+        xalfa3, xalfa3p, falfa3, falfa3p, &     ! For MEPED electrons and protons
         fcusp
 
+      real(r8), dimension(ncol) ::  qmeped_e, qmeped_p
+
+      qsum(:) = 0._r8
       tpions(:,:) = 0._r8
+      qmeped_e(:) = 0._r8
+      qmeped_p(:) = 0._r8
+      tk_mbar(:) = 0._r8
+      p0ez(:) = 0._r8
 
 level_loop : &
       do k = 1,lev1
@@ -1137,7 +1210,11 @@ level_loop : &
              press(:ncol) = 10._r8*pmid(:ncol,k)              ! from Pa to dyne/cm^2
              tempi(:ncol) = tn(:ncol,k)
              barm(:)      = mbar(:,k)
+             barm_t(:)    = grav*barm(:)/(35.e-3_r8*gask*tempi(:))
              p0ez(:)      = (press(:)/(grav*4.e-6_r8))**.606_r8
+             p0ez_mbar(:) = press(:)*barm(:)/(boltz*tempi(:))
+             tk_mbar(:) = gask*tempi(:)/(grav*barm(:))*p0ez_mbar(:)
+
              xalfa1(:)    = p0ez(:)/alfa1(:)
              xalfa2(:)    = p0ez(:)/alfa2(:)
              xcusp (:)    = p0ez(:)/alfac
@@ -1154,10 +1231,16 @@ level_loop : &
 !-----------------------------------------------------------------------
 ! 	... auroral electrons
 !-----------------------------------------------------------------------
-          call aion( xalfa1, alfa1_ion, do_aurora, ncol )
-          call aion( xalfa2, alfa2_ion, do_aurora, ncol )
           call aion( xcusp , cusp_ion, do_aurora, ncol  )
           call aion( xdrizl, drizl_ion, do_aurora, ncol )
+          if (.not.use_cion) then
+            call aion( xalfa1, alfa1_ion, do_aurora, ncol )
+            call aion( xalfa2, alfa2_ion, do_aurora, ncol )
+          else
+            call cion( xalfa1, alfa1_ion, alfa1, do_aurora, ncol )
+            call cion( xalfa2, alfa2_ion, alfa2, do_aurora, ncol )
+          endif
+
           where( do_aurora(:) )
              falfa1(:) = alfa1(:)*flux1(:)  ! s7
              falfa2(:) = alfa2(:)*flux2(:)  ! s8
@@ -1167,13 +1250,35 @@ level_loop : &
                        + fcusp(:)*cusp_ion (:) &     ! s9*s5
                        + drizl(:)*drizl_ion(:)       ! s10*s6
           endwhere
+!
+! Add MEPED ionization rates
+          if (stream_meped_is_active) then
+             where( do_aurora(:) )
+                alfa3_ion(:) = const0
+                alfa3p_bion(:) = const0
+                xalfa3(:) = p0ez(:)/alfa3(:)
+                xalfa3p(:) = ((tk_mbar(:)/0.00271_r8)**0.58140_r8)/alfa3p(:) ! MEPED protons
+             end where
+
+             call cion( xalfa3, alfa3_ion, alfa3, do_aurora, ncol )
+             call bion( xalfa3p,alfa3p_bion,ncol, mask=do_aurora )
+
+             where( do_aurora(:) )
+                falfa3(:) = alfa3(:)*flux3(:)
+                qmeped_e(:) = falfa3(:)*alfa3_ion(:)*barm_t(:)
+                falfa3p(:) = p0ez_mbar(:)*flux3p(:)*1.e6_r8/(tk_mbar(:)*35._r8)
+                qmeped_p(:) = falfa3p(:)*alfa3p_bion(:)
+             end where
+          endif
 
 !-----------------------------------------------------------------------
 ! 	... form production
 !-----------------------------------------------------------------------
           where( do_aurora(:) )
-             barm_t(:)   = grav*barm(:)/(35.e-3_r8*gask*tempi(:))
-             tpions(:,k) = qsum(:)*barm_t(:)               ! s1 = s1*s11
+             qsum(:)   = qsum(:)*barm_t(:)               ! s1 = s1*s11
+             ! Add qmeped_e, qmeped_p, qspe to qsum
+             qsum(:)   = qsum(:) + qmeped_e(:) + qmeped_p(:) !+qspe(:,k)
+             tpions(:,k) = qsum(:)
           endwhere
       end do level_loop
 
@@ -1188,8 +1293,6 @@ level_loop : &
 ! Uses the identity x**y = exp(y*ln(x)) for performance
 ! (fewer (1/2) trancendental functions are required).
 !------------------------------------------------------------------------
-
-      implicit none
 
 !------------------------------------------------------------------------
 ! 	... dummy arguments
@@ -1218,5 +1321,96 @@ level_loop : &
       endwhere
 
       end subroutine aion
+
+!-----------------------------------------------------------------------
+      subroutine bion(si,so,ncol, mask)
+!
+! Calculates integrated f(x) needed for total auroral ionization.
+! See equations (10-12) in Roble,1987.
+!
+      ! Args:
+      integer,  intent(in)  :: ncol
+      real(r8), intent(in)  :: si(ncol)
+      real(r8), intent(out) :: so(ncol)
+
+      logical, optional, intent(in) :: mask(ncol)
+!
+! Local:
+      real(r8) :: xlog(ncol)
+      integer  :: i
+      real(r8),parameter :: cc(8) = &
+        (/ 0.12718_r8, 4.9119_r8, 1.8429_r8, 0.99336_r8, 0.52472_r8, 1.5565_r8, &
+           0.85732_r8, 1.4116_r8 /)
+!
+! Use the identity x**y = exp(y*ln(x)) for performance
+! (fewer (1/2) trancendental functions are required).
+!
+      where(mask)
+         xlog(:) = log(si(:))
+         so(:) = cc(1)*exp(cc(2)*xlog(:)-cc(3)*exp(cc(4)*xlog(:)))+ &
+                 cc(5)*exp(cc(6)*xlog(:)-cc(7)*exp(cc(8)*xlog(:)))
+      elsewhere
+         so(:) = 0._r8
+      end where
+
+      end subroutine bion
+
+!-----------------------------------------------------------------------
+      subroutine cion(si,so,alpha,do_aurora,ncol)
+!
+! Calculate a normalized energy deposition function, which is produced by
+! electron precipitation with a characteristic energy from 100 eV to 1 MeV.
+! This parameterization is designed to improve the subroutine aion, extending
+! the working energy range from around 1-100 keV to 0.1-1000 keV.
+! -- Xiaohua Fang, LASP, University of Colorado, May 2008.
+! Reference:
+!  Fang, X., C. E. Randall, D. Lummerzheim, S. C. Solomon, M. J. Mills,
+!  D. Marsh, C. H. Jackman, W. Wang, and G. Lu (2008), Electron impact
+!  ionization: A new parameterization for 100 eV to 1 MeV electrons,
+!  J. Geophys. Res., doi:10.1029/2008JA013384.
+!
+! Args:
+      integer, intent(in)  :: ncol
+      real(r8),intent(in)  :: si(ncol), alpha(ncol)
+      real(r8),intent(out) :: so(ncol)
+      logical, intent(in)  :: do_aurora(ncol)
+!
+! Locals:
+      real(r8),parameter :: P(4, 8) = RESHAPE(                      &
+       (/ 3.49979e-1_r8, -6.18200e-2_r8, -4.08124e-2_r8,  1.65414e-2_r8,    &
+          5.85425e-1_r8, -5.00793e-2_r8,  5.69309e-2_r8, -4.02491e-3_r8,    &
+          1.69692e-1_r8, -2.58981e-2_r8,  1.96822e-2_r8,  1.20505e-3_r8,    &
+         -1.22271e-1_r8, -1.15532e-2_r8,  5.37951e-6_r8,  1.20189e-3_r8,    &
+          1.57018_r8,     2.87896e-1_r8, -4.14857e-1_r8,  5.18158e-2_r8,    &
+          8.83195e-1_r8,  4.31402e-2_r8, -8.33599e-2_r8,  1.02515e-2_r8,    &
+          1.90953_r8,    -4.74704e-2_r8, -1.80200e-1_r8,  2.46652e-2_r8,    &
+         -1.29566_r8,    -2.10952e-1_r8,  2.73106e-1_r8, -2.92752e-2_r8 /), &
+       (/4, 8/) )
+      real(r8) :: cc(8), logE, logY
+      integer  :: i,ii,k
+!
+      do i=1,ncol
+       if (do_aurora(i)) then
+         if (alpha(i) >= 0.1) then
+!
+! calculate the energy-dependent coefficients
+            logE = log(alpha(i))      ! alpha=E0 (in keV)
+            do ii=1, 8
+              cc(ii)=exp( P(1,ii) + P(2,ii)*logE + P(3,ii)*(logE**2.) + &
+                P(4,ii)*(logE**3.) )
+            end do
+!
+! calculate the energy deposition function
+            logY = log( si(i) )
+            so(i) =  cc(1)*exp( cc(2)*logY - cc(3)*exp( cc(4)*logY ) ) &
+                     + cc(5)*exp( cc(6)*logY - cc(7)*exp( cc(8)*logY ) )
+         else
+            so(i)=0.
+         endif
+       endif
+      enddo
+
+      end subroutine cion
+!------------------------------------------
 
       end module mo_aurora
