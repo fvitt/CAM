@@ -1369,7 +1369,7 @@ level_loop : &
              call bion( xalfa3p,alfa3p_bion,ncol, mask=do_aurora )
 
              where( do_aurora(:) )
-                falfa3(:) = alfa3(:)*flux3(3)
+                falfa3(:) = alfa3(:)*flux3(:)
                 qmeped_e(:,k) = falfa3(:)*alfa3_ion(:)*barm_t(:)
                 falfa3p(:) = p0ez_mbar(:)*flux3p(:)*1.e6_r8/(tk_mbar(:)*35._r8)
                 qmeped_p(:,k) = falfa3p(:)*alfa3p_bion(:)
