@@ -25,14 +25,16 @@ module gw_cospectra_mod
   public :: gw_cospectra_reg
   public :: gw_cospectra_init
   public :: gw_cospectra_calc
+  public :: gw_cospectra_adj_tends
   public :: gw_cospectra_restart_init
   public :: gw_cospectra_restart_write
   public :: gw_cospectra_restart_read
+  public :: gw_cospectra_final
 
   logical, protected, public :: gw_cospectra_active = .false.
 
-  real(r8), pointer, protected, public :: frcxu_phys(:,:,:) => null() !(pcols,pver,begchunk:endchunk)
-  real(r8), pointer, protected, public :: frcyu_phys(:,:,:) => null() !(pcols,pver,begchunk:endchunk)
+  real(r8), pointer :: frcxu_phys(:,:,:) => null() !(pcols,pver,begchunk:endchunk)
+  real(r8), pointer :: frcyu_phys(:,:,:) => null() !(pcols,pver,begchunk:endchunk)
 
   integer :: nftnum = 0
   integer :: ntime = 0
@@ -319,7 +321,7 @@ contains
 
     end do
 
-    ! gather and smooth
+    ! gather and smooth in latitude
 
     frcxr = gather_and_smooth(frcxr)
     frcxu = gather_and_smooth(frcxu)
@@ -353,7 +355,7 @@ contains
     physfrcs(1)%fld => frcxu_phys
     physfrcs(2)%fld => frcyu_phys
 
-
+    ! map forcings to physics grid
     call esmf_lonlat2phys_regrid( lonlatfrcs, physfrcs )
 
     do lchnk = begchunk, endchunk
@@ -481,6 +483,67 @@ contains
     end subroutine output_cosp
 
   end subroutine gw_cospectra_calc
+
+  ! -----------------------------------------------------------------------------
+  ! -----------------------------------------------------------------------------
+  subroutine gw_cospectra_adj_tends( ncol, lchnk, utend, vtend )
+    integer,  intent(in)    :: ncol, lchnk
+    real(r8), intent(inout) :: utend(:,:)
+    real(r8), intent(inout) :: vtend(:,:)
+
+    integer :: i,k
+    real(r8) :: utgw_cosp   ! temporary array for deduced unresolved forcing
+    real(r8) :: vtgw_cosp
+    real(r8), parameter :: gwtnd_cosp_max = 400._r8/86400._r8
+
+    ! apply vertical smoothing
+    do k = 3, pver-3
+       do i = 1, ncol
+          utgw_cosp = sum(frcxu_phys(i,k-2:k+2,lchnk))*0.2_r8
+          utgw_cosp = utend(i,k) + utgw_cosp
+          utend(i,k) = SIGN(MIN(ABS(utgw_cosp),gwtnd_cosp_max),utgw_cosp)
+
+          vtgw_cosp = sum(frcyu_phys(i,k-2:k+2,lchnk))*0.2_r8
+          vtgw_cosp = vtend(i,k) + vtgw_cosp
+          vtend(i,k) = SIGN(MIN(ABS(vtgw_cosp),gwtnd_cosp_max),vtgw_cosp)
+       end do
+    end do
+    do k = 1, 2
+       do i = 1, ncol
+          utgw_cosp = frcxu_phys(i,k,lchnk)
+          utgw_cosp = utend(i,k) + utgw_cosp
+          utend(i,k) = SIGN(MIN(ABS(utgw_cosp),gwtnd_cosp_max),utgw_cosp)
+
+          vtgw_cosp = frcyu_phys(i,k,lchnk)
+          vtgw_cosp = vtend(i,k) + vtgw_cosp
+          vtend(i,k) = SIGN(MIN(ABS(vtgw_cosp),gwtnd_cosp_max),vtgw_cosp)
+       end do
+    end do
+    do k = pver-2,pver
+       do i = 1, ncol
+          utgw_cosp = frcxu_phys(i,k,lchnk)
+          utgw_cosp = utend(i,k) + utgw_cosp
+          utend(i,k) = SIGN(MIN(ABS(utgw_cosp),gwtnd_cosp_max),utgw_cosp)
+
+          vtgw_cosp = frcyu_phys(i,k,lchnk)
+          vtgw_cosp = vtend(i,k) + vtgw_cosp
+          vtend(i,k) = SIGN(MIN(ABS(vtgw_cosp),gwtnd_cosp_max),vtgw_cosp)
+       end do
+    end do
+
+  end subroutine gw_cospectra_adj_tends
+
+  ! -----------------------------------------------------------------------------
+  ! -----------------------------------------------------------------------------
+  subroutine gw_cospectra_final()
+    ! free up memory
+    deallocate(accum_cospectra_u)
+    deallocate(accum_cospectra_v)
+    deallocate(frcxu_phys)
+    nullify(frcxu_phys)
+    deallocate(frcyu_phys)
+    nullify(frcyu_phys)
+  end subroutine gw_cospectra_final
 
   ! -----------------------------------------------------------------------------
   ! -----------------------------------------------------------------------------

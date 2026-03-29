@@ -1335,6 +1335,7 @@ contains
     use phys_grid_ctem, only : phys_grid_ctem_final
     use nudging, only: Nudge_Model, nudging_final
     use ctem_diags_mod, only: ctem_diags_final
+    use gw_cospectra_mod, only: gw_cospectra_final
 
     !-----------------------------------------------------------------------
     !
@@ -1366,6 +1367,7 @@ contains
     endif
 
     call ctem_diags_final()
+    call gw_cospectra_final()
 
   end subroutine phys_final
 
