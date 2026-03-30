@@ -6185,6 +6185,12 @@ solar and geomagnetic activity( F10.7, F10.7a, Kp, Ap ).
 Default: set by build-namelist.
 </entry>
 
+<entry id="solar_proton_data_file" type="char*256" input_pathname="abs" category="waccm"
+       group="solar_data_opts" valid_values="" >
+Full pathname of solar proton inputs.
+Default: set by build-namelist.
+</entry>
+
 <entry id="solar_wind_data_file" type="char*256" input_pathname="abs" category="waccm"
        group="solar_data_opts" valid_values="" >
 Full pathname of time-variant  dataset for the time-dependent solar wind parameters

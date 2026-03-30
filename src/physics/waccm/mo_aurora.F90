@@ -61,6 +61,8 @@
       use meped_input_stream, only: stream_meped_is_active, meped_input_stream_advance
       use shr_const_mod, only: SHR_CONST_AVOGAD ! molecules/kmole (6.02214e26)
       use shr_const_mod, only: SHR_CONST_BOLTZ  ! Boltzmann's constant (1.38065e-23 J/K/molecule)
+      use solar_proton_data,only: spe_on=>solar_proton_on
+      use solar_proton_data,only: spe_eo=>solar_proton_eo, spe_fe=>solar_proton_fe
 
       implicit none
 
@@ -481,7 +483,9 @@
       real(r8) :: flux2(ncol)
       real(r8) :: drizl(ncol)
       real(r8) :: flux3(ncol), alfa3(ncol), flux3p(ncol), alfa3p(ncol)
+      real(r8) :: flux_spe(ncol), alfa_spe(ncol)
       logical  :: do_aurora(ncol)
+      logical  :: do_spe(ncol)
 
       real(r8) :: dayfrac, rotation
 
@@ -513,6 +517,7 @@
 !-----------------------------------------------------------------------
 !    aurora is active for columns poleward of 30 deg
 !-----------------------------------------------------------------------
+      do_spe(:) = (abs( rlats(:) ) > pi/6._r8) .and. spe_on
       do_aurora(:) = abs( rlats(:) ) > pi/6._r8
       if( all( .not. do_aurora(:) ) ) then
          return
@@ -580,16 +585,16 @@
 ! 	... make alfa, flux, and drizzle
 !-----------------------------------------------------------------------
       call aurora_heat( flux, flux2, flux3, alfa, alfa2, alfa3, alfa3p, flux3p, &
-                        drizl, do_aurora, hemis, &
+                        alfa_spe, flux_spe, drizl, do_aurora, do_spe, hemis, &
                         alon, colat, ncol, lchnk, pbuf )
 
 !-----------------------------------------------------------------------
 ! 	... auroral additions to ionization rates
 !-----------------------------------------------------------------------
       call aurora_ions( drizl, cusp, alfa, alfa2, alfa3, &
-                        flux, flux2, flux3, alfa3p, flux3p, tn, o2, &
+                        flux, flux2, flux3, alfa3p, flux3p, alfa_spe, flux_spe, tn, o2, &
                         o1, mbar, qo2p, qop, qn2p, &
-                        qnp, pmid, do_aurora, ncol, lchnk, pbuf )
+                        qnp, pmid, do_aurora, do_spe, ncol, lchnk, pbuf )
 
       end subroutine aurora_prod
 
@@ -652,9 +657,11 @@
       real(r8) :: flux(ncol)
       real(r8) :: flux2(ncol)
       real(r8) :: flux3(ncol),alfa3(ncol),flux3p(ncol),alfa3p(ncol)
+      real(r8) :: flux_spe(ncol), alfa_spe(ncol)
       real(r8) :: drizl(ncol)
       real(r8) :: qsum(ncol,pver)                      ! total ion production (1/s)
       logical  :: do_aurora(ncol)
+      logical  :: do_spe(ncol)
 
       real(r8) :: dayfrac, rotation
 
@@ -670,6 +677,7 @@
 !-----------------------------------------------------------------------
 ! 	... check latitudes, and return if all below 32.5 deg
 !-----------------------------------------------------------------------
+      do_spe(:) = (abs( rlats(:) ) > pi/6._r8) .and. spe_on
       do_aurora(:) = abs( rlats(:) ) > pi/6._r8
       if( all( .not. do_aurora(:) ) ) then
          return
@@ -737,7 +745,7 @@
 ! 	... make alfa, flux, and drizzle
 !-----------------------------------------------------------------------
       call aurora_heat( flux, flux2, flux3, alfa, alfa2, alfa3, alfa3p, flux3p, &
-                        drizl, do_aurora, hemis, &
+                        alfa_spe, flux_spe, drizl, do_aurora, do_spe, hemis, &
                         alon, colat, ncol, lchnk, pbuf )
 
 !-----------------------------------------------------------------------
@@ -745,7 +753,8 @@
 !-----------------------------------------------------------------------
       call total_ion_prod( drizl, cusp, alfa, alfa2, alfa3, &
                            flux, flux2, flux3, alfa3p, flux3p, &
-                           tn, mbar, qsum, pmid, do_aurora, &
+                           flux_spe, alfa_spe, &
+                           tn, mbar, qsum, pmid, do_aurora, do_spe, &
                            ncol )
 
 !-----------------------------------------------------------------------
@@ -789,7 +798,7 @@
       end subroutine aurora_cusp
 
       subroutine aurora_heat( flux, flux2, flux3, alfa, alfa2, alfa3, alfa3p, flux3p, &
-                              drizl, do_aurora, hemis, &
+                              alfa_spe, flux_spe, drizl, do_aurora, do_spe, hemis, &
                               alon, colat, ncol, lchnk, pbuf )
 !-----------------------------------------------------------------------
 ! 	... calculate alfa, flux, and drizzle
@@ -809,7 +818,9 @@
       real(r8), intent(inout) :: alfa(ncol)
       real(r8), intent(inout) :: alfa2(ncol)
       real(r8), intent(inout) :: flux3(ncol),alfa3(ncol),alfa3p(ncol),flux3p(ncol)
+      real(r8), intent(inout) :: flux_spe(ncol),alfa_spe(ncol)
       logical, intent(in)     :: do_aurora(ncol)
+      logical, intent(in)     :: do_spe(ncol)
       type(physics_buffer_desc),pointer :: pbuf(:)
 
 !-----------------------------------------------------------------------
@@ -914,12 +925,22 @@
          enddo
       endif
 !
+      flux_spe(:) = 1.e-20_r8
+      alfa_spe(:) = 1._r8
+
+      where( do_spe(:) )
+! spe_eo is in MeV for SPE proton
+         alfa_spe(:) = max(spe_eo,1._r8)
+! spe_fe is in MeV/cm2/s
+         flux_spe(:) = max(spe_fe,1.e-20_r8)
+      endwhere
+
       end subroutine aurora_heat
 
       subroutine aurora_ions( drizl, cusp, alfa1, alfa2, alfa3, &
-                              flux1, flux2, flux3, alfa3p, flux3p, tn, o2, &
+                              flux1, flux2, flux3, alfa3p, flux3p, alfa_spe, flux_spe, tn, o2, &
                               o1, mbar, qo2p, qop, qn2p, &
-                              qnp, pmid, do_aurora, ncol, lchnk, pbuf )
+                              qnp, pmid, do_aurora, do_spe, ncol, lchnk, pbuf )
 !-----------------------------------------------------------------------
 ! 	... calculate auroral additions to ionization rates
 !-----------------------------------------------------------------------
@@ -941,7 +962,7 @@
                              alfa2, &
                              flux1, &
                              flux2, &
-                             alfa3, flux3, alfa3p, flux3p
+                             alfa3, flux3, alfa3p, flux3p, alfa_spe, flux_spe
       real(r8), dimension(pcols,pver), intent(in) :: &
                              tn, &                     ! midpoint neutral temperature (K)
                              pmid                      ! midpoint pressure (Pa)
@@ -955,6 +976,7 @@
                              qn2p, &                   ! n2p prod from aurora (molecules/cm^3/s)
                              qnp                       ! np prod from aurora (molecules/cm^3/s)
       logical, intent(in) :: do_aurora(ncol)
+      logical, intent(in) :: do_spe(ncol)
 
       type(physics_buffer_desc),pointer :: pbuf(:)
 
@@ -985,6 +1007,7 @@
         falfa2, &
         alfa3_ion, alfa3p_bion, &
         xalfa3, xalfa3p, falfa3, falfa3p, &
+        xalfa_spe, xflux_spe, falfa_spe, spe_bion, &
         fcusp, &
         fdrizl, &
         xn2
@@ -994,7 +1017,7 @@
         qn2p_aur                                   ! auroral ionization for O2+, O+, N2+
       real(r8) :: qia(5)                           ! low energy proton source (not in use, 1/02)
       real(r8) :: wrk(ncol,pver)
-      real(r8), dimension(ncol,pver) ::  qmeped_e, qmeped_p, qaurora
+      real(r8), dimension(ncol,pver) ::  qmeped_e, qmeped_p, qspe, qaurora
 
       real(r8), pointer   :: aurIPRateSum(:,:) ! Pointer to pbuf auroral ion production sum for O2+,O+,N2+ (s-1 cm-3)
 
@@ -1002,6 +1025,7 @@
       wrk(:,:) = 0._r8
       qmeped_e(:,:) = 0._r8
       qmeped_p(:,:) = 0._r8
+      qspe(:,:) = 0._r8
       tk_mbar(:) = 0._r8
       p0ez(:) = 0._r8
 
@@ -1052,6 +1076,15 @@ level_loop : &
              call cion( xalfa2, alfa2_ion, alfa2, do_aurora, ncol )
           endif
 
+! Solar Protons
+          if (spe_on) then
+             where( do_spe(:) )
+                spe_bion(:) = const0
+                xalfa_spe(:) = ((tk_mbar(:)/0.00271_r8)**0.58140_r8)/alfa_spe(:) ! SPE protons
+             endwhere
+             call bion( xalfa_spe, spe_bion, ncol, mask=do_spe ) ! needs to be outside the where block
+          endif
+
 ! MEPED electrons & protons:
           if (stream_meped_is_active) then
              alfa3_ion(:) = const0
@@ -1083,6 +1116,12 @@ level_loop : &
              endwhere
           endif
 
+! Add solar proton ionization rate masked by drizl
+          where( do_spe(:) )
+             falfa_spe(:) = drizl(:)*p0ez_mbar(:)*flux_spe(:)*1.e6_r8/(tk_mbar(:)*35._r8)
+             qspe(:,k) = falfa_spe(:)*spe_bion(:)
+          endwhere
+
 !-----------------------------------------------------------------------
 ! 	... form production
 !-----------------------------------------------------------------------
@@ -1090,7 +1129,7 @@ level_loop : &
              qaurora(:,k) = (falfa1(:)*alfa1_ion(:)+falfa2(:)*alfa2_ion(:))*barm_t(:)
              qsum(:)   = qsum(:)*barm_t(:)               ! s1 = s1*s11
 ! Add qmeped_e, qmeped_p, qspe to qsum
-             qsum(:)   = qsum(:)+qmeped_e(:,k)+qmeped_p(:,k) !+qspe(:,k)
+             qsum(:)   = qsum(:)+qmeped_e(:,k)+qmeped_p(:,k)+qspe(:,k)
              wrk(:,k)  = qsum(:)
 !-----------------------------------------------------------------------
 ! 	... denominator of equations (13-16) in Roble,1987.
@@ -1129,7 +1168,7 @@ level_loop : &
       endif
 
       call outfld( 'QSUM', wrk, ncol, lchnk )
-      !call outfld( 'QSPE', qspe, ncol, lchnk )
+      call outfld( 'QSPE', qspe, ncol, lchnk )
       call outfld( 'QMEPED_E', qmeped_e, ncol, lchnk )
       call outfld( 'QMEPED_P', qmeped_p, ncol, lchnk )
       call outfld( 'QAURORA', qaurora, ncol, lchnk )
@@ -1138,7 +1177,8 @@ level_loop : &
 
       subroutine total_ion_prod( drizl, cusp, alfa1, alfa2, alfa3, &
                                  flux1, flux2, flux3, alfa3p, flux3p, &
-                                 tn, mbar, tpions, pmid, do_aurora, &
+                                 flux_spe, alfa_spe, &
+                                 tn, mbar, tpions, pmid, do_aurora, do_spe, &
                                  ncol )
 !-----------------------------------------------------------------------
 ! 	... calculate auroral additions to ionization rates
@@ -1157,7 +1197,7 @@ level_loop : &
                              alfa2, &
                              flux1, &
                              flux2, &
-                             alfa3, flux3, alfa3p, flux3p
+                             alfa3, flux3, alfa3p, flux3p, flux_spe, alfa_spe
       real(r8), dimension(pcols,pver), intent(in) :: &
                              tn, &                     ! midpoint neutral temperature (K)
                              pmid                      ! midpoint pressure (Pa)
@@ -1166,6 +1206,7 @@ level_loop : &
       real(r8), dimension(ncol,pver), intent(inout) :: &
                              tpions                    ! total ion production (1/s)
       logical, intent(in) :: do_aurora(ncol)
+      logical, intent(in) :: do_spe(ncol)
 
 !-----------------------------------------------------------------------
 ! 	... local variables
@@ -1193,14 +1234,16 @@ level_loop : &
         falfa2, &
         alfa3_ion, alfa3p_bion, &
         xalfa3, xalfa3p, falfa3, falfa3p, &     ! For MEPED electrons and protons
+        xalfa_spe, xflux_spe, falfa_spe, spe_bion, &
         fcusp
 
-      real(r8), dimension(ncol) ::  qmeped_e, qmeped_p
+      real(r8), dimension(ncol) ::  qmeped_e, qmeped_p, qspe
 
       qsum(:) = 0._r8
       tpions(:,:) = 0._r8
       qmeped_e(:) = 0._r8
       qmeped_p(:) = 0._r8
+      qspe(:) = 0._r8
       tk_mbar(:) = 0._r8
       p0ez(:) = 0._r8
 
@@ -1271,13 +1314,26 @@ level_loop : &
              end where
           endif
 
+! Add solar proton ionization rate masked by drizl
+          if (spe_on) then
+             where( do_spe(:) )
+                spe_bion(:) = const0
+                xalfa_spe(:) = ((tk_mbar(:)/0.00271_r8)**0.58140_r8)/alfa_spe(:) ! SPE protons
+             endwhere
+             call bion( xalfa_spe, spe_bion, ncol, mask=do_spe ) ! needs to be outside the where block
+             where( do_spe(:) )
+                falfa_spe(:) = drizl(:)*p0ez_mbar(:)*flux_spe(:)*1.e6_r8/(tk_mbar(:)*35._r8)
+                qspe(:)   = falfa_spe(:)*spe_bion(:)
+             endwhere
+          endif
+
 !-----------------------------------------------------------------------
 ! 	... form production
 !-----------------------------------------------------------------------
           where( do_aurora(:) )
              qsum(:)   = qsum(:)*barm_t(:)               ! s1 = s1*s11
              ! Add qmeped_e, qmeped_p, qspe to qsum
-             qsum(:)   = qsum(:) + qmeped_e(:) + qmeped_p(:) !+qspe(:,k)
+             qsum(:)   = qsum(:) + qmeped_e(:) + qmeped_p(:) + qspe(:)
              tpions(:,k) = qsum(:)
           endwhere
       end do level_loop
