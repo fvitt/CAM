@@ -4,7 +4,11 @@ nhtfrq=9,9,9,9,9,9,9,9,9,9
 write_nstep0=.true.
 inithist='ENDOFRUN'
 
- meped_filepath   = '$DIN_LOC_ROOT/atm/waccm/epp/med_ring_exponential_03oct2003_c260322.nc'
+ solar_data_type = 'SERIAL'
+ solar_data_ymd  = 0
+ solar_proton_data_file = '$DIN_LOC_ROOT/atm/waccm/epp/goes11_protons_25oct-30nov2003_c260330.nc'
+
+ meped_filepath   = '$DIN_LOC_ROOT/atm/waccm/epp/med_ring_exponential_28-31oct2003_c260322.nc'
  meped_north_mesh = '$DIN_LOC_ROOT/atm/waccm/epp/ESMFmesh_MEPED_north_c260322.nc'
  meped_south_mesh = '$DIN_LOC_ROOT/atm/waccm/epp/ESMFmesh_MEPED_south_c260322.nc'
 
@@ -12,4 +16,5 @@ inithist='ENDOFRUN'
  stream_meped_year_last  = 2003
  stream_meped_year_align = 2003
 
-fincl2 = 'meped_e_flux','meped_e_ekev','meped_p_flux','meped_p_ekev'
+fincl2 = 'meped_e_flux','meped_e_ekev','meped_p_flux','meped_p_ekev',
+         'QAURORA','QSPE', 'QMEPED_E', 'QMEPED_P','QSUM'
