@@ -1026,6 +1026,7 @@
       qmeped_e(:,:) = 0._r8
       qmeped_p(:,:) = 0._r8
       qspe(:,:) = 0._r8
+      qaurora(:,:) = 0._r8
       tk_mbar(:) = 0._r8
       p0ez(:) = 0._r8
 
