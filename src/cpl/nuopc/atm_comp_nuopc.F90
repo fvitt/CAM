@@ -70,7 +70,7 @@ module atm_comp_nuopc
    use pio                 , only : pio_def_var, pio_get_var, pio_put_var, PIO_INT
    use ioFileMod
    !$use omp_lib           , only : omp_set_num_threads
-   use meped_input_stream,   only : meped_input_stream_init
+   use meped_input_stream,   only : meped_input_stream_init, meped_input_stream_final
 
   implicit none
   private ! except
@@ -1394,6 +1394,7 @@ contains
     call shr_log_setLogUnit (iulog)
 
     call cam_final( cam_out, cam_in )
+    call meped_input_stream_final()
 
     if (masterproc) then
        write(iulog,F91)

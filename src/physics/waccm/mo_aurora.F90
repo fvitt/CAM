@@ -52,17 +52,16 @@
       use shr_kind_mod,  only: r8 => shr_kind_r8
       use mo_constants,  only: pi, gask => rgas_cgs
       use cam_logfile,   only: iulog
-      use cam_history,   only: outfld
+      use cam_history,   only: outfld, addfld, horiz_only
       use spmd_utils,    only: masterproc
       use aurora_params, only: power=>hpower, plevel, aurora_params_set
       use aurora_params, only: ctpoten, theta0, dskofa, offa, phid, rrad
       use aurora_params, only: prescribed_period
       use meped_input_stream, only: meped_e_flux, meped_p_flux, meped_e_ekev, meped_p_ekev
-      use meped_input_stream, only: stream_meped_is_active, meped_input_stream_advance
+      use meped_input_stream, only: meped_input_is_active, meped_input_stream_advance
       use shr_const_mod, only: SHR_CONST_AVOGAD ! molecules/kmole (6.02214e26)
       use shr_const_mod, only: SHR_CONST_BOLTZ  ! Boltzmann's constant (1.38065e-23 J/K/molecule)
-      use solar_proton_data,only: spe_on=>solar_proton_on
-      use solar_proton_data,only: spe_eo=>solar_proton_eo, spe_fe=>solar_proton_fe
+      use solar_proton_data,only: spe_on=>solar_proton_on, spe_eo=>solar_proton_eo, spe_fe=>solar_proton_fe
 
       implicit none
 
@@ -82,9 +81,13 @@
       integer, parameter  :: inorth = 2
 
       ! g = 8.7 m/s^2? Because this is 400 km up?
-      real(r8), parameter :: grav   = 870._r8          ! (cm/s^2)
-      real(r8), parameter :: boltz  = SHR_CONST_BOLTZ*1.e7 ! 1.38E-16_r8      ! boltzman's constant (erg/K)
-      real(r8), parameter :: avo    = SHR_CONST_AVOGAD*1.e-3_r8 ! 6.023e23_r8 ! avogadro number (molecules/mole)
+      real(r8), parameter :: grav  = 870._r8 ! (cm/s^2)
+      real(r8), parameter :: boltz = SHR_CONST_BOLTZ*1.e7      ! boltzman's constant (erg/K)
+      real(r8), parameter :: avo   = SHR_CONST_AVOGAD*1.e-3_r8 ! avogadro number (molecules/mole)
+      real(r8), parameter :: twopi = 2._r8*pi
+      real(r8), parameter :: d2r = pi/180._r8
+      real(r8), parameter :: r2d = 180._r8/pi
+      real(r8), parameter :: h2deg = 15._r8   ! hour to degree
 
       integer  :: lev1 = 1
       real(r8) :: rmass_o1
@@ -93,9 +96,6 @@
       real(r8) :: rmassinv_o1
       real(r8) :: rmassinv_o2
       real(r8) :: rmassinv_n2
-      real(r8), parameter :: twopi = 2._r8*pi
-      real(r8), parameter :: d2r = pi/180._r8
-      real(r8), parameter :: r2d = 180._r8/pi
 
 !-----------------------------------------------------------------------
 ! 	... polar drizzle parameters:
@@ -142,12 +142,10 @@
         alfa20          ! average of noon and midnight char energies for high alt aurora
 
       logical :: aurora_active = .false.
-      integer :: indxAIPRS    = -1
+      integer :: indxAIPRS = -1
       integer :: indxQTe = -1
       integer :: indxEfx = -1
       integer :: indxKev = -1
-
-      real(r8), parameter :: h2deg = 15._r8   ! hour to degree
 
       contains
 
@@ -174,7 +172,6 @@
       use constituents, only : cnst_get_ind, cnst_mw
       use ref_pres,     only : pref_mid
       use mo_chem_utls, only : get_spc_ndx
-      use cam_history,  only : addfld, horiz_only
       use physics_buffer,only: pbuf_get_index
       use infnan,       only : nan, assignment(=)
       use physics_buffer, only: physics_buffer_desc, pbuf_set_field
@@ -313,7 +310,7 @@
         call addfld( 'QMEPED_P', (/ 'lev' /), 'I','/s',      &
              'MEPED proton ion production' )
 
-        if (stream_meped_is_active) then
+        if (meped_input_is_active) then
            call addfld('meped_e_flux', horiz_only, 'A', 'mW/m^2','MEPED input')
            call addfld('meped_e_ekev', horiz_only, 'A', 'keV','MEPED input')
            call addfld('meped_p_flux', horiz_only, 'A', 'mW/m^2','MEPED input')
@@ -418,7 +415,7 @@
       e0  = 0.5_r8 * (e1 + e2)
       ree = (e2 - e1) / (e1 + e2)
 
-      if (stream_meped_is_active) then
+      if (meped_input_is_active) then
          call meped_input_stream_advance()
       end if
 
@@ -507,7 +504,7 @@
       call outfld( 'ALONM', r2d*alonm(:ncol,lchnk), ncol, lchnk )
       call outfld( 'ALATM', r2d*alatm(:ncol,lchnk), ncol, lchnk )
 
-      if (stream_meped_is_active) then
+      if (meped_input_is_active) then
          call outfld( 'meped_e_flux', meped_e_flux(:ncol,lchnk), ncol, lchnk )
          call outfld( 'meped_e_ekev', meped_e_ekev(:ncol,lchnk), ncol, lchnk )
          call outfld( 'meped_p_flux', meped_p_flux(:ncol,lchnk), ncol, lchnk )
@@ -914,7 +911,7 @@
       alfa3p(:) = 0._r8
 !
 ! Define MEPED data for alfa3 and flux3
-      if (stream_meped_is_active) then
+      if (meped_input_is_active) then
          do n=1,ncol
             alfa3(n) = max(meped_e_ekev(n,lchnk),30._r8)/2._r8
             flux3(n) = max(meped_e_flux(n,lchnk)/(2._r8*alfa3(n)*1.602e-9_r8),1.e-20_r8)
@@ -946,7 +943,6 @@
 !-----------------------------------------------------------------------
 
       use ppgrid,      only : pcols, pver
-      use cam_history, only : outfld
 
       use physics_buffer,only: physics_buffer_desc, pbuf_get_field
 
@@ -1086,7 +1082,7 @@ level_loop : &
           endif
 
 ! MEPED electrons & protons:
-          if (stream_meped_is_active) then
+          if (meped_input_is_active) then
              alfa3_ion(:) = const0
              alfa3p_bion(:) = const0
              xalfa3(:)    = p0ez(:)/alfa3(:)
@@ -1107,7 +1103,7 @@ level_loop : &
           endwhere
 !
 ! Add MEPED ionization rates
-          if (stream_meped_is_active) then
+          if (meped_input_is_active) then
              where( do_aurora(:) )
                 falfa3(:) = alfa3(:)*flux3(:)
                 qmeped_e(:,k) = falfa3(:)*alfa3_ion(:)*barm_t(:)
@@ -1295,7 +1291,7 @@ level_loop : &
           endwhere
 !
 ! Add MEPED ionization rates
-          if (stream_meped_is_active) then
+          if (meped_input_is_active) then
              where( do_aurora(:) )
                 alfa3_ion(:) = const0
                 alfa3p_bion(:) = const0
@@ -1362,8 +1358,8 @@ level_loop : &
 ! 	... local variables
 !------------------------------------------------------------------------
       real(r8), parameter :: cc(8) = &
-       (/ 3.2333134511131_r8 ,  2.5658873458085_r8 ,  2.2540957232641_r8 , &
-          0.72971983372673_r8,  1.1069072431948_r8 ,  1.7134937681128_r8 , &
+       (/ 3.2333134511131_r8 ,  2.5658873458085_r8 ,  2.2540957232641_r8, &
+          0.72971983372673_r8,  1.1069072431948_r8 ,  1.7134937681128_r8, &
           1.8835442312993_r8 ,  0.86472135072090_r8 /)
 
       real(r8) :: xlog(ncol)
@@ -1442,18 +1438,19 @@ level_loop : &
           1.90953_r8,    -4.74704e-2_r8, -1.80200e-1_r8,  2.46652e-2_r8,    &
          -1.29566_r8,    -2.10952e-1_r8,  2.73106e-1_r8, -2.92752e-2_r8 /), &
        (/4, 8/) )
-      real(r8) :: cc(8), logE, logY
+      real(r8) :: cc(8), logE, logE2, logE3, logY
       integer  :: i,ii,k
 !
       do i=1,ncol
        if (do_aurora(i)) then
-         if (alpha(i) >= 0.1) then
+         if (alpha(i) >= 0.1_r8) then
 !
 ! calculate the energy-dependent coefficients
             logE = log(alpha(i))      ! alpha=E0 (in keV)
+            logE2 = logE*logE
+            logE3 = logE*logE2
             do ii=1, 8
-              cc(ii)=exp( P(1,ii) + P(2,ii)*logE + P(3,ii)*(logE**2.) + &
-                P(4,ii)*(logE**3.) )
+               cc(ii)=exp( P(1,ii) + P(2,ii)*logE + P(3,ii)*logE2 + P(4,ii)*logE3 )
             end do
 !
 ! calculate the energy deposition function
@@ -1461,7 +1458,7 @@ level_loop : &
             so(i) =  cc(1)*exp( cc(2)*logY - cc(3)*exp( cc(4)*logY ) ) &
                      + cc(5)*exp( cc(6)*logY - cc(7)*exp( cc(8)*logY ) )
          else
-            so(i)=0.
+            so(i)=0._r8
          endif
        endif
       enddo
