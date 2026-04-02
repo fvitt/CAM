@@ -82,7 +82,7 @@
 
       ! g = 8.7 m/s^2? Because this is 400 km up?
       real(r8), parameter :: grav  = 870._r8 ! (cm/s^2)
-      real(r8), parameter :: boltz = SHR_CONST_BOLTZ*1.e7      ! boltzman's constant (erg/K)
+      real(r8), parameter :: boltz = SHR_CONST_BOLTZ*1.e7_8    ! boltzmann constant (erg/K)
       real(r8), parameter :: avo   = SHR_CONST_AVOGAD*1.e-3_r8 ! avogadro number (molecules/mole)
       real(r8), parameter :: twopi = 2._r8*pi
       real(r8), parameter :: d2r = pi/180._r8
