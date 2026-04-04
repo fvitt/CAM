@@ -1,5 +1,6 @@
 !%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%~%
-! Manages input data streams of PEMED mapped fluxes and mean energies
+! Manages input data streams of PEMED (Medium Energy Proton and Electron Detector)
+! mapped fluxes and mean energies.
 !
 ! Uses CDEP's input data stream utility which handles time interpolation
 ! and mapping to the physics grid
@@ -38,9 +39,9 @@ module meped_input_stream
   real(r8),protected, pointer :: meped_e_ekev(:,:) => null()
   real(r8),protected, pointer :: meped_p_ekev(:,:) => null()
 
-  integer :: stream_meped_year_first = -huge(1) ! 2003 ! first year in stream to use
-  integer :: stream_meped_year_last  = -huge(1) ! 2003 ! last year in stream to use
-  integer :: stream_meped_year_align = -huge(1) ! 2003 ! align stream_meped_year_first with
+  integer :: stream_meped_year_first = -huge(1) ! first year in stream to use
+  integer :: stream_meped_year_last  = -huge(1) ! last year in stream to use
+  integer :: stream_meped_year_align = -huge(1) ! align stream_meped_year_first with
 
   character(len=CL) :: meped_filepath = 'NONE'
   character(len=CL) :: meped_north_mesh = 'NONE'
