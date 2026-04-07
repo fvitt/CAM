@@ -23,22 +23,13 @@ module helium_zonal_fft_mod
   type(C_PTR) :: plan_forward
   type(C_PTR) :: plan_backward
 
-  real(C_DOUBLE), allocatable :: fftw_in(:)
-  complex(C_DOUBLE_COMPLEX), allocatable :: fftw_out(:)
-
 contains
 
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------
   subroutine helium_zonal_fft_init
 
-    ! FFTW3 variables
-    integer(C_INTPTR_T) :: fftw_n
-    type(C_PTR) :: plan
-    integer(C_INTPTR_T) :: local_n, local_start
-    integer(C_INTPTR_T) :: local_ni, local_i_start, local_no, local_o_start
-
-    complex(c_double_complex),dimension(:),allocatable :: zin,zout
+    complex(C_DOUBLE_COMPLEX),dimension(:),allocatable :: zin,zout
 
     allocate(zin(nlon))
     allocate(zout(nlon))
@@ -54,18 +45,16 @@ contains
 
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------
-  function helium_zonal_fft_forward(fld_lonlat) result(zout)
+  function helium_zonal_fft_forward(fld_lonlat) result(fld_out)
 
     real(r8),intent(in) :: fld_lonlat(lon_beg:lon_end,lat_beg:lat_end)
 
     complex(r8) :: fld_out(nlon, lat_beg:lat_end)
 
-    complex(C_DOUBLE_COMPLEX) :: zout(nlon, lat_beg:lat_end)
-    complex(C_DOUBLE_COMPLEX) :: zin(nlon, lat_beg:lat_end)
+    complex(C_DOUBLE_COMPLEX) :: zout(nlon)
+    complex(C_DOUBLE_COMPLEX) :: zin(nlon)
 
-    integer :: rc, i, ichnk, icol, ilon, ilat, ilev, ncol, len
-
-    real(C_DOUBLE) :: fld(nlon)
+    integer :: rc, ilat, len
 
     real(r8) :: sndbf(nlon,lat_beg:lat_end)
     real(r8) :: rcvbf(nlon,lat_beg:lat_end)
@@ -89,11 +78,10 @@ contains
     end if
 
     do ilat = lat_beg, lat_end
-       zin(:,ilat) = rcvbf(:,ilat)
-       call fftw_execute_dft(plan_forward, zin(:,ilat), zout(:,ilat))
+       zin(:) = rcvbf(:,ilat)
+       call fftw_execute_dft(plan_forward, zin, zout)
+       fld_out(:,ilat) = zout(:)
     end do
-
-    fld_out = zout
 
     call t_stopf('helium_zonal_fft_forward')
 
@@ -105,20 +93,18 @@ contains
 
     complex(r8), intent(in) :: fld_in(nlon, lat_beg:lat_end)
 
-    real(r8) :: fld_lonlat(lon_beg:lon_end,lat_beg:lat_end)
+    complex(r8) :: fld_lonlat(nlon,lat_beg:lat_end)
 
-    complex(C_DOUBLE_COMPLEX) :: zin(nlon, lat_beg:lat_end)
-    complex(C_DOUBLE_COMPLEX) :: zout(nlon, lat_beg:lat_end)
+    complex(C_DOUBLE_COMPLEX) :: zin(nlon)
+    complex(C_DOUBLE_COMPLEX) :: zout(nlon)
 
     integer :: ilat
 
-    zin = fld_in
-
     do ilat = lat_beg, lat_end
-       call fftw_execute_dft(plan_backward, zin(:,ilat), zout(:,ilat))
+       zin(:) = fld_in(:,ilat)
+       call fftw_execute_dft(plan_backward, zin, zout)
+       fld_lonlat(:,ilat) = zout(:)
     end do
-
-    fld_lonlat(lon_beg:lon_end,lat_beg:lat_end) = real(zout(lon_beg:lon_end,lat_beg:lat_end), kind=r8)
 
   end function helium_zonal_fft_backward
 

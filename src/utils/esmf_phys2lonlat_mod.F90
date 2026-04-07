@@ -57,8 +57,6 @@ contains
     use esmf_lonlat_grid_mod, only: lonlat_grid
 
     type(ESMF_ArraySpec) :: arrayspec
-    integer(ESMF_KIND_I4), pointer :: factorIndexList(:,:)
-    real(ESMF_KIND_R8),    pointer :: factorList(:)
     integer                        :: smm_srctermproc,  smm_pipelinedep, rc
 
     character(len=*), parameter :: subname  = 'esmf_phys2lonlat_init: '

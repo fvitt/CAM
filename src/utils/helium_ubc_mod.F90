@@ -144,7 +144,7 @@ contains
     real(kind=r8),dimension(nlat_he,nlon_he+2) :: fx_f
 
     real(kind=r8),dimension(0:nmax-1,0:nmax) :: amn ! a(m,n) spectral coefficient
-    real(kind=r8),dimension(  nmax-1,  nmax) :: bmn ! b(m,n) spectral coefficient
+    real(kind=r8),dimension(1:nmax-1,0:nmax) :: bmn ! b(m,n) spectral coefficient
 
     if (.not.he_ubc_active) return
 
