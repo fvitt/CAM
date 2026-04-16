@@ -30,7 +30,7 @@ module sox_cldaero_mod
 
   real(r8), parameter :: small_value = 1.e-20_r8
 
-  integer :: ncnst_tot                  ! total number of mode number conc + mode species
+  integer :: ncnst_tot = -huge(1) ! total number of mode number conc + mode species
 
   type(modal_aerosol_properties), pointer :: aero_props =>null()
 
@@ -298,8 +298,8 @@ contains
 
                 do m = 1, aero_props%nbins()
                    mm = aero_props%indexer(m,0)
-                   qnum_c(m) = 0.0_r8
-                   if (l > 0) qnum_c(m) = max( 0.0_r8, qcw(i,k,mm) )
+                   !qnum_c(m) = 0.0_r8
+                   qnum_c(m) = max( 0.0_r8, qcw(i,k,mm) )
                 end do
 
                 ! force qnum_c(n) to be positive for n=modeptr_accum or n=1
@@ -380,16 +380,17 @@ contains
 
                 ! compute TMR tendencies for so4 and msa aerosol-in-cloud-water
                 do m = 1, aero_props%nbins()
+                   n = lptr_so4_cw_amode(m) - loffset
                    do l = 1, aero_props%nspecies(m)
                       mm = aero_props%indexer(m,l)
                       call  aero_props%get(m,l, spectype=spectype)
                       if (trim(spectype) == 'sulfate') then
 
-                         dqdt_aqso4(i,k,mm) = faqgain_so4(m)*dso4dt_aqrxn*cldfrc(i,k)
+                         dqdt_aqso4(i,k,n) = faqgain_so4(m)*dso4dt_aqrxn*cldfrc(i,k)
 
-                         dqdt_aqh2so4(i,k,mm) = faqgain_so4(m)* &
+                         dqdt_aqh2so4(i,k,n) = faqgain_so4(m)* &
                               (dso4dt_gasuptk + dmsadt_gasuptk_toso4)*cldfrc(i,k)
-                         dqdt_aq = dqdt_aqso4(i,k,mm) + dqdt_aqh2so4(i,k,mm)
+                         dqdt_aq = dqdt_aqso4(i,k,n) + dqdt_aqh2so4(i,k,n)
                          dqdt_wr = -fwetrem*dqdt_aq
                          dqdt= dqdt_aq + dqdt_wr
                          qcw(i,k,mm) = qcw(i,k,mm) + dqdt*dtime
@@ -398,11 +399,11 @@ contains
                       end if
                       if (trim(spectype) == 'ammonium') then
                          if (delnh4 > 0.0_r8) then
-                            dqdt_aq = faqgain_so4(n)*delnh4/dtime*cldfrc(i,k)
+                            dqdt_aq = faqgain_so4(m)*delnh4/dtime*cldfrc(i,k)
                             dqdt = dqdt_aq
                             qcw(i,k,mm) = qcw(i,k,mm) + dqdt*dtime
                          else
-                            dqdt = (qcw(i,k,l)/max(xnh4c(i,k),1.0e-35_r8)) &
+                            dqdt = (qcw(i,k,mm)/max(xnh4c(i,k),1.0e-35_r8)) &
                                  *delnh4/dtime*cldfrc(i,k)
                             qcw(i,k,mm) = qcw(i,k,mm) + dqdt*dtime
                          endif

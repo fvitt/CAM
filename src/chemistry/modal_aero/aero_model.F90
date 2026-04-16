@@ -202,7 +202,7 @@ contains
     logical  :: history_aerosol ! Output MAM or SECT aerosol tendencies
     logical  :: history_chemistry, history_cesm_forcing, history_dust
 
-    integer :: l
+    integer :: l, mm
     character(len=6) :: test_name
     character(len=64) :: errmes
 
@@ -214,6 +214,9 @@ contains
     character(len=32) :: spec_type
     character(len=32) :: mode_type
     integer :: nspec
+    character(len=32) :: spectype
+    character(len=32) :: name_a
+    character(len=32) :: name_c
 
     aero_props => modal_aerosol_properties()
     ncnst_tot = aero_props%ncnst_tot()
@@ -403,7 +406,33 @@ contains
           call add_default( 'AQ_'//trim(solsym(m)), 1, ' ')
        endif
 
+       call add_default( 'GS_'//trim(solsym(m)), 5, ' ')
+       call add_default( 'AQ_'//trim(solsym(m)), 5, ' ')
+
     enddo
+
+    do m = 1, aero_props%nbins()      ! main loop over aerosol bins
+       do l = 0, aero_props%nspecies(m)
+          mm = aero_props%indexer(m,l)
+          if (l==0) then
+             call aero_props%num_names(m, name_a, name_c)
+             call addfld('SOXin_'//trim(name_c), (/ 'lev' /), 'A',' ', ' ')
+             call addfld('SOXout_'//trim(name_c), (/ 'lev' /), 'A',' ', ' ')
+             call add_default('SOXin_'//trim(name_c),5,' ')
+             call add_default('SOXout_'//trim(name_c),5,' ')
+          else
+             call aero_props%get(m,l, spectype=spectype)
+             if (trim(spectype) == 'sulfate') then
+                call aero_props%mmr_names(m,l, name_a, name_c)
+                call addfld('SOXin_'//trim(name_c), (/ 'lev' /), 'A',' ', ' ')
+                call addfld('SOXout_'//trim(name_c), (/ 'lev' /), 'A',' ', ' ')
+                call add_default('SOXin_'//trim(name_c),5,' ')
+                call add_default('SOXout_'//trim(name_c),5,' ')
+             end if
+          end if
+       end do
+    end do
+
     do n = 1,pcnst
        if( .not. (cnst_name_cw(n) == ' ') ) then
 
@@ -421,6 +450,8 @@ contains
                trim(cnst_name_cw(n))//' turbulent dry deposition flux')
           call addfld (trim(cnst_name_cw(n))//'GVF',   horiz_only,  'A', unit_basename//'/m2/s ', &
                trim(cnst_name_cw(n))//' gravitational dry deposition flux')
+
+          call add_default( cnst_name_cw(n), 5, ' ' )
 
           if ( history_aerosol.or. history_chemistry ) then
              call add_default( cnst_name_cw(n), 1, ' ' )
@@ -532,6 +563,8 @@ contains
                 call add_default (trim(cnst_name_cw(l))//'AQSO4', 1, ' ')
                 call add_default (trim(cnst_name_cw(l))//'AQH2SO4', 1, ' ')
              endif
+                call add_default (trim(cnst_name_cw(l))//'AQSO4', 5, ' ')
+                call add_default (trim(cnst_name_cw(l))//'AQH2SO4', 5, ' ')
           end if
 
        end do
@@ -539,6 +572,10 @@ contains
        call addfld( 'XPH_LWC',    (/ 'lev' /), 'A','kg/kg',   'pH value multiplied by lwc')
        call addfld ('AQSO4_H2O2', horiz_only,  'A','kg/m2/s', 'SO4 aqueous phase chemistry due to H2O2')
        call addfld ('AQSO4_O3',   horiz_only,  'A','kg/m2/s', 'SO4 aqueous phase chemistry due to O3')
+
+       call add_default ('XPH_LWC',  5, ' ')
+       call add_default ('AQSO4_H2O2',  5, ' ')
+       call add_default ('AQSO4_O3',  5, ' ')
 
        if ( history_aerosol ) then
           call add_default ('XPH_LWC', 1, ' ')
@@ -1020,7 +1057,9 @@ contains
     real(r8), pointer :: fldcw(:,:)
     real(r8), pointer :: sulfeq(:,:,:)
 
+    character(len=32) :: spectype
     character(len=32) :: specname
+    character(len=32) :: name_a, name_c
     real(r8) :: mw(ncnst_tot)
     integer :: ndx, ierr, mm
     type(ptr2d_t), allocatable :: raer(:)     ! aerosol mass, number mixing ratios
@@ -1079,12 +1118,18 @@ contains
 
     mw(:) = 0.0_r8
     do m = 1, aero_props%nbins()      ! main loop over aerosol bins
-       do l = 1, aero_props%nspecies(m)
+       do l = 0, aero_props%nspecies(m)
           mm = aero_props%indexer(m,l)
-          call aero_props%get(bin_ndx=m, species_ndx=l, specname=specname)
-          call cnst_get_ind (specname,ndx)
+          if (l==0) then
+             call aero_props%num_names(m, name_a, name_c)
+          else
+             call aero_props%mmr_names(m,l, name_a, name_c)
+          end if
+
+          call cnst_get_ind(name_a,ndx)
           mw(mm) = cnst_mw(ndx)
           vmrcw(:ncol,:,mm) = qqcw(mm)%fld(:ncol,:)
+
        end do
     end do
 
@@ -1092,6 +1137,25 @@ contains
 
     dvmrdt(:ncol,:,:) = vmr(:ncol,:,:)
     dvmrcwdt(:ncol,:,:) = vmrcw(:ncol,:,:)
+
+    do m = 1, aero_props%nbins()      ! main loop over aerosol bins
+       do l = 0, aero_props%nspecies(m)
+          mm = aero_props%indexer(m,l)
+          if (l==0) then
+             call aero_props%num_names(m, name_a, name_c)
+             call outfld('SOXin_'//trim(name_c), vmrcw(:ncol,:,mm), ncol, lchnk)
+          else
+             call aero_props%get(m,l, spectype=spectype)
+             if (trim(spectype) == 'sulfate') then
+                call aero_props%mmr_names(m,l, name_a, name_c)
+                call outfld('SOXin_'//trim(name_c), vmrcw(:ncol,:,mm), ncol, lchnk)
+             end if
+          end if
+       end do
+    end do
+
+
+
 
     ! aqueous chemistry ...
 
@@ -1132,6 +1196,22 @@ contains
        call outfld( 'XPH_LWC',    xphlwc(:ncol,:),   ncol, lchnk )
 
     endif
+
+    do m = 1, aero_props%nbins()      ! main loop over aerosol bins
+       do l = 0, aero_props%nspecies(m)
+          mm = aero_props%indexer(m,l)
+          if (l==0) then
+             call aero_props%num_names(m, name_a, name_c)
+             call outfld('SOXout_'//trim(name_c), vmrcw(:ncol,:,mm), ncol, lchnk)
+          else
+             call aero_props%get(m,l, spectype=spectype)
+             if (trim(spectype) == 'sulfate') then
+                call aero_props%mmr_names(m,l, name_a, name_c)
+                call outfld('SOXout_'//trim(name_c), vmrcw(:ncol,:,mm), ncol, lchnk)
+             end if
+          end if
+       end do
+    end do
 
     ! Tendency due to aqueous chemistry
     dvmrdt = (vmr - dvmrdt) / delt
@@ -1205,6 +1285,13 @@ contains
     call t_stopf('modal_coag')
 
     call vmr2qqcw( vmrcw, mw, mbar, ncol )
+
+    do m = 1, aero_props%nbins()      ! main loop over aerosol bins
+       do l = 0, aero_props%nspecies(m)
+          mm = aero_props%indexer(m,l)
+          qqcw(mm)%fld(:ncol,:) = vmrcw(:ncol,:,mm)
+       end do
+    end do
 
     ! diagnostics for cloud-borne aerosols...
     do n = 1,pcnst
@@ -1987,7 +2074,7 @@ contains
     integer :: k,l, m,mm
 
     do m = 1, aero_props%nbins()
-       do l = 1, aero_props%nspecies(m)
+       do l = 0, aero_props%nspecies(m)
           mm = aero_props%indexer(m,l)
           do k=1,pver
              vmr(:ncol,k,mm) = mbar(:ncol,k) * vmr(:ncol,k,mm) / mw(mm)
@@ -2019,7 +2106,7 @@ contains
     integer :: k, l, m, mm
 
     do m = 1, aero_props%nbins()
-       do l = 1, aero_props%nspecies(m)
+       do l = 0, aero_props%nspecies(m)
           mm = aero_props%indexer(m,l)
           do k=1,pver
              vmr(:ncol,k,mm) = mw(mm) * vmr(:ncol,k,mm) / mbar(:ncol,k)
