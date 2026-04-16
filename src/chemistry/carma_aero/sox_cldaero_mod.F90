@@ -122,21 +122,22 @@ contains
     conc_obj%nh4c(:,:) = 0._r8
     conc_obj%so4c(:,:) = 0._r8
 
-    so4mmr(:,:) = 0._r8
     do k = 1,pver
        do i = 1,ncol
-          do m = 1, nbins
-            do l = 1, nspec(m)
+          do m = 1, aero_props%nbins()
+            do l = 1, aero_props%nspecies(m)
                mm = aero_props%indexer(m,l)
                call  aero_props%get(m,l, spectype=spectype)
                if (trim(spectype) == 'sulfate') then
-                  so4mmr(i,k) =  so4mmr(i,k) +  qcw(i,k,mm)
+                  conc_obj%so4c(i,k) = conc_obj%so4c(i,k) +  qcw(i,k,mm)
+               end if
+               if (trim(spectype) == 'ammonium') then
+                  conc_obj%nh4c(i,k) = conc_obj%nh4c(i,k) +  qcw(i,k,mm)
                end if
             end do
           end do
        end do
     end do
-    conc_obj%so4c = so4mmr
 
   end function sox_cldaero_create_obj
 
@@ -144,7 +145,7 @@ contains
 !----------------------------------------------------------------------------------
 ! Update the mixing ratios
 !----------------------------------------------------------------------------------
-  subroutine sox_cldaero_update(  &
+  subroutine sox_cldaero_update( &
        state, ncol, lchnk, loffset, dtime, mbar, pdel, press, tfld, cldnum, cldfrc, cfact, xlwc, &
        delso4_hprxn, xh2so4, xso4, xso4_init, nh3g, hno3g, xnh3, xhno3, xnh4c,  xno3c, xmsa, xso2, xh2o2, qcw, qin, &
        aqso4, aqh2so4, aqso4_h2o2, aqso4_o3, aqso4_h2o2_3d, aqso4_o3_3d)
@@ -215,7 +216,7 @@ contains
 
     real(r8) :: fwetrem, uptkrate
 
-    integer :: l, n, mm
+    integer :: l, m,n, mm
     integer :: ntot_msa_c
 
     integer :: i,k
@@ -324,27 +325,39 @@ contains
                 ! fwetrem = max( 0.0_r8, (1.0_r8-exp(-min(100._r8,dtime*clwlrat(i,k)))) )
                 fwetrem = 0.0_r8 ! don't have so4 & msa wet removal here
 
-                ! compute TMR tendencies for so4, not done currently for msa aerosol-in-cloud-water
-                do n = 1, nbins
-                   do l = 1, nspec(n)
-                      mm = aero_props%indexer(n,l)
-                       call aero_props%get(n,l, spectype=spectype)
-                       if (trim(spectype) == 'sulfate') then
-                          if (faqgain_so4(n) .gt. 0.0_r8) then
-                          dqdt_aqso4(i,k,mm) = faqgain_so4(n)*dso4dt_aqrxn*cldfrc(i,k)
 
-                          dqdt_aqh2so4(i,k,mm) = faqgain_so4(n)* &
-                            (dso4dt_gasuptk + dmsadt_gasuptk_toso4)*cldfrc(i,k)
-                          dqdt_aq = dqdt_aqso4(i,k,mm) + dqdt_aqh2so4(i,k,mm)
-                          dqdt_wr = -fwetrem*dqdt_aq
-                          dqdt= dqdt_aq + dqdt_wr
-                          qcw(i,k,mm) = qcw(i,k,mm) + dqdt*dtime
+                ! compute TMR tendencies for so4 and msa aerosol-in-cloud-water
+                do m = 1, aero_props%nbins()
+            !!!       n = lptr_so4_cw_amode(m) - loffset
+                   do l = 1, aero_props%nspecies(m)
+                      mm = aero_props%indexer(m,l)
+                      call  aero_props%get(m,l, spectype=spectype)
+                      if (trim(spectype) == 'sulfate') then
+
+                         dqdt_aqso4(i,k,mm) = faqgain_so4(m)*dso4dt_aqrxn*cldfrc(i,k)
+
+                         dqdt_aqh2so4(i,k,mm) = faqgain_so4(m)* &
+                              (dso4dt_gasuptk + dmsadt_gasuptk_toso4)*cldfrc(i,k)
+                         dqdt_aq = dqdt_aqso4(i,k,mm) + dqdt_aqh2so4(i,k,mm)
+                         dqdt_wr = -fwetrem*dqdt_aq
+                         dqdt= dqdt_aq + dqdt_wr
+                         qcw(i,k,mm) = qcw(i,k,mm) + dqdt*dtime
 
 
-                         end if
-                       end if
+                      end if
+!!$                      if (trim(spectype) == 'ammonium') then
+!!$                         if (delnh4 > 0.0_r8) then
+!!$                            dqdt_aq = faqgain_so4(m)*delnh4/dtime*cldfrc(i,k)
+!!$                            dqdt = dqdt_aq
+!!$                            qcw(i,k,mm) = qcw(i,k,mm) + dqdt*dtime
+!!$                         else
+!!$                            dqdt = (qcw(i,k,mm)/max(xnh4c(i,k),1.0e-35_r8)) &
+!!$                                 *delnh4/dtime*cldfrc(i,k)
+!!$                            qcw(i,k,mm) = qcw(i,k,mm) + dqdt*dtime
+!!$                         endif
+!!$                      end if
                    end do
-                 end do
+                end do
 
 
                 ! For gas species, tendency includes
@@ -393,7 +406,7 @@ contains
     ! diagnostics
 
     specmw_so4_amode = 96.0_r8
-      do n = 1, nbins
+      do n = 1, aero_props%nbins()
         ! while looking through all species, only dqdt_aqso4 from sulfates  is gt zero
         do l = 1, nspec(n)
            mm = aero_props%indexer(n,l)

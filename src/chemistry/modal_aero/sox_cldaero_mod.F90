@@ -126,55 +126,8 @@ contains
        end do
     end do
 
-    if (mode7) then
-!!$#if ( defined MODAL_AERO_7MODE )
-!!$!put ifdef here so ifort will compile
-!!$       id_so4_1a = lptr_so4_cw_amode(1) - loffset
-!!$       id_so4_2a = lptr_so4_cw_amode(2) - loffset
-!!$       id_so4_3a = lptr_so4_cw_amode(4) - loffset
-!!$       id_so4_4a = lptr_so4_cw_amode(5) - loffset
-!!$       id_so4_5a = lptr_so4_cw_amode(6) - loffset
-!!$       id_so4_6a = lptr_so4_cw_amode(7) - loffset
-!!$
-!!$       id_nh4_1a = lptr_nh4_cw_amode(1) - loffset
-!!$       id_nh4_2a = lptr_nh4_cw_amode(2) - loffset
-!!$       id_nh4_3a = lptr_nh4_cw_amode(4) - loffset
-!!$       id_nh4_4a = lptr_nh4_cw_amode(5) - loffset
-!!$       id_nh4_5a = lptr_nh4_cw_amode(6) - loffset
-!!$       id_nh4_6a = lptr_nh4_cw_amode(7) - loffset
-!!$#endif
-!!$       conc_obj%so4c(:ncol,:) &
-!!$            = qcw(:ncol,:,id_so4_1a) &
-!!$            + qcw(:ncol,:,id_so4_2a) &
-!!$            + qcw(:ncol,:,id_so4_3a) &
-!!$            + qcw(:ncol,:,id_so4_4a) &
-!!$            + qcw(:ncol,:,id_so4_5a) &
-!!$            + qcw(:ncol,:,id_so4_6a)
-!!$
-!!$       conc_obj%nh4c(:ncol,:) &
-!!$            = qcw(:ncol,:,id_nh4_1a) &
-!!$            + qcw(:ncol,:,id_nh4_2a) &
-!!$            + qcw(:ncol,:,id_nh4_3a) &
-!!$            + qcw(:ncol,:,id_nh4_4a) &
-!!$            + qcw(:ncol,:,id_nh4_5a) &
-!!$            + qcw(:ncol,:,id_nh4_6a)
-    else
-!!$       id_so4_1a = lptr_so4_cw_amode(1) - loffset
-!!$       id_so4_2a = lptr_so4_cw_amode(2) - loffset
-!!$       id_so4_3a = lptr_so4_cw_amode(3) - loffset
-!!$       conc_obj%so4c(:ncol,:) &
-!!$            = qcw(:,:,id_so4_1a) &
-!!$            + qcw(:,:,id_so4_2a) &
-!!$            + qcw(:,:,id_so4_3a)
-!!$
-!!$        ! for 3-mode, so4 is assumed to be nh4hso4
-!!$        ! the partial neutralization of so4 is handled by using a
-!!$        !    -1 charge (instead of -2) in the electro-neutrality equation
-!!$       conc_obj%nh4c(:ncol,:) = 0._r8
-!!$
-!!$       ! with 3-mode, assume so4 is nh4hso4, and so half-neutralized
+    if (.not.mode7) then
        conc_obj%so4_fact = 1._r8
-
     endif
 
   end function sox_cldaero_create_obj
@@ -236,8 +189,8 @@ contains
 
     ! local vars ...
 
-    real(r8) :: dqdt_aqso4(ncol,pver,gas_pcnst), &
-         dqdt_aqh2so4(ncol,pver,gas_pcnst), &
+    real(r8) :: dqdt_aqso4(ncol,pver,ncnst_tot), &
+         dqdt_aqh2so4(ncol,pver,ncnst_tot), &
          dqdt_aqhprxn(ncol,pver), dqdt_aqo3rxn(ncol,pver), &
          sflx(1:ncol)
 
@@ -255,9 +208,10 @@ contains
     integer :: l, n, m, mm
     integer :: ntot_msa_c
 
-    integer :: i,k
+    integer :: i,k, ndx
     real(r8) :: xl
     character(len=32) :: spectype
+    character(len=32) :: specname
 
     ! make sure dqdt is zero initially, for budgets
     dqdt_aqso4(:,:,:) = 0.0_r8
@@ -386,11 +340,11 @@ contains
                       call  aero_props%get(m,l, spectype=spectype)
                       if (trim(spectype) == 'sulfate') then
 
-                         dqdt_aqso4(i,k,n) = faqgain_so4(m)*dso4dt_aqrxn*cldfrc(i,k)
+                         dqdt_aqso4(i,k,mm) = faqgain_so4(m)*dso4dt_aqrxn*cldfrc(i,k)
 
-                         dqdt_aqh2so4(i,k,n) = faqgain_so4(m)* &
+                         dqdt_aqh2so4(i,k,mm) = faqgain_so4(m)* &
                               (dso4dt_gasuptk + dmsadt_gasuptk_toso4)*cldfrc(i,k)
-                         dqdt_aq = dqdt_aqso4(i,k,n) + dqdt_aqh2so4(i,k,n)
+                         dqdt_aq = dqdt_aqso4(i,k,mm) + dqdt_aqh2so4(i,k,mm)
                          dqdt_wr = -fwetrem*dqdt_aq
                          dqdt= dqdt_aq + dqdt_wr
                          qcw(i,k,mm) = qcw(i,k,mm) + dqdt*dtime
@@ -488,26 +442,31 @@ contains
 
     ! diagnostics
 
-    do n = 1, ntot_amode
-       m = lptr_so4_cw_amode(n)
-       l = m - loffset
-       if (l > 0) then
-          aqso4(:,n)=0._r8
-          do k=1,pver
-             do i=1,ncol
-                aqso4(i,n)=aqso4(i,n)+dqdt_aqso4(i,k,l)*adv_mass(l)/mbar(i,k) &
-                     *pdel(i,k)/gravit ! kg/m2/s
-             enddo
-          enddo
+    do n = 1, aero_props%nbins()
+       ! while looking through all species, only dqdt_aqso4 from sulfates  is gt zero
+       do l = 1, aero_props%nspecies(n)
+          mm = aero_props%indexer(n,l)
+          call  aero_props%get(n,l, spectype=spectype, specname=specname)
+          if (trim(spectype) == 'sulfate') then
+             ndx = get_spc_ndx(specname)
 
-          aqh2so4(:,n)=0._r8
-          do k=1,pver
-             do i=1,ncol
-                aqh2so4(i,n)=aqh2so4(i,n)+dqdt_aqh2so4(i,k,l)*adv_mass(l)/mbar(i,k) &
-                     *pdel(i,k)/gravit ! kg/m2/s
+             aqso4(:,n)=0._r8
+             do k=1,pver
+                do i=1,ncol
+                   aqso4(i,n)=aqso4(i,n)+dqdt_aqso4(i,k,mm)*adv_mass(ndx)/mbar(i,k) &
+                        *pdel(i,k)/gravit ! kg/m2/s
+                enddo
              enddo
-          enddo
-       endif
+
+             aqh2so4(:,n)=0._r8
+             do k=1,pver
+                do i=1,ncol
+                   aqh2so4(i,n)=aqh2so4(i,n)+dqdt_aqh2so4(i,k,mm)*adv_mass(ndx)/mbar(i,k) &
+                        *pdel(i,k)/gravit ! kg/m2/s
+                enddo
+             enddo
+          end if
+       end do
     end do
 
     aqso4_h2o2(:) = 0._r8
