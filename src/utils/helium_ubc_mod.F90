@@ -88,21 +88,26 @@ contains
     use constituents, only: cnst_mw, cnst_get_ind
     use cam_history, only: addfld, horiz_only
 
-    integer :: ierr
+    integer :: ierr, npes, npes_he
     character(len=*), parameter :: prefix = 'helium_ubc_init: '
 
     if (.not.he_ubc_active) return
 
     call read_coefs_file()
 
+    call mpi_comm_size(host_mpicom, npes, ierr)
+
+    npes_he = min( npes, nlat_he/2 )
+
     ! write to atm log
     if (masterproc) then
        write(iulog,*) prefix, 'helium_ubc_nlats: ', nlat_he
+       write(iulog,*) prefix, 'helium_ubc  npes: ', npes_he
        write(iulog,*) prefix, 'host model mpicom: ',host_mpicom
     end if
 
     call esmf_phys_mesh_init()
-    call esmf_lonlat_grid_init(nlat_he)
+    call esmf_lonlat_grid_init(nlat_he, npes_he)
 
     call esmf_lonlatphys_regrid_init()
 

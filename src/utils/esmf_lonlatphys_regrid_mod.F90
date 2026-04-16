@@ -9,6 +9,8 @@ module esmf_lonlatphys_regrid_mod
   use spmd_utils, only: masterproc
   use ppgrid, only: pver
 
+  use esmf_lonlat_grid_mod, only: mytid, lonlat_npes
+
   use ESMF, only: ESMF_RouteHandle, ESMF_Field, ESMF_ArraySpec, ESMF_ArraySpecSet
   use ESMF, only: ESMF_FieldCreate, ESMF_FieldRegridStore
   use ESMF, only: ESMF_FieldGet, ESMF_FieldRegrid
@@ -65,7 +67,6 @@ contains
     lonlatfld = ESMF_FieldCreate( lonlat_grid, arrayspec, staggerloc=ESMF_STAGGERLOC_CENTER, rc=rc)
     call check_esmf_error(rc, subname//'ESMF_FieldCreate 2D lonlat fld ERROR')
 
-
     call ESMF_FieldRegridStore(srcField=physfld, dstField=lonlatfld, &
          regridMethod=ESMF_REGRIDMETHOD_CONSERVE, &
          routeHandle=rh_phys2lonlat, &
@@ -116,10 +117,11 @@ contains
                           termorderflag=ESMF_TERMORDER_SRCSEQ, rc=rc)
     call check_esmf_error(rc, subname//'ESMF_FieldRegrid physfld->lonlatfld')
 
-    call ESMF_FieldGet(lonlatfld, localDe=0, farrayPtr=lonlatptr, rc=rc)
-    call check_esmf_error(rc, subname//'ESMF_FieldGet lonlatptr')
-
-    lonlatarr(lon_beg:lon_end,lat_beg:lat_end) = lonlatptr(lon_beg:lon_end,lat_beg:lat_end)
+    if (mytid<lonlat_npes) then
+       call ESMF_FieldGet(lonlatfld, localDe=0, farrayPtr=lonlatptr, rc=rc)
+       call check_esmf_error(rc, subname//'ESMF_FieldGet lonlatptr')
+       lonlatarr(lon_beg:lon_end,lat_beg:lat_end) = lonlatptr(lon_beg:lon_end,lat_beg:lat_end)
+    endif
 
   end subroutine regrid_phys2lonlat
 
@@ -140,10 +142,11 @@ contains
 
     character(len=*), parameter :: subname = 'regrid_lonlat2phys: '
 
-    call ESMF_FieldGet(lonlatfld, localDe=0, farrayPtr=lonlatptr, rc=rc)
-    call check_esmf_error(rc, subname//'ESMF_FieldGet lonlatptr')
-
-    lonlatptr(lon_beg:lon_end,lat_beg:lat_end) = lonlatarr(lon_beg:lon_end,lat_beg:lat_end)
+    if (mytid<lonlat_npes) then
+       call ESMF_FieldGet(lonlatfld, localDe=0, farrayPtr=lonlatptr, rc=rc)
+       call check_esmf_error(rc, subname//'ESMF_FieldGet lonlatptr')
+       lonlatptr(lon_beg:lon_end,lat_beg:lat_end) = lonlatarr(lon_beg:lon_end,lat_beg:lat_end)
+    end if
 
     call ESMF_FieldRegrid(lonlatfld, physfld, rh_lonlat2phys, &
                           termorderflag=ESMF_TERMORDER_SRCSEQ, rc=rc)

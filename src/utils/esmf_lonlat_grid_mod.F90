@@ -32,17 +32,22 @@ module esmf_lonlat_grid_mod
   integer, protected :: zonal_comm = 0 ! zonal direction MPI communicator
   integer, protected :: merid_comm = 0 ! meridianal direction MPI communicator
 
+  integer, protected :: lonlat_comm = 0
+  integer, public, protected :: lonlat_npes = 0
+  integer, public, protected :: mytid = -huge(1)
+
 contains
 
-  subroutine esmf_lonlat_grid_init(nlats_in)
+  subroutine esmf_lonlat_grid_init(nlats_in, npes_in)
     use phys_grid, only: get_grid_dims
     use mpi, only: mpi_comm_size, mpi_comm_rank, MPI_PROC_NULL, MPI_INTEGER
 
     integer, intent(in) :: nlats_in
+    integer,optional, intent(in) :: npes_in
 
     real(r8) :: delx, dely
 
-    integer :: npes, ierr, mytid, irank, mytidi, mytidj
+    integer :: npes, ierr, irank, mytidi, mytidj
     integer :: i,j, n
     integer :: ntasks_lon, ntasks_lat
     integer :: lons_per_task, lons_overflow, lats_per_task, lats_overflow
@@ -73,6 +78,8 @@ contains
     real(ESMF_KIND_R8), pointer   :: coordX(:), coordY(:)
 
     character(len=*), parameter :: subname  = 'esmf_lonlat_grid_init: '
+
+    integer :: color
 
     ! create reg lon lat grid
 
@@ -106,20 +113,33 @@ contains
     call mpi_comm_size(mpicom, npes, ierr)
     call mpi_comm_rank(mpicom, mytid, ierr)
 
+    lonlat_npes = 0
+    if (present(npes_in)) then
+       lonlat_npes = npes_in
+    endif
+    if (lonlat_npes<1) then
+       lonlat_npes = npes
+    end if
+
+    color = mytid/lonlat_npes
+    call mpi_comm_split(mpicom, color, mytid, lonlat_comm, ierr)
+
     decomp_loop: do ntasks_lon = 1,nlon
-       ntasks_lat = npes/ntasks_lon
-       if ( (minlats_per_pe*ntasks_lat<=nlat) .and. (ntasks_lat*ntasks_lon==npes) ) then
+       ntasks_lat = lonlat_npes/ntasks_lon
+       if ( (minlats_per_pe*ntasks_lat<=nlat) .and. (ntasks_lat*ntasks_lon==lonlat_npes) ) then
           exit decomp_loop
        endif
     end do decomp_loop
 
     if (masterproc) then
-       write(iulog,'(a,3i6)') subname//' npes, nlon, nlat : ',npes, nlon, nlat
+       write(iulog,'(a,3i6)') subname//' npes, nlon, nlat : ',lonlat_npes, nlon, nlat
        write(iulog,'(a,2i6)') subname//' ntasks_lon,ntasks_lat : ',ntasks_lon,ntasks_lat
     endif
 
-    if (ntasks_lat*ntasks_lon/=npes) then
-       call endrun(subname//'ntasks_lat*ntasks_lon/=npes')
+    if (mytid<lonlat_npes) then
+       if (ntasks_lat*ntasks_lon/=lonlat_npes) then
+          call endrun(subname//'ntasks_lat*ntasks_lon/=lonlat_npes')
+       endif
     endif
 
     ! dermine the starting and ending coordinates
@@ -132,7 +152,7 @@ contains
     lat_beg = 1
     lat_end = 0
     task_cnt= 0
-    if (mytid<npes) then
+    if (mytid<lonlat_npes) then
        jloop: do j = 0,ntasks_lat-1
           lat_beg = lat_end + 1
           lat_end = lat_beg + lats_per_task - 1
@@ -155,12 +175,14 @@ contains
     mynlats = lat_end-lat_beg+1
     mynlons = lon_end-lon_beg+1
 
-    if (mynlats<minlats_per_pe) then
-       call endrun(subname//'mynlats < minlats_per_pe')
-    end if
-    if (mynlons<minlons_per_pe) then
-       call endrun(subname//'mynlons < minlons_per_pe')
-    end if
+    if (mytid<lonlat_npes) then
+       if (mynlats<minlats_per_pe) then
+          call endrun(subname//'mynlats < minlats_per_pe')
+       end if
+       if (mynlons<minlons_per_pe) then
+          call endrun(subname//'mynlons < minlons_per_pe')
+       end if
+    endif
 
     irank = 0
     mytidi = -1
@@ -176,8 +198,8 @@ contains
 
     end do ! j=0,ntaskj-1
 
-    call mpi_comm_split(mpicom,mytidj,mytid,zonal_comm,ierr)
-    call mpi_comm_split(mpicom,mytidi,mytid,merid_comm,ierr)
+    call mpi_comm_split(lonlat_comm,mytidj,mytid,zonal_comm,ierr)
+    call mpi_comm_split(lonlat_comm,mytidi,mytid,merid_comm,ierr)
 
     allocate(mytidi_send(npes), stat=astat)
     if (astat/=0) then
@@ -198,6 +220,7 @@ contains
 
     mytidi_send = mytidi
     mytidj_send = mytidj
+
     call mpi_alltoall(mytidi_send, 1, MPI_INTEGER, mytidi_recv, 1, MPI_INTEGER, mpicom, ierr)
     call mpi_alltoall(mytidj_send, 1, MPI_INTEGER, mytidj_recv, 1, MPI_INTEGER, mpicom, ierr)
 
@@ -231,13 +254,15 @@ contains
     if (astat/=0) then
        call endrun(subname//'not able to allocate nlons_task array')
     end if
+    nlons_task=0
     allocate(nlats_task(ntasks_lat), stat=astat)
     if (astat/=0) then
        call endrun(subname//'not able to allocate nlats_task array')
     end if
+    nlats_task=0
 
     do i = 1, ntasks_lon
-       loop1: do n = 1, npes
+       loop1: do n = 1, lonlat_npes
           if (mytidi_recv(n) == i-1) then
              nlons_task(i) = nlons_recv(n)
              exit loop1
@@ -246,7 +271,7 @@ contains
     end do
 
     do j = 1, ntasks_lat
-       loop2: do n = 1, npes
+       loop2: do n = 1, lonlat_npes
           if (mytidj_recv(n) == j-1) then
              nlats_task(j) = nlats_recv(n)
              exit loop2
@@ -261,7 +286,6 @@ contains
 
     deallocate(nlons_recv)
     deallocate(nlats_recv)
-
 
     ! set up 2D ESMF lon lat grid
 
@@ -278,7 +302,6 @@ contains
        end do
     end do
 
-
     ! Create 2d lon/lat grid
     lonlat_grid = ESMF_GridCreate1PeriDim(                       &
          countsPerDEDim1=nlons_task, coordDep1=(/1/),         &
@@ -286,14 +309,13 @@ contains
          indexflag=ESMF_INDEX_GLOBAL,minIndex=(/1,1/), rc=ierr)
     call check_esmf_error(ierr, subname//'ESMF_GridCreate1PeriDim ERROR')
 
-
     ! Set coordinates:
 
     ! cell centers
     call ESMF_GridAddCoord(lonlat_grid, staggerloc=ESMF_STAGGERLOC_CENTER, rc=ierr)
     call check_esmf_error(ierr, subname//'ESMF_GridAddCoord ERROR')
 
-    if (mytid<npes) then
+    if (mytid<lonlat_npes) then
        call ESMF_GridGetCoord(lonlat_grid, coordDim=1, &
             computationalLBound=lbnd, computationalUBound=ubnd,  &
             farrayPtr=coordX, staggerloc=ESMF_STAGGERLOC_CENTER, rc=ierr)
@@ -321,7 +343,7 @@ contains
     call ESMF_GridAddCoord(lonlat_grid, staggerloc=ESMF_STAGGERLOC_CORNER, rc=ierr)
     call check_esmf_error(ierr, subname//'ESMF_GridAddCoord CORNER ERROR')
 
-    if (mytid<npes) then
+    if (mytid<lonlat_npes) then
        call ESMF_GridGetCoord(lonlat_grid, coordDim=1, &
             computationalLBound=lbnd, computationalUBound=ubnd,  &
             farrayPtr=coordX, staggerloc=ESMF_STAGGERLOC_CORNER, rc=ierr)
