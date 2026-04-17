@@ -14,36 +14,48 @@ module esmf_lonlat_grid_mod
 
   implicit none
 
-  public
+  private
+  public :: esmf_lonlat_grid
 
-  type(ESMF_Grid), protected :: lonlat_grid
+  ! define lonlat grid object type
+  type esmf_lonlat_grid
+     type(ESMF_Grid) :: lonlat_grid
 
-  integer, protected :: nlon = 0
-  integer, protected :: nlat = 0
+     integer :: nlon = 0
+     integer :: nlat = 0
 
-  integer, protected :: lon_beg = -1
-  integer, protected :: lon_end = -1
-  integer, protected :: lat_beg = -1
-  integer, protected :: lat_end = -1
+     integer :: lon_beg = -1
+     integer :: lon_end = -1
+     integer :: lat_beg = -1
+     integer :: lat_end = -1
 
-  real(r8), allocatable, protected :: glats(:)
-  real(r8), allocatable, protected :: glons(:)
+     real(r8), allocatable :: glats(:)
+     real(r8), allocatable :: glons(:)
 
-  integer, protected :: zonal_comm = 0 ! zonal direction MPI communicator
-  integer, protected :: merid_comm = 0 ! meridianal direction MPI communicator
+     integer :: zonal_comm = 0 ! zonal direction MPI communicator
+     integer :: merid_comm = 0 ! meridianal direction MPI communicator
 
-  integer, protected :: lonlat_comm = 0
-  integer, public, protected :: lonlat_npes = 0
-  integer, public, protected :: mytid = -huge(1)
+     integer :: lonlat_comm = 0
+     integer :: lonlat_npes = 0
+     integer :: mytid = -huge(1)
+   contains
+     final :: destroy
+  end type esmf_lonlat_grid
+
+  interface esmf_lonlat_grid
+     procedure :: constructor
+  end interface esmf_lonlat_grid
 
 contains
 
-  subroutine esmf_lonlat_grid_init(nlats_in, npes_in)
+  function constructor(nlats_in, npes_in) result(newobj)
     use phys_grid, only: get_grid_dims
     use mpi, only: mpi_comm_size, mpi_comm_rank, MPI_PROC_NULL, MPI_INTEGER
 
     integer, intent(in) :: nlats_in
     integer,optional, intent(in) :: npes_in
+
+    type(esmf_lonlat_grid), pointer :: newobj
 
     real(r8) :: delx, dely
 
@@ -77,26 +89,46 @@ contains
     integer                       :: lbnd(1), ubnd(1)
     real(ESMF_KIND_R8), pointer   :: coordX(:), coordY(:)
 
-    character(len=*), parameter :: subname  = 'esmf_lonlat_grid_init: '
+    character(len=*), parameter :: subname  = 'esmf_lonlat_grid::constructor '
 
     integer :: color
 
+    allocate(newobj,stat=ierr)
+    if( ierr /= 0 ) then
+       call endrun(subname//'allocate newobj failed')
+    end if
+
     ! create reg lon lat grid
 
-    nlat = nlats_in
-    dely = 180._r8/nlat
+    newobj%nlat = nlats_in
+    dely = 180._r8/newobj%nlat
 
-    nlon = 2*nlat
-    delx = 360._r8/nlon
+    newobj%nlon = 2*newobj%nlat
+    delx = 360._r8/newobj%nlon
 
-    allocate(glons(nlon), stat=astat)
+    allocate(newobj%glons(newobj%nlon), stat=astat)
     if (astat/=0) then
        call endrun(subname//'not able to allocate glons array')
     end if
-    allocate(glats(nlat), stat=astat)
+    allocate(newobj%glats(newobj%nlat), stat=astat)
     if (astat/=0) then
        call endrun(subname//'not able to allocate glats array')
     end if
+
+    associate( lonlat_grid=>newobj%lonlat_grid, &
+         nlon=>newobj%nlon, &
+         nlat=>newobj%nlat, &
+         lon_beg=>newobj%lon_beg, &
+         lon_end=>newobj%lon_end, &
+         lat_beg=>newobj%lat_beg, &
+         lat_end=>newobj%lat_end, &
+         glats=>newobj%glats, &
+         glons=>newobj%glons, &
+         zonal_comm=>newobj%zonal_comm, &
+         merid_comm=>newobj%merid_comm, &
+         lonlat_comm=>newobj%lonlat_comm, &
+         lonlat_npes=>newobj%lonlat_npes, &
+         mytid=>newobj%mytid )
 
     glons(1) = 0._r8
     glats(1) = -90._r8 + 0.5_r8 * dely
@@ -374,22 +406,24 @@ contains
     deallocate(nlons_task)
     deallocate(nlats_task)
 
-  end subroutine esmf_lonlat_grid_init
+    end associate
+
+  end function constructor
 
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------
-  subroutine esmf_lonlat_grid_destroy()
+  subroutine destroy(self)
+    type(esmf_lonlat_grid), intent(inout) :: self
 
     integer :: rc
-    character(len=*), parameter :: subname = 'esmf_lonlat_grid_destroy: '
+    character(len=*), parameter :: subname = 'esmf_lonlat_grid::destroy: '
 
-    call ESMF_GridDestroy(lonlat_grid, rc=rc)
+    call ESMF_GridDestroy(self%lonlat_grid, rc=rc)
     call check_esmf_error(rc, subname//'ESMF_GridDestroy lonlat_grid')
 
-    deallocate(glats)
-    deallocate(glons)
+    deallocate(self%glats)
+    deallocate(self%glons)
 
-  end subroutine esmf_lonlat_grid_destroy
-
+  end subroutine destroy
 
 end module esmf_lonlat_grid_mod

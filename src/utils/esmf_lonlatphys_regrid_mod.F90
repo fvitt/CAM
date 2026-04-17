@@ -9,7 +9,7 @@ module esmf_lonlatphys_regrid_mod
   use spmd_utils, only: masterproc
   use ppgrid, only: pver
 
-  use esmf_lonlat_grid_mod, only: mytid, lonlat_npes
+  use esmf_lonlat_grid_mod, only: esmf_lonlat_grid ! mytid, lonlat_npes
 
   use ESMF, only: ESMF_RouteHandle, ESMF_Field, ESMF_ArraySpec, ESMF_ArraySpecSet
   use ESMF, only: ESMF_FieldCreate, ESMF_FieldRegridStore
@@ -35,18 +35,23 @@ module esmf_lonlatphys_regrid_mod
   type(ESMF_Field) :: physfld
   type(ESMF_Field) :: lonlatfld
 
+  type(esmf_lonlat_grid), pointer :: he_grid=>null()
+
 contains
 
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------
-  subroutine esmf_lonlatphys_regrid_init()
+  subroutine esmf_lonlatphys_regrid_init(grid)
     use esmf_phys_mesh_mod, only: physics_grid_mesh
-    use esmf_lonlat_grid_mod, only: lonlat_grid
+
+    class(esmf_lonlat_grid), pointer, intent(in) :: grid
 
     type(ESMF_ArraySpec) :: arrayspec
-    integer                        :: smm_srctermproc,  smm_pipelinedep, rc
+    integer :: smm_srctermproc,  smm_pipelinedep, rc
 
     character(len=*), parameter :: subname  = 'esmf_lonlatphys_regrid_init: '
+
+    he_grid => grid
 
     smm_srctermproc = 0
     smm_pipelinedep = 16
@@ -64,7 +69,7 @@ contains
     call ESMF_ArraySpecSet(arrayspec, 2, ESMF_TYPEKIND_R8, rc=rc)
     call check_esmf_error(rc, subname//'ESMF_ArraySpecSet 2D lonlat fld ERROR')
 
-    lonlatfld = ESMF_FieldCreate( lonlat_grid, arrayspec, staggerloc=ESMF_STAGGERLOC_CENTER, rc=rc)
+    lonlatfld = ESMF_FieldCreate( he_grid%lonlat_grid, arrayspec, staggerloc=ESMF_STAGGERLOC_CENTER, rc=rc)
     call check_esmf_error(rc, subname//'ESMF_FieldCreate 2D lonlat fld ERROR')
 
     call ESMF_FieldRegridStore(srcField=physfld, dstField=lonlatfld, &
@@ -88,12 +93,11 @@ contains
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------
   subroutine regrid_phys2lonlat(physarr, lonlatarr)
-    use esmf_lonlat_grid_mod, only: lon_beg,lon_end,lat_beg,lat_end
     use ppgrid, only: pcols, pver, begchunk, endchunk
     use phys_grid, only: get_ncols_p
 
     real(r8), intent(in) :: physarr(pcols,begchunk:endchunk)
-    real(r8), intent(out) :: lonlatarr(lon_beg:lon_end,lat_beg:lat_end)
+    real(r8), intent(out) :: lonlatarr(he_grid%lon_beg:he_grid%lon_end,he_grid%lat_beg:he_grid%lat_end)
 
     integer :: i, ichnk, ncol, icol, rc
     real(ESMF_KIND_R8), pointer :: physptr(:)
@@ -117,11 +121,18 @@ contains
                           termorderflag=ESMF_TERMORDER_SRCSEQ, rc=rc)
     call check_esmf_error(rc, subname//'ESMF_FieldRegrid physfld->lonlatfld')
 
-    if (mytid<lonlat_npes) then
+    associate( lon_beg=>he_grid%lon_beg, &
+               lon_end=>he_grid%lon_end, &
+               lat_beg=>he_grid%lat_beg, &
+               lat_end=>he_grid%lat_end )
+
+    if (he_grid%mytid<he_grid%lonlat_npes) then
        call ESMF_FieldGet(lonlatfld, localDe=0, farrayPtr=lonlatptr, rc=rc)
        call check_esmf_error(rc, subname//'ESMF_FieldGet lonlatptr')
        lonlatarr(lon_beg:lon_end,lat_beg:lat_end) = lonlatptr(lon_beg:lon_end,lat_beg:lat_end)
     endif
+
+    end associate
 
   end subroutine regrid_phys2lonlat
 
@@ -129,11 +140,10 @@ contains
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------
   subroutine regrid_lonlat2phys(lonlatarr, physarr)
-    use esmf_lonlat_grid_mod, only: lon_beg,lon_end,lat_beg,lat_end
     use ppgrid, only: pcols, pver, begchunk, endchunk
     use phys_grid, only: get_ncols_p
 
-    real(r8), intent(in) :: lonlatarr(lon_beg:lon_end,lat_beg:lat_end)
+    real(r8), intent(in) :: lonlatarr(he_grid%lon_beg:he_grid%lon_end,he_grid%lat_beg:he_grid%lat_end)
     real(r8), intent(out) :: physarr(pcols,begchunk:endchunk)
 
     integer :: i, ichnk, ncol, icol, rc
@@ -141,6 +151,13 @@ contains
     real(ESMF_KIND_R8), pointer :: lonlatptr(:,:)
 
     character(len=*), parameter :: subname = 'regrid_lonlat2phys: '
+
+    associate( mytid=>he_grid%mytid, &
+         lonlat_npes=>he_grid%lonlat_npes, &
+         lon_beg=>he_grid%lon_beg, &
+         lon_end=>he_grid%lon_end, &
+         lat_beg=>he_grid%lat_beg, &
+         lat_end=>he_grid%lat_end )
 
     if (mytid<lonlat_npes) then
        call ESMF_FieldGet(lonlatfld, localDe=0, farrayPtr=lonlatptr, rc=rc)
@@ -163,6 +180,8 @@ contains
         physarr(icol,ichnk) = physptr(i)
       end do
     end do
+
+  end associate
 
   end subroutine regrid_lonlat2phys
 

@@ -13,12 +13,12 @@ module ctem_diags_mod
   use phys_grid, only: get_ncols_p
   use spmd_utils, only: masterproc
   use ref_pres, only: pref_mid
-  use esmf_lonlat_grid_mod, only: beglon=>lon_beg, endlon=>lon_end, beglat=>lat_beg, endlat=>lat_end
   use cam_history,  only: addfld, outfld, horiz_only
   use cam_history_support, only : fillvalue
   use perf_mod, only: t_startf, t_stopf
   use cam_logfile, only: iulog
   use cam_abortutils, only: endrun
+  use esmf_lonlat_grid_mod, only: esmf_lonlat_grid
 
   implicit none
 
@@ -32,6 +32,8 @@ module ctem_diags_mod
 
   integer :: ctem_diags_numlats = 0
   logical :: ctem_diags_active = .false.
+
+  type(esmf_lonlat_grid), pointer :: reg_grid=>null()
 
 contains
 
@@ -79,10 +81,10 @@ contains
   !-----------------------------------------------------------------------------
   subroutine ctem_diags_reg()
     use cam_grid_support, only: horiz_coord_t, horiz_coord_create, iMap, cam_grid_register
-    use esmf_lonlat_grid_mod, only: glats, nlat, glons, nlon
-    use esmf_lonlat_grid_mod, only: esmf_lonlat_grid_init
+    use esmf_lonlat_grid_mod, only: esmf_lonlat_grid
     use esmf_phys_mesh_mod, only: esmf_phys_mesh_init
     use esmf_phys2lonlat_mod, only: esmf_phys2lonlat_init
+    use esmf_zonal_mean_mod, only: esmf_zonal_mean_init
 
     integer, parameter :: zm_decomp  = 331 ! Must be unique within CAM
     integer, parameter :: reg_decomp = 332
@@ -103,9 +105,21 @@ contains
     if (.not.ctem_diags_active) return
 
     ! initialize grids and mapping
-    call esmf_lonlat_grid_init(ctem_diags_numlats)
+
+    reg_grid => esmf_lonlat_grid(ctem_diags_numlats)
+
     call esmf_phys_mesh_init()
-    call esmf_phys2lonlat_init()
+    call esmf_phys2lonlat_init(reg_grid)
+    call esmf_zonal_mean_init(reg_grid)
+
+    associate( beglon=>reg_grid%lon_beg, &
+               endlon=>reg_grid%lon_end, &
+               beglat=>reg_grid%lat_beg, &
+               endlat=>reg_grid%lat_end, &
+               glats=>reg_grid%glats, &
+               glons=>reg_grid%glons, &
+               nlon=>reg_grid%nlon, &
+               nlat=>reg_grid%nlat )
 
     ! Zonal mean grid for history fields
     zmlons = 0._r8
@@ -191,6 +205,8 @@ contains
 
     nullify(grid_map)
 
+    end associate
+
   end subroutine ctem_diags_reg
 
   !-----------------------------------------------------------------------------
@@ -251,65 +267,70 @@ contains
 
     real(r8) :: ps_phys(pcols,begchunk:endchunk)
 
-    real(r8), target :: u_lonlat(beglon:endlon,beglat:endlat,pver)
-    real(r8), target :: v_lonlat(beglon:endlon,beglat:endlat,pver)
-    real(r8), target :: w_lonlat(beglon:endlon,beglat:endlat,pver)
-    real(r8), target :: t_lonlat(beglon:endlon,beglat:endlat,pver)
-    real(r8), target :: p_lonlat(beglon:endlon,beglat:endlat,pver)
-    real(r8) :: ps_lonlat(beglon:endlon,beglat:endlat)
-    real(r8) :: mskind1(beglon:endlon,beglat:endlat) ! vertical index where mountain masking begins
+    real(r8), target :: u_lonlat(reg_grid%lon_beg:reg_grid%lon_end,reg_grid%lat_beg:reg_grid%lat_end,pver)
+    real(r8), target :: v_lonlat(reg_grid%lon_beg:reg_grid%lon_end,reg_grid%lat_beg:reg_grid%lat_end,pver)
+    real(r8), target :: w_lonlat(reg_grid%lon_beg:reg_grid%lon_end,reg_grid%lat_beg:reg_grid%lat_end,pver)
+    real(r8), target :: t_lonlat(reg_grid%lon_beg:reg_grid%lon_end,reg_grid%lat_beg:reg_grid%lat_end,pver)
+    real(r8), target :: p_lonlat(reg_grid%lon_beg:reg_grid%lon_end,reg_grid%lat_beg:reg_grid%lat_end,pver)
+    real(r8) :: ps_lonlat(reg_grid%lon_beg:reg_grid%lon_end,reg_grid%lat_beg:reg_grid%lat_end)
+    real(r8) :: mskind1(reg_grid%lon_beg:reg_grid%lon_end,reg_grid%lat_beg:reg_grid%lat_end) ! vertical index where mountain masking begins
 
-    real(r8) :: ui_lonlat(beglon:endlon,beglat:endlat,pver)
-    real(r8) :: vi_lonlat(beglon:endlon,beglat:endlat,pver)
-    real(r8) :: wi_lonlat(beglon:endlon,beglat:endlat,pver)
-    real(r8) :: ti_lonlat(beglon:endlon,beglat:endlat,pver)
+    real(r8) :: ui_lonlat(reg_grid%lon_beg:reg_grid%lon_end,reg_grid%lat_beg:reg_grid%lat_end,pver)
+    real(r8) :: vi_lonlat(reg_grid%lon_beg:reg_grid%lon_end,reg_grid%lat_beg:reg_grid%lat_end,pver)
+    real(r8) :: wi_lonlat(reg_grid%lon_beg:reg_grid%lon_end,reg_grid%lat_beg:reg_grid%lat_end,pver)
+    real(r8) :: ti_lonlat(reg_grid%lon_beg:reg_grid%lon_end,reg_grid%lat_beg:reg_grid%lat_end,pver)
 
-    real(r8), target  :: uv_lonlat(beglon:endlon,beglat:endlat,pver)
-    real(r8), target  :: uw_lonlat(beglon:endlon,beglat:endlat,pver)
-    real(r8), target  :: vt_lonlat(beglon:endlon,beglat:endlat,pver)
-    real(r8), target  :: wt_lonlat(beglon:endlon,beglat:endlat,pver)
+    real(r8), target  :: uv_lonlat(reg_grid%lon_beg:reg_grid%lon_end,reg_grid%lat_beg:reg_grid%lat_end,pver)
+    real(r8), target  :: uw_lonlat(reg_grid%lon_beg:reg_grid%lon_end,reg_grid%lat_beg:reg_grid%lat_end,pver)
+    real(r8), target  :: vt_lonlat(reg_grid%lon_beg:reg_grid%lon_end,reg_grid%lat_beg:reg_grid%lat_end,pver)
+    real(r8), target  :: wt_lonlat(reg_grid%lon_beg:reg_grid%lon_end,reg_grid%lat_beg:reg_grid%lat_end,pver)
 
-    real(r8) :: uvi_lonlat(beglon:endlon,beglat:endlat,pver)
-    real(r8) :: uwi_lonlat(beglon:endlon,beglat:endlat,pver)
-    real(r8) :: vti_lonlat(beglon:endlon,beglat:endlat,pver)
-    real(r8) :: wti_lonlat(beglon:endlon,beglat:endlat,pver)
+    real(r8) :: uvi_lonlat(reg_grid%lon_beg:reg_grid%lon_end,reg_grid%lat_beg:reg_grid%lat_end,pver)
+    real(r8) :: uwi_lonlat(reg_grid%lon_beg:reg_grid%lon_end,reg_grid%lat_beg:reg_grid%lat_end,pver)
+    real(r8) :: vti_lonlat(reg_grid%lon_beg:reg_grid%lon_end,reg_grid%lat_beg:reg_grid%lat_end,pver)
+    real(r8) :: wti_lonlat(reg_grid%lon_beg:reg_grid%lon_end,reg_grid%lat_beg:reg_grid%lat_end,pver)
 
 
-    real(r8) :: u_zm(beglat:endlat,pver)
-    real(r8) :: v_zm(beglat:endlat,pver)
-    real(r8) :: w_zm(beglat:endlat,pver)
-    real(r8) :: t_zm(beglat:endlat,pver)
+    real(r8) :: u_zm(reg_grid%lat_beg:reg_grid%lat_end,pver)
+    real(r8) :: v_zm(reg_grid%lat_beg:reg_grid%lat_end,pver)
+    real(r8) :: w_zm(reg_grid%lat_beg:reg_grid%lat_end,pver)
+    real(r8) :: t_zm(reg_grid%lat_beg:reg_grid%lat_end,pver)
 
-    real(r8) :: uv_zm(beglat:endlat,pver)
-    real(r8) :: uw_zm(beglat:endlat,pver)
-    real(r8) :: vt_zm(beglat:endlat,pver)
-    real(r8) :: wt_zm(beglat:endlat,pver)
+    real(r8) :: uv_zm(reg_grid%lat_beg:reg_grid%lat_end,pver)
+    real(r8) :: uw_zm(reg_grid%lat_beg:reg_grid%lat_end,pver)
+    real(r8) :: vt_zm(reg_grid%lat_beg:reg_grid%lat_end,pver)
+    real(r8) :: wt_zm(reg_grid%lat_beg:reg_grid%lat_end,pver)
 
-    real(r8) :: ps_zm(beglat:endlat)
+    real(r8) :: ps_zm(reg_grid%lat_beg:reg_grid%lat_end)
 
-    real(r8) :: vtp(beglon:endlon,beglat:endlat,pver)
-    real(r8) :: wtp(beglon:endlon,beglat:endlat,pver)
-    real(r8) :: uwp(beglon:endlon,beglat:endlat,pver)
-    real(r8) :: uvp(beglon:endlon,beglat:endlat,pver)
+    real(r8) :: vtp(reg_grid%lon_beg:reg_grid%lon_end,reg_grid%lat_beg:reg_grid%lat_end,pver)
+    real(r8) :: wtp(reg_grid%lon_beg:reg_grid%lon_end,reg_grid%lat_beg:reg_grid%lat_end,pver)
+    real(r8) :: uwp(reg_grid%lon_beg:reg_grid%lon_end,reg_grid%lat_beg:reg_grid%lat_end,pver)
+    real(r8) :: uvp(reg_grid%lon_beg:reg_grid%lon_end,reg_grid%lat_beg:reg_grid%lat_end,pver)
 
-    real(r8) :: vtp_zm(beglat:endlat,pver)
-    real(r8) :: wtp_zm(beglat:endlat,pver)
-    real(r8) :: uwp_zm(beglat:endlat,pver)
-    real(r8) :: uvp_zm(beglat:endlat,pver)
-    real(r8) :: wsums(beglat:endlat,pver)
+    real(r8) :: vtp_zm(reg_grid%lat_beg:reg_grid%lat_end,pver)
+    real(r8) :: wtp_zm(reg_grid%lat_beg:reg_grid%lat_end,pver)
+    real(r8) :: uwp_zm(reg_grid%lat_beg:reg_grid%lat_end,pver)
+    real(r8) :: uvp_zm(reg_grid%lat_beg:reg_grid%lat_end,pver)
+    real(r8) :: wsums(reg_grid%lat_beg:reg_grid%lat_end,pver)
 
     integer  :: lchnk, ncol, i, j, k
     real(r8) :: sheight(pver) ! pressure scale height (m)
 
-    real(r8) :: outtmp(beglon:endlon,pver)
+    real(r8) :: outtmp(reg_grid%lon_beg:reg_grid%lon_end,pver)
     integer :: outcnt
 
-    real(r8) :: wght(beglon:endlon,beglat:endlat,pver)
+    real(r8) :: wght(reg_grid%lon_beg:reg_grid%lon_end,reg_grid%lat_beg:reg_grid%lat_end,pver)
 
     type(fields_bundle_t) :: physflds(nflds)
     type(fields_bundle_t) :: lonlatflds(nflds)
 
     if (.not.ctem_diags_active) return
+
+    associate( beglon=>reg_grid%lon_beg, &
+               endlon=>reg_grid%lon_end, &
+               beglat=>reg_grid%lat_beg, &
+               endlat=>reg_grid%lat_end )
 
     call t_startf('ctem_diags_calc')
 
@@ -523,21 +544,25 @@ contains
 
     call t_stopf('ctem_diags_calc')
 
+    end associate
+
   end subroutine ctem_diags_calc
 
   !-----------------------------------------------------------------------------
   !-----------------------------------------------------------------------------
   subroutine ctem_diags_final()
     use esmf_phys2lonlat_mod, only: esmf_phys2lonlat_destroy
-    use esmf_lonlat_grid_mod, only: esmf_lonlat_grid_destroy
     use esmf_phys_mesh_mod, only: esmf_phys_mesh_destroy
 
     if (.not.ctem_diags_active) return
 
     call esmf_phys2lonlat_destroy()
-    call esmf_lonlat_grid_destroy()
     call esmf_phys_mesh_destroy()
 
+    if (associated(reg_grid)) then
+       deallocate(reg_grid)
+       nullify(reg_grid)
+    end if
   end subroutine ctem_diags_final
 
 end module ctem_diags_mod
