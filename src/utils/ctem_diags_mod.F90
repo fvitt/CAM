@@ -33,7 +33,7 @@ module ctem_diags_mod
   integer :: ctem_diags_numlats = 0
   logical :: ctem_diags_active = .false.
 
-  type(esmf_lonlat_grid), pointer :: reg_grid=>null()
+  class(esmf_lonlat_grid), pointer :: reg_grid=>null()
 
 contains
 

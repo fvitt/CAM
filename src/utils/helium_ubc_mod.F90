@@ -40,7 +40,7 @@ module helium_ubc_mod
 
   logical :: he_ubc_active = .false.
 
-  type(esmf_lonlat_grid), pointer :: he_grid => null()
+  class(esmf_lonlat_grid), pointer :: he_grid => null()
 
 contains
 

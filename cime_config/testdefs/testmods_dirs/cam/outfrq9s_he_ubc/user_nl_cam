@@ -5,3 +5,10 @@ write_nstep0=.true.
 inithist='ENDOFRUN'
 helium_ubc_coefs = '$DIN_LOC_ROOT/atm/waccm/ub/helium_ubc_coefs_dres_c260314.nc'
 fincl8 = 'HE_UBC_FLXi','HE_UBC_FLUX'
+
+ctem_diags_numlats = 90
+fincl2 = 'THtem','Utem','Vtem','Wtem','VTHtem','WTHtem','UVtem', 'UWtem', 'MSKtem', 'PStem'
+fincl3 = 'Uzm', 'Vzm','Wzm', 'THzm','VTHzm','WTHzm','UVzm', 'UWzm', 'PSzm'
+
+do_circulation_diags = .false.
+fincl7 = ' '
