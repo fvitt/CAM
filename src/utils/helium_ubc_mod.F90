@@ -8,7 +8,7 @@ module helium_ubc_mod
   use physics_types, only: physics_state
 
   use esmf_phys_mesh_mod, only: esmf_phys_mesh_init
-  use esmf_lonlat_grid_mod, only: esmf_lonlat_grid ! esmf_lonlat_grid_init, lon_beg,lon_end,lat_beg,lat_end, nlon_he=>nlon
+  use esmf_lonlat_grid_mod, only: esmf_lonlat_grid
   use esmf_lonlatphys_regrid_mod, only: esmf_lonlatphys_regrid_init, regrid_lonlat2phys, regrid_phys2lonlat
   use helium_zonal_fft_mod, only: helium_zonal_fft_init, helium_zonal_fft_forward, helium_zonal_fft_backward
 
@@ -35,12 +35,18 @@ module helium_ubc_mod
 
   integer :: he_cnst_ndx = -1
   integer :: nlat_he = -1
+  integer :: nlon_he = -1
 
   real(r8),dimension(:,:,:),allocatable :: pmn,zmn
 
   logical :: he_ubc_active = .false.
 
   class(esmf_lonlat_grid), pointer :: he_grid => null()
+
+  integer :: beglat = 0
+  integer :: endlat = 0
+  integer :: beglon = 0
+  integer :: endlon = 0
 
 contains
 
@@ -115,6 +121,12 @@ contains
 
     call helium_zonal_fft_init(he_grid)
 
+    nlon_he = he_grid%nlon
+    beglon = he_grid%lon_beg
+    endlon = he_grid%lon_end
+    beglat = he_grid%lat_beg
+    endlat = he_grid%lat_end
+
     allocate(helium_ubc_fluxes(pcols,begchunk:endchunk))
     helium_ubc_fluxes = 0._r8
 
@@ -139,16 +151,16 @@ contains
 
     real(r8) :: flx_phys(pcols,begchunk:endchunk)
 
-    real(r8) :: flx_lonlat(he_grid%lon_beg:he_grid%lon_end,he_grid%lat_beg:he_grid%lat_end)
+    real(r8) :: flx_lonlat(beglon:endlon,beglat:endlat)
     real(r8) :: tn, he_mmr
     real(r8) :: barm(pcols,pver) ! mean molecular weight (g/mole)
 
     integer :: lchnk, ncol, i, j, m,n
-    complex(r8) :: zin (he_grid%nlon, he_grid%lat_beg:he_grid%lat_end)
-    complex(r8) :: zout(he_grid%nlon, he_grid%lat_beg:he_grid%lat_end)
+    complex(r8) :: zin (nlon_he, beglat:endlat)
+    complex(r8) :: zout(nlon_he, beglat:endlat)
 
     ! Fourier coefficients ordered in real/image pairs
-    real(kind=r8),dimension(nlat_he,he_grid%nlon+2) :: fx_f
+    real(kind=r8),dimension(nlat_he,nlon_he+2) :: fx_f
 
     real(kind=r8),dimension(0:nmax-1,0:nmax) :: amn ! a(m,n) spectral coefficient
     real(kind=r8),dimension(1:nmax-1,0:nmax) :: bmn ! b(m,n) spectral coefficient
@@ -265,19 +277,19 @@ contains
     function allgather_flx(fx_in) result(fx_glb)
       use mpi, only: MPI_REAL8, MPI_SUCCESS, MPI_SUM
 
-      real(r8), intent(in) :: fx_in(nlat_he,he_grid%nlon+2)
+      real(r8), intent(in) :: fx_in(nlat_he,nlon_he+2)
 
-      real(r8) :: fx_glb(nlat_he,he_grid%nlon+2)
-      real(r8) :: sndbf(nlat_he,he_grid%nlon+2)
-      real(r8) :: rcvbf(nlat_he,he_grid%nlon+2)
+      real(r8) :: fx_glb(nlat_he,nlon_he+2)
+      real(r8) :: sndbf(nlat_he,nlon_he+2)
+      real(r8) :: rcvbf(nlat_he,nlon_he+2)
       integer :: len, rc
 
       character(len=*),parameter :: subname = 'helium_ubc_calc.allgather_flx: '
 
-      len = nlat_he*(he_grid%nlon+2)
+      len = nlat_he*(nlon_he+2)
       rcvbf(:,:) = 0._r8
       sndbf(:,:) = 0._r8
-      sndbf(he_grid%lat_beg:he_grid%lat_end,:) = fx_f(he_grid%lat_beg:he_grid%lat_end,:)
+      sndbf(beglat:endlat,:) = fx_f(beglat:endlat,:)
       call mpi_allreduce( sndbf, rcvbf, len, MPI_REAL8, MPI_SUM, he_grid%merid_comm, rc )
       if ( rc /= MPI_SUCCESS ) then
          call endrun(subname//'mpi_allreduce failed')
