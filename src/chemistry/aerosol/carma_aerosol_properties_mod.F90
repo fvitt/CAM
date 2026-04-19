@@ -261,7 +261,7 @@ contains
   !  species morphology
   !------------------------------------------------------------------------
   subroutine get(self, bin_ndx, species_ndx, list_ndx, density, hygro, &
-                 spectype, specname, specmorph, refindex_sw, refindex_lw)
+                 spec_mw, spectype, specname, specmorph, refindex_sw, refindex_lw)
 
     class(carma_aerosol_properties), intent(in) :: self
     integer, intent(in) :: bin_ndx             ! bin index
@@ -269,6 +269,7 @@ contains
     integer, optional, intent(in) :: list_ndx  ! climate or a diagnostic list number
     real(r8), optional, intent(out) :: density ! density (kg/m3)
     real(r8), optional, intent(out) :: hygro   ! hygroscopicity
+    real(r8), optional, intent(out) :: spec_mw ! species molecular weight
     character(len=*), optional, intent(out) :: spectype  ! species type
     character(len=*), optional, intent(out) :: specname  ! species name
     character(len=*), optional, intent(out) :: specmorph ! species morphology
@@ -276,6 +277,7 @@ contains
     complex(r8), pointer, optional, intent(out) :: refindex_lw(:) ! long wave species refractive indices
 
     integer :: ilist
+    character(len=32) :: type
 
     if (present(list_ndx)) then
        ilist = list_ndx
@@ -307,6 +309,25 @@ contains
        else
           call rad_cnst_get_info_by_bin_spec(ilist, bin_ndx, species_ndx, spec_name=specname)
        end if
+    end if
+    if (present(spec_mw)) then
+       call rad_cnst_get_bin_props_by_idx(ilist, bin_ndx, species_ndx, spectype=type)
+       select case (trim(type))
+       case('sulfate')
+          spec_mw = 96._r8
+       case('black-c')
+          spec_mw = 12._r8
+       case('s-organic')
+          spec_mw = 250._r8
+       case('p-organic')
+          spec_mw = 12._r8
+       case('dust')
+          spec_mw = 12._r8
+       case('seasalt')
+          spec_mw = 57._r8
+       case default
+          spec_mw = nan
+       end select
     end if
 
   end subroutine get

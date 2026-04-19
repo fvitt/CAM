@@ -9,12 +9,12 @@ module sox_cldaero_mod
   use mo_chem_utls,    only : get_spc_ndx
   use cldaero_mod,     only : cldaero_conc_t, cldaero_allocate, cldaero_deallocate
   use cam_logfile,     only : iulog
-  use chem_mods,       only : adv_mass
   use physconst,       only : gravit
   use phys_control,    only : phys_getopts
   use cldaero_mod,     only : cldaero_uptakerate
   use chem_mods,       only : gas_pcnst
   use rad_constituents, only: rad_cnst_get_info, rad_cnst_get_info_by_bin, rad_cnst_get_bin_props_by_idx
+  use constituents,     only: cnst_get_ind, cnst_mw
 
   use carma_aerosol_properties_mod, only: carma_aerosol_properties
 
@@ -209,6 +209,7 @@ contains
     real(r8) :: faqgain_so4(nbins)
     real(r8) :: wt_mass(nbins)
 
+    real(r8) :: delnh3, delnh4
     real(r8) :: delso4_o3rxn, &
          dso4dt_aqrxn, dso4dt_hprxn, &
          dso4dt_gasuptk, dmsadt_gasuptk_toso4, &
@@ -219,12 +220,12 @@ contains
     integer :: l, m,n, mm
     integer :: ntot_msa_c
 
-    integer :: i,k
+    integer :: i,k, ndx
     real(r8) :: xl
     real(r8) :: wt_sum
-    real(r8) :: specmw_so4_amode
-
+    real(r8) :: mw_so4
     character(len=32) :: spectype
+    character(len=32) :: specname
 
     character(len=*), parameter :: subname = 'sox_cldaero_update'
     character(len=aero_name_len) :: bin_name, shortname
@@ -328,7 +329,6 @@ contains
 
                 ! compute TMR tendencies for so4 and msa aerosol-in-cloud-water
                 do m = 1, aero_props%nbins()
-            !!!       n = lptr_so4_cw_amode(m) - loffset
                    do l = 1, aero_props%nspecies(m)
                       mm = aero_props%indexer(m,l)
                       call  aero_props%get(m,l, spectype=spectype)
@@ -343,19 +343,18 @@ contains
                          dqdt= dqdt_aq + dqdt_wr
                          qcw(i,k,mm) = qcw(i,k,mm) + dqdt*dtime
 
-
                       end if
-!!$                      if (trim(spectype) == 'ammonium') then
-!!$                         if (delnh4 > 0.0_r8) then
-!!$                            dqdt_aq = faqgain_so4(m)*delnh4/dtime*cldfrc(i,k)
-!!$                            dqdt = dqdt_aq
-!!$                            qcw(i,k,mm) = qcw(i,k,mm) + dqdt*dtime
-!!$                         else
-!!$                            dqdt = (qcw(i,k,mm)/max(xnh4c(i,k),1.0e-35_r8)) &
-!!$                                 *delnh4/dtime*cldfrc(i,k)
-!!$                            qcw(i,k,mm) = qcw(i,k,mm) + dqdt*dtime
-!!$                         endif
-!!$                      end if
+                      if (trim(spectype) == 'ammonium') then
+                         if (delnh4 > 0.0_r8) then
+                            dqdt_aq = faqgain_so4(m)*delnh4/dtime*cldfrc(i,k)
+                            dqdt = dqdt_aq
+                            qcw(i,k,mm) = qcw(i,k,mm) + dqdt*dtime
+                         else
+                            dqdt = (qcw(i,k,mm)/max(xnh4c(i,k),1.0e-35_r8)) &
+                                 *delnh4/dtime*cldfrc(i,k)
+                            qcw(i,k,mm) = qcw(i,k,mm) + dqdt*dtime
+                         endif
+                      end if
                    end do
                 end do
 
@@ -402,36 +401,64 @@ contains
     !==============================================================
     ! ... Update the mixing ratios
     !==============================================================
+!!$    do k = 1,pver
+!!$
+!!$       do n = 1, aero_props%nbins()
+!!$          do l = 1, aero_props%nspecies(n)
+!!$             mm = aero_props%indexer(n,l)
+!!$             call  aero_props%get(n,l, spectype=spectype)
+!!$             if (trim(spectype) == 'sulfate') then
+!!$                qcw(:,k,mm) = MAX(qcw(:,k,mm), small_value )
+!!$             end if
+!!$             if (trim(spectype) == 'msa') then
+!!$                qcw(:,k,mm) = MAX(qcw(:,k,mm), small_value )
+!!$             end if
+!!$             if (trim(spectype) == 'ammonium') then
+!!$                qcw(:,k,mm) = MAX(qcw(:,k,mm), small_value )
+!!$             end if
+!!$          end do
+!!$       end do
+!!$
+!!$       qin(:,k,id_so2)   = MAX( qin(:,k,id_so2),   small_value )
+!!$       qin(:,k,id_h2o2)  = MAX( qin(:,k,id_h2o2),  small_value )
+!!$       qin(:,k,id_h2so4) = MAX( qin(:,k,id_h2so4), small_value )
+!!$       if ( id_msa > 0 ) qin(:,k,id_msa) = MAX( qin(:,k,id_msa), small_value )
+!!$       if ( id_nh3 > 0 ) qin(:,k,id_nh3) = MAX( qin(:,k,id_nh3), small_value )
+!!$
+!!$    end do
 
     ! diagnostics
+    mw_so4 = -huge(1._r8)
 
-    specmw_so4_amode = 96.0_r8
-      do n = 1, aero_props%nbins()
-        ! while looking through all species, only dqdt_aqso4 from sulfates  is gt zero
-        do l = 1, nspec(n)
-           mm = aero_props%indexer(n,l)
-           aqso4(:,n)=0._r8
-            do k=1,pver
-               do i=1,ncol
-                  aqso4(i,n)=aqso4(i,n)+dqdt_aqso4(i,k,mm)*specmw_so4_amode/mbar(i,k) &
-                       *pdel(i,k)/gravit ! kg/m2/s
-               enddo
-            enddo
-
-            aqh2so4(:,n)=0._r8
-            do k=1,pver
-               do i=1,ncol
-                  aqh2so4(i,n)=aqh2so4(i,n)+dqdt_aqh2so4(i,k,mm)*specmw_so4_amode/mbar(i,k) &
-                       *pdel(i,k)/gravit ! kg/m2/s
-               enddo
-            enddo
-         end do
-      end do
+    do n = 1, aero_props%nbins()
+       ! while looking through all species, only dqdt_aqso4 from sulfates  is gt zero
+       do l = 1, aero_props%nspecies(n)
+          mm = aero_props%indexer(n,l)
+          call  aero_props%get(n,l, spectype=spectype, specname=specname)
+          if (trim(spectype) == 'sulfate') then
+             call aero_props%get(n,l, spec_mw=mw_so4)
+             aqso4(:,n)=0._r8
+             do k=1,pver
+                do i=1,ncol
+                   aqso4(i,n)=aqso4(i,n)+dqdt_aqso4(i,k,mm)*mw_so4/mbar(i,k) &
+                        *pdel(i,k)/gravit ! kg/m2/s
+                enddo
+             enddo
+             aqh2so4(:,n)=0._r8
+             do k=1,pver
+                do i=1,ncol
+                   aqh2so4(i,n)=aqh2so4(i,n)+dqdt_aqh2so4(i,k,mm)*mw_so4/mbar(i,k) &
+                        *pdel(i,k)/gravit ! kg/m2/s
+                enddo
+             enddo
+          end if
+       end do
+    end do
 
     aqso4_h2o2(:) = 0._r8
     do k=1,pver
        do i=1,ncol
-           aqso4_h2o2(i)=aqso4_h2o2(i)+dqdt_aqhprxn(i,k)*specmw_so4_amode/mbar(i,k) &
+           aqso4_h2o2(i)=aqso4_h2o2(i)+dqdt_aqhprxn(i,k)*mw_so4/mbar(i,k) &
                    *pdel(i,k)/gravit ! kg SO4 /m2/s
        enddo
     enddo
@@ -440,7 +467,7 @@ contains
         aqso4_h2o2_3d(:,:) = 0._r8
         do k=1,pver
            do i=1,ncol
-              aqso4_h2o2_3d(i,k)=dqdt_aqhprxn(i,k)*specmw_so4_amode/mbar(i,k) &
+              aqso4_h2o2_3d(i,k)=dqdt_aqhprxn(i,k)*mw_so4/mbar(i,k) &
                                  *pdel(i,k)/gravit ! kg SO4 /m2/s
            enddo
         enddo
@@ -449,7 +476,7 @@ contains
     aqso4_o3(:)=0._r8
     do k=1,pver
         do i=1,ncol
-           aqso4_o3(i)=aqso4_o3(i)+dqdt_aqo3rxn(i,k)*specmw_so4_amode/mbar(i,k) &
+           aqso4_o3(i)=aqso4_o3(i)+dqdt_aqo3rxn(i,k)*mw_so4/mbar(i,k) &
                    *pdel(i,k)/gravit ! kg SO4 /m2/s
         enddo
     enddo
@@ -458,7 +485,7 @@ contains
         aqso4_o3_3d(:,:)=0._r8
         do k=1,pver
            do i=1,ncol
-              aqso4_o3_3d(i,k)=dqdt_aqo3rxn(i,k)*specmw_so4_amode/mbar(i,k) &
+              aqso4_o3_3d(i,k)=dqdt_aqo3rxn(i,k)*mw_so4/mbar(i,k) &
                                *pdel(i,k)/gravit ! kg SO4 /m2/s
            enddo
         enddo

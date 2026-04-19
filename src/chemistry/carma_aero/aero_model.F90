@@ -303,6 +303,9 @@ contains
              call add_default (trim(fieldname_cw(mm))//'TBF', 1, ' ')
              call add_default (trim(fieldname_cw(mm))//'DDF', 1, ' ')
           endif
+
+          call add_default( fieldname_cw(mm), 5, ' ' )
+
        enddo
     enddo
 
@@ -317,6 +320,9 @@ contains
        if ( history_aerosol ) then
           call add_default( 'AQ_'//trim(solsym(m)), 1, ' ')
        endif
+
+       call add_default( 'GS_'//trim(solsym(m)), 5, ' ')
+       call add_default( 'AQ_'//trim(solsym(m)), 5, ' ')
 
     enddo
 
@@ -334,6 +340,8 @@ contains
                 call add_default (trim(fieldname_cw(mm))//'AQSO4', 1, ' ')
                 call add_default (trim(fieldname_cw(mm))//'AQH2SO4', 1, ' ')
              endif
+                call add_default (trim(fieldname_cw(mm))//'AQSO4', 5, ' ')
+                call add_default (trim(fieldname_cw(mm))//'AQH2SO4', 5, ' ')
           end do
        end do
 
@@ -346,7 +354,10 @@ contains
           call add_default ('AQSO4_H2O2', 1, ' ')
           call add_default ('AQSO4_O3', 1, ' ')
        endif
-    endif
+          call add_default ('XPH_LWC', 5, ' ')
+          call add_default ('AQSO4_H2O2', 5, ' ')
+          call add_default ('AQSO4_O3', 5, ' ')
+     endif
 
     call aero_wetdep_init()
 
@@ -674,10 +685,13 @@ contains
 
           do n = 1, nbins
             do l = 1, nspec(n)   ! not for total mass or number
-                mm = aero_props%indexer(n,l)
-                call outfld( trim(fieldname_cw(mm))//'AQSO4',   aqso4(:ncol,mm),   ncol, lchnk)
-                call outfld( trim(fieldname_cw(mm))//'AQH2SO4', aqh2so4(:ncol,mm), ncol, lchnk)
-             end do
+               call aero_props%get(bin_ndx=n, species_ndx=l, spectype=spectype)
+               if (trim(spectype) == 'sulfate') then
+                  mm = aero_props%indexer(n,l)
+                  call outfld( trim(fieldname_cw(mm))//'AQSO4',   aqso4(:ncol,n),   ncol, lchnk)
+                  call outfld( trim(fieldname_cw(mm))//'AQH2SO4', aqh2so4(:ncol,n), ncol, lchnk)
+               end if
+            end do
           end do
 
           call outfld( 'AQSO4_H2O2', aqso4_h2o2(:ncol), ncol, lchnk)

@@ -494,6 +494,8 @@ subroutine carma_aero_gasaerexch_sub(  state, &
                           num_bin,          t,          pmid,       &
                           wetr_n,                   uptkrate    )
 
+  uptkrate_all = 0.0_r8
+
   do m = 1, nbins
 
      write(fieldname,'("NUMDENS_bin",I2.2)') m

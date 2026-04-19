@@ -101,7 +101,7 @@ module aerosol_properties_mod
      !  species morphology
      !------------------------------------------------------------------------
      subroutine aero_props_get(self, bin_ndx, species_ndx, list_ndx, density, hygro, &
-                               spectype, specname, specmorph, refindex_sw, refindex_lw)
+                               spec_mw, spectype, specname, specmorph, refindex_sw, refindex_lw)
        import :: aerosol_properties, r8
        class(aerosol_properties), intent(in) :: self
        integer, intent(in) :: bin_ndx             ! bin index
@@ -109,6 +109,7 @@ module aerosol_properties_mod
        integer, optional, intent(in) :: list_ndx  ! climate or a diagnostic list number
        real(r8), optional, intent(out) :: density ! density (kg/m3)
        real(r8), optional, intent(out) :: hygro   ! hygroscopicity
+       real(r8), optional, intent(out) :: spec_mw ! species molecular weight
        character(len=*), optional, intent(out) :: spectype  ! species type
        character(len=*), optional, intent(out) :: specname  ! species name
        character(len=*), optional, intent(out) :: specmorph ! species morphology

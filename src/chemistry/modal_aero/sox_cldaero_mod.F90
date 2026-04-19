@@ -10,7 +10,7 @@ module sox_cldaero_mod
   use cldaero_mod,     only : cldaero_conc_t, cldaero_allocate, cldaero_deallocate
   use modal_aero_data, only : ntot_amode, modeptr_accum, lptr_so4_cw_amode, lptr_msa_cw_amode
   use modal_aero_data, only : numptrcw_amode, lptr_nh4_cw_amode
-  use modal_aero_data, only : cnst_name_cw, specmw_so4_amode
+  use modal_aero_data, only : cnst_name_cw
   use chem_mods,       only : adv_mass
   use physconst,       only : gravit
   use phys_control,    only : phys_getopts, cam_chempkg_is
@@ -212,6 +212,7 @@ contains
     real(r8) :: xl
     character(len=32) :: spectype
     character(len=32) :: specname
+    real(r8) :: mw_so4
 
     ! make sure dqdt is zero initially, for budgets
     dqdt_aqso4(:,:,:) = 0.0_r8
@@ -334,7 +335,6 @@ contains
 
                 ! compute TMR tendencies for so4 and msa aerosol-in-cloud-water
                 do m = 1, aero_props%nbins()
-                   n = lptr_so4_cw_amode(m) - loffset
                    do l = 1, aero_props%nspecies(m)
                       mm = aero_props%indexer(m,l)
                       call  aero_props%get(m,l, spectype=spectype)
@@ -348,7 +348,6 @@ contains
                          dqdt_wr = -fwetrem*dqdt_aq
                          dqdt= dqdt_aq + dqdt_wr
                          qcw(i,k,mm) = qcw(i,k,mm) + dqdt*dtime
-
 
                       end if
                       if (trim(spectype) == 'ammonium') then
@@ -441,19 +440,19 @@ contains
     end do
 
     ! diagnostics
+    mw_so4 = -huge(1._r8)
 
     do n = 1, aero_props%nbins()
        ! while looking through all species, only dqdt_aqso4 from sulfates  is gt zero
        do l = 1, aero_props%nspecies(n)
           mm = aero_props%indexer(n,l)
-          call  aero_props%get(n,l, spectype=spectype, specname=specname)
+          call aero_props%get(n,l, spectype=spectype, specname=specname)
           if (trim(spectype) == 'sulfate') then
-             ndx = get_spc_ndx(specname)
-
+             call aero_props%get(n,l, spec_mw=mw_so4)
              aqso4(:,n)=0._r8
              do k=1,pver
                 do i=1,ncol
-                   aqso4(i,n)=aqso4(i,n)+dqdt_aqso4(i,k,mm)*adv_mass(ndx)/mbar(i,k) &
+                   aqso4(i,n)=aqso4(i,n)+dqdt_aqso4(i,k,mm)*mw_so4/mbar(i,k) &
                         *pdel(i,k)/gravit ! kg/m2/s
                 enddo
              enddo
@@ -461,7 +460,7 @@ contains
              aqh2so4(:,n)=0._r8
              do k=1,pver
                 do i=1,ncol
-                   aqh2so4(i,n)=aqh2so4(i,n)+dqdt_aqh2so4(i,k,mm)*adv_mass(ndx)/mbar(i,k) &
+                   aqh2so4(i,n)=aqh2so4(i,n)+dqdt_aqh2so4(i,k,mm)*mw_so4/mbar(i,k) &
                         *pdel(i,k)/gravit ! kg/m2/s
                 enddo
              enddo
@@ -472,7 +471,7 @@ contains
     aqso4_h2o2(:) = 0._r8
     do k=1,pver
        do i=1,ncol
-          aqso4_h2o2(i)=aqso4_h2o2(i)+dqdt_aqhprxn(i,k)*specmw_so4_amode/mbar(i,k) &
+          aqso4_h2o2(i)=aqso4_h2o2(i)+dqdt_aqhprxn(i,k)*mw_so4/mbar(i,k) &
                   *pdel(i,k)/gravit ! kg SO4 /m2/s
        enddo
     enddo
@@ -481,7 +480,7 @@ contains
        aqso4_h2o2_3d(:,:) = 0._r8
        do k=1,pver
           do i=1,ncol
-             aqso4_h2o2_3d(i,k)=dqdt_aqhprxn(i,k)*specmw_so4_amode/mbar(i,k) &
+             aqso4_h2o2_3d(i,k)=dqdt_aqhprxn(i,k)*mw_so4/mbar(i,k) &
                                 *pdel(i,k)/gravit ! kg SO4 /m2/s
           enddo
        enddo
@@ -490,7 +489,7 @@ contains
     aqso4_o3(:)=0._r8
     do k=1,pver
        do i=1,ncol
-          aqso4_o3(i)=aqso4_o3(i)+dqdt_aqo3rxn(i,k)*specmw_so4_amode/mbar(i,k) &
+          aqso4_o3(i)=aqso4_o3(i)+dqdt_aqo3rxn(i,k)*mw_so4/mbar(i,k) &
                   *pdel(i,k)/gravit ! kg SO4 /m2/s
        enddo
     enddo
@@ -499,7 +498,7 @@ contains
        aqso4_o3_3d(:,:)=0._r8
        do k=1,pver
           do i=1,ncol
-             aqso4_o3_3d(i,k)=dqdt_aqo3rxn(i,k)*specmw_so4_amode/mbar(i,k) &
+             aqso4_o3_3d(i,k)=dqdt_aqo3rxn(i,k)*mw_so4/mbar(i,k) &
                               *pdel(i,k)/gravit ! kg SO4 /m2/s
           enddo
        enddo
