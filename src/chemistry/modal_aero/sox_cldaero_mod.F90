@@ -241,8 +241,8 @@ contains
                 endif
 
                 !-------------------------------------------------------------------------
-                ! compute factors for partitioning aerosol mass gains among modes
-                ! the factors are proportional to the activated particle MR for each
+                ! compute factors for partitioning aerosol mass gains among modes.
+                ! The factors are proportional to the activated particle MR for each
                 ! mode, which is the MR of cloud drops "associated with" the mode
                 ! thus we are assuming the cloud drop size is independent of the
                 ! associated aerosol mode properties (i.e., drops associated with
@@ -405,7 +405,7 @@ contains
                 dqdt_aqhprxn(i,k) = dso4dt_hprxn*cldfrc(i,k)
                 dqdt_aqo3rxn(i,k) = (dso4dt_aqrxn - dso4dt_hprxn)*cldfrc(i,k)
 
-             ENDIF !! WHEN CLOUD IS PRESENTED
+             endif !! when cloud is present
           endif cloud
        enddo col_loop
     enddo lev_loop
@@ -420,22 +420,22 @@ contains
              mm = aero_props%indexer(n,l)
              call  aero_props%get(n,l, spectype=spectype)
              if (trim(spectype) == 'sulfate') then
-                qcw(:,k,mm) = MAX(qcw(:,k,mm), small_value )
+                qcw(:ncol,k,mm) = MAX(qcw(:ncol,k,mm), small_value )
              end if
              if (trim(spectype) == 'msa') then
-                qcw(:,k,mm) = MAX(qcw(:,k,mm), small_value )
+                qcw(:ncol,k,mm) = MAX(qcw(:ncol,k,mm), small_value )
              end if
              if (trim(spectype) == 'ammonium') then
-                qcw(:,k,mm) = MAX(qcw(:,k,mm), small_value )
+                qcw(:ncol,k,mm) = MAX(qcw(:ncol,k,mm), small_value )
              end if
           end do
        end do
 
-       qin(:,k,id_so2)   = MAX( qin(:,k,id_so2),   small_value )
-       qin(:,k,id_h2o2)  = MAX( qin(:,k,id_h2o2),  small_value )
-       qin(:,k,id_h2so4) = MAX( qin(:,k,id_h2so4), small_value )
-       if ( id_msa > 0 ) qin(:,k,id_msa) = MAX( qin(:,k,id_msa), small_value )
-       if ( id_nh3 > 0 ) qin(:,k,id_nh3) = MAX( qin(:,k,id_nh3), small_value )
+       qin(:ncol,k,id_so2)   = MAX( qin(:ncol,k,id_so2),   small_value )
+       qin(:ncol,k,id_h2o2)  = MAX( qin(:ncol,k,id_h2o2),  small_value )
+       qin(:ncol,k,id_h2so4) = MAX( qin(:ncol,k,id_h2so4), small_value )
+       if ( id_msa > 0 ) qin(:ncol,k,id_msa) = MAX( qin(:ncol,k,id_msa), small_value )
+       if ( id_nh3 > 0 ) qin(:ncol,k,id_nh3) = MAX( qin(:ncol,k,id_nh3), small_value )
 
     end do
 
@@ -456,7 +456,6 @@ contains
                         *pdel(i,k)/gravit ! kg/m2/s
                 enddo
              enddo
-
              aqh2so4(:,n)=0._r8
              do k=1,pver
                 do i=1,ncol
@@ -472,7 +471,7 @@ contains
     do k=1,pver
        do i=1,ncol
           aqso4_h2o2(i)=aqso4_h2o2(i)+dqdt_aqhprxn(i,k)*mw_so4/mbar(i,k) &
-                  *pdel(i,k)/gravit ! kg SO4 /m2/s
+               *pdel(i,k)/gravit ! kg SO4 /m2/s
        enddo
     enddo
 
@@ -481,7 +480,7 @@ contains
        do k=1,pver
           do i=1,ncol
              aqso4_h2o2_3d(i,k)=dqdt_aqhprxn(i,k)*mw_so4/mbar(i,k) &
-                                *pdel(i,k)/gravit ! kg SO4 /m2/s
+                  *pdel(i,k)/gravit ! kg SO4 /m2/s
           enddo
        enddo
     end if
@@ -490,7 +489,7 @@ contains
     do k=1,pver
        do i=1,ncol
           aqso4_o3(i)=aqso4_o3(i)+dqdt_aqo3rxn(i,k)*mw_so4/mbar(i,k) &
-                  *pdel(i,k)/gravit ! kg SO4 /m2/s
+               *pdel(i,k)/gravit ! kg SO4 /m2/s
        enddo
     enddo
 
@@ -499,7 +498,7 @@ contains
        do k=1,pver
           do i=1,ncol
              aqso4_o3_3d(i,k)=dqdt_aqo3rxn(i,k)*mw_so4/mbar(i,k) &
-                              *pdel(i,k)/gravit ! kg SO4 /m2/s
+                  *pdel(i,k)/gravit ! kg SO4 /m2/s
           enddo
        enddo
     end if

@@ -52,7 +52,7 @@ contains
     id_h2so4 = get_spc_ndx( 'H2SO4' )
     id_so2 = get_spc_ndx( 'SO2' )
     id_h2o2 = get_spc_ndx( 'H2O2' )
-    id_nh3 = get_spc_ndx( 'NH3' )
+    id_nh3 = -1 ! get_spc_ndx( 'NH3' )
 
     if (id_h2so4<1 .or. id_so2<1 .or. id_h2o2<1) then
       call endrun('sox_cldaero_init:MAM mech does not include necessary species' &
@@ -212,7 +212,8 @@ contains
     real(r8) :: delnh3, delnh4
     real(r8) :: delso4_o3rxn, &
          dso4dt_aqrxn, dso4dt_hprxn, &
-         dso4dt_gasuptk, dmsadt_gasuptk_toso4, &
+         dso4dt_gasuptk, dmsadt_gasuptk, &
+         dmsadt_gasuptk_tomsa, dmsadt_gasuptk_toso4, &
          dqdt_aq, dqdt_wr, dqdt
 
     real(r8) :: fwetrem, uptkrate
@@ -238,7 +239,7 @@ contains
     dqdt_aqo3rxn(:,:) = 0.0_r8
     dryr_n(:,:,:) = 0.0_r8
 
-    ntot_msa_c = 0.0_r8
+    ntot_msa_c = 0
     aqso4 = 0.0_r8
     aqh2so4 = 0.0_r8
     aqso4_h2o2 = 0.0_r8
@@ -278,7 +279,14 @@ contains
 
                 delso4_o3rxn = xso4(i,k) - xso4_init(i,k)
 
-                ! the factors are proportional to the activated particle MR for each
+                if (id_nh3>0) then
+                   delnh3 = nh3g(i,k) - xnh3(i,k)
+                   delnh4 = - delnh3
+                endif
+
+                !-------------------------------------------------------------------------
+                ! Compute factors for partitioning aerosol mass gains among bins.
+                ! The factors are proportional to the activated particle MR for each
                 ! bin, which is the MR of cloud drops "associated with" the mode
                 ! thus we are assuming the cloud drop size is independent of the
                 ! associated aerosol mode properties (i.e., drops associated with
@@ -307,10 +315,22 @@ contains
                 ! average uptake rate over dtime
                 uptkrate = (1.0_r8 - exp(-min(100._r8,dtime*uptkrate))) / dtime
 
+                ! dso4dt_gasuptk = so4_c tendency from h2so4 gas uptake (mol/mol/s)
+                ! dmsadt_gasuptk = msa_c tendency from msa gas uptake (mol/mol/s)
                 dso4dt_gasuptk = xh2so4(i,k) * uptkrate
+                if (id_msa > 0) then
+                   dmsadt_gasuptk = xmsa(i,k) * uptkrate
+                else
+                   dmsadt_gasuptk = 0.0_r8
+                end if
 
                 ! if no modes have msa aerosol, then "rename" scavenged msa gas to so4
                 dmsadt_gasuptk_toso4 = 0.0_r8
+                dmsadt_gasuptk_tomsa = dmsadt_gasuptk
+                if (ntot_msa_c == 0) then
+                   dmsadt_gasuptk_tomsa = 0.0_r8
+                   dmsadt_gasuptk_toso4 = dmsadt_gasuptk
+                end if
 
                 !-----------------------------------------------------------------------
                 ! now compute TMR tendencies
@@ -320,12 +340,10 @@ contains
 
                 dso4dt_aqrxn = (delso4_o3rxn + delso4_hprxn(i,k)) / dtime
                 dso4dt_hprxn = delso4_hprxn(i,k) / dtime
-                !write(iulog,*) 'dso4dt_aqrxn ',dso4dt_aqrxn
 
                 ! fwetrem = fraction of in-cloud-water material that is wet removed
                 ! fwetrem = max( 0.0_r8, (1.0_r8-exp(-min(100._r8,dtime*clwlrat(i,k)))) )
                 fwetrem = 0.0_r8 ! don't have so4 & msa wet removal here
-
 
                 ! compute TMR tendencies for so4 and msa aerosol-in-cloud-water
                 do m = 1, aero_props%nbins()
@@ -368,6 +386,7 @@ contains
 
                 ! h2so4 (g) & msa (g)
                 qin(i,k,id_h2so4) = qin(i,k,id_h2so4) - dso4dt_gasuptk * dtime * cldfrc(i,k)
+                if (id_msa > 0) qin(i,k,id_msa) = qin(i,k,id_msa) - dmsadt_gasuptk * dtime * cldfrc(i,k)
 
                 ! so2 -- the first order loss rate for so2 is frso2_c*clwlrat(i,k)
                 ! fwetrem = max( 0.0_r8, (1.0_r8-exp(-min(100._r8,dtime*frso2_c*clwlrat(i,k)))) )
@@ -377,7 +396,6 @@ contains
                 dqdt_aq = -dso4dt_aqrxn*cldfrc(i,k)
                 dqdt = dqdt_aq + dqdt_wr
                 qin(i,k,id_so2) = qin(i,k,id_so2) + dqdt * dtime
-                qin(i,k,id_so2) =  MAX( qin(i,k,id_so2),    small_value )
 
                 ! h2o2 -- the first order loss rate for h2o2 is frh2o2_c*clwlrat(i,k)
                 ! fwetrem = max( 0.0_r8, (1.0_r8-exp(-min(100._r8,dtime*frh2o2_c*clwlrat(i,k)))) )
@@ -387,13 +405,19 @@ contains
                 dqdt_aq = -dso4dt_hprxn*cldfrc(i,k)
                 dqdt = dqdt_aq + dqdt_wr
                 qin(i,k,id_h2o2) = qin(i,k,id_h2o2) + dqdt * dtime
-                qin(i,k,id_h2o2) =  MAX( qin(i,k,id_h2o2),    small_value )
+
+                ! NH3
+                if (id_nh3>0) then
+                   dqdt_aq = delnh3/dtime*cldfrc(i,k)
+                   dqdt = dqdt_aq
+                   qin(i,k,id_nh3) = qin(i,k,id_nh3) + dqdt * dtime
+                endif
 
                 ! for SO4 from H2O2/O3 budgets
                 dqdt_aqhprxn(i,k) = dso4dt_hprxn*cldfrc(i,k)
                 dqdt_aqo3rxn(i,k) = (dso4dt_aqrxn - dso4dt_hprxn)*cldfrc(i,k)
 
-            endif !! when cloud is present
+             endif !! when cloud is present
           endif cloud
        enddo col_loop
     enddo lev_loop
@@ -401,31 +425,31 @@ contains
     !==============================================================
     ! ... Update the mixing ratios
     !==============================================================
-!!$    do k = 1,pver
-!!$
-!!$       do n = 1, aero_props%nbins()
-!!$          do l = 1, aero_props%nspecies(n)
-!!$             mm = aero_props%indexer(n,l)
-!!$             call  aero_props%get(n,l, spectype=spectype)
-!!$             if (trim(spectype) == 'sulfate') then
-!!$                qcw(:,k,mm) = MAX(qcw(:,k,mm), small_value )
-!!$             end if
-!!$             if (trim(spectype) == 'msa') then
-!!$                qcw(:,k,mm) = MAX(qcw(:,k,mm), small_value )
-!!$             end if
-!!$             if (trim(spectype) == 'ammonium') then
-!!$                qcw(:,k,mm) = MAX(qcw(:,k,mm), small_value )
-!!$             end if
-!!$          end do
-!!$       end do
-!!$
-!!$       qin(:,k,id_so2)   = MAX( qin(:,k,id_so2),   small_value )
-!!$       qin(:,k,id_h2o2)  = MAX( qin(:,k,id_h2o2),  small_value )
-!!$       qin(:,k,id_h2so4) = MAX( qin(:,k,id_h2so4), small_value )
-!!$       if ( id_msa > 0 ) qin(:,k,id_msa) = MAX( qin(:,k,id_msa), small_value )
-!!$       if ( id_nh3 > 0 ) qin(:,k,id_nh3) = MAX( qin(:,k,id_nh3), small_value )
-!!$
-!!$    end do
+    do k = 1,pver
+
+       do n = 1, aero_props%nbins()
+          do l = 1, aero_props%nspecies(n)
+             mm = aero_props%indexer(n,l)
+             call  aero_props%get(n,l, spectype=spectype)
+             if (trim(spectype) == 'sulfate') then
+                qcw(:ncol,k,mm) = MAX(qcw(:ncol,k,mm), small_value )
+             end if
+             if (trim(spectype) == 'msa') then
+                qcw(:ncol,k,mm) = MAX(qcw(:ncol,k,mm), small_value )
+             end if
+             if (trim(spectype) == 'ammonium') then
+                qcw(:ncol,k,mm) = MAX(qcw(:ncol,k,mm), small_value )
+             end if
+          end do
+       end do
+
+       qin(:ncol,k,id_so2)   = MAX( qin(:ncol,k,id_so2),   small_value )
+       qin(:ncol,k,id_h2o2)  = MAX( qin(:ncol,k,id_h2o2),  small_value )
+       qin(:ncol,k,id_h2so4) = MAX( qin(:ncol,k,id_h2so4), small_value )
+       if ( id_msa > 0 ) qin(:ncol,k,id_msa) = MAX( qin(:ncol,k,id_msa), small_value )
+       if ( id_nh3 > 0 ) qin(:ncol,k,id_nh3) = MAX( qin(:ncol,k,id_nh3), small_value )
+
+    end do
 
     ! diagnostics
     mw_so4 = -huge(1._r8)
@@ -434,7 +458,7 @@ contains
        ! while looking through all species, only dqdt_aqso4 from sulfates  is gt zero
        do l = 1, aero_props%nspecies(n)
           mm = aero_props%indexer(n,l)
-          call  aero_props%get(n,l, spectype=spectype, specname=specname)
+          call aero_props%get(n,l, spectype=spectype, specname=specname)
           if (trim(spectype) == 'sulfate') then
              call aero_props%get(n,l, spec_mw=mw_so4)
              aqso4(:,n)=0._r8
@@ -458,37 +482,37 @@ contains
     aqso4_h2o2(:) = 0._r8
     do k=1,pver
        do i=1,ncol
-           aqso4_h2o2(i)=aqso4_h2o2(i)+dqdt_aqhprxn(i,k)*mw_so4/mbar(i,k) &
-                   *pdel(i,k)/gravit ! kg SO4 /m2/s
+          aqso4_h2o2(i)=aqso4_h2o2(i)+dqdt_aqhprxn(i,k)*mw_so4/mbar(i,k) &
+               *pdel(i,k)/gravit ! kg SO4 /m2/s
        enddo
     enddo
 
     if (present(aqso4_h2o2_3d)) then
-        aqso4_h2o2_3d(:,:) = 0._r8
-        do k=1,pver
-           do i=1,ncol
-              aqso4_h2o2_3d(i,k)=dqdt_aqhprxn(i,k)*mw_so4/mbar(i,k) &
-                                 *pdel(i,k)/gravit ! kg SO4 /m2/s
-           enddo
-        enddo
+       aqso4_h2o2_3d(:,:) = 0._r8
+       do k=1,pver
+          do i=1,ncol
+             aqso4_h2o2_3d(i,k)=dqdt_aqhprxn(i,k)*mw_so4/mbar(i,k) &
+                  *pdel(i,k)/gravit ! kg SO4 /m2/s
+          enddo
+       enddo
     end if
 
     aqso4_o3(:)=0._r8
     do k=1,pver
-        do i=1,ncol
-           aqso4_o3(i)=aqso4_o3(i)+dqdt_aqo3rxn(i,k)*mw_so4/mbar(i,k) &
-                   *pdel(i,k)/gravit ! kg SO4 /m2/s
-        enddo
+       do i=1,ncol
+          aqso4_o3(i)=aqso4_o3(i)+dqdt_aqo3rxn(i,k)*mw_so4/mbar(i,k) &
+               *pdel(i,k)/gravit ! kg SO4 /m2/s
+       enddo
     enddo
 
     if (present(aqso4_o3_3d)) then
-        aqso4_o3_3d(:,:)=0._r8
-        do k=1,pver
-           do i=1,ncol
-              aqso4_o3_3d(i,k)=dqdt_aqo3rxn(i,k)*mw_so4/mbar(i,k) &
-                               *pdel(i,k)/gravit ! kg SO4 /m2/s
-           enddo
-        enddo
+       aqso4_o3_3d(:,:)=0._r8
+       do k=1,pver
+          do i=1,ncol
+             aqso4_o3_3d(i,k)=dqdt_aqo3rxn(i,k)*mw_so4/mbar(i,k) &
+                  *pdel(i,k)/gravit ! kg SO4 /m2/s
+          enddo
+       enddo
     end if
 
   end subroutine sox_cldaero_update
