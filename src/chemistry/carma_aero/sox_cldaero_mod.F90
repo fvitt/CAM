@@ -52,7 +52,7 @@ contains
     id_h2so4 = get_spc_ndx( 'H2SO4' )
     id_so2 = get_spc_ndx( 'SO2' )
     id_h2o2 = get_spc_ndx( 'H2O2' )
-    id_nh3 = -1 ! get_spc_ndx( 'NH3' )
+    id_nh3 =  get_spc_ndx( 'NH3' )
 
     if (id_h2so4<1 .or. id_so2<1 .or. id_h2o2<1) then
       call endrun('sox_cldaero_init:MAM mech does not include necessary species' &

@@ -8,6 +8,7 @@ module modal_aerosol_state_mod
   use physics_types, only: physics_state
   use aerosol_properties_mod, only: aerosol_properties, aero_name_len
   use physconst,  only: rhoh2o
+  use ppgrid, only:  pver
 
   implicit none
 
@@ -43,6 +44,7 @@ module modal_aerosol_state_mod
      procedure :: wet_diameter
      procedure :: convcld_actfrac
      procedure :: wgtpct
+     procedure :: aqu_gain_fac
 
      final :: destructor
 
@@ -331,8 +333,6 @@ contains
   ! returns aerosol type weights for a given aerosol type and bin
   !------------------------------------------------------------------------------
   subroutine icenuc_type_wght(self, bin_ndx, ncol, nlev, species_type, aero_props, rho, wght, cloud_borne)
-
-    use aerosol_properties_mod, only: aerosol_properties
 
     class(modal_aerosol_state), intent(in) :: self
     integer, intent(in) :: bin_ndx                ! bin number
@@ -695,5 +695,77 @@ contains
     wtp(:,:) = -huge(1._r8)
 
   end function wgtpct
+
+  !------------------------------------------------------------------------------
+  ! aqueous chemistry partitioning
+  !------------------------------------------------------------------------------
+  subroutine aqu_gain_fac(self, aero_props, type, qcw, delso4_o3rxn, faqgain)
+
+    class(modal_aerosol_state), intent(in) :: self
+    class(aerosol_properties), intent(in) :: aero_props
+    character(len=*), intent(in) :: type
+    real(r8), intent(in) :: qcw(:,:,:)
+    real(r8), intent(in) :: delso4_o3rxn(:,:)
+    real(r8), intent(out) :: faqgain(:,:,:) ! fraction gain in each mode / bin
+
+    character(len=aero_name_len) :: modetype, spectype
+    integer :: i,k,l,m,n,mm, ncol, nbins
+    integer :: accum_n
+    real(r8) :: sumf
+    real(r8), allocatable :: qnum_c(:)
+
+    ncol = self%state%ncol
+    nbins = aero_props%nbins()
+
+    accum_n = -1
+    do m = 1, nbins
+       call rad_cnst_get_info(0, m, mode_type=modetype)
+       if (modetype=='accum') then
+          accum_n = m
+       end if
+    end do
+
+    allocate(qnum_c(nbins))
+
+    faqgain = 0.0_r8
+
+    lev_loop: do k = 1,pver
+       col_loop: do i = 1,ncol
+          do m = 1, nbins
+             mm = aero_props%indexer(m,0)
+             qnum_c(m) = max( 0.0_r8, qcw(i,k,mm) )
+           end do
+
+          ! force qnum_c(n) to be positive for n=modeptr_accum or n=1
+          n = accum_n
+          if (n <= 0) n = 1
+          qnum_c(n) = max( 1.0e-10_r8, qnum_c(n) )
+
+          ! faqgain_so4(n) = fraction of total so4_c gain going to mode n
+          ! these are proportional to the activated particle MR for each mode
+          sumf = 0.0_r8
+          do n = 1, nbins
+             do l = 1, aero_props%nspecies(m)
+                call  aero_props%get(n,l, spectype=spectype)
+                if (trim(spectype) == trim(type)) then
+                   faqgain(n,i,k) = qnum_c(n)
+                   sumf = sumf + faqgain(n,i,k)
+                end if
+             end do
+          end do
+
+          if (sumf > 0.0_r8) then
+             do n = 1, nbins
+                faqgain(n,i,k) = faqgain(n,i,k) / sumf
+             end do
+          end if
+          ! at this point (sumf <= 0.0) only when all the faqgain_so4 are zero
+
+       end do col_loop
+    end do lev_loop
+
+    deallocate(qnum_c)
+
+  end subroutine aqu_gain_fac
 
 end module modal_aerosol_state_mod

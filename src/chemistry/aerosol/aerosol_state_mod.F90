@@ -60,7 +60,10 @@ module aerosol_state_mod
      procedure(aero_wet_diam), deferred :: wet_diameter
      procedure :: convcld_actfrac
      procedure :: sol_factb_interstitial
- end type aerosol_state
+     procedure(aero_aqu_gain_fac), deferred :: aqu_gain_fac
+
+  end type aerosol_state
+
 
   ! for state fields
   type ptr2d_t
@@ -293,6 +296,21 @@ module aerosol_state_mod
        real(r8) :: diam(ncol,nlev)
 
      end function aero_wet_diam
+
+     !------------------------------------------------------------------------------
+     ! aqueous chemistry partitioning
+     !------------------------------------------------------------------------------
+     subroutine aero_aqu_gain_fac(self, aero_props, type, qcw, delso4_o3rxn, faqgain)
+       import :: aerosol_state, aerosol_properties, r8
+
+       class(aerosol_state), intent(in) :: self
+       class(aerosol_properties), intent(in) :: aero_props
+       character(len=*), intent(in) :: type
+       real(r8), intent(in) :: qcw(:,:,:)
+       real(r8), intent(in) :: delso4_o3rxn(:,:)
+       real(r8), intent(out) :: faqgain(:,:,:) ! fraction gain in each mode / bin
+
+     end subroutine aero_aqu_gain_fac
 
   end interface
 
