@@ -44,7 +44,7 @@ module modal_aerosol_state_mod
      procedure :: wet_diameter
      procedure :: convcld_actfrac
      procedure :: wgtpct
-     procedure :: aqu_gain_fac
+     procedure :: aqu_gain_binfraction
 
      final :: destructor
 
@@ -697,9 +697,9 @@ contains
   end function wgtpct
 
   !------------------------------------------------------------------------------
-  ! aqueous chemistry partitioning
+  ! aqueous chemistry partitioning -- used in sox_cldaero_update
   !------------------------------------------------------------------------------
-  subroutine aqu_gain_fac(self, aero_props, type, qcw, delso4_o3rxn, faqgain)
+  subroutine aqu_gain_binfraction(self, aero_props, type, qcw, delso4_o3rxn, faqgain)
 
     class(modal_aerosol_state), intent(in) :: self
     class(aerosol_properties), intent(in) :: aero_props
@@ -716,6 +716,18 @@ contains
 
     ncol = self%state%ncol
     nbins = aero_props%nbins()
+
+    !-------------------------------------------------------------------------
+    ! compute factors for partitioning aerosol mass gains among modes.
+    ! The factors are proportional to the activated particle MR for each
+    ! mode, which is the MR of cloud drops "associated with" the mode
+    ! thus we are assuming the cloud drop size is independent of the
+    ! associated aerosol mode properties (i.e., drops associated with
+    ! Aitken and coarse sea-salt particles are same size)
+    !
+    ! qnum_c(n) = activated particle number MR for mode n (these are just
+    ! used for partitioning among modes, so don't need to divide by cldfrc)
+    !-------------------------------------------------------------------------
 
     accum_n = -1
     do m = 1, nbins
@@ -745,7 +757,7 @@ contains
           ! these are proportional to the activated particle MR for each mode
           sumf = 0.0_r8
           do n = 1, nbins
-             do l = 1, aero_props%nspecies(m)
+             do l = 1, aero_props%nspecies(n)
                 call  aero_props%get(n,l, spectype=spectype)
                 if (trim(spectype) == trim(type)) then
                    faqgain(n,i,k) = qnum_c(n)
@@ -766,6 +778,6 @@ contains
 
     deallocate(qnum_c)
 
-  end subroutine aqu_gain_fac
+  end subroutine aqu_gain_binfraction
 
 end module modal_aerosol_state_mod

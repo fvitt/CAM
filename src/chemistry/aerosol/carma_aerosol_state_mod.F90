@@ -46,7 +46,7 @@ module carma_aerosol_state_mod
      procedure :: wet_volume
      procedure :: water_volume
      procedure :: wet_diameter
-     procedure :: aqu_gain_fac
+     procedure :: aqu_gain_binfraction
 
      final :: destructor
 
@@ -594,9 +594,9 @@ contains
   end function wet_diameter
 
   !------------------------------------------------------------------------------
-  ! aqueous chemistry partitioning
+  ! aqueous chemistry partitioning -- used in sox_cldaero_update
   !------------------------------------------------------------------------------
-  subroutine aqu_gain_fac(self, aero_props, type, qcw, delso4_o3rxn, faqgain)
+  subroutine aqu_gain_binfraction(self, aero_props, type, qcw, delso4_o3rxn, faqgain)
 
     class(carma_aerosol_state), intent(in) :: self
     class(aerosol_properties), intent(in) :: aero_props
@@ -617,8 +617,9 @@ contains
     ! To calculate the fraction of sulfate mass produced by aq.chemistry that will be
     ! distributed across different bins, we need to conserve particle number. In CARMA,
     ! this is done following the formula for mass transfer for, following
-    ! Yu et al., 2015, A3.2: the mass fraction for each bin can be calculated
-    ! by normalizing the mass transfer rate in each bin: M/D^2 as: fra = Mi/D^2/sum(Mi/D^2).
+    ! Yu et al., 2015, A3.2:  https://doi.org/10.1002/2014MS000421. The mass fraction
+    ! for each bin can be calculated by normalizing the mass transfer rate in each bin:
+    ! M/D^2 as: fra = Mi/D^2/sum(Mi/D^2).
 
     ncol = self%state%ncol
     nbins = aero_props%nbins()
@@ -650,7 +651,7 @@ contains
           do ibin = 1, nbins
              if (rad_cm(ibin,icol,klev) > 0._r8) then
                 wt_mass(ibin) = delso4_o3rxn(icol,klev) / rad_cm(ibin,icol,klev) / rad_cm(ibin,icol,klev)
-                wt_sum = wt_sum +  wt_mass(ibin)
+                wt_sum = wt_sum + wt_mass(ibin)
              end if
           end do
           do ibin = 1, nbins
@@ -664,6 +665,6 @@ contains
 
     deallocate(rad_cm, wt_mass)
 
-  end subroutine aqu_gain_fac
+  end subroutine aqu_gain_binfraction
 
 end module carma_aerosol_state_mod

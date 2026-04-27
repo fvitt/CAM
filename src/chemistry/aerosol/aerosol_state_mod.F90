@@ -60,7 +60,7 @@ module aerosol_state_mod
      procedure(aero_wet_diam), deferred :: wet_diameter
      procedure :: convcld_actfrac
      procedure :: sol_factb_interstitial
-     procedure(aero_aqu_gain_fac), deferred :: aqu_gain_fac
+     procedure(aero_aqu_gain_binfraction), deferred :: aqu_gain_binfraction
 
   end type aerosol_state
 
@@ -298,9 +298,9 @@ module aerosol_state_mod
      end function aero_wet_diam
 
      !------------------------------------------------------------------------------
-     ! aqueous chemistry partitioning
+     ! aqueous chemistry partitioning -- used in sox_cldaero_update
      !------------------------------------------------------------------------------
-     subroutine aero_aqu_gain_fac(self, aero_props, type, qcw, delso4_o3rxn, faqgain)
+     subroutine aero_aqu_gain_binfraction(self, aero_props, type, qcw, delso4_o3rxn, faqgain)
        import :: aerosol_state, aerosol_properties, r8
 
        class(aerosol_state), intent(in) :: self
@@ -310,7 +310,7 @@ module aerosol_state_mod
        real(r8), intent(in) :: delso4_o3rxn(:,:)
        real(r8), intent(out) :: faqgain(:,:,:) ! fraction gain in each mode / bin
 
-     end subroutine aero_aqu_gain_fac
+     end subroutine aero_aqu_gain_binfraction
 
   end interface
 

@@ -17,6 +17,7 @@ module sox_cldaero_mod
   use constituents,     only: cnst_get_ind, cnst_mw
 
   use carma_aerosol_properties_mod, only: carma_aerosol_properties
+  use aerosol_state_mod, only: aerosol_state
 
   implicit none
   private
@@ -45,7 +46,7 @@ contains
 
   subroutine sox_cldaero_init
 
-    integer :: l, m, ii
+    integer :: l, m
     logical :: history_aerosol      ! Output the MAM aerosol tendencies
 
     id_msa = get_spc_ndx( 'MSA' )
@@ -145,7 +146,7 @@ contains
 !----------------------------------------------------------------------------------
 ! Update the mixing ratios
 !----------------------------------------------------------------------------------
-  subroutine sox_cldaero_update( &
+  subroutine sox_cldaero_update( aero_state, &
        state, ncol, lchnk, loffset, dtime, mbar, pdel, press, tfld, cldnum, cldfrc, cfact, xlwc, &
        delso4_hprxn, xh2so4, xso4, xso4_init, nh3g, hno3g, xnh3, xhno3, xnh4c,  xno3c, xmsa, xso2, xh2o2, qcw, qin, &
        aqso4, aqh2so4, aqso4_h2o2, aqso4_o3, aqso4_h2o2_3d, aqso4_o3_3d)
@@ -156,6 +157,7 @@ contains
 
     ! args
 
+    class(aerosol_state), intent(in) :: aero_state
     type(physics_state), intent(in) :: state     ! Physics state variables
 
     integer,  intent(in) :: ncol
@@ -188,7 +190,7 @@ contains
     real(r8), intent(in) :: xh2o2(:,:)
     real(r8), intent(in) :: xno3c(:,:)
 
-    real(r8), intent(inout) :: qcw(:,:,:) ! cloud-borne aerosol (vmr)  vmrcw(ncol,pver,ncnst_tot)
+    real(r8), intent(inout) :: qcw(:,:,:) ! cloud-borne aerosol (vmr)
     real(r8), intent(inout) :: qin(:,:,:) ! xported species ( vmr )
 
     real(r8), intent(out) :: aqso4(:,:)                   ! aqueous phase chemistry
@@ -199,15 +201,13 @@ contains
     real(r8), intent(out), optional :: aqso4_o3_3d(:,:)                  ! SO4 aqueous phase chemistry due to O3 (kg/m2)
 
     ! local vars ...
-    real(r8) :: dryr(pcols,pver)   ! CARMA dry radius in cm
-    real(r8) :: rho(pcols,pver)   !
-    real(r8) :: dryr_n(nbins,ncol,pver)   ! CARMA dry radius in cm
+
     real(r8) :: dqdt_aqso4(ncol,pver,ncnst_tot), &
          dqdt_aqh2so4(ncol,pver,ncnst_tot), &
          dqdt_aqhprxn(ncol,pver), dqdt_aqo3rxn(ncol,pver)
 
-    real(r8) :: faqgain_so4(nbins)
-    real(r8) :: wt_mass(nbins)
+    real(r8) :: faqgain_msa(nbins,ncol,pver), faqgain_so4(nbins,ncol,pver)
+    real(r8) :: delso4_3d(ncol,pver)
 
     real(r8) :: delnh3, delnh4
     real(r8) :: delso4_o3rxn, &
@@ -218,57 +218,38 @@ contains
 
     real(r8) :: fwetrem, uptkrate
 
-    integer :: l, m,n, mm
+    integer :: l, m, n, mm
     integer :: ntot_msa_c
-
     integer :: i,k, ndx
     real(r8) :: xl
-    real(r8) :: wt_sum
     real(r8) :: mw_so4
     character(len=32) :: spectype
     character(len=32) :: specname
-
-    character(len=*), parameter :: subname = 'sox_cldaero_update'
-    character(len=aero_name_len) :: bin_name, shortname
-    integer :: igroup, ibin, rc, nchr
 
     ! make sure dqdt is zero initially, for budgets
     dqdt_aqso4(:,:,:) = 0.0_r8
     dqdt_aqh2so4(:,:,:) = 0.0_r8
     dqdt_aqhprxn(:,:) = 0.0_r8
     dqdt_aqo3rxn(:,:) = 0.0_r8
-    dryr_n(:,:,:) = 0.0_r8
 
     ntot_msa_c = 0
     aqso4 = 0.0_r8
     aqh2so4 = 0.0_r8
     aqso4_h2o2 = 0.0_r8
     aqso4_o3 = 0.0_r8
+    delso4_3d = 0.0_r8
 
-    do n = 1, nbins
-       call rad_cnst_get_info_by_bin(0, n, nspec=nspec(n), bin_name=bin_name)
+    where (cldfrc(:ncol,:) >= 1.0e-5_r8)
+       delso4_3d(:ncol,:) = xso4(:ncol,:) - xso4_init(:ncol,:)
+    end where
 
-       nchr = len_trim(bin_name)-2
-       shortname = bin_name(:nchr)
-
-       call carma_get_group_by_name(shortname, igroup, rc)
-       if (rc/=0) then
-          call endrun(subname//': ERROR in carma_get_group_by_name')
-       end if
-
-       read(bin_name(nchr+1:),*) ibin
-
-       call carma_get_dry_radius(state, igroup, ibin, dryr, rho, rc)
-       if (rc/=0) then
-          call endrun(subname//': ERROR in carma_get_dry_radius')
-       end if
-
-       dryr(:ncol,:) = dryr(:ncol,:)*1.e2_r8 ! cm
-
-       if (index(bin_name,'MXAER')>0) then
-          dryr_n(n,:ncol,:) = dryr(:ncol,:)
-       end if
-    end do
+    !-------------------------------------------------------------------------
+    ! Compute factors for partitioning aerosol mass gains among bins.
+    ! The factors are proportional to the activated particle MR for each
+    ! bin, which is the MR of cloud drops "associated with" the mode
+    ! thus we are assuming the cloud drop size is independent of the
+    ! associated aerosol mode properties
+    call aero_state%aqu_gain_binfraction(aero_props, 'sulfate', qcw, delso4_3d, faqgain_so4)
 
     lev_loop: do k = 1,pver
        col_loop: do i = 1,ncol
@@ -277,39 +258,12 @@ contains
 
              if (xl .ge. 1.e-8_r8) then !! when cloud is present
 
-                delso4_o3rxn = xso4(i,k) - xso4_init(i,k)
+                delso4_o3rxn = delso4_3d(i,k) ! xso4(i,k) - xso4_init(i,k)
 
                 if (id_nh3>0) then
                    delnh3 = nh3g(i,k) - xnh3(i,k)
                    delnh4 = - delnh3
                 endif
-
-                !-------------------------------------------------------------------------
-                ! Compute factors for partitioning aerosol mass gains among bins.
-                ! The factors are proportional to the activated particle MR for each
-                ! bin, which is the MR of cloud drops "associated with" the mode
-                ! thus we are assuming the cloud drop size is independent of the
-                ! associated aerosol mode properties (i.e., drops associated with
-                ! Aitken and coarse sea-salt particles are same size)
-                !
-                ! qnum_c(n) = activated particle number MR for mode n (these are just
-                ! used for partitioning among modes, so don't need to divide by cldfrc)
-
-                !faqgain_so4(n) = fraction of total so4_c gain going to mode n
-                wt_sum = 0._r8
-                wt_mass(:) = 0._r8
-                faqgain_so4(:) = 0.0_r8
-                do n = 1, nbins
-                   if (dryr_n(n,i,k) > 0._r8) then
-                      wt_mass(n) = delso4_o3rxn / dryr_n(n,i,k) / dryr_n(n,i,k)
-                      wt_sum = wt_sum +  wt_mass(n)
-                   end if
-                end do
-                do n = 1, nbins
-                   if (wt_mass(n) > 0._r8) then
-                      faqgain_so4(n) = wt_mass(n)/wt_sum
-                   end if
-                end do
 
                 uptkrate = cldaero_uptakerate( xl, cldnum(i,k), cfact(i,k), cldfrc(i,k), tfld(i,k),  press(i,k) )
                 ! average uptake rate over dtime
@@ -352,19 +306,25 @@ contains
                       call  aero_props%get(m,l, spectype=spectype)
                       if (trim(spectype) == 'sulfate') then
 
-                         dqdt_aqso4(i,k,mm) = faqgain_so4(m)*dso4dt_aqrxn*cldfrc(i,k)
+                         dqdt_aqso4(i,k,mm) = faqgain_so4(m,i,k)*dso4dt_aqrxn*cldfrc(i,k)
 
-                         dqdt_aqh2so4(i,k,mm) = faqgain_so4(m)* &
+                         dqdt_aqh2so4(i,k,mm) = faqgain_so4(m,i,k)* &
                               (dso4dt_gasuptk + dmsadt_gasuptk_toso4)*cldfrc(i,k)
                          dqdt_aq = dqdt_aqso4(i,k,mm) + dqdt_aqh2so4(i,k,mm)
                          dqdt_wr = -fwetrem*dqdt_aq
-                         dqdt= dqdt_aq + dqdt_wr
+                         dqdt = dqdt_aq + dqdt_wr
                          qcw(i,k,mm) = qcw(i,k,mm) + dqdt*dtime
 
                       end if
+                      if (trim(spectype) == 'msa') then
+                         dqdt_aq = faqgain_msa(m,i,k)*dmsadt_gasuptk_tomsa*cldfrc(i,k)
+                         dqdt_wr = -fwetrem*dqdt_aq
+                         dqdt = dqdt_aq + dqdt_wr
+                         qcw(i,k,mm) = qcw(i,k,mm) + dqdt*dtime
+                      end if
                       if (trim(spectype) == 'ammonium') then
                          if (delnh4 > 0.0_r8) then
-                            dqdt_aq = faqgain_so4(m)*delnh4/dtime*cldfrc(i,k)
+                            dqdt_aq = faqgain_so4(m,i,k)*delnh4/dtime*cldfrc(i,k)
                             dqdt = dqdt_aq
                             qcw(i,k,mm) = qcw(i,k,mm) + dqdt*dtime
                          else
@@ -375,7 +335,6 @@ contains
                       end if
                    end do
                 end do
-
 
                 ! For gas species, tendency includes
                 ! reactive uptake to cloud water that essentially transforms the gas to

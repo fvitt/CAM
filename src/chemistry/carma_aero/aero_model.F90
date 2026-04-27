@@ -660,7 +660,7 @@ contains
     ! aqueous chemistry ...
 
     if( has_sox ) then
-         call setsox( state,  &
+         call setsox( aero_state, state,  &
               pbuf,     &
               ncol,     &
               lchnk,    &

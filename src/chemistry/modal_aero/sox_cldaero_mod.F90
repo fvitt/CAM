@@ -17,6 +17,7 @@ module sox_cldaero_mod
   use cldaero_mod,     only : cldaero_uptakerate
   use chem_mods,       only : gas_pcnst
   use modal_aerosol_properties_mod, only: modal_aerosol_properties
+  use aerosol_state_mod, only: aerosol_state
 
   implicit none
   private
@@ -33,6 +34,7 @@ module sox_cldaero_mod
   integer :: ncnst_tot = -huge(1) ! total number of mode number conc + mode species
 
   type(modal_aerosol_properties), pointer :: aero_props =>null()
+  integer, public, protected :: nbins = 0
 
 contains
 
@@ -63,6 +65,7 @@ contains
     aero_props => modal_aerosol_properties()
 
     ncnst_tot = aero_props%ncnst_tot()
+    nbins = aero_props%nbins()
 
   end subroutine sox_cldaero_init
 
@@ -135,7 +138,7 @@ contains
 !----------------------------------------------------------------------------------
 ! Update the mixing ratios
 !----------------------------------------------------------------------------------
-  subroutine sox_cldaero_update( &
+  subroutine sox_cldaero_update( aero_state, &
        state, ncol, lchnk, loffset, dtime, mbar, pdel, press, tfld, cldnum, cldfrc, cfact, xlwc, &
        delso4_hprxn, xh2so4, xso4, xso4_init, nh3g, hno3g, xnh3, xhno3, xnh4c,  xno3c, xmsa, xso2, xh2o2, qcw, qin, &
        aqso4, aqh2so4, aqso4_h2o2, aqso4_o3, aqso4_h2o2_3d, aqso4_o3_3d)
@@ -144,6 +147,7 @@ contains
 
     ! args
 
+    class(aerosol_state), intent(in) :: aero_state
     type(physics_state), intent(in) :: state     ! Physics state variables
 
     integer,  intent(in) :: ncol
@@ -186,33 +190,31 @@ contains
     real(r8), intent(out), optional :: aqso4_h2o2_3d(:,:)                ! SO4 aqueous phase chemistry due to H2O2 (kg/m2)
     real(r8), intent(out), optional :: aqso4_o3_3d(:,:)                  ! SO4 aqueous phase chemistry due to O3 (kg/m2)
 
-
     ! local vars ...
 
     real(r8) :: dqdt_aqso4(ncol,pver,ncnst_tot), &
          dqdt_aqh2so4(ncol,pver,ncnst_tot), &
-         dqdt_aqhprxn(ncol,pver), dqdt_aqo3rxn(ncol,pver), &
-         sflx(1:ncol)
+         dqdt_aqhprxn(ncol,pver), dqdt_aqo3rxn(ncol,pver)
 
-    real(r8) :: faqgain_msa(ntot_amode), faqgain_so4(ntot_amode), qnum_c(ntot_amode)
+    real(r8) :: faqgain_msa(nbins,ncol,pver), faqgain_so4(nbins,ncol,pver)
+    real(r8) :: delso4_3d(ncol,pver)
 
+    real(r8) :: delnh3, delnh4
     real(r8) :: delso4_o3rxn, &
          dso4dt_aqrxn, dso4dt_hprxn, &
          dso4dt_gasuptk, dmsadt_gasuptk, &
          dmsadt_gasuptk_tomsa, dmsadt_gasuptk_toso4, &
          dqdt_aq, dqdt_wr, dqdt
 
-    real(r8) :: fwetrem, sumf, uptkrate
-    real(r8) :: delnh3, delnh4
+    real(r8) :: fwetrem, uptkrate
 
-    integer :: l, n, m, mm
+    integer :: l, m, n, mm
     integer :: ntot_msa_c
-
     integer :: i,k, ndx
     real(r8) :: xl
+    real(r8) :: mw_so4
     character(len=32) :: spectype
     character(len=32) :: specname
-    real(r8) :: mw_so4
 
     ! make sure dqdt is zero initially, for budgets
     dqdt_aqso4(:,:,:) = 0.0_r8
@@ -226,78 +228,35 @@ contains
     ! parent routine and thus we do not apply tendencies calculated by MAM.
     if ( cam_chempkg_is('geoschem_mam4') ) return
 
+    where (cldfrc(:ncol,:) >= 1.0e-5_r8)
+       delso4_3d(:ncol,:) = xso4(:ncol,:) - xso4_init(:ncol,:)
+    end where
+
+    !-------------------------------------------------------------------------
+    ! Compute factors for partitioning aerosol mass gains among bins / modes.
+    ! The factors are proportional to the activated particle MR for each
+    ! bin, which is the MR of cloud drops "associated with" the mode
+    ! thus we are assuming the cloud drop size is independent of the
+    ! associated aerosol mode properties
+    call aero_state%aqu_gain_binfraction(aero_props, 'sulfate', qcw, delso4_3d, faqgain_so4)
+    call aero_state%aqu_gain_binfraction(aero_props, 'msa', qcw, delso4_3d, faqgain_msa)
+
     lev_loop: do k = 1,pver
        col_loop: do i = 1,ncol
           cloud: if (cldfrc(i,k) >= 1.0e-5_r8) then
-             xl = xlwc(i,k) ! / cldfrc(i,k)
+             xl = xlwc(i,k)
 
-             IF (XL .ge. 1.e-8_r8) THEN !! WHEN CLOUD IS PRESENTED
+             if (xl .ge. 1.e-8_r8) then !! when cloud is present
 
-                delso4_o3rxn = xso4(i,k) - xso4_init(i,k)
+                delso4_o3rxn = delso4_3d(i,k) ! xso4(i,k) - xso4_init(i,k)
 
                 if (id_nh3>0) then
                    delnh3 = nh3g(i,k) - xnh3(i,k)
                    delnh4 = - delnh3
                 endif
 
-                !-------------------------------------------------------------------------
-                ! compute factors for partitioning aerosol mass gains among modes.
-                ! The factors are proportional to the activated particle MR for each
-                ! mode, which is the MR of cloud drops "associated with" the mode
-                ! thus we are assuming the cloud drop size is independent of the
-                ! associated aerosol mode properties (i.e., drops associated with
-                ! Aitken and coarse sea-salt particles are same size)
-                !
-                ! qnum_c(n) = activated particle number MR for mode n (these are just
-                ! used for partitioning among modes, so don't need to divide by cldfrc)
-
-                do m = 1, aero_props%nbins()
-                   mm = aero_props%indexer(m,0)
-                   !qnum_c(m) = 0.0_r8
-                   qnum_c(m) = max( 0.0_r8, qcw(i,k,mm) )
-                end do
-
-                ! force qnum_c(n) to be positive for n=modeptr_accum or n=1
-                n = modeptr_accum
-                if (n <= 0) n = 1
-                qnum_c(n) = max( 1.0e-10_r8, qnum_c(n) )
-
-                ! faqgain_so4(n) = fraction of total so4_c gain going to mode n
-                ! these are proportional to the activated particle MR for each mode
-                sumf = 0.0_r8
-                do n = 1, ntot_amode
-                   faqgain_so4(n) = 0.0_r8
-                   if (lptr_so4_cw_amode(n) > 0) then
-                      faqgain_so4(n) = qnum_c(n)
-                      sumf = sumf + faqgain_so4(n)
-                   end if
-                end do
-
-                if (sumf > 0.0_r8) then
-                   do n = 1, ntot_amode
-                      faqgain_so4(n) = faqgain_so4(n) / sumf
-                   end do
-                end if
-                ! at this point (sumf <= 0.0) only when all the faqgain_so4 are zero
-
                 ! faqgain_msa(n) = fraction of total msa_c gain going to mode n
-                ntot_msa_c = 0
-                sumf = 0.0_r8
-                do n = 1, ntot_amode
-                   faqgain_msa(n) = 0.0_r8
-                   if (lptr_msa_cw_amode(n) > 0) then
-                      faqgain_msa(n) = qnum_c(n)
-                      ntot_msa_c = ntot_msa_c + 1
-                   end if
-                   sumf = sumf + faqgain_msa(n)
-                end do
-
-                if (sumf > 0.0_r8) then
-                   do n = 1, ntot_amode
-                      faqgain_msa(n) = faqgain_msa(n) / sumf
-                   end do
-                end if
-                ! at this point (sumf <= 0.0) only when all the faqgain_msa are zero
+                ntot_msa_c = count(faqgain_msa(:,i,k)>0)
 
                 uptkrate = cldaero_uptakerate( xl, cldnum(i,k), cfact(i,k), cldfrc(i,k), tfld(i,k),  press(i,k) )
                 ! average uptake rate over dtime
@@ -340,19 +299,25 @@ contains
                       call  aero_props%get(m,l, spectype=spectype)
                       if (trim(spectype) == 'sulfate') then
 
-                         dqdt_aqso4(i,k,mm) = faqgain_so4(m)*dso4dt_aqrxn*cldfrc(i,k)
+                         dqdt_aqso4(i,k,mm) = faqgain_so4(m,i,k)*dso4dt_aqrxn*cldfrc(i,k)
 
-                         dqdt_aqh2so4(i,k,mm) = faqgain_so4(m)* &
+                         dqdt_aqh2so4(i,k,mm) = faqgain_so4(m,i,k)* &
                               (dso4dt_gasuptk + dmsadt_gasuptk_toso4)*cldfrc(i,k)
                          dqdt_aq = dqdt_aqso4(i,k,mm) + dqdt_aqh2so4(i,k,mm)
                          dqdt_wr = -fwetrem*dqdt_aq
-                         dqdt= dqdt_aq + dqdt_wr
+                         dqdt = dqdt_aq + dqdt_wr
                          qcw(i,k,mm) = qcw(i,k,mm) + dqdt*dtime
 
                       end if
+                      if (trim(spectype) == 'msa') then
+                         dqdt_aq = faqgain_msa(m,i,k)*dmsadt_gasuptk_tomsa*cldfrc(i,k)
+                         dqdt_wr = -fwetrem*dqdt_aq
+                         dqdt = dqdt_aq + dqdt_wr
+                         qcw(i,k,mm) = qcw(i,k,mm) + dqdt*dtime
+                      end if
                       if (trim(spectype) == 'ammonium') then
                          if (delnh4 > 0.0_r8) then
-                            dqdt_aq = faqgain_so4(m)*delnh4/dtime*cldfrc(i,k)
+                            dqdt_aq = faqgain_so4(m,i,k)*delnh4/dtime*cldfrc(i,k)
                             dqdt = dqdt_aq
                             qcw(i,k,mm) = qcw(i,k,mm) + dqdt*dtime
                          else
@@ -363,7 +328,6 @@ contains
                       end if
                    end do
                 end do
-
 
                 ! For gas species, tendency includes
                 ! reactive uptake to cloud water that essentially transforms the gas to
