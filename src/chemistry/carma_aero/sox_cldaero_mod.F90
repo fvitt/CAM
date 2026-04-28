@@ -10,7 +10,7 @@ module sox_cldaero_mod
   use cldaero_mod,     only : cldaero_conc_t, cldaero_allocate, cldaero_deallocate
   use cam_logfile,     only : iulog
   use physconst,       only : gravit
-  use phys_control,    only : phys_getopts
+  use phys_control,    only : phys_getopts, cam_chempkg_is
   use cldaero_mod,     only : cldaero_uptakerate
   use chem_mods,       only : gas_pcnst
   use rad_constituents, only: rad_cnst_get_info, rad_cnst_get_info_by_bin, rad_cnst_get_bin_props_by_idx
@@ -151,9 +151,7 @@ contains
        delso4_hprxn, xh2so4, xso4, xso4_init, nh3g, hno3g, xnh3, xhno3, xnh4c,  xno3c, xmsa, xso2, xh2o2, qcw, qin, &
        aqso4, aqh2so4, aqso4_h2o2, aqso4_o3, aqso4_h2o2_3d, aqso4_o3_3d)
 
-    use aerosol_properties_mod, only: aero_name_len
     use physics_types, only: physics_state
-    use carma_intr, only: carma_get_group_by_name, carma_get_dry_radius
 
     ! args
 
@@ -239,17 +237,24 @@ contains
     aqso4_o3 = 0.0_r8
     delso4_3d = 0.0_r8
 
+    ! Avoid double counting in-cloud sulfur oxidation when running with
+    ! GEOS-Chem. If running with GEOS-Chem then sulfur oxidation
+    ! is performed internally to GEOS-Chem. Here, we just return to the
+    ! parent routine and thus we do not apply tendencies calculated by MAM.
+    if ( cam_chempkg_is('geoschem_mam4') ) return
+
     where (cldfrc(:ncol,:) >= 1.0e-5_r8)
        delso4_3d(:ncol,:) = xso4(:ncol,:) - xso4_init(:ncol,:)
     end where
 
     !-------------------------------------------------------------------------
-    ! Compute factors for partitioning aerosol mass gains among bins.
+    ! Compute factors for partitioning aerosol mass gains among bins / modes.
     ! The factors are proportional to the activated particle MR for each
     ! bin, which is the MR of cloud drops "associated with" the mode
     ! thus we are assuming the cloud drop size is independent of the
     ! associated aerosol mode properties
     call aero_state%aqu_gain_binfraction(aero_props, 'sulfate', qcw, delso4_3d, faqgain_so4)
+    call aero_state%aqu_gain_binfraction(aero_props, 'msa', qcw, delso4_3d, faqgain_msa)
 
     lev_loop: do k = 1,pver
        col_loop: do i = 1,ncol
@@ -264,6 +269,9 @@ contains
                    delnh3 = nh3g(i,k) - xnh3(i,k)
                    delnh4 = - delnh3
                 endif
+
+                ! faqgain_msa(n) = fraction of total msa_c gain going to mode n
+                ntot_msa_c = count(faqgain_msa(:,i,k)>0)
 
                 uptkrate = cldaero_uptakerate( xl, cldnum(i,k), cfact(i,k), cldfrc(i,k), tfld(i,k),  press(i,k) )
                 ! average uptake rate over dtime

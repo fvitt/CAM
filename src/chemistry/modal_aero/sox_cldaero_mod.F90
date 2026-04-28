@@ -222,6 +222,13 @@ contains
     dqdt_aqhprxn(:,:) = 0.0_r8
     dqdt_aqo3rxn(:,:) = 0.0_r8
 
+    ntot_msa_c = 0
+    aqso4 = 0.0_r8
+    aqh2so4 = 0.0_r8
+    aqso4_h2o2 = 0.0_r8
+    aqso4_o3 = 0.0_r8
+    delso4_3d = 0.0_r8
+
     ! Avoid double counting in-cloud sulfur oxidation when running with
     ! GEOS-Chem. If running with GEOS-Chem then sulfur oxidation
     ! is performed internally to GEOS-Chem. Here, we just return to the
