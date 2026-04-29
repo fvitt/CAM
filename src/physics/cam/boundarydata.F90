@@ -324,6 +324,7 @@ contains
     bndydata%iszonal = (latsiz>0 .and. lonsiz<=1)
     if (bndydata%iszonal) then
        allocate(bndydata%lat(latsiz))
+       lonsiz = 1
     end if
     if(bndydata%isncol) then
 !       allocate (columnmap(ncolsiz))

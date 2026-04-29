@@ -65,20 +65,20 @@ contains
     cfc11_ndx = get_spc_ndx('CFC11')
     cfc12_ndx = get_spc_ndx('CFC12')
 
-    ids(1) = n2o_rxt   
-    ids(2) = ch4_rxt   
-    ids(3) = cfc11_rxt 
-    ids(4) = cfc12_rxt 
-    ids(5) = n2o_ndx   
-    ids(6) = ch4_ndx   
-    ids(7) = cfc11_ndx 
-    ids(8) = cfc12_ndx 
+    ids(1) = n2o_rxt
+    ids(2) = ch4_rxt
+    ids(3) = cfc11_rxt
+    ids(4) = cfc12_rxt
+    ids(5) = n2o_ndx
+    ids(6) = ch4_ndx
+    ids(7) = cfc11_ndx
+    ids(8) = cfc12_ndx
 
     if( any( ids < 1 ) ) then
        call endrun('need to configure with ghg chemistry mechanism')
     endif
 
-    call boundarydata_init(bndtvg,phys_state,nc_names,ncnst,chemdata)
+    call boundarydata_init(bndtvg,phys_state,nc_names,ncnst,chemdata, vertextrap=1)
 
     if ( present( h2orates ) ) then
        if ( len_trim( h2orates ) > 0 .and. lyman_alpha_rxt > 0 ) then
@@ -127,7 +127,7 @@ contains
     integer,  intent(in)    :: lchnk                          ! chunk index
 
     integer :: i,k
-    real(r8), parameter :: half_pi = pi/2._r8 
+    real(r8), parameter :: half_pi = pi/2._r8
 
     do k=1,pver-2
        do i=1,ncol
@@ -147,9 +147,9 @@ contains
     call outfld( 'GHG_CFC12_R', rxn_rates(:ncol,:,cfc12_rxt), ncol, lchnk )
     call outfld( 'GHG_N2O_R',   rxn_rates(:ncol,:,n2o_rxt),   ncol, lchnk )
     call outfld( 'GHG_CH4_R',   rxn_rates(:ncol,:,ch4_rxt),   ncol, lchnk )
-    
+
     if (lyman_alpha_rxt > 0) then
-       rxn_rates(:ncol,:,lyman_alpha_rxt) = 0._r8 
+       rxn_rates(:ncol,:,lyman_alpha_rxt) = 0._r8
     endif
 
     if (lyman_alpha) then
