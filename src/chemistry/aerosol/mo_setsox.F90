@@ -364,7 +364,8 @@ contains
     xso4(:,:) = 0._r8
     xno3(:,:) = 0._r8
     xnh4(:,:) = 0._r8
-
+    xso4_init = 0._r8
+    
     do k = 1,pver
        xph(:,k) = xph0                                ! initial PH value
 
