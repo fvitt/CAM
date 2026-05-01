@@ -8,16 +8,14 @@ module sox_cldaero_mod
   use ppgrid,          only : pcols, pver
   use mo_chem_utls,    only : get_spc_ndx
   use cldaero_mod,     only : cldaero_conc_t, cldaero_allocate, cldaero_deallocate
-  use modal_aero_data, only : ntot_amode, modeptr_accum, lptr_so4_cw_amode, lptr_msa_cw_amode
-  use modal_aero_data, only : numptrcw_amode, lptr_nh4_cw_amode
-  use modal_aero_data, only : cnst_name_cw
-  use chem_mods,       only : adv_mass
   use physconst,       only : gravit
-  use phys_control,    only : phys_getopts, cam_chempkg_is
+  use phys_control,    only : cam_chempkg_is
   use cldaero_mod,     only : cldaero_uptakerate
   use chem_mods,       only : gas_pcnst
   use modal_aerosol_properties_mod, only: modal_aerosol_properties
   use aerosol_state_mod, only: aerosol_state
+
+  use modal_aero_data, only : ntot_amode
 
   implicit none
   private
@@ -32,9 +30,9 @@ module sox_cldaero_mod
   real(r8), parameter :: small_value = 1.e-20_r8
 
   integer :: ncnst_tot = -huge(1) ! total number of mode number conc + mode species
+  integer, public, protected :: nbins = 0
 
   type(modal_aerosol_properties), pointer :: aero_props =>null()
-  integer, public, protected :: nbins = 0
 
 contains
 
@@ -42,9 +40,6 @@ contains
 !----------------------------------------------------------------------------------
 
   subroutine sox_cldaero_init
-
-    integer :: l, m
-    logical :: history_aerosol      ! Output the MAM aerosol tendencies
 
     id_msa = get_spc_ndx( 'MSA' )
     id_h2so4 = get_spc_ndx( 'H2SO4' )
@@ -56,11 +51,6 @@ contains
       call endrun('sox_cldaero_init:MAM mech does not include necessary species' &
                   //' -- should not invoke sox_cldaero_mod ')
     endif
-
-    call phys_getopts( history_aerosol_out        = history_aerosol   )
-    !
-    !   add to history
-    !
 
     aero_props => modal_aerosol_properties()
 
@@ -82,16 +72,12 @@ contains
 
     type(cldaero_conc_t), pointer :: conc_obj
 
+    character(len=32) :: spectype
 
-    integer :: id_so4_1a, id_so4_2a, id_so4_3a, id_so4_4a, id_so4_5a, id_so4_6a
-    integer :: id_nh4_1a, id_nh4_2a, id_nh4_3a, id_nh4_4a, id_nh4_5a, id_nh4_6a
-    integer :: l,n
-    integer :: i,k
+    integer :: l,m
+    integer :: i,k,mm
 
     logical :: mode7
-
-    integer :: m, mm
-    character(len=32) :: spectype
 
     mode7 = ntot_amode == 7
 
@@ -129,9 +115,13 @@ contains
        end do
     end do
 
-    if (.not.mode7) then
-       conc_obj%so4_fact = 1._r8
-    endif
+    ! *** NOTE ***
+    ! should refactor this bit after merging to later cam tag -- where aero_props%model_is is avail
+    if (ntot_amode>0) then
+       if (.not.mode7) then
+          conc_obj%so4_fact = 1._r8
+       end if
+    end if
 
   end function sox_cldaero_create_obj
 
@@ -246,7 +236,7 @@ contains
     ! thus we are assuming the cloud drop size is independent of the
     ! associated aerosol mode properties
     call aero_state%aqu_gain_binfraction(aero_props, 'sulfate', qcw, delso4_3d, faqgain_so4)
-    call aero_state%aqu_gain_binfraction(aero_props, 'msa', qcw, delso4_3d, faqgain_msa)
+    if (id_msa>0) call aero_state%aqu_gain_binfraction(aero_props, 'msa', qcw, delso4_3d, faqgain_msa)
 
     lev_loop: do k = 1,pver
        col_loop: do i = 1,ncol
