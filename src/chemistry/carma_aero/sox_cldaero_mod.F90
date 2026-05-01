@@ -25,7 +25,7 @@ module sox_cldaero_mod
   public :: sox_cldaero_update
   public :: sox_cldaero_destroy_obj
 
-  integer :: id_msa, id_h2so4, id_so2, id_h2o2, id_nh3
+  integer :: id_msa=-1, id_h2so4=-1, id_so2=-1, id_h2o2=-1, id_nh3=-1
 
   real(r8), parameter :: small_value = 1.e-20_r8
 
@@ -33,6 +33,8 @@ module sox_cldaero_mod
   integer, public, protected :: nbins = 0
 
   type(carma_aerosol_properties), pointer :: aero_props =>null()
+
+  logical :: has_msa = .false.
 
 contains
 
@@ -46,6 +48,7 @@ contains
     id_so2 = get_spc_ndx( 'SO2' )
     id_h2o2 = get_spc_ndx( 'H2O2' )
     id_nh3 = get_spc_ndx( 'NH3' )
+    has_msa = id_msa>0
 
     if (id_h2so4<1 .or. id_so2<1 .or. id_h2o2<1) then
       call endrun('sox_cldaero_init:MAM mech does not include necessary species' &
@@ -199,7 +202,6 @@ contains
     real(r8) :: fwetrem, uptkrate
 
     integer :: l, m, n, mm
-    integer :: ntot_msa_c
     integer :: i,k, ndx
     real(r8) :: xl
     real(r8) :: mw_so4
@@ -212,7 +214,6 @@ contains
     dqdt_aqhprxn(:,:) = 0.0_r8
     dqdt_aqo3rxn(:,:) = 0.0_r8
 
-    ntot_msa_c = 0
     aqso4 = 0.0_r8
     aqh2so4 = 0.0_r8
     aqso4_h2o2 = 0.0_r8
@@ -236,7 +237,7 @@ contains
     ! thus we are assuming the cloud drop size is independent of the
     ! associated aerosol mode properties
     call aero_state%aqu_gain_binfraction(aero_props, 'sulfate', qcw, delso4_3d, faqgain_so4)
-    if (id_msa>0) call aero_state%aqu_gain_binfraction(aero_props, 'msa', qcw, delso4_3d, faqgain_msa)
+    if (has_msa) call aero_state%aqu_gain_binfraction(aero_props, 'msa', qcw, delso4_3d, faqgain_msa)
 
     lev_loop: do k = 1,pver
        col_loop: do i = 1,ncol
@@ -253,7 +254,6 @@ contains
                 endif
 
                 ! faqgain_msa(n) = fraction of total msa_c gain going to mode n
-                ntot_msa_c = count(faqgain_msa(:,i,k)>0)
 
                 uptkrate = cldaero_uptakerate( xl, cldnum(i,k), cfact(i,k), cldfrc(i,k), tfld(i,k),  press(i,k) )
                 ! average uptake rate over dtime
@@ -262,16 +262,18 @@ contains
                 ! dso4dt_gasuptk = so4_c tendency from h2so4 gas uptake (mol/mol/s)
                 ! dmsadt_gasuptk = msa_c tendency from msa gas uptake (mol/mol/s)
                 dso4dt_gasuptk = xh2so4(i,k) * uptkrate
-                if (id_msa > 0) then
+                if (has_msa) then
                    dmsadt_gasuptk = xmsa(i,k) * uptkrate
                 else
                    dmsadt_gasuptk = 0.0_r8
                 end if
 
                 ! if no modes have msa aerosol, then "rename" scavenged msa gas to so4
-                dmsadt_gasuptk_toso4 = 0.0_r8
-                dmsadt_gasuptk_tomsa = dmsadt_gasuptk
-                if (ntot_msa_c == 0) then
+                if (has_msa) then
+                   dmsadt_gasuptk_toso4 = 0.0_r8
+                   dmsadt_gasuptk_tomsa = dmsadt_gasuptk
+                else
+                   ! no MSA
                    dmsadt_gasuptk_tomsa = 0.0_r8
                    dmsadt_gasuptk_toso4 = dmsadt_gasuptk
                 end if
@@ -335,7 +337,7 @@ contains
 
                 ! h2so4 (g) & msa (g)
                 qin(i,k,id_h2so4) = qin(i,k,id_h2so4) - dso4dt_gasuptk * dtime * cldfrc(i,k)
-                if (id_msa > 0) qin(i,k,id_msa) = qin(i,k,id_msa) - dmsadt_gasuptk * dtime * cldfrc(i,k)
+                if (has_msa) qin(i,k,id_msa) = qin(i,k,id_msa) - dmsadt_gasuptk * dtime * cldfrc(i,k)
 
                 ! so2 -- the first order loss rate for so2 is frso2_c*clwlrat(i,k)
                 ! fwetrem = max( 0.0_r8, (1.0_r8-exp(-min(100._r8,dtime*frso2_c*clwlrat(i,k)))) )
