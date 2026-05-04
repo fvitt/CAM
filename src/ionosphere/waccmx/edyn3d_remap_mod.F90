@@ -423,7 +423,7 @@ contains
             termorderflag=ESMF_TERMORDER_SRCSEQ, rc=rc)
        call check_error(subname,'ESMF_FieldRegrid mag2oplus',rc)
 
-       if (mytid<ntaskOp) then
+       if (mytid>=0) then
 
           call ESMF_FieldGet(field=oplusFieldDes, localDe=0, farrayPtr=fptr3d, &
                computationalLBound=lbnd3d, computationalUBound=ubnd3d, rc=rc)
@@ -514,7 +514,7 @@ contains
          termorderflag=ESMF_TERMORDER_SRCSEQ, rc=rc)
     call check_error(subname,'ESMF_FieldRegrid mag2oplus',rc)
 
-    if (mytid<ntaskOp) then
+    if (mytid>=0) then
 
        call ESMF_FieldGet(field=oplusFieldDes_ref_p, localDe=0, farrayPtr=fptr3d, &
             computationalLBound=lbnd3d, computationalUBound=ubnd3d, rc=rc)

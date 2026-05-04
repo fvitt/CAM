@@ -118,7 +118,7 @@
 	url = https://github.com/NCAR/3DimensionalDynamo.git
         fxrequired = AlwaysRequired
         fxsparse = ../.edyn3d_sparse_checkout
-        fxtag = 3b1415e7
+        fxtag = 9a8eb3c0
 	fxDONOTUSEurl = https://github.com/NCAR/3DimensionalDynamo
 
 [submodule "cism"]

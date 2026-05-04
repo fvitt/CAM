@@ -41,13 +41,11 @@ contains
          write(iulog,"('Enter edynamo_init:')")
       endif
 
-      if (.not.edyn3d) then
-         call set_maggrid ()   ! set parameter-based global magnetic grid
+      call set_maggrid ()   ! set parameter-based global magnetic grid
 
-         call edyn_solve_init
+      call edyn_solve_init
 
-         call mp_distribute_mag(nmlonp1, nmlat, nmlath, nmlev)
-      end if
+      call mp_distribute_mag(nmlonp1, nmlat, nmlath, nmlev)
 
       call register_grids()
       call mp_exchange_tasks(mpicomm, 0, gmlat) ! single arg is iprint

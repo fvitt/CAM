@@ -3,7 +3,7 @@ module edyn3d_driver_mod
   use cam_abortutils, only: endrun
   use cam_logfile, only: iulog
   use spmd_utils, only: masterproc, mpicom
-  use mpi_module, only: mpi_size, mpi_rank
+  use mpi_module, only: mpi_size, mpi_rank, un_mpi_size, un_mpi_rank
   use infnan, only: nan, assignment(=)
   use perf_mod, only: t_startf, t_stopf
 
@@ -24,7 +24,7 @@ contains
        edyn3d_nhgt, hilat_pot_model, wei05_coefs_file, read_hl_fac_in, &
        edyn3d_slu_refactor_int,  edyn3d_slu_refactor_berr)
 
-    use mpi_module, only: mpi_rank, mpi_size, lat_size, lon_size
+    use mpi_module, only: lat_size, lon_size
     use params_module,only: nmlat_h, nmlon, nhgt_fix, hgt_fix_r
 
     use edyn3d_esmf_fields_rhandles, only: edyn3d_esmf_fields_rhandles_init
@@ -67,6 +67,7 @@ contains
     if (masterproc) then
        write(iulog,*) prefix,'3D Edyn grid params nmlat_h,nmlon,nhgt_fix: ',nmlat_h,nmlon,nhgt_fix
        write(iulog,*) prefix,'3D Edyn mpi_rank, mpi_size: ',mpi_rank,mpi_size
+       write(iulog,*) prefix,'3D Edyn un_mpi_rank,un_mpi_size:',un_mpi_rank,un_mpi_size
        write(iulog,*) prefix,'3D Edyn lon_size, lat_size: ',lon_size,lat_size
     end if
 
@@ -285,7 +286,7 @@ contains
     call edyn3d_hist_mag_s2_out('un_s2',un_s2)
     call edyn3d_hist_mag_s2_out('vn_s2',vn_s2)
 
-    if (mpi_rank<mpi_size) then
+    if (un_mpi_rank>=0) then
 
        if (read_hl_fac) then
           call edyn3d_highlat_currents_get(fac_hl_p)
