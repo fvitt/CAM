@@ -18,7 +18,7 @@ module upper_bc
   use ref_pres,     only: do_molec_diff, ptop_ref
   use shr_kind_mod, only: cx=>SHR_KIND_CX
   use cam_abortutils,only: endrun
-  use cam_history,   only: addfld, horiz_only, outfld, fieldname_len
+  use cam_history,   only: addfld, horiz_only, outfld, fieldname_len, add_default
 
   use upper_bc_file, only: upper_bc_file_readnl, upper_bc_file_specified, upper_bc_file_adv, upper_bc_file_get
   use infnan,        only: nan, assignment(=)
@@ -71,6 +71,7 @@ module upper_bc
   real(r8)          :: no_xfac_ubc = 1._r8
 
   integer :: h_ndx=-1
+  integer :: he_ndx=-1
   integer :: h_msis_ndx=-1, n_msis_ndx=-1, o_msis_ndx=-1, o2_msis_ndx=-1
 
   character(len=cl) :: tgcm_ubc_file = 'NONE'
@@ -232,6 +233,12 @@ contains
     !-----------------------------------------------------------------------
 
     call cnst_get_ind('H', h_ndx, abort=.false.) ! for H fluxes UBC (WACCMX)
+    call cnst_get_ind('HE', he_ndx, abort=.false.) ! for HE fluxes UBC (WACCMX)
+
+    call addfld ('UBFLUXHE'    , horiz_only, 'I', '','Upper Boundary Helium Flux')
+    call add_default ('UBFLUXHE'         , 1, ' ')
+
+!    write(iulog,*) 'ubc_init: Adding UBFLUXHE upper boundary helium flux field'
 
     if (.not.apply_upper_bc) return
 
@@ -519,18 +526,22 @@ contains
 
 !===============================================================================
 
-  subroutine ubc_get_flxs (lchnk, ncol, pint, zi, t, q, phis, ubc_flux)
+  subroutine ubc_get_flxs (lchnk, ncol, pint, zi, t, q, omega, phis, ubc_flux)
 
     use physconst,       only: avogad, rga
     use air_composition, only: rairv
     use constituents,    only: cnst_mw
+    use air_composition, only: rairv, mbarv ! gas constant, mean mass
+    use cam_history,     only: outfld       ! Routine to output fields to history files
+
 !------------------------------Arguments--------------------------------
     integer,  intent(in)  :: lchnk                 ! chunk identifier
     integer,  intent(in)  :: ncol                  ! number of atmospheric columns
     real(r8), intent(in)  :: pint(pcols,pverp)     ! interface pressures
     real(r8), intent(in)  :: zi(pcols,pverp)       ! interface geoptl height above sfc
     real(r8), intent(in)  :: t(pcols,pver)         ! midpoint temperature
-    real(r8), intent(in),target :: q(pcols,pver,pcnst)   ! contituent mixing ratios (kg/kg)
+    real(r8), intent(in),target :: q(pcols,pver,pcnst)   ! constituent mixing ratios (kg/kg)
+    real(r8), intent(in)  :: omega(pcols,pver)     ! Vertical pressure velocity (Pa/s)
     real(r8), intent(in)  :: phis(pcols)           ! Surface geopotential (m2/s2)
 
     real(r8), intent(out) :: ubc_flux(pcols,pcnst) ! upper bndy flux (kg/s/m^2)
@@ -549,11 +560,19 @@ contains
     real(r8) :: nmbartop                           ! Top level density (rho)
     real(r8) :: zkt                                ! Factor for H Jean's escape flux calculation
 
+    real(r8) :: nDensHETop                         ! Helium number density (kg/m3)
+    real(r8) :: pScaleHeight                       ! Scale height (m)
+    real(r8) :: wN2                                ! Neutral vertical velocity second level (m/s)
+    real(r8) :: wN3                                ! Neutral vertical velocity at third level (m/s)
+    real(r8) :: wNTop                              ! Neutral vertical velocity at top level (m/s)
+
     real(r8), pointer :: qh_top(:)                 ! Top level hydrogen mixing ratio (kg/kg)
+    real(r8), pointer :: qhe_top(:)                ! Top level helium mixing ratio (kg/kg)
 
     ubc_flux(:,:) = nan
 
     qh_top => q(:,1,h_ndx)
+    qhe_top => q(:,1,he_ndx)
 
     do iCol = 1, ncol
        !--------------------------------------------------
@@ -574,7 +593,40 @@ contains
        ubc_flux(iCol,h_ndx) = ubc_flux(iCol,h_ndx) * &
             (h_escape_flx_factor * qh_top(iCol) * nmbartop / (cnst_mw(h_ndx) / avogad) * t(iCol,1))
 
+       !--------------------------------------------------------------------------------------------------------------
+       !  Need to get helium number density (SI units) from mass mixing ratio.  mbarv is kg/mole, same as rMass units
+       !  kg/kg * (kg/mole)/(kg/mole) * (Pa or N/m*m)/((Joules/K or N*m/K) * (K)) = m-3
+       !---------------------------------------------------------------------------------------------------------------
+       nDensHETop  = qhe_top(iCol) * mbarv(iCol,1,lchnk) / cnst_mw(he_ndx) * &
+ 				  0.5_r8 * (pint(iCol,1) + pint(iCol,2)) / (kboltz * t(iCol,1))
+
+       !----------------------------------------------------------------------------------------------------------
+       !  Get midpoint vertical velocity for top level by extrapolating from two levels below top
+       !  (Pa/s)/(Pa)*(m)=(m/s)
+       !----------------------------------------------------------------------------------------------------------
+
+       pScaleHeight = .5_r8*(rairv(iCol,2,lchnk)*t(iCol,2) + rairv(iCol,1,lchnk)*t(iCol,1)) / grav
+       wN2 = -omega(iCol,2) / (0.5_r8 * (pint(iCol,1) + pint(iCol,2))) * pScaleHeight
+
+       pScaleHeight = .5_r8 * (rairv(iCol,3,lchnk)*t(iCol,3) + rairv(iCol,2,lchnk)*t(iCol,2)) / grav
+       wN3 = -omega(iCol,3) / (0.5_r8 * (pint(iCol,2) + pint(iCol,3))) * pScaleHeight
+
+       !----------------------------------------------------
+       !  Get top midpoint level vertical velocity
+       !----------------------------------------------------
+       wNTop = 1.5_r8 * wN2 - 0.5_r8 * wN3
+
+       !-----------------------------------------------------------------------------------------------------------------
+       ! Helium upper boundary flux is just helium density multiplied by vertical velocity
+       ! ( (m-3)*(m/s)*(kg/kmole)/(kmole-1) = kg/s/m^2 )
+       !-----------------------------------------------------------------------------------------------------------------
+       ubc_flux(iCol,he_ndx) = -ndensHETop * wNTop * (cnst_mw(he_ndx) / avogad)
+
     enddo
+
+!    ubc_flux(:,he_ndx) = -1.e-06_r8 / avogad
+
+    call outfld('UBFLUXHE',	ubc_flux(:,he_ndx),	   pcols, lchnk)
 
   end subroutine ubc_get_flxs
 

@@ -906,7 +906,7 @@ subroutine vertical_diffusion_tend( &
   call ubc_get_vals( state%lchnk, ncol, state%pint, state%zi, ubc_t, ubc_mmr )
 
   if(waccmx_mode) then
-    call ubc_get_flxs( state%lchnk, ncol, state%pint, state%zi, state%t, state%q, state%phis, ubc_flux )
+    call ubc_get_flxs( state%lchnk, ncol, state%pint, state%zi, state%t, state%q, state%omega, state%phis, ubc_flux )
   endif
 
   ! For WACCM-X or fixed upper boundary condition temperature

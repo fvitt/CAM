@@ -285,7 +285,7 @@ contains
     !         ebi, hov, fully implicit, and/or rodas algorithms.
     !-----------------------------------------------------------------------
 
-    use phys_control,      only : cam_physpkg_is
+    use phys_control,      only : cam_physpkg_is, waccmx_is
     use chem_mods,         only : nabscol, nfs, indexm, clscnt4
     use physconst,         only : rga, gravit
     use mo_photo,          only : set_ub_col, setcol, table_photo
@@ -329,6 +329,7 @@ contains
     use rate_diags,        only : rate_diags_calc, rate_diags_o3s_loss
     use mo_mass_xforms,    only : mmr2vmr, vmr2mmr, h2o_to_vmr, mmr2vmri
     use orbit,             only : zenith
+    use air_composition,   only : mbarv
 
 !
 ! for aqueous chemistry and aerosol growth
@@ -584,7 +585,15 @@ contains
     !-----------------------------------------------------------------------
     !        ... Set atmosphere mean mass
     !-----------------------------------------------------------------------
-    call set_mean_mass( ncol, mmr, mbar )
+!    call set_mean_mass( ncol, mmr, mbar )
+
+    if ( waccmx_is('ionosphere') .or. waccmx_is('neutral') ) then
+      do k = 1,pver
+    	mbar(:ncol,k) = mbarv(:ncol,k,lchnk)
+      enddo
+    else
+      call set_mean_mass( ncol, mmr, mbar )
+    endif
 
     !-----------------------------------------------------------------------
     !        ... Xform from mmr to vmr

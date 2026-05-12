@@ -182,7 +182,7 @@ end function chem_is
     logical  :: has_fixed_ubflx                     ! wrk variable for upper bndy flux
     integer  :: ch4_ndx, n2o_ndx, o3_ndx, o3_inv_ndx, ndx
     integer  :: cfc11_ndx, cfc12_ndx, o2_1s_ndx, o2_1d_ndx, o2_ndx
-    integer  :: n_ndx, no_ndx, h_ndx, h2_ndx, o_ndx, e_ndx, np_ndx
+    integer  :: n_ndx, no_ndx, h_ndx, he_ndx, h2_ndx, o_ndx, e_ndx, np_ndx
     integer  :: op_ndx, o1d_ndx, n2d_ndx, nop_ndx, n2p_ndx, o2p_ndx
     integer  :: hf_ndx, f_ndx
 
@@ -211,6 +211,7 @@ end function chem_is
     n_ndx     = get_spc_ndx('N')
     no_ndx    = get_spc_ndx('NO')
     h_ndx     = get_spc_ndx('H')
+    he_ndx    = get_spc_ndx('HE')
     h2_ndx    = get_spc_ndx('H2')
     o_ndx     = get_spc_ndx('O')
     e_ndx     = get_spc_ndx('e')
@@ -269,9 +270,10 @@ end function chem_is
           else
              lng_name = 'O2(1-sigma)'
           end if
-       else if ( m==o2_ndx .or. m==o_ndx .or. m==h_ndx ) then
+       else if ( m==o2_ndx .or. m==o_ndx .or. m==h_ndx .or. m==he_ndx ) then
          if ( waccmx_is('ionosphere') .or. waccmx_is('neutral') ) then
            if ( m == h_ndx ) has_fixed_ubflx = .true. ! fixed flux value for H at UB
+           if ( m == he_ndx ) has_fixed_ubflx = .true. ! fixed flux value for He at UB
            if ( m == o2_ndx .or. m == o_ndx ) molectype = 'major'
          endif
        else if( m == e_ndx ) then

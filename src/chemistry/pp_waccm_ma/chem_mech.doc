@@ -35,45 +35,46 @@
       ( 32)  COFCL              (COFCl)
       ( 33)  F               
       ( 34)  H               
-      ( 35)  H2              
-      ( 36)  H2402              (CBrF2CBrF2)
-      ( 37)  H2O2            
-      ( 38)  HBR                (HBr)
-      ( 39)  HCFC141B           (CH3CCl2F)
-      ( 40)  HCFC142B           (CH3CClF2)
-      ( 41)  HCFC22             (CHF2Cl)
-      ( 42)  HCL                (HCl)
-      ( 43)  HF              
-      ( 44)  HNO3            
-      ( 45)  HO2NO2          
-      ( 46)  HOBR               (HOBr)
-      ( 47)  HOCL               (HOCl)
-      ( 48)  N               
-      ( 49)  N2O             
-      ( 50)  N2O5            
-      ( 51)  NO              
-      ( 52)  NO2             
-      ( 53)  NO3             
-      ( 54)  O               
-      ( 55)  O2              
-      ( 56)  O3              
-      ( 57)  OCLO               (OClO)
-      ( 58)  SF6             
-      ( 59)  e                  (E)
-      ( 60)  HO2             
-      ( 61)  N2D                (N)
-      ( 62)  N2p                (N2)
-      ( 63)  NOp                (NO)
-      ( 64)  Np                 (N)
-      ( 65)  O1D                (O)
-      ( 66)  O2_1D              (O2)
-      ( 67)  O2_1S              (O2)
-      ( 68)  O2p                (O2)
-      ( 69)  OH              
-      ( 70)  Op                 (O)
-      ( 71)  Op2D               (O)
-      ( 72)  Op2P               (O)
-      ( 73)  H2O             
+      ( 35)  HE                 (He)
+      ( 36)  H2              
+      ( 37)  H2402              (CBrF2CBrF2)
+      ( 38)  H2O2            
+      ( 39)  HBR                (HBr)
+      ( 40)  HCFC141B           (CH3CCl2F)
+      ( 41)  HCFC142B           (CH3CClF2)
+      ( 42)  HCFC22             (CHF2Cl)
+      ( 43)  HCL                (HCl)
+      ( 44)  HF              
+      ( 45)  HNO3            
+      ( 46)  HO2NO2          
+      ( 47)  HOBR               (HOBr)
+      ( 48)  HOCL               (HOCl)
+      ( 49)  N               
+      ( 50)  N2O             
+      ( 51)  N2O5            
+      ( 52)  NO              
+      ( 53)  NO2             
+      ( 54)  NO3             
+      ( 55)  O               
+      ( 56)  O2              
+      ( 57)  O3              
+      ( 58)  OCLO               (OClO)
+      ( 59)  SF6             
+      ( 60)  e                  (E)
+      ( 61)  HO2             
+      ( 62)  N2D                (N)
+      ( 63)  N2p                (N2)
+      ( 64)  NOp                (NO)
+      ( 65)  Np                 (N)
+      ( 66)  O1D                (O)
+      ( 67)  O2_1D              (O2)
+      ( 68)  O2_1S              (O2)
+      ( 69)  O2p                (O2)
+      ( 70)  OH              
+      ( 71)  Op                 (O)
+      ( 72)  Op2D               (O)
+      ( 73)  Op2P               (O)
+      ( 74)  H2O             
   
   
      Invariant species
@@ -110,8 +111,9 @@ Class List
       ( 19)  HCFC141B        
       ( 20)  HCFC142B        
       ( 21)  HCFC22          
-      ( 22)  N2O             
-      ( 23)  SF6             
+      ( 22)  HE              
+      ( 23)  N2O             
+      ( 24)  SF6             
   
  Implicit  
  --------
@@ -582,6 +584,7 @@ Extraneous prod/loss species
                + r3*O1D*H2  + r20*H2*O  + r29*OH*H2  + r32*OH*O  + r52*N*OH  + r66*CL*H2  + r97*O1D*HCL                 
                + r120*O1D*HBR  + r122*F*H2  + r146*CH2O*OH  + r153*O1D*CH4  + r155*CO*OH                                
                - r22*HO2*H  - r23*HO2*H  - r24*HO2*H  - r25*M*O2*H  - r28*O3*H                                          
+    d(HE)/dt = 0                                                                                                        
     d(H2)/dt = j1*H2O  + j21*CH2O  + 1.4400001*j24*CH4  + r22*H*HO2  + r154*O1D*CH4                                     
                 - r3*O1D*H2  - r20*O*H2  - r29*OH*H2  - r66*CL*H2  - r122*F*H2                                          
     d(H2402)/dt =  - j50*H2402  - r118*O1D*H2402                                                                        

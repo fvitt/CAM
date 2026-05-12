@@ -438,6 +438,21 @@ CONTAINS
             thermodynamic_active_species_kc(icnst)  = 0.0_r8
             icnst = icnst + 1
             !
+            ! HE
+            !
+         case('HE')
+            call air_species_info('HE', ix, mw)
+!write(iulog,*) 'air_composition_init: Helium molecular weight ', mw
+            thermodynamic_active_species_idx(icnst) = ix
+            thermodynamic_active_species_cp (icnst) = cp1 / mw
+            thermodynamic_active_species_cv (icnst) = cv1 / mw
+            thermodynamic_active_species_R  (icnst) = r_universal / mw
+            thermodynamic_active_species_mwi(icnst) = 1.0_r8 / mw
+            ! Helium not included in calculation of diffusivity and conductivity
+            thermodynamic_active_species_kv(icnst)  = 0.0_r8
+            thermodynamic_active_species_kc(icnst)  = 0.0_r8
+            icnst = icnst + 1
+            !
             ! If support for more major species is to be included add code here
             !
          case default

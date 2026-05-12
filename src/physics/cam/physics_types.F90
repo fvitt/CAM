@@ -1157,22 +1157,24 @@ end subroutine physics_ptend_copy
 
     integer :: i,k, ncol
 
-    real(r8) :: mmrSum_O_O2_H                ! Sum of mass mixing ratios for O, O2, and H
-    real(r8), parameter :: mmrMin=1.e-20_r8  ! lower limit of o2, o, and h mixing ratios
+!    real(r8) :: mmrSum_O_O2_H                ! Sum of mass mixing ratios for O, O2, and H
+    real(r8) :: mmrSum_O_O2_H_HE                ! Sum of mass mixing ratios for O, O2, H, and HE
+    real(r8), parameter :: mmrMin=1.e-20_r8  ! lower limit of o2, o, h, and he mixing ratios
     real(r8), parameter :: N2mmrMin=1.e-6_r8 ! lower limit of N2 mass mixing ratio
     real(r8), parameter :: H2lim=6.e-5_r8    ! H2 limiter: 10x global H2 MMR (Roble, 1995)
-    integer :: ixo, ixo2, ixh, ixh2
+    integer :: ixo, ixo2, ixh, ixhe, ixh2
 
     if ( waccmx_is('ionosphere') .or. waccmx_is('neutral') ) then
        call cnst_get_ind('O', ixo)
        call cnst_get_ind('O2', ixo2)
        call cnst_get_ind('H', ixh)
+       call cnst_get_ind('HE', ixhe)
        call cnst_get_ind('H2', ixh2)
 
        ncol = state%ncol
 
        !------------------------------------------------------------
-       ! Ensure N2 = 1-(O2 + O + H) mmr is greater than 0
+       ! Ensure N2 = 1-(O2 + O + H + HE) mmr is greater than 0
        ! Check for unusually large H2 values and set to lower value.
        !------------------------------------------------------------
 
@@ -1182,15 +1184,19 @@ end subroutine physics_ptend_copy
              if (state%q(i,k,ixo) < mmrMin) state%q(i,k,ixo) = mmrMin
              if (state%q(i,k,ixo2) < mmrMin) state%q(i,k,ixo2) = mmrMin
 
-             mmrSum_O_O2_H = state%q(i,k,ixo)+state%q(i,k,ixo2)+state%q(i,k,ixh)
+!             mmrSum_O_O2_H = state%q(i,k,ixo)+state%q(i,k,ixo2)+state%q(i,k,ixh)
+             mmrSum_O_O2_H_HE = state%q(i,k,ixo)+state%q(i,k,ixo2)+state%q(i,k,ixh)+state%q(i,k,ixhe)
 
-             if ((1._r8-mmrMin-mmrSum_O_O2_H) < 0._r8) then
+!             if ((1._r8-mmrMin-mmrSum_O_O2_H) < 0._r8) then
+             if ((1._r8-mmrMin-mmrSum_O_O2_H_HE) < 0._r8) then
 
-                state%q(i,k,ixo) = state%q(i,k,ixo) * (1._r8 - N2mmrMin) / mmrSum_O_O2_H
+                state%q(i,k,ixo) = state%q(i,k,ixo) * (1._r8 - N2mmrMin) / mmrSum_O_O2_H_HE
 
-                state%q(i,k,ixo2) = state%q(i,k,ixo2) * (1._r8 - N2mmrMin) / mmrSum_O_O2_H
+                state%q(i,k,ixo2) = state%q(i,k,ixo2) * (1._r8 - N2mmrMin) / mmrSum_O_O2_H_HE
 
-                state%q(i,k,ixh) = state%q(i,k,ixh) * (1._r8 - N2mmrMin) / mmrSum_O_O2_H
+                state%q(i,k,ixh) = state%q(i,k,ixh) * (1._r8 - N2mmrMin) / mmrSum_O_O2_H_HE
+
+                state%q(i,k,ixhe) = state%q(i,k,ixhe) * (1._r8 - N2mmrMin) / mmrSum_O_O2_H_HE
 
              endif
 
