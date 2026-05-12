@@ -20,13 +20,13 @@ module majorsp_diffusion
 ! Adapted from TIME-GCM (comp.F): H.-L. Liu, Nov 2003
 !--------------------------------------------------------------------------
 
-
   use shr_kind_mod, only: r8 => shr_kind_r8
   use ppgrid,       only: pcols, pver, pverp
   use constituents, only: pcnst, cnst_name, cnst_get_ind, cnst_mw
   use cam_history,  only: outfld
-use cam_logfile,    only: iulog
-use spmd_utils,     only: masterproc
+  use cam_logfile,  only: iulog
+  use spmd_utils,   only: masterproc
+  use infnan,       only: nan, assignment(=)
 
   implicit none
 
@@ -293,6 +293,9 @@ if (masterproc .and. debug) write(iulog,*) 'comp_wx: lchnk,hemmr_ubc(:ncol) all 
     o1_nm(1:nbot_molec)   = 0._r8
     he_nm(1:nbot_molec)   = 0._r8
 
+    tn = nan
+    tni = nan
+
     do iCol = 1,ncol
 
       tlbc   = state%t(iCol,nbot_molec+1)
@@ -309,17 +312,17 @@ if (masterproc .and. debug) write(iulog,*) 'comp_wx: lchnk,hemmr_ubc(:ncol) all 
       kk = 0
       do k = nbot_molec,2,-1
 
-	kk = kk + 1
+        kk = kk + 1
         tn(kk)       = state%t(iCol,k)
-	tni(kk)      = .5_r8 * (state%t(iCol,k) + state%t(iCol,k-1))
-	o2i(kk)      = .5_r8 * (state%q(iCol,k,indx_O2) + state%q(iCol,k-1,indx_O2))
-	o1i(kk)      = .5_r8 * (state%q(iCol,k,indx_O) + state%q(iCol,k-1,indx_O))
-	hei(kk)      = .5_r8 * (state%q(iCol,k,indx_HE) + state%q(iCol,k-1,indx_HE))
-	mbar(kk)     = mbarv(iCol,k,lchnk)
-	barm(kk)     = .5_r8 * (mbarv(iCol,k,lchnk) + mbarv(iCol,k-1,lchnk))
-	pScaleHeight = .5_r8*(rairv(iCol,k,lchnk)*tn(k) + rairv(iCol,k-1,lchnk)*tn(k-1)) / gravit
-!	wmid(kk)     = -state%omega(iCol,k) / (0.5_r8 * (state%pint(iCol,k-1) + state%pint(iCol,k))) * pScaleHeight
-	dz(kk)       = (state%pmid(iCol,k) - state%pmid(iCol,k-1)) / state%pint(iCol,k)
+        tni(kk)      = .5_r8 * (state%t(iCol,k) + state%t(iCol,k-1))
+        o2i(kk)      = .5_r8 * (state%q(iCol,k,indx_O2) + state%q(iCol,k-1,indx_O2))
+        o1i(kk)      = .5_r8 * (state%q(iCol,k,indx_O) + state%q(iCol,k-1,indx_O))
+        hei(kk)      = .5_r8 * (state%q(iCol,k,indx_HE) + state%q(iCol,k-1,indx_HE))
+        mbar(kk)     = mbarv(iCol,k,lchnk)
+        barm(kk)     = .5_r8 * (mbarv(iCol,k,lchnk) + mbarv(iCol,k-1,lchnk))
+        pScaleHeight = .5_r8*(rairv(iCol,k,lchnk)*state%t(iCol,k) + rairv(iCol,k-1,lchnk)*state%t(iCol,k)) / gravit       
+!        wmid(kk)     = -state%omega(iCol,k) / (0.5_r8 * (state%pint(iCol,k-1) + state%pint(iCol,k))) * pScaleHeight
+        dz(kk)       = (state%pmid(iCol,k) - state%pmid(iCol,k-1)) / state%pint(iCol,k)
         expzm(kk)    = state%pmid(iCol,k) / ptref
 
       enddo ! kk=1,nbot_molec-1
