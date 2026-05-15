@@ -130,7 +130,7 @@ contains
     allocate(helium_ubc_fluxes(pcols,begchunk:endchunk))
     helium_ubc_fluxes = 0._r8
 
-    call cnst_get_ind( 'O', he_cnst_ndx ) !!!! Change to 'HE' !!!!
+    call cnst_get_ind( 'HE', he_cnst_ndx )
 
     call addfld('HE_UBC_FLXi', horiz_only,  'A', 'Units??', 'Initial phyics grid He flux' )
     call addfld('HE_UBC_FLUX', horiz_only,  'A', 'Units??', 'Upper boundary He fluxes' )

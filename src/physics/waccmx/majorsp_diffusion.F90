@@ -167,7 +167,7 @@ contains
     use air_composition, only: rairv, mbarv
     use ref_pres,        only: nbot_molec
     use physconst,    only: gravit
-!    use helium_ubc_mod,  only: helium_ubc_fluxes
+    use helium_ubc_mod,  only: helium_ubc_fluxes
 
 !------------------------------Arguments--------------------------------
     real(r8), intent(in) :: ztodt                  ! 2 delta-t
@@ -320,7 +320,7 @@ if (masterproc .and. debug) write(iulog,*) 'comp_wx: lchnk,hemmr_ubc(:ncol) all 
         hei(kk)      = .5_r8 * (state%q(iCol,k,indx_HE) + state%q(iCol,k-1,indx_HE))
         mbar(kk)     = mbarv(iCol,k,lchnk)
         barm(kk)     = .5_r8 * (mbarv(iCol,k,lchnk) + mbarv(iCol,k-1,lchnk))
-        pScaleHeight = .5_r8*(rairv(iCol,k,lchnk)*state%t(iCol,k) + rairv(iCol,k-1,lchnk)*state%t(iCol,k)) / gravit       
+        pScaleHeight = .5_r8*(rairv(iCol,k,lchnk)*state%t(iCol,k) + rairv(iCol,k-1,lchnk)*state%t(iCol,k)) / gravit
 !        wmid(kk)     = -state%omega(iCol,k) / (0.5_r8 * (state%pint(iCol,k-1) + state%pint(iCol,k))) * pScaleHeight
         dz(kk)       = (state%pmid(iCol,k) - state%pmid(iCol,k-1)) / state%pint(iCol,k)
         expzm(kk)    = state%pmid(iCol,k) / ptref
