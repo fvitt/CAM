@@ -17,6 +17,7 @@ module esmf_phys2lonlat_mod
   use ESMF, only: ESMF_TERMORDER_SRCSEQ, ESMF_MESHLOC_ELEMENT, ESMF_STAGGERLOC_CENTER
   use ESMF, only: ESMF_FieldDestroy, ESMF_RouteHandleDestroy
   use esmf_check_error_mod, only: check_esmf_error
+  use esmf_lonlat_grid_mod, only: esmf_lonlat_grid
 
   implicit none
 
@@ -48,25 +49,30 @@ module esmf_phys2lonlat_mod
 
   integer, parameter :: nflds = 8
 
+  type(esmf_lonlat_grid), pointer :: reg_grid=>null()
+
 contains
 
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------
-  subroutine esmf_phys2lonlat_init()
+  subroutine esmf_phys2lonlat_init(grid)
     use esmf_phys_mesh_mod, only: physics_grid_mesh
-    use esmf_lonlat_grid_mod, only: lonlat_grid
+
+    class(esmf_lonlat_grid), pointer, intent(in) :: grid
 
     type(ESMF_ArraySpec) :: arrayspec
-    integer(ESMF_KIND_I4), pointer :: factorIndexList(:,:)
-    real(ESMF_KIND_R8),    pointer :: factorList(:)
     integer                        :: smm_srctermproc,  smm_pipelinedep, rc
 
     character(len=*), parameter :: subname  = 'esmf_phys2lonlat_init: '
+
+    reg_grid => grid
 
     smm_srctermproc = 0
     smm_pipelinedep = 16
 
     ! create ESMF fields
+
+    associate( lonlat_grid=>reg_grid%lonlat_grid )
 
     ! 3D phys fld
     call ESMF_ArraySpecSet(arrayspec, 3, ESMF_TYPEKIND_R8, rc=rc)
@@ -118,12 +124,13 @@ contains
          pipelineDepth=smm_pipelinedep, rc=rc)
     call check_esmf_error(rc, subname//'ESMF_FieldRegridStore 3D routehandle ERROR')
 
+    end associate
+
   end subroutine esmf_phys2lonlat_init
 
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------
   subroutine esmf_phys2lonlat_regrid_3d(physflds, lonlatflds)
-    use esmf_lonlat_grid_mod, only: lon_beg,lon_end,lat_beg,lat_end
     use ppgrid, only: pcols, pver, begchunk, endchunk
     use phys_grid, only: get_ncols_p
 
@@ -159,21 +166,27 @@ contains
     call ESMF_FieldGet(lonlatfld_3d, localDe=0, farrayPtr=lonlatptr, rc=rc)
     call check_esmf_error(rc, subname//'ESMF_FieldGet lonlatptr')
 
+    associate( lon_beg=>reg_grid%lon_beg, &
+               lon_end=>reg_grid%lon_end, &
+               lat_beg=>reg_grid%lat_beg, &
+               lat_end=>reg_grid%lat_end )
+
     do ifld = 1,nflds
        lonlatflds(ifld)%fld(lon_beg:lon_end,lat_beg:lat_end,1:pver) = lonlatptr(lon_beg:lon_end,lat_beg:lat_end,1:pver,ifld)
     end do
+
+    end associate
 
   end subroutine esmf_phys2lonlat_regrid_3d
 
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------
   subroutine esmf_phys2lonlat_regrid_2d(physarr, lonlatarr)
-    use esmf_lonlat_grid_mod, only: lon_beg,lon_end,lat_beg,lat_end
     use ppgrid, only: pcols, pver, begchunk, endchunk
     use phys_grid, only: get_ncols_p
 
     real(r8),intent(in) :: physarr(pcols,begchunk:endchunk)
-    real(r8),intent(out) :: lonlatarr(lon_beg:lon_end,lat_beg:lat_end)
+    real(r8),intent(out) :: lonlatarr(reg_grid%lon_beg:reg_grid%lon_end,reg_grid%lat_beg:reg_grid%lat_end)
 
     integer :: i, ichnk, ncol, icol, rc
     real(ESMF_KIND_R8), pointer :: physptr(:)
@@ -200,7 +213,14 @@ contains
     call ESMF_FieldGet(lonlatfld_2d, localDe=0, farrayPtr=lonlatptr, rc=rc)
     call check_esmf_error(rc, subname//'ESMF_FieldGet lonlatptr')
 
+    associate( lon_beg=>reg_grid%lon_beg, &
+               lon_end=>reg_grid%lon_end, &
+               lat_beg=>reg_grid%lat_beg, &
+               lat_end=>reg_grid%lat_end )
+
     lonlatarr(lon_beg:lon_end,lat_beg:lat_end) = lonlatptr(lon_beg:lon_end,lat_beg:lat_end)
+
+    end associate
 
   end subroutine esmf_phys2lonlat_regrid_2d
 

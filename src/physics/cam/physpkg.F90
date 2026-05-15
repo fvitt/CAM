@@ -784,6 +784,7 @@ contains
 
     use ccpp_constituent_prop_mod, only: ccpp_const_props_init
     use ctem_diags_mod, only: ctem_diags_init
+    use helium_ubc_mod, only: helium_ubc_init
 
     ! Input/output arguments
     type(physics_state), pointer       :: phys_state(:)
@@ -1071,6 +1072,8 @@ contains
 
     call ctem_diags_init()
 
+    call helium_ubc_init()
+
   end subroutine phys_init
 
   !
@@ -1096,6 +1099,7 @@ contains
      use metdata,       only: get_met_srf1
 #endif
     use ctem_diags_mod, only: ctem_diags_calc
+    use helium_ubc_mod, only: helium_ubc_calc
     !
     ! Input arguments
     !
@@ -1142,6 +1146,9 @@ contains
 
     ! TEM diagnostics
     call ctem_diags_calc(phys_state)
+
+    ! update Helium upper boundary fluxes
+    call helium_ubc_calc(phys_state)
 
     !-----------------------------------------------------------------------
     ! Advance time information

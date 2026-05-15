@@ -7643,6 +7643,12 @@ if {{ hilight }}ubc_file_input_type{{ closehilight }} is 'FIXED'.
 Default: 0 seconds
 </entry>
 
+<entry id="helium_ubc_coefs" type="char*256" category="upper_boundary"
+       group="helium_ubc_opts" valid_values="" >
+File path of the coefficients data used to compute helium fluxes at the model upper boundary.
+Default: None
+</entry>
+
 <entry id="chem_freq" type="integer" category="cam_chem"
        group="chem_inparm" valid_values="" >
 Frequency in time steps at which the chemical equations are solved.
