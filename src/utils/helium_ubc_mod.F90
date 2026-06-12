@@ -26,12 +26,12 @@ module helium_ubc_mod
 
   integer :: mytid = -huge(1)
 
-  real(r8), parameter :: gask = 8.314e7_r8      ! gas constant
-  real(r8), parameter :: rmass_he = 4._r8
-  real(r8), parameter :: grav = 870._r8
-  real(r8), parameter :: pi = 4._r8*atan(1.0_r8)
+  real(r8), parameter :: gask = 8.314e7_r8      ! gas constant (erg / K / mole)
+  real(r8), parameter :: rmass_he = 4._r8       ! (grams/mole)
+  real(r8), parameter :: grav = 870._r8         ! cm/sec/sec
+  real(r8), parameter :: pi = 4._r8*atan(1.0_r8)!
   real(r8), parameter :: re = 6.37122e8_r8      ! earth radius (cm)
-  real(r8), parameter :: p0 = 5.e-4_r8           ! standard pressure
+  real(r8), parameter :: p0 = 5.e-4_r8          ! standard pressure Pa ?
 
   integer :: he_cnst_ndx = -1
   integer :: nlat_he = -1
@@ -143,6 +143,7 @@ contains
     use cam_history, only: outfld
     use mo_mean_mass, only: set_mean_mass
     use chemistry, only: imozart
+    use ref_pres, only: ptop_ref
 
     type(physics_state), intent(in) :: phys_state(begchunk:endchunk)
 
@@ -165,7 +166,11 @@ contains
     real(kind=r8),dimension(0:nmax-1,0:nmax) :: amn ! a(m,n) spectral coefficient
     real(kind=r8),dimension(1:nmax-1,0:nmax) :: bmn ! b(m,n) spectral coefficient
 
+    real(r8) :: ptop ! top of model pressure in cgs units
+
     if (.not.he_ubc_active) return
+
+    ptop = ptop_ref * 10._r8 ! Pa --> Ba (dyne/cm2 or g/cm2/sec2)
 
     associate( nlon_he=>he_grid%nlon, &
                lon_beg=>he_grid%lon_beg, &
@@ -177,9 +182,9 @@ contains
        ncol = phys_state(lchnk)%ncol
        call set_mean_mass( ncol, phys_state(lchnk)%q(:,:,imozart:), barm )
        do i = 1,ncol
-          tn = phys_state(lchnk)%t(i,1) ! top layer temperature
+          tn = phys_state(lchnk)%t(i,1) ! top layer temperature ! nmbr dens flux / Re^2 (#/cm4/sec)
           he_mmr = phys_state(lchnk)%q(i,1, he_cnst_ndx)
-          flx_phys(i,lchnk) = -4._r8*p0*sqrt((gask*tn/(rmass_he*grav))**3)*barm(i,1) &
+          flx_phys(i,lchnk) = -4._r8*ptop*sqrt((gask*tn/(rmass_he*grav))**3)*barm(i,1) & ! p0 --> p_top interface
                *(1._r8+tn/3330._r8)*he_mmr/(re**2*sqrt(2._r8*pi*grav)*rmass_he)
        end do
        call outfld('HE_UBC_FLXi', flx_phys(:ncol,lchnk), ncol, lchnk)

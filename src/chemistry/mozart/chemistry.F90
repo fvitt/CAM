@@ -274,7 +274,7 @@ end function chem_is
          if ( waccmx_is('ionosphere') .or. waccmx_is('neutral') ) then
            if ( m == h_ndx ) has_fixed_ubflx = .true. ! fixed flux value for H at UB
            if ( m == he_ndx ) has_fixed_ubflx = .true. ! fixed flux value for He at UB
-           if ( m == o2_ndx .or. m == o_ndx ) molectype = 'major'
+           if ( m == o2_ndx .or. m == o_ndx .or. m==he_ndx ) molectype = 'major'
          endif
        else if( m == e_ndx ) then
           lng_name = 'electron concentration'
