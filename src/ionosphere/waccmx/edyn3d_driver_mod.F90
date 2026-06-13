@@ -61,7 +61,7 @@ contains
          edyn3d_nmlat_h=edyn3d_nmlat_h, edyn3d_nmlon=edyn3d_nmlon, edyn3d_nhgt=edyn3d_nhgt, &
          edyn3d_slu_refactor_int=edyn3d_slu_refactor_int,  &
          edyn3d_slu_refactor_berr=edyn3d_slu_refactor_berr, &
-         real_kind=r8 )
+         reprod_solution=.true., real_kind=r8 )
 
     ! log grid info:
     if (masterproc) then
