@@ -194,7 +194,7 @@ contains
                   state%t    ,ptend%q    ,state%pmid ,state%pint ,             &
                   state%pdel ,ztodt      ,rairv(:,:,lchnk),  mbarv(:,:,lchnk))
 
-    call mjrsp_diff_new( ncol, lchnk, state, ptend%q )
+    call mjrsp_diff_new( ncol, lchnk, state, ztodt/2, ptend%q )
 
     !---------------------------------------------
     ! Update O2 and O tendencies and output
@@ -214,7 +214,7 @@ contains
   end subroutine mspd_intr
 
 !===============================================================================
-  subroutine mjrsp_diff_new( ncol,lchnk, state, q )
+  subroutine mjrsp_diff_new( ncol,lchnk, state, step, q )
     use physics_types, only: physics_state
     use air_composition, only: mbarv
     use major_mod, only: comp
@@ -223,11 +223,12 @@ contains
     use lbc_mod, only: lbc_init=>init
 
     integer, intent(in) :: ncol,lchnk
+    real(r8), intent(in) :: step
     type(physics_state), intent(in) :: state   ! Physics state variables
 
     real(r8), intent(inout) :: q(pcols,pver,pcnst) ! updated mixing ratios
 
-    real(r8) :: step, dfactor, expzmid
+    real(r8) :: dfactor, expzmid
 
     real(r8) :: tlbc,bo2,bo1,bhe,bh,he_ubc,p_ubc     ! For lower boundary
     real(r8),dimension(nlevp1) :: &
@@ -240,31 +241,32 @@ contains
 
     integer :: icol, k, kk
 
+    dfactor = 0._r8
     prod = 0._r8
     loss = 0._r8
+    difk = 0._r8
+    wmid = 0._r8
+    expzmid = 1._r8
 
-    o2_nm_hd=nan
-    o1_nm_hd=nan
-    he_nm_hd=nan
+    o2_nm_hd = 0._r8
+    o1_nm_hd = 0._r8
+    he_nm_hd = 0._r8
+    o2_hadv = 0._r8
+    o1_hadv = 0._r8
+    he_hadv = 0._r8
+    o2_nm = 0._r8
+    o1_nm = 0._r8
+    he_nm = 0._r8
 
-    difk=nan
     tn=nan
     tni=nan
     o2i=nan
     o1i=nan
     hei=nan
-    wmid=nan
     mbar=nan
     barm=nan
-    o2_hadv=nan
-    o1_hadv=nan
-    he_hadv=nan
-    o2_nm=nan
-    o1_nm=nan
-    he_nm=nan
     dz=nan
     expzm=nan
-
 
     do icol = 1,ncol
 
