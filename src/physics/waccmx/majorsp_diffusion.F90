@@ -57,13 +57,13 @@ module majorsp_diffusion
   integer :: indx_O                                      ! cnst index for o
   integer :: indx_H                                      ! cnst index for h
   integer :: indx_He                                     ! cnst index for he
-  integer, parameter :: io2=1, io1=2                     ! localindices to o2 , o respectively
+  integer, parameter :: io2=1, io1=2, ihe=3              ! localindices to o2, o, He respectively
   logical :: fixed_ubc(2)                                ! flag for fixed upper boundary condition
 
   real(r8) :: o2mmr_ubc(pcols)                           ! MMR of O2 at top boundary (specified)
   real(r8) :: ommr_ubc(pcols)                            ! MMR of O at top boundary
 
-  character(len=8), private :: mjdiffnam(2)              ! names of v-diff tendencies
+  character(len=8), private :: mjdiffnam(3)              ! names of v-diff tendencies
 
 contains
 
@@ -120,12 +120,15 @@ contains
     call addfld (mjdiffnam(1),(/ 'lev' /), 'A','kg/kg/s','Major diffusion of '//cnst_name(indx_O2))
     mjdiffnam(2) = 'MD'//cnst_name(indx_O)
     call addfld (mjdiffnam(2),(/ 'lev' /), 'A','kg/kg/s','Major diffusion of '//cnst_name(indx_O))
+    mjdiffnam(3) = 'MD'//cnst_name(indx_HE)
+    call addfld (mjdiffnam(3),(/ 'lev' /), 'A','kg/kg/s','Major diffusion of '//cnst_name(indx_O))
 
     call addfld ('MBARV' , (/ 'lev' /),'I','g/mole','Variable Mean Mass')
 
     if (history_waccmx) then
        call add_default (mjdiffnam(1), 1, ' ')
        call add_default (mjdiffnam(2), 1, ' ')
+       call add_default (mjdiffnam(3), 1, ' ')
        call add_default ('MBARV', 1, ' ')
     end if
 
@@ -147,7 +150,7 @@ contains
     type(physics_ptend), intent(inout)  :: ptend   ! indivdual parameterization tendencies
 !---------------------------Local storage-------------------------------
     real(r8) :: rztodt                             ! 1/ztodt
-    real(r8) :: tendo2o(pcols,pver,2)              ! temporary array for o2 and o tendency
+    real(r8) :: tendo2o(pcols,pver,3)              ! temporary array for o2 and o and He tendency
     real(r8) :: ubc_mmr(pcols,pcnst)               ! upper bndy mixing ratios (kg/kg)
     real(r8) :: ubc_t(pcols)                       ! upper bndy temperature (K)
     integer :: lchnk                               ! chunk identifier
@@ -166,12 +169,14 @@ contains
     !----------------------------------------------------------------------------------------------
     tendo2o(:ncol,:,io2) = ptend%q(:ncol,:,indx_O2)
     tendo2o(:ncol,:,io1) = ptend%q(:ncol,:,indx_O)
+    tendo2o(:ncol,:,ihe) = ptend%q(:ncol,:,indx_he)
 
     !----------------------------------------------------------------------
     ! Operate on copies of the input states, convert to tendencies at end.
     !----------------------------------------------------------------------
     ptend%q(:ncol,:,indx_O2) = state%q(:ncol,:,indx_O2)
-    ptend%q(:ncol,:,indx_O) = state%q(:ncol,:,indx_O)
+    ptend%q(:ncol,:,indx_O)  = state%q(:ncol,:,indx_O )
+    ptend%q(:ncol,:,indx_HE) = state%q(:ncol,:,indx_HE)
 
     if (fixed_ubc(io2) .or. fixed_ubc(io1)) then
        !-------------------------------------------
@@ -187,12 +192,13 @@ contains
     ptend%name  = trim(ptend%name)//"+mspd"
     ptend%lq(indx_O2) = .TRUE.
     ptend%lq(indx_O) = .TRUE.
+    ptend%lq(indx_He) = .TRUE.
     !---------------------------------------------
     ! Call the major species diffusion subroutine.
     !---------------------------------------------
-    call mspdiff (lchnk      ,ncol       ,                                     &
-                  state%t    ,ptend%q    ,state%pmid ,state%pint ,             &
-                  state%pdel ,ztodt      ,rairv(:,:,lchnk),  mbarv(:,:,lchnk))
+!!$    call mspdiff (lchnk      ,ncol       ,                                     &
+!!$                  state%t    ,ptend%q    ,state%pmid ,state%pint ,             &
+!!$                  state%pdel ,ztodt      ,rairv(:,:,lchnk),  mbarv(:,:,lchnk))
 
     call mjrsp_diff_new( ncol, lchnk, state, ztodt/2, ptend%q )
 
@@ -203,13 +209,16 @@ contains
        do i=1,ncol
           ptend%q(i,k,indx_O2) = (ptend%q(i,k,indx_O2)-state%q(i,k,indx_O2))*rztodt  &
                                  +tendo2o(i,k,io2)
-          ptend%q(i,k,indx_O) = (ptend%q(i,k,indx_O)-state%q(i,k,indx_O))*rztodt     &
+          ptend%q(i,k,indx_O ) = (ptend%q(i,k,indx_O )-state%q(i,k,indx_O ))*rztodt     &
                                  +tendo2o(i,k,io1)
+          ptend%q(i,k,indx_HE) = (ptend%q(i,k,indx_HE)-state%q(i,k,indx_He))*rztodt     &
+                                 +tendo2o(i,k,ihe)
        enddo
     enddo
 
     call outfld(mjdiffnam(1),ptend%q(1,1,indx_O2),pcols,lchnk)
-    call outfld(mjdiffnam(2),ptend%q(1,1,indx_O),pcols,lchnk)
+    call outfld(mjdiffnam(2),ptend%q(1,1,indx_O ),pcols,lchnk)
+    call outfld(mjdiffnam(3),ptend%q(1,1,indx_HE),pcols,lchnk)
 
   end subroutine mspd_intr
 
@@ -218,7 +227,7 @@ contains
     use physics_types, only: physics_state
     use air_composition, only: mbarv
     use major_mod, only: comp
-    use ref_pres, only: nlevp1 => nbot_molec
+    use ref_pres, only: nbot_molec
     use helium_ubc_mod, only: helium_ubc_fluxes
     use lbc_mod, only: lbc_init=>init
 
@@ -231,13 +240,13 @@ contains
     real(r8) :: dfactor, expzmid
 
     real(r8) :: tlbc,bo2,bo1,bhe,bh,he_ubc,p_ubc     ! For lower boundary
-    real(r8),dimension(nlevp1) :: &
+    real(r8),dimension(nbot_molec) :: &
       difk,tn,tni,o2i,o1i,hei,wmid,mbar,barm, &
       o2_hadv,o1_hadv,he_hadv,o2_nm,o1_nm,he_nm,dz,expzm
-    real(r8),dimension(nlevp1) :: o2_nm_hd,o1_nm_hd,he_nm_hd
-    real(r8),dimension(3,nlevp1) :: prod
-    real(r8),dimension(3,3,nlevp1) :: loss
-    real(r8),dimension(nlevp1) :: o2_upd,o1_upd,he_upd
+    real(r8),dimension(nbot_molec) :: o2_nm_hd,o1_nm_hd,he_nm_hd
+    real(r8),dimension(3,nbot_molec) :: prod
+    real(r8),dimension(3,3,nbot_molec) :: loss
+    real(r8),dimension(nbot_molec) :: o2_upd,o1_upd,he_upd
 
     integer :: icol, k, kk
 
@@ -270,15 +279,15 @@ contains
 
     do icol = 1,ncol
 
-       tlbc   = state%t(iCol,nlevp1+1)
-       bo2    = state%q(iCol,nlevp1+1,indx_O2)
-       bo1    = state%q(iCol,nlevp1+1,indx_O)
-       bhe    = state%q(iCol,nlevp1+1,indx_HE)
-       bh     = state%q(iCol,nlevp1+1,indx_H)
+       tlbc   = state%t(iCol,nbot_molec+1)
+       bo2    = state%q(iCol,nbot_molec+1,indx_O2)
+       bo1    = state%q(iCol,nbot_molec+1,indx_O)
+       bhe    = state%q(iCol,nbot_molec+1,indx_HE)
+       bh     = state%q(iCol,nbot_molec+1,indx_H)
        he_ubc = helium_ubc_fluxes(icol,lchnk)
 
        kk = 0
-       do k = nlevp1,2,-1
+       do k = nbot_molec,2,-1
 
           kk = kk + 1
           tn(kk)       = state%t(iCol,k)
@@ -295,24 +304,32 @@ contains
        !
        ! Top:
        !
-       tn(nlevp1)	 = state%t(iCol,1)
-       tni(nlevp1)	 = 1.5_r8*state%t(iCol,1)-.5_r8*state%t(iCol,2)
-       o2i(nlevp1)	 = 1.5_r8*state%q(iCol,1,indx_O2)-.5_r8*state%q(iCol,2,indx_O2)
-       o1i(nlevp1)	 = 1.5_r8*state%q(iCol,1,indx_O)-.5_r8*state%q(iCol,2,indx_O)
-       hei(nlevp1)	 = 1.5_r8*state%q(iCol,1,indx_HE)-.5_r8*state%q(iCol,2,indx_HE)
-       mbar(nlevp1)   = mbarv(iCol,1,lchnk)
-       barm(nlevp1)   = 1.5_r8*mbarv(iCol,1,lchnk)-.5_r8*mbarv(iCol,2,lchnk)
+       tn(nbot_molec)	 = state%t(iCol,1)
+       tni(nbot_molec)	 = 1.5_r8*state%t(iCol,1)-.5_r8*state%t(iCol,2)
+       o2i(nbot_molec)	 = 1.5_r8*state%q(iCol,1,indx_O2)-.5_r8*state%q(iCol,2,indx_O2)
+       o1i(nbot_molec)	 = 1.5_r8*state%q(iCol,1,indx_O)-.5_r8*state%q(iCol,2,indx_O)
+       hei(nbot_molec)	 = 1.5_r8*state%q(iCol,1,indx_HE)-.5_r8*state%q(iCol,2,indx_HE)
+       mbar(nbot_molec)   = mbarv(iCol,1,lchnk)
+       barm(nbot_molec)   = 1.5_r8*mbarv(iCol,1,lchnk)-.5_r8*mbarv(iCol,2,lchnk)
        p_ubc = state%pmid(iCol,1)*state%pmid(iCol,1)/state%pmid(iCol,2)
-       dz(nlevp1)    = (state%pmid(iCol,1)-p_ubc)/state%pint(iCol,1)
-       expzm(nlevp1) = state%pmid(iCol,1) / ptref
+       dz(nbot_molec)    = (state%pmid(iCol,1)-p_ubc)/state%pint(iCol,1)
+       expzm(nbot_molec) = state%pmid(iCol,1) / ptref
 
        call lbc_init(dz(1))
 
-       call comp(nlevp1,dz,expzm,expzmid, step,dfactor,tlbc,bo2,bo1,bhe,he_ubc, &
+       call comp(nbot_molec,dz,expzm,expzmid, step,dfactor,tlbc,bo2,bo1,bhe,he_ubc, &
                  difk,tn,tni,o2i,o1i,hei,wmid,mbar,barm, &
                  o2_hadv,o1_hadv,he_hadv,o2_nm,o1_nm,he_nm, &
                  o2_nm_hd,o1_nm_hd,he_nm_hd, &
                  prod,loss,o2_upd,o1_upd,he_upd)
+
+       kk = 0
+       do k = 1,nbot_molec
+	 kk = nbot_molec - k + 1
+         q(iCol,kk,indx_O2) = o2_upd(k)
+         q(iCol,kk,indx_O ) = o1_upd(k)
+         q(iCol,kk,indx_HE) = he_upd(k)
+       enddo
     end do
 
   end subroutine mjrsp_diff_new
