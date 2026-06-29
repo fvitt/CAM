@@ -843,6 +843,11 @@ module ionosphere_interface
          if (state_debug_checks) then
             call shr_assert_in_domain(te_blck, is_nan=.false., varname="te_blck", msg="NaN found in te_blck in ionosphere_run2")
             call shr_assert_in_domain(ti_blck, is_nan=.false., varname="ti_blck", msg="NaN found in ti_blck in ionosphere_run2")
+            call shr_assert_in_domain(ui_blck, is_nan=.false., varname="ui_blck", msg="NaN found in ui_blck in ionosphere_run2")
+            call shr_assert_in_domain(vi_blck, is_nan=.false., varname="vi_blck", msg="NaN found in vi_blck in ionosphere_run2")
+            call shr_assert_in_domain(wi_blck, is_nan=.false., varname="wi_blck", msg="NaN found in wi_blck in ionosphere_run2")
+            call shr_assert_in_domain(sigma_ped_blck, is_nan=.false., varname="sigma_ped_blck", msg="NaN found in sigma_ped_blck in ionosphere_run2")
+            call shr_assert_in_domain(sigma_hall_blck, is_nan=.false., varname="sigma_hall_blck", msg="NaN found in sigma_hall__blck in ionosphere_run2")
          end if
 
          call t_startf('d_pie_coupling')

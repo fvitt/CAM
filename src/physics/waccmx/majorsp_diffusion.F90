@@ -245,8 +245,8 @@ contains
     endif
 
        call ubc_get_flxs( state%lchnk, ncol, state%pint, state%zi, state%t, state%q, state%omega, state%phis, ubc_flux )
-       hemmr_ubc(:ncol) = ubc_flux(:ncol,indx_HE)
-!       hemmr_ubc(:ncol) = helium_ubc_fluxes(:ncol,lchnk)
+!       hemmr_ubc(:ncol) = ubc_flux(:ncol,indx_HE)
+       hemmr_ubc(:ncol) = helium_ubc_fluxes(:ncol,lchnk)
 
 if (masterproc .and. debug) write(iulog,*) 'comp_wx: lchnk,hemmr_ubc(:ncol) all columns after assignment: ', lchnk,hemmr_ubc(:ncol)
 
@@ -304,7 +304,6 @@ if (masterproc .and. debug) write(iulog,*) 'comp_wx: lchnk,hemmr_ubc(:ncol) all 
       bhe    = state%q(iCol,nbot_molec+1,indx_HE)
       bh     = state%q(iCol,nbot_molec+1,indx_H)
       he_ubc = hemmr_ubc(iCol)
-!      he_ubc = state%q(iCol,1,indx_HE)*state%q(iCol,1,indx_HE)/state%q(iCol,2,indx_HE)
 
       if (masterproc .and. iCol == 1 .and. debug) &
            write(iulog,*) 'comp_wx: iCol,he_ubc,hemmr_ubc(iCol) before ubc calc first column: ', iCol, he_ubc, hemmr_ubc(iCol)
@@ -348,7 +347,7 @@ if (masterproc.and.debug) write(iulog,*) 'mspd_intr: iCol, lchnk, he_ubc before 
 
       call comp_wx(iCol,lchnk,step,dfactor,tlbc,bo2,bo1,bh,bhe,he_ubc,difk,tn,tni,o2i,o1i,hei,wmid,mbar,barm, &
 	       o2_hadv,o1_hadv,he_hadv,o2_nm,o1_nm,he_nm,prod,loss, &
-	       nbot_molec,dz,expzm,expzmid,ptref,o2_upd,o1_upd,he_upd)
+	       nbot_molec,dz,expzm,expzmid,o2_upd,o1_upd,he_upd)
 
 if (debug) then
 if (masterproc .and. iCol == 1) write(iulog,*) 'mspd_intr: after comp_wx o2_upd first column all levels ',iCol, o2_upd(:)
@@ -359,6 +358,7 @@ if (masterproc .and. iCol == 1) write(iulog,*) 'mspd_intr: after comp_wx he_upd 
 !if (masterproc .and. iCol <= 10) write(iulog,*) 'mspd_intr: after comp_wx o1_upd first column all levels ',iCol, o1_upd(:)
 !if (masterproc .and. iCol <= 10) write(iulog,*) 'mspd_intr: after comp_wx he_upd first column all levels ',iCol, he_upd(:)
 end if
+
        kk = 0
        do k = 1,nbot_molec
 
@@ -449,7 +449,7 @@ end if
   subroutine comp_wx(iCol,lchnk,step,dfactor,tlbc,bo2,bo1,bh,bhe,he_ubc, &
     difk,tn,tni,o2i,o1i,hei,wmid,mbar,barm, &
     o2_hadv,o1_hadv,he_hadv,o2_nm,o1_nm,he_nm, &
-    prod,loss,nlevp1,dz,expzm,expzmid,p0,o2_upd,o1_upd,he_upd)
+    prod,loss,nlevp1,dz,expzm,expzmid,o2_upd,o1_upd,he_upd)
 
 ! advance major species O2, O, He and N2
 
@@ -457,11 +457,11 @@ end if
 !    use cons_module,only:expzm,expzmid,grav,p0,rmass_o2,rmass_o1,rmass_he,rmass_n2
 !    use lbc_module,only:fb,b
 !    use matutil_module,only:matinv3
-     use physconst,    only: gravit
+!     use physconst,    only: gravit
 
     integer,intent(in) :: nlevp1, iCol, lchnk
 
-    real(r8),intent(in) :: step,dfactor,tlbc,bo2,bo1,bh,bhe,he_ubc,expzmid,p0
+    real(r8),intent(in) :: step,dfactor,tlbc,bo2,bo1,bh,bhe,he_ubc,expzmid
     real(r8),dimension(nlevp1),intent(in) :: &
       difk,tn,tni,o2i,o1i,hei,wmid,mbar,barm, &
       o2_hadv,o1_hadv,he_hadv,o2_nm,o1_nm,he_nm,dz,expzm
@@ -500,6 +500,9 @@ end if
     ! lower boundary condition
     real(r8),dimension(3) :: fb
     real(r8),dimension(3,3) :: b
+
+    real(r8), parameter :: grav_cgs = 870._r8 ! waccmx altitudes (cgs units) cm/sec2
+    real(r8), parameter :: p0 = 5.e-4_r8 ! cgs units
 
 if (masterproc.and.debug) write(iulog,*) 'comp_wx: top of routine iCol,lchnk,he_ubc : ', iCol,lchnk,he_ubc
 
@@ -647,9 +650,9 @@ if (masterproc.and.debug) write(iulog,*) 'comp_wx: top of routine iCol,lchnk,he_
 if (masterproc.and.debug) write(iulog,*) 'comp_wx: iCol,lchnk,he_ubc before upper boundary calc : ', iCol,lchnk,he_ubc
 
 ! Eric Sutton: calculate Helium lateral exospheric transport mass flux at upper boundary
-    flx00 = wks1(nlevp1)*p0/gravit
-    o1_ub = he_ubc*(alpha(2,3,nlevp1)-alpha(2,2,nlevp1))/(flx00*(1/dz(2)-ep(2,nlevp1)/2))
-    he_ub = he_ubc*(alpha(3,3,nlevp1)-alpha(3,2,nlevp1))/(flx00*(1/dz(3)-ep(3,nlevp1)/2))
+    flx00 = wks1(nlevp1)*p0/grav_cgs
+    o1_ub = he_ubc*(alpha(2,3,nlevp1)-alpha(2,2,nlevp1))/(flx00*(1/dz(nlevp1)-ep(2,nlevp1)/2))
+    he_ub = he_ubc*(alpha(3,3,nlevp1)-alpha(3,2,nlevp1))/(flx00*(1/dz(nlevp1)-ep(3,nlevp1)/2))
     fk(:,nlevp1-1) = fk(:,nlevp1-1)-rk(:,2,nlevp1-1)*o1_ub-rk(:,3,nlevp1-1)*he_ub
     rk(:,:,nlevp1-1) = 0
 
@@ -705,7 +708,7 @@ end if
     o2_upd = max(upd(1,:),mmrMin)
     o1_upd = max(upd(2,:),mmrMin)
     he_upd = max(upd(3,:),HEmmrMin)
-    he_upd = min(upd(3,:),HEmmrMax)
+    he_upd = min(he_upd,HEmmrMax)
 !! ensure non-negative O2, O, He
 !    o2_upd = max(upd(1,:),0.0_r8)
 !    o1_upd = max(upd(2,:),0.0_r8)
