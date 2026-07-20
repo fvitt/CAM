@@ -86,7 +86,7 @@
 <ncdata hgrid="4x5" nlev="66"  chem="waccm_ma_sulfur" >atm/waccm/ic/f40.2000.4deg.wcm.carma.sulf.004.cam2.i.0008-01-01-00000.nc</ncdata>
 <ncdata hgrid="4x5" nlev="70"                      >atm/waccm/ic/f2000.waccm-mam3_4x5_L70.cam2.i.0017-01-01.c121113.nc</ncdata>
 <ncdata hgrid="4x5" nlev="81"  waccmx="1"          >atm/waccm/ic/WAX3548T08CO_2003top_f2000.waccm_0017bottom_4x5_L81_c160630.nc</ncdata>
-<ncdata hgrid="4x5" nlev="126" waccmx="1" aquaplanet="1">atm/waccm/ic/waccmx_aqua_4x5_L126_c170705.nc</ncdata>
+<ncdata hgrid="4x5" nlev="126" waccmx="1" aquaplanet="1">atm/waccm/ic/f.cam6_4_143.FXHIST.4x5_L126.Helium_001.cam.i.2009-01-01_c260512.nc</ncdata>
 <ncdata hgrid="4x5" nlev="130" waccmx="1" aquaplanet="1">atm/waccm/ic/waccmx_mam4_aqua_4x5_L130_c180803.nc</ncdata>
 
 <ncdata hgrid="2.5x3.33" nlev="26"                >atm/cam/inic/fv/cami_0000-01-01_2.5x3.33_L26_c110309.nc</ncdata>

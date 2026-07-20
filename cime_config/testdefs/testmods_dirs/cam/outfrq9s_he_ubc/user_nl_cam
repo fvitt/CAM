@@ -10,5 +10,14 @@ ctem_diags_numlats = 90
 fincl2 = 'THtem','Utem','Vtem','Wtem','VTHtem','WTHtem','UVtem', 'UWtem', 'MSKtem', 'PStem'
 fincl3 = 'Uzm', 'Vzm','Wzm', 'THzm','VTHzm','WTHzm','UVzm', 'UWzm', 'PSzm'
 
+fincl4 = 'Z3', 'T',  'PS', 'O', 'O2', 'H', 'HE', 'comp_wx_O', 'comp_wx_O2', 'comp_wx_HE',
+         'HE_UBC_FLXi', 'HE_UBC_FLUX'
+
 do_circulation_diags = .false.
 fincl7 = ' '
+
+dry_air_species = 'O', 'O2', 'H', 'HE', 'N2'
+
+flbc_file = '$DIN_LOC_ROOT/atm/waccm/lb/LBC_1765-2100_1.9x2.5_CCMI_RCP60_He_za_c130313.nc'
+flbc_list = 'CCL4', 'CF2CLBR', 'CF3BR', 'CFC11', 'CFC113', 'CFC12', 'CH3BR', 'CH3CCL3',
+            'CH3CL', 'CH4', 'CO2','H2', 'HCFC22', 'N2O','HE'
