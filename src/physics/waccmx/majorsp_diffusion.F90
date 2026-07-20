@@ -140,6 +140,16 @@ contains
     call addfld('O1mjspdiff2',(/ 'lev' /), 'A','kg/kg','comp_wx major diffusion of '//cnst_name(indx_O))
     call addfld('HEmjspdiff2',(/ 'lev' /), 'A','kg/kg','comp_wx major diffusion of '//cnst_name(indx_HE))
 
+    call addfld('MOLP11', (/ 'lev' /), 'A',' ','major species diffusion ...')
+    call addfld('MOLP22', (/ 'lev' /), 'A',' ','major species diffusion ...')
+    call addfld('MOLP33', (/ 'lev' /), 'A',' ','major species diffusion ...')
+    call addfld('MOLQ11', (/ 'lev' /), 'A',' ','major species diffusion ...')
+    call addfld('MOLQ22', (/ 'lev' /), 'A',' ','major species diffusion ...')
+    call addfld('MOLQ33', (/ 'lev' /), 'A',' ','major species diffusion ...')
+    call addfld('MOLR11', (/ 'lev' /), 'A',' ','major species diffusion ...')
+    call addfld('MOLR22', (/ 'lev' /), 'A',' ','major species diffusion ...')
+    call addfld('MOLR33', (/ 'lev' /), 'A',' ','major species diffusion ...')
+
     call addfld ('MBARV' , (/ 'lev' /),'I','g/mole','Variable Mean Mass')
 
     if (history_waccmx) then
@@ -191,8 +201,16 @@ contains
     real(r8),dimension(3,nbot_molec) :: prod
     real(r8),dimension(3,3,nbot_molec) :: loss
     real(r8),dimension(nbot_molec) :: o2_upd,o1_upd,he_upd
+    real(r8),dimension(nbot_molec) :: &
+         molp11,molp22,molp33, &
+         molq11,molq22,molq33, &
+         molr11,molr22,molr33
     real(r8),dimension(pcols,pver) :: o2_upd_cols,o1_upd_cols,he_upd_cols,h_upd_cols
     real(r8),dimension(pcols,pver) :: o2_upd_cols_tend,o1_upd_cols_tend,he_upd_cols_tend
+    real(r8),dimension(pcols,pver) :: &
+         molp11_cols,molp22_cols,molp33_cols, &
+         molq11_cols,molq22_cols,molq33_cols, &
+         molr11_cols,molr22_cols,molr33_cols
 
     !--------------------------------------------------------------------------------------------
     ! local constants
@@ -200,6 +218,26 @@ contains
     rztodt = 1._r8/ztodt
     lchnk = state%lchnk
     ncol  = state%ncol
+
+    molp11=0._r8
+    molp22=0._r8
+    molp33=0._r8
+    molq11=0._r8
+    molq22=0._r8
+    molq33=0._r8
+    molr11=0._r8
+    molr22=0._r8
+    molr33=0._r8
+
+    molp11_cols=0._r8
+    molp22_cols=0._r8
+    molp33_cols=0._r8
+    molq11_cols=0._r8
+    molq22_cols=0._r8
+    molq33_cols=0._r8
+    molr11_cols=0._r8
+    molr22_cols=0._r8
+    molr33_cols=0._r8
 
     !----------------------------------------------------------------------------------------------
     ! Store the o2, o, and he tendencies calculated from vertical_diffusion (due to eddy diffusion only)
@@ -310,7 +348,8 @@ contains
 
       call comp_wx(iCol,lchnk,step,dfactor,tlbc,bo2,bo1,bh,bhe,he_ubc,difk,tn,tni,o2i,o1i,hei,wmid,mbar,barm, &
 	       o2_hadv,o1_hadv,he_hadv,o2_nm,o1_nm,he_nm,prod,loss, &
-	       nbot_molec,dz,expzm,expzmid,o2_upd,o1_upd,he_upd)
+	       nbot_molec,dz,expzm,expzmid,o2_upd,o1_upd,he_upd, &
+               molp11,molp22,molp33, molq11,molq22,molq33, molr11,molr22,molr33 )
 
 
        kk = 0
@@ -322,9 +361,31 @@ contains
          o1_upd_cols(iCol,kk) = o1_upd(k)
          he_upd_cols(iCol,kk) = he_upd(k)
 
+         molp11_cols(icol,kk) = molp11(k)
+         molp22_cols(icol,kk) = molp22(k)
+         molp22_cols(icol,kk) = molp22(k)
+
+         molq11_cols(icol,kk) = molq11(k)
+         molq22_cols(icol,kk) = molq22(k)
+         molq22_cols(icol,kk) = molq22(k)
+
+         molr11_cols(icol,kk) = molr11(k)
+         molr22_cols(icol,kk) = molr22(k)
+         molr22_cols(icol,kk) = molr22(k)
+
        enddo
 
     enddo ! iCol loop
+
+    call outfld('MOLP11',molp11_cols(:pcols,:),pcols,lchnk)
+    call outfld('MOLP22',molp22_cols(:pcols,:),pcols,lchnk)
+    call outfld('MOLP33',molp33_cols(:pcols,:),pcols,lchnk)
+    call outfld('MOLQ11',molq11_cols(:pcols,:),pcols,lchnk)
+    call outfld('MOLQ22',molq22_cols(:pcols,:),pcols,lchnk)
+    call outfld('MOLQ33',molq33_cols(:pcols,:),pcols,lchnk)
+    call outfld('MOLR11',molr11_cols(:pcols,:),pcols,lchnk)
+    call outfld('MOLR22',molr22_cols(:pcols,:),pcols,lchnk)
+    call outfld('MOLR33',molr33_cols(:pcols,:),pcols,lchnk)
 
     call outfld('O2mjspdiff1',o2_upd_cols(:pcols,:),pcols,lchnk)
     call outfld('O1mjspdiff1',o1_upd_cols(:pcols,:),pcols,lchnk)
@@ -386,7 +447,8 @@ contains
   subroutine comp_wx(iCol,lchnk,step,dfactor,tlbc,bo2,bo1,bh,bhe,he_ubc, &
     difk,tn,tni,o2i,o1i,hei,wmid,mbar,barm, &
     o2_hadv,o1_hadv,he_hadv,o2_nm,o1_nm,he_nm, &
-    prod,loss,nlevp1,dz,expzm,expzmid,o2_upd,o1_upd,he_upd)
+    prod,loss,nlevp1,dz,expzm,expzmid,o2_upd,o1_upd,he_upd, &
+    molp11,molp22,molp33, molq11,molq22,molq33, molr11,molr22,molr33 )
 
 ! advance major species O2, O, He and N2
 
@@ -405,6 +467,8 @@ contains
     real(r8),dimension(3,nlevp1),intent(inout) :: prod
     real(r8),dimension(3,3,nlevp1),intent(inout) :: loss
     real(r8),dimension(nlevp1),intent(out) :: o2_upd,o1_upd,he_upd
+    real(r8),dimension(nlevp1),intent(out) :: &
+         molp11,molp22,molp33, molq11,molq22,molq33, molr11,molr22,molr33
 
     ! exponent factor for diff_fac
     real(r8),dimension(3),parameter :: ss = (/1.710_r8,1.749_r8,1.718_r8/)
@@ -556,6 +620,16 @@ if (masterproc.and.debug) write(iulog,*) 'comp_wx: top of routine iCol,lchnk,he_
           expzm*(delta(m,n)*(eddyq/dz+1/(2*step))-loss(m,n,:))
       enddo
     enddo
+
+    molp11(:) = molp(1,1,:)
+    molp22(:) = molp(2,2,:)
+    molp33(:) = molp(3,3,:)
+    molq11(:) = molq(1,1,:)
+    molq22(:) = molq(2,2,:)
+    molq33(:) = molq(3,3,:)
+    molr11(:) = molr(1,1,:)
+    molr22(:) = molr(2,2,:)
+    molr33(:) = molr(3,3,:)
 
 !write(iulog,*) 'comp_wx: MIN/MAX pk,molp after mol loop : ', MINVAL(pk(:,:,nlevp1-10:nlevp1)), &
 !                     MAXVAL(pk(:,:,nlevp1-10:nlevp1)), &
