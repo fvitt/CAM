@@ -61,17 +61,14 @@ module majorsp_diffusion
   integer :: indx_O                                      ! cnst index for o
   integer :: indx_H                                      ! cnst index for h
   integer :: indx_HE                                     ! cnst index for he
-!  integer, parameter :: io2=1, io1=2                     ! local indices to o2 , o respectively
-!  logical :: fixed_ubc(2)                                ! flag for fixed upper boundary condition
   integer, parameter :: io2=1, io1=2, ihe=3              ! local indices to o2 , o, and he respectively
-  logical :: fixed_ubc(3)                                ! flag for fixed upper boundary condition
+  logical :: fixed_ubc(2)                                ! flag for fixed upper boundary condition
 
   real(r8) :: o2mmr_ubc(pcols)                           ! MMR of O2 at top boundary (specified)
   real(r8) :: ommr_ubc(pcols)                            ! MMR of O at top boundary
   real(r8) :: hemmr_ubc(pcols)                           ! MMR flux of HE at top boundary
 
-!  character(len=8), private :: mjdiffnam(2)              ! names of v-diff tendencies
-  character(len=10), private :: mjdiffnam(5)              ! names of v-diff tendencies
+  character(len=8), private :: mjdiffnam(3)              ! names of v-diff tendencies
 
   logical, parameter :: debug = .false.
 
@@ -117,7 +114,6 @@ contains
     !--------------------------------------------------------------------
     fixed_ubc(io2) = cnst_fixed_ubc(indx_O2)
     fixed_ubc(io1) = cnst_fixed_ubc(indx_O)
-    fixed_ubc(ihe) = cnst_fixed_ubc(indx_HE)
 
     !------------------------------------------------
     ! Set diffusion constants and setup matrix
@@ -133,14 +129,16 @@ contains
     call addfld (mjdiffnam(1),(/ 'lev' /), 'A','kg/kg/s','Major diffusion of '//cnst_name(indx_O2))
     mjdiffnam(2) = 'MD'//cnst_name(indx_O)
     call addfld (mjdiffnam(2),(/ 'lev' /), 'A','kg/kg/s','Major diffusion of '//cnst_name(indx_O))
+    mjdiffnam(3) = 'MD'//cnst_name(indx_HE)
+    call addfld (mjdiffnam(3),(/ 'lev' /), 'A','kg/kg/s','Major diffusion of '//cnst_name(indx_HE))
 
    ! Set names of major diffusion tendencies from comp_wx TGCM routine and declare them as history variables
-    mjdiffnam(3) = 'comp_wx_O2'
-    call addfld (mjdiffnam(3),(/ 'lev' /), 'A','kg/kg','comp_wx major diffusion of '//cnst_name(indx_O2))
-    mjdiffnam(4) = 'comp_wx_O'
-    call addfld (mjdiffnam(4),(/ 'lev' /), 'A','kg/kg','comp_wx major diffusion of '//cnst_name(indx_O))
-    mjdiffnam(5) = 'comp_wx_HE'
-    call addfld (mjdiffnam(5),(/ 'lev' /), 'A','kg/kg','comp_wx major diffusion of '//cnst_name(indx_HE))
+    call addfld('O2mjspdiff1',(/ 'lev' /), 'A','kg/kg','comp_wx major diffusion of '//cnst_name(indx_O2))
+    call addfld('O1mjspdiff1',(/ 'lev' /), 'A','kg/kg','comp_wx major diffusion of '//cnst_name(indx_O))
+    call addfld('HEmjspdiff1',(/ 'lev' /), 'A','kg/kg','comp_wx major diffusion of '//cnst_name(indx_HE))
+    call addfld('O2mjspdiff2',(/ 'lev' /), 'A','kg/kg','comp_wx major diffusion of '//cnst_name(indx_O2))
+    call addfld('O1mjspdiff2',(/ 'lev' /), 'A','kg/kg','comp_wx major diffusion of '//cnst_name(indx_O))
+    call addfld('HEmjspdiff2',(/ 'lev' /), 'A','kg/kg','comp_wx major diffusion of '//cnst_name(indx_HE))
 
     call addfld ('MBARV' , (/ 'lev' /),'I','g/mole','Variable Mean Mass')
 
@@ -148,8 +146,6 @@ contains
        call add_default (mjdiffnam(1), 1, ' ')
        call add_default (mjdiffnam(2), 1, ' ')
        call add_default (mjdiffnam(3), 1, ' ')
-       call add_default (mjdiffnam(4), 1, ' ')
-       call add_default (mjdiffnam(5), 1, ' ')
        call add_default ('MBARV', 1, ' ')
     end if
 
@@ -173,16 +169,15 @@ contains
     real(r8), intent(in) :: ztodt                  ! 2 delta-t
     type(physics_state), intent(in)     :: state   ! Physics state variables
     type(physics_ptend), intent(inout)  :: ptend   ! indivdual parameterization tendencies
-!---------------------------Local storage-------------------------------
+
+    !---------------------------Local storage-------------------------------
     real(r8) :: rztodt                             ! 1/ztodt
-!    real(r8) :: tendo2o(pcols,pver,2)              ! temporary array for o2 and o tendency
     real(r8) :: tendo2ohe(pcols,pver,3)            ! temporary array for o2 o, and he tendencies
     real(r8) :: ubc_mmr(pcols,pcnst)               ! upper bndy mixing ratios (kg/kg)
     real(r8) :: ubc_t(pcols)                       ! upper bndy temperature (K)
     real(r8) :: ubc_flux(pcols,pcnst)              ! upper bndy mixing ratio flux (kg/kg/s?)
     integer :: lchnk                               ! chunk identifier
     integer :: ncol                                ! number of atmospheric columns
-!    integer :: i, k                                ! indexing integers
     integer :: i, k, kk, icol                      ! indexing integers
 
     ! For comp_wx call
@@ -205,12 +200,6 @@ contains
     rztodt = 1._r8/ztodt
     lchnk = state%lchnk
     ncol  = state%ncol
-
-!    !----------------------------------------------------------------------------------------------
-!    ! Store the o2 and o tendencies calculated from vertical_diffusion (due to eddy diffusion only)
-!    !----------------------------------------------------------------------------------------------
-!    tendo2o(:ncol,:,io2) = ptend%q(:ncol,:,indx_O2)
-!    tendo2o(:ncol,:,io1) = ptend%q(:ncol,:,indx_O)
 
     !----------------------------------------------------------------------------------------------
     ! Store the o2, o, and he tendencies calculated from vertical_diffusion (due to eddy diffusion only)
@@ -244,30 +233,13 @@ contains
        ommr_ubc(:ncol) = ubc_mmr(:ncol,indx_O)
     endif
 
-       call ubc_get_flxs( state%lchnk, ncol, state%pint, state%zi, state%t, state%q, state%omega, state%phis, ubc_flux )
-!       hemmr_ubc(:ncol) = ubc_flux(:ncol,indx_HE)
-       hemmr_ubc(:ncol) = helium_ubc_fluxes(:ncol,lchnk)
-
-if (masterproc .and. debug) write(iulog,*) 'comp_wx: lchnk,hemmr_ubc(:ncol) all columns after assignment: ', lchnk,hemmr_ubc(:ncol)
+    hemmr_ubc(:ncol) = helium_ubc_fluxes(:ncol,lchnk)
 
     ! Since this is a combined tendency, retain the old name for output
     ! and debugging purposes.
     ptend%name  = trim(ptend%name)//"+mspd"
     ptend%lq(indx_O2) = .TRUE.
     ptend%lq(indx_O) = .TRUE.
-    !---------------------------------------------
-    ! Call the major species diffusion subroutine.
-    !---------------------------------------------
-    call mspdiff (lchnk      ,ncol       ,                                     &
-                  state%t    ,ptend%q    ,state%pmid ,state%pint ,             &
-                  state%pdel ,ztodt      ,rairv(:,:,lchnk),  mbarv(:,:,lchnk))
-
-    !----------------------------------------------------------------------
-    ! Operate on copies of the input states for comp_wx also, convert to tendencies at end.
-    !----------------------------------------------------------------------
-    ptend%q(:ncol,:,indx_O2) = state%q(:ncol,:,indx_O2)
-    ptend%q(:ncol,:,indx_O) = state%q(:ncol,:,indx_O)
-    ptend%q(:ncol,:,indx_HE) = state%q(:ncol,:,indx_HE)
 
     step = ztodt/2._r8
 
@@ -305,9 +277,6 @@ if (masterproc .and. debug) write(iulog,*) 'comp_wx: lchnk,hemmr_ubc(:ncol) all 
       bh     = state%q(iCol,nbot_molec+1,indx_H)
       he_ubc = hemmr_ubc(iCol)
 
-      if (masterproc .and. iCol == 1 .and. debug) &
-           write(iulog,*) 'comp_wx: iCol,he_ubc,hemmr_ubc(iCol) before ubc calc first column: ', iCol, he_ubc, hemmr_ubc(iCol)
-
       kk = 0
       do k = nbot_molec,2,-1
 
@@ -320,7 +289,6 @@ if (masterproc .and. debug) write(iulog,*) 'comp_wx: lchnk,hemmr_ubc(:ncol) all 
         mbar(kk)     = mbarv(iCol,k,lchnk)
         barm(kk)     = .5_r8 * (mbarv(iCol,k,lchnk) + mbarv(iCol,k-1,lchnk))
         pScaleHeight = .5_r8*(rairv(iCol,k,lchnk)*state%t(iCol,k) + rairv(iCol,k-1,lchnk)*state%t(iCol,k)) / gravit
-!        wmid(kk)     = -state%omega(iCol,k) / (0.5_r8 * (state%pint(iCol,k-1) + state%pint(iCol,k))) * pScaleHeight
         dz(kk)       = (state%pmid(iCol,k) - state%pmid(iCol,k-1)) / state%pint(iCol,k)
         expzm(kk)    = state%pmid(iCol,k) / ptref
 
@@ -336,28 +304,14 @@ if (masterproc .and. debug) write(iulog,*) 'comp_wx: lchnk,hemmr_ubc(:ncol) all 
       mbar(nbot_molec)   = mbarv(iCol,1,lchnk)
       barm(nbot_molec)   = 1.5_r8*mbarv(iCol,1,lchnk)-.5_r8*mbarv(iCol,2,lchnk)
       pScaleHeight	 = .5_r8*(rairv(iCol,1,lchnk)*state%t(iCol,1) + rairv(iCol,2,lchnk)*state%t(iCol,2)) / gravit
-!      wmid(nbot_molec) = -state%omega(iCol,1) / (0.5_r8 * (state%pint(iCol,1) + state%pint(iCol,2))) * pScaleHeight
-      p_ubc = state%pmid(iCol,1)*state%pmid(iCol,1)/state%pmid(iCol,2)
+      p_ubc             = state%pmid(iCol,1)*state%pmid(iCol,1)/state%pmid(iCol,2)
       dz(nbot_molec)    = (state%pmid(iCol,1)-p_ubc)/state%pint(iCol,1)
       expzm(nbot_molec) = state%pmid(iCol,1) / ptref
-
-!      he_ubc = 3.0E-12_r8
-
-if (masterproc.and.debug) write(iulog,*) 'mspd_intr: iCol, lchnk, he_ubc before comp_wx: ', iCol, lchnk, he_ubc
 
       call comp_wx(iCol,lchnk,step,dfactor,tlbc,bo2,bo1,bh,bhe,he_ubc,difk,tn,tni,o2i,o1i,hei,wmid,mbar,barm, &
 	       o2_hadv,o1_hadv,he_hadv,o2_nm,o1_nm,he_nm,prod,loss, &
 	       nbot_molec,dz,expzm,expzmid,o2_upd,o1_upd,he_upd)
 
-if (debug) then
-if (masterproc .and. iCol == 1) write(iulog,*) 'mspd_intr: after comp_wx o2_upd first column all levels ',iCol, o2_upd(:)
-if (masterproc .and. iCol == 1) write(iulog,*) 'mspd_intr: after comp_wx o1_upd first column all levels ',iCol, o1_upd(:)
-if (masterproc .and. iCol == 1) write(iulog,*) 'mspd_intr: after comp_wx he_upd first column all levels ',iCol, he_upd(:)
-
-!if (masterproc .and. iCol <= 10) write(iulog,*) 'mspd_intr: after comp_wx o2_upd first column all levels ',iCol, o2_upd(:)
-!if (masterproc .and. iCol <= 10) write(iulog,*) 'mspd_intr: after comp_wx o1_upd first column all levels ',iCol, o1_upd(:)
-!if (masterproc .and. iCol <= 10) write(iulog,*) 'mspd_intr: after comp_wx he_upd first column all levels ',iCol, he_upd(:)
-end if
 
        kk = 0
        do k = 1,nbot_molec
@@ -370,22 +324,12 @@ end if
 
        enddo
 
-     enddo ! iCol loop
+    enddo ! iCol loop
 
-!write(iulog,*) 'mspd_intr: MIN/MAX o2_upd_cols,o1_upd_cols,he_upd_cols before output call : ', &
-!                     MINVAL(o2_upd_cols(:,:)),MAXVAL(o2_upd_cols(:,:)),  &
-!                     MINVAL(o1_upd_cols(:,:)),MAXVAL(o1_upd_cols(:,:)),  &
-!                     MINVAL(he_upd_cols(:,:)),MAXVAL(he_upd_cols(:,:))
-!
-!write(iulog,*) 'mspd_intr: MIN/MAX ptend%q(:,:,indx_O2),ptend%q(:,:,indx_O),ptend(:,:,indx_HE) before output call : ', &
-!                     MINVAL(ptend%q(:,:,indx_O2)),MAXVAL(ptend%q(:,:,indx_O2)),  &
-!                     MINVAL(ptend%q(:,:,indx_O)),MAXVAL(ptend%q(:,:,indx_O)),  &
-!                     MINVAL(ptend%q(:,:,indx_HE)),MAXVAL(ptend%q(:,:,indx_HE))
-if (debug) then
-if (masterproc) write(iulog,*) 'mspd_intr: after iCol loop o2_upd_cols first column all levels ',o2_upd_cols(1,:)
-if (masterproc) write(iulog,*) 'mspd_intr: after iCol loop o1_upd_cols first column all levels ',o1_upd_cols(1,:)
-if (masterproc) write(iulog,*) 'mspd_intr: after iCol loop he_upd_cols first column all levels ',he_upd_cols(1,:)
-end if
+    call outfld('O2mjspdiff1',o2_upd_cols(:pcols,:),pcols,lchnk)
+    call outfld('O1mjspdiff1',o1_upd_cols(:pcols,:),pcols,lchnk)
+    call outfld('HEmjspdiff1',he_upd_cols(:pcols,:),pcols,lchnk)
+
     !---------------------------------------------------------------
     ! Check for N2 greater than one
     !---------------------------------------------------------------
@@ -400,14 +344,10 @@ end if
 
        enddo
     enddo
-if (debug) then
-if (masterproc) write(iulog,*) 'mspd_intr: after N2 check loop o2_upd_cols first column all levels ',o2_upd_cols(1,:)
-if (masterproc) write(iulog,*) 'mspd_intr: after N2 check loop o1_upd_cols first column all levels ',o1_upd_cols(1,:)
-if (masterproc) write(iulog,*) 'mspd_intr: after N2 check loop he_upd_cols first column all levels ',he_upd_cols(1,:)
-end if
-    call outfld(mjdiffnam(3),o2_upd_cols(:,:),pcols,lchnk)
-    call outfld(mjdiffnam(4),o1_upd_cols(:,:),pcols,lchnk)
-    call outfld(mjdiffnam(5),he_upd_cols(:,:),pcols,lchnk)
+
+    call outfld('O2mjspdiff2',o2_upd_cols(:pcols,:),pcols,lchnk)
+    call outfld('O1mjspdiff2',o1_upd_cols(:pcols,:),pcols,lchnk)
+    call outfld('HEmjspdiff2',he_upd_cols(:pcols,:),pcols,lchnk)
 
     !---------------------------------------------
     ! Update O2 and O tendencies and output
@@ -434,13 +374,10 @@ end if
 
        enddo
     enddo
-if (debug) then
-if (masterproc) write(iulog,*) 'mspd_intr: after ptend calc o2_upd_cols_tend first column all levels ',o2_upd_cols_tend(1,:)
-if (masterproc) write(iulog,*) 'mspd_intr: after ptend calc o1_upd_cols_tend first column all levels ',o1_upd_cols_tend(1,:)
-if (masterproc) write(iulog,*) 'mspd_intr: after ptend calc he_upd_cols_tend first column all levels ',he_upd_cols_tend(1,:)
-end if
+
     call outfld(mjdiffnam(1),ptend%q(1,1,indx_O2),pcols,lchnk)
     call outfld(mjdiffnam(2),ptend%q(1,1,indx_O),pcols,lchnk)
+    call outfld(mjdiffnam(3),ptend%q(1,1,indx_HE),pcols,lchnk)
 
   end subroutine mspd_intr
 
@@ -475,7 +412,7 @@ end if
     ! mutual thermal diffusion coefficients among major species
     real(r8),dimension(3,4),parameter :: &
       psi = reshape( &
-       (/0.0_r8 ,0.673_r8,0.270_r8, &
+       (/0.0_r8,0.673_r8,0.270_r8, &
         1.35_r8,0.0_r8  ,0.404_r8, &
         2.16_r8,1.616_r8,0.0_r8  , &
         1.11_r8,0.769_r8,0.322_r8/),(/3,4/))

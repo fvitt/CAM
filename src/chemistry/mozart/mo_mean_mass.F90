@@ -6,7 +6,7 @@ module mo_mean_mass
   private
   public :: set_mean_mass, init_mean_mass
 
-  integer :: id_o2, id_o, id_h, id_n
+  integer :: id_o2, id_o, id_h, id_n, id_he
 
 contains
 
@@ -19,6 +19,7 @@ contains
     id_o  = get_spc_ndx('O')
     id_h  = get_spc_ndx('H')
     id_n  = get_spc_ndx('N')
+    id_he = get_spc_ndx('HE')   ! < 0 if He is not carried
 
   endsubroutine init_mean_mass
 
@@ -52,6 +53,7 @@ contains
     real(r8) :: fo(ncol)                                   ! o  vmr
     real(r8) :: fo2(ncol)                                  ! o2 vmr
     real(r8) :: fh(ncol)                                   ! h vmr
+    real(r8) :: fhe(ncol)                                  ! he vmr
     real(r8) :: ftot(ncol)                                 ! total vmr
     real(r8) :: mean_mass(ncol)                            ! wrk variable
 
@@ -78,11 +80,16 @@ contains
           !-----------------------------------------------------------------
           do k = 1,pver
              xn2(:)    = 1._r8 - (mmr(:ncol,k,id_o2) + mmr(:ncol,k,id_o) + mmr(:ncol,k,id_h))
+             fhe(:)    = 0._r8
+             if ( id_he > 0 ) then
+                xn2(:) = xn2(:) - mmr(:ncol,k,id_he)
+                fhe(:) = mmr(:ncol,k,id_he) / adv_mass(id_he)
+             endif
              fn2(:)    = .5_r8 * xn2(:) / adv_mass(id_n)
              fo2(:)    = mmr(:ncol,k,id_o2) / adv_mass(id_o2)
              fo(:)     = mmr(:ncol,k,id_o) / adv_mass(id_o)
              fh(:)     = mmr(:ncol,k,id_h) / adv_mass(id_h)
-             mbar(:ncol,k) = 1._r8 / (fn2(:) + fo2(:) + fo(:) + fh(:))
+             mbar(:ncol,k) = 1._r8 / (fn2(:) + fo2(:) + fo(:) + fh(:) + fhe(:))
           end do
        else
           call endrun('set_mean_mass: not able to compute mean mass')
