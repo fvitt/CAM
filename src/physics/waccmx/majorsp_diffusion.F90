@@ -299,9 +299,6 @@ contains
     o2_hadv(1:nbot_molec) = 0._r8
     o1_hadv(1:nbot_molec) = 0._r8
     he_hadv(1:nbot_molec) = 0._r8
-    o2_nm(1:nbot_molec)   = 0._r8
-    o1_nm(1:nbot_molec)   = 0._r8
-    he_nm(1:nbot_molec)   = 0._r8
 
     tn = nan
     tni = nan
@@ -324,6 +321,11 @@ contains
         o2i(kk)      = .5_r8 * (state%q(iCol,k,indx_O2) + state%q(iCol,k-1,indx_O2))
         o1i(kk)      = .5_r8 * (state%q(iCol,k,indx_O) + state%q(iCol,k-1,indx_O))
         hei(kk)      = .5_r8 * (state%q(iCol,k,indx_HE) + state%q(iCol,k-1,indx_HE))
+
+        o2_nm(kk) = state%q(iCol,k,indx_O2)
+        o1_nm(kk) = state%q(iCol,k,indx_O)
+        he_nm(kk) = state%q(iCol,k,indx_HE)
+
         mbar(kk)     = mbarv(iCol,k,lchnk)
         barm(kk)     = .5_r8 * (mbarv(iCol,k,lchnk) + mbarv(iCol,k-1,lchnk))
         pScaleHeight = .5_r8*(rairv(iCol,k,lchnk)*state%t(iCol,k) + rairv(iCol,k-1,lchnk)*state%t(iCol,k)) / gravit
@@ -345,6 +347,12 @@ contains
       p_ubc             = state%pmid(iCol,1)*state%pmid(iCol,1)/state%pmid(iCol,2)
       dz(nbot_molec)    = (state%pmid(iCol,1)-p_ubc)/state%pint(iCol,1)
       expzm(nbot_molec) = state%pmid(iCol,1) / ptref
+
+      ! extrapolate to layer about top
+      o2_nm(nbot_molec) = 2._r8*state%q(iCol,1,indx_O2) - state%q(iCol,2,indx_O2)
+      o1_nm(nbot_molec) = 2._r8*state%q(iCol,1,indx_O ) - state%q(iCol,2,indx_O )
+      he_nm(nbot_molec) = 2._r8*state%q(iCol,1,indx_HE) - state%q(iCol,2,indx_HE)
+
 
       call comp_wx(iCol,lchnk,step,dfactor,tlbc,bo2,bo1,bh,bhe,he_ubc,difk,tn,tni,o2i,o1i,hei,wmid,mbar,barm, &
 	       o2_hadv,o1_hadv,he_hadv,o2_nm,o1_nm,he_nm,prod,loss, &
@@ -636,9 +644,9 @@ if (masterproc.and.debug) write(iulog,*) 'comp_wx: top of routine iCol,lchnk,he_
 !		     MINVAL(molp(:,:,nlevp1-10:nlevp1)),MAXVAL(molp(:,:,nlevp1-10:nlevp1))
 
 ! add explicit source terms to fk (no chemical production or advection)
-    fk(1,:) = expzm*(prod(1,:)+o2i(:)/(2*step)-o2_hadv)
-    fk(2,:) = expzm*(prod(2,:)+o1i(:)/(2*step)-o1_hadv)
-    fk(3,:) = expzm*(prod(3,:)+hei(:)/(2*step)-he_hadv)
+    fk(1,:) = expzm*(prod(1,:)+o2_nm(:)/(step)-o2_hadv)
+    fk(2,:) = expzm*(prod(2,:)+o1_nm(:)/(step)-o1_hadv)
+    fk(3,:) = expzm*(prod(3,:)+he_nm(:)/(step)-he_hadv)
 
 ! lower boundaries
 
