@@ -279,7 +279,7 @@ contains
     ptend%lq(indx_O2) = .TRUE.
     ptend%lq(indx_O) = .TRUE.
 
-    step = ztodt/2._r8
+    step = ztodt
 
     !
     ! Eddy diffusion set to zero since already calculated in vertical_diffusion
@@ -625,7 +625,7 @@ if (masterproc.and.debug) write(iulog,*) 'comp_wx: top of routine iCol,lchnk,he_
         pk(m,n,:) = (molp(m,n,:)-expzm*delta(m,n)*(eddyp+wmid/2))/dz
         rk(m,n,:) = (molr(m,n,:)-expzm*delta(m,n)*(eddyr-wmid/2))/dz
         qk(m,n,:) = -molq(m,n,:)/dz+ &
-          expzm*(delta(m,n)*(eddyq/dz+1/(2*step))-loss(m,n,:))
+          expzm*(delta(m,n)*(eddyq/dz+1/(step))-loss(m,n,:))
       enddo
     enddo
 
