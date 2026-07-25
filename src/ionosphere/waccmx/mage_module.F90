@@ -14,6 +14,7 @@ module mage_module
   use edyn_mpi,       only: ntask, mytid
   use edyn_params,    only: pi, dtr, rtd
   use edynamo,        only: azigm1, azigm2 ! Hall and Ped conductances
+  use cam_abortutils, only: endrun
 
   implicit none
 
@@ -55,7 +56,7 @@ contains
   !-----------------------------------------------------------------------
 
   subroutine mage_advance(iyear, imo, iday, iutsec, &
-                     image, phihm, mage_efxm, mage_kevm)
+                          phihm, mage_efxm, mage_kevm)
 
     use cam_history_support, only: fillvalue
 
@@ -71,7 +72,6 @@ contains
     integer,  intent(in)    :: imo
     integer,  intent(in)    :: iday
     integer,  intent(in)    :: iutsec
-    integer,  intent(out)   :: image
     real(r8), intent(out)   :: phihm(nmlonp1,nmlat)
     real(r8), intent(out)   :: mage_efxm(nmlonp1,nmlat) ! on geomag grid
     real(r8), intent(out)   :: mage_kevm(nmlonp1,nmlat) ! on geomag grid
@@ -86,8 +86,6 @@ contains
     mage_kevm = 0._r8
 
     call update_mage(phihm, mage_efxm, mage_kevm)
-
-    image = 1
 
   end subroutine mage_advance
 

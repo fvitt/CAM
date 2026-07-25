@@ -88,10 +88,10 @@ module ionosphere_interface
    character(len=cl) :: amiesh_files(max_num_files) = 'NONE'
    character(len=cl) :: ltr_files(max_num_files) = 'NONE'
 
-
    character(len=16) :: ionos_epotential_model = 'none'
    logical           :: ionos_epotential_amie = .false.
    logical           :: ionos_epotential_ltr = .false.
+   logical           :: ionos_epotential_mage = .false.
    integer           :: indxefx=-1, indxkev=-1
 
    integer           :: oplus_nlon, oplus_nlat   ! Oplus grid
@@ -129,6 +129,7 @@ module ionosphere_interface
       namelist /ionosphere_nl/ oplus_adiff_limiter, oplus_shapiro_const, oplus_enforce_floor, oplus_ring_polar_filter
       namelist /ionosphere_nl/ ionos_epotential_model, ionos_epotential_amie, ionos_epotential_ltr, wei05_coefs_file
       namelist /ionosphere_nl/ amienh_files, amiesh_files, wei05_coefs_file, ltr_files
+      namelist /ionosphere_nl/ ionos_epotential_mage
       namelist /ionosphere_nl/ epot_crit_colats
       namelist /ionosphere_nl/ ionos_npes
       namelist /ionosphere_nl/ oplus_grid, edyn_grid
@@ -160,6 +161,7 @@ module ionosphere_interface
       call mpi_bcast(ionos_epotential_model, len(ionos_epotential_model), mpi_character, masterprocid, mpicom, ierr)
       call mpi_bcast(ionos_epotential_amie,1, mpi_logical, masterprocid, mpicom, ierr)
       call mpi_bcast(ionos_epotential_ltr,1, mpi_logical, masterprocid, mpicom, ierr)
+      call mpi_bcast(ionos_epotential_mage,1, mpi_logical, masterprocid, mpicom, ierr)
       call mpi_bcast(wei05_coefs_file, len(wei05_coefs_file), mpi_character, masterprocid, mpicom, ierr)
       call mpi_bcast(amienh_files, max_num_files*len(amienh_files(1)), mpi_character, masterprocid, mpicom, ierr)
       call mpi_bcast(amiesh_files, max_num_files*len(amiesh_files(1)), mpi_character, masterprocid, mpicom, ierr)
@@ -201,6 +203,7 @@ module ionosphere_interface
          write(iulog,*) 'ionosphere_readnl: ionos_epotential_model = ', trim(ionos_epotential_model)
          write(iulog,*) 'ionosphere_readnl: ionos_epotential_amie  = ', ionos_epotential_amie
          write(iulog,*) 'ionosphere_readnl: ionos_epotential_ltr   = ', ionos_epotential_ltr
+         write(iulog,*) 'ionosphere_readnl: ionos_epotential_mage  = ', ionos_epotential_mage
          write(iulog,'(a,2(g12.4))') &
                         'ionosphere_readnl: epot_crit_colats       = ', epot_crit_colats
          write(iulog,'(a,i0)') 'ionosphere_readnl: ionos_npes = ',ionos_npes
@@ -238,6 +241,7 @@ module ionosphere_interface
       use ref_pres,        only: pref_edge ! target ailev(pverp) interface levels
       use amie_module,     only: init_amie
       use ltr_module,      only: init_ltr
+      use mage_module,     only: mage_init
       use wei05sc,         only: weimer05_init
       use phys_control,    only: phys_getopts
 
@@ -247,7 +251,7 @@ module ionosphere_interface
 
       call phys_getopts(state_debug_checks_out=state_debug_checks)
 
-      if ( ionos_epotential_amie .or. ionos_epotential_ltr) then
+      if ( ionos_epotential_amie .or. ionos_epotential_ltr .or. ionos_epotential_mage) then
          call pbuf_add_field('AUREFX', 'global', dtype_r8, (/pcols/), indxefx)  ! Prescribed Energy flux
          call pbuf_add_field('AURKEV', 'global', dtype_r8, (/pcols/), indxkev)  ! Prescribed Mean energy
       end if
@@ -384,6 +388,11 @@ module ionosphere_interface
          call addfld ('ltr_efx_phys', horiz_only, 'I', 'mW/m2', 'LTR energy flux')
          call addfld ('ltr_kev_phys', horiz_only, 'I', 'keV',  'LTR mean energy')
       end if
+      if ( ionos_epotential_mage ) then
+         call mage_init()
+         call addfld ('mage_efx_phys', horiz_only, 'I', 'mW/m2', 'MAGE energy flux')
+         call addfld ('mage_kev_phys', horiz_only, 'I', 'keV',  'MAGE mean energy')
+      end if
       if ( trim(ionos_epotential_model) == 'weimer' ) then
          call weimer05_init(wei05_coefs_file)
       end if
@@ -433,7 +442,7 @@ module ionosphere_interface
 
       nullify(prescr_efx)
       nullify(prescr_kev)
-      prescribed_epot: if ( ionos_epotential_amie .or. ionos_epotential_ltr ) then
+      prescribed_epot: if ( ionos_epotential_amie .or. ionos_epotential_ltr .or. ionos_epotential_mage) then
          blksize = 0
          do lchnk = begchunk, endchunk
             blksize = blksize + get_ncols_p(lchnk)
@@ -445,7 +454,7 @@ module ionosphere_interface
          ! data assimilated potential
          call d_pie_epotent(ionos_epotential_model, epot_crit_colats, &
               cols=1, cole=blksize, efx_phys=prescr_efx, kev_phys=prescr_kev, &
-              amie_in=ionos_epotential_amie, ltr_in=ionos_epotential_ltr )
+              amie_in=ionos_epotential_amie, ltr_in=ionos_epotential_ltr, mage_in=ionos_epotential_mage )
 
          ! transform to pbuf for aurora...
 
@@ -469,6 +478,10 @@ module ionosphere_interface
             if ( ionos_epotential_ltr) then
                call outfld('ltr_efx_phys', pbuf_efx, pcols, lchnk )
                call outfld('ltr_kev_phys', pbuf_kev, pcols, lchnk )
+            end if
+            if ( ionos_epotential_mage) then
+               call outfld('mage_efx_phys', pbuf_efx, pcols, lchnk )
+               call outfld('mage_kev_phys', pbuf_kev, pcols, lchnk )
             end if
          end do chnk_loop1
 

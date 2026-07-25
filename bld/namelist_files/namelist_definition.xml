@@ -3226,7 +3226,7 @@ Default: .false.
 
 <entry id="zmconv_parcel_hscale" type="real" category="conv"
        group="zmconv_nl" valid_values="" >
- The fraction of the boundary layer (PBL) depth, over which to mix the initial ZM convective parcel properties (fraction). 
+ The fraction of the boundary layer (PBL) depth, over which to mix the initial ZM convective parcel properties (fraction).
 Default: 0.5
 </entry>
 
@@ -5311,6 +5311,12 @@ Default: NONE.
 <entry id="ionos_epotential_ltr" type="logical"  category="waccmx"
        group="ionosphere_nl" valid_values="">
 Give the user the ability to input LTR high-latitude electric potential.
+Default: FALSE
+</entry>
+
+<entry id="ionos_epotential_mage" type="logical"  category="waccmx"
+       group="ionosphere_nl" valid_values="">
+For 2-way coupling WACCM-X with MAGE magnetosphere
 Default: FALSE
 </entry>
 
