@@ -47,7 +47,7 @@ module ionosphere_interface
    logical :: opmmrtm1_initialized
 
    type(var_desc_t) :: azigm1_vdesc
-   type(var_desc_t) :: zigm2_vdesc
+   type(var_desc_t) :: azigm2_vdesc
 
 
    integer :: index_ped, index_hall, index_te, index_ti
@@ -394,7 +394,7 @@ module ionosphere_interface
       call addfld ('Z3GMI',      (/ 'lev' /), 'I', 'm',                       &
            'Geometric height (Interfaces)', gridname='physgrid')
 
-      call addfld ('Early_ZIGM2' , horiz_only, 'I', ' ','EDYN_ZIGM2' ,gridname='gmag_grid')
+      call addfld ('Early_AZIGM2', horiz_only, 'I', ' ','EDYN_ZIGM2' ,gridname='gmag_grid')
       call addfld ('Early_AZIGM1', horiz_only, 'I', ' ','EDYN_ZIGM2' ,gridname='gmag_grid')
 
    end subroutine ionosphere_init
@@ -404,7 +404,7 @@ module ionosphere_interface
    subroutine ionosphere_run1(pbuf2d)
       use physics_buffer, only: physics_buffer_desc
       use cam_history,    only: outfld, write_inithist
-      use edynamo, only: azigm1, zigm2
+      use edynamo, only: azigm1, azigm2
       use savefield_waccm, only: savefld_waccm
       use edyn_mpi, only: mlon0,omlon1, mlat0,mlat1
 
@@ -422,7 +422,7 @@ module ionosphere_interface
       real(r8), pointer :: prescr_efx(:) ! prescribed energy flux
       real(r8), pointer :: prescr_kev(:) ! prescribed characteristic mean energy
 
-      call savefld_waccm(zigm2(mlon0:omlon1,mlat0:mlat1), 'Early_ZIGM2', 1, mlon0,omlon1,mlat0,mlat1)
+      call savefld_waccm(azigm2(mlon0:omlon1,mlat0:mlat1),'Early_AZIGM2',1, mlon0,omlon1,mlat0,mlat1)
       call savefld_waccm(azigm1(mlon0:omlon1,mlat0:mlat1),'Early_AZIGM1',1, mlon0,omlon1,mlat0,mlat1)
 
       if( write_inithist() .and. ionos_xport_active ) then
@@ -1038,7 +1038,7 @@ module ionosphere_interface
          end do
 
          ierr = pio_def_var(File, 'azigm1', pio_double, dimids(1:ndims), azigm1_vdesc)
-         ierr = pio_def_var(File, 'zigm2', pio_double, dimids(1:ndims), zigm2_vdesc)
+         ierr = pio_def_var(File, 'azigm2', pio_double, dimids(1:ndims), azigm2_vdesc)
 
       end if
    end subroutine ionosphere_init_restart
@@ -1051,7 +1051,7 @@ module ionosphere_interface
       use cam_grid_support, only: cam_grid_id, cam_grid_write_var
       use cam_grid_support, only: cam_grid_get_decomp, cam_grid_dimensions
       use phys_grid,        only: phys_decomp
-      use edynamo,  only: azigm1, zigm2
+      use edynamo,  only: azigm1, azigm2
       use edyn_mpi, only: mlon0,omlon1, mlat0,mlat1
 
       type(file_desc_t), intent(inout) :: File
@@ -1094,7 +1094,7 @@ module ionosphere_interface
 
          ! Write fields on geo-mag grid
          call pio_write_darray(File, azigm1_vdesc, iodesc2d, azigm1(mlon0:omlon1,mlat0:mlat1), ierr)
-         call pio_write_darray(File,  zigm2_vdesc, iodesc2d,  zigm2(mlon0:omlon1,mlat0:mlat1), ierr)
+         call pio_write_darray(File, azigm2_vdesc, iodesc2d, azigm2(mlon0:omlon1,mlat0:mlat1), ierr)
 
       end if
 
@@ -1108,7 +1108,7 @@ module ionosphere_interface
       use pio,              only: pio_seterrorhandling,  PIO_BCAST_ERROR, PIO_NOERR
       use cam_grid_support, only: cam_grid_id
       use cam_grid_support, only: cam_grid_get_decomp, cam_grid_dimensions
-      use edynamo,  only: azigm1, zigm2
+      use edynamo,  only: azigm1, azigm2
       use edyn_mpi, only: mlon0,omlon1, mlat0,mlat1
 
       type(file_desc_t), intent(inout) :: File
@@ -1150,8 +1150,8 @@ module ionosphere_interface
          ! read vars if available on restart file
          ierr = pio_inq_varid(File, 'azigm1', azigm1_vdesc)
          if (ierr.eq.PIO_NOERR) call pio_read_darray(File, azigm1_vdesc, iodesc2d, azigm1(mlon0:omlon1,mlat0:mlat1), ierr)
-         ierr = pio_inq_varid(File,  'zigm2',  zigm2_vdesc)
-         if (ierr.eq.PIO_NOERR) call pio_read_darray(File,  zigm2_vdesc, iodesc2d,  zigm2(mlon0:omlon1,mlat0:mlat1), ierr)
+         ierr = pio_inq_varid(File, 'azigm2', azigm2_vdesc)
+         if (ierr.eq.PIO_NOERR) call pio_read_darray(File, azigm2_vdesc, iodesc2d, azigm2(mlon0:omlon1,mlat0:mlat1), ierr)
 
          ! restore old error handling
          call pio_seterrorhandling(File, err_handling)
