@@ -180,7 +180,7 @@ contains
 
     do lchnk = begchunk,endchunk
        ncol = phys_state(lchnk)%ncol
-       call set_mean_mass( ncol, phys_state(lchnk)%q(:,:,imozart:), barm )
+       call set_mean_mass( ncol, lchnk, phys_state(lchnk)%q(:,:,imozart:), barm )
        do i = 1,ncol
           tn = phys_state(lchnk)%t(i,1) ! top layer temperature ! nmbr dens flux / Re^2 (#/cm4/sec)
           he_mmr = phys_state(lchnk)%q(i,1, he_cnst_ndx)

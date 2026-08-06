@@ -312,14 +312,7 @@
 !-----------------------------------------------------------------------
 !        ... set atmosphere mean mass
 !-----------------------------------------------------------------------
-      if ( waccmx_is('ionosphere') .or. waccmx_is('neutral') ) then
-        do k = 1,pver
-          mbar(:ncol,k) = mbarv(:ncol,k,lchnk)
-        enddo
-      else
-        call set_mean_mass( ncol, mmr, mbar )
-      endif
-!
+      call set_mean_mass( ncol, lchnk, mmr, mbar )
 !-----------------------------------------------------------------------
 !        ... xform from mmr to vmr
 !-----------------------------------------------------------------------
