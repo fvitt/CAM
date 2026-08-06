@@ -14,34 +14,52 @@ module esmf_lonlat_grid_mod
 
   implicit none
 
-  public
+  private
+  public :: esmf_lonlat_grid
 
-  type(ESMF_Grid), protected :: lonlat_grid
+  ! define lonlat grid object type
+  type esmf_lonlat_grid
+     type(ESMF_Grid) :: lonlat_grid
 
-  integer, protected :: nlon = 0
-  integer, protected :: nlat = 0
+     integer :: nlon = 0
+     integer :: nlat = 0
 
-  integer, protected :: lon_beg = -1
-  integer, protected :: lon_end = -1
-  integer, protected :: lat_beg = -1
-  integer, protected :: lat_end = -1
+     integer :: lon_beg = -1
+     integer :: lon_end = -1
+     integer :: lat_beg = -1
+     integer :: lat_end = -1
 
-  real(r8), allocatable, protected :: glats(:)
-  real(r8), allocatable, protected :: glons(:)
+     real(r8), allocatable :: glats(:)
+     real(r8), allocatable :: glons(:)
 
-  integer, protected :: zonal_comm ! zonal direction MPI communicator
+     integer :: zonal_comm = 0 ! zonal direction MPI communicator
+     integer :: merid_comm = 0 ! meridianal direction MPI communicator
+
+     integer :: lonlat_comm = 0
+     integer :: lonlat_npes = 0
+     integer :: mytid = -huge(1)
+   contains
+     final :: destroy
+  end type esmf_lonlat_grid
+
+  interface esmf_lonlat_grid
+     procedure :: constructor
+  end interface esmf_lonlat_grid
 
 contains
 
-  subroutine esmf_lonlat_grid_init(nlats_in)
+  function constructor(nlats_in, npes_in) result(newobj)
     use phys_grid, only: get_grid_dims
     use mpi, only: mpi_comm_size, mpi_comm_rank, MPI_PROC_NULL, MPI_INTEGER
 
     integer, intent(in) :: nlats_in
+    integer,optional, intent(in) :: npes_in
+
+    type(esmf_lonlat_grid), pointer :: newobj
 
     real(r8) :: delx, dely
 
-    integer :: npes, ierr, mytid, irank, mytidi, mytidj
+    integer :: npes, ierr, irank, mytidi, mytidj
     integer :: i,j, n
     integer :: ntasks_lon, ntasks_lat
     integer :: lons_per_task, lons_overflow, lats_per_task, lats_overflow
@@ -71,24 +89,46 @@ contains
     integer                       :: lbnd(1), ubnd(1)
     real(ESMF_KIND_R8), pointer   :: coordX(:), coordY(:)
 
-    character(len=*), parameter :: subname  = 'esmf_lonlat_grid_init: '
+    character(len=*), parameter :: subname  = 'esmf_lonlat_grid::constructor '
+
+    integer :: color
+
+    allocate(newobj,stat=ierr)
+    if( ierr /= 0 ) then
+       call endrun(subname//'allocate newobj failed')
+    end if
 
     ! create reg lon lat grid
 
-    nlat = nlats_in
-    dely = 180._r8/nlat
+    newobj%nlat = nlats_in
+    dely = 180._r8/newobj%nlat
 
-    nlon = 2*nlat
-    delx = 360._r8/nlon
+    newobj%nlon = 2*newobj%nlat
+    delx = 360._r8/newobj%nlon
 
-    allocate(glons(nlon), stat=astat)
+    allocate(newobj%glons(newobj%nlon), stat=astat)
     if (astat/=0) then
        call endrun(subname//'not able to allocate glons array')
     end if
-    allocate(glats(nlat), stat=astat)
+    allocate(newobj%glats(newobj%nlat), stat=astat)
     if (astat/=0) then
        call endrun(subname//'not able to allocate glats array')
     end if
+
+    associate( lonlat_grid=>newobj%lonlat_grid, &
+         nlon=>newobj%nlon, &
+         nlat=>newobj%nlat, &
+         lon_beg=>newobj%lon_beg, &
+         lon_end=>newobj%lon_end, &
+         lat_beg=>newobj%lat_beg, &
+         lat_end=>newobj%lat_end, &
+         glats=>newobj%glats, &
+         glons=>newobj%glons, &
+         zonal_comm=>newobj%zonal_comm, &
+         merid_comm=>newobj%merid_comm, &
+         lonlat_comm=>newobj%lonlat_comm, &
+         lonlat_npes=>newobj%lonlat_npes, &
+         mytid=>newobj%mytid )
 
     glons(1) = 0._r8
     glats(1) = -90._r8 + 0.5_r8 * dely
@@ -105,20 +145,33 @@ contains
     call mpi_comm_size(mpicom, npes, ierr)
     call mpi_comm_rank(mpicom, mytid, ierr)
 
+    lonlat_npes = 0
+    if (present(npes_in)) then
+       lonlat_npes = npes_in
+    endif
+    if (lonlat_npes<1) then
+       lonlat_npes = npes
+    end if
+
+    color = mytid/lonlat_npes
+    call mpi_comm_split(mpicom, color, mytid, lonlat_comm, ierr)
+
     decomp_loop: do ntasks_lon = 1,nlon
-       ntasks_lat = npes/ntasks_lon
-       if ( (minlats_per_pe*ntasks_lat<nlat) .and. (ntasks_lat*ntasks_lon==npes) ) then
+       ntasks_lat = lonlat_npes/ntasks_lon
+       if ( (minlats_per_pe*ntasks_lat<=nlat) .and. (ntasks_lat*ntasks_lon==lonlat_npes) ) then
           exit decomp_loop
        endif
     end do decomp_loop
 
     if (masterproc) then
-       write(iulog,'(a,3i6)') subname//' npes, nlon, nlat : ',npes, nlon, nlat
+       write(iulog,'(a,3i6)') subname//' npes, nlon, nlat : ',lonlat_npes, nlon, nlat
        write(iulog,'(a,2i6)') subname//' ntasks_lon,ntasks_lat : ',ntasks_lon,ntasks_lat
     endif
 
-    if (ntasks_lat*ntasks_lon/=npes) then
-       call endrun(subname//'ntasks_lat*ntasks_lon/=npes')
+    if (mytid<lonlat_npes) then
+       if (ntasks_lat*ntasks_lon/=lonlat_npes) then
+          call endrun(subname//'ntasks_lat*ntasks_lon/=lonlat_npes')
+       endif
     endif
 
     ! dermine the starting and ending coordinates
@@ -131,7 +184,7 @@ contains
     lat_beg = 1
     lat_end = 0
     task_cnt= 0
-    if (mytid<npes) then
+    if (mytid<lonlat_npes) then
        jloop: do j = 0,ntasks_lat-1
           lat_beg = lat_end + 1
           lat_end = lat_beg + lats_per_task - 1
@@ -154,12 +207,14 @@ contains
     mynlats = lat_end-lat_beg+1
     mynlons = lon_end-lon_beg+1
 
-    if (mynlats<minlats_per_pe) then
-       call endrun(subname//'mynlats < minlats_per_pe')
-    end if
-    if (mynlons<minlons_per_pe) then
-       call endrun(subname//'mynlons < minlons_per_pe')
-    end if
+    if (mytid<lonlat_npes) then
+       if (mynlats<minlats_per_pe) then
+          call endrun(subname//'mynlats < minlats_per_pe')
+       end if
+       if (mynlons<minlons_per_pe) then
+          call endrun(subname//'mynlons < minlons_per_pe')
+       end if
+    endif
 
     irank = 0
     mytidi = -1
@@ -175,7 +230,8 @@ contains
 
     end do ! j=0,ntaskj-1
 
-    call mpi_comm_split(mpicom,mytidj,mytid,zonal_comm,ierr)
+    call mpi_comm_split(lonlat_comm,mytidj,mytid,zonal_comm,ierr)
+    call mpi_comm_split(lonlat_comm,mytidi,mytid,merid_comm,ierr)
 
     allocate(mytidi_send(npes), stat=astat)
     if (astat/=0) then
@@ -196,6 +252,7 @@ contains
 
     mytidi_send = mytidi
     mytidj_send = mytidj
+
     call mpi_alltoall(mytidi_send, 1, MPI_INTEGER, mytidi_recv, 1, MPI_INTEGER, mpicom, ierr)
     call mpi_alltoall(mytidj_send, 1, MPI_INTEGER, mytidj_recv, 1, MPI_INTEGER, mpicom, ierr)
 
@@ -229,13 +286,15 @@ contains
     if (astat/=0) then
        call endrun(subname//'not able to allocate nlons_task array')
     end if
+    nlons_task=0
     allocate(nlats_task(ntasks_lat), stat=astat)
     if (astat/=0) then
        call endrun(subname//'not able to allocate nlats_task array')
     end if
+    nlats_task=0
 
     do i = 1, ntasks_lon
-       loop1: do n = 1, npes
+       loop1: do n = 1, lonlat_npes
           if (mytidi_recv(n) == i-1) then
              nlons_task(i) = nlons_recv(n)
              exit loop1
@@ -244,7 +303,7 @@ contains
     end do
 
     do j = 1, ntasks_lat
-       loop2: do n = 1, npes
+       loop2: do n = 1, lonlat_npes
           if (mytidj_recv(n) == j-1) then
              nlats_task(j) = nlats_recv(n)
              exit loop2
@@ -259,7 +318,6 @@ contains
 
     deallocate(nlons_recv)
     deallocate(nlats_recv)
-
 
     ! set up 2D ESMF lon lat grid
 
@@ -276,7 +334,6 @@ contains
        end do
     end do
 
-
     ! Create 2d lon/lat grid
     lonlat_grid = ESMF_GridCreate1PeriDim(                       &
          countsPerDEDim1=nlons_task, coordDep1=(/1/),         &
@@ -284,14 +341,13 @@ contains
          indexflag=ESMF_INDEX_GLOBAL,minIndex=(/1,1/), rc=ierr)
     call check_esmf_error(ierr, subname//'ESMF_GridCreate1PeriDim ERROR')
 
-
     ! Set coordinates:
 
     ! cell centers
     call ESMF_GridAddCoord(lonlat_grid, staggerloc=ESMF_STAGGERLOC_CENTER, rc=ierr)
     call check_esmf_error(ierr, subname//'ESMF_GridAddCoord ERROR')
 
-    if (mytid<npes) then
+    if (mytid<lonlat_npes) then
        call ESMF_GridGetCoord(lonlat_grid, coordDim=1, &
             computationalLBound=lbnd, computationalUBound=ubnd,  &
             farrayPtr=coordX, staggerloc=ESMF_STAGGERLOC_CENTER, rc=ierr)
@@ -319,7 +375,7 @@ contains
     call ESMF_GridAddCoord(lonlat_grid, staggerloc=ESMF_STAGGERLOC_CORNER, rc=ierr)
     call check_esmf_error(ierr, subname//'ESMF_GridAddCoord CORNER ERROR')
 
-    if (mytid<npes) then
+    if (mytid<lonlat_npes) then
        call ESMF_GridGetCoord(lonlat_grid, coordDim=1, &
             computationalLBound=lbnd, computationalUBound=ubnd,  &
             farrayPtr=coordX, staggerloc=ESMF_STAGGERLOC_CORNER, rc=ierr)
@@ -350,22 +406,24 @@ contains
     deallocate(nlons_task)
     deallocate(nlats_task)
 
-  end subroutine esmf_lonlat_grid_init
+    end associate
+
+  end function constructor
 
   !------------------------------------------------------------------------------
   !------------------------------------------------------------------------------
-  subroutine esmf_lonlat_grid_destroy()
+  subroutine destroy(self)
+    type(esmf_lonlat_grid), intent(inout) :: self
 
     integer :: rc
-    character(len=*), parameter :: subname = 'esmf_lonlat_grid_destroy: '
+    character(len=*), parameter :: subname = 'esmf_lonlat_grid::destroy: '
 
-    call ESMF_GridDestroy(lonlat_grid, rc=rc)
+    call ESMF_GridDestroy(self%lonlat_grid, rc=rc)
     call check_esmf_error(rc, subname//'ESMF_GridDestroy lonlat_grid')
 
-    deallocate(glats)
-    deallocate(glons)
+    deallocate(self%glats)
+    deallocate(self%glons)
 
-  end subroutine esmf_lonlat_grid_destroy
-
+  end subroutine destroy
 
 end module esmf_lonlat_grid_mod

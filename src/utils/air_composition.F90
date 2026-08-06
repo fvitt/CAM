@@ -105,7 +105,7 @@ module air_composition
    real(r8), public, protected, allocatable :: cappav(:,:,:)
    ! mbarv: composition dependent atmosphere mean molar mass [kg mol-1]
    real(r8), public, protected, allocatable :: mbarv(:,:,:)
-   ! cp_or_cv_dycore:  enthalpy or internal energy scaling factor for 
+   ! cp_or_cv_dycore:  enthalpy or internal energy scaling factor for
    !                   energy consistency
    real(r8), public,            allocatable :: cp_or_cv_dycore(:,:,:)
    !
@@ -438,6 +438,20 @@ CONTAINS
             thermodynamic_active_species_kc(icnst)  = 0.0_r8
             icnst = icnst + 1
             !
+            ! HE
+            !
+         case('HE')
+            call air_species_info('HE', ix, mw)
+            thermodynamic_active_species_idx(icnst) = ix
+            thermodynamic_active_species_cp (icnst) = cp1 / mw
+            thermodynamic_active_species_cv (icnst) = cv1 / mw
+            thermodynamic_active_species_R  (icnst) = r_universal / mw
+            thermodynamic_active_species_mwi(icnst) = 1.0_r8 / mw
+            ! Helium not included in calculation of diffusivity and conductivity
+            thermodynamic_active_species_kv(icnst)  = 0.0_r8
+            thermodynamic_active_species_kc(icnst)  = 0.0_r8
+            icnst = icnst + 1
+            !
             ! If support for more major species is to be included add code here
             !
          case default
@@ -674,7 +688,7 @@ CONTAINS
         call get_R(mmr(:ncol,:,:), thermodynamic_active_species_idx, &
              cp_or_cv_dycore(:ncol,:,lchnk), fact=to_dry_factor, Rdry=rairv(:ncol,:,lchnk))
         !
-        ! internal energy coefficient for MPAS 
+        ! internal energy coefficient for MPAS
         ! (equation 92 in Eldred et al. 2023; https://rmets.onlinelibrary.wiley.com/doi/epdf/10.1002/qj.4353)
         !
         cp_or_cv_dycore(:ncol,:,lchnk)=cp_or_cv_dycore(:ncol,:,lchnk)*&
