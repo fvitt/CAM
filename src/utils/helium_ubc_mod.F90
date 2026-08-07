@@ -132,8 +132,8 @@ contains
 
     call cnst_get_ind( 'HE', he_cnst_ndx )
 
-    call addfld('HE_UBC_FLXi', horiz_only,  'A', 'Units??', 'Initial phyics grid He flux' )
-    call addfld('HE_UBC_FLUX', horiz_only,  'A', 'Units??', 'Upper boundary He fluxes' )
+    call addfld('HE_UBC_FLXi', horiz_only,  'A', '#/cm4/sec', 'Initial phyics grid He flux / Re^2 ' )
+    call addfld('HE_UBC_FLUX', horiz_only,  'A', '#/cm4/sec', 'Upper boundary He flux / Re^2' )
 
   end subroutine helium_ubc_init
 
