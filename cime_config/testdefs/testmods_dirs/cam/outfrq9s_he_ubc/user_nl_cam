@@ -1,0 +1,26 @@
+mfilt=1,1,1,1,1,1,1,1,1,1
+ndens=1,1,1,1,1,1,1,1,1,1
+nhtfrq=9,9,9,9,9,9,9,9,9,9
+write_nstep0=.true.
+inithist='ENDOFRUN'
+helium_ubc_coefs = '$DIN_LOC_ROOT/atm/waccm/ub/helium_ubc_coefs_dres_c260314.nc'
+fincl8 = 'HE_UBC_FLXi','HE_UBC_FLUX'
+
+ctem_diags_numlats = 90
+fincl2 = 'THtem','Utem','Vtem','Wtem','VTHtem','WTHtem','UVtem', 'UWtem', 'MSKtem', 'PStem'
+fincl3 = 'Uzm', 'Vzm','Wzm', 'THzm','VTHzm','WTHzm','UVzm', 'UWzm', 'PSzm'
+
+fincl4 = 'Z3', 'T',  'PS', 'O', 'O2', 'H', 'HE', 'MDO', 'MDO2', 'MDHE',
+         'MOLP11','MOLP22','MOLP33',
+         'MOLQ11','MOLQ22','MOLQ33',
+         'MOLR11','MOLR22','MOLR33',
+         'HE_UBC_FLXi', 'HE_UBC_FLUX'
+
+do_circulation_diags = .false.
+fincl7 = ' '
+
+dry_air_species = 'O', 'O2', 'H', 'HE', 'N2'
+
+flbc_file = '$DIN_LOC_ROOT/atm/waccm/lb/LBC_1765-2100_1.9x2.5_CCMI_RCP60_He_za_c130313.nc'
+flbc_list = 'CCL4', 'CF2CLBR', 'CF3BR', 'CFC11', 'CFC113', 'CFC12', 'CH3BR', 'CH3CCL3',
+            'CH3CL', 'CH4', 'CO2','H2', 'HCFC22', 'N2O','HE'

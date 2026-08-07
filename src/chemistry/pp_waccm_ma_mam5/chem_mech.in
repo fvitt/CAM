@@ -50,6 +50,7 @@
  dst_a3 -> AlSiO5,
  F,
  H,
+ HE -> He,
  H2,
  H2402 -> CBrF2CBrF2,
  H2O2,
@@ -149,6 +150,7 @@
    Solution classes
       Explicit
  O3S
+ HE
       End Explicit
 
       Implicit

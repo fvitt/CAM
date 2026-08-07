@@ -41,69 +41,70 @@
       ( 38)  dst_a3             (AlSiO5)
       ( 39)  F               
       ( 40)  H               
-      ( 41)  H2              
-      ( 42)  H2402              (CBrF2CBrF2)
-      ( 43)  H2O2            
-      ( 44)  H2SO4              (H2SO4)
-      ( 45)  HBR                (HBr)
-      ( 46)  HCFC141B           (CH3CCl2F)
-      ( 47)  HCFC142B           (CH3CClF2)
-      ( 48)  HCFC22             (CHF2Cl)
-      ( 49)  HCL                (HCl)
-      ( 50)  HF              
-      ( 51)  HNO3            
-      ( 52)  HO2NO2          
-      ( 53)  HOBR               (HOBr)
-      ( 54)  HOCL               (HOCl)
-      ( 55)  N               
-      ( 56)  N2O             
-      ( 57)  N2O5            
-      ( 58)  ncl_a1             (NaCl)
-      ( 59)  ncl_a2             (NaCl)
-      ( 60)  ncl_a3             (NaCl)
-      ( 61)  NO              
-      ( 62)  NO2             
-      ( 63)  NO3             
-      ( 64)  num_a1             (H)
-      ( 65)  num_a2             (H)
-      ( 66)  num_a3             (H)
-      ( 67)  num_a4             (H)
-      ( 68)  num_a5             (H)
-      ( 69)  O               
-      ( 70)  O2              
-      ( 71)  O3              
-      ( 72)  O3S                (O3)
-      ( 73)  OCLO               (OClO)
-      ( 74)  OCS                (OCS)
-      ( 75)  pom_a1             (C)
-      ( 76)  pom_a4             (C)
-      ( 77)  S                  (S)
-      ( 78)  SF6             
-      ( 79)  SO                 (SO)
-      ( 80)  SO2             
-      ( 81)  SO3                (SO3)
-      ( 82)  so4_a1             (NH4HSO4)
-      ( 83)  so4_a2             (NH4HSO4)
-      ( 84)  so4_a3             (NH4HSO4)
-      ( 85)  so4_a5             (NH4HSO4)
-      ( 86)  soa_a1             (C)
-      ( 87)  soa_a2             (C)
-      ( 88)  SOAG               (C)
-      ( 89)  e                  (E)
-      ( 90)  HO2             
-      ( 91)  N2D                (N)
-      ( 92)  N2p                (N2)
-      ( 93)  NOp                (NO)
-      ( 94)  Np                 (N)
-      ( 95)  O1D                (O)
-      ( 96)  O2_1D              (O2)
-      ( 97)  O2_1S              (O2)
-      ( 98)  O2p                (O2)
-      ( 99)  OH              
-      (100)  Op                 (O)
-      (101)  Op2D               (O)
-      (102)  Op2P               (O)
-      (103)  H2O             
+      ( 41)  HE                 (He)
+      ( 42)  H2              
+      ( 43)  H2402              (CBrF2CBrF2)
+      ( 44)  H2O2            
+      ( 45)  H2SO4              (H2SO4)
+      ( 46)  HBR                (HBr)
+      ( 47)  HCFC141B           (CH3CCl2F)
+      ( 48)  HCFC142B           (CH3CClF2)
+      ( 49)  HCFC22             (CHF2Cl)
+      ( 50)  HCL                (HCl)
+      ( 51)  HF              
+      ( 52)  HNO3            
+      ( 53)  HO2NO2          
+      ( 54)  HOBR               (HOBr)
+      ( 55)  HOCL               (HOCl)
+      ( 56)  N               
+      ( 57)  N2O             
+      ( 58)  N2O5            
+      ( 59)  ncl_a1             (NaCl)
+      ( 60)  ncl_a2             (NaCl)
+      ( 61)  ncl_a3             (NaCl)
+      ( 62)  NO              
+      ( 63)  NO2             
+      ( 64)  NO3             
+      ( 65)  num_a1             (H)
+      ( 66)  num_a2             (H)
+      ( 67)  num_a3             (H)
+      ( 68)  num_a4             (H)
+      ( 69)  num_a5             (H)
+      ( 70)  O               
+      ( 71)  O2              
+      ( 72)  O3              
+      ( 73)  O3S                (O3)
+      ( 74)  OCLO               (OClO)
+      ( 75)  OCS                (OCS)
+      ( 76)  pom_a1             (C)
+      ( 77)  pom_a4             (C)
+      ( 78)  S                  (S)
+      ( 79)  SF6             
+      ( 80)  SO                 (SO)
+      ( 81)  SO2             
+      ( 82)  SO3                (SO3)
+      ( 83)  so4_a1             (NH4HSO4)
+      ( 84)  so4_a2             (NH4HSO4)
+      ( 85)  so4_a3             (NH4HSO4)
+      ( 86)  so4_a5             (NH4HSO4)
+      ( 87)  soa_a1             (C)
+      ( 88)  soa_a2             (C)
+      ( 89)  SOAG               (C)
+      ( 90)  e                  (E)
+      ( 91)  HO2             
+      ( 92)  N2D                (N)
+      ( 93)  N2p                (N2)
+      ( 94)  NOp                (NO)
+      ( 95)  Np                 (N)
+      ( 96)  O1D                (O)
+      ( 97)  O2_1D              (O2)
+      ( 98)  O2_1S              (O2)
+      ( 99)  O2p                (O2)
+      (100)  OH              
+      (101)  Op                 (O)
+      (102)  Op2D               (O)
+      (103)  Op2P               (O)
+      (104)  H2O             
   
   
      Invariant species
@@ -120,6 +121,7 @@ Class List
  Explicit  
  --------
       (  1)  O3S             
+      (  2)  HE              
   
  Implicit  
  --------
@@ -684,6 +686,7 @@ Extraneous prod/loss species
                + r3*O1D*H2  + r20*H2*O  + r29*OH*H2  + r32*OH*O  + r52*N*OH  + r69*CL*H2  + r100*O1D*HCL                
                + r123*O1D*HBR  + r125*F*H2  + r149*CH2O*OH  + r155*O1D*CH4  + r161*OCS*OH  + r167*S*OH  + r172*SO*OH    
                - r22*HO2*H  - r23*HO2*H  - r24*HO2*H  - r25*M*O2*H  - r28*O3*H                                          
+    d(HE)/dt = 0                                                                                                        
     d(H2)/dt = j1*H2O  + j21*CH2O  + 1.4400001*j24*CH4  + r22*H*HO2  + r156*O1D*CH4                                     
                 - r3*O1D*H2  - r20*O*H2  - r29*OH*H2  - r69*CL*H2  - r125*F*H2                                          
     d(H2402)/dt =  - j50*H2402  - r121*O1D*H2402                                                                        
