@@ -37,15 +37,13 @@ module majorsp_diffusion
 !-----------------------
   public mspd_init   ! Initialization
   public mspd_intr   ! Full routine
+
 !-----------------------
 ! Private data
 !-----------------------
 
   real(r8) :: rmass_o2, rmass_o1, rmass_h, rmass_he, rmass_n2 ! molecular weights (kg/kmol)
-!!$  real(r8) :: phi(2,3)                                   ! mutual diffusion constants of
-!!$                                                         ! major constituents
-!!$  real(r8) :: delta(2,2)                                 ! unit matrix
-!!$
+
   real(r8), parameter :: ptref=5.e-5_r8                  ! thermosphere reference pressure (Pa)
   real(r8), parameter :: mmrMin=1.e-20_r8                ! lower limit of o2 and o mixing ratio
   real(r8), parameter :: N2mmrMin=1.e-6_r8               ! lower limit of n2 mixing ratios
@@ -58,14 +56,8 @@ module majorsp_diffusion
   integer :: indx_HE                                     ! cnst index for he
   integer, parameter :: io2=1, io1=2, ihe=3              ! local indices to o2 , o, and he respectively
   logical :: fixed_ubc(2)                                ! flag for fixed upper boundary condition
-!!$
-!!$  real(r8) :: o2mmr_ubc(pcols)                           ! MMR of O2 at top boundary (specified)
-!!$  real(r8) :: ommr_ubc(pcols)                            ! MMR of O at top boundary
-!!$  real(r8) :: heflx_ubc(pcols)                           ! MMR flux of HE at top boundary
 
-  character(len=8), private :: mjdiffnam(3)              ! names of v-diff tendencies
-!!$
-!!$  logical, parameter :: debug = .false.
+  character(len=8) :: mjdiffnam(3)              ! names of v-diff tendencies
 
 contains
 
@@ -105,15 +97,6 @@ contains
     !--------------------------------------------------------------------
     fixed_ubc(io2) = cnst_fixed_ubc(indx_O2)
     fixed_ubc(io1) = cnst_fixed_ubc(indx_O)
-
-    !------------------------------------------------
-    ! Set diffusion constants and setup matrix
-    !------------------------------------------------
-!!$    phi(:,1)=(/0._r8  ,0.673_r8/)
-!!$    phi(:,2)=(/1.35_r8,0._r8   /)
-!!$    phi(:,3)=(/1.11_r8,0.769_r8/)
-!!$    delta(:,1)=(/1._r8,0._r8/)
-!!$    delta(:,2)=(/0._r8,1._r8/)
 
    ! Set names of major diffusion tendencies and declare them as history variables
     mjdiffnam(1) = 'MD'//trim(cnst_name(indx_O2))
@@ -423,7 +406,6 @@ contains
   end subroutine mspd_intr
 
 !-----------------------------------------------------------------------
-!  pure subroutine comp_wx(step,dfactor,tlbc,bo2,bo1,bh,bhe,he_ubc, &
   subroutine comp_wx(step,dfactor,tlbc,bo2,bo1,bh,bhe,he_ubc, &
     difk,tn,tni,o2i,o1i,hei,wmid,mbar,barm, &
     o2_hadv,o1_hadv,he_hadv,o2_nm,o1_nm,he_nm, &
