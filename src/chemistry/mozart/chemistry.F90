@@ -241,7 +241,7 @@ end function chem_is
      do m = 1,gas_pcnst
      ! setting of these variables is for registration of transported species
        ic_from_cam2  = .true.
-       has_fixed_ubc = ubc_fixed_conc(solsym(m))
+       has_fixed_ubc = ubc_fixed_conc(solsym(m)) ! namelist specified
        has_fixed_ubflx = .false.
        ndropmixed = .false.
        lng_name      = trim( solsym(m) )
@@ -271,11 +271,14 @@ end function chem_is
              lng_name = 'O2(1-sigma)'
           end if
        else if ( m==o2_ndx .or. m==o_ndx .or. m==h_ndx .or. m==he_ndx ) then
-         if ( waccmx_is('ionosphere') .or. waccmx_is('neutral') ) then
-           if ( m == h_ndx ) has_fixed_ubflx = .true. ! fixed flux value for H at UB
-           if ( m == he_ndx ) has_fixed_ubflx = .true. ! fixed flux value for He at UB
-           if ( m == o2_ndx .or. m == o_ndx .or. m==he_ndx ) molectype = 'major'
-         endif
+          if ( waccmx_is('ionosphere') .or. waccmx_is('neutral') ) then
+             if ( m == h_ndx .or. m == he_ndx) then
+                has_fixed_ubflx = .true. ! fluxes UBC
+             end if
+             if ( m == o2_ndx .or. m == o_ndx .or. m==he_ndx ) then
+                molectype = 'major' ! Major species diffusion
+             end if
+          endif
        else if( m == e_ndx ) then
           lng_name = 'electron concentration'
        else if( m == np_ndx ) then

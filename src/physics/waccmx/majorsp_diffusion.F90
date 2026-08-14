@@ -18,6 +18,7 @@ module majorsp_diffusion
 !
 !---------------------------Code history--------------------------------
 ! Adapted from TIME-GCM (comp.F): H.-L. Liu, Nov 2003
+! Update for inclusion of helium (TIEGCM) : Aug 2026
 !--------------------------------------------------------------------------
 
   use shr_kind_mod, only: r8 => shr_kind_r8
@@ -142,7 +143,7 @@ contains
     use helium_ubc_mod,  only: helium_ubc_fluxes
 
 !------------------------------Arguments--------------------------------
-    real(r8), intent(in) :: ztodt                  ! 2 delta-t
+    real(r8), intent(in) :: ztodt                  ! delta-time (seconds)
     type(physics_state), intent(in)     :: state   ! Physics state variables
     type(physics_ptend), intent(inout)  :: ptend   ! indivdual parameterization tendencies
 
@@ -154,8 +155,6 @@ contains
     integer :: lchnk                               ! chunk identifier
     integer :: ncol                                ! number of atmospheric columns
     integer :: i, k, kk, icol                      ! indexing integers
-
-    ! For comp_wx call
 
     real(r8) :: tlbc,bo2,bo1,bhe,bh,he_ubc,p_ubc     ! For lower boundary
     real(r8) :: step,dfactor,pscaleheight,expzmid
@@ -321,7 +320,7 @@ contains
       o1_nm(nbot_molec) = 2._r8*state%q(iCol,1,indx_O ) - state%q(iCol,2,indx_O )
       he_nm(nbot_molec) = 2._r8*state%q(iCol,1,indx_HE) - state%q(iCol,2,indx_HE)
 
-      call comp_wx(step,dfactor,tlbc,bo2,bo1,bh,bhe,he_ubc,difk,tn,tni,o2i,o1i,hei,wmid,mbar,barm, &
+      call comp_mjspdif(step,dfactor,tlbc,bo2,bo1,bh,bhe,he_ubc,difk,tn,tni,o2i,o1i,hei,wmid,mbar,barm, &
                o2_hadv,o1_hadv,he_hadv,o2_nm,o1_nm,he_nm,prod,loss, &
                nbot_molec,dz,expzm,expzmid,o2_upd,o1_upd,he_upd, &
                molp11,molp22,molp33, molq11,molq22,molq33, molr11,molr22,molr33 )
@@ -405,14 +404,17 @@ contains
 
   end subroutine mspd_intr
 
-!-----------------------------------------------------------------------
-  subroutine comp_wx(step,dfactor,tlbc,bo2,bo1,bh,bhe,he_ubc, &
+  ! Private routines
+  !-----------------------------------------------------------------------
+  ! Compute major species diffusion  -- from TIEGCM
+  !-----------------------------------------------------------------------
+  subroutine comp_mjspdif(step,dfactor,tlbc,bo2,bo1,bh,bhe,he_ubc, &
     difk,tn,tni,o2i,o1i,hei,wmid,mbar,barm, &
     o2_hadv,o1_hadv,he_hadv,o2_nm,o1_nm,he_nm, &
     prod,loss,nlevp1,dz,expzm,expzmid,o2_upd,o1_upd,he_upd, &
     molp11,molp22,molp33, molq11,molq22,molq33, molr11,molr22,molr33 )
 
-! advance major species O2, O, He and N2
+   ! major species O2, O, He diffusion
 
     integer,intent(in) :: nlevp1
 
@@ -509,7 +511,7 @@ contains
       alpha(3,2,k) = (diff_fac(2)*psi(3,2)-diff_fac(3)*psi(3,4))*hei(k)
 
 ! molecular diffusion coefficients of O2, O, He
-      invalpha = matinv3_wx(alpha(:,:,k))
+      invalpha = matinv3(alpha(:,:,k))
       do n = 1,3
         do m = 1,3
           molp (m,n,k) = invalpha(m,n)*wks1(k)*(1/dz(k)+ep(n,k)/2)
@@ -589,7 +591,7 @@ contains
     fk(:,nlevp1-1) = fk(:,nlevp1-1)-rk(:,2,nlevp1-1)*o1_ub-rk(:,3,nlevp1-1)*he_ub
     rk(:,:,nlevp1-1) = 0
 
-    upd = blktri_tgcm(pk,qk,rk,fk,nlevp1)
+    upd = blktri(pk,qk,rk,fk,nlevp1)
 
 ! upper boundaries
     upd(:,nlevp1) = epep*upd(:,nlevp1-1)
@@ -622,22 +624,22 @@ contains
     he_upd = max(upd(3,:),HEmmrMin)
     he_upd = min(he_upd,HEmmrMax)
 
-  end subroutine comp_wx
+  end subroutine comp_mjspdif
 !-----------------------------------------------------------------------
 
-  !-------------------------------------------------------------------
-  pure function matinv3_wx(A) result(B)
+!-------------------------------------------------------------------
+  pure function matinv3(A) result(B)
   ! Calculate the inverse of the matrix
 
     real(r8),dimension(3,3),intent(in) :: A
     real(r8),dimension(3,3) :: B
 
-    B = matadj3_wx(A)/matdet3_wx(A)
+    B = matadj3(A)/matdet3(A)
 
-  end function matinv3_wx
+  end function matinv3
 
 !-------------------------------------------------------------------
-  pure function matadj3_wx(A) result(B)
+  pure function matadj3(A) result(B)
 ! Calculate the adjugate of the matrix
 
     real(r8),dimension(3,3),intent(in) :: A
@@ -653,10 +655,10 @@ contains
     B(2,3) = -(A(1,1)*A(2,3) - A(1,3)*A(2,1))
     B(3,3) =  (A(1,1)*A(2,2) - A(1,2)*A(2,1))
 
-  end function matadj3_wx
+  end function matadj3
 
 !-------------------------------------------------------------------
-  pure function matdet3_wx(A) result(d)
+  pure function matdet3(A) result(d)
 ! Calculate the determinant of the matrix
 
     real(r8),dimension(3,3),intent(in) :: A
@@ -666,7 +668,7 @@ contains
       - A(1,2)*A(2,1)*A(3,3) + A(1,2)*A(2,3)*A(3,1) &
       + A(1,3)*A(2,1)*A(3,2) - A(1,3)*A(2,2)*A(3,1)
 
-  end function matdet3_wx
+  end function matdet3
 !-------------------------------------------------------------------
 
   pure subroutine init_lbc(dz, b, fb)
@@ -714,7 +716,7 @@ contains
     wm2 = e/dz + f/2
 
 ! now invert wm1 in wm3
-    wm3 = matinv3_wx(wm1)
+    wm3 = matinv3(wm1)
 
 ! b = wm3 * wm2
     b = matmul(wm3,wm2)
@@ -727,9 +729,7 @@ contains
   endsubroutine init_lbc
 
 !-----------------------------------------------------------------------
-  pure function blktri_tgcm(pk,qk,rk,fk,nk) result(upd)
-
-!    use matutil_module,only:matinv3
+  pure function blktri(pk,qk,rk,fk,nk) result(upd)
 
     integer,intent(in) :: nk
     real(r8),dimension(3,3,nk),intent(in) :: pk,qk,rk
@@ -752,7 +752,7 @@ contains
 !   in the Thomas algorithm solution
 !   to the block tridiagonal system of equations
 ! WKM1 = INV(ALFA)
-      wkm1 = matinv3_wx(qk(:,:,k)-matmul(pk(:,:,k),gama(:,:,k)))
+      wkm1 = matinv3(qk(:,:,k)-matmul(pk(:,:,k),gama(:,:,k)))
 
 ! WKV1 = F(K)-P(K)*Z(K)
       do n = 1,3
@@ -778,7 +778,7 @@ contains
       enddo
     enddo
 
-  end function blktri_tgcm
+  end function blktri
 !-----------------------------------------------------------------------
 
 end module majorsp_diffusion
