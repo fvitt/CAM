@@ -1,3 +1,6 @@
+!-------------------------------------------------------------------------------
+! Upper boundary fluxes of Helium for WACCM-X
+!-------------------------------------------------------------------------------
 module helium_ubc_mod
   use shr_kind_mod, only: r8 => shr_kind_r8
   use shr_kind_mod, only: cl => shr_kind_cl

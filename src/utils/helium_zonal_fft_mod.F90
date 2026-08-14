@@ -1,3 +1,6 @@
+!-------------------------------------------------------------------------------
+! Utility module for Helium fluxes at the upper boundary of WACCM-X
+!-------------------------------------------------------------------------------
 module helium_zonal_fft_mod
 
   use shr_kind_mod, only: r8 => shr_kind_r8, cl=>SHR_KIND_CL
