@@ -70,6 +70,7 @@ module atm_comp_nuopc
    use pio                 , only : pio_def_var, pio_get_var, pio_put_var, PIO_INT
    use ioFileMod
    !$use omp_lib           , only : omp_set_num_threads
+   use meped_input_stream,   only : meped_input_stream_init, meped_input_stream_final
 
   implicit none
   private ! except
@@ -116,7 +117,7 @@ module atm_comp_nuopc
   logical                      :: dart_mode = .false.
   logical                      :: mediator_present
   logical                      :: write_restart_at_endofrun = .false.
-  
+
   character(len=CL)            :: orb_mode            ! attribute - orbital mode
   integer                      :: orb_iyear           ! attribute - orbital year
   integer                      :: orb_iyear_align     ! attribute - associated with model year
@@ -322,7 +323,7 @@ contains
     if (isPresent .and. isSet) then
        if (trim(cvalue) .eq. '.true.') write_restart_at_endofrun = .true.
     end if
-    
+
     if (dbug_flag > 5) then
        call ESMF_LogWrite(subname//' done', ESMF_LOGMSG_INFO)
     end if
@@ -760,6 +761,11 @@ contains
 
        ! Create cam export array and set the state scalars
        call export_fields( gcomp, model_mesh, model_clock, cam_out, rc=rc )
+       if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+       ! Initialize MEPED WACCM aurora input stream
+       ! -- done here where model mesh and clock are available
+       call meped_input_stream_init(model_mesh, model_clock, rc)
        if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
        call get_horiz_grid_dim_d(hdim1_d, hdim2_d)
@@ -1388,6 +1394,7 @@ contains
     call shr_log_setLogUnit (iulog)
 
     call cam_final( cam_out, cam_in )
+    call meped_input_stream_final()
 
     if (masterproc) then
        write(iulog,F91)
