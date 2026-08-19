@@ -312,6 +312,8 @@ contains
   ! free up allocated memory, etc.
   !-----------------------------------------------------------------------------
   subroutine meped_input_stream_final()
+    if (.not.meped_input_is_active) return
+
     deallocate(meped_e_flux)
     deallocate(meped_p_flux)
     deallocate(meped_e_ekev)
