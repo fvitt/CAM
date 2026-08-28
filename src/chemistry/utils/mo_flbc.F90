@@ -63,7 +63,7 @@ module mo_flbc
 
 contains
 
-  subroutine flbc_inti( flbc_file, flbc_list, flbc_timing_in, co2vmr, ch4vmr, n2ovmr, f11vmr, f12vmr )
+  subroutine flbc_inti( flbc_file, flbc_list, flbc_timing_in, co2vmr, ch4vmr, n2ovmr, f11vmr, f12vmr, carbon_cycle )
     !-----------------------------------------------------------------------
     ! 	... initialize the fixed lower bndy cond
     !-----------------------------------------------------------------------
@@ -83,6 +83,7 @@ contains
     character(len=*), intent(in) :: flbc_list(:)
     type(time_ramp),  intent(in) :: flbc_timing_in
     real(r8),         intent(in) :: co2vmr, ch4vmr, n2ovmr, f11vmr, f12vmr
+    logical,          intent(in) :: carbon_cycle ! BGC carbon cycle indicator
 
     !-----------------------------------------------------------------------
     ! 	... local variables
@@ -155,7 +156,7 @@ contains
 
        call cnst_get_ind (flbc_list(m), n, abort=.false.)
 
-       if (n > 0) then
+       if ((n > 0) .and. .not.(carbon_cycle .and. trim(flbc_list(m))=='CO2') ) then
           has_flbc(n) = .true.
           flbcs(flbc_cnt)%spc_ndx = n
        else ! must be one of the GHGs which is not prognosted
@@ -657,8 +658,8 @@ contains
     do m = 1,flbc_cnt
        if ( flbcs(m)%spc_ndx > 0 ) then
           n = map( flbcs(m)%spc_ndx )
-          ! If the GHG happens to be an advected specie, but not a chemical specie
-          ! (e.g., CO2 when the carbon cycle is on in standard CAM), then n=0 and
+          ! If the GHG is not a prognosed species or is a surface model emitted species
+          ! (e.g., CO2 when the BGC carbon cycle is on), then n=0 and
           ! we need to skip setting the LBC.
           if (n > 0) then
              vmr(:ncol,pver,n) = flbcs(m)%vmr(:ncol,lchnk,last) &

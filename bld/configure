@@ -1446,15 +1446,12 @@ else {
             my %hash;
             @species_list = get_species_list($chem_src_dir);
             @hash{@species_list}=();
-            if (exists $hash{"CO2"}) {
-                # Do not double count CO2
-                $nco2 = 3;
-            } else {
+            if (!(exists $hash{"CO2"})) { # do not use co2_cycle module if CO2 is prognosed by chemistry
                 $nco2 = 4;
-            }
-            $nadv += $nco2;
-            if ($print>=2) { print "Advected constituents added by co2_cycle: $nco2$eol"; }
-        }
+		$nadv += $nco2;
+		if ($print>=2) { print "Advected constituents added by co2_cycle: $nco2$eol"; }
+	    }
+	}
 
         # CARMA package:
         if ($carma_nadv > 0) {

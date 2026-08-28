@@ -1821,14 +1821,24 @@ Default: set by build-namelist
 
 <entry id="co2_cycle_rad_passive" type="logical" category="co2_cycle"
        group="camexp" valid_values="" >
-Flag to set rad_climate variable so that the prognostic CO2 controlled by
-the co2_cycle module is radiatively passive.
+Flag to set rad_climate variable so that prescribed CO2 set via lower
+boundary conditions is used the radiation transfer rather than the
+prognosed transported CO2 in BGC configurations.
 Default: FALSE
 </entry>
 
 <entry id="co2_flag" type="logical"  category="co2_cycle"
        group="co2_cycle_nl" valid_values="" >
-If TRUE turn on CO2 code.
+If TRUE turn on CO2 cycle module for cases that do not include
+CO2 in chemistry.
+Default: set by build-namelist
+</entry>
+
+<entry id="carbon_cycle" type="logical"  category="BGC_cycle"
+       group="chem_surfvals_nl" valid_values="" >
+BGC carbon cycle switch -- if TRUE don't override advected CO2.
+This allows prescribed CO2 be available for radiatively passive
+cases (set via pre-determined lower boundary CO2).
 Default: set by build-namelist
 </entry>
 

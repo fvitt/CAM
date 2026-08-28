@@ -135,6 +135,8 @@ module chemistry
 
   integer :: srf_ozone_pbf_ndx = -1
   logical :: srf_emis_diag(pcnst) = .false.
+  integer, public, protected :: co2_cnst_ndx = -1
+  logical :: co2_srf_emis = .false.
 
 !================================================================================================
 contains
@@ -662,6 +664,7 @@ end function chem_is_active
     use ocean_emis,          only : ocean_emis_init, ocean_emis_species
     use mo_srf_emissions,    only : has_emis
     use mo_slh_routines,     only : iodine_emissions_init
+    use mo_flbc,             only : has_flbc
 
     type(physics_buffer_desc), pointer :: pbuf2d(:,:)
     type(physics_state), intent(in):: phys_state(begchunk:endchunk)
@@ -843,6 +846,12 @@ end function chem_is_active
        call pbuf_set_field(pbuf2d, srf_ozone_pbf_ndx, 0._r8)
     end if
 
+    ! For BGC compsets
+    call cnst_get_ind('CO2', co2_cnst_ndx, abort=.false.)
+    if (co2_cnst_ndx>0) then
+       co2_srf_emis = .not. has_flbc(co2_cnst_ndx)
+    end if
+
   contains
 
     pure logical function aero_has_emis(spcname)
@@ -913,6 +922,12 @@ end function chem_is_active
        enddo
 
     endif
+
+    ! CO2 from surface components -- for emissions driven BGC compsets
+    if ( co2_srf_emis ) then
+       cam_in%cflx(:ncol,co2_cnst_ndx) = cam_in%cflx(:ncol,co2_cnst_ndx) &
+                                       + cam_in%fco2_ocn(:ncol) + cam_in%fco2_lnd(:ncol)
+    end if
 
     if ( use_hemco ) then
        ! prescribed emissions from HEMCO ...

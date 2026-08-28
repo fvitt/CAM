@@ -6,7 +6,7 @@ module camsrfexch
   !-----------------------------------------------------------------------
 
   use shr_kind_mod,    only: r8 => shr_kind_r8, r4 => shr_kind_r4
-  use constituents,    only: pcnst
+  use constituents,    only: pcnst, cnst_get_ind
   use ppgrid,          only: pcols, begchunk, endchunk
   use phys_grid,       only: get_ncols_p, phys_grid_initialized
   use infnan,          only: posinf, assignment(=)
@@ -123,6 +123,8 @@ module camsrfexch
      real(r8), pointer, dimension(:,:) :: fireflx ! wild fire emissions
      real(r8), pointer, dimension(:)   :: fireztop ! wild fire emissions vert distribution top
   end type cam_in_t
+
+  integer, public, protected :: co2_cnst_ndx = -1
 
 !===============================================================================
 CONTAINS
@@ -339,6 +341,9 @@ CONTAINS
 
     end do
 
+    ! For BGC compsets
+    call cnst_get_ind('CO2', co2_cnst_ndx, abort=.false.)
+
   end subroutine atm2hub_alloc
 
   !===============================================================================
@@ -509,10 +514,8 @@ subroutine cam_export(state,cam_out,pbuf)
    end do
 
    cam_out%co2diag(:ncol) = chem_surfvals_get('CO2VMR') * 1.0e+6_r8
-   if (co2_transport()) then
-      do i=1,ncol
-         cam_out%co2prog(i) = state%q(i,pver,c_i(4)) * 1.0e+6_r8 *mwdry/mwco2
-      end do
+   if (co2_cnst_ndx>0) then ! co2 is transported ...
+      cam_out%co2prog(:ncol) = state%q(:ncol,pver,co2_cnst_ndx) * 1.0e+6_r8 *mwdry/mwco2
    end if
 
    ! get bottom layer ozone concentrations to export to surface models
