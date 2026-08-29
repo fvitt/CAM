@@ -15,6 +15,7 @@ module camsrfexch
   use srf_field_check, only: active_Sl_ram1, active_Sl_fv, active_Sl_soilw,                &
                              active_Fall_flxdst1, active_Fall_flxvoc, active_Fall_flxfire
   use cam_control_mod, only: aqua_planet, simple_phys
+  use chem_surfvals,   only: carbon_cycle
 
   implicit none
   private
@@ -415,7 +416,7 @@ subroutine cam_export(state,cam_out,pbuf)
    use ppgrid,           only: pver
    use cam_history,      only: outfld
    use chem_surfvals,    only: chem_surfvals_get
-   use co2_cycle,        only: co2_transport, c_i
+   use co2_cycle,        only: co2_transport
    use physconst,        only: rair, mwdry, mwco2, gravit, mwo3
    use constituents,     only: pcnst
    use physics_buffer,   only: pbuf_get_index, pbuf_get_field, physics_buffer_desc
@@ -514,7 +515,7 @@ subroutine cam_export(state,cam_out,pbuf)
    end do
 
    cam_out%co2diag(:ncol) = chem_surfvals_get('CO2VMR') * 1.0e+6_r8
-   if (co2_cnst_ndx>0) then ! co2 is transported ...
+   if (co2_transport() .or. carbon_cycle) then
       cam_out%co2prog(:ncol) = state%q(:ncol,pver,co2_cnst_ndx) * 1.0e+6_r8 *mwdry/mwco2
    end if
 
