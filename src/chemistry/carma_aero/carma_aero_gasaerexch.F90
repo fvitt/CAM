@@ -531,13 +531,9 @@ subroutine carma_aero_gasaerexch_sub(  state, &
         do n = 1, nbins
            if (do_soag_any(n)) then  ! only bins that contain soa
               uptkratebb(n) = uptkrate(i,k,n)
-              if (npoa .gt. 0) then
-                 do j = 1, npoa
-                    qold_poa(n,j) = poa_c(i,k,n,j)
-                 end do
-              else
-                 qold_poa(n,j) = 0.0_r8
-              end if
+              do j = 1, npoa
+                 qold_poa(n,j) = poa_c(i,k,n,j)
+              end do
               do jsoa = 1, nsoa_vbs
                  ! 0.81 factor is for gas diffusivity (soa/h2so4)
                  ! (differences in fuch-sutugin and accom coef ignored)
@@ -653,7 +649,7 @@ subroutine carma_aero_gasaerexch_sub(  state, &
 
 !   compute TMR tendencies for SAOG gas
 !   due to simple gas uptake
-        do jsoa = 1, nsoa
+        do jsoa = 1, nsoa_vbs
            dqdt(i,k,l_soag(jsoa)) = -sum_dqdt_soa(jsoa)
         end do
 

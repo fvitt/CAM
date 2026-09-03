@@ -1005,10 +1005,10 @@ implicit none
    real(r8) :: num_a
    real(r8) :: rhoair
    real(r8) :: sumghq
-   real(r8), save :: xghq(nghq), wghq(nghq) ! quadrature abscissae and weights
 
-   data xghq / 0.70710678_r8, -0.70710678_r8 /
-   data wghq / 0.88622693_r8,  0.88622693_r8 /
+   ! quadrature abscissae and weights
+   real(r8), parameter :: xghq(nghq) = (/ 0.70710678_r8, -0.70710678_r8 /)
+   real(r8), parameter :: wghq(nghq) = (/ 0.88622693_r8,  0.88622693_r8 /)
 
 
 ! outermost loop over all modes
