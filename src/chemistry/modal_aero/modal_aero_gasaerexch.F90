@@ -1279,7 +1279,8 @@ implicit none
          if ( skip_soamode(m) ) cycle
          a_opoa(m) = 0.0_r8
          do ll = 1, ntot_poaspec
-            a_opoa(m) = opoa_frac(ll)*a_poa_in(m,ll)
+            a_opoa(m) = a_opoa(m) + opoa_frac(ll)*a_poa_in(m,ll)
+            a_opoa(m) = max( a_opoa(m), 1.0e-40_r8 )  ! force to small non-zero value
          end do
       end do
 

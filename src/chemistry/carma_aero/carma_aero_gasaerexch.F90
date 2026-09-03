@@ -1021,7 +1021,7 @@ subroutine carma_aero_soaexch( dtfull, temp, pres, &
      tmpa = 0.0_r8  ! time integration parameter for all soa species
      do m = 1, nbins
         if ( skip_soamode(m) ) cycle
-        a_ooa_sum_tmp(m) = sum( a_soa(m,1:ntot_soaspec) )
+        a_ooa_sum_tmp(m) = a_opoa(m) + sum( a_soa(m,1:ntot_soaspec) )
      end do
      do ll = 1, ntot_soaspec
         tmpb = 0.0_r8  ! time integration parameter for a single soa species
@@ -1065,7 +1065,7 @@ subroutine carma_aero_soaexch( dtfull, temp, pres, &
               a_soa_tmp(m,ll) = a_soa(m,ll) + beta(m,ll)*del_g_soa_tmp(ll)
            end if
         end do
-        a_ooa_sum_tmp(m) =  sum( a_soa_tmp(m,1:ntot_soaspec) )
+        a_ooa_sum_tmp(m) = a_opoa(m) + sum( a_soa_tmp(m,1:ntot_soaspec) )
         do ll = 1, ntot_soaspec
            ! second ll loop calcs sat & g_star
            if (del_g_soa_tmp(ll) > 0.0_r8) then
