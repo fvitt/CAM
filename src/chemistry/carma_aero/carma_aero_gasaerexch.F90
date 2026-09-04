@@ -980,15 +980,11 @@ subroutine carma_aero_soaexch( dtfull, temp, pres, &
   end do
 
 
-  tmpf = mw_poa_host/mw_poa
   do m = 1, nbins
      if ( skip_soamode(m) ) cycle
      a_opoa(m) = 0.0_r8
-     !check since it seems like in the modal approach there is a bug, not summing up the values for each specie
      do ll = 1, ntot_poaspec
-        tmpf = mw_poa_host/mw_poa
         a_opoa(m) = a_opoa(m) + opoa_frac(ll)*a_poa_in(m,ll)
-        a_opoa(m) = max( a_opoa(m), 1.0e-40_r8 )  ! force to small non-zero value
      end do
   end do
 
