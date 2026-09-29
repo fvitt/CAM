@@ -1,0 +1,17 @@
+mfilt =1,1,1,1,1,1,1,1,1
+ndens =1,1,1,1,1,1,1,1,1
+nhtfrq=3,3,3,3,3,3,3,3,3
+write_nstep0=.true.
+inithist='ENDOFRUN'
+pbuf_global_allocate=.false.
+
+ionos_epotential_model = 'weimer'
+ionos_edyn3d_active = .true.
+
+fincl3 = 'sigma_ped_s1','sigma_hal_s1','sigma_ped_s2','sigma_hal_s2','un_s1','vn_s1','un_s2','vn_s2',
+         'HILAT_POT', 'HILAT_FAC', 'ELECPOTEN',
+         'IonU_s1', 'IonV_s1', 'IonW_s1', 'IonU_s2', 'IonV_s2', 'IonW_s2',
+         'IonU_opg','IonV_opg','IonW_opg',
+         'ED1s1','ED2s1','ED1s2','ED2s2','Ve1s1','Ve2s1','Ve1s2','Ve2s2'
+
+fincl7='UI','VI','WI','PHIM2D','POTEN','QIONSUM','ELECDEN','QJOULE',
