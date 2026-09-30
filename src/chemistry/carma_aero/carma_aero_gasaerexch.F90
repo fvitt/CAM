@@ -50,7 +50,8 @@ module carma_aero_gasaerexch
   integer, allocatable  :: cnpoa(:)         ! true if soa gas is a species and carma soa in bin
   integer, allocatable  :: l_soag(:)         ! true if soa gas is a species and carma soa in bin
 
-  logical, allocatable  :: do_soag_any(:)         ! true if soa gas is a species and carma soa in bin
+  logical, allocatable  :: do_soaexch(:)
+
 ! !DESCRIPTION: This module implements ...
 !
 ! !REVISION HISTORY:
@@ -132,7 +133,7 @@ contains
 
     ncnst_tot = aero_props%ncnst_tot()
 
-    allocate(  do_soag_any(nbins),       &
+    allocate(  do_soaexch(nbins),       &
                fldname_cw(ncnst_tot),    &
                fldname(ncnst_tot) )
 
@@ -188,7 +189,7 @@ contains
     end do
 
     do m = 1, nbins
-       do_soag_any(m) = cnsoa(m)>0
+       do_soaexch(m) = cnsoa(m)>0
     end do
 
 !---------define history fields for new cond/evap diagnostics----------------------------------------
@@ -335,7 +336,7 @@ subroutine carma_aero_gasaerexch_sub(  state, &
 ! this version does only do condensation for SOA for CARMA
 !     method_soa=0 is no uptake
 !     method_soa=1 is irreversible uptake done like h2so4 uptake
-!     method_soa=2 is reversible uptake using subr carma_aero_soaexch
+!     method_soa=2 is reversible uptake using subr aero_soaexch
 !
 ! !REVISION HISTORY:
 !   RCE 07.04.13:  Adapted from MIRAGE2 code
@@ -418,7 +419,7 @@ subroutine carma_aero_gasaerexch_sub(  state, &
   rhoair(:ncol,:) = pmid(:ncol,:)/(rair*t(:ncol,:))   ! (kg-air/m3)
 
   do m = 1, nbins      ! main loop over aerosol bins
-     if (do_soag_any(m)) then  ! only bins that contain soa
+     if (do_soaexch(m)) then  ! only bins that contain soa
         n = 0
         nn = 0
         do l = 1, nspec(m)
@@ -529,7 +530,7 @@ subroutine carma_aero_gasaerexch_sub(  state, &
         sum_uprt_soa(:) = 0.0_r8
         uptkrate_soa(:,:) = 0.0_r8
         do n = 1, nbins
-           if (do_soag_any(n)) then  ! only bins that contain soa
+           if (do_soaexch(n)) then  ! only bins that contain soa
               uptkratebb(n) = uptkrate(i,k,n)
               do j = 1, npoa
                  qold_poa(n,j) = poa_c(i,k,n,j)
@@ -552,7 +553,7 @@ subroutine carma_aero_gasaerexch_sub(  state, &
         do jsoa = 1, nsoa_vbs
            if (sum_uprt_soa(jsoa) > 0.0_r8) then
               do n = 1, nbins
-                 if (do_soag_any(n)) then  ! only bins that contain soa
+                 if (do_soaexch(n)) then  ! only bins that contain soa
                     fgain_soa(n,jsoa) = fgain_soa(n,jsoa) / sum_uprt_soa(jsoa)
                  end if
               end do
@@ -580,7 +581,7 @@ subroutine carma_aero_gasaerexch_sub(  state, &
               qold_soag(jsoa) = q(i,k,l_soag(jsoa))
            end do
 
-           call carma_aero_soaexch( deltat, t(i,k), pmid(i,k), &
+           call aero_soaexch( deltat, t(i,k), pmid(i,k), &
                 niter, niter_max, nbins, nsoa_vbs, npoa, &
                 mw_poa_host, mw_soa_host, &
                 qold_soag, qold_soa, qold_poa, uptkrate_soa, &
@@ -593,7 +594,7 @@ subroutine carma_aero_gasaerexch_sub(  state, &
 !   due to simple gas uptake
 
            do n = 1, nbins
-              if (do_soag_any(n) ) then
+              if (do_soaexch(n) ) then
                  do jsoa = 1, nsoa_vbs
                     dqdt_soa_vbs(n,jsoa) = fgain_soa(n,jsoa)*sum_dqdt_soa(jsoa)
                  end do
@@ -608,7 +609,7 @@ subroutine carma_aero_gasaerexch_sub(  state, &
         qnew_soa_vbs(:,:) =0.0_r8
 
         do n = 1, nbins
-           if ( do_soag_any(n) ) then
+           if ( do_soaexch(n) ) then
               if (nsoa.eq.nsoa_vbs) then
                  do jsoa = 1, nsoa_vbs
                     qsrflx(i,n,jsoa) = qsrflx(i,n,jsoa) + dqdt_soa_vbs(n,jsoa)*pdel_fac
@@ -679,7 +680,7 @@ subroutine carma_aero_gasaerexch_sub(  state, &
   !-----------------------------------------------------------------------
   !   do history file of column-tendency fields over SOA fields (as defined in CARMA) and set pointer
   do m = 1, nbins
-     if (do_soag_any(m)) then
+     if (do_soaexch(m)) then
         j  = 0
         do l = 1, nspec(m)
            mm = aero_props%indexer(m,l)
@@ -792,7 +793,7 @@ subroutine gas_aer_uptkrates( ncol,       loffset,                &
 end subroutine gas_aer_uptkrates
 
 !----------------------------------------------------------------------
-subroutine carma_aero_soaexch( dtfull, temp, pres, &
+subroutine aero_soaexch( dtfull, temp, pres, &
      niter, niter_max, nbins, ntot_soaspec, ntot_poaspec,  &
      mw_poa_host, mw_soa_host, &
      g_soa_in, a_soa_in, a_poa_in, xferrate_in, &
@@ -948,17 +949,16 @@ subroutine carma_aero_soaexch( dtfull, temp, pres, &
   a_soa_tend(:,:) = 0.0_r8
   xferrate(:,:) = 0.0_r8
 
+  skip_soamode(:) = .not.do_soaexch(:)
+
   ! determine which modes have non-zero transfer rates
   !    and are involved in the soa gas-aerosol transfer
   ! for diameter = 1 nm and number = 1 #/cm3, xferrate ~= 1e-9 s-1
   do m = 1, nbins
-     if (do_soag_any(m)) then
-        skip_soamode(m) = .false.
+     if (do_soaexch(m)) then
         do ll = 1, ntot_soaspec
            xferrate(m,ll) = xferrate_in(m,ll)
         end do
-     else
-        skip_soamode(m) = .true.
      end if
   end do
 
@@ -1100,7 +1100,7 @@ subroutine carma_aero_soaexch( dtfull, temp, pres, &
      end do
   end do
 
-end subroutine carma_aero_soaexch
+end subroutine aero_soaexch
 
 !----------------------------------------------------------------------
 

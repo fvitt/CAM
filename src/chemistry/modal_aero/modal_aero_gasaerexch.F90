@@ -58,6 +58,8 @@
 
   real (r8), allocatable :: fac_m2v_pcarbon(:)
 
+  logical, allocatable :: do_soaexch(:)
+
 ! !DESCRIPTION: This module implements ...
 !
 ! !REVISION HISTORY:
@@ -197,8 +199,8 @@ implicit none
    real (r8) :: fgain_nh4(ntot_amode), fgain_so4(ntot_amode)
    real (r8) :: fgain_soa(ntot_amode,nsoa)
    real (r8) :: g0_soa(nsoa)
-   real(r8)  :: mw_poa_host(npoa)          ! molec wght of poa used in host code
-   real(r8)  :: mw_soa_host(nsoa)          ! molec wght of poa used in host code
+   real(r8)  :: mw_poa_host          ! molec wght of poa used in host code
+   real(r8)  :: mw_soa_host          ! molec wght of poa used in host code
    real (r8) :: pdel_fac
    real (r8) :: qmax_nh4, qnew_nh4, qnew_so4
    real (r8) :: qold_nh4(ntot_amode), qold_so4(ntot_amode)
@@ -602,15 +604,15 @@ implicit none
                   call rad_aer_get_info(0, n, l, spec_type=spec_type )
                   select case( spec_type )
                    case('s-organic')
-                     mw_soa_host(:) = specmw_amode(l,n)
+                     mw_soa_host = specmw_amode(l,n)
                    case('p-organic')
-                     mw_poa_host(:) = specmw_amode(l,n)
+                     mw_poa_host = specmw_amode(l,n)
                    end select
                end do
             end do
 
-            call modal_aero_soaexch( deltat, t(i,k), pmid(i,k), &
-                 niter, niter_max, ntot_amode, ntot_soamode, npoa, nsoa, &
+            call aero_soaexch( deltat, t(i,k), pmid(i,k), &
+                 niter, niter_max, ntot_amode,  npoa, nsoa, &
                  mw_poa_host, mw_soa_host, &
                  qold_soag, qold_soa, qold_poa, uptkrate_soa, &
                  dqdt_soag, dqdt_soa )
@@ -1086,13 +1088,11 @@ implicit none
    end subroutine gas_aer_uptkrates
 
 !----------------------------------------------------------------------
-
-      subroutine modal_aero_soaexch( dtfull, temp, pres, &
-          niter, niter_max, ntot_amode, ntot_soamode, ntot_poaspec, ntot_soaspec, &
-          mw_poa_host, mw_soa_host, &
-          g_soa_in, a_soa_in, a_poa_in, xferrate_in, &
-          g_soa_tend, a_soa_tend )
-!         g_soa_tend, a_soa_tend, g0_soa, idiagss )
+subroutine aero_soaexch( dtfull, temp, pres, &
+     niter, niter_max, nbins, ntot_soaspec, ntot_poaspec,  &
+     mw_poa_host, mw_soa_host, &
+     g_soa_in, a_soa_in, a_poa_in, xferrate_in, &
+     g_soa_tend, a_soa_tend )
 
 !-----------------------------------------------------------------------
 !
@@ -1114,317 +1114,290 @@ implicit none
 ! Additions to run with multiple BC, SOA and POM's: Shrivastava et al., 2015
 !-----------------------------------------------------------------------
 
-      use mo_constants, only: rgas ! Gas constant (J/K/mol)
+  use mo_constants, only: rgas ! Gas constant (J/K/mol)
 
-      implicit none
+  real(r8), intent(in)  :: dtfull                     ! full integration time step (s)
+  real(r8), intent(in)  :: temp                       ! air temperature (K)
+  real(r8), intent(in)  :: pres                       ! air pressure (Pa)
+  integer,  intent(out) :: niter                      ! number of iterations performed
+  integer,  intent(in)  :: niter_max                  ! max allowed number of iterations
+  integer,  intent(in)  :: nbins                      ! number of bins
+  integer,  intent(in)  :: ntot_poaspec               ! number of poa species
+  integer,  intent(in)  :: ntot_soaspec               ! number of soa species
+  real(r8), intent(in)  :: mw_poa_host                ! molec wght of poa used in host code
+  real(r8), intent(in)  :: mw_soa_host                ! molec wght of soa used in host code
+  real(r8), intent(in)  :: g_soa_in(ntot_soaspec)               ! initial soa gas mixrat (mol/mol at host mw)
+  real(r8), intent(in)  :: a_soa_in(nbins,ntot_soaspec)    ! initial soa aerosol mixrat (mol/mol at host mw)
+  real(r8), intent(in)  :: a_poa_in(nbins,ntot_poaspec)    ! initial poa aerosol mixrat (mol/mol at host mw)
+  real(r8), intent(in)  :: xferrate_in(nbins,ntot_soaspec) ! gas-aerosol mass transfer rate (1/s)
+  real(r8), intent(out) :: g_soa_tend(ntot_soaspec)             ! soa gas mixrat tendency (mol/mol/s at host mw)
+  real(r8), intent(out) :: a_soa_tend(nbins,ntot_soaspec)  ! soa aerosol mixrat tendency (mol/mol/s at host mw)
 
-      real(r8), intent(in)  :: dtfull                     ! full integration time step (s)
-      real(r8), intent(in)  :: temp                       ! air temperature (K)
-      real(r8), intent(in)  :: pres                       ! air pressure (Pa)
-      integer,  intent(out) :: niter                      ! number of iterations performed
-      integer,  intent(in)  :: niter_max                  ! max allowed number of iterations
-      integer,  intent(in)  :: ntot_amode                 ! number of modes
-      integer,  intent(in)  :: ntot_soamode               ! number of modes having soa
-      integer,  intent(in)  :: ntot_poaspec               ! number of poa species
-      integer,  intent(in)  :: ntot_soaspec               ! number of soa species
-      real(r8), intent(in)  :: mw_poa_host(ntot_poaspec)  ! molec wght of poa used in host code
-      real(r8), intent(in)  :: mw_soa_host(ntot_soaspec)  ! molec wght of poa used in host code
-      real(r8), intent(in)  :: g_soa_in(ntot_soaspec)               ! initial soa gas mixrat (mol/mol at host mw)
-      real(r8), intent(in)  :: a_soa_in(ntot_amode,ntot_soaspec)    ! initial soa aerosol mixrat (mol/mol at host mw)
-      real(r8), intent(in)  :: a_poa_in(ntot_amode,ntot_poaspec)    ! initial poa aerosol mixrat (mol/mol at host mw)
-      real(r8), intent(in)  :: xferrate_in(ntot_amode,ntot_soaspec) ! gas-aerosol mass transfer rate (1/s)
-      real(r8), intent(out) :: g_soa_tend(ntot_soaspec)             ! soa gas mixrat tendency (mol/mol/s at host mw)
-      real(r8), intent(out) :: a_soa_tend(ntot_amode,ntot_soaspec)  ! soa aerosol mixrat tendency (mol/mol/s at host mw)
-!     integer,  intent(in)  :: idiagss
+  integer :: ll
+  integer :: m
 
-      integer :: ll
-      integer :: m,k
+  logical :: skip_soamode(nbins)   ! true if this bin does not have soa
 
-      logical :: skip_soamode(ntot_amode)   ! true if this mode does not have soa
+  real(r8), parameter :: a_min1 = 1.0e-20_r8
+  real(r8), parameter :: g_min1 = 1.0e-20_r8
+  real(r8), parameter :: alpha = 0.05_r8     ! parameter used in calc of time step
+  real(r8), parameter :: dtsub_fixed = -1.0_r8  ! fixed sub-step for time integration (s)
 
-      real(r8), parameter :: a_min1 = 1.0e-20_r8
-      real(r8), parameter :: g_min1 = 1.0e-20_r8
-      real(r8), parameter :: alpha = 0.05_r8     ! parameter used in calc of time step
-      real(r8), parameter :: dtsub_fixed = -1.0_r8  ! fixed sub-step for time integration (s)
-
-      real(r8) :: a_ooa_sum_tmp(ntot_soamode)          ! total ooa (=soa+opoa) in a mode
-      real(r8) :: a_opoa(ntot_soamode)                 ! oxidized-poa aerosol mixrat (mol/mol at actual mw)
-      real(r8) :: a_soa(ntot_soamode,ntot_soaspec)     ! soa aerosol mixrat (mol/mol at actual mw)
-      real(r8) :: a_soa_tmp(ntot_soamode,ntot_soaspec) ! temporary soa aerosol mixrat (mol/mol)
-      real(r8) :: beta(ntot_soamode,ntot_soaspec)      ! dtcur*xferrate
-      real(r8) :: delh_vap_soa(ntot_soaspec)           ! delh_vap_soa = heat of vaporization for gas soa (J/mol)
-      real(r8) :: del_g_soa_tmp(ntot_soaspec)
-      real(r8) :: dtcur                                ! current time step (s)
-      real(r8) :: dtmax                                ! = (dtfull-tcur)
-      real(r8) :: g0_soa(ntot_soaspec)                 ! ambient soa gas equilib mixrat (mol/mol at actual mw)
-      real(r8) :: g_soa(ntot_soaspec)                  ! soa gas mixrat (mol/mol at actual mw)
-      real(r8) :: g_star(ntot_soamode,ntot_soaspec)    ! soa gas mixrat that is in equilib
-                                                       ! with each aerosol mode (mol/mol)
-      real(r8) :: mw_poa(ntot_poaspec)                 ! actual molec wght of poa
-      real(r8) :: mw_soa(ntot_soaspec)                 ! actual molec wght of soa
-      real(r8) :: opoa_frac(ntot_poaspec)              ! fraction of poa that is opoa
-      real(r8) :: phi(ntot_soamode,ntot_soaspec)       ! "relative driving force"
-      real(r8) :: p0_soa(ntot_soaspec)                 ! soa gas equilib vapor presssure (atm)
-      real(r8) :: p0_soa_298(ntot_soaspec)             ! p0_soa_298 = soa gas equilib vapor presssure (atm) at 298 k
-      real(r8) :: sat(ntot_soamode,ntot_soaspec)       ! sat(m,ll) = g0_soa(ll)/a_ooa_sum_tmp(m) = g_star(m,ll)/a_soa(m,ll)
-                                                       !    used by the numerical integration scheme -- it is not a saturation rato!
-      real(r8) :: tcur                                 ! current integration time (from 0 s)
-      real(r8) :: tmpa, tmpb, tmpf
-      real(r8) :: tot_soa(ntot_soaspec)                ! g_soa + sum( a_soa(:) )
-      real(r8) :: xferrate(ntot_amode,ntot_soaspec)    ! gas-aerosol mass transfer rate (1/s)
+  real(r8) :: a_ooa_sum_tmp(nbins)          ! total ooa (=soa+opoa) in a bin
+  real(r8) :: a_opoa(nbins)                 ! oxidized-poa aerosol mixrat (mol/mol at actual mw)
+  real(r8) :: a_soa(nbins,ntot_soaspec)     ! soa aerosol mixrat (mol/mol at actual mw)
+  real(r8) :: a_soa_tmp(nbins,ntot_soaspec) ! temporary soa aerosol mixrat (mol/mol)
+  real(r8) :: beta(nbins,ntot_soaspec)      ! dtcur*xferrate
+  real(r8) :: delh_vap_soa(ntot_soaspec)           ! delh_vap_soa = heat of vaporization for gas soa (J/mol)
+  real(r8) :: del_g_soa_tmp(ntot_soaspec)
+  real(r8) :: dtcur                                ! current time step (s)
+  real(r8) :: dtmax                                ! = (dtfull-tcur)
+  real(r8) :: g0_soa(ntot_soaspec)                 ! ambient soa gas equilib mixrat (mol/mol at actual mw)
+  real(r8) :: g_soa(ntot_soaspec)                  ! soa gas mixrat (mol/mol at actual mw)
+  real(r8) :: g_star(nbins,ntot_soaspec)    ! soa gas mixrat that is in equilib
+  ! with each aerosol mode (mol/mol)
+  real(r8) :: mw_poa                               ! actual molec wght of poa
+  real(r8) :: mw_soa                               ! actual molec wght of soa
+  real(r8) :: opoa_frac(ntot_poaspec)              ! fraction of poa that is opoa
+  real(r8) :: phi(nbins,ntot_soaspec)       ! "relative driving force"
+  real(r8) :: p0_soa(ntot_soaspec)                 ! soa gas equilib vapor presssure (atm)
+  real(r8) :: p0_soa_298(ntot_soaspec)             ! p0_soa_298 = soa gas equilib vapor presssure (atm) at 298 k
+  real(r8) :: sat(nbins,ntot_soaspec)       ! sat(m,ll) = g0_soa(ll)/a_ooa_sum_tmp(m) = g_star(m,ll)/a_soa(m,ll)
+  !    used by the numerical integration scheme -- it is not a saturation rato!
+  real(r8) :: tcur                                 ! current integration time (from 0 s)
+  real(r8) :: tmpa, tmpb, tmpf
+  real(r8) :: tot_soa(ntot_soaspec)                ! g_soa + sum( a_soa(:) )
+  real(r8) :: xferrate(nbins,ntot_soaspec)    ! gas-aerosol mass transfer rate (1/s)
 
 ! Changed by Manish Shrivastava
-      opoa_frac(:) = 0.0_r8 !POA does not form solution with SOA for all runs; set opoa_frac=0.0_r8  by Manish Shrivastava
-      mw_poa(:) = 250.0_r8
-      mw_soa(:) = 250.0_r8
+  opoa_frac(:) = 0.0_r8 !POA does not form solution with SOA for all runs; set opoa_frac=0.0_r8  by Manish Shrivastava
+  mw_poa = 250.0_r8
+  mw_soa = 250.0_r8
 
-      ! New SOA properties added by Manish Shrivastava on 09/27/2012
-      if (ntot_soaspec ==1) then
-         p0_soa_298(:) = 9.7831E-11_r8
-         delh_vap_soa(:) = 131.0e3_r8
-         opoa_frac(:) = 0.0_r8
-      elseif (ntot_soaspec ==2) then
-         ! same for anthropogenic and biomass burning species
-         p0_soa_298 (1) = 1.0e-10_r8
-         p0_soa_298 (2) = 1.0e-10_r8
-         delh_vap_soa(:) = 156.0e3_r8
-      elseif(ntot_soaspec ==5) then
-         ! 5 volatility bins for each of the a combined SOA classes ( including biomass burning, fossil fuel, biogenic)
-         p0_soa_298 (1) = 9.7831E-13_r8 !soaff0 C*=0.01ug/m3
-         p0_soa_298 (2) = 9.7831E-12_r8 !soaff1 C*=0.10ug/m3
-         p0_soa_298 (3) = 9.7831E-11_r8 !soaff2 C*=1.0ug/m3
-         p0_soa_298 (4) = 9.7831E-10_r8 !soaff3 C*=10.0ug/m3
-         p0_soa_298 (5) = 9.7831E-9_r8  !soaff4 C*=100.0ug/m3
+  ! New SOA properties added by Manish Shrivastava on 09/27/2012
+  if (ntot_soaspec ==1) then
+     p0_soa_298(:) = 9.7831E-11_r8
+     delh_vap_soa(:) = 131.0e3_r8
+     opoa_frac(:) = 0.0_r8
+  elseif (ntot_soaspec ==2) then
+     ! same for anthropogenic and biomass burning species
+     p0_soa_298 (1) = 1.0e-10_r8
+     p0_soa_298 (2) = 1.0e-10_r8
+     delh_vap_soa(:) = 156.0e3_r8
+  elseif(ntot_soaspec ==5) then
+     ! 5 volatility bins for each of the a combined SOA classes ( including biomass burning, fossil fuel, biogenic)
+     p0_soa_298 (1) = 9.7831E-13_r8 !soaff0 C*=0.01ug/m3
+     p0_soa_298 (2) = 9.7831E-12_r8 !soaff1 C*=0.10ug/m3
+     p0_soa_298 (3) = 9.7831E-11_r8 !soaff2 C*=1.0ug/m3
+     p0_soa_298 (4) = 9.7831E-10_r8 !soaff3 C*=10.0ug/m3
+     p0_soa_298 (5) = 9.7831E-9_r8  !soaff4 C*=100.0ug/m3
 
-         delh_vap_soa(1) = 153.0e3_r8
-         delh_vap_soa(2) = 142.0e3_r8
-         delh_vap_soa(3) = 131.0e3_r8
-         delh_vap_soa(4) = 120.0e3_r8
-         delh_vap_soa(5) = 109.0e3_r8
-      elseif(ntot_soaspec ==15) then
-         !
-         ! 5 volatility bins for each of the 3 SOA classes ( biomass burning, fossil fuel, biogenic)
-         ! SOA species 1-5 are for anthropogenic while 6-10 are for biomass burning SOA
-         ! SOA species 11-15 are for biogenic SOA, based on Cappa et al., Reference needs to be updated
-         ! For MW=250.0
-         p0_soa_298 (1) = 9.7831E-13_r8 !soaff0 C*=0.01ug/m3
-         p0_soa_298 (2) = 9.7831E-12_r8 !soaff1 C*=0.10ug/m3
-         p0_soa_298 (3) = 9.7831E-11_r8 !soaff2 C*=1.0ug/m3
-         p0_soa_298 (4) = 9.7831E-10_r8 !soaff3 C*=10.0ug/m3
-         p0_soa_298 (5) = 9.7831E-9_r8  !soaff4 C*=100.0ug/m3
-         p0_soa_298 (6) = 9.7831E-13_r8 !soabb0 C*=0.01ug/m3
-         p0_soa_298 (7) = 9.7831E-12_r8 !soabb1 C*=0.10ug/m3
-         p0_soa_298 (8) = 9.7831E-11_r8 !soabb2 C*=1.0ug/m3
-         p0_soa_298 (9) = 9.7831E-10_r8 !soabb3 C*=10.0ug/m3
-         p0_soa_298 (10) = 9.7831E-9_r8  !soabb4 C*=100.0ug/m3
-         p0_soa_298 (11) = 9.7831E-13_r8 !soabg0 C*=0.01ug/m3
-         p0_soa_298 (12) = 9.7831E-12_r8 !soabg1 C*=0.1ug/m3
-         p0_soa_298 (13) = 9.7831E-11_r8 !soabg2 C*=1.0ug/m3
-         p0_soa_298 (14) = 9.7831E-10_r8 !soabg3 C*=10.0ug/m3
-         p0_soa_298 (15) = 9.7831E-9_r8  !soabg4 C*=100.0ug/m3
+     delh_vap_soa(1) = 153.0e3_r8
+     delh_vap_soa(2) = 142.0e3_r8
+     delh_vap_soa(3) = 131.0e3_r8
+     delh_vap_soa(4) = 120.0e3_r8
+     delh_vap_soa(5) = 109.0e3_r8
+  elseif(ntot_soaspec ==15) then
+     !
+     ! 5 volatility bins for each of the 3 SOA classes ( biomass burning, fossil fuel, biogenic)
+     ! SOA species 1-5 are for anthropogenic while 6-10 are for biomass burning SOA
+     ! SOA species 11-15 are for biogenic SOA, based on Cappa et al., Reference needs to be updated
+     ! For MW=250.0
+     p0_soa_298 (1) = 9.7831E-13_r8 !soaff0 C*=0.01ug/m3
+     p0_soa_298 (2) = 9.7831E-12_r8 !soaff1 C*=0.10ug/m3
+     p0_soa_298 (3) = 9.7831E-11_r8 !soaff2 C*=1.0ug/m3
+     p0_soa_298 (4) = 9.7831E-10_r8 !soaff3 C*=10.0ug/m3
+     p0_soa_298 (5) = 9.7831E-9_r8  !soaff4 C*=100.0ug/m3
+     p0_soa_298 (6) = 9.7831E-13_r8 !soabb0 C*=0.01ug/m3
+     p0_soa_298 (7) = 9.7831E-12_r8 !soabb1 C*=0.10ug/m3
+     p0_soa_298 (8) = 9.7831E-11_r8 !soabb2 C*=1.0ug/m3
+     p0_soa_298 (9) = 9.7831E-10_r8 !soabb3 C*=10.0ug/m3
+     p0_soa_298 (10) = 9.7831E-9_r8  !soabb4 C*=100.0ug/m3
+     p0_soa_298 (11) = 9.7831E-13_r8 !soabg0 C*=0.01ug/m3
+     p0_soa_298 (12) = 9.7831E-12_r8 !soabg1 C*=0.1ug/m3
+     p0_soa_298 (13) = 9.7831E-11_r8 !soabg2 C*=1.0ug/m3
+     p0_soa_298 (14) = 9.7831E-10_r8 !soabg3 C*=10.0ug/m3
+     p0_soa_298 (15) = 9.7831E-9_r8  !soabg4 C*=100.0ug/m3
 
-         !
-         ! have to be adjusted to 15 species, following the numbers by Epstein et al., 2012
-         !
-         delh_vap_soa(1) = 153.0e3_r8
-         delh_vap_soa(2) = 142.0e3_r8
-         delh_vap_soa(3) = 131.0e3_r8
-         delh_vap_soa(4) = 120.0e3_r8
-         delh_vap_soa(5) = 109.0e3_r8
-         delh_vap_soa(6) = 153.0e3_r8
-         delh_vap_soa(7) = 142.0e3_r8
-         delh_vap_soa(8) = 131.0e3_r8
-         delh_vap_soa(9) = 120.0e3_r8
-         delh_vap_soa(10) = 109.0e3_r8
-         delh_vap_soa(11) = 153.0e3_r8
-         delh_vap_soa(12) = 142.0e3_r8
-         delh_vap_soa(13) = 131.0e3_r8
-         delh_vap_soa(14) = 120.0e3_r8
-         delh_vap_soa(15) = 109.0e3_r8
-      endif
+     !
+     ! have to be adjusted to 15 species, following the numbers by Epstein et al., 2012
+     !
+     delh_vap_soa(1) = 153.0e3_r8
+     delh_vap_soa(2) = 142.0e3_r8
+     delh_vap_soa(3) = 131.0e3_r8
+     delh_vap_soa(4) = 120.0e3_r8
+     delh_vap_soa(5) = 109.0e3_r8
+     delh_vap_soa(6) = 153.0e3_r8
+     delh_vap_soa(7) = 142.0e3_r8
+     delh_vap_soa(8) = 131.0e3_r8
+     delh_vap_soa(9) = 120.0e3_r8
+     delh_vap_soa(10) = 109.0e3_r8
+     delh_vap_soa(11) = 153.0e3_r8
+     delh_vap_soa(12) = 142.0e3_r8
+     delh_vap_soa(13) = 131.0e3_r8
+     delh_vap_soa(14) = 120.0e3_r8
+     delh_vap_soa(15) = 109.0e3_r8
+  endif
 
-      !BSINGH - Initialized g_soa_tend and a_soa_tend to circumvent the undefined behavior (04/16/12)
-      g_soa_tend(:)   = 0.0_r8
-      a_soa_tend(:,:) = 0.0_r8
+  !BSINGH - Initialized g_soa_tend and a_soa_tend to circumvent the undefined behavior (04/16/12)
+  g_soa_tend(:)   = 0.0_r8
+  a_soa_tend(:,:) = 0.0_r8
+  xferrate(:,:) = 0.0_r8
 
-      ! determine which modes have non-zero transfer rates
-      !    and are involved in the soa gas-aerosol transfer
-      ! for diameter = 1 nm and number = 1 #/cm3, xferrate ~= 1e-9 s-1
-      do m = 1, ntot_soamode
-         skip_soamode(m) = .true.
-         do ll = 1, ntot_soaspec
-            xferrate(m,ll) = xferrate_in(m,ll)
-            skip_soamode(m) = .false.
-         end do
-      end do
+  skip_soamode(:) = .not.do_soaexch(:)
 
-      ! convert incoming mixing ratios from mol/mol at the "host-code" molec. weight (12.0 in cam5)
-      !    to mol/mol at the "actual" molec. weight (currently assumed to be 250.0)
-      ! also
-      !    force things to be non-negative
-      !    calc tot_soa(ll)
-      !    calc a_opoa (always slightly >0)
-      do ll = 1, ntot_soaspec
-         tmpf = mw_soa_host(ll)/mw_soa(ll)
-         g_soa(ll) = max( g_soa_in(ll), 0.0_r8 ) * tmpf
-         tot_soa(ll) = g_soa(ll)
-         do m = 1, ntot_soamode
-            if ( skip_soamode(m) ) cycle
-            a_soa(m,ll) = max( a_soa_in(m,ll), 0.0_r8 ) * tmpf
-            tot_soa(ll) = tot_soa(ll) + a_soa(m,ll)
-         end do
-      end do
+  ! determine which modes have non-zero transfer rates
+  !    and are involved in the soa gas-aerosol transfer
+  ! for diameter = 1 nm and number = 1 #/cm3, xferrate ~= 1e-9 s-1
+  do m = 1, nbins
+     if (do_soaexch(m)) then
+        do ll = 1, ntot_soaspec
+           xferrate(m,ll) = xferrate_in(m,ll)
+        end do
+     end if
+  end do
 
-      do m = 1, ntot_soamode
-         if ( skip_soamode(m) ) cycle
-         a_opoa(m) = 0.0_r8
-         do ll = 1, ntot_poaspec
-            a_opoa(m) = a_opoa(m) + opoa_frac(ll)*a_poa_in(m,ll)
-         end do
-      end do
+  ! convert incoming mixing ratios from mol/mol at the "host-code" molec. weight (12.0 in cam5)
+  !    to mol/mol at the "actual" molec. weight (currently assumed to be 250.0)
+  ! also
+  !    force things to be non-negative
+  !    calc tot_soa(ll)
+  !    calc a_opoa (always slightly >0)
+  do ll = 1, ntot_soaspec
+     tmpf = mw_soa_host/mw_soa
+     g_soa(ll) = max( g_soa_in(ll), 0.0_r8 ) * tmpf
+     tot_soa(ll) = g_soa(ll)
+     do m = 1, nbins
+        if ( skip_soamode(m) ) cycle
+        a_soa(m,ll) = max( a_soa_in(m,ll), 0.0_r8 ) * tmpf
+        tot_soa(ll) = tot_soa(ll) + a_soa(m,ll)
+     end do
+  end do
 
-      ! calc ambient equilibrium soa gas
-      do ll = 1, ntot_soaspec
-         p0_soa(ll) = p0_soa_298(ll) * &
-              exp( -(delh_vap_soa(ll)/rgas)*((1.0_r8/temp)-(1.0_r8/298.0_r8)) )
-         g0_soa(ll) = 1.01325e5_r8*p0_soa(ll)/pres
-      end do
 
-      niter = 0
-      tcur = 0.0_r8
-      dtcur = 0.0_r8
-      phi(:,:) = 0.0_r8
-      g_star(:,:) = 0.0_r8
+  do m = 1, nbins
+     if ( skip_soamode(m) ) cycle
+     a_opoa(m) = 0.0_r8
+     do ll = 1, ntot_poaspec
+        a_opoa(m) = a_opoa(m) + opoa_frac(ll)*a_poa_in(m,ll)
+     end do
+  end do
 
-!     if (idiagss > 0) then
-!        write(luna,'(a,1p,10e11.3)') 'p0, g0_soa', p0_soa, g0_soa
-!        write(luna,'(3a)') &
-!           'niter, tcur,   dtcur,    phi(:),                       ', &
-!           'g_star(:),                    ', &
-!           'a_soa(:),                     g_soa'
-!        write(luna,'(3a)') &
-!           '                         sat(:),                       ', &
-!           'sat(:)*a_soa(:)               ', &
-!           'a_opoa(:)'
-!        write(luna,'(i3,1p,20e10.2)') niter, tcur, dtcur, &
-!           phi(:), g_star(:), a_soa(:), g_soa
-!     end if
+  ! calc ambient equilibrium soa gas
+  do ll = 1, ntot_soaspec
+     p0_soa(ll) = p0_soa_298(ll) * &
+          exp( -(delh_vap_soa(ll)/rgas)*((1.0_r8/temp)-(1.0_r8/298.0_r8)) )
+     g0_soa(ll) = 1.01325e5_r8*p0_soa(ll)/pres
+  end do
 
+  ! IF mw of soa EQ 12 (as in the MAM3 default case), this has to be in
+  ! should actully talk the mw from the chemistry mechanism and substitute with 12.0
+
+  niter = 0
+  tcur = 0.0_r8
+  dtcur = 0.0_r8
+  phi(:,:) = 0.0_r8
+  g_star(:,:) = 0.0_r8
 
 ! integration loop -- does multiple substeps to reach dtfull
-time_loop: &
-      do while (tcur < dtfull-1.0e-3_r8 )
+  time_loop: do while (tcur < dtfull-1.0e-3_r8 )
 
-      niter = niter + 1
-      if (niter > niter_max) exit
+     niter = niter + 1
+     if (niter > niter_max) exit
 
-      tmpa = 0.0_r8  ! time integration parameter for all soa species
-      do m = 1, ntot_soamode
-         if ( skip_soamode(m) ) cycle
-         a_ooa_sum_tmp(m) = a_opoa(m) + sum( a_soa(m,1:ntot_soaspec) )
-      end do
-      do ll = 1, ntot_soaspec
-         tmpb = 0.0_r8  ! time integration parameter for a single soa species
-         do m = 1, ntot_soamode
-            if ( skip_soamode(m) ) cycle
-            sat(m,ll) = g0_soa(ll)/max( a_ooa_sum_tmp(m), a_min1 )
-            g_star(m,ll) = sat(m,ll)*a_soa(m,ll)
-            phi(m,ll) = (g_soa(ll) - g_star(m,ll))/max( g_soa(ll), g_star(m,ll), g_min1 )
-            tmpb = tmpb + xferrate(m,ll)*abs(phi(m,ll))
-         end do
-         tmpa = max( tmpa, tmpb )
-      end do
+     tmpa = 0.0_r8  ! time integration parameter for all soa species
+     do m = 1, nbins
+        if ( skip_soamode(m) ) cycle
+        a_ooa_sum_tmp(m) = a_opoa(m) + sum( a_soa(m,1:ntot_soaspec) )
+     end do
+     do ll = 1, ntot_soaspec
+        tmpb = 0.0_r8  ! time integration parameter for a single soa species
+        do m = 1, nbins
+           if ( skip_soamode(m) ) cycle
+           sat(m,ll) = g0_soa(ll)/max( a_ooa_sum_tmp(m), a_min1 )
+           g_star(m,ll) = sat(m,ll)*a_soa(m,ll)
+           phi(m,ll) = (g_soa(ll) - g_star(m,ll))/max( g_soa(ll), g_star(m,ll), g_min1 )
+           tmpb = tmpb + xferrate(m,ll)*abs(phi(m,ll))
+        end do
+        tmpa = max( tmpa, tmpb )
+     end do
 
-      if (dtsub_fixed > 0.0_r8) then
-         dtcur = dtsub_fixed
-         tcur = tcur + dtcur
-      else
-         dtmax = dtfull-tcur
-         if (dtmax*tmpa <= alpha) then
+     if (dtsub_fixed > 0.0_r8) then
+        dtcur = dtsub_fixed
+        tcur = tcur + dtcur
+     else
+        dtmax = dtfull-tcur
+        if (dtmax*tmpa <= alpha) then
 ! here alpha/tmpa >= dtmax, so this is final substep
-            dtcur = dtmax
-            tcur = dtfull
-         else
-            dtcur = alpha/tmpa
-            tcur = tcur + dtcur
-         end if
-      end if
+           dtcur = dtmax
+           tcur = dtfull
+        else
+           dtcur = alpha/tmpa
+           tcur = tcur + dtcur
+        end if
+     end if
 
 ! step 1 - for modes where soa is condensing, estimate "new" a_soa(m,ll)
 !    using an explicit calculation with "old" g_soa
 !    and g_star(m,ll) calculated using "old" a_soa(m,ll)
 ! do this to get better estimate of "new" a_soa(m,ll) and sat(m,ll)
-      do m = 1, ntot_soamode
-         if ( skip_soamode(m) ) cycle
-         do ll = 1, ntot_soaspec
-            ! first ll loop calcs a_soa_tmp(m,ll) & a_ooa_sum_tmp
-            a_soa_tmp(m,ll) = a_soa(m,ll)
-            beta(m,ll) = dtcur*xferrate(m,ll)
-            del_g_soa_tmp(ll) = g_soa(ll) - g_star(m,ll)
-            if (del_g_soa_tmp(ll) > 0.0_r8) then
-               a_soa_tmp(m,ll) = a_soa(m,ll) + beta(m,ll)*del_g_soa_tmp(ll)
-            end if
-         end do
-         a_ooa_sum_tmp(m) = a_opoa(m) + sum( a_soa_tmp(m,1:ntot_soaspec) )
-         do ll = 1, ntot_soaspec
-            ! second ll loop calcs sat & g_star
-            if (del_g_soa_tmp(ll) > 0.0_r8) then
-               sat(m,ll) = g0_soa(ll)/max( a_ooa_sum_tmp(m), a_min1 )
-               g_star(m,ll) = sat(m,ll)*a_soa_tmp(m,ll)   ! this just needed for diagnostics
-            end if
-         end do
-      end do
+     do m = 1, nbins
+        if ( skip_soamode(m) ) cycle
+        do ll = 1, ntot_soaspec
+           ! first ll loop calcs a_soa_tmp(m,ll) & a_ooa_sum_tmp
+           a_soa_tmp(m,ll) = a_soa(m,ll)
+           beta(m,ll) = dtcur*xferrate(m,ll)
+           del_g_soa_tmp(ll) = g_soa(ll) - g_star(m,ll)
+           if (del_g_soa_tmp(ll) > 0.0_r8) then
+              a_soa_tmp(m,ll) = a_soa(m,ll) + beta(m,ll)*del_g_soa_tmp(ll)
+           end if
+        end do
+        a_ooa_sum_tmp(m) = a_opoa(m) + sum( a_soa_tmp(m,1:ntot_soaspec) )
+        do ll = 1, ntot_soaspec
+           ! second ll loop calcs sat & g_star
+           if (del_g_soa_tmp(ll) > 0.0_r8) then
+              sat(m,ll) = g0_soa(ll)/max( a_ooa_sum_tmp(m), a_min1 )
+              g_star(m,ll) = sat(m,ll)*a_soa_tmp(m,ll)   ! this just needed for diagnostics
+           end if
+        end do
+     end do
 
 ! step 2 - implicit in g_soa and semi-implicit in a_soa,
 !    with g_star(m,ll) calculated semi-implicitly
-      do ll = 1, ntot_soaspec
-         tmpa = 0.0_r8
-         tmpb = 0.0_r8
-         do m = 1, ntot_soamode
-            if ( skip_soamode(m) ) cycle
-            tmpa = tmpa + a_soa(m,ll)/(1.0_r8 + beta(m,ll)*sat(m,ll))
-            tmpb = tmpb + beta(m,ll)/(1.0_r8 + beta(m,ll)*sat(m,ll))
-         end do
+     do ll = 1, ntot_soaspec
+        tmpa = 0.0_r8
+        tmpb = 0.0_r8
+        do m = 1, nbins
+           if ( skip_soamode(m) ) cycle
+           tmpa = tmpa + a_soa(m,ll)/(1.0_r8 + beta(m,ll)*sat(m,ll))
+           tmpb = tmpb + beta(m,ll)/(1.0_r8 + beta(m,ll)*sat(m,ll))
+        end do
 
-         g_soa(ll) = (tot_soa(ll) - tmpa)/(1.0_r8 + tmpb)
-         g_soa(ll) = max( 0.0_r8, g_soa(ll) )
-         do m = 1, ntot_soamode
-            if ( skip_soamode(m) ) cycle
-            a_soa(m,ll) = (a_soa(m,ll) + beta(m,ll)*g_soa(ll))/   &
-                       (1.0_r8 + beta(m,ll)*sat(m,ll))
-         end do
-      end do
+        g_soa(ll) = (tot_soa(ll) - tmpa)/(1.0_r8 + tmpb)
+        g_soa(ll) = max( 0.0_r8, g_soa(ll) )
+        do m = 1, nbins
+           if ( skip_soamode(m) ) cycle
+           a_soa(m,ll) = (a_soa(m,ll) + beta(m,ll)*g_soa(ll))/   &
+                (1.0_r8 + beta(m,ll)*sat(m,ll))
+        end do
+     end do
 
-!     if (idiagss > 0) then
-!        write(luna,'(i3,1p,20e10.2)') niter, tcur, dtcur, &
-!           phi(:), g_star(:), a_soa(:), g_soa
-!        write(luna,'(23x,1p,20e10.2)') &
-!           sat(:), sat(:)*a_soa(:), a_opoa(:)
-!     end if
-
-!     if (niter > 9992000) then
-!        write(luna,'(a)') '*** to many iterations'
-!        exit
-!     end if
-
-      end do time_loop
-
+  end do time_loop
 
 ! calculate outgoing tendencies (at the host-code molec. weight)
 ! (a_soa & g_soa are at actual mw, but a_soa_in & g_soa_in are at host-code mw)
-      do ll = 1, ntot_soaspec
-         tmpf = mw_soa(ll)/mw_soa_host(ll)
-         g_soa_tend(ll) = (g_soa(ll)*tmpf - g_soa_in(ll))/dtfull
-         do m = 1, ntot_soamode
-            if ( skip_soamode(m) ) cycle
-            a_soa_tend(m,ll) = (a_soa(m,ll)*tmpf - a_soa_in(m,ll))/dtfull
-         end do
-      end do
+  do ll = 1, ntot_soaspec
+     tmpf = mw_soa/mw_soa_host
+     g_soa_tend(ll) = (g_soa(ll)*tmpf - g_soa_in(ll))/dtfull
+     do m = 1, nbins
+        if ( skip_soamode(m) ) cycle
+        a_soa_tend(m,ll) = (a_soa(m,ll)*tmpf - a_soa_in(m,ll))/dtfull
+     end do
+  end do
 
+end subroutine aero_soaexch
 
-      return
-
-      end subroutine modal_aero_soaexch
+!----------------------------------------------------------------------
 
 !----------------------------------------------------------------------
 
@@ -1451,6 +1424,7 @@ use cam_history,    only: addfld, add_default, fieldname_len, horiz_only
 use constituents,   only: pcnst, cnst_get_ind, cnst_name
 use spmd_utils,     only: masterproc
 use phys_control,   only: phys_getopts
+use radiative_aerosol,  only: rad_aer_get_info
 
 implicit none
 
@@ -1481,6 +1455,7 @@ implicit none
 
    logical                        :: history_aerosol      ! Output the MAM aerosol tendencies
    logical                        :: history_aerocom    ! Output the aerocom history
+   character(len=32) :: spec_type
    !-----------------------------------------------------------------------
 
         call phys_getopts( history_aerosol_out        = history_aerosol   )
@@ -1491,7 +1466,23 @@ implicit none
         allocate(soa_equivso4_factor(nsoa))
         allocate(fac_m2v_soa(nsoa))
         allocate(fac_m2v_pcarbon(nspec_max))
-	lunout = 6
+        lunout = 6
+
+        allocate(do_soaexch(ntot_amode))
+        do_soaexch(:) = .false.
+
+        do n = 1, ntot_amode
+           !call rad_aer_get_info(0, n, mode_type=mode_type)
+
+           do l = 1, nspec_amode(n)
+              call rad_aer_get_info(0, n, l, spec_type=spec_type )
+              if ( trim(spec_type) == 's-organic' .or. trim(spec_type) == 'p-organic' ) then
+                 ! allow for exchange with primary organic mode
+                 do_soaexch(n) = .true.
+              end if
+           end do
+        end do
+!print*,'FVDBG: do_soaexch: ',do_soaexch
 !
 !   define "from mode" and "to mode" for primary carbon aging
 !
