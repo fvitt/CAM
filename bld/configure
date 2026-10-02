@@ -693,6 +693,10 @@ if ($print>=2) { print "WACCM physics: $waccm_phys$eol"; }
 if ($chem_pkg =~ /waccm_/ or $chem_pkg =~ /trop_strat_/) {
     $cfg_ref->set('age_of_air_trcs', 1);
 }
+if (($waccm_phys) and ($phys_pkg eq 'cam7')) {
+    # WACCM7 use extended non-LTE cooling
+    $cfg_ref->set('ext_co2_cool', 1);
+}
 
 # Allow user to override WACCM default, or turn on the age of air tracers
 # in non-WACCM runs.
