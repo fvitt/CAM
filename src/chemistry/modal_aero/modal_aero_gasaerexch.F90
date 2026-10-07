@@ -612,7 +612,7 @@ implicit none
             end do
 
             call aero_soaexch( deltat, t(i,k), pmid(i,k), &
-                 niter, niter_max, ntot_amode,  npoa, nsoa, &
+                 niter, niter_max, ntot_amode, nsoa, npoa, &
                  mw_poa_host, mw_soa_host, &
                  qold_soag, qold_soa, qold_poa, uptkrate_soa, &
                  dqdt_soag, dqdt_soa )

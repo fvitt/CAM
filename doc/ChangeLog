@@ -1,3 +1,10 @@
+
+answer changing mods:
+
+ Fix Knudsen number in uptake rate calc in carma_aero_gasaerexch.F90 -- correction to diameter (dp)
+ Following claude's note:
+  Separately, knudsen = freepathx2/dp divides 2λ by the radius, making Kn a factor of 2 too large and biasing F(Kn) low.
+
 ===============================================================
 
 Tag name: cam6_4_199
