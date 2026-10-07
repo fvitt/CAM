@@ -32,10 +32,10 @@ module edynamo
   real(r8), allocatable, dimension(:,:) :: &
     zigm11,    & ! sigma11*cos(theta0)
     zigmc,     & ! sigmac
-    zigm1,     & ! for Hall conductance diagnostic (folded)
-    azigm1,    & ! for Hall conductance diagnostic (not folded)
-    zigm2,     & ! sigma2
-    azigm2,    & ! for Ped conductance diagnostic (not folded)
+    zigm1,     & ! for Pedersen conductance diagnostic (folded)
+    azigm1,    & ! for Pedersen conductance diagnostic (not folded)
+    zigm2,     & ! for Hall conductance diagnostic
+    azigm2,    & ! for Hall conductance diagnostic (not folded)
     zigm22,    & ! sigma22/cos(theta0)
     rim1,rim2, & ! see description in comment below
     rhs,       & ! right-hand side of PDE
@@ -963,8 +963,8 @@ contains
           call outfld('EDYN_RIM1',rim1(mlon0:omlon1,j),omlon1-mlon0+1,j)
           call outfld('EDYN_RIM2',rim2(mlon0:omlon1,j),omlon1-mlon0+1,j)
        endif
-       call outfld('PED_CONDUCTANCE', zigm2(mlon0:omlon1,j),omlon1-mlon0+1,j)
-       call outfld('HALL_CONDUCTANCE',zigm1(mlon0:omlon1,j),omlon1-mlon0+1,j)
+       call outfld('PED_CONDUCTANCE', zigm1(mlon0:omlon1,j),omlon1-mlon0+1,j)
+       call outfld('HALL_CONDUCTANCE',zigm2(mlon0:omlon1,j),omlon1-mlon0+1,j)
     enddo
 
     if (debug.and.masterproc) then
@@ -1853,6 +1853,7 @@ contains
     integer :: i,k,j
     real(r8), dimension(lev0:lev1,lon0:lon1,lat0:lat1) :: eex,eey,eez
     real(r8), dimension(lev0:lev1,lon0:lon1,lat0:lat1) :: rjac_out
+    real(r8) :: uitmp, vitmp
 
 ! mag field diagnostics
     call savefld_waccm(bmod(lon0:lon1,lat0:lat1),'BMOD',1,lon0,lon1,lat0,lat1)
@@ -1891,6 +1892,13 @@ contains
              ui(k,i,j) = -(eey(k,i,j)*zb(i,j)+eez(k,i,j)*xb(i,j))*1.e6_r8/(bmod(i,j)**2)
              vi(k,i,j) =  (eez(k,i,j)*yb(i,j)+eex(k,i,j)*zb(i,j))*1.e6_r8/(bmod(i,j)**2)
              wi(k,i,j) =  (eex(k,i,j)*xb(i,j)-eey(k,i,j)*yb(i,j))*1.e6_r8/(bmod(i,j)**2)
+
+             ! This is a hardcoded limit of 3.e3 m/s for the ion drifts.  
+             ! This is to avoid numerical issues in the oplus_xport call from dpie_coupling.
+             uitmp = sign(min(abs(ui(k,i,j)), 3.e3_r8),ui(k,i,j))
+             vitmp = sign(min(abs(vi(k,i,j)), 3.e3_r8),vi(k,i,j))
+             ui(k,i,j) = uitmp
+             vi(k,i,j) = vitmp
           enddo
        enddo
 !

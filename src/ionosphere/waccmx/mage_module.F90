@@ -13,7 +13,7 @@ module mage_module
   use edyn_maggrid,   only: gmlat     ! magnetic longtitudes (nmlonp1) (radians)
   use edyn_mpi,       only: ntask, mytid
   use edyn_params,    only: pi, dtr, rtd
-  use edynamo,        only: azigm1, azigm2 ! Hall and Ped conductances
+  use edynamo,        only: azigm1, azigm2 ! Ped and Hall conductances
   use cam_abortutils, only: endrun
 
   implicit none
@@ -452,8 +452,8 @@ contains
     ! Begin ............................................................
 
     ! Prepare data for export
-    amsub(:,:,1) = azigm2(mlon0:mlon1,mlat0:mlat1)  ! Ped
-    amsub(:,:,2) = azigm1(mlon0:mlon1,mlat0:mlat1) ! Hall
+    amsub(:,:,1) = azigm1(mlon0:mlon1,mlat0:mlat1)  ! Ped
+    amsub(:,:,2) = azigm2(mlon0:mlon1,mlat0:mlat1) ! Hall
 
     where(amsub < 0.2_r8) amsub = 0.2_r8
 
