@@ -1,5 +1,8 @@
+Answer changing mods:
 
-answer changing mods:
+ Set *_min1 = 1.0e-20_r8 parameters for CARMA
+
+ Use SOA1 props params from modal (1 SOA -- CARMAWM)
 
  Fix Knudsen number in uptake rate calc in carma_aero_gasaerexch.F90 -- correction to diameter (dp)
  Following claude's note:

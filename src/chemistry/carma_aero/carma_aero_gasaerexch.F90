@@ -843,8 +843,8 @@ subroutine aero_soaexch( dtfull, temp, pres, &
 
   logical :: skip_soamode(nbins)   ! true if this bin does not have soa
 
-  real(r8), parameter :: a_min1 = 1.0e-40_r8
-  real(r8), parameter :: g_min1 = 1.0e-40_r8
+  real(r8), parameter :: a_min1 = 1.0e-20_r8
+  real(r8), parameter :: g_min1 = 1.0e-20_r8
   real(r8), parameter :: alpha = 0.05_r8     ! parameter used in calc of time step
   real(r8), parameter :: dtsub_fixed = -1.0_r8  ! fixed sub-step for time integration (s)
 
