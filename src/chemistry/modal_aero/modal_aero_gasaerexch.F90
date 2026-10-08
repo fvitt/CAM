@@ -80,6 +80,482 @@
 
 
 !----------------------------------------------------------------------
+
+      subroutine modal_aero_gasaerexch_init
+
+!-----------------------------------------------------------------------
+!
+! Purpose:
+!    set do_adjust and do_aitken flags
+!    create history fields for column tendencies associated with
+!       modal_aero_calcsize
+!
+! Author: R. Easter
+!
+!-----------------------------------------------------------------------
+
+use modal_aero_data
+use modal_aero_rename
+
+use cam_abortutils, only: endrun
+use cam_history,    only: addfld, add_default, fieldname_len, horiz_only
+use constituents,   only: pcnst, cnst_get_ind, cnst_name
+use spmd_utils,     only: masterproc
+use phys_control,   only: phys_getopts
+use radiative_aerosol,  only: rad_aer_get_info
+
+implicit none
+
+!-----------------------------------------------------------------------
+! arguments
+
+!-----------------------------------------------------------------------
+! local
+   integer  :: ipair, iq, iqfrm, iqfrm_aa, iqtoo, iqtoo_aa
+   integer  :: jac,jsoa,p
+   integer  :: l, l1, l2, lsfrm, lstoo, lunout
+   integer  :: l_so4g, l_nh4g, l_msag
+   integer  :: m, mfrm, mtoo
+   integer  :: n, nacc, nait
+   integer  :: nchfrm, nchfrmskip, nchtoo, nchtooskip, nspec
+
+   logical  :: do_msag, do_nh4g
+   logical  :: do_soag_any, do_soag(nsoa)
+   logical  :: dotend(pcnst), dotendqqcw(pcnst)
+
+   real(r8) :: tmp1, tmp2
+
+   character(len=fieldname_len)   :: tmpnamea, tmpnameb
+   character(len=fieldname_len+3) :: fieldname
+   character(128)                 :: long_name
+   character(128)                 :: msg
+   character(8)                   :: unit
+
+   logical                        :: history_aerosol      ! Output the MAM aerosol tendencies
+   logical                        :: history_aerocom    ! Output the aerocom history
+   character(len=32) :: spec_type
+   !-----------------------------------------------------------------------
+
+        call phys_getopts( history_aerosol_out        = history_aerosol   )
+
+        maxspec_pcage = nspec_max
+        allocate(lspecfrm_pcage(maxspec_pcage))
+        allocate(lspectoo_pcage(maxspec_pcage))
+        allocate(soa_equivso4_factor(nsoa))
+        allocate(fac_m2v_soa(nsoa))
+        allocate(fac_m2v_pcarbon(nspec_max))
+        lunout = 6
+
+        allocate(do_soaexch(ntot_amode))
+        do_soaexch(:) = .false.
+
+        do n = 1, ntot_amode
+           !call rad_aer_get_info(0, n, mode_type=mode_type)
+
+           do l = 1, nspec_amode(n)
+              call rad_aer_get_info(0, n, l, spec_type=spec_type )
+              if ( trim(spec_type) == 's-organic' .or. trim(spec_type) == 'p-organic' ) then
+                 ! allow for exchange with primary organic mode
+                 do_soaexch(n) = .true.
+              end if
+           end do
+        end do
+!print*,'FVDBG: do_soaexch: ',do_soaexch
+!
+!   define "from mode" and "to mode" for primary carbon aging
+!
+!   skip (turn off) aging if either is absent,
+!      or if accum mode so4 is absent
+!
+	modefrm_pcage = -999888777
+	modetoo_pcage = -999888777
+	if ((modeptr_pcarbon <= 0) .or. (modeptr_accum <= 0)) goto 15000
+	l = lptr_so4_a_amode(modeptr_accum)
+	if ((l < 1) .or. (l > pcnst)) goto 15000
+
+	modefrm_pcage = modeptr_pcarbon
+	modetoo_pcage = modeptr_accum
+
+!
+!   define species involved in each primary carbon aging pairing
+!	(include aerosol water)
+!
+!
+	mfrm = modefrm_pcage
+	mtoo = modetoo_pcage
+
+	if (mfrm < 10) then
+	    nchfrmskip = 1
+	else if (mfrm < 100) then
+	    nchfrmskip = 2
+	else
+	    nchfrmskip = 3
+	end if
+	if (mtoo < 10) then
+	    nchtooskip = 1
+	else if (mtoo < 100) then
+	    nchtooskip = 2
+	else
+	    nchtooskip = 3
+	end if
+	nspec = 0
+
+aa_iqfrm: do iqfrm = -1, nspec_amode(mfrm)
+
+	    if (iqfrm == -1) then
+		lsfrm = numptr_amode(mfrm)
+		lstoo = numptr_amode(mtoo)
+	    else if (iqfrm == 0) then
+!   bypass transfer of aerosol water due to primary-carbon aging
+		cycle aa_iqfrm
+!               lsfrm = lwaterptr_amode(mfrm)
+!               lstoo = lwaterptr_amode(mtoo)
+	    else
+		lsfrm = lmassptr_amode(iqfrm,mfrm)
+		lstoo = 0
+	    end if
+	    if ((lsfrm < 1) .or. (lsfrm > pcnst)) cycle aa_iqfrm
+
+	    if (lsfrm>0 .and. iqfrm>0 ) then
+		nchfrm = len( trim( cnst_name(lsfrm) ) ) - nchfrmskip
+
+! find "too" species having same lspectype_amode as the "frm" species
+! AND same cnst_name (except for last 1/2/3 characters which are the mode index)
+		do iqtoo = 1, nspec_amode(mtoo)
+!		    if ( lspectype_amode(iqtoo,mtoo) .eq.   &
+!		         lspectype_amode(iqfrm,mfrm) ) then
+			lstoo = lmassptr_amode(iqtoo,mtoo)
+			nchtoo = len( trim( cnst_name(lstoo) ) ) - nchtooskip
+			if (cnst_name(lsfrm)(1:nchfrm) == cnst_name(lstoo)(1:nchtoo)) then
+			    exit
+			else
+			    lstoo = 0
+			end if
+!		    end if
+		end do
+	    end if
+
+	    if ((lstoo < 1) .or. (lstoo > pcnst)) lstoo = 0
+	    nspec = nspec + 1
+	    lspecfrm_pcage(nspec) = lsfrm
+	    lspectoo_pcage(nspec) = lstoo
+	end do aa_iqfrm
+
+	nspecfrm_pcage = nspec
+
+!
+!   output results
+!
+	if ( masterproc ) then
+
+	write(lunout,9310)
+
+	  mfrm = modefrm_pcage
+	  mtoo = modetoo_pcage
+	  write(lunout,9320) 1, mfrm, mtoo
+
+	  do iq = 1, nspecfrm_pcage
+	    lsfrm = lspecfrm_pcage(iq)
+	    lstoo = lspectoo_pcage(iq)
+	    if (lstoo .gt. 0) then
+		write(lunout,9330) lsfrm, cnst_name(lsfrm),   &
+      			lstoo, cnst_name(lstoo)
+	    else
+		write(lunout,9340) lsfrm, cnst_name(lsfrm)
+	    end if
+	  end do
+
+	write(lunout,*)
+
+	end if ! ( masterproc )
+
+9310	format( / 'subr. modal_aero_gasaerexch_init - primary carbon aging pointers' )
+9320	format( 'pair', i3, 5x, 'mode', i3, ' ---> mode', i3 )
+9330	format( 5x, 'spec', i3, '=', a, ' ---> spec', i3, '=', a )
+9340	format( 5x, 'spec', i3, '=', a, ' ---> LOSS' )
+
+
+15000 continue
+
+! set tendency flags and gas species indices and flags
+      dotend(:) = .false.
+
+      call cnst_get_ind( 'H2SO4', l_so4g, .false. )
+      if ((l_so4g <= 0) .or. (l_so4g > pcnst)) then
+         write( *, '(/a/a,2i7)' )   &
+            '*** modal_aero_gasaerexch_init -- cannot find H2SO4 species',   &
+            '    l_so4g=', l_so4g
+         call endrun( 'modal_aero_gasaerexch_init error' )
+      end if
+      dotend(l_so4g) = .true.
+
+      call cnst_get_ind( 'NH3',   l_nh4g, .false. )
+      do_nh4g = .false.
+      if ((l_nh4g > 0) .and. (l_nh4g <= pcnst)) then
+         do_nh4g = .true.
+         dotend(l_nh4g) = .true.
+      end if
+
+      call cnst_get_ind( 'MSA',   l_msag, .false. )
+      do_msag = .false.
+      if ((l_msag > 0) .and. (l_msag <= pcnst)) then
+         do_msag = .true.
+         dotend(l_msag) = .true.
+      end if
+
+      do_soag_any = .false.
+      do_soag(:) = .false.
+      do jsoa = 1, nsoa
+         l = lptr2_soa_g_amode(jsoa)
+         if ((l > 0) .and. (l <= pcnst)) then
+            do_soag_any = .true.
+            do_soag(jsoa) = .true.
+            dotend(l) = .true.
+         end if
+      end do
+
+
+      do n = 1, ntot_amode
+         l = lptr_so4_a_amode(n)
+         if ((l > 0) .and. (l <= pcnst)) then
+            dotend(l) = .true.
+            if ( do_nh4g ) then
+               l = lptr_nh4_a_amode(n)
+               if ((l > 0) .and. (l <= pcnst)) dotend(l) = .true.
+            end if
+         end if
+         do jsoa = 1, nsoa
+            if ( do_soag(jsoa) ) then
+               l = lptr2_soa_a_amode(n,jsoa)
+               if ((l > 0) .and. (l <= pcnst)) dotend(l) = .true.
+            end if
+         end do
+      end do
+
+      if (modefrm_pcage > 0) then
+         do iq = 1, nspecfrm_pcage
+            lsfrm = lspecfrm_pcage(iq)
+            lstoo = lspectoo_pcage(iq)
+            if ((lsfrm > 0) .and. (lsfrm <= pcnst)) then
+               dotend(lsfrm) = .true.
+               if ((lstoo > 0) .and. (lstoo <= pcnst)) then
+                  dotend(lstoo) = .true.
+               end if
+            end if
+         end do
+      end if
+
+!---------define history fields for new cond/evap diagnostics----------------------------------------
+      fieldname=trim('qconff_gaex')
+      long_name = trim('3D fields for Fossil SOA condensation')
+      unit = 'kg/kg/s'
+      call addfld(fieldname, (/'lev'/), 'A', unit, long_name )
+      if ( history_aerosol ) then
+         call add_default( fieldname,  1, ' ' )
+      endif
+      if ( masterproc ) write(*,'(3(a,3x))') 'qconff addfld', fieldname, unit
+
+      fieldname=trim('qevapff_gaex')
+      long_name = trim('3D fields for Fossil SOA evaporation')
+      call addfld(fieldname, (/'lev'/), 'A', unit, long_name )
+      if ( history_aerosol ) then
+         call add_default( fieldname,  1, ' ' )
+      endif
+      if ( masterproc ) write(*,'(3(a,3x))') 'qevapff addfld', fieldname, unit
+
+      fieldname=trim('qconbb_gaex')
+      long_name = trim('3D fields for Biomass SOA condensation')
+      call addfld(fieldname, (/'lev'/), 'A', unit, long_name )
+      if ( history_aerosol ) then
+         call add_default( fieldname,  1, ' ' )
+      endif
+      if ( masterproc ) write(*,'(3(a,3x))') 'qconbb addfld', fieldname, unit
+
+      fieldname=trim('qevapbb_gaex')
+      long_name = trim('3D fields for Biomass SOA evaporation')
+      call addfld(fieldname, (/'lev'/), 'A', unit, long_name )
+      if ( history_aerosol ) then
+         call add_default( fieldname,  1, ' ' )
+      endif
+      if ( masterproc ) write(*,'(3(a,3x))') 'qevapbb addfld', fieldname, unit
+
+      fieldname=trim('qconbg_gaex')
+      long_name = trim('3D fields for Biogenic SOA condensation')
+      call addfld(fieldname, (/'lev'/), 'A', unit, long_name )
+      if ( history_aerosol ) then
+         call add_default( fieldname,  1, ' ' )
+      endif
+      if ( masterproc ) write(*,'(3(a,3x))') 'qconbg addfld', fieldname, unit
+
+      fieldname=trim('qevapbg_gaex')
+      long_name = trim('3D fields for Biogenic SOA evaporation')
+      call addfld(fieldname, (/'lev'/), 'A', unit, long_name )
+      if ( history_aerosol ) then
+         call add_default( fieldname,  1, ' ' )
+      endif
+      if ( masterproc ) write(*,'(3(a,3x))') 'qevapbg addfld', fieldname, unit
+
+      fieldname=trim('qcon_gaex')
+      long_name = trim('3D fields for SOA condensation')
+      call addfld(fieldname, (/'lev'/), 'A', unit, long_name )
+      if ( history_aerosol ) then
+         call add_default( fieldname,  1, ' ' )
+      endif
+      if ( masterproc ) write(*,'(3(a,3x))') 'qcon addfld', fieldname, unit
+
+      fieldname=trim('qevap_gaex')
+      long_name = trim('3D fields for Biogenic SOA evaporation')
+      call addfld(fieldname, (/'lev'/), 'A', unit, long_name )
+      if ( history_aerosol ) then
+         call add_default( fieldname,  1, ' ' )
+      endif
+      if ( masterproc ) write(*,'(3(a,3x))') 'qevap addfld', fieldname, unit
+!------------------------------------------------------------------------------
+
+!  define history fields for basic gas-aer exchange
+!  and primary carbon aging from that
+      do l = 1, pcnst
+         if ( .not. dotend(l) ) cycle
+
+         tmpnamea = cnst_name(l)
+         fieldname = trim(tmpnamea) // '_sfgaex1'
+         long_name = trim(tmpnamea) // ' gas-aerosol-exchange primary column tendency'
+         unit = 'kg/m2/s'
+         call addfld( fieldname, horiz_only, 'A', unit, long_name )
+         if ( history_aerosol ) then
+            call add_default( fieldname, 1, ' ' )
+         endif
+         if ( masterproc ) write(*,'(3(a,3x))') 'gasaerexch addfld', fieldname, unit
+
+      end do   ! l = ...
+!  define history fields for aitken-->accum renaming
+      dotend(:) = .false.
+      dotendqqcw(:) = .false.
+      do ipair = 1, npair_renamexf
+         do iq = 1, nspecfrm_renamexf(ipair)
+            lsfrm = lspecfrma_renamexf(iq,ipair)
+            lstoo = lspectooa_renamexf(iq,ipair)
+            if ((lsfrm > 0) .and. (lsfrm <= pcnst)) then
+               dotend(lsfrm) = .true.
+               if ((lstoo > 0) .and. (lstoo <= pcnst)) then
+                  dotend(lstoo) = .true.
+               end if
+            end if
+
+            lsfrm = lspecfrmc_renamexf(iq,ipair)
+            lstoo = lspectooc_renamexf(iq,ipair)
+            if ((lsfrm > 0) .and. (lsfrm <= pcnst)) then
+               dotendqqcw(lsfrm) = .true.
+               if ((lstoo > 0) .and. (lstoo <= pcnst)) then
+                  dotendqqcw(lstoo) = .true.
+               end if
+            end if
+         end do ! iq = ...
+      end do ! ipair = ...
+
+      do l = 1, pcnst
+      do jac = 1, 2
+         if (jac == 1) then
+            if ( .not. dotend(l) ) cycle
+            tmpnamea = cnst_name(l)
+         else
+            if ( .not. dotendqqcw(l) ) cycle
+            tmpnamea = cnst_name_cw(l)
+         end if
+
+         fieldname = trim(tmpnamea) // '_sfgaex2'
+         long_name = trim(tmpnamea) // ' gas-aerosol-exchange renaming column tendency'
+         unit = 'kg/m2/s'
+         if ((tmpnamea(1:3) == 'num') .or. &
+             (tmpnamea(1:3) == 'NUM')) unit = '#/m2/s'
+         call addfld( fieldname, horiz_only, 'A', unit, long_name )
+         if ( history_aerosol ) then
+            call add_default( fieldname, 1, ' ' )
+         endif
+         if ( masterproc ) write(*,'(3(a,3x))') 'gasaerexch addfld', fieldname, unit
+      end do   ! jac = ...
+      end do   ! l = ...
+
+
+! set for used in aging calcs:
+!    fac_m2v_so4, fac_m2v_nh4, fac_m2v_soa(:)
+!    soa_equivso4_factor(:)
+      soa_equivso4_factor = 0.0_r8
+      if (modefrm_pcage > 0) then
+         n = modeptr_accum
+         l = lptr_so4_a_amode(n) ; l2 = -1
+         if (l <= 0) call endrun( 'modal_aero_gasaerexch_init error a001 finding accum. so4' )
+         do l1 = 1, nspec_amode(n)
+            if (lmassptr_amode(l1,n) == l) then
+!               l2 = lspectype_amode(l1,n)
+               l2 = l1
+!               fac_m2v_so4 = specmw_amode(l2) / specdens_amode(l2)
+               fac_m2v_so4 = specmw_amode(l1,n) / specdens_amode(l1,n)
+!               tmp2 = spechygro(l2)
+               tmp2 = spechygro(l1,n)
+
+            end if
+         end do
+         if (l2 <= 0) call endrun( 'modal_aero_gasaerexch_init error a002 finding accum. so4' )
+
+         l = lptr_nh4_a_amode(n) ; l2 = -1
+         if (l > 0) then
+            do l1 = 1, nspec_amode(n)
+               if (lmassptr_amode(l1,n) == l) then
+!                  l2 = lspectype_amode(l1,n)
+                  l2 = l1
+!                  fac_m2v_nh4 = specmw_amode(l2) / specdens_amode(l2)
+                  fac_m2v_nh4 = specmw_amode(l1,n) / specdens_amode(l1,n)
+
+               end if
+            end do
+            if (l2 <= 0) call endrun( 'modal_aero_gasaerexch_init error a002 finding accum. nh4' )
+         else
+            fac_m2v_nh4 = fac_m2v_so4
+         end if
+
+         do jsoa = 1, nsoa
+            l = lptr2_soa_a_amode(n,jsoa) ; l2 = -1
+            if (l <= 0) then
+               write( msg, '(a,i4)') 'modal_aero_gasaerexch_init error a001 finding accum. jsoa =', jsoa
+               call endrun( msg )
+            end if
+            do l1 = 1, nspec_amode(n)
+               if (lmassptr_amode(l1,n) == l) then
+!                  l2 = lspectype_amode(l1,n)
+                  l2 = l1
+!                  fac_m2v_soa(jsoa) = specmw_amode(l2) / specdens_amode(l2)
+                  fac_m2v_soa(jsoa) = specmw_amode(l1,n) / specdens_amode(l1,n)
+!                  soa_equivso4_factor(jsoa) = spechygro(l2)/tmp2
+                  soa_equivso4_factor(jsoa) = spechygro(l1,n)/tmp2
+               end if
+            end do
+            if (l2 <= 0) then
+               write( msg, '(a,i4)') 'modal_aero_gasaerexch_init error a002 finding accum. jsoa =', jsoa
+               call endrun( msg )
+            end if
+         end do
+
+         fac_m2v_pcarbon(:) = 0.0_r8
+         n = modeptr_pcarbon
+         do l = 1, nspec_amode(n)
+!            l2 = lspectype_amode(l,n)
+!      fac_m2v converts (kmol-AP/kmol-air) to (m3-AP/kmol-air)
+!           [m3-AP/kmol-AP]    = [kg-AP/kmol-AP]  / [kg-AP/m3-AP]
+!            fac_m2v_pcarbon(l) = specmw_amode(l2) / specdens_amode(l2)
+            fac_m2v_pcarbon(l) = specmw_amode(l,n) / specdens_amode(l,n)
+         end do
+      end if
+
+
+      return
+
+      end subroutine modal_aero_gasaerexch_init
+
+
+!----------------------------------------------------------------------
+
+!----------------------------------------------------------------------
 !----------------------------------------------------------------------
 !BOP
 ! !ROUTINE:  modal_aero_gasaerexch_sub --- ...
@@ -1398,482 +1874,6 @@ subroutine aero_soaexch( dtfull, temp, pres, &
 end subroutine aero_soaexch
 
 !----------------------------------------------------------------------
-
-!----------------------------------------------------------------------
-
-!----------------------------------------------------------------------
-
-      subroutine modal_aero_gasaerexch_init
-
-!-----------------------------------------------------------------------
-!
-! Purpose:
-!    set do_adjust and do_aitken flags
-!    create history fields for column tendencies associated with
-!       modal_aero_calcsize
-!
-! Author: R. Easter
-!
-!-----------------------------------------------------------------------
-
-use modal_aero_data
-use modal_aero_rename
-
-use cam_abortutils, only: endrun
-use cam_history,    only: addfld, add_default, fieldname_len, horiz_only
-use constituents,   only: pcnst, cnst_get_ind, cnst_name
-use spmd_utils,     only: masterproc
-use phys_control,   only: phys_getopts
-use radiative_aerosol,  only: rad_aer_get_info
-
-implicit none
-
-!-----------------------------------------------------------------------
-! arguments
-
-!-----------------------------------------------------------------------
-! local
-   integer  :: ipair, iq, iqfrm, iqfrm_aa, iqtoo, iqtoo_aa
-   integer  :: jac,jsoa,p
-   integer  :: l, l1, l2, lsfrm, lstoo, lunout
-   integer  :: l_so4g, l_nh4g, l_msag
-   integer  :: m, mfrm, mtoo
-   integer  :: n, nacc, nait
-   integer  :: nchfrm, nchfrmskip, nchtoo, nchtooskip, nspec
-
-   logical  :: do_msag, do_nh4g
-   logical  :: do_soag_any, do_soag(nsoa)
-   logical  :: dotend(pcnst), dotendqqcw(pcnst)
-
-   real(r8) :: tmp1, tmp2
-
-   character(len=fieldname_len)   :: tmpnamea, tmpnameb
-   character(len=fieldname_len+3) :: fieldname
-   character(128)                 :: long_name
-   character(128)                 :: msg
-   character(8)                   :: unit
-
-   logical                        :: history_aerosol      ! Output the MAM aerosol tendencies
-   logical                        :: history_aerocom    ! Output the aerocom history
-   character(len=32) :: spec_type
-   !-----------------------------------------------------------------------
-
-        call phys_getopts( history_aerosol_out        = history_aerosol   )
-
-        maxspec_pcage = nspec_max
-        allocate(lspecfrm_pcage(maxspec_pcage))
-        allocate(lspectoo_pcage(maxspec_pcage))
-        allocate(soa_equivso4_factor(nsoa))
-        allocate(fac_m2v_soa(nsoa))
-        allocate(fac_m2v_pcarbon(nspec_max))
-        lunout = 6
-
-        allocate(do_soaexch(ntot_amode))
-        do_soaexch(:) = .false.
-
-        do n = 1, ntot_amode
-           !call rad_aer_get_info(0, n, mode_type=mode_type)
-
-           do l = 1, nspec_amode(n)
-              call rad_aer_get_info(0, n, l, spec_type=spec_type )
-              if ( trim(spec_type) == 's-organic' .or. trim(spec_type) == 'p-organic' ) then
-                 ! allow for exchange with primary organic mode
-                 do_soaexch(n) = .true.
-              end if
-           end do
-        end do
-!print*,'FVDBG: do_soaexch: ',do_soaexch
-!
-!   define "from mode" and "to mode" for primary carbon aging
-!
-!   skip (turn off) aging if either is absent,
-!      or if accum mode so4 is absent
-!
-	modefrm_pcage = -999888777
-	modetoo_pcage = -999888777
-	if ((modeptr_pcarbon <= 0) .or. (modeptr_accum <= 0)) goto 15000
-	l = lptr_so4_a_amode(modeptr_accum)
-	if ((l < 1) .or. (l > pcnst)) goto 15000
-
-	modefrm_pcage = modeptr_pcarbon
-	modetoo_pcage = modeptr_accum
-
-!
-!   define species involved in each primary carbon aging pairing
-!	(include aerosol water)
-!
-!
-	mfrm = modefrm_pcage
-	mtoo = modetoo_pcage
-
-	if (mfrm < 10) then
-	    nchfrmskip = 1
-	else if (mfrm < 100) then
-	    nchfrmskip = 2
-	else
-	    nchfrmskip = 3
-	end if
-	if (mtoo < 10) then
-	    nchtooskip = 1
-	else if (mtoo < 100) then
-	    nchtooskip = 2
-	else
-	    nchtooskip = 3
-	end if
-	nspec = 0
-
-aa_iqfrm: do iqfrm = -1, nspec_amode(mfrm)
-
-	    if (iqfrm == -1) then
-		lsfrm = numptr_amode(mfrm)
-		lstoo = numptr_amode(mtoo)
-	    else if (iqfrm == 0) then
-!   bypass transfer of aerosol water due to primary-carbon aging
-		cycle aa_iqfrm
-!               lsfrm = lwaterptr_amode(mfrm)
-!               lstoo = lwaterptr_amode(mtoo)
-	    else
-		lsfrm = lmassptr_amode(iqfrm,mfrm)
-		lstoo = 0
-	    end if
-	    if ((lsfrm < 1) .or. (lsfrm > pcnst)) cycle aa_iqfrm
-
-	    if (lsfrm>0 .and. iqfrm>0 ) then
-		nchfrm = len( trim( cnst_name(lsfrm) ) ) - nchfrmskip
-
-! find "too" species having same lspectype_amode as the "frm" species
-! AND same cnst_name (except for last 1/2/3 characters which are the mode index)
-		do iqtoo = 1, nspec_amode(mtoo)
-!		    if ( lspectype_amode(iqtoo,mtoo) .eq.   &
-!		         lspectype_amode(iqfrm,mfrm) ) then
-			lstoo = lmassptr_amode(iqtoo,mtoo)
-			nchtoo = len( trim( cnst_name(lstoo) ) ) - nchtooskip
-			if (cnst_name(lsfrm)(1:nchfrm) == cnst_name(lstoo)(1:nchtoo)) then
-			    exit
-			else
-			    lstoo = 0
-			end if
-!		    end if
-		end do
-	    end if
-
-	    if ((lstoo < 1) .or. (lstoo > pcnst)) lstoo = 0
-	    nspec = nspec + 1
-	    lspecfrm_pcage(nspec) = lsfrm
-	    lspectoo_pcage(nspec) = lstoo
-	end do aa_iqfrm
-
-	nspecfrm_pcage = nspec
-
-!
-!   output results
-!
-	if ( masterproc ) then
-
-	write(lunout,9310)
-
-	  mfrm = modefrm_pcage
-	  mtoo = modetoo_pcage
-	  write(lunout,9320) 1, mfrm, mtoo
-
-	  do iq = 1, nspecfrm_pcage
-	    lsfrm = lspecfrm_pcage(iq)
-	    lstoo = lspectoo_pcage(iq)
-	    if (lstoo .gt. 0) then
-		write(lunout,9330) lsfrm, cnst_name(lsfrm),   &
-      			lstoo, cnst_name(lstoo)
-	    else
-		write(lunout,9340) lsfrm, cnst_name(lsfrm)
-	    end if
-	  end do
-
-	write(lunout,*)
-
-	end if ! ( masterproc )
-
-9310	format( / 'subr. modal_aero_gasaerexch_init - primary carbon aging pointers' )
-9320	format( 'pair', i3, 5x, 'mode', i3, ' ---> mode', i3 )
-9330	format( 5x, 'spec', i3, '=', a, ' ---> spec', i3, '=', a )
-9340	format( 5x, 'spec', i3, '=', a, ' ---> LOSS' )
-
-
-15000 continue
-
-! set tendency flags and gas species indices and flags
-      dotend(:) = .false.
-
-      call cnst_get_ind( 'H2SO4', l_so4g, .false. )
-      if ((l_so4g <= 0) .or. (l_so4g > pcnst)) then
-         write( *, '(/a/a,2i7)' )   &
-            '*** modal_aero_gasaerexch_init -- cannot find H2SO4 species',   &
-            '    l_so4g=', l_so4g
-         call endrun( 'modal_aero_gasaerexch_init error' )
-      end if
-      dotend(l_so4g) = .true.
-
-      call cnst_get_ind( 'NH3',   l_nh4g, .false. )
-      do_nh4g = .false.
-      if ((l_nh4g > 0) .and. (l_nh4g <= pcnst)) then
-         do_nh4g = .true.
-         dotend(l_nh4g) = .true.
-      end if
-
-      call cnst_get_ind( 'MSA',   l_msag, .false. )
-      do_msag = .false.
-      if ((l_msag > 0) .and. (l_msag <= pcnst)) then
-         do_msag = .true.
-         dotend(l_msag) = .true.
-      end if
-
-      do_soag_any = .false.
-      do_soag(:) = .false.
-      do jsoa = 1, nsoa
-         l = lptr2_soa_g_amode(jsoa)
-         if ((l > 0) .and. (l <= pcnst)) then
-            do_soag_any = .true.
-            do_soag(jsoa) = .true.
-            dotend(l) = .true.
-         end if
-      end do
-
-
-      do n = 1, ntot_amode
-         l = lptr_so4_a_amode(n)
-         if ((l > 0) .and. (l <= pcnst)) then
-            dotend(l) = .true.
-            if ( do_nh4g ) then
-               l = lptr_nh4_a_amode(n)
-               if ((l > 0) .and. (l <= pcnst)) dotend(l) = .true.
-            end if
-         end if
-         do jsoa = 1, nsoa
-            if ( do_soag(jsoa) ) then
-               l = lptr2_soa_a_amode(n,jsoa)
-               if ((l > 0) .and. (l <= pcnst)) dotend(l) = .true.
-            end if
-         end do
-      end do
-
-      if (modefrm_pcage > 0) then
-         do iq = 1, nspecfrm_pcage
-            lsfrm = lspecfrm_pcage(iq)
-            lstoo = lspectoo_pcage(iq)
-            if ((lsfrm > 0) .and. (lsfrm <= pcnst)) then
-               dotend(lsfrm) = .true.
-               if ((lstoo > 0) .and. (lstoo <= pcnst)) then
-                  dotend(lstoo) = .true.
-               end if
-            end if
-         end do
-      end if
-
-!---------define history fields for new cond/evap diagnostics----------------------------------------
-      fieldname=trim('qconff_gaex')
-      long_name = trim('3D fields for Fossil SOA condensation')
-      unit = 'kg/kg/s'
-      call addfld(fieldname, (/'lev'/), 'A', unit, long_name )
-      if ( history_aerosol ) then
-         call add_default( fieldname,  1, ' ' )
-      endif
-      if ( masterproc ) write(*,'(3(a,3x))') 'qconff addfld', fieldname, unit
-
-      fieldname=trim('qevapff_gaex')
-      long_name = trim('3D fields for Fossil SOA evaporation')
-      call addfld(fieldname, (/'lev'/), 'A', unit, long_name )
-      if ( history_aerosol ) then
-         call add_default( fieldname,  1, ' ' )
-      endif
-      if ( masterproc ) write(*,'(3(a,3x))') 'qevapff addfld', fieldname, unit
-
-      fieldname=trim('qconbb_gaex')
-      long_name = trim('3D fields for Biomass SOA condensation')
-      call addfld(fieldname, (/'lev'/), 'A', unit, long_name )
-      if ( history_aerosol ) then
-         call add_default( fieldname,  1, ' ' )
-      endif
-      if ( masterproc ) write(*,'(3(a,3x))') 'qconbb addfld', fieldname, unit
-
-      fieldname=trim('qevapbb_gaex')
-      long_name = trim('3D fields for Biomass SOA evaporation')
-      call addfld(fieldname, (/'lev'/), 'A', unit, long_name )
-      if ( history_aerosol ) then
-         call add_default( fieldname,  1, ' ' )
-      endif
-      if ( masterproc ) write(*,'(3(a,3x))') 'qevapbb addfld', fieldname, unit
-
-      fieldname=trim('qconbg_gaex')
-      long_name = trim('3D fields for Biogenic SOA condensation')
-      call addfld(fieldname, (/'lev'/), 'A', unit, long_name )
-      if ( history_aerosol ) then
-         call add_default( fieldname,  1, ' ' )
-      endif
-      if ( masterproc ) write(*,'(3(a,3x))') 'qconbg addfld', fieldname, unit
-
-      fieldname=trim('qevapbg_gaex')
-      long_name = trim('3D fields for Biogenic SOA evaporation')
-      call addfld(fieldname, (/'lev'/), 'A', unit, long_name )
-      if ( history_aerosol ) then
-         call add_default( fieldname,  1, ' ' )
-      endif
-      if ( masterproc ) write(*,'(3(a,3x))') 'qevapbg addfld', fieldname, unit
-
-      fieldname=trim('qcon_gaex')
-      long_name = trim('3D fields for SOA condensation')
-      call addfld(fieldname, (/'lev'/), 'A', unit, long_name )
-      if ( history_aerosol ) then
-         call add_default( fieldname,  1, ' ' )
-      endif
-      if ( masterproc ) write(*,'(3(a,3x))') 'qcon addfld', fieldname, unit
-
-      fieldname=trim('qevap_gaex')
-      long_name = trim('3D fields for Biogenic SOA evaporation')
-      call addfld(fieldname, (/'lev'/), 'A', unit, long_name )
-      if ( history_aerosol ) then
-         call add_default( fieldname,  1, ' ' )
-      endif
-      if ( masterproc ) write(*,'(3(a,3x))') 'qevap addfld', fieldname, unit
-!------------------------------------------------------------------------------
-
-!  define history fields for basic gas-aer exchange
-!  and primary carbon aging from that
-      do l = 1, pcnst
-         if ( .not. dotend(l) ) cycle
-
-         tmpnamea = cnst_name(l)
-         fieldname = trim(tmpnamea) // '_sfgaex1'
-         long_name = trim(tmpnamea) // ' gas-aerosol-exchange primary column tendency'
-         unit = 'kg/m2/s'
-         call addfld( fieldname, horiz_only, 'A', unit, long_name )
-         if ( history_aerosol ) then
-            call add_default( fieldname, 1, ' ' )
-         endif
-         if ( masterproc ) write(*,'(3(a,3x))') 'gasaerexch addfld', fieldname, unit
-
-      end do   ! l = ...
-!  define history fields for aitken-->accum renaming
-      dotend(:) = .false.
-      dotendqqcw(:) = .false.
-      do ipair = 1, npair_renamexf
-         do iq = 1, nspecfrm_renamexf(ipair)
-            lsfrm = lspecfrma_renamexf(iq,ipair)
-            lstoo = lspectooa_renamexf(iq,ipair)
-            if ((lsfrm > 0) .and. (lsfrm <= pcnst)) then
-               dotend(lsfrm) = .true.
-               if ((lstoo > 0) .and. (lstoo <= pcnst)) then
-                  dotend(lstoo) = .true.
-               end if
-            end if
-
-            lsfrm = lspecfrmc_renamexf(iq,ipair)
-            lstoo = lspectooc_renamexf(iq,ipair)
-            if ((lsfrm > 0) .and. (lsfrm <= pcnst)) then
-               dotendqqcw(lsfrm) = .true.
-               if ((lstoo > 0) .and. (lstoo <= pcnst)) then
-                  dotendqqcw(lstoo) = .true.
-               end if
-            end if
-         end do ! iq = ...
-      end do ! ipair = ...
-
-      do l = 1, pcnst
-      do jac = 1, 2
-         if (jac == 1) then
-            if ( .not. dotend(l) ) cycle
-            tmpnamea = cnst_name(l)
-         else
-            if ( .not. dotendqqcw(l) ) cycle
-            tmpnamea = cnst_name_cw(l)
-         end if
-
-         fieldname = trim(tmpnamea) // '_sfgaex2'
-         long_name = trim(tmpnamea) // ' gas-aerosol-exchange renaming column tendency'
-         unit = 'kg/m2/s'
-         if ((tmpnamea(1:3) == 'num') .or. &
-             (tmpnamea(1:3) == 'NUM')) unit = '#/m2/s'
-         call addfld( fieldname, horiz_only, 'A', unit, long_name )
-         if ( history_aerosol ) then
-            call add_default( fieldname, 1, ' ' )
-         endif
-         if ( masterproc ) write(*,'(3(a,3x))') 'gasaerexch addfld', fieldname, unit
-      end do   ! jac = ...
-      end do   ! l = ...
-
-
-! set for used in aging calcs:
-!    fac_m2v_so4, fac_m2v_nh4, fac_m2v_soa(:)
-!    soa_equivso4_factor(:)
-      soa_equivso4_factor = 0.0_r8
-      if (modefrm_pcage > 0) then
-         n = modeptr_accum
-         l = lptr_so4_a_amode(n) ; l2 = -1
-         if (l <= 0) call endrun( 'modal_aero_gasaerexch_init error a001 finding accum. so4' )
-         do l1 = 1, nspec_amode(n)
-            if (lmassptr_amode(l1,n) == l) then
-!               l2 = lspectype_amode(l1,n)
-               l2 = l1
-!               fac_m2v_so4 = specmw_amode(l2) / specdens_amode(l2)
-               fac_m2v_so4 = specmw_amode(l1,n) / specdens_amode(l1,n)
-!               tmp2 = spechygro(l2)
-               tmp2 = spechygro(l1,n)
-
-            end if
-         end do
-         if (l2 <= 0) call endrun( 'modal_aero_gasaerexch_init error a002 finding accum. so4' )
-
-         l = lptr_nh4_a_amode(n) ; l2 = -1
-         if (l > 0) then
-            do l1 = 1, nspec_amode(n)
-               if (lmassptr_amode(l1,n) == l) then
-!                  l2 = lspectype_amode(l1,n)
-                  l2 = l1
-!                  fac_m2v_nh4 = specmw_amode(l2) / specdens_amode(l2)
-                  fac_m2v_nh4 = specmw_amode(l1,n) / specdens_amode(l1,n)
-
-               end if
-            end do
-            if (l2 <= 0) call endrun( 'modal_aero_gasaerexch_init error a002 finding accum. nh4' )
-         else
-            fac_m2v_nh4 = fac_m2v_so4
-         end if
-
-         do jsoa = 1, nsoa
-            l = lptr2_soa_a_amode(n,jsoa) ; l2 = -1
-            if (l <= 0) then
-               write( msg, '(a,i4)') 'modal_aero_gasaerexch_init error a001 finding accum. jsoa =', jsoa
-               call endrun( msg )
-            end if
-            do l1 = 1, nspec_amode(n)
-               if (lmassptr_amode(l1,n) == l) then
-!                  l2 = lspectype_amode(l1,n)
-                  l2 = l1
-!                  fac_m2v_soa(jsoa) = specmw_amode(l2) / specdens_amode(l2)
-                  fac_m2v_soa(jsoa) = specmw_amode(l1,n) / specdens_amode(l1,n)
-!                  soa_equivso4_factor(jsoa) = spechygro(l2)/tmp2
-                  soa_equivso4_factor(jsoa) = spechygro(l1,n)/tmp2
-               end if
-            end do
-            if (l2 <= 0) then
-               write( msg, '(a,i4)') 'modal_aero_gasaerexch_init error a002 finding accum. jsoa =', jsoa
-               call endrun( msg )
-            end if
-         end do
-
-         fac_m2v_pcarbon(:) = 0.0_r8
-         n = modeptr_pcarbon
-         do l = 1, nspec_amode(n)
-!            l2 = lspectype_amode(l,n)
-!      fac_m2v converts (kmol-AP/kmol-air) to (m3-AP/kmol-air)
-!           [m3-AP/kmol-AP]    = [kg-AP/kmol-AP]  / [kg-AP/m3-AP]
-!            fac_m2v_pcarbon(l) = specmw_amode(l2) / specdens_amode(l2)
-            fac_m2v_pcarbon(l) = specmw_amode(l,n) / specdens_amode(l,n)
-         end do
-      end if
-
-
-      return
-
-      end subroutine modal_aero_gasaerexch_init
-
 
 !----------------------------------------------------------------------
 
