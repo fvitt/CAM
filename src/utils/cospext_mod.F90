@@ -33,6 +33,7 @@ module cospext_mod
   implicit none
 
   real(r8), parameter :: NOTSET = -huge(1._r8)
+  integer, parameter :: kxmin = 5
 
 contains
 
@@ -43,14 +44,14 @@ contains
   !! restart runs, including short (less one day) runs. The daily forcing should also be made optional for the IC file.
   !! The run can still start without the forcing.
   !=============================================================================
-  subroutine cospext(nftnum,lat_beg,lat_end, pver,ntime, latrad, cspr, wvlxbeg,wvlxend, press, rhozm, mflxup,mflxun, force_r, force_u)
+  subroutine cospext(nftnum,lat_beg,lat_end,pver,ntime,latrad,cspr,wvlxbeg,wvlxend,press,rhozm,mflxup,mflxun,mflxrp,mflxrn,force_r,force_u,slpp,slpn)
 
     integer, intent(in) :: nftnum,lat_beg,lat_end,pver,ntime
     real(r8), intent(in) :: latrad(lat_beg:lat_end)
     real(r8), intent(in) :: cspr(nftnum, lat_beg:lat_end, pver, ntime)  !! co-spectra resolved by the model
 
     !! wvlong: longer wavelength side for power index calculation. (2000x10^3 m used in current calculation)
-    !! wvlxbeg: longer wavelength of the unresolved range. This is grid size depedent
+    !! wvlxbeg: longer wavelength of the unresolved range/short end of the resolved range. This is grid size depedent
     !! wvlxend: short wavelength cutoff of the unresolved range (20x10^2 m assumed in current calculation)
 
     real(r8), intent(in) :: wvlxbeg,wvlxend
@@ -58,12 +59,15 @@ contains
     real(r8), intent(in) :: rhozm(lat_beg:lat_end,pver)
 
     ! resolved and unresolved forces
-    real(r8), intent(out) :: force_r(lat_beg:lat_end,pver), force_u(lat_beg:lat_end,pver)
+    real(r8), optional, intent(out) :: force_r(lat_beg:lat_end,pver), force_u(lat_beg:lat_end,pver)
 
     !! mflxup: total momentum flux in the positive direction -- resolved and unresolved
     !! mflxun: total momentum flux in the negative direction
     real(r8), intent(out) :: mflxup(lat_beg:lat_end,pver), mflxun(lat_beg:lat_end,pver)
-    real(r8) :: mflxrp(lat_beg:lat_end,pver), mflxrn(lat_beg:lat_end,pver)
+    real(r8), intent(out) :: mflxrp(lat_beg:lat_end,pver), mflxrn(lat_beg:lat_end,pver)
+
+    !! slpp, slpn: spectral slopes for positive and negative branches (optional output)
+    real(r8), optional, intent(out) :: slpp(lat_beg:lat_end,pver), slpn(lat_beg:lat_end,pver)
 
     !! kxl: zonal wavenumber corresponding to wvlong
     !! kxm: 2*kxl, kxr: 4*kxl (wavenumbers used to calculate spectral slope (Liu, 2019)
@@ -71,9 +75,10 @@ contains
     !! kxend: zonal wavenumber corresponding to wvlexend
 
     real(r8) :: circlat(lat_beg:lat_end)   !! circumference at a specific latitude
-    real(r8) :: slpp(lat_beg:lat_end,pver), slpn(lat_beg:lat_end,pver) !! spectral slopes of cospectra for each latitude and level
+    real(r8) :: slpp_wrk(lat_beg:lat_end,pver), slpn_wrk(lat_beg:lat_end,pver) !! spectral slopes of cospectra for each latitude and level
 
     integer :: kxl(lat_beg:lat_end), kxm(lat_beg:lat_end), kxr(lat_beg:lat_end), kxbeg(lat_beg:lat_end), kxend(lat_beg:lat_end)
+    real(r8), parameter :: krat = 1.6_r8
     integer :: j
     real(r8) :: csprp(nftnum, lat_beg:lat_end, pver),csprn(nftnum, lat_beg:lat_end, pver)
     real(r8) :: csprpi(nftnum, lat_beg:lat_end, pver),csprni(nftnum, lat_beg:lat_end, pver)
@@ -84,6 +89,11 @@ contains
     mflxup = 0._r8
     mflxun = 0._r8
 
+    ! initialize slopes to NOTSET so latitudes outside the calculation band
+    ! (|lat| >= 85 deg) have a defined value when exported via optional args
+    slpp_wrk = NOTSET
+    slpn_wrk = NOTSET
+
     do j = lat_beg,lat_end
        circlat(j) = 2._r8 * pi * rearth * cos(latrad(j))     !! rearth is Earth radius in m
     enddo
@@ -93,8 +103,8 @@ contains
 
     !! These following 3 lines calculate the scale invariance range according to the short wavelength of the resolved range
     kxr(:) = kxbeg(:)
-    kxm(:) = kxr(:)/2
-    kxl(:) = kxm(:)/2
+    kxm(:) = nint(kxr(:)/krat)
+    kxl(:) = nint(kxm(:)/krat)
 
     lat0 = 0
     lat1 = -1
@@ -109,15 +119,20 @@ contains
 
     !! separate the cospectra into positive and negative branches from the accumulated spectra
     call spectral_separate(cspr,csprp,csprn,csprpi,csprni)
-    call spectral_slope( csprpi,kxl,slpp)
-    call spectral_slope(-csprni,kxl,slpn)
-    call momentum_fluxes(kxl,kxbeg,kxend,csprp,csprn,slpp,slpn,mflxup,mflxun, mflxrp,mflxrn )
+    call spectral_slope( csprpi,kxl,slpp_wrk)
+    call spectral_slope(-csprni,kxl,slpn_wrk)
+    call momentum_fluxes(kxl,kxbeg,kxend,csprp,csprn,slpp_wrk,slpn_wrk,mflxup,mflxun, mflxrp,mflxrn )
 
-    ! Calculate the vertical divergence of the resolved and unresolved fluxes (tendencies or forces)
-    do j = lat_beg,lat_end
-       force_r(j,:) = -vertdiv( press(:), rhozm(j,:)*(mflxrp(j,:) + mflxrn(j,:)) )/rhozm(j,:)
-       force_u(j,:) = -vertdiv( press(:), rhozm(j,:)*(mflxup(j,:) + mflxun(j,:)) )/rhozm(j,:)
-    end do
+    if (present(force_r) .and. present(force_u)) then
+       ! Calculate the vertical divergence of the resolved and unresolved fluxes (tendencies or forces)
+       do j = lat_beg,lat_end
+          force_r(j,:) = -vertdiv( press(:), rhozm(j,:)*(mflxrp(j,:) + mflxrn(j,:)) )/rhozm(j,:)
+          force_u(j,:) = -vertdiv( press(:), rhozm(j,:)*(mflxup(j,:) + mflxun(j,:)) )/rhozm(j,:)
+       end do
+    end if
+
+    if (present(slpp)) slpp = slpp_wrk
+    if (present(slpn)) slpn = slpn_wrk
 
   contains
 
@@ -203,11 +218,15 @@ contains
 
       do k = 1,pver
          do j=lat0,lat1
-            if (kxbeg(j) > 45) then
-               silm = sum(spct(kxl(j):2*kxl(j),j,k))
-               simr = sum(spct(2*kxl(j):4*kxl(j),j,k))
+            if (kxbeg(j) > kxmin) then
+!               silm = sum(spct(kxl(j):2*kxl(j),j,k))
+!               simr = sum(spct(2*kxl(j):4*kxl(j),j,k))
+               silm = sum(spct(kxl(j):kxm(j),j,k))
+               simr = sum(spct(kxm(j):kxr(j),j,k))
                if (silm>0.0_r8 .and. simr>0.0_r8) then
-                  slp(j,k) = MAX(1._r8-log(simr/silm)/log(2._r8),-0.3_r8)
+!                  slp(j,k) = MAX(1._r8-log(simr/silm)/log(2._r8),-0.3_r8)
+!                  slp(j,k) = MAX(1._r8-log(simr/silm)/log(krat),-0.3_r8)
+                  slp(j,k) = MAX(1._r8-log(simr/silm)/log(krat),0.667_r8)
                else
                   slp(j,k) = NOTSET
                end if
@@ -238,6 +257,7 @@ contains
       real(r8) :: bp, bn, fp, fn
       integer :: j,k
 
+      real(r8), parameter :: kxlc = 10._r8
       mflxrp = 0._r8
       mflxrn = 0._r8
       mflxup = 0._r8
@@ -245,17 +265,24 @@ contains
 
       do k=1,pver
          do j=lat0,lat1
-            if (kxbeg(j) > 10) then
+            if (kxbeg(j) > kxmin) then
                if (slpp(j,k)/=NOTSET.and.slpp(j,k)/=1._r8) then
-                  mflxrp(j,k) = sum(csprp(10:kxbeg(j),j,k),1)
+                  mflxrp(j,k) = sum(csprp(kxl(j):kxbeg(j),j,k),1)
                   bp = 1._r8-slpp(j,k)
-                  fp = (real(kxend(j),r8)**bp-real(kxbeg(j),r8)**bp)/(real(kxbeg(j),r8)**bp-10._r8**bp)
+                  fp = (real(kxend(j),r8)**bp-real(kxbeg(j),r8)**bp)/(real(kxbeg(j),r8)**bp-kxl(j)**bp)
                   mflxup(j,k) = mflxrp(j,k)*fp
+!                  mflxrp(j,k) = sum(csprp(nint(kxlc):kxbeg(j),j,k),1)
+!                  bp = 1._r8-slpp(j,k)
+!                  fp = (real(kxend(j),r8)**bp-real(kxbeg(j),r8)**bp)/(real(kxbeg(j),r8)**bp-kxlc**bp)
+!                  mflxup(j,k) = mflxrp(j,k)*fp
                end if
                if (slpp(j,k)/=NOTSET.and.slpp(j,k)==1._r8) then
-                  mflxrp(j,k) = sum(csprp(10:kxbeg(j),j,k),1)
+                  mflxrp(j,k) = sum(csprp(kxl(j):kxbeg(j),j,k),1)
                   fp = log(real(kxend(j),r8)/real(kxbeg(j),r8))/log(real(kxbeg(j),r8)/real(kxl(j),r8))
                   mflxup(j,k) = mflxrp(j,k)*fp
+!                  mflxrp(j,k) = sum(csprp(nint(kxlc):kxbeg(j),j,k),1)
+!                  fp = log(real(kxend(j),r8)/real(kxbeg(j),r8))/log(real(kxbeg(j),r8)/kxlc)
+!                  mflxup(j,k) = mflxrp(j,k)*fp
                end if
                if (slpp(j,k)==NOTSET) then
                   mflxrp(j,k) = 0._r8
@@ -263,21 +290,27 @@ contains
                end if
 
                if (slpn(j,k)/=NOTSET.and.slpn(j,k)/=1._r8) then
-                  mflxrn(j,k) = sum(csprn(10:kxbeg(j),j,k),1)
+                  mflxrn(j,k) = sum(csprn(kxl(j):kxbeg(j),j,k),1)
                   bn = 1._r8-slpn(j,k)
-                  fn = (real(kxend(j),r8)**bn-real(kxbeg(j),r8)**bn)/(real(kxbeg(j),r8)**bn-10._r8**bn)
+                  fn = (real(kxend(j),r8)**bn-real(kxbeg(j),r8)**bn)/(real(kxbeg(j),r8)**bn-kxl(j)**bn)
                   mflxun(j,k) = mflxrn(j,k)*fn
+!                  mflxrn(j,k) = sum(csprn(nint(kxlc):kxbeg(j),j,k),1)
+!                  bn = 1._r8-slpn(j,k)
+!                  fn = (real(kxend(j),r8)**bn-real(kxbeg(j),r8)**bn)/(real(kxbeg(j),r8)**bn-kxlc**bn)
+!                  mflxun(j,k) = mflxrn(j,k)*fn
                end if
                if (slpn(j,k)/=NOTSET.and.slpn(j,k)==1._r8) then
-                  mflxrn(j,k) = sum(csprn(10:kxbeg(j),j,k),1)
+                  mflxrn(j,k) = sum(csprn(kxl(j):kxbeg(j),j,k),1)
                   fn = log(real(kxend(j),r8)/real(kxbeg(j),r8))/log(real(kxbeg(j),r8)/real(kxl(j),r8))
                   mflxun(j,k) = mflxrn(j,k)*fn
+!                  mflxrn(j,k) = sum(csprn(nint(kxlc):kxbeg(j),j,k),1)
+!                  fn = log(real(kxend(j),r8)/real(kxbeg(j),r8))/log(real(kxbeg(j),r8)/kxlc)
+!                  mflxun(j,k) = mflxrn(j,k)*fn
                end if
                if (slpn(j,k)==NOTSET) then
                   mflxrn(j,k) = 0._r8
                   mflxun(j,k) = 0._r8
                end if
-
             endif
          enddo
       enddo
@@ -331,17 +364,22 @@ contains
             endif
          end do
 
-         call lininterp(nonzero_values,nonzero_wave_num,n_nonzero, &
-              interp_values, zero_wave_numbers, nzeros)
-
-         zcnt = 0
-         do i = 1,nftnum
-            if (cosp(i)==0._r8) then
-               zcnt = zcnt+1
-               cospi(i) = sign*exp(interp_values(zcnt))
-            end if
-         end do
-
+         if (n_nonzero .gt. 1) then
+            call lininterp(nonzero_values,nonzero_wave_num,n_nonzero, &
+                 interp_values, zero_wave_numbers, nzeros)
+            zcnt = 0
+            do i = 1,nftnum
+               if (cosp(i)==0._r8) then
+                  zcnt = zcnt+1
+                  cospi(i) = sign*exp(interp_values(zcnt))
+               end if
+            end do
+         else
+            do i = 1,nftnum
+               cospi(i) = 0._r8
+            enddo
+         endif
+         
          deallocate(zero_wave_numbers)
          deallocate(interp_values)
          deallocate(nonzero_wave_num)

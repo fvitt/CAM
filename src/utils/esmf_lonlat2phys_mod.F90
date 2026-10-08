@@ -37,7 +37,7 @@ module esmf_lonlat2phys_mod
      real(r8), pointer :: fld(:,:,:) => null()
   end type fields_bundle_t
 
-  integer, parameter :: nflds = 2
+  integer, parameter :: nflds = 3      ! frcx, frcy, frcxy
 
 contains
 

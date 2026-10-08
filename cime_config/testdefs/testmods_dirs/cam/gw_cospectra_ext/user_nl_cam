@@ -5,6 +5,7 @@ write_nstep0=.true.
 inithist='ENDOFRUN'
 
 ctem_diags_numlats = 360
+do_circulation_diags = .FALSE.
 
 gw_cospectra_accum_ntimes=6
 
