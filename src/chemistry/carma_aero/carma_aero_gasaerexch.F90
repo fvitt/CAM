@@ -881,8 +881,8 @@ subroutine aero_soaexch( dtfull, temp, pres, &
 
   ! New SOA properties added by Manish Shrivastava on 09/27/2012
   if (ntot_soaspec ==1) then
-     p0_soa_298(:) = 1.0e-12_r8
-     delh_vap_soa(:) = 156.0e3_r8
+     p0_soa_298(:) = 9.7831E-11_r8
+     delh_vap_soa(:) = 131.0e3_r8
      opoa_frac(:) = 0.0_r8
   elseif (ntot_soaspec ==2) then
      ! same for anthropogenic and biomass burning species
