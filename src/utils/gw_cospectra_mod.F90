@@ -949,6 +949,9 @@ contains
   ! -----------------------------------------------------------------------------
   ! -----------------------------------------------------------------------------
   subroutine gw_cospectra_final()
+
+    if (.not.gw_cospectra_active) return
+
     ! free up memory
     deallocate(accum_cospectra_u)
     deallocate(accum_cospectra_v)
