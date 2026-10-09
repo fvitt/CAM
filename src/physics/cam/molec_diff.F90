@@ -29,6 +29,8 @@ module molec_diff
   public init_molec_diff
   public compute_molec_diff
   public vd_lu_qdecomp
+  public km_fac
+  public pwr
 
   ! ---------- !
   ! Parameters !

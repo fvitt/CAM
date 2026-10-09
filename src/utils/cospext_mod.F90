@@ -52,9 +52,10 @@ contains
 
     !! wvlong: longer wavelength side for power index calculation. (2000x10^3 m used in current calculation)
     !! wvlxbeg: longer wavelength of the unresolved range/short end of the resolved range. This is grid size depedent
-    !! wvlxend: short wavelength cutoff of the unresolved range (20x10^2 m assumed in current calculation)
+    !! wvlxend: short wavelength cutoff of the unresolved range -- 2D (lat,lev) field set from a viscous horizontal scale
 
-    real(r8), intent(in) :: wvlxbeg,wvlxend
+    real(r8), intent(in) :: wvlxbeg
+    real(r8), intent(in) :: wvlxend(lat_beg:lat_end,pver)
     real(r8), intent(in) :: press(pver)
     real(r8), intent(in) :: rhozm(lat_beg:lat_end,pver)
 
@@ -77,7 +78,8 @@ contains
     real(r8) :: circlat(lat_beg:lat_end)   !! circumference at a specific latitude
     real(r8) :: slpp_wrk(lat_beg:lat_end,pver), slpn_wrk(lat_beg:lat_end,pver) !! spectral slopes of cospectra for each latitude and level
 
-    integer :: kxl(lat_beg:lat_end), kxm(lat_beg:lat_end), kxr(lat_beg:lat_end), kxbeg(lat_beg:lat_end), kxend(lat_beg:lat_end)
+    integer :: kxl(lat_beg:lat_end), kxm(lat_beg:lat_end), kxr(lat_beg:lat_end), kxbeg(lat_beg:lat_end)
+    integer :: kxend(lat_beg:lat_end,pver)
     real(r8), parameter :: krat = 1.6_r8
     integer :: j
     real(r8) :: csprp(nftnum, lat_beg:lat_end, pver),csprn(nftnum, lat_beg:lat_end, pver)
@@ -99,7 +101,9 @@ contains
     enddo
 
     kxbeg(:)  = nint(circlat(:)/wvlxbeg) ! wvl_r maximum resolved zonal wavenumber
-    kxend(:)  = nint(circlat(:)/wvlxend) ! wvl_c zonal wavenumber of cutoff wavelength
+    do j = lat_beg,lat_end
+       kxend(j,:) = nint(circlat(j)/wvlxend(j,:)) ! wvl_c zonal wavenumber of cutoff wavelength
+    end do
 
     !! These following 3 lines calculate the scale invariance range according to the short wavelength of the resolved range
     kxr(:) = kxbeg(:)
@@ -245,7 +249,7 @@ contains
       real(r8), intent(in)  :: csprn(nftnum,lat_beg:lat_end,pver)
       integer,  intent(in)  :: kxl(lat_beg:lat_end)
       integer,  intent(in)  :: kxbeg(lat_beg:lat_end)
-      integer,  intent(in)  :: kxend(lat_beg:lat_end)
+      integer,  intent(in)  :: kxend(lat_beg:lat_end,pver)
       real(r8), intent(in)  :: slpp(lat_beg:lat_end,pver)
       real(r8), intent(in)  :: slpn(lat_beg:lat_end,pver)
 
@@ -269,19 +273,19 @@ contains
                if (slpp(j,k)/=NOTSET.and.slpp(j,k)/=1._r8) then
                   mflxrp(j,k) = sum(csprp(kxl(j):kxbeg(j),j,k),1)
                   bp = 1._r8-slpp(j,k)
-                  fp = (real(kxend(j),r8)**bp-real(kxbeg(j),r8)**bp)/(real(kxbeg(j),r8)**bp-kxl(j)**bp)
+                  fp = (real(kxend(j,k),r8)**bp-real(kxbeg(j),r8)**bp)/(real(kxbeg(j),r8)**bp-kxl(j)**bp)
                   mflxup(j,k) = mflxrp(j,k)*fp
 !                  mflxrp(j,k) = sum(csprp(nint(kxlc):kxbeg(j),j,k),1)
 !                  bp = 1._r8-slpp(j,k)
-!                  fp = (real(kxend(j),r8)**bp-real(kxbeg(j),r8)**bp)/(real(kxbeg(j),r8)**bp-kxlc**bp)
+!                  fp = (real(kxend(j,k),r8)**bp-real(kxbeg(j),r8)**bp)/(real(kxbeg(j),r8)**bp-kxlc**bp)
 !                  mflxup(j,k) = mflxrp(j,k)*fp
                end if
                if (slpp(j,k)/=NOTSET.and.slpp(j,k)==1._r8) then
                   mflxrp(j,k) = sum(csprp(kxl(j):kxbeg(j),j,k),1)
-                  fp = log(real(kxend(j),r8)/real(kxbeg(j),r8))/log(real(kxbeg(j),r8)/real(kxl(j),r8))
+                  fp = log(real(kxend(j,k),r8)/real(kxbeg(j),r8))/log(real(kxbeg(j),r8)/real(kxl(j),r8))
                   mflxup(j,k) = mflxrp(j,k)*fp
 !                  mflxrp(j,k) = sum(csprp(nint(kxlc):kxbeg(j),j,k),1)
-!                  fp = log(real(kxend(j),r8)/real(kxbeg(j),r8))/log(real(kxbeg(j),r8)/kxlc)
+!                  fp = log(real(kxend(j,k),r8)/real(kxbeg(j),r8))/log(real(kxbeg(j),r8)/kxlc)
 !                  mflxup(j,k) = mflxrp(j,k)*fp
                end if
                if (slpp(j,k)==NOTSET) then
@@ -292,19 +296,19 @@ contains
                if (slpn(j,k)/=NOTSET.and.slpn(j,k)/=1._r8) then
                   mflxrn(j,k) = sum(csprn(kxl(j):kxbeg(j),j,k),1)
                   bn = 1._r8-slpn(j,k)
-                  fn = (real(kxend(j),r8)**bn-real(kxbeg(j),r8)**bn)/(real(kxbeg(j),r8)**bn-kxl(j)**bn)
+                  fn = (real(kxend(j,k),r8)**bn-real(kxbeg(j),r8)**bn)/(real(kxbeg(j),r8)**bn-kxl(j)**bn)
                   mflxun(j,k) = mflxrn(j,k)*fn
 !                  mflxrn(j,k) = sum(csprn(nint(kxlc):kxbeg(j),j,k),1)
 !                  bn = 1._r8-slpn(j,k)
-!                  fn = (real(kxend(j),r8)**bn-real(kxbeg(j),r8)**bn)/(real(kxbeg(j),r8)**bn-kxlc**bn)
+!                  fn = (real(kxend(j,k),r8)**bn-real(kxbeg(j),r8)**bn)/(real(kxbeg(j),r8)**bn-kxlc**bn)
 !                  mflxun(j,k) = mflxrn(j,k)*fn
                end if
                if (slpn(j,k)/=NOTSET.and.slpn(j,k)==1._r8) then
                   mflxrn(j,k) = sum(csprn(kxl(j):kxbeg(j),j,k),1)
-                  fn = log(real(kxend(j),r8)/real(kxbeg(j),r8))/log(real(kxbeg(j),r8)/real(kxl(j),r8))
+                  fn = log(real(kxend(j,k),r8)/real(kxbeg(j),r8))/log(real(kxbeg(j),r8)/real(kxl(j),r8))
                   mflxun(j,k) = mflxrn(j,k)*fn
 !                  mflxrn(j,k) = sum(csprn(nint(kxlc):kxbeg(j),j,k),1)
-!                  fn = log(real(kxend(j),r8)/real(kxbeg(j),r8))/log(real(kxbeg(j),r8)/kxlc)
+!                  fn = log(real(kxend(j,k),r8)/real(kxbeg(j),r8))/log(real(kxbeg(j),r8)/kxlc)
 !                  mflxun(j,k) = mflxrn(j,k)*fn
                end if
                if (slpn(j,k)==NOTSET) then

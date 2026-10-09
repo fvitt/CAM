@@ -46,7 +46,7 @@ module esmf_phys2lonlat_mod
      real(r8), pointer :: fld(:,:,:) => null()
   end type fields_bundle_t
 
-  integer, parameter :: nflds = 5
+  integer, parameter :: nflds = 7
 
 contains
 
@@ -145,9 +145,14 @@ contains
        do icol = 1,ncol
           i = i+1
           do ifld = 1,nflds
-             do ilev = 1,pver
-                physptr(ilev,ifld,i) = physflds(ifld)%fld(ilev,icol,ichnk)
-             end do
+             if (associated(physflds(ifld)%fld)) then
+                do ilev = 1,pver
+                   physptr(ilev,ifld,i) = physflds(ifld)%fld(ilev,icol,ichnk)
+                end do
+             else
+                ! unused slot -- fill with zeros to avoid regridding garbage
+                physptr(:,ifld,i) = 0._r8
+             end if
           end do
        end do
     end do
@@ -160,7 +165,9 @@ contains
     call check_esmf_error(rc, subname//'ESMF_FieldGet lonlatptr')
 
     do ifld = 1,nflds
-       lonlatflds(ifld)%fld(lon_beg:lon_end,lat_beg:lat_end,1:pver) = lonlatptr(lon_beg:lon_end,lat_beg:lat_end,1:pver,ifld)
+       if (associated(lonlatflds(ifld)%fld)) then
+          lonlatflds(ifld)%fld(lon_beg:lon_end,lat_beg:lat_end,1:pver) = lonlatptr(lon_beg:lon_end,lat_beg:lat_end,1:pver,ifld)
+       end if
     end do
 
   end subroutine esmf_phys2lonlat_regrid_3d

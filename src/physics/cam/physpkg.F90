@@ -1143,7 +1143,7 @@ contains
 
     ! TEM diagnostics
     call ctem_diags_calc(phys_state)
-    call gw_cospectra_calc(phys_state)
+    call gw_cospectra_calc(phys_state, pbuf2d)
 
     !-----------------------------------------------------------------------
     ! Advance time information

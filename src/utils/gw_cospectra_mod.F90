@@ -6,7 +6,7 @@ module gw_cospectra_mod
   use physics_types, only: physics_state
   use esmf_lonlat_grid_mod, only: nlon, nlat, glats, lon_beg, lon_end, lat_beg, lat_end
   use esmf_zonal_fft_mod, only : esmf_zonal_fft_3d, esmf_zonal_ifft_3d, esmf_zonal_fft_init
-  use esmf_zonal_mean_mod, only: esmf_zonal_mean_calc
+  use esmf_zonal_mean_mod, only: esmf_zonal_mean_calc, esmf_zonal_mean_wsums
   use esmf_phys2lonlat_mod, only: esmf_phys2lonlat_regrid
   use esmf_lonlat2phys_mod, only: esmf_lonlat2phys_init
 
@@ -15,6 +15,8 @@ module gw_cospectra_mod
   use spmd_utils, only: masterproc
   use cam_logfile, only: iulog
   use cam_abortutils, only: endrun
+
+  use physics_buffer, only: physics_buffer_desc, pbuf_get_chunk, pbuf_get_field, pbuf_get_index
 
   use pio
 
@@ -173,16 +175,19 @@ contains
 
   ! -----------------------------------------------------------------------------
   ! -----------------------------------------------------------------------------
-  subroutine gw_cospectra_calc(phys_state)
+  subroutine gw_cospectra_calc(phys_state, pbuf2d)
     use cam_history, only: outfld
     use perf_mod, only: t_startf, t_stopf
     use cospext_mod, only: cospext, NOTSET, kxmin
     use air_composition, only: rairv  ! composition dependent gas constant (J/K/kg)
-    use ref_pres, only: pref_mid
+    use ref_pres, only: pref_mid, do_molec_diff, nbot_molec
     use esmf_phys2lonlat_mod, only: p2l_bdl=>fields_bundle_t, phys2lonlat_nflds=>nflds
     use esmf_lonlat2phys_mod, only: l2p_bdl=>fields_bundle_t, lonlat2phys_nflds=>nflds, esmf_lonlat2phys_regrid
+    use physconst, only: cpair, gravit, rair
+    use molec_diff, only: km_fac, km_pwr=>pwr  ! molecular viscosity constants (non-WACCM-X)
 
     type(physics_state), intent(in) :: phys_state(begchunk:endchunk)
+    type(physics_buffer_desc), pointer :: pbuf2d(:,:)
 
     complex(C_DOUBLE_COMPLEX) :: u_fft(nftnum, lat_beg:lat_end, pver)
     complex(C_DOUBLE_COMPLEX) :: v_fft(nftnum, lat_beg:lat_end, pver)
@@ -195,6 +200,8 @@ contains
     real(r8),target :: vfld(pver,pcols,begchunk:endchunk)
     real(r8),target :: wfld(pver,pcols,begchunk:endchunk)
     real(r8),target :: tfld(pver,pcols,begchunk:endchunk)
+    real(r8),target :: kvmfld(pver,pcols,begchunk:endchunk) ! kvm at midpoints
+    real(r8),target :: nmfld(pver,pcols,begchunk:endchunk)  ! Brunt-Vaisala frequency at midpoints
     integer :: lchnk, ncol, icol
 
     real(r8),target :: rho_lonlat(lon_beg:lon_end,lat_beg:lat_end,pver)
@@ -202,6 +209,22 @@ contains
     real(r8),target :: v_lonlat(lon_beg:lon_end,lat_beg:lat_end,pver)
     real(r8),target :: w_lonlat(lon_beg:lon_end,lat_beg:lat_end,pver)
     real(r8),target :: t_lonlat(lon_beg:lon_end,lat_beg:lat_end,pver)
+    real(r8),target :: kvm_lonlat(lon_beg:lon_end,lat_beg:lat_end,pver)
+    real(r8),target :: nm_lonlat(lon_beg:lon_end,lat_beg:lat_end,pver)
+
+    real(r8) :: kvm_zm(lat_beg:lat_end,pver)
+    real(r8) :: nm_zm(lat_beg:lat_end,pver)
+    real(r8) :: wvlx_visc(lat_beg:lat_end,pver)
+    real(r8) :: wvlxend(lat_beg:lat_end,pver)
+    real(r8), pointer :: kvm_pbuf(:,:)
+    type(physics_buffer_desc), pointer :: pbuf_chnk(:)
+    integer, save :: kvm_pbuf_idx = -1
+    logical, save :: kvm_idx_set = .false.
+    real(r8), parameter :: wvlx_visc_floor = 4.e4_r8 ! lower bound on wvlxend (m)
+    real(r8), parameter :: n2min = 5.e-5_r8          ! floor on N^2 (matches gw prepare_profiles)
+    real(r8) :: ti_col(pver+1), rhoi_col(pver+1), ni_col(pver+1)
+    real(r8) :: mkvisc_i(pver+1)
+    real(r8) :: dtdp, n2
 
     ! band-pass filtered spectra (wavenumbers outside [kxbeg,kxend] zeroed)
     complex(C_DOUBLE_COMPLEX) :: u_fft_f(nftnum, lat_beg:lat_end, pver)
@@ -212,23 +235,25 @@ contains
     real(r8) :: u_filt(lon_beg:lon_end,lat_beg:lat_end,pver)
     real(r8) :: v_filt(lon_beg:lon_end,lat_beg:lat_end,pver)
     real(r8) :: w_filt(lon_beg:lon_end,lat_beg:lat_end,pver)
+    real(r8) :: t_filt(lon_beg:lon_end,lat_beg:lat_end,pver)
 
     ! element-wise products of filtered fields
     real(r8) :: uw_filt(lon_beg:lon_end,lat_beg:lat_end,pver)
     real(r8) :: vw_filt(lon_beg:lon_end,lat_beg:lat_end,pver)
     real(r8) :: uv_filt(lon_beg:lon_end,lat_beg:lat_end,pver)
 
-    ! branch-scaled versions of the filtered products
-    real(r8) :: uw_scl(lon_beg:lon_end,lat_beg:lat_end,pver)
-    real(r8) :: vw_scl(lon_beg:lon_end,lat_beg:lat_end,pver)
-    real(r8) :: uv_scl(lon_beg:lon_end,lat_beg:lat_end,pver)
-
     ! wavenumber-band edges and scaling factors (positive/negative branches)
-    integer :: kxbeg(lat_beg:lat_end), kxend(lat_beg:lat_end), kxl(lat_beg:lat_end), kx
+    integer :: kxbeg(lat_beg:lat_end), kxl(lat_beg:lat_end), kx
+    integer :: kxend(lat_beg:lat_end,pver)
     integer :: lat0, lat1
     real(r8) :: fp_uw(lat_beg:lat_end,pver), fn_uw(lat_beg:lat_end,pver)
     real(r8) :: fp_vw(lat_beg:lat_end,pver), fn_vw(lat_beg:lat_end,pver)
     real(r8) :: fp_uv(lat_beg:lat_end,pver), fn_uv(lat_beg:lat_end,pver)
+    ! zonal sums of absolute filtered products, used as weighting norms
+    real(r8) :: uw_abs_sum(lat_beg:lat_end,pver)
+    real(r8) :: vw_abs_sum(lat_beg:lat_end,pver)
+    real(r8) :: uv_abs_sum(lat_beg:lat_end,pver)
+    real(r8), parameter :: sum_tiny = 1.e-30_r8
     real(r8), parameter :: rearth = 6.371e6_r8
     real(r8), parameter :: krat = 1.6_r8
     real(r8), parameter :: lat_scl_max = 85._r8   ! only scale equatorward of this |lat| (deg)
@@ -266,13 +291,9 @@ contains
     real(r8),target :: frcyu_lonlat(lon_beg:lon_end,lat_beg:lat_end,pver)
     real(r8),target :: frcxyu_lonlat(lon_beg:lon_end,lat_beg:lat_end,pver)
 
-    ! full-latitude gathers used by the meridional divergence of uv_scl
-    real(r8) :: uv_scl_glb(lon_beg:lon_end,nlat,pver)
-    real(r8) :: rho_lonlat_glb(lon_beg:lon_end,nlat,pver)
-    real(r8) :: dy
-
-    real(r8) :: wvlxbeg, wvlxend
+    real(r8) :: wvlxbeg
     real(r8) :: mflux_glb(nlat,pver)
+    integer :: kk
 
     real(r8), parameter :: pi = 4._r8*atan(1._r8)
     real(r8), parameter :: deg2rad = pi/180._r8
@@ -282,21 +303,65 @@ contains
 
 !    wvlxbeg = 800.e3_r8  ! 800 km
     wvlxbeg = 1140.e3_r8
-!    wvlxend = 20.e3_r8   ! 20 km
-    wvlxend = 40.e3_r8   ! 40 km, suggested from AWE analysis
 
     call t_startf ('gw_cospectra_calc')
+
+    if (.not. kvm_idx_set) then
+       kvm_pbuf_idx = pbuf_get_index('kvm')
+       kvm_idx_set = .true.
+    end if
 
     latrad(lat_beg:lat_end) = glats(lat_beg:lat_end)*deg2rad
 
     do lchnk = begchunk, endchunk
        ncol = get_ncols_p(lchnk)
+
+       ! Pull previous-step kvm (interfaces, pverp) from pbuf, average to midpoints
+       pbuf_chnk => pbuf_get_chunk(pbuf2d, lchnk)
+       call pbuf_get_field(pbuf_chnk, kvm_pbuf_idx, kvm_pbuf)
+
        do icol = 1,ncol
           ufld(:pver,icol,lchnk) = phys_state(lchnk)%u(icol,:pver)
           vfld(:pver,icol,lchnk) = phys_state(lchnk)%v(icol,:pver)
           wfld(:pver,icol,lchnk) = phys_state(lchnk)%omega(icol,:pver)
           tfld(:pver,icol,lchnk) = phys_state(lchnk)%t(icol,:pver) * phys_state(lchnk)%exner(icol,:pver)
           rho (:pver,icol,lchnk) = phys_state(lchnk)%pmid(icol,:pver)/(rairv(icol,:pver,lchnk)*phys_state(lchnk)%t(icol,:pver)) ! kg/m3
+
+          ! Brunt-Vaisala frequency on midpoints (same formulation as
+          ! gravity_wave_drag_prepare_profiles_run in atmos_phys). Build interface
+          ! T, density, and N^2 from phys_state, then average to midpoints.
+          ti_col(1) = phys_state(lchnk)%t(icol,1)
+          rhoi_col(1) = phys_state(lchnk)%pint(icol,1)/(rair*ti_col(1))
+          ni_col(1) = sqrt(gravit*gravit/(cpair*ti_col(1)))
+          do kk = 2,pver
+             ti_col(kk) = 0.5_r8*(phys_state(lchnk)%t(icol,kk-1) + phys_state(lchnk)%t(icol,kk))
+             rhoi_col(kk) = phys_state(lchnk)%pint(icol,kk)/(rair*ti_col(kk))
+             dtdp = (phys_state(lchnk)%t(icol,kk) - phys_state(lchnk)%t(icol,kk-1)) &
+                  / (phys_state(lchnk)%pmid(icol,kk) - phys_state(lchnk)%pmid(icol,kk-1))
+             n2 = gravit*gravit/ti_col(kk)*(1._r8/cpair - rhoi_col(kk)*dtdp)
+             ni_col(kk) = sqrt(max(n2min, n2))
+          end do
+          ti_col(pver+1) = phys_state(lchnk)%t(icol,pver)
+          rhoi_col(pver+1) = phys_state(lchnk)%pint(icol,pver+1)/(rair*ti_col(pver+1))
+          ni_col(pver+1) = ni_col(pver)
+          do kk = 1,pver
+             nmfld(kk,icol,lchnk) = 0.5_r8*(ni_col(kk) + ni_col(kk+1))
+          end do
+
+          ! kvm total at interfaces = eddy kvm (from pbuf, previous step) +
+          ! molecular kinematic viscosity (non-WACCM-X branch of molec_diff.F90:
+          ! mkvisc = km_fac * tint^pwr / rhoi, applied for k = 1..nbot_molec).
+          ! Then average to midpoints.
+          mkvisc_i(:) = 0._r8
+          if (do_molec_diff) then
+             do kk = 1,nbot_molec
+                mkvisc_i(kk) = km_fac * ti_col(kk)**km_pwr / rhoi_col(kk)
+             end do
+          end if
+          do kk = 1,pver
+             kvmfld(kk,icol,lchnk) = 0.5_r8*((kvm_pbuf(icol,kk)   + mkvisc_i(kk)) &
+                                           + (kvm_pbuf(icol,kk+1) + mkvisc_i(kk+1)))
+          end do
        end do
     end do
 
@@ -305,14 +370,38 @@ contains
     physflds(3)%fld => wfld
     physflds(4)%fld => tfld
     physflds(5)%fld => rho
+    physflds(6)%fld => kvmfld
+    physflds(7)%fld => nmfld
 
     lonlatflds(1)%fld => u_lonlat
     lonlatflds(2)%fld => v_lonlat
     lonlatflds(3)%fld => w_lonlat
     lonlatflds(4)%fld => t_lonlat
     lonlatflds(5)%fld => rho_lonlat
+    lonlatflds(6)%fld => kvm_lonlat
+    lonlatflds(7)%fld => nm_lonlat
 
     call esmf_phys2lonlat_regrid(physflds, lonlatflds)
+
+    ! Zonal-mean kvm and nm, then viscous horizontal scale and wvlxend
+    call esmf_zonal_mean_calc(kvm_lonlat, kvm_zm)
+    call esmf_zonal_mean_calc(nm_lonlat, nm_zm)
+    do k = 1, pver
+       do j = lat_beg, lat_end
+          if (nm_zm(j,k) > 0._r8 .and. kvm_zm(j,k) > 0._r8) then
+             wvlx_visc(j,k) = 2._r8*pi*sqrt(kvm_zm(j,k)/nm_zm(j,k))
+          else
+             wvlx_visc(j,k) = 0._r8
+          end if
+          if (wvlx_visc(j,k) < wvlx_visc_floor) then
+             wvlxend(j,k) = wvlx_visc_floor
+          else if (wvlx_visc(j,k) <= wvlxbeg) then
+             wvlxend(j,k) = wvlx_visc(j,k)
+          else
+             wvlxend(j,k) = wvlxbeg
+          end if
+       end do
+    end do
 
     u_fft = esmf_zonal_fft_3d(u_lonlat)
     call output_fld(u_fft, name='U')
@@ -326,13 +415,17 @@ contains
     t_fft = esmf_zonal_fft_3d(t_lonlat)
     call output_fld(t_fft, name='THETA')
 
-    ! zonal band-pass filter: keep only wavenumbers in [kxbeg,kxend] per latitude,
-    ! then inverse FFT back to physical space.
+    ! zonal band-pass filter: keep only wavenumbers in [kxbeg,kxend] per latitude
+    ! and level, then inverse FFT back to physical space.
     ! kxl matches cospext's scale-invariant lower bound (kxbeg/krat/krat).
     do j = lat_beg, lat_end
        kxbeg(j) = nint(2._r8*pi*rearth*cos(latrad(j))/wvlxbeg)
-       kxend(j) = nint(2._r8*pi*rearth*cos(latrad(j))/wvlxend)
        kxl(j)   = nint(nint(kxbeg(j)/krat)/krat)
+    end do
+    do k = 1, pver
+       do j = lat_beg, lat_end
+          kxend(j,k) = nint(2._r8*pi*rearth*cos(latrad(j))/wvlxend(j,k))
+       end do
     end do
 
     u_fft_f = u_fft
@@ -342,7 +435,7 @@ contains
        do j = lat_beg, lat_end
           do i = 1, nftnum
              kx = i - 1
-             if (kx < kxbeg(j) .or. kx > kxend(j)) then
+             if (kx < kxbeg(j) .or. kx > kxend(j,k)) then
                 u_fft_f(i,j,k) = (0._r8, 0._r8)
                 v_fft_f(i,j,k) = (0._r8, 0._r8)
                 w_fft_f(i,j,k) = (0._r8, 0._r8)
@@ -407,13 +500,13 @@ contains
     end do
 
     ! zonal component
-    call cospext(nftnum, lat_beg,lat_end, pver,ntime, latrad, accum_cospectra_u, wvlxbeg,wvlxend, pref_mid, rhobar, mflxxup,mflxxun,mflxxrp,mflxxrn, force_r=frcxr,force_u=frcxu, slpp=slppx,slpn=slpnx)
+    call cospext(nftnum, lat_beg,lat_end, pver,ntime, latrad, accum_cospectra_u, wvlxbeg,wvlxend, pref_mid, rhobar, mflxxup,mflxxun,mflxxrp,mflxxrn,force_r=frcxr,force_u=frcxu)
 
     ! meridional component
-    call cospext(nftnum, lat_beg,lat_end, pver,ntime, latrad, accum_cospectra_v, wvlxbeg,wvlxend, pref_mid, rhobar, mflxyup,mflxyun,mflxyrp,mflxyrn, force_r=frcyr,force_u=frcyu, slpp=slppy,slpn=slpny)
+    call cospext(nftnum, lat_beg,lat_end, pver,ntime, latrad, accum_cospectra_v, wvlxbeg,wvlxend, pref_mid, rhobar, mflxyup,mflxyun,mflxyrp,mflxyrn,force_r=frcyr,force_u=frcyu)
 
     ! meridional momentum flux
-    call cospext(nftnum, lat_beg,lat_end, pver,ntime, latrad, accum_cospectra_uv, wvlxbeg,wvlxend, pref_mid, rhobar, mflxxyup,mflxxyun,mflxxyrp,mflxxyrn, slpp=slppxy,slpn=slpnxy)
+    call cospext(nftnum, lat_beg,lat_end, pver,ntime, latrad, accum_cospectra_uv, wvlxbeg,wvlxend, pref_mid, rhobar, mflxxyup,mflxxyun,mflxxyrp,mflxxyrn)
 
     ! Scale filtered products by branch-dependent factors derived from the spectral
     ! slopes (see cospext_mod::momentum_fluxes for the fp/fn formulation).
@@ -427,34 +520,9 @@ contains
        end if
     end do
 
-    call compute_scaling(slppx,  slpnx,  fp_uw, fn_uw)
-    call compute_scaling(slppy,  slpny,  fp_vw, fn_vw)
-    call compute_scaling(slppxy, slpnxy, fp_uv, fn_uv)
-
-    uw_scl = 0._r8
-    vw_scl = 0._r8
-    uv_scl = 0._r8
-    do k = 1, pver
-       do j = lat0, lat1
-          do i = lon_beg, lon_end
-             if (uw_filt(i,j,k) > 0._r8) then
-                uw_scl(i,j,k) = uw_filt(i,j,k) * fp_uw(j,k)
-             else
-                uw_scl(i,j,k) = uw_filt(i,j,k) * fn_uw(j,k)
-             end if
-             if (vw_filt(i,j,k) > 0._r8) then
-                vw_scl(i,j,k) = vw_filt(i,j,k) * fp_vw(j,k)
-             else
-                vw_scl(i,j,k) = vw_filt(i,j,k) * fn_vw(j,k)
-             end if
-             if (uv_filt(i,j,k) > 0._r8) then
-                uv_scl(i,j,k) = uv_filt(i,j,k) * fp_uv(j,k)
-             else
-                uv_scl(i,j,k) = uv_filt(i,j,k) * fn_uv(j,k)
-             end if
-          end do
-       end do
-    end do
+!    call compute_scaling(slppx,  slpnx,  fp_uw, fn_uw)
+!    call compute_scaling(slppy,  slpny,  fp_vw, fn_vw)
+!    call compute_scaling(slppxy, slpnxy, fp_uv, fn_uv)
 
     frcxyu = gather_and_latderiv(mflxxyup,mflxxyun,rhobar)
     frcxyr = gather_and_latderiv(mflxxyrp,mflxxyrn,rhobar)
@@ -481,6 +549,18 @@ contains
     frcxyr = gather_and_smooth(frcxyr)
     frcxyu = gather_and_smooth(frcxyu)
 
+    ! Where the viscous horizontal scale exceeds wvlxbeg the unresolved window
+    ! collapses, so the unresolved forcings are set to zero.
+    do k = 1, pver
+       do j = lat_beg, lat_end
+          if (wvlx_visc(j,k) > wvlxbeg) then
+             frcxu(j,k)  = 0._r8
+             frcyu(j,k)  = 0._r8
+             frcxyu(j,k) = 0._r8
+          end if
+       end do
+    end do
+
     do icol = lat_beg, lat_end
 
        call outfld('SFRCXR', frcxr(icol,:),1,icol)
@@ -492,35 +572,40 @@ contains
 
     end do
 
-    ! Only compute the divergences equatorward of lat_scl_max (|lat| < 85 deg);
+    ! Distribute the zonal-mean forcings across longitudes using the amplitude
+    ! (absolute value) of the filtered momentum-flux products as the weight:
+    !     frcxu_lonlat(i,j,k) = frcxu(j,k) * nlon * |uw_filt(i,j,k)| / sum_i(|uw_filt|)
+    ! and analogously for frcyu_lonlat (|vw_filt|) and frcxyu_lonlat (|uv_filt|).
+    ! By construction the zonal mean of frcxu_lonlat equals frcxu, so the
+    ! zonal-mean forcing is preserved while the longitudinal structure follows
+    ! the gravity-wave amplitude. Only applied equatorward of lat_scl_max;
     ! latitudes outside stay at zero to add no gravity-wave forcing.
+    uw_abs_sum = esmf_zonal_mean_wsums(abs(uw_filt))
+    vw_abs_sum = esmf_zonal_mean_wsums(abs(vw_filt))
+    uv_abs_sum = esmf_zonal_mean_wsums(abs(uv_filt))
+
     frcxu_lonlat  = 0._r8
     frcyu_lonlat  = 0._r8
     frcxyu_lonlat = 0._r8
 
-    ! Vertical divergence of the scaled 3D fluxes (mimics cospext_mod line 129-130,
-    ! with rhozm replaced by 3D rho_lonlat and mflxup+mflxun replaced by uw_scl/vw_scl).
-    do j = lat0, lat1
-       do i = lon_beg,lon_end
-          frcxu_lonlat(i,j,:) = -vertdiv( pref_mid(:), rho_lonlat(i,j,:)*uw_scl(i,j,:) ) / rho_lonlat(i,j,:)
-          frcyu_lonlat(i,j,:) = -vertdiv( pref_mid(:), rho_lonlat(i,j,:)*vw_scl(i,j,:) ) / rho_lonlat(i,j,:)
-       end do
-    end do
-
-    ! Meridional divergence of the scaled uv flux (mimics gather_and_latderiv line 644,
-    ! with flxglb1+flxglb2 replaced by uv_scl and rhoglb by rho_lonlat).
-    uv_scl_glb     = gather_fluxes_3d(uv_scl)
-    rho_lonlat_glb = gather_fluxes_3d(rho_lonlat)
-
-    dy = pi*rearth/real(nlat-1,r8)
-
     do k = 1, pver
-       do j = max(2,lat0), min(nlat-1,lat1)
-          do i = lon_beg, lon_end
-             frcxyu_lonlat(i,j,k) = -( uv_scl_glb(i,j+1,k)*rho_lonlat_glb(i,j+1,k) &
-                                     - uv_scl_glb(i,j-1,k)*rho_lonlat_glb(i,j-1,k) ) &
-                                     / (2._r8*dy*rho_lonlat_glb(i,j,k))
-          end do
+       do j = lat0, lat1
+          if (wvlx_visc(j,k) > wvlxbeg) cycle
+          if (uw_abs_sum(j,k) > sum_tiny) then
+             do i = lon_beg, lon_end
+                frcxu_lonlat(i,j,k) = frcxu(j,k) * real(nlon,r8) * abs(uw_filt(i,j,k)) / uw_abs_sum(j,k)
+             end do
+          end if
+          if (vw_abs_sum(j,k) > sum_tiny) then
+             do i = lon_beg, lon_end
+                frcyu_lonlat(i,j,k) = frcyu(j,k) * real(nlon,r8) * abs(vw_filt(i,j,k)) / vw_abs_sum(j,k)
+             end do
+          end if
+          if (uv_abs_sum(j,k) > sum_tiny) then
+             do i = lon_beg, lon_end
+                frcxyu_lonlat(i,j,k) = frcxyu(j,k) * real(nlon,r8) * abs(uv_filt(i,j,k)) / uv_abs_sum(j,k)
+             end do
+          end if
        end do
     end do
 
@@ -588,22 +673,22 @@ contains
 
                if (slpp(jj,kk) /= NOTSET) then
                   if (slpp(jj,kk) == 1._r8) then
-                     fp(jj,kk) = log(real(kxend(jj),r8)/real(kxbeg(jj),r8)) &
+                     fp(jj,kk) = log(real(kxend(jj,kk),r8)/real(kxbeg(jj),r8)) &
                                / log(real(kxbeg(jj),r8)/real(kxl(jj),r8))
                   else
                      bp = 1._r8 - slpp(jj,kk)
-                     fp(jj,kk) = (real(kxend(jj),r8)**bp - real(kxbeg(jj),r8)**bp) &
+                     fp(jj,kk) = (real(kxend(jj,kk),r8)**bp - real(kxbeg(jj),r8)**bp) &
                                / (real(kxbeg(jj),r8)**bp - real(kxl(jj),r8)**bp)
                   end if
                end if
 
                if (slpn(jj,kk) /= NOTSET) then
                   if (slpn(jj,kk) == 1._r8) then
-                     fn(jj,kk) = log(real(kxend(jj),r8)/real(kxbeg(jj),r8)) &
+                     fn(jj,kk) = log(real(kxend(jj,kk),r8)/real(kxbeg(jj),r8)) &
                                / log(real(kxbeg(jj),r8)/real(kxl(jj),r8))
                   else
                      bn = 1._r8 - slpn(jj,kk)
-                     fn(jj,kk) = (real(kxend(jj),r8)**bn - real(kxbeg(jj),r8)**bn) &
+                     fn(jj,kk) = (real(kxend(jj,kk),r8)**bn - real(kxbeg(jj),r8)**bn) &
                                / (real(kxbeg(jj),r8)**bn - real(kxl(jj),r8)**bn)
                   end if
                end if
@@ -721,33 +806,6 @@ contains
       end if
 
     end function gather_fluxes
-
-    !==========================================================================
-    ! 3D variant of gather_fluxes: takes (lon_beg:lon_end, lat_beg:lat_end, pver)
-    ! and returns (lon_beg:lon_end, nlat, pver) by summing along the meridional
-    ! communicator (zero-fill outside the local latitude band).
-    function gather_fluxes_3d( flx_loc ) result(flxglb)
-      use mpi, only: MPI_REAL8, MPI_SUCCESS, MPI_SUM
-      use esmf_lonlat_grid_mod, only: merid_comm
-
-      real(r8),intent(in) :: flx_loc(lon_beg:lon_end,lat_beg:lat_end,1:pver)
-
-      real(r8) :: flxglb(lon_beg:lon_end,nlat,pver)
-      real(r8) :: sndbuf(lon_beg:lon_end,nlat,pver)
-      integer :: rc, len
-
-      len = (lon_end-lon_beg+1)*nlat*pver
-
-      flxglb = 0._r8
-      sndbuf = 0._r8
-      sndbuf(lon_beg:lon_end,lat_beg:lat_end,1:pver) = flx_loc(lon_beg:lon_end,lat_beg:lat_end,1:pver)
-
-      call mpi_allreduce(sndbuf, flxglb, len, MPI_REAL8, MPI_SUM, merid_comm, rc)
-      if ( rc /= MPI_SUCCESS ) then
-         call endrun('gw_cospectra_mod::gather_fluxes_3d: mpi_allreduce FAILED')
-      end if
-
-    end function gather_fluxes_3d
 
     !==========================================================================
     ! Longitudinal moving-average smoothing of a 3D lon-lat-lev field, with
