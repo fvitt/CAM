@@ -100,6 +100,10 @@ contains
        write(iulog,*) prefix//'gw_cospectra_wavelen_begin (meters): ',gw_cospectra_wavelen_begin
     end if
 
+    if ( gw_cospectra_active .and. gw_cospectra_wavelen_begin<=0._r8 ) then
+       call endrun(prefix//'gw_cospectra_wavelen_begin needs to be positive non-zero -- ~ 10 x grid resolution (meters)')
+    end if
+
   end subroutine gw_cospectra_readnl
 
   ! -----------------------------------------------------------------------------

@@ -1612,13 +1612,20 @@ Default: 0</entry>
 
 <entry id="gw_cospectra_smooth_nlats" type="integer" category="gw_drag"
        group="gw_cospectra_nl" valid_values="" >
-Number of latitudes of smoothing window ...
+Width, in number of latitudes, of the centered moving-average window used to
+smooth the extrapolated gravity wave forcings in the meridional (latitudinal)
+direction.  A value of 1 (or 0) applies no smoothing; larger odd values spread
+the average over more neighboring latitudes.
 Default: 0</entry>
 
 <entry id="gw_cospectra_wavelen_begin" type="real" category="gw_drag"
        group="gw_cospectra_nl" valid_values="" >
-Shortest wavelength (meters) of the resolved gravity waves ...
-Should be on the order of 10*dx (grid resolution in meters) ...
+Shortest resolved horizontal wavelength (meters), marking the boundary between
+the resolved gravity waves and the shorter, unresolved waves whose forcing is
+obtained by spectral extrapolation.  It sets the long-wavelength (lowest
+wavenumber) edge of the zonal band-pass filter and the width of the
+longitudinal smoothing window.  Should be on the order of 10*dx, where dx is
+the grid resolution in meters.
 Default: 0</entry>
 
 <!-- Greenhouse Gases: CO2, CH4, N2O, CFC11, CFC12 (original CAM versions) -->
