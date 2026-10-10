@@ -8,6 +8,8 @@ ctem_diags_numlats = 360
 do_circulation_diags = .FALSE.
 
 gw_cospectra_accum_ntimes=6
+gw_cospectra_smooth_nlats=5
+gw_cospectra_wavelen_begin=1140.d3 ! meters
 
 cam_physics_mesh = '$ATM_DOMAIN_MESH'
 

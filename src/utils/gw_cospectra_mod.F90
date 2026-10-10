@@ -46,22 +46,27 @@ module gw_cospectra_mod
   real(r8), allocatable :: accum_cospectra_v(:,:,:,:)
   real(r8), allocatable :: accum_cospectra_uv(:,:,:,:)
 
+  integer :: gw_cospectra_smooth_nlats = 0
+  real(r8):: gw_cospectra_wavelen_begin = 0.0_r8 ! meters
+
 contains
 
   ! -----------------------------------------------------------------------------
   ! -----------------------------------------------------------------------------
   subroutine gw_cospectra_readnl(nlfile)
     use namelist_utils, only : find_group_name
-    use spmd_utils, only : mpicom, masterprocid, mpi_integer, mpi_success
+    use spmd_utils, only : mpicom, masterprocid, mpi_integer, mpi_success, mpi_real8
 
     character(len=*), intent(in) :: nlfile
     integer :: unitn, ierr
     character(len=cx) :: iomsg
 
     integer :: gw_cospectra_accum_ntimes
+
     character(len=*), parameter :: prefix = 'gw_cospectra_readnl: '
 
-    namelist /gw_cospectra_nl/ gw_cospectra_accum_ntimes
+    namelist /gw_cospectra_nl/ gw_cospectra_accum_ntimes, gw_cospectra_smooth_nlats, &
+         gw_cospectra_wavelen_begin
 
     if (masterproc) then
        ! read namelist
@@ -80,13 +85,19 @@ contains
 
     call mpi_bcast(gw_cospectra_accum_ntimes, 1, mpi_integer, masterprocid, mpicom, ierr)
     if (ierr /= mpi_success) call endrun(prefix//'mpi_bcast error : gw_cospectra_accum_ntimes')
+    call mpi_bcast(gw_cospectra_smooth_nlats, 1, mpi_integer, masterprocid, mpicom, ierr)
+    if (ierr /= mpi_success) call endrun(prefix//'mpi_bcast error : gw_cospectra_smooth_nlats')
+    call mpi_bcast(gw_cospectra_wavelen_begin, 1, mpi_real8, masterprocid, mpicom, ierr)
+    if (ierr /= mpi_success) call endrun(prefix//'mpi_bcast error : gw_cospectra_wavelen_begin')
 
     ntime = gw_cospectra_accum_ntimes
     gw_cospectra_active = ntime > 0
 
     if (masterproc) then
-       write(iulog,*) prefix//'gw_cospectra_accum_ntimes: ', ntime
        write(iulog,*) prefix//'gw_cospectra_active : ', gw_cospectra_active
+       write(iulog,*) prefix//'gw_cospectra_accum_ntimes: ', ntime
+       write(iulog,*) prefix//'gw_cospectra_smooth_nlats: ',gw_cospectra_smooth_nlats
+       write(iulog,*) prefix//'gw_cospectra_wavelen_begin (meters): ',gw_cospectra_wavelen_begin
     end if
 
   end subroutine gw_cospectra_readnl
@@ -301,8 +312,7 @@ contains
 
     if (.not.gw_cospectra_active) return
 
-!    wvlxbeg = 800.e3_r8  ! 800 km
-    wvlxbeg = 1140.e3_r8
+    wvlxbeg = gw_cospectra_wavelen_begin
 
     call t_startf ('gw_cospectra_calc')
 
@@ -714,7 +724,7 @@ contains
       flxglb1 = gather_fluxes(flux)
 
       do k = 1,pver
-         flxglb2(1:nlat,k) = smooth(flxglb1(1:nlat,k),nlat,5)
+         flxglb2(1:nlat,k) = smooth(flxglb1(1:nlat,k),nlat,gw_cospectra_smooth_nlats)
       end do
       sflx(lat_beg:lat_end,:) = flxglb2(lat_beg:lat_end,:)
 
