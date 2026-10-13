@@ -41,6 +41,7 @@ module physpkg
   use carma_diags_mod, only: carma_diags_t
 
   use offline_driver,  only: offline_driver_dorun
+  use upper_bc, only: ubc_out_mmrs
 
 ! clubb_mf dependency removed: CLUBB-MF is only supported with cam7
 ! physics (enforced in bld/build-namelist)
@@ -1710,6 +1711,9 @@ contains
     end if
 
     call t_stopf ('vertical_diffusion_tend')
+
+    ! TEST UBC MMR OUT
+    call ubc_out_mmrs(state)
 
     !===================================================
     ! Rayleigh friction calculation

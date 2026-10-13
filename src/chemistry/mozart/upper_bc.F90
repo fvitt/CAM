@@ -36,6 +36,7 @@ module upper_bc
   public :: ubc_get_flxs       ! get ub fluxes for this step
   public :: ubc_fixed_conc     ! returns true for constituents that have fixed UBC
   public :: ubc_fixed_temp     ! true if temperature at upper boundary is fixed
+  public :: ubc_out_mmrs
 
   character(len=64) :: ubc_specifier(pcnst) = 'NOTSET'
 
@@ -282,6 +283,7 @@ contains
        else
           call cnst_get_ind(ubc_flds(m), spc_ndx(m), abort=.true.)
           call addfld(hist_names(m), horiz_only, 'I', 'kg/kg', trim(ubc_flds(m))//' at upper boundary' )
+          call addfld(trim(ubc_flds(m))//'_MMR', (/ 'lev' /),'I', 'kg/kg', trim(ubc_flds(m))//' after upper boundary' )
        end if
 
        if (trim(ubc_source(m))=='msis') then
@@ -577,5 +579,22 @@ contains
     enddo
 
   end subroutine ubc_get_flxs
+
+
+  !---------------------------------------------------------------------------------
+  !
+  !---------------------------------------------------------------------------------
+  subroutine ubc_out_mmrs(state)
+    use physics_types,    only: physics_state
+
+    type(physics_state), intent(in) :: state
+
+    integer :: m
+
+    do m = 1,num_fixed
+       call outfld(trim(ubc_flds(m))//'_MMR', state%q(:,:,fixed_vmr_ndx(m)), pcols, state%lchnk )
+    end do
+
+  end subroutine ubc_out_mmrs
 
 end module upper_bc

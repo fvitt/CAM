@@ -37,6 +37,7 @@ module physpkg
 
   use offline_driver,   only: offline_driver_dorun
   use clubb_mf,         only: do_clubb_mf
+  use upper_bc, only: ubc_out_mmrs
 
   implicit none
   private
@@ -2304,6 +2305,9 @@ contains
     end if
 
     call t_stopf ('vertical_diffusion_tend')
+
+    ! TEST UBC MMR OUT
+    call ubc_out_mmrs(state)
 
     !===================================================
     ! Rayleigh friction calculation
