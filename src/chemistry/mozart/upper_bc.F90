@@ -592,7 +592,7 @@ contains
     integer :: m
 
     do m = 1,num_fixed
-       call outfld(trim(ubc_flds(m))//'_MMR', state%q(:,:,fixed_vmr_ndx(m)), pcols, state%lchnk )
+       call outfld(trim(ubc_flds(m))//'_MMR', state%q(:,:, spc_ndx(m)), pcols, state%lchnk )
     end do
 
   end subroutine ubc_out_mmrs
