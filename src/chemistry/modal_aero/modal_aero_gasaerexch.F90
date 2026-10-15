@@ -735,6 +735,8 @@ implicit none
    real(r8) :: dqdtsv1(ncol,pver,pcnstxx)
    real(r8) :: dqqcwdtsv1(ncol,pver,pcnstxx)
 
+   real(r8) :: aircon(ncol,pver)
+   real(r8) :: num_a(pcols,pver,ntot_amode)
 
 !----------------------------------------------------------------------
 
@@ -860,9 +862,17 @@ implicit none
    qevap(:,:) = 0.0_r8
 !---------------------------------------------------
 
+!   number conc. (#/m3) -- note q(i,k,numptr) is (#/kmol-air)
+!   so need aircon in (kmol-air/m3)
+   aircon(:ncol,:) = pmid(:ncol,:)/(rair*t(:ncol,:))/mwdry              ! (kmol-air/m3)
+   do n = 1,ntot_amode
+      !"bounded" number conc. (#/m3)
+      num_a(:ncol,:,n) = q(:ncol,:,numptr_amode(n)-loffset)*aircon(:ncol,:)
+   end do
+
 ! compute gas-to-aerosol mass transfer rates
    call gas_aer_uptkrates( ncol,       loffset,                &
-                           q,          t,          pmid,       &
+                           num_a,          t,          pmid,       &
                            dgncur_awet,            uptkrate    )
 
 
@@ -1429,7 +1439,7 @@ implicit none
 !----------------------------------------------------------------------
 !----------------------------------------------------------------------
 subroutine gas_aer_uptkrates( ncol,       loffset,                &
-                              q,          t,          pmid,       &
+                              num_a,          t,          pmid,       &
                               dgncur_awet,            uptkrate    )
 
 !
@@ -1447,14 +1457,9 @@ subroutine gas_aer_uptkrates( ncol,       loffset,                &
 !           ac = accomodation coefficient
 !
 
-use physconst, only: mwdry, rair
-
-implicit none
-
-
    integer,  intent(in) :: ncol                 ! number of atmospheric column
    integer,  intent(in) :: loffset
-   real(r8), intent(in) :: q(ncol,pver,pcnstxx) ! Tracer array (mol,#/mol-air)
+   real(r8), intent(in) :: num_a(pcols,pver,ntot_amode)
    real(r8), intent(in) :: t(pcols,pver)        ! Temperature in Kelvin
    real(r8), intent(in) :: pmid(pcols,pver)     ! Air pressure in Pa
    real(r8), intent(in) :: dgncur_awet(pcols,pver,ntot_amode)
@@ -1472,7 +1477,6 @@ implicit none
    real(r8), parameter :: root2 = 1.4142135_r8
    real(r8), parameter :: beta = 2.0_r8
 
-   real(r8) :: aircon
    real(r8) :: const
    real(r8) :: dp, dum_m2v
    real(r8) :: dryvol_a(pcols,pver)
@@ -1480,8 +1484,6 @@ implicit none
    real(r8) :: freepathx2, fuchs_sutugin
    real(r8) :: knudsen
    real(r8) :: lndp, lndpgn, lnsg
-   real(r8) :: num_a
-   real(r8) :: rhoair
    real(r8) :: sumghq
 
    ! quadrature abscissae and weights
@@ -1512,17 +1514,6 @@ implicit none
       do k=top_lev,pver
       do i=1,ncol
 
-         rhoair = pmid(i,k)/(rair*t(i,k))   ! (kg-air/m3)
-!        aircon = 1.0e3*rhoair/mwdry        ! (mol-air/m3)
-
-!!   "bounded" number conc. (#/m3)
-!        num_a = dryvol_a(i,k)*v2ncur_a(i,k,n)*aircon
-
-!   number conc. (#/m3) -- note q(i,k,numptr) is (#/kmol-air)
-!   so need aircon in (kmol-air/m3)
-         aircon = rhoair/mwdry              ! (kmol-air/m3)
-         num_a = q(i,k,numptr_amode(n)-loffset)*aircon
-
 !   gasdiffus = h2so4 gas diffusivity from mosaic code (m^2/s)
 !               (pmid must be Pa)
          gasdiffus = 0.557e-4_r8 * (t(i,k)**1.75_r8) / pmid(i,k)
@@ -1533,7 +1524,7 @@ implicit none
 
          lnsg   = log( sigmag_amode(n) )
          lndpgn = log( dgncur_awet(i,k,n) )   ! (m)
-         const  = tworootpi * num_a * exp(beta*lndpgn + 0.5_r8*(beta*lnsg)**2)
+         const  = tworootpi * num_a(i,k,n) * exp(beta*lndpgn + 0.5_r8*(beta*lnsg)**2)
 
 !   sum over gauss-hermite quadrature points
          sumghq = 0.0_r8

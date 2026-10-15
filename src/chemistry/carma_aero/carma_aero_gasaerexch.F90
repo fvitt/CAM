@@ -380,7 +380,7 @@ subroutine carma_aero_gasaerexch_sub(  state, &
   real (r8) :: qold_soag(nsoa_vbs)
   real (r8) :: sum_dqdt_soa(nsoa_vbs)     !   sum_dqdt_soa = soa tendency from soa  gas uptake (mol/mol/s)
   real (r8) :: sum_uprt_soa(nsoa_vbs)     ! total soa uptake rate over all bin, for each soa vbs bin
-  real (r8) :: uptkrate(pcols,pver,nbins)
+  real (r8) :: uptkrate(nbins,pcols,pver)
   real (r8) :: uptkrate_all(pcols,pver)
   real (r8) :: uptkratebb(nbins)
   real (r8) :: uptkrate_soa(nbins,nsoa_vbs)
@@ -513,9 +513,9 @@ subroutine carma_aero_gasaerexch_sub(  state, &
      call outfld(fieldname, wetr_n(:ncol,:,m), ncol, lchnk )
 
      write(fieldname,'("UPTKRATE_bin",I2.2)') m
-     call outfld(fieldname, uptkrate(:ncol,:,m), ncol, lchnk )
+     call outfld(fieldname, uptkrate(m,:ncol,:), ncol, lchnk )
 
-     uptkrate_all(:ncol,:) = uptkrate_all(:ncol,:) + uptkrate(:ncol,:,m)
+     uptkrate_all(:ncol,:) = uptkrate_all(:ncol,:) + uptkrate(m,:ncol,:)
   end do
 
   fieldname = trim('UPTKRATE')
@@ -531,7 +531,7 @@ subroutine carma_aero_gasaerexch_sub(  state, &
         uptkrate_soa(:,:) = 0.0_r8
         do n = 1, nbins
            if (do_soaexch(n)) then  ! only bins that contain soa
-              uptkratebb(n) = uptkrate(i,k,n)
+              uptkratebb(n) = uptkrate(n,i,k)
               do j = 1, npoa
                  qold_poa(n,j) = poa_c(i,k,n,j)
               end do
@@ -730,12 +730,12 @@ subroutine gas_aer_uptkrates( ncol,       loffset,                &
 
   integer,  intent(in) :: ncol                 ! number of atmospheric column
   integer,  intent(in) :: loffset
+  real(r8), intent(in) :: num_bin(pcols,pver,nbins)
   real(r8), intent(in) :: t(pcols,pver)        ! Temperature in Kelvin
   real(r8), intent(in) :: pmid(pcols,pver)     ! Air pressure in Pa
   real(r8), intent(in) :: wetr(pcols,pver,nbins)
-  real(r8), intent(in) :: num_bin(pcols,pver,nbins)
 
-  real(r8), intent(out) :: uptkrate(pcols,pver,nbins)
+  real(r8), intent(out) :: uptkrate(nbins,pcols,pver)
   ! gas-to-aerosol mass transfer rates (1/s)
 
 
@@ -772,6 +772,7 @@ subroutine gas_aer_uptkrates( ncol,       loffset,                &
               gasspeed  = 1.470e1_r8 * sqrt(t(i,k))
 !   freepathx2 = 2 * (h2so4 mean free path)  (m)
               freepathx2 = 6.0_r8*gasdiffus/gasspeed
+
               dp = 2.0_r8 * wetr(i,k,n) * 1.e-2_r8 ! diameter (meters)
               const = tworootpi * num_bin(i,k,n) * dp
               ! gas_conden_rate(Dp) = const *  gasdiffus *  F(Kn,ac)
@@ -779,10 +780,10 @@ subroutine gas_aer_uptkrates( ncol,       loffset,                &
               knudsen = freepathx2/dp
               fuchs_sutugin = (0.4875_r8*(1._r8 + knudsen)) /   &
                    (knudsen*(1.184_r8 + knudsen) + 0.4875_r8)
-              uptkrate(i,k,n) = const * gasdiffus * fuchs_sutugin
+              uptkrate(n,i,k) = const * gasdiffus * fuchs_sutugin
 
            else
-              uptkrate(i,k,n) = 0.0_r8
+              uptkrate(n,i,k) = 0.0_r8
            end if
 
         end do   ! "do i = 1, ncol"
