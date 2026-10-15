@@ -1207,8 +1207,10 @@ module ionosphere_interface
             call shr_assert_in_domain(vi_blck, is_nan=.false., varname="vi_blck", msg="NaN found in vi_blck in ionosphere_run2")
             call shr_assert_in_domain(wi_blck, is_nan=.false., varname="wi_blck", msg="NaN found in wi_blck in ionosphere_run2")
             call shr_assert_in_domain(opmmr_blck, is_nan=.false., varname="opmmr_blck", msg="NaN found in opmmr_blck in ionosphere_run2")
-            call shr_assert_in_domain(Fepmmr_blck, is_nan=.false., varname="Fepmmr_blck", msg="NaN found in Fepmmr_blck in ionosphere_run2")
-            call shr_assert_in_domain(Mgpmmr_blck, is_nan=.false., varname="Mgpmmr_blck", msg="NaN found in Mgpmmr_blck in ionosphere_run2")
+            if (associated(Fepmmr_blck)) &
+                 call shr_assert_in_domain(Fepmmr_blck, is_nan=.false., varname="Fepmmr_blck", msg="NaN found in Fepmmr_blck in ionosphere_run2")
+            if (associated(Mgpmmr_blck)) &
+                 call shr_assert_in_domain(Mgpmmr_blck, is_nan=.false., varname="Mgpmmr_blck", msg="NaN found in Mgpmmr_blck in ionosphere_run2")
          end if
 
          !
@@ -1249,16 +1251,11 @@ module ionosphere_interface
                      phys_state(lchnk)%q(i, k, ixFep) = Fepmmr_blck(k, j)
                   else if (sIndxFep > 0) then
                      mmrPFep_phys(i, k) = Fepmmr_blck(k, j)
-                  else
-                     call endrun(subname//': No destination for Fep')
                   end if
-
                   if (ixMgp > 0) then
                      phys_state(lchnk)%q(i, k, ixMgp) = Mgpmmr_blck(k, j)
                   else if (sIndxMgp > 0) then
                      mmrPMgp_phys(i, k) = Mgpmmr_blck(k, j)
-                  else
-                     call endrun(subname//': No destination for Mgp')
                   end if
                   if (ixNap > 0) then
                      phys_state(lchnk)%q(i, k, ixNap) = Napmmr_blck(k, j)

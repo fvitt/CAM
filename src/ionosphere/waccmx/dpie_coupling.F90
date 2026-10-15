@@ -646,28 +646,28 @@ contains
      end if
 
      if (associated(NOpmmrtm1)) then
-        NOptm1(:,:) = NOpmmrtm1(:,:) * mbar(:,:) / rmassOp / pmid(:,:) / (kboltz * tn(:,:))
+        NOptm1(:,:) = NOpmmrtm1(:,:) * mbar(:,:) / rmassNOp * pmid(:,:) / (kboltz * tn(:,:))
      end if
      if (associated(O2pmmrtm1)) then
-        O2ptm1(:,:) = O2pmmrtm1(:,:) * mbar(:,:) / rmassOp / pmid(:,:) / (kboltz * tn(:,:))
+        O2ptm1(:,:) = O2pmmrtm1(:,:) * mbar(:,:) / rmassO2p * pmid(:,:) / (kboltz * tn(:,:))
      end if
      if (associated(Fepmmrtm1)) then
-        Feptm1(:,:) = Fepmmrtm1(:,:) * mbar(:,:) / rmassOp / pmid(:,:) / (kboltz * tn(:,:))
+        Feptm1(:,:) = Fepmmrtm1(:,:) * mbar(:,:) / rmassFep * pmid(:,:) / (kboltz * tn(:,:))
      end if
      if (associated(Mgpmmrtm1)) then
-        Mgptm1(:,:) = Mgpmmrtm1(:,:) * mbar(:,:) / rmassOp / pmid(:,:) / (kboltz * tn(:,:))
+        Mgptm1(:,:) = Mgpmmrtm1(:,:) * mbar(:,:) / rmassMgp * pmid(:,:) / (kboltz * tn(:,:))
      end if
      if (associated(Napmmrtm1)) then
-        Naptm1(:,:) = Napmmrtm1(:,:) * mbar(:,:) / rmassOp / pmid(:,:) / (kboltz * tn(:,:))
+        Naptm1(:,:) = Napmmrtm1(:,:) * mbar(:,:) / rmassNap * pmid(:,:) / (kboltz * tn(:,:))
      end if
      if (associated(Capmmrtm1)) then
-        Captm1(:,:) = Capmmrtm1(:,:) * mbar(:,:) / rmassOp / pmid(:,:) / (kboltz * tn(:,:))
+        Captm1(:,:) = Capmmrtm1(:,:) * mbar(:,:) / rmassCap * pmid(:,:) / (kboltz * tn(:,:))
      end if
      if (associated(Kpmmrtm1)) then
-        Kptm1(:,:) = Kpmmrtm1(:,:) * mbar(:,:) / rmassOp / pmid(:,:) / (kboltz * tn(:,:))
+        Kptm1(:,:) = Kpmmrtm1(:,:) * mbar(:,:) / rmassKp * pmid(:,:) / (kboltz * tn(:,:))
      end if
      if (associated(Sipmmrtm1)) then
-        Siptm1(:,:) = Sipmmrtm1(:,:) * mbar(:,:) / rmassOp / pmid(:,:) / (kboltz * tn(:,:))
+        Siptm1(:,:) = Sipmmrtm1(:,:) * mbar(:,:) / rmassSip * pmid(:,:) / (kboltz * tn(:,:))
      end if
 
      if (debug_hist) then
