@@ -18,6 +18,7 @@ module carma_aero_gasaerexch
   use aerosol_properties_mod, only: aerosol_properties
   use aerosol_instances_mod, only: aerosol_instances_get_props, &
        aerosol_instances_get_state, aerosol_instances_get_num_models
+  use gas_aer_uptkrate_mod, only: gas_aer_uptkrates
   use aero_soaexch_mod, only: aero_soaexch, method_soa, soaexch_niter_max, soa_h2so4_diffus_ratio
 
   implicit none
@@ -370,6 +371,7 @@ subroutine carma_aero_gasaerexch_sub(  state, &
   real (r8) :: fgain_soa(nbins,nsoa_vbs)
   real (r8) :: pdel_fac
   real (r8) :: num_bin(pcols,pver,nbins)
+  real (r8) :: wetdiam(pcols,pver,nbins)    ! wet diameter (m)
   real (r8) :: soa_vbs(pcols,pver,nbins,nsoa_vbs)
   real (r8) :: soa_c(pcols,pver,nbins,nsoa) ! SOA from CARMA
   real (r8) :: poa_c(pcols,pver,nbins,npoa) ! POA from CARMA
@@ -497,9 +499,8 @@ subroutine carma_aero_gasaerexch_sub(  state, &
 !---------------------------------------------------
 ! compute gas-to-aerosol mass transfer rates
 ! check if only number is needed for this calculatuion!
-  call gas_aer_uptkrates( ncol,       loffset,                &
-                          num_bin,          t,          pmid,       &
-                          wetr_n,                   uptkrate    )
+  wetdiam(:ncol,:,:) = 2.0_r8 * wetr_n(:ncol,:,:) * 1.e-2_r8 ! wet radius (cm) -> diameter (m)
+  call gas_aer_uptkrates( ncol, nbins, num_bin, wetdiam, t, pmid, uptkrate )
 
   ! initialize to zero before summing
   uptkrate_all(:,:) = 0._r8
@@ -709,89 +710,6 @@ end subroutine carma_aero_gasaerexch_sub
 
 !----------------------------------------------------------------------
 !----------------------------------------------------------------------
-subroutine gas_aer_uptkrates( ncol,       loffset,                &
-                              num_bin,          t,          pmid,       &
-                              wetr,                     uptkrate    )
-
-!
-!                         /
-!   computes   uptkrate = | dx  dN/dx  gas_conden_rate(Dp(x))
-!                         /
-!   using Gauss-Hermite quadrature of order nghq=2
-!
-!       Dp = particle diameter (cm)
-!       x = ln(Dp)
-!       dN/dx = log-normal particle number density distribution
-!       gas_conden_rate(Dp) = 2 * pi * gasdiffus * Dp * F(Kn,ac)
-!           F(Kn,ac) = Fuchs-Sutugin correction factor
-!           Kn = Knudsen number
-!           ac = accomodation coefficient
-!
-
-  integer,  intent(in) :: ncol                 ! number of atmospheric column
-  integer,  intent(in) :: loffset
-  real(r8), intent(in) :: num_bin(pcols,pver,nbins)
-  real(r8), intent(in) :: t(pcols,pver)        ! Temperature in Kelvin
-  real(r8), intent(in) :: pmid(pcols,pver)     ! Air pressure in Pa
-  real(r8), intent(in) :: wetr(pcols,pver,nbins)
-
-  real(r8), intent(out) :: uptkrate(nbins,pcols,pver)
-  ! gas-to-aerosol mass transfer rates (1/s)
-
-
-! local
-  integer, parameter :: nghq = 2
-  integer :: i, k, n
-
-  ! Can use sqrt here once Lahey is gone.
-  real(r8), parameter :: tworootpi = 3.5449077_r8
-  real(r8), parameter :: root2 = 1.4142135_r8
-  real(r8), parameter :: beta = 2.0_r8
-
-  real(r8) :: const
-  real(r8) :: dp
-  real(r8) :: gasdiffus, gasspeed
-  real(r8) :: freepathx2, fuchs_sutugin
-  real(r8) :: knudsen
-
-  ! initialize to zero
-  uptkrate(:,:,:) = 0.0_r8
-
-! outermost loop over all bins
-  do n = 1, nbins
-
-! loops k and i
-     do k=top_lev,pver
-        do i=1,ncol
-           if (wetr(i,k,n) .gt. 0.0_r8) then
-
-!   gasdiffus = h2so4 gas diffusivity from mosaic code (m^2/s)
-!               (pmid must be Pa)
-              gasdiffus = 0.557e-4_r8 * (t(i,k)**1.75_r8) / pmid(i,k)
-!   gasspeed = h2so4 gas mean molecular speed from mosaic code (m/s)
-              gasspeed  = 1.470e1_r8 * sqrt(t(i,k))
-!   freepathx2 = 2 * (h2so4 mean free path)  (m)
-              freepathx2 = 6.0_r8*gasdiffus/gasspeed
-
-              dp = 2.0_r8 * wetr(i,k,n) * 1.e-2_r8 ! diameter (meters)
-              const = tworootpi * num_bin(i,k,n) * dp
-              ! gas_conden_rate(Dp) = const *  gasdiffus *  F(Kn,ac)
-              !   knudsen number
-              knudsen = freepathx2/dp
-              fuchs_sutugin = (0.4875_r8*(1._r8 + knudsen)) /   &
-                   (knudsen*(1.184_r8 + knudsen) + 0.4875_r8)
-              uptkrate(n,i,k) = const * gasdiffus * fuchs_sutugin
-
-           else
-              uptkrate(n,i,k) = 0.0_r8
-           end if
-
-        end do   ! "do i = 1, ncol"
-     end do   ! "do k = 1, pver"
-
-  end do   ! "do n = 1, nbins"
-
-end subroutine gas_aer_uptkrates
 
 !----------------------------------------------------------------------
 
