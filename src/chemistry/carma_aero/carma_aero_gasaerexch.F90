@@ -19,7 +19,7 @@ module carma_aero_gasaerexch
   use aerosol_instances_mod, only: aerosol_instances_get_props, &
        aerosol_instances_get_state, aerosol_instances_get_num_models
   use gas_aer_uptkrate_mod, only: gas_aer_uptkrates
-  use aero_soaexch_mod, only: aero_soaexch, method_soa, soaexch_niter_max, soa_h2so4_diffus_ratio
+  use aero_soaexch_mod, only: soa_gasaerexch_cell
 
   implicit none
   private
@@ -357,18 +357,14 @@ subroutine carma_aero_gasaerexch_sub(  state, &
   integer :: j, jsoa
   integer :: k
   integer :: l
-  integer :: mm, m, n, nn, niter
+  integer :: mm, m, n, nn
 
   character(len=fieldname_len+3) :: fieldname
   character(len=32)              :: spectype
   character(len=2)               :: outsoa
 
-  real (r8) :: avg_uprt_soa(nsoa_vbs)
-  real (r8) :: deltatxx
   real (r8) :: dqdt_soa_vbs(nbins,nsoa_vbs)
   real (r8) :: dqdt_soa_all(pcols,pver,nbins,nsoa)
-  real (r8) :: dqdt_soag(nsoa_vbs)
-  real (r8) :: fgain_soa(nbins,nsoa_vbs)
   real (r8) :: pdel_fac
   real (r8) :: num_bin(pcols,pver,nbins)
   real (r8) :: wetdiam(pcols,pver,nbins)    ! wet diameter (m)
@@ -381,12 +377,11 @@ subroutine carma_aero_gasaerexch_sub(  state, &
   real (r8) :: qnew_soa(nbins)              ! SOA new for combined VBS bin new for combined VBS binss
   real (r8) :: qold_soag(nsoa_vbs)
   real (r8) :: sum_dqdt_soa(nsoa_vbs)     !   sum_dqdt_soa = soa tendency from soa  gas uptake (mol/mol/s)
-  real (r8) :: sum_uprt_soa(nsoa_vbs)     ! total soa uptake rate over all bin, for each soa vbs bin
   real (r8) :: uptkrate(nbins,pcols,pver)
   real (r8) :: uptkrate_all(pcols,pver)
-  real (r8) :: uptkratebb(nbins)
-  real (r8) :: uptkrate_soa(nbins,nsoa_vbs)
   ! gas-to-aerosol mass transfer rates (1/s)
+  logical   :: soa_on(nbins,nsoa_vbs)   ! true if soa gas condenses on bin
+  logical   :: do_soag(nsoa_vbs)        ! true if soa gas is a species
 
   integer, parameter :: nsrflx = 1 ! only one dimension of qsrflx, no renaming or changes in size for CARMA currently
   real(r8) :: dqdt(ncol,pver,gas_pcnst)  ! TMR "delta q" array - NOTE dims
@@ -522,87 +517,38 @@ subroutine carma_aero_gasaerexch_sub(  state, &
   fieldname = trim('UPTKRATE')
   call outfld(fieldname, uptkrate_all(:ncol,:), ncol, lchnk )
 
-! use this for tendency calcs to avoid generating very small negative values
-  deltatxx = deltat * (1.0_r8 + 1.0e-15_r8)
+! every soa gas condenses on each bin that contains soa
+  do jsoa = 1, nsoa_vbs
+     soa_on(:,jsoa) = do_soaexch(:)
+  end do
+  do_soag(:) = .true.
 
   dqdt_soa_all(:,:,:,:) = 0.0_r8
   do k=top_lev,pver
      do i=1,ncol
-        sum_uprt_soa(:) = 0.0_r8
-        uptkrate_soa(:,:) = 0.0_r8
         do n = 1, nbins
            if (do_soaexch(n)) then  ! only bins that contain soa
-              uptkratebb(n) = uptkrate(n,i,k)
               do j = 1, npoa
                  qold_poa(n,j) = poa_c(i,k,n,j)
               end do
               do jsoa = 1, nsoa_vbs
-                 ! 0.81 factor is for gas diffusivity (soa/h2so4)
-                 ! (differences in fuch-sutugin and accom coef ignored)
-                 fgain_soa(n,jsoa) = uptkratebb(n)*soa_h2so4_diffus_ratio
-                 uptkrate_soa(n,jsoa) = fgain_soa(n,jsoa)
-                 sum_uprt_soa(jsoa) = sum_uprt_soa(jsoa) + fgain_soa(n,jsoa)
                  qold_soa(n,jsoa) = soa_vbs(i,k,n,jsoa)
               end do
            else
               qold_poa(n,:) = 0.0_r8
               qold_soa(n,:) = 0.0_r8
-              fgain_soa(n,:) = 0.0_r8
            end if
         end do ! n
 
         do jsoa = 1, nsoa_vbs
-           if (sum_uprt_soa(jsoa) > 0.0_r8) then
-              do n = 1, nbins
-                 if (do_soaexch(n)) then  ! only bins that contain soa
-                    fgain_soa(n,jsoa) = fgain_soa(n,jsoa) / sum_uprt_soa(jsoa)
-                 end if
-              end do
-           end if
+           qold_soag(jsoa) = q(i,k,l_soag(jsoa))
         end do
 
-!   uptake amount (fraction of gas uptaken) over deltat
-        do jsoa = 1, nsoa_vbs
-           avg_uprt_soa(jsoa) = (1.0_r8 - exp(-deltatxx*sum_uprt_soa(jsoa)))/deltatxx
-        end do
-
-!   sum_dqdt_soa = soa_a tendency from soa   gas uptake (mol/mol/s)
-
-        do jsoa = 1, nsoa_vbs
-           sum_dqdt_soa(jsoa) = q(i,k,l_soag(jsoa)) * avg_uprt_soa(jsoa)
-        end do
-
-        if (method_soa > 1) then
 !   compute TMR tendencies for soag and soa interstial aerosol
-!   using soa parameterization
-           dqdt_soa_vbs(:,:) = 0.0_r8
-           dqdt_soag(:) = 0.0_r8
-           do jsoa = 1, nsoa_vbs
-              qold_soag(jsoa) = q(i,k,l_soag(jsoa))
-           end do
-
-           call aero_soaexch( deltat, t(i,k), pmid(i,k), &
-                niter, soaexch_niter_max, nbins, nsoa_vbs, npoa, &
-                do_soaexch, &
-                mw_poa_host, mw_soa_host, &
-                qold_soag, qold_soa, qold_poa, uptkrate_soa, &
-                dqdt_soag, dqdt_soa_vbs )
-
-           sum_dqdt_soa(:) = -dqdt_soag(:)
-
-        else if ( method_soa .eq. 1) then
-!   compute TMR tendencies for soa interstial aerosol
-!   due to simple gas uptake
-
-           do n = 1, nbins
-              if (do_soaexch(n) ) then
-                 do jsoa = 1, nsoa_vbs
-                    dqdt_soa_vbs(n,jsoa) = fgain_soa(n,jsoa)*sum_dqdt_soa(jsoa)
-                 end do
-              end if
-           end do
-
-        end if
+!   sum_dqdt_soa = soa_a tendency from soa   gas uptake (mol/mol/s)
+        call soa_gasaerexch_cell( deltat, t(i,k), pmid(i,k), nbins, nsoa_vbs, npoa, &
+             soa_on, do_soaexch, do_soag, uptkrate(:,i,k), mw_poa_host, mw_soa_host, &
+             qold_soag, qold_soa, qold_poa, dqdt_soa_vbs, sum_dqdt_soa )
 
         !  update soa to calcuate fractions (state variables and pbuf is not updated for SOA, will be done in CARMA)
         pdel_fac = pdel(i,k)/gravit

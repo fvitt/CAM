@@ -9,6 +9,7 @@ module aero_soaexch_mod
   implicit none
   private
 
+  public :: soa_gasaerexch_cell
   public :: aero_soaexch
 
   ! method_soa=0 is no uptake
@@ -24,6 +25,125 @@ module aero_soaexch_mod
   real(r8), parameter, public :: soa_h2so4_diffus_ratio = 0.81_r8
 
 contains
+
+!----------------------------------------------------------------------
+subroutine soa_gasaerexch_cell( deltat, temp, pres, nbins, nsoa, npoa, &
+     soa_on, do_soaexch, do_soag, uptkrate, mw_poa_host, mw_soa_host, &
+     qold_soag, qold_soa, qold_poa, dqdt_soa, sum_dqdt_soa )
+
+!-----------------------------------------------------------------------
+!
+! Purpose:
+!
+! computes soa gas and soa aerosol mixing ratio tendencies due to
+! gas-aerosol exchange in one grid cell, for all aerosol modes or bins
+!
+! the host model packs the soa gas, soa aerosol and poa aerosol mixing ratios
+! (mol/mol-air at the host molecular weights) and applies the tendencies
+!
+!-----------------------------------------------------------------------
+
+  real(r8), intent(in)  :: deltat                     ! time step (s)
+  real(r8), intent(in)  :: temp                       ! air temperature (K)
+  real(r8), intent(in)  :: pres                       ! air pressure (Pa)
+  integer,  intent(in)  :: nbins                      ! number of aerosol modes or bins
+  integer,  intent(in)  :: nsoa                       ! number of soa species
+  integer,  intent(in)  :: npoa                       ! number of poa species
+  logical,  intent(in)  :: soa_on(nbins,nsoa)         ! true if soa gas species condenses on mode/bin
+  logical,  intent(in)  :: do_soaexch(nbins)          ! true if mode/bin participates in aero_soaexch
+  logical,  intent(in)  :: do_soag(nsoa)              ! true if soa gas species is present
+  real(r8), intent(in)  :: uptkrate(nbins)            ! h2so4 gas-to-aerosol mass transfer rate (1/s)
+  real(r8), intent(in)  :: mw_poa_host                ! molec wght of poa used in host code
+  real(r8), intent(in)  :: mw_soa_host                ! molec wght of soa used in host code
+  real(r8), intent(in)  :: qold_soag(nsoa)            ! soa gas mixrat (mol/mol)
+  real(r8), intent(in)  :: qold_soa(nbins,nsoa)       ! soa aerosol mixrat (mol/mol)
+  real(r8), intent(in)  :: qold_poa(nbins,npoa)       ! poa aerosol mixrat (mol/mol)
+  real(r8), intent(out) :: dqdt_soa(nbins,nsoa)       ! soa aerosol mixrat tendency (mol/mol/s)
+  real(r8), intent(out) :: sum_dqdt_soa(nsoa)         ! soa aerosol tendency summed over modes/bins
+                                                      ! = -(soa gas mixrat tendency) (mol/mol/s)
+
+  integer  :: jsoa, n, niter
+  real(r8) :: avg_uprt_soa(nsoa)
+  real(r8) :: deltatxx
+  real(r8) :: dqdt_soag(nsoa)
+  real(r8) :: fgain_soa(nbins,nsoa)
+  real(r8) :: sum_uprt_soa(nsoa)          ! total soa uptake rate over all modes/bins
+  real(r8) :: uptkrate_soa(nbins,nsoa)    ! soa gas-to-aerosol mass transfer rates (1/s)
+
+! use this for tendency calcs to avoid generating very small negative values
+  deltatxx = deltat * (1.0_r8 + 1.0e-15_r8)
+
+!   fgain_soa(n,jsoa) = fraction of total soa uptake going to mode/bin n
+  sum_uprt_soa(:) = 0.0_r8
+  do n = 1, nbins
+     do jsoa = 1, nsoa
+        if (soa_on(n,jsoa)) then
+           fgain_soa(n,jsoa) = uptkrate(n)*soa_h2so4_diffus_ratio
+           sum_uprt_soa(jsoa) = sum_uprt_soa(jsoa) + fgain_soa(n,jsoa)
+        else
+           fgain_soa(n,jsoa) = 0.0_r8
+        end if
+        uptkrate_soa(n,jsoa) = fgain_soa(n,jsoa)
+     end do
+  end do
+
+  do jsoa = 1, nsoa
+     if (sum_uprt_soa(jsoa) > 0.0_r8) then
+        do n = 1, nbins
+           fgain_soa(n,jsoa) = fgain_soa(n,jsoa) / sum_uprt_soa(jsoa)
+        end do
+     end if
+  end do
+
+!   uptake amount (fraction of gas uptaken) over deltat
+  do jsoa = 1, nsoa
+     avg_uprt_soa(jsoa) = (1.0_r8 - exp(-deltatxx*sum_uprt_soa(jsoa)))/deltatxx
+  end do
+
+!   sum_dqdt_soa = soa_a tendency from soa gas uptake (mol/mol/s)
+  do jsoa = 1, nsoa
+     if (do_soag(jsoa)) then
+        sum_dqdt_soa(jsoa) = qold_soag(jsoa) * avg_uprt_soa(jsoa)
+     else
+        sum_dqdt_soa(jsoa) = 0.0_r8
+     end if
+  end do
+
+  if (method_soa > 1) then
+!   compute TMR tendencies for soag and soa interstial aerosol
+!   using soa parameterization
+     dqdt_soa(:,:) = 0.0_r8
+     dqdt_soag(:) = 0.0_r8
+
+     call aero_soaexch( deltat, temp, pres, &
+          niter, soaexch_niter_max, nbins, nsoa, npoa, &
+          do_soaexch, &
+          mw_poa_host, mw_soa_host, &
+          qold_soag, qold_soa, qold_poa, uptkrate_soa, &
+          dqdt_soag, dqdt_soa )
+
+     sum_dqdt_soa(:) = -dqdt_soag(:)
+
+  else if (method_soa == 1) then
+!   compute TMR tendencies for soa interstial aerosol
+!   due to simple gas uptake
+     do jsoa = 1, nsoa
+        do n = 1, nbins
+           if (soa_on(n,jsoa)) then
+              dqdt_soa(n,jsoa) = fgain_soa(n,jsoa)*sum_dqdt_soa(jsoa)
+           else
+              dqdt_soa(n,jsoa) = 0.0_r8
+           end if
+        end do
+     end do
+
+  else
+!   no uptake
+     dqdt_soa(:,:) = 0.0_r8
+     sum_dqdt_soa(:) = 0.0_r8
+  end if
+
+end subroutine soa_gasaerexch_cell
 
 !----------------------------------------------------------------------
 subroutine aero_soaexch( dtfull, temp, pres, &
