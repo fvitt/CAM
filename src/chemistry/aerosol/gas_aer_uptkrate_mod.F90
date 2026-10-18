@@ -12,6 +12,7 @@ module gas_aer_uptkrate_mod
   private
 
   public :: gas_aer_uptkrates
+  public :: nonvolatile_uptake_cell
 
 contains
 
@@ -154,6 +155,65 @@ subroutine gas_aer_uptkrates( ncol, nbins, num, dp_in, t, pmid, uptkrate, sigmag
    end if
 
 end subroutine gas_aer_uptkrates
+
+!----------------------------------------------------------------------
+subroutine nonvolatile_uptake_cell( nbins, deltat, uptkrate, diffus_ratio, mask, qgas, &
+                                    dqdt_aer, sum_dqdt, sum_uprt )
+
+!
+! uptake of a non-volatile gas (gas --> aerosol, but no aerosol --> gas)
+! by the aerosol modes or bins in one grid cell
+!
+! the gas uptake over deltat, assuming exponential decay of the gas,
+! is distributed to the modes/bins in proportion to their uptake rates
+!
+
+   integer,  intent(in)  :: nbins            ! number of aerosol modes or bins
+   real(r8), intent(in)  :: deltat           ! time step (s)
+   real(r8), intent(in)  :: uptkrate(nbins)  ! h2so4 gas-to-aerosol mass transfer rate (1/s)
+   real(r8), intent(in)  :: diffus_ratio     ! gas diffusivity relative to h2so4
+   logical,  intent(in)  :: mask(nbins)      ! true if mode/bin takes up the gas
+   real(r8), intent(in)  :: qgas             ! gas mixing ratio (mol/mol)
+   real(r8), intent(out) :: dqdt_aer(nbins)  ! condensed species tendency in each mode/bin (mol/mol/s)
+   real(r8), intent(out) :: sum_dqdt         ! condensed species tendency summed over modes/bins
+                                             !    = -(gas tendency) (mol/mol/s)
+   real(r8), intent(out) :: sum_uprt         ! gas uptake rate summed over modes/bins (1/s)
+
+   integer  :: n
+   real(r8) :: avg_uprt                      ! average uptake rate over deltat (1/s)
+   real(r8) :: deltatxx
+   real(r8) :: fgain(nbins)                  ! fraction of total gas uptake going to mode/bin n
+
+! use this for tendency calcs to avoid generating very small negative values
+   deltatxx = deltat * (1.0_r8 + 1.0e-15_r8)
+
+   sum_uprt = 0.0_r8
+   do n = 1, nbins
+      if (mask(n)) then
+         fgain(n) = uptkrate(n)*diffus_ratio
+         sum_uprt = sum_uprt + fgain(n)
+      else
+         fgain(n) = 0.0_r8
+      end if
+   end do
+
+!  at this point (sum_uprt <= 0.0) only when all the fgain are zero
+   if (sum_uprt > 0.0_r8) then
+      do n = 1, nbins
+         fgain(n) = fgain(n) / sum_uprt
+      end do
+   end if
+
+!   uptake amount (fraction of gas uptaken) over deltat
+   avg_uprt = (1.0_r8 - exp(-deltatxx*sum_uprt))/deltatxx
+
+   sum_dqdt = qgas * avg_uprt
+
+   do n = 1, nbins
+      dqdt_aer(n) = fgain(n)*sum_dqdt
+   end do
+
+end subroutine nonvolatile_uptake_cell
 
 !----------------------------------------------------------------------
 pure elemental function fuchs_sutugin(knudsen) result(fs)

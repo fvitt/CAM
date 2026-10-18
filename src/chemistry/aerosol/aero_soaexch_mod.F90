@@ -43,6 +43,8 @@ subroutine soa_gasaerexch_cell( deltat, temp, pres, nbins, nsoa, npoa, &
 !
 !-----------------------------------------------------------------------
 
+  use gas_aer_uptkrate_mod, only: nonvolatile_uptake_cell
+
   real(r8), intent(in)  :: deltat                     ! time step (s)
   real(r8), intent(in)  :: temp                       ! air temperature (K)
   real(r8), intent(in)  :: pres                       ! air pressure (Pa)
@@ -63,55 +65,23 @@ subroutine soa_gasaerexch_cell( deltat, temp, pres, nbins, nsoa, npoa, &
                                                       ! = -(soa gas mixrat tendency) (mol/mol/s)
 
   integer  :: jsoa, n, niter
-  real(r8) :: avg_uprt_soa(nsoa)
-  real(r8) :: deltatxx
   real(r8) :: dqdt_soag(nsoa)
-  real(r8) :: fgain_soa(nbins,nsoa)
-  real(r8) :: sum_uprt_soa(nsoa)          ! total soa uptake rate over all modes/bins
+  real(r8) :: sum_uprt                    ! total soa uptake rate over all modes/bins (1/s)
   real(r8) :: uptkrate_soa(nbins,nsoa)    ! soa gas-to-aerosol mass transfer rates (1/s)
-
-! use this for tendency calcs to avoid generating very small negative values
-  deltatxx = deltat * (1.0_r8 + 1.0e-15_r8)
-
-!   fgain_soa(n,jsoa) = fraction of total soa uptake going to mode/bin n
-  sum_uprt_soa(:) = 0.0_r8
-  do n = 1, nbins
-     do jsoa = 1, nsoa
-        if (soa_on(n,jsoa)) then
-           fgain_soa(n,jsoa) = uptkrate(n)*soa_h2so4_diffus_ratio
-           sum_uprt_soa(jsoa) = sum_uprt_soa(jsoa) + fgain_soa(n,jsoa)
-        else
-           fgain_soa(n,jsoa) = 0.0_r8
-        end if
-        uptkrate_soa(n,jsoa) = fgain_soa(n,jsoa)
-     end do
-  end do
-
-  do jsoa = 1, nsoa
-     if (sum_uprt_soa(jsoa) > 0.0_r8) then
-        do n = 1, nbins
-           fgain_soa(n,jsoa) = fgain_soa(n,jsoa) / sum_uprt_soa(jsoa)
-        end do
-     end if
-  end do
-
-!   uptake amount (fraction of gas uptaken) over deltat
-  do jsoa = 1, nsoa
-     avg_uprt_soa(jsoa) = (1.0_r8 - exp(-deltatxx*sum_uprt_soa(jsoa)))/deltatxx
-  end do
-
-!   sum_dqdt_soa = soa_a tendency from soa gas uptake (mol/mol/s)
-  do jsoa = 1, nsoa
-     if (do_soag(jsoa)) then
-        sum_dqdt_soa(jsoa) = qold_soag(jsoa) * avg_uprt_soa(jsoa)
-     else
-        sum_dqdt_soa(jsoa) = 0.0_r8
-     end if
-  end do
 
   if (method_soa > 1) then
 !   compute TMR tendencies for soag and soa interstial aerosol
 !   using soa parameterization
+     do n = 1, nbins
+        do jsoa = 1, nsoa
+           if (soa_on(n,jsoa)) then
+              uptkrate_soa(n,jsoa) = uptkrate(n)*soa_h2so4_diffus_ratio
+           else
+              uptkrate_soa(n,jsoa) = 0.0_r8
+           end if
+        end do
+     end do
+
      dqdt_soa(:,:) = 0.0_r8
      dqdt_soag(:) = 0.0_r8
 
@@ -126,15 +96,16 @@ subroutine soa_gasaerexch_cell( deltat, temp, pres, nbins, nsoa, npoa, &
 
   else if (method_soa == 1) then
 !   compute TMR tendencies for soa interstial aerosol
-!   due to simple gas uptake
+!   due to simple (non-volatile) gas uptake
+!   sum_dqdt_soa = soa_a tendency from soa gas uptake (mol/mol/s)
      do jsoa = 1, nsoa
-        do n = 1, nbins
-           if (soa_on(n,jsoa)) then
-              dqdt_soa(n,jsoa) = fgain_soa(n,jsoa)*sum_dqdt_soa(jsoa)
-           else
-              dqdt_soa(n,jsoa) = 0.0_r8
-           end if
-        end do
+        if (do_soag(jsoa)) then
+           call nonvolatile_uptake_cell( nbins, deltat, uptkrate, soa_h2so4_diffus_ratio, &
+                soa_on(:,jsoa), qold_soag(jsoa), dqdt_soa(:,jsoa), sum_dqdt_soa(jsoa), sum_uprt )
+        else
+           dqdt_soa(:,jsoa) = 0.0_r8
+           sum_dqdt_soa(jsoa) = 0.0_r8
+        end if
      end do
 
   else
