@@ -82,7 +82,8 @@ OPTIONS
      -cpl               Coupling framework [mct | nuopc].  Default: mct.
      -dyn <name>        Dynamical core option: [fv | se | fv3 | mpas].  Default: fv.
      -edit_chem_mech    Invokes CAMCHEM_EDITOR to allow the user to edit the chemistry mechanism file
-     -ext_co2_cool      Switch on extended non-LTE CO2 cooling
+     -[no]ext_co2_cool  Switch on [off] extended non-LTE CO2 cooling. Default: on for WACCM7
+                        (waccm_phys with cam7 physics), otherwise off.
      -hgrid <name>      Specify horizontal grid.  Use nlatxnlon for spectral grids;
                         dlatxdlon for fv grids (dlat and dlon are the grid cell size
                         in degrees for latitude and longitude respectively); nexnp for
@@ -305,7 +306,7 @@ GetOptions(
     "version"                   => \$opts{'version'},
     "waccm_phys"                => \$opts{'waccm_phys'},
     "waccmx"                    => \$opts{'waccmx'},
-    "ext_co2_cool"              => \$opts{'ext_co2_cool'},
+    "ext_co2_cool!"             => \$opts{'ext_co2_cool'},
     "tuvx"                      => \$opts{'tuvx'},
 )  or usage();
 
