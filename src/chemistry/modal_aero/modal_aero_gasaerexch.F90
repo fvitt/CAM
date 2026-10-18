@@ -62,6 +62,28 @@
 
   logical, allocatable :: do_soaexch(:)
 
+! gases that condense on the modal aerosol, set in gas_table_init
+  type :: condensing_gas_t
+     integer  :: lgas = -1                         ! constituent index of the gas
+     real(r8) :: diffus_ratio = -huge(1.0_r8)      ! gas diffusivity relative to h2so4
+     integer, allocatable :: laer(:)               ! constituent index of the condensed species in each mode
+                                                   !    (<= 0 if the mode does not have it)
+     integer, allocatable :: ido(:)                ! uptake by each mode: 0 = none, 1 = uptake,
+                                                   !    2 = uptake, then transfer to modetoo_pcage
+                                                   !        by primary carbon aging
+  end type condensing_gas_t
+
+  integer :: ngas = 0                              ! number of condensing gases
+  type(condensing_gas_t), allocatable :: gas(:)
+  integer :: igas_h2so4 = -1                       ! index of h2so4 in gas(:)
+  integer :: igas_nh3 = -1                         ! index of nh3 in gas(:) (-1 if nh3 is absent)
+  integer, allocatable :: igas_soa(:)              ! index of each soa gas in gas(:) (-1 if absent)
+  logical :: do_soag_any = .false.                 ! true if any soa gas is present
+  logical, allocatable :: dotend_gaex(:)           ! true for constituents changed by gas uptake
+                                                   !    and primary carbon aging (pcnst)
+  real(r8) :: fac_volsfc_pcarbon = -huge(1.0_r8)   ! (mode-surface-area/mode-volume) factor for the
+                                                   !    primary carbon mode
+
 ! !DESCRIPTION: This module implements ...
 !
 ! !REVISION HISTORY:
@@ -116,13 +138,10 @@ implicit none
    integer  :: ipair, iq, iqfrm, iqfrm_aa, iqtoo, iqtoo_aa
    integer  :: jac,jsoa,p
    integer  :: l, l1, l2, lsfrm, lstoo, lunout
-   integer  :: l_so4g, l_nh4g, l_msag
    integer  :: m, mfrm, mtoo
    integer  :: n, nacc, nait
    integer  :: nchfrm, nchfrmskip, nchtoo, nchtooskip, nspec
 
-   logical  :: do_msag, do_nh4g
-   logical  :: do_soag_any, do_soag(nsoa)
    logical  :: dotend(pcnst), dotendqqcw(pcnst)
 
    real(r8) :: tmp1, tmp2
@@ -279,73 +298,8 @@ aa_iqfrm: do iqfrm = -1, nspec_amode(mfrm)
 
 15000 continue
 
-! set tendency flags and gas species indices and flags
-      dotend(:) = .false.
-
-      call cnst_get_ind( 'H2SO4', l_so4g, .false. )
-      if ((l_so4g <= 0) .or. (l_so4g > pcnst)) then
-         write( *, '(/a/a,2i7)' )   &
-            '*** modal_aero_gasaerexch_init -- cannot find H2SO4 species',   &
-            '    l_so4g=', l_so4g
-         call endrun( 'modal_aero_gasaerexch_init error' )
-      end if
-      dotend(l_so4g) = .true.
-
-      call cnst_get_ind( 'NH3',   l_nh4g, .false. )
-      do_nh4g = .false.
-      if ((l_nh4g > 0) .and. (l_nh4g <= pcnst)) then
-         do_nh4g = .true.
-         dotend(l_nh4g) = .true.
-      end if
-
-      call cnst_get_ind( 'MSA',   l_msag, .false. )
-      do_msag = .false.
-      if ((l_msag > 0) .and. (l_msag <= pcnst)) then
-         do_msag = .true.
-         dotend(l_msag) = .true.
-      end if
-
-      do_soag_any = .false.
-      do_soag(:) = .false.
-      do jsoa = 1, nsoa
-         l = lptr2_soa_g_amode(jsoa)
-         if ((l > 0) .and. (l <= pcnst)) then
-            do_soag_any = .true.
-            do_soag(jsoa) = .true.
-            dotend(l) = .true.
-         end if
-      end do
-
-
-      do n = 1, ntot_amode
-         l = lptr_so4_a_amode(n)
-         if ((l > 0) .and. (l <= pcnst)) then
-            dotend(l) = .true.
-            if ( do_nh4g ) then
-               l = lptr_nh4_a_amode(n)
-               if ((l > 0) .and. (l <= pcnst)) dotend(l) = .true.
-            end if
-         end if
-         do jsoa = 1, nsoa
-            if ( do_soag(jsoa) ) then
-               l = lptr2_soa_a_amode(n,jsoa)
-               if ((l > 0) .and. (l <= pcnst)) dotend(l) = .true.
-            end if
-         end do
-      end do
-
-      if (modefrm_pcage > 0) then
-         do iq = 1, nspecfrm_pcage
-            lsfrm = lspecfrm_pcage(iq)
-            lstoo = lspectoo_pcage(iq)
-            if ((lsfrm > 0) .and. (lsfrm <= pcnst)) then
-               dotend(lsfrm) = .true.
-               if ((lstoo > 0) .and. (lstoo <= pcnst)) then
-                  dotend(lstoo) = .true.
-               end if
-            end if
-         end do
-      end if
+! set the table of condensing gases and the tendency flags
+      call gas_table_init()
 
 !---------define history fields for new cond/evap diagnostics----------------------------------------
       fieldname=trim('qconff_gaex')
@@ -417,7 +371,7 @@ aa_iqfrm: do iqfrm = -1, nspec_amode(mfrm)
 !  define history fields for basic gas-aer exchange
 !  and primary carbon aging from that
       do l = 1, pcnst
-         if ( .not. dotend(l) ) cycle
+         if ( .not. dotend_gaex(l) ) cycle
 
          tmpnamea = cnst_name(l)
          fieldname = trim(tmpnamea) // '_sfgaex1'
@@ -554,6 +508,134 @@ aa_iqfrm: do iqfrm = -1, nspec_amode(mfrm)
 
       end subroutine modal_aero_gasaerexch_init
 
+!----------------------------------------------------------------------
+subroutine gas_table_init
+
+!-----------------------------------------------------------------------
+!
+! Purpose:
+!    set the table of gases that condense on the modal aerosol
+!    (h2so4, nh3 and soa gases), the modes that take them up,
+!    and the constituents changed by gas uptake and primary carbon aging
+!
+!    called by modal_aero_gasaerexch_init after the primary carbon
+!    aging pointers are set
+!
+!-----------------------------------------------------------------------
+
+   use modal_aero_data, only: lptr_so4_a_amode, lptr_nh4_a_amode, lptr2_soa_a_amode, &
+                              modeptr_pcarbon, alnsg_amode
+   use aero_soaexch_mod, only: soa_h2so4_diffus_ratio
+   use constituents,    only: pcnst, cnst_get_ind
+   use cam_abortutils,  only: endrun
+
+   integer :: igas, iq, jsoa, l, lgas, lsfrm, lstoo, n
+
+   if ((method_soa /= 0) .and. (method_soa /= 1) .and. (method_soa /= 2)) then
+      write(*,'(/a,1x,i10)') '*** modal_aero_gasaerexch_init - bad method_soa =', method_soa
+      call endrun( 'modal_aero_gasaerexch_init error' )
+   end if
+
+   allocate( gas(2+nsoa) )
+   allocate( igas_soa(nsoa) )
+   allocate( dotend_gaex(pcnst) )
+   igas_soa(:) = -1
+   dotend_gaex(:) = .false.
+   ngas = 0
+
+! h2so4 (required) condenses as so4
+   call cnst_get_ind( 'H2SO4', lgas, .false. )
+   if ((lgas <= 0) .or. (lgas > pcnst)) then
+      write( *, '(/a/a,2i7)' )   &
+         '*** modal_aero_gasaerexch_init -- cannot find H2SO4 species',   &
+         '    l_so4g=', lgas
+      call endrun( 'modal_aero_gasaerexch_init error' )
+   end if
+   ngas = ngas + 1
+   igas_h2so4 = ngas
+   gas(ngas)%lgas = lgas
+   gas(ngas)%diffus_ratio = 1.0_r8
+   allocate( gas(ngas)%laer(ntot_amode), gas(ngas)%ido(ntot_amode) )
+   gas(ngas)%laer(:) = lptr_so4_a_amode(1:ntot_amode)
+   gas(ngas)%ido(:) = 0
+   do n = 1, ntot_amode
+      l = gas(ngas)%laer(n)
+      if ((l > 0) .and. (l <= pcnst)) gas(ngas)%ido(n) = 1
+   end do
+
+! nh3 (optional) condenses as nh4, only on modes that take up h2so4
+   call cnst_get_ind( 'NH3', lgas, .false. )
+   if ((lgas > 0) .and. (lgas <= pcnst)) then
+      ngas = ngas + 1
+      igas_nh3 = ngas
+      gas(ngas)%lgas = lgas
+      ! 2.08 factor is for gas diffusivity (nh3/h2so4)
+      ! differences in fuch-sutugin and accom coef ignored
+      gas(ngas)%diffus_ratio = 2.08_r8
+      allocate( gas(ngas)%laer(ntot_amode), gas(ngas)%ido(ntot_amode) )
+      gas(ngas)%laer(:) = lptr_nh4_a_amode(1:ntot_amode)
+      gas(ngas)%ido(:) = 0
+      do n = 1, ntot_amode
+         l = gas(ngas)%laer(n)
+         if ((gas(igas_h2so4)%ido(n) == 1) .and. (l > 0) .and. (l <= pcnst)) gas(ngas)%ido(n) = 1
+      end do
+   end if
+
+! soa gases condense as soa (method_soa = 1 or 2)
+   if (method_soa > 0) then
+      do jsoa = 1, nsoa
+         lgas = lptr2_soa_g_amode(jsoa)
+         if ((lgas <= 0) .or. (lgas > pcnst)) cycle
+         ngas = ngas + 1
+         igas_soa(jsoa) = ngas
+         gas(ngas)%lgas = lgas
+         gas(ngas)%diffus_ratio = soa_h2so4_diffus_ratio
+         allocate( gas(ngas)%laer(ntot_amode), gas(ngas)%ido(ntot_amode) )
+         gas(ngas)%laer(:) = lptr2_soa_a_amode(1:ntot_amode,jsoa)
+         gas(ngas)%ido(:) = 0
+         do n = 1, ntot_amode
+            l = gas(ngas)%laer(n)
+            if ((l > 0) .and. (l <= pcnst)) gas(ngas)%ido(n) = 1
+         end do
+      end do
+   end if
+   do_soag_any = any( igas_soa(:) > 0 )
+
+! constituents changed by gas uptake
+! (set before the primary carbon aging changes ido below)
+   do igas = 1, ngas
+      dotend_gaex(gas(igas)%lgas) = .true.
+      do n = 1, ntot_amode
+         if (gas(igas)%ido(n) == 1) dotend_gaex(gas(igas)%laer(n)) = .true.
+      end do
+   end do
+
+! primary carbon aging: the primary carbon mode takes up h2so4, and also takes up
+! nh3 and soa gases that the accumulation mode takes up, with the condensed
+! species transferred to the accumulation mode
+   if (modefrm_pcage > 0) then
+      gas(igas_h2so4)%ido(modefrm_pcage) = 2
+      do igas = 1, ngas
+         if (igas == igas_h2so4) cycle
+         if (gas(igas)%ido(modetoo_pcage) == 1) gas(igas)%ido(modefrm_pcage) = 2
+      end do
+
+      do iq = 1, nspecfrm_pcage
+         lsfrm = lspecfrm_pcage(iq)
+         lstoo = lspectoo_pcage(iq)
+         if ((lsfrm > 0) .and. (lsfrm <= pcnst)) then
+            dotend_gaex(lsfrm) = .true.
+            if ((lstoo > 0) .and. (lstoo <= pcnst)) then
+               dotend_gaex(lstoo) = .true.
+            end if
+         end if
+      end do
+
+      fac_volsfc_pcarbon = exp( 2.5_r8*(alnsg_amode(modeptr_pcarbon)**2) )
+   end if
+
+end subroutine gas_table_init
+
 
 !----------------------------------------------------------------------
 
@@ -574,7 +656,7 @@ subroutine modal_aero_gasaerexch_sub(                            &
                         sulfeq         )
 
 ! !USES:
-use modal_aero_data,   only:  alnsg_amode,lmassptr_amode,cnst_name_cw
+use modal_aero_data,   only:  lmassptr_amode,cnst_name_cw
 use modal_aero_data,   only:  lptr_so4_a_amode,lptr_nh4_a_amode
 use modal_aero_data,   only:  modeptr_pcarbon,nspec_amode,specmw_amode,specdens_amode
 use modal_aero_rename, only:  modal_aero_rename_sub
@@ -583,12 +665,11 @@ use constituents,      only: pcnst, cnst_mw
 
 use cam_history,       only:  outfld, fieldname_len
 use chem_mods,         only:  adv_mass
-use constituents,      only:  pcnst, cnst_name, cnst_get_ind
+use constituents,      only:  pcnst, cnst_name
 use mo_tracname,       only:  solsym
 use physconst,         only:  gravit, mwdry, rair
 use cam_abortutils,    only:  endrun
 use spmd_utils,        only:  iam, masterproc
-use phys_control,      only:  cam_chempkg_is
 
 implicit none
 
@@ -626,11 +707,9 @@ implicit none
 ! computes TMR (tracer mixing ratio) tendencies for gas condensation
 !    onto aerosol particles
 !
-! this version does condensation of H2SO4, NH3, and MSA, both treated as
+! this version does condensation of H2SO4 and NH3, both treated as
 ! completely non-volatile (gas --> aerosol, but no aerosol --> gas)
 !    gas H2SO4 goes to aerosol SO4
-!    gas MSA (if present) goes to aerosol SO4
-!       aerosol MSA is not distinguished from aerosol SO4
 !    gas NH3 (if present) goes to aerosol NH4
 !       if gas NH3 is not present, then ????
 !
@@ -654,9 +733,9 @@ implicit none
    integer :: j, jac, jsrf, jsoa
    integer :: k,p
    integer :: l, l2, lb, lsfrm, lstoo
-   integer :: l_so4g, l_nh4g, l_msag
+   integer :: l_so4g, l_nh4g
    integer :: l_soag(nsoa)
-   integer :: n, nn, ntot_soamode
+   integer :: n, nadv, nn
 
    logical :: is_dorename_atik, dorename_atik(ncol,pver)
 
@@ -668,7 +747,6 @@ implicit none
    real (r8) :: deltatxx
    real (r8) :: dqdt_nh4(ntot_amode), dqdt_so4(ntot_amode)
    real (r8) :: dqdt_soa(ntot_amode,nsoa)
-   real (r8) :: fac_volsfc_pcarbon
    real (r8) :: fgain_nh4(ntot_amode), fgain_so4(ntot_amode)
    real (r8) :: g0_soa(nsoa)
    real(r8)  :: mw_poa_host          ! molec wght of poa used in host code
@@ -679,10 +757,10 @@ implicit none
    real (r8) :: qold_poa(ntot_amode,npoa)
    real (r8) :: qold_soa(ntot_amode,nsoa)
    real (r8) :: qold_soag(nsoa)
-   real (r8) :: sum_dqdt_msa, sum_dqdt_so4
+   real (r8) :: sum_dqdt_so4
    real (r8) :: sum_dqdt_soa(nsoa)
    real (r8) :: sum_dqdt_nh4, sum_dqdt_nh4_b
-   real (r8) :: sum_uprt_msa, sum_uprt_nh4, sum_uprt_so4
+   real (r8) :: sum_uprt_nh4, sum_uprt_so4
    real (r8) :: tmp1, tmp2, tmpa
    real (r8) :: tmp_kxt, tmp_pxt
    real (r8) :: tmp_so4a_bgn, tmp_so4a_end
@@ -694,9 +772,7 @@ implicit none
    real (r8) :: xferfrac_pcage, xferfrac_max
    real (r8) :: xferrate
 
-   logical  :: do_msag         ! true if msa gas is a species
    logical  :: do_nh4g         ! true if nh3 gas is a species
-   logical  :: do_soag_any         ! true if soa gas is a species
    logical  :: do_soag(nsoa)       ! true if soa gas is a species
    logical  :: soa_on(ntot_amode,nsoa) ! true if soa gas condenses on mode
 
@@ -735,107 +811,37 @@ implicit none
 
 !----------------------------------------------------------------------
 
-! set gas species indices
-   call cnst_get_ind( 'H2SO4', l_so4g, .false. )
-   call cnst_get_ind( 'NH3',   l_nh4g, .false. )
-   if ( .not. cam_chempkg_is('geoschem_mam4') ) then
-      call cnst_get_ind( 'MSA',   l_msag, .false. )
-   else
-      l_msag = 0
-   endif
-   l_so4g = l_so4g - loffset
-   l_nh4g = l_nh4g - loffset
-   l_msag = l_msag - loffset
-   if ((l_so4g <= 0) .or. (l_so4g > pcnstxx)) then
-      write( *, '(/a/a,2i7)' )   &
-         '*** modal_aero_gasaerexch_sub -- cannot find H2SO4 species',   &
-         '    l_so4g, loffset =', l_so4g, loffset
-      call endrun( 'modal_aero_gasaerexch_sub error' )
-   end if
-   do_nh4g = .false.
-   do_msag = .false.
-   if ((l_nh4g > 0) .and. (l_nh4g <= pcnstxx)) do_nh4g = .true.
-   if ((l_msag > 0) .and. (l_msag <= pcnstxx)) do_msag = .true.
+! set gas species indices and tendency flags from the table of condensing gases
+   l_so4g = gas(igas_h2so4)%lgas - loffset
+   ido_so4a(:) = gas(igas_h2so4)%ido(:)
 
-   do_soag_any = .false.
-   do_soag(:) = .false.
+   do_nh4g = (igas_nh3 > 0)
+   if ( do_nh4g ) then
+      l_nh4g = gas(igas_nh3)%lgas - loffset
+      ido_nh4a(:) = gas(igas_nh3)%ido(:)
+   else
+      l_nh4g = -1
+      ido_nh4a(:) = 0
+   end if
+
    do jsoa = 1, nsoa
       l_soag(jsoa) = lptr2_soa_g_amode(jsoa) - loffset
-      if ((method_soa == 1) .or. (method_soa == 2)) then
-         if ((l_soag(jsoa) > 0) .and. (l_soag(jsoa) <= pcnstxx)) then
-            do_soag_any = .true.
-            do_soag(jsoa) = .true.
-         end if
-      else if (method_soa /= 0) then
-         write(*,'(/a,1x,i10)') '*** modal_aero_gasaerexch_sub - bad method_soa =', method_soa
-         call endrun( 'modal_aero_gasaerexch_sub error' )
+      do_soag(jsoa) = (igas_soa(jsoa) > 0)
+      if ( do_soag(jsoa) ) then
+         ido_soaa(:,jsoa) = gas(igas_soa(jsoa))%ido(:)
+      else
+         ido_soaa(:,jsoa) = 0
       end if
    end do ! jsoa
 
-! set tendency flags
+   ! local (chemistry) index l is constituent index l+loffset; chemistry species
+   ! beyond pcnst-loffset (e.g., short-lived species) are not constituents
+   nadv = min( pcnstxx, pcnst-loffset )
    dotend(:) = .false.
+   dotend(1:nadv) = dotend_gaex(1+loffset:nadv+loffset)
    dotendqqcw(:) = .false.
-   ido_so4a(:) = 0
-   ido_nh4a(:) = 0
-   ido_soaa(:,:) = 0
-
-   dotend(l_so4g) = .true.
-   if ( do_nh4g ) dotend(l_nh4g) = .true.
-   if ( do_msag ) dotend(l_msag) = .true.
-   do jsoa = 1, nsoa
-      if ( do_soag(jsoa) ) dotend(l_soag(jsoa)) = .true.
-   end do
-
-   ntot_soamode = 0
-   do n = 1, ntot_amode
-      l = lptr_so4_a_amode(n)-loffset
-      if ((l > 0) .and. (l <= pcnstxx)) then
-         dotend(l) = .true.
-         ido_so4a(n) = 1
-         if ( do_nh4g ) then
-            l = lptr_nh4_a_amode(n)-loffset
-            if ((l > 0) .and. (l <= pcnstxx)) then
-               dotend(l) = .true.
-               ido_nh4a(n) = 1
-            end if
-         end if
-      end if
-
-      do jsoa = 1, nsoa
-         if ( do_soag(jsoa) ) then
-            l = lptr2_soa_a_amode(n,jsoa)-loffset
-            if ((l > 0) .and. (l <= pcnstxx)) then
-               dotend(l) = .true.
-               ido_soaa(n,jsoa) = 1
-               ntot_soamode = n
-            end if
-         end if
-      end do ! jsoa
-   end do ! n
-
-
-   if ( do_soag_any ) ntot_soamode = max( ntot_soamode, modefrm_pcage )
 
    if (modefrm_pcage > 0) then
-      ido_so4a(modefrm_pcage) = 2
-      if (ido_nh4a(modetoo_pcage) == 1) ido_nh4a(modefrm_pcage) = 2
-      do jsoa = 1, nsoa
-         if (ido_soaa(modetoo_pcage,jsoa) == 1) ido_soaa(modefrm_pcage,jsoa) = 2
-      end do
-      do iq = 1, nspecfrm_pcage
-         lsfrm = lspecfrm_pcage(iq)-loffset
-         lstoo = lspectoo_pcage(iq)-loffset
-         if ((lsfrm > 0) .and. (lsfrm <= pcnst)) then
-            dotend(lsfrm) = .true.
-            if ((lstoo > 0) .and. (lstoo <= pcnst)) then
-               dotend(lstoo) = .true.
-            end if
-         end if
-      end do
-
-
-      n = modeptr_pcarbon
-      fac_volsfc_pcarbon = exp( 2.5_r8*(alnsg_amode(n)**2) )
       xferfrac_max = 1.0_r8 - 10.0_r8*epsilon(1.0_r8)   ! 1-eps
    end if
 
@@ -889,7 +895,7 @@ implicit none
          do n = 1, ntot_amode
             uptkratebb(n) = uptkrate(n,i,k)
             if (ido_so4a(n) > 0) then
-               fgain_so4(n) = uptkratebb(n)
+               fgain_so4(n) = uptkratebb(n)*gas(igas_h2so4)%diffus_ratio
                sum_uprt_so4 = sum_uprt_so4 + fgain_so4(n)
                if (ido_so4a(n) == 1) then
                   qold_so4(n) = q(i,k,lptr_so4_a_amode(n)-loffset)
@@ -902,9 +908,7 @@ implicit none
             end if
 
             if (ido_nh4a(n) > 0) then
-               !   2.08 factor is for gas diffusivity (nh3/h2so4)
-               !   differences in fuch-sutugin and accom coef ignored
-               fgain_nh4(n) = uptkratebb(n)*2.08_r8
+               fgain_nh4(n) = uptkratebb(n)*gas(igas_nh3)%diffus_ratio
                sum_uprt_nh4 = sum_uprt_nh4 + fgain_nh4(n)
                if (ido_nh4a(n) == 1) then
                   qold_nh4(n) = q(i,k,lptr_nh4_a_amode(n)-loffset)
@@ -960,14 +964,8 @@ implicit none
          avg_uprt_nh4 = (1.0_r8 - exp(-deltatxx*sum_uprt_nh4))/deltatxx
 
 !   sum_dqdt_so4 = so4_a tendency from h2so4 gas uptake (mol/mol/s)
-!   sum_dqdt_msa = msa_a tendency from msa   gas uptake (mol/mol/s)
 !   sum_dqdt_nh4 = nh4_a tendency from nh3   gas uptake (mol/mol/s)
          sum_dqdt_so4 = q(i,k,l_so4g) * avg_uprt_so4
-         if ( do_msag ) then
-            sum_dqdt_msa = q(i,k,l_msag) * avg_uprt_so4
-         else
-            sum_dqdt_msa = 0.0_r8
-         end if
          if ( do_nh4g ) then
             sum_dqdt_nh4 = q(i,k,l_nh4g) * avg_uprt_nh4
          else
@@ -1010,16 +1008,10 @@ implicit none
                dqdt_so4(n) = (tmp_so4a_end - tmp_so4a_bgn)/deltatxx
                sum_dqdt_so4 = sum_dqdt_so4 + dqdt_so4(n)
             end do
-            ! do not allow msa condensation in stratosphere
-            ! ( Note that the code for msa has never been used.
-            !   The plan was to simulate msa(g), treat it as non-volatile (like h2so4(g)),
-            !   and treat condensed msa as sulfate, so just one additional tracer. )
-            if ( do_msag ) sum_dqdt_msa = 0.0_r8
-
          else
             !   compute TMR tendencies for so4 interstial aerosol due to simple gas uptake
             do n = 1, ntot_amode
-               dqdt_so4(n) = fgain_so4(n)*(sum_dqdt_so4 + sum_dqdt_msa)
+               dqdt_so4(n) = fgain_so4(n)*sum_dqdt_so4
             end do
          end if
 
@@ -1133,17 +1125,11 @@ implicit none
             end do
          end do ! n
 
-!   compute TMR tendencies for h2so4, nh3, and msa gas
+!   compute TMR tendencies for h2so4 and nh3 gas
 !   due to simple gas uptake
          l = l_so4g
          dqdt(i,k,l) = -sum_dqdt_so4
          qsrflx(i,l,jsrf) = qsrflx(i,l,jsrf) + dqdt(i,k,l)*pdel_fac
-
-         if ( do_msag ) then
-            l = l_msag
-            dqdt(i,k,l) = -sum_dqdt_msa
-            qsrflx(i,l,jsrf) = qsrflx(i,l,jsrf) + dqdt(i,k,l)*pdel_fac
-         end if
 
          if ( do_nh4g ) then
             l = l_nh4g
