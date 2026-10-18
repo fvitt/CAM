@@ -17,7 +17,7 @@
   use ref_pres,        only:  top_lev => clim_modal_aero_top_lev
   use ppgrid,          only:  pcols, pver
   use modal_aero_data, only:  ntot_amode, numptr_amode, sigmag_amode
-  use gas_aer_uptkrate_mod, only: gas_aer_uptkrates, nonvolatile_uptake_cell
+  use gas_aer_uptkrate_mod, only: gas_aer_uptkrates, nonvolatile_uptake_cell, h2so4_reversible_uptake_cell
   use modal_aero_data, only: lptr2_soa_g_amode, lptr2_soa_a_amode, lptr2_pom_a_amode
   use aero_soaexch_mod, only: soa_gasaerexch_cell, method_soa
 
@@ -760,11 +760,7 @@ implicit none
    real (r8) :: sum_dqdt_nh4, sum_dqdt_nh4_b
    real (r8) :: sum_uprt_nh4, sum_uprt_so4
    real (r8) :: tmp1, tmp2, tmpa
-   real (r8) :: tmp_kxt, tmp_pxt
-   real (r8) :: tmp_so4a_bgn, tmp_so4a_end
-   real (r8) :: tmp_so4g_avg, tmp_so4g_bgn, tmp_so4g_equ
    real (r8) :: uptkrate(ntot_amode,pcols,pver)
-   real (r8) :: uptkratebb(ntot_amode)
                 ! gas-to-aerosol mass transfer rates (1/s)
    real (r8) :: vol_core, vol_shell
    real (r8) :: xferfrac_pcage, xferfrac_max
@@ -892,7 +888,6 @@ implicit none
       do i=1,ncol
 
          do n = 1, ntot_amode
-            uptkratebb(n) = uptkrate(n,i,k)
             if (ido_so4a(n) == 1) then
                qold_so4(n) = q(i,k,lptr_so4_a_amode(n)-loffset)
             else
@@ -939,41 +934,10 @@ implicit none
               so4_on, q(i,k,l_so4g), dqdt_so4, sum_dqdt_so4, sum_uprt_so4 )
 
          if ( associated(sulfeq) .and. (k <= troplev(i)) ) then
-            !   compute TMR tendencies for so4 interstial aerosol due to reversible gas uptake
-            !   only above the tropopause
-
-            tmp_kxt = deltatxx*sum_uprt_so4  ! sum over modes of uptake_rate*deltat
-            tmp_pxt = 0.0_r8
-            do n = 1, ntot_amode
-               if (ido_so4a(n) <= 0) cycle
-               tmp_pxt = tmp_pxt + uptkratebb(n)*sulfeq(i,k,n)
-            end do
-            tmp_pxt = max( 0.0_r8, tmp_pxt*deltatxx )  ! sum over modes of uptake_rate*sulfeq*deltat
-            tmp_so4g_bgn = q(i,k,l_so4g)
-            ! calc avg h2so4(g) over deltat
-            if (tmp_kxt >= 1.0e-5_r8) then
-               ! exponential decay towards equilibrium value solution
-               tmp_so4g_equ = tmp_pxt/tmp_kxt
-               tmp_so4g_avg = tmp_so4g_equ + (tmp_so4g_bgn-tmp_so4g_equ)*(1.0_r8-exp(-tmp_kxt))/tmp_kxt
-            else
-               ! first order approx for tmp_kxt small
-               tmp_so4g_avg = tmp_so4g_bgn*(1.0_r8-0.5_r8*tmp_kxt) + 0.5_r8*tmp_pxt
-            end if
-            sum_dqdt_so4 = 0.0_r8
-            do n = 1, ntot_amode
-               if (ido_so4a(n) <= 0) cycle
-               ! calc change to so4(a) in mode n
-               if (ido_so4a(n) == 1) then
-                  l = lptr_so4_a_amode(n)-loffset
-                  tmp_so4a_bgn = q(i,k,l)
-               else
-                  tmp_so4a_bgn = 0.0_r8
-               end if
-               tmp_so4a_end = tmp_so4a_bgn + deltatxx*uptkratebb(n)*(tmp_so4g_avg-sulfeq(i,k,n))
-               tmp_so4a_end = max( 0.0_r8, tmp_so4a_end )
-               dqdt_so4(n) = (tmp_so4a_end - tmp_so4a_bgn)/deltatxx
-               sum_dqdt_so4 = sum_dqdt_so4 + dqdt_so4(n)
-            end do
+!   compute TMR tendencies for so4 interstial aerosol due to reversible gas uptake
+!   only above the tropopause (replaces the simple gas uptake tendencies)
+            call h2so4_reversible_uptake_cell( ntot_amode, deltat, uptkrate(:,i,k), so4_on, &
+                 q(i,k,l_so4g), qold_so4, sulfeq(i,k,:), dqdt_so4, sum_dqdt_so4 )
          end if
 
          !   compute TMR tendencies for nh4 interstial aerosol due to simple gas uptake

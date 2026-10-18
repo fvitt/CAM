@@ -13,6 +13,7 @@ module gas_aer_uptkrate_mod
 
   public :: gas_aer_uptkrates
   public :: nonvolatile_uptake_cell
+  public :: h2so4_reversible_uptake_cell
 
 contains
 
@@ -214,6 +215,79 @@ subroutine nonvolatile_uptake_cell( nbins, deltat, uptkrate, diffus_ratio, mask,
    end do
 
 end subroutine nonvolatile_uptake_cell
+
+!----------------------------------------------------------------------
+subroutine h2so4_reversible_uptake_cell( nbins, deltat, uptkrate, mask, qgas, qaer, qgas_eq, &
+                                         dqdt_aer, sum_dqdt )
+
+!
+! reversible uptake of h2so4 gas by the aerosol modes or bins in one grid cell
+! (used above the tropopause, where so4 aerosol can evaporate)
+!
+! the h2so4 gas relaxes towards the uptake-rate weighted equilibrium value over deltat,
+! and each mode/bin takes up (or loses) so4 according to the difference between the
+! average h2so4 gas and its equilibrium h2so4 gas
+!
+
+   integer,  intent(in)  :: nbins            ! number of aerosol modes or bins
+   real(r8), intent(in)  :: deltat           ! time step (s)
+   real(r8), intent(in)  :: uptkrate(nbins)  ! h2so4 gas-to-aerosol mass transfer rate (1/s)
+   logical,  intent(in)  :: mask(nbins)      ! true if mode/bin takes up h2so4
+   real(r8), intent(in)  :: qgas             ! h2so4 gas mixing ratio (mol/mol)
+   real(r8), intent(in)  :: qaer(nbins)      ! so4 aerosol mixing ratio in each mode/bin (mol/mol)
+   real(r8), intent(in)  :: qgas_eq(nbins)   ! equilibrium h2so4 gas mixing ratio over each mode/bin (mol/mol)
+   real(r8), intent(out) :: dqdt_aer(nbins)  ! so4 aerosol tendency in each mode/bin (mol/mol/s)
+   real(r8), intent(out) :: sum_dqdt         ! so4 aerosol tendency summed over modes/bins
+                                             !    = -(h2so4 gas tendency) (mol/mol/s)
+
+   integer  :: n
+   real(r8) :: deltatxx
+   real(r8) :: sum_uprt                      ! h2so4 uptake rate summed over modes/bins (1/s)
+   real(r8) :: tmp_kxt, tmp_pxt
+   real(r8) :: tmp_so4a_bgn, tmp_so4a_end
+   real(r8) :: tmp_so4g_avg, tmp_so4g_bgn, tmp_so4g_equ
+
+! use this for tendency calcs to avoid generating very small negative values
+   deltatxx = deltat * (1.0_r8 + 1.0e-15_r8)
+
+   sum_uprt = 0.0_r8
+   do n = 1, nbins
+      if (mask(n)) sum_uprt = sum_uprt + uptkrate(n)
+   end do
+
+   tmp_kxt = deltatxx*sum_uprt  ! sum over modes of uptake_rate*deltat
+   tmp_pxt = 0.0_r8
+   do n = 1, nbins
+      if (.not. mask(n)) cycle
+      tmp_pxt = tmp_pxt + uptkrate(n)*qgas_eq(n)
+   end do
+   tmp_pxt = max( 0.0_r8, tmp_pxt*deltatxx )  ! sum over modes of uptake_rate*qgas_eq*deltat
+   tmp_so4g_bgn = qgas
+   ! calc avg h2so4(g) over deltat
+   if (tmp_kxt >= 1.0e-5_r8) then
+      ! exponential decay towards equilibrium value solution
+      tmp_so4g_equ = tmp_pxt/tmp_kxt
+      tmp_so4g_avg = tmp_so4g_equ + (tmp_so4g_bgn-tmp_so4g_equ)*(1.0_r8-exp(-tmp_kxt))/tmp_kxt
+   else
+      ! first order approx for tmp_kxt small
+      tmp_so4g_avg = tmp_so4g_bgn*(1.0_r8-0.5_r8*tmp_kxt) + 0.5_r8*tmp_pxt
+   end if
+
+   sum_dqdt = 0.0_r8
+   do n = 1, nbins
+      if (.not. mask(n)) then
+         dqdt_aer(n) = 0.0_r8
+         cycle
+      end if
+      ! calc change to so4(a) in mode n
+      tmp_so4a_bgn = qaer(n)
+      tmp_so4a_end = tmp_so4a_bgn + deltatxx*uptkrate(n)*(tmp_so4g_avg-qgas_eq(n))
+      tmp_so4a_end = max( 0.0_r8, tmp_so4a_end )
+      dqdt_aer(n) = (tmp_so4a_end - tmp_so4a_bgn)/deltatxx
+      sum_dqdt = sum_dqdt + dqdt_aer(n)
+   end do
+
+end subroutine h2so4_reversible_uptake_cell
 
 !----------------------------------------------------------------------
 pure elemental function fuchs_sutugin(knudsen) result(fs)
