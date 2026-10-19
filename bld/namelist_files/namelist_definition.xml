@@ -5284,6 +5284,14 @@ the WACCM-X ionosphere 3-D electro-dynamo.
 Default: 0 (use all atmosphere tasks)
 </entry>
 
+<entry id="ionos_edyn3d_reprod_solution" type="logical"
+       category="waccmx" group="ionosphere_nl" valid_values="" >
+If TRUE the SuperLU solution of the WACCM-X ionosphere 3-D electro-dynamo
+is rounded to 6 significant digits so that results are reproducible
+across different MPI task decompositions.
+Default: TRUE
+</entry>
+
 <entry id="ionos_xport_active" type="logical"  category="waccmx"
        group="ionosphere_nl" valid_values="">
 Switch to to turn on/off O+ transport in ionosphere.

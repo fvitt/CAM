@@ -22,7 +22,7 @@ contains
   !-----------------------------------------------------------------------------
   subroutine edyn3d_driver_init( mpicom_atm, npes_edyn3D, edyn3d_nmlat_h, edyn3d_nmlon, &
        edyn3d_nhgt, hilat_pot_model, wei05_coefs_file, read_hl_fac_in, &
-       edyn3d_slu_refactor_int,  edyn3d_slu_refactor_berr)
+       edyn3d_slu_refactor_int,  edyn3d_slu_refactor_berr, reprod_solution)
 
     use mpi_module, only: lat_size, lon_size
     use params_module,only: nmlat_h, nmlon, nhgt_fix, hgt_fix_r
@@ -48,6 +48,7 @@ contains
     logical, intent(in) :: read_hl_fac_in
     integer, intent(in) :: edyn3d_slu_refactor_int
     real(kind=r8), intent(in) :: edyn3d_slu_refactor_BERR
+    logical, intent(in) :: reprod_solution
 
     character(len=*), parameter :: prefix = 'edyn3d_driver_init: '
 
@@ -61,7 +62,7 @@ contains
          edyn3d_nmlat_h=edyn3d_nmlat_h, edyn3d_nmlon=edyn3d_nmlon, edyn3d_nhgt=edyn3d_nhgt, &
          edyn3d_slu_refactor_int=edyn3d_slu_refactor_int,  &
          edyn3d_slu_refactor_berr=edyn3d_slu_refactor_berr, &
-         reprod_solution=.true., real_kind=r8 )
+         reprod_solution=reprod_solution, real_kind=r8 )
 
     ! log grid info:
     if (masterproc) then
