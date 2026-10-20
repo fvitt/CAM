@@ -40,13 +40,19 @@ subroutine gas_aer_uptkrates( ncol, nbins, num, dp_in, t, pmid, uptkrate, sigmag
 !       x = ln(Dp)
 !       dN/dx = log-normal particle number density distribution
 !
-! monodisperse bins (sigmag absent):
+!   the prefactor tworootpi = 2*sqrt(pi) combines the 2*pi of gas_conden_rate
+!   with the 1/sqrt(pi) normalization of the Gauss-Hermite quadrature
 !
-!       uptkrate = const * gasdiffus * F(Kn,ac), const = tworootpi * N * Dp
+! monodisperse bins (sigmag absent), e.g., sectional bins each treated as
+! monodisperse at its wet diameter:
+!
+!       uptkrate = N * gas_conden_rate(Dp) = const * gasdiffus * F(Kn,ac),
+!       const = 2 * pi * N * Dp
 !       evaluated only where Dp > 0
 !
 
-   use ref_pres, only: top_lev => clim_modal_aero_top_lev
+   use ref_pres,      only: top_lev => clim_modal_aero_top_lev
+   use shr_const_mod, only: pi => shr_const_pi
 
    integer,  intent(in)  :: ncol                   ! number of atmospheric columns
    integer,  intent(in)  :: nbins                  ! number of aerosol modes or bins
@@ -64,6 +70,7 @@ subroutine gas_aer_uptkrates( ncol, nbins, num, dp_in, t, pmid, uptkrate, sigmag
 
    ! Can use sqrt here once Lahey is gone.
    real(r8), parameter :: tworootpi = 3.5449077_r8
+   real(r8), parameter :: twopi = 2.0_r8*pi
    real(r8), parameter :: root2 = 1.4142135_r8
    real(r8), parameter :: beta = 2.0_r8
 
@@ -136,14 +143,7 @@ subroutine gas_aer_uptkrates( ncol, nbins, num, dp_in, t, pmid, uptkrate, sigmag
                   freepathx2 = 6.0_r8*gasdiffus/gasspeed
 
                   dp = dp_in(i,k,n)
-                  ! KNOWN BUG (answer changing fix pending): the monodisperse
-                  ! condensation rate is 2*pi*gasdiffus*Dp*N*F(Kn,ac), so the
-                  ! prefactor should be 2*pi, not tworootpi = 2*sqrt(pi).
-                  ! tworootpi is correct only in the log-normal branch above, where the
-                  ! Gauss-Hermite weights (sum = sqrt(pi)) supply the remaining sqrt(pi).
-                  ! As written, the monodisperse (CARMA) uptake rates are low by a
-                  ! factor of sqrt(pi) ~= 1.77.
-                  const = tworootpi * num(i,k,n) * dp
+                  const = twopi * num(i,k,n) * dp
                   !   knudsen number
                   knudsen = freepathx2/dp
                   uptkrate(n,i,k) = const * gasdiffus * fuchs_sutugin(knudsen)

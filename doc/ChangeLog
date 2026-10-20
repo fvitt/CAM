@@ -8,6 +8,15 @@ Answer changing mods:
  Following claude's note:
   Separately, knudsen = freepathx2/dp divides 2λ by the radius, making Kn a factor of 2 too large and biasing F(Kn) low.
 
+ Fix uptake rate prefactor for CARMA in gas_aer_uptkrates (gas_aer_uptkrate_mod.F90) --
+ monodisperse (sectional) bins use const = 2*pi*N*Dp instead of tworootpi*N*Dp
+  The condensation rate per particle is 2*pi*gasdiffus*Dp*F(Kn,ac).  tworootpi = 2*sqrt(pi) is
+  correct only for the MAM log-normal modes, where the Gauss-Hermite quadrature weights
+  (sum = sqrt(pi)) supply the remaining sqrt(pi).  CARMA SOA uptake rates (UPTKRATE*) were low
+  by a factor of sqrt(pi) ~= 1.77; they now increase by that factor.  CARMA configurations
+  only (CARMATS, CARMAWM); MAM answers are unchanged (bit-for-bit).
+  Found with AI assistance (Claude).
+
 ===============================================================
 
 Tag name: cam6_4_199
