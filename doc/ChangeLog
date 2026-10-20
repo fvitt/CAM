@@ -1,5 +1,11 @@
 Answer changing mods:
 
+ Change SOAG elemental definition in src/chemistry/pp_waccm_ma_noaero/chem_mech.in
+  - SOAG -> C,
+  + SOAG -> C15H38O2,
+ so that the molec weight is more consistent with the hardcard in SOA molec wght of 250 in CARMA
+ --> answer for CARMA-WACCM where the SOA1 scheme is used
+
  Set *_min1 = 1.0e-20_r8 parameters for CARMA
 
  Use SOA1 props params from modal (1 SOA -- CARMAWM)
