@@ -19,7 +19,7 @@ module carma_aero_gasaerexch
   use aerosol_instances_mod, only: aerosol_instances_get_props, &
        aerosol_instances_get_state, aerosol_instances_get_num_models
   use gas_aer_uptkrate_mod, only: gas_aer_uptkrates
-  use aero_soaexch_mod, only: soa_gasaerexch_cell
+  use aero_soaexch_mod, only: soa_gasaerexch_column
   use soa_gaex_diag_mod, only: soa_gaex_diag_t
 
   implicit none
@@ -354,17 +354,22 @@ subroutine carma_aero_gasaerexch_sub( &
   real (r8) :: soa_vbs(pcols,pver,nbins,nsoa_vbs)
   real (r8) :: soa_c(pcols,pver,nbins,nsoa) ! SOA from CARMA
   real (r8) :: poa_c(pcols,pver,nbins,npoa) ! POA from CARMA
-  real (r8) :: qold_poa(nbins,npoa)         ! POA from CARMA old
   real (r8) :: qold_soa(nbins,nsoa_vbs)     ! SOA on VBS bins  old
   real (r8) :: qnew_soa_vbs(nbins,nsoa_vbs) ! SOA on VBS bins  new
   real (r8) :: qnew_soa(nbins)              ! SOA new for combined VBS bin new for combined VBS binss
-  real (r8) :: qold_soag(nsoa_vbs)
+  real (r8), allocatable :: qold_soag_c(:,:,:)    ! (nsoa_vbs,pcols,pver) soa gas mixrat
+  real (r8), allocatable :: qold_soa_c(:,:,:,:)   ! (nbins,nsoa_vbs,pcols,pver) soa on VBS bins old
+  real (r8), allocatable :: qold_poa_c(:,:,:,:)   ! (nbins,npoa,pcols,pver) poa from CARMA old
+  real (r8), allocatable :: dqdt_soa_c(:,:,:,:)   ! (nbins,nsoa_vbs,pcols,pver) soa tendency
+  real (r8), allocatable :: sum_dqdt_soa_c(:,:,:) ! (nsoa_vbs,pcols,pver) soa tendency summed over bins
+  real (r8) :: diag_fac(nbins,nsoa_vbs)     ! converts soa tendency to kg/kg/s for the diagnostics
   real (r8) :: sum_dqdt_soa(nsoa_vbs)     !   sum_dqdt_soa = soa tendency from soa  gas uptake (mol/mol/s)
   real (r8) :: uptkrate(nbins,pcols,pver)
   real (r8) :: uptkrate_all(pcols,pver)
   ! gas-to-aerosol mass transfer rates (1/s)
   logical   :: soa_on(nbins,nsoa_vbs)   ! true if soa gas condenses on bin
   logical   :: do_soag(nsoa_vbs)        ! true if soa gas is a species
+  logical   :: diag_on(nbins,nsoa_vbs)  ! true if soa tendency is included in the diagnostics
 
   real(r8) :: dqdt(ncol,pver,gas_pcnst)  ! TMR "delta q" array - NOTE dims
   real(r8) :: qsrflx(pcols,nbins,nsoa)
@@ -491,32 +496,52 @@ subroutine carma_aero_gasaerexch_sub( &
   end do
   do_soag(:) = .true.
 
-  dqdt_soa_all(:,:,:,:) = 0.0_r8
+! condensation/evaporation diagnostics (kg/kg/s), summed over all bins that contain soa
+  do n = 1, nbins
+     do jsoa = 1, nsoa_vbs
+        diag_on(n,jsoa) = do_soaexch(n)
+        diag_fac(n,jsoa) = mw_soa/mwdry
+     end do
+  end do
+
+!   compute TMR tendencies for soag and soa interstial aerosol, for all columns
+  allocate( qold_soag_c(nsoa_vbs,pcols,pver), qold_soa_c(nbins,nsoa_vbs,pcols,pver), &
+            qold_poa_c(nbins,npoa,pcols,pver), dqdt_soa_c(nbins,nsoa_vbs,pcols,pver), &
+            sum_dqdt_soa_c(nsoa_vbs,pcols,pver) )
   do k=top_lev,pver
      do i=1,ncol
         do n = 1, nbins
            if (do_soaexch(n)) then  ! only bins that contain soa
               do j = 1, npoa
-                 qold_poa(n,j) = poa_c(i,k,n,j)
+                 qold_poa_c(n,j,i,k) = poa_c(i,k,n,j)
               end do
               do jsoa = 1, nsoa_vbs
-                 qold_soa(n,jsoa) = soa_vbs(i,k,n,jsoa)
+                 qold_soa_c(n,jsoa,i,k) = soa_vbs(i,k,n,jsoa)
               end do
            else
-              qold_poa(n,:) = 0.0_r8
-              qold_soa(n,:) = 0.0_r8
+              qold_poa_c(n,:,i,k) = 0.0_r8
+              qold_soa_c(n,:,i,k) = 0.0_r8
            end if
         end do ! n
 
         do jsoa = 1, nsoa_vbs
-           qold_soag(jsoa) = q(i,k,l_soag(jsoa))
+           qold_soag_c(jsoa,i,k) = q(i,k,l_soag(jsoa))
         end do
+     end do
+  end do
 
-!   compute TMR tendencies for soag and soa interstial aerosol
 !   sum_dqdt_soa = soa_a tendency from soa   gas uptake (mol/mol/s)
-        call soa_gasaerexch_cell( deltat, t(i,k), pmid(i,k), nbins, nsoa_vbs, npoa, &
-             soa_on, do_soaexch, do_soag, uptkrate(:,i,k), mw_soa_host, &
-             qold_soag, qold_soa, qold_poa, dqdt_soa_vbs, sum_dqdt_soa )
+  call soa_gasaerexch_column( ncol, nbins, nsoa_vbs, npoa, deltat, t, pmid, &
+       soa_on, do_soaexch, do_soag, uptkrate, mw_soa_host, &
+       qold_soag_c, qold_soa_c, qold_poa_c, dqdt_soa_c, sum_dqdt_soa_c, &
+       soa_diag, diag_on, diag_fac, qcon, qevap )
+
+  dqdt_soa_all(:,:,:,:) = 0.0_r8
+  do k=top_lev,pver
+     do i=1,ncol
+        qold_soa(:,:) = qold_soa_c(:,:,i,k)
+        dqdt_soa_vbs(:,:) = dqdt_soa_c(:,:,i,k)
+        sum_dqdt_soa(:) = sum_dqdt_soa_c(:,i,k)
 
         !  update soa to calcuate fractions (state variables and pbuf is not updated for SOA, will be done in CARMA)
         pdel_fac = pdel(i,k)/gravit
@@ -548,12 +573,6 @@ subroutine carma_aero_gasaerexch_sub( &
               else
                  call endrun( 'carma_aero_gasaerexch_sub error' )
               end if
-
-!------- condensation/evaporation diagnostics (kg/kg/s), summed over all bins ---
-              do jsoa = 1, nsoa_vbs
-                 call soa_diag%accum( i, k, jsoa, dqdt_soa_vbs(n,jsoa)*(mw_soa/mwdry), qcon, qevap )
-              end do
-!---------------------------------------------------------------------------------------------------------------------
            end if
         end do ! n
 
@@ -565,6 +584,8 @@ subroutine carma_aero_gasaerexch_sub( &
 
      end do   ! "i = 1, ncol"
   end do     ! "k = top_lev, pver"
+
+  deallocate( qold_soag_c, qold_soa_c, qold_poa_c, dqdt_soa_c, sum_dqdt_soa_c )
 
 !  This applies dqdt tendencies for SOAG only , soa is done in CARMA
 !  apply the dqdt to update q

@@ -19,7 +19,7 @@
   use modal_aero_data, only:  ntot_amode, numptr_amode, sigmag_amode
   use gas_aer_uptkrate_mod, only: gas_aer_uptkrates, nonvolatile_uptake_cell, h2so4_reversible_uptake_cell
   use modal_aero_data, only: lptr2_soa_g_amode, lptr2_soa_a_amode, lptr2_pom_a_amode
-  use aero_soaexch_mod, only: soa_gasaerexch_cell, method_soa
+  use aero_soaexch_mod, only: soa_gasaerexch_column, method_soa
   use soa_gaex_diag_mod, only: soa_gaex_diag_t
 
   implicit none
@@ -696,9 +696,13 @@ implicit none
    real (r8) :: pdel_fac
    real (r8) :: qmax_nh4, qnew_nh4, qnew_so4
    real (r8) :: qold_nh4(ntot_amode), qold_so4(ntot_amode)
-   real (r8) :: qold_poa(ntot_amode,npoa)
-   real (r8) :: qold_soa(ntot_amode,nsoa)
-   real (r8) :: qold_soag(nsoa)
+   real (r8), allocatable :: qold_soag_c(:,:,:)    ! (nsoa,pcols,pver) soa gas mixrat
+   real (r8), allocatable :: qold_soa_c(:,:,:,:)   ! (ntot_amode,nsoa,pcols,pver) soa aerosol mixrat
+   real (r8), allocatable :: qold_poa_c(:,:,:,:)   ! (ntot_amode,npoa,pcols,pver) poa aerosol mixrat
+   real (r8), allocatable :: dqdt_soa_c(:,:,:,:)   ! (ntot_amode,nsoa,pcols,pver) soa aerosol tendency
+   real (r8), allocatable :: sum_dqdt_soa_c(:,:,:) ! (nsoa,pcols,pver) soa tendency summed over modes
+   real (r8) :: diag_fac(ntot_amode,nsoa)  ! converts soa tendency to kg/kg/s for the diagnostics
+   logical   :: diag_on(ntot_amode,nsoa)   ! true if soa tendency is included in the diagnostics
    real (r8) :: sum_dqdt_so4
    real (r8) :: sum_dqdt_soa(nsoa)
    real (r8) :: sum_dqdt_nh4, sum_dqdt_nh4_b
@@ -811,6 +815,70 @@ implicit none
    nh4_on(:) = ido_nh4a(:) > 0
    soa_on(:,:) = ido_soaa(:,:) > 0
 
+!   compute TMR tendencies for soag and soa interstial aerosol, for all columns
+   if ( do_soag_any ) then
+      allocate( qold_soag_c(nsoa,pcols,pver), qold_soa_c(ntot_amode,nsoa,pcols,pver), &
+                qold_poa_c(ntot_amode,npoa,pcols,pver), dqdt_soa_c(ntot_amode,nsoa,pcols,pver), &
+                sum_dqdt_soa_c(nsoa,pcols,pver) )
+
+      do n = 1, ntot_amode
+         do jsoa = 1, nsoa
+            diag_on(n,jsoa) = do_soag(jsoa) .and. (ido_soaa(n,jsoa) == 1)
+            if ( diag_on(n,jsoa) ) then
+               l = lptr2_soa_a_amode(n,jsoa)-loffset
+               diag_fac(n,jsoa) = adv_mass(l)/mwdry
+            else
+               diag_fac(n,jsoa) = 0.0_r8
+            end if
+         end do
+      end do
+
+      do k=top_lev,pver
+         do i=1,ncol
+            do n = 1, ntot_amode
+               do j = 1, npoa
+                  l = lptr2_pom_a_amode(n,j)-loffset
+                  if (l > 0) then
+                     qold_poa_c(n,j,i,k) = q(i,k,l)
+                  else
+                     qold_poa_c(n,j,i,k) = 0.0_r8
+                  end if
+               end do
+
+               itmpa = 0
+               do jsoa = 1, nsoa
+                  if (ido_soaa(n,jsoa) == 1) then
+                     l = lptr2_soa_a_amode(n,jsoa)-loffset
+                     qold_soa_c(n,jsoa,i,k) = q(i,k,l)
+                     itmpa = itmpa + 1
+                  else
+                     qold_soa_c(n,jsoa,i,k) = 0.0_r8
+                  end if
+               end do ! jsoa
+               ! in previous code versions with nsoa=1,
+               !    qold_poa was non-zero (i.e., loaded from q) only when ido_soaa(n)=1
+               ! thus qold_poa=0 for the primary carbon mode which has ido_soaa=2
+               ! this is probably not how it should be
+               if (itmpa == 0) qold_poa_c(n,:,i,k) = 0.0_r8
+            end do ! n
+
+            do jsoa = 1, nsoa
+               if ( do_soag(jsoa) ) then
+                  qold_soag_c(jsoa,i,k) = q(i,k,l_soag(jsoa))
+               else
+                  qold_soag_c(jsoa,i,k) = 0.0_r8
+               end if
+            end do
+         end do
+      end do
+
+!   sum_dqdt_soa = soa_a tendency from soa   gas uptake (mol/mol/s)
+      call soa_gasaerexch_column( ncol, ntot_amode, nsoa, npoa, deltat, t, pmid, &
+           soa_on, do_soaexch, do_soag, uptkrate, mw_soa_host, &
+           qold_soag_c, qold_soa_c, qold_poa_c, dqdt_soa_c, sum_dqdt_soa_c, &
+           soa_diag, diag_on, diag_fac, qcon, qevap )
+   end if
+
    jsrf = jsrflx_gaexch
    do k=top_lev,pver
       do i=1,ncol
@@ -827,32 +895,6 @@ implicit none
             else
                qold_nh4(n) = 0.0_r8
             end if
-
-            do j = 1, npoa
-               l = lptr2_pom_a_amode(n,j)-loffset
-               if (l > 0) then
-                  qold_poa(n,j) = q(i,k,l)
-               else
-                  qold_poa(n,j) = 0.0_r8
-               end if
-            end do
-
-            itmpa = 0
-            do jsoa = 1, nsoa
-               if (ido_soaa(n,jsoa) == 1) then
-                  l = lptr2_soa_a_amode(n,jsoa)-loffset
-                  qold_soa(n,jsoa) = q(i,k,l)
-                  itmpa = itmpa + 1
-               else
-                  qold_soa(n,jsoa) = 0.0_r8
-               end if
-            end do ! jsoa
-            ! in previous code versions with nsoa=1,
-            !    qold_poa was non-zero (i.e., loaded from q) only when ido_soaa(n)=1
-            ! thus qold_poa=0 for the primary carbon mode which has ido_soaa=2
-            ! this is probably not how it should be
-            if (itmpa == 0) qold_poa(n,:) = 0.0_r8
-
          end do ! n
 
 !   compute TMR tendencies for so4 interstial aerosol due to simple gas uptake
@@ -888,20 +930,9 @@ implicit none
          end if
 
          if ( do_soag_any ) then
-!   compute TMR tendencies for soag and soa interstial aerosol
-!   sum_dqdt_soa = soa_a tendency from soa   gas uptake (mol/mol/s)
-            do jsoa = 1, nsoa
-               if ( do_soag(jsoa) ) then
-                  qold_soag(jsoa) = q(i,k,l_soag(jsoa))
-               else
-                  qold_soag(jsoa) = 0.0_r8
-               end if
-            end do
-
-            call soa_gasaerexch_cell( deltat, t(i,k), pmid(i,k), ntot_amode, nsoa, npoa, &
-                 soa_on, do_soaexch, do_soag, uptkrate(:,i,k), mw_soa_host, &
-                 qold_soag, qold_soa, qold_poa, dqdt_soa, sum_dqdt_soa )
-
+!   soa tendencies computed above by soa_gasaerexch_column
+            dqdt_soa(:,:) = dqdt_soa_c(:,:,i,k)
+            sum_dqdt_soa(:) = sum_dqdt_soa_c(:,i,k)
          else ! no soa gas species, no uptake
             dqdt_soa(:,:) = 0.0_r8
             sum_dqdt_soa(:) = 0.0_r8
@@ -929,8 +960,6 @@ implicit none
                      l = lptr2_soa_a_amode(n,jsoa)-loffset
                      dqdt(i,k,l) = dqdt_soa(n,jsoa) !calculated by  modal_aero_soaexch for method_soa=2
                      qsrflx(i,l,jsrf) = qsrflx(i,l,jsrf) + dqdt_soa(n,jsoa)*pdel_fac
-!------- condensation/evaporation diagnostics (kg/kg/s) ---
-                     call soa_diag%accum( i, k, jsoa, dqdt_soa(n,jsoa)*(adv_mass(l)/mwdry), qcon, qevap )
                   end if
                end if
             end do
@@ -1029,6 +1058,10 @@ implicit none
 
       end do   ! "i = 1, ncol"
    end do     ! "k = top_lev, pver"
+
+   if ( do_soag_any ) then
+      deallocate( qold_soag_c, qold_soa_c, qold_poa_c, dqdt_soa_c, sum_dqdt_soa_c )
+   end if
 
 
 !

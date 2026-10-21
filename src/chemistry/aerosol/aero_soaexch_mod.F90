@@ -9,6 +9,7 @@ module aero_soaexch_mod
   implicit none
   private
 
+  public :: soa_gasaerexch_column
   public :: soa_gasaerexch_cell
   public :: aero_soaexch
 
@@ -25,6 +26,78 @@ module aero_soaexch_mod
   real(r8), parameter, public :: soa_h2so4_diffus_ratio = 0.81_r8
 
 contains
+
+!----------------------------------------------------------------------
+subroutine soa_gasaerexch_column( ncol, nbins, nsoa, npoa, deltat, t, pmid, &
+     soa_on, do_soaexch, do_soag, uptkrate, mw_soa_host, &
+     qold_soag, qold_soa, qold_poa, dqdt_soa, sum_dqdt_soa, &
+     diag, diag_on, diag_fac, qcon, qevap )
+
+!-----------------------------------------------------------------------
+!
+! Purpose:
+!
+! computes soa gas and soa aerosol mixing ratio tendencies due to
+! gas-aerosol exchange for the columns of a chunk (levels top_lev to pver),
+! and adds the soa aerosol tendencies to the condensation/evaporation diagnostics
+!
+! the host model packs the soa gas, soa aerosol and poa aerosol mixing ratios
+! (mol/mol-air at the host molecular weights) and applies the tendencies;
+! the arrays are ordered with the column and level indices last, so that the
+! values of each grid cell are contiguous
+!
+!-----------------------------------------------------------------------
+
+  use ppgrid,            only: pcols, pver
+  use ref_pres,          only: top_lev => clim_modal_aero_top_lev
+  use soa_gaex_diag_mod, only: soa_gaex_diag_t
+
+  integer,  intent(in)  :: ncol                       ! number of columns
+  integer,  intent(in)  :: nbins                      ! number of aerosol modes or bins
+  integer,  intent(in)  :: nsoa                       ! number of soa species
+  integer,  intent(in)  :: npoa                       ! number of poa species
+  real(r8), intent(in)  :: deltat                     ! time step (s)
+  real(r8), intent(in)  :: t(pcols,pver)              ! air temperature (K)
+  real(r8), intent(in)  :: pmid(pcols,pver)           ! air pressure (Pa)
+  logical,  intent(in)  :: soa_on(nbins,nsoa)         ! true if soa gas species condenses on mode/bin
+  logical,  intent(in)  :: do_soaexch(nbins)          ! true if mode/bin participates in aero_soaexch
+  logical,  intent(in)  :: do_soag(nsoa)              ! true if soa gas species is present
+  real(r8), intent(in)  :: uptkrate(nbins,pcols,pver) ! h2so4 gas-to-aerosol mass transfer rate (1/s)
+  real(r8), intent(in)  :: mw_soa_host                ! molec wght of soa used in host code
+  real(r8), intent(in)  :: qold_soag(nsoa,pcols,pver)       ! soa gas mixrat (mol/mol)
+  real(r8), intent(in)  :: qold_soa(nbins,nsoa,pcols,pver)  ! soa aerosol mixrat (mol/mol)
+  real(r8), intent(in)  :: qold_poa(nbins,npoa,pcols,pver)  ! poa aerosol mixrat (mol/mol)
+  real(r8), intent(out) :: dqdt_soa(nbins,nsoa,pcols,pver)  ! soa aerosol mixrat tendency (mol/mol/s)
+  real(r8), intent(out) :: sum_dqdt_soa(nsoa,pcols,pver)    ! soa aerosol tendency summed over modes/bins
+                                                            !    = -(soa gas mixrat tendency) (mol/mol/s)
+  type(soa_gaex_diag_t), intent(in) :: diag           ! condensation/evaporation diagnostics
+  logical,  intent(in)  :: diag_on(nbins,nsoa)        ! true if soa aerosol tendency is included in diag
+  real(r8), intent(in)  :: diag_fac(nbins,nsoa)       ! factor converting soa aerosol tendency to kg/kg/s
+  real(r8), intent(inout) :: qcon(:,:,:)              ! condensation diagnostics (pcols,pver,diag%nfld())
+  real(r8), intent(inout) :: qevap(:,:,:)             ! evaporation diagnostics (pcols,pver,diag%nfld())
+
+  integer :: i, jsoa, k, n
+
+  do k = top_lev, pver
+     do i = 1, ncol
+
+        call soa_gasaerexch_cell( deltat, t(i,k), pmid(i,k), nbins, nsoa, npoa, &
+             soa_on, do_soaexch, do_soag, uptkrate(:,i,k), mw_soa_host, &
+             qold_soag(:,i,k), qold_soa(:,:,i,k), qold_poa(:,:,i,k), &
+             dqdt_soa(:,:,i,k), sum_dqdt_soa(:,i,k) )
+
+        do n = 1, nbins
+           do jsoa = 1, nsoa
+              if (diag_on(n,jsoa)) then
+                 call diag%accum( i, k, jsoa, dqdt_soa(n,jsoa,i,k)*diag_fac(n,jsoa), qcon, qevap )
+              end if
+           end do
+        end do
+
+     end do
+  end do
+
+end subroutine soa_gasaerexch_column
 
 !----------------------------------------------------------------------
 subroutine soa_gasaerexch_cell( deltat, temp, pres, nbins, nsoa, npoa, &
