@@ -82,7 +82,6 @@
   logical, allocatable :: dotend_gaex(:)           ! true for constituents changed by gas uptake
                                                    !    and primary carbon aging (pcnst)
   real(r8) :: mw_soa_host = -huge(1.0_r8)          ! molec wght of soa used in host code (kg/kmol)
-  real(r8) :: mw_poa_host = -huge(1.0_r8)          ! molec wght of poa used in host code (kg/kmol)
   real(r8) :: fac_volsfc_pcarbon = -huge(1.0_r8)   ! (mode-surface-area/mode-volume) factor for the
                                                    !    primary carbon mode
 
@@ -137,25 +136,24 @@ implicit none
 
 !-----------------------------------------------------------------------
 ! local
-   integer  :: ipair, iq, iqfrm, iqfrm_aa, iqtoo, iqtoo_aa
-   integer  :: jac,jsoa,p
+   integer  :: ipair, iq, iqfrm, iqtoo
+   integer  :: jac,jsoa
    integer  :: l, l1, l2, lsfrm, lstoo, lunout
-   integer  :: m, mfrm, mtoo
-   integer  :: n, nacc, nait
+   integer  :: mfrm, mtoo
+   integer  :: n
    integer  :: nchfrm, nchfrmskip, nchtoo, nchtooskip, nspec
 
    logical  :: dotend(pcnst), dotendqqcw(pcnst)
 
-   real(r8) :: tmp1, tmp2
+   real(r8) :: tmp2
 
-   character(len=fieldname_len)   :: tmpnamea, tmpnameb
+   character(len=fieldname_len)   :: tmpnamea
    character(len=fieldname_len+3) :: fieldname
    character(128)                 :: long_name
    character(128)                 :: msg
    character(8)                   :: unit
 
    logical                        :: history_aerosol      ! Output the MAM aerosol tendencies
-   logical                        :: history_aerocom    ! Output the aerocom history
    character(len=32) :: spec_type
    !-----------------------------------------------------------------------
 
@@ -605,15 +603,13 @@ subroutine gas_table_init
    end if
    do_soag_any = any( igas_soa(:) > 0 )
 
-! molecular weights of soa and poa used in the host code, from the species definitions
+! molecular weight of soa used in the host code, from the species definitions
    do n = 1, ntot_amode
       do l = 1, nspec_amode(n)
          call rad_aer_get_info(0, n, l, spec_type=spec_type )
          select case( spec_type )
          case('s-organic')
             mw_soa_host = specmw_amode(l,n)
-         case('p-organic')
-            mw_poa_host = specmw_amode(l,n)
          end select
       end do
    end do
@@ -666,7 +662,7 @@ subroutine modal_aero_gasaerexch_sub(                            &
                         lchnk,    ncol,     nstep,               &
                         loffset,  deltat,                        &
                         t,        pmid,     pdel,                &
-                        qh2o,               troplev,             &
+                        troplev,                                 &
                         q,                  qqcw,                &
                         dqdt_other,         dqqcwdt_other,       &
                         dgncur_a,           dgncur_awet,         &
@@ -675,17 +671,14 @@ subroutine modal_aero_gasaerexch_sub(                            &
 ! !USES:
 use modal_aero_data,   only:  lmassptr_amode,cnst_name_cw
 use modal_aero_data,   only:  lptr_so4_a_amode,lptr_nh4_a_amode
-use modal_aero_data,   only:  modeptr_pcarbon,nspec_amode,specdens_amode
+use modal_aero_data,   only:  modeptr_pcarbon,nspec_amode
 use modal_aero_rename, only:  modal_aero_rename_sub
-use constituents,      only: pcnst, cnst_mw
 
 use cam_history,       only:  outfld, fieldname_len
 use chem_mods,         only:  adv_mass
 use constituents,      only:  pcnst, cnst_name
-use mo_tracname,       only:  solsym
 use physconst,         only:  gravit, mwdry, rair
 use cam_abortutils,    only:  endrun
-use spmd_utils,        only:  iam, masterproc
 
 implicit none
 
@@ -712,7 +705,6 @@ implicit none
    real(r8), intent(in)    :: t(pcols,pver)        ! temperature at model levels (K)
    real(r8), intent(in)    :: pmid(pcols,pver)     ! pressure at model levels (Pa)
    real(r8), intent(in)    :: pdel(pcols,pver)     ! pressure thickness of levels (Pa)
-   real(r8), intent(in)    :: qh2o(pcols,pver)     ! water vapor mixing ratio (kg/kg)
    real(r8), intent(in)    :: dgncur_a(pcols,pver,ntot_amode)
    real(r8), intent(in)    :: dgncur_awet(pcols,pver,ntot_amode)
    real(r8), pointer       :: sulfeq(:,:,:)
@@ -740,28 +732,24 @@ implicit none
 ! local variables
    integer, parameter :: jsrflx_gaexch = 1
    integer, parameter :: jsrflx_rename = 2
-   integer, parameter :: ldiag1=-1, ldiag2=-1, ldiag3=-1, ldiag4=-1
 
    integer :: i, iq, itmpa
-   integer :: idiagss
    integer :: ido_so4a(ntot_amode), ido_nh4a(ntot_amode)
    integer ::  ido_soaa(ntot_amode,nsoa)
    integer :: j, jac, jsrf, jsoa
-   integer :: k,p
-   integer :: l, l2, lb, lsfrm, lstoo
+   integer :: k
+   integer :: l, lb, lsfrm, lstoo
    integer :: l_so4g, l_nh4g
    integer :: l_soag(nsoa)
-   integer :: n, nadv, nn
+   integer :: n, nadv
 
    logical :: is_dorename_atik, dorename_atik(ncol,pver)
 
    character(len=fieldname_len+3) :: fieldname
-   character(len=100) :: msg ! string for endrun calls
 
    real (r8) :: deltatxx
    real (r8) :: dqdt_nh4(ntot_amode), dqdt_so4(ntot_amode)
    real (r8) :: dqdt_soa(ntot_amode,nsoa)
-   real (r8) :: g0_soa(nsoa)
    real (r8) :: pdel_fac
    real (r8) :: qmax_nh4, qnew_nh4, qnew_so4
    real (r8) :: qold_nh4(ntot_amode), qold_so4(ntot_amode)
@@ -805,15 +793,6 @@ implicit none
    real(r8) :: qcon(pcols,pver),qevap(pcols,pver)
 
    real(r8) :: qqcwsrflx(pcols,pcnstxx,nsrflx)
-
-!  following only needed for diagnostics
-   real(r8) :: qold(ncol,pver,pcnstxx)  ! NOTE dims
-   real(r8) :: qnew(ncol,pver,pcnstxx)  ! NOTE dims
-   real(r8) :: qdel(ncol,pver,pcnstxx)  ! NOTE dims
-   real(r8) :: dumavec(1000), dumbvec(1000), dumcvec(1000)
-   real(r8) :: qqcwold(ncol,pver,pcnstxx)
-   real(r8) :: dqdtsv1(ncol,pver,pcnstxx)
-   real(r8) :: dqqcwdtsv1(ncol,pver,pcnstxx)
 
    real(r8) :: aircon(ncol,pver)
    real(r8) :: num_a(pcols,pver,ntot_amode)
@@ -984,7 +963,7 @@ implicit none
             end do
 
             call soa_gasaerexch_cell( deltat, t(i,k), pmid(i,k), ntot_amode, nsoa, npoa, &
-                 soa_on, do_soaexch, do_soag, uptkrate(:,i,k), mw_poa_host, mw_soa_host, &
+                 soa_on, do_soaexch, do_soag, uptkrate(:,i,k), mw_soa_host, &
                  qold_soag, qold_soa, qold_poa, dqdt_soa, sum_dqdt_soa )
 
          else ! no soa gas species, no uptake
@@ -1146,12 +1125,6 @@ implicit none
       end do   ! "i = 1, ncol"
    end do     ! "k = top_lev, pver"
 
-! set "temporary testing arrays"
-   qold(:,:,:) = q(:,:,:)
-   qqcwold(:,:,:) = qqcw(:,:,:)
-   dqdtsv1(:,:,:) = dqdt(:,:,:)
-   dqqcwdtsv1(:,:,:) = dqqcwdt(:,:,:)
-
 
 !
 ! do renaming calcs
@@ -1194,59 +1167,6 @@ implicit none
       end if
    end do
 
-! diagnostics start -------------------------------------------------------
-!!$   if (ldiag3 > 0) then
-!!$   if (icol_diag > 0) then
-!!$      i = icol_diag
-!!$      write(*,'(a,3i5)') 'gasaerexch ppp nstep,lat,lon', nstep, latndx(i), lonndx(i)
-!!$      write(*,'(2i5,3(2x,a))') 0, 0, 'ppp', 'pdel for all k'
-!!$      write(*,'(1p,7e12.4)') (pdel(i,k), k=top_lev,pver)
-!!$
-!!$      write(*,'(a,3i5)') 'gasaerexch ddd nstep,lat,lon', nstep, latndx(i), lonndx(i)
-!!$      do l = 1, pcnstxx
-!!$         lb = l + loffset
-!!$
-!!$         if ( dotend(l) .or. dotendrn(l) ) then
-!!$            write(*,'(2i5,3(2x,a))') 1, l, 'ddd1', cnst_name(lb),    'qold for all k'
-!!$            write(*,'(1p,7e12.4)') (qold(i,k,l), k=top_lev,pver)
-!!$            write(*,'(2i5,3(2x,a))') 1, l, 'ddd2', cnst_name(lb),    'qnew for all k'
-!!$            write(*,'(1p,7e12.4)') (q(i,k,l), k=top_lev,pver)
-!!$            write(*,'(2i5,3(2x,a))') 1, l, 'ddd3', cnst_name(lb),    'dqdt from conden for all k'
-!!$            write(*,'(1p,7e12.4)') (dqdtsv1(i,k,l), k=top_lev,pver)
-!!$            write(*,'(2i5,3(2x,a))') 1, l, 'ddd4', cnst_name(lb),    'dqdt from rename for all k'
-!!$            write(*,'(1p,7e12.4)') ((dqdt(i,k,l)-dqdtsv1(i,k,l)), k=top_lev,pver)
-!!$            write(*,'(2i5,3(2x,a))') 1, l, 'ddd5', cnst_name(lb),    'dqdt other for all k'
-!!$            write(*,'(1p,7e12.4)') (dqdt_other(i,k,l), k=top_lev,pver)
-!!$         end if
-!!$
-!!$         if ( dotendqqcw(l) .or. dotendqqcwrn(l) ) then
-!!$            write(*,'(2i5,3(2x,a))') 2, l, 'ddd1', cnst_name_cw(lb), 'qold for all k'
-!!$            write(*,'(1p,7e12.4)') (qqcwold(i,k,l), k=top_lev,pver)
-!!$            write(*,'(2i5,3(2x,a))') 2, l, 'ddd2', cnst_name_cw(lb), 'qnew for all k'
-!!$            write(*,'(1p,7e12.4)') (qqcw(i,k,l), k=top_lev,pver)
-!!$            write(*,'(2i5,3(2x,a))') 2, l, 'ddd3', cnst_name_cw(lb), 'dqdt from conden for all k'
-!!$            write(*,'(1p,7e12.4)') (dqqcwdtsv1(i,k,l), k=top_lev,pver)
-!!$            write(*,'(2i5,3(2x,a))') 2, l, 'ddd4', cnst_name_cw(lb), 'dqdt from rename for all k'
-!!$            write(*,'(1p,7e12.4)') ((dqqcwdt(i,k,l)-dqqcwdtsv1(i,k,l)), k=top_lev,pver)
-!!$            write(*,'(2i5,3(2x,a))') 2, l, 'ddd5', cnst_name_cw(lb), 'dqdt other for all k'
-!!$            write(*,'(1p,7e12.4)') (dqqcwdt_other(i,k,l), k=top_lev,pver)
-!!$         end if
-!!$
-!!$      end do
-!!$
-!!$      write(*,'(a,3i5)') 'gasaerexch fff nstep,lat,lon', nstep, latndx(i), lonndx(i)
-!!$      do l = 1, pcnstxx
-!!$         lb = l + loffset
-!!$         if ( dotend(l) .or. dotendrn(l) .or. dotendqqcw(l) .or. dotendqqcwrn(l) ) then
-!!$            write(*,'(i5,2(2x,a,2l3))') l, &
-!!$               cnst_name(lb), dotend(l), dotendrn(l), &
-!!$               cnst_name_cw(lb), dotendqqcw(l), dotendqqcwrn(l)
-!!$         end if
-!!$      end do
-!!$
-!!$   end if
-!!$   end if
-! diagnostics end ---------------------------------------------------------
 
 !-----Outfld for condensation/evaporation------------------------------
    if (nsoa.eq.5) then !check for current SOA package

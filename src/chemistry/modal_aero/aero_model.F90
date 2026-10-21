@@ -1223,7 +1223,7 @@ contains
          lchnk,    ncol,     nstep,            &
          loffset,            delt,             &
          tfld,     pmid,     pdel,             &
-         qh2o,               troplev,          &
+         troplev,                              &
          vmr,                vmrcw,            &
          dvmrdt,             dvmrcwdt,         &
          dgnum,              dgnumwet,         &

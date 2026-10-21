@@ -28,7 +28,7 @@ contains
 
 !----------------------------------------------------------------------
 subroutine soa_gasaerexch_cell( deltat, temp, pres, nbins, nsoa, npoa, &
-     soa_on, do_soaexch, do_soag, uptkrate, mw_poa_host, mw_soa_host, &
+     soa_on, do_soaexch, do_soag, uptkrate, mw_soa_host, &
      qold_soag, qold_soa, qold_poa, dqdt_soa, sum_dqdt_soa )
 
 !-----------------------------------------------------------------------
@@ -55,7 +55,6 @@ subroutine soa_gasaerexch_cell( deltat, temp, pres, nbins, nsoa, npoa, &
   logical,  intent(in)  :: do_soaexch(nbins)          ! true if mode/bin participates in aero_soaexch
   logical,  intent(in)  :: do_soag(nsoa)              ! true if soa gas species is present
   real(r8), intent(in)  :: uptkrate(nbins)            ! h2so4 gas-to-aerosol mass transfer rate (1/s)
-  real(r8), intent(in)  :: mw_poa_host                ! molec wght of poa used in host code
   real(r8), intent(in)  :: mw_soa_host                ! molec wght of soa used in host code
   real(r8), intent(in)  :: qold_soag(nsoa)            ! soa gas mixrat (mol/mol)
   real(r8), intent(in)  :: qold_soa(nbins,nsoa)       ! soa aerosol mixrat (mol/mol)
@@ -88,7 +87,7 @@ subroutine soa_gasaerexch_cell( deltat, temp, pres, nbins, nsoa, npoa, &
      call aero_soaexch( deltat, temp, pres, &
           niter, soaexch_niter_max, nbins, nsoa, npoa, &
           do_soaexch, &
-          mw_poa_host, mw_soa_host, &
+          mw_soa_host, &
           qold_soag, qold_soa, qold_poa, uptkrate_soa, &
           dqdt_soag, dqdt_soa )
 
@@ -120,7 +119,7 @@ end subroutine soa_gasaerexch_cell
 subroutine aero_soaexch( dtfull, temp, pres, &
      niter, niter_max, nbins, ntot_soaspec, ntot_poaspec,  &
      do_soaexch, &
-     mw_poa_host, mw_soa_host, &
+     mw_soa_host, &
      g_soa_in, a_soa_in, a_poa_in, xferrate_in, &
      g_soa_tend, a_soa_tend )
 
@@ -155,7 +154,6 @@ subroutine aero_soaexch( dtfull, temp, pres, &
   integer,  intent(in)  :: ntot_poaspec                    ! number of poa species
   integer,  intent(in)  :: ntot_soaspec                    ! number of soa species
   logical,  intent(in)  :: do_soaexch(nbins)               ! true if bin participates in soa exchange
-  real(r8), intent(in)  :: mw_poa_host                     ! molec wght of poa used in host code
   real(r8), intent(in)  :: mw_soa_host                     ! molec wght of soa used in host code
   real(r8), intent(in)  :: g_soa_in(ntot_soaspec)          ! initial soa gas mixrat (mol/mol at host mw)
   real(r8), intent(in)  :: a_soa_in(nbins,ntot_soaspec)    ! initial soa aerosol mixrat (mol/mol at host mw)
@@ -187,7 +185,6 @@ subroutine aero_soaexch( dtfull, temp, pres, &
   real(r8) :: g_soa(ntot_soaspec)           ! soa gas mixrat (mol/mol at actual mw)
   real(r8) :: g_star(nbins,ntot_soaspec)    ! soa gas mixrat that is in equilib
   ! with each aerosol mode (mol/mol)
-  real(r8) :: mw_poa                        ! actual molec wght of poa
   real(r8) :: mw_soa                        ! actual molec wght of soa
   real(r8) :: opoa_frac(ntot_poaspec)       ! fraction of poa that is opoa
   real(r8) :: phi(nbins,ntot_soaspec)       ! "relative driving force"
@@ -202,7 +199,6 @@ subroutine aero_soaexch( dtfull, temp, pres, &
 
 ! Changed by Manish Shrivastava
   opoa_frac(:) = 0.0_r8 !POA does not form solution with SOA for all runs; set opoa_frac=0.0_r8  by Manish Shrivastava
-  mw_poa = 250.0_r8
   mw_soa = 250.0_r8
 
   ! New SOA properties added by Manish Shrivastava on 09/27/2012
@@ -310,6 +306,8 @@ subroutine aero_soaexch( dtfull, temp, pres, &
      if ( skip_soamode(m) ) cycle
      a_opoa(m) = 0.0_r8
      do ll = 1, ntot_poaspec
+        ! note: a_poa_in is used at the host molecular weight (no conversion);
+        ! this matters only if opoa_frac > 0
         a_opoa(m) = a_opoa(m) + opoa_frac(ll)*a_poa_in(m,ll)
      end do
   end do

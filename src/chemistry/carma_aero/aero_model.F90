@@ -761,11 +761,10 @@ contains
     ! need to transform raer to raervmr from CARMA, routine requires vmr, note number wil not be changed here
     call mmr2vmr_carma ( lchnk, raervmr, mbar, mw_carma, ncol, loffset, rmass)
 
-    call carma_aero_gasaerexch_sub( state, &
-          pbuf, lchnk,    ncol,     nstep,      &
-          loffset,            delt, mbar ,      &
+    call carma_aero_gasaerexch_sub(           &
+          pbuf, lchnk,    ncol,                 &
+          delt, mbar ,                          &
           tfld,     pmid,     pdel,             &
-          qh2o,               troplev,          &
           vmr,                raervmr,          &
           wetr_n     )
 

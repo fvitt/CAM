@@ -316,32 +316,25 @@ contains
 ! !ROUTINE:  carma_aero_gasaerexch_sub --- ...
 !
 ! !INTERFACE:
-subroutine carma_aero_gasaerexch_sub(  state, &
-                        pbuf, lchnk,    ncol,     nstep,         &
-                        loffset,  deltat,   mbar,                &
+subroutine carma_aero_gasaerexch_sub( &
+                        pbuf, lchnk,    ncol,                    &
+                        deltat,   mbar,                          &
                         t,        pmid,     pdel,                &
-                        qh2o,               troplev,             &
                         q,                  raervmr,             &
                         wetr_n                                   )
 
   ! !USES:
   use cam_history,       only: outfld, fieldname_len
-  use physconst,         only: gravit, mwdry
+  use physconst,         only: gravit, mwdry, rair
   use cam_abortutils,    only: endrun
   use time_manager,      only: is_first_step
   use aerosol_state_mod, only: aerosol_state
-  use physics_types,     only: physics_state
-  use physconst, only: mwdry, rair
 
 ! !PARAMETERS:
-  type(physics_state), target, intent(in) :: state    ! Physics state variables
   type(physics_buffer_desc), pointer :: pbuf(:)
 
   integer,  intent(in)    :: lchnk                ! chunk identifier
   integer,  intent(in)    :: ncol                 ! number of atmospheric column
-  integer,  intent(in)    :: nstep                ! model time-step number
-  integer,  intent(in)    :: loffset              ! offset applied to modal aero "ptrs"
-  integer,  intent(in)    :: troplev(pcols)       ! tropopause vertical index
   real(r8), intent(in)    :: deltat               ! time step (s)
   real(r8), intent(in)    :: mbar(ncol,pver)      ! mean wet atmospheric mass ( amu )
 
@@ -353,8 +346,7 @@ subroutine carma_aero_gasaerexch_sub(  state, &
   real(r8), intent(in)    :: t(pcols,pver)        ! temperature at model levels (K)
   real(r8), intent(in)    :: pmid(pcols,pver)     ! pressure at model levels (Pa)
   real(r8), intent(in)    :: pdel(pcols,pver)     ! pressure thickness of levels (Pa)
-  real(r8), intent(in)    :: qh2o(pcols,pver)     ! water vapor mixing ratio (kg/kg)
-  real(r8), intent(in)    :: wetr_n(pcols,pver,nbins) !wet geo. mean dia. (cm) of number distrib.
+  real(r8), intent(in)    :: wetr_n(pcols,pver,nbins) ! wet radius (cm) of each bin
 
 ! !DESCRIPTION:
 ! this version does only do condensation for SOA for CARMA
@@ -370,9 +362,6 @@ subroutine carma_aero_gasaerexch_sub(  state, &
 !BOC
 
 ! local variables
-  integer, parameter :: ldiag1=-1, ldiag2=-1, ldiag3=-1, ldiag4=-1
-
-  real (r8), parameter :: mw_poa_host = 12.0_r8    ! molec wght of poa used in host code
   real (r8), parameter :: mw_soa_host = 250.0_r8   ! molec wght of soa used in host code
 
   integer :: i
@@ -403,7 +392,6 @@ subroutine carma_aero_gasaerexch_sub(  state, &
   logical   :: soa_on(nbins,nsoa_vbs)   ! true if soa gas condenses on bin
   logical   :: do_soag(nsoa_vbs)        ! true if soa gas is a species
 
-  integer, parameter :: nsrflx = 1 ! only one dimension of qsrflx, no renaming or changes in size for CARMA currently
   real(r8) :: dqdt(ncol,pver,gas_pcnst)  ! TMR "delta q" array - NOTE dims
   real(r8) :: qsrflx(pcols,nbins,nsoa)
   ! process-specific column tracer tendencies
@@ -444,9 +432,7 @@ subroutine carma_aero_gasaerexch_sub(  state, &
            poa_c(:ncol,:,m,nn) = raervmr(:ncol,:,poa_cidx(m,nn))
         end do
 
-        if (nsoa_vbs.eq.nsoa) then
-           soa_vbs(:ncol,:,:,:) = soa_c(:ncol,:,:,:)
-        else
+        if (nsoa_vbs /= nsoa) then
            ! nsoa == 1 (checked in carma_aero_gasaerexch_init)
            if (nsoa.eq.1) then
               if (is_first_step()) then
@@ -484,6 +470,11 @@ subroutine carma_aero_gasaerexch_sub(  state, &
 
      end if
   end do
+
+  ! SOAG and SOA CARMA have the same number of species
+  if (nsoa_vbs == nsoa) then
+     soa_vbs(:ncol,:,:,:) = soa_c(:ncol,:,:,:)
+  end if
 
 
 ! SOA will be updated in CARMA
@@ -553,7 +544,7 @@ subroutine carma_aero_gasaerexch_sub(  state, &
 !   compute TMR tendencies for soag and soa interstial aerosol
 !   sum_dqdt_soa = soa_a tendency from soa   gas uptake (mol/mol/s)
         call soa_gasaerexch_cell( deltat, t(i,k), pmid(i,k), nbins, nsoa_vbs, npoa, &
-             soa_on, do_soaexch, do_soag, uptkrate(:,i,k), mw_poa_host, mw_soa_host, &
+             soa_on, do_soaexch, do_soag, uptkrate(:,i,k), mw_soa_host, &
              qold_soag, qold_soa, qold_poa, dqdt_soa_vbs, sum_dqdt_soa )
 
         !  update soa to calcuate fractions (state variables and pbuf is not updated for SOA, will be done in CARMA)
