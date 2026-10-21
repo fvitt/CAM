@@ -81,6 +81,8 @@
   logical :: do_soag_any = .false.                 ! true if any soa gas is present
   logical, allocatable :: dotend_gaex(:)           ! true for constituents changed by gas uptake
                                                    !    and primary carbon aging (pcnst)
+  real(r8) :: mw_soa_host = -huge(1.0_r8)          ! molec wght of soa used in host code (kg/kmol)
+  real(r8) :: mw_poa_host = -huge(1.0_r8)          ! molec wght of poa used in host code (kg/kmol)
   real(r8) :: fac_volsfc_pcarbon = -huge(1.0_r8)   ! (mode-surface-area/mode-volume) factor for the
                                                    !    primary carbon mode
 
@@ -524,12 +526,14 @@ subroutine gas_table_init
 !-----------------------------------------------------------------------
 
    use modal_aero_data, only: lptr_so4_a_amode, lptr_nh4_a_amode, lptr2_soa_a_amode, &
-                              modeptr_pcarbon, alnsg_amode
+                              modeptr_pcarbon, alnsg_amode, nspec_amode, specmw_amode
+   use radiative_aerosol, only: rad_aer_get_info
    use aero_soaexch_mod, only: soa_h2so4_diffus_ratio
    use constituents,    only: pcnst, cnst_get_ind
    use cam_abortutils,  only: endrun
 
    integer :: igas, iq, jsoa, l, lgas, lsfrm, lstoo, n
+   character(len=32) :: spec_type
 
    if ((method_soa /= 0) .and. (method_soa /= 1) .and. (method_soa /= 2)) then
       write(*,'(/a,1x,i10)') '*** modal_aero_gasaerexch_init - bad method_soa =', method_soa
@@ -601,6 +605,19 @@ subroutine gas_table_init
    end if
    do_soag_any = any( igas_soa(:) > 0 )
 
+! molecular weights of soa and poa used in the host code, from the species definitions
+   do n = 1, ntot_amode
+      do l = 1, nspec_amode(n)
+         call rad_aer_get_info(0, n, l, spec_type=spec_type )
+         select case( spec_type )
+         case('s-organic')
+            mw_soa_host = specmw_amode(l,n)
+         case('p-organic')
+            mw_poa_host = specmw_amode(l,n)
+         end select
+      end do
+   end do
+
 ! constituents changed by gas uptake
 ! (set before the primary carbon aging changes ido below)
    do igas = 1, ngas
@@ -658,9 +675,8 @@ subroutine modal_aero_gasaerexch_sub(                            &
 ! !USES:
 use modal_aero_data,   only:  lmassptr_amode,cnst_name_cw
 use modal_aero_data,   only:  lptr_so4_a_amode,lptr_nh4_a_amode
-use modal_aero_data,   only:  modeptr_pcarbon,nspec_amode,specmw_amode,specdens_amode
+use modal_aero_data,   only:  modeptr_pcarbon,nspec_amode,specdens_amode
 use modal_aero_rename, only:  modal_aero_rename_sub
-use radiative_aerosol,  only: rad_aer_get_info
 use constituents,      only: pcnst, cnst_mw
 
 use cam_history,       only:  outfld, fieldname_len
@@ -741,14 +757,11 @@ implicit none
 
    character(len=fieldname_len+3) :: fieldname
    character(len=100) :: msg ! string for endrun calls
-   character(len=32) :: spec_type
 
    real (r8) :: deltatxx
    real (r8) :: dqdt_nh4(ntot_amode), dqdt_so4(ntot_amode)
    real (r8) :: dqdt_soa(ntot_amode,nsoa)
    real (r8) :: g0_soa(nsoa)
-   real(r8)  :: mw_poa_host          ! molec wght of poa used in host code
-   real(r8)  :: mw_soa_host          ! molec wght of poa used in host code
    real (r8) :: pdel_fac
    real (r8) :: qmax_nh4, qnew_nh4, qnew_so4
    real (r8) :: qold_nh4(ntot_amode), qold_so4(ntot_amode)
@@ -968,19 +981,6 @@ implicit none
                else
                   qold_soag(jsoa) = 0.0_r8
                end if
-            end do
-
-            ! get molecular weight from the host model
-            do n = 1, ntot_amode
-              do l = 1, nspec_amode(n)
-                  call rad_aer_get_info(0, n, l, spec_type=spec_type )
-                  select case( spec_type )
-                   case('s-organic')
-                     mw_soa_host = specmw_amode(l,n)
-                   case('p-organic')
-                     mw_poa_host = specmw_amode(l,n)
-                   end select
-               end do
             end do
 
             call soa_gasaerexch_cell( deltat, t(i,k), pmid(i,k), ntot_amode, nsoa, npoa, &

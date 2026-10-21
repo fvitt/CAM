@@ -50,6 +50,8 @@ module carma_aero_gasaerexch
   integer, allocatable :: dqdtsoa_idx(:,:)
   integer, allocatable  :: cnsoa(:)         ! true if soa gas is a species and carma soa in bin
   integer, allocatable  :: cnpoa(:)         ! true if soa gas is a species and carma soa in bin
+  integer, allocatable  :: soa_cidx(:,:)    ! (nbins,nsoa) aerosol constituent index of the n-th soa species in bin
+  integer, allocatable  :: poa_cidx(:,:)    ! (nbins,npoa) aerosol constituent index of the n-th poa species in bin
   integer, allocatable  :: l_soag(:)         ! true if soa gas is a species and carma soa in bin
 
   logical, allocatable  :: do_soaexch(:)
@@ -89,6 +91,7 @@ contains
     use constituents,   only: pcnst, cnst_name
     use phys_control,   only: phys_getopts
     use mo_chem_utls,   only: get_spc_ndx
+    use cam_abortutils, only: endrun
 
 !-----------------------------------------------------------------------
 ! arguments
@@ -100,6 +103,7 @@ contains
     integer  :: l
     integer  :: m
     integer  :: ns
+    integer  :: np
     character(len=fieldname_len+3) :: fieldname
     character(len=32)              :: spectype
     character(len=32)              :: spec_name
@@ -177,15 +181,33 @@ contains
     nsoa= maxval(cnsoa)
     npoa= maxval(cnpoa)
 
+    if (npoa > 1) then
+       call endrun( 'carma_aero_gasaerexch_init error: CARMA currently only supports 1 POA element' )
+    end if
+    ! this code only works if SOAG and SOA CARMA have the same number of species,
+    ! or if SOA CARMA has only one species
+    if ((nsoa > 0) .and. (nsoa_vbs /= nsoa) .and. (nsoa /= 1)) then
+       call endrun( 'carma_aero_gasaerexch_init error in number of SOA species' )
+    end if
+
     allocate( dqdtsoa_idx(nbins,nsoa)                       )
+    allocate( soa_cidx(nbins,nsoa), poa_cidx(nbins,npoa)    )
+    soa_cidx(:,:) = -1
+    poa_cidx(:,:) = -1
     do m = 1, nbins
        ns = 0
+       np = 0
        do l = 1, nspec(m)
           call rad_aer_get_bin_props_by_idx(0, m, l,spectype=spectype)
           if (trim(spectype) == 's-organic') then
              call rad_aer_get_info_by_bin_spec(0, m, l, spec_name=spec_name)
              ns = ns + 1
              dqdtsoa_idx(m,ns) = pbuf_get_index('DQDT_'//trim(spec_name))
+             soa_cidx(m,ns) = aero_props%indexer(m,l)
+          end if
+          if (trim(spectype) == 'p-organic') then
+             np = np + 1
+             poa_cidx(m,np) = aero_props%indexer(m,l)
           end if
        end do
     end do
@@ -356,11 +378,9 @@ subroutine carma_aero_gasaerexch_sub(  state, &
   integer :: i
   integer :: j, jsoa
   integer :: k
-  integer :: l
   integer :: mm, m, n, nn
 
   character(len=fieldname_len+3) :: fieldname
-  character(len=32)              :: spectype
   character(len=2)               :: outsoa
 
   real (r8) :: dqdt_soa_vbs(nbins,nsoa_vbs)
@@ -417,27 +437,17 @@ subroutine carma_aero_gasaerexch_sub(  state, &
 
   do m = 1, nbins      ! main loop over aerosol bins
      if (do_soaexch(m)) then  ! only bins that contain soa
-        n = 0
-        nn = 0
-        do l = 1, nspec(m)
-           mm = aero_props%indexer(m,l)
-           call rad_aer_get_bin_props_by_idx(0, m, l, spectype=spectype)
-           if (trim(spectype) == 's-organic') then
-              n = n + 1
-              soa_c(:ncol,:,m,n) = raervmr(:ncol,:,mm)
-           end if
-           if (trim(spectype) == 'p-organic') then
-              nn = nn + 1
-              poa_c(:ncol,:,m,nn) = raervmr(:ncol,:,mm)
-           end if
+        do n = 1, cnsoa(m)
+           soa_c(:ncol,:,m,n) = raervmr(:ncol,:,soa_cidx(m,n))
         end do
-        if (npoa .gt. 1) then
-           call endrun( 'carma_aero_gasaerexch_sub error: CARMA currently only supports 1 POA element' )
-        end if
+        do nn = 1, cnpoa(m)
+           poa_c(:ncol,:,m,nn) = raervmr(:ncol,:,poa_cidx(m,nn))
+        end do
 
         if (nsoa_vbs.eq.nsoa) then
            soa_vbs(:ncol,:,:,:) = soa_c(:ncol,:,:,:)
         else
+           ! nsoa == 1 (checked in carma_aero_gasaerexch_init)
            if (nsoa.eq.1) then
               if (is_first_step()) then
                  !first time step initialization only
@@ -464,10 +474,6 @@ subroutine carma_aero_gasaerexch_sub(  state, &
                     end do
                  end do
               end do
-           else
-              ! error message this code only works if SOAG and SOA CARMA have the same number of species,
-              ! or if SOA CARMA has only one species.
-              call endrun( 'carma_aero_gasaerexch_sub error in number of SOA species' )
            end if
 
         end if
@@ -628,24 +634,19 @@ subroutine carma_aero_gasaerexch_sub(  state, &
   !   do history file of column-tendency fields over SOA fields (as defined in CARMA) and set pointer
   do m = 1, nbins
      if (do_soaexch(m)) then
-        j  = 0
-        do l = 1, nspec(m)
-           mm = aero_props%indexer(m,l)
-           call rad_aer_get_bin_props_by_idx(0, m, l,spectype=spectype)
-           if (trim(spectype) == 's-organic') then
-              j = j + 1
-              fieldname= trim(fldname(mm)) // '_sfgaex1'
-              do i = 1, ncol
-                 qsrflx(i,m,j) = qsrflx(i,m,j)*(mw_soa/mwdry)
-              end do
-              call outfld( fieldname, qsrflx(:,m,j), pcols, lchnk )
+        do j = 1, cnsoa(m)
+           mm = soa_cidx(m,j)
+           fieldname= trim(fldname(mm)) // '_sfgaex1'
+           do i = 1, ncol
+              qsrflx(i,m,j) = qsrflx(i,m,j)*(mw_soa/mwdry)
+           end do
+           call outfld( fieldname, qsrflx(:,m,j), pcols, lchnk )
 
-              !set pointer field
-              call pbuf_get_field(pbuf, dqdtsoa_idx(m,j),  dqdt_soa )
+           !set pointer field
+           call pbuf_get_field(pbuf, dqdtsoa_idx(m,j),  dqdt_soa )
 
-              dqdt_soa(:ncol,:) = dqdt_soa_all(:ncol,:,m,j) *(mw_soa/mbar(:ncol,:))
-           end if
-        end do ! l = ...
+           dqdt_soa(:ncol,:) = dqdt_soa_all(:ncol,:,m,j) *(mw_soa/mbar(:ncol,:))
+        end do ! j = ...
      end if
   end do ! m = ...
 
