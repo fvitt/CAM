@@ -20,6 +20,7 @@
   use gas_aer_uptkrate_mod, only: gas_aer_uptkrates, nonvolatile_uptake_cell, h2so4_reversible_uptake_cell
   use modal_aero_data, only: lptr2_soa_g_amode, lptr2_soa_a_amode, lptr2_pom_a_amode
   use aero_soaexch_mod, only: soa_gasaerexch_cell, method_soa
+  use soa_gaex_diag_mod, only: soa_gaex_diag_t
 
   implicit none
   private
@@ -82,6 +83,7 @@
   logical, allocatable :: dotend_gaex(:)           ! true for constituents changed by gas uptake
                                                    !    and primary carbon aging (pcnst)
   real(r8) :: mw_soa_host = -huge(1.0_r8)          ! molec wght of soa used in host code (kg/kmol)
+  type(soa_gaex_diag_t) :: soa_diag                ! soa condensation/evaporation diagnostics
   real(r8) :: fac_volsfc_pcarbon = -huge(1.0_r8)   ! (mode-surface-area/mode-volume) factor for the
                                                    !    primary carbon mode
 
@@ -155,6 +157,7 @@ implicit none
 
    logical                        :: history_aerosol      ! Output the MAM aerosol tendencies
    character(len=32) :: spec_type
+   character(len=len(cnst_name)) :: soag_names(nsoa)    ! soa gas species names
    !-----------------------------------------------------------------------
 
         call phys_getopts( history_aerosol_out        = history_aerosol   )
@@ -302,70 +305,10 @@ aa_iqfrm: do iqfrm = -1, nspec_amode(mfrm)
       call gas_table_init()
 
 !---------define history fields for new cond/evap diagnostics----------------------------------------
-      fieldname=trim('qconff_gaex')
-      long_name = trim('3D fields for Fossil SOA condensation')
-      unit = 'kg/kg/s'
-      call addfld(fieldname, (/'lev'/), 'A', unit, long_name )
-      if ( history_aerosol ) then
-         call add_default( fieldname,  1, ' ' )
-      endif
-      if ( masterproc ) write(*,'(3(a,3x))') 'qconff addfld', fieldname, unit
-
-      fieldname=trim('qevapff_gaex')
-      long_name = trim('3D fields for Fossil SOA evaporation')
-      call addfld(fieldname, (/'lev'/), 'A', unit, long_name )
-      if ( history_aerosol ) then
-         call add_default( fieldname,  1, ' ' )
-      endif
-      if ( masterproc ) write(*,'(3(a,3x))') 'qevapff addfld', fieldname, unit
-
-      fieldname=trim('qconbb_gaex')
-      long_name = trim('3D fields for Biomass SOA condensation')
-      call addfld(fieldname, (/'lev'/), 'A', unit, long_name )
-      if ( history_aerosol ) then
-         call add_default( fieldname,  1, ' ' )
-      endif
-      if ( masterproc ) write(*,'(3(a,3x))') 'qconbb addfld', fieldname, unit
-
-      fieldname=trim('qevapbb_gaex')
-      long_name = trim('3D fields for Biomass SOA evaporation')
-      call addfld(fieldname, (/'lev'/), 'A', unit, long_name )
-      if ( history_aerosol ) then
-         call add_default( fieldname,  1, ' ' )
-      endif
-      if ( masterproc ) write(*,'(3(a,3x))') 'qevapbb addfld', fieldname, unit
-
-      fieldname=trim('qconbg_gaex')
-      long_name = trim('3D fields for Biogenic SOA condensation')
-      call addfld(fieldname, (/'lev'/), 'A', unit, long_name )
-      if ( history_aerosol ) then
-         call add_default( fieldname,  1, ' ' )
-      endif
-      if ( masterproc ) write(*,'(3(a,3x))') 'qconbg addfld', fieldname, unit
-
-      fieldname=trim('qevapbg_gaex')
-      long_name = trim('3D fields for Biogenic SOA evaporation')
-      call addfld(fieldname, (/'lev'/), 'A', unit, long_name )
-      if ( history_aerosol ) then
-         call add_default( fieldname,  1, ' ' )
-      endif
-      if ( masterproc ) write(*,'(3(a,3x))') 'qevapbg addfld', fieldname, unit
-
-      fieldname=trim('qcon_gaex')
-      long_name = trim('3D fields for SOA condensation')
-      call addfld(fieldname, (/'lev'/), 'A', unit, long_name )
-      if ( history_aerosol ) then
-         call add_default( fieldname,  1, ' ' )
-      endif
-      if ( masterproc ) write(*,'(3(a,3x))') 'qcon addfld', fieldname, unit
-
-      fieldname=trim('qevap_gaex')
-      long_name = trim('3D fields for Biogenic SOA evaporation')
-      call addfld(fieldname, (/'lev'/), 'A', unit, long_name )
-      if ( history_aerosol ) then
-         call add_default( fieldname,  1, ' ' )
-      endif
-      if ( masterproc ) write(*,'(3(a,3x))') 'qevap addfld', fieldname, unit
+      do jsoa = 1, nsoa
+         soag_names(jsoa) = cnst_name(lptr2_soa_g_amode(jsoa))
+      end do
+      call soa_diag%init( soag_names, history_aerosol, add_default_species=.false. )
 !------------------------------------------------------------------------------
 
 !  define history fields for basic gas-aer exchange
@@ -787,10 +730,8 @@ implicit none
    real(r8) :: qsrflx(pcols,pcnstxx,nsrflx)
                               ! process-specific column tracer tendencies
                               ! (1=renaming, 2=gas condensation)
-   real(r8) :: qconff(pcols,pver),qevapff(pcols,pver)
-   real(r8) :: qconbb(pcols,pver),qevapbb(pcols,pver)
-   real(r8) :: qconbg(pcols,pver),qevapbg(pcols,pver)
-   real(r8) :: qcon(pcols,pver),qevap(pcols,pver)
+   real(r8), allocatable :: qcon(:,:,:), qevap(:,:,:)  ! soa condensation/evaporation diagnostics
+                                                       !    (pcols,pver,soa_diag%nfld())
 
    real(r8) :: qqcwsrflx(pcols,pcnstxx,nsrflx)
 
@@ -841,14 +782,9 @@ implicit none
    qqcwsrflx(:,:,:) = 0.0_r8
 
 !-------Initialize evap/cond diagnostics (ncols x pver)-----------
-   qconff(:,:) = 0.0_r8
-   qevapff(:,:) = 0.0_r8
-   qconbb(:,:) = 0.0_r8
-   qevapbb(:,:) = 0.0_r8
-   qconbg(:,:) = 0.0_r8
-   qevapbg(:,:) = 0.0_r8
-   qcon(:,:) = 0.0_r8
-   qevap(:,:) = 0.0_r8
+   allocate( qcon(pcols,pver,soa_diag%nfld()), qevap(pcols,pver,soa_diag%nfld()) )
+   qcon(:,:,:) = 0.0_r8
+   qevap(:,:,:) = 0.0_r8
 !---------------------------------------------------
 
 !   number conc. (#/m3) -- note q(i,k,numptr) is (#/kmol-air)
@@ -993,39 +929,8 @@ implicit none
                      l = lptr2_soa_a_amode(n,jsoa)-loffset
                      dqdt(i,k,l) = dqdt_soa(n,jsoa) !calculated by  modal_aero_soaexch for method_soa=2
                      qsrflx(i,l,jsrf) = qsrflx(i,l,jsrf) + dqdt_soa(n,jsoa)*pdel_fac
-!------- Add code for condensation/evaporation diagnostics---
-                     if (nsoa.eq.15) then !check for current SOA package
-                        if(jsoa.ge.1.and.jsoa.le.5) then ! Fossil SOA species
-                           if (dqdt_soa(n,jsoa).ge.0.0_r8) then
-                              qconff(i,k)=qconff(i,k)+dqdt_soa(n,jsoa)*(adv_mass(l)/mwdry)
-                           elseif(dqdt_soa(n,jsoa).lt.0.0_r8) then
-                              qevapff(i,k)=qevapff(i,k)+dqdt_soa(n,jsoa)*(adv_mass(l)/mwdry)
-                           endif
-
-                        elseif(jsoa.ge.6.and.jsoa.le.10) then ! Biomass SOA species
-                           if (dqdt_soa(n,jsoa).ge.0.0_r8) then
-                              qconbb(i,k)=qconbb(i,k)+dqdt_soa(n,jsoa)*(adv_mass(l)/mwdry)
-                           elseif(dqdt_soa(n,jsoa).lt.0.0_r8) then
-                              qevapbb(i,k)=qevapbb(i,k)+dqdt_soa(n,jsoa)*(adv_mass(l)/mwdry)
-                           endif
-
-                        elseif(jsoa.ge.11.and.jsoa.le.15) then ! Biomass SOA species
-                           if (dqdt_soa(n,jsoa).ge.0.0_r8) then
-                              qconbg(i,k)=qconbg(i,k)+dqdt_soa(n,jsoa)*(adv_mass(l)/mwdry)
-                           elseif(dqdt_soa(n,jsoa).lt.0.0_r8) then
-                              qevapbg(i,k)=qevapbg(i,k)+dqdt_soa(n,jsoa)*(adv_mass(l)/mwdry)
-                           endif
-
-                        endif ! jsoa
-                     endif !nsoa
-                     if (nsoa.eq.5) then !check for current SOA package
-                           if (dqdt_soa(n,jsoa).ge.0.0_r8) then
-                              qcon(i,k)=qcon(i,k)+dqdt_soa(n,jsoa)*(adv_mass(l)/mwdry)
-                           elseif(dqdt_soa(n,jsoa).lt.0.0_r8) then
-                              qevap(i,k)=qevap(i,k)+dqdt_soa(n,jsoa)*(adv_mass(l)/mwdry)
-                           endif
-                     endif !nsoa
-!---------------------------------------------------------------------------------------------------------------------
+!------- condensation/evaporation diagnostics (kg/kg/s) ---
+                     call soa_diag%accum( i, k, jsoa, dqdt_soa(n,jsoa)*(adv_mass(l)/mwdry), qcon, qevap )
                   end if
                end if
             end do
@@ -1169,19 +1074,8 @@ implicit none
 
 
 !-----Outfld for condensation/evaporation------------------------------
-   if (nsoa.eq.5) then !check for current SOA package
-      call outfld(trim('qcon_gaex'), qcon(:,:), pcols, lchnk )
-      call outfld(trim('qevap_gaex'), qevap(:,:), pcols, lchnk )
-   endif
-!-----------------------------------------------------------------------
-   if (nsoa.eq.15) then !check for current SOA package
-      call outfld(trim('qconff_gaex'), qconff(:,:), pcols, lchnk )
-      call outfld(trim('qevapff_gaex'), qevapff(:,:), pcols, lchnk )
-      call outfld(trim('qconbb_gaex'), qconbb(:,:), pcols, lchnk )
-      call outfld(trim('qevapbb_gaex'), qevapbb(:,:), pcols, lchnk )
-      call outfld(trim('qconbg_gaex'), qconbg(:,:), pcols, lchnk )
-      call outfld(trim('qevapbg_gaex'), qevapbg(:,:), pcols, lchnk )
-   endif
+   call soa_diag%write_fields( lchnk, qcon, qevap )
+   deallocate( qcon, qevap )
 !-----------------------------------------------------------------------
 
 !   do history file column-tendency fields

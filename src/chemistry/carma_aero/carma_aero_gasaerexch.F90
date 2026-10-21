@@ -20,6 +20,7 @@ module carma_aero_gasaerexch
        aerosol_instances_get_state, aerosol_instances_get_num_models
   use gas_aer_uptkrate_mod, only: gas_aer_uptkrates
   use aero_soaexch_mod, only: soa_gasaerexch_cell
+  use soa_gaex_diag_mod, only: soa_gaex_diag_t
 
   implicit none
   private
@@ -55,6 +56,8 @@ module carma_aero_gasaerexch
   integer, allocatable  :: l_soag(:)         ! true if soa gas is a species and carma soa in bin
 
   logical, allocatable  :: do_soaexch(:)
+
+  type(soa_gaex_diag_t) :: soa_diag    ! soa condensation/evaporation diagnostics
 
 ! !DESCRIPTION: This module implements ...
 !
@@ -98,7 +101,6 @@ contains
 
 !-----------------------------------------------------------------------
 ! local
-    integer  :: j
     integer  :: i, ii
     integer  :: l
     integer  :: m
@@ -109,7 +111,7 @@ contains
     character(len=32)              :: spec_name
     character(128)                 :: long_name
     character(8)                   :: unit
-    character(len=2)               :: outsoa
+    character(len=len(cnst_name)), allocatable :: soag_names(:) ! soa gas species names
 
     logical                        :: history_aerosol      ! Output the MAM aerosol tendencies
     !-----------------------------------------------------------------------
@@ -152,12 +154,13 @@ contains
           nsoa_vbs = nsoa_vbs + 1
        end if
     end do
-    allocate( l_soag(nsoa_vbs) )
+    allocate( l_soag(nsoa_vbs), soag_names(nsoa_vbs) )
     nsoa_vbs = 0
     do i = 1, pcnst
        if (cnst_name(i)(:4) == 'SOAG') then
           nsoa_vbs = nsoa_vbs + 1
           l_soag(nsoa_vbs) = get_spc_ndx(cnst_name(i))
+          soag_names(nsoa_vbs) = cnst_name(i)
        end if
     end do
 
@@ -218,36 +221,8 @@ contains
 
 !---------define history fields for new cond/evap diagnostics----------------------------------------
 
-    fieldname=trim('qcon_gaex')
-    long_name = trim('3D fields for SOA condensation')
-    unit = 'kg/kg/s'
-    call addfld(fieldname, (/'lev'/), 'A', unit, long_name )
-    if ( history_aerosol ) then
-       call add_default( fieldname,  1, ' ' )
-    endif
-
-    do j = 1, nsoa_vbs
-       write (outsoa, "(I2.2)") j
-       fieldname = 'qcon_gaex'//outsoa
-       long_name = '3D fields for SOA condensation for VBS bin'//outsoa
-       call addfld(fieldname, (/'lev'/), 'A', unit, long_name )
-       if ( history_aerosol ) then
-          call add_default( fieldname,  1, ' ' )
-       endif
-       fieldname = 'qevap_gaex'//outsoa
-       long_name = '3D fields for SOA evaporation for VBS bin'//outsoa
-       call addfld(fieldname, (/'lev'/), 'A', unit, long_name )
-       if ( history_aerosol ) then
-          call add_default( fieldname,  1, ' ' )
-       endif
-    end do
-
-    fieldname=trim('qevap_gaex')
-    long_name = trim('3D fields for SOA evaporation')
-    call addfld(fieldname, (/'lev'/), 'A', unit, long_name )
-    if ( history_aerosol ) then
-       call add_default( fieldname,  1, ' ' )
-    endif
+    call soa_diag%init( soag_names, history_aerosol, add_default_species=.true. )
+    deallocate( soag_names )
 
 !------------------------------------------------------------------------------
 
@@ -370,7 +345,6 @@ subroutine carma_aero_gasaerexch_sub( &
   integer :: mm, m, n, nn
 
   character(len=fieldname_len+3) :: fieldname
-  character(len=2)               :: outsoa
 
   real (r8) :: dqdt_soa_vbs(nbins,nsoa_vbs)
   real (r8) :: dqdt_soa_all(pcols,pver,nbins,nsoa)
@@ -396,10 +370,8 @@ subroutine carma_aero_gasaerexch_sub( &
   real(r8) :: qsrflx(pcols,nbins,nsoa)
   ! process-specific column tracer tendencies
   ! (1=gas condensation)
-  real(r8) :: qcon_vbs(pcols,pver,nsoa_vbs)
-  real(r8) :: qevap_vbs(pcols,pver,nsoa_vbs)
-  real(r8) :: qcon(pcols,pver)
-  real(r8) :: qevap(pcols,pver)
+  real(r8), allocatable :: qcon(:,:,:), qevap(:,:,:)  ! soa condensation/evaporation diagnostics
+                                                      !    (pcols,pver,soa_diag%nfld())
   real(r8) :: total_soag
   real(r8) :: soag(nsoa_vbs)
 
@@ -484,10 +456,9 @@ subroutine carma_aero_gasaerexch_sub( &
   qsrflx(:,:,:) = 0.0_r8
 
 !-------Initialize evap/cond diagnostics (ncols x pver)-----------
-  qcon_vbs(:,:,:) = 0.0_r8
-  qevap_vbs(:,:,:) = 0.0_r8
-  qcon(:,:) = 0.0_r8
-  qevap(:,:) = 0.0_r8
+  allocate( qcon(pcols,pver,soa_diag%nfld()), qevap(pcols,pver,soa_diag%nfld()) )
+  qcon(:,:,:) = 0.0_r8
+  qevap(:,:,:) = 0.0_r8
 !---------------------------------------------------
 ! compute gas-to-aerosol mass transfer rates
 ! check if only number is needed for this calculatuion!
@@ -578,15 +549,9 @@ subroutine carma_aero_gasaerexch_sub( &
                  call endrun( 'carma_aero_gasaerexch_sub error' )
               end if
 
-!------- Add code for condensation/evaporation diagnostics sum of all bin---
+!------- condensation/evaporation diagnostics (kg/kg/s), summed over all bins ---
               do jsoa = 1, nsoa_vbs
-                 if (dqdt_soa_vbs(n,jsoa).ge.0.0_r8) then
-                    qcon_vbs(i,k,jsoa)=qcon_vbs(i,k,jsoa) + dqdt_soa_vbs(n,jsoa)*(mw_soa/mwdry)
-                    qcon(i,k)=qcon(i,k)+dqdt_soa_vbs(n,jsoa)*(mw_soa/mwdry)
-                 else if (dqdt_soa_vbs(n,jsoa).lt.0.0_r8) then
-                    qevap_vbs(i,k,jsoa)=qevap_vbs(i,k,jsoa) + dqdt_soa_vbs(n,jsoa)*(mw_soa/mwdry)
-                    qevap(i,k)=qevap(i,k)+dqdt_soa_vbs(n,jsoa)*(mw_soa/mwdry)
-                 endif
+                 call soa_diag%accum( i, k, jsoa, dqdt_soa_vbs(n,jsoa)*(mw_soa/mwdry), qcon, qevap )
               end do
 !---------------------------------------------------------------------------------------------------------------------
            end if
@@ -614,13 +579,8 @@ subroutine carma_aero_gasaerexch_sub( &
 
 
   !-----Outfld for condensation/evaporation------------------------------
-  call outfld(trim('qcon_gaex'), qcon(:,:), pcols, lchnk )
-  call outfld(trim('qevap_gaex'), qevap(:,:), pcols, lchnk )
-  do jsoa = 1, nsoa_vbs
-     write (outsoa, "(I2.2)") jsoa
-     call outfld(trim('qcon_gaex')//outsoa, qcon_vbs(:,:,jsoa), pcols, lchnk )
-     call outfld(trim('qevap_gaex')//outsoa, qevap_vbs(:,:,jsoa), pcols, lchnk )
-  end do
+  call soa_diag%write_fields( lchnk, qcon, qevap )
+  deallocate( qcon, qevap )
   !-----------------------------------------------------------------------
   !   do history file of column-tendency fields over SOA fields (as defined in CARMA) and set pointer
   do m = 1, nbins

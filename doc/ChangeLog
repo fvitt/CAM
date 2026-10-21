@@ -23,6 +23,28 @@ Answer changing mods:
   only (CARMATS, CARMAWM); MAM answers are unchanged (bit-for-bit).
   Found with AI assistance (Claude).
 
+History output changes (answers unchanged):
+
+ SOA condensation/evaporation diagnostics of gas-aerosol exchange are defined and written by
+ the new shared module soa_gaex_diag_mod.F90 (MAM and CARMA), replacing the hard-coded
+ nsoa == 5 / nsoa == 15 fields in modal_aero_gasaerexch.F90 and the fields in
+ carma_aero_gasaerexch.F90.  Fields (kg/kg/s):
+   qcon_gaex, qevap_gaex              total over all SOA gas species (all schemes)
+   qcon<grp>_gaex, qevap<grp>_gaex    per SOA class (ff, bb, bg), only when there is more than one
+                                      class; the class is taken from the SOAG species name
+   qcon_gaexNN, qevap_gaexNN          per SOA gas species
+  - MAM 15-species (*_vbsext) schemes: fix mislabeled class fields.  The SOAG species are in the
+    order SOAGbb0-4, SOAGbg0-4, SOAGff0-4, but species 1-5 were written as fossil (ff), 6-10 as
+    biomass (bb) and 11-15 as biogenic (bg), so qconff_gaex held biomass burning SOA,
+    qconbb_gaex biogenic SOA and qconbg_gaex fossil SOA (same for qevap*).  The totals
+    qcon_gaex/qevap_gaex are now written (previously defined but never written).
+  - MAM 5- and 1-species schemes: the qconff/qconbb/qconbg_gaex and qevapff/qevapbb/qevapbg_gaex
+    fields (always empty) are no longer defined.  For 1-species (MAM4) schemes qcon_gaex and
+    qevap_gaex are now written (previously defined but never written).
+  - MAM: new per-species fields qcon_gaexNN/qevap_gaexNN (not added to the default history).
+  - CARMA: same field names, defaults and values; long names of the per-species fields changed.
+  Implemented with AI assistance (Claude).
+
 ===============================================================
 
 Tag name: cam6_4_199
