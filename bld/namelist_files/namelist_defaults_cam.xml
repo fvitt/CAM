@@ -68,6 +68,7 @@
 <ncdata hgrid="10x15" nlev="32"                    >atm/cam/inic/fv/cami-mam4_0000-01-01_10x15_L32_c170914.nc</ncdata>
 <ncdata hgrid="10x15" nlev="32" aquaplanet="1"     >atm/cam/inic/fv/aqua_0000-01-01_10x15_L32_c170103.nc</ncdata>
 <ncdata hgrid="10x15" nlev="32" chem="trop_strat_mam5_t1s1">atm/cam/inic/fv/FC2000mam5_f10_0002-01-01_c221214.nc</ncdata>
+<ncdata hgrid="10x15" nlev="32" chem="trop_strat_mam5_vbsext">atm/cam/inic/fv/FC2000mam5_f10_0002-01-01_c221214.nc</ncdata>
 <ncdata hgrid="10x15" nlev="32" carma="trop_strat_soa5"   >atm/cam/inic/fv/carma_trop_strat_2000_10x15_spinup01.cam.i.0002-01-01-00000_c211027.nc</ncdata>
 <ncdata hgrid="10x15" nlev="32" carma="trop_strat_soa5" aquaplanet="1">atm/cam/inic/fv/aqua_carma_trop_strat_10x15_spinup01.cam.i.0002-01-01-00000_c211027.nc</ncdata>
 <ncdata hgrid="10x15" nlev="66"                    >atm/waccm/ic/cami_2000-01-01_10x15_L66_c041121.nc</ncdata>

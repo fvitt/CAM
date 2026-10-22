@@ -536,7 +536,7 @@ subroutine carma_aero_gasaerexch_sub(  state, &
                     qold_poa(n,j) = poa_c(i,k,n,j)
                  end do
               else
-                 qold_poa(n,j) = 0.0_r8
+                 qold_poa(n,:) = 0.0_r8
               end if
               do jsoa = 1, nsoa_vbs
                  ! 0.81 factor is for gas diffusivity (soa/h2so4)
@@ -653,7 +653,7 @@ subroutine carma_aero_gasaerexch_sub(  state, &
 
 !   compute TMR tendencies for SAOG gas
 !   due to simple gas uptake
-        do jsoa = 1, nsoa
+        do jsoa = 1, nsoa_vbs
            dqdt(i,k,l_soag(jsoa)) = -sum_dqdt_soa(jsoa)
         end do
 
