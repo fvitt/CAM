@@ -83,6 +83,7 @@ module aerosol_properties_mod
      procedure(aero_rebin_bulk_fluxes), deferred :: rebin_bulk_fluxes
      procedure(aero_hydrophilic), deferred :: hydrophilic
      procedure(aero_id_query), deferred :: model_is
+     procedure(aero_gas_uptkrate), deferred :: gas_uptkrate
 
      procedure :: final => aero_props_final
   end type aerosol_properties
@@ -369,6 +370,24 @@ module aerosol_properties_mod
        class(aerosol_properties), intent(in) :: self
        character(len=*),          intent(in) :: query
     end function aero_id_query
+
+     !------------------------------------------------------------------------------
+     ! returns gas-to-aerosol mass transfer rates (1/s) of H2SO4 gas to a given
+     ! aerosol bin (condensation sink), integrated over the bin size distribution
+     !------------------------------------------------------------------------------
+     subroutine aero_gas_uptkrate(self, bin_ndx, ncol, nlev, top_lev, numdens, wetdiam, temp, pmid, uptkrate)
+       import :: aerosol_properties, r8
+       class(aerosol_properties), intent(in) :: self
+       integer,  intent(in)  :: bin_ndx         ! bin number
+       integer,  intent(in)  :: ncol            ! number of columns
+       integer,  intent(in)  :: nlev            ! number of vertical levels
+       integer,  intent(in)  :: top_lev         ! top level index for computation
+       real(r8), intent(in)  :: numdens(:,:)    ! bin number density (#/m3)
+       real(r8), intent(in)  :: wetdiam(:,:)    ! bin wet diameter (m) -- geometric mean for modes
+       real(r8), intent(in)  :: temp(:,:)       ! temperature (K)
+       real(r8), intent(in)  :: pmid(:,:)       ! air pressure (Pa)
+       real(r8), intent(out) :: uptkrate(:,:)   ! gas-to-aerosol mass transfer rates (1/s)
+     end subroutine aero_gas_uptkrate
 
   end interface
 

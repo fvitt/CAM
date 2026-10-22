@@ -51,6 +51,7 @@ module modal_aerosol_properties_mod
      procedure :: rebin_bulk_fluxes
      procedure :: hydrophilic
      procedure :: model_is
+     procedure :: gas_uptkrate
 
      final :: destructor
   end type modal_aerosol_properties
@@ -957,5 +958,96 @@ contains
     end if
 
   end function model_is
+
+  !------------------------------------------------------------------------------
+  ! returns gas-to-aerosol mass transfer rates (1/s) of H2SO4 gas to a given mode
+  !
+  !                         /
+  !   computes   uptkrate = | dx  dN/dx  gas_conden_rate(Dp(x))
+  !                         /
+  !   using Gauss-Hermite quadrature of order nghq=2
+  !
+  !       Dp = particle diameter (m)
+  !       x = ln(Dp)
+  !       dN/dx = log-normal particle number density distribution
+  !       gas_conden_rate(Dp) = 2 * pi * gasdiffus * Dp * F(Kn,ac)
+  !           F(Kn,ac) = Fuchs-Sutugin correction factor
+  !           Kn = Knudsen number
+  !           ac = accomodation coefficient
+  !------------------------------------------------------------------------------
+  subroutine gas_uptkrate(self, bin_ndx, ncol, nlev, top_lev, numdens, wetdiam, temp, pmid, uptkrate)
+    class(modal_aerosol_properties), intent(in) :: self
+    integer,  intent(in)  :: bin_ndx         ! mode number
+    integer,  intent(in)  :: ncol            ! number of columns
+    integer,  intent(in)  :: nlev            ! number of vertical levels
+    integer,  intent(in)  :: top_lev         ! top level index for computation
+    real(r8), intent(in)  :: numdens(:,:)    ! mode number density (#/m3)
+    real(r8), intent(in)  :: wetdiam(:,:)    ! wet geometric mean diameter of number distribution (m)
+    real(r8), intent(in)  :: temp(:,:)       ! temperature (K)
+    real(r8), intent(in)  :: pmid(:,:)       ! air pressure (Pa)
+    real(r8), intent(out) :: uptkrate(:,:)   ! gas-to-aerosol mass transfer rates (1/s)
+
+    integer, parameter :: nghq = 2
+
+    ! Can use sqrt here once Lahey is gone.
+    real(r8), parameter :: tworootpi = 3.5449077_r8
+    real(r8), parameter :: root2 = 1.4142135_r8
+    real(r8), parameter :: beta = 2.0_r8
+
+    ! quadrature abscissae and weights
+    real(r8), parameter :: xghq(nghq) = (/ 0.70710678_r8, -0.70710678_r8 /)
+    real(r8), parameter :: wghq(nghq) = (/ 0.88622693_r8,  0.88622693_r8 /)
+
+    integer :: i, iq, k
+
+    real(r8) :: const
+    real(r8) :: dp
+    real(r8) :: gasdiffus, gasspeed
+    real(r8) :: freepathx2, fuchs_sutugin
+    real(r8) :: knudsen
+    real(r8) :: lndp, lndpgn, lnsg
+    real(r8) :: sumghq
+
+    uptkrate(:,:) = 0.0_r8
+
+    lnsg = self%alogsig(bin_ndx)
+
+    do k = top_lev, nlev
+       do i = 1, ncol
+
+          !   gasdiffus = h2so4 gas diffusivity from mosaic code (m^2/s)
+          !               (pmid must be Pa)
+          gasdiffus = 0.557e-4_r8 * (temp(i,k)**1.75_r8) / pmid(i,k)
+          !   gasspeed = h2so4 gas mean molecular speed from mosaic code (m/s)
+          gasspeed  = 1.470e1_r8 * sqrt(temp(i,k))
+          !   freepathx2 = 2 * (h2so4 mean free path)  (m)
+          freepathx2 = 6.0_r8*gasdiffus/gasspeed
+
+          lndpgn = log( wetdiam(i,k) )   ! (m)
+          const  = tworootpi * numdens(i,k) * exp(beta*lndpgn + 0.5_r8*(beta*lnsg)**2)
+
+          !   sum over gauss-hermite quadrature points
+          sumghq = 0.0_r8
+          do iq = 1, nghq
+             lndp = lndpgn + beta*lnsg**2 + root2*lnsg*xghq(iq)
+             dp = exp(lndp)
+
+             !   knudsen number
+             knudsen = freepathx2/dp
+             !  Changed by Manish Shrivastava on 7/17/2013 to use accom=1; because we do not know better
+             !   following assumes accomodation coefficient = ac = 1. instead 0.65 ! answer change needs to be tested
+             !   (Adams & Seinfeld, 2002, JGR, and references therein)
+             !           fuchs_sutugin = (0.75*ac*(1. + knudsen)) /
+             !                           (knudsen*(1.0 + knudsen + 0.283*ac) + 0.75*ac)
+             fuchs_sutugin = (0.4875_r8*(1._r8 + knudsen)) /   &
+                             (knudsen*(1.184_r8 + knudsen) + 0.4875_r8)
+             sumghq = sumghq + wghq(iq)*dp*fuchs_sutugin/(dp**beta)
+          end do
+          uptkrate(i,k) = const * gasdiffus * sumghq
+
+       end do
+    end do
+
+  end subroutine gas_uptkrate
 
 end module modal_aerosol_properties_mod

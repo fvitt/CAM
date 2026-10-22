@@ -1220,6 +1220,7 @@ contains
     endif
 
     call modal_aero_gasaerexch_sub(            &
+         aero_props,                           &
          lchnk,    ncol,     nstep,            &
          loffset,            delt,             &
          tfld,     pmid,     pdel,             &

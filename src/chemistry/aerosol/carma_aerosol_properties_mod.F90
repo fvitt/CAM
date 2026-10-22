@@ -39,6 +39,7 @@ module carma_aerosol_properties_mod
      procedure :: rebin_bulk_fluxes
      procedure :: hydrophilic
      procedure :: model_is
+     procedure :: gas_uptkrate
 
      final :: destructor
   end type carma_aerosol_properties
@@ -782,5 +783,66 @@ contains
     end if
 
   end function model_is
+
+  !------------------------------------------------------------------------------
+  ! returns gas-to-aerosol mass transfer rates (1/s) of H2SO4 gas to a given bin
+  !
+  !   computes   uptkrate = N * gas_conden_rate(Dp)
+  !   treating the bin as monodisperse
+  !
+  !       Dp = particle wet diameter (m)
+  !       N = bin number density (#/m3)
+  !       gas_conden_rate(Dp) = 2 * pi * gasdiffus * Dp * F(Kn,ac)
+  !           F(Kn,ac) = Fuchs-Sutugin correction factor
+  !           Kn = Knudsen number
+  !           ac = accomodation coefficient
+  !------------------------------------------------------------------------------
+  subroutine gas_uptkrate(self, bin_ndx, ncol, nlev, top_lev, numdens, wetdiam, temp, pmid, uptkrate)
+    class(carma_aerosol_properties), intent(in) :: self
+    integer,  intent(in)  :: bin_ndx         ! bin number
+    integer,  intent(in)  :: ncol            ! number of columns
+    integer,  intent(in)  :: nlev            ! number of vertical levels
+    integer,  intent(in)  :: top_lev         ! top level index for computation
+    real(r8), intent(in)  :: numdens(:,:)    ! bin number density (#/m3)
+    real(r8), intent(in)  :: wetdiam(:,:)    ! bin wet diameter (m)
+    real(r8), intent(in)  :: temp(:,:)       ! temperature (K)
+    real(r8), intent(in)  :: pmid(:,:)       ! air pressure (Pa)
+    real(r8), intent(out) :: uptkrate(:,:)   ! gas-to-aerosol mass transfer rates (1/s)
+
+    integer :: i, k
+
+    real(r8) :: const
+    real(r8) :: dp
+    real(r8) :: gasdiffus, gasspeed
+    real(r8) :: freepathx2, fuchs_sutugin
+    real(r8) :: knudsen
+
+    uptkrate(:,:) = 0.0_r8
+
+    do k = top_lev, nlev
+       do i = 1, ncol
+          if (wetdiam(i,k) > 0.0_r8) then
+
+             !   gasdiffus = h2so4 gas diffusivity from mosaic code (m^2/s)
+             !               (pmid must be Pa)
+             gasdiffus = 0.557e-4_r8 * (temp(i,k)**1.75_r8) / pmid(i,k)
+             !   gasspeed = h2so4 gas mean molecular speed from mosaic code (m/s)
+             gasspeed  = 1.470e1_r8 * sqrt(temp(i,k))
+             !   freepathx2 = 2 * (h2so4 mean free path)  (m)
+             freepathx2 = 6.0_r8*gasdiffus/gasspeed
+             dp = wetdiam(i,k)
+             const = 2.0_r8 * pi * numdens(i,k) * dp
+             ! gas_conden_rate(Dp) = const *  gasdiffus *  F(Kn,ac)
+             !   knudsen number
+             knudsen = freepathx2/dp
+             fuchs_sutugin = (0.4875_r8*(1._r8 + knudsen)) /   &
+                  (knudsen*(1.184_r8 + knudsen) + 0.4875_r8)
+             uptkrate(i,k) = const * gasdiffus * fuchs_sutugin
+
+          end if
+       end do
+    end do
+
+  end subroutine gas_uptkrate
 
 end module carma_aerosol_properties_mod

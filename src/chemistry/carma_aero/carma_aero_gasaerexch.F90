@@ -381,6 +381,7 @@ subroutine carma_aero_gasaerexch_sub(  state, &
   real (r8) :: sum_dqdt_soa(nsoa_vbs)     !   sum_dqdt_soa = soa tendency from soa  gas uptake (mol/mol/s)
   real (r8) :: sum_uprt_soa(nsoa_vbs)     ! total soa uptake rate over all bin, for each soa vbs bin
   real (r8) :: uptkrate(pcols,pver,nbins)
+  real (r8) :: wetdiam(pcols,pver)       ! wet diameter of a bin (m)
   real (r8) :: uptkrate_all(pcols,pver)
   real (r8) :: uptkratebb(nbins)
   real (r8) :: uptkrate_soa(nbins,nsoa_vbs)
@@ -500,9 +501,11 @@ subroutine carma_aero_gasaerexch_sub(  state, &
 !---------------------------------------------------
 ! compute gas-to-aerosol mass transfer rates
 ! check if only number is needed for this calculatuion!
-  call gas_aer_uptkrates( ncol,       loffset,                &
-                          num_bin,          t,          pmid,       &
-                          wetr_n,                   uptkrate    )
+  do m = 1, nbins
+     wetdiam(:ncol,:) = 2.0_r8 * wetr_n(:ncol,:,m) * 1.e-2_r8 ! wet diameter (m)
+     call aero_props%gas_uptkrate( m, ncol, pver, top_lev, num_bin(:,:,m), wetdiam, &
+                                   t, pmid, uptkrate(:,:,m) )
+  end do
 
   ! initialize to zero before summing
   uptkrate_all(:,:) = 0._r8
@@ -712,84 +715,6 @@ subroutine carma_aero_gasaerexch_sub(  state, &
   nullify(aero_state)
 
 end subroutine carma_aero_gasaerexch_sub
-
-
-!----------------------------------------------------------------------
-!----------------------------------------------------------------------
-subroutine gas_aer_uptkrates( ncol,       loffset,                &
-                              num_bin,          t,          pmid,       &
-                              wetr,                     uptkrate    )
-
-!
-!   computes   uptkrate = N * gas_conden_rate(Dp)
-!   for each bin, treating the bin as monodisperse
-!
-!       Dp = particle wet diameter (m) = 2 * wet radius
-!       N = bin number density (#/m3)
-!       gas_conden_rate(Dp) = 2 * pi * gasdiffus * Dp * F(Kn,ac)
-!           F(Kn,ac) = Fuchs-Sutugin correction factor
-!           Kn = Knudsen number
-!           ac = accomodation coefficient
-!
-  use physconst, only: pi
-
-  integer,  intent(in) :: ncol                 ! number of atmospheric column
-  integer,  intent(in) :: loffset
-  real(r8), intent(in) :: t(pcols,pver)        ! Temperature in Kelvin
-  real(r8), intent(in) :: pmid(pcols,pver)     ! Air pressure in Pa
-  real(r8), intent(in) :: wetr(pcols,pver,nbins)    ! wet radius (cm)
-  real(r8), intent(in) :: num_bin(pcols,pver,nbins) ! number density (#/m3)
-
-  real(r8), intent(out) :: uptkrate(pcols,pver,nbins)
-  ! gas-to-aerosol mass transfer rates (1/s)
-
-
-! local
-  integer :: i, k, n
-
-  real(r8) :: const
-  real(r8) :: dp
-  real(r8) :: gasdiffus, gasspeed
-  real(r8) :: freepathx2, fuchs_sutugin
-  real(r8) :: knudsen
-
-  ! initialize to zero
-  uptkrate(:,:,:) = 0.0_r8
-
-! outermost loop over all bins
-  do n = 1, nbins
-
-! loops k and i
-     do k=top_lev,pver
-        do i=1,ncol
-           if (wetr(i,k,n) .gt. 0.0_r8) then
-
-!   gasdiffus = h2so4 gas diffusivity from mosaic code (m^2/s)
-!               (pmid must be Pa)
-              gasdiffus = 0.557e-4_r8 * (t(i,k)**1.75_r8) / pmid(i,k)
-!   gasspeed = h2so4 gas mean molecular speed from mosaic code (m/s)
-              gasspeed  = 1.470e1_r8 * sqrt(t(i,k))
-!   freepathx2 = 2 * (h2so4 mean free path)  (m)
-              freepathx2 = 6.0_r8*gasdiffus/gasspeed
-              dp = 2.0_r8 * wetr(i,k,n) * 1.e-2_r8 ! wet diameter (m)
-              const = 2.0_r8 * pi * num_bin(i,k,n) * dp
-              ! gas_conden_rate(Dp) = const *  gasdiffus *  F(Kn,ac)
-              !   knudsen number
-              knudsen = freepathx2/dp
-              fuchs_sutugin = (0.4875_r8*(1._r8 + knudsen)) /   &
-                   (knudsen*(1.184_r8 + knudsen) + 0.4875_r8)
-              uptkrate(i,k,n) = const * gasdiffus * fuchs_sutugin
-
-           else
-              uptkrate(i,k,n) = 0.0_r8
-           end if
-
-        end do   ! "do i = 1, ncol"
-     end do   ! "do k = 1, pver"
-
-  end do   ! "do n = 1, nbins"
-
-end subroutine gas_aer_uptkrates
 
 !----------------------------------------------------------------------
 

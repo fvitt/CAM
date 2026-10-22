@@ -16,7 +16,7 @@
   use modal_aero_data, only:  nspec_max, nsoa, npoa, soa_multi_species
   use ref_pres,        only:  top_lev => clim_modal_aero_top_lev
   use ppgrid,          only:  pcols, pver
-  use modal_aero_data, only:  ntot_amode, numptr_amode, sigmag_amode
+  use modal_aero_data, only:  ntot_amode, numptr_amode
   use modal_aero_data, only: lptr2_soa_g_amode, lptr2_soa_a_amode, lptr2_pom_a_amode
 
   implicit none
@@ -84,6 +84,7 @@
 !
 ! !INTERFACE:
 subroutine modal_aero_gasaerexch_sub(                            &
+                        aero_props,                              &
                         lchnk,    ncol,     nstep,               &
                         loffset,  deltat,                        &
                         t,        pmid,     pdel,                &
@@ -110,10 +111,12 @@ use physconst,         only:  gravit, mwdry, rair
 use cam_abortutils,    only:  endrun
 use spmd_utils,        only:  iam, masterproc
 use phys_control,      only:  cam_chempkg_is
+use aerosol_properties_mod, only: aerosol_properties
 
 implicit none
 
 ! !PARAMETERS:
+   class(aerosol_properties), intent(in) :: aero_props ! aerosol properties object
    integer,  intent(in)    :: lchnk                ! chunk identifier
    integer,  intent(in)    :: ncol                 ! number of atmospheric column
    integer,  intent(in)    :: nstep                ! model time-step number
@@ -216,6 +219,9 @@ implicit none
    real (r8) :: tmp_so4a_bgn, tmp_so4a_end
    real (r8) :: tmp_so4g_avg, tmp_so4g_bgn, tmp_so4g_equ
    real (r8) :: uptkrate(ntot_amode,pcols,pver)
+   real (r8) :: uptkrate_bin(pcols,pver) ! gas-to-aerosol mass transfer rates for one mode (1/s)
+   real (r8) :: numdens(pcols,pver)      ! mode number density (#/m3)
+   real (r8) :: rhoair, aircon
    real (r8) :: uptkratebb(ntot_amode)
    real (r8) :: uptkrate_soa(ntot_amode,nsoa)
                 ! gas-to-aerosol mass transfer rates (1/s)
@@ -388,9 +394,21 @@ implicit none
 !---------------------------------------------------
 
 ! compute gas-to-aerosol mass transfer rates
-   call gas_aer_uptkrates( ncol,       loffset,                &
-                           q,          t,          pmid,       &
-                           dgncur_awet,            uptkrate    )
+   do n = 1, ntot_amode
+      numdens(:,:) = 0.0_r8
+      do k = top_lev, pver
+         do i = 1, ncol
+            rhoair = pmid(i,k)/(rair*t(i,k))   ! (kg-air/m3)
+!   number conc. (#/m3) -- note q(i,k,numptr) is (#/kmol-air)
+!   so need aircon in (kmol-air/m3)
+            aircon = rhoair/mwdry              ! (kmol-air/m3)
+            numdens(i,k) = q(i,k,numptr_amode(n)-loffset)*aircon
+         end do
+      end do
+      call aero_props%gas_uptkrate( n, ncol, pver, top_lev, numdens, dgncur_awet(:,:,n), &
+                                    t, pmid, uptkrate_bin )
+      uptkrate(n,:,:) = uptkrate_bin(:,:)
+   end do
 
 
 ! use this for tendency calcs to avoid generating very small negative values
@@ -951,144 +969,6 @@ implicit none
 
    return
    end subroutine modal_aero_gasaerexch_sub
-
-
-!----------------------------------------------------------------------
-!----------------------------------------------------------------------
-subroutine gas_aer_uptkrates( ncol,       loffset,                &
-                              q,          t,          pmid,       &
-                              dgncur_awet,            uptkrate    )
-
-!
-!                         /
-!   computes   uptkrate = | dx  dN/dx  gas_conden_rate(Dp(x))
-!                         /
-!   using Gauss-Hermite quadrature of order nghq=2
-!
-!       Dp = particle diameter (cm)
-!       x = ln(Dp)
-!       dN/dx = log-normal particle number density distribution
-!       gas_conden_rate(Dp) = 2 * pi * gasdiffus * Dp * F(Kn,ac)
-!           F(Kn,ac) = Fuchs-Sutugin correction factor
-!           Kn = Knudsen number
-!           ac = accomodation coefficient
-!
-
-use physconst, only: mwdry, rair
-
-implicit none
-
-
-   integer,  intent(in) :: ncol                 ! number of atmospheric column
-   integer,  intent(in) :: loffset
-   real(r8), intent(in) :: q(ncol,pver,pcnstxx) ! Tracer array (mol,#/mol-air)
-   real(r8), intent(in) :: t(pcols,pver)        ! Temperature in Kelvin
-   real(r8), intent(in) :: pmid(pcols,pver)     ! Air pressure in Pa
-   real(r8), intent(in) :: dgncur_awet(pcols,pver,ntot_amode)
-
-   real(r8), intent(out) :: uptkrate(ntot_amode,pcols,pver)
-                            ! gas-to-aerosol mass transfer rates (1/s)
-
-
-! local
-   integer, parameter :: nghq = 2
-   integer :: i, iq, k, l1, l2, la, n
-
-   ! Can use sqrt here once Lahey is gone.
-   real(r8), parameter :: tworootpi = 3.5449077_r8
-   real(r8), parameter :: root2 = 1.4142135_r8
-   real(r8), parameter :: beta = 2.0_r8
-
-   real(r8) :: aircon
-   real(r8) :: const
-   real(r8) :: dp, dum_m2v
-   real(r8) :: dryvol_a(pcols,pver)
-   real(r8) :: gasdiffus, gasspeed
-   real(r8) :: freepathx2, fuchs_sutugin
-   real(r8) :: knudsen
-   real(r8) :: lndp, lndpgn, lnsg
-   real(r8) :: num_a
-   real(r8) :: rhoair
-   real(r8) :: sumghq
-   real(r8), save :: xghq(nghq), wghq(nghq) ! quadrature abscissae and weights
-
-   data xghq / 0.70710678_r8, -0.70710678_r8 /
-   data wghq / 0.88622693_r8,  0.88622693_r8 /
-
-
-! outermost loop over all modes
-   do n = 1, ntot_amode
-
-! 22-aug-2007 rc easter - get number from q array rather
-!    than computing a "bounded" number conc.
-!! compute dry volume = sum_over_components{ component_mass / density }
-!!    (m3-AP/mol-air)
-!! compute it for all i,k to improve accessing q array
-!      dryvol_a(1:ncol,:) = 0.0_r8
-!      do l1 = 1, nspec_amode(n)
-!         l2 = lspectype_amode(l1,n)
-!! dum_m2v converts (kmol-AP/kmol-air) to (m3-AP/kmol-air)
-!! [m3-AP/kmol-AP]= [kg-AP/kmol-AP]  / [kg-AP/m3-AP]
-!         dum_m2v = specmw_amode(l2) / specdens_amode(l2)
-!         la = lmassptr_amode(l1,n)
-!         dryvol_a(1:ncol,:) = dryvol_a(1:ncol,:)    &
-!                            + max(0.0_r8,q(1:ncol,:,la))*dum_m2v
-!      end do
-
-! loops k and i
-      do k=top_lev,pver
-      do i=1,ncol
-
-         rhoair = pmid(i,k)/(rair*t(i,k))   ! (kg-air/m3)
-!        aircon = 1.0e3*rhoair/mwdry        ! (mol-air/m3)
-
-!!   "bounded" number conc. (#/m3)
-!        num_a = dryvol_a(i,k)*v2ncur_a(i,k,n)*aircon
-
-!   number conc. (#/m3) -- note q(i,k,numptr) is (#/kmol-air)
-!   so need aircon in (kmol-air/m3)
-         aircon = rhoair/mwdry              ! (kmol-air/m3)
-         num_a = q(i,k,numptr_amode(n)-loffset)*aircon
-
-!   gasdiffus = h2so4 gas diffusivity from mosaic code (m^2/s)
-!               (pmid must be Pa)
-         gasdiffus = 0.557e-4_r8 * (t(i,k)**1.75_r8) / pmid(i,k)
-!   gasspeed = h2so4 gas mean molecular speed from mosaic code (m/s)
-         gasspeed  = 1.470e1_r8 * sqrt(t(i,k))
-!   freepathx2 = 2 * (h2so4 mean free path)  (m)
-         freepathx2 = 6.0_r8*gasdiffus/gasspeed
-
-         lnsg   = log( sigmag_amode(n) )
-         lndpgn = log( dgncur_awet(i,k,n) )   ! (m)
-         const  = tworootpi * num_a * exp(beta*lndpgn + 0.5_r8*(beta*lnsg)**2)
-
-!   sum over gauss-hermite quadrature points
-         sumghq = 0.0_r8
-         do iq = 1, nghq
-            lndp = lndpgn + beta*lnsg**2 + root2*lnsg*xghq(iq)
-            dp = exp(lndp)
-
-!   knudsen number
-            knudsen = freepathx2/dp
-!  Changed by Manish Shrivastava on 7/17/2013 to use accom=1; because we do not know better
-!   following assumes accomodation coefficient = ac = 1. instead 0.65 ! answer change needs to be tested
-!   (Adams & Seinfeld, 2002, JGR, and references therein)
-!           fuchs_sutugin = (0.75*ac*(1. + knudsen)) /
-!                           (knudsen*(1.0 + knudsen + 0.283*ac) + 0.75*ac)
-            fuchs_sutugin = (0.4875_r8*(1._r8 + knudsen)) /   &
-                            (knudsen*(1.184_r8 + knudsen) + 0.4875_r8)
-            sumghq = sumghq + wghq(iq)*dp*fuchs_sutugin/(dp**beta)
-         end do
-         uptkrate(n,i,k) = const * gasdiffus * sumghq
-
-      end do   ! "do i = 1, ncol"
-      end do   ! "do k = 1, pver"
-
-   end do   ! "do n = 1, ntot_soamode"
-
-
-   return
-   end subroutine gas_aer_uptkrates
 
 
 !----------------------------------------------------------------------

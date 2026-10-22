@@ -46,6 +46,7 @@ module bulk_aerosol_properties_mod
      procedure :: rebin_bulk_fluxes
      procedure :: hydrophilic
      procedure :: model_is
+     procedure :: gas_uptkrate
 
      final :: destructor
 
@@ -544,5 +545,25 @@ contains
     end if
 
   end function model_is
+
+  !------------------------------------------------------------------------------
+  ! returns gas-to-aerosol mass transfer rates (1/s) -- not used for bulk aerosols
+  !------------------------------------------------------------------------------
+  subroutine gas_uptkrate(self, bin_ndx, ncol, nlev, top_lev, numdens, wetdiam, temp, pmid, uptkrate)
+    class(bulk_aerosol_properties), intent(in) :: self
+    integer,  intent(in)  :: bin_ndx         ! bin number
+    integer,  intent(in)  :: ncol            ! number of columns
+    integer,  intent(in)  :: nlev            ! number of vertical levels
+    integer,  intent(in)  :: top_lev         ! top level index for computation
+    real(r8), intent(in)  :: numdens(:,:)    ! bin number density (#/m3)
+    real(r8), intent(in)  :: wetdiam(:,:)    ! bin wet diameter (m)
+    real(r8), intent(in)  :: temp(:,:)       ! temperature (K)
+    real(r8), intent(in)  :: pmid(:,:)       ! air pressure (Pa)
+    real(r8), intent(out) :: uptkrate(:,:)   ! gas-to-aerosol mass transfer rates (1/s)
+
+    uptkrate(:,:) = 0.0_r8
+    call endrun('ERROR: bulk_aerosol_properties_mod%gas_uptkrate not yet implemented')
+
+  end subroutine gas_uptkrate
 
 end module bulk_aerosol_properties_mod
