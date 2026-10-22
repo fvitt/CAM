@@ -284,7 +284,7 @@ contains
     call modal_aero_rename_init( modal_accum_coarse_exch )
     !   calcsize call must follow rename call
     call modal_aero_calcsize_init( pbuf2d )
-    call modal_aero_gasaerexch_init
+    call modal_aero_gasaerexch_init(aero_props)
     !   coag call must follow gasaerexch call
     call modal_aero_coag_init
     call modal_aero_newnuc_init

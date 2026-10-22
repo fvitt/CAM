@@ -17,7 +17,7 @@
   use ref_pres,        only:  top_lev => clim_modal_aero_top_lev
   use ppgrid,          only:  pcols, pver
   use modal_aero_data, only:  ntot_amode, numptr_amode
-  use modal_aero_data, only: lptr2_soa_g_amode, lptr2_soa_a_amode, lptr2_pom_a_amode
+  use modal_aero_data, only: lptr2_soa_g_amode
 
   implicit none
   private
@@ -58,6 +58,16 @@
 
   real (r8), allocatable :: fac_m2v_pcarbon(:)
 
+! constituent indices of interstitial aerosol species in each mode
+! (set from the aerosol properties object; <= 0 if species is absent)
+  integer, allocatable :: so4_a_ndx(:)      ! sulfate
+  integer, allocatable :: nh4_a_ndx(:)      ! ammonium
+  integer, allocatable :: soa_a_ndx(:,:)    ! secondary organic aerosol species
+  integer, allocatable :: pom_a_ndx(:,:)    ! primary organic matter species
+
+  real(r8), allocatable :: mw_soa_host(:)   ! molec wght of soa used in host code
+  real(r8), allocatable :: mw_poa_host(:)   ! molec wght of poa used in host code
+
 ! !DESCRIPTION: This module implements ...
 !
 ! !REVISION HISTORY:
@@ -96,11 +106,9 @@ subroutine modal_aero_gasaerexch_sub(                            &
 
 ! !USES:
 use modal_aero_data,   only:  alnsg_amode,lmassptr_amode,cnst_name_cw
-use modal_aero_data,   only:  lptr_so4_a_amode,lptr_nh4_a_amode
-use modal_aero_data,   only:  modeptr_pcarbon,nspec_amode,specmw_amode,specdens_amode
+use modal_aero_data,   only:  modeptr_pcarbon,nspec_amode
 use modal_aero_rename, only:  modal_aero_rename_sub
 use aero_soaexch_mod,  only:  aero_soaexch
-use radiative_aerosol,  only: rad_aer_get_info
 use constituents,      only: pcnst, cnst_mw
 
 use cam_history,       only:  outfld, fieldname_len
@@ -190,7 +198,6 @@ implicit none
 
    character(len=fieldname_len+3) :: fieldname
    character(len=100) :: msg ! string for endrun calls
-   character(len=32) :: spec_type
 
    real (r8) :: avg_uprt_nh4, avg_uprt_so4, avg_uprt_soa(nsoa)
    real (r8) :: deltatxx
@@ -201,8 +208,6 @@ implicit none
    real (r8) :: fgain_nh4(ntot_amode), fgain_so4(ntot_amode)
    real (r8) :: fgain_soa(ntot_amode,nsoa)
    real (r8) :: g0_soa(nsoa)
-   real(r8)  :: mw_poa_host(npoa)          ! molec wght of poa used in host code
-   real(r8)  :: mw_soa_host(nsoa)          ! molec wght of poa used in host code
    real (r8) :: pdel_fac
    real (r8) :: qmax_nh4, qnew_nh4, qnew_so4
    real (r8) :: qold_nh4(ntot_amode), qold_so4(ntot_amode)
@@ -321,12 +326,12 @@ implicit none
 
    ntot_soamode = 0
    do n = 1, ntot_amode
-      l = lptr_so4_a_amode(n)-loffset
+      l = so4_a_ndx(n)-loffset
       if ((l > 0) .and. (l <= pcnstxx)) then
          dotend(l) = .true.
          ido_so4a(n) = 1
          if ( do_nh4g ) then
-            l = lptr_nh4_a_amode(n)-loffset
+            l = nh4_a_ndx(n)-loffset
             if ((l > 0) .and. (l <= pcnstxx)) then
                dotend(l) = .true.
                ido_nh4a(n) = 1
@@ -336,7 +341,7 @@ implicit none
 
       do jsoa = 1, nsoa
          if ( do_soag(jsoa) ) then
-            l = lptr2_soa_a_amode(n,jsoa)-loffset
+            l = soa_a_ndx(n,jsoa)-loffset
             if ((l > 0) .and. (l <= pcnstxx)) then
                dotend(l) = .true.
                ido_soaa(n,jsoa) = 1
@@ -430,7 +435,7 @@ implicit none
                fgain_so4(n) = uptkratebb(n)
                sum_uprt_so4 = sum_uprt_so4 + fgain_so4(n)
                if (ido_so4a(n) == 1) then
-                  qold_so4(n) = q(i,k,lptr_so4_a_amode(n)-loffset)
+                  qold_so4(n) = q(i,k,so4_a_ndx(n)-loffset)
                else
                   qold_so4(n) = 0.0_r8
                end if
@@ -445,7 +450,7 @@ implicit none
                fgain_nh4(n) = uptkratebb(n)*2.08_r8
                sum_uprt_nh4 = sum_uprt_nh4 + fgain_nh4(n)
                if (ido_nh4a(n) == 1) then
-                  qold_nh4(n) = q(i,k,lptr_nh4_a_amode(n)-loffset)
+                  qold_nh4(n) = q(i,k,nh4_a_ndx(n)-loffset)
                else
                   qold_nh4(n) = 0.0_r8
                end if
@@ -455,7 +460,7 @@ implicit none
             end if
 
             do j = 1, npoa
-               l = lptr2_pom_a_amode(n,j)-loffset
+               l = pom_a_ndx(n,j)-loffset
                if (l > 0) then
                   qold_poa(n,j) = q(i,k,l)
                else
@@ -471,7 +476,7 @@ implicit none
                   fgain_soa(n,jsoa) = uptkratebb(n)*0.81_r8
                   sum_uprt_soa(jsoa) = sum_uprt_soa(jsoa) + fgain_soa(n,jsoa)
                   if (ido_soaa(n,jsoa) == 1) then
-                     l = lptr2_soa_a_amode(n,jsoa)-loffset
+                     l = soa_a_ndx(n,jsoa)-loffset
                      qold_soa(n,jsoa) = q(i,k,l)
                      itmpa = itmpa + 1
                   else
@@ -569,7 +574,7 @@ implicit none
                if (ido_so4a(n) <= 0) cycle
                ! calc change to so4(a) in mode n
                if (ido_so4a(n) == 1) then
-                  l = lptr_so4_a_amode(n)-loffset
+                  l = so4_a_ndx(n)-loffset
                   tmp_so4a_bgn = q(i,k,l)
                else
                   tmp_so4a_bgn = 0.0_r8
@@ -619,19 +624,6 @@ implicit none
                qold_soag(jsoa) = q(i,k,l_soag(jsoa))
             end do
 
-            ! get molecular weight from the host model
-            do n = 1, ntot_amode
-              do l = 1, nspec_amode(n)
-                  call rad_aer_get_info(0, n, l, spec_type=spec_type )
-                  select case( spec_type )
-                   case('s-organic')
-                     mw_soa_host(:) = specmw_amode(l,n)
-                   case('p-organic')
-                     mw_poa_host(:) = specmw_amode(l,n)
-                   end select
-               end do
-            end do
-
             call aero_soaexch( deltat, t(i,k), pmid(i,k), &
                  niter, niter_max, ntot_amode, do_soamode, npoa, nsoa, &
                  mw_poa_host, mw_soa_host, &
@@ -655,14 +647,14 @@ implicit none
          pdel_fac = pdel(i,k)/gravit
          do n = 1, ntot_amode
             if (ido_so4a(n) == 1) then
-               l = lptr_so4_a_amode(n)-loffset
+               l = so4_a_ndx(n)-loffset
                dqdt(i,k,l) = dqdt_so4(n)
                qsrflx(i,l,jsrf) = qsrflx(i,l,jsrf) + dqdt_so4(n)*pdel_fac
             end if
 
             if ( do_nh4g ) then
                if (ido_nh4a(n) == 1) then
-                  l = lptr_nh4_a_amode(n)-loffset
+                  l = nh4_a_ndx(n)-loffset
                   dqdt(i,k,l) = dqdt_nh4(n)
                   qsrflx(i,l,jsrf) = qsrflx(i,l,jsrf) + dqdt_nh4(n)*pdel_fac
                end if
@@ -671,7 +663,7 @@ implicit none
             do jsoa = 1, nsoa
                if ( do_soag(jsoa) ) then
                   if (ido_soaa(n,jsoa) == 1) then
-                     l = lptr2_soa_a_amode(n,jsoa)-loffset
+                     l = soa_a_ndx(n,jsoa)-loffset
                      dqdt(i,k,l) = dqdt_soa(n,jsoa) !calculated by  aero_soaexch for method_soa=2
                      qsrflx(i,l,jsrf) = qsrflx(i,l,jsrf) + dqdt_soa(n,jsoa)*pdel_fac
 !------- Add code for condensation/evaporation diagnostics---
@@ -786,20 +778,20 @@ implicit none
                end do
 
                if (ido_so4a(modetoo_pcage) > 0) then
-                  l = lptr_so4_a_amode(modetoo_pcage)-loffset
+                  l = so4_a_ndx(modetoo_pcage)-loffset
                   dqdt(i,k,l) = dqdt(i,k,l) + dqdt_so4(modefrm_pcage)
                   qsrflx(i,l,jsrf) = qsrflx(i,l,jsrf) + dqdt_so4(modefrm_pcage)*pdel_fac
                end if
 
                if (ido_nh4a(modetoo_pcage) > 0) then
-                  l = lptr_nh4_a_amode(modetoo_pcage)-loffset
+                  l = nh4_a_ndx(modetoo_pcage)-loffset
                   dqdt(i,k,l) = dqdt(i,k,l) + dqdt_nh4(modefrm_pcage)
                   qsrflx(i,l,jsrf) = qsrflx(i,l,jsrf) + dqdt_nh4(modefrm_pcage)*pdel_fac
                end if
 
                do jsoa = 1, nsoa
                   if (ido_soaa(modetoo_pcage,jsoa) > 0) then
-                     l = lptr2_soa_a_amode(modetoo_pcage,jsoa)-loffset
+                     l = soa_a_ndx(modetoo_pcage,jsoa)-loffset
                      dqdt(i,k,l) = dqdt(i,k,l) + dqdt_soa(modefrm_pcage,jsoa)
                      qsrflx(i,l,jsrf) = qsrflx(i,l,jsrf) + dqdt_soa(modefrm_pcage,jsoa)*pdel_fac
                   end if
@@ -973,7 +965,7 @@ implicit none
 
 !----------------------------------------------------------------------
 
-      subroutine modal_aero_gasaerexch_init
+      subroutine modal_aero_gasaerexch_init(aero_props)
 
 !-----------------------------------------------------------------------
 !
@@ -994,11 +986,13 @@ use cam_history,    only: addfld, add_default, fieldname_len, horiz_only
 use constituents,   only: pcnst, cnst_get_ind, cnst_name
 use spmd_utils,     only: masterproc
 use phys_control,   only: phys_getopts
+use aerosol_properties_mod, only: aerosol_properties
 
 implicit none
 
 !-----------------------------------------------------------------------
 ! arguments
+   class(aerosol_properties), intent(in) :: aero_props ! aerosol properties object
 
 !-----------------------------------------------------------------------
 ! local
@@ -1034,6 +1028,8 @@ implicit none
         allocate(soa_equivso4_factor(nsoa))
         allocate(fac_m2v_soa(nsoa))
         allocate(fac_m2v_pcarbon(nspec_max))
+
+        call set_species_ndx(aero_props)
 	lunout = 6
 !
 !   define "from mode" and "to mode" for primary carbon aging
@@ -1190,17 +1186,17 @@ aa_iqfrm: do iqfrm = -1, nspec_amode(mfrm)
 
 
       do n = 1, ntot_amode
-         l = lptr_so4_a_amode(n)
+         l = so4_a_ndx(n)
          if ((l > 0) .and. (l <= pcnst)) then
             dotend(l) = .true.
             if ( do_nh4g ) then
-               l = lptr_nh4_a_amode(n)
+               l = nh4_a_ndx(n)
                if ((l > 0) .and. (l <= pcnst)) dotend(l) = .true.
             end if
          end if
          do jsoa = 1, nsoa
             if ( do_soag(jsoa) ) then
-               l = lptr2_soa_a_amode(n,jsoa)
+               l = soa_a_ndx(n,jsoa)
                if ((l > 0) .and. (l <= pcnst)) dotend(l) = .true.
             end if
          end do
@@ -1425,6 +1421,116 @@ aa_iqfrm: do iqfrm = -1, nspec_amode(mfrm)
       return
 
       end subroutine modal_aero_gasaerexch_init
+
+!----------------------------------------------------------------------
+! sets constituent indices of the interstitial aerosol species involved in
+! gas-aerosol exchange, and the soa/poa molecular weights, from the aerosol
+! properties object
+!----------------------------------------------------------------------
+      subroutine set_species_ndx(aero_props)
+
+      use aerosol_properties_mod, only: aerosol_properties, aero_name_len
+      use constituents,   only: pcnst, cnst_get_ind
+      use cam_abortutils, only: endrun
+      use modal_aero_data, only: lptr_so4_a_amode, lptr_nh4_a_amode, &
+                                 lptr2_soa_a_amode, lptr2_pom_a_amode
+
+      class(aerosol_properties), intent(in) :: aero_props ! aerosol properties object
+
+      integer :: m, l, idx, nsoa_m, npoa_m
+      real(r8) :: spec_mw
+      logical :: mw_soa_set
+      character(len=aero_name_len) :: spectype, name_a, name_c
+      character(len=*), parameter :: subname = 'modal_aero_gasaerexch::set_species_ndx'
+
+      allocate(so4_a_ndx(ntot_amode))
+      allocate(nh4_a_ndx(ntot_amode))
+      allocate(soa_a_ndx(ntot_amode,nsoa))
+      allocate(pom_a_ndx(ntot_amode,npoa))
+      allocate(mw_soa_host(nsoa))
+      allocate(mw_poa_host(npoa))
+
+      so4_a_ndx(:) = -1
+      nh4_a_ndx(:) = -1
+      soa_a_ndx(:,:) = -1
+      pom_a_ndx(:,:) = -1
+      mw_soa_host(:) = -huge(1.0_r8)
+      mw_poa_host(:) = -huge(1.0_r8)
+      mw_soa_set = .false.
+
+      do m = 1, ntot_amode
+         nsoa_m = 0
+         npoa_m = 0
+         do l = 1, aero_props%nspecies(m)
+            call aero_props%species_type(m, l, spectype)
+            call aero_props%mmr_names(m, l, name_a, name_c)
+            call cnst_get_ind(name_a, idx, abort=.false.)
+            select case (trim(spectype))
+            case ('sulfate')
+               so4_a_ndx(m) = idx
+            case ('ammonium')
+               nh4_a_ndx(m) = idx
+            case ('s-organic')
+               nsoa_m = nsoa_m + 1
+               if (nsoa_m > nsoa) then
+                  call endrun(subname//': too many s-organic species in mode')
+               end if
+               soa_a_ndx(m,nsoa_m) = idx
+               ! the last s-organic species found sets the molecular weight
+               call aero_props%get(m, l, spec_mw=spec_mw)
+               mw_soa_host(:) = spec_mw
+               mw_soa_set = .true.
+            case ('p-organic')
+               npoa_m = npoa_m + 1
+               if (npoa_m > npoa) then
+                  call endrun(subname//': too many p-organic species in mode')
+               end if
+               pom_a_ndx(m,npoa_m) = idx
+               ! the last p-organic species found sets the molecular weight
+               call aero_props%get(m, l, spec_mw=spec_mw)
+               mw_poa_host(:) = spec_mw
+            end select
+         end do
+      end do
+
+      if (nsoa > 0 .and. .not. mw_soa_set) then
+         call endrun(subname//': no s-organic species found')
+      end if
+
+      ! check consistency with the modal_aero_data species pointers
+      do m = 1, ntot_amode
+         call check_ndx(so4_a_ndx(m), lptr_so4_a_amode(m), 'sulfate')
+         call check_ndx(nh4_a_ndx(m), lptr_nh4_a_amode(m), 'ammonium')
+         do l = 1, nsoa
+            call check_ndx(soa_a_ndx(m,l), lptr2_soa_a_amode(m,l), 's-organic')
+         end do
+         do l = 1, npoa
+            call check_ndx(pom_a_ndx(m,l), lptr2_pom_a_amode(m,l), 'p-organic')
+         end do
+      end do
+
+      contains
+
+         subroutine check_ndx(ndx, lptr, spectype)
+            integer, intent(in) :: ndx              ! index from aerosol properties
+            integer, intent(in) :: lptr             ! index from modal_aero_data
+            character(len=*), intent(in) :: spectype ! species type
+
+            character(len=128) :: msg
+
+            if ((lptr > 0) .and. (lptr <= pcnst)) then
+               if (ndx == lptr) return
+            else
+               if (ndx <= 0) return
+            end if
+            write(msg,'(a,2i8)') subname//': inconsistent '//trim(spectype)//' index for mode ', m, ndx
+            call endrun(trim(msg))
+
+         end subroutine check_ndx
+
+      end subroutine set_species_ndx
+
+!----------------------------------------------------------------------
 
 
 !----------------------------------------------------------------------
