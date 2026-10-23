@@ -145,7 +145,7 @@ module vxb
     real(r8),intent(in) :: eeex(nlev,i0:i1,j0:j1)   ! zonal ion drift
     real(r8),intent(in) :: eeey(nlev,i0:i1,j0:j1)   ! meridional ion drift
     real(r8),intent(in) :: eeez(nlev,i0:i1,j0:j1)   ! vertical ion drift
-    real(r8),intent(in) :: xi(nlev,i0:i1,j0:j1) ! Jianfei Wu added xi/(1+xi^2)
+    real(r8),intent(in) :: xi(nlev,i0:i1,j0:j1) ! Jianfei Wu added xi = ion-neutral collision freq / ion gyrofreq
     real(r8),intent(in) :: zg   (nlev,i0:i1,j0:j1) ! geopotential height (cm)
 !
 ! Ion drifts from edynamo (also in tiegcm-format):

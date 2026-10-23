@@ -482,6 +482,10 @@ contains
      real(r8) :: Sip_out(nlev,lon0:lon1,lat0:lat1)
      real(r8) :: Siptm1_out(nlev,lon0:lon1,lat0:lat1)
 
+     real(r8) :: o1dens(nlev,lon0:lon1,lat0:lat1)
+     real(r8) :: o2dens(nlev,lon0:lon1,lat0:lat1)
+     real(r8) :: n2dens(nlev,lon0:lon1,lat0:lat1)
+
      real(r8),target :: halo_tn(nlev,lon0-2:lon1+2,lat0-2:lat1+2) ! neutral temperature (deg K)
      real(r8),target :: halo_te(nlev,lon0-2:lon1+2,lat0-2:lat1+2) ! electron temperature (deg K)
      real(r8),target :: halo_ti(nlev,lon0-2:lon1+2,lat0-2:lat1+2) ! ion temperature (deg K)
@@ -491,7 +495,7 @@ contains
      real(r8),target :: halo_o2(nlev,lon0-2:lon1+2,lat0-2:lat1+2) ! o2 (mmr)
      real(r8),target :: halo_o1(nlev,lon0-2:lon1+2,lat0-2:lat1+2) ! o (mmr)
      real(r8),target :: halo_n2(nlev,lon0-2:lon1+2,lat0-2:lat1+2) ! n2 (mmr)
-     real(r8),target :: halo_ne(nlev,lon0-2:lon1+2,lat0-2:lat1+2) ! n2 (mmr)
+     real(r8),target :: halo_ne(nlev,lon0-2:lon1+2,lat0-2:lat1+2) ! ne (mmr)
      real(r8),target :: halo_op(nlev,lon0-2:lon1+2,lat0-2:lat1+2) ! o (mmr)
      real(r8),target :: halo_mbar(nlev,lon0-2:lon1+2,lat0-2:lat1+2) ! mean molecular weight
      real(r8), allocatable :: polesign(:)
@@ -504,6 +508,8 @@ contains
      real(r8) h12,h22,h32,deltx,atx,ax,btx,bx,ctx,cx ! Variables used for weighting when locating F2 peak
      !
      logical :: do_integrals
+     ! Metal ion species are transported only when both the current and previous step fields are present
+     logical :: do_fep, do_mgp, do_nap, do_cap, do_kp, do_sip
 !
 ! Pointers for multiple-field calls:
     type(array_ptr_type),allocatable :: ptrs(:)
@@ -573,6 +579,31 @@ contains
 
      call t_startf(subname)
 
+     do_fep = associated(Fepmmr)
+     if (do_fep .neqv. associated(Fepmmrtm1)) then
+        call endrun(subname//': Fepmmr and Fepmmrtm1 must both be present or both absent')
+     end if
+     do_mgp = associated(Mgpmmr)
+     if (do_mgp .neqv. associated(Mgpmmrtm1)) then
+        call endrun(subname//': Mgpmmr and Mgpmmrtm1 must both be present or both absent')
+     end if
+     do_nap = associated(Napmmr)
+     if (do_nap .neqv. associated(Napmmrtm1)) then
+        call endrun(subname//': Napmmr and Napmmrtm1 must both be present or both absent')
+     end if
+     do_cap = associated(Capmmr)
+     if (do_cap .neqv. associated(Capmmrtm1)) then
+        call endrun(subname//': Capmmr and Capmmrtm1 must both be present or both absent')
+     end if
+     do_kp = associated(Kpmmr)
+     if (do_kp .neqv. associated(Kpmmrtm1)) then
+        call endrun(subname//': Kpmmr and Kpmmrtm1 must both be present or both absent')
+     end if
+     do_sip = associated(Sipmmr)
+     if (do_sip .neqv. associated(Sipmmrtm1)) then
+        call endrun(subname//': Sipmmr and Sipmmrtm1 must both be present or both absent')
+     end if
+
      if (debug .and. masterproc) then
 
         nstep = get_nstep()
@@ -614,32 +645,32 @@ contains
 
      Fep=fillvalue; Mgp=fillvalue; Nap=fillvalue; Cap=fillvalue; Kp=fillvalue; Sip=fillvalue;
 
-     if (associated(Fepmmr)) then
+     if (do_fep) then
         Fep(1:nlev,cols:cole) = Fepmmr(1:nlev,cols:cole) * mbar(1:nlev,cols:cole) / rmassFep * &
              pmid(1:nlev,cols:cole) / (kboltz * tn(1:nlev,cols:cole))
         ne(1:nlev,cols:cole) = ne(1:nlev,cols:cole) + Fep(1:nlev,cols:cole)
      end if
-     if (associated(Mgpmmr)) then
+     if (do_mgp) then
         Mgp(1:nlev,cols:cole) = Mgpmmr(1:nlev,cols:cole) * mbar(1:nlev,cols:cole) / rmassMgp * &
              pmid(1:nlev,cols:cole) / (kboltz * tn(1:nlev,cols:cole))
         ne(1:nlev,cols:cole) = ne(1:nlev,cols:cole) + Mgp(1:nlev,cols:cole)
      end if
-     if (associated(Napmmr)) then
+     if (do_nap) then
         Nap(1:nlev,cols:cole) = Napmmr(1:nlev,cols:cole) * mbar(1:nlev,cols:cole) / rmassNap * &
              pmid(1:nlev,cols:cole) / (kboltz * tn(1:nlev,cols:cole))
         ne(1:nlev,cols:cole) = ne(1:nlev,cols:cole) + Nap(1:nlev,cols:cole)
      end if
-     if (associated(Capmmr)) then
+     if (do_cap) then
         Cap(1:nlev,cols:cole) = Capmmr(1:nlev,cols:cole) * mbar(1:nlev,cols:cole) / rmassCap * &
              pmid(1:nlev,cols:cole) / (kboltz * tn(1:nlev,cols:cole))
         ne(1:nlev,cols:cole) = ne(1:nlev,cols:cole) + Cap(1:nlev,cols:cole)
      end if
-     if (associated(Kpmmr)) then
+     if (do_kp) then
         Kp(1:nlev,cols:cole) = Kpmmr(1:nlev,cols:cole) * mbar(1:nlev,cols:cole) / rmassKp * &
              pmid(1:nlev,cols:cole) / (kboltz * tn(1:nlev,cols:cole))
         ne(1:nlev,cols:cole) = ne(1:nlev,cols:cole) + Kp(1:nlev,cols:cole)
      end if
-     if (associated(Sipmmr)) then
+     if (do_sip) then
         Sip(1:nlev,cols:cole) = Sipmmr(1:nlev,cols:cole) * mbar(1:nlev,cols:cole) / rmassSip * &
              pmid(1:nlev,cols:cole) / (kboltz * tn(1:nlev,cols:cole))
         ne(1:nlev,cols:cole) = ne(1:nlev,cols:cole) + Sip(1:nlev,cols:cole)
@@ -651,22 +682,22 @@ contains
      if (associated(O2pmmrtm1)) then
         O2ptm1(:,:) = O2pmmrtm1(:,:) * mbar(:,:) / rmassO2p * pmid(:,:) / (kboltz * tn(:,:))
      end if
-     if (associated(Fepmmrtm1)) then
+     if (do_fep) then
         Feptm1(:,:) = Fepmmrtm1(:,:) * mbar(:,:) / rmassFep * pmid(:,:) / (kboltz * tn(:,:))
      end if
-     if (associated(Mgpmmrtm1)) then
+     if (do_mgp) then
         Mgptm1(:,:) = Mgpmmrtm1(:,:) * mbar(:,:) / rmassMgp * pmid(:,:) / (kboltz * tn(:,:))
      end if
-     if (associated(Napmmrtm1)) then
+     if (do_nap) then
         Naptm1(:,:) = Napmmrtm1(:,:) * mbar(:,:) / rmassNap * pmid(:,:) / (kboltz * tn(:,:))
      end if
-     if (associated(Capmmrtm1)) then
+     if (do_cap) then
         Captm1(:,:) = Capmmrtm1(:,:) * mbar(:,:) / rmassCap * pmid(:,:) / (kboltz * tn(:,:))
      end if
-     if (associated(Kpmmrtm1)) then
+     if (do_kp) then
         Kptm1(:,:) = Kpmmrtm1(:,:) * mbar(:,:) / rmassKp * pmid(:,:) / (kboltz * tn(:,:))
      end if
-     if (associated(Sipmmrtm1)) then
+     if (do_sip) then
         Siptm1(:,:) = Sipmmrtm1(:,:) * mbar(:,:) / rmassSip * pmid(:,:) / (kboltz * tn(:,:))
      end if
 
@@ -760,8 +791,12 @@ contains
      end if
      if (debug_hist) then
         call outfld_phys('DPIE_OPMMR', opmmr)
-        call outfld_phys('DPIE_FePMMR', fepmmr)
-        call outfld_phys('DPIE_MgPMMR', mgpmmr)
+        if (do_fep) then
+           call outfld_phys('DPIE_FePMMR', fepmmr)
+        end if
+        if (do_mgp) then
+           call outfld_phys('DPIE_MgPMMR', mgpmmr)
+        end if
         call outfld_phys('PED_phys', sigma_ped )
         call outfld_phys('HAL_phys', sigma_hall )
      endif
@@ -908,41 +943,41 @@ contains
           call regrid_phys2geo_3d( O2ptm1, O2ptm1_geo, plev, cols, cole )
        end if
 
-       if (associated(Fepmmrtm1)) then
+       if (do_fep) then
           call regrid_phys2geo_3d( Feptm1, Feptm1_geo, plev, cols, cole )
        end if
-       if (associated(Mgpmmrtm1)) then
+       if (do_mgp) then
           call regrid_phys2geo_3d( Mgptm1, Mgptm1_geo, plev, cols, cole )
        end if
-       if (associated(Napmmrtm1)) then
+       if (do_nap) then
           call regrid_phys2geo_3d( Naptm1, Naptm1_geo, plev, cols, cole )
        end if
-       if (associated(Capmmrtm1)) then
+       if (do_cap) then
           call regrid_phys2geo_3d( Captm1, Captm1_geo, plev, cols, cole )
        end if
-       if (associated(Kpmmrtm1)) then
+       if (do_kp) then
           call regrid_phys2geo_3d( Kptm1, Kptm1_geo, plev, cols, cole )
        end if
-       if (associated(Sipmmrtm1)) then
+       if (do_sip) then
           call regrid_phys2geo_3d( Siptm1, Siptm1_geo, plev, cols, cole )
        end if
 
-       if (associated(Fepmmr)) then
+       if (do_fep) then
           call regrid_phys2geo_3d( Fep, Fep_geo, plev, cols, cole )
        end if
-       if (associated(Mgpmmr)) then
+       if (do_mgp) then
           call regrid_phys2geo_3d( Mgp, Mgp_geo, plev, cols, cole )
        end if
-       if (associated(Napmmr)) then
+       if (do_nap) then
           call regrid_phys2geo_3d( Nap, Nap_geo, plev, cols, cole )
        end if
-       if (associated(Capmmr)) then
+       if (do_cap) then
           call regrid_phys2geo_3d( Cap, Cap_geo, plev, cols, cole )
        end if
-       if (associated(Kpmmr)) then
+       if (do_kp) then
           call regrid_phys2geo_3d( Kp, Kp_geo, plev, cols, cole )
        end if
-       if (associated(Sipmmr)) then
+       if (do_sip) then
           call regrid_phys2geo_3d( Sip, Sip_geo, plev, cols, cole )
        end if
 
@@ -963,6 +998,15 @@ contains
                    halo_n2(kk,i,j)   = n2_geo(i,j,k)
                    halo_ne(kk,i,j)   = ne_geo(i,j,k)
                    halo_op(kk,i,j)   = op_geo(i,j,k)
+
+                   ! mmr -> #/m3
+                   o1dens(kk,i,j) =  o_geo(i,j,k) * mbar_geo(i,j,k) / &
+                        rmasso1 * pmid_geo(i,j,k) / (kboltz * tn_geo(i,j,k))
+                   o2dens(kk,i,j) = o2_geo(i,j,k) * mbar_geo(i,j,k) / &
+                        rmasso2 * pmid_geo(i,j,k) / (kboltz * tn_geo(i,j,k))
+                   n2dens(kk,i,j) = n2_geo(i,j,k) * mbar_geo(i,j,k) / &
+                        rmassn2 * pmid_geo(i,j,k) / (kboltz * tn_geo(i,j,k))
+
                    halo_mbar(kk,i,j) = mbar_geo(i,j,k)
                    op_in(kk,i,j)     = op_geo(i,j,k) / 1.e6_r8  ! m^3 -> cm^3
                    optm1_in(kk,i,j)  = optm1_geo(i,j,k) / 1.e6_r8  ! m^3 -> cm^3
@@ -976,27 +1020,27 @@ contains
                 O2p_in(kk,:,:)    = O2p_geo(:,:,k) / 1.e6_r8  ! m^3 -> cm^3
                 O2ptm1_in(kk,:,:) = O2ptm1_geo(:,:,k) / 1.e6_r8  ! m^3 -> cm^3
              endif
-             if (associated(Fepmmrtm1)) then
+             if (do_fep) then
                 Fep_in(kk,:,:)    = Fep_geo(:,:,k) / 1.e6_r8  ! m^3 -> cm^3
                 Feptm1_in(kk,:,:) = Feptm1_geo(:,:,k) / 1.e6_r8  ! m^3 -> cm^3
              endif
-             if (associated(Mgpmmrtm1)) then
+             if (do_mgp) then
                 Mgp_in(kk,:,:)    = Mgp_geo(:,:,k) / 1.e6_r8  ! m^3 -> cm^3
                 Mgptm1_in(kk,:,:) = Mgptm1_geo(:,:,k) / 1.e6_r8  ! m^3 -> cm^3
              endif
-             if (associated(Napmmrtm1)) then
+             if (do_nap) then
                 Nap_in(kk,:,:)    = Nap_geo(:,:,k) / 1.e6_r8  ! m^3 -> cm^3
                 Naptm1_in(kk,:,:) = Naptm1_geo(:,:,k) / 1.e6_r8  ! m^3 -> cm^3
              endif
-             if (associated(Capmmrtm1)) then
+             if (do_cap) then
                 Cap_in(kk,:,:)    = Cap_geo(:,:,k) / 1.e6_r8  ! m^3 -> cm^3
                 Captm1_in(kk,:,:) = Captm1_geo(:,:,k) / 1.e6_r8  ! m^3 -> cm^3
              endif
-             if (associated(Kpmmrtm1)) then
+             if (do_kp) then
                 Kp_in(kk,:,:)    = Kp_geo(:,:,k) / 1.e6_r8  ! m^3 -> cm^3
                 Kptm1_in(kk,:,:) = Kptm1_geo(:,:,k) / 1.e6_r8  ! m^3 -> cm^3
              endif
-             if (associated(Sipmmrtm1)) then
+             if (do_sip) then
                 Sip_in(kk,:,:)    = Sip_geo(:,:,k) / 1.e6_r8  ! m^3 -> cm^3
                 Siptm1_in(kk,:,:) = Siptm1_geo(:,:,k) / 1.e6_r8  ! m^3 -> cm^3
              endif
@@ -1056,7 +1100,7 @@ contains
           call outfld_geokij( 'OPo',op_out, lev0,lev1, lon0,lon1, lat0,lat1 )
 
           if (associated(O2pmmrtm1)) then
-             call calc_xi(halo_o2(:,lon0:lon1,lat0:lat1),halo_o1(:,lon0:lon1,lat0:lat1),halo_n2(:,lon0:lon1,lat0:lat1),&
+             call calc_xi(o2dens, o1dens, n2dens, &
                           rmassO2p, rmassN2, rmassO2, rmassO1, O2pxi_in, lon0, lon1, lat0, lat1, nlev)
              do isplit = 1,nsplt_vxb
                 if (isplit > 1) then
@@ -1071,7 +1115,7 @@ contains
           endif
 
           if (associated(NOpmmrtm1)) then
-             call calc_xi(halo_o2(:,lon0:lon1,lat0:lat1),halo_o1(:,lon0:lon1,lat0:lat1),halo_n2(:,lon0:lon1,lat0:lat1),&
+             call calc_xi(o2dens, o1dens, n2dens, &
                           rmassNOp, rmassN2, rmassO2, rmassO1, NOpxi_in, lon0, lon1, lat0, lat1, nlev)
              do isplit = 1,nsplt_vxb
                 if (isplit > 1) then
@@ -1086,13 +1130,13 @@ contains
           endif
 
 
-          if (associated(Fepmmrtm1)) then
+          if (do_fep) then
              if (debug_hist) then
                 call outfld_geokij( 'FePtm1i',Feptm1_in, lev0,lev1, lon0,lon1, lat0,lat1 )
              endif
              call outfld_geokij( 'FePi',Fep_in, lev0,lev1, lon0,lon1, lat0,lat1 )
 
-             call calc_xi(halo_o2(:,lon0:lon1,lat0:lat1),halo_o1(:,lon0:lon1,lat0:lat1),halo_n2(:,lon0:lon1,lat0:lat1),&
+             call calc_xi(o2dens, o1dens, n2dens, &
                           rmassFep, rmassN2, rmassO2, rmassO1, Fepxi_in, lon0, lon1, lat0, lat1, nlev)
              do isplit = 1,nsplt_vxb
                 if (isplit > 1) then
@@ -1111,14 +1155,14 @@ contains
 
           endif
 
-          if (associated(Mgpmmrtm1)) then
+          if (do_mgp) then
              if (debug_hist) then
                 call outfld_geokij( 'MgPtm1i',Mgptm1_in, lev0,lev1, lon0,lon1, lat0,lat1 )
              endif
 
              call outfld_geokij( 'MgPi',Mgp_in, lev0,lev1, lon0,lon1, lat0,lat1 )
 
-             call calc_xi(halo_o2(:,lon0:lon1,lat0:lat1),halo_o1(:,lon0:lon1,lat0:lat1),halo_n2(:,lon0:lon1,lat0:lat1),&
+             call calc_xi(o2dens, o1dens, n2dens, &
                           rmassMgp, rmassN2, rmassO2, rmassO1, Mgpxi_in, lon0, lon1, lat0, lat1, nlev)
              do isplit = 1,nsplt_vxb
                 if (isplit > 1) then
@@ -1135,8 +1179,8 @@ contains
              call outfld_geokij( 'MgPo',Mgp_out, lev0,lev1, lon0,lon1, lat0,lat1 )
 
           endif
-          if (associated(Napmmrtm1)) then
-             call calc_xi(halo_o2(:,lon0:lon1,lat0:lat1),halo_o1(:,lon0:lon1,lat0:lat1),halo_n2(:,lon0:lon1,lat0:lat1),&
+          if (do_nap) then
+             call calc_xi(o2dens, o1dens, n2dens, &
                           rmassNap, rmassN2, rmassO2, rmassO1, Napxi_in, lon0, lon1, lat0, lat1, nlev)
              do isplit = 1,nsplt_vxb
                 if (isplit > 1) then
@@ -1149,8 +1193,8 @@ contains
                      Nap_out, Naptm1_out, rmassNap, lon0, lon1, lat0, lat1, nsplt_vxb, isplit )
              end do
           endif
-          if (associated(Capmmrtm1)) then
-             call calc_xi(halo_o2(:,lon0:lon1,lat0:lat1),halo_o1(:,lon0:lon1,lat0:lat1),halo_n2(:,lon0:lon1,lat0:lat1),&
+          if (do_cap) then
+             call calc_xi(o2dens, o1dens, n2dens, &
                           rmassCap, rmassN2, rmassO2, rmassO1, Capxi_in, lon0, lon1, lat0, lat1, nlev)
              do isplit = 1,nsplt_vxb
                 if (isplit > 1) then
@@ -1163,8 +1207,8 @@ contains
                      Cap_out, Captm1_out, rmassCap, lon0, lon1, lat0, lat1, nsplt_vxb, isplit )
              end do
           endif
-          if (associated(Kpmmrtm1)) then
-             call calc_xi(halo_o2(:,lon0:lon1,lat0:lat1),halo_o1(:,lon0:lon1,lat0:lat1),halo_n2(:,lon0:lon1,lat0:lat1),&
+          if (do_kp) then
+             call calc_xi(o2dens, o1dens, n2dens, &
                           rmassKp, rmassN2, rmassO2, rmassO1, Kpxi_in, lon0, lon1, lat0, lat1, nlev)
              do isplit = 1,nsplt_vxb
                 if (isplit > 1) then
@@ -1177,8 +1221,8 @@ contains
                      Kp_out, Kptm1_out, rmassKp, lon0, lon1, lat0, lat1, nsplt_vxb, isplit )
              end do
           endif
-          if (associated(Sipmmrtm1)) then
-             call calc_xi(halo_o2(:,lon0:lon1,lat0:lat1),halo_o1(:,lon0:lon1,lat0:lat1),halo_n2(:,lon0:lon1,lat0:lat1),&
+          if (do_sip) then
+             call calc_xi(o2dens, o1dens, n2dens, &
                           rmassSip, rmassN2, rmassO2, rmassO1, Sipxi_in, lon0, lon1, lat0, lat1, nlev)
              do isplit = 1,nsplt_vxb
                 if (isplit > 1) then
@@ -1202,8 +1246,12 @@ contains
           if (debug_hist) then
              call outfld_geokij( 'OPLUS', op_out, lev0,lev1, lon0,lon1, lat0,lat1 )
              call outfld_geokij( 'OPtm1o',optm1_out, lev0,lev1, lon0,lon1, lat0,lat1 )
-             call outfld_geokij( 'FePtm1o',Feptm1_out, lev0,lev1, lon0,lon1, lat0,lat1 )
-             call outfld_geokij( 'MgPtm1o',Mgptm1_out, lev0,lev1, lon0,lon1, lat0,lat1 )
+             if (do_fep) then
+                call outfld_geokij( 'FePtm1o',Feptm1_out, lev0,lev1, lon0,lon1, lat0,lat1 )
+             endif
+             if (do_mgp) then
+                call outfld_geokij( 'MgPtm1o',Mgptm1_out, lev0,lev1, lon0,lon1, lat0,lat1 )
+             endif
           endif
           !
           ! Pass new O+ for current and previous time step back to physics (convert from cm^3 to m^3 and back to mmr).
@@ -1234,37 +1282,37 @@ contains
                                  (kboltz * tn_geo(:,:,k)) / pmid_geo(:,:,k)
              end if
 
-             if (associated(Fepmmrtm1)) then
+             if (do_fep) then
                 Fep_geo(:,:,k) = Fep_out(kk,:,:)*1.e6_r8 * rmassFep / mbar_geo(:,:,k) * &
                                  (kboltz * tn_geo(:,:,k)) / pmid_geo(:,:,k)
                 Feptm1_geo(:,:,k) = Feptm1_out(kk,:,:)*1.e6_r8 * rmassFep / mbar_geo(:,:,k) * &
                                  (kboltz * tn_geo(:,:,k)) / pmid_geo(:,:,k)
              end if
-             if (associated(Mgpmmrtm1)) then
+             if (do_mgp) then
                 Mgp_geo(:,:,k) = Mgp_out(kk,:,:)*1.e6_r8 * rmassMgp / mbar_geo(:,:,k) * &
                                  (kboltz * tn_geo(:,:,k)) / pmid_geo(:,:,k)
                 Mgptm1_geo(:,:,k) = Mgptm1_out(kk,:,:)*1.e6_r8 * rmassMgp / mbar_geo(:,:,k) * &
                                  (kboltz * tn_geo(:,:,k)) / pmid_geo(:,:,k)
              end if
-             if (associated(Napmmrtm1)) then
+             if (do_nap) then
                 Nap_geo(:,:,k) = Nap_out(kk,:,:)*1.e6_r8 * rmassNap / mbar_geo(:,:,k) * &
                                  (kboltz * tn_geo(:,:,k)) / pmid_geo(:,:,k)
                 Naptm1_geo(:,:,k) = Naptm1_out(kk,:,:)*1.e6_r8 * rmassNap / mbar_geo(:,:,k) * &
                                  (kboltz * tn_geo(:,:,k)) / pmid_geo(:,:,k)
              end if
-             if (associated(Capmmrtm1)) then
+             if (do_cap) then
                 Cap_geo(:,:,k) = Cap_out(kk,:,:)*1.e6_r8 * rmassCap / mbar_geo(:,:,k) * &
                                  (kboltz * tn_geo(:,:,k)) / pmid_geo(:,:,k)
                 Captm1_geo(:,:,k) = Captm1_out(kk,:,:)*1.e6_r8 * rmassCap / mbar_geo(:,:,k) * &
                                  (kboltz * tn_geo(:,:,k)) / pmid_geo(:,:,k)
              end if
-             if (associated(Kpmmrtm1)) then
+             if (do_kp) then
                 Kp_geo(:,:,k) = Kp_out(kk,:,:)*1.e6_r8 * rmassKp / mbar_geo(:,:,k) * &
                                  (kboltz * tn_geo(:,:,k)) / pmid_geo(:,:,k)
                 Kptm1_geo(:,:,k) = Kptm1_out(kk,:,:)*1.e6_r8 * rmassKp / mbar_geo(:,:,k) * &
                                  (kboltz * tn_geo(:,:,k)) / pmid_geo(:,:,k)
              end if
-             if (associated(Sipmmrtm1)) then
+             if (do_sip) then
                 Sip_geo(:,:,k) = Sip_out(kk,:,:)*1.e6_r8 * rmassSip / mbar_geo(:,:,k) * &
                                  (kboltz * tn_geo(:,:,k)) / pmid_geo(:,:,k)
                 Siptm1_geo(:,:,k) = Siptm1_out(kk,:,:)*1.e6_r8 * rmassSip / mbar_geo(:,:,k) * &
@@ -1290,27 +1338,27 @@ contains
           call regrid_geo2phys_3d( O2ptm1_geo, O2pmmrtm1, plev, cols, cole )
        end if
 
-       if (associated(Fepmmrtm1)) then
+       if (do_fep) then
           call regrid_geo2phys_3d( Fep_geo, Fepmmr, plev, cols, cole )
           call regrid_geo2phys_3d( Feptm1_geo, Fepmmrtm1, plev, cols, cole )
        end if
-       if (associated(Mgpmmrtm1)) then
+       if (do_mgp) then
           call regrid_geo2phys_3d( Mgp_geo, Mgpmmr, plev, cols, cole )
           call regrid_geo2phys_3d( Mgptm1_geo, Mgpmmrtm1, plev, cols, cole )
        end if
-       if (associated(Napmmrtm1)) then
+       if (do_nap) then
           call regrid_geo2phys_3d( Nap_geo, Napmmr, plev, cols, cole )
           call regrid_geo2phys_3d( Naptm1_geo, Napmmrtm1, plev, cols, cole )
        end if
-       if (associated(Capmmrtm1)) then
+       if (do_cap) then
           call regrid_geo2phys_3d( Cap_geo, Capmmr, plev, cols, cole )
           call regrid_geo2phys_3d( Captm1_geo, Capmmrtm1, plev, cols, cole )
        end if
-       if (associated(Kpmmrtm1)) then
+       if (do_kp) then
           call regrid_geo2phys_3d( Kp_geo, Kpmmr, plev, cols, cole )
           call regrid_geo2phys_3d( Kptm1_geo, Kpmmrtm1, plev, cols, cole )
        end if
-       if (associated(Sipmmrtm1)) then
+       if (do_sip) then
           call regrid_geo2phys_3d( Sip_geo, Sipmmr, plev, cols, cole )
           call regrid_geo2phys_3d( Siptm1_geo, Sipmmrtm1, plev, cols, cole )
        end if
@@ -1322,8 +1370,12 @@ contains
        call outfld_phys('WACCM_VI',vi)
        call outfld_phys('WACCM_WI',wi)
        call outfld_phys('WACCM_OP',opmmr)
-       call outfld_phys('WACCM_FeP',fepmmr)
-       call outfld_phys('WACCM_MgP',mgpmmr)
+       if (do_fep) then
+          call outfld_phys('WACCM_FeP',fepmmr)
+       end if
+       if (do_mgp) then
+          call outfld_phys('WACCM_MgP',mgpmmr)
+       end if
     endif
     call t_stopf('d_pie_coupling')
 
@@ -1442,13 +1494,13 @@ contains
     ! Inputs:
     integer,intent(in) :: i0,i1,j0,j1,nlev
     real(r8),dimension(nlev,i0:i1,j0:j1),intent(in) :: &
-         o2,   &  ! m^3
-         o1,&  !
-         n2     !
-    real(r8),intent(in) :: rmass,rmassN2,rmassO2,rmassO1 ! m/s^2
+         o2, &  ! O2 number density (m^-3)
+         o1, &  ! O number density (m^-3)
+         n2     ! N2 number density (m^-3)
+    real(r8),intent(in) :: rmass,rmassN2,rmassO2,rmassO1 ! ion and neutral molecular weights (kg/kmol)
     !
     ! Output:
-    real(r8),intent(out) :: ans(nlev,i0:i1,j0:j1)    ! xi/(1+xi^2) output
+    real(r8),intent(out) :: ans(nlev,i0:i1,j0:j1)    ! xi = ion-neutral collision freq / ion gyrofreq
     real(r8):: collision(nlev,i0:i1,j0:j1) ! dimensioned for vectorization
     !
     ! Local:
@@ -1456,12 +1508,12 @@ contains
     real(r8) :: fixpart
     real(r8) :: gyrofrequency(nlev,i0:i1,j0:j1) ! dimensioned for vectorization
 
-    real(r8),parameter :: na=6.02e26_r8   !kg-mol^-1
-    real(r8),parameter :: ele=1.6e-19_r8   !C
-    real(r8),parameter :: eps=8.85e-12_r8   !epsilon F/m
-    real(r8),parameter :: alpha_n2=1.74e-30_r8   !polarizability of N2 m^3
-    real(r8),parameter :: alpha_o2=1.6e-30_r8   !polarizability of O2 m^3
-    real(r8),parameter :: alpha_o1=8.02e-31_r8   !polarizability of O m^3
+    real(r8),parameter :: na=6.02e26_r8   ! kg-mol^-1
+    real(r8),parameter :: ele=1.6e-19_r8   ! C
+    real(r8),parameter :: eps=8.85e-12_r8   ! epsilon F/m
+    real(r8),parameter :: alpha_n2=1.74e-30_r8  ! polarizability of N2 m^3
+    real(r8),parameter :: alpha_o2=1.6e-30_r8   ! polarizability of O2 m^3
+    real(r8),parameter :: alpha_o1=8.02e-31_r8  ! polarizability of O m^3
 
     fixpart=2._r8*pi*ele*sqrt(1/(4._r8*pi*eps))
     do k=1,nlev

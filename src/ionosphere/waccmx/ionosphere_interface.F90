@@ -1197,7 +1197,7 @@ module ionosphere_interface
               rmassO2p, rmassNOp, rmassN2p, rmassOp, 1, blksize, pver,        &
               rmassFep, rmassMgp, rmassNap, rmassCap, rmassKp, rmassSip,      &
               Fepmmr_blck, Mgpmmr_blck, Napmmr_blck, Capmmr_blck, Kpmmr_blck, Sipmmr_blck, &
-              O2pmmrtm1_blck, NOpmmrtm1_blck, Fepmmrtm1_blck, Mgpmmrtm1_blck, Napmmrtm1_blck, &
+              NOpmmrtm1_blck, O2pmmrtm1_blck, Fepmmrtm1_blck, Mgpmmrtm1_blck, Napmmrtm1_blck, &
               Capmmrtm1_blck, Kpmmrtm1_blck, Sipmmrtm1_blck )
 
          call t_stopf ('d_pie_coupling')
