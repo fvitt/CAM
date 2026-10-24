@@ -108,7 +108,8 @@ subroutine modal_aero_gasaerexch_sub(                            &
 use modal_aero_data,   only:  alnsg_amode,lmassptr_amode,cnst_name_cw
 use modal_aero_data,   only:  modeptr_pcarbon,nspec_amode
 use modal_aero_rename, only:  modal_aero_rename_sub
-use aero_soaexch_mod,  only:  aero_soaexch
+use aero_gasaerexch,   only:  aero_gasaerexch_uptkrates, aero_gasaerexch_soa, &
+                              nh3_diffus_ratio, method_soa_reversible
 use constituents,      only: pcnst, cnst_mw
 
 use cam_history,       only:  outfld, fieldname_len
@@ -178,10 +179,11 @@ implicit none
    integer, parameter :: jsrflx_gaexch = 1
    integer, parameter :: jsrflx_rename = 2
    integer, parameter :: ldiag1=-1, ldiag2=-1, ldiag3=-1, ldiag4=-1
-   integer, parameter :: method_soa = 2
+   integer, parameter :: method_soa = method_soa_reversible
 !     method_soa=0 is no uptake
 !     method_soa=1 is irreversible uptake done like h2so4 uptake
 !     method_soa=2 is reversible uptake using subr aero_soaexch
+!     (see aero_gasaerexch)
 
    integer :: i, iq, itmpa
    integer :: idiagss
@@ -192,21 +194,19 @@ implicit none
    integer :: l, l2, lb, lsfrm, lstoo
    integer :: l_so4g, l_nh4g, l_msag
    integer :: l_soag(nsoa)
-   integer :: n, nn, niter, niter_max, ntot_soamode
+   integer :: n, nn, ntot_soamode
 
    logical :: is_dorename_atik, dorename_atik(ncol,pver)
 
    character(len=fieldname_len+3) :: fieldname
    character(len=100) :: msg ! string for endrun calls
 
-   real (r8) :: avg_uprt_nh4, avg_uprt_so4, avg_uprt_soa(nsoa)
+   real (r8) :: avg_uprt_nh4, avg_uprt_so4
    real (r8) :: deltatxx
    real (r8) :: dqdt_nh4(ntot_amode), dqdt_so4(ntot_amode)
    real (r8) :: dqdt_soa(ntot_amode,nsoa)
-   real (r8) :: dqdt_soag(nsoa)
    real (r8) :: fac_volsfc_pcarbon
    real (r8) :: fgain_nh4(ntot_amode), fgain_so4(ntot_amode)
-   real (r8) :: fgain_soa(ntot_amode,nsoa)
    real (r8) :: g0_soa(nsoa)
    real (r8) :: pdel_fac
    real (r8) :: qmax_nh4, qnew_nh4, qnew_so4
@@ -218,18 +218,14 @@ implicit none
    real (r8) :: sum_dqdt_soa(nsoa)
    real (r8) :: sum_dqdt_nh4, sum_dqdt_nh4_b
    real (r8) :: sum_uprt_msa, sum_uprt_nh4, sum_uprt_so4
-   real (r8) :: sum_uprt_soa(nsoa)
    real (r8) :: tmp1, tmp2, tmpa
    real (r8) :: tmp_kxt, tmp_pxt
    real (r8) :: tmp_so4a_bgn, tmp_so4a_end
    real (r8) :: tmp_so4g_avg, tmp_so4g_bgn, tmp_so4g_equ
-   real (r8) :: uptkrate(ntot_amode,pcols,pver)
-   real (r8) :: uptkrate_bin(pcols,pver) ! gas-to-aerosol mass transfer rates for one mode (1/s)
-   real (r8) :: numdens(pcols,pver)      ! mode number density (#/m3)
+   real (r8) :: uptkrate(pcols,pver,ntot_amode) ! gas-to-aerosol mass transfer rates (1/s)
+   real (r8) :: numdens(pcols,pver,ntot_amode)  ! mode number density (#/m3)
    real (r8) :: rhoair, aircon
    real (r8) :: uptkratebb(ntot_amode)
-   real (r8) :: uptkrate_soa(ntot_amode,nsoa)
-                ! gas-to-aerosol mass transfer rates (1/s)
    real (r8) :: vol_core, vol_shell
    real (r8) :: xferfrac_pcage, xferfrac_max
    real (r8) :: xferrate
@@ -239,6 +235,7 @@ implicit none
    logical  :: do_soag_any         ! true if soa gas is a species
    logical  :: do_soag(nsoa)       ! true if soa gas is a species
    logical  :: do_soamode(ntot_amode) ! true if mode takes part in soa exchange
+   logical  :: do_soa(ntot_amode,nsoa) ! true if soa species takes up soa gas in mode
 
    logical  :: dotend(pcnstxx)          ! identifies species directly involved in
                                         !    gas-aerosol exchange (gas condensation)
@@ -399,20 +396,26 @@ implicit none
 !---------------------------------------------------
 
 ! compute gas-to-aerosol mass transfer rates
+   numdens(:,:,:) = 0.0_r8
    do n = 1, ntot_amode
-      numdens(:,:) = 0.0_r8
       do k = top_lev, pver
          do i = 1, ncol
             rhoair = pmid(i,k)/(rair*t(i,k))   ! (kg-air/m3)
 !   number conc. (#/m3) -- note q(i,k,numptr) is (#/kmol-air)
 !   so need aircon in (kmol-air/m3)
             aircon = rhoair/mwdry              ! (kmol-air/m3)
-            numdens(i,k) = q(i,k,numptr_amode(n)-loffset)*aircon
+            numdens(i,k,n) = q(i,k,numptr_amode(n)-loffset)*aircon
          end do
       end do
-      call aero_props%gas_uptkrate( n, ncol, pver, top_lev, numdens, dgncur_awet(:,:,n), &
-                                    t, pmid, uptkrate_bin )
-      uptkrate(n,:,:) = uptkrate_bin(:,:)
+   end do
+   call aero_gasaerexch_uptkrates( aero_props, ncol, pver, top_lev, numdens, dgncur_awet, &
+                                   t, pmid, uptkrate )
+
+! modes and species taking up soa gas
+   do jsoa = 1, nsoa
+      do n = 1, ntot_amode
+         do_soa(n,jsoa) = (ido_soaa(n,jsoa) > 0)
+      end do
    end do
 
 
@@ -428,9 +431,8 @@ implicit none
 !   fgain_nh4(n) = fraction of total  nh3  uptake going to mode n
          sum_uprt_so4 = 0.0_r8
          sum_uprt_nh4 = 0.0_r8
-         sum_uprt_soa = 0.0_r8
          do n = 1, ntot_amode
-            uptkratebb(n) = uptkrate(n,i,k)
+            uptkratebb(n) = uptkrate(i,k,n)
             if (ido_so4a(n) > 0) then
                fgain_so4(n) = uptkratebb(n)
                sum_uprt_so4 = sum_uprt_so4 + fgain_so4(n)
@@ -445,9 +447,9 @@ implicit none
             end if
 
             if (ido_nh4a(n) > 0) then
-               !   2.08 factor is for gas diffusivity (nh3/h2so4)
+               !   nh3_diffus_ratio is for gas diffusivity (nh3/h2so4)
                !   differences in fuch-sutugin and accom coef ignored
-               fgain_nh4(n) = uptkratebb(n)*2.08_r8
+               fgain_nh4(n) = uptkratebb(n)*nh3_diffus_ratio
                sum_uprt_nh4 = sum_uprt_nh4 + fgain_nh4(n)
                if (ido_nh4a(n) == 1) then
                   qold_nh4(n) = q(i,k,nh4_a_ndx(n)-loffset)
@@ -470,23 +472,13 @@ implicit none
 
             itmpa = 0
             do jsoa = 1, nsoa
-               if (ido_soaa(n,jsoa) > 0) then
-                  ! 0.81 factor is for gas diffusivity (soa/h2so4)
-                  ! (differences in fuch-sutugin and accom coef ignored)
-                  fgain_soa(n,jsoa) = uptkratebb(n)*0.81_r8
-                  sum_uprt_soa(jsoa) = sum_uprt_soa(jsoa) + fgain_soa(n,jsoa)
-                  if (ido_soaa(n,jsoa) == 1) then
-                     l = soa_a_ndx(n,jsoa)-loffset
-                     qold_soa(n,jsoa) = q(i,k,l)
-                     itmpa = itmpa + 1
-                  else
-                     qold_soa(n,jsoa) = 0.0_r8
-                  end if
+               if (ido_soaa(n,jsoa) == 1) then
+                  l = soa_a_ndx(n,jsoa)-loffset
+                  qold_soa(n,jsoa) = q(i,k,l)
+                  itmpa = itmpa + 1
                else
-                  fgain_soa(n,jsoa) = 0.0_r8
                   qold_soa(n,jsoa) = 0.0_r8
                end if
-               uptkrate_soa(n,jsoa) = fgain_soa(n,jsoa)
             end do ! jsoa
             ! in previous code versions with nsoa=1,
             !    qold_poa was non-zero (i.e., loaded from q) only when ido_soaa(n)=1
@@ -508,26 +500,13 @@ implicit none
             end do
          end if
 
-         do jsoa = 1, nsoa
-            if (sum_uprt_soa(jsoa) > 0.0_r8) then
-               do n = 1, ntot_amode
-                  fgain_soa(n,jsoa) = fgain_soa(n,jsoa) / sum_uprt_soa(jsoa)
-               end do
-            end if
-         end do
-
 !   uptake amount (fraction of gas uptaken) over deltat
          avg_uprt_so4 = (1.0_r8 - exp(-deltatxx*sum_uprt_so4))/deltatxx
          avg_uprt_nh4 = (1.0_r8 - exp(-deltatxx*sum_uprt_nh4))/deltatxx
 
-         do jsoa = 1, nsoa
-            avg_uprt_soa(jsoa) = (1.0_r8 - exp(-deltatxx*sum_uprt_soa(jsoa)))/deltatxx
-         end do
-
 !   sum_dqdt_so4 = so4_a tendency from h2so4 gas uptake (mol/mol/s)
 !   sum_dqdt_msa = msa_a tendency from msa   gas uptake (mol/mol/s)
 !   sum_dqdt_nh4 = nh4_a tendency from nh3   gas uptake (mol/mol/s)
-!   sum_dqdt_soa = soa_a tendency from soa   gas uptake (mol/mol/s)
          sum_dqdt_so4 = q(i,k,l_so4g) * avg_uprt_so4
          if ( do_msag ) then
             sum_dqdt_msa = q(i,k,l_msag) * avg_uprt_so4
@@ -539,14 +518,6 @@ implicit none
          else
             sum_dqdt_nh4 = 0.0_r8
          end if
-
-         do jsoa = 1, nsoa
-            if ( do_soag(jsoa) ) then
-               sum_dqdt_soa(jsoa) = q(i,k,l_soag(jsoa)) * avg_uprt_soa(jsoa)
-            else
-               sum_dqdt_soa(jsoa) = 0.0_r8
-            end if
-         end do
 
          if ( associated(sulfeq) .and. (k <= troplev(i)) ) then
             !   compute TMR tendencies for so4 interstial aerosol due to reversible gas uptake
@@ -614,34 +585,25 @@ implicit none
             end do
          end if
 
-         if (( do_soag_any ) .and. (method_soa > 1)) then
+         if ( do_soag_any ) then
 !   compute TMR tendencies for soag and soa interstial aerosol
-!   using soa parameterization
-            niter_max = 1000
-            dqdt_soa(:,:) = 0.0_r8
-            dqdt_soag(:) = 0.0_r8
+!   sum_dqdt_soa = soa_a tendency from soa   gas uptake (mol/mol/s)
             do jsoa = 1, nsoa
-               qold_soag(jsoa) = q(i,k,l_soag(jsoa))
+               if ( do_soag(jsoa) ) then
+                  qold_soag(jsoa) = q(i,k,l_soag(jsoa))
+               else
+                  qold_soag(jsoa) = 0.0_r8
+               end if
             end do
 
-            call aero_soaexch( deltat, t(i,k), pmid(i,k), &
-                 niter, niter_max, ntot_amode, do_soamode, npoa, nsoa, &
+            call aero_gasaerexch_soa( method_soa, deltat, t(i,k), pmid(i,k), &
+                 ntot_amode, nsoa, npoa, do_soamode, do_soa, do_soag, uptkratebb, &
                  mw_poa_host, mw_soa_host, &
-                 qold_soag, qold_soa, qold_poa, uptkrate_soa, &
-                 dqdt_soag, dqdt_soa )
-            sum_dqdt_soa(:) = -dqdt_soag(:)
-
-         else if ( do_soag_any ) then
-!   compute TMR tendencies for soa interstial aerosol
-!   due to simple gas uptake
-
-            do jsoa = 1, nsoa
-               do n = 1, ntot_amode
-                  dqdt_soa(n,jsoa) = fgain_soa(n,jsoa)*sum_dqdt_soa(jsoa)
-               end do
-            end do
-         else ! method_soa is neither 1 nor 2, no uptake
+                 qold_soag, qold_soa, qold_poa, &
+                 dqdt_soa, sum_dqdt_soa )
+         else ! no soa gas, no uptake
             dqdt_soa(:,:) = 0.0_r8
+            sum_dqdt_soa(:) = 0.0_r8
          end if
 
          pdel_fac = pdel(i,k)/gravit
