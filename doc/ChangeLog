@@ -1,5 +1,149 @@
 ===============================================================
 
+Tag name: TBD
+Originator(s): fvitt
+Date: TBD
+One-line Summary: Generalize gas-aerosol exchange through the abstract aerosol interfaces; CARMA SOA exchange updates
+Github PR URL: TBD
+
+Purpose of changes (include the issue number and title text for each relevant GitHub issue):
+ TBD (#issue): <issue title>
+
+ - Generalize the MAM and CARMA gas-aerosol exchange modules through the
+   abstract aerosol_properties interface. Code duplicated between
+   modal_aero_gasaerexch and carma_aero_gasaerexch is moved to shared
+   modules in src/chemistry/aerosol:
+     - aero_soaexch_mod: the reversible SOA gas-aerosol partitioning solver
+       and SOA volatility parameters (previously modal_aero_soaexch and
+       carma_aero_soaexch)
+     - aero_gasaerexch: the condensation-sink loop over modes/bins and the
+       per-grid-cell SOA gas uptake (partitioning of uptake among
+       modes/bins, time-averaged uptake, reversible/irreversible/no uptake)
+   The H2SO4 condensation sink (gas-to-aerosol mass transfer rate) of a
+   mode/bin is a new deferred aerosol_properties procedure, gas_uptkrate,
+   implemented by each aerosol model (Gauss-Hermite integration over the
+   lognormal distribution for MAM, monodisperse bins for CARMA, not
+   implemented for bulk aerosols).
+ - MAM: species indices and SOA/POA molecular weights used in the
+   gas-aerosol exchange are set at initialization from the aerosol
+   properties object rather than the modal_aero_data pointers (removing a
+   per-grid-cell molecular weight lookup). They are cross-checked against
+   the modal_aero_data pointers at initialization. H2SO4/MSA/NH3
+   condensation, the stratospheric sulfeq treatment, the NH4/SO4 limit,
+   primary-carbon aging and renaming remain MAM-specific.
+ - CARMA SOA gas-aerosol exchange:
+     - condensation sink corrected: the wet radius was used as a diameter
+       (doubling the Knudsen number) and a factor of sqrt(pi) was missing;
+       the bin is now treated as monodisperse with the wet diameter from
+       aero_state%wet_diameter
+     - the SOA solver uses the MAM minimum-value parameters (a_min1, g_min1
+       = 1e-20) and the MAM volatility parameters for a single SOA species
+       (p0_soa_298 = 9.7831e-11 atm, delh_vap_soa = 131 kJ/mol)
+     - SOAG gas tendencies are applied for all SOAG species when CARMA has
+       a single SOA species and multiple SOAG volatility species (previously
+       only the first SOAG species lost mass); not exercised by the
+       currently defined compsets
+     - fix out-of-bounds write of qold_poa when there are no POA species
+ - waccm_ma_noaero chemistry (used with CARMA trop_strat_soa1, CARMAWM):
+   SOAG elemental composition changed from C to C15H38O2 for consistency
+   with the SOA molecular weight used in the SOA scheme.
+ - Add the f10 L32 initial condition default for trop_strat_mam5_vbsext.
+
+Describe any changes made to build system: N/A
+
+Describe any changes made to the namelist:
+ - ncdata default added for hgrid=10x15, nlev=32, chem=trop_strat_mam5_vbsext
+
+List any changes to the defaults for the boundary datasets: N/A
+
+Describe any substantial timing or memory changes:
+ - MAM: the per-grid-cell rad_aer_get_info molecular weight lookup in
+   modal_aero_gasaerexch_sub is replaced by values set at initialization.
+
+Code reviewed by: TBD
+
+List all files eliminated: N/A
+
+List all files added and what they do:
+
+A   src/chemistry/aerosol/aero_soaexch_mod.F90
+ - reversible SOA gas-aerosol partitioning solver shared by the aerosol models
+
+A   src/chemistry/aerosol/aero_gasaerexch.F90
+ - gas-aerosol exchange routines shared by the aerosol models: condensation
+   sink for all modes/bins and per-grid-cell SOA gas uptake
+
+List all existing files that have been modified, and describe the changes:
+
+M   bld/namelist_files/namelist_defaults_cam.xml
+ - f10 L32 ncdata default for trop_strat_mam5_vbsext
+
+M   src/chemistry/aerosol/aerosol_properties_mod.F90
+ - add deferred gas_uptkrate procedure
+
+M   src/chemistry/aerosol/bulk_aerosol_properties_mod.F90
+ - gas_uptkrate stub (not implemented)
+
+M   src/chemistry/aerosol/carma_aerosol_properties_mod.F90
+ - gas_uptkrate for monodisperse CARMA bins
+
+M   src/chemistry/aerosol/modal_aerosol_properties_mod.F90
+ - gas_uptkrate for lognormal modes (moved from modal_aero_gasaerexch)
+
+M   src/chemistry/carma_aero/aero_model.F90
+ - remove wet radius calculation (now from aero_state%wet_diameter)
+
+M   src/chemistry/carma_aero/carma_aero_gasaerexch.F90
+ - use shared aero_gasaerexch and aero_soaexch_mod routines; corrections
+   listed above
+
+M   src/chemistry/modal_aero/aero_model.F90
+ - pass the aerosol properties object to modal_aero_gasaerexch
+
+M   src/chemistry/modal_aero/modal_aero_gasaerexch.F90
+ - use shared aero_gasaerexch and aero_soaexch_mod routines; species
+   indices from the aerosol properties object
+
+M   src/chemistry/pp_waccm_ma_noaero/chem_mech.doc
+M   src/chemistry/pp_waccm_ma_noaero/chem_mech.in
+M   src/chemistry/pp_waccm_ma_noaero/mo_sim_dat.F90
+ - SOAG elemental composition C15H38O2
+
+If there were any failures reported from running test_driver.sh on any test
+platform, and checkin with these failures has been OK'd by the gatekeeper,
+then copy the lines from the td.*.status files for the failed tests to the
+appropriate machine below.  All failed tests must be justified.
+
+derecho/intel/aux_cam: TBD
+
+derecho/nvhpc/aux_cam: TBD
+
+izumi/nag/aux_cam: TBD
+
+izumi/gnu/aux_cam: TBD
+
+CAM tag used for the baseline comparison tests if different than previous
+tag: N/A
+
+Summarize any changes to answers (expected; to be confirmed by testing):
+- what code configurations:
+   - MAM: bit-for-bit
+   - CARMA trop_strat with SOA (CARMATS, CARMAWM compsets): answers change
+     (CARMA test category, e.g.,
+      SMS_D_Ln9.f19_f19_mg17.FCARMA2000climo.derecho_intel.cam-outfrq9s_carma_rad_diag
+      SMS_D_Ln9.f19_f19_mg17.FWmaCARMAHIST.derecho_intel.cam-outfrq9s)
+   - all other configurations: bit-for-bit
+- what platforms/compilers: all
+- nature of change: CARMA SOA: larger than roundoff (corrected condensation
+  sink, SOA solver parameters, and for CARMAWM the SOAG molecular weight).
+  In addition, the CARMA wet diameter used in the condensation sink is now
+  2*r from aero_state%wet_diameter rather than 2*((r*1e2)*1e-2) (cm<->m
+  conversion of the CARMA wet radius r), a roundoff-level change on its
+  own. Climate impact of the CARMA SOA changes: TBD
+
+===============================================================
+===============================================================
+
 Tag name: cam6_4_209
 Originator(s): peverwhee, cecilehannay, tilmes, brianpm
 Date: Oct 12, 2026
