@@ -27,7 +27,7 @@ module aero_model
   use aerosol_instances_mod, only: aerosol_instances_get_props, &
        aerosol_instances_get_state, aerosol_instances_get_num_models
 
-  use carma_intr, only: carma_get_group_by_name, carma_get_dry_radius, carma_get_wet_radius, carma_get_bin_rmass
+  use carma_intr, only: carma_get_group_by_name, carma_get_dry_radius, carma_get_bin_rmass
   use carma_intr, only: carma_get_sad
 
   use aerosol_properties_mod, only: aero_name_len
@@ -563,7 +563,6 @@ contains
     real(r8) :: dvmrcwdt(ncol,pver,ncnst_tot)
     real(r8) :: dvmrdt(ncol,pver,gas_pcnst)
     real(r8) :: delta_so4mass(ncol,pver,ncnst_tot)
-    real(r8) :: wetr_n(pcols,pver,nbins)       ! wet radius from CARMA for different bin
     real(r8) :: vmrcw(ncol,pver,ncnst_tot)            ! cloud-borne aerosol (vmr)
     real(r8) :: mmrcw(ncol,pver,ncnst_tot)            ! cloud-borne aerosol (mmr)
     real(r8) :: raervmr(ncol,pver,ncnst_tot)            ! cloud-borne aerosol (vmr)
@@ -575,8 +574,6 @@ contains
     real(r8) ::  xphlwc(ncol,pver)                    ! pH value multiplied by lwc
     real(r8) ::  nh3_beg(ncol,pver)
     real(r8) ::  mw_carma(ncnst_tot)
-    real(r8) :: wetr(pcols,pver)   ! CARMA wet radius in cm
-    real(r8) :: wetrho(pcols,pver)   ! CARMA wet dens
     real(r8), allocatable :: rmass(:)     ! CARMA rmass
 
     real(r8) :: old_total_number
@@ -629,10 +626,6 @@ contains
 
     mw_carma(:) = 0.0_r8
     do m = 1, nbins      ! main loop over aerosol bins
-       ! dryr is the dry bin radius
-       ! wetr is the dry bin radius
-       ! Note: taken here from CARMA pbuf field which may be not any more consistent with changed fields after carma was applied
-       ! Need to add new code that recalcuates dryr and wetr
        ! get bin info
        call rad_aer_get_info_by_bin(0, m, nspec=nspec(m), bin_name=bin_name)
 
@@ -646,18 +639,10 @@ contains
 
        read(bin_name(nchr+1:),*) ibin
 
-       call carma_get_wet_radius(state, igroup, ibin, wetr, wetrho, rc) ! m
-       if (rc/=0) then
-          call endrun(subname//': ERROR in carma_get_wet_radius')
-       end if
-       wetr(:ncol,:) = wetr(:ncol,:) * 1.e2_r8 ! cm
-
        call carma_get_bin_rmass(igroup, ibin, rmass(m), rc) ! grams
        if (rc/=0) then
           call endrun(subname//': ERROR in carma_get_bin_rmass')
        end if
-
-       wetr_n(:,:,m) = wetr(:,:)
 
        ! Init pointers to mode number and specie mass mixing ratios in
        ! intersitial and cloud borne phases.
@@ -766,8 +751,7 @@ contains
           loffset,            delt, mbar ,      &
           tfld,     pmid,     pdel,             &
           qh2o,               troplev,          &
-          vmr,                raervmr,          &
-          wetr_n     )
+          vmr,                raervmr           )
 
     ! note vmr2qqcw does not change qqcw pointer (different than in MAM)
     call vmr2mmr_carma ( lchnk, vmrcw, mbar, mw_carma, ncol, loffset, rmass )
