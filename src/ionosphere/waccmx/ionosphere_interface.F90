@@ -953,9 +953,12 @@ module ionosphere_interface
                     start=(/1,1,sIndxSip/), kount=(/pcols,pver,1/) )
             end if
 
-            call outfld('Fep_phys0', phys_state(lchnk)%q(:,:,ixFep), pcols, lchnk)
-            call outfld('Mgp_phys0', phys_state(lchnk)%q(:,:,ixMgp), pcols, lchnk)
-
+            if (ixFep>0) then
+               call outfld('Fep_phys0', phys_state(lchnk)%q(:,:,ixFep), pcols, lchnk)
+            end if
+            if (ixMgp>0) then
+               call outfld('Mgp_phys0', phys_state(lchnk)%q(:,:,ixMgp), pcols, lchnk)
+            end if
 
             ! PHIS is from physics state
             phis(:ncol) = phys_state(lchnk)%phis(:ncol)
@@ -1306,8 +1309,12 @@ module ionosphere_interface
                end do
             end do
 
-            call outfld('Fep_phys1', phys_state(lchnk)%q(:,:,ixFep), pcols, lchnk)
-            call outfld('Mgp_phys1', phys_state(lchnk)%q(:,:,ixMgp), pcols, lchnk)
+            if (ixFep>0) then
+               call outfld('Fep_phys1', phys_state(lchnk)%q(:,:,ixFep), pcols, lchnk)
+            end if
+            if (ixMgp>0) then
+               call outfld('Mgp_phys1', phys_state(lchnk)%q(:,:,ixMgp), pcols, lchnk)
+            end if
 
             if (ionos_edyn_active) then
                call outfld('UI', ui_phys, pcols, lchnk)
