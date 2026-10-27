@@ -31,6 +31,27 @@ Purpose of changes (include the issue number and title text for each relevant Gi
    the modal_aero_data pointers at initialization. H2SO4/MSA/NH3
    condensation, the stratospheric sulfeq treatment, the NH4/SO4 limit,
    primary-carbon aging and renaming remain MAM-specific.
+ - Gas-aerosol exchange history diagnostics shared by MAM and CARMA
+   (aero_gasaerexch):
+     - SOA condensation/evaporation fields: totals (qcon_gaex, qevap_gaex),
+       per SOA species (qcon_gaexNN, qevap_gaexNN) and per group of SOA
+       species (qconff_gaex, qconbb_gaex, qconbg_gaex, ...). Each model
+       outputs the same fields as before: MAM totals (nsoa=5) or groups
+       (nsoa=15); CARMA totals and per-species fields.
+     - uptake rate, number density and wet radius of each mode/bin
+       (UPTKRATE_binNN, NUMDENS_binNN, WETRAD_binNN, UPTKRATE); output by
+       CARMA only, as before.
+   History field changes (values unchanged):
+     - MAM no longer registers SOA condensation/evaporation fields that are
+       never written: previously all 8 (qcon_gaex, qevap_gaex, qconff_gaex,
+       qevapff_gaex, qconbb_gaex, qevapbb_gaex, qconbg_gaex, qevapbg_gaex)
+       were registered, and added to the default history output when
+       history_aerosol is true, for any number of SOA species. Now only the
+       fields written for the configured number of SOA species are
+       registered.
+     - long name of MAM qevap_gaex corrected ('SOA evaporation', was
+       'Biogenic SOA evaporation'); CARMA uptake-rate long names no longer
+       refer to carma_aero_gasaerexch.
  - CARMA SOA gas-aerosol exchange:
      - condensation sink corrected: the wet radius was used as a diameter
        (doubling the Knudsen number) and a factor of sqrt(pi) was missing;
@@ -71,7 +92,9 @@ A   src/chemistry/aerosol/aero_soaexch_mod.F90
 
 A   src/chemistry/aerosol/aero_gasaerexch.F90
  - gas-aerosol exchange routines shared by the aerosol models: condensation
-   sink for all modes/bins and per-grid-cell SOA gas uptake
+   sink for all modes/bins, per-grid-cell SOA gas uptake, and history
+   diagnostics (SOA condensation/evaporation; uptake rates, number
+   densities and wet radii of modes/bins)
 
 List all existing files that have been modified, and describe the changes:
 
@@ -94,15 +117,17 @@ M   src/chemistry/carma_aero/aero_model.F90
  - remove wet radius calculation (now from aero_state%wet_diameter)
 
 M   src/chemistry/carma_aero/carma_aero_gasaerexch.F90
- - use shared aero_gasaerexch and aero_soaexch_mod routines; corrections
-   listed above
+ - use shared aero_gasaerexch and aero_soaexch_mod routines, including the
+   shared history diagnostics; corrections listed above
 
 M   src/chemistry/modal_aero/aero_model.F90
  - pass the aerosol properties object to modal_aero_gasaerexch
 
 M   src/chemistry/modal_aero/modal_aero_gasaerexch.F90
- - use shared aero_gasaerexch and aero_soaexch_mod routines; species
-   indices from the aerosol properties object
+ - use shared aero_gasaerexch and aero_soaexch_mod routines, including the
+   shared SOA condensation/evaporation diagnostics; species indices from
+   the aerosol properties object; register only the SOA
+   condensation/evaporation fields that are written
 
 M   src/chemistry/pp_waccm_ma_noaero/chem_mech.doc
 M   src/chemistry/pp_waccm_ma_noaero/chem_mech.in
@@ -133,6 +158,9 @@ Summarize any changes to answers (expected; to be confirmed by testing):
       SMS_D_Ln9.f19_f19_mg17.FCARMA2000climo.derecho_intel.cam-outfrq9s_carma_rad_diag
       SMS_D_Ln9.f19_f19_mg17.FWmaCARMAHIST.derecho_intel.cam-outfrq9s)
    - all other configurations: bit-for-bit
+   - history field lists: MAM runs with history_aerosol=.true. no longer
+     include the never-written SOA condensation/evaporation fields (see
+     above); values of all written fields are unchanged
 - what platforms/compilers: all
 - nature of change: CARMA SOA: larger than roundoff (corrected condensation
   sink, SOA solver parameters, and for CARMAWM the SOAG molecular weight).

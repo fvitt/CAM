@@ -18,6 +18,7 @@ module carma_aero_gasaerexch
   use aerosol_properties_mod, only: aerosol_properties
   use aerosol_instances_mod, only: aerosol_instances_get_props, &
        aerosol_instances_get_state, aerosol_instances_get_num_models
+  use aero_gasaerexch,  only: soa_condevap_diag_t
 
   implicit none
   private
@@ -51,6 +52,8 @@ module carma_aero_gasaerexch
   integer, allocatable  :: l_soag(:)         ! true if soa gas is a species and carma soa in bin
 
   logical, allocatable  :: do_soag_any(:)         ! true if soa gas is a species and carma soa in bin
+
+  type(soa_condevap_diag_t) :: soa_diag   ! SOA condensation/evaporation diagnostics
 ! !DESCRIPTION: This module implements ...
 !
 ! !REVISION HISTORY:
@@ -86,13 +89,13 @@ contains
     use constituents,   only: pcnst, cnst_name
     use phys_control,   only: phys_getopts
     use mo_chem_utls,   only: get_spc_ndx
+    use aero_gasaerexch, only: aero_gasaerexch_uptk_diag_init
 
 !-----------------------------------------------------------------------
 ! arguments
 
 !-----------------------------------------------------------------------
 ! local
-    integer  :: j
     integer  :: i, ii
     integer  :: l
     integer  :: m
@@ -102,7 +105,6 @@ contains
     character(len=32)              :: spec_name
     character(128)                 :: long_name
     character(8)                   :: unit
-    character(len=2)               :: outsoa
 
     logical                        :: history_aerosol      ! Output the MAM aerosol tendencies
     !-----------------------------------------------------------------------
@@ -192,37 +194,9 @@ contains
     end do
 
 !---------define history fields for new cond/evap diagnostics----------------------------------------
+!   totals over all SOA species and per SOAG (VBS) species
 
-    fieldname=trim('qcon_gaex')
-    long_name = trim('3D fields for SOA condensation')
-    unit = 'kg/kg/s'
-    call addfld(fieldname, (/'lev'/), 'A', unit, long_name )
-    if ( history_aerosol ) then
-       call add_default( fieldname,  1, ' ' )
-    endif
-
-    do j = 1, nsoa_vbs
-       write (outsoa, "(I2.2)") j
-       fieldname = 'qcon_gaex'//outsoa
-       long_name = '3D fields for SOA condensation for VBS bin'//outsoa
-       call addfld(fieldname, (/'lev'/), 'A', unit, long_name )
-       if ( history_aerosol ) then
-          call add_default( fieldname,  1, ' ' )
-       endif
-       fieldname = 'qevap_gaex'//outsoa
-       long_name = '3D fields for SOA evaporation for VBS bin'//outsoa
-       call addfld(fieldname, (/'lev'/), 'A', unit, long_name )
-       if ( history_aerosol ) then
-          call add_default( fieldname,  1, ' ' )
-       endif
-    end do
-
-    fieldname=trim('qevap_gaex')
-    long_name = trim('3D fields for SOA evaporation')
-    call addfld(fieldname, (/'lev'/), 'A', unit, long_name )
-    if ( history_aerosol ) then
-       call add_default( fieldname,  1, ' ' )
-    endif
+    call soa_diag%init( nsoa_vbs, do_total=.true., do_spec=.true., history_aerosol=history_aerosol )
 
 !------------------------------------------------------------------------------
 
@@ -246,38 +220,10 @@ contains
           end if
        end do
 
-       write(fieldname,'("WETRAD_bin",I2.2)') m
-       write(long_name,'("bin ",I2.2," wet radius in carma_aero_gasaerexch")') m
-
-       call addfld(fieldname, (/'lev'/), 'A', 'cm', long_name )
-       if ( history_aerosol ) then
-          call add_default( fieldname,  1, ' ' )
-       endif
-
-       write(fieldname,'("UPTKRATE_bin",I2.2)') m
-       write(long_name,'("bin ",I2.2," up take rate in carma_aero_gasaerexch")') m
-
-       call addfld(fieldname, (/'lev'/), 'A', 'sec-1', long_name )
-       if ( history_aerosol ) then
-          call add_default( fieldname,  1, ' ' )
-       endif
-
-       write(fieldname,'("NUMDENS_bin",I2.2)') m
-       write(long_name,'("bin ",I2.2," number density carma_aero_gasaerexch")') m
-
-       call addfld(fieldname, (/'lev'/), 'A', 'm-3', long_name )
-       if ( history_aerosol ) then
-          call add_default( fieldname,  1, ' ' )
-       endif
-
     end do
 
-    fieldname=trim('UPTKRATE')
-    long_name = trim('total uptake rate in carma_aero_gasaerexch')
-    call addfld(fieldname, (/'lev'/), 'A', 'sec-1', long_name )
-    if ( history_aerosol ) then
-       call add_default( fieldname,  1, ' ' )
-    endif
+!  uptake rate, number density and wet radius of each bin
+    call aero_gasaerexch_uptk_diag_init( nbins, history_aerosol )
 
 
   end subroutine carma_aero_gasaerexch_init
@@ -307,6 +253,7 @@ subroutine carma_aero_gasaerexch_sub(  state, &
   use physics_types,     only: physics_state
   use physconst, only: mwdry, rair
   use aero_gasaerexch,   only: aero_gasaerexch_uptkrates, aero_gasaerexch_soa, &
+                               aero_gasaerexch_uptk_diag_out, soa_condevap_acc_t, &
                                method_soa_reversible
 
 ! !PARAMETERS:
@@ -360,7 +307,6 @@ subroutine carma_aero_gasaerexch_sub(  state, &
 
   character(len=fieldname_len+3) :: fieldname
   character(len=32)              :: spectype
-  character(len=2)               :: outsoa
 
   real (r8) :: dqdt_soa_vbs(nbins,nsoa_vbs)
   real (r8) :: dqdt_soa_all(pcols,pver,nbins,nsoa)
@@ -377,7 +323,6 @@ subroutine carma_aero_gasaerexch_sub(  state, &
   real (r8) :: sum_dqdt_soa(nsoa_vbs)     !   sum_dqdt_soa = soa tendency from soa  gas uptake (mol/mol/s)
   real (r8) :: uptkrate(pcols,pver,nbins) ! gas-to-aerosol mass transfer rates (1/s)
   real (r8) :: wetdiam(pcols,pver,nbins)  ! wet diameter of each bin (m)
-  real (r8) :: uptkrate_all(pcols,pver)
   real (r8) :: uptkratebb(nbins)
   logical   :: do_soa(nbins,nsoa_vbs)     ! soa species takes up gas in bin
   logical   :: do_soag(nsoa_vbs)          ! soa gas species is present
@@ -387,10 +332,9 @@ subroutine carma_aero_gasaerexch_sub(  state, &
   real(r8) :: qsrflx(pcols,nbins,nsoa)
   ! process-specific column tracer tendencies
   ! (1=gas condensation)
-  real(r8) :: qcon_vbs(pcols,pver,nsoa_vbs)
-  real(r8) :: qevap_vbs(pcols,pver,nsoa_vbs)
-  real(r8) :: qcon(pcols,pver)
-  real(r8) :: qevap(pcols,pver)
+  type(soa_condevap_acc_t) :: condevap   ! SOA condensation/evaporation diagnostics
+  logical  :: condevap_mask(nbins,nsoa_vbs)
+  real(r8) :: condevap_fac(nbins,nsoa_vbs)
   real(r8) :: total_soag
   real(r8) :: soag(nsoa_vbs)
 
@@ -489,10 +433,11 @@ subroutine carma_aero_gasaerexch_sub(  state, &
   qsrflx(:,:,:) = 0.0_r8
 
 !-------Initialize evap/cond diagnostics (ncols x pver)-----------
-  qcon_vbs(:,:,:) = 0.0_r8
-  qevap_vbs(:,:,:) = 0.0_r8
-  qcon(:,:) = 0.0_r8
-  qevap(:,:) = 0.0_r8
+  call soa_diag%reset(condevap)
+  do n = 1, nbins
+     condevap_mask(n,:) = do_soag_any(n)
+  end do
+  condevap_fac(:,:) = mw_soa/mwdry
 !---------------------------------------------------
 ! compute gas-to-aerosol mass transfer rates
   do m = 1, nbins
@@ -501,25 +446,7 @@ subroutine carma_aero_gasaerexch_sub(  state, &
   call aero_gasaerexch_uptkrates( aero_props, ncol, pver, top_lev, num_bin, wetdiam, &
                                   t, pmid, uptkrate )
 
-  ! initialize to zero before summing
-  uptkrate_all(:,:) = 0._r8
-
-  do m = 1, nbins
-
-     write(fieldname,'("NUMDENS_bin",I2.2)') m
-     call outfld(fieldname, num_bin(:ncol,:,m), ncol, lchnk )
-
-     write(fieldname,'("WETRAD_bin",I2.2)') m
-     call outfld(fieldname, 0.5_r8*wetdiam(:ncol,:,m)*1.e2_r8, ncol, lchnk ) ! wet radius (cm)
-
-     write(fieldname,'("UPTKRATE_bin",I2.2)') m
-     call outfld(fieldname, uptkrate(:ncol,:,m), ncol, lchnk )
-
-     uptkrate_all(:ncol,:) = uptkrate_all(:ncol,:) + uptkrate(:ncol,:,m)
-  end do
-
-  fieldname = trim('UPTKRATE')
-  call outfld(fieldname, uptkrate_all(:ncol,:), ncol, lchnk )
+  call aero_gasaerexch_uptk_diag_out( lchnk, ncol, nbins, num_bin, wetdiam, uptkrate )
 
   do n = 1, nbins
      do_soa(n,:) = do_soag_any(n)  ! all soa species in bins that contain soa
@@ -585,20 +512,11 @@ subroutine carma_aero_gasaerexch_sub(  state, &
               else
                  call endrun( 'carma_aero_gasaerexch_sub error' )
               end if
-
-!------- Add code for condensation/evaporation diagnostics sum of all bin---
-              do jsoa = 1, nsoa_vbs
-                 if (dqdt_soa_vbs(n,jsoa).ge.0.0_r8) then
-                    qcon_vbs(i,k,jsoa)=qcon_vbs(i,k,jsoa) + dqdt_soa_vbs(n,jsoa)*(mw_soa/mwdry)
-                    qcon(i,k)=qcon(i,k)+dqdt_soa_vbs(n,jsoa)*(mw_soa/mwdry)
-                 else if (dqdt_soa_vbs(n,jsoa).lt.0.0_r8) then
-                    qevap_vbs(i,k,jsoa)=qevap_vbs(i,k,jsoa) + dqdt_soa_vbs(n,jsoa)*(mw_soa/mwdry)
-                    qevap(i,k)=qevap(i,k)+dqdt_soa_vbs(n,jsoa)*(mw_soa/mwdry)
-                 endif
-              end do
-!---------------------------------------------------------------------------------------------------------------------
            end if
         end do ! n
+
+!------- condensation/evaporation diagnostics sum of all bins
+        call soa_diag%accum( condevap, i, k, nbins, condevap_mask, condevap_fac, dqdt_soa_vbs )
 
 !   compute TMR tendencies for SAOG gas
 !   due to simple gas uptake
@@ -622,13 +540,7 @@ subroutine carma_aero_gasaerexch_sub(  state, &
 
 
   !-----Outfld for condensation/evaporation------------------------------
-  call outfld(trim('qcon_gaex'), qcon(:,:), pcols, lchnk )
-  call outfld(trim('qevap_gaex'), qevap(:,:), pcols, lchnk )
-  do jsoa = 1, nsoa_vbs
-     write (outsoa, "(I2.2)") jsoa
-     call outfld(trim('qcon_gaex')//outsoa, qcon_vbs(:,:,jsoa), pcols, lchnk )
-     call outfld(trim('qevap_gaex')//outsoa, qevap_vbs(:,:,jsoa), pcols, lchnk )
-  end do
+  call soa_diag%outfld( condevap, lchnk )
   !-----------------------------------------------------------------------
   !   do history file of column-tendency fields over SOA fields (as defined in CARMA) and set pointer
   do m = 1, nbins

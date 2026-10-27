@@ -18,6 +18,7 @@
   use ppgrid,          only:  pcols, pver
   use modal_aero_data, only:  ntot_amode, numptr_amode
   use modal_aero_data, only: lptr2_soa_g_amode
+  use aero_gasaerexch, only: soa_condevap_diag_t
 
   implicit none
   private
@@ -68,6 +69,8 @@
   real(r8), allocatable :: mw_soa_host(:)   ! molec wght of soa used in host code
   real(r8), allocatable :: mw_poa_host(:)   ! molec wght of poa used in host code
 
+  type(soa_condevap_diag_t) :: soa_diag     ! SOA condensation/evaporation diagnostics
+
 ! !DESCRIPTION: This module implements ...
 !
 ! !REVISION HISTORY:
@@ -109,7 +112,7 @@ use modal_aero_data,   only:  alnsg_amode,lmassptr_amode,cnst_name_cw
 use modal_aero_data,   only:  modeptr_pcarbon,nspec_amode
 use modal_aero_rename, only:  modal_aero_rename_sub
 use aero_gasaerexch,   only:  aero_gasaerexch_uptkrates, aero_gasaerexch_soa, &
-                              nh3_diffus_ratio, method_soa_reversible
+                              nh3_diffus_ratio, method_soa_reversible, soa_condevap_acc_t
 use constituents,      only: pcnst, cnst_mw
 
 use cam_history,       only:  outfld, fieldname_len
@@ -251,10 +254,9 @@ implicit none
    real(r8) :: qsrflx(pcols,pcnstxx,nsrflx)
                               ! process-specific column tracer tendencies
                               ! (1=renaming, 2=gas condensation)
-   real(r8) :: qconff(pcols,pver),qevapff(pcols,pver)
-   real(r8) :: qconbb(pcols,pver),qevapbb(pcols,pver)
-   real(r8) :: qconbg(pcols,pver),qevapbg(pcols,pver)
-   real(r8) :: qcon(pcols,pver),qevap(pcols,pver)
+   type(soa_condevap_acc_t) :: condevap   ! SOA condensation/evaporation diagnostics
+   logical  :: condevap_mask(ntot_amode,nsoa)
+   real(r8) :: condevap_fac(ntot_amode,nsoa)
 
    real(r8) :: qqcwsrflx(pcols,pcnstxx,nsrflx)
 
@@ -385,14 +387,17 @@ implicit none
    qqcwsrflx(:,:,:) = 0.0_r8
 
 !-------Initialize evap/cond diagnostics (ncols x pver)-----------
-   qconff(:,:) = 0.0_r8
-   qevapff(:,:) = 0.0_r8
-   qconbb(:,:) = 0.0_r8
-   qevapbb(:,:) = 0.0_r8
-   qconbg(:,:) = 0.0_r8
-   qevapbg(:,:) = 0.0_r8
-   qcon(:,:) = 0.0_r8
-   qevap(:,:) = 0.0_r8
+   call soa_diag%reset(condevap)
+   do jsoa = 1, nsoa
+      do n = 1, ntot_amode
+         condevap_mask(n,jsoa) = do_soag(jsoa) .and. (ido_soaa(n,jsoa) == 1)
+         if (condevap_mask(n,jsoa)) then
+            condevap_fac(n,jsoa) = adv_mass(soa_a_ndx(n,jsoa)-loffset)/mwdry
+         else
+            condevap_fac(n,jsoa) = 0.0_r8
+         end if
+      end do
+   end do
 !---------------------------------------------------
 
 ! compute gas-to-aerosol mass transfer rates
@@ -628,43 +633,13 @@ implicit none
                      l = soa_a_ndx(n,jsoa)-loffset
                      dqdt(i,k,l) = dqdt_soa(n,jsoa) !calculated by  aero_soaexch for method_soa=2
                      qsrflx(i,l,jsrf) = qsrflx(i,l,jsrf) + dqdt_soa(n,jsoa)*pdel_fac
-!------- Add code for condensation/evaporation diagnostics---
-                     if (nsoa.eq.15) then !check for current SOA package
-                        if(jsoa.ge.1.and.jsoa.le.5) then ! Fossil SOA species
-                           if (dqdt_soa(n,jsoa).ge.0.0_r8) then
-                              qconff(i,k)=qconff(i,k)+dqdt_soa(n,jsoa)*(adv_mass(l)/mwdry)
-                           elseif(dqdt_soa(n,jsoa).lt.0.0_r8) then
-                              qevapff(i,k)=qevapff(i,k)+dqdt_soa(n,jsoa)*(adv_mass(l)/mwdry)
-                           endif
-
-                        elseif(jsoa.ge.6.and.jsoa.le.10) then ! Biomass SOA species
-                           if (dqdt_soa(n,jsoa).ge.0.0_r8) then
-                              qconbb(i,k)=qconbb(i,k)+dqdt_soa(n,jsoa)*(adv_mass(l)/mwdry)
-                           elseif(dqdt_soa(n,jsoa).lt.0.0_r8) then
-                              qevapbb(i,k)=qevapbb(i,k)+dqdt_soa(n,jsoa)*(adv_mass(l)/mwdry)
-                           endif
-
-                        elseif(jsoa.ge.11.and.jsoa.le.15) then ! Biomass SOA species
-                           if (dqdt_soa(n,jsoa).ge.0.0_r8) then
-                              qconbg(i,k)=qconbg(i,k)+dqdt_soa(n,jsoa)*(adv_mass(l)/mwdry)
-                           elseif(dqdt_soa(n,jsoa).lt.0.0_r8) then
-                              qevapbg(i,k)=qevapbg(i,k)+dqdt_soa(n,jsoa)*(adv_mass(l)/mwdry)
-                           endif
-
-                        endif ! jsoa
-                     endif !nsoa
-                     if (nsoa.eq.5) then !check for current SOA package
-                           if (dqdt_soa(n,jsoa).ge.0.0_r8) then
-                              qcon(i,k)=qcon(i,k)+dqdt_soa(n,jsoa)*(adv_mass(l)/mwdry)
-                           elseif(dqdt_soa(n,jsoa).lt.0.0_r8) then
-                              qevap(i,k)=qevap(i,k)+dqdt_soa(n,jsoa)*(adv_mass(l)/mwdry)
-                           endif
-                     endif !nsoa
-!---------------------------------------------------------------------------------------------------------------------
                   end if
                end if
             end do
          end do ! n
+
+!------- condensation/evaporation diagnostics
+         call soa_diag%accum( condevap, i, k, ntot_amode, condevap_mask, condevap_fac, dqdt_soa )
 
 !   compute TMR tendencies for h2so4, nh3, and msa gas
 !   due to simple gas uptake
@@ -869,19 +844,7 @@ implicit none
 ! diagnostics end ---------------------------------------------------------
 
 !-----Outfld for condensation/evaporation------------------------------
-   if (nsoa.eq.5) then !check for current SOA package
-      call outfld(trim('qcon_gaex'), qcon(:,:), pcols, lchnk )
-      call outfld(trim('qevap_gaex'), qevap(:,:), pcols, lchnk )
-   endif
-!-----------------------------------------------------------------------
-   if (nsoa.eq.15) then !check for current SOA package
-      call outfld(trim('qconff_gaex'), qconff(:,:), pcols, lchnk )
-      call outfld(trim('qevapff_gaex'), qevapff(:,:), pcols, lchnk )
-      call outfld(trim('qconbb_gaex'), qconbb(:,:), pcols, lchnk )
-      call outfld(trim('qevapbb_gaex'), qevapbb(:,:), pcols, lchnk )
-      call outfld(trim('qconbg_gaex'), qconbg(:,:), pcols, lchnk )
-      call outfld(trim('qevapbg_gaex'), qevapbg(:,:), pcols, lchnk )
-   endif
+   call soa_diag%outfld( condevap, lchnk )
 !-----------------------------------------------------------------------
 
 !   do history file column-tendency fields
@@ -1178,70 +1141,18 @@ aa_iqfrm: do iqfrm = -1, nspec_amode(mfrm)
       end if
 
 !---------define history fields for new cond/evap diagnostics----------------------------------------
-      fieldname=trim('qconff_gaex')
-      long_name = trim('3D fields for Fossil SOA condensation')
-      unit = 'kg/kg/s'
-      call addfld(fieldname, (/'lev'/), 'A', unit, long_name )
-      if ( history_aerosol ) then
-         call add_default( fieldname,  1, ' ' )
-      endif
-      if ( masterproc ) write(*,'(3(a,3x))') 'qconff addfld', fieldname, unit
-
-      fieldname=trim('qevapff_gaex')
-      long_name = trim('3D fields for Fossil SOA evaporation')
-      call addfld(fieldname, (/'lev'/), 'A', unit, long_name )
-      if ( history_aerosol ) then
-         call add_default( fieldname,  1, ' ' )
-      endif
-      if ( masterproc ) write(*,'(3(a,3x))') 'qevapff addfld', fieldname, unit
-
-      fieldname=trim('qconbb_gaex')
-      long_name = trim('3D fields for Biomass SOA condensation')
-      call addfld(fieldname, (/'lev'/), 'A', unit, long_name )
-      if ( history_aerosol ) then
-         call add_default( fieldname,  1, ' ' )
-      endif
-      if ( masterproc ) write(*,'(3(a,3x))') 'qconbb addfld', fieldname, unit
-
-      fieldname=trim('qevapbb_gaex')
-      long_name = trim('3D fields for Biomass SOA evaporation')
-      call addfld(fieldname, (/'lev'/), 'A', unit, long_name )
-      if ( history_aerosol ) then
-         call add_default( fieldname,  1, ' ' )
-      endif
-      if ( masterproc ) write(*,'(3(a,3x))') 'qevapbb addfld', fieldname, unit
-
-      fieldname=trim('qconbg_gaex')
-      long_name = trim('3D fields for Biogenic SOA condensation')
-      call addfld(fieldname, (/'lev'/), 'A', unit, long_name )
-      if ( history_aerosol ) then
-         call add_default( fieldname,  1, ' ' )
-      endif
-      if ( masterproc ) write(*,'(3(a,3x))') 'qconbg addfld', fieldname, unit
-
-      fieldname=trim('qevapbg_gaex')
-      long_name = trim('3D fields for Biogenic SOA evaporation')
-      call addfld(fieldname, (/'lev'/), 'A', unit, long_name )
-      if ( history_aerosol ) then
-         call add_default( fieldname,  1, ' ' )
-      endif
-      if ( masterproc ) write(*,'(3(a,3x))') 'qevapbg addfld', fieldname, unit
-
-      fieldname=trim('qcon_gaex')
-      long_name = trim('3D fields for SOA condensation')
-      call addfld(fieldname, (/'lev'/), 'A', unit, long_name )
-      if ( history_aerosol ) then
-         call add_default( fieldname,  1, ' ' )
-      endif
-      if ( masterproc ) write(*,'(3(a,3x))') 'qcon addfld', fieldname, unit
-
-      fieldname=trim('qevap_gaex')
-      long_name = trim('3D fields for Biogenic SOA evaporation')
-      call addfld(fieldname, (/'lev'/), 'A', unit, long_name )
-      if ( history_aerosol ) then
-         call add_default( fieldname,  1, ' ' )
-      endif
-      if ( masterproc ) write(*,'(3(a,3x))') 'qevap addfld', fieldname, unit
+!   nsoa=5:  totals over all SOA species
+!   nsoa=15: fossil fuel (SOA species 1-5), biomass burning (6-10) and biogenic (11-15) groups
+      if (nsoa == 5) then
+         call soa_diag%init( nsoa, do_total=.true., do_spec=.false., history_aerosol=history_aerosol )
+      else if (nsoa == 15) then
+         call soa_diag%init( nsoa, do_total=.false., do_spec=.false., history_aerosol=history_aerosol, &
+                             grp=(/ (1+(jsoa-1)/5, jsoa=1,nsoa) /), &
+                             grp_sfx=(/ 'ff', 'bb', 'bg' /), &
+                             grp_desc=(/ 'Fossil  ', 'Biomass ', 'Biogenic' /) )
+      else
+         call soa_diag%init( nsoa, do_total=.false., do_spec=.false., history_aerosol=history_aerosol )
+      end if
 !------------------------------------------------------------------------------
 
 !  define history fields for basic gas-aer exchange

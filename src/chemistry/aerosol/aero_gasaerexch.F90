@@ -14,6 +14,8 @@ module aero_gasaerexch
 
    public :: aero_gasaerexch_uptkrates
    public :: aero_gasaerexch_soa
+   public :: aero_gasaerexch_uptk_diag_init
+   public :: aero_gasaerexch_uptk_diag_out
 
    ! gas diffusivity ratios relative to h2so4
    ! (differences in fuchs-sutugin and accom coef ignored)
@@ -24,6 +26,43 @@ module aero_gasaerexch
    integer, parameter, public :: method_soa_none = 0         ! no uptake
    integer, parameter, public :: method_soa_irreversible = 1 ! irreversible uptake done like h2so4 uptake
    integer, parameter, public :: method_soa_reversible = 2   ! reversible uptake using aero_soaexch
+
+   !----------------------------------------------------------------------
+   ! SOA condensation/evaporation history diagnostics (kg/kg/s)
+   !
+   ! Condensation (positive) and evaporation (negative) SOA tendencies,
+   ! optionally output as totals over all SOA species ('qcon_gaex',
+   ! 'qevap_gaex'), per SOA species ('qcon_gaexNN', 'qevap_gaexNN'), and/or
+   ! per group of SOA species ('qcon<sfx>_gaex', 'qevap<sfx>_gaex').
+   ! The configuration is set once at initialization; the sums for a call
+   ! are kept in a soa_condevap_acc_t local to the caller (thread safe).
+   !----------------------------------------------------------------------
+   type, public :: soa_condevap_diag_t
+      private
+      integer :: nsoa = 0                        ! number of soa species
+      logical :: do_total = .false.              ! output totals over all soa species
+      logical :: do_spec = .false.               ! output per soa species
+      integer :: ngrp = 0                        ! number of soa species groups output
+      integer, allocatable :: grp(:)             ! group index of each soa species (0 = none)
+      character(len=8), allocatable :: grp_sfx(:) ! field name suffix of each group
+   contains
+      procedure :: init => soa_condevap_init
+      procedure :: reset => soa_condevap_reset
+      procedure :: accum => soa_condevap_accum
+      procedure :: outfld => soa_condevap_outfld
+   end type soa_condevap_diag_t
+
+   ! sums of the SOA condensation/evaporation diagnostics for one chunk
+   type, public :: soa_condevap_acc_t
+      real(r8), allocatable :: con_tot(:,:)      ! (pcols,pver)
+      real(r8), allocatable :: evap_tot(:,:)     ! (pcols,pver)
+      real(r8), allocatable :: con_spc(:,:,:)    ! (pcols,pver,nsoa)
+      real(r8), allocatable :: evap_spc(:,:,:)   ! (pcols,pver,nsoa)
+      real(r8), allocatable :: con_grp(:,:,:)    ! (pcols,pver,ngrp)
+      real(r8), allocatable :: evap_grp(:,:,:)   ! (pcols,pver,ngrp)
+   end type soa_condevap_acc_t
+
+   character(len=*), parameter :: condevap_units = 'kg/kg/s'
 
 contains
 
@@ -168,5 +207,272 @@ contains
       end select
 
    end subroutine aero_gasaerexch_soa
+
+   !----------------------------------------------------------------------
+   ! registers history fields of the gas-to-aerosol mass transfer rates
+   ! (uptake rates), number densities and wet radii of each mode/bin
+   !----------------------------------------------------------------------
+   subroutine aero_gasaerexch_uptk_diag_init( nbins, history_aerosol )
+
+      use cam_history, only: addfld, add_default, fieldname_len
+
+      integer, intent(in) :: nbins             ! number of modes/bins
+      logical, intent(in) :: history_aerosol   ! add fields to default history output
+
+      integer :: m
+      character(len=fieldname_len) :: fieldname
+      character(len=128) :: long_name
+
+      do m = 1, nbins
+         write(fieldname,'("WETRAD_bin",I2.2)') m
+         write(long_name,'("bin ",I2.2," wet radius in gas-aerosol exchange")') m
+         call addfld(fieldname, (/'lev'/), 'A', 'cm', long_name )
+         if ( history_aerosol ) then
+            call add_default( fieldname, 1, ' ' )
+         end if
+
+         write(fieldname,'("UPTKRATE_bin",I2.2)') m
+         write(long_name,'("bin ",I2.2," uptake rate in gas-aerosol exchange")') m
+         call addfld(fieldname, (/'lev'/), 'A', 'sec-1', long_name )
+         if ( history_aerosol ) then
+            call add_default( fieldname, 1, ' ' )
+         end if
+
+         write(fieldname,'("NUMDENS_bin",I2.2)') m
+         write(long_name,'("bin ",I2.2," number density in gas-aerosol exchange")') m
+         call addfld(fieldname, (/'lev'/), 'A', 'm-3', long_name )
+         if ( history_aerosol ) then
+            call add_default( fieldname, 1, ' ' )
+         end if
+      end do
+
+      call addfld('UPTKRATE', (/'lev'/), 'A', 'sec-1', 'total uptake rate in gas-aerosol exchange' )
+      if ( history_aerosol ) then
+         call add_default( 'UPTKRATE', 1, ' ' )
+      end if
+
+   end subroutine aero_gasaerexch_uptk_diag_init
+
+   !----------------------------------------------------------------------
+   ! outputs the gas-to-aerosol mass transfer rates (uptake rates), number
+   ! densities and wet radii of each mode/bin
+   !----------------------------------------------------------------------
+   subroutine aero_gasaerexch_uptk_diag_out( lchnk, ncol, nbins, numdens, wetdiam, uptkrate )
+
+      use cam_history, only: outfld, fieldname_len
+
+      integer,  intent(in) :: lchnk             ! chunk identifier
+      integer,  intent(in) :: ncol              ! number of columns
+      integer,  intent(in) :: nbins             ! number of modes/bins
+      real(r8), intent(in) :: numdens(:,:,:)    ! number density of each mode/bin (#/m3)
+      real(r8), intent(in) :: wetdiam(:,:,:)    ! wet diameter of each mode/bin (m)
+      real(r8), intent(in) :: uptkrate(:,:,:)   ! gas-to-aerosol mass transfer rates (1/s)
+
+      integer :: m
+      character(len=fieldname_len) :: fieldname
+      real(r8) :: uptkrate_all(ncol,size(uptkrate,2))
+
+      ! initialize to zero before summing
+      uptkrate_all(:,:) = 0._r8
+
+      do m = 1, nbins
+
+         write(fieldname,'("NUMDENS_bin",I2.2)') m
+         call outfld(fieldname, numdens(:ncol,:,m), ncol, lchnk )
+
+         write(fieldname,'("WETRAD_bin",I2.2)') m
+         call outfld(fieldname, 0.5_r8*wetdiam(:ncol,:,m)*1.e2_r8, ncol, lchnk ) ! wet radius (cm)
+
+         write(fieldname,'("UPTKRATE_bin",I2.2)') m
+         call outfld(fieldname, uptkrate(:ncol,:,m), ncol, lchnk )
+
+         uptkrate_all(:ncol,:) = uptkrate_all(:ncol,:) + uptkrate(:ncol,:,m)
+      end do
+
+      call outfld('UPTKRATE', uptkrate_all(:ncol,:), ncol, lchnk )
+
+   end subroutine aero_gasaerexch_uptk_diag_out
+
+   !----------------------------------------------------------------------
+   ! configures and registers the SOA condensation/evaporation history fields
+   !----------------------------------------------------------------------
+   subroutine soa_condevap_init( self, nsoa, do_total, do_spec, history_aerosol, &
+                                 grp, grp_sfx, grp_desc )
+
+      use cam_history,    only: addfld, add_default, fieldname_len
+      use cam_abortutils, only: endrun
+
+      class(soa_condevap_diag_t), intent(inout) :: self
+      integer, intent(in) :: nsoa                  ! number of soa species
+      logical, intent(in) :: do_total              ! output totals over all soa species
+      logical, intent(in) :: do_spec               ! output per soa species
+      logical, intent(in) :: history_aerosol       ! add fields to default history output
+      integer, optional, intent(in) :: grp(:)      ! group index of each soa species (0 = none)
+      character(len=*), optional, intent(in) :: grp_sfx(:)  ! field name suffix of each group
+      character(len=*), optional, intent(in) :: grp_desc(:) ! description of each group
+
+      integer :: j
+      character(len=2) :: outsoa
+      character(len=fieldname_len) :: fieldname
+      character(len=128) :: long_name
+      character(len=*), parameter :: subname = 'aero_gasaerexch::soa_condevap_init'
+
+      self%nsoa = nsoa
+      self%do_total = do_total
+      self%do_spec = do_spec
+
+      allocate(self%grp(nsoa))
+      self%grp(:) = 0
+      self%ngrp = 0
+      if (present(grp)) then
+         if (.not.(present(grp_sfx) .and. present(grp_desc))) then
+            call endrun(subname//': grp_sfx and grp_desc must be given with grp')
+         end if
+         if (size(grp) /= nsoa .or. size(grp_desc) /= size(grp_sfx)) then
+            call endrun(subname//': inconsistent group arguments')
+         end if
+         self%ngrp = size(grp_sfx)
+         if (any(grp < 0) .or. any(grp > self%ngrp)) then
+            call endrun(subname//': invalid group index')
+         end if
+         self%grp(:) = grp(:)
+         allocate(self%grp_sfx(self%ngrp))
+         self%grp_sfx(:) = grp_sfx(:)
+      else
+         allocate(self%grp_sfx(0))
+      end if
+
+      if (self%do_total) then
+         call add_condevap_fld('qcon_gaex', '3D fields for SOA condensation')
+         call add_condevap_fld('qevap_gaex', '3D fields for SOA evaporation')
+      end if
+
+      if (self%do_spec) then
+         do j = 1, nsoa
+            write (outsoa, "(I2.2)") j
+            call add_condevap_fld('qcon_gaex'//outsoa, '3D fields for SOA condensation for VBS bin'//outsoa)
+            call add_condevap_fld('qevap_gaex'//outsoa, '3D fields for SOA evaporation for VBS bin'//outsoa)
+         end do
+      end if
+
+      do j = 1, self%ngrp
+         call add_condevap_fld('qcon'//trim(self%grp_sfx(j))//'_gaex', &
+                               '3D fields for '//trim(grp_desc(j))//' SOA condensation')
+         call add_condevap_fld('qevap'//trim(self%grp_sfx(j))//'_gaex', &
+                               '3D fields for '//trim(grp_desc(j))//' SOA evaporation')
+      end do
+
+   contains
+
+      subroutine add_condevap_fld(name, desc)
+         character(len=*), intent(in) :: name
+         character(len=*), intent(in) :: desc
+
+         fieldname = name
+         long_name = desc
+         call addfld(fieldname, (/'lev'/), 'A', condevap_units, long_name )
+         if ( history_aerosol ) then
+            call add_default( fieldname, 1, ' ' )
+         end if
+
+      end subroutine add_condevap_fld
+
+   end subroutine soa_condevap_init
+
+   !----------------------------------------------------------------------
+   ! allocates and zeros the SOA condensation/evaporation sums for a chunk
+   !----------------------------------------------------------------------
+   subroutine soa_condevap_reset( self, acc )
+
+      use ppgrid, only: pcols, pver
+
+      class(soa_condevap_diag_t), intent(in) :: self
+      type(soa_condevap_acc_t), intent(out) :: acc   ! sums for a chunk
+
+      allocate(acc%con_tot(pcols,pver), acc%evap_tot(pcols,pver))
+      allocate(acc%con_spc(pcols,pver,self%nsoa), acc%evap_spc(pcols,pver,self%nsoa))
+      allocate(acc%con_grp(pcols,pver,self%ngrp), acc%evap_grp(pcols,pver,self%ngrp))
+
+      acc%con_tot(:,:) = 0.0_r8
+      acc%evap_tot(:,:) = 0.0_r8
+      acc%con_spc(:,:,:) = 0.0_r8
+      acc%evap_spc(:,:,:) = 0.0_r8
+      acc%con_grp(:,:,:) = 0.0_r8
+      acc%evap_grp(:,:,:) = 0.0_r8
+
+   end subroutine soa_condevap_reset
+
+   !----------------------------------------------------------------------
+   ! adds the SOA tendencies of one grid cell to the condensation
+   ! (dqdt_soa >= 0) and evaporation (dqdt_soa < 0) sums
+   !----------------------------------------------------------------------
+   subroutine soa_condevap_accum( self, acc, i, k, nbins, mask, fac, dqdt_soa )
+
+      class(soa_condevap_diag_t), intent(in) :: self
+      type(soa_condevap_acc_t), intent(inout) :: acc     ! sums for a chunk
+      integer,  intent(in) :: i                          ! column index
+      integer,  intent(in) :: k                          ! level index
+      integer,  intent(in) :: nbins                      ! number of modes/bins
+      logical,  intent(in) :: mask(nbins,self%nsoa)      ! include mode/bin soa species
+      real(r8), intent(in) :: fac(nbins,self%nsoa)       ! conversion factor to mass mixing ratio (mw/mwdry)
+      real(r8), intent(in) :: dqdt_soa(nbins,self%nsoa)  ! soa tendencies (mol/mol/s)
+
+      integer :: n, jsoa, jg
+
+      ! each sum is updated as sum + dqdt_soa*fac (not via a shared product
+      ! temporary) so that results do not depend on multiply-add contraction
+      ! differently than the per-model code this replaces
+      do n = 1, nbins
+         do jsoa = 1, self%nsoa
+            if (.not. mask(n,jsoa)) cycle
+            jg = self%grp(jsoa)
+            if (dqdt_soa(n,jsoa) >= 0.0_r8) then
+               if (self%do_spec) acc%con_spc(i,k,jsoa) = acc%con_spc(i,k,jsoa) + dqdt_soa(n,jsoa)*fac(n,jsoa)
+               if (self%do_total) acc%con_tot(i,k) = acc%con_tot(i,k) + dqdt_soa(n,jsoa)*fac(n,jsoa)
+               if (jg > 0) acc%con_grp(i,k,jg) = acc%con_grp(i,k,jg) + dqdt_soa(n,jsoa)*fac(n,jsoa)
+            else if (dqdt_soa(n,jsoa) < 0.0_r8) then
+               if (self%do_spec) acc%evap_spc(i,k,jsoa) = acc%evap_spc(i,k,jsoa) + dqdt_soa(n,jsoa)*fac(n,jsoa)
+               if (self%do_total) acc%evap_tot(i,k) = acc%evap_tot(i,k) + dqdt_soa(n,jsoa)*fac(n,jsoa)
+               if (jg > 0) acc%evap_grp(i,k,jg) = acc%evap_grp(i,k,jg) + dqdt_soa(n,jsoa)*fac(n,jsoa)
+            end if
+         end do
+      end do
+
+   end subroutine soa_condevap_accum
+
+   !----------------------------------------------------------------------
+   ! outputs the SOA condensation/evaporation history fields
+   !----------------------------------------------------------------------
+   subroutine soa_condevap_outfld( self, acc, lchnk )
+
+      use cam_history, only: outfld
+      use ppgrid,      only: pcols
+
+      class(soa_condevap_diag_t), intent(in) :: self
+      type(soa_condevap_acc_t), intent(in) :: acc   ! sums for a chunk
+      integer, intent(in) :: lchnk                  ! chunk identifier
+
+      integer :: j
+      character(len=2) :: outsoa
+
+      if (self%do_total) then
+         call outfld('qcon_gaex', acc%con_tot(:,:), pcols, lchnk )
+         call outfld('qevap_gaex', acc%evap_tot(:,:), pcols, lchnk )
+      end if
+
+      if (self%do_spec) then
+         do j = 1, self%nsoa
+            write (outsoa, "(I2.2)") j
+            call outfld('qcon_gaex'//outsoa, acc%con_spc(:,:,j), pcols, lchnk )
+            call outfld('qevap_gaex'//outsoa, acc%evap_spc(:,:,j), pcols, lchnk )
+         end do
+      end if
+
+      do j = 1, self%ngrp
+         call outfld('qcon'//trim(self%grp_sfx(j))//'_gaex', acc%con_grp(:,:,j), pcols, lchnk )
+         call outfld('qevap'//trim(self%grp_sfx(j))//'_gaex', acc%evap_grp(:,:,j), pcols, lchnk )
+      end do
+
+   end subroutine soa_condevap_outfld
 
 end module aero_gasaerexch
