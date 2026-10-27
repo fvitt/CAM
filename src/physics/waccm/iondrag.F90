@@ -80,7 +80,7 @@ module iondrag
 
   integer  :: ntop_lev = 1
   integer  :: nbot_lev = 0
-  integer  :: id_xo2, id_xo1             ! indices to tn and major sp
+  integer  :: id_xo2, id_xo1, id_xhe=-1  ! indices to tn and major sp
   integer  :: id_o2p, id_op, id_nop      ! indices to ions
   integer  :: id_elec, id_n
 
@@ -100,6 +100,7 @@ module iondrag
   real(r8) :: rmass_nop                  ! mass of NO+ (g/mole)
   real(r8) :: rmass_o1                   ! mass of O (g/mole)
   real(r8) :: rmass_o2                   ! mass of O2 (g/mole)
+  real(r8) :: rmass_he                   ! mass of HE (g/mole)
   real(r8) :: rmass_n2                   ! mass of N2 (g/mole)
 
   !-------------------------------------------------------------------------------
@@ -107,6 +108,7 @@ module iondrag
   !-------------------------------------------------------------------------------
   real(r8) :: rmi_o1
   real(r8) :: rmi_o2
+  real(r8) :: rmi_he
   real(r8) :: rmi_n2
   real(r8) :: rmi_op
   real(r8) :: rmi_o2p
@@ -363,6 +365,9 @@ contains
        id_n = slvd_index( 'N' )
     endif
 
+    ! HE is optional; id_xhe <= 0 means the simulation does not include it
+    call cnst_get_ind( 'HE', id_xhe, abort=.false. )
+
     cnst_ids = (/ id_elec, id_op, id_o2p, id_nop, id_xo1, id_xo2, id_n /)
 
     if ( all( cnst_ids > 0 ) ) then
@@ -402,6 +407,7 @@ contains
     use mo_chem_utls, only: get_inv_ndx
     use chem_mods,    only: fix_mass
     use phys_control, only: phys_getopts
+    use constituents, only: cnst_mw
 
     !-------------------------------------------------------------------------------
     ! local variables
@@ -431,6 +437,15 @@ contains
     rmass_o2 = adv_mass(id)
     id = get_inv_ndx('N2')
     rmass_n2 = fix_mass(id)
+
+    ! for helium if included
+    if (id_xhe > 0) then
+       rmass_he = cnst_mw(id_xhe)
+       rmi_he  = 1._r8/rmass_he
+    else
+       rmass_he = 0._r8
+       rmi_he  = 0._r8
+    endif
 
     rmi_o1     = 1._r8/rmass_o1
     rmi_o2     = 1._r8/rmass_o2
@@ -641,6 +656,7 @@ contains
     real(r8), target :: tn(pcols,pver) ! neutral gas temperature (deg K)
     real(r8) :: xo2     (pcols,pver)   ! O2  (mmr)
     real(r8) :: xo1     (pcols,pver)   ! O   (mmr)
+    real(r8) :: xhe     (pcols,pver)   ! He  (mmr)
     real(r8) :: xn2     (pcols,pver)   ! N2  (mmr)
     real(r8) :: o2p     (pcols,pver)   ! O2+ (mmr)
     real(r8) :: op      (pcols,pver)   ! O+  (mmr)
@@ -650,6 +666,7 @@ contains
     real(r8) :: tnti    (pcols,pver)   ! average of tn and ti
     real(r8) :: o2_cm3  (pcols,pver)   ! o2 volume density (cm-3)
     real(r8) :: o1_cm3  (pcols,pver)   ! o  volume density (cm-3)
+    real(r8) :: he_cm3  (pcols,pver)   ! he volume density (cm-3)
     real(r8) :: n2_cm3  (pcols,pver)   ! n2 volume density (cm-3)
     real(r8) :: o2p_cm3 (pcols,pver)   ! O2+ (cm-3)
     real(r8) :: op_cm3  (pcols,pver)   ! O+  (cm-3)
@@ -671,12 +688,15 @@ contains
     real(r8) :: rnu_o2p_o (pcols,pver)   ! O2+ ~ O  collision freq (non-resonant)
     real(r8) :: rnu_op_o  (pcols,pver)   ! O+  ~ O  collision freq (resonant, T dependent)
     real(r8) :: rnu_nop_o (pcols,pver)   ! NO+ ~ O  collision freq (non-resonant)
+    real(r8) :: rnu_o2p_he(pcols,pver)   ! O2+ ~ He collision freq (non-resonant)
+    real(r8) :: rnu_op_he (pcols,pver)   ! O+  ~ He collision freq (non-resonant)
+    real(r8) :: rnu_nop_he(pcols,pver)   ! NO+ ~ He collision freq (non-resonant)
     real(r8) :: rnu_o2p_n2(pcols,pver)   ! O2+ ~ N2 collision freq (non-resonant)
     real(r8) :: rnu_op_n2 (pcols,pver)   ! O+  ~ N2 collision freq (non-resonant)
     real(r8) :: rnu_nop_n2(pcols,pver)   ! NO+ ~ N2 collision freq (non-resonant)
-    real(r8) :: rnu_o2p   (pcols,pver)   ! [[o2p~o2]n(o2)+[o2p~o]n(o)+[o2p~n2]n(n2)]/w(o2p)
-    real(r8) :: rnu_op    (pcols,pver)   ! [[op ~o2]n(o2)+[op ~o]n(o)+[op ~n2]n(n2)]/w(op )
-    real(r8) :: rnu_nop   (pcols,pver)   ! [[nop~o2]n(o2)+[nop~o]n(o)+[nop~n2]n(n2)]/w(nop)
+    real(r8) :: rnu_o2p   (pcols,pver)   ! [[o2p~o2]n(o2)+[o2p~o]n(o)+[o2p~he]n(he)+[o2p~n2]n(n2)]/w(o2p)
+    real(r8) :: rnu_op    (pcols,pver)   ! [[op ~o2]n(o2)+[op ~o]n(o)+[op ~he]n(he)+[op ~n2]n(n2)]/w(op )
+    real(r8) :: rnu_nop   (pcols,pver)   ! [[nop~o2]n(o2)+[nop~o]n(o)+[nop~he]n(he)+[nop~n2]n(n2)]/w(nop)
     real(r8) :: rnu_ne    (pcols,pver)   ! electron ~ neutral collision frequency (s-1)
 
     real(r8) :: press        (pcols)     ! pressure at interface levels (dyne/cm^2)
@@ -715,7 +735,7 @@ contains
 
     real(r8) :: qout(pcols,pver)         ! temp for outfld
 
-    real(r8), dimension(:,:), pointer :: q_xo1,  q_xo2, q_o2p, q_op, q_nop
+    real(r8), dimension(:,:), pointer :: q_xo1, q_xo2, q_o2p, q_op, q_nop
 
     real(r8), dimension(:,:), pointer :: tE  	 ! electron temperature in pbuf (K)
     real(r8), dimension(:,:), pointer :: tI   	 ! ion temperature in pbuf (K)
@@ -753,6 +773,13 @@ contains
       q_nop => state%q(:,:,id_nop)
     endif
 
+    ! if helium is included
+    if ( id_xhe > 0 ) then
+      xhe(:ncol,:) = state%q(:ncol,:,id_xhe)         ! he (mmr)
+    else
+      xhe(:ncol,:) = 0._r8
+    endif
+
     !-------------------------------------------------------------------------------
     ! Define local tn and major species from state (mmr):
     !-------------------------------------------------------------------------------
@@ -761,7 +788,7 @@ contains
           tn (i,k) = state%t(i,k)
           xo2(i,k) = q_xo2(i,k)              ! o2  (mmr)
           xo1(i,k) = q_xo1(i,k)              ! o   (mmr)
-          xn2(i,k) = 1._r8 - (xo2(i,k) + xo1(i,k)) ! n2  (mmr)
+          xn2(i,k) = 1._r8 - (xo2(i,k) + xo1(i,k) + xhe(i,k)) ! n2  (mmr)
           xn2(i,k) = max( 1.e-20_r8,xn2(i,k) )
           o2p(i,k) = q_o2p(i,k)              ! o2+ (mmr)
           op (i,k) = q_op(i,k)               ! o+  (mmr)
@@ -866,6 +893,12 @@ contains
                *(1._r8 - .064_r8*wrk)**2*colfac
           rnu_nop_o(i,k) = 2.44e-10_r8                     ! NO+ ~ O
           !-------------------------------------------------------------------------------
+          ! Collision frequency coefficients with He (cm3/s):
+          !-------------------------------------------------------------------------------
+          rnu_o2p_he(i,k) = 0.70e-10_r8                    ! O2+ ~ He
+          rnu_op_he(i,k)  = 1.32e-10_r8                    ! O+  ~ He
+          rnu_nop_he(i,k) = 0.74e-10_r8                    ! NO+ ~ He
+          !-------------------------------------------------------------------------------
           ! Collision frequency coefficients with N2 (cm3/s):
           !-------------------------------------------------------------------------------
           rnu_o2p_n2(i,k) = 4.13e-10_r8                    ! O2+ ~ N2
@@ -889,10 +922,10 @@ contains
     do k = 1,pver
        do i = 1,ncol
           press(i)     = 10._r8*state%pmid(i,k) ! from Pa to dyne/cm^2
-          !     barm(i,k)   = 1._r8 / (xo2(i,k)*rmi_o2 + xo1(i,k)*rmi_o1 + xn2(i,k)*rmi_n2)
           xnmbar(i,k)  = press(i)*barm(i,k)/(boltzmann*tn(i,k))
           o2_cm3(i,k)  = xo2(i,k)*xnmbar(i,k)*rmi_o2   ! o2 (cm-3)
           o1_cm3(i,k)  = xo1(i,k)*xnmbar(i,k)*rmi_o1   ! o  (cm-3)
+          he_cm3(i,k)  = xhe(i,k)*xnmbar(i,k)*rmi_he   ! he (cm-3)
           n2_cm3(i,k)  = xn2(i,k)*xnmbar(i,k)*rmi_n2   ! n2 (cm-3)
           o2p_cm3(i,k) = o2p(i,k)*xnmbar(i,k)*rmi_o2p  ! o2+ (cm-3)
           op_cm3 (i,k) = op (i,k)*xnmbar(i,k)*rmi_op   ! o+  (cm-3)
@@ -909,20 +942,23 @@ contains
     !-------------------------------------------------------------------------------
     ! Multiply collision freq by neutral number density and sum for each ion:
     !
-    ! rnu_o2p = [[o2p~o2]n(o2)+[o2p~o]n(o)+[o2p~n2]n(n2)]/w(o2p)
-    ! rnu_op  = [[op ~o2]n(o2)+[op ~o]n(o)+[op ~n2]n(n2)]/w(op )
-    ! rnu_nop = [[nop~o2]n(o2)+[nop~o]n(o)+[nop~n2]n(n2)]/w(nop)
+    ! rnu_o2p = [[o2p~o2]n(o2)+[o2p~o]n(o)+[o2p~he]n(he)+[o2p~n2]n(n2)]/w(o2p)
+    ! rnu_op  = [[op ~o2]n(o2)+[op ~o]n(o)+[op ~he]n(he)+[op ~n2]n(n2)]/w(op )
+    ! rnu_nop = [[nop~o2]n(o2)+[nop~o]n(o)+[nop~he]n(he)+[nop~n2]n(n2)]/w(nop)
     !-------------------------------------------------------------------------------
     do k = 1,pver
        do i = 1,ncol
           rnu_o2p(i,k) = rnu_o2p_o2(i,k)*o2_cm3(i,k) &
                + rnu_o2p_o (i,k)*o1_cm3(i,k) &
+               + rnu_o2p_he(i,k)*he_cm3(i,k) &
                + rnu_o2p_n2(i,k)*n2_cm3(i,k)
           rnu_op (i,k) = rnu_op_o2 (i,k)*o2_cm3(i,k) &
                + rnu_op_o  (i,k)*o1_cm3(i,k) &
+               + rnu_op_he (i,k)*he_cm3(i,k) &
                + rnu_op_n2 (i,k)*n2_cm3(i,k)
           rnu_nop(i,k) = rnu_nop_o2(i,k)*o2_cm3(i,k) &
                + rnu_nop_o (i,k)*o1_cm3(i,k) &
+               + rnu_nop_he(i,k)*he_cm3(i,k) &
                + rnu_nop_n2(i,k)*n2_cm3(i,k)
           !-------------------------------------------------------------------------------
           ! Electron collision frequency (s-1):
@@ -931,7 +967,8 @@ contains
           rnu_ne(i,k) = &
                2.33e-11_r8*n2_cm3(i,k)*tE(i,k)*(1._r8 - 1.21e-4_r8*tE(i,k)) &
                + 1.82e-10_r8*o2_cm3(i,k)*sqrt_te*(1._r8 + 3.60e-2_r8*sqrt_te) &
-               + 8.90e-11_r8*o1_cm3(i,k)*sqrt_te*(1._r8 + 5.70e-4_r8*tE(i,k))
+               + 8.90e-11_r8*o1_cm3(i,k)*sqrt_te*(1._r8 + 5.70e-4_r8*tE(i,k)) &
+               + 4.60e-10_r8*he_cm3(i,k)*sqrt_te
        end do
     end do
 

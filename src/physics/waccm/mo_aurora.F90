@@ -81,9 +81,11 @@
       integer  :: lev1 = 1
       real(r8) :: rmass_o1
       real(r8) :: rmass_o2
+      real(r8) :: rmass_he
       real(r8) :: rmass_n2
       real(r8) :: rmassinv_o1
       real(r8) :: rmassinv_o2
+      real(r8) :: rmassinv_he
       real(r8) :: rmassinv_n2
       real(r8), parameter :: twopi = 2._r8*pi
       real(r8), parameter :: d2r = pi/180._r8
@@ -164,6 +166,7 @@
 
       use ppgrid,       only : pver
       use constituents, only : cnst_get_ind, cnst_mw
+      use chem_mods,    only : adv_mass
       use ref_pres,     only : pref_mid
       use mo_chem_utls, only : get_spc_ndx
       use cam_history,  only : addfld, horiz_only
@@ -237,6 +240,15 @@
       call cnst_get_ind( 'O', m )
       rmass_o1    = cnst_mw(m)
       rmassinv_o1 = 1._r8/rmass_o1
+      ! HE is optional; without it the he input is zero and drops out of denom
+      call cnst_get_ind( 'HE', m, abort=.false. )
+      if (m > 0) then
+         rmass_he    = cnst_mw(m)
+         rmassinv_he = 1._r8/rmass_he
+      else
+         rmass_he    = 0._r8
+         rmassinv_he = 0._r8
+      endif
       call cnst_get_ind( 'N', m )
       rmass_n2    = 2._r8*cnst_mw(m)
       rmassinv_n2 = 1._r8/rmass_n2
@@ -399,7 +411,7 @@
 
       end subroutine aurora_timestep_init
 
-      subroutine aurora_prod( tn, o2, o1, mbar, rlats, &
+      subroutine aurora_prod( tn, o2, o1, he, mbar, rlats, &
                               qo2p, qop, qn2p, qnp, pmid, &
                               lchnk, calday,  ncol, rlons, pbuf )
 !-----------------------------------------------------------------------
@@ -426,6 +438,7 @@
         tn(pcols,pver), &                ! neutral gas temperature (K)
         o2(ncol,pver), &                 ! O2 concentration (kg/kg)
         o1(ncol,pver), &                 ! O concentration (kg/kg)
+        he(ncol,pver), &                 ! HE concentration (kg/kg)
         mbar(ncol,pver)                  ! mean molecular weight (g/mole)
       real(r8), intent(in) :: &
         pmid(pcols,pver)                 ! midpoint pressure (Pa)
@@ -560,7 +573,7 @@
 !-----------------------------------------------------------------------
       call aurora_ions( drizl, cusp, alfa, alfa2, &
                         flux, flux2, tn, o2, &
-                        o1, mbar, qo2p, qop, qn2p, &
+                        o1, he, mbar, qo2p, qop, qn2p, &
                         qnp, pmid, do_aurora, ncol, lchnk, pbuf )
 
       end subroutine aurora_prod
@@ -876,7 +889,7 @@
 
       subroutine aurora_ions( drizl, cusp, alfa1, alfa2, &
                               flux1, flux2, tn, o2, &
-                              o1, mbar, qo2p, qop, qn2p, &
+                              o1, he, mbar, qo2p, qop, qn2p, &
                               qnp, pmid, do_aurora, ncol, lchnk, pbuf )
 !-----------------------------------------------------------------------
 ! 	... calculate auroral additions to ionization rates
@@ -907,6 +920,7 @@
       real(r8), dimension(ncol,pver), intent(in) :: &
                              o2, &                     ! midpoint o2 concentration (kg/kg)
                              o1, &                     ! midpoint o  concentration (kg/kg)
+                             he, &                     ! midpoint he  concentration (kg/kg)
                              mbar                      ! mean molecular mass (g/mole)
       real(r8), dimension(ncol,pver), intent(inout) :: &
                              qo2p, &                   ! o2p prod from aurora (molecules/cm^3/s)
@@ -1014,10 +1028,11 @@ level_loop : &
              wrk(:,k)  = qsum(:)
 !-----------------------------------------------------------------------
 ! 	... denominator of equations (13-16) in Roble,1987.
+!       The change of the N2 coefficient (0.92 -> 1.15) is from Jones & Rees (1973)
 !-----------------------------------------------------------------------
-             xn2(:)   = max( (1._r8 - o2(:,k) - o1(:,k)),1.e-8_r8 )
-             denom(:) = 0.92_r8*xn2(:)*rmassinv_n2 &
-                      + 1.5_r8*o2(:,k) *rmassinv_o2 + 0.56_r8*o1(:,k) *rmassinv_o1
+             xn2(:)   = max( (1._r8 - o2(:,k) - o1(:,k) - he(:,k)),0._r8 )
+             denom(:) = 1.5_r8*o2(:,k)*rmassinv_o2 + 0.56_r8*o1(:,k)*rmassinv_o1 &
+                      + 0.43_r8*he(:,k)*rmassinv_he + 1.15_r8*xn2(:)*rmassinv_n2
 !-----------------------------------------------------------------------
 ! 	... production of O2+ (equation (15) in Roble,1987):
 !-----------------------------------------------------------------------

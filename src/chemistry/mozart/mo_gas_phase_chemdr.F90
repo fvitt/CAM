@@ -20,7 +20,7 @@ module mo_gas_phase_chemdr
 
   integer :: map2chm(pcnst) = 0           ! index map to/from chemistry/constituents list
 
-  integer :: so4_ndx, h2o_ndx, o2_ndx, o_ndx, hno3_ndx, hcl_ndx, cldice_ndx, snow_ndx, cldliq_ndx
+  integer :: so4_ndx, h2o_ndx, o2_ndx, o_ndx, he_ndx, hno3_ndx, hcl_ndx, cldice_ndx, snow_ndx, cldliq_ndx
   integer :: o3_ndx, o3s_ndx, o3_inv_ndx, srf_ozone_pbf_ndx=-1
   integer :: het1_ndx
   integer :: ndx_cldfr, ndx_cmfdqr, ndx_nevapr, ndx_cldtop, ndx_prain
@@ -124,6 +124,7 @@ contains
     o3s_ndx = get_spc_ndx('O3S')
     o_ndx   = get_spc_ndx('O')
     o2_ndx  = get_spc_ndx('O2')
+    he_ndx  = get_spc_ndx('HE')
     so4_ndx = get_spc_ndx('SO4')
     h2o_ndx = get_spc_ndx('H2O')
     hno3_ndx = get_spc_ndx('HNO3')
@@ -447,6 +448,7 @@ contains
     real(r8) :: wetdepflx_diag(pcols,gas_pcnst)
     real(r8) :: o2mmr(ncol,pver)               ! o2 concentration (kg/kg)
     real(r8) :: ommr(ncol,pver)                ! o concentration (kg/kg)
+    real(r8) :: hemmr(ncol,pver)               ! he concentration (kg/kg)
     real(r8) :: mmr(pcols,pver,gas_pcnst)      ! chem working concentrations (kg/kg)
     real(r8) :: mmr_new(pcols,pver,gas_pcnst)      ! chem working concentrations (kg/kg)
     real(r8) :: hno3_gas(ncol,pver)            ! hno3 gas phase concentration (mol/mol)
@@ -959,8 +961,15 @@ contains
           ommr(:ncol,k)  = mmr(:ncol,k,o_ndx)
        end do
     endif
+    if ( he_ndx > 0 ) then
+       do k = 1,pver
+          hemmr(:ncol,k) = mmr(:ncol,k,he_ndx)
+       end do
+    else
+       hemmr(:ncol,:) = 0._r8
+    endif
     call setext( extfrc, zint, zintr, cldtop, &
-                 zmid, lchnk, tfld, o2mmr, ommr, &
+                 zmid, lchnk, tfld, o2mmr, ommr, hemmr, &
                  pmid, mbar, rlats, calday, ncol, rlons, pbuf )
     ! include forcings from fire emissions ...
     call fire_emissions_vrt( ncol, lchnk, zint, fire_sflx, fire_ztop, extfrc )

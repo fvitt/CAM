@@ -89,7 +89,7 @@ contains
   end subroutine setext_inti
 
   subroutine setext( extfrc, zint_abs, zint_rel, cldtop, &
-       zmid, lchnk, tfld, o2mmr, ommr, &
+       zmid, lchnk, tfld, o2mmr, ommr, hemmr, &
        pmid, mbar, rlats, calday, ncol, rlons, pbuf )
     !--------------------------------------------------------
     !     ... for this latitude slice:
@@ -143,6 +143,7 @@ contains
     real(r8), intent(in)  ::   mbar(ncol,pver)             ! mean molecular mass (g/mole)
     real(r8), intent(in)  ::   o2mmr(ncol,pver)            ! o2 concentration (kg/kg)
     real(r8), intent(in)  ::   ommr(ncol,pver)             ! o concentration (kg/kg)
+    real(r8), intent(in)  ::   hemmr(ncol,pver)            ! he concentration (kg/kg)
 
     type(physics_buffer_desc),pointer :: pbuf(:)
 
@@ -240,7 +241,7 @@ contains
        !     ... set ion auroral production
        !---------------------------------------------------------------------
 
-       call aurora( tfld, o2mmr, ommr, mbar, rlats, &
+       call aurora( tfld, o2mmr, ommr, hemmr, mbar, rlats, &
             extfrc(:,:,o2p_ndx), extfrc(:,:,op_ndx), extfrc(:,:,n2p_ndx), extfrc(:,:,np_ndx), pmid, &
             lchnk, calday, ncol, rlons, pbuf )
        !---------------------------------------------------------------------

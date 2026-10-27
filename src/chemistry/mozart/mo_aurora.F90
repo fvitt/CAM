@@ -39,7 +39,7 @@ contains
 
   !----------------------------------------------------------------------
   !----------------------------------------------------------------------
-  subroutine aurora_prod( tn, o2, o1, mbar, rlats, &
+  subroutine aurora_prod( tn, o2, o1, he, mbar, rlats, &
                           qo2p, qop, qn2p, qnp, pmid, &
                           lchnk, calday,  ncol, rlons, pbuf )
 
@@ -57,6 +57,7 @@ contains
          tn(pcols,pver), &                ! neutral gas temperature (K)
          o2(ncol,pver), &                 ! O2 concentration (kg/kg)
          o1(ncol,pver), &                 ! O concentration (kg/kg)
+         he(ncol,pver), &                 ! He concentration (kg/kg)
          mbar(ncol,pver)                  ! mean molecular weight (g/mole)
     real(r8), intent(in) :: &
          pmid(pcols,pver)                 ! midpoint pressure (Pa)
