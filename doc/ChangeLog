@@ -24,13 +24,23 @@ Purpose of changes (include the issue number and title text for each relevant Gi
    implemented by each aerosol model (Gauss-Hermite integration over the
    lognormal distribution for MAM, monodisperse bins for CARMA, not
    implemented for bulk aerosols).
- - MAM: species indices and SOA/POA molecular weights used in the
-   gas-aerosol exchange are set at initialization from the aerosol
-   properties object rather than the modal_aero_data pointers (removing a
-   per-grid-cell molecular weight lookup). They are cross-checked against
-   the modal_aero_data pointers at initialization. H2SO4/MSA/NH3
-   condensation, the stratospheric sulfeq treatment, the NH4/SO4 limit,
-   primary-carbon aging and renaming remain MAM-specific.
+ - MAM: species indices, SOA gas (SOAG) indices and SOA/POA molecular
+   weights used in the gas-aerosol exchange are set at initialization from
+   the aerosol properties object and the shared lookups below, rather than
+   the modal_aero_data pointers (removing a per-grid-cell molecular weight
+   lookup). They are cross-checked against the modal_aero_data pointers at
+   initialization. H2SO4/MSA/NH3 condensation, the stratospheric sulfeq
+   treatment, the NH4/SO4 limit, primary-carbon aging and renaming remain
+   MAM-specific.
+ - Species lookups shared by MAM and CARMA (aero_gasaerexch):
+     - aero_gasaerexch_spec_ndx: species of a given type (e.g., s-organic,
+       p-organic) in each mode/bin, from aerosol_properties%species_type
+     - aero_gasaerexch_soag_ndx: SOA gas (SOAG*) constituent indices,
+       excluding SOAGX* species. CARMA previously did not exclude SOAGX*
+       species; no current chemistry mechanism has them.
+   CARMA SOA/POA species tables are built at initialization; the species
+   type lookups (rad_aer_get_bin_props_by_idx) previously done in every
+   call of carma_aero_gasaerexch_sub are removed.
  - Gas-aerosol exchange history diagnostics shared by MAM and CARMA
    (aero_gasaerexch):
      - SOA condensation/evaporation fields: totals (qcon_gaex, qevap_gaex),
@@ -80,6 +90,8 @@ List any changes to the defaults for the boundary datasets: N/A
 Describe any substantial timing or memory changes:
  - MAM: the per-grid-cell rad_aer_get_info molecular weight lookup in
    modal_aero_gasaerexch_sub is replaced by values set at initialization.
+ - CARMA: the per-time-step species type lookups in
+   carma_aero_gasaerexch_sub are replaced by tables set at initialization.
 
 Code reviewed by: TBD
 
@@ -92,9 +104,9 @@ A   src/chemistry/aerosol/aero_soaexch_mod.F90
 
 A   src/chemistry/aerosol/aero_gasaerexch.F90
  - gas-aerosol exchange routines shared by the aerosol models: condensation
-   sink for all modes/bins, per-grid-cell SOA gas uptake, and history
+   sink for all modes/bins, per-grid-cell SOA gas uptake, history
    diagnostics (SOA condensation/evaporation; uptake rates, number
-   densities and wet radii of modes/bins)
+   densities and wet radii of modes/bins), and species and SOA gas lookups
 
 List all existing files that have been modified, and describe the changes:
 
@@ -118,16 +130,18 @@ M   src/chemistry/carma_aero/aero_model.F90
 
 M   src/chemistry/carma_aero/carma_aero_gasaerexch.F90
  - use shared aero_gasaerexch and aero_soaexch_mod routines, including the
-   shared history diagnostics; corrections listed above
+   shared history diagnostics and species/SOA gas lookups; SOA/POA species
+   tables set at initialization; corrections listed above
 
 M   src/chemistry/modal_aero/aero_model.F90
  - pass the aerosol properties object to modal_aero_gasaerexch
 
 M   src/chemistry/modal_aero/modal_aero_gasaerexch.F90
  - use shared aero_gasaerexch and aero_soaexch_mod routines, including the
-   shared SOA condensation/evaporation diagnostics; species indices from
-   the aerosol properties object; register only the SOA
-   condensation/evaporation fields that are written
+   shared SOA condensation/evaporation diagnostics and species/SOA gas
+   lookups; species and SOA gas indices from the aerosol properties object
+   and shared lookups; register only the SOA condensation/evaporation
+   fields that are written
 
 M   src/chemistry/pp_waccm_ma_noaero/chem_mech.doc
 M   src/chemistry/pp_waccm_ma_noaero/chem_mech.in

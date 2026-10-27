@@ -16,6 +16,8 @@ module aero_gasaerexch
    public :: aero_gasaerexch_soa
    public :: aero_gasaerexch_uptk_diag_init
    public :: aero_gasaerexch_uptk_diag_out
+   public :: aero_gasaerexch_spec_ndx
+   public :: aero_gasaerexch_soag_ndx
 
    ! gas diffusivity ratios relative to h2so4
    ! (differences in fuchs-sutugin and accom coef ignored)
@@ -207,6 +209,85 @@ contains
       end select
 
    end subroutine aero_gasaerexch_soa
+
+   !----------------------------------------------------------------------
+   ! finds the species of a given species type (e.g., 's-organic') in each
+   ! aerosol mode/bin
+   !----------------------------------------------------------------------
+   subroutine aero_gasaerexch_spec_ndx( aero_props, spectype, nspec_typ, spec_ndx )
+
+      use aerosol_properties_mod, only: aerosol_properties, aero_name_len
+
+      class(aerosol_properties), intent(in) :: aero_props  ! aerosol properties object
+      character(len=*), intent(in) :: spectype             ! species type
+      integer, intent(out) :: nspec_typ(:)                 ! number of species of spectype in each mode/bin
+      integer, allocatable, intent(out) :: spec_ndx(:,:)   ! species indices within the mode/bin (nbins, maxval(nspec_typ))
+                                                           ! of the species of spectype, in species order
+
+      integer :: m, l, nbins
+      character(len=aero_name_len) :: spectype_ml
+
+      nbins = aero_props%nbins()
+
+      nspec_typ(:) = 0
+      do m = 1, nbins
+         do l = 1, aero_props%nspecies(m)
+            call aero_props%species_type(m, l, spectype_ml)
+            if (trim(spectype_ml) == trim(spectype)) nspec_typ(m) = nspec_typ(m) + 1
+         end do
+      end do
+
+      allocate(spec_ndx(nbins, maxval(nspec_typ(1:nbins))))
+      spec_ndx(:,:) = -1
+
+      nspec_typ(:) = 0
+      do m = 1, nbins
+         do l = 1, aero_props%nspecies(m)
+            call aero_props%species_type(m, l, spectype_ml)
+            if (trim(spectype_ml) == trim(spectype)) then
+               nspec_typ(m) = nspec_typ(m) + 1
+               spec_ndx(m,nspec_typ(m)) = l
+            end if
+         end do
+      end do
+
+   end subroutine aero_gasaerexch_spec_ndx
+
+   !----------------------------------------------------------------------
+   ! finds the constituent indices of the SOA gas (SOAG*) species, in
+   ! constituent order; SOAGX* species are excluded (as in modal_aero_data)
+   !----------------------------------------------------------------------
+   subroutine aero_gasaerexch_soag_ndx( cnst_ndx )
+
+      use constituents, only: pcnst, cnst_name
+
+      integer, allocatable, intent(out) :: cnst_ndx(:)   ! constituent indices of SOA gas species
+
+      integer :: i, n
+
+      n = 0
+      do i = 1, pcnst
+         if (is_soag(cnst_name(i))) n = n + 1
+      end do
+
+      allocate(cnst_ndx(n))
+
+      n = 0
+      do i = 1, pcnst
+         if (is_soag(cnst_name(i))) then
+            n = n + 1
+            cnst_ndx(n) = i
+         end if
+      end do
+
+   contains
+
+      pure logical function is_soag(name)
+         character(len=*), intent(in) :: name
+         is_soag = (name(:4) == 'SOAG' .and. name(:5) /= 'SOAGX')
+      end function is_soag
+
+   end subroutine aero_gasaerexch_soag_ndx
 
    !----------------------------------------------------------------------
    ! registers history fields of the gas-to-aerosol mass transfer rates

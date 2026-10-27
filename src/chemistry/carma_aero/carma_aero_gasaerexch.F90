@@ -12,7 +12,7 @@ module carma_aero_gasaerexch
   use chem_mods,       only:  gas_pcnst
   use ref_pres,        only:  top_lev => clim_modal_aero_top_lev
   use ppgrid,          only:  pcols, pver
-  use radiative_aerosol, only: rad_aer_get_info, rad_aer_get_info_by_bin, rad_aer_get_bin_props_by_idx, &
+  use radiative_aerosol, only: rad_aer_get_info, rad_aer_get_info_by_bin, &
                               rad_aer_get_info_by_bin_spec
   use physics_buffer,   only: physics_buffer_desc, pbuf_get_index, pbuf_get_field
   use aerosol_properties_mod, only: aerosol_properties
@@ -47,9 +47,11 @@ module carma_aero_gasaerexch
   real(r8) :: mw_soa = 250._r8
   integer :: fracvbs_idx = -1
   integer, allocatable :: dqdtsoa_idx(:,:)
-  integer, allocatable  :: cnsoa(:)         ! true if soa gas is a species and carma soa in bin
-  integer, allocatable  :: cnpoa(:)         ! true if soa gas is a species and carma soa in bin
-  integer, allocatable  :: l_soag(:)         ! true if soa gas is a species and carma soa in bin
+  integer, allocatable  :: cnsoa(:)         ! number of soa species in each bin
+  integer, allocatable  :: cnpoa(:)         ! number of poa species in each bin
+  integer, allocatable  :: soa_ndx(:,:)     ! species indices within each bin of the soa species
+  integer, allocatable  :: poa_ndx(:,:)     ! species indices within each bin of the poa species
+  integer, allocatable  :: l_soag(:)         ! chemistry indices of the soa gas species
 
   logical, allocatable  :: do_soag_any(:)         ! true if soa gas is a species and carma soa in bin
 
@@ -86,22 +88,24 @@ contains
 !-----------------------------------------------------------------------
 
     use cam_history,    only: addfld, add_default, fieldname_len, horiz_only
-    use constituents,   only: pcnst, cnst_name
+    use constituents,   only: cnst_name
     use phys_control,   only: phys_getopts
     use mo_chem_utls,   only: get_spc_ndx
-    use aero_gasaerexch, only: aero_gasaerexch_uptk_diag_init
+    use aero_gasaerexch, only: aero_gasaerexch_uptk_diag_init, aero_gasaerexch_spec_ndx, &
+                               aero_gasaerexch_soag_ndx
 
 !-----------------------------------------------------------------------
 ! arguments
 
 !-----------------------------------------------------------------------
 ! local
-    integer  :: i, ii
+    integer  :: ii
+    integer  :: j
     integer  :: l
     integer  :: m
     integer  :: ns
+    integer, allocatable :: soag_cnst_ndx(:)
     character(len=fieldname_len+3) :: fieldname
-    character(len=32)              :: spectype
     character(len=32)              :: spec_name
     character(128)                 :: long_name
     character(8)                   :: unit
@@ -141,51 +145,27 @@ contains
     ! SOAG / SOA / POM information
     ! Define number of VBS bins (nsoa) based on number of SOAG chemistry species
 
-    nsoa_vbs = 0
-    do i = 1, pcnst
-       if (cnst_name(i)(:4) == 'SOAG') then
-          nsoa_vbs = nsoa_vbs + 1
-       end if
-    end do
+    call aero_gasaerexch_soag_ndx(soag_cnst_ndx)
+    nsoa_vbs = size(soag_cnst_ndx)
     allocate( l_soag(nsoa_vbs) )
-    nsoa_vbs = 0
-    do i = 1, pcnst
-       if (cnst_name(i)(:4) == 'SOAG') then
-          nsoa_vbs = nsoa_vbs + 1
-          l_soag(nsoa_vbs) = get_spc_ndx(cnst_name(i))
-       end if
+    do j = 1, nsoa_vbs
+       l_soag(j) = get_spc_ndx(cnst_name(soag_cnst_ndx(j)))
     end do
 
     fracvbs_idx = pbuf_get_index('FRACVBS')
 
-    ! identify number of SOA and POA in CARMA code (CARMA number cn)
-    do m = 1, nbins
-       cnsoa(m) = 0
-       cnpoa(m) = 0
-       do l = 1, nspec(m)
-          call rad_aer_get_bin_props_by_idx(0, m, l,spectype=spectype)
-          if (trim(spectype) == 's-organic') then
-             cnsoa(m) = cnsoa(m) + 1
-          end if
-          if (trim(spectype) == 'p-organic') then
-             cnpoa(m) = cnpoa(m) + 1
-          end if
-       end do
-    end do
+    ! identify SOA and POA species in CARMA bins (CARMA number cn)
+    call aero_gasaerexch_spec_ndx(aero_props, 's-organic', cnsoa, soa_ndx)
+    call aero_gasaerexch_spec_ndx(aero_props, 'p-organic', cnpoa, poa_ndx)
     ! some bins don't contain soa or poa
     nsoa= maxval(cnsoa)
     npoa= maxval(cnpoa)
 
     allocate( dqdtsoa_idx(nbins,nsoa)                       )
     do m = 1, nbins
-       ns = 0
-       do l = 1, nspec(m)
-          call rad_aer_get_bin_props_by_idx(0, m, l,spectype=spectype)
-          if (trim(spectype) == 's-organic') then
-             call rad_aer_get_info_by_bin_spec(0, m, l, spec_name=spec_name)
-             ns = ns + 1
-             dqdtsoa_idx(m,ns) = pbuf_get_index('DQDT_'//trim(spec_name))
-          end if
+       do ns = 1, cnsoa(m)
+          call rad_aer_get_info_by_bin_spec(0, m, soa_ndx(m,ns), spec_name=spec_name)
+          dqdtsoa_idx(m,ns) = pbuf_get_index('DQDT_'//trim(spec_name))
        end do
     end do
 
@@ -204,22 +184,19 @@ contains
     do m = 1, nbins
        do l = 1, nspec(m)    ! do through nspec
           ii = aero_props%indexer(m,l)
-          if (l <= nspec(m) ) then   ! species
-             call rad_aer_get_info_by_bin_spec(0, m, l, spec_name=fldname(ii) )
-             ! only write out SOA exchange here
-             call rad_aer_get_bin_props_by_idx(0, m, l,spectype=spectype)
-             if (trim(spectype) == 's-organic') then
-                fieldname= trim(fldname(ii)) // '_sfgaex1'
-                long_name = trim(fldname(ii)) // ' gas-aerosol-exchange primary column tendency'
-                unit = 'kg/m2/s'
-                call addfld( fieldname, horiz_only, 'A', unit, long_name )
-                if ( history_aerosol ) then
-                   call add_default( fieldname, 1, ' ' )
-                endif
-             end if
-          end if
+          call rad_aer_get_info_by_bin_spec(0, m, l, spec_name=fldname(ii) )
        end do
-
+       ! only write out SOA exchange here
+       do ns = 1, cnsoa(m)
+          ii = aero_props%indexer(m,soa_ndx(m,ns))
+          fieldname= trim(fldname(ii)) // '_sfgaex1'
+          long_name = trim(fldname(ii)) // ' gas-aerosol-exchange primary column tendency'
+          unit = 'kg/m2/s'
+          call addfld( fieldname, horiz_only, 'A', unit, long_name )
+          if ( history_aerosol ) then
+             call add_default( fieldname, 1, ' ' )
+          endif
+       end do
     end do
 
 !  uptake rate, number density and wet radius of each bin
@@ -302,11 +279,9 @@ subroutine carma_aero_gasaerexch_sub(  state, &
   integer :: i
   integer :: j, jsoa
   integer :: k
-  integer :: l
   integer :: mm, m, n, nn
 
   character(len=fieldname_len+3) :: fieldname
-  character(len=32)              :: spectype
 
   real (r8) :: dqdt_soa_vbs(nbins,nsoa_vbs)
   real (r8) :: dqdt_soa_all(pcols,pver,nbins,nsoa)
@@ -363,19 +338,13 @@ subroutine carma_aero_gasaerexch_sub(  state, &
 
   do m = 1, nbins      ! main loop over aerosol bins
      if (do_soag_any(m)) then  ! only bins that contain soa
-        n = 0
-        nn = 0
-        do l = 1, nspec(m)
-           mm = aero_props%indexer(m,l)
-           call rad_aer_get_bin_props_by_idx(0, m, l, spectype=spectype)
-           if (trim(spectype) == 's-organic') then
-              n = n + 1
-              soa_c(:ncol,:,m,n) = raervmr(:ncol,:,mm)
-           end if
-           if (trim(spectype) == 'p-organic') then
-              nn = nn + 1
-              poa_c(:ncol,:,m,nn) = raervmr(:ncol,:,mm)
-           end if
+        do n = 1, cnsoa(m)
+           mm = aero_props%indexer(m,soa_ndx(m,n))
+           soa_c(:ncol,:,m,n) = raervmr(:ncol,:,mm)
+        end do
+        do nn = 1, cnpoa(m)
+           mm = aero_props%indexer(m,poa_ndx(m,nn))
+           poa_c(:ncol,:,m,nn) = raervmr(:ncol,:,mm)
         end do
         if (npoa .gt. 1) then
            call endrun( 'carma_aero_gasaerexch_sub error: CARMA currently only supports 1 POA element' )
@@ -545,24 +514,19 @@ subroutine carma_aero_gasaerexch_sub(  state, &
   !   do history file of column-tendency fields over SOA fields (as defined in CARMA) and set pointer
   do m = 1, nbins
      if (do_soag_any(m)) then
-        j  = 0
-        do l = 1, nspec(m)
-           mm = aero_props%indexer(m,l)
-           call rad_aer_get_bin_props_by_idx(0, m, l,spectype=spectype)
-           if (trim(spectype) == 's-organic') then
-              j = j + 1
-              fieldname= trim(fldname(mm)) // '_sfgaex1'
-              do i = 1, ncol
-                 qsrflx(i,m,j) = qsrflx(i,m,j)*(mw_soa/mwdry)
-              end do
-              call outfld( fieldname, qsrflx(:,m,j), pcols, lchnk )
+        do j = 1, cnsoa(m)
+           mm = aero_props%indexer(m,soa_ndx(m,j))
+           fieldname= trim(fldname(mm)) // '_sfgaex1'
+           do i = 1, ncol
+              qsrflx(i,m,j) = qsrflx(i,m,j)*(mw_soa/mwdry)
+           end do
+           call outfld( fieldname, qsrflx(:,m,j), pcols, lchnk )
 
-              !set pointer field
-              call pbuf_get_field(pbuf, dqdtsoa_idx(m,j),  dqdt_soa )
+           !set pointer field
+           call pbuf_get_field(pbuf, dqdtsoa_idx(m,j),  dqdt_soa )
 
-              dqdt_soa(:ncol,:) = dqdt_soa_all(:ncol,:,m,j) *(mw_soa/mbar(:ncol,:))
-           end if
-        end do ! l = ...
+           dqdt_soa(:ncol,:) = dqdt_soa_all(:ncol,:,m,j) *(mw_soa/mbar(:ncol,:))
+        end do ! j = ...
      end if
   end do ! m = ...
 
