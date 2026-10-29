@@ -13,7 +13,7 @@
 ! !USES:
   use shr_kind_mod,    only:  r8 => shr_kind_r8
   use chem_mods,       only:  gas_pcnst
-  use modal_aero_data, only:  nspec_max, nsoa, npoa, soa_multi_species
+  use modal_aero_data, only:  nspec_max
   use ref_pres,        only:  top_lev => clim_modal_aero_top_lev
   use ppgrid,          only:  pcols, pver
   use modal_aero_data, only:  ntot_amode, numptr_amode
@@ -57,6 +57,11 @@
   real (r8), allocatable :: fac_m2v_soa(:)
 
   real (r8), allocatable :: fac_m2v_pcarbon(:)
+
+! numbers of soa and poa species (maximum over the modes),
+! set from the aerosol properties object
+  integer :: nsoa = 0
+  integer :: npoa = 0
 
 ! constituent indices of interstitial aerosol species in each mode
 ! (set from the aerosol properties object; <= 0 if species is absent)
@@ -118,16 +123,14 @@ subroutine modal_aero_gasaerexch_sub(                            &
                         sulfeq         )
 
 ! !USES:
-use modal_aero_data,   only:  alnsg_amode,lmassptr_amode,cnst_name_cw
+use modal_aero_data,   only:  alnsg_amode,lmassptr_amode
 use modal_aero_data,   only:  modeptr_pcarbon,nspec_amode
 use modal_aero_rename, only:  modal_aero_rename_sub
 use aero_gasaerexch,   only:  aero_gasaerexch_uptkrates, aero_gasaerexch_soa, &
                               nh3_diffus_ratio, method_soa_reversible, soa_condevap_acc_t
-use constituents,      only: pcnst, cnst_mw
 
 use chem_mods,         only:  adv_mass
-use constituents,      only:  pcnst, cnst_name, cnst_get_ind
-use mo_tracname,       only:  solsym
+use constituents,      only:  pcnst, cnst_get_ind
 use physconst,         only:  gravit, mwdry, rair
 use cam_abortutils,    only:  endrun
 use spmd_utils,        only:  iam, masterproc
@@ -190,7 +193,6 @@ implicit none
 ! local variables
    integer, parameter :: jsrflx_gaexch = 1
    integer, parameter :: jsrflx_rename = 2
-   integer, parameter :: ldiag1=-1, ldiag2=-1, ldiag3=-1, ldiag4=-1
    integer, parameter :: method_soa = method_soa_reversible
 !     method_soa=0 is no uptake
 !     method_soa=1 is irreversible uptake done like h2so4 uptake
@@ -198,19 +200,16 @@ implicit none
 !     (see aero_gasaerexch)
 
    integer :: i, iq, itmpa
-   integer :: idiagss
    integer :: ido_so4a(ntot_amode), ido_nh4a(ntot_amode)
    integer ::  ido_soaa(ntot_amode,nsoa)
    integer :: j, jsrf, jsoa
-   integer :: k,p
-   integer :: l, l2, lb, lsfrm, lstoo
+   integer :: k
+   integer :: l, lb, lsfrm, lstoo
    integer :: l_so4g, l_nh4g, l_msag
    integer :: l_soag(nsoa)
-   integer :: n, nn, ntot_soamode
+   integer :: n, ntot_soamode
 
    logical :: is_dorename_atik, dorename_atik(ncol,pver)
-
-   character(len=100) :: msg ! string for endrun calls
 
    real (r8) :: avg_uprt_nh4, avg_uprt_so4
    real (r8) :: deltatxx
@@ -218,7 +217,6 @@ implicit none
    real (r8) :: dqdt_soa(ntot_amode,nsoa)
    real (r8) :: fac_volsfc_pcarbon
    real (r8) :: fgain_nh4(ntot_amode), fgain_so4(ntot_amode)
-   real (r8) :: g0_soa(nsoa)
    real (r8) :: pdel_fac
    real (r8) :: qmax_nh4, qnew_nh4, qnew_so4
    real (r8) :: qold_nh4(ntot_amode), qold_so4(ntot_amode)
@@ -228,7 +226,7 @@ implicit none
    real (r8) :: sum_dqdt_msa, sum_dqdt_so4
    real (r8) :: sum_dqdt_soa(nsoa)
    real (r8) :: sum_dqdt_nh4, sum_dqdt_nh4_b
-   real (r8) :: sum_uprt_msa, sum_uprt_nh4, sum_uprt_so4
+   real (r8) :: sum_uprt_nh4, sum_uprt_so4
    real (r8) :: tmp1, tmp2, tmpa
    real (r8) :: tmp_kxt, tmp_pxt
    real (r8) :: tmp_so4a_bgn, tmp_so4a_end
@@ -267,16 +265,6 @@ implicit none
    real(r8) :: condevap_fac(ntot_amode,nsoa)
 
    real(r8) :: qqcwsrflx(pcols,pcnstxx,nsrflx)
-
-!  following only needed for diagnostics
-   real(r8) :: qold(ncol,pver,pcnstxx)  ! NOTE dims
-   real(r8) :: qnew(ncol,pver,pcnstxx)  ! NOTE dims
-   real(r8) :: qdel(ncol,pver,pcnstxx)  ! NOTE dims
-   real(r8) :: dumavec(1000), dumbvec(1000), dumcvec(1000)
-   real(r8) :: qqcwold(ncol,pver,pcnstxx)
-   real(r8) :: dqdtsv1(ncol,pver,pcnstxx)
-   real(r8) :: dqqcwdtsv1(ncol,pver,pcnstxx)
-
 
 !----------------------------------------------------------------------
 
@@ -749,13 +737,6 @@ implicit none
       end do   ! "i = 1, ncol"
    end do     ! "k = top_lev, pver"
 
-! set "temporary testing arrays"
-   qold(:,:,:) = q(:,:,:)
-   qqcwold(:,:,:) = qqcw(:,:,:)
-   dqdtsv1(:,:,:) = dqdt(:,:,:)
-   dqqcwdtsv1(:,:,:) = dqqcwdt(:,:,:)
-
-
 !
 ! do renaming calcs
 !
@@ -797,59 +778,6 @@ implicit none
       end if
    end do
 
-! diagnostics start -------------------------------------------------------
-!!$   if (ldiag3 > 0) then
-!!$   if (icol_diag > 0) then
-!!$      i = icol_diag
-!!$      write(*,'(a,3i5)') 'gasaerexch ppp nstep,lat,lon', nstep, latndx(i), lonndx(i)
-!!$      write(*,'(2i5,3(2x,a))') 0, 0, 'ppp', 'pdel for all k'
-!!$      write(*,'(1p,7e12.4)') (pdel(i,k), k=top_lev,pver)
-!!$
-!!$      write(*,'(a,3i5)') 'gasaerexch ddd nstep,lat,lon', nstep, latndx(i), lonndx(i)
-!!$      do l = 1, pcnstxx
-!!$         lb = l + loffset
-!!$
-!!$         if ( dotend(l) .or. dotendrn(l) ) then
-!!$            write(*,'(2i5,3(2x,a))') 1, l, 'ddd1', cnst_name(lb),    'qold for all k'
-!!$            write(*,'(1p,7e12.4)') (qold(i,k,l), k=top_lev,pver)
-!!$            write(*,'(2i5,3(2x,a))') 1, l, 'ddd2', cnst_name(lb),    'qnew for all k'
-!!$            write(*,'(1p,7e12.4)') (q(i,k,l), k=top_lev,pver)
-!!$            write(*,'(2i5,3(2x,a))') 1, l, 'ddd3', cnst_name(lb),    'dqdt from conden for all k'
-!!$            write(*,'(1p,7e12.4)') (dqdtsv1(i,k,l), k=top_lev,pver)
-!!$            write(*,'(2i5,3(2x,a))') 1, l, 'ddd4', cnst_name(lb),    'dqdt from rename for all k'
-!!$            write(*,'(1p,7e12.4)') ((dqdt(i,k,l)-dqdtsv1(i,k,l)), k=top_lev,pver)
-!!$            write(*,'(2i5,3(2x,a))') 1, l, 'ddd5', cnst_name(lb),    'dqdt other for all k'
-!!$            write(*,'(1p,7e12.4)') (dqdt_other(i,k,l), k=top_lev,pver)
-!!$         end if
-!!$
-!!$         if ( dotendqqcw(l) .or. dotendqqcwrn(l) ) then
-!!$            write(*,'(2i5,3(2x,a))') 2, l, 'ddd1', cnst_name_cw(lb), 'qold for all k'
-!!$            write(*,'(1p,7e12.4)') (qqcwold(i,k,l), k=top_lev,pver)
-!!$            write(*,'(2i5,3(2x,a))') 2, l, 'ddd2', cnst_name_cw(lb), 'qnew for all k'
-!!$            write(*,'(1p,7e12.4)') (qqcw(i,k,l), k=top_lev,pver)
-!!$            write(*,'(2i5,3(2x,a))') 2, l, 'ddd3', cnst_name_cw(lb), 'dqdt from conden for all k'
-!!$            write(*,'(1p,7e12.4)') (dqqcwdtsv1(i,k,l), k=top_lev,pver)
-!!$            write(*,'(2i5,3(2x,a))') 2, l, 'ddd4', cnst_name_cw(lb), 'dqdt from rename for all k'
-!!$            write(*,'(1p,7e12.4)') ((dqqcwdt(i,k,l)-dqqcwdtsv1(i,k,l)), k=top_lev,pver)
-!!$            write(*,'(2i5,3(2x,a))') 2, l, 'ddd5', cnst_name_cw(lb), 'dqdt other for all k'
-!!$            write(*,'(1p,7e12.4)') (dqqcwdt_other(i,k,l), k=top_lev,pver)
-!!$         end if
-!!$
-!!$      end do
-!!$
-!!$      write(*,'(a,3i5)') 'gasaerexch fff nstep,lat,lon', nstep, latndx(i), lonndx(i)
-!!$      do l = 1, pcnstxx
-!!$         lb = l + loffset
-!!$         if ( dotend(l) .or. dotendrn(l) .or. dotendqqcw(l) .or. dotendqqcwrn(l) ) then
-!!$            write(*,'(i5,2(2x,a,2l3))') l, &
-!!$               cnst_name(lb), dotend(l), dotendrn(l), &
-!!$               cnst_name_cw(lb), dotendqqcw(l), dotendqqcwrn(l)
-!!$         end if
-!!$      end do
-!!$
-!!$   end if
-!!$   end if
-! diagnostics end ---------------------------------------------------------
 
 !-----Outfld for condensation/evaporation------------------------------
    call soa_diag%outfld( condevap, lchnk )
@@ -899,8 +827,11 @@ implicit none
 !
 !-----------------------------------------------------------------------
 
-use modal_aero_data
-use modal_aero_rename
+use modal_aero_data,   only: cnst_name_cw, modeptr_accum, modeptr_pcarbon, lmassptr_amode, &
+                             lptr2_soa_a_amode, lptr_nh4_a_amode, lptr_so4_a_amode, nspec_amode, &
+                             specdens_amode, spechygro, specmw_amode
+use modal_aero_rename, only: npair_renamexf, nspecfrm_renamexf, lspecfrma_renamexf, lspecfrmc_renamexf, &
+                             lspectooa_renamexf, lspectooc_renamexf
 
 use cam_abortutils, only: endrun
 use constituents,   only: pcnst, cnst_get_ind, cnst_name
@@ -916,27 +847,30 @@ implicit none
 
 !-----------------------------------------------------------------------
 ! local
-   integer  :: ipair, iq, iqfrm, iqfrm_aa, iqtoo, iqtoo_aa
-   integer  :: jsoa,p
+   integer  :: ipair, iq, iqfrm, iqtoo
+   integer  :: jsoa
    integer  :: l, l1, l2, lsfrm, lstoo, lunout
    integer  :: l_so4g, l_nh4g, l_msag
-   integer  :: m, mfrm, mtoo
-   integer  :: n, nacc, nait
+   integer  :: mfrm, mtoo
+   integer  :: n
    integer  :: nchfrm, nchfrmskip, nchtoo, nchtooskip, nspec
 
    logical  :: do_msag, do_nh4g
-   logical  :: do_soag_any, do_soag(nsoa)
+   logical  :: do_soag_any
+   logical, allocatable :: do_soag(:)
    logical  :: dotend(pcnst), dotendqqcw(pcnst)
 
-   real(r8) :: tmp1, tmp2
+   real(r8) :: tmp2
 
    character(128)                 :: msg
 
    logical                        :: history_aerosol      ! Output the MAM aerosol tendencies
-   logical                        :: history_aerocom    ! Output the aerocom history
    !-----------------------------------------------------------------------
 
         call phys_getopts( history_aerosol_out        = history_aerosol   )
+
+        ! species indices and numbers of soa/poa species (nsoa, npoa)
+        call set_species_ndx(aero_props)
 
         maxspec_pcage = nspec_max
         allocate(lspecfrm_pcage(maxspec_pcage))
@@ -944,8 +878,7 @@ implicit none
         allocate(soa_equivso4_factor(nsoa))
         allocate(fac_m2v_soa(nsoa))
         allocate(fac_m2v_pcarbon(nspec_max))
-
-        call set_species_ndx(aero_props)
+        allocate(do_soag(nsoa))
 	lunout = 6
 !
 !   define "from mode" and "to mode" for primary carbon aging
@@ -1305,18 +1238,27 @@ aa_iqfrm: do iqfrm = -1, nspec_amode(mfrm)
       use constituents,   only: pcnst, cnst_get_ind
       use cam_abortutils, only: endrun
       use modal_aero_data, only: lptr_so4_a_amode, lptr_nh4_a_amode, &
-                                 lptr2_soa_a_amode, lptr2_pom_a_amode, lptr2_soa_g_amode
+                                 lptr2_soa_a_amode, lptr2_pom_a_amode, lptr2_soa_g_amode, &
+                                 nsoa_mad => nsoa, npoa_mad => npoa
 
       class(aerosol_properties), intent(in) :: aero_props ! aerosol properties object
 
       integer :: m, j
       integer :: nspec_typ(ntot_amode)
+      integer :: nspec_soa(ntot_amode), nspec_poa(ntot_amode)
       integer, allocatable :: spec_ndx(:,:)
+      integer, allocatable :: spec_ndx_soa(:,:), spec_ndx_poa(:,:)
       integer, allocatable :: soag_ndx(:)
       real(r8) :: spec_mw
       logical :: mw_soa_set
       character(len=128) :: msg
       character(len=*), parameter :: subname = 'modal_aero_gasaerexch::set_species_ndx'
+
+      ! numbers of soa and poa species
+      call aero_gasaerexch_spec_ndx(aero_props, 's-organic', nspec_soa, spec_ndx_soa)
+      call aero_gasaerexch_spec_ndx(aero_props, 'p-organic', nspec_poa, spec_ndx_poa)
+      nsoa = maxval(nspec_soa)
+      npoa = maxval(nspec_poa)
 
       allocate(so4_a_ndx(ntot_amode))
       allocate(nh4_a_ndx(ntot_amode))
@@ -1347,27 +1289,19 @@ aa_iqfrm: do iqfrm = -1, nspec_amode(mfrm)
       end do
 
       ! the last s-organic (p-organic) species found sets the soa (poa) molecular weight
-      call aero_gasaerexch_spec_ndx(aero_props, 's-organic', nspec_typ, spec_ndx)
-      if (any(nspec_typ > nsoa)) then
-         call endrun(subname//': too many s-organic species in mode')
-      end if
       do m = 1, ntot_amode
-         do j = 1, nspec_typ(m)
-            soa_a_ndx(m,j) = cnst_ndx(m, spec_ndx(m,j))
-            call aero_props%get(m, spec_ndx(m,j), spec_mw=spec_mw)
+         do j = 1, nspec_soa(m)
+            soa_a_ndx(m,j) = cnst_ndx(m, spec_ndx_soa(m,j))
+            call aero_props%get(m, spec_ndx_soa(m,j), spec_mw=spec_mw)
             mw_soa_host(:) = spec_mw
             mw_soa_set = .true.
          end do
       end do
 
-      call aero_gasaerexch_spec_ndx(aero_props, 'p-organic', nspec_typ, spec_ndx)
-      if (any(nspec_typ > npoa)) then
-         call endrun(subname//': too many p-organic species in mode')
-      end if
       do m = 1, ntot_amode
-         do j = 1, nspec_typ(m)
-            pom_a_ndx(m,j) = cnst_ndx(m, spec_ndx(m,j))
-            call aero_props%get(m, spec_ndx(m,j), spec_mw=spec_mw)
+         do j = 1, nspec_poa(m)
+            pom_a_ndx(m,j) = cnst_ndx(m, spec_ndx_poa(m,j))
+            call aero_props%get(m, spec_ndx_poa(m,j), spec_mw=spec_mw)
             mw_poa_host(:) = spec_mw
          end do
       end do
@@ -1382,7 +1316,11 @@ aa_iqfrm: do iqfrm = -1, nspec_amode(mfrm)
          soag_cnst_ndx(j) = soag_ndx(j)
       end do
 
-      ! check consistency with the modal_aero_data species pointers
+      ! check consistency with the modal_aero_data species counts and pointers
+      if (nsoa /= nsoa_mad .or. npoa /= npoa_mad) then
+         write(msg,'(a,4i6)') subname//': inconsistent numbers of soa/poa species ', nsoa, nsoa_mad, npoa, npoa_mad
+         call endrun(trim(msg))
+      end if
       do m = 1, ntot_amode
          call check_ndx(so4_a_ndx(m), lptr_so4_a_amode(m), 'sulfate')
          call check_ndx(nh4_a_ndx(m), lptr_nh4_a_amode(m), 'ammonium')

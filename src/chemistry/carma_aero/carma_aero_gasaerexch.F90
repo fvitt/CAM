@@ -12,12 +12,8 @@ module carma_aero_gasaerexch
   use chem_mods,       only:  gas_pcnst
   use ref_pres,        only:  top_lev => clim_modal_aero_top_lev
   use ppgrid,          only:  pcols, pver
-  use radiative_aerosol, only: rad_aer_get_info, rad_aer_get_info_by_bin, &
-                              rad_aer_get_info_by_bin_spec
   use physics_buffer,   only: physics_buffer_desc, pbuf_get_index, pbuf_get_field
   use aerosol_properties_mod, only: aerosol_properties
-  use aerosol_instances_mod, only: aerosol_instances_get_props, &
-       aerosol_instances_get_state, aerosol_instances_get_num_models
   use aero_gasaerexch,  only: soa_condevap_diag_t, col_tend_diag_t
 
   implicit none
@@ -41,8 +37,6 @@ module carma_aero_gasaerexch
 
   ! local indexing for bins
   integer :: ncnst_tot                  ! total number of mode number conc + mode species
-  class(aerosol_properties), pointer :: aero_props =>null()
-  integer :: iaermod_ = -1
 
   real(r8) :: mw_soa = 250._r8
   integer :: fracvbs_idx = -1
@@ -78,7 +72,7 @@ contains
 
 !----------------------------------------------------------------------
 
-  subroutine carma_aero_gasaerexch_init
+  subroutine carma_aero_gasaerexch_init(aero_props)
 
 !-----------------------------------------------------------------------
 !
@@ -97,6 +91,7 @@ contains
 
 !-----------------------------------------------------------------------
 ! arguments
+    class(aerosol_properties), intent(in) :: aero_props ! CARMA aerosol properties object
 
 !-----------------------------------------------------------------------
 ! local
@@ -108,7 +103,7 @@ contains
     integer, allocatable :: soag_cnst_ndx(:)
     integer  :: nfld
     character(len=32), allocatable :: sfgaex1_names(:)
-    character(len=32)              :: spec_name
+    character(len=32)              :: spec_name, spec_name_cw
 
     logical                        :: history_aerosol      ! Output the MAM aerosol tendencies
     !-----------------------------------------------------------------------
@@ -119,22 +114,17 @@ contains
     ! get info about the bin aerosols
     ! get nbins
 
-    call rad_aer_get_info( 0, nbins=nbins)
+    nbins = aero_props%nbins()
 
     allocate( nspec(nbins) )
     allocate( cnsoa(nbins) )
     allocate( cnpoa(nbins) )
 
     do m = 1, nbins
-       call rad_aer_get_info_by_bin(0, m, nspec=nspec(m))
+       nspec(m) = aero_props%nspecies(m)
     end do
 
     nspec_max = maxval(nspec)
-
-    do iaermod_ = 1, aerosol_instances_get_num_models()
-       aero_props => aerosol_instances_get_props(iaermod_, 0)
-       if (aero_props%model_is('CARMA')) exit
-    end do
 
     ncnst_tot = aero_props%ncnst_tot()
 
@@ -164,7 +154,7 @@ contains
     allocate( dqdtsoa_idx(nbins,nsoa)                       )
     do m = 1, nbins
        do ns = 1, cnsoa(m)
-          call rad_aer_get_info_by_bin_spec(0, m, soa_ndx(m,ns), spec_name=spec_name)
+          call aero_props%mmr_names(m, soa_ndx(m,ns), spec_name, spec_name_cw)
           dqdtsoa_idx(m,ns) = pbuf_get_index('DQDT_'//trim(spec_name))
        end do
     end do
@@ -188,7 +178,7 @@ contains
     do m = 1, nbins
        do l = 1, nspec(m)    ! do through nspec
           ii = aero_props%indexer(m,l)
-          call rad_aer_get_info_by_bin_spec(0, m, l, spec_name=fldname(ii) )
+          call aero_props%mmr_names(m, l, fldname(ii), fldname_cw(ii))
        end do
        ! only write out SOA exchange here
        do ns = 1, cnsoa(m)
@@ -216,11 +206,10 @@ contains
 ! !ROUTINE:  carma_aero_gasaerexch_sub --- ...
 !
 ! !INTERFACE:
-subroutine carma_aero_gasaerexch_sub(  state, &
-                        pbuf, lchnk,    ncol,     nstep,         &
-                        loffset,  deltat,   mbar,                &
+subroutine carma_aero_gasaerexch_sub(  aero_props, aero_state,  &
+                        pbuf, lchnk,    ncol,                    &
+                        deltat,   mbar,                          &
                         t,        pmid,     pdel,                &
-                        qh2o,               troplev,             &
                         q,                  raervmr              )
 
   ! !USES:
@@ -228,21 +217,18 @@ subroutine carma_aero_gasaerexch_sub(  state, &
   use cam_abortutils,    only: endrun
   use time_manager,      only: is_first_step
   use aerosol_state_mod, only: aerosol_state
-  use physics_types,     only: physics_state
   use physconst, only: mwdry, rair
   use aero_gasaerexch,   only: aero_gasaerexch_uptkrates, aero_gasaerexch_soa, &
                                aero_gasaerexch_uptk_diag_out, soa_condevap_acc_t, &
                                method_soa_reversible
 
 ! !PARAMETERS:
-  type(physics_state), target, intent(in) :: state    ! Physics state variables
+  class(aerosol_properties), intent(in) :: aero_props ! CARMA aerosol properties object
+  class(aerosol_state), intent(in) :: aero_state      ! CARMA aerosol state object
   type(physics_buffer_desc), pointer :: pbuf(:)
 
   integer,  intent(in)    :: lchnk                ! chunk identifier
   integer,  intent(in)    :: ncol                 ! number of atmospheric column
-  integer,  intent(in)    :: nstep                ! model time-step number
-  integer,  intent(in)    :: loffset              ! offset applied to modal aero "ptrs"
-  integer,  intent(in)    :: troplev(pcols)       ! tropopause vertical index
   real(r8), intent(in)    :: deltat               ! time step (s)
   real(r8), intent(in)    :: mbar(ncol,pver)      ! mean wet atmospheric mass ( amu )
 
@@ -254,7 +240,6 @@ subroutine carma_aero_gasaerexch_sub(  state, &
   real(r8), intent(in)    :: t(pcols,pver)        ! temperature at model levels (K)
   real(r8), intent(in)    :: pmid(pcols,pver)     ! pressure at model levels (Pa)
   real(r8), intent(in)    :: pdel(pcols,pver)     ! pressure thickness of levels (Pa)
-  real(r8), intent(in)    :: qh2o(pcols,pver)     ! water vapor mixing ratio (kg/kg)
 
 ! !DESCRIPTION:
 ! this version does only do condensation for SOA for CARMA
@@ -318,11 +303,8 @@ subroutine carma_aero_gasaerexch_sub(  state, &
 
   real(r8) :: rhoair(pcols,pver)
   real(r8), pointer :: nmr(:,:)
-  class(aerosol_state), pointer :: aero_state
 
 !----------------------------------------------------------------------
-   aero_state => aerosol_instances_get_state(iaermod_, 0, lchnk)
-
   mw_poa_host(:) = 12.0_r8
   mw_soa_host(:) = 250.0_r8
 
@@ -524,8 +506,6 @@ subroutine carma_aero_gasaerexch_sub(  state, &
         end do ! j = ...
      end if
   end do ! m = ...
-
-  nullify(aero_state)
 
 end subroutine carma_aero_gasaerexch_sub
 

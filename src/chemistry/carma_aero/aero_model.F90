@@ -274,7 +274,7 @@ contains
                       history_cesm_forcing_out=history_cesm_forcing, &
                       convproc_do_aer_out = convproc_do_aer)
 
-    call carma_aero_gasaerexch_init
+    call carma_aero_gasaerexch_init(aero_props)
 
     nspec_max = maxval(nspec)
 
@@ -516,7 +516,6 @@ contains
                                     vmr0, vmr, pbuf )
 
     use carma_aero_gasaerexch, only : carma_aero_gasaerexch_sub
-    use time_manager,          only : get_nstep
     use aerosol_state_mod, only: aerosol_state, ptr2d_t
 
     !-----------------------------------------------------------------------
@@ -551,7 +550,6 @@ contains
 
     integer :: n, m, mm
     integer :: i,k,l
-    integer :: nstep
 
     type(ptr2d_t), allocatable :: raer(:)     ! aerosol mass, number mixing ratios
     type(ptr2d_t), allocatable :: qqcw(:)
@@ -597,8 +595,6 @@ contains
     end if
 !
 ! do gas-aerosol exchange (h2so4, msa, nh3 condensation)
-
-    nstep = get_nstep()
 
     ! calculate tendency due to gas phase chemistry and processes
     dvmrdt(:ncol,:,:) = (vmr(:ncol,:,:) - vmr0(:ncol,:,:)) / delt
@@ -746,11 +742,10 @@ contains
     ! need to transform raer to raervmr from CARMA, routine requires vmr, note number wil not be changed here
     call mmr2vmr_carma ( lchnk, raervmr, mbar, mw_carma, ncol, loffset, rmass)
 
-    call carma_aero_gasaerexch_sub( state, &
-          pbuf, lchnk,    ncol,     nstep,      &
-          loffset,            delt, mbar ,      &
+    call carma_aero_gasaerexch_sub( aero_props, aero_state, &
+          pbuf, lchnk,    ncol,                 &
+          delt, mbar,                           &
           tfld,     pmid,     pdel,             &
-          qh2o,               troplev,          &
           vmr,                raervmr           )
 
     ! note vmr2qqcw does not change qqcw pointer (different than in MAM)

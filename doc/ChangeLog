@@ -28,10 +28,20 @@ Purpose of changes (include the issue number and title text for each relevant Gi
    weights used in the gas-aerosol exchange are set at initialization from
    the aerosol properties object and the shared lookups below, rather than
    the modal_aero_data pointers (removing a per-grid-cell molecular weight
-   lookup). They are cross-checked against the modal_aero_data pointers at
-   initialization. H2SO4/MSA/NH3 condensation, the stratospheric sulfeq
-   treatment, the NH4/SO4 limit, primary-carbon aging and renaming remain
-   MAM-specific.
+   lookup). The numbers of SOA and POA species (nsoa, npoa) are likewise
+   set from the aerosol properties object (maximum over the modes). They
+   are cross-checked against modal_aero_data at initialization.
+   H2SO4/MSA/NH3 condensation, the stratospheric sulfeq treatment, the
+   NH4/SO4 limit, primary-carbon aging and renaming remain MAM-specific.
+   Commented-out diagnostics code and unused variables are removed from
+   modal_aero_gasaerexch, including diagnostic-only copies of the tracer
+   arrays made in every call.
+ - CARMA: carma_aero_gasaerexch_init and carma_aero_gasaerexch_sub take the
+   CARMA aerosol properties object (and, for the sub, the aerosol state
+   object) as arguments, as for MAM, instead of looking them up; the
+   numbers of bins and species and the species names come from the
+   aerosol properties object. Unused arguments of carma_aero_gasaerexch_sub
+   (state, nstep, loffset, qh2o, troplev) are removed.
  - Species lookups shared by MAM and CARMA (aero_gasaerexch):
      - aero_gasaerexch_spec_ndx: species of a given type (e.g., s-organic,
        p-organic) in each mode/bin, from aerosol_properties%species_type
@@ -100,6 +110,9 @@ Describe any substantial timing or memory changes:
    modal_aero_gasaerexch_sub is replaced by values set at initialization.
  - CARMA: the per-time-step species type lookups in
    carma_aero_gasaerexch_sub are replaced by tables set at initialization.
+ - MAM: four diagnostic-only copies of the (ncol,pver,gas_pcnst) tracer and
+   tendency arrays made in every call of modal_aero_gasaerexch_sub are
+   removed.
 
 Code reviewed by: TBD
 
@@ -136,12 +149,16 @@ M   src/chemistry/aerosol/modal_aerosol_properties_mod.F90
 
 M   src/chemistry/carma_aero/aero_model.F90
  - remove wet radius calculation (now from aero_state%wet_diameter)
+ - pass the aerosol properties and state objects to carma_aero_gasaerexch;
+   remove arguments no longer used by carma_aero_gasaerexch_sub
 
 M   src/chemistry/carma_aero/carma_aero_gasaerexch.F90
  - use shared aero_gasaerexch and aero_soaexch_mod routines, including the
    shared history diagnostics (including column tendencies) and species/SOA
-   gas lookups; SOA/POA species tables set at initialization; corrections
-   listed above
+   gas lookups; SOA/POA species tables set at initialization; aerosol
+   properties and state objects passed as arguments; bins, species and
+   names from the aerosol properties object; unused arguments removed;
+   corrections listed above
 
 M   src/chemistry/modal_aero/aero_model.F90
  - pass the aerosol properties object to modal_aero_gasaerexch
@@ -152,7 +169,9 @@ M   src/chemistry/modal_aero/modal_aero_gasaerexch.F90
    lookups; species and SOA gas indices from the aerosol properties object
    and shared lookups; register only the SOA condensation/evaporation
    fields that are written; shared column tendency diagnostics
-   (_sfgaex1, _sfgaex2)
+   (_sfgaex1, _sfgaex2); nsoa/npoa from the aerosol properties object;
+   explicit use lists in modal_aero_gasaerexch_init; commented-out
+   diagnostics code and unused variables removed
 
 M   src/chemistry/pp_waccm_ma_noaero/chem_mech.doc
 M   src/chemistry/pp_waccm_ma_noaero/chem_mech.in
