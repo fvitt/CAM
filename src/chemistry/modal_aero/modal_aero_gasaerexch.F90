@@ -17,7 +17,7 @@
   use ref_pres,        only:  top_lev => clim_modal_aero_top_lev
   use ppgrid,          only:  pcols, pver
   use modal_aero_data, only:  ntot_amode, numptr_amode
-  use aero_gasaerexch, only: soa_condevap_diag_t
+  use aero_gasaerexch, only: soa_condevap_diag_t, col_tend_diag_t
 
   implicit none
   private
@@ -73,6 +73,14 @@
 
   type(soa_condevap_diag_t) :: soa_diag     ! SOA condensation/evaporation diagnostics
 
+! column tendency diagnostics and their field index for each constituent (0 if none)
+  type(col_tend_diag_t) :: sfgaex1_diag     ! gas-aerosol exchange ('_sfgaex1')
+  type(col_tend_diag_t) :: sfgaex2_diag     ! renaming of interstitial species ('_sfgaex2')
+  type(col_tend_diag_t) :: sfgaex2cw_diag   ! renaming of cloud-borne species ('_sfgaex2')
+  integer, allocatable :: sfgaex1_fld(:)
+  integer, allocatable :: sfgaex2_fld(:)
+  integer, allocatable :: sfgaex2cw_fld(:)
+
 ! !DESCRIPTION: This module implements ...
 !
 ! !REVISION HISTORY:
@@ -117,7 +125,6 @@ use aero_gasaerexch,   only:  aero_gasaerexch_uptkrates, aero_gasaerexch_soa, &
                               nh3_diffus_ratio, method_soa_reversible, soa_condevap_acc_t
 use constituents,      only: pcnst, cnst_mw
 
-use cam_history,       only:  outfld, fieldname_len
 use chem_mods,         only:  adv_mass
 use constituents,      only:  pcnst, cnst_name, cnst_get_ind
 use mo_tracname,       only:  solsym
@@ -194,7 +201,7 @@ implicit none
    integer :: idiagss
    integer :: ido_so4a(ntot_amode), ido_nh4a(ntot_amode)
    integer ::  ido_soaa(ntot_amode,nsoa)
-   integer :: j, jac, jsrf, jsoa
+   integer :: j, jsrf, jsoa
    integer :: k,p
    integer :: l, l2, lb, lsfrm, lstoo
    integer :: l_so4g, l_nh4g, l_msag
@@ -203,7 +210,6 @@ implicit none
 
    logical :: is_dorename_atik, dorename_atik(ncol,pver)
 
-   character(len=fieldname_len+3) :: fieldname
    character(len=100) :: msg ! string for endrun calls
 
    real (r8) :: avg_uprt_nh4, avg_uprt_so4
@@ -850,40 +856,28 @@ implicit none
 !-----------------------------------------------------------------------
 
 !   do history file column-tendency fields
+!   (lb = l + loffset is a constituent index only for species with tendencies,
+!    so the field index arrays are only accessed for those)
    do l = 1, pcnstxx
       lb = l + loffset
-      do jsrf = 1, 2
-         do jac = 1, 2
-	    if (jac == 1) then
-               if (jsrf == jsrflx_gaexch) then
-                  if ( .not. dotend(l) ) cycle
-                  fieldname = trim(cnst_name(lb)) // '_sfgaex1'
-               else if (jsrf == jsrflx_rename) then
-                  if ( .not. dotendrn(l) ) cycle
-                  fieldname = trim(cnst_name(lb)) // '_sfgaex2'
-               else
-                  cycle
-               end if
-               do i = 1, ncol
-                  qsrflx(i,l,jsrf) = qsrflx(i,l,jsrf)*(adv_mass(l)/mwdry)
-               end do
-               call outfld( fieldname, qsrflx(:,l,jsrf), pcols, lchnk )
-	    else
-               if (jsrf == jsrflx_gaexch) then
-                  cycle
-               else if (jsrf == jsrflx_rename) then
-                  if ( .not. dotendqqcwrn(l) ) cycle
-                  fieldname = trim(cnst_name_cw(lb)) // '_sfgaex2'
-               else
-                  cycle
-               end if
-               do i = 1, ncol
-                  qqcwsrflx(i,l,jsrf) = qqcwsrflx(i,l,jsrf)*(adv_mass(l)/mwdry)
-               end do
-               call outfld( fieldname, qqcwsrflx(:,l,jsrf), pcols, lchnk )
-	    end if
-         end do ! jac = ...
-      end do ! jsrf = ...
+      if ( dotend(l) ) then
+         if ( sfgaex1_fld(lb) > 0 ) then
+            call sfgaex1_diag%outfld( sfgaex1_fld(lb), ncol, lchnk, adv_mass(l)/mwdry, &
+                                      qsrflx(:,l,jsrflx_gaexch) )
+         end if
+      end if
+      if ( dotendrn(l) ) then
+         if ( sfgaex2_fld(lb) > 0 ) then
+            call sfgaex2_diag%outfld( sfgaex2_fld(lb), ncol, lchnk, adv_mass(l)/mwdry, &
+                                      qsrflx(:,l,jsrflx_rename) )
+         end if
+      end if
+      if ( dotendqqcwrn(l) ) then
+         if ( sfgaex2cw_fld(lb) > 0 ) then
+            call sfgaex2cw_diag%outfld( sfgaex2cw_fld(lb), ncol, lchnk, adv_mass(l)/mwdry, &
+                                        qqcwsrflx(:,l,jsrflx_rename) )
+         end if
+      end if
    end do ! l = ...
 
    return
@@ -909,7 +903,6 @@ use modal_aero_data
 use modal_aero_rename
 
 use cam_abortutils, only: endrun
-use cam_history,    only: addfld, add_default, fieldname_len, horiz_only
 use constituents,   only: pcnst, cnst_get_ind, cnst_name
 use spmd_utils,     only: masterproc
 use phys_control,   only: phys_getopts
@@ -924,7 +917,7 @@ implicit none
 !-----------------------------------------------------------------------
 ! local
    integer  :: ipair, iq, iqfrm, iqfrm_aa, iqtoo, iqtoo_aa
-   integer  :: jac,jsoa,p
+   integer  :: jsoa,p
    integer  :: l, l1, l2, lsfrm, lstoo, lunout
    integer  :: l_so4g, l_nh4g, l_msag
    integer  :: m, mfrm, mtoo
@@ -937,11 +930,7 @@ implicit none
 
    real(r8) :: tmp1, tmp2
 
-   character(len=fieldname_len)   :: tmpnamea, tmpnameb
-   character(len=fieldname_len+3) :: fieldname
-   character(128)                 :: long_name
    character(128)                 :: msg
-   character(8)                   :: unit
 
    logical                        :: history_aerosol      ! Output the MAM aerosol tendencies
    logical                        :: history_aerocom    ! Output the aerocom history
@@ -1159,20 +1148,8 @@ aa_iqfrm: do iqfrm = -1, nspec_amode(mfrm)
 
 !  define history fields for basic gas-aer exchange
 !  and primary carbon aging from that
-      do l = 1, pcnst
-         if ( .not. dotend(l) ) cycle
-
-         tmpnamea = cnst_name(l)
-         fieldname = trim(tmpnamea) // '_sfgaex1'
-         long_name = trim(tmpnamea) // ' gas-aerosol-exchange primary column tendency'
-         unit = 'kg/m2/s'
-         call addfld( fieldname, horiz_only, 'A', unit, long_name )
-         if ( history_aerosol ) then
-            call add_default( fieldname, 1, ' ' )
-         endif
-         if ( masterproc ) write(*,'(3(a,3x))') 'gasaerexch addfld', fieldname, unit
-
-      end do   ! l = ...
+      call init_col_tend( sfgaex1_diag, sfgaex1_fld, dotend, cnst_name, '_sfgaex1', &
+                          'gas-aerosol-exchange primary column tendency', history_aerosol )
 !  define history fields for aitken-->accum renaming
       dotend(:) = .false.
       dotendqqcw(:) = .false.
@@ -1198,28 +1175,10 @@ aa_iqfrm: do iqfrm = -1, nspec_amode(mfrm)
          end do ! iq = ...
       end do ! ipair = ...
 
-      do l = 1, pcnst
-      do jac = 1, 2
-         if (jac == 1) then
-            if ( .not. dotend(l) ) cycle
-            tmpnamea = cnst_name(l)
-         else
-            if ( .not. dotendqqcw(l) ) cycle
-            tmpnamea = cnst_name_cw(l)
-         end if
-
-         fieldname = trim(tmpnamea) // '_sfgaex2'
-         long_name = trim(tmpnamea) // ' gas-aerosol-exchange renaming column tendency'
-         unit = 'kg/m2/s'
-         if ((tmpnamea(1:3) == 'num') .or. &
-             (tmpnamea(1:3) == 'NUM')) unit = '#/m2/s'
-         call addfld( fieldname, horiz_only, 'A', unit, long_name )
-         if ( history_aerosol ) then
-            call add_default( fieldname, 1, ' ' )
-         endif
-         if ( masterproc ) write(*,'(3(a,3x))') 'gasaerexch addfld', fieldname, unit
-      end do   ! jac = ...
-      end do   ! l = ...
+      call init_col_tend( sfgaex2_diag, sfgaex2_fld, dotend, cnst_name, '_sfgaex2', &
+                          'gas-aerosol-exchange renaming column tendency', history_aerosol )
+      call init_col_tend( sfgaex2cw_diag, sfgaex2cw_fld, dotendqqcw, cnst_name_cw, '_sfgaex2', &
+                          'gas-aerosol-exchange renaming column tendency', history_aerosol )
 
 
 ! set for used in aging calcs:
@@ -1296,6 +1255,43 @@ aa_iqfrm: do iqfrm = -1, nspec_amode(mfrm)
       return
 
       end subroutine modal_aero_gasaerexch_init
+
+!----------------------------------------------------------------------
+! registers the column tendency fields of the constituents selected by mask
+! and sets the field index of each constituent (0 if none)
+!----------------------------------------------------------------------
+      subroutine init_col_tend( diag, fld_ndx, mask, cnames, suffix, desc, history_aerosol )
+
+      type(col_tend_diag_t), intent(inout) :: diag
+      integer, allocatable, intent(out) :: fld_ndx(:)  ! field index of each constituent
+      logical, intent(in) :: mask(:)                   ! constituents with column tendency fields
+      character(len=*), intent(in) :: cnames(:)        ! constituent names
+      character(len=*), intent(in) :: suffix           ! field name suffix
+      character(len=*), intent(in) :: desc             ! long name description
+      logical, intent(in) :: history_aerosol           ! add fields to default history output
+
+      integer :: l, nfld
+      character(len=len(cnames)), allocatable :: names(:)
+
+      allocate(fld_ndx(size(mask)))
+      allocate(names(count(mask)))
+
+      nfld = 0
+      do l = 1, size(mask)
+         if (mask(l)) then
+            nfld = nfld + 1
+            names(nfld) = cnames(l)
+            fld_ndx(l) = nfld
+         else
+            fld_ndx(l) = 0
+         end if
+      end do
+
+      call diag%init( names, suffix, desc, history_aerosol )
+
+      end subroutine init_col_tend
+
+!----------------------------------------------------------------------
 
 !----------------------------------------------------------------------
 ! sets constituent indices of the interstitial aerosol species and soa gas

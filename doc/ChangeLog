@@ -51,6 +51,11 @@ Purpose of changes (include the issue number and title text for each relevant Gi
      - uptake rate, number density and wet radius of each mode/bin
        (UPTKRATE_binNN, NUMDENS_binNN, WETRAD_binNN, UPTKRATE); output by
        CARMA only, as before.
+     - column tendencies of the species involved in gas-aerosol exchange
+       (<species>_sfgaex1) and, for MAM, in renaming (<species>_sfgaex2):
+       field registration, conversion to output units and output. The
+       column tendencies are still accumulated by each model; each model
+       outputs the same fields as before.
    History field changes (values unchanged):
      - MAM no longer registers SOA condensation/evaporation fields that are
        never written: previously all 8 (qcon_gaex, qevap_gaex, qconff_gaex,
@@ -62,6 +67,9 @@ Purpose of changes (include the issue number and title text for each relevant Gi
      - long name of MAM qevap_gaex corrected ('SOA evaporation', was
        'Biogenic SOA evaporation'); CARMA uptake-rate long names no longer
        refer to carma_aero_gasaerexch.
+     - units of MAM <species>_sfgaex1 fields for number species (primary
+       carbon aging) corrected to '#/m2/s' (were 'kg/m2/s'), as already
+       done for <species>_sfgaex2.
  - CARMA SOA gas-aerosol exchange:
      - condensation sink corrected: the wet radius was used as a diameter
        (doubling the Knudsen number) and a factor of sqrt(pi) was missing;
@@ -106,7 +114,8 @@ A   src/chemistry/aerosol/aero_gasaerexch.F90
  - gas-aerosol exchange routines shared by the aerosol models: condensation
    sink for all modes/bins, per-grid-cell SOA gas uptake, history
    diagnostics (SOA condensation/evaporation; uptake rates, number
-   densities and wet radii of modes/bins), and species and SOA gas lookups
+   densities and wet radii of modes/bins; column tendencies), and species
+   and SOA gas lookups
 
 List all existing files that have been modified, and describe the changes:
 
@@ -130,8 +139,9 @@ M   src/chemistry/carma_aero/aero_model.F90
 
 M   src/chemistry/carma_aero/carma_aero_gasaerexch.F90
  - use shared aero_gasaerexch and aero_soaexch_mod routines, including the
-   shared history diagnostics and species/SOA gas lookups; SOA/POA species
-   tables set at initialization; corrections listed above
+   shared history diagnostics (including column tendencies) and species/SOA
+   gas lookups; SOA/POA species tables set at initialization; corrections
+   listed above
 
 M   src/chemistry/modal_aero/aero_model.F90
  - pass the aerosol properties object to modal_aero_gasaerexch
@@ -141,7 +151,8 @@ M   src/chemistry/modal_aero/modal_aero_gasaerexch.F90
    shared SOA condensation/evaporation diagnostics and species/SOA gas
    lookups; species and SOA gas indices from the aerosol properties object
    and shared lookups; register only the SOA condensation/evaporation
-   fields that are written
+   fields that are written; shared column tendency diagnostics
+   (_sfgaex1, _sfgaex2)
 
 M   src/chemistry/pp_waccm_ma_noaero/chem_mech.doc
 M   src/chemistry/pp_waccm_ma_noaero/chem_mech.in

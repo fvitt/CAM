@@ -66,6 +66,24 @@ module aero_gasaerexch
 
    character(len=*), parameter :: condevap_units = 'kg/kg/s'
 
+   !----------------------------------------------------------------------
+   ! column tendency history diagnostics ('<species><suffix>', e.g.,
+   ! 'so4_a1_sfgaex1') of species involved in gas-aerosol exchange
+   ! (kg/m2/s, or #/m2/s for number)
+   !
+   ! The column tendencies are accumulated by the caller in mol/mol/s * kg/m2
+   ! (#/kmol/s * kg/m2 for number) and are converted to the output units
+   ! with a caller-supplied factor (molecular weight / mwdry) when output.
+   !----------------------------------------------------------------------
+   type, public :: col_tend_diag_t
+      private
+      integer :: nfld = 0                              ! number of fields
+      character(len=64), allocatable :: fldname(:)     ! field names
+   contains
+      procedure :: init => col_tend_init
+      procedure :: outfld => col_tend_outfld
+   end type col_tend_diag_t
+
 contains
 
    !----------------------------------------------------------------------
@@ -555,5 +573,63 @@ contains
       end do
 
    end subroutine soa_condevap_outfld
+
+   !----------------------------------------------------------------------
+   ! registers the column tendency history fields '<spec_names(i)><suffix>'
+   ! (field index i in calls to outfld)
+   !----------------------------------------------------------------------
+   subroutine col_tend_init( self, spec_names, suffix, desc, history_aerosol )
+
+      use cam_history, only: addfld, add_default, horiz_only
+
+      class(col_tend_diag_t), intent(inout) :: self
+      character(len=*), intent(in) :: spec_names(:)  ! species names
+      character(len=*), intent(in) :: suffix         ! field name suffix
+      character(len=*), intent(in) :: desc           ! description appended to the species name in long name
+      logical,          intent(in) :: history_aerosol ! add fields to default history output
+
+      integer :: i
+      character(len=8) :: unit
+      character(len=128) :: long_name
+
+      self%nfld = size(spec_names)
+      allocate(self%fldname(self%nfld))
+
+      do i = 1, self%nfld
+         self%fldname(i) = trim(spec_names(i)) // suffix
+         long_name = trim(spec_names(i)) // ' ' // desc
+         unit = 'kg/m2/s'
+         if ((spec_names(i)(1:3) == 'num') .or. (spec_names(i)(1:3) == 'NUM')) unit = '#/m2/s'
+         call addfld( self%fldname(i), horiz_only, 'A', unit, long_name )
+         if ( history_aerosol ) then
+            call add_default( self%fldname(i), 1, ' ' )
+         end if
+      end do
+
+   end subroutine col_tend_init
+
+   !----------------------------------------------------------------------
+   ! converts a column tendency to the output units and outputs it
+   !----------------------------------------------------------------------
+   subroutine col_tend_outfld( self, ifld, ncol, lchnk, fac, qsrflx )
+
+      use cam_history, only: outfld
+      use ppgrid,      only: pcols
+
+      class(col_tend_diag_t), intent(in) :: self
+      integer,  intent(in) :: ifld              ! field index (from init)
+      integer,  intent(in) :: ncol              ! number of columns
+      integer,  intent(in) :: lchnk             ! chunk identifier
+      real(r8), intent(in) :: fac               ! conversion factor to output units (molecular weight / mwdry)
+      real(r8), intent(inout) :: qsrflx(pcols)  ! column tendency; converted to output units on return
+
+      integer :: i
+
+      do i = 1, ncol
+         qsrflx(i) = qsrflx(i)*fac
+      end do
+      call outfld( trim(self%fldname(ifld)), qsrflx, pcols, lchnk )
+
+   end subroutine col_tend_outfld
 
 end module aero_gasaerexch

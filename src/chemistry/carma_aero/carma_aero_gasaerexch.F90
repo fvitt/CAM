@@ -18,7 +18,7 @@ module carma_aero_gasaerexch
   use aerosol_properties_mod, only: aerosol_properties
   use aerosol_instances_mod, only: aerosol_instances_get_props, &
        aerosol_instances_get_state, aerosol_instances_get_num_models
-  use aero_gasaerexch,  only: soa_condevap_diag_t
+  use aero_gasaerexch,  only: soa_condevap_diag_t, col_tend_diag_t
 
   implicit none
   private
@@ -56,6 +56,8 @@ module carma_aero_gasaerexch
   logical, allocatable  :: do_soag_any(:)         ! true if soa gas is a species and carma soa in bin
 
   type(soa_condevap_diag_t) :: soa_diag   ! SOA condensation/evaporation diagnostics
+  type(col_tend_diag_t) :: sfgaex1_diag     ! SOA column tendency diagnostics ('_sfgaex1')
+  integer, allocatable :: sfgaex1_fld(:,:)  ! field index of each bin soa species
 ! !DESCRIPTION: This module implements ...
 !
 ! !REVISION HISTORY:
@@ -87,7 +89,6 @@ contains
 !
 !-----------------------------------------------------------------------
 
-    use cam_history,    only: addfld, add_default, fieldname_len, horiz_only
     use constituents,   only: cnst_name
     use phys_control,   only: phys_getopts
     use mo_chem_utls,   only: get_spc_ndx
@@ -105,10 +106,9 @@ contains
     integer  :: m
     integer  :: ns
     integer, allocatable :: soag_cnst_ndx(:)
-    character(len=fieldname_len+3) :: fieldname
+    integer  :: nfld
+    character(len=32), allocatable :: sfgaex1_names(:)
     character(len=32)              :: spec_name
-    character(128)                 :: long_name
-    character(8)                   :: unit
 
     logical                        :: history_aerosol      ! Output the MAM aerosol tendencies
     !-----------------------------------------------------------------------
@@ -181,6 +181,10 @@ contains
 !------------------------------------------------------------------------------
 
 !  define history fields for basic gas-aer exchange
+    allocate( sfgaex1_fld(nbins,nsoa) )
+    allocate( sfgaex1_names(sum(cnsoa)) )
+    sfgaex1_fld(:,:) = 0
+    nfld = 0
     do m = 1, nbins
        do l = 1, nspec(m)    ! do through nspec
           ii = aero_props%indexer(m,l)
@@ -189,15 +193,13 @@ contains
        ! only write out SOA exchange here
        do ns = 1, cnsoa(m)
           ii = aero_props%indexer(m,soa_ndx(m,ns))
-          fieldname= trim(fldname(ii)) // '_sfgaex1'
-          long_name = trim(fldname(ii)) // ' gas-aerosol-exchange primary column tendency'
-          unit = 'kg/m2/s'
-          call addfld( fieldname, horiz_only, 'A', unit, long_name )
-          if ( history_aerosol ) then
-             call add_default( fieldname, 1, ' ' )
-          endif
+          nfld = nfld + 1
+          sfgaex1_names(nfld) = fldname(ii)
+          sfgaex1_fld(m,ns) = nfld
        end do
     end do
+    call sfgaex1_diag%init( sfgaex1_names, '_sfgaex1', 'gas-aerosol-exchange primary column tendency', &
+                            history_aerosol )
 
 !  uptake rate, number density and wet radius of each bin
     call aero_gasaerexch_uptk_diag_init( nbins, history_aerosol )
@@ -222,7 +224,6 @@ subroutine carma_aero_gasaerexch_sub(  state, &
                         q,                  raervmr              )
 
   ! !USES:
-  use cam_history,       only: outfld, fieldname_len
   use physconst,         only: gravit, mwdry
   use cam_abortutils,    only: endrun
   use time_manager,      only: is_first_step
@@ -281,7 +282,6 @@ subroutine carma_aero_gasaerexch_sub(  state, &
   integer :: k
   integer :: mm, m, n, nn
 
-  character(len=fieldname_len+3) :: fieldname
 
   real (r8) :: dqdt_soa_vbs(nbins,nsoa_vbs)
   real (r8) :: dqdt_soa_all(pcols,pver,nbins,nsoa)
@@ -515,12 +515,7 @@ subroutine carma_aero_gasaerexch_sub(  state, &
   do m = 1, nbins
      if (do_soag_any(m)) then
         do j = 1, cnsoa(m)
-           mm = aero_props%indexer(m,soa_ndx(m,j))
-           fieldname= trim(fldname(mm)) // '_sfgaex1'
-           do i = 1, ncol
-              qsrflx(i,m,j) = qsrflx(i,m,j)*(mw_soa/mwdry)
-           end do
-           call outfld( fieldname, qsrflx(:,m,j), pcols, lchnk )
+           call sfgaex1_diag%outfld( sfgaex1_fld(m,j), ncol, lchnk, mw_soa/mwdry, qsrflx(:,m,j) )
 
            !set pointer field
            call pbuf_get_field(pbuf, dqdtsoa_idx(m,j),  dqdt_soa )
