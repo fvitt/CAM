@@ -15,6 +15,9 @@ module aero_gasaerexch
    public :: aero_gasaerexch_uptkrates
    public :: aero_gasaerexch_soa
    public :: aero_gasaerexch_soa_column
+   public :: aero_gasaerexch_partition
+   public :: aero_gasaerexch_reversible
+   public :: aero_gasaerexch_nh4_limit
    public :: aero_gasaerexch_uptk_diag_init
    public :: aero_gasaerexch_uptk_diag_out
    public :: aero_gasaerexch_spec_ndx
@@ -22,6 +25,7 @@ module aero_gasaerexch
 
    ! gas diffusivity ratios relative to h2so4
    ! (differences in fuchs-sutugin and accom coef ignored)
+   real(r8), parameter, public :: h2so4_diffus_ratio = 1.0_r8 ! h2so4/h2so4
    real(r8), parameter, public :: soa_diffus_ratio = 0.81_r8 ! soa/h2so4
    real(r8), parameter, public :: nh3_diffus_ratio = 2.08_r8 ! nh3/h2so4
 
@@ -306,6 +310,137 @@ contains
       end do
 
    end subroutine aero_gasaerexch_soa_column
+
+   !----------------------------------------------------------------------
+   ! partitions the uptake of a non-volatile gas among modes/bins in a grid
+   ! cell:
+   !   fgain(n) = fraction of the total gas uptake going to mode/bin n
+   !   sum_uprt = total gas-to-aerosol mass transfer rate (1/s)
+   !   avg_uprt = average uptake rate over the time step, such that
+   !              (gas mixing ratio)*avg_uprt is the total uptake (mol/mol/s)
+   !----------------------------------------------------------------------
+   pure subroutine aero_gasaerexch_partition( nbins, do_bin, uptkrate, diffus_ratio, deltatxx, &
+                                              fgain, sum_uprt, avg_uprt )
+
+      integer,  intent(in)  :: nbins             ! number of modes/bins
+      logical,  intent(in)  :: do_bin(nbins)     ! mode/bin takes up the gas
+      real(r8), intent(in)  :: uptkrate(nbins)   ! h2so4 gas-to-aerosol mass transfer rates (1/s)
+      real(r8), intent(in)  :: diffus_ratio      ! gas diffusivity ratio relative to h2so4
+      real(r8), intent(in)  :: deltatxx          ! time step (s), slightly increased
+      real(r8), intent(out) :: fgain(nbins)      ! fraction of the gas uptake going to each mode/bin
+      real(r8), intent(out) :: sum_uprt          ! total gas-to-aerosol mass transfer rate (1/s)
+      real(r8), intent(out) :: avg_uprt          ! average uptake rate over the time step (1/s)
+
+      integer :: n
+
+      sum_uprt = 0.0_r8
+      do n = 1, nbins
+         if (do_bin(n)) then
+            fgain(n) = uptkrate(n)*diffus_ratio
+            sum_uprt = sum_uprt + fgain(n)
+         else
+            fgain(n) = 0.0_r8
+         end if
+      end do
+
+      if (sum_uprt > 0.0_r8) then
+         do n = 1, nbins
+            fgain(n) = fgain(n) / sum_uprt
+         end do
+      end if
+      ! at this point (sum_uprt <= 0.0) only when all the fgain are zero
+
+      ! uptake amount (fraction of gas uptaken) over deltat
+      avg_uprt = (1.0_r8 - exp(-deltatxx*sum_uprt))/deltatxx
+
+   end subroutine aero_gasaerexch_partition
+
+   !----------------------------------------------------------------------
+   ! computes aerosol tendencies of a gas (e.g., h2so4) with reversible uptake
+   ! in a grid cell: the gas relaxes toward an equilibrium mixing ratio given
+   ! for each mode/bin (e.g., sulfeq above the tropopause)
+   !----------------------------------------------------------------------
+   pure subroutine aero_gasaerexch_reversible( nbins, do_bin, uptkrate, gas_equil, deltatxx, &
+                                               sum_uprt, gas_bgn, aer_bgn, dqdt_aer, sum_dqdt_aer )
+
+      integer,  intent(in)  :: nbins              ! number of modes/bins
+      logical,  intent(in)  :: do_bin(nbins)      ! mode/bin takes up the gas
+      real(r8), intent(in)  :: uptkrate(nbins)    ! gas-to-aerosol mass transfer rates (1/s)
+      real(r8), intent(in)  :: gas_equil(nbins)   ! equilibrium gas mixing ratio over each mode/bin (mol/mol)
+      real(r8), intent(in)  :: deltatxx           ! time step (s), slightly increased
+      real(r8), intent(in)  :: sum_uprt           ! total gas-to-aerosol mass transfer rate (1/s)
+      real(r8), intent(in)  :: gas_bgn            ! initial gas mixing ratio (mol/mol)
+      real(r8), intent(in)  :: aer_bgn(nbins)     ! initial aerosol mixing ratios (mol/mol)
+      real(r8), intent(inout) :: dqdt_aer(nbins)  ! aerosol tendencies (mol/mol/s); left unchanged where .not.do_bin
+      real(r8), intent(out) :: sum_dqdt_aer       ! total aerosol tendency (mol/mol/s)
+
+      integer  :: n
+      real(r8) :: tmp_kxt, tmp_pxt
+      real(r8) :: tmp_aer_end
+      real(r8) :: tmp_gas_avg, tmp_gas_equ
+
+      tmp_kxt = deltatxx*sum_uprt  ! sum over modes of uptake_rate*deltat
+      tmp_pxt = 0.0_r8
+      do n = 1, nbins
+         if (.not. do_bin(n)) cycle
+         tmp_pxt = tmp_pxt + uptkrate(n)*gas_equil(n)
+      end do
+      tmp_pxt = max( 0.0_r8, tmp_pxt*deltatxx )  ! sum over modes of uptake_rate*gas_equil*deltat
+      ! calc avg gas over deltat
+      if (tmp_kxt >= 1.0e-5_r8) then
+         ! exponential decay towards equilibrium value solution
+         tmp_gas_equ = tmp_pxt/tmp_kxt
+         tmp_gas_avg = tmp_gas_equ + (gas_bgn-tmp_gas_equ)*(1.0_r8-exp(-tmp_kxt))/tmp_kxt
+      else
+         ! first order approx for tmp_kxt small
+         tmp_gas_avg = gas_bgn*(1.0_r8-0.5_r8*tmp_kxt) + 0.5_r8*tmp_pxt
+      end if
+      sum_dqdt_aer = 0.0_r8
+      do n = 1, nbins
+         if (.not. do_bin(n)) cycle
+         ! calc change to aerosol in mode n
+         tmp_aer_end = aer_bgn(n) + deltatxx*uptkrate(n)*(tmp_gas_avg-gas_equil(n))
+         tmp_aer_end = max( 0.0_r8, tmp_aer_end )
+         dqdt_aer(n) = (tmp_aer_end - aer_bgn(n))/deltatxx
+         sum_dqdt_aer = sum_dqdt_aer + dqdt_aer(n)
+      end do
+
+   end subroutine aero_gasaerexch_reversible
+
+   !----------------------------------------------------------------------
+   ! computes nh4 aerosol tendencies from nh3 gas uptake in a grid cell, with
+   ! the nh4/so4 molar ratio limited to 2
+   !----------------------------------------------------------------------
+   pure subroutine aero_gasaerexch_nh4_limit( nbins, fgain_nh4, sum_dqdt_nh4, deltat, deltatxx, &
+                                              qold_nh4, qold_so4, dqdt_so4, dqdt_nh4, sum_dqdt_nh4_b )
+
+      integer,  intent(in)  :: nbins              ! number of modes/bins
+      real(r8), intent(in)  :: fgain_nh4(nbins)   ! fraction of the nh3 uptake going to each mode/bin
+      real(r8), intent(in)  :: sum_dqdt_nh4       ! total nh3 uptake without the limit (mol/mol/s)
+      real(r8), intent(in)  :: deltat             ! time step (s)
+      real(r8), intent(in)  :: deltatxx           ! time step (s), slightly increased
+      real(r8), intent(in)  :: qold_nh4(nbins)    ! initial nh4 aerosol mixing ratios (mol/mol)
+      real(r8), intent(in)  :: qold_so4(nbins)    ! initial so4 aerosol mixing ratios (mol/mol)
+      real(r8), intent(in)  :: dqdt_so4(nbins)    ! so4 aerosol tendencies (mol/mol/s)
+      real(r8), intent(out) :: dqdt_nh4(nbins)    ! nh4 aerosol tendencies (mol/mol/s)
+      real(r8), intent(out) :: sum_dqdt_nh4_b     ! total nh3 uptake with the limit (mol/mol/s)
+
+      integer  :: n
+      real(r8) :: qmax_nh4, qnew_nh4, qnew_so4
+
+      sum_dqdt_nh4_b = 0.0_r8
+      do n = 1, nbins
+         dqdt_nh4(n) = fgain_nh4(n)*sum_dqdt_nh4
+         qnew_nh4 = qold_nh4(n) + dqdt_nh4(n)*deltat
+         qnew_so4 = qold_so4(n) + dqdt_so4(n)*deltat
+         qmax_nh4 = 2.0_r8*qnew_so4
+         if (qnew_nh4 > qmax_nh4) then
+            dqdt_nh4(n) = (qmax_nh4 - qold_nh4(n))/deltatxx
+         end if
+         sum_dqdt_nh4_b = sum_dqdt_nh4_b + dqdt_nh4(n)
+      end do
+
+   end subroutine aero_gasaerexch_nh4_limit
 
    !----------------------------------------------------------------------
    ! finds the species of a given species type (e.g., 's-organic') in each

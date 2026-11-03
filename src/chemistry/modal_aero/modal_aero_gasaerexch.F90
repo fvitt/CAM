@@ -133,6 +133,8 @@ subroutine modal_aero_gasaerexch_sub(                            &
 ! !USES:
 use modal_aero_rename, only:  modal_aero_rename_sub
 use aero_gasaerexch,   only:  aero_gasaerexch_uptkrates, aero_gasaerexch_soa_column, &
+                              aero_gasaerexch_partition, aero_gasaerexch_reversible, &
+                              aero_gasaerexch_nh4_limit, h2so4_diffus_ratio, &
                               nh3_diffus_ratio, method_soa_reversible, soa_condevap_acc_t
 
 use chem_mods,         only:  adv_mass
@@ -224,7 +226,6 @@ implicit none
    real (r8) :: fac_volsfc_pcarbon
    real (r8) :: fgain_nh4(nmodes), fgain_so4(nmodes)
    real (r8) :: pdel_fac
-   real (r8) :: qmax_nh4, qnew_nh4, qnew_so4
    real (r8) :: qold_nh4(nmodes), qold_so4(nmodes)
    real (r8) :: soag_col(pcols,pver,nsoa)          ! soa gas mixing ratios
    real (r8) :: soa_col(pcols,pver,nmodes,nsoa)    ! soa aerosol mixing ratios
@@ -236,9 +237,6 @@ implicit none
    real (r8) :: sum_dqdt_nh4, sum_dqdt_nh4_b
    real (r8) :: sum_uprt_nh4, sum_uprt_so4
    real (r8) :: tmp1, tmp2, tmpa
-   real (r8) :: tmp_kxt, tmp_pxt
-   real (r8) :: tmp_so4a_bgn, tmp_so4a_end
-   real (r8) :: tmp_so4g_avg, tmp_so4g_bgn, tmp_so4g_equ
    real (r8) :: uptkrate(pcols,pver,nmodes) ! gas-to-aerosol mass transfer rates (1/s)
    real (r8) :: numdens(pcols,pver,nmodes)  ! mode number density (#/m3)
    real (r8) :: rhoair, aircon
@@ -253,6 +251,8 @@ implicit none
    logical  :: do_soag(nsoa)       ! true if soa gas is a species
    logical  :: do_soamode(nmodes) ! true if mode takes part in soa exchange
    logical  :: do_soa(nmodes,nsoa) ! true if soa species takes up soa gas in mode
+   logical  :: do_so4a(nmodes)     ! true if mode takes up h2so4 gas
+   logical  :: do_nh4a(nmodes)     ! true if mode takes up nh3 gas
    logical  :: do_poa(nmodes)      ! true if poa is included in the soa exchange of a mode
 
    logical  :: dotend(pcnstxx)          ! identifies species directly involved in
@@ -421,6 +421,12 @@ implicit none
    call aero_gasaerexch_uptkrates( aero_props, ncol, pver, top_lev, numdens, dgncur_awet, &
                                    t, pmid, uptkrate )
 
+! modes taking up h2so4 and nh3 gas
+   do n = 1, nmodes
+      do_so4a(n) = (ido_so4a(n) > 0)
+      do_nh4a(n) = (ido_nh4a(n) > 0)
+   end do
+
 ! modes and species taking up soa gas
    do jsoa = 1, nsoa
       do n = 1, nmodes
@@ -479,57 +485,29 @@ implicit none
    do k=top_lev,pver
       do i=1,ncol
 
-!   fgain_so4(n) = fraction of total h2so4 uptake going to mode n
-!   fgain_nh4(n) = fraction of total  nh3  uptake going to mode n
-         sum_uprt_so4 = 0.0_r8
-         sum_uprt_nh4 = 0.0_r8
          do n = 1, nmodes
             uptkratebb(n) = uptkrate(i,k,n)
-            if (ido_so4a(n) > 0) then
-               fgain_so4(n) = uptkratebb(n)
-               sum_uprt_so4 = sum_uprt_so4 + fgain_so4(n)
-               if (ido_so4a(n) == 1) then
-                  qold_so4(n) = q(i,k,so4_a_ndx(n)-loffset)
-               else
-                  qold_so4(n) = 0.0_r8
-               end if
+            if (ido_so4a(n) == 1) then
+               qold_so4(n) = q(i,k,so4_a_ndx(n)-loffset)
             else
-               fgain_so4(n) = 0.0_r8
                qold_so4(n) = 0.0_r8
             end if
-
-            if (ido_nh4a(n) > 0) then
-               !   nh3_diffus_ratio is for gas diffusivity (nh3/h2so4)
-               !   differences in fuch-sutugin and accom coef ignored
-               fgain_nh4(n) = uptkratebb(n)*nh3_diffus_ratio
-               sum_uprt_nh4 = sum_uprt_nh4 + fgain_nh4(n)
-               if (ido_nh4a(n) == 1) then
-                  qold_nh4(n) = q(i,k,nh4_a_ndx(n)-loffset)
-               else
-                  qold_nh4(n) = 0.0_r8
-               end if
+            if (ido_nh4a(n) == 1) then
+               qold_nh4(n) = q(i,k,nh4_a_ndx(n)-loffset)
             else
-               fgain_nh4(n) = 0.0_r8
                qold_nh4(n) = 0.0_r8
             end if
-
          end do ! n
 
-         if (sum_uprt_so4 > 0.0_r8) then
-            do n = 1, nmodes
-               fgain_so4(n) = fgain_so4(n) / sum_uprt_so4
-            end do
-         end if
-!       at this point (sum_uprt_so4 <= 0.0) only when all the fgain_so4 are zero
-         if (sum_uprt_nh4 > 0.0_r8) then
-            do n = 1, nmodes
-               fgain_nh4(n) = fgain_nh4(n) / sum_uprt_nh4
-            end do
-         end if
-
-!   uptake amount (fraction of gas uptaken) over deltat
-         avg_uprt_so4 = (1.0_r8 - exp(-deltatxx*sum_uprt_so4))/deltatxx
-         avg_uprt_nh4 = (1.0_r8 - exp(-deltatxx*sum_uprt_nh4))/deltatxx
+!   fgain_so4(n) = fraction of total h2so4 uptake going to mode n
+!   fgain_nh4(n) = fraction of total  nh3  uptake going to mode n
+!   avg_uprt_so4/nh4 = uptake amount (fraction of gas uptaken) over deltat
+!   (nh3_diffus_ratio is for gas diffusivity (nh3/h2so4);
+!    differences in fuch-sutugin and accom coef ignored)
+         call aero_gasaerexch_partition( nmodes, do_so4a, uptkratebb, h2so4_diffus_ratio, deltatxx, &
+                                         fgain_so4, sum_uprt_so4, avg_uprt_so4 )
+         call aero_gasaerexch_partition( nmodes, do_nh4a, uptkratebb, nh3_diffus_ratio, deltatxx, &
+                                         fgain_nh4, sum_uprt_nh4, avg_uprt_nh4 )
 
 !   sum_dqdt_so4 = so4_a tendency from h2so4 gas uptake (mol/mol/s)
 !   sum_dqdt_msa = msa_a tendency from msa   gas uptake (mol/mol/s)
@@ -549,39 +527,10 @@ implicit none
          if ( associated(sulfeq) .and. (k <= troplev(i)) ) then
             !   compute TMR tendencies for so4 interstial aerosol due to reversible gas uptake
             !   only above the tropopause
-
-            tmp_kxt = deltatxx*sum_uprt_so4  ! sum over modes of uptake_rate*deltat
-            tmp_pxt = 0.0_r8
-            do n = 1, nmodes
-               if (ido_so4a(n) <= 0) cycle
-               tmp_pxt = tmp_pxt + uptkratebb(n)*sulfeq(i,k,n)
-            end do
-            tmp_pxt = max( 0.0_r8, tmp_pxt*deltatxx )  ! sum over modes of uptake_rate*sulfeq*deltat
-            tmp_so4g_bgn = q(i,k,l_so4g)
-            ! calc avg h2so4(g) over deltat
-            if (tmp_kxt >= 1.0e-5_r8) then
-               ! exponential decay towards equilibrium value solution
-               tmp_so4g_equ = tmp_pxt/tmp_kxt
-               tmp_so4g_avg = tmp_so4g_equ + (tmp_so4g_bgn-tmp_so4g_equ)*(1.0_r8-exp(-tmp_kxt))/tmp_kxt
-            else
-               ! first order approx for tmp_kxt small
-               tmp_so4g_avg = tmp_so4g_bgn*(1.0_r8-0.5_r8*tmp_kxt) + 0.5_r8*tmp_pxt
-            end if
-            sum_dqdt_so4 = 0.0_r8
-            do n = 1, nmodes
-               if (ido_so4a(n) <= 0) cycle
-               ! calc change to so4(a) in mode n
-               if (ido_so4a(n) == 1) then
-                  l = so4_a_ndx(n)-loffset
-                  tmp_so4a_bgn = q(i,k,l)
-               else
-                  tmp_so4a_bgn = 0.0_r8
-               end if
-               tmp_so4a_end = tmp_so4a_bgn + deltatxx*uptkratebb(n)*(tmp_so4g_avg-sulfeq(i,k,n))
-               tmp_so4a_end = max( 0.0_r8, tmp_so4a_end )
-               dqdt_so4(n) = (tmp_so4a_end - tmp_so4a_bgn)/deltatxx
-               sum_dqdt_so4 = sum_dqdt_so4 + dqdt_so4(n)
-            end do
+            !   (dqdt_so4 is left unchanged in modes that do not take up h2so4)
+            call aero_gasaerexch_reversible( nmodes, do_so4a, uptkratebb, sulfeq(i,k,:), deltatxx, &
+                                             sum_uprt_so4, q(i,k,l_so4g), qold_so4, &
+                                             dqdt_so4, sum_dqdt_so4 )
             ! do not allow msa condensation in stratosphere
             ! ( Note that the code for msa has never been used.
             !   The plan was to simulate msa(g), treat it as non-volatile (like h2so4(g)),
@@ -600,16 +549,8 @@ implicit none
          sum_dqdt_nh4_b = 0.0_r8
          dqdt_nh4(:) = 0._r8
          if ( do_nh4g ) then
-            do n = 1, nmodes
-               dqdt_nh4(n) = fgain_nh4(n)*sum_dqdt_nh4
-               qnew_nh4 = qold_nh4(n) + dqdt_nh4(n)*deltat
-               qnew_so4 = qold_so4(n) + dqdt_so4(n)*deltat
-               qmax_nh4 = 2.0_r8*qnew_so4
-               if (qnew_nh4 > qmax_nh4) then
-                  dqdt_nh4(n) = (qmax_nh4 - qold_nh4(n))/deltatxx
-               end if
-               sum_dqdt_nh4_b = sum_dqdt_nh4_b + dqdt_nh4(n)
-            end do
+            call aero_gasaerexch_nh4_limit( nmodes, fgain_nh4, sum_dqdt_nh4, deltat, deltatxx, &
+                                            qold_nh4, qold_so4, dqdt_so4, dqdt_nh4, sum_dqdt_nh4_b )
          end if
 
 !   TMR tendencies for soag and soa interstial aerosol (computed above)

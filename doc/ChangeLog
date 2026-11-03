@@ -23,6 +23,12 @@ Purpose of changes (include the issue number and title text for each relevant Gi
        each model, for all grid cells of a chunk. MAM and CARMA both
        compute their SOA uptake for the chunk with the column routine; MAM
        keeps its mode masks and POA rule, CARMA its VBS split/merge.
+       Also, for non-volatile gases in a grid cell: partitioning of uptake
+       among modes/bins and time-averaged uptake, reversible uptake toward
+       an equilibrium gas mixing ratio for each mode/bin (used for H2SO4
+       with sulfeq above the tropopause), and the NH4/SO4 molar ratio
+       limit for NH3 uptake. MAM uses these for its H2SO4/MSA/NH3
+       condensation.
    The H2SO4 condensation sink (gas-to-aerosol mass transfer rate) of a
    mode/bin is a new deferred aerosol_properties procedure, gas_uptkrate,
    implemented by each aerosol model (Gauss-Hermite integration over the
@@ -43,8 +49,10 @@ Purpose of changes (include the issue number and title text for each relevant Gi
    modal_aero_data except for a temporary initialization cross-check: all of
    these values are compared with modal_aero_data at initialization (endrun
    on any mismatch).
-   H2SO4/MSA/NH3 condensation, the stratospheric sulfeq treatment, the
-   NH4/SO4 limit, primary-carbon aging and renaming remain MAM-specific.
+   MAM's H2SO4/MSA/NH3 condensation, stratospheric sulfeq treatment and
+   NH4/SO4 limit use shared routines (aero_gasaerexch); MAM keeps its gas
+   indices, mode flags and the choice of the sulfeq treatment.
+   Primary-carbon aging and renaming remain MAM-specific.
    Commented-out diagnostics code and unused variables are removed from
    modal_aero_gasaerexch, including diagnostic-only copies of the tracer
    arrays made in every call.
@@ -140,7 +148,8 @@ A   src/chemistry/aerosol/aero_soaexch_mod.F90
 
 A   src/chemistry/aerosol/aero_gasaerexch.F90
  - gas-aerosol exchange routines shared by the aerosol models: condensation
-   sink for all modes/bins, SOA gas uptake per grid cell and per chunk, history
+   sink for all modes/bins, SOA gas uptake per grid cell and per chunk,
+   non-volatile gas uptake (partitioning, reversible uptake, NH4 limit), history
    diagnostics (SOA condensation/evaporation; uptake rates, number
    densities and wet radii of modes/bins; column tendencies), and species
    and SOA gas lookups
@@ -188,7 +197,8 @@ M   src/chemistry/modal_aero/modal_aero_gasaerexch.F90
    explicit use lists in modal_aero_gasaerexch_init; commented-out
    diagnostics code and unused variables removed; mode information for
    aging and number density from the aerosol properties object
-   (modal_aero_data used only in initialization cross-checks)
+   (modal_aero_data used only in initialization cross-checks); H2SO4/MSA/NH3
+   condensation through shared aero_gasaerexch routines
 
 M   src/chemistry/pp_waccm_ma_noaero/chem_mech.doc
 M   src/chemistry/pp_waccm_ma_noaero/chem_mech.in
