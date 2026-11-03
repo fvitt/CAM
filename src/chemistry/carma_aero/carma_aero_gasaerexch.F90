@@ -218,7 +218,7 @@ subroutine carma_aero_gasaerexch_sub(  aero_props, aero_state,  &
   use time_manager,      only: is_first_step
   use aerosol_state_mod, only: aerosol_state
   use physconst, only: mwdry, rair
-  use aero_gasaerexch,   only: aero_gasaerexch_uptkrates, aero_gasaerexch_soa, &
+  use aero_gasaerexch,   only: aero_gasaerexch_uptkrates, aero_gasaerexch_soa_column, &
                                aero_gasaerexch_uptk_diag_out, soa_condevap_acc_t, &
                                method_soa_reversible
 
@@ -275,15 +275,14 @@ subroutine carma_aero_gasaerexch_sub(  aero_props, aero_state,  &
   real (r8) :: soa_vbs(pcols,pver,nbins,nsoa_vbs)
   real (r8) :: soa_c(pcols,pver,nbins,nsoa) ! SOA from CARMA
   real (r8) :: poa_c(pcols,pver,nbins,npoa) ! POA from CARMA
-  real (r8) :: qold_poa(nbins,npoa)         ! POA from CARMA old
-  real (r8) :: qold_soa(nbins,nsoa_vbs)     ! SOA on VBS bins  old
   real (r8) :: qnew_soa_vbs(nbins,nsoa_vbs) ! SOA on VBS bins  new
   real (r8) :: qnew_soa(nbins)              ! SOA new for combined VBS bin new for combined VBS binss
-  real (r8) :: qold_soag(nsoa_vbs)
+  real (r8) :: soag_col(ncol,pver,nsoa_vbs)             ! SOAG gas
+  real (r8) :: dqdt_soa_col(pcols,pver,nbins,nsoa_vbs)  ! SOA tendencies on VBS bins
+  real (r8) :: sum_dqdt_soa_col(pcols,pver,nsoa_vbs)    ! SOAG uptake (negative of gas tendency)
   real (r8) :: sum_dqdt_soa(nsoa_vbs)     !   sum_dqdt_soa = soa tendency from soa  gas uptake (mol/mol/s)
   real (r8) :: uptkrate(pcols,pver,nbins) ! gas-to-aerosol mass transfer rates (1/s)
   real (r8) :: wetdiam(pcols,pver,nbins)  ! wet diameter of each bin (m)
-  real (r8) :: uptkratebb(nbins)
   logical   :: do_soa(nbins,nsoa_vbs)     ! soa species takes up gas in bin
   logical   :: do_soag(nsoa_vbs)          ! soa gas species is present
 
@@ -404,34 +403,21 @@ subroutine carma_aero_gasaerexch_sub(  aero_props, aero_state,  &
   end do
   do_soag(:) = .true.
 
+!   compute tendencies for soag gas and soa interstitial aerosol in all grid cells
+!   (soa_vbs is used only in bins that contain soa; poa_c is zero in other bins)
+  do jsoa = 1, nsoa_vbs
+     soag_col(:ncol,:,jsoa) = q(:ncol,:,l_soag(jsoa))
+  end do
+  call aero_gasaerexch_soa_column( method_soa, ncol, pver, top_lev, deltat, t, pmid, &
+       nbins, nsoa_vbs, npoa, do_soag_any, do_soa, do_soag, uptkrate, &
+       mw_poa_host, mw_soa_host, soag_col, soa_vbs, poa_c, &
+       dqdt_soa_col, sum_dqdt_soa_col )
+
   dqdt_soa_all(:,:,:,:) = 0.0_r8
   do k=top_lev,pver
      do i=1,ncol
-        do n = 1, nbins
-           uptkratebb(n) = uptkrate(i,k,n)
-           if (do_soag_any(n)) then  ! only bins that contain soa
-              do j = 1, npoa
-                 qold_poa(n,j) = poa_c(i,k,n,j)
-              end do
-              do jsoa = 1, nsoa_vbs
-                 qold_soa(n,jsoa) = soa_vbs(i,k,n,jsoa)
-              end do
-           else
-              qold_poa(n,:) = 0.0_r8
-              qold_soa(n,:) = 0.0_r8
-           end if
-        end do ! n
-
-        do jsoa = 1, nsoa_vbs
-           qold_soag(jsoa) = q(i,k,l_soag(jsoa))
-        end do
-
-!   compute tendencies for soag gas and soa interstitial aerosol
-        call aero_gasaerexch_soa( method_soa, deltat, t(i,k), pmid(i,k), &
-             nbins, nsoa_vbs, npoa, do_soag_any, do_soa, do_soag, uptkratebb, &
-             mw_poa_host, mw_soa_host, &
-             qold_soag, qold_soa, qold_poa, &
-             dqdt_soa_vbs, sum_dqdt_soa )
+        dqdt_soa_vbs(:,:) = dqdt_soa_col(i,k,:,:)
+        sum_dqdt_soa(:) = sum_dqdt_soa_col(i,k,:)
 
         !  update soa to calcuate fractions (state variables and pbuf is not updated for SOA, will be done in CARMA)
         pdel_fac = pdel(i,k)/gravit
@@ -452,7 +438,7 @@ subroutine carma_aero_gasaerexch_sub(  aero_props, aero_state,  &
                  end do
                  do jsoa = 1, nsoa_vbs
                     qsrflx(i,n,nsoa) = qsrflx(i,n,nsoa) + dqdt_soa_vbs(n,jsoa)*pdel_fac
-                    qnew_soa_vbs(n,jsoa) = qold_soa(n,jsoa) + dqdt_soa_vbs(n,jsoa)*deltat
+                    qnew_soa_vbs(n,jsoa) = soa_vbs(i,k,n,jsoa) + dqdt_soa_vbs(n,jsoa)*deltat
                     qnew_soa(n) = qnew_soa(n) + qnew_soa_vbs(n,jsoa) ! derive new fraction of SOA bin contributions
                  end do
                  do jsoa = 1, nsoa_vbs

@@ -132,7 +132,7 @@ subroutine modal_aero_gasaerexch_sub(                            &
 
 ! !USES:
 use modal_aero_rename, only:  modal_aero_rename_sub
-use aero_gasaerexch,   only:  aero_gasaerexch_uptkrates, aero_gasaerexch_soa, &
+use aero_gasaerexch,   only:  aero_gasaerexch_uptkrates, aero_gasaerexch_soa_column, &
                               nh3_diffus_ratio, method_soa_reversible, soa_condevap_acc_t
 
 use chem_mods,         only:  adv_mass
@@ -205,7 +205,7 @@ implicit none
 !     method_soa=2 is reversible uptake using subr aero_soaexch
 !     (see aero_gasaerexch)
 
-   integer :: i, iq, itmpa
+   integer :: i, iq
    integer :: ido_so4a(nmodes), ido_nh4a(nmodes)
    integer ::  ido_soaa(nmodes,nsoa)
    integer :: j, jsrf, jsoa
@@ -226,9 +226,11 @@ implicit none
    real (r8) :: pdel_fac
    real (r8) :: qmax_nh4, qnew_nh4, qnew_so4
    real (r8) :: qold_nh4(nmodes), qold_so4(nmodes)
-   real (r8) :: qold_poa(nmodes,npoa)
-   real (r8) :: qold_soa(nmodes,nsoa)
-   real (r8) :: qold_soag(nsoa)
+   real (r8) :: soag_col(pcols,pver,nsoa)          ! soa gas mixing ratios
+   real (r8) :: soa_col(pcols,pver,nmodes,nsoa)    ! soa aerosol mixing ratios
+   real (r8) :: poa_col(pcols,pver,nmodes,npoa)    ! poa aerosol mixing ratios
+   real (r8) :: dqdt_soa_col(pcols,pver,nmodes,nsoa) ! soa aerosol tendencies
+   real (r8) :: sum_dqdt_soa_col(pcols,pver,nsoa)  ! soa gas uptake (negative of gas tendency)
    real (r8) :: sum_dqdt_msa, sum_dqdt_so4
    real (r8) :: sum_dqdt_soa(nsoa)
    real (r8) :: sum_dqdt_nh4, sum_dqdt_nh4_b
@@ -251,6 +253,7 @@ implicit none
    logical  :: do_soag(nsoa)       ! true if soa gas is a species
    logical  :: do_soamode(nmodes) ! true if mode takes part in soa exchange
    logical  :: do_soa(nmodes,nsoa) ! true if soa species takes up soa gas in mode
+   logical  :: do_poa(nmodes)      ! true if poa is included in the soa exchange of a mode
 
    logical  :: dotend(pcnstxx)          ! identifies species directly involved in
                                         !    gas-aerosol exchange (gas condensation)
@@ -424,6 +427,48 @@ implicit none
          do_soa(n,jsoa) = (ido_soaa(n,jsoa) > 0)
       end do
    end do
+! in previous code versions with nsoa=1,
+!    qold_poa was non-zero (i.e., loaded from q) only when ido_soaa(n)=1
+! thus qold_poa=0 for the primary carbon mode which has ido_soaa=2
+! this is probably not how it should be
+   do n = 1, nmodes
+      do_poa(n) = any(ido_soaa(n,:) == 1)
+   end do
+
+! compute TMR tendencies for soag and soa interstial aerosol in all grid cells
+   soag_col(:,:,:) = 0.0_r8
+   soa_col(:,:,:,:) = 0.0_r8
+   poa_col(:,:,:,:) = 0.0_r8
+   if ( do_soag_any ) then
+      do k = top_lev, pver
+         do i = 1, ncol
+            do jsoa = 1, nsoa
+               if ( do_soag(jsoa) ) soag_col(i,k,jsoa) = q(i,k,l_soag(jsoa))
+            end do
+            do n = 1, nmodes
+               do jsoa = 1, nsoa
+                  if (ido_soaa(n,jsoa) == 1) then
+                     soa_col(i,k,n,jsoa) = q(i,k,soa_a_ndx(n,jsoa)-loffset)
+                  end if
+               end do
+               if ( do_poa(n) ) then
+                  do j = 1, npoa
+                     l = pom_a_ndx(n,j)-loffset
+                     if (l > 0) poa_col(i,k,n,j) = q(i,k,l)
+                  end do
+               end if
+            end do
+         end do
+      end do
+
+      call aero_gasaerexch_soa_column( method_soa, ncol, pver, top_lev, deltat, t, pmid, &
+           nmodes, nsoa, npoa, do_soamode, do_soa, do_soag, uptkrate, &
+           mw_poa_host, mw_soa_host, soag_col, soa_col, poa_col, &
+           dqdt_soa_col, sum_dqdt_soa_col )
+   else ! no soa gas, no uptake
+      dqdt_soa_col(:,:,:,:) = 0.0_r8
+      sum_dqdt_soa_col(:,:,:) = 0.0_r8
+   end if
 
 
 ! use this for tendency calcs to avoid generating very small negative values
@@ -467,31 +512,6 @@ implicit none
                fgain_nh4(n) = 0.0_r8
                qold_nh4(n) = 0.0_r8
             end if
-
-            do j = 1, npoa
-               l = pom_a_ndx(n,j)-loffset
-               if (l > 0) then
-                  qold_poa(n,j) = q(i,k,l)
-               else
-                  qold_poa(n,j) = 0.0_r8
-               end if
-            end do
-
-            itmpa = 0
-            do jsoa = 1, nsoa
-               if (ido_soaa(n,jsoa) == 1) then
-                  l = soa_a_ndx(n,jsoa)-loffset
-                  qold_soa(n,jsoa) = q(i,k,l)
-                  itmpa = itmpa + 1
-               else
-                  qold_soa(n,jsoa) = 0.0_r8
-               end if
-            end do ! jsoa
-            ! in previous code versions with nsoa=1,
-            !    qold_poa was non-zero (i.e., loaded from q) only when ido_soaa(n)=1
-            ! thus qold_poa=0 for the primary carbon mode which has ido_soaa=2
-            ! this is probably not how it should be
-            if (itmpa == 0) qold_poa(n,:) = 0.0_r8
 
          end do ! n
 
@@ -592,26 +612,10 @@ implicit none
             end do
          end if
 
-         if ( do_soag_any ) then
-!   compute TMR tendencies for soag and soa interstial aerosol
+!   TMR tendencies for soag and soa interstial aerosol (computed above)
 !   sum_dqdt_soa = soa_a tendency from soa   gas uptake (mol/mol/s)
-            do jsoa = 1, nsoa
-               if ( do_soag(jsoa) ) then
-                  qold_soag(jsoa) = q(i,k,l_soag(jsoa))
-               else
-                  qold_soag(jsoa) = 0.0_r8
-               end if
-            end do
-
-            call aero_gasaerexch_soa( method_soa, deltat, t(i,k), pmid(i,k), &
-                 nmodes, nsoa, npoa, do_soamode, do_soa, do_soag, uptkratebb, &
-                 mw_poa_host, mw_soa_host, &
-                 qold_soag, qold_soa, qold_poa, &
-                 dqdt_soa, sum_dqdt_soa )
-         else ! no soa gas, no uptake
-            dqdt_soa(:,:) = 0.0_r8
-            sum_dqdt_soa(:) = 0.0_r8
-         end if
+         dqdt_soa(:,:) = dqdt_soa_col(i,k,:,:)
+         sum_dqdt_soa(:) = sum_dqdt_soa_col(i,k,:)
 
          pdel_fac = pdel(i,k)/gravit
          do n = 1, nmodes

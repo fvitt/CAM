@@ -17,8 +17,12 @@ Purpose of changes (include the issue number and title text for each relevant Gi
        and SOA volatility parameters (previously modal_aero_soaexch and
        carma_aero_soaexch)
      - aero_gasaerexch: the condensation-sink loop over modes/bins and the
-       per-grid-cell SOA gas uptake (partitioning of uptake among
-       modes/bins, time-averaged uptake, reversible/irreversible/no uptake)
+       SOA gas uptake (partitioning of uptake among modes/bins,
+       time-averaged uptake, reversible/irreversible/no uptake) for a grid
+       cell and, from standard per-bin SOA/POA/SOAG column arrays filled by
+       each model, for all grid cells of a chunk. MAM and CARMA both
+       compute their SOA uptake for the chunk with the column routine; MAM
+       keeps its mode masks and POA rule, CARMA its VBS split/merge.
    The H2SO4 condensation sink (gas-to-aerosol mass transfer rate) of a
    mode/bin is a new deferred aerosol_properties procedure, gas_uptkrate,
    implemented by each aerosol model (Gauss-Hermite integration over the
@@ -121,6 +125,9 @@ Describe any substantial timing or memory changes:
  - MAM: four diagnostic-only copies of the (ncol,pver,gas_pcnst) tracer and
    tendency arrays made in every call of modal_aero_gasaerexch_sub are
    removed.
+ - MAM: modal_aero_gasaerexch_sub has new automatic work arrays for the SOA
+   column computation, (pcols,pver,nmodes,nsoa) for SOA and its tendencies
+   (about 0.7 MB each for nsoa=15 and 70 levels), on the thread stack.
 
 Code reviewed by: TBD
 
@@ -133,7 +140,7 @@ A   src/chemistry/aerosol/aero_soaexch_mod.F90
 
 A   src/chemistry/aerosol/aero_gasaerexch.F90
  - gas-aerosol exchange routines shared by the aerosol models: condensation
-   sink for all modes/bins, per-grid-cell SOA gas uptake, history
+   sink for all modes/bins, SOA gas uptake per grid cell and per chunk, history
    diagnostics (SOA condensation/evaporation; uptake rates, number
    densities and wet radii of modes/bins; column tendencies), and species
    and SOA gas lookups

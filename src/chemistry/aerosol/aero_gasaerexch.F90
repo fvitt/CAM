@@ -14,6 +14,7 @@ module aero_gasaerexch
 
    public :: aero_gasaerexch_uptkrates
    public :: aero_gasaerexch_soa
+   public :: aero_gasaerexch_soa_column
    public :: aero_gasaerexch_uptk_diag_init
    public :: aero_gasaerexch_uptk_diag_out
    public :: aero_gasaerexch_spec_ndx
@@ -227,6 +228,84 @@ contains
       end select
 
    end subroutine aero_gasaerexch_soa
+
+   !----------------------------------------------------------------------
+   ! computes soa gas uptake tendencies for all grid cells of a chunk
+   ! (levels top_lev to nlev), using aero_gasaerexch_soa in each cell
+   !
+   ! In each cell, the soa aerosol mixing ratio of mode/bin n and soa species
+   ! jsoa is soa(i,k,n,jsoa) where do_soa(n,jsoa) is true, and zero otherwise.
+   !----------------------------------------------------------------------
+   subroutine aero_gasaerexch_soa_column( method_soa, ncol, nlev, top_lev, deltat, temp, pmid, &
+                                          nbins, nsoa, npoa, do_bin, do_soa, do_soag, uptkrate, &
+                                          mw_poa_host, mw_soa_host, soag, soa, poa, &
+                                          dqdt_soa, sum_dqdt_soa )
+
+      integer,  intent(in)  :: method_soa                ! soa uptake method
+      integer,  intent(in)  :: ncol                      ! number of columns
+      integer,  intent(in)  :: nlev                      ! number of vertical levels
+      integer,  intent(in)  :: top_lev                   ! top level index for computation
+      real(r8), intent(in)  :: deltat                    ! time step (s)
+      real(r8), intent(in)  :: temp(:,:)                 ! air temperature (K)
+      real(r8), intent(in)  :: pmid(:,:)                 ! air pressure (Pa)
+      integer,  intent(in)  :: nbins                     ! number of modes/bins
+      integer,  intent(in)  :: nsoa                      ! number of soa species
+      integer,  intent(in)  :: npoa                      ! number of poa species
+      logical,  intent(in)  :: do_bin(nbins)             ! mode/bin takes part in reversible soa exchange
+      logical,  intent(in)  :: do_soa(nbins,nsoa)        ! soa species takes up gas in mode/bin
+      logical,  intent(in)  :: do_soag(nsoa)             ! soa gas species is present
+      real(r8), intent(in)  :: uptkrate(:,:,:)           ! h2so4 gas-to-aerosol mass transfer rates (1/s) (i,k,n)
+      real(r8), intent(in)  :: mw_poa_host(npoa)         ! molec wght of poa used in host code
+      real(r8), intent(in)  :: mw_soa_host(nsoa)         ! molec wght of soa used in host code
+      real(r8), intent(in)  :: soag(:,:,:)               ! soa gas mixing ratios (mol/mol) (i,k,jsoa)
+      real(r8), intent(in)  :: soa(:,:,:,:)              ! soa aerosol mixing ratios (mol/mol) (i,k,n,jsoa)
+      real(r8), intent(in)  :: poa(:,:,:,:)              ! poa aerosol mixing ratios (mol/mol) (i,k,n,j)
+      real(r8), intent(out) :: dqdt_soa(:,:,:,:)         ! soa aerosol tendencies (mol/mol/s) (i,k,n,jsoa)
+      real(r8), intent(out) :: sum_dqdt_soa(:,:,:)       ! total soa gas uptake (mol/mol/s) (i,k,jsoa)
+                                                         ! -- negative of gas tendency
+
+      integer  :: i, k, n, j
+      real(r8) :: uptkratebb(nbins)
+      real(r8) :: qold_soag(nsoa)
+      real(r8) :: qold_soa(nbins,nsoa)
+      real(r8) :: qold_poa(nbins,npoa)
+      real(r8) :: dqdt_soa_cell(nbins,nsoa)
+      real(r8) :: sum_dqdt_soa_cell(nsoa)
+
+      dqdt_soa(:,:,:,:) = 0.0_r8
+      sum_dqdt_soa(:,:,:) = 0.0_r8
+
+      do k = top_lev, nlev
+         do i = 1, ncol
+            do n = 1, nbins
+               uptkratebb(n) = uptkrate(i,k,n)
+               do j = 1, nsoa
+                  if (do_soa(n,j)) then
+                     qold_soa(n,j) = soa(i,k,n,j)
+                  else
+                     qold_soa(n,j) = 0.0_r8
+                  end if
+               end do
+               do j = 1, npoa
+                  qold_poa(n,j) = poa(i,k,n,j)
+               end do
+            end do
+            do j = 1, nsoa
+               qold_soag(j) = soag(i,k,j)
+            end do
+
+            call aero_gasaerexch_soa( method_soa, deltat, temp(i,k), pmid(i,k), &
+                                      nbins, nsoa, npoa, do_bin, do_soa, do_soag, uptkratebb, &
+                                      mw_poa_host, mw_soa_host, &
+                                      qold_soag, qold_soa, qold_poa, &
+                                      dqdt_soa_cell, sum_dqdt_soa_cell )
+
+            dqdt_soa(i,k,:,:) = dqdt_soa_cell(:,:)
+            sum_dqdt_soa(i,k,:) = sum_dqdt_soa_cell(:)
+         end do
+      end do
+
+   end subroutine aero_gasaerexch_soa_column
 
    !----------------------------------------------------------------------
    ! finds the species of a given species type (e.g., 's-organic') in each
