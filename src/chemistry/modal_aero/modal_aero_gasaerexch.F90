@@ -13,10 +13,8 @@
 ! !USES:
   use shr_kind_mod,    only:  r8 => shr_kind_r8
   use chem_mods,       only:  gas_pcnst
-  use modal_aero_data, only:  nspec_max
   use ref_pres,        only:  top_lev => clim_modal_aero_top_lev
   use ppgrid,          only:  pcols, pver
-  use modal_aero_data, only:  ntot_amode, numptr_amode
   use aero_gasaerexch, only: soa_condevap_diag_t, col_tend_diag_t
 
   implicit none
@@ -57,6 +55,16 @@
   real (r8), allocatable :: fac_m2v_soa(:)
 
   real (r8), allocatable :: fac_m2v_pcarbon(:)
+
+! mode and species information, set from the aerosol properties object
+  integer :: nmodes = 0                         ! number of modes
+  integer :: nspec_max = 0                      ! maximum number of species in a mode
+  integer, allocatable :: nspec_mode(:)         ! number of species in each mode
+  integer, allocatable :: num_a_ndx(:)          ! constituent index of interstitial number in each mode
+  integer, allocatable :: mass_a_ndx(:,:)       ! constituent index of interstitial species in each mode
+  integer :: mode_pcarbon = -1                  ! primary carbon mode (<= 0 if none)
+  integer :: mode_accum = -1                    ! accumulation mode (<= 0 if none)
+  character(len=32), allocatable :: cw_cnst_name(:) ! cloud-borne name of each aerosol constituent
 
 ! numbers of soa and poa species (maximum over the modes),
 ! set from the aerosol properties object
@@ -123,8 +131,6 @@ subroutine modal_aero_gasaerexch_sub(                            &
                         sulfeq         )
 
 ! !USES:
-use modal_aero_data,   only:  alnsg_amode,lmassptr_amode
-use modal_aero_data,   only:  modeptr_pcarbon,nspec_amode
 use modal_aero_rename, only:  modal_aero_rename_sub
 use aero_gasaerexch,   only:  aero_gasaerexch_uptkrates, aero_gasaerexch_soa, &
                               nh3_diffus_ratio, method_soa_reversible, soa_condevap_acc_t
@@ -164,8 +170,8 @@ implicit none
    real(r8), intent(in)    :: pmid(pcols,pver)     ! pressure at model levels (Pa)
    real(r8), intent(in)    :: pdel(pcols,pver)     ! pressure thickness of levels (Pa)
    real(r8), intent(in)    :: qh2o(pcols,pver)     ! water vapor mixing ratio (kg/kg)
-   real(r8), intent(in)    :: dgncur_a(pcols,pver,ntot_amode)
-   real(r8), intent(in)    :: dgncur_awet(pcols,pver,ntot_amode)
+   real(r8), intent(in)    :: dgncur_a(pcols,pver,nmodes)
+   real(r8), intent(in)    :: dgncur_awet(pcols,pver,nmodes)
    real(r8), pointer       :: sulfeq(:,:,:)
 
                                  ! dry & wet geo. mean dia. (m) of number distrib.
@@ -200,8 +206,8 @@ implicit none
 !     (see aero_gasaerexch)
 
    integer :: i, iq, itmpa
-   integer :: ido_so4a(ntot_amode), ido_nh4a(ntot_amode)
-   integer ::  ido_soaa(ntot_amode,nsoa)
+   integer :: ido_so4a(nmodes), ido_nh4a(nmodes)
+   integer ::  ido_soaa(nmodes,nsoa)
    integer :: j, jsrf, jsoa
    integer :: k
    integer :: l, lb, lsfrm, lstoo
@@ -213,15 +219,15 @@ implicit none
 
    real (r8) :: avg_uprt_nh4, avg_uprt_so4
    real (r8) :: deltatxx
-   real (r8) :: dqdt_nh4(ntot_amode), dqdt_so4(ntot_amode)
-   real (r8) :: dqdt_soa(ntot_amode,nsoa)
+   real (r8) :: dqdt_nh4(nmodes), dqdt_so4(nmodes)
+   real (r8) :: dqdt_soa(nmodes,nsoa)
    real (r8) :: fac_volsfc_pcarbon
-   real (r8) :: fgain_nh4(ntot_amode), fgain_so4(ntot_amode)
+   real (r8) :: fgain_nh4(nmodes), fgain_so4(nmodes)
    real (r8) :: pdel_fac
    real (r8) :: qmax_nh4, qnew_nh4, qnew_so4
-   real (r8) :: qold_nh4(ntot_amode), qold_so4(ntot_amode)
-   real (r8) :: qold_poa(ntot_amode,npoa)
-   real (r8) :: qold_soa(ntot_amode,nsoa)
+   real (r8) :: qold_nh4(nmodes), qold_so4(nmodes)
+   real (r8) :: qold_poa(nmodes,npoa)
+   real (r8) :: qold_soa(nmodes,nsoa)
    real (r8) :: qold_soag(nsoa)
    real (r8) :: sum_dqdt_msa, sum_dqdt_so4
    real (r8) :: sum_dqdt_soa(nsoa)
@@ -231,10 +237,10 @@ implicit none
    real (r8) :: tmp_kxt, tmp_pxt
    real (r8) :: tmp_so4a_bgn, tmp_so4a_end
    real (r8) :: tmp_so4g_avg, tmp_so4g_bgn, tmp_so4g_equ
-   real (r8) :: uptkrate(pcols,pver,ntot_amode) ! gas-to-aerosol mass transfer rates (1/s)
-   real (r8) :: numdens(pcols,pver,ntot_amode)  ! mode number density (#/m3)
+   real (r8) :: uptkrate(pcols,pver,nmodes) ! gas-to-aerosol mass transfer rates (1/s)
+   real (r8) :: numdens(pcols,pver,nmodes)  ! mode number density (#/m3)
    real (r8) :: rhoair, aircon
-   real (r8) :: uptkratebb(ntot_amode)
+   real (r8) :: uptkratebb(nmodes)
    real (r8) :: vol_core, vol_shell
    real (r8) :: xferfrac_pcage, xferfrac_max
    real (r8) :: xferrate
@@ -243,8 +249,8 @@ implicit none
    logical  :: do_nh4g         ! true if nh3 gas is a species
    logical  :: do_soag_any         ! true if soa gas is a species
    logical  :: do_soag(nsoa)       ! true if soa gas is a species
-   logical  :: do_soamode(ntot_amode) ! true if mode takes part in soa exchange
-   logical  :: do_soa(ntot_amode,nsoa) ! true if soa species takes up soa gas in mode
+   logical  :: do_soamode(nmodes) ! true if mode takes part in soa exchange
+   logical  :: do_soa(nmodes,nsoa) ! true if soa species takes up soa gas in mode
 
    logical  :: dotend(pcnstxx)          ! identifies species directly involved in
                                         !    gas-aerosol exchange (gas condensation)
@@ -261,8 +267,8 @@ implicit none
                               ! process-specific column tracer tendencies
                               ! (1=renaming, 2=gas condensation)
    type(soa_condevap_acc_t) :: condevap   ! SOA condensation/evaporation diagnostics
-   logical  :: condevap_mask(ntot_amode,nsoa)
-   real(r8) :: condevap_fac(ntot_amode,nsoa)
+   logical  :: condevap_mask(nmodes,nsoa)
+   real(r8) :: condevap_fac(nmodes,nsoa)
 
    real(r8) :: qqcwsrflx(pcols,pcnstxx,nsrflx)
 
@@ -320,7 +326,7 @@ implicit none
    end do
 
    ntot_soamode = 0
-   do n = 1, ntot_amode
+   do n = 1, nmodes
       l = so4_a_ndx(n)-loffset
       if ((l > 0) .and. (l <= pcnstxx)) then
          dotend(l) = .true.
@@ -348,7 +354,7 @@ implicit none
 
 
    if ( do_soag_any ) ntot_soamode = max( ntot_soamode, modefrm_pcage )
-   do n = 1, ntot_amode
+   do n = 1, nmodes
       do_soamode(n) = (n <= ntot_soamode)
    end do
 
@@ -370,8 +376,8 @@ implicit none
       end do
 
 
-      n = modeptr_pcarbon
-      fac_volsfc_pcarbon = exp( 2.5_r8*(alnsg_amode(n)**2) )
+      n = mode_pcarbon
+      fac_volsfc_pcarbon = exp( 2.5_r8*(aero_props%alogsig(n)**2) )
       xferfrac_max = 1.0_r8 - 10.0_r8*epsilon(1.0_r8)   ! 1-eps
    end if
 
@@ -385,7 +391,7 @@ implicit none
 !-------Initialize evap/cond diagnostics (ncols x pver)-----------
    call soa_diag%reset(condevap)
    do jsoa = 1, nsoa
-      do n = 1, ntot_amode
+      do n = 1, nmodes
          condevap_mask(n,jsoa) = do_soag(jsoa) .and. (ido_soaa(n,jsoa) == 1)
          if (condevap_mask(n,jsoa)) then
             condevap_fac(n,jsoa) = adv_mass(soa_a_ndx(n,jsoa)-loffset)/mwdry
@@ -398,14 +404,14 @@ implicit none
 
 ! compute gas-to-aerosol mass transfer rates
    numdens(:,:,:) = 0.0_r8
-   do n = 1, ntot_amode
+   do n = 1, nmodes
       do k = top_lev, pver
          do i = 1, ncol
             rhoair = pmid(i,k)/(rair*t(i,k))   ! (kg-air/m3)
 !   number conc. (#/m3) -- note q(i,k,numptr) is (#/kmol-air)
 !   so need aircon in (kmol-air/m3)
             aircon = rhoair/mwdry              ! (kmol-air/m3)
-            numdens(i,k,n) = q(i,k,numptr_amode(n)-loffset)*aircon
+            numdens(i,k,n) = q(i,k,num_a_ndx(n)-loffset)*aircon
          end do
       end do
    end do
@@ -414,7 +420,7 @@ implicit none
 
 ! modes and species taking up soa gas
    do jsoa = 1, nsoa
-      do n = 1, ntot_amode
+      do n = 1, nmodes
          do_soa(n,jsoa) = (ido_soaa(n,jsoa) > 0)
       end do
    end do
@@ -432,7 +438,7 @@ implicit none
 !   fgain_nh4(n) = fraction of total  nh3  uptake going to mode n
          sum_uprt_so4 = 0.0_r8
          sum_uprt_nh4 = 0.0_r8
-         do n = 1, ntot_amode
+         do n = 1, nmodes
             uptkratebb(n) = uptkrate(i,k,n)
             if (ido_so4a(n) > 0) then
                fgain_so4(n) = uptkratebb(n)
@@ -490,13 +496,13 @@ implicit none
          end do ! n
 
          if (sum_uprt_so4 > 0.0_r8) then
-            do n = 1, ntot_amode
+            do n = 1, nmodes
                fgain_so4(n) = fgain_so4(n) / sum_uprt_so4
             end do
          end if
 !       at this point (sum_uprt_so4 <= 0.0) only when all the fgain_so4 are zero
          if (sum_uprt_nh4 > 0.0_r8) then
-            do n = 1, ntot_amode
+            do n = 1, nmodes
                fgain_nh4(n) = fgain_nh4(n) / sum_uprt_nh4
             end do
          end if
@@ -526,7 +532,7 @@ implicit none
 
             tmp_kxt = deltatxx*sum_uprt_so4  ! sum over modes of uptake_rate*deltat
             tmp_pxt = 0.0_r8
-            do n = 1, ntot_amode
+            do n = 1, nmodes
                if (ido_so4a(n) <= 0) cycle
                tmp_pxt = tmp_pxt + uptkratebb(n)*sulfeq(i,k,n)
             end do
@@ -542,7 +548,7 @@ implicit none
                tmp_so4g_avg = tmp_so4g_bgn*(1.0_r8-0.5_r8*tmp_kxt) + 0.5_r8*tmp_pxt
             end if
             sum_dqdt_so4 = 0.0_r8
-            do n = 1, ntot_amode
+            do n = 1, nmodes
                if (ido_so4a(n) <= 0) cycle
                ! calc change to so4(a) in mode n
                if (ido_so4a(n) == 1) then
@@ -564,7 +570,7 @@ implicit none
 
          else
             !   compute TMR tendencies for so4 interstial aerosol due to simple gas uptake
-            do n = 1, ntot_amode
+            do n = 1, nmodes
                dqdt_so4(n) = fgain_so4(n)*(sum_dqdt_so4 + sum_dqdt_msa)
             end do
          end if
@@ -574,7 +580,7 @@ implicit none
          sum_dqdt_nh4_b = 0.0_r8
          dqdt_nh4(:) = 0._r8
          if ( do_nh4g ) then
-            do n = 1, ntot_amode
+            do n = 1, nmodes
                dqdt_nh4(n) = fgain_nh4(n)*sum_dqdt_nh4
                qnew_nh4 = qold_nh4(n) + dqdt_nh4(n)*deltat
                qnew_so4 = qold_so4(n) + dqdt_so4(n)*deltat
@@ -598,7 +604,7 @@ implicit none
             end do
 
             call aero_gasaerexch_soa( method_soa, deltat, t(i,k), pmid(i,k), &
-                 ntot_amode, nsoa, npoa, do_soamode, do_soa, do_soag, uptkratebb, &
+                 nmodes, nsoa, npoa, do_soamode, do_soa, do_soag, uptkratebb, &
                  mw_poa_host, mw_soa_host, &
                  qold_soag, qold_soa, qold_poa, &
                  dqdt_soa, sum_dqdt_soa )
@@ -608,7 +614,7 @@ implicit none
          end if
 
          pdel_fac = pdel(i,k)/gravit
-         do n = 1, ntot_amode
+         do n = 1, nmodes
             if (ido_so4a(n) == 1) then
                l = so4_a_ndx(n)-loffset
                dqdt(i,k,l) = dqdt_so4(n)
@@ -635,7 +641,7 @@ implicit none
          end do ! n
 
 !------- condensation/evaporation diagnostics
-         call soa_diag%accum( condevap, i, k, ntot_amode, condevap_mask, condevap_fac, dqdt_soa )
+         call soa_diag%accum( condevap, i, k, nmodes, condevap_mask, condevap_fac, dqdt_soa )
 
 !   compute TMR tendencies for h2so4, nh3, and msa gas
 !   due to simple gas uptake
@@ -666,7 +672,7 @@ implicit none
 
 !   compute TMR tendencies associated with primary carbon aging
          if (modefrm_pcage > 0) then
-            n = modeptr_pcarbon
+            n = mode_pcarbon
             tmpa = 0.0_r8
             do jsoa = 1, nsoa
                tmpa = tmpa + dqdt_soa(n,jsoa)*fac_m2v_soa(jsoa)*soa_equivso4_factor(jsoa)
@@ -674,9 +680,9 @@ implicit none
             vol_shell = deltat *   &
                  ( dqdt_so4(n)*fac_m2v_so4 + dqdt_nh4(n)*fac_m2v_nh4 + tmpa )
             vol_core = 0.0_r8
-            do l = 1, nspec_amode(n)
+            do l = 1, nspec_mode(n)
                vol_core = vol_core + &
-                    q(i,k,lmassptr_amode(l,n)-loffset)*fac_m2v_pcarbon(l)
+                    q(i,k,mass_a_ndx(l,n)-loffset)*fac_m2v_pcarbon(l)
             end do
 !   ratio1 = vol_shell/vol_core =
 !      actual hygroscopic-shell-volume/carbon-core-volume after gas uptake
@@ -827,9 +833,6 @@ implicit none
 !
 !-----------------------------------------------------------------------
 
-use modal_aero_data,   only: cnst_name_cw, modeptr_accum, modeptr_pcarbon, lmassptr_amode, &
-                             lptr2_soa_a_amode, lptr_nh4_a_amode, lptr_so4_a_amode, nspec_amode, &
-                             specdens_amode, spechygro, specmw_amode
 use modal_aero_rename, only: npair_renamexf, nspecfrm_renamexf, lspecfrma_renamexf, lspecfrmc_renamexf, &
                              lspectooa_renamexf, lspectooc_renamexf
 
@@ -861,6 +864,7 @@ implicit none
    logical  :: dotend(pcnst), dotendqqcw(pcnst)
 
    real(r8) :: tmp2
+   real(r8) :: spec_mw, spec_dens, spec_hygro   ! species molecular weight, density, hygroscopicity
 
    character(128)                 :: msg
 
@@ -869,7 +873,8 @@ implicit none
 
         call phys_getopts( history_aerosol_out        = history_aerosol   )
 
-        ! species indices and numbers of soa/poa species (nsoa, npoa)
+        ! mode tables, species indices and numbers of soa/poa species (nsoa, npoa)
+        call set_mode_tables(aero_props)
         call set_species_ndx(aero_props)
 
         maxspec_pcage = nspec_max
@@ -888,12 +893,12 @@ implicit none
 !
 	modefrm_pcage = -999888777
 	modetoo_pcage = -999888777
-	if ((modeptr_pcarbon <= 0) .or. (modeptr_accum <= 0)) goto 15000
-	l = lptr_so4_a_amode(modeptr_accum)
+        if ((mode_pcarbon <= 0) .or. (mode_accum <= 0)) goto 15000
+        l = so4_a_ndx(mode_accum)
 	if ((l < 1) .or. (l > pcnst)) goto 15000
 
-	modefrm_pcage = modeptr_pcarbon
-	modetoo_pcage = modeptr_accum
+        modefrm_pcage = mode_pcarbon
+        modetoo_pcage = mode_accum
 
 !
 !   define species involved in each primary carbon aging pairing
@@ -919,18 +924,18 @@ implicit none
 	end if
 	nspec = 0
 
-aa_iqfrm: do iqfrm = -1, nspec_amode(mfrm)
+aa_iqfrm: do iqfrm = -1, nspec_mode(mfrm)
 
 	    if (iqfrm == -1) then
-		lsfrm = numptr_amode(mfrm)
-		lstoo = numptr_amode(mtoo)
+                lsfrm = num_a_ndx(mfrm)
+                lstoo = num_a_ndx(mtoo)
 	    else if (iqfrm == 0) then
 !   bypass transfer of aerosol water due to primary-carbon aging
 		cycle aa_iqfrm
 !               lsfrm = lwaterptr_amode(mfrm)
 !               lstoo = lwaterptr_amode(mtoo)
 	    else
-		lsfrm = lmassptr_amode(iqfrm,mfrm)
+                lsfrm = mass_a_ndx(iqfrm,mfrm)
 		lstoo = 0
 	    end if
 	    if ((lsfrm < 1) .or. (lsfrm > pcnst)) cycle aa_iqfrm
@@ -940,10 +945,10 @@ aa_iqfrm: do iqfrm = -1, nspec_amode(mfrm)
 
 ! find "too" species having same lspectype_amode as the "frm" species
 ! AND same cnst_name (except for last 1/2/3 characters which are the mode index)
-		do iqtoo = 1, nspec_amode(mtoo)
+                do iqtoo = 1, nspec_mode(mtoo)
 !		    if ( lspectype_amode(iqtoo,mtoo) .eq.   &
 !		         lspectype_amode(iqfrm,mfrm) ) then
-			lstoo = lmassptr_amode(iqtoo,mtoo)
+                        lstoo = mass_a_ndx(iqtoo,mtoo)
 			nchtoo = len( trim( cnst_name(lstoo) ) ) - nchtooskip
 			if (cnst_name(lsfrm)(1:nchfrm) == cnst_name(lstoo)(1:nchtoo)) then
 			    exit
@@ -1034,7 +1039,7 @@ aa_iqfrm: do iqfrm = -1, nspec_amode(mfrm)
       end do
 
 
-      do n = 1, ntot_amode
+      do n = 1, nmodes
          l = so4_a_ndx(n)
          if ((l > 0) .and. (l <= pcnst)) then
             dotend(l) = .true.
@@ -1110,7 +1115,7 @@ aa_iqfrm: do iqfrm = -1, nspec_amode(mfrm)
 
       call init_col_tend( sfgaex2_diag, sfgaex2_fld, dotend, cnst_name, '_sfgaex2', &
                           'gas-aerosol-exchange renaming column tendency', history_aerosol )
-      call init_col_tend( sfgaex2cw_diag, sfgaex2cw_fld, dotendqqcw, cnst_name_cw, '_sfgaex2', &
+      call init_col_tend( sfgaex2cw_diag, sfgaex2cw_fld, dotendqqcw, cw_cnst_name, '_sfgaex2', &
                           'gas-aerosol-exchange renaming column tendency', history_aerosol )
 
 
@@ -1119,30 +1124,32 @@ aa_iqfrm: do iqfrm = -1, nspec_amode(mfrm)
 !    soa_equivso4_factor(:)
       soa_equivso4_factor = 0.0_r8
       if (modefrm_pcage > 0) then
-         n = modeptr_accum
-         l = lptr_so4_a_amode(n) ; l2 = -1
+         n = mode_accum
+         l = so4_a_ndx(n) ; l2 = -1
          if (l <= 0) call endrun( 'modal_aero_gasaerexch_init error a001 finding accum. so4' )
-         do l1 = 1, nspec_amode(n)
-            if (lmassptr_amode(l1,n) == l) then
+         do l1 = 1, nspec_mode(n)
+            if (mass_a_ndx(l1,n) == l) then
 !               l2 = lspectype_amode(l1,n)
                l2 = l1
 !               fac_m2v_so4 = specmw_amode(l2) / specdens_amode(l2)
-               fac_m2v_so4 = specmw_amode(l1,n) / specdens_amode(l1,n)
+               call aero_props%get(n, l1, spec_mw=spec_mw, density=spec_dens, hygro=spec_hygro)
+               fac_m2v_so4 = spec_mw / spec_dens
 !               tmp2 = spechygro(l2)
-               tmp2 = spechygro(l1,n)
+               tmp2 = spec_hygro
 
             end if
          end do
          if (l2 <= 0) call endrun( 'modal_aero_gasaerexch_init error a002 finding accum. so4' )
 
-         l = lptr_nh4_a_amode(n) ; l2 = -1
+         l = nh4_a_ndx(n) ; l2 = -1
          if (l > 0) then
-            do l1 = 1, nspec_amode(n)
-               if (lmassptr_amode(l1,n) == l) then
+            do l1 = 1, nspec_mode(n)
+               if (mass_a_ndx(l1,n) == l) then
 !                  l2 = lspectype_amode(l1,n)
                   l2 = l1
 !                  fac_m2v_nh4 = specmw_amode(l2) / specdens_amode(l2)
-                  fac_m2v_nh4 = specmw_amode(l1,n) / specdens_amode(l1,n)
+                  call aero_props%get(n, l1, spec_mw=spec_mw, density=spec_dens)
+                  fac_m2v_nh4 = spec_mw / spec_dens
 
                end if
             end do
@@ -1152,19 +1159,20 @@ aa_iqfrm: do iqfrm = -1, nspec_amode(mfrm)
          end if
 
          do jsoa = 1, nsoa
-            l = lptr2_soa_a_amode(n,jsoa) ; l2 = -1
+            l = soa_a_ndx(n,jsoa) ; l2 = -1
             if (l <= 0) then
                write( msg, '(a,i4)') 'modal_aero_gasaerexch_init error a001 finding accum. jsoa =', jsoa
                call endrun( msg )
             end if
-            do l1 = 1, nspec_amode(n)
-               if (lmassptr_amode(l1,n) == l) then
+            do l1 = 1, nspec_mode(n)
+               if (mass_a_ndx(l1,n) == l) then
 !                  l2 = lspectype_amode(l1,n)
                   l2 = l1
 !                  fac_m2v_soa(jsoa) = specmw_amode(l2) / specdens_amode(l2)
-                  fac_m2v_soa(jsoa) = specmw_amode(l1,n) / specdens_amode(l1,n)
+                  call aero_props%get(n, l1, spec_mw=spec_mw, density=spec_dens, hygro=spec_hygro)
+                  fac_m2v_soa(jsoa) = spec_mw / spec_dens
 !                  soa_equivso4_factor(jsoa) = spechygro(l2)/tmp2
-                  soa_equivso4_factor(jsoa) = spechygro(l1,n)/tmp2
+                  soa_equivso4_factor(jsoa) = spec_hygro/tmp2
                end if
             end do
             if (l2 <= 0) then
@@ -1174,13 +1182,14 @@ aa_iqfrm: do iqfrm = -1, nspec_amode(mfrm)
          end do
 
          fac_m2v_pcarbon(:) = 0.0_r8
-         n = modeptr_pcarbon
-         do l = 1, nspec_amode(n)
+         n = mode_pcarbon
+         do l = 1, nspec_mode(n)
 !            l2 = lspectype_amode(l,n)
 !      fac_m2v converts (kmol-AP/kmol-air) to (m3-AP/kmol-air)
 !           [m3-AP/kmol-AP]    = [kg-AP/kmol-AP]  / [kg-AP/m3-AP]
 !            fac_m2v_pcarbon(l) = specmw_amode(l2) / specdens_amode(l2)
-            fac_m2v_pcarbon(l) = specmw_amode(l,n) / specdens_amode(l,n)
+            call aero_props%get(n, l, spec_mw=spec_mw, density=spec_dens)
+            fac_m2v_pcarbon(l) = spec_mw / spec_dens
          end do
       end if
 
@@ -1227,6 +1236,105 @@ aa_iqfrm: do iqfrm = -1, nspec_amode(mfrm)
 !----------------------------------------------------------------------
 
 !----------------------------------------------------------------------
+! sets the numbers of modes and species, the constituent indices of mode
+! number and species, the primary carbon and accumulation modes, and the
+! cloud-borne constituent names from the aerosol properties object
+!----------------------------------------------------------------------
+      subroutine set_mode_tables(aero_props)
+
+      use aerosol_properties_mod, only: aerosol_properties, aero_name_len
+      use constituents,   only: pcnst, cnst_get_ind
+      use cam_abortutils, only: endrun
+      use modal_aero_data, only: ntot_amode_mad => ntot_amode, nspec_amode_mad => nspec_amode, &
+                                 nspec_max_mad => nspec_max, numptr_amode_mad => numptr_amode, &
+                                 lmassptr_amode_mad => lmassptr_amode, alnsg_amode_mad => alnsg_amode, &
+                                 modeptr_pcarbon_mad => modeptr_pcarbon, modeptr_accum_mad => modeptr_accum, &
+                                 specmw_amode_mad => specmw_amode, specdens_amode_mad => specdens_amode, &
+                                 spechygro_mad => spechygro, cnst_name_cw_mad => cnst_name_cw
+
+      class(aerosol_properties), intent(in) :: aero_props ! aerosol properties object
+
+      integer :: m, l, idx
+      real(r8) :: spec_mw, spec_dens, spec_hygro
+      character(len=aero_name_len) :: name_a, name_c, mode_type
+      character(len=*), parameter :: subname = 'modal_aero_gasaerexch::set_mode_tables'
+
+      nmodes = aero_props%nbins()
+
+      allocate(nspec_mode(nmodes))
+      do m = 1, nmodes
+         nspec_mode(m) = aero_props%nspecies(m)
+      end do
+      nspec_max = maxval(nspec_mode)
+
+      allocate(num_a_ndx(nmodes))
+      allocate(mass_a_ndx(nspec_max,nmodes))
+      allocate(cw_cnst_name(pcnst))
+      mass_a_ndx(:,:) = -1
+      cw_cnst_name(:) = ' '
+      mode_pcarbon = -1
+      mode_accum = -1
+
+      do m = 1, nmodes
+         call aero_props%num_names(m, name_a, name_c)
+         call cnst_get_ind(name_a, idx, abort=.false.)
+         num_a_ndx(m) = idx
+         if (idx > 0) cw_cnst_name(idx) = name_c
+         do l = 1, nspec_mode(m)
+            call aero_props%mmr_names(m, l, name_a, name_c)
+            call cnst_get_ind(name_a, idx, abort=.false.)
+            mass_a_ndx(l,m) = idx
+            if (idx > 0) cw_cnst_name(idx) = name_c
+         end do
+         ! the last mode of each type is used
+         mode_type = aero_props%bin_name(m)
+         if (trim(mode_type) == 'accum') mode_accum = m
+         if (trim(mode_type) == 'primary_carbon') mode_pcarbon = m
+      end do
+
+      ! check consistency with modal_aero_data
+      if (nmodes /= ntot_amode_mad .or. nspec_max /= nspec_max_mad) then
+         call endrun(subname//': inconsistent number of modes or maximum number of species')
+      end if
+      if (.not. same_mode(mode_accum, modeptr_accum_mad) .or. &
+          .not. same_mode(mode_pcarbon, modeptr_pcarbon_mad)) then
+         call endrun(subname//': inconsistent accumulation or primary carbon mode')
+      end if
+      do m = 1, nmodes
+         if (nspec_mode(m) /= nspec_amode_mad(m) .or. num_a_ndx(m) /= numptr_amode_mad(m)) then
+            call endrun(subname//': inconsistent number of species or number index')
+         end if
+         if (aero_props%alogsig(m) /= alnsg_amode_mad(m)) then
+            call endrun(subname//': inconsistent log of geometric standard deviation')
+         end if
+         do l = 1, nspec_mode(m)
+            if (mass_a_ndx(l,m) /= lmassptr_amode_mad(l,m)) then
+               call endrun(subname//': inconsistent species index')
+            end if
+            call aero_props%get(m, l, spec_mw=spec_mw, density=spec_dens, hygro=spec_hygro)
+            if (spec_mw /= specmw_amode_mad(l,m) .or. spec_dens /= specdens_amode_mad(l,m) .or. &
+                spec_hygro /= spechygro_mad(l,m)) then
+               call endrun(subname//': inconsistent species properties')
+            end if
+         end do
+      end do
+      do idx = 1, pcnst
+         if (trim(cw_cnst_name(idx)) /= trim(cnst_name_cw_mad(idx))) then
+            call endrun(subname//': inconsistent cloud-borne name of '//trim(cnst_name_cw_mad(idx)))
+         end if
+      end do
+
+      contains
+
+         ! true if two mode indices are the same mode, or both indicate no mode (<= 0)
+         pure logical function same_mode(m1, m2)
+            integer, intent(in) :: m1, m2
+            same_mode = (m1 == m2) .or. (m1 <= 0 .and. m2 <= 0)
+         end function same_mode
+
+      end subroutine set_mode_tables
+
+!----------------------------------------------------------------------
 ! sets constituent indices of the interstitial aerosol species and soa gas
 ! species involved in gas-aerosol exchange, and the soa/poa molecular
 ! weights, from the aerosol properties object
@@ -1244,8 +1352,8 @@ aa_iqfrm: do iqfrm = -1, nspec_amode(mfrm)
       class(aerosol_properties), intent(in) :: aero_props ! aerosol properties object
 
       integer :: m, j
-      integer :: nspec_typ(ntot_amode)
-      integer :: nspec_soa(ntot_amode), nspec_poa(ntot_amode)
+      integer :: nspec_typ(nmodes)
+      integer :: nspec_soa(nmodes), nspec_poa(nmodes)
       integer, allocatable :: spec_ndx(:,:)
       integer, allocatable :: spec_ndx_soa(:,:), spec_ndx_poa(:,:)
       integer, allocatable :: soag_ndx(:)
@@ -1260,10 +1368,10 @@ aa_iqfrm: do iqfrm = -1, nspec_amode(mfrm)
       nsoa = maxval(nspec_soa)
       npoa = maxval(nspec_poa)
 
-      allocate(so4_a_ndx(ntot_amode))
-      allocate(nh4_a_ndx(ntot_amode))
-      allocate(soa_a_ndx(ntot_amode,nsoa))
-      allocate(pom_a_ndx(ntot_amode,npoa))
+      allocate(so4_a_ndx(nmodes))
+      allocate(nh4_a_ndx(nmodes))
+      allocate(soa_a_ndx(nmodes,nsoa))
+      allocate(pom_a_ndx(nmodes,npoa))
       allocate(soag_cnst_ndx(nsoa))
       allocate(mw_soa_host(nsoa))
       allocate(mw_poa_host(npoa))
@@ -1279,17 +1387,17 @@ aa_iqfrm: do iqfrm = -1, nspec_amode(mfrm)
 
       ! sulfate and ammonium -- the last species of the type in a mode is used
       call aero_gasaerexch_spec_ndx(aero_props, 'sulfate', nspec_typ, spec_ndx)
-      do m = 1, ntot_amode
+      do m = 1, nmodes
          if (nspec_typ(m) > 0) so4_a_ndx(m) = cnst_ndx(m, spec_ndx(m,nspec_typ(m)))
       end do
 
       call aero_gasaerexch_spec_ndx(aero_props, 'ammonium', nspec_typ, spec_ndx)
-      do m = 1, ntot_amode
+      do m = 1, nmodes
          if (nspec_typ(m) > 0) nh4_a_ndx(m) = cnst_ndx(m, spec_ndx(m,nspec_typ(m)))
       end do
 
       ! the last s-organic (p-organic) species found sets the soa (poa) molecular weight
-      do m = 1, ntot_amode
+      do m = 1, nmodes
          do j = 1, nspec_soa(m)
             soa_a_ndx(m,j) = cnst_ndx(m, spec_ndx_soa(m,j))
             call aero_props%get(m, spec_ndx_soa(m,j), spec_mw=spec_mw)
@@ -1298,7 +1406,7 @@ aa_iqfrm: do iqfrm = -1, nspec_amode(mfrm)
          end do
       end do
 
-      do m = 1, ntot_amode
+      do m = 1, nmodes
          do j = 1, nspec_poa(m)
             pom_a_ndx(m,j) = cnst_ndx(m, spec_ndx_poa(m,j))
             call aero_props%get(m, spec_ndx_poa(m,j), spec_mw=spec_mw)
@@ -1321,7 +1429,7 @@ aa_iqfrm: do iqfrm = -1, nspec_amode(mfrm)
          write(msg,'(a,4i6)') subname//': inconsistent numbers of soa/poa species ', nsoa, nsoa_mad, npoa, npoa_mad
          call endrun(trim(msg))
       end if
-      do m = 1, ntot_amode
+      do m = 1, nmodes
          call check_ndx(so4_a_ndx(m), lptr_so4_a_amode(m), 'sulfate')
          call check_ndx(nh4_a_ndx(m), lptr_nh4_a_amode(m), 'ammonium')
          do j = 1, nsoa
