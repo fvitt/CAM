@@ -3,7 +3,7 @@ module edyn3d_driver_mod
   use cam_abortutils, only: endrun
   use cam_logfile, only: iulog
   use spmd_utils, only: masterproc, mpicom
-  use mpi_module, only: mpi_size, mpi_rank
+  use mpi_mod, only: mpi_size, mpi_rank
   use infnan, only: nan, assignment(=)
   use perf_mod, only: t_startf, t_stopf
 
@@ -22,8 +22,8 @@ contains
   !-----------------------------------------------------------------------------
   subroutine edyn3d_driver_init( mpicom_atm, npes_edyn3D, edyn3d_nmlat_h, edyn3d_nmlon, &
                                  edyn3d_nhgt, hilat_pot_model, wei05_coefs_file, read_hl_fac_in )
-    use mpi_module, only: mpi_rank, mpi_size, lat_size, lon_size
-    use params_module,only: nmlat_h, nmlon, nhgt_fix, hgt_fix_r
+    use mpi_mod, only: mpi_rank, mpi_size, lat_size, lon_size
+    use params_mod,only: nmlat_h, nmlon, nhgt_fix, hgt_fix_r
 
     use edyn3d_esmf_fields_rhandles, only: edyn3d_esmf_fields_rhandles_init
     use edyn3d_esmf_phys_mesh_mod, only:  edyn3d_esmf_phys_mesh_init
@@ -146,9 +146,9 @@ contains
     use edyn3d_remap_mod, only: mag_2d_fields_bundle_t, oplus_2d_fields_bundle_t
     use edyn3d_esmf_fields_rhandles, only: phys2mag_nflds
     use edyn3D_esmf_fields_rhandles, only: mag2opls_nflds
-    use mpi_module, only: mlat0, mlat1, mlon0, mlon1
-    use mpi_module, only: mlond0, mlond1, mlatd0, mlatd1
-    use params_module,only:  nhgt_fix
+    use mpi_mod, only: mlat0, mlat1, mlon0, mlon1
+    use mpi_mod, only: mlond0, mlond1, mlatd0, mlatd1
+    use params_mod,only:  nhgt_fix
     use edyn_mpi, only: lon0,lon1,lat0,lat1,lev0,lev1
     use regridder, only: regrid_phys2geo_3d, regrid_geo2phys_3d
     use edyn3d_hist_mag_grids_mod, only: edyn3d_hist_mag_s1_out

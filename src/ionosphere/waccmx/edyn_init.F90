@@ -69,19 +69,41 @@ contains
 
       logical :: history_waccmx
 
-      call addfld ('PED_MAG'   ,(/ 'lev' /), 'I', 'S/m  ','Pedersen Conductivity'            ,gridname='gmag_grid')
-      call addfld ('HAL_MAG'   ,(/ 'lev' /), 'I', 'S/m  ','Hall Conductivity'                ,gridname='gmag_grid')
-      call addfld ('PHIHM'     , horiz_only, 'I', 'VOLTS','High Latitude Electric Potential' ,gridname='gmag_grid')
-      call addfld ('PHIM2D'    , horiz_only, 'I', 'VOLTS','PHIM2D: Electric Potential'       ,gridname='gmag_grid')
-      call addfld ('ED1'       , horiz_only, 'I', 'V/m  ','ED1: Eastward Electric Field'     ,gridname='gmag_grid')
-      call addfld ('ED2'       , horiz_only, 'I', 'V/m  ','ED2: Equatorward Electric Field'  ,gridname='gmag_grid')
-      call addfld ('PHIM3D'    ,(/ 'lev' /), 'I', 'VOLTS','PHIM3D: 3d Electric Potential'    ,gridname='gmag_grid')
-      call addfld ('ED13D'     ,(/ 'lev' /), 'I', 'V/m  ','ED13D: Eastward Electric Field'   ,gridname='gmag_grid')
-      call addfld ('ED23D'     ,(/ 'lev' /), 'I', 'V/m  ','ED23D: Equatorward Electric Field',gridname='gmag_grid')
-      call addfld ('ZPOT_MAG'  ,(/ 'lev' /), 'I', 'cm   ','Geopotential on mag grid (h0 min)',gridname='gmag_grid')
+      ! Fields on the 2D edynamo geomagnetic grid (gmag_grid) -- this grid is
+      ! not registered when the 3D edynamo is active
+      if (.not.edyn3d) then
+         call addfld ('PED_MAG'   ,(/ 'lev' /), 'I', 'S/m  ','Pedersen Conductivity'            ,gridname='gmag_grid')
+         call addfld ('HAL_MAG'   ,(/ 'lev' /), 'I', 'S/m  ','Hall Conductivity'                ,gridname='gmag_grid')
+         call addfld ('PHIHM'     , horiz_only, 'I', 'VOLTS','High Latitude Electric Potential' ,gridname='gmag_grid')
+         call addfld ('PHIM2D'    , horiz_only, 'I', 'VOLTS','PHIM2D: Electric Potential'       ,gridname='gmag_grid')
+         call addfld ('ED1'       , horiz_only, 'I', 'V/m  ','ED1: Eastward Electric Field'     ,gridname='gmag_grid')
+         call addfld ('ED2'       , horiz_only, 'I', 'V/m  ','ED2: Equatorward Electric Field'  ,gridname='gmag_grid')
+         call addfld ('PHIM3D'    ,(/ 'lev' /), 'I', 'VOLTS','PHIM3D: 3d Electric Potential'    ,gridname='gmag_grid')
+         call addfld ('ED13D'     ,(/ 'lev' /), 'I', 'V/m  ','ED13D: Eastward Electric Field'   ,gridname='gmag_grid')
+         call addfld ('ED23D'     ,(/ 'lev' /), 'I', 'V/m  ','ED23D: Equatorward Electric Field',gridname='gmag_grid')
+         call addfld ('ZPOT_MAG'  ,(/ 'lev' /), 'I', 'cm   ','Geopotential on mag grid (h0 min)',gridname='gmag_grid')
 
-      call addfld ('HALL_CONDUCTANCE',horiz_only, 'I', 'S','Hall Conductance',    gridname='gmag_grid')
-      call addfld ('PED_CONDUCTANCE', horiz_only, 'I', 'S','Pedersen Conductance',gridname='gmag_grid')
+         call addfld ('HALL_CONDUCTANCE',horiz_only, 'I', 'S','Hall Conductance',    gridname='gmag_grid')
+         call addfld ('PED_CONDUCTANCE', horiz_only, 'I', 'S','Pedersen Conductance',gridname='gmag_grid')
+
+         if (debug_hist) then
+            call addfld ('EPHI3D'    ,(/ 'lev' /), 'I', ' ','EPHI3D'    ,gridname='gmag_grid')
+            call addfld ('ELAM3D'    ,(/ 'lev' /), 'I', ' ','ELAM3D'    ,gridname='gmag_grid')
+            call addfld ('EMZ3D'     ,(/ 'lev' /), 'I', ' ','EMZ3D'     ,gridname='gmag_grid')
+
+            call addfld ('ADOTV1_MAG',(/ 'lev' /), 'I', '     ','ADOTV1 on mag grid'               ,gridname='gmag_grid')
+            call addfld ('ADOTV2_MAG',(/ 'lev' /), 'I', '     ','ADOTV2 on mag grid'               ,gridname='gmag_grid')
+            call addfld ('adota1_mag_a', horiz_only, 'I', ' ','adota1_mag_a',gridname='gmag_grid')
+            call addfld ('ZIGM11_a', horiz_only, 'I', ' ','ZIGM11_a',gridname='gmag_grid')
+            call addfld ('EDYN_ZIGM11_0', horiz_only, 'I', ' ','EDYN_ZIGM11_0',gridname='gmag_grid')
+            call addfld ('EDYN_ZIGM11', horiz_only, 'I', ' ','EDYN_ZIGM11',gridname='gmag_grid')
+            call addfld ('EDYN_ZIGM22', horiz_only, 'I', ' ','EDYN_ZIGM22',gridname='gmag_grid')
+            call addfld ('EDYN_ZIGMC' , horiz_only, 'I', ' ','EDYN_ZIGMC' ,gridname='gmag_grid')
+            call addfld ('EDYN_ZIGM2' , horiz_only, 'I', ' ','EDYN_ZIGM2' ,gridname='gmag_grid')
+            call addfld ('EDYN_RIM1'  , horiz_only, 'I', ' ','EDYN_RIM1'  ,gridname='gmag_grid')
+            call addfld ('EDYN_RIM2'  , horiz_only, 'I', ' ','EDYN_RIM2'  ,gridname='gmag_grid')
+         endif
+      end if
 
       call addfld ('POTEN',(/ 'lev' /), 'I', 'Volts','POTEN: Electric Potential', gridname='geo_grid')
 
@@ -95,22 +117,6 @@ contains
       call addfld ('ZB',   horiz_only, 'I', 'gauss','downward component of magnetic field',gridname='geo_grid')
 
       if (debug_hist) then
-         call addfld ('EPHI3D'    ,(/ 'lev' /), 'I', ' ','EPHI3D'    ,gridname='gmag_grid')
-         call addfld ('ELAM3D'    ,(/ 'lev' /), 'I', ' ','ELAM3D'    ,gridname='gmag_grid')
-         call addfld ('EMZ3D'     ,(/ 'lev' /), 'I', ' ','EMZ3D'     ,gridname='gmag_grid')
-
-         call addfld ('ADOTV1_MAG',(/ 'lev' /), 'I', '     ','ADOTV1 on mag grid'               ,gridname='gmag_grid')
-         call addfld ('ADOTV2_MAG',(/ 'lev' /), 'I', '     ','ADOTV2 on mag grid'               ,gridname='gmag_grid')
-         call addfld ('adota1_mag_a', horiz_only, 'I', ' ','adota1_mag_a',gridname='gmag_grid')
-         call addfld ('ZIGM11_a', horiz_only, 'I', ' ','ZIGM11_a',gridname='gmag_grid')
-         call addfld ('EDYN_ZIGM11_0', horiz_only, 'I', ' ','EDYN_ZIGM11_0',gridname='gmag_grid')
-         call addfld ('EDYN_ZIGM11', horiz_only, 'I', ' ','EDYN_ZIGM11',gridname='gmag_grid')
-         call addfld ('EDYN_ZIGM22', horiz_only, 'I', ' ','EDYN_ZIGM22',gridname='gmag_grid')
-         call addfld ('EDYN_ZIGMC' , horiz_only, 'I', ' ','EDYN_ZIGMC' ,gridname='gmag_grid')
-         call addfld ('EDYN_ZIGM2' , horiz_only, 'I', ' ','EDYN_ZIGM2' ,gridname='gmag_grid')
-         call addfld ('EDYN_RIM1'  , horiz_only, 'I', ' ','EDYN_RIM1'  ,gridname='gmag_grid')
-         call addfld ('EDYN_RIM2'  , horiz_only, 'I', ' ','EDYN_RIM2'  ,gridname='gmag_grid')
-
          ! rjac: scaled derivatives of geomagnetic coords wrt geographic coordinates.
          call addfld ('RJAC11',(/'lev'/), 'I', '1','cos(thetas)/cos(theta)*d(lamdas)/d(lamda)'  ,gridname='geo_grid')
          call addfld ('RJAC12',(/'lev'/), 'I', '1','cos(thetas)*d(lamdas)/d(theta)'  ,gridname='geo_grid')
@@ -122,7 +128,7 @@ contains
       !-------------------------------------------------------------------------------
       call phys_getopts(history_waccmx_out=history_waccmx)
 
-      if (history_waccmx) then
+      if (history_waccmx .and. .not.edyn3d) then
          call add_default ('PED_CONDUCTANCE', 1, ' ')
          call add_default ('HALL_CONDUCTANCE' , 1, ' ')
       end if
@@ -178,44 +184,48 @@ contains
 
       endif
 
-      allocate(grid_map(4, ((omlon1 - mlon0 + 1) * (mlat1 - mlat0 + 1))))
-      ind = 0
-      do i = mlat0, mlat1
-         do j = mlon0, omlon1
-            ind = ind + 1
-            grid_map(1, ind) = j
-            grid_map(2, ind) = i
-            grid_map(3, ind) = j
-            grid_map(4, ind) = i
+      ! The 2D edynamo geomagnetic grid -- mag decomposition (mlon0, omlon1,
+      ! mlat0, mlat1) is only set (mp_distribute_mag) when the 2D edynamo is used
+      if (.not.edyn3d) then
+         allocate(grid_map(4, ((omlon1 - mlon0 + 1) * (mlat1 - mlat0 + 1))))
+         ind = 0
+         do i = mlat0, mlat1
+            do j = mlon0, omlon1
+               ind = ind + 1
+               grid_map(1, ind) = j
+               grid_map(2, ind) = i
+               grid_map(3, ind) = j
+               grid_map(4, ind) = i
+            end do
          end do
-      end do
 
-      allocate(coord_map(mlat1 - mlat0 + 1))
-      if (mlon0==1) then
-         coord_map = (/ (i, i = mlat0, mlat1) /)
-      else
-         coord_map = 0
+         allocate(coord_map(mlat1 - mlat0 + 1))
+         if (mlon0==1) then
+            coord_map = (/ (i, i = mlat0, mlat1) /)
+         else
+            coord_map = 0
+         end if
+         lat_coord => horiz_coord_create('mlat', '', nmlat, 'latitude',           &
+              'degrees_north', mlat0, mlat1, gmlat(mlat0:mlat1),                  &
+              map=coord_map)
+         nullify(coord_map)
+
+         allocate(coord_map(omlon1 - mlon0 + 1))
+         if (mlat0==1) then
+            coord_map = (/ (i, i = mlon0, omlon1) /)
+         else
+            coord_map = 0
+         end if
+         lon_coord => horiz_coord_create('mlon', '', nmlon, 'longitude',          &
+              'degrees_east', mlon0, omlon1, gmlon(mlon0:omlon1),                 &
+              map=coord_map)
+         deallocate(coord_map)
+         nullify(coord_map)
+
+         call cam_grid_register('gmag_grid', mag_decomp, lat_coord, lon_coord,    &
+              grid_map, unstruct=.false.)
+         nullify(grid_map)
       end if
-      lat_coord => horiz_coord_create('mlat', '', nmlat, 'latitude',           &
-           'degrees_north', mlat0, mlat1, gmlat(mlat0:mlat1),                  &
-           map=coord_map)
-      nullify(coord_map)
-
-      allocate(coord_map(omlon1 - mlon0 + 1))
-      if (mlat0==1) then
-         coord_map = (/ (i, i = mlon0, omlon1) /)
-      else
-         coord_map = 0
-      end if
-      lon_coord => horiz_coord_create('mlon', '', nmlon, 'longitude',          &
-           'degrees_east', mlon0, omlon1, gmlon(mlon0:omlon1),                 &
-           map=coord_map)
-      deallocate(coord_map)
-      nullify(coord_map)
-
-      call cam_grid_register('gmag_grid', mag_decomp, lat_coord, lon_coord,    &
-           grid_map, unstruct=.false.)
-      nullify(grid_map)
 
 
       ! for the Oplus geo grid

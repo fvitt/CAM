@@ -15,8 +15,8 @@ module high_lat_pot_mod
   !-----------------------------------------------------------------------------
   subroutine edyn3d_highlat_potential_get(hl_pot)
 
-    use mpi_module, only: mlond0, mlond1, mlatd0, mlatd1, mlon0, mlon1
-    use params_module, only: nmlat_h, nmlat_T1, nmlon
+    use mpi_mod, only: mlond0, mlond1, mlatd0, mlatd1, mlon0, mlon1
+    use params_mod, only: nmlat_h, nmlat_T1, nmlon
 
     real(r8), intent(out) :: hl_pot(2,mlatd0:mlatd1,mlond0:mlond1)
 
@@ -50,8 +50,8 @@ module high_lat_pot_mod
   !-----------------------------------------------------------------------------
   subroutine edyn3d_highlat_currents_get(hl_fac)
 
-    use mpi_module, only: mlond0, mlond1, mlatd0, mlatd1, mlon0, mlon1
-    use params_module, only: nmlat_h, nmlat_T1, nmlon
+    use mpi_mod, only: mlond0, mlond1, mlatd0, mlatd1, mlon0, mlon1
+    use params_mod, only: nmlat_h, nmlat_T1, nmlon
 
     real(r8), intent(out) :: hl_fac(2,mlatd0:mlatd1,mlond0:mlond1)
 

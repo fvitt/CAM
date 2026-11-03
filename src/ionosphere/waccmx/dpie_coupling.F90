@@ -107,8 +107,10 @@ contains
        call addfld ('EDYN_SINI   ', horiz_only , 'I', '        ','EDYN_SINI'   , gridname='geo_grid')
        call addfld ('EDYN_BE3    ', horiz_only , 'I', '        ','EDYN_BE3'    , gridname='geo_grid')
 
-       call addfld ('ADOTA1_MAG', horiz_only , 'I', ' ','ADOTA1 in geo-mag coords' , gridname='gmag_grid')
-       call addfld ('SINI_MAG',   horiz_only , 'I', ' ','sini in geo-mag coords' , gridname='gmag_grid')
+       if (.not.edynamo_3d) then ! gmag_grid only exists with the 2D edynamo
+          call addfld ('ADOTA1_MAG', horiz_only , 'I', ' ','ADOTA1 in geo-mag coords' , gridname='gmag_grid')
+          call addfld ('SINI_MAG',   horiz_only , 'I', ' ','sini in geo-mag coords' , gridname='gmag_grid')
+       end if
 
        call addfld ('OPLUS', (/ 'lev' /), 'I', 'cm^3','O+ (oplus_xport output)',    gridname='geo_grid')
        call addfld ('OPtm1i',(/ 'lev' /), 'I', 'cm^3','O+ (oplus_xport output)',    gridname='geo_grid')
@@ -154,17 +156,17 @@ contains
     use edyn_maggrid,     only: edyn_nmlonp1=>nmlonp1,edyn_nmlon=>nmlon,edyn_nmlat=>nmlat
     use edyn_maggrid,     only: edyn_ylonm=>ylonm,edyn_ylatm=>ylatm
 
-    use params_module, only: nmlat_h, nmlat_T1
-    use params_module, only: edyn3d_nmlat=>nmlat_T1, edyn3d_nmlon=>nmlon
-    use params_module, only: edyn3d_ylonm=>ylonm, edyn3d_ylatm=>ylatm
+    use params_mod, only: nmlat_h, nmlat_T1
+    use params_mod, only: edyn3d_nmlat=>nmlat_T1, edyn3d_nmlon=>nmlon
+    use params_mod, only: edyn3d_ylonm=>ylonm, edyn3d_ylatm=>ylatm
 
     use regridder,  only: regrid_mag2phys_2d
     use edyn3d_remap_mod, only: edyn3d_remap_mag2phys
     use sunloc_mod, only: sunloc_calc
     use infnan, only: nan, assignment(=)
 
-    use mpi_module, only: gmlon0=>mlon0, gmlon1=>mlon1, gmlat0=>mlat0, gmlat1=>mlat1
-    use mpi_module, only: edyn3d_ntask=>mpi_size
+    use mpi_mod, only: gmlon0=>mlon0, gmlon1=>mlon1, gmlat0=>mlat0, gmlat1=>mlat1
+    use mpi_mod, only: edyn3d_ntask=>mpi_size
     ! Args:
     !
     character(len=*),  intent(in)  :: highlat_potential_model

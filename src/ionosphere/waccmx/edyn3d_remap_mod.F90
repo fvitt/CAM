@@ -3,12 +3,12 @@ module edyn3d_remap_mod
   use spmd_utils, only: masterproc, mpicom
   use cam_abortutils, only: endrun
   use cam_logfile,    only: iulog
-  use mpi_module, only: ntask3D=>mpi_size, mytid=>mpi_rank
+  use mpi_mod, only: ntask3D=>mpi_size, mytid=>mpi_rank
   use edyn_mpi,   only: ntaskOp=>ntask
-  use params_module, only: hgt_fix, nhgt_fix, nmlat_h, nmlatS2_h
+  use params_mod, only: hgt_fix, nhgt_fix, nmlat_h, nmlatS2_h
   use interpolate_data, only: lininterp
 
-  use mpi_module, only: mlat0, mlat1, mlon0, mlon1
+  use mpi_mod, only: mlat0, mlat1, mlon0, mlon1
 
   use ESMF
 

@@ -34,8 +34,8 @@ contains
   !-----------------------------------------------------------------------------
   subroutine edyn3d_esmf_s2_mag_grid_init
     use dynamo_interface_mod, only: npts_s2, glon_s2, glat_s2
-    use params_module, only: nz=>nhgt_fix, nmlats2_h
-    use mpi_module, only: lon_size, mlat0_task, mlat1_task, nmlon_task, nmlat_task
+    use params_mod, only: nz=>nhgt_fix, nmlats2_h
+    use mpi_mod, only: lon_size, mlat0_task, mlat1_task, nmlon_task, nmlat_task
 
     integer :: rc, astat
     !logical :: found_eq
@@ -197,7 +197,7 @@ contains
   !-----------------------------------------------------------------------------
   !-----------------------------------------------------------------------------
   subroutine edyn3d_esmf_s2_mag_grid_destroy()
-    use params_module, only: nz=>nhgt_fix
+    use params_mod, only: nz=>nhgt_fix
 
     integer :: k, rc
     character(len=*), parameter :: subname = 'edyn3d_esmf_s2_mag_grid_destroy'
