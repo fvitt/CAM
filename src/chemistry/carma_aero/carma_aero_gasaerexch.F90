@@ -21,15 +21,12 @@ module carma_aero_gasaerexch
   public :: carma_aero_gasaerexch_sub
   public :: carma_aero_gasaerexch_init
 
-  !PUBLIC DATA MEMBERS:
-
   ! description of bin aerosols
-  integer, public, protected :: nspec_max = 0
-  integer, public, protected :: nbins = 0
-  integer, public, protected :: nsoa_vbs = 0
-  integer, public, protected :: nsoa = 0
-  integer, public, protected :: npoa = 0
-  integer, public, protected, allocatable :: nspec(:)
+  integer :: nbins = 0                 ! number of bins
+  integer :: nsoa_vbs = 0              ! number of soa gas (VBS) species
+  integer :: nsoa = 0                  ! maximum number of soa species in a bin
+  integer :: npoa = 0                  ! maximum number of poa species in a bin
+  integer, allocatable :: nspec(:)     ! number of species in each bin
 
   ! Misc private data
   character(len=32), allocatable :: fldname(:)    ! names for interstitial output fields
@@ -123,8 +120,6 @@ contains
     do m = 1, nbins
        nspec(m) = aero_props%nspecies(m)
     end do
-
-    nspec_max = maxval(nspec)
 
     ncnst_tot = aero_props%ncnst_tot()
 

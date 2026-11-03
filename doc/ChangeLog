@@ -61,7 +61,9 @@ Purpose of changes (include the issue number and title text for each relevant Gi
    object) as arguments, as for MAM, instead of looking them up; the
    numbers of bins and species and the species names come from the
    aerosol properties object. Unused arguments of carma_aero_gasaerexch_sub
-   (state, nstep, loffset, qh2o, troplev) are removed.
+   (state, nstep, loffset, qh2o, troplev) are removed. The module data of
+   carma_aero_gasaerexch is private (it was public but not used elsewhere),
+   and the unused nspec_max is removed.
  - Species lookups shared by MAM and CARMA (aero_gasaerexch):
      - aero_gasaerexch_spec_ndx: species of a given type (e.g., s-organic,
        p-organic) in each mode/bin, from aerosol_properties%species_type
@@ -182,7 +184,7 @@ M   src/chemistry/carma_aero/carma_aero_gasaerexch.F90
    gas lookups; SOA/POA species tables set at initialization; aerosol
    properties and state objects passed as arguments; bins, species and
    names from the aerosol properties object; unused arguments removed;
-   corrections listed above
+   module data private; corrections listed above
 
 M   src/chemistry/modal_aero/aero_model.F90
  - pass the aerosol properties object to modal_aero_gasaerexch
