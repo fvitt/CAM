@@ -68,7 +68,7 @@ contains
   !-----------------------------------------------------------------------------
   !-----------------------------------------------------------------------------
   subroutine edyn3d_esmf_fields_rhandles_init()
-    use params_mod, only: nz=>nhgt_fix
+    use edyn3d_params_mod, only: nz=>nhgt_fix
     use edyn3d_esmf_phys_mesh_mod, only: phys_mesh
     use edyn3d_esmf_oplus_grid_mod, only: oplus_grid
     use edyn3d_esmf_p_mag_grid_mod, only: mag_p_fdln_grid
@@ -271,7 +271,7 @@ contains
   !-----------------------------------------------------------------------------
   !-----------------------------------------------------------------------------
   subroutine edyn3d_esmf_fields_rhandles_destroy()
-    use params_mod, only: nz=>nhgt_fix
+    use edyn3d_params_mod, only: nz=>nhgt_fix
 
     integer :: k, rc
     character(len=*), parameter :: subname = 'edyn3d_esmf_fields_rhandles_destroy'

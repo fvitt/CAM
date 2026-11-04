@@ -64,13 +64,21 @@ module getapex
 
 contains
 !-----------------------------------------------------------------------
-   subroutine get_apex( )
+   subroutine get_apex( edyn3d )
       !
       ! This is called once per run from main.
+      !
+      ! edyn3d: if true, the 3D dynamo is active and the legacy edynamo
+      !   magnetic grid (edyn_maggrid ylatm, ylonm) is not set, so the
+      !   magnetic-to-geographic coordinates (gdlatdeg, gdlondeg) are
+      !   not computed.
       !
       use edyn_params,  only: re_dyn, h0, hs, dtr, rtd, cm2km
       use apex,         only: apex_mall, apex_q2g
       use edyn_geogrid, only: glat_edyn_geo=>glat, glon_edyn_geo=>glon
+
+      ! Args:
+      logical, intent(in) :: edyn3d
 
       !
       ! Local:
@@ -150,6 +158,11 @@ contains
             be3arr(i,j)   = be3 * ror03
          end do ! i=1,nlonp1
       end do ! j=jspole,jnpole
+      !
+      ! The legacy magnetic grid (ylatm, ylonm) is not initialized when the
+      ! 3D dynamo is active; gdlatdeg, gdlondeg are only needed for the
+      ! legacy mag grid ESMF objects (see edyn_esmf.F90).
+      if (edyn3d) return
       !
       ! Set up parameters for geographic to magnetic interpolation
       do i = 1, nmlonp1

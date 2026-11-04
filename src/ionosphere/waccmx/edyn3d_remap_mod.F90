@@ -5,7 +5,7 @@ module edyn3d_remap_mod
   use cam_logfile,    only: iulog
   use mpi_mod, only: ntask3D=>mpi_size, mytid=>mpi_rank
   use edyn_mpi,   only: ntaskOp=>ntask
-  use params_mod, only: hgt_fix, nhgt_fix, nmlat_h, nmlatS2_h
+  use edyn3d_params_mod, only: hgt_fix, nhgt_fix, nmlat_h, nmlatS2_h
   use interpolate_data, only: lininterp
 
   use mpi_mod, only: mlat0, mlat1, mlon0, mlon1

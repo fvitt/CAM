@@ -230,7 +230,7 @@ contains
       !
       ! Get apex coordinates.
       !
-      call get_apex()     ! get apex coordinates (allocates alonm)
+      call get_apex(edynamo_3d) ! get apex coordinates (allocates alonm)
 
       if (mytid<ntask) then
          call magfield()     ! calculate magnetic field parameters
