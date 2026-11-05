@@ -154,9 +154,9 @@ contains
     use edyn_maggrid,     only: edyn_nmlonp1=>nmlonp1,edyn_nmlon=>nmlon,edyn_nmlat=>nmlat
     use edyn_maggrid,     only: edyn_ylonm=>ylonm,edyn_ylatm=>ylatm
 
-    use params_module, only: nmlat_h, nmlat_T1
-    use params_module, only: edyn3d_nmlat=>nmlat_T1, edyn3d_nmlon=>nmlon
-    use params_module, only: edyn3d_ylonm=>ylonm, edyn3d_ylatm=>ylatm
+    use edyn3d_params_mod, only: nmlat_h, nmlat_T1
+    use edyn3d_params_mod, only: edyn3d_nmlat=>nmlat_T1, edyn3d_nmlon=>nmlon
+    use edyn3d_params_mod, only: edyn3d_ylonm=>ylonm, edyn3d_ylatm=>ylatm
 
     use regridder,  only: regrid_mag2phys_2d
     use edyn3d_remap_mod, only: edyn3d_remap_mag2phys

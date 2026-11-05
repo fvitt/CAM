@@ -25,7 +25,7 @@ contains
        edyn3d_slu_refactor_int,  edyn3d_slu_refactor_berr, reprod_solution)
 
     use mpi_module, only: lat_size, lon_size
-    use params_module,only: nmlat_h, nmlon, nhgt_fix, hgt_fix_r
+    use edyn3d_params_mod,only: nmlat_h, nmlon, nhgt_fix, hgt_fix_r
 
     use edyn3d_esmf_fields_rhandles, only: edyn3d_esmf_fields_rhandles_init
     use edyn3d_esmf_phys_mesh_mod, only:  edyn3d_esmf_phys_mesh_init
@@ -156,7 +156,7 @@ contains
     use edyn3D_esmf_fields_rhandles, only: mag2opls_nflds
     use mpi_module, only: mlat0, mlat1, mlon0, mlon1
     use mpi_module, only: mlond0, mlond1, mlatd0, mlatd1
-    use params_module,only:  nhgt_fix
+    use edyn3d_params_mod,only:  nhgt_fix
     use edyn_mpi, only: lon0,lon1,lat0,lat1,lev0,lev1
     use regridder, only: regrid_phys2geo_3d, regrid_geo2phys_3d
     use edyn3d_hist_mag_grids_mod, only: edyn3d_hist_mag_s1_out

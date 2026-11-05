@@ -102,7 +102,7 @@ module ionosphere_interface
    integer           :: ionos_edyn3d_nhgt = 54
    integer           :: ionos_edyn3d_slu_refactor_int = 20 !superlu refactor interval
    real(r8)          :: ionos_edyn3d_slu_refactor_berr = 1e-12 !superlu refactor backward error
-   logical           :: ionos_edyn3d_reprod_solution = .true. ! reproducible 3D dynamo solution
+   logical           :: ionos_edyn3d_reprod_solution = .false. ! reproducible 3D dynamo solution
 
    logical :: state_debug_checks = .false.
    logical :: ionos_debug_hist = .false.

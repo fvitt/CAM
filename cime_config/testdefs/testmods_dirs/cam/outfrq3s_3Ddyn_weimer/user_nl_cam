@@ -7,6 +7,7 @@ pbuf_global_allocate=.false.
 
 ionos_epotential_model = 'weimer'
 ionos_edyn3d_active = .true.
+ionos_edyn3d_reprod_solution = .true.
 
 fincl3 = 'sigma_ped_s1','sigma_hal_s1','sigma_ped_s2','sigma_hal_s2','un_s1','vn_s1','un_s2','vn_s2',
          'HILAT_POT', 'HILAT_FAC', 'ELECPOTEN',
