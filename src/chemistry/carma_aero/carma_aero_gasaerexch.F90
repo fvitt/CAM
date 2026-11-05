@@ -35,7 +35,9 @@ module carma_aero_gasaerexch
   ! local indexing for bins
   integer :: ncnst_tot                  ! total number of mode number conc + mode species
 
-  real(r8), parameter :: mw_soa = 250._r8   ! molecular weight of soa
+  real(r8), allocatable :: mw_soa_spec(:,:) ! molecular weight of each bin soa species (from aero_props)
+  real(r8), allocatable :: mw_soa_host(:)   ! molec wght of soa used in host code (per soa gas species)
+  real(r8), allocatable :: mw_poa_host(:)   ! molec wght of poa used in host code
   integer :: fracvbs_idx = -1
   integer, allocatable :: dqdtsoa_idx(:,:)
   integer, allocatable  :: cnsoa(:)         ! number of soa species in each bin
@@ -86,6 +88,7 @@ contains
     use phys_control,   only: phys_getopts
     use physconst,      only: mwdry
     use mo_chem_utls,   only: get_spc_ndx
+    use cam_abortutils, only: endrun
     use aero_gasaerexch, only: aero_gasaerexch_uptk_diag_init, aero_gasaerexch_spec_ndx, &
                                aero_gasaerexch_soag_ndx
 
@@ -101,6 +104,9 @@ contains
     integer  :: m
     integer  :: ns
     integer, allocatable :: soag_cnst_ndx(:)
+    real(r8) :: spec_mw
+    real(r8) :: mw_soa, mw_poa
+    character(len=*), parameter :: subname = 'carma_aero_gasaerexch_init'
     integer  :: nfld
     character(len=32), allocatable :: sfgaex1_names(:)
     character(len=32)              :: spec_name, spec_name_cw
@@ -160,6 +166,36 @@ contains
     do m = 1, nbins
        do_soag_any(m) = cnsoa(m)>0
     end do
+
+    ! SOA and POA molecular weights from the aerosol properties object;
+    ! the SOA solver uses a single molecular weight for SOA (POA)
+    allocate( mw_soa_spec(nbins,nsoa), mw_soa_host(nsoa_vbs), mw_poa_host(npoa) )
+    mw_soa_spec(:,:) = -huge(1.0_r8)
+    mw_soa = -huge(1.0_r8)
+    mw_poa = -huge(1.0_r8)
+    do m = 1, nbins
+       do ns = 1, cnsoa(m)
+          call aero_props%get(m, soa_ndx(m,ns), spec_mw=spec_mw)
+          if (mw_soa > 0._r8) then
+             if (spec_mw /= mw_soa) then
+                call endrun(subname//': s-organic species molecular weights differ')
+             end if
+          end if
+          mw_soa_spec(m,ns) = spec_mw
+          mw_soa = spec_mw
+       end do
+       do ns = 1, cnpoa(m)
+          call aero_props%get(m, poa_ndx(m,ns), spec_mw=spec_mw)
+          if (mw_poa > 0._r8) then
+             if (spec_mw /= mw_poa) then
+                call endrun(subname//': p-organic species molecular weights differ')
+             end if
+          end if
+          mw_poa = spec_mw
+       end do
+    end do
+    mw_soa_host(:) = mw_soa
+    mw_poa_host(:) = mw_poa
 
 !---------define history fields for new cond/evap diagnostics----------------------------------------
 !   totals over all SOA species and per SOAG (VBS) species
@@ -261,9 +297,6 @@ subroutine carma_aero_gasaerexch_sub(  aero_props, aero_state,  &
 ! local variables
   integer, parameter :: method_soa = method_soa_reversible
 
-  real (r8) :: mw_poa_host(npoa)      ! molec wght of poa used in host code
-  real (r8) :: mw_soa_host(nsoa_vbs)  ! molec wght of soa used in host code
-
   integer :: i
   integer :: j, jsoa
   integer :: k
@@ -303,9 +336,6 @@ subroutine carma_aero_gasaerexch_sub(  aero_props, aero_state,  &
   real(r8), pointer :: nmr(:,:)
 
 !----------------------------------------------------------------------
-  mw_poa_host(:) = 12.0_r8
-  mw_soa_host(:) = 250.0_r8
-
 !  map CARMA soa to working soa(nbins,nsoa)
 
   call pbuf_get_field(pbuf, fracvbs_idx, frac_vbs)
@@ -478,12 +508,12 @@ subroutine carma_aero_gasaerexch_sub(  aero_props, aero_state,  &
   do m = 1, nbins
      if (do_soag_any(m)) then
         do j = 1, cnsoa(m)
-           call sfgaex1_diag%outfld( sfgaex1_fld(m,j), ncol, lchnk, mw_soa/mwdry, qsrflx(:,m,j) )
+           call sfgaex1_diag%outfld( sfgaex1_fld(m,j), ncol, lchnk, mw_soa_spec(m,j)/mwdry, qsrflx(:,m,j) )
 
            !set pointer field
            call pbuf_get_field(pbuf, dqdtsoa_idx(m,j),  dqdt_soa )
 
-           dqdt_soa(:ncol,:) = dqdt_soa_all(:ncol,:,m,j) *(mw_soa/mbar(:ncol,:))
+           dqdt_soa(:ncol,:) = dqdt_soa_all(:ncol,:,m,j) *(mw_soa_spec(m,j)/mbar(:ncol,:))
         end do ! j = ...
      end if
   end do ! m = ...

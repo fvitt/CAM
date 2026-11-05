@@ -68,8 +68,11 @@ Purpose of changes (include the issue number and title text for each relevant Gi
    carma_aero_gasaerexch is private (it was public but not used elsewhere),
    and the unused nspec_max is removed. The SOA condensation/evaporation
   diagnostic mask and units factor are set at initialization rather than
-  in every call; mw_soa is a parameter; unused ldiag1-4 and nsrflx
-  parameters are removed.
+  in every call; unused ldiag1-4 and nsrflx parameters are removed.
+  SOA and POA molecular weights come from the aerosol properties object
+  (aero_props%get), as for MAM, rather than hard-coded values (same
+  values: 250 and 12); initialization stops if the SOA (or POA) species
+  of the bins have different molecular weights.
  - Species lookups shared by MAM and CARMA (aero_gasaerexch):
      - aero_gasaerexch_spec_ndx: species of a given type (e.g., s-organic,
        p-organic) in each mode/bin, from aerosol_properties%species_type
@@ -191,8 +194,9 @@ M   src/chemistry/carma_aero/carma_aero_gasaerexch.F90
    properties and state objects passed as arguments; bins, species and
    names from the aerosol properties object; unused arguments removed;
    module data private; condensation/evaporation diagnostic mask and
-   factor set at initialization; mw_soa a parameter; unused parameters
-   removed; corrections listed above
+   factor set at initialization; SOA/POA molecular weights from the
+   aerosol properties object; unused parameters removed; corrections
+   listed above
 
 M   src/chemistry/modal_aero/aero_model.F90
  - pass the aerosol properties and state objects to modal_aero_gasaerexch;
