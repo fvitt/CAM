@@ -35,7 +35,7 @@ module carma_aero_gasaerexch
   ! local indexing for bins
   integer :: ncnst_tot                  ! total number of mode number conc + mode species
 
-  real(r8) :: mw_soa = 250._r8
+  real(r8), parameter :: mw_soa = 250._r8   ! molecular weight of soa
   integer :: fracvbs_idx = -1
   integer, allocatable :: dqdtsoa_idx(:,:)
   integer, allocatable  :: cnsoa(:)         ! number of soa species in each bin
@@ -47,6 +47,8 @@ module carma_aero_gasaerexch
   logical, allocatable  :: do_soag_any(:)         ! true if soa gas is a species and carma soa in bin
 
   type(soa_condevap_diag_t) :: soa_diag   ! SOA condensation/evaporation diagnostics
+  logical,  allocatable :: condevap_mask(:,:)  ! bin soa species included in the diagnostics
+  real(r8), allocatable :: condevap_fac(:,:)   ! conversion factor to mass mixing ratio (mw/mwdry)
   type(col_tend_diag_t) :: sfgaex1_diag     ! SOA column tendency diagnostics ('_sfgaex1')
   integer, allocatable :: sfgaex1_fld(:,:)  ! field index of each bin soa species
 ! !DESCRIPTION: This module implements ...
@@ -82,6 +84,7 @@ contains
 
     use constituents,   only: cnst_name
     use phys_control,   only: phys_getopts
+    use physconst,      only: mwdry
     use mo_chem_utls,   only: get_spc_ndx
     use aero_gasaerexch, only: aero_gasaerexch_uptk_diag_init, aero_gasaerexch_spec_ndx, &
                                aero_gasaerexch_soag_ndx
@@ -162,6 +165,11 @@ contains
 !   totals over all SOA species and per SOAG (VBS) species
 
     call soa_diag%init( nsoa_vbs, do_total=.true., do_spec=.true., history_aerosol=history_aerosol )
+    allocate( condevap_mask(nbins,nsoa_vbs), condevap_fac(nbins,nsoa_vbs) )
+    do m = 1, nbins
+       condevap_mask(m,:) = do_soag_any(m)
+    end do
+    condevap_fac(:,:) = mw_soa/mwdry
 
 !------------------------------------------------------------------------------
 
@@ -251,7 +259,6 @@ subroutine carma_aero_gasaerexch_sub(  aero_props, aero_state,  &
 !BOC
 
 ! local variables
-  integer, parameter :: ldiag1=-1, ldiag2=-1, ldiag3=-1, ldiag4=-1
   integer, parameter :: method_soa = method_soa_reversible
 
   real (r8) :: mw_poa_host(npoa)      ! molec wght of poa used in host code
@@ -281,14 +288,11 @@ subroutine carma_aero_gasaerexch_sub(  aero_props, aero_state,  &
   logical   :: do_soa(nbins,nsoa_vbs)     ! soa species takes up gas in bin
   logical   :: do_soag(nsoa_vbs)          ! soa gas species is present
 
-  integer, parameter :: nsrflx = 1 ! only one dimension of qsrflx, no renaming or changes in size for CARMA currently
   real(r8) :: dqdt(ncol,pver,gas_pcnst)  ! TMR "delta q" array - NOTE dims
   real(r8) :: qsrflx(pcols,nbins,nsoa)
   ! process-specific column tracer tendencies
   ! (1=gas condensation)
   type(soa_condevap_acc_t) :: condevap   ! SOA condensation/evaporation diagnostics
-  logical  :: condevap_mask(nbins,nsoa_vbs)
-  real(r8) :: condevap_fac(nbins,nsoa_vbs)
   real(r8) :: total_soag
   real(r8) :: soag(nsoa_vbs)
 
@@ -379,10 +383,6 @@ subroutine carma_aero_gasaerexch_sub(  aero_props, aero_state,  &
 
 !-------Initialize evap/cond diagnostics (ncols x pver)-----------
   call soa_diag%reset(condevap)
-  do n = 1, nbins
-     condevap_mask(n,:) = do_soag_any(n)
-  end do
-  condevap_fac(:,:) = mw_soa/mwdry
 !---------------------------------------------------
 ! compute gas-to-aerosol mass transfer rates
   do m = 1, nbins

@@ -120,14 +120,14 @@
 !
 ! !INTERFACE:
 subroutine modal_aero_gasaerexch_sub(                            &
-                        aero_props,                              &
+                        aero_props,         aero_state,          &
                         lchnk,    ncol,     nstep,               &
                         loffset,  deltat,                        &
                         t,        pmid,     pdel,                &
                         qh2o,               troplev,             &
                         q,                  qqcw,                &
                         dqdt_other,         dqqcwdt_other,       &
-                        dgncur_a,           dgncur_awet,         &
+                        dgncur_a,                                &
                         sulfeq         )
 
 ! !USES:
@@ -141,14 +141,15 @@ use chem_mods,         only:  adv_mass
 use constituents,      only:  pcnst, cnst_get_ind
 use physconst,         only:  gravit, mwdry, rair
 use cam_abortutils,    only:  endrun
-use spmd_utils,        only:  iam, masterproc
 use phys_control,      only:  cam_chempkg_is
 use aerosol_properties_mod, only: aerosol_properties
+use aerosol_state_mod, only:  aerosol_state
 
 implicit none
 
 ! !PARAMETERS:
    class(aerosol_properties), intent(in) :: aero_props ! aerosol properties object
+   class(aerosol_state), intent(in) :: aero_state      ! aerosol state object
    integer,  intent(in)    :: lchnk                ! chunk identifier
    integer,  intent(in)    :: ncol                 ! number of atmospheric column
    integer,  intent(in)    :: nstep                ! model time-step number
@@ -172,11 +173,8 @@ implicit none
    real(r8), intent(in)    :: pmid(pcols,pver)     ! pressure at model levels (Pa)
    real(r8), intent(in)    :: pdel(pcols,pver)     ! pressure thickness of levels (Pa)
    real(r8), intent(in)    :: qh2o(pcols,pver)     ! water vapor mixing ratio (kg/kg)
-   real(r8), intent(in)    :: dgncur_a(pcols,pver,nmodes)
-   real(r8), intent(in)    :: dgncur_awet(pcols,pver,nmodes)
+   real(r8), intent(in)    :: dgncur_a(pcols,pver,nmodes) ! dry geo. mean dia. (m) of number distrib.
    real(r8), pointer       :: sulfeq(:,:,:)
-
-                                 ! dry & wet geo. mean dia. (m) of number distrib.
 
 ! !DESCRIPTION:
 ! computes TMR (tracer mixing ratio) tendencies for gas condensation
@@ -239,6 +237,7 @@ implicit none
    real (r8) :: tmp1, tmp2, tmpa
    real (r8) :: uptkrate(pcols,pver,nmodes) ! gas-to-aerosol mass transfer rates (1/s)
    real (r8) :: numdens(pcols,pver,nmodes)  ! mode number density (#/m3)
+   real (r8) :: wetdiam(pcols,pver,nmodes)  ! wet geo. mean dia. (m) of number distrib.
    real (r8) :: rhoair, aircon
    real (r8) :: uptkratebb(nmodes)
    real (r8) :: vol_core, vol_shell
@@ -418,7 +417,10 @@ implicit none
          end do
       end do
    end do
-   call aero_gasaerexch_uptkrates( aero_props, ncol, pver, top_lev, numdens, dgncur_awet, &
+   do n = 1, nmodes
+      wetdiam(:ncol,:,n) = aero_state%wet_diameter(n, ncol, pver)
+   end do
+   call aero_gasaerexch_uptkrates( aero_props, ncol, pver, top_lev, numdens, wetdiam, &
                                    t, pmid, uptkrate )
 
 ! modes taking up h2so4 and nh3 gas

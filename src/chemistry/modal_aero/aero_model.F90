@@ -1220,14 +1220,14 @@ contains
     endif
 
     call modal_aero_gasaerexch_sub(            &
-         aero_props,                           &
+         aero_props,         aero_state,       &
          lchnk,    ncol,     nstep,            &
          loffset,            delt,             &
          tfld,     pmid,     pdel,             &
          qh2o,               troplev,          &
          vmr,                vmrcw,            &
          dvmrdt,             dvmrcwdt,         &
-         dgnum,              dgnumwet,         &
+         dgnum,                                &
          sulfeq     )
 
     if (ndx_h2so4 > 0) then

@@ -53,6 +53,9 @@ Purpose of changes (include the issue number and title text for each relevant Gi
    NH4/SO4 limit use shared routines (aero_gasaerexch); MAM keeps its gas
    indices, mode flags and the choice of the sulfeq treatment.
    Primary-carbon aging and renaming remain MAM-specific.
+  The wet diameters used for the condensation sink come from
+  aero_state%wet_diameter, as for CARMA, rather than a dgncur_awet
+  argument (same DGNUMWET values from the physics buffer).
    Commented-out diagnostics code and unused variables are removed from
    modal_aero_gasaerexch, including diagnostic-only copies of the tracer
    arrays made in every call.
@@ -63,7 +66,10 @@ Purpose of changes (include the issue number and title text for each relevant Gi
    aerosol properties object. Unused arguments of carma_aero_gasaerexch_sub
    (state, nstep, loffset, qh2o, troplev) are removed. The module data of
    carma_aero_gasaerexch is private (it was public but not used elsewhere),
-   and the unused nspec_max is removed.
+   and the unused nspec_max is removed. The SOA condensation/evaporation
+  diagnostic mask and units factor are set at initialization rather than
+  in every call; mw_soa is a parameter; unused ldiag1-4 and nsrflx
+  parameters are removed.
  - Species lookups shared by MAM and CARMA (aero_gasaerexch):
      - aero_gasaerexch_spec_ndx: species of a given type (e.g., s-organic,
        p-organic) in each mode/bin, from aerosol_properties%species_type
@@ -184,10 +190,13 @@ M   src/chemistry/carma_aero/carma_aero_gasaerexch.F90
    gas lookups; SOA/POA species tables set at initialization; aerosol
    properties and state objects passed as arguments; bins, species and
    names from the aerosol properties object; unused arguments removed;
-   module data private; corrections listed above
+   module data private; condensation/evaporation diagnostic mask and
+   factor set at initialization; mw_soa a parameter; unused parameters
+   removed; corrections listed above
 
 M   src/chemistry/modal_aero/aero_model.F90
- - pass the aerosol properties object to modal_aero_gasaerexch
+ - pass the aerosol properties and state objects to modal_aero_gasaerexch;
+   wet diameter (dgnumwet) no longer passed
 
 M   src/chemistry/modal_aero/modal_aero_gasaerexch.F90
  - use shared aero_gasaerexch and aero_soaexch_mod routines, including the
@@ -200,7 +209,8 @@ M   src/chemistry/modal_aero/modal_aero_gasaerexch.F90
    diagnostics code and unused variables removed; mode information for
    aging and number density from the aerosol properties object
    (modal_aero_data used only in initialization cross-checks); H2SO4/MSA/NH3
-   condensation through shared aero_gasaerexch routines
+   condensation through shared aero_gasaerexch routines; wet diameter from
+   aero_state%wet_diameter; unused spmd_utils import removed
 
 M   src/chemistry/pp_waccm_ma_noaero/chem_mech.doc
 M   src/chemistry/pp_waccm_ma_noaero/chem_mech.in
