@@ -385,7 +385,7 @@ contains
     deallocate(ylonm)
     deallocate(ylatm)
 
-    if ( mytid<numtasks ) then
+    if ( mytid<numtasks .and. .not.edynamo_3d) then
        call calc_pfrac(sunlon, pfrac) ! returns pfrac for dynamo (edyn_solve)
 
        crit_out(:) = crit(:)*rtd ! degrees
