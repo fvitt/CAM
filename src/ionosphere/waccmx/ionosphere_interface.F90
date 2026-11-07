@@ -214,8 +214,8 @@ module ionosphere_interface
          !AB 12/25: want default to be at most half the number of procs (and even)
          ionos_edyn3d_npes = 2 * (ionos_npes/4)
          ionos_npes = min(ionos_npes,ionos_edyn3d_npes)
-      else if (ionos_edyn3d_npes>total_pes) then
-         call endrun('ionosphere_readnl: ionos_edyn3d_npes > total_pes')
+      else if (ionos_edyn3d_npes>total_pes/2) then
+         call endrun('ionosphere_readnl: ionos_edyn3d_npes > total_pes/2')
       end if
 
       ! log the user settings
