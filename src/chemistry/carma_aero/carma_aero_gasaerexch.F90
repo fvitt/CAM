@@ -23,8 +23,8 @@ module carma_aero_gasaerexch
 
   ! description of bin aerosols
   integer :: nbins = 0                 ! number of bins
-  integer :: nsoa_vbs = 0              ! number of soa gas (VBS) species
-  integer :: nsoa = 0                  ! maximum number of soa species in a bin
+  integer :: nsoa = 0                  ! number of soa gas (SOAG) species, and of soa species
+                                       ! in each bin that contains soa
   integer :: npoa = 0                  ! maximum number of poa species in a bin
   integer, allocatable :: nspec(:)     ! number of species in each bin
 
@@ -36,9 +36,8 @@ module carma_aero_gasaerexch
   integer :: ncnst_tot                  ! total number of mode number conc + mode species
 
   real(r8), allocatable :: mw_soa_spec(:,:) ! molecular weight of each bin soa species (from aero_props)
-  real(r8), allocatable :: mw_soa_host(:)   ! molec wght of soa used in host code (per soa gas species)
+  real(r8), allocatable :: mw_soa_host(:)   ! molec wght of soa used in host code
   real(r8), allocatable :: mw_poa_host(:)   ! molec wght of poa used in host code
-  integer :: fracvbs_idx = -1
   integer, allocatable :: dqdtsoa_idx(:,:)
   integer, allocatable  :: cnsoa(:)         ! number of soa species in each bin
   integer, allocatable  :: cnpoa(:)         ! number of poa species in each bin
@@ -107,6 +106,7 @@ contains
     real(r8) :: spec_mw
     real(r8) :: mw_soa, mw_poa
     character(len=*), parameter :: subname = 'carma_aero_gasaerexch_init'
+    character(len=128) :: msg
     integer  :: nfld
     character(len=32), allocatable :: sfgaex1_names(:)
     character(len=32)              :: spec_name, spec_name_cw
@@ -137,23 +137,32 @@ contains
                fldname(ncnst_tot) )
 
     ! SOAG / SOA / POM information
-    ! Define number of VBS bins (nsoa) based on number of SOAG chemistry species
+    ! number of SOA species (nsoa) is the number of SOAG (VBS) chemistry species
 
     call aero_gasaerexch_soag_ndx(soag_cnst_ndx)
-    nsoa_vbs = size(soag_cnst_ndx)
-    allocate( l_soag(nsoa_vbs) )
-    do j = 1, nsoa_vbs
+    nsoa = size(soag_cnst_ndx)
+    allocate( l_soag(nsoa) )
+    do j = 1, nsoa
        l_soag(j) = get_spc_ndx(cnst_name(soag_cnst_ndx(j)))
     end do
-
-    fracvbs_idx = pbuf_get_index('FRACVBS')
 
     ! identify SOA and POA species in CARMA bins (CARMA number cn)
     call aero_gasaerexch_spec_ndx(aero_props, 's-organic', cnsoa, soa_ndx)
     call aero_gasaerexch_spec_ndx(aero_props, 'p-organic', cnpoa, poa_ndx)
     ! some bins don't contain soa or poa
-    nsoa= maxval(cnsoa)
     npoa= maxval(cnpoa)
+
+    ! each bin that contains soa has one soa species for each soa gas (SOAG) species,
+    ! with soa species j taking up soa gas species j
+    do m = 1, nbins
+       if (cnsoa(m) > 0) then
+          if (cnsoa(m) /= nsoa) then
+             write(msg,'(a,i0,a,i0,a,i0)') ': number of SOA species in bin ', m, ' (', cnsoa(m), &
+                  ') differs from the number of SOAG species ', nsoa
+             call endrun(subname//trim(msg))
+          end if
+       end if
+    end do
 
     allocate( dqdtsoa_idx(nbins,nsoa)                       )
     do m = 1, nbins
@@ -169,7 +178,7 @@ contains
 
     ! SOA and POA molecular weights from the aerosol properties object;
     ! the SOA solver uses a single molecular weight for SOA (POA)
-    allocate( mw_soa_spec(nbins,nsoa), mw_soa_host(nsoa_vbs), mw_poa_host(npoa) )
+    allocate( mw_soa_spec(nbins,nsoa), mw_soa_host(nsoa), mw_poa_host(npoa) )
     mw_soa_spec(:,:) = -huge(1.0_r8)
     mw_soa = -huge(1.0_r8)
     mw_poa = -huge(1.0_r8)
@@ -200,8 +209,8 @@ contains
 !---------define history fields for new cond/evap diagnostics----------------------------------------
 !   totals over all SOA species and per SOAG (VBS) species
 
-    call soa_diag%init( nsoa_vbs, do_total=.true., do_spec=.true., history_aerosol=history_aerosol )
-    allocate( condevap_mask(nbins,nsoa_vbs), condevap_fac(nbins,nsoa_vbs) )
+    call soa_diag%init( nsoa, do_total=.true., do_spec=.true., history_aerosol=history_aerosol )
+    allocate( condevap_mask(nbins,nsoa), condevap_fac(nbins,nsoa) )
     do m = 1, nbins
        condevap_mask(m,:) = do_soag_any(m)
     end do
@@ -254,7 +263,6 @@ subroutine carma_aero_gasaerexch_sub(  aero_props, aero_state,  &
   ! !USES:
   use physconst,         only: gravit, mwdry
   use cam_abortutils,    only: endrun
-  use time_manager,      only: is_first_step
   use aerosol_state_mod, only: aerosol_state
   use physconst, only: mwdry, rair
   use aero_gasaerexch,   only: aero_gasaerexch_uptkrates, aero_gasaerexch_soa_column, &
@@ -303,33 +311,27 @@ subroutine carma_aero_gasaerexch_sub(  aero_props, aero_state,  &
   integer :: mm, m, n, nn
 
 
-  real (r8) :: dqdt_soa_vbs(nbins,nsoa_vbs)
+  real (r8) :: dqdt_soa_bin(nbins,nsoa)
   real (r8) :: dqdt_soa_all(pcols,pver,nbins,nsoa)
   real (r8) :: pdel_fac
   real (r8) :: num_bin(pcols,pver,nbins)
-  real (r8) :: soa_vbs(pcols,pver,nbins,nsoa_vbs)
   real (r8) :: soa_c(pcols,pver,nbins,nsoa) ! SOA from CARMA
   real (r8) :: poa_c(pcols,pver,nbins,npoa) ! POA from CARMA
-  real (r8) :: qnew_soa_vbs(nbins,nsoa_vbs) ! SOA on VBS bins  new
-  real (r8) :: qnew_soa(nbins)              ! SOA new for combined VBS bin new for combined VBS binss
-  real (r8) :: soag_col(ncol,pver,nsoa_vbs)             ! SOAG gas
-  real (r8) :: dqdt_soa_col(pcols,pver,nbins,nsoa_vbs)  ! SOA tendencies on VBS bins
-  real (r8) :: sum_dqdt_soa_col(pcols,pver,nsoa_vbs)    ! SOAG uptake (negative of gas tendency)
-  real (r8) :: sum_dqdt_soa(nsoa_vbs)     !   sum_dqdt_soa = soa tendency from soa  gas uptake (mol/mol/s)
+  real (r8) :: soag_col(ncol,pver,nsoa)               ! SOAG gas
+  real (r8) :: dqdt_soa_col(pcols,pver,nbins,nsoa)    ! SOA tendencies
+  real (r8) :: sum_dqdt_soa_col(pcols,pver,nsoa)      ! SOAG uptake (negative of gas tendency)
+  real (r8) :: sum_dqdt_soa(nsoa)         !   sum_dqdt_soa = soa tendency from soa  gas uptake (mol/mol/s)
   real (r8) :: uptkrate(pcols,pver,nbins) ! gas-to-aerosol mass transfer rates (1/s)
   real (r8) :: wetdiam(pcols,pver,nbins)  ! wet diameter of each bin (m)
-  logical   :: do_soa(nbins,nsoa_vbs)     ! soa species takes up gas in bin
-  logical   :: do_soag(nsoa_vbs)          ! soa gas species is present
+  logical   :: do_soa(nbins,nsoa)         ! soa species takes up gas in bin
+  logical   :: do_soag(nsoa)              ! soa gas species is present
 
   real(r8) :: dqdt(ncol,pver,gas_pcnst)  ! TMR "delta q" array - NOTE dims
   real(r8) :: qsrflx(pcols,nbins,nsoa)
   ! process-specific column tracer tendencies
   ! (1=gas condensation)
   type(soa_condevap_acc_t) :: condevap   ! SOA condensation/evaporation diagnostics
-  real(r8) :: total_soag
-  real(r8) :: soag(nsoa_vbs)
 
-  real(r8), pointer :: frac_vbs(:,:,:,:)   ! fraction of vbs SOA bins to total SOA
   real(r8), pointer :: dqdt_soa(:,:)
 
   real(r8) :: rhoair(pcols,pver)
@@ -337,8 +339,6 @@ subroutine carma_aero_gasaerexch_sub(  aero_props, aero_state,  &
 
 !----------------------------------------------------------------------
 !  map CARMA soa to working soa(nbins,nsoa)
-
-  call pbuf_get_field(pbuf, fracvbs_idx, frac_vbs)
 
   num_bin(:,:,:) = 0._r8
   soa_c(:,:,:,:) = 0._r8
@@ -358,43 +358,6 @@ subroutine carma_aero_gasaerexch_sub(  aero_props, aero_state,  &
         end do
         if (npoa .gt. 1) then
            call endrun( 'carma_aero_gasaerexch_sub error: CARMA currently only supports 1 POA element' )
-        end if
-
-        if (nsoa_vbs.eq.nsoa) then
-           soa_vbs(:ncol,:,:,:) = soa_c(:ncol,:,:,:)
-        else
-           if (nsoa.eq.1) then
-              if (is_first_step()) then
-                 !first time step initialization only
-                 do k=top_lev,pver
-                    do i=1,ncol
-                       total_soag = 0.0_r8
-                       do j = 1, nsoa_vbs
-                          soag(j) = q(i,k,l_soag(j))
-                          total_soag = total_soag + soag(j)
-                       end do
-                       if (total_soag .gt. 0.0_r8) then
-                          do j= 1, nsoa_vbs
-                             frac_vbs(i,k,m,j) = soag(j)/total_soag
-                          end do
-                       end if
-                    end do
-                 end do
-              end if
-              ! end first time step, after that use fraction from previous time step
-              do k=top_lev,pver
-                 do i=1,ncol
-                    do j= 1, nsoa_vbs
-                       soa_vbs(i,k,m,j) = frac_vbs(i,k,m,j)*soa_c(i,k,m,nsoa)
-                    end do
-                 end do
-              end do
-           else
-              ! error message this code only works if SOAG and SOA CARMA have the same number of species,
-              ! or if SOA CARMA has only one species.
-              call endrun( 'carma_aero_gasaerexch_sub error in number of SOA species' )
-           end if
-
         end if
 
         ! get bin number densities for all aerosols
@@ -429,60 +392,39 @@ subroutine carma_aero_gasaerexch_sub(  aero_props, aero_state,  &
   do_soag(:) = .true.
 
 !   compute tendencies for soag gas and soa interstitial aerosol in all grid cells
-!   (soa_vbs is used only in bins that contain soa; poa_c is zero in other bins)
-  do jsoa = 1, nsoa_vbs
+!   (soa_c is used only in bins that contain soa; poa_c is zero in other bins)
+  do jsoa = 1, nsoa
      soag_col(:ncol,:,jsoa) = q(:ncol,:,l_soag(jsoa))
   end do
   call aero_gasaerexch_soa_column( method_soa, ncol, pver, top_lev, deltat, t, pmid, &
-       nbins, nsoa_vbs, npoa, do_soag_any, do_soa, do_soag, uptkrate, &
-       mw_poa_host, mw_soa_host, soag_col, soa_vbs, poa_c, &
+       nbins, nsoa, npoa, do_soag_any, do_soa, do_soag, uptkrate, &
+       mw_poa_host, mw_soa_host, soag_col, soa_c, poa_c, &
        dqdt_soa_col, sum_dqdt_soa_col )
 
   dqdt_soa_all(:,:,:,:) = 0.0_r8
   do k=top_lev,pver
      do i=1,ncol
-        dqdt_soa_vbs(:,:) = dqdt_soa_col(i,k,:,:)
+        dqdt_soa_bin(:,:) = dqdt_soa_col(i,k,:,:)
         sum_dqdt_soa(:) = sum_dqdt_soa_col(i,k,:)
 
-        !  update soa to calcuate fractions (state variables and pbuf is not updated for SOA, will be done in CARMA)
+        ! SOA is not updated here (state variables and pbuf), this is done in CARMA
         pdel_fac = pdel(i,k)/gravit
-        qnew_soa(:) =0.0_r8
-        qnew_soa_vbs(:,:) =0.0_r8
 
         do n = 1, nbins
            if ( do_soag_any(n) ) then
-              if (nsoa.eq.nsoa_vbs) then
-                 do jsoa = 1, nsoa_vbs
-                    qsrflx(i,n,jsoa) = qsrflx(i,n,jsoa) + dqdt_soa_vbs(n,jsoa)*pdel_fac
-                    dqdt_soa_all(i,k,n,jsoa) = dqdt_soa_vbs(n,jsoa) !  sum up for different volatility bins
-                 end do
-              else if (nsoa.eq.1) then
-                 do jsoa = 1, nsoa_vbs
-                    !  sum up for different volatility bins
-                    dqdt_soa_all(i,k,n,nsoa) = dqdt_soa_all(i,k,n,nsoa) + dqdt_soa_vbs(n,jsoa)
-                 end do
-                 do jsoa = 1, nsoa_vbs
-                    qsrflx(i,n,nsoa) = qsrflx(i,n,nsoa) + dqdt_soa_vbs(n,jsoa)*pdel_fac
-                    qnew_soa_vbs(n,jsoa) = soa_vbs(i,k,n,jsoa) + dqdt_soa_vbs(n,jsoa)*deltat
-                    qnew_soa(n) = qnew_soa(n) + qnew_soa_vbs(n,jsoa) ! derive new fraction of SOA bin contributions
-                 end do
-                 do jsoa = 1, nsoa_vbs
-                    if (qnew_soa(n) .gt. 0.0_r8) then
-                       frac_vbs(i,k,n,jsoa) = qnew_soa_vbs(n,jsoa) / qnew_soa(n)
-                    end if
-                 end do
-              else
-                 call endrun( 'carma_aero_gasaerexch_sub error' )
-              end if
+              do jsoa = 1, nsoa
+                 qsrflx(i,n,jsoa) = qsrflx(i,n,jsoa) + dqdt_soa_bin(n,jsoa)*pdel_fac
+                 dqdt_soa_all(i,k,n,jsoa) = dqdt_soa_bin(n,jsoa)
+              end do
            end if
         end do ! n
 
 !------- condensation/evaporation diagnostics sum of all bins
-        call soa_diag%accum( condevap, i, k, nbins, condevap_mask, condevap_fac, dqdt_soa_vbs )
+        call soa_diag%accum( condevap, i, k, nbins, condevap_mask, condevap_fac, dqdt_soa_bin )
 
 !   compute TMR tendencies for SAOG gas
 !   due to simple gas uptake
-        do jsoa = 1, nsoa_vbs
+        do jsoa = 1, nsoa
            dqdt(i,k,l_soag(jsoa)) = -sum_dqdt_soa(jsoa)
         end do
 
@@ -492,7 +434,7 @@ subroutine carma_aero_gasaerexch_sub(  aero_props, aero_state,  &
 !  This applies dqdt tendencies for SOAG only , soa is done in CARMA
 !  apply the dqdt to update q
 !
-  do jsoa = 1, nsoa_vbs
+  do jsoa = 1, nsoa
      do k = top_lev, pver
         do i = 1, ncol
            q(i,k,l_soag(jsoa)) = max (q(i,k,l_soag(jsoa)) + dqdt(i,k,l_soag(jsoa))*deltat, 1.0e-40_r8)

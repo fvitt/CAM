@@ -4,7 +4,7 @@
 module aero_model
   use physics_buffer,    only: physics_buffer_desc, pbuf_get_index, pbuf_add_field, dtype_r8
   use shr_kind_mod,      only: r8 => shr_kind_r8
-  use constituents,      only: pcnst, cnst_name, cnst_get_ind
+  use constituents,      only: pcnst, cnst_get_ind
   use perf_mod,          only: t_startf, t_stopf
   use ppgrid,            only: pcols, pver, pverp
   use phys_control,      only: phys_getopts, cam_physpkg_is
@@ -18,7 +18,6 @@ module aero_model
   use cam_history,       only: outfld
   use chem_mods,         only: gas_pcnst, adv_mass
   use mo_tracname,       only: solsym
-  use infnan,            only: nan, assignment(=)
   use radiative_aerosol, only: rad_aer_get_info, rad_aer_get_info_by_bin, rad_aer_get_info_by_bin_spec, &
                                rad_aer_get_bin_props_by_idx
   use aerosol_mmr_host,   only: rad_cnst_get_bin_mmr_by_idx
@@ -150,8 +149,7 @@ contains
 
     use carma_flags_mod,   only: carma_model
 
-    integer :: m, l, i
-    integer :: nsoa_vbs
+    integer :: m, l
     character(len=32) :: num_name
     character(len=32) :: num_name_cw
     character(len=32) :: spec_name_cw
@@ -172,21 +170,6 @@ contains
           call pbuf_add_field(spec_name_cw,'global',dtype_r8,(/pcols,pver/),idx)
        enddo
     enddo
-
-  ! SOA information
-  ! Define number of VBS bins (nsoa) based on number of SOAG chemistry species
-    nsoa_vbs = 0
-    do i = 1, pcnst
-       if (cnst_name(i)(:4) == 'SOAG') then
-          nsoa_vbs = nsoa_vbs + 1
-       end if
-    end do
-    if (masterproc) then
-       write(iulog,*) 'nsoa_vbs  = ', nsoa_vbs
-    endif
-
-   ! Define pbuf field for soa_fraction
-    call pbuf_add_field('FRACVBS','global',dtype_r8,(/pcols,pver,nbins,nsoa_vbs/), idx)
 
   end subroutine aero_model_register
 
@@ -225,7 +208,6 @@ contains
     character(len=32) :: spec_name_cw
 
     integer :: idx, ierr
-    real(r8) :: nanval
 
     do iaermod_ = 1, aerosol_instances_get_num_models()
        aero_props => aerosol_instances_get_props(iaermod_, 0)
@@ -247,13 +229,6 @@ contains
           enddo
        enddo
     endif
-
-    ! define pbuf field for soa_fraction
-    if (is_first_step()) then
-       nanval = nan
-       idx = pbuf_get_index('FRACVBS')
-       call pbuf_set_field(pbuf2d, idx, nanval)
-    end if
 
     ! aqueous chem initialization
     call sox_inti(aero_props)

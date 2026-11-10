@@ -22,7 +22,7 @@ Purpose of changes (include the issue number and title text for each relevant Gi
        cell and, from standard per-bin SOA/POA/SOAG column arrays filled by
        each model, for all grid cells of a chunk. MAM and CARMA both
        compute their SOA uptake for the chunk with the column routine; MAM
-       keeps its mode masks and POA rule, CARMA its VBS split/merge.
+       keeps its mode masks and POA rule.
        Also, for non-volatile gases in a grid cell: partitioning of uptake
        among modes/bins and time-averaged uptake, reversible uptake toward
        an equilibrium gas mixing ratio for each mode/bin (used for H2SO4
@@ -73,6 +73,12 @@ Purpose of changes (include the issue number and title text for each relevant Gi
   (aero_props%get), as for MAM, rather than hard-coded values (same
   values: 250 and 12); initialization stops if the SOA (or POA) species
   of the bins have different molecular weights.
+  The lumped VBS path (one SOA species per bin carrying several SOAG
+  volatility species, with the split kept in the FRACVBS physics buffer
+  field) is removed; it was not used by any defined compset. Each bin
+  that contains SOA must have one SOA species for each SOAG species, as
+  for MAM (endrun otherwise). The FRACVBS physics buffer field (a global
+  field, written to restart files) is no longer registered.
  - Species lookups shared by MAM and CARMA (aero_gasaerexch):
      - aero_gasaerexch_spec_ndx: species of a given type (e.g., s-organic,
        p-organic) in each mode/bin, from aerosol_properties%species_type
@@ -119,10 +125,6 @@ Purpose of changes (include the issue number and title text for each relevant Gi
      - the SOA solver uses the MAM minimum-value parameters (a_min1, g_min1
        = 1e-20) and the MAM volatility parameters for a single SOA species
        (p0_soa_298 = 9.7831e-11 atm, delh_vap_soa = 131 kJ/mol)
-     - SOAG gas tendencies are applied for all SOAG species when CARMA has
-       a single SOA species and multiple SOAG volatility species (previously
-       only the first SOAG species lost mass); not exercised by the
-       currently defined compsets
      - fix out-of-bounds write of qold_poa when there are no POA species
  - waccm_ma_noaero chemistry (used with CARMA trop_strat_soa1, CARMAWM):
    SOAG elemental composition changed from C to C15H38O2 for consistency
@@ -186,6 +188,8 @@ M   src/chemistry/carma_aero/aero_model.F90
  - remove wet radius calculation (now from aero_state%wet_diameter)
  - pass the aerosol properties and state objects to carma_aero_gasaerexch;
    remove arguments no longer used by carma_aero_gasaerexch_sub
+ - remove the FRACVBS physics buffer field and the SOAG species count used
+   to size it
 
 M   src/chemistry/carma_aero/carma_aero_gasaerexch.F90
  - use shared aero_gasaerexch and aero_soaexch_mod routines, including the
@@ -195,8 +199,9 @@ M   src/chemistry/carma_aero/carma_aero_gasaerexch.F90
    names from the aerosol properties object; unused arguments removed;
    module data private; condensation/evaporation diagnostic mask and
    factor set at initialization; SOA/POA molecular weights from the
-   aerosol properties object; unused parameters removed; corrections
-   listed above
+   aerosol properties object; unused parameters removed; lumped VBS
+   (FRACVBS) path removed, one SOA species per SOAG species required;
+   corrections listed above
 
 M   src/chemistry/modal_aero/aero_model.F90
  - pass the aerosol properties and state objects to modal_aero_gasaerexch;
