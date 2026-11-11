@@ -19,10 +19,17 @@ Purpose of changes (include the issue number and title text for each relevant Gi
      - aero_gasaerexch: the condensation-sink loop over modes/bins and the
        SOA gas uptake (partitioning of uptake among modes/bins,
        time-averaged uptake, reversible/irreversible/no uptake) for a grid
-       cell and, from standard per-bin SOA/POA/SOAG column arrays filled by
-       each model, for all grid cells of a chunk. MAM and CARMA both
-       compute their SOA uptake for the chunk with the column routine; MAM
-       keeps its mode masks and POA rule.
+       cell and, from standard per-bin SOA/POA/SOAG column arrays, for all
+       grid cells of a chunk. The SOA species configuration of an aerosol
+       model (SOA and POA species of each mode/bin, SOAG constituents, SOA
+       and POA molecular weights) is a shared type, soa_exch_t, set at
+       initialization from the aerosol properties object; its tend
+       procedure loads the SOAG/SOA/POA column arrays from caller arrays
+       and index tables and computes the SOA uptake for the chunk, and the
+       SOA condensation/evaporation diagnostics are accumulated for the
+       chunk (accum_column). CARMA uses these for its SOA uptake; the
+       caller supplies the mode/bin masks (MAM: its mode masks and POA
+       rule).
        Also, for non-volatile gases in a grid cell: partitioning of uptake
        among modes/bins and time-averaged uptake, reversible uptake toward
        an equilibrium gas mixing ratio for each mode/bin (used for H2SO4
@@ -72,7 +79,8 @@ Purpose of changes (include the issue number and title text for each relevant Gi
   SOA and POA molecular weights come from the aerosol properties object
   (aero_props%get), as for MAM, rather than hard-coded values (same
   values: 250 and 12); initialization stops if the SOA (or POA) species
-  of the bins have different molecular weights.
+  of the bins have different molecular weights (check now done by the
+  shared soa_exch_t initialization).
   The lumped VBS path (one SOA species per bin carrying several SOAG
   volatility species, with the split kept in the FRACVBS physics buffer
   field) is removed; it was not used by any defined compset. Each bin
@@ -85,7 +93,8 @@ Purpose of changes (include the issue number and title text for each relevant Gi
      - aero_gasaerexch_soag_ndx: SOA gas (SOAG*) constituent indices,
        excluding SOAGX* species. CARMA previously did not exclude SOAGX*
        species; no current chemistry mechanism has them.
-   CARMA SOA/POA species tables are built at initialization; the species
+   CARMA SOA/POA species tables are built at initialization (soa_exch_t);
+   the species
    type lookups (rad_aer_get_bin_props_by_idx) previously done in every
    call of carma_aero_gasaerexch_sub are removed.
  - Gas-aerosol exchange history diagnostics shared by MAM and CARMA
@@ -161,7 +170,8 @@ A   src/chemistry/aerosol/aero_soaexch_mod.F90
 
 A   src/chemistry/aerosol/aero_gasaerexch.F90
  - gas-aerosol exchange routines shared by the aerosol models: condensation
-   sink for all modes/bins, SOA gas uptake per grid cell and per chunk,
+   sink for all modes/bins, SOA species configuration (soa_exch_t) and SOA
+   gas uptake per grid cell and per chunk,
    non-volatile gas uptake (partitioning, reversible uptake, NH4 limit), history
    diagnostics (SOA condensation/evaporation; uptake rates, number
    densities and wet radii of modes/bins; column tendencies), and species
@@ -201,7 +211,8 @@ M   src/chemistry/carma_aero/carma_aero_gasaerexch.F90
    factor set at initialization; SOA/POA molecular weights from the
    aerosol properties object; unused parameters removed; lumped VBS
    (FRACVBS) path removed, one SOA species per SOAG species required;
-   corrections listed above
+   SOA species configuration, SOA uptake and condensation/evaporation
+   diagnostics through the shared soa_exch_t; corrections listed above
 
 M   src/chemistry/modal_aero/aero_model.F90
  - pass the aerosol properties and state objects to modal_aero_gasaerexch;

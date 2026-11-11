@@ -2,8 +2,8 @@
 ! Gas-aerosol exchange (gas condensation onto aerosol particles) common
 ! to the aerosol models (MAM, CARMA). The aerosol model is accessed only
 ! through the abstract aerosol_properties interface; model-specific
-! bookkeeping (species indices, renaming, aging, VBS lumping, ...) stays
-! with the calling aerosol model.
+! bookkeeping (constituent indices, renaming, aging, ...) stays with the
+! calling aerosol model.
 !----------------------------------------------------------------------
 module aero_gasaerexch
 
@@ -56,6 +56,7 @@ module aero_gasaerexch
       procedure :: init => soa_condevap_init
       procedure :: reset => soa_condevap_reset
       procedure :: accum => soa_condevap_accum
+      procedure :: accum_column => soa_condevap_accum_column
       procedure :: outfld => soa_condevap_outfld
    end type soa_condevap_diag_t
 
@@ -88,6 +89,35 @@ module aero_gasaerexch
       procedure :: init => col_tend_init
       procedure :: outfld => col_tend_outfld
    end type col_tend_diag_t
+
+   !----------------------------------------------------------------------
+   ! SOA species configuration of an aerosol model for the SOA gas-aerosol
+   ! exchange, set from the aerosol properties object at initialization
+   !
+   ! SOA species j of a mode/bin takes up SOA gas (SOAG) species j.
+   ! All SOA (POA) species have the same molecular weight.
+   !----------------------------------------------------------------------
+   type, public :: soa_exch_t
+      integer :: nbins = 0                       ! number of modes/bins
+      integer :: nsoa = 0                        ! number of soa species (maximum over the modes/bins)
+      integer :: npoa = 0                        ! number of poa species (maximum over the modes/bins)
+      integer :: nsoag = 0                       ! number of soa gas constituents
+      integer, allocatable :: nsoa_bin(:)        ! number of soa species in each mode/bin
+      integer, allocatable :: npoa_bin(:)        ! number of poa species in each mode/bin
+      integer, allocatable :: soa_spec(:,:)      ! species index within the mode/bin of each soa species
+                                                 ! (nbins,nsoa; <= 0 if absent)
+      integer, allocatable :: poa_spec(:,:)      ! species index within the mode/bin of each poa species
+                                                 ! (nbins,npoa; <= 0 if absent)
+      integer, allocatable :: soag_cnst(:)       ! constituent index of the soa gas taken up by each soa
+                                                 ! species (nsoa; <= 0 if absent)
+      real(r8) :: mw_soa = -huge(1.0_r8)         ! molecular weight of the soa species (kg/kmol)
+      real(r8) :: mw_poa = -huge(1.0_r8)         ! molecular weight of the poa species (kg/kmol)
+      real(r8), allocatable :: mw_soa_host(:)    ! molec wght of soa used in host code (nsoa)
+      real(r8), allocatable :: mw_poa_host(:)    ! molec wght of poa used in host code (npoa)
+   contains
+      procedure :: init => soa_exch_init
+      procedure :: tend => soa_exch_tend
+   end type soa_exch_t
 
 contains
 
@@ -310,6 +340,144 @@ contains
       end do
 
    end subroutine aero_gasaerexch_soa_column
+
+   !----------------------------------------------------------------------
+   ! sets the SOA species configuration from the aerosol properties object:
+   ! soa ('s-organic') and poa ('p-organic') species of each mode/bin, the
+   ! soa gas (SOAG) constituents and the soa and poa molecular weights
+   ! (endrun if the soa or poa species have different molecular weights)
+   !----------------------------------------------------------------------
+   subroutine soa_exch_init( self, aero_props )
+
+      use aerosol_properties_mod, only: aerosol_properties
+      use cam_abortutils, only: endrun
+
+      class(soa_exch_t), intent(out) :: self
+      class(aerosol_properties), intent(in) :: aero_props ! aerosol properties object
+
+      integer :: m, j
+      integer, allocatable :: soag_ndx(:)
+      real(r8) :: spec_mw
+      character(len=*), parameter :: subname = 'aero_gasaerexch::soa_exch_init'
+
+      self%nbins = aero_props%nbins()
+      allocate( self%nsoa_bin(self%nbins), self%npoa_bin(self%nbins) )
+
+      call aero_gasaerexch_spec_ndx( aero_props, 's-organic', self%nsoa_bin, self%soa_spec )
+      call aero_gasaerexch_spec_ndx( aero_props, 'p-organic', self%npoa_bin, self%poa_spec )
+      self%nsoa = maxval(self%nsoa_bin)
+      self%npoa = maxval(self%npoa_bin)
+
+      ! soa gas species j is taken up by soa species j
+      call aero_gasaerexch_soag_ndx( soag_ndx )
+      self%nsoag = size(soag_ndx)
+      allocate( self%soag_cnst(self%nsoa) )
+      self%soag_cnst(:) = -1
+      do j = 1, min(self%nsoa, self%nsoag)
+         self%soag_cnst(j) = soag_ndx(j)
+      end do
+
+      ! molecular weights
+      do m = 1, self%nbins
+         do j = 1, self%nsoa_bin(m)
+            call aero_props%get( m, self%soa_spec(m,j), spec_mw=spec_mw )
+            if (self%mw_soa > 0.0_r8) then
+               if (spec_mw /= self%mw_soa) then
+                  call endrun( subname//': s-organic species molecular weights differ' )
+               end if
+            end if
+            self%mw_soa = spec_mw
+         end do
+         do j = 1, self%npoa_bin(m)
+            call aero_props%get( m, self%poa_spec(m,j), spec_mw=spec_mw )
+            if (self%mw_poa > 0.0_r8) then
+               if (spec_mw /= self%mw_poa) then
+                  call endrun( subname//': p-organic species molecular weights differ' )
+               end if
+            end if
+            self%mw_poa = spec_mw
+         end do
+      end do
+
+      allocate( self%mw_soa_host(self%nsoa), self%mw_poa_host(self%npoa) )
+      self%mw_soa_host(:) = self%mw_soa
+      self%mw_poa_host(:) = self%mw_poa
+
+   end subroutine soa_exch_init
+
+   !----------------------------------------------------------------------
+   ! computes soa gas uptake tendencies for all grid cells of a chunk
+   ! (levels top_lev to nlev) from the soa gas and soa/poa aerosol mixing
+   ! ratios (mol/mol) in caller arrays:
+   !   soa gas species j:            qgas(i,k,lgas_soa(j))       if do_soag(j)
+   !   soa species j of mode/bin n:  qaer(i,k,laer_soa(n,j))     if laer_soa(n,j) > 0
+   !   poa species j of mode/bin n:  qaer(i,k,laer_poa(n,j))     if laer_poa(n,j) > 0
+   ! (zero otherwise). The tendencies are zero if no soa gas is present.
+   !----------------------------------------------------------------------
+   subroutine soa_exch_tend( self, method_soa, ncol, nlev, top_lev, deltat, temp, pmid, &
+                             do_bin, do_soa, do_soag, uptkrate, &
+                             qgas, lgas_soa, qaer, laer_soa, laer_poa, &
+                             dqdt_soa, sum_dqdt_soa )
+
+      class(soa_exch_t), intent(in) :: self
+      integer,  intent(in)  :: method_soa                     ! soa uptake method
+      integer,  intent(in)  :: ncol                           ! number of columns
+      integer,  intent(in)  :: nlev                           ! number of vertical levels
+      integer,  intent(in)  :: top_lev                        ! top level index for computation
+      real(r8), intent(in)  :: deltat                         ! time step (s)
+      real(r8), intent(in)  :: temp(:,:)                      ! air temperature (K)
+      real(r8), intent(in)  :: pmid(:,:)                      ! air pressure (Pa)
+      logical,  intent(in)  :: do_bin(self%nbins)             ! mode/bin takes part in reversible soa exchange
+      logical,  intent(in)  :: do_soa(self%nbins,self%nsoa)   ! soa species takes up gas in mode/bin
+      logical,  intent(in)  :: do_soag(self%nsoa)             ! soa gas species is present
+      real(r8), intent(in)  :: uptkrate(:,:,:)                ! h2so4 gas-to-aerosol mass transfer rates (1/s)
+      real(r8), intent(in)  :: qgas(:,:,:)                    ! gas mixing ratios (mol/mol)
+      integer,  intent(in)  :: lgas_soa(self%nsoa)            ! qgas index of each soa gas species
+      real(r8), intent(in)  :: qaer(:,:,:)                    ! aerosol mixing ratios (mol/mol)
+      integer,  intent(in)  :: laer_soa(self%nbins,self%nsoa) ! qaer index of each soa species (<= 0 if none)
+      integer,  intent(in)  :: laer_poa(self%nbins,self%npoa) ! qaer index of each poa species (<= 0 if none)
+      real(r8), intent(out) :: dqdt_soa(:,:,:,:)              ! soa aerosol tendencies (mol/mol/s) (i,k,n,jsoa)
+      real(r8), intent(out) :: sum_dqdt_soa(:,:,:)            ! total soa gas uptake (mol/mol/s) (i,k,jsoa)
+                                                              ! -- negative of gas tendency
+
+      integer  :: i, k, n, j, l
+      real(r8) :: soag(ncol,nlev,self%nsoa)
+      real(r8) :: soa(ncol,nlev,self%nbins,self%nsoa)
+      real(r8) :: poa(ncol,nlev,self%nbins,self%npoa)
+
+      if (.not. any(do_soag)) then ! no soa gas, no uptake
+         dqdt_soa(:,:,:,:) = 0.0_r8
+         sum_dqdt_soa(:,:,:) = 0.0_r8
+         return
+      end if
+
+      soag(:,:,:) = 0.0_r8
+      soa(:,:,:,:) = 0.0_r8
+      poa(:,:,:,:) = 0.0_r8
+      do k = top_lev, nlev
+         do i = 1, ncol
+            do j = 1, self%nsoa
+               if (do_soag(j)) soag(i,k,j) = qgas(i,k,lgas_soa(j))
+            end do
+            do n = 1, self%nbins
+               do j = 1, self%nsoa
+                  l = laer_soa(n,j)
+                  if (l > 0) soa(i,k,n,j) = qaer(i,k,l)
+               end do
+               do j = 1, self%npoa
+                  l = laer_poa(n,j)
+                  if (l > 0) poa(i,k,n,j) = qaer(i,k,l)
+               end do
+            end do
+         end do
+      end do
+
+      call aero_gasaerexch_soa_column( method_soa, ncol, nlev, top_lev, deltat, temp, pmid, &
+                                       self%nbins, self%nsoa, self%npoa, do_bin, do_soa, do_soag, uptkrate, &
+                                       self%mw_poa_host, self%mw_soa_host, soag, soa, poa, &
+                                       dqdt_soa, sum_dqdt_soa )
+
+   end subroutine soa_exch_tend
 
    !----------------------------------------------------------------------
    ! partitions the uptake of a non-volatile gas among modes/bins in a grid
@@ -752,6 +920,34 @@ contains
       end do
 
    end subroutine soa_condevap_accum
+
+   !----------------------------------------------------------------------
+   ! adds the soa tendencies of all grid cells of a chunk (levels top_lev
+   ! to nlev) to the condensation and evaporation sums (see accum)
+   !----------------------------------------------------------------------
+   subroutine soa_condevap_accum_column( self, acc, ncol, nlev, top_lev, nbins, mask, fac, dqdt_soa )
+
+      class(soa_condevap_diag_t), intent(in) :: self
+      type(soa_condevap_acc_t), intent(inout) :: acc     ! sums for a chunk
+      integer,  intent(in) :: ncol                       ! number of columns
+      integer,  intent(in) :: nlev                       ! number of vertical levels
+      integer,  intent(in) :: top_lev                    ! top level index for computation
+      integer,  intent(in) :: nbins                      ! number of modes/bins
+      logical,  intent(in) :: mask(nbins,self%nsoa)      ! include mode/bin soa species
+      real(r8), intent(in) :: fac(nbins,self%nsoa)       ! conversion factor to mass mixing ratio (mw/mwdry)
+      real(r8), intent(in) :: dqdt_soa(:,:,:,:)          ! soa tendencies (mol/mol/s) (i,k,n,jsoa)
+
+      integer :: i, k
+      real(r8) :: dqdt_cell(nbins,self%nsoa)
+
+      do k = top_lev, nlev
+         do i = 1, ncol
+            dqdt_cell(:,:) = dqdt_soa(i,k,:,:)
+            call self%accum( acc, i, k, nbins, mask, fac, dqdt_cell )
+         end do
+      end do
+
+   end subroutine soa_condevap_accum_column
 
    !----------------------------------------------------------------------
    ! outputs the SOA condensation/evaporation history fields

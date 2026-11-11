@@ -14,7 +14,7 @@ module carma_aero_gasaerexch
   use ppgrid,          only:  pcols, pver
   use physics_buffer,   only: physics_buffer_desc, pbuf_get_index, pbuf_get_field
   use aerosol_properties_mod, only: aerosol_properties
-  use aero_gasaerexch,  only: soa_condevap_diag_t, col_tend_diag_t
+  use aero_gasaerexch,  only: soa_condevap_diag_t, col_tend_diag_t, soa_exch_t
 
   implicit none
   private
@@ -35,14 +35,10 @@ module carma_aero_gasaerexch
   ! local indexing for bins
   integer :: ncnst_tot                  ! total number of mode number conc + mode species
 
-  real(r8), allocatable :: mw_soa_spec(:,:) ! molecular weight of each bin soa species (from aero_props)
-  real(r8), allocatable :: mw_soa_host(:)   ! molec wght of soa used in host code
-  real(r8), allocatable :: mw_poa_host(:)   ! molec wght of poa used in host code
+  type(soa_exch_t) :: soa_exch             ! soa species configuration (from aero_props)
   integer, allocatable :: dqdtsoa_idx(:,:)
-  integer, allocatable  :: cnsoa(:)         ! number of soa species in each bin
-  integer, allocatable  :: cnpoa(:)         ! number of poa species in each bin
-  integer, allocatable  :: soa_ndx(:,:)     ! species indices within each bin of the soa species
-  integer, allocatable  :: poa_ndx(:,:)     ! species indices within each bin of the poa species
+  integer, allocatable  :: laer_soa(:,:)    ! raervmr indices of the soa species of each bin (0 if none)
+  integer, allocatable  :: laer_poa(:,:)    ! raervmr indices of the poa species of bins with soa (0 if none)
   integer, allocatable  :: l_soag(:)         ! chemistry indices of the soa gas species
 
   logical, allocatable  :: do_soag_any(:)         ! true if soa gas is a species and carma soa in bin
@@ -88,8 +84,7 @@ contains
     use physconst,      only: mwdry
     use mo_chem_utls,   only: get_spc_ndx
     use cam_abortutils, only: endrun
-    use aero_gasaerexch, only: aero_gasaerexch_uptk_diag_init, aero_gasaerexch_spec_ndx, &
-                               aero_gasaerexch_soag_ndx
+    use aero_gasaerexch, only: aero_gasaerexch_uptk_diag_init
 
 !-----------------------------------------------------------------------
 ! arguments
@@ -102,9 +97,6 @@ contains
     integer  :: l
     integer  :: m
     integer  :: ns
-    integer, allocatable :: soag_cnst_ndx(:)
-    real(r8) :: spec_mw
-    real(r8) :: mw_soa, mw_poa
     character(len=*), parameter :: subname = 'carma_aero_gasaerexch_init'
     character(len=128) :: msg
     integer  :: nfld
@@ -123,8 +115,6 @@ contains
     nbins = aero_props%nbins()
 
     allocate( nspec(nbins) )
-    allocate( cnsoa(nbins) )
-    allocate( cnpoa(nbins) )
 
     do m = 1, nbins
        nspec(m) = aero_props%nspecies(m)
@@ -136,75 +126,62 @@ contains
                fldname_cw(ncnst_tot),    &
                fldname(ncnst_tot) )
 
-    ! SOAG / SOA / POM information
-    ! number of SOA species (nsoa) is the number of SOAG (VBS) chemistry species
-
-    call aero_gasaerexch_soag_ndx(soag_cnst_ndx)
-    nsoa = size(soag_cnst_ndx)
-    allocate( l_soag(nsoa) )
-    do j = 1, nsoa
-       l_soag(j) = get_spc_ndx(cnst_name(soag_cnst_ndx(j)))
-    end do
-
-    ! identify SOA and POA species in CARMA bins (CARMA number cn)
-    call aero_gasaerexch_spec_ndx(aero_props, 's-organic', cnsoa, soa_ndx)
-    call aero_gasaerexch_spec_ndx(aero_props, 'p-organic', cnpoa, poa_ndx)
-    ! some bins don't contain soa or poa
-    npoa= maxval(cnpoa)
-
+    ! SOAG / SOA / POM information from the aerosol properties object:
     ! each bin that contains soa has one soa species for each soa gas (SOAG) species,
     ! with soa species j taking up soa gas species j
+    call soa_exch%init(aero_props)
+    nsoa = soa_exch%nsoa
+    npoa = soa_exch%npoa
+
+    if (soa_exch%nsoag /= nsoa) then
+       write(msg,'(a,i0,a,i0,a)') ': number of SOA species (', nsoa, &
+            ') differs from the number of SOAG species (', soa_exch%nsoag, ')'
+       call endrun(subname//trim(msg))
+    end if
     do m = 1, nbins
-       if (cnsoa(m) > 0) then
-          if (cnsoa(m) /= nsoa) then
-             write(msg,'(a,i0,a,i0,a,i0)') ': number of SOA species in bin ', m, ' (', cnsoa(m), &
+       if (soa_exch%nsoa_bin(m) > 0) then
+          if (soa_exch%nsoa_bin(m) /= nsoa) then
+             write(msg,'(a,i0,a,i0,a,i0)') ': number of SOA species in bin ', m, ' (', soa_exch%nsoa_bin(m), &
                   ') differs from the number of SOAG species ', nsoa
              call endrun(subname//trim(msg))
           end if
        end if
     end do
+    if (npoa > 1) then
+       call endrun(subname//': CARMA currently only supports 1 POA element')
+    end if
+
+    allocate( l_soag(nsoa) )
+    do j = 1, nsoa
+       l_soag(j) = get_spc_ndx(cnst_name(soa_exch%soag_cnst(j)))
+    end do
+
+    do m = 1, nbins
+       do_soag_any(m) = soa_exch%nsoa_bin(m)>0
+    end do
+
+    ! raervmr indices of the soa species, and of the poa species in bins that contain soa
+    allocate( laer_soa(nbins,nsoa), laer_poa(nbins,npoa) )
+    laer_soa(:,:) = 0
+    laer_poa(:,:) = 0
+    do m = 1, nbins
+       if (do_soag_any(m)) then
+          do ns = 1, soa_exch%nsoa_bin(m)
+             laer_soa(m,ns) = aero_props%indexer(m,soa_exch%soa_spec(m,ns))
+          end do
+          do ns = 1, soa_exch%npoa_bin(m)
+             laer_poa(m,ns) = aero_props%indexer(m,soa_exch%poa_spec(m,ns))
+          end do
+       end if
+    end do
 
     allocate( dqdtsoa_idx(nbins,nsoa)                       )
     do m = 1, nbins
-       do ns = 1, cnsoa(m)
-          call aero_props%mmr_names(m, soa_ndx(m,ns), spec_name, spec_name_cw)
+       do ns = 1, soa_exch%nsoa_bin(m)
+          call aero_props%mmr_names(m, soa_exch%soa_spec(m,ns), spec_name, spec_name_cw)
           dqdtsoa_idx(m,ns) = pbuf_get_index('DQDT_'//trim(spec_name))
        end do
     end do
-
-    do m = 1, nbins
-       do_soag_any(m) = cnsoa(m)>0
-    end do
-
-    ! SOA and POA molecular weights from the aerosol properties object;
-    ! the SOA solver uses a single molecular weight for SOA (POA)
-    allocate( mw_soa_spec(nbins,nsoa), mw_soa_host(nsoa), mw_poa_host(npoa) )
-    mw_soa_spec(:,:) = -huge(1.0_r8)
-    mw_soa = -huge(1.0_r8)
-    mw_poa = -huge(1.0_r8)
-    do m = 1, nbins
-       do ns = 1, cnsoa(m)
-          call aero_props%get(m, soa_ndx(m,ns), spec_mw=spec_mw)
-          if (mw_soa > 0._r8) then
-             if (spec_mw /= mw_soa) then
-                call endrun(subname//': s-organic species molecular weights differ')
-             end if
-          end if
-          mw_soa_spec(m,ns) = spec_mw
-          mw_soa = spec_mw
-       end do
-       do ns = 1, cnpoa(m)
-          call aero_props%get(m, poa_ndx(m,ns), spec_mw=spec_mw)
-          if (mw_poa > 0._r8) then
-             if (spec_mw /= mw_poa) then
-                call endrun(subname//': p-organic species molecular weights differ')
-             end if
-          end if
-          mw_poa = spec_mw
-       end do
-    end do
-    mw_soa_host(:) = mw_soa
-    mw_poa_host(:) = mw_poa
 
 !---------define history fields for new cond/evap diagnostics----------------------------------------
 !   totals over all SOA species and per SOAG (VBS) species
@@ -214,13 +191,13 @@ contains
     do m = 1, nbins
        condevap_mask(m,:) = do_soag_any(m)
     end do
-    condevap_fac(:,:) = mw_soa/mwdry
+    condevap_fac(:,:) = soa_exch%mw_soa/mwdry
 
 !------------------------------------------------------------------------------
 
 !  define history fields for basic gas-aer exchange
     allocate( sfgaex1_fld(nbins,nsoa) )
-    allocate( sfgaex1_names(sum(cnsoa)) )
+    allocate( sfgaex1_names(sum(soa_exch%nsoa_bin)) )
     sfgaex1_fld(:,:) = 0
     nfld = 0
     do m = 1, nbins
@@ -229,8 +206,8 @@ contains
           call aero_props%mmr_names(m, l, fldname(ii), fldname_cw(ii))
        end do
        ! only write out SOA exchange here
-       do ns = 1, cnsoa(m)
-          ii = aero_props%indexer(m,soa_ndx(m,ns))
+       do ns = 1, soa_exch%nsoa_bin(m)
+          ii = laer_soa(m,ns)
           nfld = nfld + 1
           sfgaex1_names(nfld) = fldname(ii)
           sfgaex1_fld(m,ns) = nfld
@@ -265,7 +242,7 @@ subroutine carma_aero_gasaerexch_sub(  aero_props, aero_state,  &
   use cam_abortutils,    only: endrun
   use aerosol_state_mod, only: aerosol_state
   use physconst, only: mwdry, rair
-  use aero_gasaerexch,   only: aero_gasaerexch_uptkrates, aero_gasaerexch_soa_column, &
+  use aero_gasaerexch,   only: aero_gasaerexch_uptkrates, &
                                aero_gasaerexch_uptk_diag_out, soa_condevap_acc_t, &
                                method_soa_reversible
 
@@ -308,16 +285,13 @@ subroutine carma_aero_gasaerexch_sub(  aero_props, aero_state,  &
   integer :: i
   integer :: j, jsoa
   integer :: k
-  integer :: mm, m, n, nn
+  integer :: m, n
 
 
   real (r8) :: dqdt_soa_bin(nbins,nsoa)
   real (r8) :: dqdt_soa_all(pcols,pver,nbins,nsoa)
   real (r8) :: pdel_fac
   real (r8) :: num_bin(pcols,pver,nbins)
-  real (r8) :: soa_c(pcols,pver,nbins,nsoa) ! SOA from CARMA
-  real (r8) :: poa_c(pcols,pver,nbins,npoa) ! POA from CARMA
-  real (r8) :: soag_col(ncol,pver,nsoa)               ! SOAG gas
   real (r8) :: dqdt_soa_col(pcols,pver,nbins,nsoa)    ! SOA tendencies
   real (r8) :: sum_dqdt_soa_col(pcols,pver,nsoa)      ! SOAG uptake (negative of gas tendency)
   real (r8) :: sum_dqdt_soa(nsoa)         !   sum_dqdt_soa = soa tendency from soa  gas uptake (mol/mol/s)
@@ -338,32 +312,17 @@ subroutine carma_aero_gasaerexch_sub(  aero_props, aero_state,  &
   real(r8), pointer :: nmr(:,:)
 
 !----------------------------------------------------------------------
-!  map CARMA soa to working soa(nbins,nsoa)
+!  bin number densities of bins that contain soa
 
   num_bin(:,:,:) = 0._r8
-  soa_c(:,:,:,:) = 0._r8
-  poa_c(:,:,:,:) = 0._r8
 
   rhoair(:ncol,:) = pmid(:ncol,:)/(rair*t(:ncol,:))   ! (kg-air/m3)
 
   do m = 1, nbins      ! main loop over aerosol bins
      if (do_soag_any(m)) then  ! only bins that contain soa
-        do n = 1, cnsoa(m)
-           mm = aero_props%indexer(m,soa_ndx(m,n))
-           soa_c(:ncol,:,m,n) = raervmr(:ncol,:,mm)
-        end do
-        do nn = 1, cnpoa(m)
-           mm = aero_props%indexer(m,poa_ndx(m,nn))
-           poa_c(:ncol,:,m,nn) = raervmr(:ncol,:,mm)
-        end do
-        if (npoa .gt. 1) then
-           call endrun( 'carma_aero_gasaerexch_sub error: CARMA currently only supports 1 POA element' )
-        end if
-
         ! get bin number densities for all aerosols
         call aero_state%get_ambient_num(m,nmr) !  #/kg
         num_bin(:ncol,:,m) = nmr(:ncol,:)*rhoair(:ncol,:) ! #/m3
-
      end if
   end do
 
@@ -392,14 +351,14 @@ subroutine carma_aero_gasaerexch_sub(  aero_props, aero_state,  &
   do_soag(:) = .true.
 
 !   compute tendencies for soag gas and soa interstitial aerosol in all grid cells
-!   (soa_c is used only in bins that contain soa; poa_c is zero in other bins)
-  do jsoa = 1, nsoa
-     soag_col(:ncol,:,jsoa) = q(:ncol,:,l_soag(jsoa))
-  end do
-  call aero_gasaerexch_soa_column( method_soa, ncol, pver, top_lev, deltat, t, pmid, &
-       nbins, nsoa, npoa, do_soag_any, do_soa, do_soag, uptkrate, &
-       mw_poa_host, mw_soa_host, soag_col, soa_c, poa_c, &
+!   (soa and poa from raervmr in bins that contain soa)
+  call soa_exch%tend( method_soa, ncol, pver, top_lev, deltat, t, pmid, &
+       do_soag_any, do_soa, do_soag, uptkrate, &
+       q, l_soag, raervmr, laer_soa, laer_poa, &
        dqdt_soa_col, sum_dqdt_soa_col )
+
+!------- condensation/evaporation diagnostics sum of all bins
+  call soa_diag%accum_column( condevap, ncol, pver, top_lev, nbins, condevap_mask, condevap_fac, dqdt_soa_col )
 
   dqdt_soa_all(:,:,:,:) = 0.0_r8
   do k=top_lev,pver
@@ -418,9 +377,6 @@ subroutine carma_aero_gasaerexch_sub(  aero_props, aero_state,  &
               end do
            end if
         end do ! n
-
-!------- condensation/evaporation diagnostics sum of all bins
-        call soa_diag%accum( condevap, i, k, nbins, condevap_mask, condevap_fac, dqdt_soa_bin )
 
 !   compute TMR tendencies for SAOG gas
 !   due to simple gas uptake
@@ -449,13 +405,13 @@ subroutine carma_aero_gasaerexch_sub(  aero_props, aero_state,  &
   !   do history file of column-tendency fields over SOA fields (as defined in CARMA) and set pointer
   do m = 1, nbins
      if (do_soag_any(m)) then
-        do j = 1, cnsoa(m)
-           call sfgaex1_diag%outfld( sfgaex1_fld(m,j), ncol, lchnk, mw_soa_spec(m,j)/mwdry, qsrflx(:,m,j) )
+        do j = 1, soa_exch%nsoa_bin(m)
+           call sfgaex1_diag%outfld( sfgaex1_fld(m,j), ncol, lchnk, soa_exch%mw_soa/mwdry, qsrflx(:,m,j) )
 
            !set pointer field
            call pbuf_get_field(pbuf, dqdtsoa_idx(m,j),  dqdt_soa )
 
-           dqdt_soa(:ncol,:) = dqdt_soa_all(:ncol,:,m,j) *(mw_soa_spec(m,j)/mbar(:ncol,:))
+           dqdt_soa(:ncol,:) = dqdt_soa_all(:ncol,:,m,j) *(soa_exch%mw_soa/mbar(:ncol,:))
         end do ! j = ...
      end if
   end do ! m = ...
