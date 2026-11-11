@@ -15,7 +15,7 @@
   use chem_mods,       only:  gas_pcnst
   use ref_pres,        only:  top_lev => clim_modal_aero_top_lev
   use ppgrid,          only:  pcols, pver
-  use aero_gasaerexch, only: soa_condevap_diag_t, col_tend_diag_t
+  use aero_gasaerexch, only: soa_condevap_diag_t, col_tend_diag_t, soa_exch_t
 
   implicit none
   private
@@ -66,8 +66,9 @@
   integer :: mode_accum = -1                    ! accumulation mode (<= 0 if none)
   character(len=32), allocatable :: cw_cnst_name(:) ! cloud-borne name of each aerosol constituent
 
-! numbers of soa and poa species (maximum over the modes),
-! set from the aerosol properties object
+! soa species configuration and numbers of soa and poa species (maximum
+! over the modes), set from the aerosol properties object
+  type(soa_exch_t) :: soa_exch
   integer :: nsoa = 0
   integer :: npoa = 0
 
@@ -77,12 +78,6 @@
   integer, allocatable :: nh4_a_ndx(:)      ! ammonium
   integer, allocatable :: soa_a_ndx(:,:)    ! secondary organic aerosol species
   integer, allocatable :: pom_a_ndx(:,:)    ! primary organic matter species
-
-! constituent indices of the soa gas species (<= 0 if absent)
-  integer, allocatable :: soag_cnst_ndx(:)
-
-  real(r8), allocatable :: mw_soa_host(:)   ! molec wght of soa used in host code
-  real(r8), allocatable :: mw_poa_host(:)   ! molec wght of poa used in host code
 
   type(soa_condevap_diag_t) :: soa_diag     ! SOA condensation/evaporation diagnostics
 
@@ -132,7 +127,7 @@ subroutine modal_aero_gasaerexch_sub(                            &
 
 ! !USES:
 use modal_aero_rename, only:  modal_aero_rename_sub
-use aero_gasaerexch,   only:  aero_gasaerexch_uptkrates, aero_gasaerexch_soa_column, &
+use aero_gasaerexch,   only:  aero_gasaerexch_uptkrates, &
                               aero_gasaerexch_partition, aero_gasaerexch_reversible, &
                               aero_gasaerexch_nh4_limit, h2so4_diffus_ratio, &
                               nh3_diffus_ratio, method_soa_reversible, soa_condevap_acc_t
@@ -214,6 +209,8 @@ implicit none
    integer :: l_so4g, l_nh4g, l_msag
    integer :: l_soag(nsoa)
    integer :: n, ntot_soamode
+   integer :: laer_soa(nmodes,nsoa)  ! q index of the soa species loaded for the soa exchange (0 if none)
+   integer :: laer_poa(nmodes,npoa)  ! q index of the poa species loaded for the soa exchange (0 if none)
 
    logical :: is_dorename_atik, dorename_atik(ncol,pver)
 
@@ -225,9 +222,6 @@ implicit none
    real (r8) :: fgain_nh4(nmodes), fgain_so4(nmodes)
    real (r8) :: pdel_fac
    real (r8) :: qold_nh4(nmodes), qold_so4(nmodes)
-   real (r8) :: soag_col(pcols,pver,nsoa)          ! soa gas mixing ratios
-   real (r8) :: soa_col(pcols,pver,nmodes,nsoa)    ! soa aerosol mixing ratios
-   real (r8) :: poa_col(pcols,pver,nmodes,npoa)    ! poa aerosol mixing ratios
    real (r8) :: dqdt_soa_col(pcols,pver,nmodes,nsoa) ! soa aerosol tendencies
    real (r8) :: sum_dqdt_soa_col(pcols,pver,nsoa)  ! soa gas uptake (negative of gas tendency)
    real (r8) :: sum_dqdt_msa, sum_dqdt_so4
@@ -301,7 +295,7 @@ implicit none
    do_soag_any = .false.
    do_soag(:) = .false.
    do jsoa = 1, nsoa
-      l_soag(jsoa) = soag_cnst_ndx(jsoa) - loffset
+      l_soag(jsoa) = soa_exch%soag_cnst(jsoa) - loffset
       if ((method_soa == 1) .or. (method_soa == 2)) then
          if ((l_soag(jsoa) > 0) .and. (l_soag(jsoa) <= pcnstxx)) then
             do_soag_any = .true.
@@ -444,39 +438,27 @@ implicit none
    end do
 
 ! compute TMR tendencies for soag and soa interstial aerosol in all grid cells
-   soag_col(:,:,:) = 0.0_r8
-   soa_col(:,:,:,:) = 0.0_r8
-   poa_col(:,:,:,:) = 0.0_r8
-   if ( do_soag_any ) then
-      do k = top_lev, pver
-         do i = 1, ncol
-            do jsoa = 1, nsoa
-               if ( do_soag(jsoa) ) soag_col(i,k,jsoa) = q(i,k,l_soag(jsoa))
-            end do
-            do n = 1, nmodes
-               do jsoa = 1, nsoa
-                  if (ido_soaa(n,jsoa) == 1) then
-                     soa_col(i,k,n,jsoa) = q(i,k,soa_a_ndx(n,jsoa)-loffset)
-                  end if
-               end do
-               if ( do_poa(n) ) then
-                  do j = 1, npoa
-                     l = pom_a_ndx(n,j)-loffset
-                     if (l > 0) poa_col(i,k,n,j) = q(i,k,l)
-                  end do
-               end if
-            end do
-         end do
+! (soa loaded only for species with ido_soaa = 1; poa only in modes with do_poa)
+   laer_soa(:,:) = 0
+   laer_poa(:,:) = 0
+   do n = 1, nmodes
+      do jsoa = 1, nsoa
+         if (ido_soaa(n,jsoa) == 1) laer_soa(n,jsoa) = soa_a_ndx(n,jsoa)-loffset
       end do
+      if ( do_poa(n) ) then
+         do j = 1, npoa
+            l = pom_a_ndx(n,j)-loffset
+            if (l > 0) laer_poa(n,j) = l
+         end do
+      end if
+   end do
+   call soa_exch%tend( method_soa, ncol, pver, top_lev, deltat, t, pmid, &
+        do_soamode, do_soa, do_soag, uptkrate, &
+        q, l_soag, q, laer_soa, laer_poa, &
+        dqdt_soa_col, sum_dqdt_soa_col )
 
-      call aero_gasaerexch_soa_column( method_soa, ncol, pver, top_lev, deltat, t, pmid, &
-           nmodes, nsoa, npoa, do_soamode, do_soa, do_soag, uptkrate, &
-           mw_poa_host, mw_soa_host, soag_col, soa_col, poa_col, &
-           dqdt_soa_col, sum_dqdt_soa_col )
-   else ! no soa gas, no uptake
-      dqdt_soa_col(:,:,:,:) = 0.0_r8
-      sum_dqdt_soa_col(:,:,:) = 0.0_r8
-   end if
+!------- condensation/evaporation diagnostics
+   call soa_diag%accum_column( condevap, ncol, pver, top_lev, nmodes, condevap_mask, condevap_fac, dqdt_soa_col )
 
 
 ! use this for tendency calcs to avoid generating very small negative values
@@ -586,9 +568,6 @@ implicit none
                end if
             end do
          end do ! n
-
-!------- condensation/evaporation diagnostics
-         call soa_diag%accum( condevap, i, k, nmodes, condevap_mask, condevap_fac, dqdt_soa )
 
 !   compute TMR tendencies for h2so4, nh3, and msa gas
 !   due to simple gas uptake
@@ -977,7 +956,7 @@ aa_iqfrm: do iqfrm = -1, nspec_mode(mfrm)
       do_soag_any = .false.
       do_soag(:) = .false.
       do jsoa = 1, nsoa
-         l = soag_cnst_ndx(jsoa)
+         l = soa_exch%soag_cnst(jsoa)
          if ((l > 0) .and. (l <= pcnst)) then
             do_soag_any = .true.
             do_soag(jsoa) = .true.
@@ -1289,7 +1268,7 @@ aa_iqfrm: do iqfrm = -1, nspec_mode(mfrm)
       subroutine set_species_ndx(aero_props)
 
       use aerosol_properties_mod, only: aerosol_properties, aero_name_len
-      use aero_gasaerexch, only: aero_gasaerexch_spec_ndx, aero_gasaerexch_soag_ndx
+      use aero_gasaerexch, only: aero_gasaerexch_spec_ndx
       use constituents,   only: pcnst, cnst_get_ind
       use cam_abortutils, only: endrun
       use modal_aero_data, only: lptr_so4_a_amode, lptr_nh4_a_amode, &
@@ -1300,37 +1279,24 @@ aa_iqfrm: do iqfrm = -1, nspec_mode(mfrm)
 
       integer :: m, j
       integer :: nspec_typ(nmodes)
-      integer :: nspec_soa(nmodes), nspec_poa(nmodes)
       integer, allocatable :: spec_ndx(:,:)
-      integer, allocatable :: spec_ndx_soa(:,:), spec_ndx_poa(:,:)
-      integer, allocatable :: soag_ndx(:)
-      real(r8) :: spec_mw
-      logical :: mw_soa_set
       character(len=128) :: msg
       character(len=*), parameter :: subname = 'modal_aero_gasaerexch::set_species_ndx'
 
-      ! numbers of soa and poa species
-      call aero_gasaerexch_spec_ndx(aero_props, 's-organic', nspec_soa, spec_ndx_soa)
-      call aero_gasaerexch_spec_ndx(aero_props, 'p-organic', nspec_poa, spec_ndx_poa)
-      nsoa = maxval(nspec_soa)
-      npoa = maxval(nspec_poa)
+      ! soa and poa species, soa gas species and soa/poa molecular weights
+      call soa_exch%init(aero_props)
+      nsoa = soa_exch%nsoa
+      npoa = soa_exch%npoa
 
       allocate(so4_a_ndx(nmodes))
       allocate(nh4_a_ndx(nmodes))
       allocate(soa_a_ndx(nmodes,nsoa))
       allocate(pom_a_ndx(nmodes,npoa))
-      allocate(soag_cnst_ndx(nsoa))
-      allocate(mw_soa_host(nsoa))
-      allocate(mw_poa_host(npoa))
 
       so4_a_ndx(:) = -1
       nh4_a_ndx(:) = -1
       soa_a_ndx(:,:) = -1
       pom_a_ndx(:,:) = -1
-      soag_cnst_ndx(:) = -1
-      mw_soa_host(:) = -huge(1.0_r8)
-      mw_poa_host(:) = -huge(1.0_r8)
-      mw_soa_set = .false.
 
       ! sulfate and ammonium -- the last species of the type in a mode is used
       call aero_gasaerexch_spec_ndx(aero_props, 'sulfate', nspec_typ, spec_ndx)
@@ -1343,32 +1309,13 @@ aa_iqfrm: do iqfrm = -1, nspec_mode(mfrm)
          if (nspec_typ(m) > 0) nh4_a_ndx(m) = cnst_ndx(m, spec_ndx(m,nspec_typ(m)))
       end do
 
-      ! the last s-organic (p-organic) species found sets the soa (poa) molecular weight
       do m = 1, nmodes
-         do j = 1, nspec_soa(m)
-            soa_a_ndx(m,j) = cnst_ndx(m, spec_ndx_soa(m,j))
-            call aero_props%get(m, spec_ndx_soa(m,j), spec_mw=spec_mw)
-            mw_soa_host(:) = spec_mw
-            mw_soa_set = .true.
+         do j = 1, soa_exch%nsoa_bin(m)
+            soa_a_ndx(m,j) = cnst_ndx(m, soa_exch%soa_spec(m,j))
          end do
-      end do
-
-      do m = 1, nmodes
-         do j = 1, nspec_poa(m)
-            pom_a_ndx(m,j) = cnst_ndx(m, spec_ndx_poa(m,j))
-            call aero_props%get(m, spec_ndx_poa(m,j), spec_mw=spec_mw)
-            mw_poa_host(:) = spec_mw
+         do j = 1, soa_exch%npoa_bin(m)
+            pom_a_ndx(m,j) = cnst_ndx(m, soa_exch%poa_spec(m,j))
          end do
-      end do
-
-      if (nsoa > 0 .and. .not. mw_soa_set) then
-         call endrun(subname//': no s-organic species found')
-      end if
-
-      ! soa gas species
-      call aero_gasaerexch_soag_ndx(soag_ndx)
-      do j = 1, min(nsoa, size(soag_ndx))
-         soag_cnst_ndx(j) = soag_ndx(j)
       end do
 
       ! check consistency with the modal_aero_data species counts and pointers
@@ -1387,8 +1334,9 @@ aa_iqfrm: do iqfrm = -1, nspec_mode(mfrm)
          end do
       end do
       do j = 1, nsoa
-         if (soag_cnst_ndx(j) /= lptr2_soa_g_amode(j)) then
-            write(msg,'(a,3i8)') subname//': inconsistent soa gas index ', j, soag_cnst_ndx(j), lptr2_soa_g_amode(j)
+         if (soa_exch%soag_cnst(j) /= lptr2_soa_g_amode(j)) then
+            write(msg,'(a,3i8)') subname//': inconsistent soa gas index ', j, soa_exch%soag_cnst(j), &
+                 lptr2_soa_g_amode(j)
             call endrun(trim(msg))
          end if
       end do

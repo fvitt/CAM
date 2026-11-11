@@ -27,8 +27,8 @@ Purpose of changes (include the issue number and title text for each relevant Gi
        procedure loads the SOAG/SOA/POA column arrays from caller arrays
        and index tables and computes the SOA uptake for the chunk, and the
        SOA condensation/evaporation diagnostics are accumulated for the
-       chunk (accum_column). CARMA uses these for its SOA uptake; the
-       caller supplies the mode/bin masks (MAM: its mode masks and POA
+       chunk (accum_column). MAM and CARMA both use these for their SOA
+       uptake; the caller supplies the mode/bin masks (MAM: its mode masks and POA
        rule).
        Also, for non-volatile gases in a grid cell: partitioning of uptake
        among modes/bins and time-averaged uptake, reversible uptake toward
@@ -56,6 +56,11 @@ Purpose of changes (include the issue number and title text for each relevant Gi
    modal_aero_data except for a temporary initialization cross-check: all of
    these values are compared with modal_aero_data at initialization (endrun
    on any mismatch).
+   The SOA/POA species, SOAG indices and SOA/POA molecular weights come
+   from the shared soa_exch_t; initialization now stops if the SOA (or
+   POA) species have different molecular weights (previously the last
+   species found was used; all current mechanisms have a single SOA and a
+   single POA molecular weight).
    MAM's H2SO4/MSA/NH3 condensation, stratospheric sulfeq treatment and
    NH4/SO4 limit use shared routines (aero_gasaerexch); MAM keeps its gas
    indices, mode flags and the choice of the sulfeq treatment.
@@ -228,7 +233,9 @@ M   src/chemistry/modal_aero/modal_aero_gasaerexch.F90
    explicit use lists in modal_aero_gasaerexch_init; commented-out
    diagnostics code and unused variables removed; mode information for
    aging and number density from the aerosol properties object
-   (modal_aero_data used only in initialization cross-checks); H2SO4/MSA/NH3
+   (modal_aero_data used only in initialization cross-checks); SOA
+   species configuration, SOA uptake and condensation/evaporation
+   diagnostics through the shared soa_exch_t; H2SO4/MSA/NH3
    condensation through shared aero_gasaerexch routines; wet diameter from
    aero_state%wet_diameter; unused spmd_utils import removed
 
