@@ -329,7 +329,7 @@ subroutine carma_aero_gasaerexch_sub(  state, &
   real(r8), intent(in)    :: pmid(pcols,pver)     ! pressure at model levels (Pa)
   real(r8), intent(in)    :: pdel(pcols,pver)     ! pressure thickness of levels (Pa)
   real(r8), intent(in)    :: qh2o(pcols,pver)     ! water vapor mixing ratio (kg/kg)
-  real(r8), intent(in)    :: wetr_n(pcols,pver,nbins) !wet geo. mean dia. (cm) of number distrib.
+  real(r8), intent(in)    :: wetr_n(pcols,pver,nbins) ! wet radius (cm) of each bin
 
 ! !DESCRIPTION:
 ! this version does only do condensation for SOA for CARMA
@@ -717,39 +717,31 @@ subroutine gas_aer_uptkrates( ncol,       loffset,                &
                               wetr,                     uptkrate    )
 
 !
-!                         /
-!   computes   uptkrate = | dx  dN/dx  gas_conden_rate(Dp(x))
-!                         /
-!   using Gauss-Hermite quadrature of order nghq=2
+!   computes   uptkrate = N * gas_conden_rate(Dp)
+!   for each bin, treating the bin as monodisperse
 !
-!       Dp = particle diameter (cm)
-!       x = ln(Dp)
-!       dN/dx = log-normal particle number density distribution
+!       Dp = particle wet diameter (m) = 2 * wet radius
+!       N = bin number density (#/m3)
 !       gas_conden_rate(Dp) = 2 * pi * gasdiffus * Dp * F(Kn,ac)
 !           F(Kn,ac) = Fuchs-Sutugin correction factor
 !           Kn = Knudsen number
 !           ac = accomodation coefficient
 !
+  use physconst, only: pi
 
   integer,  intent(in) :: ncol                 ! number of atmospheric column
   integer,  intent(in) :: loffset
   real(r8), intent(in) :: t(pcols,pver)        ! Temperature in Kelvin
   real(r8), intent(in) :: pmid(pcols,pver)     ! Air pressure in Pa
-  real(r8), intent(in) :: wetr(pcols,pver,nbins)
-  real(r8), intent(in) :: num_bin(pcols,pver,nbins)
+  real(r8), intent(in) :: wetr(pcols,pver,nbins)    ! wet radius (cm)
+  real(r8), intent(in) :: num_bin(pcols,pver,nbins) ! number density (#/m3)
 
   real(r8), intent(out) :: uptkrate(pcols,pver,nbins)
   ! gas-to-aerosol mass transfer rates (1/s)
 
 
 ! local
-  integer, parameter :: nghq = 2
   integer :: i, k, n
-
-  ! Can use sqrt here once Lahey is gone.
-  real(r8), parameter :: tworootpi = 3.5449077_r8
-  real(r8), parameter :: root2 = 1.4142135_r8
-  real(r8), parameter :: beta = 2.0_r8
 
   real(r8) :: const
   real(r8) :: dp
@@ -775,8 +767,8 @@ subroutine gas_aer_uptkrates( ncol,       loffset,                &
               gasspeed  = 1.470e1_r8 * sqrt(t(i,k))
 !   freepathx2 = 2 * (h2so4 mean free path)  (m)
               freepathx2 = 6.0_r8*gasdiffus/gasspeed
-              dp = wetr(i,k,n) * 1.e-2_r8 ! meters
-              const = tworootpi * num_bin(i,k,n) * 2.0_r8 * dp
+              dp = 2.0_r8 * wetr(i,k,n) * 1.e-2_r8 ! wet diameter (m)
+              const = 2.0_r8 * pi * num_bin(i,k,n) * dp
               ! gas_conden_rate(Dp) = const *  gasdiffus *  F(Kn,ac)
               !   knudsen number
               knudsen = freepathx2/dp
@@ -846,8 +838,8 @@ subroutine carma_aero_soaexch( dtfull, temp, pres, &
 
   logical :: skip_soamode(nbins)   ! true if this bin does not have soa
 
-  real(r8), parameter :: a_min1 = 1.0e-40_r8
-  real(r8), parameter :: g_min1 = 1.0e-40_r8
+  real(r8), parameter :: a_min1 = 1.0e-20_r8
+  real(r8), parameter :: g_min1 = 1.0e-20_r8
   real(r8), parameter :: alpha = 0.05_r8     ! parameter used in calc of time step
   real(r8), parameter :: dtsub_fixed = -1.0_r8  ! fixed sub-step for time integration (s)
 
@@ -884,8 +876,8 @@ subroutine carma_aero_soaexch( dtfull, temp, pres, &
 
   ! New SOA properties added by Manish Shrivastava on 09/27/2012
   if (ntot_soaspec ==1) then
-     p0_soa_298(:) = 1.0e-12_r8
-     delh_vap_soa(:) = 156.0e3_r8
+     p0_soa_298(:) = 9.7831E-11_r8
+     delh_vap_soa(:) = 131.0e3_r8
      opoa_frac(:) = 0.0_r8
   elseif (ntot_soaspec ==2) then
      ! same for anthropogenic and biomass burning species

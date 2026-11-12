@@ -1,5 +1,95 @@
 ===============================================================
 
+Tag name: TBD
+Originator(s): fvitt
+Date: TBD
+One-line Summary: CARMA SOA gas-aerosol exchange fixes; SOAG composition for waccm_ma_noaero
+Github PR URL: TBD
+
+Purpose of changes (include the issue number and title text for each relevant GitHub issue):
+ TBD (#issue): <issue title>
+
+ - CARMA SOA gas-aerosol exchange (carma_aero_gasaerexch):
+     - condensation sink corrected: the bin wet radius was used as a
+       diameter (doubling the Knudsen number) and a factor of sqrt(pi)
+       was missing (2*sqrt(pi)*N*Dp, left over from the modal
+       Gauss-Hermite form, is now 2*pi*N*Dp); each bin is treated as
+       monodisperse at its wet diameter
+     - the SOA solver uses the MAM minimum-value parameters (a_min1,
+       g_min1 = 1e-20, were 1e-40) and the MAM volatility parameters for
+       a single SOA species (p0_soa_298 = 9.7831e-11 atm, was 1.0e-12;
+       delh_vap_soa = 131 kJ/mol, was 156)
+ - waccm_ma_noaero chemistry (used with CARMA trop_strat_soa1, CARMAWM):
+   SOAG elemental composition changed from C to C15H38O2 for consistency
+   with the SOA molecular weight used in the SOA scheme.
+ These are the answer-changing CARMA changes of the gas-aerosol exchange
+ refactoring (branch gasaerexch_refactor), separated from it.
+
+Describe any changes made to build system: N/A
+
+Describe any changes made to the namelist: N/A
+
+List any changes to the defaults for the boundary datasets: N/A
+
+Describe any substantial timing or memory changes: N/A
+
+Code reviewed by: TBD
+
+List all files eliminated: N/A
+
+List all files added and what they do: N/A
+
+List all existing files that have been modified, and describe the changes:
+
+M   src/chemistry/carma_aero/carma_aero_gasaerexch.F90
+ - correct the condensation sink (monodisperse bins at the wet diameter,
+   2*pi factor)
+ - MAM a_min1/g_min1 and single-species volatility parameters in the SOA
+   solver
+
+M   src/chemistry/pp_waccm_ma_noaero/chem_mech.doc
+M   src/chemistry/pp_waccm_ma_noaero/chem_mech.in
+M   src/chemistry/pp_waccm_ma_noaero/mo_sim_dat.F90
+ - SOAG elemental composition C15H38O2 (was C)
+
+If there were any failures reported from running test_driver.sh on any test
+platform, and checkin with these failures has been OK'd by the gatekeeper,
+then copy the lines from the td.*.status files for the failed tests to the
+appropriate machine below.  All failed tests must be justified.
+
+derecho/intel/aux_cam: TBD
+
+derecho/nvhpc/aux_cam: TBD
+
+izumi/nag/aux_cam: TBD
+
+izumi/gnu/aux_cam: TBD
+
+CAM tag used for the baseline comparison tests if different than previous
+tag:
+
+Summarize any changes to answers, i.e.,
+- what code configurations: CARMA trop_strat SOA configurations
+  (CARMATS: condensation sink and a_min1/g_min1; CARMAWM: all changes)
+- what platforms/compilers: all
+- nature of change (roundoff; larger than roundoff but same climate; new
+  climate): larger than roundoff; climate impact TBD
+
+If bitwise differences were observed, how did you show they were no worse
+than roundoff?
+
+If this tag changes climate describe the run(s) done to evaluate the new
+climate in enough detail that it(they) could be reproduced, i.e.,
+- source tag (all code used must be in the repository): TBD
+- platform/compilers:
+- configure commandline:
+- build-namelist command (or complete namelist):
+- MSS location of output:
+
+MSS location of control simulations used to validate new climate:
+
+===============================================================
+
 Tag name: cam6_4_209
 Originator(s): peverwhee, cecilehannay, tilmes, brianpm
 Date: Oct 12, 2026
