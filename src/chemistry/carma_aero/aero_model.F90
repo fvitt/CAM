@@ -575,7 +575,7 @@ contains
     real(r8) ::  xphlwc(ncol,pver)                    ! pH value multiplied by lwc
     real(r8) ::  nh3_beg(ncol,pver)
     real(r8) ::  mw_carma(ncnst_tot)
-    real(r8) :: wetr(pcols,pver)   ! CARMA wet radius in cm
+    real(r8) :: wetr(pcols,pver)   ! CARMA wet radius in meters
     real(r8) :: wetrho(pcols,pver)   ! CARMA wet dens
     real(r8), allocatable :: rmass(:)     ! CARMA rmass
 
@@ -646,18 +646,17 @@ contains
 
        read(bin_name(nchr+1:),*) ibin
 
-       call carma_get_wet_radius(state, igroup, ibin, wetr, wetrho, rc) ! m
+       call carma_get_wet_radius(state, igroup, ibin, wetr, wetrho, rc) ! meters
        if (rc/=0) then
           call endrun(subname//': ERROR in carma_get_wet_radius')
        end if
-       wetr(:ncol,:) = wetr(:ncol,:) * 1.e2_r8 ! cm
 
        call carma_get_bin_rmass(igroup, ibin, rmass(m), rc) ! grams
        if (rc/=0) then
           call endrun(subname//': ERROR in carma_get_bin_rmass')
        end if
 
-       wetr_n(:,:,m) = wetr(:,:)
+       wetr_n(:,:,m) = wetr(:,:) ! meters
 
        ! Init pointers to mode number and specie mass mixing ratios in
        ! intersitial and cloud borne phases.

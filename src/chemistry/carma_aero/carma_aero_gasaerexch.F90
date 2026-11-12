@@ -329,7 +329,7 @@ subroutine carma_aero_gasaerexch_sub(  state, &
   real(r8), intent(in)    :: pmid(pcols,pver)     ! pressure at model levels (Pa)
   real(r8), intent(in)    :: pdel(pcols,pver)     ! pressure thickness of levels (Pa)
   real(r8), intent(in)    :: qh2o(pcols,pver)     ! water vapor mixing ratio (kg/kg)
-  real(r8), intent(in)    :: wetr_n(pcols,pver,nbins) ! wet radius (cm) of each bin
+  real(r8), intent(in)    :: wetr_n(pcols,pver,nbins) ! wet radius (m) of each bin
 
 ! !DESCRIPTION:
 ! this version does only do condensation for SOA for CARMA
@@ -509,7 +509,7 @@ subroutine carma_aero_gasaerexch_sub(  state, &
      call outfld(fieldname, num_bin(:ncol,:,m), ncol, lchnk )
 
      write(fieldname,'("WETRAD_bin",I2.2)') m
-     call outfld(fieldname, wetr_n(:ncol,:,m), ncol, lchnk )
+     call outfld(fieldname, wetr_n(:ncol,:,m)*1.e2_r8, ncol, lchnk ) ! cm
 
      write(fieldname,'("UPTKRATE_bin",I2.2)') m
      call outfld(fieldname, uptkrate(:ncol,:,m), ncol, lchnk )
@@ -733,7 +733,7 @@ subroutine gas_aer_uptkrates( ncol,       loffset,                &
   integer,  intent(in) :: loffset
   real(r8), intent(in) :: t(pcols,pver)        ! Temperature in Kelvin
   real(r8), intent(in) :: pmid(pcols,pver)     ! Air pressure in Pa
-  real(r8), intent(in) :: wetr(pcols,pver,nbins)    ! wet radius (cm)
+  real(r8), intent(in) :: wetr(pcols,pver,nbins)    ! wet radius (m)
   real(r8), intent(in) :: num_bin(pcols,pver,nbins) ! number density (#/m3)
 
   real(r8), intent(out) :: uptkrate(pcols,pver,nbins)
@@ -767,7 +767,7 @@ subroutine gas_aer_uptkrates( ncol,       loffset,                &
               gasspeed  = 1.470e1_r8 * sqrt(t(i,k))
 !   freepathx2 = 2 * (h2so4 mean free path)  (m)
               freepathx2 = 6.0_r8*gasdiffus/gasspeed
-              dp = 2.0_r8 * wetr(i,k,n) * 1.e-2_r8 ! wet diameter (m)
+              dp = 2.0_r8 * wetr(i,k,n) ! wet diameter (m)
               const = 2.0_r8 * pi * num_bin(i,k,n) * dp
               ! gas_conden_rate(Dp) = const *  gasdiffus *  F(Kn,ac)
               !   knudsen number
