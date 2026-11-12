@@ -1,0 +1,17 @@
+mfilt=1,1,1,1,1,1
+ndens=1,1,1,1,1,1
+nhtfrq=9,9,9,9,9,9
+write_nstep0=.true.
+inithist='ENDOFRUN'
+
+ ext_frc_cycle_yr = 2000
+ ext_frc_specifier =
+         'Fe -> $DIN_LOC_ROOT/atm/waccm/ERegion/jd_grl55292_2016_FeMIF_divd5_FSDW5_23Aug2018.nc',
+         'Mg -> $DIN_LOC_ROOT/atm/waccm/ERegion/jd_grl55292_2016_MgMIF_divd5_FSDW5_15May2019.nc',
+         'Si -> $DIN_LOC_ROOT/atm/waccm/ERegion/Earth_IR_profiles_March18_Si_MIF_DIVD5.nc',
+         'Ca -> $DIN_LOC_ROOT/atm/waccm/ERegion/Earth_IR_profiles_March18_Ca_MIF_DIVD5.nc',
+         'K  -> $DIN_LOC_ROOT/atm/waccm/ERegion/Earth_IR_profiles_March18_K_MIF_DIVD5.nc',
+         'Na -> $DIN_LOC_ROOT/atm/waccm/ERegion/jd_grl55292_2016_NaMIF_divd5_FSDW5.nc',
+ ext_frc_type = 'CYCLICAL'
+
+ fincl1 = ' '

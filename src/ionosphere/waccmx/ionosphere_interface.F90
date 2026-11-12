@@ -42,9 +42,34 @@ module ionosphere_interface
    ! opmmrtm1_phys is O+ at previous time step (phys grid decomposed)
    ! It needs to persist from time-step to time-step and across restarts
    ! On physics grid
-   real(r8), allocatable :: opmmrtm1_phys(:,:,:)
+   real(r8), allocatable :: Opmmrtm1_phys(:,:,:)
    type(var_desc_t)      :: Optm1_vdesc
-   logical :: opmmrtm1_initialized
+   logical :: Opmmrtm1_initialized = .false.
+
+   real(r8), allocatable :: NOpmmrtm1_phys(:,:,:)
+   real(r8), allocatable :: O2pmmrtm1_phys(:,:,:)
+   real(r8), allocatable :: Fepmmrtm1_phys(:,:,:)
+   real(r8), allocatable :: Mgpmmrtm1_phys(:,:,:)
+   real(r8), allocatable :: Napmmrtm1_phys(:,:,:)
+   real(r8), allocatable :: Capmmrtm1_phys(:,:,:)
+   real(r8), allocatable :: Kpmmrtm1_phys(:,:,:)
+   real(r8), allocatable :: Sipmmrtm1_phys(:,:,:)
+   logical :: NOpmmrtm1_initialized = .false.
+   logical :: O2pmmrtm1_initialized = .false.
+   logical :: Fepmmrtm1_initialized = .false.
+   logical :: Mgpmmrtm1_initialized = .false.
+   logical :: Napmmrtm1_initialized = .false.
+   logical :: Capmmrtm1_initialized = .false.
+   logical :: Kpmmrtm1_initialized = .false.
+   logical :: Sipmmrtm1_initialized = .false.
+   type(var_desc_t) :: NOptm1_vdesc
+   type(var_desc_t) :: O2ptm1_vdesc
+   type(var_desc_t) :: Feptm1_vdesc
+   type(var_desc_t) :: Mgptm1_vdesc
+   type(var_desc_t) :: Naptm1_vdesc
+   type(var_desc_t) :: Captm1_vdesc
+   type(var_desc_t) :: Kptm1_vdesc
+   type(var_desc_t) :: Siptm1_vdesc
 
    type(var_desc_t) :: azigm1_vdesc
    type(var_desc_t) :: azigm2_vdesc
@@ -58,14 +83,36 @@ module ionosphere_interface
    ! indices for accessing ions in pbuf when non-advected
    integer :: sIndxOp=-1, sIndxO2p=-1, sIndxNOp=-1, sIndxN2p=-1
 
-   real(r8) :: rmassO2    ! O2 molecular weight kg/kmol
-   real(r8) :: rmassO1    ! O atomic weight kg/kmol
-   real(r8) :: rmassH     ! H atomic weight kg/kmol
-   real(r8) :: rmassN2    ! N2 molecular weight kg/kmol
-   real(r8) :: rmassO2p   ! O2+ molecular weight kg/kmol
-   real(r8) :: rmassNOp   ! NO+ molecular weight kg/kmol
-   real(r8) :: rmassN2p   ! N2+ molecular weight kg/kmol
-   real(r8) :: rmassOp    ! O+ molecular weight kg/kmol
+   ! Metal Ions
+   integer :: ixFep=-1  !Jianfei Wu added for Fe+ Na+ and K+
+   integer :: ixMgp=-1  !Jianfei Wu added for Fe+ Na+ and K+
+   integer :: ixNap=-1  !Jianfei Wu added for Fe+ Na+ and K+
+   integer :: ixCap=-1  !Jianfei Wu added for Fe+ Na+ and K+
+   integer :: ixKp=-1  !Jianfei Wu added for Fe+ Na+ and K+
+   integer :: ixSip=-1  !Jianfei Wu added for Fe+ Na+ and K+
+
+   integer :: sIndxFep=-1 !Jianfei Wu added for Fe+ Na+ and K+
+   integer :: sIndxMgp=-1 !Jianfei Wu added for Fe+ Na+ and K+
+   integer :: sIndxNap=-1 !Jianfei Wu added for Fe+ Na+ and K+
+   integer :: sIndxCap=-1 !Jianfei Wu added for Fe+ Na+ and K+
+   integer :: sIndxKp=-1 !Jianfei Wu added for Fe+ Na+ and K+
+   integer :: sIndxSip=-1 !Jianfei Wu added for Fe+ Na+ and K+
+
+   real(r8) :: rmassFep = 0._r8  ! Fe+ molecular weight kg/kmol
+   real(r8) :: rmassMgp = 0._r8  ! Fe+ molecular weight kg/kmol
+   real(r8) :: rmassNap = 0._r8  ! Fe+ molecular weight kg/kmol
+   real(r8) :: rmassCap = 0._r8  ! Fe+ molecular weight kg/kmol
+   real(r8) :: rmassKp  = 0._r8  ! Fe+ molecular weight kg/kmol
+   real(r8) :: rmassSip = 0._r8  ! Fe+ molecular weight kg/kmol
+
+   real(r8) :: rmassO2  = 0._r8  ! O2 molecular weight kg/kmol
+   real(r8) :: rmassO1  = 0._r8  ! O atomic weight kg/kmol
+   real(r8) :: rmassH   = 0._r8  ! H atomic weight kg/kmol
+   real(r8) :: rmassN2  = 0._r8  ! N2 molecular weight kg/kmol
+   real(r8) :: rmassO2p = 0._r8  ! O2+ molecular weight kg/kmol
+   real(r8) :: rmassNOp = 0._r8  ! NO+ molecular weight kg/kmol
+   real(r8) :: rmassN2p = 0._r8  ! N2+ molecular weight kg/kmol
+   real(r8) :: rmassOp  = 0._r8  ! O+ molecular weight kg/kmol
 
    ! ionos_edyn_active == .true. will activate the edynamo which will
    !   generate ion drift velocities used in oplus transport, otherwise
@@ -76,6 +123,7 @@ module ionosphere_interface
    logical, public,  protected :: ionos_oplus_xport = .true.    ! if true, call sub oplus (based on tiegcm oplus.F)
    integer, public,  protected :: ionos_xport_nsplit = 5        ! number of substeps for O+ transport per model time step
    logical, public,  protected :: oplus_ring_polar_filter = .false. ! switch to apply ring polar filter
+   integer, public,  protected :: vxb_xport_nsplit = 15        ! number of substeps for O+ transport per model time step
 
    real(r8) :: oplus_adiff_limiter = 1.5e+8_r8  ! limiter for ambipolar diffusion coefficient
    real(r8) :: oplus_shapiro_const = 0.03_r8    ! shapiro constant for spatial smoother
@@ -124,7 +172,7 @@ module ionosphere_interface
       integer :: total_pes
       character(len=*), parameter :: subname = 'ionosphere_readnl'
 
-      namelist /ionosphere_nl/ ionos_xport_active, ionos_edyn_active, ionos_oplus_xport, ionos_xport_nsplit
+      namelist /ionosphere_nl/ ionos_xport_active, ionos_edyn_active, ionos_oplus_xport, ionos_xport_nsplit, vxb_xport_nsplit
       namelist /ionosphere_nl/ oplus_adiff_limiter, oplus_shapiro_const, oplus_enforce_floor, oplus_ring_polar_filter
       namelist /ionosphere_nl/ ionos_epotential_model, ionos_epotential_amie, ionos_epotential_ltr, wei05_coefs_file
       namelist /ionosphere_nl/ amienh_files, amiesh_files, wei05_coefs_file, ltr_files
@@ -155,6 +203,7 @@ module ionosphere_interface
       call mpi_bcast(ionos_edyn_active,   1, mpi_logical, masterprocid, mpicom, ierr)
       call mpi_bcast(ionos_oplus_xport,   1, mpi_logical, masterprocid, mpicom, ierr)
       call mpi_bcast(ionos_xport_nsplit,  1, mpi_integer, masterprocid, mpicom, ierr)
+      call mpi_bcast(vxb_xport_nsplit,    1, mpi_integer, masterprocid, mpicom, ierr)
       call mpi_bcast(oplus_adiff_limiter, 1, mpi_real8,   masterprocid, mpicom, ierr)
       call mpi_bcast(ionos_epotential_model, len(ionos_epotential_model), mpi_character, masterprocid, mpicom, ierr)
       call mpi_bcast(ionos_epotential_amie,1, mpi_logical, masterprocid, mpicom, ierr)
@@ -197,6 +246,7 @@ module ionosphere_interface
          write(iulog,*) 'ionosphere_readnl: ionos_edyn_active      = ', ionos_edyn_active
          write(iulog,*) 'ionosphere_readnl: ionos_oplus_xport      = ', ionos_oplus_xport
          write(iulog,*) 'ionosphere_readnl: ionos_xport_nsplit     = ', ionos_xport_nsplit
+         write(iulog,*) 'ionosphere_readnl: vxb_xport_nsplit       = ', vxb_xport_nsplit
          write(iulog,*) 'ionosphere_readnl: ionos_epotential_model = ', trim(ionos_epotential_model)
          write(iulog,*) 'ionosphere_readnl: ionos_epotential_amie  = ', ionos_epotential_amie
          write(iulog,*) 'ionosphere_readnl: ionos_epotential_ltr   = ', ionos_epotential_ltr
@@ -239,6 +289,7 @@ module ionosphere_interface
       use ltr_module,      only: init_ltr
       use wei05sc,         only: weimer05_init
       use phys_control,    only: phys_getopts
+      use vxb, only: vxb_init
 
       ! local variables:
       integer :: sIndx
@@ -284,57 +335,11 @@ module ionosphere_interface
          rmassH  = cnst_mw(ixh)
          rmassN2 = 28._r8
 
-         call cnst_get_ind('Op',ixop, abort=.false.)
-         if (ixop > 0) then
-            rMassOp = cnst_mw(ixop)
-         else
-            sIndxOp  = slvd_index( 'Op' )
-            if (sIndxOp > 0) then
-               sIndx = get_spc_ndx( 'Op' )
-               rmassOp = adv_mass(sIndx)
-            else
-               call endrun(subname//': Cannot find state or pbuf index for Op')
-            end if
-         end if
-
-         call cnst_get_ind('O2p',ixo2p, abort=.false.)
-         if (ixo2p > 0) then
-            rMassO2p = cnst_mw(ixo2p)
-         else
-            sIndxO2p  = slvd_index( 'O2p' )
-            if (sIndxO2p > 0) then
-               sIndx = get_spc_ndx( 'O2p' )
-               rmassO2p = adv_mass(sIndx)
-            else
-               call endrun(subname//': Cannot find state or pbuf index for O2p')
-            end if
-         end if
-
-         call cnst_get_ind('NOp',ixnop, abort=.false.)
-         if (ixnop > 0) then
-            rMassNOp = cnst_mw(ixnop)
-         else
-            sIndxNOp  = slvd_index( 'NOp' )
-            if (sIndxNOp > 0) then
-               sIndx = get_spc_ndx( 'NOp' )
-               rmassNOp = adv_mass(sIndx)
-            else
-               call endrun(subname//': Cannot find state or pbuf index for NOp')
-            end if
-         end if
-
-         call cnst_get_ind('N2p',ixn2p, abort=.false.)
-         if (ixn2p > 0) then
-            rMassN2p = cnst_mw(ixn2p)
-         else
-            sIndxN2p  = slvd_index( 'N2p' )
-            if (sIndxN2p > 0) then
-               sIndx = get_spc_ndx( 'N2p' )
-               rmassN2p = adv_mass(sIndx)
-            else
-               call endrun(subname//': Cannot find state or pbuf index for N2p')
-            end if
-         end if
+         ! set ion indexes and molecular masses
+         call set_indices_mass('Op', ixop, sIndxOp, rmassOp)
+         call set_indices_mass('O2p', ixo2p, sIndxO2p, rmassO2p)
+         call set_indices_mass('NOp', ixnop, sIndxNOp, rmassNOp)
+         call set_indices_mass('N2p', ixn2p, sIndxN2p, rmassN2p)
 
          call alloc_maggrid( mag_nlon, mag_nlat, mag_nlev, mag_ngrid )
 
@@ -346,7 +351,7 @@ module ionosphere_interface
 
          call edynamo_init(mpicom, ionos_debug_hist)
 
-         call d_pie_init(ionos_edyn_active, ionos_oplus_xport, ionos_xport_nsplit, epot_crit_colats, &
+         call d_pie_init(ionos_edyn_active, ionos_oplus_xport, ionos_xport_nsplit,vxb_xport_nsplit, epot_crit_colats, &
                          ionos_debug_hist)
 
          call ionosphere_alloc()
@@ -354,8 +359,44 @@ module ionosphere_interface
          call oplus_init(oplus_adiff_limiter, oplus_shapiro_const, oplus_enforce_floor, &
                          oplus_ring_polar_filter, ionos_debug_hist)
 
+         call vxb_init( oplus_adiff_limiter, oplus_shapiro_const, oplus_enforce_floor ) !Jianfei Wu
+
          call addfld('OpTM1&IC', (/ 'lev' /), 'I', 'kg/kg', 'O+ at time step minus 1', gridname='physgrid')
          call add_default ('OpTM1&IC',0, 'I')
+
+         if (ixFep>0 .or. sIndxFep>0) then
+            call addfld('NOpTM1&IC', (/ 'lev' /), 'I', 'kg/kg', 'NO+ at time step minus 1', gridname='physgrid')
+            call add_default ('NOpTM1&IC',0, 'I')
+            call addfld('O2pTM1&IC', (/ 'lev' /), 'I', 'kg/kg', 'O2+ at time step minus 1', gridname='physgrid')
+            call add_default ('O2pTM1&IC',0, 'I')
+            call addfld('FepTM1&IC', (/ 'lev' /), 'I', 'kg/kg', 'Fe+ at time step minus 1', gridname='physgrid')
+            call add_default ('FepTM1&IC',0, 'I')
+         end if
+         if (ixMgp>0 .or. sIndxMGp>0) then
+            call addfld('MgpTM1&IC', (/ 'lev' /), 'I', 'kg/kg', 'Mg+ at time step minus 1', gridname='physgrid')
+            call add_default ('MgpTM1&IC',0, 'I')
+         end if
+         if (ixNap>0 .or. sIndxNap>0) then
+            call addfld('NapTM1&IC', (/ 'lev' /), 'I', 'kg/kg', 'Na+ at time step minus 1', gridname='physgrid')
+            call add_default ('NapTM1&IC',0, 'I')
+         end if
+         if (ixCap>0 .or. sIndxCap>0) then
+            call addfld('CapTM1&IC', (/ 'lev' /), 'I', 'kg/kg', 'Ca+ at time step minus 1', gridname='physgrid')
+            call add_default ('CapTM1&IC',0, 'I')
+         end if
+         if (ixKp>0 .or. sIndxKp>0) then
+            call addfld('KpTM1&IC', (/ 'lev' /), 'I', 'kg/kg', 'K+ at time step minus 1', gridname='physgrid')
+            call add_default ('KpTM1&IC',0, 'I')
+         end if
+         if (ixSip>0 .or. sIndxSip>0) then
+            call addfld('SipTM1&IC', (/ 'lev' /), 'I', 'kg/kg', 'Si+ at time step minus 1', gridname='physgrid')
+            call add_default ('SipTM1&IC',0, 'I')
+         end if
+
+         call addfld('Fep_phys0', (/ 'lev' /), 'I', 'kg/kg', 'Fep before d_pie_cpl ', gridname='physgrid')
+         call addfld('Fep_phys1', (/ 'lev' /), 'I', 'kg/kg', 'Fep after d_pie_cpl ', gridname='physgrid')
+         call addfld('Mgp_phys0', (/ 'lev' /), 'I', 'kg/kg', 'Mgp before d_pie_cpl ', gridname='physgrid')
+         call addfld('Mgp_phys1', (/ 'lev' /), 'I', 'kg/kg', 'Mgp after d_pie_cpl ', gridname='physgrid')
 
       end if op_transport
 
@@ -429,6 +470,47 @@ module ionosphere_interface
          do lchnk = begchunk, endchunk
             call outfld ('OpTM1&IC', opmmrtm1_phys(:,:,lchnk), pcols, lchnk)
          end do
+         if (allocated(NOpmmrtm1_phys)) then
+            do lchnk = begchunk, endchunk
+               call outfld ('NOpTM1&IC', NOpmmrtm1_phys(:,:,lchnk), pcols, lchnk)
+            end do
+         end if
+         if (allocated(O2pmmrtm1_phys)) then
+            do lchnk = begchunk, endchunk
+               call outfld ('O2pTM1&IC', O2pmmrtm1_phys(:,:,lchnk), pcols, lchnk)
+            end do
+         end if
+         if (allocated(Fepmmrtm1_phys)) then
+            do lchnk = begchunk, endchunk
+               call outfld ('FepTM1&IC', Fepmmrtm1_phys(:,:,lchnk), pcols, lchnk)
+            end do
+         end if
+         if (allocated(Mgpmmrtm1_phys)) then
+            do lchnk = begchunk, endchunk
+               call outfld ('MgpTM1&IC', Mgpmmrtm1_phys(:,:,lchnk), pcols, lchnk)
+            end do
+         end if
+         if (allocated(Napmmrtm1_phys)) then
+            do lchnk = begchunk, endchunk
+               call outfld ('NapTM1&IC', Napmmrtm1_phys(:,:,lchnk), pcols, lchnk)
+            end do
+         end if
+         if (allocated(Capmmrtm1_phys)) then
+            do lchnk = begchunk, endchunk
+               call outfld ('CapTM1&IC', Capmmrtm1_phys(:,:,lchnk), pcols, lchnk)
+            end do
+         end if
+         if (allocated(Kpmmrtm1_phys)) then
+            do lchnk = begchunk, endchunk
+               call outfld ('KpTM1&IC', Kpmmrtm1_phys(:,:,lchnk), pcols, lchnk)
+            end do
+         end if
+         if (allocated(Sipmmrtm1_phys)) then
+            do lchnk = begchunk, endchunk
+               call outfld ('SipTM1&IC', Sipmmrtm1_phys(:,:,lchnk), pcols, lchnk)
+            end do
+         end if
+
       end if
 
       nullify(prescr_efx)
@@ -513,10 +595,16 @@ module ionosphere_interface
       real(r8), pointer :: sigma_hall_phys(:,:) ! Hall Conductivity from pbuf
       real(r8), pointer :: te_phys(:,:)      ! te from pbuf
       real(r8), pointer :: ti_phys(:,:)      ! ti from pbuf
-      real(r8), pointer :: mmrPO2p_phys(:,:) ! O2+ from pbuf
-      real(r8), pointer :: mmrPNOp_phys(:,:) ! NO+ from pbuf
-      real(r8), pointer :: mmrPN2p_phys(:,:) ! N2+ from pbuf
-      real(r8), pointer :: mmrPOp_phys(:,:)  ! O+ from pbuf
+      real(r8), pointer :: mmrPO2p_phys(:,:)=>null() ! O2+ from pbuf
+      real(r8), pointer :: mmrPNOp_phys(:,:)=>null() ! NO+ from pbuf
+      real(r8), pointer :: mmrPN2p_phys(:,:)=>null() ! N2+ from pbuf
+      real(r8), pointer :: mmrPOp_phys(:,:) =>null() ! O+ from pbuf
+      real(r8), pointer :: mmrPFep_phys(:,:)=>null() ! Fe+ from pbuf
+      real(r8), pointer :: mmrPMgp_phys(:,:)=>null() ! Mg+ from pbuf
+      real(r8), pointer :: mmrPNap_phys(:,:)=>null() ! Na+ from pbuf
+      real(r8), pointer :: mmrPCap_phys(:,:)=>null() ! Ca+ from pbuf
+      real(r8), pointer :: mmrPKp_phys(:,:) =>null() ! K+ from pbuf
+      real(r8), pointer :: mmrPSip_phys(:,:)=>null() ! Si+ from pbuf
       !
       ! Empirical ion drifts from exbdrift (to be converted to blocked for dpie_coupling):
       real(r8), pointer :: ui_phys(:,:)       ! zonal ion drift from pbuf
@@ -549,14 +637,31 @@ module ionosphere_interface
       real(r8), pointer :: o2mmr_blck(:,:)
       real(r8), pointer :: o1mmr_blck(:,:)
       real(r8), pointer :: h1mmr_blck(:,:)
-      real(r8), pointer :: o2pmmr_blck(:,:) ! O2+ (blocks)
-      real(r8), pointer :: nopmmr_blck(:,:) ! NO+ (blocks)
-      real(r8), pointer :: n2pmmr_blck(:,:) ! N2+ (blocks)
-      real(r8), pointer :: opmmr_blck(:,:)  ! O+ (blocks)
-      real(r8), pointer :: opmmrtm1_blck(:,:)  ! O+ previous time step (blocks)
+      real(r8), pointer :: o2pmmr_blck(:,:)=>null() ! O2+ (blocks)
+      real(r8), pointer :: nopmmr_blck(:,:)=>null() ! NO+ (blocks)
+      real(r8), pointer :: n2pmmr_blck(:,:)=>null() ! N2+ (blocks)
+      real(r8), pointer :: opmmr_blck(:,:) =>null() ! O+ (blocks)
+      real(r8), pointer :: opmmrtm1_blck(:,:)       ! O+ previous time step (blocks)
       real(r8), pointer :: mbar_blck(:,:)   ! mean molecular weight
+
+      real(r8), pointer :: Fepmmr_blck(:,:)=>null() ! Fe+ (blocks)
+      real(r8), pointer :: Mgpmmr_blck(:,:)=>null() ! Mg+ (blocks)
+      real(r8), pointer :: Napmmr_blck(:,:)=>null() ! Na+ (blocks)
+      real(r8), pointer :: Capmmr_blck(:,:)=>null() ! Ca+ (blocks)
+      real(r8), pointer :: Kpmmr_blck(:,:) =>null() ! K+  (blocks)
+      real(r8), pointer :: Sipmmr_blck(:,:)=>null() ! Si+ (blocks)
+
+      real(r8), pointer :: O2pmmrtm1_blck(:,:)=>null() ! O2+ previous time step (blocks)
+      real(r8), pointer :: NOpmmrtm1_blck(:,:)=>null() ! NO+ previous time step (blocks)
+      real(r8), pointer :: Fepmmrtm1_blck(:,:)=>null() ! Fe+ previous time step (blocks)
+      real(r8), pointer :: Mgpmmrtm1_blck(:,:)=>null() ! Mg+ previous time step (blocks)
+      real(r8), pointer :: Napmmrtm1_blck(:,:)=>null() ! Na+ previous time step (blocks)
+      real(r8), pointer :: Capmmrtm1_blck(:,:)=>null() ! Ca+ previous time step (blocks)
+      real(r8), pointer :: Kpmmrtm1_blck(:,:) =>null() ! K+  previous time step (blocks)
+      real(r8), pointer :: Sipmmrtm1_blck(:,:)=>null() ! Si+ previous time step (blocks)
+
      ! Temp fields for outfld
-      real(r8)          :: r8tmp
+      real(r8), pointer :: mass_tmp(:,:)
       real(r8), pointer :: tempm(:,:) => null() ! Temp midpoint field for outfld
       real(r8), pointer :: tempi(:,:) => null() ! Temp interface field for outfld
       real(r8), parameter :: n2min = 1.e-6_r8  ! lower limit of N2 mixing ratios
@@ -626,6 +731,10 @@ module ionosphere_interface
          if (astat /= 0) then
             call endrun(subname//': failed to allocate tn_blck')
          end if
+         allocate(mass_tmp(pver, blksize), stat=astat)
+         if (astat /= 0) then
+            call endrun(subname//': failed to allocate mass_tmp')
+         end if
          allocate(n2mmr_blck(pver, blksize), stat=astat)
          if (astat /= 0) then
             call endrun(subname//': failed to allocate n2mmr_blck')
@@ -656,30 +765,100 @@ module ionosphere_interface
             call endrun(subname//': failed to allocate opmmrtm1_blck')
          end if
 
-         if (sIndxOp > 0) then
+         if (sIndxOp>0 .or. ixop>0) then
             allocate(opmmr_blck(pver, blksize), stat=astat)
             if (astat /= 0) then
                call endrun(subname//': failed to allocate opmmr_blck')
             end if
          end if
-         if (sIndxO2p > 0) then
+         if (sIndxO2p>0 .or. ixO2p>0) then
             allocate(o2pmmr_blck(pver, blksize), stat=astat)
             if (astat /= 0) then
                call endrun(subname//': failed to allocate o2pmmr_blck')
             end if
          end if
-         if (sIndxNOp > 0) then
+         if (sIndxNOp>0 .or. IxNOp>0) then
             allocate(nopmmr_blck(pver, blksize), stat=astat)
             if (astat /= 0) then
                call endrun(subname//': failed to allocate nopmmr_blck')
             end if
          end if
-         if (sIndxN2p > 0) then
+         if (sIndxN2p>0 .or. ixN2p>0) then
             allocate(n2pmmr_blck(pver, blksize), stat=astat)
             if (astat /= 0) then
                call endrun(subname//': failed to allocate n2pmmr_blck')
             end if
          end if
+
+         if (sIndxFep>0 .or. ixFep>0) then
+            allocate(Fepmmr_blck(pver, blksize), stat=astat)
+            if (astat /= 0) then
+               call endrun(subname//': failed to allocate Fepmmr_blck')
+            end if
+            allocate(Fepmmrtm1_blck(pver, blksize), stat=astat)
+            if (astat /= 0) then
+               call endrun(subname//': failed to allocate Fepmmrtm1_blck')
+            end if
+            allocate(O2pmmrtm1_blck(pver, blksize), stat=astat)
+            if (astat /= 0) then
+               call endrun(subname//': failed to allocate O2pmmrtm1_blck')
+            end if
+            allocate(NOpmmrtm1_blck(pver, blksize), stat=astat)
+            if (astat /= 0) then
+               call endrun(subname//': failed to allocate NOpmmrtm1_blck')
+            end if
+         end if
+         if (sIndxMgp>0 .or. ixMgp>0) then
+            allocate(Mgpmmr_blck(pver, blksize), stat=astat)
+            if (astat /= 0) then
+               call endrun(subname//': failed to allocate Mgpmmr_blck')
+            end if
+            allocate(Mgpmmrtm1_blck(pver, blksize), stat=astat)
+            if (astat /= 0) then
+               call endrun(subname//': failed to allocate Mgpmmrtm1_blck')
+            end if
+         end if
+         if (sIndxNap>0 .or. ixNap>0) then
+            allocate(Napmmr_blck(pver, blksize), stat=astat)
+            if (astat /= 0) then
+               call endrun(subname//': failed to allocate Napmmr_blck')
+            end if
+            allocate(Napmmrtm1_blck(pver, blksize), stat=astat)
+            if (astat /= 0) then
+               call endrun(subname//': failed to allocate Napmmrtm1_blck')
+            end if
+         end if
+         if (sIndxCap>0 .or. ixCap>0) then
+            allocate(Capmmr_blck(pver, blksize), stat=astat)
+            if (astat /= 0) then
+               call endrun(subname//': failed to allocate Capmmr_blck')
+            end if
+            allocate(Capmmrtm1_blck(pver, blksize), stat=astat)
+            if (astat /= 0) then
+               call endrun(subname//': failed to allocate Capmmrtm1_blck')
+            end if
+         end if
+         if (sIndxKp>0 .or. ixKp>0) then
+            allocate(Kpmmr_blck(pver, blksize), stat=astat)
+            if (astat /= 0) then
+               call endrun(subname//': failed to allocate Kpmmr_blck')
+            end if
+            allocate(Kpmmrtm1_blck(pver, blksize), stat=astat)
+            if (astat /= 0) then
+               call endrun(subname//': failed to allocate Kpmmrtm1_blck')
+            end if
+         end if
+         if (sIndxSip>0 .or. ixSip>0) then
+            allocate(Sipmmr_blck(pver, blksize), stat=astat)
+            if (astat /= 0) then
+               call endrun(subname//': failed to allocate Sipmmr_blck')
+            end if
+            allocate(Sipmmrtm1_blck(pver, blksize), stat=astat)
+            if (astat /= 0) then
+               call endrun(subname//': failed to allocate Sipmmrtm1_blck')
+            end if
+         end if
+
 
          if (hist_fld_active('Z3GM')) then
             allocate(tempm(pcols, pver))
@@ -690,18 +869,40 @@ module ionosphere_interface
          end if
 
          if (.not.opmmrtm1_initialized) then
-            do lchnk = begchunk, endchunk
-               ncol = get_ncols_p(lchnk)
-
-               if (sIndxOp > 0) then
-                  pbuf_chnk => pbuf_get_chunk(pbuf2d, lchnk)
-                  call pbuf_get_field(pbuf_chnk, slvd_pbf_ndx, mmrPOp_phys,  start=(/1,1,sIndxOp/), kount=(/pcols,pver,1/) )
-                  opmmrtm1_phys(:ncol,:pver,lchnk) = mmrPOp_phys(:ncol,:pver)
-               else
-                  opmmrtm1_phys(:ncol,:pver,lchnk) = phys_state(lchnk)%q(:ncol,:pver, ixop)
-               endif
-            enddo
-            opmmrtm1_initialized=.true.
+            call init_ionstm1(ixOp, sIndxOp, Opmmrtm1_phys)
+            Opmmrtm1_initialized=.true.
+         endif
+         if (allocated(NOpmmrtm1_phys) .and. .not.NOpmmrtm1_initialized) then
+            call init_ionstm1(ixNOp, sIndxNOp, NOpmmrtm1_phys)
+            NOpmmrtm1_initialized=.true.
+         endif
+         if (allocated(O2pmmrtm1_phys) .and. .not.O2pmmrtm1_initialized) then
+            call init_ionstm1(ixO2p, sIndxO2p, O2pmmrtm1_phys)
+            O2pmmrtm1_initialized=.true.
+         endif
+         if (allocated(Fepmmrtm1_phys) .and. .not.Fepmmrtm1_initialized) then
+            call init_ionstm1(ixFep, sIndxFep, Fepmmrtm1_phys)
+            Fepmmrtm1_initialized=.true.
+         endif
+         if (allocated(Mgpmmrtm1_phys) .and. .not.Mgpmmrtm1_initialized) then
+            call init_ionstm1(ixMgp, sIndxMgp, Mgpmmrtm1_phys)
+            Mgpmmrtm1_initialized=.true.
+         endif
+         if (allocated(Napmmrtm1_phys) .and. .not.Napmmrtm1_initialized) then
+            call init_ionstm1(ixNap, sIndxNap, Napmmrtm1_phys)
+            Napmmrtm1_initialized=.true.
+         endif
+         if (allocated(Capmmrtm1_phys) .and. .not.Capmmrtm1_initialized) then
+            call init_ionstm1(ixCap, sIndxCap, Capmmrtm1_phys)
+            Capmmrtm1_initialized=.true.
+         endif
+         if (allocated(Kpmmrtm1_phys) .and. .not.Kpmmrtm1_initialized) then
+            call init_ionstm1(ixKp, sIndxKp, Kpmmrtm1_phys)
+            Kpmmrtm1_initialized=.true.
+         endif
+         if (allocated(Sipmmrtm1_phys) .and. .not.Sipmmrtm1_initialized) then
+            call init_ionstm1(ixSip, sIndxSip, Sipmmrtm1_phys)
+            Sipmmrtm1_initialized=.true.
          endif
 
          j = 0
@@ -738,6 +939,38 @@ module ionosphere_interface
             if (sIndxOp > 0) then
                call pbuf_get_field(pbuf_chnk, slvd_pbf_ndx, mmrPOp_phys,      &
                     start=(/1,1,sIndxOp/), kount=(/pcols,pver,1/) )
+            end if
+
+            if (sIndxFep > 0) then
+               call pbuf_get_field(pbuf_chnk, slvd_pbf_ndx, mmrPFep_phys,     &
+                    start=(/1,1,sIndxFep/), kount=(/pcols,pver,1/) )
+            end if
+            if (sIndxMgp > 0) then
+               call pbuf_get_field(pbuf_chnk, slvd_pbf_ndx, mmrPMgp_phys,     &
+                    start=(/1,1,sIndxMgp/), kount=(/pcols,pver,1/) )
+            end if
+            if (sIndxNap > 0) then
+               call pbuf_get_field(pbuf_chnk, slvd_pbf_ndx, mmrPNap_phys,     &
+                    start=(/1,1,sIndxNap/), kount=(/pcols,pver,1/) )
+            end if
+            if (sIndxCap > 0) then
+               call pbuf_get_field(pbuf_chnk, slvd_pbf_ndx, mmrPCap_phys,     &
+                    start=(/1,1,sIndxCap/), kount=(/pcols,pver,1/) )
+            end if
+            if (sIndxKp > 0) then
+               call pbuf_get_field(pbuf_chnk, slvd_pbf_ndx, mmrPKp_phys,     &
+                    start=(/1,1,sIndxKp/), kount=(/pcols,pver,1/) )
+            end if
+            if (sIndxSip > 0) then
+               call pbuf_get_field(pbuf_chnk, slvd_pbf_ndx, mmrPSip_phys,     &
+                    start=(/1,1,sIndxSip/), kount=(/pcols,pver,1/) )
+            end if
+
+            if (ixFep>0) then
+               call outfld('Fep_phys0', phys_state(lchnk)%q(:,:,ixFep), pcols, lchnk)
+            end if
+            if (ixMgp>0) then
+               call outfld('Mgp_phys0', phys_state(lchnk)%q(:,:,ixMgp), pcols, lchnk)
             end if
 
             ! PHIS is from physics state
@@ -810,7 +1043,79 @@ module ionosphere_interface
                   else
                      call endrun(subname//': No source for Op')
                   end if
+
+
+                  if (ixFep > 0) then
+                     Fepmmr_blck(k, j) = phys_state(lchnk)%q(i, k, ixFep)
+                  else if (sIndxFep > 0) then
+                     Fepmmr_blck(k, j) = mmrPFep_phys(i, k)
+                  else
+                     nullify(Fepmmr_blck)
+                  end if
+                  if (ixMgp > 0) then
+                     Mgpmmr_blck(k, j) = phys_state(lchnk)%q(i, k, ixMgp)
+                  else if (sIndxMgp > 0) then
+                     Mgpmmr_blck(k, j) = mmrPMgp_phys(i, k)
+                  else
+                     nullify(Mgpmmr_blck)
+                  end if
+                  if (ixNap > 0) then
+                     Napmmr_blck(k, j) = phys_state(lchnk)%q(i, k, ixNap)
+                  else if (sIndxNap > 0) then
+                     Napmmr_blck(k, j) = mmrPNap_phys(i, k)
+                  else
+                     nullify(Napmmr_blck)
+                  end if
+                  if (ixCap > 0) then
+                     Capmmr_blck(k, j) = phys_state(lchnk)%q(i, k, ixCap)
+                  else if (sIndxCap > 0) then
+                     Capmmr_blck(k, j) = mmrPCap_phys(i, k)
+                  else
+                     nullify(Capmmr_blck)
+                  end if
+                  if (ixKp > 0) then
+                     Kpmmr_blck(k, j) = phys_state(lchnk)%q(i, k, ixKp)
+                  else if (sIndxKp > 0) then
+                     Kpmmr_blck(k, j) = mmrPKp_phys(i, k)
+                  else
+                     nullify(Kpmmr_blck)
+                  end if
+                  if (ixSip > 0) then
+                     Sipmmr_blck(k, j) = phys_state(lchnk)%q(i, k, ixSip)
+                  else if (sIndxSip > 0) then
+                     Sipmmr_blck(k, j) = mmrPSip_phys(i, k)
+                  else
+                     nullify(Sipmmr_blck)
+                  end if
+
+
                   opmmrtm1_blck(k, j) = opmmrtm1_phys(i, k, lchnk)
+
+                  if (associated(O2pmmrtm1_blck)) then
+                     O2pmmrtm1_blck(k, j) = O2pmmrtm1_phys(i, k, lchnk)
+                  end if
+                  if (associated(NOpmmrtm1_blck)) then
+                     NOpmmrtm1_blck(k, j) = NOpmmrtm1_phys(i, k, lchnk)
+                  end if
+                  if (associated(Fepmmrtm1_blck)) then
+                     Fepmmrtm1_blck(k, j) = Fepmmrtm1_phys(i, k, lchnk)
+                  end if
+                  if (associated(Mgpmmrtm1_blck)) then
+                     Mgpmmrtm1_blck(k, j) = Mgpmmrtm1_phys(i, k, lchnk)
+                  end if
+                  if (associated(Napmmrtm1_blck)) then
+                     Napmmrtm1_blck(k, j) = Napmmrtm1_phys(i, k, lchnk)
+                  end if
+                  if (associated(Capmmrtm1_blck)) then
+                     Capmmrtm1_blck(k, j) = Capmmrtm1_phys(i, k, lchnk)
+                  end if
+                  if (associated(Kpmmrtm1_blck)) then
+                     Kpmmrtm1_blck(k, j) = Kpmmrtm1_phys(i, k, lchnk)
+                  end if
+                  if (associated(Sipmmrtm1_blck)) then
+                     Sipmmrtm1_blck(k, j) = Sipmmrtm1_phys(i, k, lchnk)
+                  end if
+
                   !------------------------------------
                   ! neutrals from advected tracers array
                   !------------------------------------
@@ -836,22 +1141,52 @@ module ionosphere_interface
          !---------------------------------------------------------------------
          ! Compute and save mean molecular weight:
          !---------------------------------------------------------------------
-         j = 0
-         do lchnk = begchunk, endchunk
-            ncol = get_ncols_p(lchnk)
-            do i = 1, ncol
-               j = j + 1
-               do k = 1, pver
-                  r8tmp = o1mmr_blck(k,j) + o2mmr_blck(k,j) + h1mmr_blck(k,j)
-                  n2mmr_blck(k, j) = max(1.0_r8 - r8tmp, n2min)
-                  r8tmp =          o1mmr_blck(k, j) / rmassO1
-                  r8tmp = r8tmp + (o2mmr_blck(k, j) / rmassO2)
-                  r8tmp = r8tmp + (h1mmr_blck(k, j) / rmassH)
-                  r8tmp = r8tmp + (n2mmr_blck(k, j) / rmassN2)
-                  mbar_blck(k, j) = 1.0_r8 / r8tmp
-               end do
-            end do
-         end do
+         mass_tmp(:,:) = o1mmr_blck(:,:) + o2mmr_blck(:,:) + h1mmr_blck(:,:)
+         if (associated( Fepmmr_blck )) then
+            mass_tmp(:,:) = mass_tmp(:,:) + 2.0_r8*Fepmmr_blck(:,:) ! why factor of 2 ???
+         end if
+         if (associated( Mgpmmr_blck )) then
+            mass_tmp(:,:) = mass_tmp(:,:) + 2.0_r8*Mgpmmr_blck(:,:)
+         end if
+         if (associated( Napmmr_blck )) then
+            mass_tmp(:,:) = mass_tmp(:,:) + 2.0_r8*Napmmr_blck(:,:)
+         end if
+         if (associated( Capmmr_blck )) then
+            mass_tmp(:,:) = mass_tmp(:,:) + 2.0_r8*Capmmr_blck(:,:)
+         end if
+         if (associated( Kpmmr_blck )) then
+            mass_tmp(:,:) = mass_tmp(:,:) + 2.0_r8*Kpmmr_blck(:,:)
+         end if
+         if (associated( Sipmmr_blck )) then
+            mass_tmp(:,:) = mass_tmp(:,:) + 2.0_r8*Sipmmr_blck(:,:)
+         end if
+
+         n2mmr_blck(:,:) = max(1.0_r8 - mass_tmp(:,:) , n2min)
+
+         mass_tmp(:,:) =                  o1mmr_blck(:,:) / rmassO1
+         mass_tmp(:,:) = mass_tmp(:,:) + (o2mmr_blck(:,:) / rmassO2)
+         mass_tmp(:,:) = mass_tmp(:,:) + (h1mmr_blck(:,:) / rmassH )
+         mass_tmp(:,:) = mass_tmp(:,:) + (n2mmr_blck(:,:) / rmassN2)
+         if (associated( Fepmmr_blck )) then
+            mass_tmp(:,:) = mass_tmp(:,:) + (2._r8*Fepmmr_blck(:,:) / rmassFep)
+         end if
+         if (associated( Mgpmmr_blck )) then
+            mass_tmp(:,:) = mass_tmp(:,:) + (2._r8*Mgpmmr_blck(:,:) / rmassMgp)
+         end if
+         if (associated( Napmmr_blck )) then
+            mass_tmp(:,:) = mass_tmp(:,:) + (2._r8*Napmmr_blck(:,:) / rmassNap)
+         end if
+         if (associated( Capmmr_blck )) then
+            mass_tmp(:,:) = mass_tmp(:,:) + (2._r8*Capmmr_blck(:,:) / rmassCap)
+         end if
+         if (associated( Kpmmr_blck )) then
+            mass_tmp(:,:) = mass_tmp(:,:) + (2._r8*Kpmmr_blck(:,:) / rmassKp)
+         end if
+         if (associated( Sipmmr_blck )) then
+            mass_tmp(:,:) = mass_tmp(:,:) + (2._r8*Sipmmr_blck(:,:) / rmassSip)
+         end if
+
+         mbar_blck(:,:) = 1.0_r8 / mass_tmp(:,:)
 
          if (state_debug_checks) then
             call shr_assert_in_domain(te_blck, is_nan=.false., varname="te_blck", msg="NaN found in te_blck in ionosphere_run2")
@@ -874,7 +1209,12 @@ module ionosphere_interface
               te_blck, ti_blck, mbar_blck, n2mmr_blck, o2mmr_blck,            &
               o1mmr_blck, o2pmmr_blck, nopmmr_blck, n2pmmr_blck,              &
               opmmr_blck, opmmrtm1_blck, ui_blck, vi_blck, wi_blck,           &
-              rmassO2p, rmassNOp, rmassN2p, rmassOp, 1, blksize, pver)
+              rmassN2, rmassO2, rmassO1, &
+              rmassO2p, rmassNOp, rmassN2p, rmassOp, 1, blksize, pver,        &
+              rmassFep, rmassMgp, rmassNap, rmassCap, rmassKp, rmassSip,      &
+              Fepmmr_blck, Mgpmmr_blck, Napmmr_blck, Capmmr_blck, Kpmmr_blck, Sipmmr_blck, &
+              NOpmmrtm1_blck, O2pmmrtm1_blck, Fepmmrtm1_blck, Mgpmmrtm1_blck, Napmmrtm1_blck, &
+              Capmmrtm1_blck, Kpmmrtm1_blck, Sipmmrtm1_blck )
 
          call t_stopf ('d_pie_coupling')
 
@@ -883,6 +1223,10 @@ module ionosphere_interface
             call shr_assert_in_domain(vi_blck, is_nan=.false., varname="vi_blck", msg="NaN found in vi_blck in ionosphere_run2")
             call shr_assert_in_domain(wi_blck, is_nan=.false., varname="wi_blck", msg="NaN found in wi_blck in ionosphere_run2")
             call shr_assert_in_domain(opmmr_blck, is_nan=.false., varname="opmmr_blck", msg="NaN found in opmmr_blck in ionosphere_run2")
+            if (associated(Fepmmr_blck)) &
+                 call shr_assert_in_domain(Fepmmr_blck, is_nan=.false., varname="Fepmmr_blck", msg="NaN found in Fepmmr_blck in ionosphere_run2")
+            if (associated(Mgpmmr_blck)) &
+                 call shr_assert_in_domain(Mgpmmr_blck, is_nan=.false., varname="Mgpmmr_blck", msg="NaN found in Mgpmmr_blck in ionosphere_run2")
          end if
 
          !
@@ -917,8 +1261,73 @@ module ionosphere_interface
                      call endrun(subname//': No destination for Op')
                   end if
                   opmmrtm1_phys(i,k,lchnk) = opmmrtm1_blck(k,j)
+
+                  ! Metal ions
+                  if (ixFep > 0) then
+                     phys_state(lchnk)%q(i, k, ixFep) = Fepmmr_blck(k, j)
+                  else if (sIndxFep > 0) then
+                     mmrPFep_phys(i, k) = Fepmmr_blck(k, j)
+                  end if
+                  if (ixMgp > 0) then
+                     phys_state(lchnk)%q(i, k, ixMgp) = Mgpmmr_blck(k, j)
+                  else if (sIndxMgp > 0) then
+                     mmrPMgp_phys(i, k) = Mgpmmr_blck(k, j)
+                  end if
+                  if (ixNap > 0) then
+                     phys_state(lchnk)%q(i, k, ixNap) = Napmmr_blck(k, j)
+                  else if (sIndxNap > 0) then
+                     mmrPNap_phys(i, k) = Napmmr_blck(k, j)
+                  end if
+                  if (ixCap > 0) then
+                     phys_state(lchnk)%q(i, k, ixCap) = Capmmr_blck(k, j)
+                  else if (sIndxCap > 0) then
+                     mmrPCap_phys(i, k) = Capmmr_blck(k, j)
+                  end if
+                  if (ixKp > 0) then
+                     phys_state(lchnk)%q(i, k, ixKp) = Kpmmr_blck(k, j)
+                  else if (sIndxKp > 0) then
+                     mmrPKp_phys(i, k) = Kpmmr_blck(k, j)
+                  end if
+                  if (ixSip > 0) then
+                     phys_state(lchnk)%q(i, k, ixSip) = Sipmmr_blck(k, j)
+                  else if (sIndxSip > 0) then
+                     mmrPSip_phys(i, k) = Sipmmr_blck(k, j)
+                  end if
+
+                  if (associated(O2pmmrtm1_blck)) then
+                     O2pmmrtm1_phys(i,k,lchnk) = O2pmmrtm1_blck(k,j)
+                  end if
+                  if (associated(NOpmmrtm1_blck)) then
+                     NOpmmrtm1_phys(i,k,lchnk) = NOpmmrtm1_blck(k,j)
+                  end if
+                  if (associated(Fepmmrtm1_blck)) then
+                     Fepmmrtm1_phys(i,k,lchnk) = Fepmmrtm1_blck(k,j)
+                  end if
+                  if (associated(Mgpmmrtm1_blck)) then
+                     Mgpmmrtm1_phys(i,k,lchnk) = Mgpmmrtm1_blck(k,j)
+                  end if
+                  if (associated(Napmmrtm1_blck)) then
+                     Napmmrtm1_phys(i,k,lchnk) = Napmmrtm1_blck(k,j)
+                  end if
+                  if (associated(Capmmrtm1_blck)) then
+                     Capmmrtm1_phys(i,k,lchnk) = Capmmrtm1_blck(k,j)
+                  end if
+                  if (associated(Kpmmrtm1_blck)) then
+                     Kpmmrtm1_phys(i,k,lchnk) = Kpmmrtm1_blck(k,j)
+                  end if
+                  if (associated(Sipmmrtm1_blck)) then
+                     Sipmmrtm1_phys(i,k,lchnk) = Sipmmrtm1_blck(k,j)
+                  end if
+
                end do
             end do
+
+            if (ixFep>0) then
+               call outfld('Fep_phys1', phys_state(lchnk)%q(:,:,ixFep), pcols, lchnk)
+            end if
+            if (ixMgp>0) then
+               call outfld('Mgp_phys1', phys_state(lchnk)%q(:,:,ixMgp), pcols, lchnk)
+            end if
 
             if (ionos_edyn_active) then
                call outfld('UI', ui_phys, pcols, lchnk)
@@ -948,6 +1357,34 @@ module ionosphere_interface
             deallocate(n2pmmr_blck)
             nullify(n2pmmr_blck)
          end if
+
+
+         if (associated(Fepmmr_blck)) then
+            deallocate(Fepmmr_blck)
+            nullify(Fepmmr_blck)
+         end if
+         if (associated(Mgpmmr_blck)) then
+            deallocate(Mgpmmr_blck)
+            nullify(Mgpmmr_blck)
+         end if
+         if (associated(Napmmr_blck)) then
+            deallocate(Napmmr_blck)
+            nullify(Napmmr_blck)
+         end if
+         if (associated(Capmmr_blck)) then
+            deallocate(Capmmr_blck)
+            nullify(Capmmr_blck)
+         end if
+         if (associated(Kpmmr_blck)) then
+            deallocate(Kpmmr_blck)
+            nullify(Kpmmr_blck)
+         end if
+         if (associated(Sipmmr_blck)) then
+            deallocate(Sipmmr_blck)
+            nullify(Sipmmr_blck)
+         end if
+
+
          if (associated(tempi)) then
             deallocate(tempi)
             nullify(tempi)
@@ -1001,7 +1438,34 @@ module ionosphere_interface
 
       end if ionos_cpl
 
-   end subroutine ionosphere_run2
+    contains
+
+      subroutine init_ionstm1( state_ndx, slvd_ndx, ionstm1_phys )
+
+        integer, intent(in) :: state_ndx
+        integer, intent(in) :: slvd_ndx
+        real(r8),intent(out):: ionstm1_phys(pcols, pver, begchunk:endchunk)
+
+        real(r8), pointer :: slvd_ptr(:,:)=>null() ! pbuf fld
+        type(physics_buffer_desc), pointer :: pbuf_chnk(:)
+
+        integer :: lchnk, ncol
+
+        do lchnk = begchunk, endchunk
+           ncol = get_ncols_p(lchnk)
+           if (slvd_ndx > 0) then
+              pbuf_chnk => pbuf_get_chunk(pbuf2d, lchnk)
+              call pbuf_get_field(pbuf_chnk, slvd_pbf_ndx, slvd_ptr,  &
+                   start=(/1,1,slvd_ndx/), kount=(/pcols,pver,1/) )
+              ionstm1_phys(:ncol,:pver,lchnk) = slvd_ptr(:ncol,:pver)
+           else
+              ionstm1_phys(:ncol,:pver,lchnk) = phys_state(lchnk)%q(:ncol,:pver,state_ndx)
+           endif
+        end do
+
+      end subroutine init_ionstm1
+
+    end subroutine ionosphere_run2
 
    !---------------------------------------------------------------------------
    !---------------------------------------------------------------------------
@@ -1033,6 +1497,31 @@ module ionosphere_interface
          call cam_pio_def_dim(File, 'lev',  pver,  dimids(ndims), existOK=.true.)
 
          ierr = pio_def_var(File, 'Optm1', pio_double, dimids(1:ndims), Optm1_vdesc)
+
+         if (allocated(NOpmmrtm1_phys)) then
+            ierr = pio_def_var(File, 'NOptm1', pio_double, dimids(1:ndims), NOptm1_vdesc)
+         end if
+         if (allocated(O2pmmrtm1_phys)) then
+            ierr = pio_def_var(File, 'O2ptm1', pio_double, dimids(1:ndims), O2ptm1_vdesc)
+         end if
+         if (allocated(Fepmmrtm1_phys)) then
+            ierr = pio_def_var(File, 'Feptm1', pio_double, dimids(1:ndims), Feptm1_vdesc)
+         end if
+         if (allocated(Mgpmmrtm1_phys)) then
+            ierr = pio_def_var(File, 'Mgptm1', pio_double, dimids(1:ndims), Mgptm1_vdesc)
+         end if
+         if (allocated(Napmmrtm1_phys)) then
+            ierr = pio_def_var(File, 'Naptm1', pio_double, dimids(1:ndims), Naptm1_vdesc)
+         end if
+         if (allocated(Capmmrtm1_phys)) then
+            ierr = pio_def_var(File, 'Captm1', pio_double, dimids(1:ndims), Captm1_vdesc)
+         end if
+         if (allocated(Kpmmrtm1_phys)) then
+            ierr = pio_def_var(File, 'Kptm1', pio_double, dimids(1:ndims), Kptm1_vdesc)
+         end if
+         if (allocated(Sipmmrtm1_phys)) then
+            ierr = pio_def_var(File, 'Siptm1', pio_double, dimids(1:ndims), Siptm1_vdesc)
+         end if
 
          mag_grid_id = cam_grid_id('gmag_grid')
          call cam_grid_write_attr(File, mag_grid_id, mag_grid_info)
@@ -1085,6 +1574,31 @@ module ionosphere_interface
          call cam_grid_get_decomp(physgrid, dims(1:3), gdims(1:nhdims), pio_double, iodesc3d)
 
          call pio_write_darray(File, Optm1_vdesc, iodesc3d, opmmrtm1_phys, ierr)
+
+         if (allocated(NOpmmrtm1_phys)) then
+            call pio_write_darray(File, NOptm1_vdesc, iodesc3d, NOpmmrtm1_phys, ierr)
+         end if
+         if (allocated(O2pmmrtm1_phys)) then
+            call pio_write_darray(File, O2ptm1_vdesc, iodesc3d, O2pmmrtm1_phys, ierr)
+         end if
+         if (allocated(Fepmmrtm1_phys)) then
+            call pio_write_darray(File, Feptm1_vdesc, iodesc3d, Fepmmrtm1_phys, ierr)
+         end if
+         if (allocated(Mgpmmrtm1_phys)) then
+            call pio_write_darray(File, Mgptm1_vdesc, iodesc3d, Mgpmmrtm1_phys, ierr)
+         end if
+         if (allocated(Napmmrtm1_phys)) then
+            call pio_write_darray(File, Naptm1_vdesc, iodesc3d, Napmmrtm1_phys, ierr)
+         end if
+         if (allocated(Capmmrtm1_phys)) then
+            call pio_write_darray(File, Captm1_vdesc, iodesc3d, Capmmrtm1_phys, ierr)
+         end if
+         if (allocated(Kpmmrtm1_phys)) then
+            call pio_write_darray(File, Kptm1_vdesc, iodesc3d, Kpmmrtm1_phys, ierr)
+         end if
+         if (allocated(Sipmmrtm1_phys)) then
+            call pio_write_darray(File, Siptm1_vdesc, iodesc3d, Sipmmrtm1_phys, ierr)
+         end if
 
          mag_grid_id = cam_grid_id('gmag_grid')
 
@@ -1143,6 +1657,47 @@ module ionosphere_interface
          call pio_read_darray(File, Optm1_vdesc, iodesc3d, opmmrtm1_phys, ierr)
          opmmrtm1_initialized = .true.
 
+         if (allocated(NOpmmrtm1_phys)) then
+            ierr = pio_inq_varid(File, 'NOptm1', NOptm1_vdesc)
+            call pio_read_darray(File, NOptm1_vdesc, iodesc3d, NOpmmrtm1_phys, ierr)
+            NOpmmrtm1_initialized = .true.
+         end if
+         if (allocated(O2pmmrtm1_phys)) then
+            ierr = pio_inq_varid(File, 'O2ptm1', O2ptm1_vdesc)
+            call pio_read_darray(File, O2ptm1_vdesc, iodesc3d, O2pmmrtm1_phys, ierr)
+            O2pmmrtm1_initialized = .true.
+         end if
+         if (allocated(Fepmmrtm1_phys)) then
+            ierr = pio_inq_varid(File, 'Feptm1', Feptm1_vdesc)
+            call pio_read_darray(File, Feptm1_vdesc, iodesc3d, Fepmmrtm1_phys, ierr)
+            Fepmmrtm1_initialized = .true.
+         end if
+         if (allocated(Mgpmmrtm1_phys)) then
+            ierr = pio_inq_varid(File, 'Mgptm1', Mgptm1_vdesc)
+            call pio_read_darray(File, Mgptm1_vdesc, iodesc3d, Mgpmmrtm1_phys, ierr)
+            Mgpmmrtm1_initialized = .true.
+         end if
+         if (allocated(Napmmrtm1_phys)) then
+            ierr = pio_inq_varid(File, 'Naptm1', Naptm1_vdesc)
+            call pio_read_darray(File, Naptm1_vdesc, iodesc3d, Napmmrtm1_phys, ierr)
+            Napmmrtm1_initialized = .true.
+         end if
+         if (allocated(Capmmrtm1_phys)) then
+            ierr = pio_inq_varid(File, 'Captm1', Captm1_vdesc)
+            call pio_read_darray(File, Captm1_vdesc, iodesc3d, Capmmrtm1_phys, ierr)
+            Capmmrtm1_initialized = .true.
+         end if
+         if (allocated(Kpmmrtm1_phys)) then
+            ierr = pio_inq_varid(File, 'Kptm1', Kptm1_vdesc)
+            call pio_read_darray(File, Kptm1_vdesc, iodesc3d, Kpmmrtm1_phys, ierr)
+            Kpmmrtm1_initialized = .true.
+         end if
+         if (allocated(Sipmmrtm1_phys)) then
+            ierr = pio_inq_varid(File, 'Siptm1', Siptm1_vdesc)
+            call pio_read_darray(File, Siptm1_vdesc, iodesc3d, Sipmmrtm1_phys, ierr)
+            Sipmmrtm1_initialized = .true.
+         end if
+
          mag_grid_id = cam_grid_id('gmag_grid')
          call cam_grid_dimensions(mag_grid_id, gdims(1:2), nhdims)
          dims(1) = omlon1 - mlon0 + 1
@@ -1194,13 +1749,12 @@ module ionosphere_interface
 
       integer                    :: grid_id ! grid ID for data mapping
       character(len=8)           :: dim1name, dim2name
-      logical                    :: readvar
       character(len=*), parameter :: subname = 'ionosphere_read_ic'
 
       if ( ionos_xport_active ) then
          call ionosphere_alloc()
 
-         fh_ini   => initial_file_get_id()
+         fh_ini => initial_file_get_id()
          grid_id = cam_grid_id('physgrid')
          if (.not. cam_grid_check(grid_id)) then
             call endrun(trim(subname)//': Internal error, no "physgrid" grid')
@@ -1208,15 +1762,57 @@ module ionosphere_interface
          call cam_grid_get_dim_names(grid_id, dim1name, dim2name)
 
          ! try reading in OpTM1 from the IC file
-         call infld('OpTM1', fh_ini, dim1name, 'lev', dim2name, 1, pcols, 1, pver, &
-              begchunk, endchunk, opmmrtm1_phys, readvar, gridname='physgrid')
-         if (.not. readvar) then
-            ! if OpTM1 is not included in the IC file then try using O+
-            call infld('Op', fh_ini, dim1name, 'lev', dim2name, 1, pcols, 1, pver, &
-                 begchunk, endchunk, opmmrtm1_phys, readvar, gridname='physgrid')
+         call read_tm1_ion('Op', Opmmrtm1_phys, Opmmrtm1_initialized)
+
+         if (allocated(NOpmmrtm1_phys)) then
+            call read_tm1_ion('NOp', NOpmmrtm1_phys, NOpmmrtm1_initialized)
          end if
-         opmmrtm1_initialized = readvar
+         if (allocated(O2pmmrtm1_phys)) then
+            call read_tm1_ion('O2p', O2pmmrtm1_phys, O2pmmrtm1_initialized)
+         end if
+         if (allocated(Fepmmrtm1_phys)) then
+            call read_tm1_ion('Fep', Fepmmrtm1_phys, Fepmmrtm1_initialized)
+         end if
+         if (allocated(Mgpmmrtm1_phys)) then
+            call read_tm1_ion('Mgp', Mgpmmrtm1_phys, Mgpmmrtm1_initialized)
+         end if
+         if (allocated(Napmmrtm1_phys)) then
+            call read_tm1_ion('Nap', Napmmrtm1_phys, Napmmrtm1_initialized)
+         end if
+         if (allocated(Capmmrtm1_phys)) then
+            call read_tm1_ion('Cap', Capmmrtm1_phys, Capmmrtm1_initialized)
+         end if
+         if (allocated(Kpmmrtm1_phys)) then
+            call read_tm1_ion('Kp', Kpmmrtm1_phys, Kpmmrtm1_initialized)
+         end if
+         if (allocated(Sipmmrtm1_phys)) then
+            call read_tm1_ion('Sip', Sipmmrtm1_phys, Sipmmrtm1_initialized)
+         end if
+
       end if
+
+    contains
+
+      subroutine read_tm1_ion(name, physfld, success)
+        use infnan, only: nan, assignment(=)
+
+        character(len=*), intent(in) :: name
+        real(r8), intent(out) :: physfld(:,:,:)
+        logical, intent(out) :: success
+
+        success = .false.
+        physfld = nan
+
+        ! try reading in ion-TM1 from the IC file
+        call infld(trim(name)//'TM1', fh_ini, dim1name, 'lev', dim2name, 1, pcols, 1, pver, &
+             begchunk, endchunk, physfld, success, gridname='physgrid')
+        if (.not. success) then
+           ! if ion-TM1 is not included in the IC file then try reading the ion
+           call infld(trim(name), fh_ini, dim1name, 'lev', dim2name, 1, pcols, 1, pver, &
+                begchunk, endchunk, physfld, success, gridname='physgrid')
+        end if
+
+      end subroutine read_tm1_ion
 
    end subroutine ionosphere_read_ic
 
@@ -1233,9 +1829,110 @@ module ionosphere_interface
          end if
          opmmrtm1_phys = nan
          opmmrtm1_initialized = .false.
+
+         ! set ion indexes and molecular masses
+         call set_indices_mass('Fep', ixFep, sIndxFep, rmassFep)
+         call set_indices_mass('Mgp', ixMgp, sIndxMgp, rmassMgp)
+         call set_indices_mass('Nap', ixNap, sIndxNap, rmassNap)
+         call set_indices_mass('Cap', ixCap, sIndxCap, rmassCap)
+         call set_indices_mass('Kp',  ixKp,  sIndxKp,  rmassKp )
+         call set_indices_mass('Sip', ixSip, sIndxSip, rmassSip)
+
+         if (ixFep>0 .or. sIndxFep>0) then
+
+            allocate(NOpmmrtm1_phys(pcols, pver, begchunk:endchunk), stat=astat)
+            if (astat /= 0) then
+               call endrun('ionosphere_alloc: failed to allocate NOpmmrtm1_phys')
+            end if
+            NOpmmrtm1_phys = nan
+            NOpmmrtm1_initialized = .false.
+            allocate(O2pmmrtm1_phys(pcols, pver, begchunk:endchunk), stat=astat)
+            if (astat /= 0) then
+               call endrun('ionosphere_alloc: failed to allocate O2pmmrtm1_phys')
+            end if
+            O2pmmrtm1_phys = nan
+            O2pmmrtm1_initialized = .false.
+            allocate(Fepmmrtm1_phys(pcols, pver, begchunk:endchunk), stat=astat)
+            if (astat /= 0) then
+               call endrun('ionosphere_alloc: failed to allocate Fepmmrtm1_phys')
+            end if
+            Fepmmrtm1_phys = nan
+            Fepmmrtm1_initialized = .false.
+
+         end if
+         if (ixMgp>0 .or. sIndxMgp>0) then
+            allocate(Mgpmmrtm1_phys(pcols, pver, begchunk:endchunk), stat=astat)
+            if (astat /= 0) then
+               call endrun('ionosphere_alloc: failed to allocate Mgpmmrtm1_phys')
+            end if
+            Mgpmmrtm1_phys = nan
+            Mgpmmrtm1_initialized = .false.
+         end if
+         if (ixNap>0 .or. sIndxNap>0) then
+            allocate(Napmmrtm1_phys(pcols, pver, begchunk:endchunk), stat=astat)
+            if (astat /= 0) then
+               call endrun('ionosphere_alloc: failed to allocate Napmmrtm1_phys')
+            end if
+            Napmmrtm1_phys = nan
+            Napmmrtm1_initialized = .false.
+         end if
+         if (ixCap>0 .or. sIndxCap>0) then
+            allocate(Capmmrtm1_phys(pcols, pver, begchunk:endchunk), stat=astat)
+            if (astat /= 0) then
+               call endrun('ionosphere_alloc: failed to allocate Capmmrtm1_phys')
+            end if
+            Capmmrtm1_phys = nan
+            Capmmrtm1_initialized = .false.
+         end if
+         if (ixKp>0 .or. sIndxKp>0) then
+            allocate(Kpmmrtm1_phys(pcols, pver, begchunk:endchunk), stat=astat)
+            if (astat /= 0) then
+               call endrun('ionosphere_alloc: failed to allocate Kpmmrtm1_phys')
+            end if
+            Kpmmrtm1_phys = nan
+            Kpmmrtm1_initialized = .false.
+         end if
+         if (ixSip>0 .or. sIndxSip>0) then
+            allocate(Sipmmrtm1_phys(pcols, pver, begchunk:endchunk), stat=astat)
+            if (astat /= 0) then
+               call endrun('ionosphere_alloc: failed to allocate Sipmmrtm1_phys')
+            end if
+            Sipmmrtm1_phys = nan
+            Sipmmrtm1_initialized = .false.
+         end if
+
       end if
 
    end subroutine ionosphere_alloc
+
+   !==========================================================================
+
+   ! utility routine to initialize indices and molec masses of ions
+   subroutine set_indices_mass(name, cnstidx, slvdidx, molmass)
+
+     character(len=*), intent(in) :: name ! cam constituent name
+     integer, intent(out) :: cnstidx ! cam constituent index
+     integer, intent(out) :: slvdidx ! short-lived species index
+     real(r8),intent(out) :: molmass ! molecular masss
+
+     integer :: idx
+
+     cnstidx = -1
+     slvdidx = -1
+     molmass = 0._r8
+
+     call cnst_get_ind(name, cnstidx, abort=.false.)
+     if (cnstidx > 0) then
+        molmass = cnst_mw(cnstidx)
+     else
+        slvdidx = slvd_index(name)
+        if (slvdidx > 0) then
+           idx = get_spc_ndx(name)
+           molmass = adv_mass(idx)
+        end if
+     end if
+
+   end subroutine set_indices_mass
 
    !==========================================================================
 
