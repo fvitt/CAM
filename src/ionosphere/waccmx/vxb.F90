@@ -22,6 +22,7 @@ module vxb
   private
   public :: vxb_xport,  vxb_init
   public :: vxb_prep
+  public :: vxb_ion_prep
   public :: kbot
   public :: ktop
 
@@ -86,6 +87,15 @@ module vxb
     real(r8), allocatable :: aa(:,:,:)   ! cell horizontal area (nlev,i0:i1,j0:j1)
     real(r8), allocatable :: va(:,:,:)   ! cell volume (nlev,i0:i1,j0:j1)
     real(r8), allocatable :: rva(:,:,:)  ! 1/va (nlev,i0:i1,j0:j1)
+!
+! Fields that depend on the transported ion (through xi) but not on the substep.
+! They are set once per ion by vxb_ion_prep. (nlev,i0-2:i1+2,j0-2:j1+2)
+!
+    real(r8), allocatable, target :: ri(:,:,:)     ! xi/(1+xi**2)
+    real(r8), allocatable, target :: rri(:,:,:)    ! 1/(1+xi**2)
+    real(r8), allocatable, target :: rrri(:,:,:)   ! xi**2/(1+xi**2)
+    real(r8), allocatable, target :: rrrri(:,:,:)  ! 1/(1+xi**2)
+    real(r8), allocatable, target :: bdotu(:,:,:)  ! rri*(B.U)*bz
 
   contains
 
@@ -171,6 +181,11 @@ module vxb
        allocate(aa   (nlev,i0:i1,j0:j1))
        allocate(va   (nlev,i0:i1,j0:j1))
        allocate(rva  (nlev,i0:i1,j0:j1))
+       allocate(ri   (nlev,i0-2:i1+2,j0-2:j1+2))
+       allocate(rri  (nlev,i0-2:i1+2,j0-2:j1+2))
+       allocate(rrri (nlev,i0-2:i1+2,j0-2:j1+2))
+       allocate(rrrri(nlev,i0-2:i1+2,j0-2:j1+2))
+       allocate(bdotu(nlev,i0-2:i1+2,j0-2:j1+2))
     end if
 
     if (is_first_step().or.is_first_restart_step()) then
@@ -358,7 +373,73 @@ module vxb
   end subroutine vxb_prep
 
 !-----------------------------------------------------------------------
-  subroutine vxb_xport(tn,te,ti,ne,nop,un,vn,om,zg,o2,o1,n2,op_in,opnm_in,xi, &
+  subroutine vxb_ion_prep(xi,un,vn,i0,i1,j0,j1)
+!
+! Set the fields used by vxb_xport that depend on the transported ion
+! (through xi) but not on the substep. Call once per ion, after vxb_prep
+! and before that ion's vxb_xport calls.
+!
+    use edyn_mpi, only: mp_geo_halos, mp_pole_halos
+!
+! Args:
+!
+    integer, intent(in) :: i0  ! grid%ifirstxy
+    integer, intent(in) :: i1  ! grid%ilastxy
+    integer, intent(in) :: j0  ! grid%jfirstxy
+    integer, intent(in) :: j1  ! grid%jlastxy
+    real(r8), intent(in) :: xi(nlev,i0:i1,j0:j1)          ! ion-neutral collision freq / ion gyrofreq
+    real(r8), intent(in) :: un(nlev,i0-2:i1+2,j0-2:j1+2)  ! neutral zonal wind (cm/s)
+    real(r8), intent(in) :: vn(nlev,i0-2:i1+2,j0-2:j1+2)  ! neutral meridional wind (cm/s)
+!
+! Local:
+!
+    integer :: i, j, k
+    integer :: nfields
+    real(r8), allocatable :: polesign(:)
+    type(array_ptr_type), allocatable :: ptrs(:)
+
+    if (.not. allocated(tr)) then
+       call endrun('vxb_ion_prep: vxb_prep must be called before vxb_ion_prep')
+    endif
+
+!$omp parallel do private(i, j, k)
+    do k=1,nlev
+      do j=j0,j1
+        do i=i0,i1
+          ri(k,i,j) = xi(k,i,j)/(1._r8+xi(k,i,j)**2)
+          rrri(k,i,j) = xi(k,i,j)**2/(1._r8+xi(k,i,j)**2)
+          rrrri(k,i,j) = 1._r8/(1._r8+xi(k,i,j)**2)
+          rri(k,i,j) = 1._r8/(1._r8+xi(k,i,j)**2)
+        enddo
+      enddo
+    enddo
+
+    bdotu = 0._r8
+!$omp parallel do private(k, j, i)
+    do k=1,nlev
+      do j=j0,j1
+        do i=i0,i1
+          bdotu(k,i,j) = rri(k,i,j)*(bx(i,j)*un(k,i,j)+by(i,j)*vn(k,i,j)+ &
+            wn(k,i,j)*bz(i,j))*bz(i,j)
+        enddo
+      enddo
+    enddo
+
+    nfields = 5
+    allocate(ptrs(nfields),polesign(nfields))
+    ptrs(1)%ptr => ri ; ptrs(2)%ptr => rri
+    ptrs(3)%ptr => rrri ; ptrs(4)%ptr => rrrri
+    ptrs(5)%ptr => bdotu
+    polesign = 1._r8
+
+    call mp_geo_halos(ptrs,1,nlev,i0,i1,j0,j1,nfields)
+    call mp_pole_halos(ptrs,1,nlev,i0,i1,j0,j1,nfields,polesign)
+    deallocate(ptrs,polesign)
+
+  end subroutine vxb_ion_prep
+
+!-----------------------------------------------------------------------
+  subroutine vxb_xport(tn,te,ti,ne,nop,un,vn,om,zg,o2,o1,n2,op_in,opnm_in, &
                          mbar,op_out,opnm_out,rmass_fep, &
                          i0,i1,j0,j1,nspltop )
 !
@@ -366,7 +447,8 @@ module vxb
 ! longitude (-180->180), vertical (bot2top), and units (CGS).
 !
 ! vxb_prep must be called earlier in the time step to set the fields
-! that do not depend on the ion species (ion drifts, tp, hj, ...).
+! that do not depend on the ion species (ion drifts, tp, hj, ...), and
+! vxb_ion_prep before the first substep of each ion (ri, rri, bdotu, ...).
 !
     use edyn_mpi,only:  mp_geo_halos,mp_pole_halos,setpoles
     use edyn_geogrid,only : glat, nlat, nlev
@@ -404,7 +486,6 @@ module vxb
     real(r8),intent(in) :: op_in(nlev,i0:i1,j0:j1) ! O+ density (cm^3)
     real(r8),intent(in) :: opnm_in(nlev,i0:i1,j0:j1) ! O+ density (cm^3) at time-1
     real(r8),intent(in) :: rmass_fep
-    real(r8),intent(in) :: xi(nlev,i0:i1,j0:j1) ! Jianfei Wu added xi = ion-neutral collision freq / ion gyrofreq
     real(r8),intent(in) :: zg   (nlev,i0:i1,j0:j1) ! geopotential height (cm)
 !
 ! Output:
@@ -418,10 +499,10 @@ module vxb
     integer :: i,j,k,lat,jm1,jp1,jm2,jp2,lat0,lat1
 !
 ! Local inputs with added halo points in lat,lon:
+! (ri, rri, rrri, rrrri and bdotu are module arrays set by vxb_ion_prep.)
 !
     real(r8),dimension(nlev,i0-2:i1+2,j0-2:j1+2),target :: op, opnm,xiop,xiopnm, &
-        xxiop,xxiopnm,xxxiop,xxxiopnm,xxxxiop,xxxxiopnm,&
-        ri,rri,rrri,rrrri,bdotu
+        xxiop,xxiopnm,xxxiop,xxxiopnm,xxxxiop,xxxxiopnm
 
 
     real(r8),dimension(nlev,i0-2:i1+2,j0-2:j1+2),target :: &
@@ -500,11 +581,6 @@ module vxb
     do k=1,nlev
       do j=j0,j1
         do i=i0,i1
-          ri(k,i,j) = xi(k,i,j)/(1._r8+xi(k,i,j)**2)
-          rrri(k,i,j) = xi(k,i,j)**2/(1._r8+xi(k,i,j)**2)
-          rrrri(k,i,j) = 1._r8/(1._r8+xi(k,i,j)**2)
-          !rrrri(k,i,j) = (xi(k,i,j)**2)/(1._r8+xi(k,i,j)**2)
-          rri(k,i,j) = 1._r8/(1._r8+xi(k,i,j)**2)
           op(k,i,j)   = op_in(k,i,j)
           opnm(k,i,j) = opnm_in(k,i,j)
           xiop(k,i,j)   = op_in(k,i,j)*ri(k,i,j)
@@ -527,7 +603,7 @@ module vxb
 ! Set two halo points in lat,lon:
 !   real(r8),dimension(nlev,i0-2:i1+2,j0-2:j1+2),target :: tn,te,etc.
 !
-    nfields = 14
+    nfields = 10
     allocate(ptrs(nfields),polesign(nfields))
 
     ptrs(1)%ptr => op ; ptrs(2)%ptr => opnm
@@ -535,8 +611,6 @@ module vxb
     ptrs(5)%ptr =>xxiop ; ptrs(6)%ptr => xxiopnm
     ptrs(7)%ptr =>xxxiop ; ptrs(8)%ptr => xxxiopnm
     ptrs(9)%ptr =>xxxxiop ; ptrs(10)%ptr => xxxxiopnm
-    ptrs(11)%ptr =>ri ; ptrs(12)%ptr => rri
-    ptrs(13)%ptr =>rrri ; ptrs(14)%ptr => rrrri
     polesign = 1._r8
 !
 ! mp_geo_halos first arg:
@@ -598,7 +672,6 @@ module vxb
     mulh=0._r8
     flxh=0._r8
     diff=0._r8
-    bdotu       = 0._r8
     !!!!!
     ktop=ktop+1
     kbot=kbot-1
@@ -734,26 +807,17 @@ module vxb
 ! Save to history file (exclude halo points)
 !
 
-!$omp parallel do private(k, j, i)
-    do k=1,nlev
-      do j=j0,j1
-        do i=i0,i1
-          bdotu(k,i,j) = rri(k,i,j)*(bx(i,j)*un(k,i,j)+by(i,j)*vn(k,i,j)+ &
-            wn(k,i,j)*bz(i,j))*bz(i,j)
-        enddo
-      enddo
-    enddo
 !
-! Set halo points where needed (tp,uuii,vvii,wwii,wn halos are set in vxb_prep).
+! Set halo points where needed (tp,uuii,vvii,wwii,wn halos are set in vxb_prep,
+! bdotu halos in vxb_ion_prep).
 !
-    nfields = 8
+    nfields = 7
     allocate(ptrs(nfields),polesign(nfields))
     ptrs(1)%ptr => dj ; ptrs(2)%ptr => bvel ; ptrs(3)%ptr => diffj
     ptrs(4)%ptr => opnm_smooth
     ptrs(5)%ptr => diffjj
     ptrs(6)%ptr => diffji
     ptrs(7)%ptr => tpp
-    ptrs(8)%ptr => bdotu
     polesign = 1._r8
 
 

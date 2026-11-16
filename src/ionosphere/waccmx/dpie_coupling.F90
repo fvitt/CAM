@@ -346,7 +346,7 @@ contains
      use regridder,  only: regrid_phys2geo_3d, regrid_phys2mag_3d, regrid_geo2phys_3d
      use regridder,  only: regrid_geo2mag_3d, regrid_geo2mag_2d
      use adotv_mod,  only: calc_adotv
-     use vxb, only: vxb_prep, vxb_xport
+     use vxb, only: vxb_prep, vxb_ion_prep, vxb_xport
 
      !
      ! Args:
@@ -933,7 +933,8 @@ contains
           !
           ! VxB transport of each ion in vxb_ions (subcycled nsplt_vxb times).
           ! Transported densities are converted back to mmr in ion_geo, iontm1_geo.
-          ! vxb_prep sets the fields that are the same for every ion and substep.
+          ! vxb_prep sets the fields that are the same for every ion and substep;
+          ! vxb_ion_prep sets those that are the same for every substep of one ion.
           !
           call t_startf('dpie_vxb_xport')
 
@@ -960,6 +961,7 @@ contains
 
              call calc_xi(o2dens, o1dens, n2dens, vxb_ions(n)%rmass, rmassN2, rmassO2, rmassO1, &
                           ionxi_in, lon0, lon1, lat0, lat1, nlev)
+             call vxb_ion_prep(ionxi_in, halo_un, halo_vn, lon0, lon1, lat0, lat1)
 
              do isplit = 1,nsplt_vxb
                 if (isplit > 1) then
@@ -967,7 +969,7 @@ contains
                    iontm1_in = iontm1_out
                 end if
                 call vxb_xport(halo_tn, halo_te, halo_ti, halo_ne, halo_op, halo_un, halo_vn, halo_om,  &
-                     zpot_in, halo_o2, halo_o1, halo_n2, ion_in, iontm1_in, ionxi_in,       &
+                     zpot_in, halo_o2, halo_o1, halo_n2, ion_in, iontm1_in,                 &
                      halo_mbar, ion_out, iontm1_out, vxb_ions(n)%rmass, lon0, lon1, lat0, lat1, nsplt_vxb )
              end do
 
