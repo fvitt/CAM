@@ -88,6 +88,7 @@
 <ncdata hgrid="4x5" nlev="81"  waccmx="1"          >atm/waccm/ic/WAX3548T08CO_2003top_f2000.waccm_0017bottom_4x5_L81_c160630.nc</ncdata>
 <ncdata hgrid="4x5" nlev="126" waccmx="1" aquaplanet="1">atm/waccm/ic/waccmx_aqua_4x5_L126_c170705.nc</ncdata>
 <ncdata hgrid="4x5" nlev="130" waccmx="1" aquaplanet="1">atm/waccm/ic/waccmx_mam4_aqua_4x5_L130_c180803.nc</ncdata>
+<ncdata hgrid="10x15" nlev="130" waccmx="1" aquaplanet="1">atm/waccm/ic/waccmx_mam4_aqua_10x15_L130_c261114.nc</ncdata>
 
 <ncdata hgrid="2.5x3.33" nlev="26"                >atm/cam/inic/fv/cami_0000-01-01_2.5x3.33_L26_c110309.nc</ncdata>
 <ncdata hgrid="2.5x3.33" nlev="26" ic_ymd="901"   >atm/cam/inic/fv/cami_0000-09-01_2.5x3.33_L26_c091007.nc</ncdata>
@@ -950,11 +951,13 @@
 <ionos_xport_nsplit hgrid="0.47x0.63" waccmx="1">90</ionos_xport_nsplit>
 <ionos_xport_nsplit hgrid="ne120np4"  waccmx="1">180</ionos_xport_nsplit>
 <oplus_ring_polar_filter>.true.</oplus_ring_polar_filter>
+<oplus_ring_polar_filter hgrid="10x15">.false.</oplus_ring_polar_filter>
 <oplus_shapiro_const                 >3.d-2</oplus_shapiro_const>
 <oplus_shapiro_const hgrid="ne120np4">6.d-3</oplus_shapiro_const>
 
 <!-- Oplus transport grid configuration -->
 <oplus_grid> 144,96 </oplus_grid>
+<oplus_grid hgrid="10x15">24,19</oplus_grid>
 <oplus_grid hgrid="ne16np4"> 144,96 </oplus_grid>
 <oplus_grid hgrid="ne30np4"> 288,192 </oplus_grid>
 <oplus_grid hgrid="0.9x1.25"> 288,192 </oplus_grid>
