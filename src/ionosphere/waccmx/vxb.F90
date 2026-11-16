@@ -1,10 +1,10 @@
 module vxb
 !
-! Horizontally transport the O+ ion, adapted for WACCM-X from TIEGCM.
-! Input O+ is received from WACCM physics/chemistry, transported O+
-! (op_out and opnm_out) are passed back to chemistry.
-!
-! B. Foster (foster@ucar.edu), May, 2015.
+! Transport ions (metal ions, O2+, NO+) by the VxB drifts and ambipolar
+! diffusion on the WACCM-X geographic grid. Adapted from the O+ transport
+! in oplus.F90 (B. Foster, May 2015), which was adapted from TIEGCM.
+! Input ion densities come from dpie_coupling; transported densities
+! (op_out and opnm_out in vxb_xport) are passed back to dpie_coupling.
 !
   use shr_kind_mod   ,only: r8 => shr_kind_r8
   use cam_abortutils ,only: endrun
@@ -26,7 +26,6 @@ module vxb
   public :: kbot
   public :: ktop
 
-  real(r8) :: pi,rtd
 !
 ! Constants in CGS:
 !
@@ -43,7 +42,6 @@ module vxb
 ! Reciprocal of molecular mass (multiply is cheaper than divide)
     real(r8),parameter :: rmassinv_o2=1._r8/32._r8, rmassinv_o1=1._r8/16._r8, &
                           rmassinv_n2=1._r8/28._r8
-!    real(r8),parameter :: rmass_fep=24.3_r8
 
     real(r8) :: dzp                       ! delta zp (typically 0.5 from kbot to top)
     real(r8) :: grav_cm                   ! gravitational constant (cm/s^2)
@@ -66,7 +64,6 @@ module vxb
 
     real(r8) :: adiff_limiter
     real(r8) :: shapiro_const
-    logical  :: enforce_floor
     logical, parameter :: debug = .false.
 
     real(r8), allocatable :: expz(:) ! exp(-zp)
@@ -100,20 +97,13 @@ module vxb
   contains
 
 !-----------------------------------------------------------------------
-  subroutine vxb_init( adiff_limiter_in, shapiro_const_in, enforce_floor_in )
-
-    use cam_history,  only : addfld, horiz_only
-    use vxbfilter_module,only : vxbfilter_init
+  subroutine vxb_init( adiff_limiter_in, shapiro_const_in )
 
     real(r8), intent(in) :: adiff_limiter_in
     real(r8), intent(in) :: shapiro_const_in
-    logical , intent(in) :: enforce_floor_in
 
     shapiro_const = shapiro_const_in
-    enforce_floor = enforce_floor_in
     adiff_limiter = adiff_limiter_in
-
-    call vxbfilter_init
 
     allocate(zp(nlev))      ! log pressure (as in TIEGCM)
     allocate(expz(nlev))    ! exp(-zp)
@@ -439,8 +429,8 @@ module vxb
   end subroutine vxb_ion_prep
 
 !-----------------------------------------------------------------------
-  subroutine vxb_xport(tn,te,ti,ne,nop,un,vn,om,zg,o2,o1,n2,op_in,opnm_in, &
-                         mbar,op_out,opnm_out,rmass_fep, &
+  subroutine vxb_xport(tn,te,ti,ne,nop,un,vn,om,o2,o1,n2,op_in,opnm_in, &
+                         mbar,op_out,opnm_out,rmass_ion, &
                          i0,i1,j0,j1,nspltop )
 !
 ! All input fields from dpie_coupling are in "TIEGCM" format, i.e.,
@@ -451,10 +441,10 @@ module vxb
 ! vxb_ion_prep before the first substep of each ion (ri, rri, bdotu, ...).
 !
     use edyn_mpi,only:  mp_geo_halos,mp_pole_halos,setpoles
-    use edyn_geogrid,only : glat, nlat, nlev
+    use edyn_geogrid,only : nlat, nlev
 !
-! Transport O+ ion.
-! March-May, 2015 B.Foster: Adapted from TIEGCM (oplus.F) for WACCM-X.
+! Transport one ion species over one substep. Adapted from the O+ transport
+! in oplus.F90 (March-May 2015, B. Foster), which was adapted from TIEGCM (oplus.F).
 !
 ! Notes:
 ! - waccmx_opt='ionosphere' must be set in user_nl_cam for te,ti inputs to have values
@@ -483,16 +473,15 @@ module vxb
     real(r8),intent(in) :: n2   (nlev,i0-2:i1+2,j0-2:j1+2) ! n2 (mmr)
     real(r8),intent(in) :: mbar (nlev,i0-2:i1+2,j0-2:j1+2) ! mean molecular weight
 
-    real(r8),intent(in) :: op_in(nlev,i0:i1,j0:j1) ! O+ density (cm^3)
-    real(r8),intent(in) :: opnm_in(nlev,i0:i1,j0:j1) ! O+ density (cm^3) at time-1
-    real(r8),intent(in) :: rmass_fep
-    real(r8),intent(in) :: zg   (nlev,i0:i1,j0:j1) ! geopotential height (cm)
+    real(r8),intent(in) :: op_in(nlev,i0:i1,j0:j1) ! ion density (cm^3)
+    real(r8),intent(in) :: opnm_in(nlev,i0:i1,j0:j1) ! ion density (cm^3) at time-1
+    real(r8),intent(in) :: rmass_ion  ! ion molecular weight (g/mol)
 !
 ! Output:
 !
     real(r8),intent(out) ::       &
-      op_out  (nlev,i0:i1,j0:j1), & ! O+ output
-      opnm_out(nlev,i0:i1,j0:j1)    ! O+ output at time n-1
+      op_out  (nlev,i0:i1,j0:j1), & ! ion density output (cm^3)
+      opnm_out(nlev,i0:i1,j0:j1)    ! ion density output at time n-1 (cm^3)
 !
 ! Local:
 !
@@ -529,47 +518,29 @@ module vxb
         rwii,              &! metal ion vertical velocity  Jianfei Wu
         hadudth,epsh,scrh, &
         nulh, mulh, flxh, diff, LORHOT, LNRHOT, RHOT, RHOTD, FABS, FSGN, TERM, TERP
-    real(r8) :: gmr,dtime,dtx2,dtx2inv, ONE6TH,ONE3RD
+    real(r8) :: dtime, ONE6TH,ONE3RD
     real(r8),dimension(nlev,i0:i1) :: &
-      bdzdvb_op,   &
-      hdz,         &
-      tp1,         &
-      tphdz0,      &
-      tphdz1,      &
-      djint,       &
-      divbz,       &
-      hdzmbz,      &
-      hdzpbz
+      bdzdvb_op
 !
-!
-! Arguments for tridiagonal solver trsolv (no halos):
+! Explicit (horizontal transport) terms (no halos):
     real(r8),dimension(nlev,i0:i1,j0:j1) :: &
-      explicit1,explicit2,&
       explicit,explicit_a1,explicit_b1,&
       explicit3,explicit_a2,explicit_b2,&
       explicit4,explicit_a3,explicit_b3,&
       explicit5,explicit_a4,explicit_b4,&
-      explicit_a5,explicit_b5,&
-      explicit6,explicit7
-    real(r8),dimension(i0:i1) :: ubca, ubcb
-    real(r8),parameter :: one=1._r8
-    logical :: calltrsolv
+      explicit6
 !
 ! Pointers for multiple-field calls (e.g., mp_geo_halos)
     integer :: nfields
     real(r8),allocatable :: polesign(:)
     type(array_ptr_type),allocatable :: ptrs(:)
 
-    real(r8) :: zpmid(nlev), opfloor
-    real(r8),parameter :: opmin=3000.0_r8
     Real(r8),Parameter :: BIGNUM = Huge(1._r8)
 !
 ! Execute:
 !
     dtime = get_step_size() ! step size in seconds
     dtime = dtime / dble(nspltop)
-    dtx2 = 2._r8*dtime
-    dtx2inv = 1._r8/dtx2
 
     if (.not. allocated(tr)) then
        call endrun('vxb_xport: vxb_prep must be called before vxb_xport')
@@ -637,10 +608,6 @@ module vxb
     if (j0 == 1)    lat0 = 2
     if (j1 == nlat) lat1 = nlat-1
 !
-! Save input fields to WACCM histories. Sub savefld_waccm_switch converts
-! fields from tiegcm-format to waccm-format before saving to waccm histories.
-!
-!
 ! Initialize output op_out with input op at 1:kbot-1, to retain values from
 ! bottom of column up to kbot. This routine will change (transport) these
 ! outputs only from kbot to the top (nlev).
@@ -652,10 +619,6 @@ module vxb
     op_out  (ktop+1:nlev,i0:i1,j0:j1) = op  (ktop+1:nlev,i0:i1,j0:j1)
     opnm_out(ktop+1:nlev,i0:i1,j0:j1) = opnm(ktop+1:nlev,i0:i1,j0:j1)
 !
-! The solver will be called only if calltrsolv=true. It is sometimes
-! set false when skipping parts of the code for debug purposes.
-!
-    calltrsolv = .true.
     tpp  = 0._r8
     dj  = 0._r8
     dji  = 0._r8
@@ -672,7 +635,6 @@ module vxb
     mulh=0._r8
     flxh=0._r8
     diff=0._r8
-    !!!!!
     ktop=ktop+1
     kbot=kbot-1
 !
@@ -695,21 +657,21 @@ module vxb
         tn(kbot:ktop,i0:i1,jm1),ti(kbot:ktop,i0:i1,jm1),mbar(kbot:ktop,i0:i1,jm1), &
         o2(kbot:ktop,i0:i1,jm1),o1  (kbot:ktop,i0:i1,jm1), &
         n2(kbot:ktop,i0:i1,jm1),nop(kbot:ktop,i0:i1,jm1),op(kbot:ktop,i0:i1,jm1), &
-        rmass_fep,tr(kbot:ktop,i0:i1,jm1), &
+        rmass_ion,tr(kbot:ktop,i0:i1,jm1), &
         dj(kbot:ktop,i0:i1,jm1),dji(kbot:ktop,i0:i1,jm1),i0,i1,kbot,ktop,kminor)
 
       call rrk(                                            &
         tn(kbot:ktop,i0:i1,lat),ti(kbot:ktop,i0:i1,lat),mbar(kbot:ktop,i0:i1,lat), &
         o2(kbot:ktop,i0:i1,lat),o1  (kbot:ktop,i0:i1,lat), &
         n2(kbot:ktop,i0:i1,lat),nop(kbot:ktop,i0:i1,lat),op(kbot:ktop,i0:i1,lat), &
-        rmass_fep,tr  (kbot:ktop,i0:i1,lat),&
+        rmass_ion,tr  (kbot:ktop,i0:i1,lat),&
         dj(kbot:ktop,i0:i1,lat),dji(kbot:ktop,i0:i1,lat),i0,i1,kbot,ktop,kminor)
 
       call rrk(                                            &
         tn(kbot:ktop,i0:i1,jp1),ti(kbot:ktop,i0:i1,jp1),mbar(kbot:ktop,i0:i1,jp1), &
         o2(kbot:ktop,i0:i1,jp1),o1  (kbot:ktop,i0:i1,jp1), &
         n2(kbot:ktop,i0:i1,jp1),nop(kbot:ktop,i0:i1,jp1),op(kbot:ktop,i0:i1,jp1), &
-        rmass_fep,tr(kbot:ktop,i0:i1,jp1), &
+        rmass_ion,tr(kbot:ktop,i0:i1,jp1), &
         dj(kbot:ktop,i0:i1,jp1),dji(kbot:ktop,i0:i1,jp1),i0,i1,kbot,ktop,kminor)
 !
 ! bvel @ jm1 = (B.U)*N(O+)    (J-1)
@@ -741,29 +703,29 @@ module vxb
       call diffus(tp(kbot:ktop,i0:i1,jm1),ti(kbot:ktop,i0:i1,jm1),te(kbot:ktop,i0:i1,jm1),&
           nop(kbot:ktop,i0:i1,jm1),ne(kbot:ktop,i0:i1,jm1),&
           op(kbot:ktop,i0:i1,jm1),&
-          xxxxiop(kbot:ktop,i0:i1,jm1),rmass_fep,hj(kbot:ktop,:,jm1), &
+          xxxxiop(kbot:ktop,i0:i1,jm1),rmass_ion,hj(kbot:ktop,:,jm1), &
           diffj(kbot:ktop,i0:i1,jm1),diffji(kbot:ktop,i0:i1,jm1),i0,i1,kbot,ktop,lat)
       call diffus(tp(kbot:ktop,i0:i1,lat),ti(kbot:ktop,i0:i1,lat),te(kbot:ktop,i0:i1,lat),&
           nop(kbot:ktop,i0:i1,lat),ne(kbot:ktop,i0:i1,lat),&
           op(kbot:ktop,i0:i1,lat),&
-          xxxxiop(kbot:ktop,i0:i1,lat),rmass_fep,hj(kbot:ktop,:,lat), &
+          xxxxiop(kbot:ktop,i0:i1,lat),rmass_ion,hj(kbot:ktop,:,lat), &
           diffj(kbot:ktop,i0:i1,lat),diffji(kbot:ktop,i0:i1,lat),i0,i1,kbot,ktop,lat)
       call diffus(tp(kbot:ktop,i0:i1,jp1),ti(kbot:ktop,i0:i1,jp1),te(kbot:ktop,i0:i1,jp1),&
           nop(kbot:ktop,i0:i1,jp1),ne(kbot:ktop,i0:i1,jp1),&
           op(kbot:ktop,i0:i1,jp1),&
-          xxxxiop(kbot:ktop,i0:i1,jp1),rmass_fep,hj(kbot:ktop,:,jp1), &
+          xxxxiop(kbot:ktop,i0:i1,jp1),rmass_ion,hj(kbot:ktop,:,jp1), &
            diffj(kbot:ktop,i0:i1,jp1),diffji(kbot:ktop,i0:i1,jp1),i0,i1,kbot,ktop,lat)
       call diffusj(tp(kbot:ktop,i0:i1,jm1),ti(kbot:ktop,i0:i1,jm1),te(kbot:ktop,i0:i1,jm1),&
           nop(kbot:ktop,i0:i1,jm1),ne(kbot:ktop,i0:i1,jm1),&
-          op(kbot:ktop,i0:i1,jm1),rmass_fep,hj(kbot:ktop,:,jm1),dj(kbot:ktop,i0:i1,jm1), &
+          op(kbot:ktop,i0:i1,jm1),rmass_ion,hj(kbot:ktop,:,jm1),dj(kbot:ktop,i0:i1,jm1), &
             dji(kbot:ktop,i0:i1,jm1),diffjj(kbot:ktop,i0:i1,jm1),i0,i1,kbot,ktop,lat)
       call diffusj(tp(kbot:ktop,i0:i1,lat),ti(kbot:ktop,i0:i1,lat),te(kbot:ktop,i0:i1,lat),&
           nop(kbot:ktop,i0:i1,lat),ne(kbot:ktop,i0:i1,lat),&
-          op(kbot:ktop,i0:i1,lat),rmass_fep,hj(kbot:ktop,:,lat),dj(kbot:ktop,i0:i1,lat), &
+          op(kbot:ktop,i0:i1,lat),rmass_ion,hj(kbot:ktop,:,lat),dj(kbot:ktop,i0:i1,lat), &
            dji(kbot:ktop,i0:i1,lat),diffjj(kbot:ktop,i0:i1,lat),i0,i1,kbot,ktop,lat)
       call diffusj(tp(kbot:ktop,i0:i1,jp1),ti(kbot:ktop,i0:i1,jp1),te(kbot:ktop,i0:i1,jp1),&
           nop(kbot:ktop,i0:i1,jp1),ne(kbot:ktop,i0:i1,jp1),&
-          op(kbot:ktop,i0:i1,jp1),rmass_fep,hj(kbot:ktop,:,jp1),dj(kbot:ktop,i0:i1,jp1), &
+          op(kbot:ktop,i0:i1,jp1),rmass_ion,hj(kbot:ktop,:,jp1),dj(kbot:ktop,i0:i1,jp1), &
            dji(kbot:ktop,i0:i1,jp1), diffjj(kbot:ktop,i0:i1,jp1),i0,i1,kbot,ktop,lat)
 !
 ! 'OPLUS_TP1' (constants at the poles)
@@ -960,13 +922,8 @@ module vxb
 !
 !------------------------ End second latitude scan ---------------------
 !
-! bdotdh_opj already has non-constant polar values, but bdotdh_op poles are zero.
-! Sub setpoles will set poles to the zonal average of the latitude below each pole.
-!
-! This may not be necessary, but do it for plotting:
-    call setpoles(bdotdh_op(kbot:ktop,i0:i1,j0:j1),kbot,ktop,i0,i1,j0,j1)
-    call setpoles(ambvel(kbot:ktop,i0:i1,j0:j1),kbot,ktop,i0,i1,j0,j1)
-
+! bdotdh_opj already has non-constant polar values. The poles of bdotdh_op
+! and ambvel are zero, but they are only used at lat=lat0,lat1.
 !
 ! Note mp_geo_halos will overwrite jm1,jp1 that was set above.
 ! bdotdh_opj needs longitude halos for the bdotdh call below.
@@ -981,12 +938,7 @@ module vxb
     call mp_pole_halos(ptrs,1,nlev,i0,i1,j0,j1,2,polesign)
     deallocate(ptrs,polesign)
 !
-    !-----------------------------------------------------------------
-    !  calculate metal ion velocity
-
-
 !----------------------- Begin third latitude scan ---------------------
-!
 !
     bdotdh_diff = 0._r8
     bdzdvb_op   = 0._r8
@@ -994,15 +946,7 @@ module vxb
     explicit3(1:nlev,i0:i1,j0:j1)    = 0._r8 ; explicit_a2(1:nlev,i0:i1,j0:j1)=0._r8 ; explicit_b2(1:nlev,i0:i1,j0:j1)=0._r8
     explicit4(1:nlev,i0:i1,j0:j1)    = 0._r8 ; explicit_a3(1:nlev,i0:i1,j0:j1)=0._r8 ; explicit_b3(1:nlev,i0:i1,j0:j1)=0._r8
     explicit5(1:nlev,i0:i1,j0:j1)    = 0._r8 ; explicit_a4(1:nlev,i0:i1,j0:j1)=0._r8 ; explicit_b4(1:nlev,i0:i1,j0:j1)=0._r8
-    explicit7(1:nlev,i0:i1,j0:j1)    = 0._r8 ; explicit_a5(1:nlev,i0:i1,j0:j1)=0._r8 ; explicit_b5(1:nlev,i0:i1,j0:j1)=0._r8
-    explicit1(1:nlev,i0:i1,j0:j1)    = 0._r8 ; explicit2(1:nlev,i0:i1,j0:j1)=0._r8; explicit6(1:nlev,i0:i1,j0:j1)=0._r8
-    hdz         = 0._r8
-    tphdz0      = 0._r8
-    tphdz1      = 0._r8
-    djint       = 0._r8
-    divbz       = 0._r8
-    hdzmbz      = 0._r8
-    hdzpbz      = 0._r8
+    explicit6(1:nlev,i0:i1,j0:j1)    = 0._r8
     LORHOT= 0._r8
     LNRHOT= 0._r8
     RHOT= 0._r8
@@ -1012,16 +956,9 @@ module vxb
     TERM= 0._r8
     TERP= 0._r8
     rwii= 0._r8
-
-
-!
-! gmr = G*M(O+)/(2.*R)
-!
-    gmr = grav_cm*rmass_fep/(2._r8*gask)
 !
 ! Globally, this loop is lat=2,nlat-1 (i.e., skipping the poles)
 !
-!    call filter2_op(wwi(kbot:ktop,i0:i1,j0:j1),kbot,ktop,i0,i1,j0,j1)
     do lat=lat0,lat1
       jm2 = lat-2
       jm1 = lat-1 ! this will be south pole for southern pes (j==1)
@@ -1065,7 +1002,6 @@ module vxb
         do k=kbot,ktop
           explicit(k,i,lat) = -(1._r8)*(bdzdvb_op(k,i)+bdotdh_diff(k,i,lat)+ &
             bdotdh_op(k,i,lat))
-!            bdotdh_op(k,i,lat)+ddh_op(k,i,lat))
         enddo ! k=kbot,nlev
       enddo ! i=i0,i1
 !
@@ -1115,9 +1051,6 @@ module vxb
          explicit_a4(k,i,lat) =                    &
             (eeeex(k,i+1,lat)*xiop(k,i+1,lat)-   &
             eeeex(k,i-1,lat)*xiop(k,i-1,lat))
-         explicit_a5(k,i,lat) =                    &
-            (un(k,i+1,lat)*xxxiop(k,i+1,lat)-                    &
-             un(k,i-1,lat)*xxxiop(k,i-1,lat))
 !
 ! 'EXPLICITb'
 !
@@ -1132,11 +1065,6 @@ module vxb
          explicit_b4(k,i,lat) = &
              (eeeey(k,i,jp1)*xiop(k,i,jp1)-   &
              eeeey(k,i,jm1)*xiop(k,i,jm1))
-         explicit_b5(k,i,lat) = &
-            (vn(k,i,jp1)*xxxiop(k,i,jp1)-                        &
-             vn(k,i,jm1)*xxxiop(k,i,jm1))
-!            (xiop(k,i,jp1)/bmod2(i,jp1)-                        &
-!             xiop(k,i,jm1)/bmod2(i,jm1)))
 !
 ! 'EXPLICIT1'
 ! explicit will receive polar values after this latitude scan.
@@ -1152,18 +1080,12 @@ module vxb
          explicit6(k,i,lat) = 1._r8/(2._r8*re)* &
            (1._r8/(cs(lat)*dlamda)*explicit_a4(k,i,lat)+          &
            1._r8/dphi*explicit_b4(k,i,lat))
-         explicit7(k,i,lat) = 1._r8/(2._r8*re)* &
-           (1._r8/(cs(lat)*dlamda)*explicit_a5(k,i,lat)+          &
-           1._r8/dphi*explicit_b5(k,i,lat))
 !
          explicit(k,i,lat) = explicit(k,i,lat)+ &
              explicit3(k,i,lat)+  &
              explicit4(k,i,lat)+  &
              explicit5(k,i,lat)+  &
-             explicit6(k,i,lat)!+  &
- !            explicit7(k,i,lat)
-
-!
+             explicit6(k,i,lat)
 !
 ! explicit is bad at i=1,72,73,144 near south pole (npole appears to be ok)
 ! This does not appear to adversely affect the final O+ output, and TIEGCM
@@ -1176,8 +1098,8 @@ module vxb
                write(iulog,"('>>> bad explicit: k,i,lat=',3i4,' explicit=',es12.4)") &
                     k,i,lat,explicit(k,i,lat)
                write(iulog,"('  cs(lat)	       =',3es12.4)") cs(lat)
-               write(iulog,"('  mgp(k,i-1:i+1,lat)  =',3es12.4)") op(k,i-1:i+1,lat)
-               write(iulog,"('  mgp(k,i,jm1:jp1)    =',3es12.4)") op(k,i,jm1:jp1)
+               write(iulog,"('  op(k,i-1:i+1,lat)   =',3es12.4)") op(k,i-1:i+1,lat)
+               write(iulog,"('  op(k,i,jm1:jp1)     =',3es12.4)") op(k,i,jm1:jp1)
                write(iulog,"('  bmod2(i-1:i+1,lat) =',3es12.4)") bmod2(i-1:i+1,lat)
                write(iulog,"('  bmod2(i,jm1:jp1)   =',3es12.4)") bmod2(i,jm1:jp1)
                write(iulog,"('  vxb_ui(k:k+1,i,lat)    =',2es12.4)") uui(k:k+1,i,lat)
@@ -1193,48 +1115,14 @@ module vxb
       do i=i0,i1
         do k=kbot,ktop
           rwii(k,i,lat)=0.5_r8*(wwii(k,i,lat)*ri(k,i,lat)+wwii(k+1,i,lat)*ri(k+1,i,lat))&
-!              +0.5_r8*(wn(k,i,lat)*rrri(k,i,lat)+wn(k+1,i,lat)*rrri(k+1,i,lat))&
               +0.5_r8*(wwi(k,i,lat)*rri(k,i,lat)+wwi(k+1,i,lat)*rri(k+1,i,lat))&
               +0.5_r8*(eeeez(k,i,lat)*ri(k,i,lat)+eeeez(k+1,i,lat)*ri(k+1,i,lat))&
               +0.5_r8*(bdotu(k,i,lat)+bdotu(k+1,i,lat))&
               -0.5_r8*(rrrri(k,i,lat)*(ambvel(k,i,lat))+&
               rrrri(k+1,i,lat)*(ambvel(k+1,i,lat)))
-!              -0.5_r8*(rrri(k,i,lat)*(ambvel1(k,i,lat))+&
-!              rrri(k+1,i,lat)*(ambvel1(k+1,i,lat)))
-!              -0.5_r8*(rrrri(k,i,lat)*(ambvel(k,i,lat)+mambvel(k,i,lat))+&
-!              rrrri(k+1,i,lat)*(ambvel(k+1,i,lat)+mambvel(k+1,i,lat)))
         enddo ! k=kbot,nlev
       enddo ! i=i0,i1
-!      do i=i0,i1
-!        do k=kbot,ktop
-!           rwii(k,i,lat)=-1._r8*rwii(k,i,lat)
-!          if (rwii (k,i,lat) > 1.e4_r8) rwii  (k,i,lat) = 1.e4_r8
-!          if (rwii (k,i,lat) < -1.e4_r8) rwii  (k,i,lat) = -1.e4_r8
-!        enddo ! k=lev0,lev1-1
-!      enddo ! i=lon0,lon1
-!          p_coeff(k,i,lat) =   hdzmbz(k,i)*djint(k  ,i)*tphdz0(k  ,i)
-
-! Begin coefficients p_coeff, q_coeff, r_coeff
-!
-!
-! Continue coefficients with vertical ion drift:
-! wi is converted from interfaces to midpoints (first use of wi).
-! The p,q,r coeffs are still zero at top boundary k=nlev, and at poles.
-!
-! Continue coefficients with vertical ion drift:
-! wi is converted from interfaces to midpoints (first use of wi).
-! The p,q,r coeffs are still zero at top boundary k=nlev, and at poles.
-!
-! Then TIEGCM "Add source term to RHS (explicit terms)", and calculates
-! lower boundary condition N(O+) = Q/L (q_coeff, explicit, p_coeff), and
-! finally calls trsolv.
-!
- 300 continue
     enddo ! end third latitude scan (lat=lat0,lat1)
-!    call filter1_op(rwii(kbot:ktop,i0:i1,j0:j1),kbot,ktop,i0,i1,j0,j1)
-!    call filter2_op(rwii(kbot:ktop,i0:i1,j0:j1),kbot,ktop,i0,i1,j0,j1)
-!    call filter1_op(explicit(kbot:ktop,i0:i1,j0:j1),kbot,ktop,i0,i1,j0,j1)
-!    call filter2_op(explicit(kbot:ktop,i0:i1,j0:j1),kbot,ktop,i0,i1,j0,j1)
 !
 !------------------------ End third latitude scan ---------------------
     ktop=ktop-1
@@ -1316,50 +1204,10 @@ module vxb
       enddo ! i=i0,i1
     enddo ! end third latitude scan (lat=lat0,lat1)
 !
-! Set poles for selected diagnostics:
-!
-!
-! All tasks have global 2d bmod2.
-! bmod2 was set by sub magfield (getapex.F90)
-!   allocate(bmod2(0:nlonp1,jspole-1:jnpole+1))
-! Copy bmod2 poles to diagnostic array.
-!
-!
-! Set poles for selected diagnostics:
-!
-!
-    call setpoles(explicit(kbot:ktop,i0:i1,j0:j1),kbot,ktop,i0,i1,j0,j1)
-!
-! Call solver, defining O+ output op_out:
-!
-! Its best not to call this unless the coefficients and explicit terms
-! have been properly set in the third latitude scan above (e.g., during
-! "goto 300" debugging above, where the coeffs may not have been calculated).
-!
-!
-! Write fields from third latitude scan to waccm history:
-!
-!------------------------------------------------------------------------
-!
-! Filter O+ output from solver:
-! (TIMEGCM calls both filters, whereas TIEGCM calls only filter2)
-!
-!   call filter2_op(op_out(kbot:nlev,i0:i1,j0:j1),kbot,nlev,i0,i1,j0,j1)
-!
-!   call filter2_op(op_out(kbot:ktop,i0:i1,j0:j1),kbot,ktop,i0,i1,j0,j1)
-!
 !----------------------- Begin fourth latitude scan ---------------------
 !
 !$omp parallel do private(lat, i, k)
     do lat=j0,j1
-!      do i=i0,i1
-!          op_out(ktop,i,lat)=op_out(ktop+1,i,lat)
-!          op_out(ktop-1,i,lat)=op_out(ktop+1,i,lat)
-!          op_out(ktop-2,i,lat)=op_out(ktop+1,i,lat)
-!          op_out(kbot,i,lat)=op_out(kbot-1,i,lat)
-!          op_out(kbot+2,i,lat)=op_out(kbot-1,i,lat)
-!      enddo
-
       do i=i0,i1
         do k=kbot,ktop
           opnm_out(k,i,lat) = dtsmooth*op(k,i,lat)+dtsmooth_div2* &
@@ -1367,40 +1215,14 @@ module vxb
         enddo
       enddo
 !
-! Insure non-negative O+ output:
+! Insure non-negative ion output:
       do i=i0,i1
         do k=kbot,ktop
           if (op_out  (k,i,lat) < 1.e-7_r8) op_out  (k,i,lat) = 1.e-7_r8
           if (opnm_out(k,i,lat) < 1.e-7_r8) opnm_out(k,i,lat) = 1.e-7_r8
         enddo ! k=lev0,lev1-1
       enddo ! i=lon0,lon1
-!      do i=i0,i1
-!        do k=kbot,ktop
-!          if (op_out  (k,i,lat) > 1.e4_r8) op_out  (k,i,lat) = 1.e4_r8
-!          if (opnm_out(k,i,lat) > 1.e4_r8) opnm_out(k,i,lat) = 1.e4_r8
-!        enddo ! k=lev0,lev1-1
-!      enddo ! i=lon0,lon1
-!
-! Enforce O+ minimum if enforce_opfloor is true.
-! Opfloor is Stan's "smooth floor" (product of two Gaussians,
-!   dependent on latitude and pressure level) (opmin=3000.0):
-!
-!      if (enforce_floor) then
-!         zpmid(kbot:ktop) = log(50.e-6_r8/pmid(kbot:ktop)) ! tgcm levs -- maybe done once at init time
-!         do k=kbot,ktop
-!            opfloor = opmin*exp(-(glat(lat)/90.0_r8)**2/0.3_r8) &
-!                 *exp(-((zpmid(k)-4.25_r8)/zpmid(ktop))**2/0.1_r8)
-!            do i=i0,i1
-!               if (op_out(k,i,lat) < opfloor) then
-!                  op_out(k,i,lat) = opfloor
-!               endif ! opout < opfloor
-!            enddo ! i=lon0,lon1
-!         enddo ! k=lev0,lev1-1
-!      endif ! enforce_opfloor
-
-    enddo ! lat=lat0,lat1
-!
-! Save O+ output to WACCM history (cm^3):
+    enddo ! lat=j0,j1
   end subroutine vxb_xport
 !-----------------------------------------------------------------------
 !-----------------------------------------------------------------------
@@ -1435,13 +1257,13 @@ module vxb
     enddo ! j=j0,j1
   end subroutine divb
 !-----------------------------------------------------------------------
-  subroutine rrk(t,ti,rms,ps1,ps2,n2,nop,en,rmass_fep,tr,ans,ans1,lon0,lon1,lev0,lev1,levn)
+  subroutine rrk(t,ti,rms,ps1,ps2,n2,nop,en,rmass_ion,tr,ans,ans1,lon0,lon1,lev0,lev1,levn)
 !
 ! Returns ambipolar diffusion coefficient in ans.
 !
 ! Args:
     integer,intent(in) :: lon0,lon1,lev0,lev1,levn
-    real(r8),intent(in) :: rmass_fep
+    real(r8),intent(in) :: rmass_ion
     real(r8),dimension(lev0:lev1,lon0:lon1),intent(in) :: &
       t,ti,rms,ps1,ps2,n2,tr,nop,en
     real(r8),dimension(lev0:lev1,lon0:lon1),intent(out) :: ans, ans1
@@ -1466,12 +1288,7 @@ module vxb
           rms(k+1,i))*(ps2(k,i)*rmassinv_o1*sqrt(tr(k,i))*(1._r8-0.064_r8* &
           log10(tr(k,i)))**2*colfac+18.6_r8*n2(k,i)*rmassinv_n2+18.1_r8*   &
           ps1(k,i)*rmassinv_o2))
-
-!        ans(k,i) = 0._r8
-!        ans1(k,i) = 0._r8
         ans1(k,i) = 0._r8
-!        ans(k,i) = 8.31e7_r8/coo(k,i)/rmass_fep
-
       enddo ! k=lev0,lev1
       ans(lev1,i) = ans(lev1-1,i) ! should not need to do this
       ans1(lev1,i) = ans1(lev1-1,i) ! should not need to do this
@@ -1479,7 +1296,7 @@ module vxb
     enddo ! i=lon0,lon1
     do i=lon0,lon1
       do k=levn,lev1-1
-        ans1(k,i) = gask/(rmass_fep*0.0851_r8*sqrt((rmass_fep+16._r8)/(rmass_fep*16._r8))* &
+        ans1(k,i) = gask/(rmass_ion*0.0851_r8*sqrt((rmass_ion+16._r8)/(rmass_ion*16._r8))* &
             ti(k,i)**(-1.5_r8)*nopn(k,i)*log(10518._r8*ti(k,i)**1.5_r8/sqrt(nopn(k,i))))
       enddo ! k=lev0,lev1
       ans1(lev1,i) = ans1(lev1-1,i) ! should not need to do this
@@ -1488,8 +1305,6 @@ module vxb
       do i=lon0,lon1
         do k=lev0,lev1
           if (nopn  (k,i) < 2.e4_r8) then
-!          if (nopn  (k,i) < 5.e2_r8 .or. nopn  (k,i) < 100._r8*enn(k,i)) then
-!          if (nopn  (k,i) < 5.e2_r8 .or. nopn  (k,i) < 100._r8*enn(k,i)) then
               ans1  (k,i) = 0._r8
           endif
           if (nopn  (k,i) < 1.e3_r8) then
@@ -1510,14 +1325,14 @@ module vxb
 
   end subroutine rrk
 !-----------------------------------------------------------------------
-  subroutine diffus(tp,ti,te,nop,ne,en,een,rmass_fep,hj,ans,ans1,i0,i1,lev0,lev1,lat)
+  subroutine diffus(tp,ti,te,nop,ne,en,een,rmass_ion,hj,ans,ans1,i0,i1,lev0,lev1,lat)
 !                                      kbot,nlev
 ! Evaluates ans = (d/(h*dz)*tp+m*g/r)*en
 ! Remember: "bot2top": lev0=kbot=bottom, lev1=nlev=top
 !
 ! Args:
     integer :: i0,i1,lev0,lev1,lat
-    real(r8),intent(in) :: rmass_fep
+    real(r8),intent(in) :: rmass_ion
     real(r8),dimension(lev0:lev1,i0:i1),intent(in) :: tp,ti,te,nop,ne,en,een,hj
     real(r8),dimension(lev0:lev1,i0:i1),intent(out) :: ans,ans1
     real(r8),dimension(lev0:lev1,i0:i1) :: nopn,enn
@@ -1534,7 +1349,7 @@ module vxb
         enddo ! k=lev0,lev1-1
       enddo ! i=lon0,lon1
 
-    mgr = rmass_fep*grav_cm/gask
+    mgr = rmass_ion*grav_cm/gask
     mgro = 16._r8*grav_cm/gask
 
 !$omp parallel do private(i,k)
@@ -1542,8 +1357,6 @@ module vxb
       do k=lev0,lev1-2
         ans(k+1,i) =1.0_r8/(2._r8*hj(k+1,i)*dzp)*&
         (nopn(k+2,i)*tp(k+2,i)-nopn(k,i)*tp(k,i))/nopn(k+1,i)*een(k+1,i)&
-!        ans(k+1,i) = 1.0_r8/(2._r8*hj(k+1,i)*dzp)*((en(k+2,i)*ti(k+2,i)- &
-!          en(k,i)*ti(k,i))+(en(k+2,i)*te(k+2,i)-en(k,i)*te(k,i)))&
           +mgro*een(k+1,i)
         ans1(k+1,i) =1.0_r8/(2._r8*hj(k+1,i)*dzp)*&
         (((enn(k+2,i)*ti(k+2,i)-enn(k,i)*ti(k,i))/enn(k+1,i)&
@@ -1562,9 +1375,6 @@ module vxb
     do i=i0,i1
 !
 ! Upper boundary:
-!      ans(lev1,i) = 1._r8/(hj(lev1,i)*dzp)*((ti(lev1,i)*en(lev1,i)- &
-!        ti(lev1-1,i)*en(lev1-1,i))+((ne(lev1,i)*te(lev1,i)-ne(lev1-1,i)&
-!        *te(lev1-1,i))/(ne(lev1,i))*en(lev1,i)))+mgr*en(lev1,i)
       ans(lev1,i) = 0._r8
       ans1(lev1,i) = 0._r8
 !
@@ -1574,14 +1384,10 @@ module vxb
       ans1(lev0,i) = 1._r8/(hj(lev0,i)*dzp)*&
           (((ti(lev0+1,i)*enn(lev0+1,i)-ti(lev0,i)*enn(lev0,i))/enn(lev0,i)+&
           (te(lev0+1,i)*ne(lev0+1,i)-te(lev0,i)*ne(lev0,i))/ne(lev0,i))*een(lev0,i))+mgr*een(lev0,i)
-!      ans(lev0,i) = 1._r8/(hj(lev0,i)*dzp)*((ti(lev0+1,i)*en(lev0+1,i)- &
-!        ti(lev0,i)*en(lev0,i))+(en(lev0+1,i)*te(lev0+1,i)-en(lev0,i)&
-!        *te(lev0-1,i)))+mgr*en(lev0,i)
     enddo
       do i=i0,i1
         do k=lev0,lev1
           if (nopn  (k,i) < 2.e4_r8) then
-!          if (nopn  (k,i) < 5.e2_r8 .or. nopn  (k,i) < 100._r8*enn(k,i)) then
               ans1  (k,i) = 0._r8
           endif
           if (nopn  (k,i) < 1.e3_r8) then
@@ -1591,14 +1397,14 @@ module vxb
       enddo ! i=lon0,lon1
   end subroutine diffus
 !-----------------------------------------------------------------------
-  subroutine diffusj(tp,ti,te,nop,ne,en,rmass_fep,hj,dj,dji,ans,i0,i1,lev0,lev1,lat)
+  subroutine diffusj(tp,ti,te,nop,ne,en,rmass_ion,hj,dj,dji,ans,i0,i1,lev0,lev1,lat)
 !                                      kbot,nlev
 ! Evaluates ans = (d/(h*dz)*tp+m*g/r)*en
 ! Remember: "bot2top": lev0=kbot=bottom, lev1=nlev=top
 !
 ! Args:
     integer :: i0,i1,lev0,lev1,lat
-    real(r8),intent(in) :: rmass_fep
+    real(r8),intent(in) :: rmass_ion
     real(r8),dimension(lev0:lev1,i0:i1),intent(in) :: tp,ti,te,nop,ne,en,hj,dj,dji
     real(r8),dimension(lev0:lev1,i0:i1),intent(out) :: ans
     real(r8),dimension(lev0:lev1,i0:i1) :: ans1,ans2
@@ -1616,11 +1422,8 @@ module vxb
         enddo ! k=lev0,lev1-1
       enddo ! i=lon0,lon1
 
-    mgr = rmass_fep*grav_cm/gask
+    mgr = rmass_ion*grav_cm/gask
     mgro = 16._r8*grav_cm/gask
-!    where( coo(:,:) <1.e-1_r8  )
-!      coo(:,:) = 1.e-1_r8
-!    endwhere
 
 !$omp parallel do private(i,k)
     do i=i0,i1
@@ -1628,23 +1431,16 @@ module vxb
         ans1(k+1,i) =1.0_r8/(2._r8*hj(k+1,i)*dzp)*&
             ((nopn(k+2,i)*tp(k+2,i)- nopn(k,i)*tp(k,i))/nopn(k+1,i))&
           *dj(k+1,i)+mgro*dj(k+1,i)
-!        ans1(k+1,i) =mgro*dj(k+1,i)
           if (nopn  (k,i) < 1.e3_r8) then
               ans1  (k,i) = 0._r8
           endif
- !       ans1(k+1,i) = 0.0_r8
- !      ans2(k+1,i) = 0.0_r8
         ans2(k+1,i) = 1.0_r8/(2._r8*hj(k+1,i)*dzp)*((enn(k+2,i)*ti(k+2,i)- &
           enn(k,i)*ti(k,i))/(enn(k+1,i))+(ne(k+2,i)*te(k+2,i)-ne(k,i)*te(k,i))/(ne(k+1,i)))&
           *dji(k+1,i)+mgr*dji(k+1,i)
-!        ans2(k+1,i) = mgr*dji(k+1,i)
           if (enn  (k,i) < 1.e-4_r8) then
               ans2  (k,i) = 0._r8
           endif
         ans(k+1,i)=ans1(k+1,i)+ans2(k+1,i)
-!        ans(k+1,i) = 1.0_r8/(2._r8*hj(k+1,i)*dzp)*((ti(k+2,i)-ti(k,i)))&
-!          *boltz*6.02e23_r8/(rmass_fep*coo(k+1,i))
-!        ans(k+1,i) = grav_cm/coo(k+1,i)
       enddo
       if (debug) then
         write(iulog,"('diffus: lat=',i4,' i=',i4,' ans(lev0:lev1-1,i)=',2es12.4)") &
@@ -1658,43 +1454,22 @@ module vxb
     do i=i0,i1
 !
 ! Upper boundary:
-!        ans(lev1,i) = 1.0_r8/(hj(lev1,i)*dzp)*((en(lev1,i)*ti(lev1,i)- &
-!          en(lev1-1,i)*ti(lev1-1,i))/(en(lev1,i))+(ne(lev1,i)*te(lev1,i)-ne(lev1-1,i)*te(lev1-1,i))/(ne(lev1,i)))&
- !         *boltz*6.02e23_r8/(rmass_fep*coo(lev1,i))+grav_cm/coo(lev1,i)
         ans(lev1,i) = 0.0_r8
-!      ans(lev1,i) = grav_cm/coo(lev1,i)
 !
-
-!        ans1(i) = 1._r8-((ti(lev1,i)- &
-!          ti(lev1-1,i))+(nop(lev1,i)*te(lev1,i)-nop(lev1-1,i)*te(lev1-1,i))/nop(lev1,i)&
-!          +rmass_fep*grav_cm/gask*hj(lev1,i)*dzp)/ti(lev1,i)
-!          ti(lev1-1,i))+(te(lev1,i)-te(lev1-1,i))&
-!          +rmass_fep*grav_cm/gask*hj(lev1,i)*dzp)/(ti(lev1,i)+te(lev1,i))
 ! Lower boundary:
-!        ans1(lev0,i) =1.0_r8/(hj(lev0,i)*dzp)*&
-!            ((ne(lev0+1,i)*tp(lev0+1,i)-ne(lev0,i)*tp(lev0,i))/ne(lev0,i))&
-!          *dj(lev0,i)+mgro*dj(lev0,i)
         ans1(lev0,i) =1.0_r8/(hj(lev0,i)*dzp)*&
             ((nopn(lev0+1,i)*tp(lev0+1,i)-nopn(lev0,i)*tp(lev0,i))/nopn(lev0,i))&
           *dj(lev0,i)+mgro*dj(lev0,i)
           if (nopn  (lev0,i) < 1.e3_r8) then
               ans1  (lev0,i) = 0._r8
           endif
- !       ans1(k+1,i) = 0.0_r8
-!        ans1(lev0,i) = 0._r8
-!        ans2(lev0,i) = 0._r8
         ans2(lev0,i) = 1.0_r8/(hj(lev0,i)*dzp)*((enn(lev0+1,i)*ti(lev0+1,i)- &
           enn(lev0,i)*ti(lev0,i))/(enn(lev0,i))+(ne(lev0+1,i)*te(lev0+1,i)-ne(lev0,i)*te(lev0,i))/(ne(lev0,i)))&
           *dji(lev0,i)+mgr*dji(lev0,i)
-!        ans2(lev0,i) = mgr*dji(lev0,i)
           if (enn  (lev0,i) < 1.e-4_r8) then
               ans2  (lev0,i) = 0._r8
           endif
         ans(lev0,i)=ans1(lev0,i)+ans2(lev0,i)
-!        ans(lev0,i) = 1.0_r8/(hj(lev0,i)*dzp)*( &
-!          (ti(lev0+1,i)-ti(lev0,i)))&
-!          *boltz*6.02e23_r8/(rmass_fep*coo(lev0,i))
-!      ans(lev0,i) = grav_cm/coo(lev0,i)
     enddo
     where( ans(:,:) >2.0e4_r8  )
       ans(:,:) = 2.0e4_r8
@@ -1832,267 +1607,5 @@ module vxb
     enddo ! j=lat0,lat1
 
   end subroutine vxbvel
-!-----------------------------------------------------------------------
-!-----------------------------------------------------------------------
-  subroutine trsolv(a,b,c,f,x,lev0,lev1,k1,k2,lon0,lon1)
-!
-! Tri-diagonal solver.
-!   a(k,i)*x(k-1,i) + b(k,i)*x(k,i) + c(k,i)*x(k+1,i) = f(k,i)
-!
-    implicit none
-!
-! Args:
-    integer,intent(in) :: lev0,lev1,k1,k2,lon0,lon1
-    real(r8),dimension(lev0:lev1,lon0:lon1),intent(in) :: &
-      a, & ! input coefficients
-      b, & ! input coefficients
-      c, & ! input coefficients
-      f    ! input RHS
-    real(r8),dimension(lev0:lev1,lon0:lon1),intent(out) :: &
-      x  ! output
-!
-! Local:
-    integer :: k,kk,i
-    real(r8),dimension(lev0:lev1,lon0:lon1) :: w1,w2,w3  ! work arrays
-
-!
-! Lower boundary (W(K1)=B(K1):
-    do i=lon0,lon1
-      w1(lev0,i) = b(lev0,i)
-    enddo
-!
-! Set up work arrays:
-    do i=lon0,lon1
-      do k=k1+1,k2
-!
-! W(KF+K-1)=C(K-1)/W(K-1):
-        w2(k-1,i) = c(k-1,i) / w1(k-1,i)
-!
-! W(K)=A(K)*W(KF+K-1)
-        w1(k,i) = a(k,i) * w2(k-1,i)
-!
-! W(K)=B(K)-W(K)
-        w1(k,i) = b(k,i) - w1(k,i)
-      enddo ! k=k1+1,k2
-    enddo ! i=lon0,lon1
-!
-! Lower boundary (W(2*KF+K1)=F(K1)/W(K1)):
-    do i=lon0,lon1
-      w3(k1,i) = f(k1,i) / w1(k1,i)
-    enddo
-!
-    do i=lon0,lon1
-      do k=k1+1,k2
-!
-! W(2*KF+K)=A(K)*W(2*KF+K-1)
-        w3(k,i) = a(k,i) * w3(k-1,i)
-!
-! W(2*KF+K)=F(K)-W(2*KF+K)
-        w3(k,i) = f(k,i) - w3(k,i)
-!
-! W(2*KF+K)=W(2*KF+K)/W(K)
-        w3(k,i) = w3(k,i) / w1(k,i)
-      enddo ! k=k1+1,k2
-    enddo ! i=lon0,lon1
-!
-! Upper boundary (X(K2)=W(2*KF+K2)):
-    do i=lon0,lon1
-      x(k2,i) = w3(k2,i)
-    enddo
-!
-
-! Back substitution:
-    do i=lon0,lon1
-      do kk=k1+1,k2
-        k = k1+k2-kk ! k2-1,k1,-1
-!
-! X(K)=W(KF+K)*X(K+1)
-        x(k,i) = w2(k,i) * x(k+1,i)
-!
-! X(K)=W(2*KF+K)-X(K)
-        x(k,i) = w3(k,i) - x(k,i)
-      enddo ! k=k1+1,k2
-    enddo
-  end subroutine trsolv
-!-----------------------------------------------------------------------
-  subroutine printpoles(f,klev,k0,k1,i0,i1,j0,j1,name)
-    use edyn_geogrid,only : nlat
-!
-! Args:
-    integer,intent(in) :: klev,k0,k1,i0,i1,j0,j1
-    real(r8),intent(in) :: f(k0:k1,i0:i1,j0:j1)
-    character(len=*),intent(in) :: name
-!
-! Print values at the poles at klev:
-    if (j0==1) then
-      if (debug.and.masterproc) write(iulog,"(/,'printpoles ',a,' spole: klev=',i4,' f(klev,i0:i1,j0)=',/,(8es12.4))") &
-        name,klev,f(klev,i0:i1,j0)
-    endif
-    if (j1==nlat) then
-      if (debug.and.masterproc) write(iulog,"(/,'printpoles ',a,' npole: klev=',i4,' f(klev,i0:i1,j1)=',/,(8es12.4))") &
-        name,klev,f(klev,i0:i1,j1)
-    endif
-
-  end subroutine printpoles
-!-----------------------------------------------------------------------
-  subroutine filter1_op(f,k0,k1,i0,i1,j0,j1)
-!
-! Polar fft filter, option 1 (see filter.F90).
-!
-    use vxbfilter_module,only: vxbfilter1,vxbkut1
-    use edyn_mpi     ,only: mp_gatherlons_f3d,mytidi
-    use edyn_mpi     ,only: mp_scatterlons_f3d
-    use edyn_geogrid ,only: nlon
-!
-! Args:
-    integer,intent(in) :: k0,k1,i0,i1,j0,j1
-    real(r8),intent(inout) :: f(k0:k1,i0:i1,j0:j1)
-!
-! Local:
-    integer :: i,j,k,nlevs
-    real(r8) :: fik(nlon,k1-k0+1)
-    type(array_ptr_type) :: fkij(1) ! fkij(1)%ptr(k1-k0+1,nlon,j0:j1)
-
-    nlevs = k1-k0+1
-!
-! Define lons in fkij from current task subdomain:
-!
-    allocate(fkij(1)%ptr(nlevs,nlon,j0:j1))
-    do j=j0,j1
-      do i=i0,i1
-        do k=k0,k1 ! kbot,nlev
-          fkij(1)%ptr(k-k0+1,i,j) = f(k,i,j)
-        enddo
-      enddo
-    enddo
-!
-! Gather longitudes into tasks in first longitude column of task table
-!   (leftmost of each j-row) for global fft. (i.e., tasks with mytidi==0
-!   gather lons from other tasks in that row). This includes all latitudes.
-!
-    call mp_gatherlons_f3d(fkij,1,nlevs,i0,i1,j0,j1,1)
-!
-! Only leftmost tasks at each j-row of tasks does the global filtering:
-!
-    if (mytidi==0) then
-!
-! Define 2d array with all longitudes for filter at each latitude:
-!
-      latscan: do j=j0,j1
-        if (vxbkut1(j) >= nlon/2) cycle latscan
-        do i=1,nlon
-          do k=k0,k1
-            fik(i,k-k0+1) = fkij(1)%ptr(k-k0+1,i,j)
-          enddo
-        enddo
-!
-! Remove wave numbers > kut(lat):
-!
-        call vxbfilter1(fik,1,nlevs,j)
-!
-! Return filtered array to fkij:
-!
-        do i=1,nlon
-          do k=k0,k1
-            fkij(1)%ptr(k-k0+1,i,j) = fik(i,k-k0+1)
-          enddo
-        enddo ! i=1,nlon
-      enddo latscan ! j=j0,j1
-    endif ! mytidi==0
-!
-! Now leftmost task at each j-row must redistribute filtered data
-! back to other tasks in the j-row (mytidi>0,mytidj) (includes latitude):
-!
-    call mp_scatterlons_f3d(fkij,1,nlevs,i0,i1,j0,j1,1)
-!
-! Return filtered array to inout field at task subdomain:
-!
-    do j=j0,j1
-      do i=i0,i1
-        do k=k0,k1
-          f(k,i,j) = fkij(1)%ptr(k-k0+1,i,j)
-        enddo
-      enddo
-    enddo
-    deallocate(fkij(1)%ptr)
-  end subroutine filter1_op
-!-----------------------------------------------------------------------
-  subroutine filter2_op(f,k0,k1,i0,i1,j0,j1)
-    use vxbfilter_module,only: vxbfilter2
-    use edyn_mpi     ,only: mp_gatherlons_f3d,mytidi
-    use edyn_mpi     ,only: mp_scatterlons_f3d
-    use edyn_geogrid ,only: nlon
-!
-! Args:
-    integer,intent(in) :: k0,k1,i0,i1,j0,j1
-    real(r8),intent(inout) :: f(k0:k1,i0:i1,j0:j1)
-!
-! Local:
-    integer :: i,j,k,nlevs
-    real(r8) :: fik(nlon,k1-k0+1)
-    type(array_ptr_type) :: fkij(1) ! fkij(1)%ptr(k1-k0+1,nlon,j0:j1)
-
-    nlevs = k1-k0+1
-!
-! Define lons in fkij from current task subdomain:
-!
-    allocate(fkij(1)%ptr(nlevs,nlon,j0:j1))
-!$omp parallel do private( i,j,k )
-    do j=j0,j1
-      do i=i0,i1
-        do k=k0,k1
-          fkij(1)%ptr(k-k0+1,i,j) = f(k,i,j)
-        enddo
-      enddo
-    enddo
-!
-! Gather longitudes into tasks in first longitude column of task table
-!   (leftmost of each j-row) for global fft. (i.e., tasks with mytidi==0
-!   gather lons from other tasks in that row). This includes all latitudes.
-!
-    call mp_gatherlons_f3d(fkij,1,nlevs,i0,i1,j0,j1,1)
-!
-! Only leftmost tasks at each j-row of tasks does the global filtering:
-!
-    if (mytidi==0) then
-!
-! Define 2d array with all longitudes for filter at each latitude:
-!
-      do j=j0,j1
-        do i=1,nlon
-          do k=k0,k1
-            fik(i,k-k0+1) = fkij(1)%ptr(k-k0+1,i,j)
-          enddo
-        enddo
-!
-! Remove wave numbers > kut(lat):
-!
-        call vxbfilter2(fik,1,nlevs,j)
-!
-! Return filtered array to fkij:
-!
-        do i=1,nlon
-          do k=k0,k1
-            fkij(1)%ptr(k-k0+1,i,j) = fik(i,k-k0+1)
-          enddo
-        enddo ! i=1,nlon
-      enddo ! j=j0,j1
-    endif ! mytidi==0
-!
-! Now leftmost task at each j-row must redistribute filtered data
-! back to other tasks in the j-row (mytidi>0,mytidj) (includes latitude):
-!
-    call mp_scatterlons_f3d(fkij,1,nlevs,i0,i1,j0,j1,1)
-!
-! Return filtered array to inout field at task subdomain:
-    do j=j0,j1
-      do i=i0,i1
-        do k=k0,k1
-          f(k,i,j) = fkij(1)%ptr(k-k0+1,i,j)
-        enddo
-      enddo
-    enddo
-    deallocate(fkij(1)%ptr)
-  end subroutine filter2_op
 !-----------------------------------------------------------------------
 end module vxb

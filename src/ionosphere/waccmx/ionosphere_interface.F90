@@ -98,7 +98,7 @@ module ionosphere_interface
    logical, public,  protected :: ionos_oplus_xport = .true.    ! if true, call sub oplus (based on tiegcm oplus.F)
    integer, public,  protected :: ionos_xport_nsplit = 5        ! number of substeps for O+ transport per model time step
    logical, public,  protected :: oplus_ring_polar_filter = .false. ! switch to apply ring polar filter
-   integer, public,  protected :: vxb_xport_nsplit = 15        ! number of substeps for O+ transport per model time step
+   integer, public,  protected :: vxb_xport_nsplit = 15        ! number of substeps for VxB ion transport per model time step
 
    real(r8) :: oplus_adiff_limiter = 1.5e+8_r8  ! limiter for ambipolar diffusion coefficient
    real(r8) :: oplus_shapiro_const = 0.03_r8    ! shapiro constant for spatial smoother
@@ -335,7 +335,7 @@ module ionosphere_interface
          call oplus_init(oplus_adiff_limiter, oplus_shapiro_const, oplus_enforce_floor, &
                          oplus_ring_polar_filter, ionos_debug_hist)
 
-         call vxb_init( oplus_adiff_limiter, oplus_shapiro_const, oplus_enforce_floor ) !Jianfei Wu
+         call vxb_init( oplus_adiff_limiter, oplus_shapiro_const ) !Jianfei Wu
 
          call addfld('OpTM1&IC', (/ 'lev' /), 'I', 'kg/kg', 'O+ at time step minus 1', gridname='physgrid')
          call add_default ('OpTM1&IC',0, 'I')

@@ -969,7 +969,7 @@ contains
                    iontm1_in = iontm1_out
                 end if
                 call vxb_xport(halo_tn, halo_te, halo_ti, halo_ne, halo_op, halo_un, halo_vn, halo_om,  &
-                     zpot_in, halo_o2, halo_o1, halo_n2, ion_in, iontm1_in,                 &
+                     halo_o2, halo_o1, halo_n2, ion_in, iontm1_in,                          &
                      halo_mbar, ion_out, iontm1_out, vxb_ions(n)%rmass, lon0, lon1, lat0, lat1, nsplt_vxb )
              end do
 
