@@ -23,11 +23,30 @@ module dpie_coupling
   public :: d_pie_init
   public :: d_pie_epotent  ! sets electric potential
   public :: d_pie_coupling ! handles coupling with edynamo and ion transport
+  public :: vxb_ion_t      ! ion species passed to d_pie_coupling for VxB transport
+
+  ! Metal ions that may be transported by VxB (vxb_xport), in processing order.
+  ! The order matters for bit-for-bit reproducibility (sums into ne and mbar).
+  integer, parameter, public :: n_metal_ions = 6
+  character(len=3), parameter, public :: metal_ion_names(n_metal_ions) = &
+       (/ 'Fep', 'Mgp', 'Nap', 'Cap', 'Kp ', 'Sip' /)
+
+  ! An ion species transported by VxB. Metal ions contribute to the electron
+  ! density and their transported mixing ratios are returned in mmr. For the
+  ! major ions O2+ and NO+, mmr is not used: their current mixing ratios are
+  ! the o2pmmr and nopmmr arguments of d_pie_coupling.
+  type :: vxb_ion_t
+     character(len=8)  :: name = ' '             ! constituent name, e.g. 'Fep'
+     real(r8)          :: rmass = 0._r8          ! molecular weight (kg/kmol)
+     logical           :: metal = .false.        ! true for metal ions
+     real(r8), pointer :: mmr(:,:) => null()     ! (plev,cols:cole) mmr (metal ions only)
+     real(r8), pointer :: mmrtm1(:,:) => null()  ! (plev,cols:cole) mmr at previous time step
+  end type vxb_ion_t
 
   logical  :: ionos_edyn_active ! if true, call oplus_xport for O+ transport
   logical  :: ionos_oplus_xport ! if true, call oplus_xport for O+ transport
   integer  :: nspltop           ! nsplit for oplus_xport
-  integer  :: nsplt_vxb=-1      ! nsplit for oplus_xport
+  integer  :: nsplt_vxb=-1      ! nsplit for vxb_xport
 
   logical  :: debug = .false.
 
@@ -47,6 +66,9 @@ contains
     real(r8),intent(in) :: crit_colats_deg(:)
     logical, intent(in) :: ionos_debug_hist
 
+    integer :: m
+    character(len=8) :: elem ! element symbol of a metal ion, e.g. 'Fe'
+
     debug_hist = ionos_debug_hist
 
     ionos_edyn_active = edyn_active_in
@@ -65,12 +87,27 @@ contains
     call addfld ('OpDens'  ,(/ 'lev' /), 'I', 'cm^-3','O+  Number Density', gridname='physgrid')
     call addfld ('NOpDens' ,(/ 'lev' /), 'I', 'cm^-3','NO+ Number Density', gridname='physgrid')
     call addfld ('O2pDens' ,(/ 'lev' /), 'I', 'cm^-3','O2+ Number Density', gridname='physgrid')
-    call addfld ('FepDens' ,(/ 'lev' /), 'I', 'cm^-3','Fe+ Number Density', gridname='physgrid')
-    call addfld ('MgpDens' ,(/ 'lev' /), 'I', 'cm^-3','Mg+ Number Density', gridname='physgrid')
-    call addfld ('NapDens' ,(/ 'lev' /), 'I', 'cm^-3','Na+ Number Density', gridname='physgrid')
-    call addfld ('CapDens' ,(/ 'lev' /), 'I', 'cm^-3','Ca+ Number Density', gridname='physgrid')
-    call addfld ('KpDens'  ,(/ 'lev' /), 'I', 'cm^-3','K+  Number Density', gridname='physgrid')
-    call addfld ('SipDens' ,(/ 'lev' /), 'I', 'cm^-3','Si+ Number Density', gridname='physgrid')
+    do m = 1, n_metal_ions
+       elem = ion_elem(metal_ion_names(m))
+       call addfld (trim(elem)//'pDens', (/ 'lev' /), 'I', 'cm^-3', trim(elem)//'+ Number Density', &
+            gridname='physgrid')
+       call addfld (trim(elem)//'Pi', (/ 'lev' /), 'I', 'cm^3', trim(elem)//'+ (vxb_xport input)', &
+            gridname='geo_grid')
+       call addfld (trim(elem)//'Po', (/ 'lev' /), 'I', 'cm^3', trim(elem)//'+ (vxb_xport output)', &
+            gridname='geo_grid')
+       if (debug_hist) then
+          call addfld ('DPIE_'//trim(elem)//'PMMR', (/ 'lev' /), 'I', 'mmr', 'DPIE_'//trim(elem)//'MMR', &
+               gridname='physgrid')
+          call addfld ('DPIE_'//trim(elem)//'P', (/ 'lev' /), 'I', 'm^-3', &
+               'DPIE '//trim(elem)//'p(dpie input)', gridname='physgrid')
+          call addfld ('WACCM_'//trim(elem)//'P', (/ 'lev' /), 'I', 'kg/kg', &
+               'WACCM_'//trim(elem)//'P (dpie output)', gridname='physgrid')
+          call addfld (trim(elem)//'Ptm1i', (/ 'lev' /), 'I', 'cm^3', &
+               trim(elem)//'+ previous step (vxb_xport input)', gridname='geo_grid')
+          call addfld (trim(elem)//'Ptm1o', (/ 'lev' /), 'I', 'cm^3', &
+               trim(elem)//'+ previous step (vxb_xport output)', gridname='geo_grid')
+       end if
+    end do
 
     call addfld ('EDens'  ,(/ 'lev' /), 'I', 'cm^-3','e Number Density (sum of O2+,NO+,N2+,O+)', gridname='physgrid')
 
@@ -102,25 +139,14 @@ contains
        call addfld ('HAL_phys',(/ 'lev' /), 'I', 'S/m','Hall Conductivity'   , gridname='physgrid')
 
        call addfld ('DPIE_OPMMR' ,(/ 'lev' /), 'I', 'mmr'  ,'DPIE_OPMMR'  , gridname='physgrid')
-       call addfld ('DPIE_FePMMR' ,(/ 'lev' /), 'I', 'mmr'  ,'DPIE_FeMMR'  , gridname='physgrid')
-       call addfld ('DPIE_MgPMMR' ,(/ 'lev' /), 'I', 'mmr'  ,'DPIE_MgMMR'  , gridname='physgrid')
        call addfld ('DPIE_O2P',(/ 'lev' /), 'I', 'm^-3','DPIE_O2P(dpie input)', gridname='physgrid')
        call addfld ('DPIE_NOP',(/ 'lev' /), 'I', 'm^-3','DPIE_NOP(dpie input)', gridname='physgrid')
        call addfld ('DPIE_N2P',(/ 'lev' /), 'I', 'm^-3','DPIE_N2P(dpie input)', gridname='physgrid')
-
-       call addfld ('DPIE_FEP',(/ 'lev' /), 'I', 'm^-3','DPIE Fep(dpie input)', gridname='physgrid')
-       call addfld ('DPIE_MGP',(/ 'lev' /), 'I', 'm^-3','DPIE Mgp(dpie input)', gridname='physgrid')
-       call addfld ('DPIE_NAP',(/ 'lev' /), 'I', 'm^-3','DPIE Nap(dpie input)', gridname='physgrid')
-       call addfld ('DPIE_CAP',(/ 'lev' /), 'I', 'm^-3','DPIE Cap(dpie input)', gridname='physgrid')
-       call addfld ('DPIE_KP', (/ 'lev' /), 'I', 'm^-3','DPIE Kp (dpie input)', gridname='physgrid')
-       call addfld ('DPIE_SIP',(/ 'lev' /), 'I', 'm^-3','DPIE Sip(dpie input)', gridname='physgrid')
 
        call addfld ('WACCM_UI'   ,(/ 'lev' /), 'I', 'm/s'  ,'WACCM_UI (dpie output)', gridname='physgrid')
        call addfld ('WACCM_VI'   ,(/ 'lev' /), 'I', 'm/s'  ,'WACCM_VI (dpie output)', gridname='physgrid')
        call addfld ('WACCM_WI'   ,(/ 'lev' /), 'I', 'm/s'  ,'WACCM_WI (dpie output)', gridname='physgrid')
        call addfld ('WACCM_OP'   ,(/ 'lev' /), 'I', 'kg/kg'  ,'WACCM_OP (dpie output)', gridname='physgrid')
-       call addfld ('WACCM_FeP'  ,(/ 'lev' /), 'I', 'kg/kg'  ,'WACCM_FeP (dpie output)', gridname='physgrid')
-       call addfld ('WACCM_MgP'  ,(/ 'lev' /), 'I', 'kg/kg'  ,'WACCM_MgP (dpie output)', gridname='physgrid')
 
        call addfld ('EDYN_ADOTV1 ', (/ 'lev' /), 'I', '        ','EDYN_ADOTV1' , gridname='geo_grid')
        call addfld ('EDYN_ADOTV2 ', (/ 'lev' /), 'I', '        ','EDYN_ADOTV2' , gridname='geo_grid')
@@ -138,24 +164,11 @@ contains
        call addfld ('OPtm1i',(/ 'lev' /), 'I', 'cm^3','O+ (oplus_xport output)',    gridname='geo_grid')
        call addfld ('OPtm1o',(/ 'lev' /), 'I', 'cm^3','O+ (oplus_xport output)',    gridname='geo_grid')
 
-       call addfld ('FePtm1i',(/ 'lev' /), 'I', 'cm^3','Fe+ (oplus_xport output)',    gridname='geo_grid')
-       call addfld ('FePtm1o',(/ 'lev' /), 'I', 'cm^3','Fe+ (oplus_xport output)',    gridname='geo_grid')
-
-       call addfld ('MgPtm1i',(/ 'lev' /), 'I', 'cm^3','Mg+ (oplus_xport output)',    gridname='geo_grid')
-       call addfld ('MgPtm1o',(/ 'lev' /), 'I', 'cm^3','Mg+ (oplus_xport output)',    gridname='geo_grid')
-
     endif
 
 
     call addfld ('OPi',(/ 'lev' /), 'I', 'cm^3','O+ (oplus_xport output)',    gridname='geo_grid')
     call addfld ('OPo',(/ 'lev' /), 'I', 'cm^3','O+ (oplus_xport output)',    gridname='geo_grid')
-
-    call addfld ('FePi',(/ 'lev' /), 'I', 'cm^3','Fe+ (oplus_xport output)',    gridname='geo_grid')
-    call addfld ('FePo',(/ 'lev' /), 'I', 'cm^3','Fe+ (oplus_xport output)',    gridname='geo_grid')
-
-    call addfld ('MgPi',(/ 'lev' /), 'I', 'cm^3','Mg+ (oplus_xport output)',    gridname='geo_grid')
-    call addfld ('MgPo',(/ 'lev' /), 'I', 'cm^3','Mg+ (oplus_xport output)',    gridname='geo_grid')
-
 
   end subroutine d_pie_init
 
@@ -312,14 +325,12 @@ contains
        sigma_ped, sigma_hall, te, ti, mbar, n2mmr, o2mmr, o1mmr, o2pmmr,      &
        nopmmr, n2pmmr, opmmr, opmmrtm1, ui, vi, wi,                           &
        rmassN2, rmassO2, rmassO1, &
-       rmassO2p, rmassNOp, rmassN2p, rmassOp, cols, cole, plev, &
-       rmassFep, rmassMgp, rmassNap, rmassCap, rmassKp, rmassSip, &
-       Fepmmr, Mgpmmr, Napmmr, Capmmr, Kpmmr, Sipmmr, &
-       NOpmmrtm1, O2pmmrtm1, Fepmmrtm1, Mgpmmrtm1, Napmmrtm1, Capmmrtm1, Kpmmrtm1, Sipmmrtm1)
+       rmassO2p, rmassNOp, rmassN2p, rmassOp, cols, cole, plev, vxb_ions)
      !
      ! Call dynamo to calculate electric potential and electric field
      ! Note: dynamo calculates ion drifts.
-     ! Then call oplus_xport to transport O+, which is passed back to physics.
+     ! Then call oplus_xport to transport O+, which is passed back to physics,
+     ! and vxb_xport to transport the ions in vxb_ions.
      !
      use edyn_geogrid,  only: nlev
      use shr_const_mod, only: grav => shr_const_g ! gravitational accel. (m/s^2)
@@ -374,32 +385,18 @@ contains
      real(r8), intent(in)    :: rmassNOp                    ! NO+ molecular weight kg/kmol
      real(r8), intent(in)    :: rmassN2p                    ! N2+ molecular weight kg/kmol
      real(r8), intent(in)    :: rmassOp                     ! O+ molecular weight kg/kmol
-
-     real(r8), intent(in)    :: rmassFep                    ! Fe+ molecular weight kg/kmol
-     real(r8), intent(in)    :: rmassMgp                    ! Mg+ molecular weight kg/kmol
-     real(r8), intent(in)    :: rmassNap                    ! Na+ molecular weight kg/kmol
-     real(r8), intent(in)    :: rmassCap                    ! Ca+ molecular weight kg/kmol
-     real(r8), intent(in)    :: rmassKp                     ! K+ molecular weight kg/kmol
-     real(r8), intent(in)    :: rmassSip                    ! Si+ molecular weight kg/kmol
-     real(r8), pointer :: Fepmmr(:,:)
-     real(r8), pointer :: Mgpmmr(:,:)
-     real(r8), pointer :: Napmmr(:,:)
-     real(r8), pointer :: Capmmr(:,:)
-     real(r8), pointer :: Kpmmr(:,:)
-     real(r8), pointer :: Sipmmr(:,:)
-     real(r8), pointer :: NOpmmrtm1(:,:)
-     real(r8), pointer :: O2pmmrtm1(:,:)
-     real(r8), pointer :: Fepmmrtm1(:,:)
-     real(r8), pointer :: Mgpmmrtm1(:,:)
-     real(r8), pointer :: Napmmrtm1(:,:)
-     real(r8), pointer :: Capmmrtm1(:,:)
-     real(r8), pointer :: Kpmmrtm1(:,:)
-     real(r8), pointer :: Sipmmrtm1(:,:)
+     ! Ions transported by VxB (empty if none). The arrays pointed to by
+     ! mmr and mmrtm1 are updated with the transported mixing ratios.
+     type(vxb_ion_t), intent(in) :: vxb_ions(:)
 
      !
      ! Local:
      !
      integer :: i, j, k, kk
+     integer :: n                   ! VxB ion index
+     integer :: nions               ! number of VxB ions
+     integer :: astat
+     character(len=8) :: elem       ! element symbol of a metal ion, e.g. 'Fe'
      integer :: kx                  ! Vertical index at peak of F2 layer electron density
      integer :: nstep
      integer :: nfields             ! Number of fields for multi-field calls
@@ -415,7 +412,13 @@ contains
 
      real(r8),dimension(plev, cols:cole) :: & ! ion number densities (m^3)
           o2p, nop, n2p, op, ne, optm1
-     real(r8),dimension(plev, cols:cole) :: Fep, Mgp, Nap, Cap, Kp, Sip
+
+     ! VxB ion number densities (m^-3) on the physics and geographic grids,
+     ! for the current and previous time steps (last index is the VxB ion)
+     real(r8), allocatable :: ion_dens(:,:,:)      ! (plev,cols:cole,nions)
+     real(r8), allocatable :: iontm1_dens(:,:,:)   ! (plev,cols:cole,nions)
+     real(r8), allocatable :: ion_geo(:,:,:,:)     ! (lon0:lon1,lat0:lat1,lev0:lev1,nions)
+     real(r8), allocatable :: iontm1_geo(:,:,:,:)  ! (lon0:lon1,lat0:lat1,lev0:lev1,nions)
 
      real(r8) :: op_in(nlev,lon0:lon1,lat0:lat1)
      real(r8) :: optm1_in(nlev,lon0:lon1,lat0:lat1)
@@ -431,56 +434,12 @@ contains
      real(r8) :: op_out(nlev,lon0:lon1,lat0:lat1)
      real(r8) :: optm1_out(nlev,lon0:lon1,lat0:lat1)
 
-     real(r8),dimension(plev, cols:cole) :: NOptm1, O2ptm1
-     real(r8),dimension(plev, cols:cole) :: Feptm1, Mgptm1, Naptm1, Captm1, Kptm1, Siptm1
-
-     real(r8) :: O2pxi_in(nlev,lon0:lon1,lat0:lat1)
-     real(r8) :: O2p_in(nlev,lon0:lon1,lat0:lat1)
-     real(r8) :: O2ptm1_in(nlev,lon0:lon1,lat0:lat1)
-     real(r8) :: O2p_out(nlev,lon0:lon1,lat0:lat1)
-     real(r8) :: O2ptm1_out(nlev,lon0:lon1,lat0:lat1)
-
-     real(r8) :: NOpxi_in(nlev,lon0:lon1,lat0:lat1)
-     real(r8) :: NOp_in(nlev,lon0:lon1,lat0:lat1)
-     real(r8) :: NOptm1_in(nlev,lon0:lon1,lat0:lat1)
-     real(r8) :: NOp_out(nlev,lon0:lon1,lat0:lat1)
-     real(r8) :: NOptm1_out(nlev,lon0:lon1,lat0:lat1)
-
-     real(r8) :: Fepxi_in(nlev,lon0:lon1,lat0:lat1)
-     real(r8) :: Fep_in(nlev,lon0:lon1,lat0:lat1)
-     real(r8) :: Feptm1_in(nlev,lon0:lon1,lat0:lat1)
-     real(r8) :: Fep_out(nlev,lon0:lon1,lat0:lat1)
-     real(r8) :: Feptm1_out(nlev,lon0:lon1,lat0:lat1)
-
-     real(r8) :: Mgpxi_in(nlev,lon0:lon1,lat0:lat1)
-     real(r8) :: Mgp_in(nlev,lon0:lon1,lat0:lat1)
-     real(r8) :: Mgptm1_in(nlev,lon0:lon1,lat0:lat1)
-     real(r8) :: Mgp_out(nlev,lon0:lon1,lat0:lat1)
-     real(r8) :: Mgptm1_out(nlev,lon0:lon1,lat0:lat1)
-
-     real(r8) :: Napxi_in(nlev,lon0:lon1,lat0:lat1)
-     real(r8) :: Nap_in(nlev,lon0:lon1,lat0:lat1)
-     real(r8) :: Naptm1_in(nlev,lon0:lon1,lat0:lat1)
-     real(r8) :: Nap_out(nlev,lon0:lon1,lat0:lat1)
-     real(r8) :: Naptm1_out(nlev,lon0:lon1,lat0:lat1)
-
-     real(r8) :: Capxi_in(nlev,lon0:lon1,lat0:lat1)
-     real(r8) :: Cap_in(nlev,lon0:lon1,lat0:lat1)
-     real(r8) :: Captm1_in(nlev,lon0:lon1,lat0:lat1)
-     real(r8) :: Cap_out(nlev,lon0:lon1,lat0:lat1)
-     real(r8) :: Captm1_out(nlev,lon0:lon1,lat0:lat1)
-
-     real(r8) :: Kpxi_in(nlev,lon0:lon1,lat0:lat1)
-     real(r8) :: Kp_in(nlev,lon0:lon1,lat0:lat1)
-     real(r8) :: Kptm1_in(nlev,lon0:lon1,lat0:lat1)
-     real(r8) :: Kp_out(nlev,lon0:lon1,lat0:lat1)
-     real(r8) :: Kptm1_out(nlev,lon0:lon1,lat0:lat1)
-
-     real(r8) :: Sipxi_in(nlev,lon0:lon1,lat0:lat1)
-     real(r8) :: Sip_in(nlev,lon0:lon1,lat0:lat1)
-     real(r8) :: Siptm1_in(nlev,lon0:lon1,lat0:lat1)
-     real(r8) :: Sip_out(nlev,lon0:lon1,lat0:lat1)
-     real(r8) :: Siptm1_out(nlev,lon0:lon1,lat0:lat1)
+     ! VxB transport work arrays for one ion (tiegcm format, cm^-3)
+     real(r8) :: ionxi_in(nlev,lon0:lon1,lat0:lat1)   ! ion-neutral collision freq / ion gyrofreq
+     real(r8) :: ion_in(nlev,lon0:lon1,lat0:lat1)
+     real(r8) :: iontm1_in(nlev,lon0:lon1,lat0:lat1)
+     real(r8) :: ion_out(nlev,lon0:lon1,lat0:lat1)
+     real(r8) :: iontm1_out(nlev,lon0:lon1,lat0:lat1)
 
      real(r8) :: o1dens(nlev,lon0:lon1,lat0:lat1)
      real(r8) :: o2dens(nlev,lon0:lon1,lat0:lat1)
@@ -508,8 +467,6 @@ contains
      real(r8) h12,h22,h32,deltx,atx,ax,btx,bx,ctx,cx ! Variables used for weighting when locating F2 peak
      !
      logical :: do_integrals
-     ! Metal ion species are transported only when both the current and previous step fields are present
-     logical :: do_fep, do_mgp, do_nap, do_cap, do_kp, do_sip
 !
 ! Pointers for multiple-field calls:
     type(array_ptr_type),allocatable :: ptrs(:)
@@ -547,26 +504,6 @@ contains
             pmid_geo, &
             mbar_geo
 
-     real(r8), dimension(lon0:lon1,lat0:lat1,lev0:lev1) :: & ! 3d fields on geo grid
-          NOp_geo, &
-          O2p_geo
-
-     real(r8), dimension(lon0:lon1,lat0:lat1,lev0:lev1) :: & ! 3d fields on geo grid
-          NOptm1_geo, &
-          O2ptm1_geo, &
-          Feptm1_geo, &
-          Mgptm1_geo, &
-          Naptm1_geo, &
-          Captm1_geo, &
-          Kptm1_geo, &
-          Siptm1_geo, &
-          Fep_geo, &
-          Mgp_geo, &
-          Nap_geo, &
-          Cap_geo, &
-          Kp_geo, &
-          Sip_geo
-
      real(r8), dimension(lon0:lon1,lat0:lat1,lev0:lev1) :: &
           adotv1_in, adotv2_in
      real(r8), dimension(lon0:lon1,lat0:lat1) :: &
@@ -579,30 +516,19 @@ contains
 
      call t_startf(subname)
 
-     do_fep = associated(Fepmmr)
-     if (do_fep .neqv. associated(Fepmmrtm1)) then
-        call endrun(subname//': Fepmmr and Fepmmrtm1 must both be present or both absent')
-     end if
-     do_mgp = associated(Mgpmmr)
-     if (do_mgp .neqv. associated(Mgpmmrtm1)) then
-        call endrun(subname//': Mgpmmr and Mgpmmrtm1 must both be present or both absent')
-     end if
-     do_nap = associated(Napmmr)
-     if (do_nap .neqv. associated(Napmmrtm1)) then
-        call endrun(subname//': Napmmr and Napmmrtm1 must both be present or both absent')
-     end if
-     do_cap = associated(Capmmr)
-     if (do_cap .neqv. associated(Capmmrtm1)) then
-        call endrun(subname//': Capmmr and Capmmrtm1 must both be present or both absent')
-     end if
-     do_kp = associated(Kpmmr)
-     if (do_kp .neqv. associated(Kpmmrtm1)) then
-        call endrun(subname//': Kpmmr and Kpmmrtm1 must both be present or both absent')
-     end if
-     do_sip = associated(Sipmmr)
-     if (do_sip .neqv. associated(Sipmmrtm1)) then
-        call endrun(subname//': Sipmmr and Sipmmrtm1 must both be present or both absent')
-     end if
+     nions = size(vxb_ions)
+     do n = 1, nions
+        if (.not. associated(vxb_ions(n)%mmrtm1)) then
+           call endrun(subname//': mmrtm1 not associated for VxB ion '//trim(vxb_ions(n)%name))
+        end if
+        if (vxb_ions(n)%metal) then
+           if (.not. associated(vxb_ions(n)%mmr)) then
+              call endrun(subname//': mmr not associated for VxB metal ion '//trim(vxb_ions(n)%name))
+           end if
+        else if (vxb_ions(n)%name /= 'O2p' .and. vxb_ions(n)%name /= 'NOp') then
+           call endrun(subname//': unsupported non-metal VxB ion '//trim(vxb_ions(n)%name))
+        end if
+     end do
 
      if (debug .and. masterproc) then
 
@@ -643,63 +569,33 @@ contains
         end do
      end do ! k=1,nlev
 
-     Fep=fillvalue; Mgp=fillvalue; Nap=fillvalue; Cap=fillvalue; Kp=fillvalue; Sip=fillvalue;
+     !---------------------------------------------------------------
+     ! VxB ion number densities (m^3). Metal ions are added to ne in
+     ! list order; O2+ and NO+ are already included in ne above.
+     !---------------------------------------------------------------
+     allocate(ion_dens(plev, cols:cole, nions), stat=astat)
+     if (astat /= 0) then
+        call endrun(subname//': failed to allocate ion_dens')
+     end if
+     allocate(iontm1_dens(plev, cols:cole, nions), stat=astat)
+     if (astat /= 0) then
+        call endrun(subname//': failed to allocate iontm1_dens')
+     end if
+     ion_dens = fillvalue
 
-     if (do_fep) then
-        Fep(1:nlev,cols:cole) = Fepmmr(1:nlev,cols:cole) * mbar(1:nlev,cols:cole) / rmassFep * &
-             pmid(1:nlev,cols:cole) / (kboltz * tn(1:nlev,cols:cole))
-        ne(1:nlev,cols:cole) = ne(1:nlev,cols:cole) + Fep(1:nlev,cols:cole)
-     end if
-     if (do_mgp) then
-        Mgp(1:nlev,cols:cole) = Mgpmmr(1:nlev,cols:cole) * mbar(1:nlev,cols:cole) / rmassMgp * &
-             pmid(1:nlev,cols:cole) / (kboltz * tn(1:nlev,cols:cole))
-        ne(1:nlev,cols:cole) = ne(1:nlev,cols:cole) + Mgp(1:nlev,cols:cole)
-     end if
-     if (do_nap) then
-        Nap(1:nlev,cols:cole) = Napmmr(1:nlev,cols:cole) * mbar(1:nlev,cols:cole) / rmassNap * &
-             pmid(1:nlev,cols:cole) / (kboltz * tn(1:nlev,cols:cole))
-        ne(1:nlev,cols:cole) = ne(1:nlev,cols:cole) + Nap(1:nlev,cols:cole)
-     end if
-     if (do_cap) then
-        Cap(1:nlev,cols:cole) = Capmmr(1:nlev,cols:cole) * mbar(1:nlev,cols:cole) / rmassCap * &
-             pmid(1:nlev,cols:cole) / (kboltz * tn(1:nlev,cols:cole))
-        ne(1:nlev,cols:cole) = ne(1:nlev,cols:cole) + Cap(1:nlev,cols:cole)
-     end if
-     if (do_kp) then
-        Kp(1:nlev,cols:cole) = Kpmmr(1:nlev,cols:cole) * mbar(1:nlev,cols:cole) / rmassKp * &
-             pmid(1:nlev,cols:cole) / (kboltz * tn(1:nlev,cols:cole))
-        ne(1:nlev,cols:cole) = ne(1:nlev,cols:cole) + Kp(1:nlev,cols:cole)
-     end if
-     if (do_sip) then
-        Sip(1:nlev,cols:cole) = Sipmmr(1:nlev,cols:cole) * mbar(1:nlev,cols:cole) / rmassSip * &
-             pmid(1:nlev,cols:cole) / (kboltz * tn(1:nlev,cols:cole))
-        ne(1:nlev,cols:cole) = ne(1:nlev,cols:cole) + Sip(1:nlev,cols:cole)
-     end if
-
-     if (associated(NOpmmrtm1)) then
-        NOptm1(:,:) = NOpmmrtm1(:,:) * mbar(:,:) / rmassNOp * pmid(:,:) / (kboltz * tn(:,:))
-     end if
-     if (associated(O2pmmrtm1)) then
-        O2ptm1(:,:) = O2pmmrtm1(:,:) * mbar(:,:) / rmassO2p * pmid(:,:) / (kboltz * tn(:,:))
-     end if
-     if (do_fep) then
-        Feptm1(:,:) = Fepmmrtm1(:,:) * mbar(:,:) / rmassFep * pmid(:,:) / (kboltz * tn(:,:))
-     end if
-     if (do_mgp) then
-        Mgptm1(:,:) = Mgpmmrtm1(:,:) * mbar(:,:) / rmassMgp * pmid(:,:) / (kboltz * tn(:,:))
-     end if
-     if (do_nap) then
-        Naptm1(:,:) = Napmmrtm1(:,:) * mbar(:,:) / rmassNap * pmid(:,:) / (kboltz * tn(:,:))
-     end if
-     if (do_cap) then
-        Captm1(:,:) = Capmmrtm1(:,:) * mbar(:,:) / rmassCap * pmid(:,:) / (kboltz * tn(:,:))
-     end if
-     if (do_kp) then
-        Kptm1(:,:) = Kpmmrtm1(:,:) * mbar(:,:) / rmassKp * pmid(:,:) / (kboltz * tn(:,:))
-     end if
-     if (do_sip) then
-        Siptm1(:,:) = Sipmmrtm1(:,:) * mbar(:,:) / rmassSip * pmid(:,:) / (kboltz * tn(:,:))
-     end if
+     do n = 1, nions
+        if (vxb_ions(n)%metal) then
+           ion_dens(1:nlev,cols:cole,n) = vxb_ions(n)%mmr(1:nlev,cols:cole) * mbar(1:nlev,cols:cole) / &
+                vxb_ions(n)%rmass * pmid(1:nlev,cols:cole) / (kboltz * tn(1:nlev,cols:cole))
+           ne(1:nlev,cols:cole) = ne(1:nlev,cols:cole) + ion_dens(1:nlev,cols:cole,n)
+        else if (vxb_ions(n)%name == 'O2p') then
+           ion_dens(:,:,n) = o2p(:,:)
+        else
+           ion_dens(:,:,n) = nop(:,:)
+        end if
+        iontm1_dens(:,:,n) = vxb_ions(n)%mmrtm1(:,:) * mbar(:,:) / vxb_ions(n)%rmass * &
+             pmid(:,:) / (kboltz * tn(:,:))
+     end do
 
      if (debug_hist) then
         call outfld_phys('DPIE_TN',tn)
@@ -724,12 +620,12 @@ contains
         call outfld_phys('DPIE_NOP',nop)
         call outfld_phys('DPIE_N2P',n2p)
 
-        call outfld_phys('DPIE_FEP',Fep)
-        call outfld_phys('DPIE_MGP',Mgp)
-        call outfld_phys('DPIE_NAP',Nap)
-        call outfld_phys('DPIE_CAP',Cap)
-        call outfld_phys('DPIE_KP', Kp)
-        call outfld_phys('DPIE_SIP',Sip)
+        do n = 1, nions
+           if (vxb_ions(n)%metal) then
+              elem = ion_elem(vxb_ions(n)%name)
+              call outfld_phys('DPIE_'//trim(elem)//'P', ion_dens(:,:,n))
+           end if
+        end do
 
      endif
      call outfld_phys('EDens',ne/1.E6_r8)
@@ -737,12 +633,12 @@ contains
      call outfld_phys('NOpDens',nop/1.E6_r8)
      call outfld_phys('O2pDens',o2p/1.E6_r8)
 
-     call outfld_phys('FepDens',Fep/1.E6_r8)
-     call outfld_phys('MgpDens',Mgp/1.E6_r8)
-     call outfld_phys('NapDens',Nap/1.E6_r8)
-     call outfld_phys('CapDens',Cap/1.E6_r8)
-     call outfld_phys('KpDens' ,Kp/1.E6_r8)
-     call outfld_phys('SipDens',Sip/1.E6_r8)
+     do n = 1, nions
+        if (vxb_ions(n)%metal) then
+           elem = ion_elem(vxb_ions(n)%name)
+           call outfld_phys(trim(elem)//'pDens', ion_dens(:,:,n)/1.E6_r8)
+        end if
+     end do
 
      !-------------------------------------------------------------------------
      !  Derive diagnostics nmF2 and hmF2 for output based on TIE-GCM algorithm
@@ -791,12 +687,12 @@ contains
      end if
      if (debug_hist) then
         call outfld_phys('DPIE_OPMMR', opmmr)
-        if (do_fep) then
-           call outfld_phys('DPIE_FePMMR', fepmmr)
-        end if
-        if (do_mgp) then
-           call outfld_phys('DPIE_MgPMMR', mgpmmr)
-        end if
+        do n = 1, nions
+           if (vxb_ions(n)%metal) then
+              elem = ion_elem(vxb_ions(n)%name)
+              call outfld_phys('DPIE_'//trim(elem)//'PMMR', vxb_ions(n)%mmr)
+           end if
+        end do
         call outfld_phys('PED_phys', sigma_ped )
         call outfld_phys('HAL_phys', sigma_hall )
      endif
@@ -934,52 +830,18 @@ contains
        call regrid_phys2geo_3d( mbar, mbar_geo, plev, cols, cole )
        call regrid_phys2geo_3d( ne, ne_geo, plev, cols, cole )
 
-       if (associated(NOpmmrtm1)) then
-          call regrid_phys2geo_3d( NOp, NOp_geo, plev, cols, cole )
-          call regrid_phys2geo_3d( NOptm1, NOptm1_geo, plev, cols, cole )
+       allocate(ion_geo(lon0:lon1, lat0:lat1, lev0:lev1, nions), stat=astat)
+       if (astat /= 0) then
+          call endrun(subname//': failed to allocate ion_geo')
        end if
-       if (associated(O2pmmrtm1)) then
-          call regrid_phys2geo_3d( O2p, O2p_geo, plev, cols, cole )
-          call regrid_phys2geo_3d( O2ptm1, O2ptm1_geo, plev, cols, cole )
+       allocate(iontm1_geo(lon0:lon1, lat0:lat1, lev0:lev1, nions), stat=astat)
+       if (astat /= 0) then
+          call endrun(subname//': failed to allocate iontm1_geo')
        end if
-
-       if (do_fep) then
-          call regrid_phys2geo_3d( Feptm1, Feptm1_geo, plev, cols, cole )
-       end if
-       if (do_mgp) then
-          call regrid_phys2geo_3d( Mgptm1, Mgptm1_geo, plev, cols, cole )
-       end if
-       if (do_nap) then
-          call regrid_phys2geo_3d( Naptm1, Naptm1_geo, plev, cols, cole )
-       end if
-       if (do_cap) then
-          call regrid_phys2geo_3d( Captm1, Captm1_geo, plev, cols, cole )
-       end if
-       if (do_kp) then
-          call regrid_phys2geo_3d( Kptm1, Kptm1_geo, plev, cols, cole )
-       end if
-       if (do_sip) then
-          call regrid_phys2geo_3d( Siptm1, Siptm1_geo, plev, cols, cole )
-       end if
-
-       if (do_fep) then
-          call regrid_phys2geo_3d( Fep, Fep_geo, plev, cols, cole )
-       end if
-       if (do_mgp) then
-          call regrid_phys2geo_3d( Mgp, Mgp_geo, plev, cols, cole )
-       end if
-       if (do_nap) then
-          call regrid_phys2geo_3d( Nap, Nap_geo, plev, cols, cole )
-       end if
-       if (do_cap) then
-          call regrid_phys2geo_3d( Cap, Cap_geo, plev, cols, cole )
-       end if
-       if (do_kp) then
-          call regrid_phys2geo_3d( Kp, Kp_geo, plev, cols, cole )
-       end if
-       if (do_sip) then
-          call regrid_phys2geo_3d( Sip, Sip_geo, plev, cols, cole )
-       end if
+       do n = 1, nions
+          call regrid_phys2geo_3d( ion_dens(:,:,n), ion_geo(:,:,:,n), plev, cols, cole )
+          call regrid_phys2geo_3d( iontm1_dens(:,:,n), iontm1_geo(:,:,:,n), plev, cols, cole )
+       end do
 
 
        if (mytid<ntask) then
@@ -1012,39 +874,6 @@ contains
                    optm1_in(kk,i,j)  = optm1_geo(i,j,k) / 1.e6_r8  ! m^3 -> cm^3
                 end do
              end do
-             if (associated(NOpmmrtm1)) then
-                NOp_in(kk,:,:)    = NOp_geo(:,:,k) / 1.e6_r8  ! m^3 -> cm^3
-                NOptm1_in(kk,:,:) = NOptm1_geo(:,:,k) / 1.e6_r8  ! m^3 -> cm^3
-             endif
-             if (associated(O2pmmrtm1)) then
-                O2p_in(kk,:,:)    = O2p_geo(:,:,k) / 1.e6_r8  ! m^3 -> cm^3
-                O2ptm1_in(kk,:,:) = O2ptm1_geo(:,:,k) / 1.e6_r8  ! m^3 -> cm^3
-             endif
-             if (do_fep) then
-                Fep_in(kk,:,:)    = Fep_geo(:,:,k) / 1.e6_r8  ! m^3 -> cm^3
-                Feptm1_in(kk,:,:) = Feptm1_geo(:,:,k) / 1.e6_r8  ! m^3 -> cm^3
-             endif
-             if (do_mgp) then
-                Mgp_in(kk,:,:)    = Mgp_geo(:,:,k) / 1.e6_r8  ! m^3 -> cm^3
-                Mgptm1_in(kk,:,:) = Mgptm1_geo(:,:,k) / 1.e6_r8  ! m^3 -> cm^3
-             endif
-             if (do_nap) then
-                Nap_in(kk,:,:)    = Nap_geo(:,:,k) / 1.e6_r8  ! m^3 -> cm^3
-                Naptm1_in(kk,:,:) = Naptm1_geo(:,:,k) / 1.e6_r8  ! m^3 -> cm^3
-             endif
-             if (do_cap) then
-                Cap_in(kk,:,:)    = Cap_geo(:,:,k) / 1.e6_r8  ! m^3 -> cm^3
-                Captm1_in(kk,:,:) = Captm1_geo(:,:,k) / 1.e6_r8  ! m^3 -> cm^3
-             endif
-             if (do_kp) then
-                Kp_in(kk,:,:)    = Kp_geo(:,:,k) / 1.e6_r8  ! m^3 -> cm^3
-                Kptm1_in(kk,:,:) = Kptm1_geo(:,:,k) / 1.e6_r8  ! m^3 -> cm^3
-             endif
-             if (do_sip) then
-                Sip_in(kk,:,:)    = Sip_geo(:,:,k) / 1.e6_r8  ! m^3 -> cm^3
-                Siptm1_in(kk,:,:) = Siptm1_geo(:,:,k) / 1.e6_r8  ! m^3 -> cm^3
-             endif
-
           end do
           !
           ! Define halo points on inputs:
@@ -1099,142 +928,57 @@ contains
 
           call outfld_geokij( 'OPo',op_out, lev0,lev1, lon0,lon1, lat0,lat1 )
 
-          if (associated(O2pmmrtm1)) then
-             call calc_xi(o2dens, o1dens, n2dens, &
-                          rmassO2p, rmassN2, rmassO2, rmassO1, O2pxi_in, lon0, lon1, lat0, lat1, nlev)
-             do isplit = 1,nsplt_vxb
-                if (isplit > 1) then
-                   O2p_in = O2p_out
-                   O2ptm1_in = O2ptm1_out
-                end if
-                call vxb_xport(halo_tn, halo_te, halo_ti, halo_ne, halo_op, halo_un, halo_vn, halo_om,  &
-                     zpot_in, halo_o2, halo_o1, halo_n2, O2p_in, O2ptm1_in, O2pxi_in,       &
-                     halo_mbar, ui_in, vi_in, wi_in,  eobx, eoby, eobz, pmid_inv,    &
-                     O2p_out, O2ptm1_out, rmassO2p, lon0, lon1, lat0, lat1, nsplt_vxb, isplit )
-             end do
-          endif
+          !
+          ! VxB transport of each ion in vxb_ions (subcycled nsplt_vxb times).
+          ! Transported densities are converted back to mmr in ion_geo, iontm1_geo.
+          !
+          vxb_ion_loop: do n = 1, nions
 
-          if (associated(NOpmmrtm1)) then
-             call calc_xi(o2dens, o1dens, n2dens, &
-                          rmassNOp, rmassN2, rmassO2, rmassO1, NOpxi_in, lon0, lon1, lat0, lat1, nlev)
-             do isplit = 1,nsplt_vxb
-                if (isplit > 1) then
-                   NOp_in = NOp_out
-                   NOptm1_in = NOptm1_out
-                end if
-                call vxb_xport(halo_tn, halo_te, halo_ti, halo_ne, halo_op, halo_un, halo_vn, halo_om,  &
-                     zpot_in, halo_o2, halo_o1, halo_n2, NOp_in, NOptm1_in, NOpxi_in,       &
-                     halo_mbar, ui_in, vi_in, wi_in,  eobx, eoby, eobz, pmid_inv,    &
-                     NOp_out, NOptm1_out, rmassNOp, lon0, lon1, lat0, lat1, nsplt_vxb, isplit )
-             end do
-          endif
-
-
-          if (do_fep) then
-             if (debug_hist) then
-                call outfld_geokij( 'FePtm1i',Feptm1_in, lev0,lev1, lon0,lon1, lat0,lat1 )
-             endif
-             call outfld_geokij( 'FePi',Fep_in, lev0,lev1, lon0,lon1, lat0,lat1 )
-
-             call calc_xi(o2dens, o1dens, n2dens, &
-                          rmassFep, rmassN2, rmassO2, rmassO1, Fepxi_in, lon0, lon1, lat0, lat1, nlev)
-             do isplit = 1,nsplt_vxb
-                if (isplit > 1) then
-                   Fep_in = Fep_out
-                   Feptm1_in = Feptm1_out
-                end if
-
-                call vxb_xport(halo_tn, halo_te, halo_ti, halo_ne, halo_op, halo_un, halo_vn, halo_om,  &
-                     zpot_in, halo_o2, halo_o1, halo_n2, Fep_in, Feptm1_in, Fepxi_in,       &
-                     halo_mbar, ui_in, vi_in, wi_in,  eobx, eoby, eobz, pmid_inv,    &
-                     Fep_out, Feptm1_out, rmassFep, lon0, lon1, lat0, lat1, nsplt_vxb, isplit )
+             do k = 1, nlev
+                kk = nlev-k+1
+                ion_in(kk,:,:)    = ion_geo(:,:,k,n) / 1.e6_r8     ! m^3 -> cm^3
+                iontm1_in(kk,:,:) = iontm1_geo(:,:,k,n) / 1.e6_r8  ! m^3 -> cm^3
              end do
 
-             call outfld_geokij( 'FePo',Fep_out, lev0,lev1, lon0,lon1, lat0,lat1 )
+             if (vxb_ions(n)%metal) then
+                elem = ion_elem(vxb_ions(n)%name)
+                if (debug_hist) then
+                   call outfld_geokij( trim(elem)//'Ptm1i', iontm1_in, lev0,lev1, lon0,lon1, lat0,lat1 )
+                endif
+                call outfld_geokij( trim(elem)//'Pi', ion_in, lev0,lev1, lon0,lon1, lat0,lat1 )
+             end if
 
+             call calc_xi(o2dens, o1dens, n2dens, vxb_ions(n)%rmass, rmassN2, rmassO2, rmassO1, &
+                          ionxi_in, lon0, lon1, lat0, lat1, nlev)
 
-          endif
-
-          if (do_mgp) then
-             if (debug_hist) then
-                call outfld_geokij( 'MgPtm1i',Mgptm1_in, lev0,lev1, lon0,lon1, lat0,lat1 )
-             endif
-
-             call outfld_geokij( 'MgPi',Mgp_in, lev0,lev1, lon0,lon1, lat0,lat1 )
-
-             call calc_xi(o2dens, o1dens, n2dens, &
-                          rmassMgp, rmassN2, rmassO2, rmassO1, Mgpxi_in, lon0, lon1, lat0, lat1, nlev)
              do isplit = 1,nsplt_vxb
                 if (isplit > 1) then
-                   Mgp_in = Mgp_out
-                   Mgptm1_in = Mgptm1_out
+                   ion_in = ion_out
+                   iontm1_in = iontm1_out
                 end if
                 call vxb_xport(halo_tn, halo_te, halo_ti, halo_ne, halo_op, halo_un, halo_vn, halo_om,  &
-                     zpot_in, halo_o2, halo_o1, halo_n2, Mgp_in, Mgptm1_in, Mgpxi_in,       &
+                     zpot_in, halo_o2, halo_o1, halo_n2, ion_in, iontm1_in, ionxi_in,       &
                      halo_mbar, ui_in, vi_in, wi_in,  eobx, eoby, eobz, pmid_inv,    &
-                     Mgp_out, Mgptm1_out, rmassMgp, lon0, lon1, lat0, lat1, nsplt_vxb, isplit )
+                     ion_out, iontm1_out, vxb_ions(n)%rmass, lon0, lon1, lat0, lat1, nsplt_vxb, isplit )
              end do
 
+             if (vxb_ions(n)%metal) then
+                call outfld_geokij( trim(elem)//'Po', ion_out, lev0,lev1, lon0,lon1, lat0,lat1 )
+                if (debug_hist) then
+                   call outfld_geokij( trim(elem)//'Ptm1o', iontm1_out, lev0,lev1, lon0,lon1, lat0,lat1 )
+                endif
+             end if
 
-             call outfld_geokij( 'MgPo',Mgp_out, lev0,lev1, lon0,lon1, lat0,lat1 )
+             ! convert from cm^3 to m^3 and back to mmr
+             do k = 1, nlev
+                kk = nlev-k+1
+                ion_geo(:,:,k,n) = ion_out(kk,:,:)*1.e6_r8 * vxb_ions(n)%rmass / mbar_geo(:,:,k) * &
+                                   (kboltz * tn_geo(:,:,k)) / pmid_geo(:,:,k)
+                iontm1_geo(:,:,k,n) = iontm1_out(kk,:,:)*1.e6_r8 * vxb_ions(n)%rmass / mbar_geo(:,:,k) * &
+                                      (kboltz * tn_geo(:,:,k)) / pmid_geo(:,:,k)
+             end do
 
-          endif
-          if (do_nap) then
-             call calc_xi(o2dens, o1dens, n2dens, &
-                          rmassNap, rmassN2, rmassO2, rmassO1, Napxi_in, lon0, lon1, lat0, lat1, nlev)
-             do isplit = 1,nsplt_vxb
-                if (isplit > 1) then
-                   Nap_in = Nap_out
-                   Naptm1_in = Naptm1_out
-                end if
-                call vxb_xport(halo_tn, halo_te, halo_ti, halo_ne, halo_op, halo_un, halo_vn, halo_om,  &
-                     zpot_in, halo_o2, halo_o1, halo_n2, Nap_in, Naptm1_in, Napxi_in,       &
-                     halo_mbar, ui_in, vi_in, wi_in,  eobx, eoby, eobz, pmid_inv,    &
-                     Nap_out, Naptm1_out, rmassNap, lon0, lon1, lat0, lat1, nsplt_vxb, isplit )
-             end do
-          endif
-          if (do_cap) then
-             call calc_xi(o2dens, o1dens, n2dens, &
-                          rmassCap, rmassN2, rmassO2, rmassO1, Capxi_in, lon0, lon1, lat0, lat1, nlev)
-             do isplit = 1,nsplt_vxb
-                if (isplit > 1) then
-                   Cap_in = Cap_out
-                   Captm1_in = Captm1_out
-                end if
-                call vxb_xport(halo_tn, halo_te, halo_ti, halo_ne, halo_op, halo_un, halo_vn, halo_om,  &
-                     zpot_in, halo_o2, halo_o1, halo_n2, Cap_in, Captm1_in, Capxi_in,       &
-                     halo_mbar, ui_in, vi_in, wi_in,  eobx, eoby, eobz, pmid_inv,    &
-                     Cap_out, Captm1_out, rmassCap, lon0, lon1, lat0, lat1, nsplt_vxb, isplit )
-             end do
-          endif
-          if (do_kp) then
-             call calc_xi(o2dens, o1dens, n2dens, &
-                          rmassKp, rmassN2, rmassO2, rmassO1, Kpxi_in, lon0, lon1, lat0, lat1, nlev)
-             do isplit = 1,nsplt_vxb
-                if (isplit > 1) then
-                   Kp_in = Kp_out
-                   Kptm1_in = Kptm1_out
-                end if
-                call vxb_xport(halo_tn, halo_te, halo_ti, halo_ne, halo_op, halo_un, halo_vn, halo_om,  &
-                     zpot_in, halo_o2, halo_o1, halo_n2, Kp_in, Kptm1_in, Kpxi_in,       &
-                     halo_mbar, ui_in, vi_in, wi_in,  eobx, eoby, eobz, pmid_inv,    &
-                     Kp_out, Kptm1_out, rmassKp, lon0, lon1, lat0, lat1, nsplt_vxb, isplit )
-             end do
-          endif
-          if (do_sip) then
-             call calc_xi(o2dens, o1dens, n2dens, &
-                          rmassSip, rmassN2, rmassO2, rmassO1, Sipxi_in, lon0, lon1, lat0, lat1, nlev)
-             do isplit = 1,nsplt_vxb
-                if (isplit > 1) then
-                   Sip_in = Sip_out
-                   Siptm1_in = Siptm1_out
-                end if
-                call vxb_xport(halo_tn, halo_te, halo_ti, halo_ne, halo_op, halo_un, halo_vn, halo_om,  &
-                     zpot_in, halo_o2, halo_o1, halo_n2, Sip_in, Siptm1_in, Sipxi_in,       &
-                     halo_mbar, ui_in, vi_in, wi_in,  eobx, eoby, eobz, pmid_inv,    &
-                     Sip_out, Siptm1_out, rmassSip, lon0, lon1, lat0, lat1, nsplt_vxb, isplit )
-             end do
-          endif
+          end do vxb_ion_loop
 
           call t_stopf ('dpie_oplus_xport')
           if (debug.and.masterproc) then
@@ -1246,12 +990,6 @@ contains
           if (debug_hist) then
              call outfld_geokij( 'OPLUS', op_out, lev0,lev1, lon0,lon1, lat0,lat1 )
              call outfld_geokij( 'OPtm1o',optm1_out, lev0,lev1, lon0,lon1, lat0,lat1 )
-             if (do_fep) then
-                call outfld_geokij( 'FePtm1o',Feptm1_out, lev0,lev1, lon0,lon1, lat0,lat1 )
-             endif
-             if (do_mgp) then
-                call outfld_geokij( 'MgPtm1o',Mgptm1_out, lev0,lev1, lon0,lon1, lat0,lat1 )
-             endif
           endif
           !
           ! Pass new O+ for current and previous time step back to physics (convert from cm^3 to m^3 and back to mmr).
@@ -1269,56 +1007,6 @@ contains
                    wi_geo(i,j,k) = wi_in(kk,i,j)/100._r8 ! cm/s -> m/s
                 end do
              end do
-             if (associated(NOpmmrtm1)) then
-                NOp_geo(:,:,k) = NOp_out(kk,:,:)*1.e6_r8 * rmassNOp / mbar_geo(:,:,k) * &
-                                 (kboltz * tn_geo(:,:,k)) / pmid_geo(:,:,k)
-                NOptm1_geo(:,:,k) = NOptm1_out(kk,:,:)*1.e6_r8 * rmassNOp / mbar_geo(:,:,k) * &
-                                 (kboltz * tn_geo(:,:,k)) / pmid_geo(:,:,k)
-             end if
-             if (associated(O2pmmrtm1)) then
-                O2p_geo(:,:,k) = O2p_out(kk,:,:)*1.e6_r8 * rmassO2p / mbar_geo(:,:,k) * &
-                                 (kboltz * tn_geo(:,:,k)) / pmid_geo(:,:,k)
-                O2ptm1_geo(:,:,k) = O2ptm1_out(kk,:,:)*1.e6_r8 * rmassO2p / mbar_geo(:,:,k) * &
-                                 (kboltz * tn_geo(:,:,k)) / pmid_geo(:,:,k)
-             end if
-
-             if (do_fep) then
-                Fep_geo(:,:,k) = Fep_out(kk,:,:)*1.e6_r8 * rmassFep / mbar_geo(:,:,k) * &
-                                 (kboltz * tn_geo(:,:,k)) / pmid_geo(:,:,k)
-                Feptm1_geo(:,:,k) = Feptm1_out(kk,:,:)*1.e6_r8 * rmassFep / mbar_geo(:,:,k) * &
-                                 (kboltz * tn_geo(:,:,k)) / pmid_geo(:,:,k)
-             end if
-             if (do_mgp) then
-                Mgp_geo(:,:,k) = Mgp_out(kk,:,:)*1.e6_r8 * rmassMgp / mbar_geo(:,:,k) * &
-                                 (kboltz * tn_geo(:,:,k)) / pmid_geo(:,:,k)
-                Mgptm1_geo(:,:,k) = Mgptm1_out(kk,:,:)*1.e6_r8 * rmassMgp / mbar_geo(:,:,k) * &
-                                 (kboltz * tn_geo(:,:,k)) / pmid_geo(:,:,k)
-             end if
-             if (do_nap) then
-                Nap_geo(:,:,k) = Nap_out(kk,:,:)*1.e6_r8 * rmassNap / mbar_geo(:,:,k) * &
-                                 (kboltz * tn_geo(:,:,k)) / pmid_geo(:,:,k)
-                Naptm1_geo(:,:,k) = Naptm1_out(kk,:,:)*1.e6_r8 * rmassNap / mbar_geo(:,:,k) * &
-                                 (kboltz * tn_geo(:,:,k)) / pmid_geo(:,:,k)
-             end if
-             if (do_cap) then
-                Cap_geo(:,:,k) = Cap_out(kk,:,:)*1.e6_r8 * rmassCap / mbar_geo(:,:,k) * &
-                                 (kboltz * tn_geo(:,:,k)) / pmid_geo(:,:,k)
-                Captm1_geo(:,:,k) = Captm1_out(kk,:,:)*1.e6_r8 * rmassCap / mbar_geo(:,:,k) * &
-                                 (kboltz * tn_geo(:,:,k)) / pmid_geo(:,:,k)
-             end if
-             if (do_kp) then
-                Kp_geo(:,:,k) = Kp_out(kk,:,:)*1.e6_r8 * rmassKp / mbar_geo(:,:,k) * &
-                                 (kboltz * tn_geo(:,:,k)) / pmid_geo(:,:,k)
-                Kptm1_geo(:,:,k) = Kptm1_out(kk,:,:)*1.e6_r8 * rmassKp / mbar_geo(:,:,k) * &
-                                 (kboltz * tn_geo(:,:,k)) / pmid_geo(:,:,k)
-             end if
-             if (do_sip) then
-                Sip_geo(:,:,k) = Sip_out(kk,:,:)*1.e6_r8 * rmassSip / mbar_geo(:,:,k) * &
-                                 (kboltz * tn_geo(:,:,k)) / pmid_geo(:,:,k)
-                Siptm1_geo(:,:,k) = Siptm1_out(kk,:,:)*1.e6_r8 * rmassSip / mbar_geo(:,:,k) * &
-                                 (kboltz * tn_geo(:,:,k)) / pmid_geo(:,:,k)
-             end if
-
           end do
 
        endif
@@ -1329,39 +1017,18 @@ contains
        call regrid_geo2phys_3d( vi_geo, vi, plev, cols, cole )
        call regrid_geo2phys_3d( wi_geo, wi, plev, cols, cole )
 
-       if (associated(NOpmmrtm1)) then
-          call regrid_geo2phys_3d( NOp_geo, NOpmmr, plev, cols, cole )
-          call regrid_geo2phys_3d( NOptm1_geo, NOpmmrtm1, plev, cols, cole )
-       end if
-       if (associated(O2pmmrtm1)) then
-          call regrid_geo2phys_3d( O2p_geo, O2pmmr, plev, cols, cole )
-          call regrid_geo2phys_3d( O2ptm1_geo, O2pmmrtm1, plev, cols, cole )
-       end if
+       do n = 1, nions
+          if (vxb_ions(n)%metal) then
+             call regrid_geo2phys_3d( ion_geo(:,:,:,n), vxb_ions(n)%mmr, plev, cols, cole )
+          else if (vxb_ions(n)%name == 'O2p') then
+             call regrid_geo2phys_3d( ion_geo(:,:,:,n), o2pmmr, plev, cols, cole )
+          else
+             call regrid_geo2phys_3d( ion_geo(:,:,:,n), nopmmr, plev, cols, cole )
+          end if
+          call regrid_geo2phys_3d( iontm1_geo(:,:,:,n), vxb_ions(n)%mmrtm1, plev, cols, cole )
+       end do
 
-       if (do_fep) then
-          call regrid_geo2phys_3d( Fep_geo, Fepmmr, plev, cols, cole )
-          call regrid_geo2phys_3d( Feptm1_geo, Fepmmrtm1, plev, cols, cole )
-       end if
-       if (do_mgp) then
-          call regrid_geo2phys_3d( Mgp_geo, Mgpmmr, plev, cols, cole )
-          call regrid_geo2phys_3d( Mgptm1_geo, Mgpmmrtm1, plev, cols, cole )
-       end if
-       if (do_nap) then
-          call regrid_geo2phys_3d( Nap_geo, Napmmr, plev, cols, cole )
-          call regrid_geo2phys_3d( Naptm1_geo, Napmmrtm1, plev, cols, cole )
-       end if
-       if (do_cap) then
-          call regrid_geo2phys_3d( Cap_geo, Capmmr, plev, cols, cole )
-          call regrid_geo2phys_3d( Captm1_geo, Capmmrtm1, plev, cols, cole )
-       end if
-       if (do_kp) then
-          call regrid_geo2phys_3d( Kp_geo, Kpmmr, plev, cols, cole )
-          call regrid_geo2phys_3d( Kptm1_geo, Kpmmrtm1, plev, cols, cole )
-       end if
-       if (do_sip) then
-          call regrid_geo2phys_3d( Sip_geo, Sipmmr, plev, cols, cole )
-          call regrid_geo2phys_3d( Siptm1_geo, Sipmmrtm1, plev, cols, cole )
-       end if
+       deallocate(ion_geo, iontm1_geo)
 
     end if ! ionos_oplus_xport
 
@@ -1370,13 +1037,16 @@ contains
        call outfld_phys('WACCM_VI',vi)
        call outfld_phys('WACCM_WI',wi)
        call outfld_phys('WACCM_OP',opmmr)
-       if (do_fep) then
-          call outfld_phys('WACCM_FeP',fepmmr)
-       end if
-       if (do_mgp) then
-          call outfld_phys('WACCM_MgP',mgpmmr)
-       end if
+       do n = 1, nions
+          if (vxb_ions(n)%metal) then
+             elem = ion_elem(vxb_ions(n)%name)
+             call outfld_phys('WACCM_'//trim(elem)//'P', vxb_ions(n)%mmr)
+          end if
+       end do
     endif
+
+    deallocate(ion_dens, iontm1_dens)
+
     call t_stopf('d_pie_coupling')
 
   end subroutine d_pie_coupling
@@ -1711,5 +1381,17 @@ contains
     end do
 
   end subroutine outfld_mag2d
+  !-----------------------------------------------------------------------
+  pure function ion_elem( name ) result( elem )
+    !
+    ! Element symbol of a singly charged metal ion constituent name,
+    ! e.g. 'Fep' -> 'Fe'. Used to build history field names.
+    !
+    character(len=*), intent(in) :: name
+    character(len=len(name)) :: elem
+
+    elem = name(1:len_trim(name)-1)
+
+  end function ion_elem
 
 end module dpie_coupling
