@@ -21,6 +21,7 @@ module vxb
   implicit none
   private
   public :: vxb_xport,  vxb_init
+  public :: vxb_prep
   public :: kbot
   public :: ktop
 
@@ -69,6 +70,22 @@ module vxb
 
     real(r8), allocatable :: expz(:) ! exp(-zp)
     real(r8), allocatable :: zp(:)   ! log pressure (as in tiegcm lev(nlev))
+!
+! Fields that do not depend on the transported ion species or the substep.
+! They are set once per time step by vxb_prep and used by every vxb_xport call.
+! Arrays with halo points are (nlev,i0-2:i1+2,j0-2:j1+2).
+!
+    real(r8), allocatable, target :: uui(:,:,:), vvi(:,:,:), wwi(:,:,:)       ! ion drifts (cm/s)
+    real(r8), allocatable, target :: eeeex(:,:,:), eeeey(:,:,:), eeeez(:,:,:) ! E/B drift terms
+    real(r8), allocatable, target :: uuii(:,:,:), vvii(:,:,:), wwii(:,:,:)    ! VnxB drifts from vxbvel
+    real(r8), allocatable, target :: wn(:,:,:)  ! neutral vertical velocity, om*hj (cm/s)
+    real(r8), allocatable, target :: tr(:,:,:)  ! Reduced temperature (.5*(tn+ti))
+    real(r8), allocatable, target :: tp(:,:,:)  ! Plasma temperature (te+ti)
+    real(r8), allocatable :: hj(:,:,:)   ! scale height (nlev,i0:i1,j0-1:j1+1)
+    real(r8), allocatable :: dvb(:,:)    ! divergence of B-field (i0:i1,j0:j1)
+    real(r8), allocatable :: aa(:,:,:)   ! cell horizontal area (nlev,i0:i1,j0:j1)
+    real(r8), allocatable :: va(:,:,:)   ! cell volume (nlev,i0:i1,j0:j1)
+    real(r8), allocatable :: rva(:,:,:)  ! 1/va (nlev,i0:i1,j0:j1)
 
   contains
 
@@ -96,12 +113,260 @@ module vxb
   end subroutine vxb_init
 
 !-----------------------------------------------------------------------
+  subroutine vxb_prep(tn,te,ti,un,vn,om,mbar,ui,vi,wi,eeex,eeey,eeez,pmid, &
+                      i0,i1,j0,j1)
+!
+! Set the fields used by vxb_xport that do not depend on the transported
+! ion species or the substep. Call once per time step, before the
+! vxb_xport calls. Inputs are in "TIEGCM" format, as for vxb_xport.
+!
+    use edyn_mpi,     only: mp_geo_halos, mp_pole_halos
+    use edyn_geogrid, only: nlat
+!
+! Args:
+!
+    integer, intent(in) :: i0  ! grid%ifirstxy
+    integer, intent(in) :: i1  ! grid%ilastxy
+    integer, intent(in) :: j0  ! grid%jfirstxy
+    integer, intent(in) :: j1  ! grid%jlastxy
+    real(r8), intent(in) :: tn  (nlev,i0-2:i1+2,j0-2:j1+2) ! neutral temperature (deg K)
+    real(r8), intent(in) :: te  (nlev,i0-2:i1+2,j0-2:j1+2) ! electron temperature (deg K)
+    real(r8), intent(in) :: ti  (nlev,i0-2:i1+2,j0-2:j1+2) ! ion temperature (deg K)
+    real(r8), intent(in) :: un  (nlev,i0-2:i1+2,j0-2:j1+2) ! neutral zonal wind (cm/s)
+    real(r8), intent(in) :: vn  (nlev,i0-2:i1+2,j0-2:j1+2) ! neutral meridional wind (cm/s)
+    real(r8), intent(in) :: om  (nlev,i0-2:i1+2,j0-2:j1+2) ! omega (1/s)
+    real(r8), intent(in) :: mbar(nlev,i0-2:i1+2,j0-2:j1+2) ! mean molecular weight
+    real(r8), intent(in) :: ui  (nlev,i0:i1,j0:j1)         ! zonal ion drift
+    real(r8), intent(in) :: vi  (nlev,i0:i1,j0:j1)         ! meridional ion drift
+    real(r8), intent(in) :: wi  (nlev,i0:i1,j0:j1)         ! vertical ion drift
+    real(r8), intent(in) :: eeex(nlev,i0:i1,j0:j1)         ! zonal E/B drift term
+    real(r8), intent(in) :: eeey(nlev,i0:i1,j0:j1)         ! meridional E/B drift term
+    real(r8), intent(in) :: eeez(nlev,i0:i1,j0:j1)         ! vertical E/B drift term
+    real(r8), intent(in) :: pmid(nlev)                     ! pressure at midpoints (Pa)
+!
+! Local:
+!
+    integer :: i, j, k, lat, jm1, jp1, lat0, lat1
+    integer :: kb, kt   ! level range of tr and tp (one level beyond kbot,ktop)
+    integer :: nfields
+    real(r8), allocatable :: polesign(:)
+    type(array_ptr_type), allocatable :: ptrs(:)
+    real(r8), dimension(nlev,i0:i1,j0:j1) :: uii, vii, wii ! VnxB drifts from vxbvel
+
+    if (.not. allocated(tr)) then
+       allocate(uui  (nlev,i0-2:i1+2,j0-2:j1+2))
+       allocate(vvi  (nlev,i0-2:i1+2,j0-2:j1+2))
+       allocate(wwi  (nlev,i0-2:i1+2,j0-2:j1+2))
+       allocate(eeeex(nlev,i0-2:i1+2,j0-2:j1+2))
+       allocate(eeeey(nlev,i0-2:i1+2,j0-2:j1+2))
+       allocate(eeeez(nlev,i0-2:i1+2,j0-2:j1+2))
+       allocate(uuii (nlev,i0-2:i1+2,j0-2:j1+2))
+       allocate(vvii (nlev,i0-2:i1+2,j0-2:j1+2))
+       allocate(wwii (nlev,i0-2:i1+2,j0-2:j1+2))
+       allocate(wn   (nlev,i0-2:i1+2,j0-2:j1+2))
+       allocate(tr   (nlev,i0-2:i1+2,j0-2:j1+2))
+       allocate(tp   (nlev,i0-2:i1+2,j0-2:j1+2))
+       allocate(hj   (nlev,i0:i1,j0-1:j1+1))
+       allocate(dvb  (i0:i1,j0:j1))
+       allocate(aa   (nlev,i0:i1,j0:j1))
+       allocate(va   (nlev,i0:i1,j0:j1))
+       allocate(rva  (nlev,i0:i1,j0:j1))
+    end if
+
+    if (is_first_step().or.is_first_restart_step()) then
+      if (masterproc) write(iulog,"('vxb_prep: shapiro=',es12.4,' dtsmooth=',es12.4,' dtsmooth_div2=',es12.4)") &
+        shapiro_const,dtsmooth,dtsmooth_div2
+      if (masterproc) write(iulog,"('vxb_prep: shr_const_g=',f8.3)") shr_const_g
+    endif
+
+    !
+    ! zp,expz are module arrays allocated in vxb_init. pmid was passed in
+    ! here (bot2top) from dpie_coupling.
+    !
+    ! kbot is the k-index at the bottom of ion transport calculations,
+    !   corresponding to pressure pbot.
+    !
+    if (is_first_step().or.is_first_restart_step()) then
+       kloop: do k=1,nlev
+          if ( pmid(k) <= pbot) then
+             kbot = k
+             exit kloop
+          end if
+       enddo kloop
+       kloop2: do k=1,nlev
+          if ( pmid(k) <= ptop) then
+             ktop = k-1
+             exit kloop2
+          end if
+       enddo kloop2
+       kloop3: do k=1,nlev
+          if ( pmid(k) <= pminor) then
+             kminor = k-1
+             exit kloop3
+          end if
+       enddo kloop3
+       do k=1,nlev
+          zp(k) = -log(pmid(k)*10._r8/p0)
+          expz(k) = exp(-zp(k))
+       enddo
+       if (debug.and.masterproc) then
+          write(iulog,"('vxb_prep: kbot=',i4,'ktop=',i4,' pmid(kbot)=',es12.4,' zp(kbot)=',es12.4)") &
+               kbot,ktop,pmid(kbot),zp(kbot)
+       endif
+    endif
+
+    if (kbot < 1.or.ktop < kbot) then
+       call endrun('vxb_prep: kbot or ktop is not set')
+    endif
+
+    dzp = zp(nlev)-zp(nlev-1)  ! use top 2 levels (typically dzp=0.5)
+
+    if (debug.and.masterproc) then
+      write(iulog,"('vxb_prep: nlev=',i3,' zp (bot2top)   =',/,(6es12.3))") nlev,zp
+      write(iulog,"('vxb_prep: nlev=',i3,' expz (bot2top) =',/,(6es12.3))") nlev,expz
+      write(iulog,"('vxb_prep: nlev=',i3,' dzp  =',/,(6es12.3))") nlev,dzp
+    endif
+
+    grav_cm = shr_const_g * 100._r8 ! m/s^2 -> cm/s^2
+!
+! Ion drifts and E/B terms with halo points:
+!
+!$omp parallel do private(i, j, k)
+    do k=1,nlev
+      do j=j0,j1
+        do i=i0,i1
+          uui(k,i,j)=ui(k,i,j)
+          vvi(k,i,j)=vi(k,i,j)
+          wwi(k,i,j)=wi(k,i,j)
+          eeeex(k,i,j)=eeex(k,i,j)
+          eeeey(k,i,j)=eeey(k,i,j)
+          eeeez(k,i,j)=eeez(k,i,j)
+        enddo
+      enddo
+    enddo
+
+    nfields = 6
+    allocate(ptrs(nfields),polesign(nfields))
+    ptrs(1)%ptr => uui ; ptrs(2)%ptr => vvi ; ptrs(3)%ptr => wwi
+    ptrs(4)%ptr => eeeex ; ptrs(5)%ptr => eeeey ; ptrs(6)%ptr => eeeez
+    polesign = 1._r8
+    polesign(1:2) = -1._r8 ! uui,vvi
+    polesign(4:5) = -1._r8 ! eeeex,eeeey
+
+    call mp_geo_halos(ptrs,1,nlev,i0,i1,j0,j1,nfields)
+    call mp_pole_halos(ptrs,1,nlev,i0,i1,j0,j1,nfields,polesign)
+    deallocate(ptrs,polesign)
+!
+! Use below to exclude the poles (lat=2,nlat-1) from latitude scans.
+!
+    lat0 = j0
+    lat1 = j1
+    if (j0 == 1)    lat0 = 2
+    if (j1 == nlat) lat1 = nlat-1
+!
+! Divergence of B (mag field) is returned by divb in dvb(i0:i1,j0:j1)
+!
+    call divb(dvb,i0,i1,j0,j1)
+
+    tr  = 0._r8
+    tp  = 0._r8
+    hj  = 0._r8
+    kb = kbot-1
+    kt = ktop+1
+
+    do lat=lat0,lat1
+      jm1 = lat-1
+      jp1 = lat+1
+!
+! Reduced temperature (tpj in tiegcm):
+! 'OPLUS_TR' (has constants at poles)
+!
+!$omp parallel do private(i,k)
+      do i=i0,i1
+        do k=kb,kt
+          tr(k,i,jm1) = 0.5_r8*(tn(k,i,jm1)+ti(k,i,jm1))
+          tr(k,i,lat) = 0.5_r8*(tn(k,i,lat)+ti(k,i,lat))
+          tr(k,i,jp1) = 0.5_r8*(tn(k,i,jp1)+ti(k,i,jp1))
+        enddo
+      enddo ! i=i0,i1
+!
+! Plasma temperature:
+! 'OPLUS_TP0' (tp will get poles from jm1 and jp1)
+!
+!$omp parallel do private(i,k)
+      do i=i0,i1
+        do k=kb,kt
+          tp(k,i,jm1) = te(k,i,jm1)+ti(k,i,jm1)
+          tp(k,i,lat) = te(k,i,lat)+ti(k,i,lat)
+          tp(k,i,jp1) = te(k,i,jp1)+ti(k,i,jp1)
+        enddo
+      enddo
+!
+! Neutral scale height:
+! 'OPLUS_HJ' (has constants at poles)
+!
+!$omp parallel do private(i,k)
+      do i=i0,i1
+        do k=1,nlev
+          hj(k,i,jm1) = gask * tn(k,i,jm1) / (mbar(k,i,jm1) * grav_cm)
+          hj(k,i,lat) = gask * tn(k,i,lat) / (mbar(k,i,lat) * grav_cm)
+          hj(k,i,jp1) = gask * tn(k,i,jp1) / (mbar(k,i,jp1) * grav_cm)
+        enddo
+      enddo
+    enddo ! lat=lat0,lat1
+
+    call vxbvel(un,vn,om,hj,uii,vii,wii,1,nlev,i0,i1,j0,j1)
+!$omp parallel do private(k, j, i)
+    do k=1,nlev
+      do j=j0,j1
+        do i=i0,i1
+          uuii(k,i,j)=uii(k,i,j)
+          vvii(k,i,j)=vii(k,i,j)
+          wwii(k,i,j)=wii(k,i,j)
+          wn(k,i,j)=om(k,i,j)*hj(k,i,j)
+        enddo
+      enddo
+    enddo
+!
+! Set halo points where needed.
+!
+    nfields = 5
+    allocate(ptrs(nfields),polesign(nfields))
+    ptrs(1)%ptr => tp
+    ptrs(2)%ptr => uuii ; ptrs(3)%ptr => vvii
+    ptrs(4)%ptr => wwii ; ptrs(5)%ptr => wn
+    polesign = 1._r8
+    polesign(2:3) = -1._r8 ! uuii,vvii
+
+    call mp_geo_halos (ptrs,1,nlev,i0,i1,j0,j1,nfields)
+    call mp_pole_halos(ptrs,1,nlev,i0,i1,j0,j1,nfields,polesign)
+    deallocate(ptrs,polesign)
+!
+! Cell area and volume for the vertical advection scheme:
+!
+!$omp parallel do private(k, j, i)
+    do k=1,nlev
+      do j=j0,j1
+        do i=i0,i1
+          aa(k,i,j)=re*re*dphi*dlamda*cs(j)
+          va(k,i,j)=aa(k,i,j)*hj(k,i,j)*dzp
+          rva(k,i,j)=1._r8/va(k,i,j)
+        enddo
+      enddo
+    enddo
+
+  end subroutine vxb_prep
+
+!-----------------------------------------------------------------------
   subroutine vxb_xport(tn,te,ti,ne,nop,un,vn,om,zg,o2,o1,n2,op_in,opnm_in,xi, &
-                         mbar,ui,vi,wi,eeex,eeey,eeez,pmid,op_out,opnm_out,rmass_fep, &
-                         i0,i1,j0,j1,nspltop,ispltop )
+                         mbar,op_out,opnm_out,rmass_fep, &
+                         i0,i1,j0,j1,nspltop )
 !
 ! All input fields from dpie_coupling are in "TIEGCM" format, i.e.,
 ! longitude (-180->180), vertical (bot2top), and units (CGS).
+!
+! vxb_prep must be called earlier in the time step to set the fields
+! that do not depend on the ion species (ion drifts, tp, hj, ...).
 !
     use edyn_mpi,only:  mp_geo_halos,mp_pole_halos,setpoles
     use edyn_geogrid,only : glat, nlat, nlev
@@ -119,7 +384,7 @@ module vxb
       i1,                 & ! grid%ilastxy
       j0,                 & ! grid%jfirstxy
       j1                    ! grid%jlastxy
-    integer,intent(in) :: nspltop,ispltop
+    integer,intent(in) :: nspltop
 !
 ! Input fields without halo points (lon +/-180, vertical bot2top, CGS units):
 !
@@ -139,18 +404,8 @@ module vxb
     real(r8),intent(in) :: op_in(nlev,i0:i1,j0:j1) ! O+ density (cm^3)
     real(r8),intent(in) :: opnm_in(nlev,i0:i1,j0:j1) ! O+ density (cm^3) at time-1
     real(r8),intent(in) :: rmass_fep
-    real(r8),intent(in) :: ui(nlev,i0:i1,j0:j1)   ! zonal ion drift
-    real(r8),intent(in) :: vi(nlev,i0:i1,j0:j1)   ! meridional ion drift
-    real(r8),intent(in) :: wi(nlev,i0:i1,j0:j1)   ! vertical ion drift
-    real(r8),intent(in) :: eeex(nlev,i0:i1,j0:j1)   ! zonal ion drift
-    real(r8),intent(in) :: eeey(nlev,i0:i1,j0:j1)   ! meridional ion drift
-    real(r8),intent(in) :: eeez(nlev,i0:i1,j0:j1)   ! vertical ion drift
     real(r8),intent(in) :: xi(nlev,i0:i1,j0:j1) ! Jianfei Wu added xi = ion-neutral collision freq / ion gyrofreq
     real(r8),intent(in) :: zg   (nlev,i0:i1,j0:j1) ! geopotential height (cm)
-!
-! Ion drifts from edynamo (also in tiegcm-format):
-!
-    real(r8),intent(in) :: pmid(nlev)             ! pressure at midpoints (Pa)
 !
 ! Output:
 !
@@ -161,19 +416,15 @@ module vxb
 ! Local:
 !
     integer :: i,j,k,lat,jm1,jp1,jm2,jp2,lat0,lat1
-    real(r8),dimension(i0:i1,j0:j1) :: &
-      dvb         ! divergence of B-field
 !
 ! Local inputs with added halo points in lat,lon:
 !
     real(r8),dimension(nlev,i0-2:i1+2,j0-2:j1+2),target :: op, opnm,xiop,xiopnm, &
-        xxiop,xxiopnm,xxxiop,xxxiopnm,xxxxiop,xxxxiopnm,eeeex,eeeey,eeeez,uuii,vvii,wwii,uui,vvi,wwi,wn,&
+        xxiop,xxiopnm,xxxiop,xxxiopnm,xxxxiop,xxxxiopnm,&
         ri,rri,rrri,rrrri,bdotu
 
 
     real(r8),dimension(nlev,i0-2:i1+2,j0-2:j1+2),target :: &
-      tr          ,&   ! Reduced temperature (.5*(tn+ti))
-      tp          ,&   ! Plasma temperature N(O+)*(te+ti)
       tpp          ,&   ! Plasma temperature N(O+)*(te+ti)
       dj          ,&   ! diffusion coefficients
       dji          ,&   ! diffusion coefficients
@@ -194,10 +445,9 @@ module vxb
 
 
     real(r8),dimension(nlev,i0:i1,j0:j1) :: &
-        rwii,uii,vii,wii,  &! metal ion velocity from subroutine vxbvel  Jianfei Wu
+        rwii,              &! metal ion vertical velocity  Jianfei Wu
         hadudth,epsh,scrh, &
-        nulh, mulh, flxh, diff, LORHOT, LNRHOT, RHOT, RHOTD, FABS, FSGN, TERM, TERP,aa,va,rva
-    real(r8),dimension(nlev,i0:i1,j0-1:j1+1) :: hj ! scale height
+        nulh, mulh, flxh, diff, LORHOT, LNRHOT, RHOT, RHOTD, FABS, FSGN, TERM, TERP
     real(r8) :: gmr,dtime,dtx2,dtx2inv, ONE6TH,ONE3RD
     real(r8),dimension(nlev,i0:i1) :: &
       bdzdvb_op,   &
@@ -240,59 +490,8 @@ module vxb
     dtx2 = 2._r8*dtime
     dtx2inv = 1._r8/dtx2
 
-    if ((is_first_step().or.is_first_restart_step()).and.ispltop==1) then
-      if (masterproc) write(iulog,"('mgplus: shapiro=',es12.4,' dtsmooth=',es12.4,' dtsmooth_div2=',es12.4)") &
-        shapiro_const,dtsmooth,dtsmooth_div2
-      if (masterproc) write(iulog,"('mgplus: shr_const_g=',f8.3)") shr_const_g
-    endif
-
-    !
-    ! zp,expz are declared in edyn_geogrid.F90, and allocated in sub
-    ! set_geogrid (edyn_init.F90). pmid was passed in here (bot2top)
-    ! from dpie_coupling.
-    !
-    ! kbot is the k-index at the bottom of O+ transport calculations,
-    !   corresponding to pressure pbot.
-    !
-    if ((is_first_step().or.is_first_restart_step()).and.ispltop==1) then
-       kloop: do k=1,nlev
-          if ( pmid(k) <= pbot) then
-             kbot = k
-             exit kloop
-          end if
-       enddo kloop
-       kloop2: do k=1,nlev
-          if ( pmid(k) <= ptop) then
-             ktop = k-1
-             exit kloop2
-          end if
-       enddo kloop2
-       kloop3: do k=1,nlev
-          if ( pmid(k) <= pminor) then
-             kminor = k-1
-             exit kloop3
-          end if
-       enddo kloop3
-       do k=1,nlev
-          zp(k) = -log(pmid(k)*10._r8/p0)
-          expz(k) = exp(-zp(k))
-       enddo
-       if (debug.and.masterproc) then
-          write(iulog,"('mgplus: kbot=',i4,'ktop=',i4,' pmid(kbot)=',es12.4,' zp(kbot)=',es12.4)") &
-               kbot,ktop,pmid(kbot),zp(kbot)
-       endif
-    endif
-
-    if (kbot < 1.or.ktop < kbot) then
-       call endrun('vxb_xport: kbot or ktop is not set')
-    endif
-
-    dzp = zp(nlev)-zp(nlev-1)  ! use top 2 levels (typically dzp=0.5)
-
-    if (debug.and.masterproc) then
-      write(iulog,"('mgplus: nlev=',i3,' zp (bot2top)   =',/,(6es12.3))") nlev,zp
-      write(iulog,"('mgplus: nlev=',i3,' expz (bot2top) =',/,(6es12.3))") nlev,expz
-      write(iulog,"('mgplus: nlev=',i3,' dzp  =',/,(6es12.3))") nlev,dzp
+    if (.not. allocated(tr)) then
+       call endrun('vxb_xport: vxb_prep must be called before vxb_xport')
     endif
 !
 ! Set subdomain blocks from input (composition is in mmr):
@@ -316,13 +515,6 @@ module vxb
           xxxiopnm(k,i,j) = opnm_in(k,i,j)*rrri(k,i,j)
           xxxxiop(k,i,j)   = op_in(k,i,j)*rrrri(k,i,j)
           xxxxiopnm(k,i,j) = opnm_in(k,i,j)*rrrri(k,i,j)
-          uui(k,i,j)=ui(k,i,j)
-          vvi(k,i,j)=vi(k,i,j)
-          wwi(k,i,j)=wi(k,i,j)
-          eeeex(k,i,j)=eeex(k,i,j)!*bmod2(i,j)
-          eeeey(k,i,j)=eeey(k,i,j)!*bmod2(i,j)
-          eeeez(k,i,j)=eeez(k,i,j)!*bmod2(i,j)
-
         enddo
       enddo
     enddo
@@ -335,23 +527,17 @@ module vxb
 ! Set two halo points in lat,lon:
 !   real(r8),dimension(nlev,i0-2:i1+2,j0-2:j1+2),target :: tn,te,etc.
 !
-    nfields = 20
+    nfields = 14
     allocate(ptrs(nfields),polesign(nfields))
 
     ptrs(1)%ptr => op ; ptrs(2)%ptr => opnm
     ptrs(3)%ptr =>xiop ; ptrs(4)%ptr => xiopnm
     ptrs(5)%ptr =>xxiop ; ptrs(6)%ptr => xxiopnm
-    ptrs(7)%ptr =>eeeex ; ptrs(8)%ptr => eeeey
-    ptrs(9)%ptr =>eeeez
-    ptrs(10)%ptr =>uui ; ptrs(11)%ptr => vvi
-    ptrs(12)%ptr =>wwi
-    ptrs(13)%ptr =>xxxiop ; ptrs(14)%ptr => xxxiopnm
-    ptrs(15)%ptr =>xxxxiop ; ptrs(16)%ptr => xxxxiopnm
-    ptrs(17)%ptr =>ri ; ptrs(18)%ptr => rri
-    ptrs(19)%ptr =>rrri ; ptrs(20)%ptr => rrrri
+    ptrs(7)%ptr =>xxxiop ; ptrs(8)%ptr => xxxiopnm
+    ptrs(9)%ptr =>xxxxiop ; ptrs(10)%ptr => xxxxiopnm
+    ptrs(11)%ptr =>ri ; ptrs(12)%ptr => rri
+    ptrs(13)%ptr =>rrri ; ptrs(14)%ptr => rrrri
     polesign = 1._r8
-    polesign(7:8) = -1._r8
-    polesign(10:11) = -1._r8
 !
 ! mp_geo_halos first arg:
 !     type(array_ptr_type) :: fmsub(nf) ! (lev0:lev1,lon0-2:lon1+2,lat0-2:lat1+2)
@@ -392,27 +578,19 @@ module vxb
     op_out  (ktop+1:nlev,i0:i1,j0:j1) = op  (ktop+1:nlev,i0:i1,j0:j1)
     opnm_out(ktop+1:nlev,i0:i1,j0:j1) = opnm(ktop+1:nlev,i0:i1,j0:j1)
 !
-!
-! Divergence of B (mag field) is returned by divb in dvb(i0:i1,j0:j1)
-!
-    call divb(dvb,i0,i1,j0,j1)
 ! The solver will be called only if calltrsolv=true. It is sometimes
 ! set false when skipping parts of the code for debug purposes.
 !
     calltrsolv = .true.
-    tr  = 0._r8
-    tp  = 0._r8
     tpp  = 0._r8
     dj  = 0._r8
     dji  = 0._r8
-    hj  = 0._r8
     bvel= 0._r8
     diffj = 0._r8
     diffji = 0._r8
     diffjj = 0._r8
     abk = 1._r8
     opnm_smooth = 0._r8
-    grav_cm = shr_const_g * 100._r8 ! m/s^2 -> cm/s^2
     hadudth= 0._r8
     epsh=0._r8
     scrh=0._r8
@@ -420,9 +598,6 @@ module vxb
     mulh=0._r8
     flxh=0._r8
     diff=0._r8
-    aa=0._r8
-    va=0._r8
-    rva=0._r8
     bdotu       = 0._r8
     !!!!!
     ktop=ktop+1
@@ -438,19 +613,7 @@ module vxb
 ! as of April, 2015, TIEGCM incorrectly uses te+ti instead of tn+ti
 ! This has not been fixed in TIEGCM, because fixing it causes a tuning
 ! problem (ask Hanli and Wenbin). For WACCM, it is correct as below.
-!
-!$omp parallel do private(i,k)
-      do i=i0,i1
-!
-! Reduced temperature (tpj in tiegcm):
-! 'OPLUS_TR' (has constants at poles)
-!
-        do k=kbot,ktop
-          tr(k,i,jm1) = 0.5_r8*(tn(k,i,jm1)+ti(k,i,jm1))
-          tr(k,i,lat) = 0.5_r8*(tn(k,i,lat)+ti(k,i,lat))
-          tr(k,i,jp1) = 0.5_r8*(tn(k,i,jp1)+ti(k,i,jp1))
-        enddo
-      enddo ! i=i0,i1
+! (tr, tp and hj are set in vxb_prep.)
 !
 ! rrk returns ambipolar diffusion coefficients in d(jm1),dj(lat),djp1(jp1):
 ! 'OPLUS_DJ' (has constants at poles)
@@ -476,30 +639,6 @@ module vxb
         rmass_fep,tr(kbot:ktop,i0:i1,jp1), &
         dj(kbot:ktop,i0:i1,jp1),dji(kbot:ktop,i0:i1,jp1),i0,i1,kbot,ktop,kminor)
 !
-! Plasma temperature:
-! 'OPLUS_TP0' (tp will get poles from jm1 and jp1)
-!
-!$omp parallel do private(i,k)
-      do i=i0,i1
-        do k=kbot,ktop
-          tp(k,i,jm1) = te(k,i,jm1)+ti(k,i,jm1)
-          tp(k,i,lat) = te(k,i,lat)+ti(k,i,lat)
-          tp(k,i,jp1) = te(k,i,jp1)+ti(k,i,jp1)
-        enddo
-      enddo
-!
-! Neutral scale height:
-! 'OPLUS_HJ' (has constants at poles)
-!
-!$omp parallel do private(i,k)
-
-      do i=i0,i1
-        do k=1,nlev
-          hj(k,i,jm1) = gask * tn(k,i,jm1) / (mbar(k,i,jm1) * grav_cm)
-          hj(k,i,lat) = gask * tn(k,i,lat) / (mbar(k,i,lat) * grav_cm)
-          hj(k,i,jp1) = gask * tn(k,i,jp1) / (mbar(k,i,jp1) * grav_cm)
-        enddo
-      enddo
 ! bvel @ jm1 = (B.U)*N(O+)    (J-1)
 ! bvel @ j   = (B.U)*N(O+)      (J)
 ! bvel @ jp1 = (B.U)*N(O+)    (J+1)
@@ -595,35 +734,27 @@ module vxb
 ! Save to history file (exclude halo points)
 !
 
-    call vxbvel(un,vn,om,hj,uii,vii,wii,1,nlev,i0,i1,j0,j1)
 !$omp parallel do private(k, j, i)
     do k=1,nlev
       do j=j0,j1
         do i=i0,i1
-          uuii(k,i,j)=uii(k,i,j)
-          vvii(k,i,j)=vii(k,i,j)
-          wwii(k,i,j)=wii(k,i,j)
-          wn(k,i,j)=om(k,i,j)*hj(k,i,j)
           bdotu(k,i,j) = rri(k,i,j)*(bx(i,j)*un(k,i,j)+by(i,j)*vn(k,i,j)+ &
             wn(k,i,j)*bz(i,j))*bz(i,j)
         enddo
       enddo
     enddo
 !
-! Set halo points where needed.
+! Set halo points where needed (tp,uuii,vvii,wwii,wn halos are set in vxb_prep).
 !
-    nfields = 13
+    nfields = 8
     allocate(ptrs(nfields),polesign(nfields))
     ptrs(1)%ptr => dj ; ptrs(2)%ptr => bvel ; ptrs(3)%ptr => diffj
-    ptrs(4)%ptr => tp ; ptrs(5)%ptr => opnm_smooth
-    ptrs(6)%ptr =>uuii ; ptrs(7)%ptr => vvii
-    ptrs(8)%ptr =>wwii ;ptrs(9)%ptr =>wn
-    ptrs(10)%ptr => diffjj
-    ptrs(11)%ptr => diffji
-    ptrs(12)%ptr => tpp
-    ptrs(13)%ptr => bdotu
+    ptrs(4)%ptr => opnm_smooth
+    ptrs(5)%ptr => diffjj
+    ptrs(6)%ptr => diffji
+    ptrs(7)%ptr => tpp
+    ptrs(8)%ptr => bdotu
     polesign = 1._r8
-    polesign(6:7) = -1._r8
 
 
     call mp_geo_halos (ptrs,1,nlev,i0,i1,j0,j1,nfields)
@@ -985,8 +1116,8 @@ module vxb
                write(iulog,"('  mgp(k,i,jm1:jp1)    =',3es12.4)") op(k,i,jm1:jp1)
                write(iulog,"('  bmod2(i-1:i+1,lat) =',3es12.4)") bmod2(i-1:i+1,lat)
                write(iulog,"('  bmod2(i,jm1:jp1)   =',3es12.4)") bmod2(i,jm1:jp1)
-               write(iulog,"('  vxb_ui(k:k+1,i,lat)    =',2es12.4)") ui(k:k+1,i,lat)
-               write(iulog,"('  vxb_vi(k:k+1,i,lat)    =',2es12.4)") vi(k:k+1,i,lat)
+               write(iulog,"('  vxb_ui(k:k+1,i,lat)    =',2es12.4)") uui(k:k+1,i,lat)
+               write(iulog,"('  vxb_vi(k:k+1,i,lat)    =',2es12.4)") vvi(k:k+1,i,lat)
                write(iulog,"('  bx,by(i,lat)       =',2es12.4)") bx(i,lat),by(i,lat)
             endif
          endif
@@ -1046,17 +1177,6 @@ module vxb
     kbot=kbot+1
     ONE6TH = 1.0_r8/6.0_r8
     ONE3RD = 1.0_r8/3.0_r8
-!$omp parallel do private(k, j, i)
-    do k=1,nlev
-      do j=j0,j1
-        do i=i0,i1
-          aa(k,i,j)=re*re*dphi*dlamda*cs(j)
-!          aa(k,i,j)=1.0_r8
-          va(k,i,j)=aa(k,i,j)*hj(k,i,j)*dzp
-          rva(k,i,j)=1._r8/va(k,i,j)
-        enddo
-      enddo
-    enddo
     do k=1,nlev
       do j=j0,j1
         do i=i0,i1

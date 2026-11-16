@@ -346,7 +346,7 @@ contains
      use regridder,  only: regrid_phys2geo_3d, regrid_phys2mag_3d, regrid_geo2phys_3d
      use regridder,  only: regrid_geo2mag_3d, regrid_geo2mag_2d
      use adotv_mod,  only: calc_adotv
-     use vxb, only: vxb_xport
+     use vxb, only: vxb_prep, vxb_xport
 
      !
      ! Args:
@@ -928,10 +928,20 @@ contains
 
           call outfld_geokij( 'OPo',op_out, lev0,lev1, lon0,lon1, lat0,lat1 )
 
+          call t_stopf ('dpie_oplus_xport')
+
           !
           ! VxB transport of each ion in vxb_ions (subcycled nsplt_vxb times).
           ! Transported densities are converted back to mmr in ion_geo, iontm1_geo.
+          ! vxb_prep sets the fields that are the same for every ion and substep.
           !
+          call t_startf('dpie_vxb_xport')
+
+          if (nions > 0) then
+             call vxb_prep(halo_tn, halo_te, halo_ti, halo_un, halo_vn, halo_om, halo_mbar, &
+                  ui_in, vi_in, wi_in, eobx, eoby, eobz, pmid_inv, lon0, lon1, lat0, lat1)
+          end if
+
           vxb_ion_loop: do n = 1, nions
 
              do k = 1, nlev
@@ -958,8 +968,7 @@ contains
                 end if
                 call vxb_xport(halo_tn, halo_te, halo_ti, halo_ne, halo_op, halo_un, halo_vn, halo_om,  &
                      zpot_in, halo_o2, halo_o1, halo_n2, ion_in, iontm1_in, ionxi_in,       &
-                     halo_mbar, ui_in, vi_in, wi_in,  eobx, eoby, eobz, pmid_inv,    &
-                     ion_out, iontm1_out, vxb_ions(n)%rmass, lon0, lon1, lat0, lat1, nsplt_vxb, isplit )
+                     halo_mbar, ion_out, iontm1_out, vxb_ions(n)%rmass, lon0, lon1, lat0, lat1, nsplt_vxb )
              end do
 
              if (vxb_ions(n)%metal) then
@@ -980,7 +989,7 @@ contains
 
           end do vxb_ion_loop
 
-          call t_stopf ('dpie_oplus_xport')
+          call t_stopf ('dpie_vxb_xport')
           if (debug.and.masterproc) then
              write(iulog,"('dpie_coupling after subcycling oplus_xport: nstep=',i8,' nspltop=',i3)") &
                   nstep,nspltop
