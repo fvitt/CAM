@@ -660,9 +660,9 @@ contains
 
        ! Init pointers to mode number and specie mass mixing ratios in
        ! intersitial and cloud borne phases.
-       do l = 1, nspec(m)
+       do l = 0, nspec(m) ! l=0 is bin number
           mm = aero_props%indexer(m,l)
-          if (l <= nspec(m)) then
+          if (l > 0) then
              call aero_props%get(bin_ndx=m, species_ndx=l, spectype=spectype)
              if (trim(spectype) == 'sulfate') then
                 mw_carma(mm) = 96._r8
