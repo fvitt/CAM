@@ -2965,17 +2965,9 @@ if ($maxzen>0.0) {
 # upper boundary specifier
 my $ubc_ver;
 if (($chem =~ /waccm_ma/ or $chem =~ /waccm_tsmlt/ or $chem =~ /waccm_t4ma/) and !$waccmx) {
-    if ($phys =~ /cam7/) {
-	$ubc_ver = 'waccm7chem';
-    } else {
-	$ubc_ver = 'waccmchem';
-    }
+    $ubc_ver = 'waccmchem';
 } elsif ($chem =~ /waccm_sc/ or ($model_top eq "ht" and $chem =~ /ghg_mam/)) {
-    if ($phys =~ /cam7/) {
-	$ubc_ver = 'waccm7sc';
-    } else {
-	$ubc_ver = 'waccmsc';
-    }
+    $ubc_ver = 'waccmsc';
 }
 if (defined $ubc_ver) {
     add_default($nl, 'ubc_specifier', 'ver'=>$ubc_ver);
@@ -3574,7 +3566,6 @@ if ($clubb_sgs  =~ /$TRUE/io) {
    }
 
    add_default($nl, 'clubb_l_ascending_grid');
-   add_default($nl, 'clubb_do_icesuper');
    add_default($nl, 'clubb_do_energyfix');
    add_default($nl, 'clubb_cloudtop_cooling');
    add_default($nl, 'clubb_rainevap_turb');
@@ -3664,7 +3655,6 @@ if ($clubb_sgs  =~ /$TRUE/io) {
    add_default($nl, 'clubb_detliq_rad');
    add_default($nl, 'clubb_detphase_lowtemp');
    add_default($nl, 'clubb_do_energyfix');
-   add_default($nl, 'clubb_do_liqsupersat');
    add_default($nl, 'clubb_grid_adapt_in_time_method');
    add_default($nl, 'clubb_fill_holes_type');
    add_default($nl, 'clubb_grid_remap_method');
@@ -3871,6 +3861,18 @@ if (!$simple_phys) {
     add_default($nl, 'zmconv_parcel_hscale');
 }
 
+# MCSP (mesoscale coherent structure parameterization); all coefficients default
+# to zero, which leaves the scheme inactive.
+if (!$simple_phys) {
+    add_default($nl, 'mcsp_heat_coeff');
+    add_default($nl, 'mcsp_moisture_coeff');
+    add_default($nl, 'mcsp_uwind_coeff');
+    add_default($nl, 'mcsp_vwind_coeff');
+    add_default($nl, 'mcsp_storm_speed_pref');
+    add_default($nl, 'mcsp_conv_depth_min');
+    add_default($nl, 'mcsp_shear_min');
+}
+
 # moist convection rainwater coefficients
 my $shallow_scheme = $nl->get_value('shallow_scheme');
 $shallow_scheme =~ s/['"]//g;            # strip quotes "'
@@ -4010,16 +4012,16 @@ if (!$simple_phys) {
 	# (since vorticity needs to be passed to physics in dp_coupling)
 	#
 	if ( $dyn =~ /mpas|se/ ) {
-	    add_default($nl, 'use_gw_movmtn_pbl',        'val'=>'.true.');
+	    add_default($nl, 'use_gw_movmtn',            'val'=>'.true.');
 	} else {
-	    add_default($nl, 'use_gw_movmtn_pbl',        'val'=>'.false.');
+	    add_default($nl, 'use_gw_movmtn',            'val'=>'.false.');
 	}
     }
 
-    my $use_gw_movmtn_pbl = $nl->get_value('use_gw_movmtn_pbl');
-    if ($use_gw_movmtn_pbl =~ /$TRUE/io) {
+    my $use_gw_movmtn = $nl->get_value('use_gw_movmtn');
+    if ($use_gw_movmtn =~ /$TRUE/io) {
         if ( ! ($dyn =~ /mpas|se/) ) {
-            die "$ProgName - ERROR: use_gw_movmtn_pbl is only available with MPAS and SE dycore\n";
+            die "$ProgName - ERROR: use_gw_movmtn is only available with MPAS and SE dycore\n";
         }
     }
 
@@ -4086,7 +4088,7 @@ my $do_gw_front      = ($nl->get_value('use_gw_front')      =~ /$TRUE/io);
 my $do_gw_front_igw  = ($nl->get_value('use_gw_front_igw')  =~ /$TRUE/io);
 my $do_gw_convect_dp = ($nl->get_value('use_gw_convect_dp') =~ /$TRUE/io);
 my $do_gw_convect_sh = ($nl->get_value('use_gw_convect_sh') =~ /$TRUE/io);
-my $do_gw_movmtn_pbl = ($nl->get_value('use_gw_movmtn_pbl') =~ /$TRUE/io);
+my $do_gw_movmtn_pbl = ($nl->get_value('use_gw_movmtn')     =~ /$TRUE/io);
 my $do_gw_rdg_beta   = ($nl->get_value('use_gw_rdg_beta')   =~ /$TRUE/io);
 my $do_gw_rdg_gamma  = ($nl->get_value('use_gw_rdg_gamma')  =~ /$TRUE/io);
 my $do_gw_rdg_resid  = ($nl->get_value('use_gw_rdg_resid')  =~ /$TRUE/io);
@@ -4144,7 +4146,7 @@ if ($do_gw_convect_sh) {
 if ($do_gw_movmtn_pbl) {
     add_default($nl, 'gw_drag_file_mm');
     add_default($nl, 'alpha_gw_movmtn');
-    add_default($nl, 'effgw_movmtn_pbl');
+    add_default($nl, 'gwcli_movmtn');
     add_default($nl, 'movmtn_source');
     add_default($nl, 'movmtn_psteer');
     add_default($nl, 'movmtn_plaunch');
@@ -4155,8 +4157,8 @@ if ($do_gw_rdg_beta) {
         die "$ProgName - ERROR: beta ridge scheme requires data from a topo file.\n";
     }
     add_default($nl, 'n_rdg_beta',          'val'=>'10');
-    add_default($nl, 'effgw_rdg_beta');
-    add_default($nl, 'effgw_rdg_beta_max');
+    add_default($nl, 'gwcli_rdg_beta');
+    add_default($nl, 'gwcli_rdg_beta_max');
     add_default($nl, 'trpd_leewv_rdg_beta', 'val'=>'.false.');
     add_default($nl, 'rdg_beta_cd_llb',     'val'=>'1.0D0');
 }
@@ -4173,8 +4175,8 @@ if ($do_gw_rdg_resid) {
 
 if ($do_gw_rdg_gamma) {
     add_default($nl, 'n_rdg_gamma',           'val'=>'-1');
-    add_default($nl, 'effgw_rdg_gamma',       'val'=>'1.0D0');
-    add_default($nl, 'effgw_rdg_gamma_max',   'val'=>'1.0D0');
+    add_default($nl, 'gwcli_rdg_gamma',       'val'=>'1.0D0');
+    add_default($nl, 'gwcli_rdg_gamma_max',   'val'=>'1.0D0');
     add_default($nl, 'trpd_leewv_rdg_gamma',  'val'=>'.true.');
     add_default($nl, 'rdg_gamma_cd_llb',      'val'=>'1.0D0');
     add_default($nl, 'bnd_rdggm');
@@ -5436,7 +5438,7 @@ sub check_snapshot_settings {
                               "'qbo_relax'", "'iondrag_calc_section'",
                               "'physics_dme_adjust'"));
         push (@validList_bc, ("'dadadj_tend'", "'convect_deep_tend'",
-			      "'rayleigh_friction_tend'",
+			      "'rayleigh_friction_tend'", "'mcsp_cam_tend'",
                               "'convect_diagnostics_calc'"));
     } else {
         # CAM physpkg
@@ -5452,7 +5454,7 @@ sub check_snapshot_settings {
                               "'qbo_relax'", "'iondrag_calc_section'",
                               "'physics_dme_adjust'"));
         push (@validList_bc, ("'dadadj_tend'", "'convect_deep_tend'",
-			      "'rayleigh_friction_tend'",
+			      "'rayleigh_friction_tend'", "'mcsp_cam_tend'",
                               "'convect_shallow_tend'"));
         if ($microphys =~ /^mg/) {
             if ($clubb_sgs  =~ /$TRUE/io) {
