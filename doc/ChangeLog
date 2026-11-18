@@ -1,6 +1,322 @@
 
 ===============================================================
 
+Tag name: TBD
+Originator(s): fvitt
+Date: TBD
+One-line Summary: Generalize gas-aerosol exchange through the abstract aerosol interfaces; CARMA SOA exchange updates
+Github PR URL: TBD
+
+Purpose of changes (include the issue number and title text for each relevant GitHub issue):
+ TBD (#issue): <issue title>
+
+ - Generalize the MAM and CARMA gas-aerosol exchange modules through the
+   abstract aerosol_properties interface. Code duplicated between
+   the portable MAM core (atmos_phys modal_aero_gasaerexch) and
+   carma_aero_gasaerexch is moved to shared modules:
+     - aero_gasaerexch_core (atmos_phys, schemes/aerosol/core; portable):
+       the reversible SOA gas-aerosol partitioning solver and SOA
+       volatility parameters (previously modal_aero_soaexch in the MAM
+       core and carma_aero_soaexch), the H2SO4 condensation sink of a
+       lognormal mode and of a monodisperse bin, and the SOA gas uptake
+       (partitioning of uptake among modes/bins, time-averaged uptake,
+       reversible/irreversible/no uptake) for a grid cell and, from
+       standard per-bin SOA/POA/SOAG column arrays, for all grid cells of
+       a chunk
+     - aero_gasaerexch (src/chemistry/aerosol): the condensation-sink loop
+       over modes/bins through aerosol_properties, the SOA species
+       configuration, species lookups and history diagnostics. The SOA
+       species configuration of an aerosol
+       model (SOA and POA species of each mode/bin, SOAG constituents, SOA
+       and POA molecular weights) is a shared type, soa_exch_t, set at
+       initialization from the aerosol properties object; its tend
+       procedure loads the SOAG/SOA/POA column arrays from caller arrays
+       and index tables and computes the SOA uptake for the chunk, and the
+       SOA condensation/evaporation diagnostics are accumulated for the
+       chunk (accum_column). CARMA uses soa_exch_t for its SOA uptake; the
+       MAM core calls the aero_gasaerexch_core SOA uptake for each grid
+       cell with its mode masks and POA rule.
+       Also in aero_gasaerexch_core, for non-volatile gases in a grid cell: partitioning of uptake
+       among modes/bins and time-averaged uptake, reversible uptake toward
+       an equilibrium gas mixing ratio for each mode/bin (used for H2SO4
+       with sulfeq above the tropopause), and the NH4/SO4 molar ratio
+       limit for NH3 uptake. MAM uses these for its H2SO4/MSA/NH3
+       condensation.
+   The H2SO4 condensation sink (gas-to-aerosol mass transfer rate) of a
+   mode/bin is a new deferred aerosol_properties procedure, gas_uptkrate,
+   implemented by each aerosol model's concrete aerosol properties class
+   (Gauss-Hermite integration over the lognormal distribution for MAM,
+   monodisperse bins for CARMA, not implemented for bulk aerosols). The MAM
+   core gets its condensation sink through this procedure too: the aerosol
+   properties object is passed to modal_aero_gasaerexch_run.
+ - MAM (CAM wrapper modal_aero_gasaerexch_cam): species indices, SOA gas
+   (SOAG) indices and SOA/POA molecular weights passed to the portable
+   modal_aero_gasaerexch_init are set from the aerosol properties object
+   and the shared lookups below, rather than the modal_aero_data pointers
+   and rad_aer_get_info. The numbers of SOA and POA species (nsoa, npoa)
+   are likewise set from the aerosol properties object (maximum over the
+   modes). The remaining mode information passed to the MAM core (numbers
+   of modes and species, number and species constituent indices,
+   accumulation and primary carbon modes, log of geometric standard
+   deviation, species molecular weights, densities and hygroscopicities,
+   and cloud-borne constituent names) also comes from the aerosol
+   properties object; all of these values are compared with modal_aero_data
+   at initialization (endrun on any mismatch). The geometric standard
+   deviation (sigmag_amode) is no longer passed to the MAM core; the
+   condensation sink uses the aerosol properties object's log of the
+   geometric standard deviation (the same physprop values).
+   The SOA/POA species, SOAG indices and SOA/POA molecular weights come
+   from the shared soa_exch_t; initialization now stops if the SOA (or
+   POA) species have different molecular weights (previously the last
+   species found was used; all current mechanisms have a single SOA and a
+   single POA molecular weight).
+   The MAM core's H2SO4/MSA/NH3 condensation, stratospheric sulfeq
+   treatment, NH4/SO4 limit, condensation sink and SOA uptake use the
+   shared aero_gasaerexch_core routines; MAM keeps its gas indices, mode
+   flags and the choice of the sulfeq treatment. Primary-carbon aging and
+   renaming remain MAM-specific.
+   The wet diameters used for the MAM condensation sink come from
+   aero_state%wet_diameter, as for CARMA, rather than directly from the
+   physics buffer in aero_model (same DGNUMWET values).
+   The MAM core returns the SOA tendencies of each mode
+   (dqdt_soa_mode) for the SOA condensation/evaporation diagnostics, which
+   the CAM wrapper accumulates and outputs with the shared
+   soa_condevap_diag_t (previously reconstructed in aero_model from the
+   species tendencies, which for the accumulation mode included SOA
+   transferred by primary-carbon aging). The _sfgaex1/_sfgaex2 column
+   tendency fields are registered and output by the CAM wrapper with the
+   shared col_tend_diag_t (previously in aero_model).
+ - CARMA: carma_aero_gasaerexch_init and carma_aero_gasaerexch_sub take the
+   CARMA aerosol properties object (and, for the sub, the aerosol state
+   object) as arguments, as for MAM, instead of looking them up; the
+   numbers of bins and species and the species names come from the
+   aerosol properties object. Unused arguments of carma_aero_gasaerexch_sub
+   (state, nstep, loffset, qh2o, troplev) are removed. The module data of
+   carma_aero_gasaerexch is private (it was public but not used elsewhere),
+   and the unused nspec_max is removed. The SOA condensation/evaporation
+  diagnostic mask and units factor are set at initialization rather than
+  in every call; unused ldiag1-4 and nsrflx parameters are removed.
+  SOA and POA molecular weights come from the aerosol properties object
+  (aero_props%get), as for MAM, rather than hard-coded values (same
+  values: 250 and 12); initialization stops if the SOA (or POA) species
+  of the bins have different molecular weights (check now done by the
+  shared soa_exch_t initialization).
+  The lumped VBS path (one SOA species per bin carrying several SOAG
+  volatility species, with the split kept in the FRACVBS physics buffer
+  field) is removed; it was not used by any defined compset. Each bin
+  that contains SOA must have one SOA species for each SOAG species, as
+  for MAM (endrun otherwise). The FRACVBS physics buffer field (a global
+  field, written to restart files) is no longer registered.
+ - Species lookups shared by MAM and CARMA (aero_gasaerexch):
+     - aero_gasaerexch_spec_ndx: species of a given type (e.g., s-organic,
+       p-organic) in each mode/bin, from aerosol_properties%species_type
+     - aero_gasaerexch_soag_ndx: SOA gas (SOAG*) constituent indices,
+       excluding SOAGX* species. CARMA previously did not exclude SOAGX*
+       species; no current chemistry mechanism has them.
+   CARMA SOA/POA species tables are built at initialization (soa_exch_t);
+   the species
+   type lookups (rad_aer_get_bin_props_by_idx) previously done in every
+   call of carma_aero_gasaerexch_sub are removed.
+ - Gas-aerosol exchange history diagnostics shared by MAM and CARMA
+   (aero_gasaerexch):
+     - SOA condensation/evaporation fields: totals (qcon_gaex, qevap_gaex),
+       per SOA species (qcon_gaexNN, qevap_gaexNN) and per group of SOA
+       species (qconff_gaex, qconbb_gaex, qconbg_gaex, ...). Each model
+       outputs the same fields as before: MAM totals (nsoa=5) or groups
+       (nsoa=15); CARMA totals and per-species fields.
+     - uptake rate, number density and wet radius of each mode/bin
+       (UPTKRATE_binNN, NUMDENS_binNN, WETRAD_binNN, UPTKRATE); output by
+       CARMA only, as before.
+     - column tendencies of the species involved in gas-aerosol exchange
+       (<species>_sfgaex1) and, for MAM, in renaming (<species>_sfgaex2):
+       field registration, conversion to output units and output. The
+       column tendencies are still accumulated by each model; each model
+       outputs the same fields as before.
+   History field changes (values unchanged):
+     - MAM no longer registers SOA condensation/evaporation fields that are
+       never written: previously all 8 (qcon_gaex, qevap_gaex, qconff_gaex,
+       qevapff_gaex, qconbb_gaex, qevapbb_gaex, qconbg_gaex, qevapbg_gaex)
+       were registered, and added to the default history output when
+       history_aerosol is true, for any number of SOA species. Now only the
+       fields written for the configured number of SOA species are
+       registered.
+     - long name of MAM qevap_gaex corrected ('SOA evaporation', was
+       'Biogenic SOA evaporation'); CARMA uptake-rate long names no longer
+       refer to carma_aero_gasaerexch.
+     - units of MAM <species>_sfgaex1 fields for number species (primary
+       carbon aging) corrected to '#/m2/s' (were 'kg/m2/s'), as already
+       done for <species>_sfgaex2.
+     - MAM qcon*_gaex/qevap*_gaex values change (see answer changes)
+ - CARMA SOA gas-aerosol exchange:
+     - condensation sink corrected: the wet radius was used as a diameter
+       (doubling the Knudsen number) and a factor of sqrt(pi) was missing;
+       the bin is now treated as monodisperse with the wet diameter from
+       aero_state%wet_diameter
+     - the SOA solver uses the MAM minimum-value parameters (a_min1, g_min1
+       = 1e-20) and the MAM volatility parameters for a single SOA species
+       (p0_soa_298 = 9.7831e-11 atm, delh_vap_soa = 131 kJ/mol)
+     - fix out-of-bounds write of qold_poa when there are no POA species
+ - waccm_ma_noaero chemistry (used with CARMA trop_strat_soa1, CARMAWM):
+   SOAG elemental composition changed from C to C15H38O2 for consistency
+   with the SOA molecular weight used in the SOA scheme.
+ - Add the f10 L32 initial condition default for trop_strat_mam5_vbsext.
+
+Describe any changes made to build system: N/A
+ (the new atmos_phys file is in the already-listed schemes/aerosol/core)
+
+Describe any changes made to the namelist:
+ - ncdata default added for hgrid=10x15, nlev=32, chem=trop_strat_mam5_vbsext
+
+List any changes to the defaults for the boundary datasets: N/A
+
+Describe any substantial timing or memory changes:
+ - CARMA: the per-time-step species type lookups in
+   carma_aero_gasaerexch_sub are replaced by tables set at initialization.
+ - MAM: aero_model_gasaerexch has a new (ncol,pver,nmodes,nsoa) automatic
+   array for the per-mode SOA tendencies (about 0.7 MB for nsoa=15 and 70
+   levels), on the thread stack; the (ncol,pver,gas_pcnst) copy of the
+   condensation tendencies kept for the SOA diagnostics is removed.
+
+Code reviewed by: TBD
+
+List all files eliminated: N/A
+
+List all files added and what they do:
+
+A   src/chemistry/aerosol/aero_gasaerexch.F90
+ - CAM-side gas-aerosol exchange routines shared by the aerosol models:
+   condensation sink for all modes/bins (aerosol_properties), SOA species
+   configuration (soa_exch_t) and SOA gas uptake per chunk, history
+   diagnostics (SOA condensation/evaporation; uptake rates, number
+   densities and wet radii of modes/bins; column tendencies), and species
+   and SOA gas lookups
+
+A   src/atmos_phys/schemes/aerosol/core/aero_gasaerexch_core.F90 (atmos_phys)
+ - portable gas-aerosol exchange science shared by the aerosol models:
+   non-volatile gas uptake (partitioning, reversible uptake, NH4 limit),
+   SOA gas uptake per grid cell and per chunk, and the reversible SOA
+   gas-aerosol partitioning solver
+
+List all existing files that have been modified, and describe the changes:
+
+M   .gitmodules
+M   src/physics/carma/base
+ - CARMA base tag carma4_11
+
+M   src/atmos_phys (atmospheric_physics tag TBD)
+ - schemes/modal_aero/core/modal_aero_gasaerexch.F90: condensation sink,
+   H2SO4/MSA/NH3 condensation and SOA uptake through aero_gasaerexch_core;
+   modal_aero_soaexch removed; new dqdt_soa_mode output of
+   modal_aero_gasaerexch_run; condensation sink from the new aero_props
+   argument of modal_aero_gasaerexch_run (aero_props%gas_uptkrate);
+   sigmag_amode argument of modal_aero_gasaerexch_init removed
+
+M   bld/namelist_files/namelist_defaults_cam.xml
+ - f10 L32 ncdata default for trop_strat_mam5_vbsext
+
+M   src/chemistry/aerosol/aerosol_properties_mod.F90
+ - add deferred gas_uptkrate procedure: H2SO4 gas-to-aerosol mass transfer
+   rates (condensation sink, 1/s) of a mode/bin, implemented by each
+   concrete aerosol properties class
+
+M   src/chemistry/aerosol/bulk_aerosol_properties_mod.F90
+ - gas_uptkrate stub (not implemented; endrun if called)
+
+M   src/chemistry/aerosol/carma_aerosol_properties_mod.F90
+ - gas_uptkrate for CARMA bins, treated as monodisperse (Fuchs-Sutugin
+   corrected condensation rate at the bin wet diameter); moved from
+   gas_aer_uptkrates in carma_aero_gasaerexch
+
+M   src/chemistry/aerosol/modal_aerosol_properties_mod.F90
+ - gas_uptkrate for MAM lognormal modes (Gauss-Hermite integration over the
+   size distribution, using the mode's log of geometric standard deviation,
+   alogsig); moved from gas_aer_uptkrates in the atmos_phys
+   modal_aero_gasaerexch, which now calls it through aero_props
+
+M   src/chemistry/carma_aero/aero_model.F90
+ - remove wet radius calculation (now from aero_state%wet_diameter)
+ - pass the aerosol properties and state objects to carma_aero_gasaerexch;
+   remove arguments no longer used by carma_aero_gasaerexch_sub
+ - remove the FRACVBS physics buffer field and the SOAG species count used
+   to size it
+
+M   src/chemistry/carma_aero/carma_aero_gasaerexch.F90
+ - use shared aero_gasaerexch and aero_gasaerexch_core routines, including the
+   shared history diagnostics (including column tendencies) and species/SOA
+   gas lookups; SOA/POA species tables set at initialization; aerosol
+   properties and state objects passed as arguments; bins, species and
+   names from the aerosol properties object; unused arguments removed;
+   module data private; condensation/evaporation diagnostic mask and
+   factor set at initialization; SOA/POA molecular weights from the
+   aerosol properties object; unused parameters removed; lumped VBS
+   (FRACVBS) path removed, one SOA species per SOAG species required;
+   SOA species configuration, SOA uptake and condensation/evaporation
+   diagnostics through the shared soa_exch_t; corrections listed above
+
+M   src/chemistry/modal_aero/aero_model.F90
+ - pass the aerosol properties object to modal_aero_gasaerexch_cam_init
+   and modal_aero_gasaerexch_run;
+   history output of the gas-aerosol exchange column tendencies and SOA
+   condensation/evaporation moved to modal_aero_gasaerexch_cam_outfld,
+   using the per-mode SOA tendencies from modal_aero_gasaerexch_run
+ - wet diameters passed to modal_aero_gasaerexch_run from
+   aero_state%wet_diameter
+
+M   src/chemistry/modal_aero/modal_aero_gasaerexch_cam.F90
+ - species and SOA gas indices, mode information and SOA/POA molecular
+   weights from the aerosol properties object and shared lookups
+   (cross-checked with modal_aero_data); register only the SOA
+   condensation/evaporation fields that are written; shared SOA
+   condensation/evaporation and column tendency (_sfgaex1, _sfgaex2)
+   diagnostics; new modal_aero_gasaerexch_cam_outfld
+
+M   src/chemistry/pp_waccm_ma_noaero/chem_mech.doc
+M   src/chemistry/pp_waccm_ma_noaero/chem_mech.in
+M   src/chemistry/pp_waccm_ma_noaero/mo_sim_dat.F90
+ - SOAG elemental composition C15H38O2
+
+If there were any failures reported from running test_driver.sh on any test
+platform, and checkin with these failures has been OK'd by the gatekeeper,
+then copy the lines from the td.*.status files for the failed tests to the
+appropriate machine below.  All failed tests must be justified.
+
+derecho/intel/aux_cam: TBD
+
+derecho/nvhpc/aux_cam: TBD
+
+izumi/nag/aux_cam: TBD
+
+izumi/gnu/aux_cam: TBD
+
+CAM tag used for the baseline comparison tests if different than previous
+tag: N/A
+
+Summarize any changes to answers (expected; to be confirmed by testing):
+- what code configurations:
+   - MAM: bit-for-bit, except the SOA condensation/evaporation history
+     fields (qcon_gaex, qevap_gaex, qconff_gaex, ...), which again use the
+     per-mode condensation tendencies (values as before the MAM portable
+     refactor; the accumulation mode no longer includes SOA transferred by
+     primary-carbon aging)
+   - CARMA trop_strat with SOA (CARMATS, CARMAWM compsets): answers change
+     (CARMA test category, e.g.,
+      SMS_D_Ln9.f19_f19_mg17.FCARMA2000climo.derecho_intel.cam-outfrq9s_carma_rad_diag
+      SMS_D_Ln9.f19_f19_mg17.FWmaCARMAHIST.derecho_intel.cam-outfrq9s)
+   - all other configurations: bit-for-bit
+   - history field lists: MAM runs with history_aerosol=.true. no longer
+     include the never-written SOA condensation/evaporation fields (see
+     above); values of all written fields are unchanged
+- what platforms/compilers: all
+- nature of change: CARMA SOA: larger than roundoff (corrected condensation
+  sink, SOA solver parameters, and for CARMAWM the SOAG molecular weight).
+  In addition, the CARMA wet diameter used in the condensation sink is now
+  2*r from aero_state%wet_diameter rather than 2*((r*1e2)*1e-2) (cm<->m
+  conversion of the CARMA wet radius r), a roundoff-level change on its
+  own. Climate impact of the CARMA SOA changes: TBD
+
+===============================================================
+===============================================================
+
 Tag name: cam6_4_221
 Originator(s): jtruesdal
 Date: Nov 12, 2026

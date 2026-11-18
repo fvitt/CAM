@@ -282,7 +282,7 @@ contains
     call modal_aero_rename_cam_init( modal_accum_coarse_exch )
     !   calcsize call must follow rename call
     call modal_aero_calcsize_init( pbuf2d )
-    call modal_aero_gasaerexch_cam_init()
+    call modal_aero_gasaerexch_cam_init(aero_props)
     !   coag call must follow gasaerexch call
     call modal_aero_coag_cam_init
     call modal_aero_newnuc_cam_init
@@ -1025,7 +1025,8 @@ contains
 
     use time_manager,          only : get_nstep
     use modal_aero_coag,       only : modal_aero_coag_run
-    use modal_aero_gasaerexch, only : modal_aero_gasaerexch_run, modefrm_pcage
+    use modal_aero_gasaerexch, only : modal_aero_gasaerexch_run
+    use modal_aero_gasaerexch_cam, only : modal_aero_gasaerexch_cam_outfld
     use modal_aero_rename,     only : modal_aero_rename_run
     use modal_aero_rename_cam, only : npair_renamexf, modefrm_renamexf, modetoo_renamexf, &
                                       nspecfrm_renamexf, lspecfrma_renamexf, lspecfrmc_renamexf, &
@@ -1034,7 +1035,7 @@ contains
                                       ixferable_a_renamexf, ixferable_c_renamexf, strat_only_renamexf
     use modal_aero_newnuc,     only : modal_aero_newnuc_run
     use modal_aero_data,       only : cnst_name_cw, qqcw_get_field, &
-                                      nsoa, lptr2_soa_a_amode, &
+                                      nsoa, &
                                       nspec_amode, &
                                       alnsg_amode, voltonumblo_amode, voltonumbhi_amode, &
                                       dgnum_amode, specmw_amode, specdens_amode, &
@@ -1108,7 +1109,6 @@ contains
 
     ! Local arrays for refactored gasaerexch call
     real(r8) :: dqdt_gaex(ncol,pver,gas_pcnst)
-    real(r8) :: dqdt_gaex_conden(ncol,pver,gas_pcnst)  ! conden-only snapshot (pre-rename) for diagnostics
     real(r8) :: dqdt_rnpos_unused(ncol,pver,gas_pcnst) ! required rename output, unused by CAM
     logical  :: dotend_gaex(gas_pcnst)
     real(r8) :: dqqcwdt_gaex(ncol,pver,gas_pcnst)
@@ -1120,6 +1120,8 @@ contains
     real(r8) :: qsrflx(pcols,gas_pcnst,nsrflx)
     real(r8) :: qqcwsrflx(pcols,gas_pcnst,nsrflx)
     real(r8) :: qsrflx_gaexch_out(ncol,gas_pcnst)     ! column-integrated gaexch source/sink from the scheme
+    real(r8) :: dqdt_soa_mode(ncol,pver,ntot_amode,nsoa) ! soa aerosol tendencies of each mode (diagnostics)
+    real(r8) :: wetdiam(ncol,pver,ntot_amode)         ! wet geo. mean dia. (m) of number distrib.
 
     ! Local arrays for refactored newnuc call
     real(r8) :: dqdt_nnuc(ncol,pver,gas_pcnst)
@@ -1132,7 +1134,7 @@ contains
     logical  :: dotend_coag(gas_pcnst)
     real(r8) :: qsrflx_coag(pcols)                    ! column-integrated coagulation source/sink
     character(len=fieldname_len+3) :: fieldname
-    integer  :: jac, jsrf, jsoa, lb
+    integer  :: lb
     logical  :: use_sulfeq
 
     character(len=512) :: errmsg_local
@@ -1140,14 +1142,6 @@ contains
     ! Zero-initialized dummy array for intent(in) placeholders (e.g. sulfeq
     ! when use_sulfeq=.false.)
     real(r8) :: dummy_3d(ncol,pver,ntot_amode)
-
-    ! SOA condensation/evaporation diagnostics
-    real(r8) :: qconff(pcols,pver),qevapff(pcols,pver)
-    real(r8) :: qconbb(pcols,pver),qevapbb(pcols,pver)
-    real(r8) :: qconbg(pcols,pver),qevapbg(pcols,pver)
-    real(r8) :: qcon(pcols,pver),qevap(pcols,pver)
-    real(r8) :: dqdt_soa_val
-    integer  :: l_soa
 
     aero_state => aerosol_instances_get_state(iaermod_, 0, lchnk)
 
@@ -1274,6 +1268,11 @@ contains
        use_sulfeq = .false.
     endif
 
+    ! wet diameters for the condensation sink, from the aerosol state (as for CARMA)
+    do n = 1, ntot_amode
+       wetdiam(:,:,n) = aero_state%wet_diameter(n, ncol, pver)
+    end do
+
     ! Call portable gasaerexch_run to get tendencies
     dqdt_gaex(:,:,:) = 0.0_r8
     dotend_gaex(:) = .false.
@@ -1284,13 +1283,14 @@ contains
             deltat    = delt,                                &
             top_lev   = top_lev,                             &
             loffset   = loffset,                             &
+            aero_props = aero_props,                         &
             t         = tfld(:ncol,:),                       &
             pmid      = pmid(:ncol,:),                       &
             pdel      = pdel(:ncol,:),                       &
             gravit    = gravit,                              &
             troplev   = troplev(:ncol),                      &
             dgncur_a  = dgnum(:ncol,:,:),                    &
-            dgncur_awet = dgnumwet(:ncol,:,:),               &
+            dgncur_awet = wetdiam,                           &
             use_sulfeq = .true.,                             &
             sulfeq    = sulfeq(:ncol,:,:),                   &
             num_q     = gas_pcnst,                           &
@@ -1298,6 +1298,7 @@ contains
             dqdt      = dqdt_gaex,                           &
             dotend    = dotend_gaex,                         &
             qsrflx_gaexch = qsrflx_gaexch_out,               &
+            dqdt_soa_mode = dqdt_soa_mode,                   &
             errmsg    = errmsg_local,                        &
             errflg    = errflg_local)
     else
@@ -1307,13 +1308,14 @@ contains
             deltat    = delt,                                &
             top_lev   = top_lev,                             &
             loffset   = loffset,                             &
+            aero_props = aero_props,                         &
             t         = tfld(:ncol,:),                       &
             pmid      = pmid(:ncol,:),                       &
             pdel      = pdel(:ncol,:),                       &
             gravit    = gravit,                              &
             troplev   = troplev(:ncol),                      &
             dgncur_a  = dgnum(:ncol,:,:),                    &
-            dgncur_awet = dgnumwet(:ncol,:,:),               &
+            dgncur_awet = wetdiam,                           &
             use_sulfeq = .false.,                            &
             sulfeq    = dummy_3d,                            &
             num_q     = gas_pcnst,                           &
@@ -1321,6 +1323,7 @@ contains
             dqdt      = dqdt_gaex,                           &
             dotend    = dotend_gaex,                         &
             qsrflx_gaexch = qsrflx_gaexch_out,               &
+            dqdt_soa_mode = dqdt_soa_mode,                   &
             errmsg    = errmsg_local,                        &
             errflg    = errflg_local)
     end if
@@ -1328,11 +1331,6 @@ contains
     if (errflg_local /= 0) then
        call endrun('aero_model_gasaerexch: ' // trim(errmsg_local))
     end if
-
-    ! Save conden-only tendencies before modal_aero_rename_run
-    ! adds mode-transfer tendencies into dqdt_gaex
-    ! since they are used by _sfgaex1 and SOA cond/evap diagnostics
-    dqdt_gaex_conden(:,:,:) = dqdt_gaex(:,:,:)
 
     if (ndx_h2so4 > 0) then
        ! Save h2so4 vmr before applying tendencies.
@@ -1446,114 +1444,11 @@ contains
     ! are sum'd term by term for bfb.
     qsrflx(:ncol,:,jsrflx_gaexch) = qsrflx_gaexch_out(:ncol,:)
 
-    ! Output history fields
-    do l = 1, gas_pcnst
-       lb = l + loffset
-       do jsrf = 1, 2
-          do jac = 1, 2
-             if (jac == 1) then
-               if (jsrf == jsrflx_gaexch) then
-                  if ( .not. dotend_gaex(l) ) cycle
-                  fieldname = trim(cnst_name(lb)) // '_sfgaex1'
-               else if (jsrf == jsrflx_rename) then
-                  if ( .not. dotendrn(l) ) cycle
-                  fieldname = trim(cnst_name(lb)) // '_sfgaex2'
-               else
-                  cycle
-               end if
-               do i = 1, ncol
-                  qsrflx(i,l,jsrf) = qsrflx(i,l,jsrf)*(adv_mass(l)/mwdry)
-               end do
-               call outfld( fieldname, qsrflx(:,l,jsrf), pcols, lchnk )
-             else
-               if (jsrf == jsrflx_gaexch) then
-                  cycle
-               else if (jsrf == jsrflx_rename) then
-                  if ( .not. dotendqqcwrn(l) ) cycle
-                  fieldname = trim(cnst_name_cw(lb)) // '_sfgaex2'
-               else
-                  cycle
-               end if
-               do i = 1, ncol
-                  qqcwsrflx(i,l,jsrf) = qqcwsrflx(i,l,jsrf)*(adv_mass(l)/mwdry)
-               end do
-               call outfld( fieldname, qqcwsrflx(:,l,jsrf), pcols, lchnk )
-             end if
-          end do ! jac = ...
-       end do ! jsrf = ...
-    end do ! l = ...
-
-    ! SOA condensation/evaporation diagnostics
-    ! Reconstruct from the pre-rename conden tendencies (dqdt_gaex_conden).
-    ! NOTE: for the accumulation mode this is not exactly b4b with the original,
-    ! which used the per-mode conden tendency dqdt_soa(n,jsoa);
-    ! the species-indexed tendency here also absorbs primary-carbon-aged SOA
-    qconff(:,:) = 0.0_r8
-    qevapff(:,:) = 0.0_r8
-    qconbb(:,:) = 0.0_r8
-    qevapbb(:,:) = 0.0_r8
-    qconbg(:,:) = 0.0_r8
-    qevapbg(:,:) = 0.0_r8
-    qcon(:,:) = 0.0_r8
-    qevap(:,:) = 0.0_r8
-
-    do n = 1, ntot_amode
-       do jsoa = 1, nsoa
-          l_soa = lptr2_soa_a_amode(n,jsoa) - loffset
-          if ((l_soa <= 0) .or. (l_soa > gas_pcnst)) cycle
-          ! Skip pcage from-mode: only accumulated for ido_soaa==1
-          if (modefrm_pcage > 0 .and. n == modefrm_pcage) cycle
-          do k = top_lev, pver
-             do i = 1, ncol
-                dqdt_soa_val = dqdt_gaex_conden(i,k,l_soa)
-                if (nsoa.eq.15) then !check for current SOA package
-                   if(jsoa.ge.1.and.jsoa.le.5) then ! Fossil SOA species
-                      if (dqdt_soa_val.ge.0.0_r8) then
-                         qconff(i,k)=qconff(i,k)+dqdt_soa_val*(adv_mass(l_soa)/mwdry)
-                      elseif(dqdt_soa_val.lt.0.0_r8) then
-                         qevapff(i,k)=qevapff(i,k)+dqdt_soa_val*(adv_mass(l_soa)/mwdry)
-                      endif
-
-                   elseif(jsoa.ge.6.and.jsoa.le.10) then ! Biomass SOA species
-                      if (dqdt_soa_val.ge.0.0_r8) then
-                         qconbb(i,k)=qconbb(i,k)+dqdt_soa_val*(adv_mass(l_soa)/mwdry)
-                      elseif(dqdt_soa_val.lt.0.0_r8) then
-                         qevapbb(i,k)=qevapbb(i,k)+dqdt_soa_val*(adv_mass(l_soa)/mwdry)
-                      endif
-
-                   elseif(jsoa.ge.11.and.jsoa.le.15) then ! Biogenic SOA species
-                      if (dqdt_soa_val.ge.0.0_r8) then
-                         qconbg(i,k)=qconbg(i,k)+dqdt_soa_val*(adv_mass(l_soa)/mwdry)
-                      elseif(dqdt_soa_val.lt.0.0_r8) then
-                         qevapbg(i,k)=qevapbg(i,k)+dqdt_soa_val*(adv_mass(l_soa)/mwdry)
-                      endif
-
-                   endif ! jsoa
-                endif !nsoa
-                if (nsoa.eq.5) then !check for current SOA package
-                      if (dqdt_soa_val.ge.0.0_r8) then
-                         qcon(i,k)=qcon(i,k)+dqdt_soa_val*(adv_mass(l_soa)/mwdry)
-                      elseif(dqdt_soa_val.lt.0.0_r8) then
-                         qevap(i,k)=qevap(i,k)+dqdt_soa_val*(adv_mass(l_soa)/mwdry)
-                      endif
-                endif !nsoa
-             end do ! i
-          end do ! k
-       end do ! jsoa
-    end do ! n
-
-    if (nsoa.eq.5) then
-       call outfld(trim('qcon_gaex'), qcon(:,:), pcols, lchnk )
-       call outfld(trim('qevap_gaex'), qevap(:,:), pcols, lchnk )
-    endif
-    if (nsoa.eq.15) then
-       call outfld(trim('qconff_gaex'), qconff(:,:), pcols, lchnk )
-       call outfld(trim('qevapff_gaex'), qevapff(:,:), pcols, lchnk )
-       call outfld(trim('qconbb_gaex'), qconbb(:,:), pcols, lchnk )
-       call outfld(trim('qevapbb_gaex'), qevapbb(:,:), pcols, lchnk )
-       call outfld(trim('qconbg_gaex'), qconbg(:,:), pcols, lchnk )
-       call outfld(trim('qevapbg_gaex'), qevapbg(:,:), pcols, lchnk )
-    endif
+    ! Output history fields: column tendencies for gas-aerosol exchange and
+    ! renaming, and SOA condensation/evaporation
+    call modal_aero_gasaerexch_cam_outfld(lchnk, ncol, loffset, dotend_gaex, dotendrn, dotendqqcwrn, &
+                                          qsrflx(:,:,jsrflx_gaexch), qsrflx(:,:,jsrflx_rename), &
+                                          qqcwsrflx(:,:,jsrflx_rename), dqdt_soa_mode)
 
     call t_stopf('modal_gas-aer_exchng')
 

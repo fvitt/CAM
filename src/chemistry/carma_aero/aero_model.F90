@@ -4,7 +4,7 @@
 module aero_model
   use physics_buffer,    only: physics_buffer_desc, pbuf_get_index, pbuf_add_field, dtype_r8
   use shr_kind_mod,      only: r8 => shr_kind_r8
-  use constituents,      only: pcnst, cnst_name, cnst_get_ind
+  use constituents,      only: pcnst, cnst_get_ind
   use perf_mod,          only: t_startf, t_stopf
   use ppgrid,            only: pcols, pver, pverp
   use phys_control,      only: phys_getopts, cam_physpkg_is
@@ -18,7 +18,6 @@ module aero_model
   use cam_history,       only: outfld
   use chem_mods,         only: gas_pcnst, adv_mass
   use mo_tracname,       only: solsym
-  use infnan,            only: nan, assignment(=)
   use radiative_aerosol, only: rad_aer_get_info, rad_aer_get_info_by_bin, rad_aer_get_info_by_bin_spec, &
                                rad_aer_get_bin_props_by_idx
   use aerosol_mmr_host,   only: rad_cnst_get_bin_mmr_by_idx
@@ -27,7 +26,7 @@ module aero_model
   use aerosol_instances_mod, only: aerosol_instances_get_props, &
        aerosol_instances_get_state, aerosol_instances_get_num_models
 
-  use carma_intr, only: carma_get_group_by_name, carma_get_dry_radius, carma_get_wet_radius, carma_get_bin_rmass
+  use carma_intr, only: carma_get_group_by_name, carma_get_dry_radius, carma_get_bin_rmass
   use carma_intr, only: carma_get_sad
 
   use aerosol_properties_mod, only: aero_name_len
@@ -150,8 +149,7 @@ contains
 
     use carma_flags_mod,   only: carma_model
 
-    integer :: m, l, i
-    integer :: nsoa_vbs
+    integer :: m, l
     character(len=32) :: num_name
     character(len=32) :: num_name_cw
     character(len=32) :: spec_name_cw
@@ -172,21 +170,6 @@ contains
           call pbuf_add_field(spec_name_cw,'global',dtype_r8,(/pcols,pver/),idx)
        enddo
     enddo
-
-  ! SOA information
-  ! Define number of VBS bins (nsoa) based on number of SOAG chemistry species
-    nsoa_vbs = 0
-    do i = 1, pcnst
-       if (cnst_name(i)(:4) == 'SOAG') then
-          nsoa_vbs = nsoa_vbs + 1
-       end if
-    end do
-    if (masterproc) then
-       write(iulog,*) 'nsoa_vbs  = ', nsoa_vbs
-    endif
-
-   ! Define pbuf field for soa_fraction
-    call pbuf_add_field('FRACVBS','global',dtype_r8,(/pcols,pver,nbins,nsoa_vbs/), idx)
 
   end subroutine aero_model_register
 
@@ -225,7 +208,6 @@ contains
     character(len=32) :: spec_name_cw
 
     integer :: idx, ierr
-    real(r8) :: nanval
 
     do iaermod_ = 1, aerosol_instances_get_num_models()
        aero_props => aerosol_instances_get_props(iaermod_, 0)
@@ -248,13 +230,6 @@ contains
        enddo
     endif
 
-    ! define pbuf field for soa_fraction
-    if (is_first_step()) then
-       nanval = nan
-       idx = pbuf_get_index('FRACVBS')
-       call pbuf_set_field(pbuf2d, idx, nanval)
-    end if
-
     ! aqueous chem initialization
     call sox_inti(aero_props)
 
@@ -274,7 +249,7 @@ contains
                       history_cesm_forcing_out=history_cesm_forcing, &
                       convproc_do_aer_out = convproc_do_aer)
 
-    call carma_aero_gasaerexch_init
+    call carma_aero_gasaerexch_init(aero_props)
 
     nspec_max = maxval(nspec)
 
@@ -516,7 +491,6 @@ contains
                                     vmr0, vmr, pbuf )
 
     use carma_aero_gasaerexch, only : carma_aero_gasaerexch_sub
-    use time_manager,          only : get_nstep
     use aerosol_state_mod, only: aerosol_state, ptr2d_t
 
     !-----------------------------------------------------------------------
@@ -551,7 +525,6 @@ contains
 
     integer :: n, m, mm
     integer :: i,k,l
-    integer :: nstep
 
     type(ptr2d_t), allocatable :: raer(:)     ! aerosol mass, number mixing ratios
     type(ptr2d_t), allocatable :: qqcw(:)
@@ -563,7 +536,6 @@ contains
     real(r8) :: dvmrcwdt(ncol,pver,ncnst_tot)
     real(r8) :: dvmrdt(ncol,pver,gas_pcnst)
     real(r8) :: delta_so4mass(ncol,pver,ncnst_tot)
-    real(r8) :: wetr_n(pcols,pver,nbins)       ! wet radius from CARMA for different bin
     real(r8) :: vmrcw(ncol,pver,ncnst_tot)            ! cloud-borne aerosol (vmr)
     real(r8) :: mmrcw(ncol,pver,ncnst_tot)            ! cloud-borne aerosol (mmr)
     real(r8) :: raervmr(ncol,pver,ncnst_tot)            ! cloud-borne aerosol (vmr)
@@ -575,8 +547,6 @@ contains
     real(r8) ::  xphlwc(ncol,pver)                    ! pH value multiplied by lwc
     real(r8) ::  nh3_beg(ncol,pver)
     real(r8) ::  mw_carma(ncnst_tot)
-    real(r8) :: wetr(pcols,pver)   ! CARMA wet radius in cm
-    real(r8) :: wetrho(pcols,pver)   ! CARMA wet dens
     real(r8), allocatable :: rmass(:)     ! CARMA rmass
 
     real(r8) :: old_total_number
@@ -600,8 +570,6 @@ contains
     end if
 !
 ! do gas-aerosol exchange (h2so4, msa, nh3 condensation)
-
-    nstep = get_nstep()
 
     ! calculate tendency due to gas phase chemistry and processes
     dvmrdt(:ncol,:,:) = (vmr(:ncol,:,:) - vmr0(:ncol,:,:)) / delt
@@ -629,10 +597,6 @@ contains
 
     mw_carma(:) = 0.0_r8
     do m = 1, nbins      ! main loop over aerosol bins
-       ! dryr is the dry bin radius
-       ! wetr is the dry bin radius
-       ! Note: taken here from CARMA pbuf field which may be not any more consistent with changed fields after carma was applied
-       ! Need to add new code that recalcuates dryr and wetr
        ! get bin info
        call rad_aer_get_info_by_bin(0, m, nspec=nspec(m), bin_name=bin_name)
 
@@ -646,18 +610,10 @@ contains
 
        read(bin_name(nchr+1:),*) ibin
 
-       call carma_get_wet_radius(state, igroup, ibin, wetr, wetrho, rc) ! m
-       if (rc/=0) then
-          call endrun(subname//': ERROR in carma_get_wet_radius')
-       end if
-       wetr(:ncol,:) = wetr(:ncol,:) * 1.e2_r8 ! cm
-
        call carma_get_bin_rmass(igroup, ibin, rmass(m), rc) ! grams
        if (rc/=0) then
           call endrun(subname//': ERROR in carma_get_bin_rmass')
        end if
-
-       wetr_n(:,:,m) = wetr(:,:)
 
        ! Init pointers to mode number and specie mass mixing ratios in
        ! intersitial and cloud borne phases.
@@ -761,13 +717,11 @@ contains
     ! need to transform raer to raervmr from CARMA, routine requires vmr, note number wil not be changed here
     call mmr2vmr_carma ( lchnk, raervmr, mbar, mw_carma, ncol, loffset, rmass)
 
-    call carma_aero_gasaerexch_sub( state, &
-          pbuf, lchnk,    ncol,     nstep,      &
-          loffset,            delt, mbar ,      &
+    call carma_aero_gasaerexch_sub( aero_props, aero_state, &
+          pbuf, lchnk,    ncol,                 &
+          delt, mbar,                           &
           tfld,     pmid,     pdel,             &
-          qh2o,               troplev,          &
-          vmr,                raervmr,          &
-          wetr_n     )
+          vmr,                raervmr           )
 
     ! note vmr2qqcw does not change qqcw pointer (different than in MAM)
     call vmr2mmr_carma ( lchnk, vmrcw, mbar, mw_carma, ncol, loffset, rmass )

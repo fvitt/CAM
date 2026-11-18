@@ -9,7 +9,7 @@
 	path = src/physics/carma/base
 	url = https://github.com/ESCOMP/CARMA_base.git
         fxrequired = AlwaysRequired
-        fxtag = carma4_10
+        fxtag = carma4_11
         fxDONOTUSEurl = https://github.com/ESCOMP/CARMA_base.git
 
 [submodule "pumas-frozen"]
@@ -28,8 +28,8 @@
 
 [submodule "atmos_phys"]
 	path = src/atmos_phys
-        url = https://github.com/ESCOMP/atmospheric_physics
-        fxtag = atmos_phys0_34_001
+        url = https://github.com/fvitt/atmospheric_physics
+        fxtag = 2346e14959a24482f637793b75a25c869542ec80
         fxrequired = AlwaysRequired
         fxDONOTUSEurl = https://github.com/ESCOMP/atmospheric_physics
 
