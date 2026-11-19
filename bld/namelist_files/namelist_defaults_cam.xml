@@ -2096,7 +2096,7 @@
 <rsf_file     >atm/waccm/phot/RSF_GT200nm_v3.0_c080811.nc</rsf_file>
 <exo_coldens_file>atm/cam/chem/trop_mozart/phot/exo_coldens.nc</exo_coldens_file>
 
-<!-- WACCM Upper boundary conditions -->
+<!-- Upper boundary conditions -->
 <tgcm_ubc_file>atm/waccm/ub/tgcm_ubc_1993_c100204.nc</tgcm_ubc_file>
 <snoe_ubc_file>atm/waccm/ub/snoe_eof.nc</snoe_ubc_file>
 <ubc_specifier ver="waccmchem">
@@ -2105,6 +2105,10 @@
 <ubc_specifier ver="waccmsc">
   'T->MSIS','Q->2.d-8vmr','CH4->2.d-10vmr'
 </ubc_specifier>
+<ubc_specifier ver="camchem">
+  'Q:H2O->UBC_FILE', 'O3->UBC_FILE', 'N2O->UBC_FILE', 'CH4->UBC_FILE', 'CFC11->UBC_FILE', 'CFC12->UBC_FILE'
+</ubc_specifier>
+<ubc_file_path model_top="lt">atm/cam/chem/ubc/GHGloss_rates_1979_2021_month_1zm_Transient_c20261118.nc</ubc_file_path>
 
 <!-- Boundary data for Tropopheric Chemistry -->
 <fstrat_file    >atm/cam/chem/trop_mozart/ub/ubvals_b40.20th.track1_1996-2005_c110315.nc</fstrat_file>

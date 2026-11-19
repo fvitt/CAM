@@ -2968,6 +2968,11 @@ if (($chem =~ /waccm_ma/ or $chem =~ /waccm_tsmlt/ or $chem =~ /waccm_t4ma/) and
     $ubc_ver = 'waccmchem';
 } elsif ($chem =~ /waccm_sc/ or ($model_top eq "ht" and $chem =~ /ghg_mam/)) {
     $ubc_ver = 'waccmsc';
+} elsif ($chem =~ /trop_strat/ and $model_top eq "lt") {
+    $ubc_ver = 'camchem';
+    add_default($nl, 'exo_coldens_file');
+    add_default($nl, 'ubc_file_path');
+    add_default($nl, 'ubc_file_input_type', 'val'=>'CYCLICAL');
 }
 if (defined $ubc_ver) {
     add_default($nl, 'ubc_specifier', 'ver'=>$ubc_ver);
