@@ -4,6 +4,8 @@
 <ncdata hgrid="1.9x2.5" nlev="56">atm/cam/inic/fv/CARMA_1.9x2.5_L56_c210226.nc</ncdata>
 <ncdata hgrid="0.9x1.25" nlev="56">atm/cam/inic/fv/CARMA_0.9x1.25_L56_c210226.nc</ncdata>
 
+<aoa_read_from_ic_file>.false.</aoa_read_from_ic_file>
+
 <lght_no_prd_factor hgrid="1.9x2.5">4.5D0</lght_no_prd_factor>
 
 <met_rlx_bot>50.</met_rlx_bot>

@@ -54,8 +54,8 @@
 <Nudge_Model>.true.</Nudge_Model>
 <Nudge_Path hgrid="1.9x2.5"  nlev="70">'atm/cam/met/nudging/MERRA2_fv19_70L/'</Nudge_Path>
 <Nudge_Path hgrid="0.9x1.25" nlev="70">'atm/cam/met/nudging/MERRA2_fv09_70L/'</Nudge_Path>
-<Nudge_File_Template hgrid="1.9x2.5"  nlev="32">'%y/MERRA2_fv19.cam2.i.%y-%m-%d-%s.nc'</Nudge_File_Template>
-<Nudge_File_Template hgrid="0.9x1.25" nlev="32">'%y/MERRA2_fv09.cam2.i.%y-%m-%d-%s.nc'</Nudge_File_Template>
+<Nudge_File_Template hgrid="1.9x2.5"  nlev="70">'%y/MERRA2_fv19.cam2.i.%y-%m-%d-%s.nc'</Nudge_File_Template>
+<Nudge_File_Template hgrid="0.9x1.25" nlev="70">'%y/MERRA2_fv09.cam2.i.%y-%m-%d-%s.nc'</Nudge_File_Template>
 <Nudge_Force_Opt>0</Nudge_Force_Opt>
 <Nudge_TimeScale_Opt>0</Nudge_TimeScale_Opt>
 <Nudge_Times_Per_Day>8</Nudge_Times_Per_Day>
