@@ -335,7 +335,10 @@ module ionosphere_interface
          call oplus_init(oplus_adiff_limiter, oplus_shapiro_const, oplus_enforce_floor, &
                          oplus_ring_polar_filter, ionos_debug_hist)
 
-         call vxb_init( oplus_adiff_limiter, oplus_shapiro_const ) !Jianfei Wu
+         ! VxB ion transport (Jianfei Wu); only needed when there are VxB ions
+         if (size(vxb_ion_state) > 0) then
+            call vxb_init( oplus_adiff_limiter, oplus_shapiro_const )
+         end if
 
          call addfld('OpTM1&IC', (/ 'lev' /), 'I', 'kg/kg', 'O+ at time step minus 1', gridname='physgrid')
          call add_default ('OpTM1&IC',0, 'I')

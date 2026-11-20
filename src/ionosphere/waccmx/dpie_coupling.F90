@@ -940,7 +940,7 @@ contains
 
           if (nions > 0) then
              call vxb_prep(halo_tn, halo_te, halo_ti, halo_un, halo_vn, halo_om, halo_mbar, &
-                  ui_in, vi_in, wi_in, eobx, eoby, eobz, pmid_inv, lon0, lon1, lat0, lat1)
+                  ui_in, vi_in, wi_in, eobx, eoby, eobz, lon0, lon1, lat0, lat1)
           end if
 
           vxb_ion_loop: do n = 1, nions

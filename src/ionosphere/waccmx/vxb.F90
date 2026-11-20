@@ -12,11 +12,10 @@ module vxb
   use edyn_geogrid   ,only: dphi,dlamda,cs, p0, nlev !, nlon, nlat, nlev
   use getapex        ,only: bx,by,bz,bmod2       ! (0:nlonp1,jspole-1:jnpole+1)
   use edyn_params    ,only: re=>Rearth ! Radius of Earth (cm)
-  use time_manager   ,only: get_step_size,is_first_step,is_first_restart_step
+  use time_manager   ,only: get_step_size
   use edyn_mpi       ,only: array_ptr_type
   use shr_const_mod  ,only: shr_const_g         ! gravitational constant (m/s^2)
   use spmd_utils     ,only: masterproc
-  use infnan,          only: nan, assignment(=)
 
   implicit none
   private
@@ -98,22 +97,100 @@ module vxb
 
 !-----------------------------------------------------------------------
   subroutine vxb_init( adiff_limiter_in, shapiro_const_in )
+!
+! Set parameters, and the level indices and log-pressure coordinate of the
+! transport region from the reference pressures. Stops if the vertical grid
+! does not cover the transport region (pbot, pminor, ptop).
+!
+    use ref_pres, only: pref_mid
 
     real(r8), intent(in) :: adiff_limiter_in
     real(r8), intent(in) :: shapiro_const_in
+
+    integer :: k
+    real(r8) :: pmid(nlev)        ! reference pressure at midpoints, bottom to top (Pa)
+    character(len=256) :: errmsg
 
     shapiro_const = shapiro_const_in
     adiff_limiter = adiff_limiter_in
 
     allocate(zp(nlev))      ! log pressure (as in TIEGCM)
     allocate(expz(nlev))    ! exp(-zp)
-    zp = nan
-    expz = nan
+
+    pmid(1:nlev) = pref_mid(nlev:1:-1) ! invert ref pressure (Pa) as in tiegcm
+!
+! kbot is the k-index at the bottom of ion transport calculations,
+!   corresponding to pressure pbot. ktop is the top, below ptop.
+!   kminor is the bottom of the Coulomb term in rrk, below pminor.
+!
+    kbot = -999
+    ktop = -999
+    kminor = -999
+    kloop: do k=1,nlev
+       if ( pmid(k) <= pbot) then
+          kbot = k
+          exit kloop
+       end if
+    enddo kloop
+    kloop2: do k=1,nlev
+       if ( pmid(k) <= ptop) then
+          ktop = k-1
+          exit kloop2
+       end if
+    enddo kloop2
+    kloop3: do k=1,nlev
+       if ( pmid(k) <= pminor) then
+          kminor = k-1
+          exit kloop3
+       end if
+    enddo kloop3
+!
+! vxb_xport uses levels kbot-1 to ktop+2, and rrk needs kbot <= kminor <= ktop.
+!
+    if (kbot < 2) then
+       write(errmsg,"('vxb_init: need a level with pressure <= pbot=',es10.3,' Pa above the lowest level; kbot=',i5)") &
+            pbot, kbot
+       call endrun(trim(errmsg))
+    end if
+    if (ktop < kbot) then
+       write(errmsg,"('vxb_init: need a level with pressure <= ptop=',es10.3,' Pa above kbot=',i4,'; ktop=',i5)") &
+            ptop, kbot, ktop
+       call endrun(trim(errmsg))
+    end if
+    if (ktop+2 > nlev) then
+       write(errmsg,"('vxb_init: need two levels above ktop=',i4,' (pressure <= ptop=',es10.3,' Pa); nlev=',i4)") &
+            ktop, ptop, nlev
+       call endrun(trim(errmsg))
+    end if
+    if (kminor < kbot .or. kminor > ktop) then
+       write(errmsg,"('vxb_init: kminor=',i5,' (pressure <= pminor=',es10.3,' Pa) is outside kbot=',i4,' to ktop=',i4)") &
+            kminor, pminor, kbot, ktop
+       call endrun(trim(errmsg))
+    end if
+
+    do k=1,nlev
+       zp(k) = -log(pmid(k)*10._r8/p0)
+       expz(k) = exp(-zp(k))
+    enddo
+    dzp = zp(nlev)-zp(nlev-1)  ! use top 2 levels (typically dzp=0.5)
+
+    if (masterproc) then
+       write(iulog,"('vxb_init: shapiro=',es12.4,' dtsmooth=',es12.4,' dtsmooth_div2=',es12.4)") &
+            shapiro_const,dtsmooth,dtsmooth_div2
+       write(iulog,"('vxb_init: shr_const_g=',f8.3)") shr_const_g
+       write(iulog,"('vxb_init: kbot=',i4,' (',es10.3,' Pa)  kminor=',i4,' (',es10.3,' Pa)  ktop=',i4,' (',es10.3,' Pa)')") &
+            kbot, pmid(kbot), kminor, pmid(kminor), ktop, pmid(ktop)
+       if (debug) then
+          write(iulog,"('vxb_init: nlev=',i3,' zp (bot2top)   =',/,(6es12.3))") nlev,zp
+          write(iulog,"('vxb_init: nlev=',i3,' expz (bot2top) =',/,(6es12.3))") nlev,expz
+          write(iulog,"('vxb_init: nlev=',i3,' dzp  =',/,(6es12.3))") nlev,dzp
+       end if
+    end if
 
   end subroutine vxb_init
 
 !-----------------------------------------------------------------------
-  subroutine vxb_prep(tn,te,ti,un,vn,om,mbar,ui,vi,wi,eeex,eeey,eeez,pmid, &
+  subroutine vxb_prep(tn,te,ti,un,vn,om,mbar,ui,vi,wi,eeex,eeey,eeez, &
                       i0,i1,j0,j1)
 !
 ! Set the fields used by vxb_xport that do not depend on the transported
@@ -142,7 +219,6 @@ module vxb
     real(r8), intent(in) :: eeex(nlev,i0:i1,j0:j1)         ! zonal E/B drift term
     real(r8), intent(in) :: eeey(nlev,i0:i1,j0:j1)         ! meridional E/B drift term
     real(r8), intent(in) :: eeez(nlev,i0:i1,j0:j1)         ! vertical E/B drift term
-    real(r8), intent(in) :: pmid(nlev)                     ! pressure at midpoints (Pa)
 !
 ! Local:
 !
@@ -152,6 +228,10 @@ module vxb
     real(r8), allocatable :: polesign(:)
     type(array_ptr_type), allocatable :: ptrs(:)
     real(r8), dimension(nlev,i0:i1,j0:j1) :: uii, vii, wii ! VnxB drifts from vxbvel
+
+    if (.not. allocated(zp)) then
+       call endrun('vxb_prep: vxb_init must be called before vxb_prep')
+    end if
 
     if (.not. allocated(tr)) then
        allocate(uui  (nlev,i0-2:i1+2,j0-2:j1+2))
@@ -177,60 +257,6 @@ module vxb
        allocate(rrrri(nlev,i0-2:i1+2,j0-2:j1+2))
        allocate(bdotu(nlev,i0-2:i1+2,j0-2:j1+2))
     end if
-
-    if (is_first_step().or.is_first_restart_step()) then
-      if (masterproc) write(iulog,"('vxb_prep: shapiro=',es12.4,' dtsmooth=',es12.4,' dtsmooth_div2=',es12.4)") &
-        shapiro_const,dtsmooth,dtsmooth_div2
-      if (masterproc) write(iulog,"('vxb_prep: shr_const_g=',f8.3)") shr_const_g
-    endif
-
-    !
-    ! zp,expz are module arrays allocated in vxb_init. pmid was passed in
-    ! here (bot2top) from dpie_coupling.
-    !
-    ! kbot is the k-index at the bottom of ion transport calculations,
-    !   corresponding to pressure pbot.
-    !
-    if (is_first_step().or.is_first_restart_step()) then
-       kloop: do k=1,nlev
-          if ( pmid(k) <= pbot) then
-             kbot = k
-             exit kloop
-          end if
-       enddo kloop
-       kloop2: do k=1,nlev
-          if ( pmid(k) <= ptop) then
-             ktop = k-1
-             exit kloop2
-          end if
-       enddo kloop2
-       kloop3: do k=1,nlev
-          if ( pmid(k) <= pminor) then
-             kminor = k-1
-             exit kloop3
-          end if
-       enddo kloop3
-       do k=1,nlev
-          zp(k) = -log(pmid(k)*10._r8/p0)
-          expz(k) = exp(-zp(k))
-       enddo
-       if (debug.and.masterproc) then
-          write(iulog,"('vxb_prep: kbot=',i4,'ktop=',i4,' pmid(kbot)=',es12.4,' zp(kbot)=',es12.4)") &
-               kbot,ktop,pmid(kbot),zp(kbot)
-       endif
-    endif
-
-    if (kbot < 1.or.ktop < kbot) then
-       call endrun('vxb_prep: kbot or ktop is not set')
-    endif
-
-    dzp = zp(nlev)-zp(nlev-1)  ! use top 2 levels (typically dzp=0.5)
-
-    if (debug.and.masterproc) then
-      write(iulog,"('vxb_prep: nlev=',i3,' zp (bot2top)   =',/,(6es12.3))") nlev,zp
-      write(iulog,"('vxb_prep: nlev=',i3,' expz (bot2top) =',/,(6es12.3))") nlev,expz
-      write(iulog,"('vxb_prep: nlev=',i3,' dzp  =',/,(6es12.3))") nlev,dzp
-    endif
 
     grav_cm = shr_const_g * 100._r8 ! m/s^2 -> cm/s^2
 !
