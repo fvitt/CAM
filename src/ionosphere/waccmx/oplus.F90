@@ -243,7 +243,7 @@ module oplus
 !
 ! Local:
 !
-    integer :: i, j, k, lat, jm1, jp1, jm2, jp2, lat0, lat1
+    integer :: i, j, k, lat, jm1, jp1, lat0, lat1
     real(r8), dimension(i0:i1,j0:j1) :: &
          opflux,   & ! upward number flux of O+ (returned by sub oplus_flux)
          dvb         ! divergence of B-field
@@ -471,137 +471,105 @@ module oplus
     grav_cm = shr_const_g * 100._r8 ! m/s^2 -> cm/s^2
 !
 !----------------------- Begin first latitude scan ---------------------
-    do lat=lat0,lat1
-      jm2 = lat-2
-      jm1 = lat-1
-      jp1 = lat+1
-      jp2 = lat+2
+!
+! The scans at lat=lat0,lat1 use tr, dj, hj, bvel and diffj at rows
+! lat-1:lat+1, and tp at rows lat-2:lat+2. Each row is computed once here,
+! so the rows are independent and can be done in parallel.
 !
 ! as of April, 2015, TIEGCM incorrectly uses te+ti instead of tn+ti
 ! This has not been fixed in TIEGCM, because fixing it causes a tuning
 ! problem (ask Hanli and Wenbin). For WACCM, it is correct as below.
 ! (see also tp)
 !
-!$omp parallel do private(i,k)
-      do i=i0,i1
+    if (lat0 <= lat1) then
+!$omp parallel do private(j, i, k)
+      do j=lat0-1,lat1+1
 !
 ! Reduced temperature (tpj in tiegcm):
 ! 'OPLUS_TR' (has constants at poles)
 !
-        do k=kbot,nlev
-          tr(k,i,jm1) = 0.5_r8*(tn(k,i,jm1)+ti(k,i,jm1))
-          tr(k,i,lat) = 0.5_r8*(tn(k,i,lat)+ti(k,i,lat))
-          tr(k,i,jp1) = 0.5_r8*(tn(k,i,jp1)+ti(k,i,jp1))
-        enddo
-      enddo ! i=i0,i1
+        do i=i0,i1
+          do k=kbot,nlev
+            tr(k,i,j) = 0.5_r8*(tn(k,i,j)+ti(k,i,j))
+          enddo
+        enddo ! i=i0,i1
 !
-! rrk returns ambipolar diffusion coefficients in d(jm1),dj(lat),djp1(jp1):
+! rrk returns ambipolar diffusion coefficients in dj:
 ! 'OPLUS_DJ' (has constants at poles)
 !
-      call rrk(                                            &
-        tn(kbot:nlev,i0:i1,jm1),mbar(kbot:nlev,i0:i1,jm1), &
-        o2(kbot:nlev,i0:i1,jm1),o1  (kbot:nlev,i0:i1,jm1), &
-        n2(kbot:nlev,i0:i1,jm1),tr  (kbot:nlev,i0:i1,jm1), &
-        dj(kbot:nlev,i0:i1,jm1),i0,i1,kbot,nlev)
-
-      call rrk(                                            &
-        tn(kbot:nlev,i0:i1,lat),mbar(kbot:nlev,i0:i1,lat), &
-        o2(kbot:nlev,i0:i1,lat),o1  (kbot:nlev,i0:i1,lat), &
-        n2(kbot:nlev,i0:i1,lat),tr  (kbot:nlev,i0:i1,lat), &
-        dj(kbot:nlev,i0:i1,lat),i0,i1,kbot,nlev)
-
-      call rrk(                                            &
-        tn(kbot:nlev,i0:i1,jp1),mbar(kbot:nlev,i0:i1,jp1), &
-        o2(kbot:nlev,i0:i1,jp1),o1  (kbot:nlev,i0:i1,jp1), &
-        n2(kbot:nlev,i0:i1,jp1),tr  (kbot:nlev,i0:i1,jp1), &
-        dj(kbot:nlev,i0:i1,jp1),i0,i1,kbot,nlev)
+        call rrk(                                        &
+          tn(kbot:nlev,i0:i1,j),mbar(kbot:nlev,i0:i1,j), &
+          o2(kbot:nlev,i0:i1,j),o1  (kbot:nlev,i0:i1,j), &
+          n2(kbot:nlev,i0:i1,j),tr  (kbot:nlev,i0:i1,j), &
+          dj(kbot:nlev,i0:i1,j),i0,i1,kbot,nlev)
 !
 ! Plasma temperature:
-! 'OPLUS_TP0' (tp will get poles from jm1 and jp1)
+! 'OPLUS_TP0' (tp gets poles from rows lat0-1 and lat1+1)
 !
-!$omp parallel do private(i,k)
-      do i=i0,i1
-        do k=kbot,nlev
-          tp(k,i,jm1) = te(k,i,jm1)+ti(k,i,jm1)
-          tp(k,i,lat) = te(k,i,lat)+ti(k,i,lat)
-          tp(k,i,jp1) = te(k,i,jp1)+ti(k,i,jp1)
+        do i=i0,i1
+          do k=kbot,nlev
+            tp(k,i,j) = te(k,i,j)+ti(k,i,j)
+          enddo
         enddo
-      enddo
-      diag0(kbot:nlev,i0:i1,lat) = tp(kbot:nlev,i0:i1,lat)
 !
-! Add poles to diag0:
-      if (j0==1.and.lat==2)         diag0(kbot:nlev,i0:i1,j0) = tp(kbot:nlev,i0:i1,jm1)
-      if (j1==nlat.and.lat==nlat-1) diag0(kbot:nlev,i0:i1,j1) = tp(kbot:nlev,i0:i1,jp1)
+! diag0 includes the poles (rows lat0-1 and lat1+1 when they are j0 and j1):
+        if (j >= j0 .and. j <= j1) diag0(kbot:nlev,i0:i1,j) = tp(kbot:nlev,i0:i1,j)
 !
 ! Neutral scale height:
 ! 'OPLUS_HJ' (has constants at poles)
 !
-!$omp parallel do private(i,k)
-      do i=i0,i1
-        do k=kbot,nlev
-          hj(k,i,jm1) = gask * tn(k,i,jm1) / (mbar(k,i,jm1) * grav_cm)
-          hj(k,i,lat) = gask * tn(k,i,lat) / (mbar(k,i,lat) * grav_cm)
-          hj(k,i,jp1) = gask * tn(k,i,jp1) / (mbar(k,i,jp1) * grav_cm)
+        do i=i0,i1
+          do k=kbot,nlev
+            hj(k,i,j) = gask * tn(k,i,j) / (mbar(k,i,j) * grav_cm)
+          enddo
         enddo
-      enddo
 !
-! bvel @ jm1 = (B.U)*N(O+)    (J-1)
-! bvel @ j   = (B.U)*N(O+)      (J)
-! bvel @ jp1 = (B.U)*N(O+)    (J+1)
+! bvel = (B.U)*N(O+)
 ! 'OPLUS_BVEL' (has constants at poles)
 !
 ! Note bx,by,bz were set globally for all tasks by sub magfield
 ! (getapex.F90)
 !
-!$omp parallel do private(i,k)
-      do i=i0,i1
-        do k=kbot,nlev
-          bvel(k,i,jm1) = &
-            (bx(i,jm1)*un(k,i,jm1)+by(i,jm1)*vn(k,i,jm1)+   &
-            hj(k,i,jm1)*bz(i,jm1)*om(k,i,jm1))*op(k,i,jm1)
-          bvel(k,i,lat) = &
-            (bx(i,lat)*un(k,i,lat)+by(i,lat)*vn(k,i,lat)+   &
-            hj(k,i,lat)*bz(i,lat)*om(k,i,lat))*op(k,i,lat)
-          bvel(k,i,jp1) = &
-            (bx(i,jp1)*un(k,i,jp1)+by(i,jp1)*vn(k,i,jp1)+   &
-            hj(k,i,jp1)*bz(i,jp1)*om(k,i,jp1))*op(k,i,jp1)
-        enddo ! k=kbot,nlev
-      enddo ! i=lon0,lon1
+        do i=i0,i1
+          do k=kbot,nlev
+            bvel(k,i,j) = &
+              (bx(i,j)*un(k,i,j)+by(i,j)*vn(k,i,j)+   &
+              hj(k,i,j)*bz(i,j)*om(k,i,j))*op(k,i,j)
+          enddo ! k=kbot,nlev
+        enddo ! i=lon0,lon1
 !
-! Ambipolar diffusion is returned in diffj:
-! 'OPLUS_DIFFJ' (will have constants at poles after this lat scan)
+! Ambipolar diffusion is returned in diffj (uses tp = te+ti):
+! 'OPLUS_DIFFJ' (has constants at poles)
 !
-      call diffus(tp(kbot:nlev,i0:i1,jm1),op(kbot:nlev,i0:i1,jm1),hj(kbot:nlev,:,jm1), &
-        diffj(kbot:nlev,i0:i1,jm1),i0,i1,kbot,nlev,lat)
-      call diffus(tp(kbot:nlev,i0:i1,lat),op(kbot:nlev,i0:i1,lat),hj(kbot:nlev,:,lat), &
-        diffj(kbot:nlev,i0:i1,lat),i0,i1,kbot,nlev,lat)
-      call diffus(tp(kbot:nlev,i0:i1,jp1),op(kbot:nlev,i0:i1,jp1),hj(kbot:nlev,:,jp1), &
-        diffj(kbot:nlev,i0:i1,jp1),i0,i1,kbot,nlev,lat)
+        call diffus(tp(kbot:nlev,i0:i1,j),op(kbot:nlev,i0:i1,j),hj(kbot:nlev,:,j), &
+          diffj(kbot:nlev,i0:i1,j),i0,i1,kbot,nlev,j)
+      enddo ! j=lat0-1,lat1+1
 !
+! tp = N(O+)*(te+ti):
 ! 'OPLUS_TP1' (constants at the poles)
 !
-!$omp parallel do private(i,k)
-      do i=i0,i1
-        do k=kbot,nlev
-          tp(k,i,jm2) = op(k,i,jm2)*(te(k,i,jm2)+ti(k,i,jm2))
-          tp(k,i,jm1) = tp(k,i,jm1)*op(k,i,jm1)
-          tp(k,i,lat) = tp(k,i,lat)*op(k,i,lat)
-          tp(k,i,jp1) = tp(k,i,jp1)*op(k,i,jp1)
-          tp(k,i,jp2) = op(k,i,jp2)*(te(k,i,jp2)+ti(k,i,jp2))
+!$omp parallel do private(j, i, k)
+      do j=lat0-2,lat1+2
+        do i=i0,i1
+          do k=kbot,nlev
+            tp(k,i,j) = op(k,i,j)*(te(k,i,j)+ti(k,i,j))
+          enddo
         enddo
-      enddo
+      enddo ! j=lat0-2,lat1+2
+    endif
 !
 ! Latidinal shapiro smoother: opnm is O+ at time n-1.
 ! opnm_smooth will be used in explicit terms below.
 ! Smooth in latitude:
 ! 'OPNM_SMOOTH' (zero at poles)
 !
-!$omp parallel do private(i,k)
+!$omp parallel do private(lat, i, k)
+    do lat=lat0,lat1
       do i=i0,i1
         do k=kbot,nlev
           opnm_smooth(k,i,lat) = opnm(k,i,lat)-shapiro_const* &
-                                (opnm(k,i,jp2)+opnm(k,i,jm2)-4._r8*         &
-                                (opnm(k,i,jp1)+opnm(k,i,jm1))+6._r8*        &
+                                (opnm(k,i,lat+2)+opnm(k,i,lat-2)-4._r8*     &
+                                (opnm(k,i,lat+1)+opnm(k,i,lat-1))+6._r8*    &
                                  opnm(k,i,lat))
         enddo ! k=kbot,nlev
       enddo ! i=i0,i1
@@ -645,11 +613,8 @@ module oplus
     bdotdh_op  = 0._r8
     bdotdh_opj = 0._r8
 
+!$omp parallel do private(lat, i, k)
     do lat=lat0,lat1
-      jm2 = lat-2
-      jm1 = lat-1
-      jp1 = lat+1
-      jp2 = lat+2
 !
 ! bdotdh_op = (B(H).DEL(H))*(D/(H*DZ)*TP+M*G/R)*N(O+)
 ! then bdotdh_op = d*bz*bdotdh_op
@@ -658,48 +623,38 @@ module oplus
 ! 'BDOTDH_OP' (zero at the poles)
 !
       call bdotdh(                    &
-        diffj(kbot:nlev,i0:i1,jm1),   &
+        diffj(kbot:nlev,i0:i1,lat-1), &
         diffj(kbot:nlev,:,lat    ),   & ! includes longitude halos
-        diffj(kbot:nlev,i0:i1,jp1),   &
+        diffj(kbot:nlev,i0:i1,lat+1), &
         bdotdh_op(kbot:nlev,i0:i1,lat),i0,i1,kbot,nlev,lat)
 !
-!$omp parallel do private( i, k )
       do i=i0,i1
         do k=kbot,nlev
           bdotdh_op(k,i,lat) = dj(k,i,lat)*bz(i,lat)*bdotdh_op(k,i,lat) ! BDOTDH_OP
         enddo ! k=kbot,nlev
       enddo ! i=i0,i1
+    enddo ! lat=lat0,lat1
 !
-! bdotdh_opjm1 = (B(H).DEL(H))*2.*TP*N(O+)    (J-1)
-! bdotdh_opj   = (B(H).DEL(H))*2.*TP*N(O+)      (J)
-! bdotdh_opjp1 = (B(H).DEL(H))*2.*TP*N(O+)    (J+1)
+! bdotdh_opj = (B(H).DEL(H))*2.*TP*N(O+) is needed at rows lat-1:lat+1.
+! Each row j=lat0-1,lat1+1 is computed once, so the rows are independent.
 ! 'BDOTDH_OPJ' (has reasonable non-constant values at poles)
 !
-      call bdotdh(                &
-        tp(kbot:nlev,i0:i1,jm2),  &
-        tp(kbot:nlev,:,jm1),      &
-        tp(kbot:nlev,i0:i1,lat),  &
-        bdotdh_opj(kbot:nlev,i0:i1,jm1),i0,i1,kbot,nlev,jm1)
-      call bdotdh(                &
-        tp(kbot:nlev,i0:i1,jm1),  &
-        tp(kbot:nlev,:,lat),      &
-        tp(kbot:nlev,i0:i1,jp1),  &
-        bdotdh_opj(kbot:nlev,i0:i1,lat),i0,i1,kbot,nlev,lat)
-      call bdotdh(                &
-        tp(kbot:nlev,i0:i1,lat),  &
-        tp(kbot:nlev,:,jp1),      &
-        tp(kbot:nlev,i0:i1,jp2),  &
-        bdotdh_opj(kbot:nlev,i0:i1,jp1),i0,i1,kbot,nlev,jp1)
+    if (lat0 <= lat1) then
+!$omp parallel do private(j, i, k)
+      do j=lat0-1,lat1+1
+        call bdotdh(                &
+          tp(kbot:nlev,i0:i1,j-1),  &
+          tp(kbot:nlev,:,j),        &
+          tp(kbot:nlev,i0:i1,j+1),  &
+          bdotdh_opj(kbot:nlev,i0:i1,j),i0,i1,kbot,nlev,j)
 !
-!$omp parallel do private( i, k )
-      do i=i0,i1
-        do k=kbot,nlev
-          bdotdh_opj(k,i,jm1) = bdotdh_opj(k,i,jm1)*dj(k,i,jm1)
-          bdotdh_opj(k,i,lat) = bdotdh_opj(k,i,lat)*dj(k,i,lat)
-          bdotdh_opj(k,i,jp1) = bdotdh_opj(k,i,jp1)*dj(k,i,jp1)
-        enddo ! k=kbot,nlev
-      enddo ! i=i0,i1
-    enddo ! lat=j0,j1 (end second lat scan)
+        do i=i0,i1
+          do k=kbot,nlev
+            bdotdh_opj(k,i,j) = bdotdh_opj(k,i,j)*dj(k,i,j)
+          enddo ! k=kbot,nlev
+        enddo ! i=i0,i1
+      enddo ! j=lat0-1,lat1+1 (end second lat scan)
+    endif
 !
 !------------------------ End second latitude scan ---------------------
 !
@@ -760,12 +715,15 @@ module oplus
 
 !
 ! Globally, this loop is lat=2,nlat-1 (i.e., skipping the poles)
+! Each latitude writes only row lat of the shared arrays. bdzdvb_op, tp1,
+! divbz, ubca and ubcb are per-latitude work arrays. bdzdvb_op and divbz
+! are firstprivate because their levels below kbot (zero) go to diag1, diag7.
 !
+!$omp parallel do private(lat, jm1, jp1, i, k, tp1, ubca, ubcb) &
+!$omp firstprivate(bdzdvb_op, divbz)
     do lat=lat0,lat1
-      jm2 = lat-2
       jm1 = lat-1 ! this will be south pole for southern pes (j==1)
       jp1 = lat+1 ! this will be north pole for northern pes (j==nlat)
-      jp2 = lat+2
 !
 ! bdotdh_opj = (B(H).DEL(H))*D*(B(H).DEL(H))*2.*TP*N(O+)   (J)
 ! 'BDOTDH_DIFF' (zero at the poles)
@@ -798,7 +756,6 @@ module oplus
 !              plotting. The poles will be constant in longitude, and
 !              may differ structurally from adjacent latitudes.
 !
-!$omp parallel do private( i, k )
       do i=i0,i1
         do k=kbot,nlev
           explicit(k,i,lat) = -one*(bdzdvb_op(k,i)+bdotdh_diff(k,i,lat)+bdotdh_op(k,i,lat))
@@ -822,7 +779,6 @@ module oplus
 ! especially near the south pole:
 ! 'EXPLICIT1' (zero at the poles)
 !
-!$omp parallel do private( i, k )
       do i=i0,i1
         do k=kbot,nlev-1
 !
@@ -891,7 +847,6 @@ module oplus
         enddo ! k=kbot,nlev-1
       enddo ! i=i0,i1
 
-!$omp parallel do private( k )
       do k=kbot,nlev
         diag25(k,i0:i1,lat) = bmod2(i0:i1,lat)    ! BMOD2 (redundant in vertical)
       enddo
@@ -899,12 +854,10 @@ module oplus
       diag27(:,i0:i1,lat) = explicit_b(:,i0:i1,lat) ! EXPLICITb
       diag3 (:,i0:i1,lat) = explicit  (:,i0:i1,lat) ! EXPLICIT1
 
-!$omp parallel do private( i )
       do i=i0,i1
         dvb(i,lat) = dvb(i,lat)/bz(i,lat)
       enddo ! i=i0,i1
 
-!$omp parallel do private( i, k )
       do i=i0,i1
         do k=kbot,nlev
           hdz(k,i,lat) = 1._r8/(hj(k,i,lat)*dzp)
@@ -912,7 +865,6 @@ module oplus
         enddo ! k=kbot,nlev
       enddo ! i=i0,i1
 
-!$omp parallel do private( i, k )
       do i=i0,i1
         do k=kbot,nlev-1
           tphdz1(k+1,i,lat) = 2._r8*tp1(k+1,i)*(0.5_r8*(hdz(k,i,lat)+hdz(k+1,i,lat)))+gmr
@@ -925,7 +877,6 @@ module oplus
 !
 ! 5/9/15: Appears to be a problem in TPHDZ0,1 near kbot, maybe is zero?
 !
-!$omp parallel do private( i )
       do i=i0,i1
         tphdz1(kbot,i,lat) = 2._r8*tp1(kbot,i)*                             &
                              (1.5_r8*hdz(kbot,i,lat)-0.5_r8*hdz(kbot+1,i,lat))+gmr
@@ -943,7 +894,6 @@ module oplus
 ! 'DJINT' (zero at the poles - messes up the plots - may give
 !          diag6 polar values after the lat scan, before plotting)
 !
-!$omp parallel do private( i, k )
       do i=i0,i1
         do k=kbot,nlev-1
           djint(k+1,i,lat) = 0.5_r8*(dj(k,i,lat)+dj(k+1,i,lat))
@@ -956,6 +906,11 @@ module oplus
 ! divbz = (DIV(B)+(DH*D*BZ)/(D*BZ)
 ! 'DIVBZ' Field appears as a line following mins along magnetic equator (zero at poles)
 ! Field may be zero at kbot? Lat slices look strange between +/- 14 deg lat.
+!
+! This loop is inside the threaded latitude loop, so this nested region
+! normally runs on one thread. The directive is kept because removing it
+! changes which multiply-adds the compiler fuses into FMAs in this loop and
+! the next, which changes answers at roundoff level (seen with gfortran -O3).
 !
 !$omp parallel do private( i, k )
       do i=i0,i1
@@ -973,7 +928,6 @@ module oplus
 ! hdzpbz = (1./(H*DZ)+(DIV(B)+DH*D*BZ/(D*BZ))/(2*BZ))*BZ**2
 ! 'HDZMBZ' and 'HDZPBZ' are zero at the poles.
 !
-!$omp parallel do private( i, k )
       do i=i0,i1
         do k=kbot,nlev
           hdzmbz(k,i,lat) = (hdz(k,i,lat)-0.5_r8*divbz(k,i))*bz(i,lat)**2
@@ -986,7 +940,6 @@ module oplus
 ! Sum O+ at time n-1 to explicit terms: N(O+)/(2*DT) (N-1)
 ! 'EXPLICIT2' (zero at the poles)
 !
-!$omp parallel do private( i, k )
       do i=i0,i1
         do k=kbot,nlev
           explicit(k,i,lat) = explicit(k,i,lat)-(opnm_smooth(k,i,lat)-shapiro_const* &
@@ -1003,7 +956,6 @@ module oplus
 !
 ! Begin coefficients p_coeff, q_coeff, r_coeff
 !
-!$omp parallel do private( i, k )
       do i=i0,i1
         do k=kbot,nlev-1
           p_coeff(k,i,lat) =   hdzmbz(k,i,lat)*djint(k  ,i,lat)*tphdz0(k  ,i,lat)
@@ -1022,7 +974,6 @@ module oplus
 ! Am not using 0.5*(om(k)+om(k+1)) here because waccm omega is on midpoints (?)
 !           (tiegcm has 0.5*(w(k,i,j0)+w(k+1,i,j0)) )
 !
-!$omp parallel do private( i, k )
       do i=i0,i1
         do k=kbot,nlev
           bdotu(k,i,lat) = bx(i,lat)*un(k,i,lat)+by(i,lat)*vn(k,i,lat)+ &
@@ -1035,7 +986,6 @@ module oplus
 ! wi is converted from interfaces to midpoints (first use of wi).
 ! The p,q,r coeffs are still zero at top boundary k=nlev, and at poles.
 !
-!$omp parallel do private( i, k )
       do i=i0,i1
         do k=kbot,nlev-2
 
@@ -1060,7 +1010,6 @@ module oplus
 ! tiegcm considers nlev-1 to be the top level. Do it tiegcm-style here,
 ! and then extrapolate to nlev.
 !
-!$omp parallel do private( i )
       do i=i0,i1
         p_coeff(kbot,i,lat) = p_coeff(kbot,i,lat)+(bz(i,lat)*  &  ! reset p_coeff lbc
           (2._r8*bdotu(kbot,i,lat)-bdotu(kbot+1,i,lat))+               &
@@ -1088,7 +1037,6 @@ module oplus
       diag17(:,i0:i1,lat) = r_coeff(:,i0:i1,lat) ! R_COEFF1 (ok at ubc, zero at poles)
 !
 ! Additions to Q coefficients (includes q_coeff lbc,ubc):
-!$omp parallel do private( i, k )
       do i=i0,i1
         do k=kbot,nlev
           q_coeff(k,i,lat) = q_coeff(k,i,lat)-bdotu(k,i,lat)*dvb(i,lat)*bz(i,lat)-dtx2inv
@@ -1099,7 +1047,6 @@ module oplus
       diag16(:,i0:i1,lat) = q_coeff(:,i0:i1,lat) ! Q_COEFF1 (ok at ubc, zero at poles)
 !
 ! Upper boundary condition for O+:
-!$omp parallel do private( i )
       do i=i0,i1
         ubca(i) = 0._r8
         ubcb(i) = -bz(i,lat)**2*djint(nlev,i,lat)*tphdz0(nlev,i,lat)-ubca(i)
@@ -1292,7 +1239,7 @@ module oplus
 !
 !----------------------- Begin fourth latitude scan ---------------------
 !
-!$omp parallel do private(lat, i, k, opfloor)
+!$omp parallel do private(lat, i, k, opfloor, zpmid)
     do lat=j0,j1
       do i=i0,i1
         do k=kbot,nlev
@@ -1480,7 +1427,6 @@ module oplus
 !
     integer :: k,i
 !
-!$omp parallel do private(i,k)
     do i=lon0,lon1
       do k=lev0,lev1-1
 
@@ -1519,7 +1465,6 @@ module oplus
 
     mgr = rmass_op*grav_cm/gask
 
-!$omp parallel do private(i,k)
     do i=i0,i1
       do k=lev0,lev1-2
         ans(k+1,i) = 1._r8/(2._r8*hj(k+1,i)*dzp)*(tp(k+2,i)*en(k+2,i)- &
@@ -1533,7 +1478,6 @@ module oplus
 !
 ! Upper and lower boundaries:
 !
-!$omp parallel do private(i)
     do i=i0,i1
 !
 ! Upper boundary:
@@ -1553,7 +1497,7 @@ module oplus
 ! Args:
     integer,intent(in) :: lon0,lon1,lev0,lev1,lat
     real(r8),dimension(lev0:lev1,lon0:lon1),intent(in) :: phijm1,phijp1
-    real(r8),dimension(lev0:lev1,lon0-2:lon1+2),intent(inout) :: phij ! why intent(inout)?
+    real(r8),dimension(lev0:lev1,lon0-2:lon1+2),intent(in) :: phij
     real(r8),dimension(lev0:lev1,lon0:lon1),intent(out) :: ans
 !
 ! Local:
@@ -1563,7 +1507,6 @@ module oplus
 ! Halo longitudes i-1 and i+1 must have been set before this routine is
 ! called. ('by' is use-associated above)
 !
-!$omp parallel do private( i, k )
     do i=lon0,lon1
       do k=lev0,lev1
         ans(k,i) = 1._r8/Rearth*(bx(i,lat)/(cs(lat)*2._r8*dlamda)* &
@@ -1587,7 +1530,6 @@ module oplus
 ! Local:
     integer :: k,i
 !
-!$omp parallel do private( i, k )
     do i=lon0,lon1
       do k=lev0+1,lev1-1
         ans(k,i) = bz(i,lat)/(2._r8*h(k,i)*dzp)*(phi(k+1,i)-phi(k-1,i))+ &
@@ -1596,7 +1538,6 @@ module oplus
     enddo ! i=lon0,lon1
 !
 ! Upper and lower boundaries:
-!$omp parallel do private( i )
     do i=lon0,lon1
       ans(lev1,i) = bz(i,lat)/(h(lev1,i)*dzp)*(phi(lev1,i)- &
         phi(lev1-1,i))+dvb(i)*phi(lev1,i)
