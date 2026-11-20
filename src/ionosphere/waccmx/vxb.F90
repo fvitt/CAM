@@ -222,7 +222,7 @@ module vxb
 !
 ! Local:
 !
-    integer :: i, j, k, lat, jm1, jp1, lat0, lat1
+    integer :: i, j, k, lat0, lat1
     integer :: kb, kt   ! level range of tr and tp (one level beyond kbot,ktop)
     integer :: nfields
     real(r8), allocatable :: polesign(:)
@@ -304,47 +304,39 @@ module vxb
     hj  = 0._r8
     kb = kbot-1
     kt = ktop+1
-
-    do lat=lat0,lat1
-      jm1 = lat-1
-      jp1 = lat+1
+!
+! The latitude scans in vxb_xport use rows lat-1:lat+1 of tr and hj, and
+! lat-2:lat+2 of tp (the outer rows come from the halo exchange below).
+! Each row j=lat0-1,lat1+1 is set once, so the rows are independent.
+!
+    if (lat0 <= lat1) then
+!$omp parallel do private(j, i, k)
+      do j=lat0-1,lat1+1
+        do i=i0,i1
 !
 ! Reduced temperature (tpj in tiegcm):
 ! 'OPLUS_TR' (has constants at poles)
 !
-!$omp parallel do private(i,k)
-      do i=i0,i1
-        do k=kb,kt
-          tr(k,i,jm1) = 0.5_r8*(tn(k,i,jm1)+ti(k,i,jm1))
-          tr(k,i,lat) = 0.5_r8*(tn(k,i,lat)+ti(k,i,lat))
-          tr(k,i,jp1) = 0.5_r8*(tn(k,i,jp1)+ti(k,i,jp1))
-        enddo
-      enddo ! i=i0,i1
+          do k=kb,kt
+            tr(k,i,j) = 0.5_r8*(tn(k,i,j)+ti(k,i,j))
+          enddo
 !
 ! Plasma temperature:
-! 'OPLUS_TP0' (tp will get poles from jm1 and jp1)
+! 'OPLUS_TP0' (tp gets poles from rows lat0-1 and lat1+1)
 !
-!$omp parallel do private(i,k)
-      do i=i0,i1
-        do k=kb,kt
-          tp(k,i,jm1) = te(k,i,jm1)+ti(k,i,jm1)
-          tp(k,i,lat) = te(k,i,lat)+ti(k,i,lat)
-          tp(k,i,jp1) = te(k,i,jp1)+ti(k,i,jp1)
-        enddo
-      enddo
+          do k=kb,kt
+            tp(k,i,j) = te(k,i,j)+ti(k,i,j)
+          enddo
 !
 ! Neutral scale height:
 ! 'OPLUS_HJ' (has constants at poles)
 !
-!$omp parallel do private(i,k)
-      do i=i0,i1
-        do k=1,nlev
-          hj(k,i,jm1) = gask * tn(k,i,jm1) / (mbar(k,i,jm1) * grav_cm)
-          hj(k,i,lat) = gask * tn(k,i,lat) / (mbar(k,i,lat) * grav_cm)
-          hj(k,i,jp1) = gask * tn(k,i,jp1) / (mbar(k,i,jp1) * grav_cm)
-        enddo
-      enddo
-    enddo ! lat=lat0,lat1
+          do k=1,nlev
+            hj(k,i,j) = gask * tn(k,i,j) / (mbar(k,i,j) * grav_cm)
+          enddo
+        enddo ! i=i0,i1
+      enddo ! j=lat0-1,lat1+1
+    endif
 
     call vxbvel(un,vn,om,hj,uii,vii,wii,1,nlev,i0,i1,j0,j1)
 !$omp parallel do private(k, j, i)
@@ -511,7 +503,7 @@ module vxb
 !
 ! Local:
 !
-    integer :: i,j,k,lat,jm1,jp1,jm2,jp2,lat0,lat1
+    integer :: i,j,k,lat,jm1,jp1,lat0,lat1
 !
 ! Local inputs with added halo points in lat,lon:
 ! (ri, rri, rrri, rrrri and bdotu are module arrays set by vxb_ion_prep.)
@@ -665,120 +657,82 @@ module vxb
     kbot=kbot-1
 !
 !----------------------- Begin first latitude scan ---------------------
-    do lat=lat0,lat1
-      jm2 = lat-2
-      jm1 = lat-1
-      jp1 = lat+1
-      jp2 = lat+2
+!
+! The scans at lat=lat0,lat1 use dj, dji, bvel, diffj, diffji and diffjj at
+! rows lat-1:lat+1, and tpp at rows lat-2:lat+2. Each row is computed once
+! here, so the rows are independent and can be done in parallel.
 !
 ! as of April, 2015, TIEGCM incorrectly uses te+ti instead of tn+ti
 ! This has not been fixed in TIEGCM, because fixing it causes a tuning
 ! problem (ask Hanli and Wenbin). For WACCM, it is correct as below.
 ! (tr, tp and hj are set in vxb_prep.)
 !
-! rrk returns ambipolar diffusion coefficients in d(jm1),dj(lat),djp1(jp1):
+    if (lat0 <= lat1) then
+!$omp parallel do private(j, i, k)
+      do j=lat0-1,lat1+1
+!
+! rrk returns ambipolar diffusion coefficients in dj and dji:
 ! 'OPLUS_DJ' (has constants at poles)
 !
-      call rrk(                                            &
-        tn(kbot:ktop,i0:i1,jm1),ti(kbot:ktop,i0:i1,jm1),mbar(kbot:ktop,i0:i1,jm1), &
-        o2(kbot:ktop,i0:i1,jm1),o1  (kbot:ktop,i0:i1,jm1), &
-        n2(kbot:ktop,i0:i1,jm1),nop(kbot:ktop,i0:i1,jm1),op(kbot:ktop,i0:i1,jm1), &
-        rmass_ion,tr(kbot:ktop,i0:i1,jm1), &
-        dj(kbot:ktop,i0:i1,jm1),dji(kbot:ktop,i0:i1,jm1),i0,i1,kbot,ktop,kminor)
-
-      call rrk(                                            &
-        tn(kbot:ktop,i0:i1,lat),ti(kbot:ktop,i0:i1,lat),mbar(kbot:ktop,i0:i1,lat), &
-        o2(kbot:ktop,i0:i1,lat),o1  (kbot:ktop,i0:i1,lat), &
-        n2(kbot:ktop,i0:i1,lat),nop(kbot:ktop,i0:i1,lat),op(kbot:ktop,i0:i1,lat), &
-        rmass_ion,tr  (kbot:ktop,i0:i1,lat),&
-        dj(kbot:ktop,i0:i1,lat),dji(kbot:ktop,i0:i1,lat),i0,i1,kbot,ktop,kminor)
-
-      call rrk(                                            &
-        tn(kbot:ktop,i0:i1,jp1),ti(kbot:ktop,i0:i1,jp1),mbar(kbot:ktop,i0:i1,jp1), &
-        o2(kbot:ktop,i0:i1,jp1),o1  (kbot:ktop,i0:i1,jp1), &
-        n2(kbot:ktop,i0:i1,jp1),nop(kbot:ktop,i0:i1,jp1),op(kbot:ktop,i0:i1,jp1), &
-        rmass_ion,tr(kbot:ktop,i0:i1,jp1), &
-        dj(kbot:ktop,i0:i1,jp1),dji(kbot:ktop,i0:i1,jp1),i0,i1,kbot,ktop,kminor)
+        call rrk(                                            &
+          tn(kbot:ktop,i0:i1,j),ti(kbot:ktop,i0:i1,j),mbar(kbot:ktop,i0:i1,j), &
+          o2(kbot:ktop,i0:i1,j),o1  (kbot:ktop,i0:i1,j), &
+          n2(kbot:ktop,i0:i1,j),nop(kbot:ktop,i0:i1,j),op(kbot:ktop,i0:i1,j), &
+          rmass_ion,tr(kbot:ktop,i0:i1,j), &
+          dj(kbot:ktop,i0:i1,j),dji(kbot:ktop,i0:i1,j),i0,i1,kbot,ktop,kminor)
 !
-! bvel @ jm1 = (B.U)*N(O+)    (J-1)
-! bvel @ j   = (B.U)*N(O+)      (J)
-! bvel @ jp1 = (B.U)*N(O+)    (J+1)
+! bvel = (B.U)*N(O+)
 ! 'OPLUS_BVEL' (has constants at poles)
 !
 ! Note bx,by,bz were set globally for all tasks by sub magfield
 ! (getapex.F90)
 !
-!$omp parallel do private(i,k)
-      do i=i0,i1
-        do k=kbot,ktop
-          bvel(k,i,jm1) = &
-            rri(k,i,jm1)*(bx(i,jm1)*un(k,i,jm1)+by(i,jm1)*vn(k,i,jm1)+   &
-            hj(k,i,jm1)*bz(i,jm1)*om(k,i,jm1))*op(k,i,jm1)
-          bvel(k,i,lat) = &
-           rri(k,i,lat)*(bx(i,lat)*un(k,i,lat)+by(i,lat)*vn(k,i,lat)+   &
-            hj(k,i,lat)*bz(i,lat)*om(k,i,lat))*op(k,i,lat)
-          bvel(k,i,jp1) = &
-            rri(k,i,jp1)*(bx(i,jp1)*un(k,i,jp1)+by(i,jp1)*vn(k,i,jp1)+   &
-            hj(k,i,jp1)*bz(i,jp1)*om(k,i,jp1))*op(k,i,jp1)
-        enddo ! k=kbot,ktop
-      enddo ! i=lon0,lon1
+        do i=i0,i1
+          do k=kbot,ktop
+            bvel(k,i,j) = &
+              rri(k,i,j)*(bx(i,j)*un(k,i,j)+by(i,j)*vn(k,i,j)+   &
+              hj(k,i,j)*bz(i,j)*om(k,i,j))*op(k,i,j)
+          enddo ! k=kbot,ktop
+        enddo ! i=lon0,lon1
 !
 ! Ambipolar diffusion is returned in diffj:
-! 'OPLUS_DIFFJ' (will have constants at poles after this lat scan)
+! 'OPLUS_DIFFJ' (has constants at poles)
 !
-      call diffus(tp(kbot:ktop,i0:i1,jm1),ti(kbot:ktop,i0:i1,jm1),te(kbot:ktop,i0:i1,jm1),&
-          nop(kbot:ktop,i0:i1,jm1),ne(kbot:ktop,i0:i1,jm1),&
-          op(kbot:ktop,i0:i1,jm1),&
-          xxxxiop(kbot:ktop,i0:i1,jm1),rmass_ion,hj(kbot:ktop,:,jm1), &
-          diffj(kbot:ktop,i0:i1,jm1),diffji(kbot:ktop,i0:i1,jm1),i0,i1,kbot,ktop,lat)
-      call diffus(tp(kbot:ktop,i0:i1,lat),ti(kbot:ktop,i0:i1,lat),te(kbot:ktop,i0:i1,lat),&
-          nop(kbot:ktop,i0:i1,lat),ne(kbot:ktop,i0:i1,lat),&
-          op(kbot:ktop,i0:i1,lat),&
-          xxxxiop(kbot:ktop,i0:i1,lat),rmass_ion,hj(kbot:ktop,:,lat), &
-          diffj(kbot:ktop,i0:i1,lat),diffji(kbot:ktop,i0:i1,lat),i0,i1,kbot,ktop,lat)
-      call diffus(tp(kbot:ktop,i0:i1,jp1),ti(kbot:ktop,i0:i1,jp1),te(kbot:ktop,i0:i1,jp1),&
-          nop(kbot:ktop,i0:i1,jp1),ne(kbot:ktop,i0:i1,jp1),&
-          op(kbot:ktop,i0:i1,jp1),&
-          xxxxiop(kbot:ktop,i0:i1,jp1),rmass_ion,hj(kbot:ktop,:,jp1), &
-           diffj(kbot:ktop,i0:i1,jp1),diffji(kbot:ktop,i0:i1,jp1),i0,i1,kbot,ktop,lat)
-      call diffusj(tp(kbot:ktop,i0:i1,jm1),ti(kbot:ktop,i0:i1,jm1),te(kbot:ktop,i0:i1,jm1),&
-          nop(kbot:ktop,i0:i1,jm1),ne(kbot:ktop,i0:i1,jm1),&
-          op(kbot:ktop,i0:i1,jm1),rmass_ion,hj(kbot:ktop,:,jm1),dj(kbot:ktop,i0:i1,jm1), &
-            dji(kbot:ktop,i0:i1,jm1),diffjj(kbot:ktop,i0:i1,jm1),i0,i1,kbot,ktop,lat)
-      call diffusj(tp(kbot:ktop,i0:i1,lat),ti(kbot:ktop,i0:i1,lat),te(kbot:ktop,i0:i1,lat),&
-          nop(kbot:ktop,i0:i1,lat),ne(kbot:ktop,i0:i1,lat),&
-          op(kbot:ktop,i0:i1,lat),rmass_ion,hj(kbot:ktop,:,lat),dj(kbot:ktop,i0:i1,lat), &
-           dji(kbot:ktop,i0:i1,lat),diffjj(kbot:ktop,i0:i1,lat),i0,i1,kbot,ktop,lat)
-      call diffusj(tp(kbot:ktop,i0:i1,jp1),ti(kbot:ktop,i0:i1,jp1),te(kbot:ktop,i0:i1,jp1),&
-          nop(kbot:ktop,i0:i1,jp1),ne(kbot:ktop,i0:i1,jp1),&
-          op(kbot:ktop,i0:i1,jp1),rmass_ion,hj(kbot:ktop,:,jp1),dj(kbot:ktop,i0:i1,jp1), &
-           dji(kbot:ktop,i0:i1,jp1), diffjj(kbot:ktop,i0:i1,jp1),i0,i1,kbot,ktop,lat)
+        call diffus(tp(kbot:ktop,i0:i1,j),ti(kbot:ktop,i0:i1,j),te(kbot:ktop,i0:i1,j),&
+            nop(kbot:ktop,i0:i1,j),ne(kbot:ktop,i0:i1,j),&
+            op(kbot:ktop,i0:i1,j),&
+            xxxxiop(kbot:ktop,i0:i1,j),rmass_ion,hj(kbot:ktop,:,j), &
+            diffj(kbot:ktop,i0:i1,j),diffji(kbot:ktop,i0:i1,j),i0,i1,kbot,ktop,j)
+        call diffusj(tp(kbot:ktop,i0:i1,j),ti(kbot:ktop,i0:i1,j),te(kbot:ktop,i0:i1,j),&
+            nop(kbot:ktop,i0:i1,j),ne(kbot:ktop,i0:i1,j),&
+            op(kbot:ktop,i0:i1,j),rmass_ion,hj(kbot:ktop,:,j),dj(kbot:ktop,i0:i1,j), &
+            dji(kbot:ktop,i0:i1,j),diffjj(kbot:ktop,i0:i1,j),i0,i1,kbot,ktop,j)
+      enddo ! j=lat0-1,lat1+1
 !
 ! 'OPLUS_TP1' (constants at the poles)
 !
-!$omp parallel do private(i,k)
-      do i=i0,i1
-        do k=kbot,ktop
-          tpp(k,i,jm2) = xxxxiop(k,i,jm2)*ti(k,i,jm2)
-          tpp(k,i,jm1) = ti(k,i,jm1)*xxxxiop(k,i,jm1)
-          tpp(k,i,lat) = ti(k,i,lat)*xxxxiop(k,i,lat)
-          tpp(k,i,jp1) = ti(k,i,jp1)*xxxxiop(k,i,jp1)
-          tpp(k,i,jp2) = xxxxiop(k,i,jp2)*ti(k,i,jp2)
+!$omp parallel do private(j, i, k)
+      do j=lat0-2,lat1+2
+        do i=i0,i1
+          do k=kbot,ktop
+            tpp(k,i,j) = ti(k,i,j)*xxxxiop(k,i,j)
+          enddo
         enddo
-      enddo
-!
+      enddo ! j=lat0-2,lat1+2
+    endif
 !
 ! Latidinal shapiro smoother: opnm is O+ at time n-1.
 ! opnm_smooth will be used in explicit terms below.
 ! Smooth in latitude:
 ! 'OPNM_SMOOTH' (zero at poles)
 !
-!$omp parallel do private(i,k)
+!$omp parallel do private(lat, i, k)
+    do lat=lat0,lat1
       do i=i0,i1
         do k=kbot,ktop
           opnm_smooth(k,i,lat) = opnm(k,i,lat)-shapiro_const* &
-                                (opnm(k,i,jp2)+opnm(k,i,jm2)-4._r8*         &
-                                (opnm(k,i,jp1)+opnm(k,i,jm1))+6._r8*        &
+                                (opnm(k,i,lat+2)+opnm(k,i,lat-2)-4._r8*     &
+                                (opnm(k,i,lat+1)+opnm(k,i,lat-1))+6._r8*    &
                                  opnm(k,i,lat))
         enddo ! k=kbot,nlev
       enddo ! i=i0,i1
@@ -821,11 +775,8 @@ module vxb
     bdotdh_opj1 = 0._r8
     bdotdh_opj2 = 0._r8
 
+!$omp parallel do private(lat, i, k)
     do lat=lat0,lat1
-      jm2 = lat-2
-      jm1 = lat-1
-      jp1 = lat+1
-      jp2 = lat+2
 !
 ! bdotdh_op = (B(H).DEL(H))*(D/(H*DZ)*TP+M*G/R)*N(O+)
 ! then bdotdh_op = d*bz*bdotdh_op
@@ -834,17 +785,16 @@ module vxb
 ! 'BDOTDH_OP' (zero at the poles)
 !
       call bdotdh(                    &
-        diffj(kbot:ktop,i0:i1,jm1),   &
+        diffj(kbot:ktop,i0:i1,lat-1), &
         diffj(kbot:ktop,:,lat    ),   & ! includes longitude halos
-        diffj(kbot:ktop,i0:i1,jp1),   &
+        diffj(kbot:ktop,i0:i1,lat+1), &
         bdotdh_op(kbot:ktop,i0:i1,lat),i0,i1,kbot,ktop,lat)
       call bdotdh(                    &
-        diffji(kbot:ktop,i0:i1,jm1),   &
+        diffji(kbot:ktop,i0:i1,lat-1), &
         diffji(kbot:ktop,:,lat    ),   & ! includes longitude halos
-        diffji(kbot:ktop,i0:i1,jp1),   &
+        diffji(kbot:ktop,i0:i1,lat+1), &
         bdotdh_opi(kbot:ktop,i0:i1,lat),i0,i1,kbot,ktop,lat)
 !
-!$omp parallel do private( i, k )
       do i=i0,i1
         do k=kbot,ktop
           bdotdh_op(k,i,lat) = bz(i,lat)*(dj(k,i,lat)*bdotdh_op(k,i,lat)+&
@@ -852,99 +802,50 @@ module vxb
           ambvel(k,i,lat) = (bz(i,lat)**2)*diffjj(k,i,lat) ! BDOTDH_OP
         enddo ! k=kbot,nlev
       enddo ! i=i0,i1
+    enddo ! lat=lat0,lat1
 !
-! bdotdh_opjm1 = (B(H).DEL(H))*2.*TP*N(O+)    (J-1)
-! bdotdh_opj   = (B(H).DEL(H))*2.*TP*N(O+)      (J)
-! bdotdh_opjp1 = (B(H).DEL(H))*2.*TP*N(O+)    (J+1)
+! bdotdh_opj = (B(H).DEL(H))*2.*TP*N(O+) is needed at rows lat-1:lat+1.
+! Each row j=lat0-1,lat1+1 is computed once, so the rows are independent.
 ! 'BDOTDH_OPJ' (has reasonable non-constant values at poles)
 !
-      call bdotdh(                &
-        tpp(kbot:ktop,i0:i1,jm2),  &
-        tpp(kbot:ktop,:,jm1),      &
-        tpp(kbot:ktop,i0:i1,lat),  &
-        bdotdh_opj(kbot:ktop,i0:i1,jm1),i0,i1,kbot,ktop,jm1)
-      call bdotdh(                &
-        tpp(kbot:ktop,i0:i1,jm1),  &
-        tpp(kbot:ktop,:,lat),      &
-        tpp(kbot:ktop,i0:i1,jp1),  &
-        bdotdh_opj(kbot:ktop,i0:i1,lat),i0,i1,kbot,ktop,lat)
-      call bdotdh(                &
-        tpp(kbot:ktop,i0:i1,lat),  &
-        tpp(kbot:ktop,:,jp1),      &
-        tpp(kbot:ktop,i0:i1,jp2),  &
-        bdotdh_opj(kbot:ktop,i0:i1,jp1),i0,i1,kbot,ktop,jp1)
+    if (lat0 <= lat1) then
+!$omp parallel do private(j, i, k)
+      do j=lat0-1,lat1+1
+        call bdotdh(                &
+          tpp(kbot:ktop,i0:i1,j-1),  &
+          tpp(kbot:ktop,:,j),        &
+          tpp(kbot:ktop,i0:i1,j+1),  &
+          bdotdh_opj(kbot:ktop,i0:i1,j),i0,i1,kbot,ktop,j)
 
-      call firstbdotdh(                &
-        tp(kbot:ktop,i0:i1,jm2),  &
-        tp(kbot:ktop,:,jm1),      &
-        tp(kbot:ktop,i0:i1,lat),  &
-        nop(kbot:ktop,i0:i1,jm2),  &
-        nop(kbot:ktop,:,jm1),      &
-        nop(kbot:ktop,i0:i1,lat),  &
-        xxxxiop(kbot:ktop,i0:i1,jm1),  &
-        bdotdh_opj1(kbot:ktop,i0:i1,jm1),i0,i1,kbot,ktop,jm1)
-      call firstbdotdh(                &
-        tp(kbot:ktop,i0:i1,jm1),  &
-        tp(kbot:ktop,:,lat),      &
-        tp(kbot:ktop,i0:i1,jp1),  &
-        nop(kbot:ktop,i0:i1,jm1),  &
-        nop(kbot:ktop,:,lat),      &
-        nop(kbot:ktop,i0:i1,jp1),  &
-        xxxxiop(kbot:ktop,i0:i1,lat),  &
-        bdotdh_opj1(kbot:ktop,i0:i1,lat),i0,i1,kbot,ktop,lat)
-      call firstbdotdh(                &
-        tp(kbot:ktop,i0:i1,lat),  &
-        tp(kbot:ktop,:,jp1),      &
-        tp(kbot:ktop,i0:i1,jp2),  &
-        nop(kbot:ktop,i0:i1,lat),  &
-        nop(kbot:ktop,:,jp1),      &
-        nop(kbot:ktop,i0:i1,jp2),  &
-        xxxxiop(kbot:ktop,i0:i1,jp1),  &
-        bdotdh_opj1(kbot:ktop,i0:i1,jp1),i0,i1,kbot,ktop,jp1)
+        call firstbdotdh(                &
+          tp(kbot:ktop,i0:i1,j-1),  &
+          tp(kbot:ktop,:,j),        &
+          tp(kbot:ktop,i0:i1,j+1),  &
+          nop(kbot:ktop,i0:i1,j-1),  &
+          nop(kbot:ktop,:,j),        &
+          nop(kbot:ktop,i0:i1,j+1),  &
+          xxxxiop(kbot:ktop,i0:i1,j),  &
+          bdotdh_opj1(kbot:ktop,i0:i1,j),i0,i1,kbot,ktop,j)
 
-      call firstbdotdh(                &
-        te(kbot:ktop,i0:i1,jm2),  &
-        te(kbot:ktop,:,jm1),      &
-        te(kbot:ktop,i0:i1,lat),  &
-        ne(kbot:ktop,i0:i1,jm2),  &
-        ne(kbot:ktop,:,jm1),      &
-        ne(kbot:ktop,i0:i1,lat),  &
-        xxxxiop(kbot:ktop,i0:i1,jm1),  &
-        bdotdh_opj2(kbot:ktop,i0:i1,jm1),i0,i1,kbot,ktop,jm1)
-      call firstbdotdh(                &
-        te(kbot:ktop,i0:i1,jm1),  &
-        te(kbot:ktop,:,lat),      &
-        te(kbot:ktop,i0:i1,jp1),  &
-        ne(kbot:ktop,i0:i1,jm1),  &
-        ne(kbot:ktop,:,lat),      &
-        ne(kbot:ktop,i0:i1,jp1),  &
-        xxxxiop(kbot:ktop,i0:i1,lat),  &
-        bdotdh_opj2(kbot:ktop,i0:i1,lat),i0,i1,kbot,ktop,lat)
-      call firstbdotdh(                &
-        te(kbot:ktop,i0:i1,lat),  &
-        te(kbot:ktop,:,jp1),      &
-        te(kbot:ktop,i0:i1,jp2),  &
-        ne(kbot:ktop,i0:i1,lat),  &
-        ne(kbot:ktop,:,jp1),      &
-        ne(kbot:ktop,i0:i1,jp2),  &
-        xxxxiop(kbot:ktop,i0:i1,jp1),  &
-        bdotdh_opj2(kbot:ktop,i0:i1,jp1),i0,i1,kbot,ktop,jp1)
+        call firstbdotdh(                &
+          te(kbot:ktop,i0:i1,j-1),  &
+          te(kbot:ktop,:,j),        &
+          te(kbot:ktop,i0:i1,j+1),  &
+          ne(kbot:ktop,i0:i1,j-1),  &
+          ne(kbot:ktop,:,j),        &
+          ne(kbot:ktop,i0:i1,j+1),  &
+          xxxxiop(kbot:ktop,i0:i1,j),  &
+          bdotdh_opj2(kbot:ktop,i0:i1,j),i0,i1,kbot,ktop,j)
 !
-!$omp parallel do private( i, k )
-      do i=i0,i1
-        do k=kbot,ktop
-          bdotdh_opj(k,i,jm1) = bdotdh_opj(k,i,jm1)*dji(k,i,jm1)+&
-              bdotdh_opj1(k,i,jm1)*dj(k,i,jm1)+&
-              bdotdh_opj2(k,i,jm1)*dji(k,i,jm1)
-          bdotdh_opj(k,i,lat) = bdotdh_opj(k,i,lat)*dji(k,i,lat)+&
-              bdotdh_opj1(k,i,lat)*dj(k,i,lat)+&
-              bdotdh_opj2(k,i,lat)*dji(k,i,lat)
-          bdotdh_opj(k,i,jp1) = bdotdh_opj(k,i,jp1)*dji(k,i,jp1)+&
-              bdotdh_opj1(k,i,jp1)*dj(k,i,jp1)+&
-              bdotdh_opj2(k,i,jp1)*dji(k,i,jp1)
-        enddo ! k=kbot,nlev
-      enddo ! i=i0,i1
-    enddo ! lat=j0,j1 (end second lat scan)
+        do i=i0,i1
+          do k=kbot,ktop
+            bdotdh_opj(k,i,j) = bdotdh_opj(k,i,j)*dji(k,i,j)+&
+                bdotdh_opj1(k,i,j)*dj(k,i,j)+&
+                bdotdh_opj2(k,i,j)*dji(k,i,j)
+          enddo ! k=kbot,nlev
+        enddo ! i=i0,i1
+      enddo ! j=lat0-1,lat1+1 (end second lat scan)
+    endif
 !
 !------------------------ End second latitude scan ---------------------
 !
@@ -967,7 +868,6 @@ module vxb
 !----------------------- Begin third latitude scan ---------------------
 !
     bdotdh_diff = 0._r8
-    bdzdvb_op   = 0._r8
     explicit(1:nlev,i0:i1,j0:j1)    = 0._r8 ; explicit_a1(1:nlev,i0:i1,j0:j1)=0._r8 ; explicit_b1(1:nlev,i0:i1,j0:j1)=0._r8
     explicit3(1:nlev,i0:i1,j0:j1)    = 0._r8 ; explicit_a2(1:nlev,i0:i1,j0:j1)=0._r8 ; explicit_b2(1:nlev,i0:i1,j0:j1)=0._r8
     explicit4(1:nlev,i0:i1,j0:j1)    = 0._r8 ; explicit_a3(1:nlev,i0:i1,j0:j1)=0._r8 ; explicit_b3(1:nlev,i0:i1,j0:j1)=0._r8
@@ -984,12 +884,12 @@ module vxb
     rwii= 0._r8
 !
 ! Globally, this loop is lat=2,nlat-1 (i.e., skipping the poles)
+! Each latitude writes only row lat (bdzdvb_op is a per-latitude work array).
 !
+!$omp parallel do private(lat, jm1, jp1, i, k, bdzdvb_op)
     do lat=lat0,lat1
-      jm2 = lat-2
       jm1 = lat-1 ! this will be south pole for southern pes (j==1)
       jp1 = lat+1 ! this will be north pole for northern pes (j==nlat)
-      jp2 = lat+2
 !
 !
 ! bdotdh_opj = (B(H).DEL(H))*D*(B(H).DEL(H))*2.*TP*N(O+)   (J)
@@ -1023,7 +923,6 @@ module vxb
 !              plotting. The poles will be constant in longitude, and
 !              may differ structurally from adjacent latitudes.
 !
-!$omp parallel do private( i, k )
       do i=i0,i1
         do k=kbot,ktop
           explicit(k,i,lat) = -(1._r8)*(bdzdvb_op(k,i)+bdotdh_diff(k,i,lat)+ &
@@ -1047,7 +946,6 @@ module vxb
 ! 'EXPLICIT1' (zero at the poles)
 
 
-!$omp parallel do private( i, k )
       do i=i0,i1
         do k=kbot,ktop
 !
@@ -1137,7 +1035,6 @@ module vxb
         enddo ! k=kbot,nlev-1
       enddo ! i=i0,i1
 
-!$omp parallel do private(i,k)
       do i=i0,i1
         do k=kbot,ktop
           rwii(k,i,lat)=0.5_r8*(wwii(k,i,lat)*ri(k,i,lat)+wwii(k+1,i,lat)*ri(k+1,i,lat))&
@@ -1307,7 +1204,6 @@ module vxb
         enddo ! k=lev0,lev1-1
       enddo ! i=lon0,lon1
 !
-!$omp parallel do private(i,k)
     do i=lon0,lon1
       do k=lev0,lev1-1
         ans(k,i) = 1.42e17_r8*boltz*t(k,i)/(p0*expz(k)*.5_r8*(rms(k,i)+    &
@@ -1378,7 +1274,6 @@ module vxb
     mgr = rmass_ion*grav_cm/gask
     mgro = 16._r8*grav_cm/gask
 
-!$omp parallel do private(i,k)
     do i=i0,i1
       do k=lev0,lev1-2
         ans(k+1,i) =1.0_r8/(2._r8*hj(k+1,i)*dzp)*&
@@ -1397,7 +1292,6 @@ module vxb
 !
 ! Upper and lower boundaries:
 !
-!$omp parallel do private(i)
     do i=i0,i1
 !
 ! Upper boundary:
@@ -1450,7 +1344,12 @@ module vxb
 
     mgr = rmass_ion*grav_cm/gask
     mgro = 16._r8*grav_cm/gask
-
+!
+! diffusj is called from inside the threaded loop in vxb_xport, so this
+! nested region normally runs on one thread. The directive is kept because
+! removing it changes which multiply-add the compiler fuses into an FMA
+! below, which changes answers at roundoff level (seen with gfortran -O3).
+!
 !$omp parallel do private(i,k)
     do i=i0,i1
       do k=lev0,lev1-2
@@ -1476,7 +1375,6 @@ module vxb
 
 ! Upper and lower boundaries:
 !
-!$omp parallel do private(i)
     do i=i0,i1
 !
 ! Upper boundary:
@@ -1513,7 +1411,7 @@ module vxb
 ! Args:
     integer,intent(in) :: lon0,lon1,lev0,lev1,lat
     real(r8),dimension(lev0:lev1,lon0:lon1),intent(in) :: phijm1,phijp1
-    real(r8),dimension(lev0:lev1,lon0-2:lon1+2),intent(inout) :: phij ! why intent(inout)?
+    real(r8),dimension(lev0:lev1,lon0-2:lon1+2),intent(in) :: phij
     real(r8),dimension(lev0:lev1,lon0:lon1),intent(out) :: ans
 !
 ! Local:
@@ -1523,7 +1421,6 @@ module vxb
 ! Halo longitudes i-1 and i+1 must have been set before this routine is
 ! called. ('by' is use-associated above)
 !
-!$omp parallel do private( i, k )
     do i=lon0,lon1
       do k=lev0,lev1
         ans(k,i) = 1._r8/re*(bx(i,lat)/(cs(lat)*2._r8*dlamda)* &
@@ -1553,7 +1450,6 @@ module vxb
 ! called. ('by' is use-associated above)
 !
     ans = 0._r8
-!$omp parallel do private( i, k )
     do i=lon0,lon1
       do k=lev0,lev1
           if (nij  (k,i) > 1.e3_r8) then
@@ -1581,7 +1477,6 @@ module vxb
 ! Local:
     integer :: k,i
 !
-!$omp parallel do private( i, k )
     do i=lon0,lon1
       do k=lev0+1,lev1-1
         ans(k,i) = bz(i,lat)/(2._r8*h(k,i)*dzp)*(phi(k+1,i)-phi(k-1,i))+ &
@@ -1590,7 +1485,6 @@ module vxb
     enddo ! i=lon0,lon1
 !
 ! Upper and lower boundaries:
-!$omp parallel do private( i )
     do i=lon0,lon1
       ans(lev1,i) = bz(i,lat)/(h(lev1,i)*dzp)*(phi(lev1,i)- &
         phi(lev1-1,i))+dvb(i)*phi(lev1,i)
