@@ -71,18 +71,21 @@ module mo_photo
   logical :: do_jeuv = .false.
   logical :: do_jshort = .false.
   integer :: ion_rates_idx = -1
-
-!WUHU FENG, JOHN PLANE, DAN MARSH, 18/09/2018
-!ADDED BY WUHU FENG AND DAN MARSH, John Plane, Martyn Chipperfield
-  integer :: jfe_ndx,jfeoh_ndx
-  integer :: jnao_ndx,jnao2_ndx,jnaoh_ndx,jnahco3_ndx,jna_ndx
-!WUHU ADD Mg on 15 May 2019
-  integer :: jmg_ndx
-  integer :: jca_ndx
-  integer :: jk_ndx,jkoh_ndx,jko2_ndx,jkhco3_ndx
-!ENDED BY FENG AND MARSH
-!WF
-  logical :: has_metals = .false.
+!
+! Metal photolysis reactions with fixed rates (1/s at 1 AU, scaled by esfact).
+! Each rate is set only if the mechanism has that reaction.
+!
+  integer, parameter :: n_metal_j = 13
+  character(len=8), parameter :: metal_j_names(n_metal_j) = (/ &
+       'jnao    ', 'jnao2   ', 'jnaoh   ', 'jnahco3 ', 'jna     ', &
+       'jfe     ', 'jfeoh   ', 'jmg     ', 'jca     ', 'jk      ', &
+       'jko2    ', 'jkoh    ', 'jkhco3  ' /)
+  real(r8), parameter :: metal_j_rates(n_metal_j) = (/ &
+       5.5e-2_r8, 1.9e-2_r8, 1.8e-2_r8, 1.3e-4_r8, 2.0e-5_r8, &
+       5.0e-7_r8, 6.0e-3_r8, 3.4e-7_r8, 5.0e-5_r8, 4.0e-5_r8, &
+       2.2e-2_r8, 2.7e-2_r8, 1.2e-4_r8 /)
+  integer :: metal_j_ndx(n_metal_j) = -1  ! reaction indices (-1 if not in the mechanism)
+  logical :: has_metals = .false.         ! true if any metal photolysis reaction is present
 
 contains
 
@@ -205,24 +208,11 @@ contains
     end if
     euv_indexer(:) = 0
 
-!WUHU FENG, JOHN PLANE, DAN MARSH, 18/09/2018
-    jnao_ndx  = get_rxt_ndx( 'jnao' )
-    jnao2_ndx  = get_rxt_ndx( 'jnao2' )
-    jnaoh_ndx  = get_rxt_ndx( 'jnaoh' )
-    jnahco3_ndx  = get_rxt_ndx( 'jnahco3' )
-    jna_ndx  = get_rxt_ndx( 'jna' )
-    jfe_ndx  = get_rxt_ndx( 'jfe' )
-    jfeoh_ndx  = get_rxt_ndx( 'jfeoh' )
-    jmg_ndx  = get_rxt_ndx( 'jmg' )
-    jca_ndx  = get_rxt_ndx( 'jca' )
-    jk_ndx  = get_rxt_ndx( 'jk' )
-    jkoh_ndx  = get_rxt_ndx( 'jkoh' )
-    jko2_ndx  = get_rxt_ndx( 'jko2' )
-    jkhco3_ndx  = get_rxt_ndx( 'jkhco3' )
-!WF
-    has_metals = jfe_ndx>0 .and. jfeoh_ndx>0 .and. jnao_ndx>0 .and. jnao2_ndx>0 .and. &
-                 jnaoh_ndx>0 .and. jnahco3_ndx>0 .and. jna_ndx>0 .and. jmg_ndx>0 ! ... and more ..
-
+    ! for metal photolysis
+    do n = 1, n_metal_j
+       metal_j_ndx(n) = get_rxt_ndx( trim(metal_j_names(n)) )
+    end do
+    has_metals = any( metal_j_ndx(:) > 0 )
 
     jno_ndx     = get_rxt_ndx( 'jno' )
     jo2_a_ndx   = get_rxt_ndx( 'jo2_a' )
@@ -873,23 +863,14 @@ contains
              end if
           end do
 
+          ! for metal photolysis
           if (has_metals) then
-!WUHU FENG, JOHN PLANE, DAN MARSH, 18/09/2018
-            photos(i,:,jnao_ndx)     = esfact * 5.5e-2_r8
-            photos(i,:,jnao2_ndx)    = esfact * 1.9e-2_r8
-            photos(i,:,jnaoh_ndx)    = esfact * 1.8e-2_r8
-            photos(i,:,jnahco3_ndx)  = esfact * 1.3e-4_r8
-            photos(i,:,jna_ndx)      = esfact * 2.0e-5_r8
-            photos(i,:,jfe_ndx)     = esfact * 5.0e-7_r8
-            photos(i,:,jfeoh_ndx)   = esfact * 6.0e-3_r8
-            photos(i,:,jmg_ndx)     = esfact * 3.4e-7_r8
-            photos(i,:,jca_ndx)     = esfact * 5.0e-5_r8
-            photos(i,:,jk_ndx)     = esfact * 4.0e-5_r8
-            photos(i,:,jko2_ndx)     = esfact * 2.2e-2_r8
-            photos(i,:,jkoh_ndx)     = esfact * 2.7e-2_r8
-            photos(i,:,jkhco3_ndx)     = esfact * 1.2e-4_r8
-!WF
-         endif
+             do m = 1, n_metal_j
+                if (metal_j_ndx(m) > 0) then
+                   photos(i,:,metal_j_ndx(m)) = esfact * metal_j_rates(m)
+                end if
+             end do
+          endif
 
           !-----------------------------------------------------------------
           !	... calculate j(no) from formula
