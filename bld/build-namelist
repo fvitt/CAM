@@ -2347,8 +2347,10 @@ if ($phys =~ /cam6/ or $phys =~ /cam7/) {
       # Surface emission datasets:
       %species = (%species,
                   'so4_a1_an_srf_file'  => 'so4_a1',
+                  'so4_a1_sh_srf_file'  => 'so4_a1',
                   'so4_a1_bb_srf_file'  => 'so4_a1',
                   'so4_a2_an_srf_file'  => 'so4_a2',
+                  'num_a1_an_srf_file'  => 'num_a1',
                   'num_a1_sh_srf_file'  => 'num_a1',
                   'num_a1_bb_srf_file'  => 'num_a1',
                   'num_a2_an_srf_file'  => 'num_a2',
@@ -2511,15 +2513,20 @@ if ($phys =~ /cam6/ or $phys =~ /cam7/) {
         }
     }
 
-    # Note, this section might need to be modified if cam7 values
-    #   diverge from cam6 values
-    my %verhash = ('ver'=>'cam6');
+    # The emissions dataset version selects which set of per-species files is used
+    # (the 'ver' attribute in namelist_defaults_cam.xml).  A use case may set
+    # emis_data_ver (e.g. 'cmip7'); the default is the CMIP6 'cam6' set.
+    # Species with no file for the selected version and grid are omitted.
+    my $emis_ver = get_default_value('emis_data_ver');
+    $emis_ver = 'cam6' unless ($emis_ver);
+    my %verhash = ('ver'=>$emis_ver);
     my $first = 1;
     my $pre = "";
     my $val = "";
 
     foreach my $id (sort keys %species) {
         my $rel_filepath = get_default_value($id, \%verhash);
+        next unless ($rel_filepath);
         my $abs_filepath = set_abs_filepath($rel_filepath, $inputdata_rootdir);
         $val .= $pre . quote_string("$species{$id} -> " . $abs_filepath);
         if ($first) {
@@ -2544,6 +2551,7 @@ if ($phys =~ /cam6/ or $phys =~ /cam7/) {
                           'SVOC_bb_srf_file'    => '16.650D0');
         foreach my $id (sort keys %soae_fctrs) {
             my $rel_filepath = get_default_value($id, \%verhash);
+            next unless ($rel_filepath);
             my $abs_filepath = set_abs_filepath($rel_filepath, $inputdata_rootdir);
             $val .= $pre . quote_string("SOAE -> $soae_fctrs{$id}*" . $abs_filepath);
             if ($first) {
@@ -2621,6 +2629,7 @@ if ($phys =~ /cam6/ or $phys =~ /cam7/) {
     $val = "";
     foreach my $id (sort keys %species) {
         my $rel_filepath = get_default_value($id, \%verhash);
+        next unless ($rel_filepath);
         my $abs_filepath = set_abs_filepath($rel_filepath, $inputdata_rootdir);
         $val .= $pre . quote_string("$species{$id} -> " . $abs_filepath);
         if ($first) {
