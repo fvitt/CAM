@@ -46,6 +46,13 @@ module gw_cospectra_mod
   real(r8), allocatable :: accum_cospectra_v(:,:,:,:)
   real(r8), allocatable :: accum_cospectra_uv(:,:,:,:)
 
+  ! The accum_cospectra_* arrays are ring buffers over their time dimension:
+  ! islot_newest is the slot holding the most recent cospectra, and the oldest
+  ! entry is in slot mod(islot_newest,ntime)+1 (overwritten on the next step).
+  ! Initialized to ntime so that slots 1..ntime are in chronological order
+  ! (oldest..newest), matching the ordering used in the restart file.
+  integer :: islot_newest = 0
+
   integer :: gw_cospectra_smooth_nlats = 0
   real(r8):: gw_cospectra_wavelen_begin = 0.0_r8 ! meters
 
@@ -124,6 +131,7 @@ contains
     accum_cospectra_v = 0._r8
     allocate(accum_cospectra_uv( nftnum, lat_beg:lat_end, pver, ntime ))
     accum_cospectra_uv = 0._r8
+    islot_newest = ntime
 
   end subroutine gw_cospectra_reg
 
@@ -283,6 +291,7 @@ contains
 
     complex(r8) :: tmpfld(nftnum, lat_beg:lat_end, pver)
     real(r8) :: cospectra(nftnum, lat_beg:lat_end, pver)
+    integer  :: ioldest
     real(r8) :: latrad(lat_beg:lat_end)
     real(r8),target :: rho(pver,pcols,begchunk:endchunk) ! air mass density
     real(r8) :: rhobar(lat_beg:lat_end, pver)
@@ -476,31 +485,28 @@ contains
     wstar = conjg(w_fft)
     call output_fld(wstar, name='WSTAR')
 
-    do i = 1,ntime-1
-       accum_cospectra_u(:,:,:,i) = accum_cospectra_u(:,:,:,i+1)
-       accum_cospectra_v(:,:,:,i) = accum_cospectra_v(:,:,:,i+1)
-       accum_cospectra_uv(:,:,:,i) = accum_cospectra_uv(:,:,:,i+1)
-    end do
+    ! advance the ring buffer: the new cospectra overwrite the oldest slot
+    islot_newest = mod(islot_newest, ntime) + 1
 
     tmpfld = u_fft * wstar   ! times 2 to account for the other half of the spectrum
     cospectra = tmpfld%re
     cospectra(2:,:,:) = 2._r8 * cospectra(2:,:,:)
     call output_cosp(cospectra,'U')
 
-    accum_cospectra_u(:,:,:,ntime) = cospectra(:,:,:)
+    accum_cospectra_u(:,:,:,islot_newest) = cospectra(:,:,:)
 
     tmpfld = v_fft * wstar
     cospectra = tmpfld%re
     cospectra(2:,:,:) = 2._r8 * cospectra(2:,:,:)
     call output_cosp(cospectra,'V')
 
-    accum_cospectra_v(:,:,:,ntime) = cospectra(:,:,:)
+    accum_cospectra_v(:,:,:,islot_newest) = cospectra(:,:,:)
 
     tmpfld = u_fft * conjg(v_fft)
     cospectra = tmpfld%re
     cospectra(2:,:,:) = 2._r8 * cospectra(2:,:,:)
 
-    accum_cospectra_uv(:,:,:,ntime) = cospectra(:,:,:)
+    accum_cospectra_uv(:,:,:,islot_newest) = cospectra(:,:,:)
 
     tmpfld = t_fft * wstar
     cospectra = tmpfld%re
@@ -513,14 +519,21 @@ contains
        call outfld('RHOBAR', rhobar(icol,:),1,icol)
     end do
 
+    ! oldest slot of the accumulation ring buffers -- cospext sums the time
+    ! slices oldest->newest so results do not depend on the buffer offset
+    ioldest = mod(islot_newest, ntime) + 1
+
     ! zonal component
-    call cospext(nftnum, lat_beg,lat_end, pver,ntime, latrad, accum_cospectra_u, wvlxbeg,wvlxend, pref_mid, rhobar, mflxxup,mflxxun,mflxxrp,mflxxrn,force_r=frcxr,force_u=frcxu)
+    call cospext(nftnum, lat_beg,lat_end, pver,ntime, latrad, accum_cospectra_u, wvlxbeg,wvlxend, pref_mid, rhobar, &
+         mflxxup,mflxxun,mflxxrp,mflxxrn,force_r=frcxr,force_u=frcxu,ioldest=ioldest)
 
     ! meridional component
-    call cospext(nftnum, lat_beg,lat_end, pver,ntime, latrad, accum_cospectra_v, wvlxbeg,wvlxend, pref_mid, rhobar, mflxyup,mflxyun,mflxyrp,mflxyrn,force_r=frcyr,force_u=frcyu)
+    call cospext(nftnum, lat_beg,lat_end, pver,ntime, latrad, accum_cospectra_v, wvlxbeg,wvlxend, pref_mid, rhobar, &
+         mflxyup,mflxyun,mflxyrp,mflxyrn,force_r=frcyr,force_u=frcyu,ioldest=ioldest)
 
     ! meridional momentum flux
-    call cospext(nftnum, lat_beg,lat_end, pver,ntime, latrad, accum_cospectra_uv, wvlxbeg,wvlxend, pref_mid, rhobar, mflxxyup,mflxxyun,mflxxyrp,mflxxyrn)
+    call cospext(nftnum, lat_beg,lat_end, pver,ntime, latrad, accum_cospectra_uv, wvlxbeg,wvlxend, pref_mid, rhobar, &
+         mflxxyup,mflxxyun,mflxxyrp,mflxxyrn,ioldest=ioldest)
 
     ! Scale filtered products by branch-dependent factors derived from the spectral
     ! slopes (see cospext_mod::momentum_fluxes for the fp/fn formulation).
@@ -533,10 +546,6 @@ contains
           lat1 = j
        end if
     end do
-
-!    call compute_scaling(slppx,  slpnx,  fp_uw, fn_uw)
-!    call compute_scaling(slppy,  slpny,  fp_vw, fn_vw)
-!    call compute_scaling(slppxy, slpnxy, fp_uv, fn_uv)
 
     frcxyu = gather_and_latderiv(mflxxyup,mflxxyun,rhobar)
     frcxyr = gather_and_latderiv(mflxxyrp,mflxxyrn,rhobar)
@@ -1014,7 +1023,7 @@ contains
 
     type(file_desc_t), intent(inout) :: file
 
-    integer :: ierr, t
+    integer :: ierr, t, islot
     type(io_desc_t) :: iodesc
     integer(PIO_OFFSET_KIND), pointer :: ldof(:)
     character(len=2) :: numstr
@@ -1032,9 +1041,12 @@ contains
        ierr = pio_inq_varid(file, 'gw_csp_accum_v_t'//numstr, v_desc)
        ierr = pio_inq_varid(file, 'gw_csp_accum_uv_t'//numstr, uv_desc)
 
-       call pio_write_darray(file, u_desc, iodesc, accum_cospectra_u(:,:,:,t), ierr)
-       call pio_write_darray(file, v_desc, iodesc, accum_cospectra_v(:,:,:,t), ierr)
-       call pio_write_darray(file, uv_desc, iodesc, accum_cospectra_uv(:,:,:,t), ierr)
+       ! write in chronological order (t=1 oldest, t=ntime newest)
+       islot = mod(islot_newest + t - 1, ntime) + 1
+
+       call pio_write_darray(file, u_desc, iodesc, accum_cospectra_u(:,:,:,islot), ierr)
+       call pio_write_darray(file, v_desc, iodesc, accum_cospectra_v(:,:,:,islot), ierr)
+       call pio_write_darray(file, uv_desc, iodesc, accum_cospectra_uv(:,:,:,islot), ierr)
     end do
 
     call pio_freedecomp(file, iodesc)
@@ -1070,6 +1082,9 @@ contains
        call pio_read_darray(file, v_desc, iodesc, accum_cospectra_v(:,:,:,t), ierr)
        call pio_read_darray(file, uv_desc, iodesc, accum_cospectra_uv(:,:,:,t), ierr)
     end do
+
+    ! restart data are stored in chronological order (newest in slot ntime)
+    islot_newest = ntime
 
     call pio_freedecomp(file, iodesc)
 

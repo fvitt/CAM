@@ -44,7 +44,7 @@ contains
   !! restart runs, including short (less one day) runs. The daily forcing should also be made optional for the IC file.
   !! The run can still start without the forcing.
   !=============================================================================
-  subroutine cospext(nftnum,lat_beg,lat_end,pver,ntime,latrad,cspr,wvlxbeg,wvlxend,press,rhozm,mflxup,mflxun,mflxrp,mflxrn,force_r,force_u,slpp,slpn)
+  subroutine cospext(nftnum,lat_beg,lat_end,pver,ntime,latrad,cspr,wvlxbeg,wvlxend,press,rhozm,mflxup,mflxun,mflxrp,mflxrn,force_r,force_u,slpp,slpn,ioldest)
 
     integer, intent(in) :: nftnum,lat_beg,lat_end,pver,ntime
     real(r8), intent(in) :: latrad(lat_beg:lat_end)
@@ -70,6 +70,12 @@ contains
     !! slpp, slpn: spectral slopes for positive and negative branches (optional output)
     real(r8), optional, intent(out) :: slpp(lat_beg:lat_end,pver), slpn(lat_beg:lat_end,pver)
 
+    !! ioldest: time slot of cspr holding the oldest entry when cspr is a ring
+    !! buffer over time (default 1, i.e. slots in chronological order). The time
+    !! sums are always taken oldest->newest, so results do not depend on where
+    !! the ring buffer happens to start (needed for exact restarts).
+    integer, optional, intent(in) :: ioldest
+
     !! kxl: zonal wavenumber corresponding to wvlong
     !! kxm: 2*kxl, kxr: 4*kxl (wavenumbers used to calculate spectral slope (Liu, 2019)
     !! kxbeg: zonal wavenumber corresponding to wvlexbeg
@@ -87,6 +93,10 @@ contains
 
     real(r8) :: r2d = 180._r8/pi
     integer :: lat0, lat1
+    integer :: t0
+
+    t0 = 1
+    if (present(ioldest)) t0 = ioldest
 
     mflxup = 0._r8
     mflxun = 0._r8
@@ -156,53 +166,56 @@ contains
       real(r8), intent(out) :: csprpi(nftnum, lat_beg:lat_end, pver)
       real(r8), intent(out) :: csprni(nftnum, lat_beg:lat_end, pver)
 
-      !! csprps: cospectra that is positive at each time slice
-      !! csprns: cospectra that is negative at each time slice
-      real(r8) :: csprps(nftnum,lat_beg:lat_end,pver,ntime)
-      real(r8) :: csprns(nftnum,lat_beg:lat_end,pver,ntime)
-      real(r8) :: wrk1(ntime)
-      integer :: i,j,k
-      integer :: npos, nneg
+      !! running sums and counts of the positive / negative components over time
+      real(r8) :: sump(nftnum), sumn(nftnum)
+      integer  :: npos(nftnum), nneg(nftnum)
+      real(r8) :: val
+      integer :: i,j,k,t,tt
 
-      csprps = 0._r8
-      csprns = 0._r8
       csprp = 0._r8
       csprn = 0._r8
       csprpi = 0._r8
       csprni = 0._r8
 
-      !! separate out the positve and negative spectral component at each time step
-
-      where(cspr>0._r8)
-         csprps = cspr
-      end where
-      where(cspr<0._r8)
-         csprns = cspr
-      end where
-
-      !! Find the average positive and negative cospectral components
+      !! Find the time-average positive and negative cospectral components.
+      !! Single pass over cspr with unit-stride inner loop; no 4-D temporaries.
+      !! Time slices are summed in chronological order starting at slot t0
+      !! (t0..ntime, then 1..t0-1) so the result is independent of the
+      !! ring-buffer offset.
 
       do k = 1, pver
          do j = lat0,lat1
-            do i = 1, nftnum
 
-               wrk1 = csprps(i, j, k, :)
-               npos = count(wrk1/=0._r8)
-               if (npos /= 0) then
-                  csprp(i, j, k) = sum(wrk1) / real(npos,kind=r8)
-               end if
-
-               wrk1 = csprns(i, j, k, :)
-               nneg = count(wrk1/=0._r8)
-               if (nneg /= 0) then
-                  csprn(i, j, k) = sum(wrk1) / real(nneg,kind=r8)
-               end if
-
+            sump = 0._r8
+            sumn = 0._r8
+            npos = 0
+            nneg = 0
+            do tt = 0, ntime-1
+               t = t0 + tt
+               if (t > ntime) t = t - ntime
+               do i = 1, nftnum
+                  val = cspr(i,j,k,t)
+                  if (val > 0._r8) then
+                     sump(i) = sump(i) + val
+                     npos(i) = npos(i) + 1
+                  else if (val < 0._r8) then
+                     sumn(i) = sumn(i) + val
+                     nneg(i) = nneg(i) + 1
+                  end if
+               end do
             end do
 
-            ! interpolate to replace the zeros
-            csprpi(:,j,k) = interp_cospec(csprp(:,j,k))
-            csprni(:,j,k) = interp_cospec(csprn(:,j,k))
+            do i = 1, nftnum
+               if (npos(i) /= 0) csprp(i,j,k) = sump(i) / real(npos(i),kind=r8)
+               if (nneg(i) /= 0) csprn(i,j,k) = sumn(i) / real(nneg(i),kind=r8)
+            end do
+
+            ! interpolate to replace the zeros -- the interpolated spectra are
+            ! only used by spectral_slope, which skips kxbeg <= kxmin
+            if (kxbeg(j) > kxmin) then
+               csprpi(:,j,k) = interp_cospec(csprp(:,j,k))
+               csprni(:,j,k) = interp_cospec(csprn(:,j,k))
+            end if
 
          end do
       end do
@@ -323,73 +336,73 @@ contains
 
     !=============================================================================
     ! interpolate to replace zeros in the cospectra
+    ! Zeros are filled by linear interpolation in log(|cosp|) vs. wavenumber
+    ! index between the nearest nonzero neighbors; leading/trailing zeros take
+    ! the nearest nonzero value. If fewer than two nonzero values exist the
+    ! result is all zeros. Done in a single O(nftnum) sweep (equivalent to the
+    ! former lininterp-based version, which had an O(nzeros*nonzeros) search
+    ! plus heap allocations on every call).
     function interp_cospec(cosp) result(cospi)
-      use interpolate_data, only: lininterp
 
       real(r8), intent(in) :: cosp(nftnum)
       real(r8) :: cospi(nftnum)
 
-      integer :: i, nzeros, n_nonzero, zcnt, ncnt
-
-      real(r8), allocatable :: zero_wave_numbers(:)
-      real(r8), allocatable :: interp_values(:)
-      real(r8), allocatable :: nonzero_wave_num(:)
-      real(r8), allocatable :: nonzero_values(:)
-      real(r8) :: sign
+      integer :: i, ii, ilo, ihi, n_nonzero
+      real(r8) :: sgn, loglo, loghi, dx, wgts, wgtn
 
       cospi = cosp
-      nzeros = count(cosp==0._r8)
+      n_nonzero = count(cosp/=0._r8)
+
+      if (n_nonzero == nftnum) return   ! no zeros to fill
+
+      if (n_nonzero < 2) then
+         cospi = 0._r8
+         return
+      end if
 
       if (any(cosp<0._r8)) then
-         sign = -1._r8
+         sgn = -1._r8
       else
-         sign = 1._r8
+         sgn = 1._r8
       end if
 
-      if (nzeros>0) then
+      ilo = 0   ! index of the most recent nonzero value (0 = none yet)
+      i = 1
+      do while (i <= nftnum)
+         if (cosp(i) /= 0._r8) then
+            ilo = i
+            i = i + 1
+            cycle
+         end if
 
-         n_nonzero = nftnum-nzeros
-
-         ! replace the zeros by interpolating neighbors
-         allocate(zero_wave_numbers(nzeros))
-         allocate(interp_values(nzeros))
-         allocate(nonzero_wave_num(n_nonzero))
-         allocate(nonzero_values(n_nonzero))
-         zcnt = 0
-         ncnt = 0
-         do i = 1,nftnum
-            if (cosp(i)==0._r8) then
-               zcnt = zcnt+1
-               zero_wave_numbers(zcnt) = real(i,kind=r8)
-            else
-               ncnt = ncnt+1
-               nonzero_wave_num(ncnt) = real(i,kind=r8)
-               nonzero_values(ncnt) = log(sign*cosp(i))
-            endif
+         ! cosp(i) starts a run of zeros; find the next nonzero value
+         ihi = i + 1
+         do while (ihi <= nftnum)
+            if (cosp(ihi) /= 0._r8) exit
+            ihi = ihi + 1
          end do
 
-         if (n_nonzero .gt. 1) then
-            call lininterp(nonzero_values,nonzero_wave_num,n_nonzero, &
-                 interp_values, zero_wave_numbers, nzeros)
-            zcnt = 0
-            do i = 1,nftnum
-               if (cosp(i)==0._r8) then
-                  zcnt = zcnt+1
-                  cospi(i) = sign*exp(interp_values(zcnt))
-               end if
-            end do
+         if (ilo == 0) then
+            ! leading zeros: copy the first nonzero value
+            loghi = log(sgn*cosp(ihi))
+            cospi(i:ihi-1) = sgn*exp(loghi)
+         else if (ihi > nftnum) then
+            ! trailing zeros: copy the last nonzero value
+            loglo = log(sgn*cosp(ilo))
+            cospi(i:nftnum) = sgn*exp(loglo)
          else
-            do i = 1,nftnum
-               cospi(i) = 0._r8
-            enddo
-         endif
-         
-         deallocate(zero_wave_numbers)
-         deallocate(interp_values)
-         deallocate(nonzero_wave_num)
-         deallocate(nonzero_values)
+            loglo = log(sgn*cosp(ilo))
+            loghi = log(sgn*cosp(ihi))
+            dx = real(ihi,r8) - real(ilo,r8)
+            do ii = i, ihi-1
+               wgts = (real(ihi,r8) - real(ii,r8))/dx
+               wgtn = (real(ii,r8) - real(ilo,r8))/dx
+               cospi(ii) = sgn*exp(loglo*wgts + loghi*wgtn)
+            end do
+         end if
 
-      end if
+         i = ihi
+      end do
 
     end function interp_cospec
 
