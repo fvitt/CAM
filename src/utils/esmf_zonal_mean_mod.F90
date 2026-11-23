@@ -39,14 +39,7 @@ contains
 
     real(r8), optional, intent(in) :: wght(lon_beg:lon_end,lat_beg:lat_end,pver)
 
-    real(r8) :: tmparr(lon_beg:lon_end,pver)
-    real(r8) :: gsum(pver)
-
     real(r8) :: wsums(lat_beg:lat_end,pver)
-
-    integer :: numlons, ilat, ilev
-
-    numlons = lon_end-lon_beg+1
 
     ! zonal mean
     if (present(wght)) then
@@ -56,10 +49,8 @@ contains
 
     else
 
-       do ilat = lat_beg, lat_end
-          call shr_reprosum_calc(lonlatarr(lon_beg:lon_end,ilat,:), gsum, numlons, numlons, pver, gbl_count=nlon, commid=zonal_comm)
-          zmarr(ilat,:) = gsum(:)/nlon
-       end do
+       ! zonal sums of all (lat,lev) columns in one reproducible-sum call
+       zmarr = zonal_sums_3d(lonlatarr)/nlon
 
     end if
 
@@ -102,18 +93,45 @@ contains
     real(r8), intent(in) :: wght(lon_beg:lon_end,lat_beg:lat_end,pver)
 
     real(r8) :: wsums(lat_beg:lat_end,pver)
-    integer :: numlons, ilat
 
-    numlons = lon_end-lon_beg+1
-
-    do ilat = lat_beg, lat_end
-
-       call shr_reprosum_calc(wght(lon_beg:lon_end,ilat,:), wsums(ilat,1:pver), &
-                              numlons, numlons, pver, gbl_count=nlon, commid=zonal_comm)
-
-    end do
+    wsums = zonal_sums_3d(wght)
 
   end function esmf_zonal_mean_wsums
+
+  !------------------------------------------------------------------------------
+  ! Longitude sums of a 3D lon/lat/lev field for every (lat,lev) column, done
+  ! with a single reproducible-sum call over zonal_comm (each (lat,lev) column
+  ! is a separate field). This replaces one collective call per latitude; the
+  ! reproducible sum of each field is independent of the other fields in the
+  ! call, so the results are unchanged.
+  !------------------------------------------------------------------------------
+  function zonal_sums_3d(arr) result(zsums)
+    use esmf_lonlat_grid_mod, only: lon_beg,lon_end,lat_beg,lat_end, nlon
+    use esmf_lonlat_grid_mod, only: zonal_comm
+    use shr_reprosum_mod,only: shr_reprosum_calc
+    use ppgrid, only: pver
+
+    real(r8), intent(in) :: arr(lon_beg:lon_end,lat_beg:lat_end,pver)
+
+    real(r8) :: zsums(lat_beg:lat_end,pver)
+
+    integer :: numlons, nflds
+    real(r8) :: arr2d(lon_end-lon_beg+1,(lat_end-lat_beg+1)*pver)
+    real(r8) :: gsum((lat_end-lat_beg+1)*pver)
+
+    numlons = lon_end-lon_beg+1
+    nflds = (lat_end-lat_beg+1)*pver
+
+    if (nflds < 1) return
+
+    ! (lon,lat,lev) -> (lon, field) with field = ilat-lat_beg+1 + (ilev-1)*nlat_local
+    arr2d = reshape(arr, shape(arr2d))
+
+    call shr_reprosum_calc(arr2d, gsum, numlons, numlons, nflds, gbl_count=nlon, commid=zonal_comm)
+
+    zsums = reshape(gsum, shape(zsums))
+
+  end function zonal_sums_3d
 
   !------------------------------------------------------------------------------
   ! Masks out regions (e.g. mountains) from zonal mean calculation.

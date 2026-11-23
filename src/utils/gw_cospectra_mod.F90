@@ -316,7 +316,13 @@ contains
     real(r8),target :: frcxyu_lonlat(lon_beg:lon_end,lat_beg:lat_end,pver)
 
     real(r8) :: wvlxbeg
-    real(r8) :: mflux_glb(nlat,pver)
+    ! fields gathered over all latitudes (merid_comm) in a single allreduce
+    integer, parameter :: nglb = 9
+    integer, parameter :: ig_xyup=1, ig_xyun=2, ig_xyrp=3, ig_xyrn=4, ig_rho=5, &
+                          ig_frcxr=6, ig_frcxu=7, ig_frcyr=8, ig_frcyu=9
+    real(r8) :: flds_loc(lat_beg:lat_end,pver,nglb)
+    real(r8) :: flds_glb(nlat,pver,nglb)
+    real(r8) :: frcxyu_glb(nlat,pver), frcxyr_glb(nlat,pver)
     integer :: kk
 
     real(r8), parameter :: pi = 4._r8*atan(1._r8)
@@ -476,8 +482,22 @@ contains
     vw_filt = v_filt * w_filt
     uv_filt = u_filt * v_filt
 
+    ! Latitude band lat0:lat1 (|lat| < lat_scl_max, matching cospext) where the
+    ! unresolved forcing is distributed in longitude. The filtered products are
+    ! only used inside this band.
+    lat0 = 0
+    lat1 = -1
+    do j = lat_beg, lat_end
+       if ( abs(latrad(j))*180._r8/pi < lat_scl_max ) then
+          if (lat0 < 1) lat0 = j
+          lat1 = j
+       end if
+    end do
+
     ! Longitudinal smoothing (moving average) of the filtered products.
     ! Window ~= wvlxbeg in physical distance, with wrap-around at 0/360 deg.
+    ! Only done within lat0:lat1: the products are not used poleward of it, and
+    ! that is where the window (~1/cos(lat)) grows to the whole latitude circle.
     call lon_smooth_3d(uw_filt, wvlxbeg)
     call lon_smooth_3d(vw_filt, wvlxbeg)
     call lon_smooth_3d(uv_filt, wvlxbeg)
@@ -535,20 +555,22 @@ contains
     call cospext(nftnum, lat_beg,lat_end, pver,ntime, latrad, accum_cospectra_uv, wvlxbeg,wvlxend, pref_mid, rhobar, &
          mflxxyup,mflxxyun,mflxxyrp,mflxxyrn,ioldest=ioldest)
 
-    ! Scale filtered products by branch-dependent factors derived from the spectral
-    ! slopes (see cospext_mod::momentum_fluxes for the fp/fn formulation).
-    ! Scaling is applied only equatorward of lat_scl_max, matching cospext.
-    lat0 = 0
-    lat1 = -1
-    do j = lat_beg, lat_end
-       if ( abs(latrad(j))*180._r8/pi < lat_scl_max ) then
-          if (lat0 < 1) lat0 = j
-          lat1 = j
-       end if
-    end do
+    ! Gather, over all latitudes, every field needed for the meridional
+    ! derivative and the latitude smoothing in one allreduce (previously
+    ! 12 separate allreduces), then do both computations locally.
+    flds_loc(:,:,ig_xyup)  = mflxxyup
+    flds_loc(:,:,ig_xyun)  = mflxxyun
+    flds_loc(:,:,ig_xyrp)  = mflxxyrp
+    flds_loc(:,:,ig_xyrn)  = mflxxyrn
+    flds_loc(:,:,ig_rho)   = rhobar
+    flds_loc(:,:,ig_frcxr) = frcxr
+    flds_loc(:,:,ig_frcxu) = frcxu
+    flds_loc(:,:,ig_frcyr) = frcyr
+    flds_loc(:,:,ig_frcyu) = frcyu
+    call gather_lat_fields(flds_loc, flds_glb)
 
-    frcxyu = gather_and_latderiv(mflxxyup,mflxxyun,rhobar)
-    frcxyr = gather_and_latderiv(mflxxyrp,mflxxyrn,rhobar)
+    frcxyu_glb = latderiv_glb(flds_glb(:,:,ig_xyup), flds_glb(:,:,ig_xyun), flds_glb(:,:,ig_rho))
+    frcxyr_glb = latderiv_glb(flds_glb(:,:,ig_xyrp), flds_glb(:,:,ig_xyrn), flds_glb(:,:,ig_rho))
 
     do icol = lat_beg, lat_end
        call outfld('MFLXXUP', mflxxup(icol,:),1,icol)
@@ -563,14 +585,14 @@ contains
 
     end do
 
-    ! gather and smooth in latitude
+    ! smooth in latitude (fields were gathered over all latitudes above)
 
-    frcxr = gather_and_smooth(frcxr)
-    frcxu = gather_and_smooth(frcxu)
-    frcyr = gather_and_smooth(frcyr)
-    frcyu = gather_and_smooth(frcyu)
-    frcxyr = gather_and_smooth(frcxyr)
-    frcxyu = gather_and_smooth(frcxyu)
+    frcxr  = smooth_glb(flds_glb(:,:,ig_frcxr))
+    frcxu  = smooth_glb(flds_glb(:,:,ig_frcxu))
+    frcyr  = smooth_glb(flds_glb(:,:,ig_frcyr))
+    frcyu  = smooth_glb(flds_glb(:,:,ig_frcyu))
+    frcxyr = smooth_glb(frcxyr_glb)
+    frcxyu = smooth_glb(frcxyu_glb)
 
     ! Where the viscous horizontal scale exceeds wvlxbeg the unresolved window
     ! collapses, so the unresolved forcings are set to zero.
@@ -723,47 +745,35 @@ contains
     end subroutine compute_scaling
 
     !==========================================================================
-    function gather_and_smooth( flux ) result (sflx)
-      real(r8),intent(in) :: flux(lat_beg:lat_end,1:pver)
+    ! Latitude smoothing of a field given on all latitudes; returns the local
+    ! latitudes.
+    function smooth_glb( fglb ) result (sflx)
+      real(r8),intent(in) :: fglb(nlat,pver)
       real(r8) :: sflx(lat_beg:lat_end,1:pver)
 
-      real(r8) :: flxglb1(nlat,pver)
-      real(r8) :: flxglb2(nlat,pver)
-
+      real(r8) :: sglb(nlat)
       integer :: k
 
-      sflx = 0._r8
-
-      flxglb1 = gather_fluxes(flux)
-
       do k = 1,pver
-         flxglb2(1:nlat,k) = smooth(flxglb1(1:nlat,k),nlat,gw_cospectra_smooth_nlats)
+         sglb(1:nlat) = smooth(fglb(1:nlat,k),nlat,gw_cospectra_smooth_nlats)
+         sflx(lat_beg:lat_end,k) = sglb(lat_beg:lat_end)
       end do
-      sflx(lat_beg:lat_end,:) = flxglb2(lat_beg:lat_end,:)
 
-    end function gather_and_smooth
+    end function smooth_glb
 
     !==========================================================================
-    function gather_and_latderiv( fluxp, fluxn, rho) result (frc)
-      real(r8),intent(in) :: fluxp(lat_beg:lat_end,1:pver),fluxn(lat_beg:lat_end,1:pver),rho(lat_beg:lat_end,1:pver)
-      real(r8) :: frc(lat_beg:lat_end,1:pver)
-
-      real(r8) :: flxglb1(nlat,pver)
-      real(r8) :: flxglb2(nlat,pver)
-      real(r8) :: rhoglb(nlat,pver)
+    ! Forcing from the meridional derivative of rho*(fluxp+fluxn), all given on
+    ! all latitudes; result on all latitudes (zero at the end points).
+    function latderiv_glb( flxglb1, flxglb2, rhoglb ) result (frcglb)
+      real(r8),intent(in) :: flxglb1(nlat,pver), flxglb2(nlat,pver), rhoglb(nlat,pver)
       real(r8) :: frcglb(nlat,pver)
+
       real(r8), parameter :: pi = 4._r8*atan(1._r8)
       real(r8), parameter :: re = 6.371e6_r8
 
       real(r8) :: dy
 
       integer :: k,j
-
-      frc = 0._r8
-
-      flxglb1 = gather_fluxes(fluxp)
-      flxglb2 = gather_fluxes(fluxn)
-      rhoglb = gather_fluxes(rho)
 
       dy = pi*re/(nlat-1)
 
@@ -774,9 +784,8 @@ contains
          frcglb(1,k) = 0._r8
          frcglb(nlat,k) = 0._r8
       end do
-      frc(lat_beg:lat_end,:) = frcglb(lat_beg:lat_end,:)
 
-    end function gather_and_latderiv
+    end function latderiv_glb
 
     !==========================================================================
     function smooth(data, n_points, window_size) result(smoothed_data)
@@ -807,28 +816,28 @@ contains
     end function smooth
 
     !==========================================================================
-    function gather_fluxes( flx_loc ) result(flxglb)
+    ! Gather several latitude-dependent fields over all latitudes with a single
+    ! allreduce on merid_comm. Each latitude is owned by exactly one rank in
+    ! merid_comm, so the sum of the zero-padded buffers is exact.
+    subroutine gather_lat_fields( flds_loc, flds_glb )
       use mpi, only: MPI_REAL8, MPI_SUCCESS, MPI_SUM
       use esmf_lonlat_grid_mod, only: merid_comm
 
-      real(r8),intent(in) :: flx_loc(lat_beg:lat_end,1:pver)
+      real(r8),intent(in)  :: flds_loc(lat_beg:,:,:)   ! (lat_beg:lat_end,pver,nfld)
+      real(r8),intent(out) :: flds_glb(:,:,:)          ! (nlat,pver,nfld)
 
-      real(r8) :: flxglb(nlat,pver)
-      real(r8) :: sndbuf(nlat,pver)
-      integer :: rc, len
+      real(r8) :: sndbuf(nlat,pver,size(flds_loc,3))
+      integer :: rc
 
-      len = nlat*pver
-
-      flxglb = 0._r8
       sndbuf = 0._r8
-      sndbuf(lat_beg:lat_end,1:pver) = flx_loc(lat_beg:lat_end,1:pver)
+      sndbuf(lat_beg:lat_end,:,:) = flds_loc(lat_beg:lat_end,:,:)
 
-      call mpi_allreduce(sndbuf,flxglb,len,MPI_REAL8,MPI_SUM, merid_comm, rc)
+      call mpi_allreduce(sndbuf, flds_glb, size(sndbuf), MPI_REAL8, MPI_SUM, merid_comm, rc)
       if ( rc /= MPI_SUCCESS ) then
-         call endrun('gw_cospectra_mod::gather_fluxes: mpi_allreduce FAILED')
+         call endrun('gw_cospectra_mod::gather_lat_fields: mpi_allreduce FAILED')
       end if
 
-    end function gather_fluxes
+    end subroutine gather_lat_fields
 
     !==========================================================================
     ! Longitudinal moving-average smoothing of a 3D lon-lat-lev field, with
@@ -860,7 +869,7 @@ contains
          call endrun('gw_cospectra_mod::lon_smooth_3d: mpi_allreduce FAILED')
       end if
 
-      do jj = lat_beg, lat_end
+      do jj = lat0, lat1
          coslat = max(cos(latrad(jj)), 1.e-6_r8)
          win  = max(1, nint(wvlx_win * real(nlon,r8) / (2._r8*pi*rearth*coslat)))
          half = min(win/2, (nlon-1)/2)
