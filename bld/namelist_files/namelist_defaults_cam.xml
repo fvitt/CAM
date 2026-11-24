@@ -1533,6 +1533,10 @@
 <so4_a1_bb_srf_file     hgrid="ne30np4" npg="3" ver="cmip7">atm/cam/chem/emis/cmip7/ne30/DRES-CMIP-BB4CMIP7-2-1_20251102/SO4_input4MIPs_emissions_CMIP_DRES-CMIP-BB4CMIP7-2-1_gn_175001-202312_c20251102.nc</so4_a1_bb_srf_file>
 <so4_a1_sh_srf_file     hgrid="ne30np4" npg="3" ver="cmip7">atm/cam/chem/emis/cmip7/ne30/CEDS-CMIP-2025-04-18_20260826/so4_a1_shp-em-anthro_input4MIPs_emissions_CMIP_CEDS-CMIP-2025-04-18_gn_175001-202312_c20260826.nc</so4_a1_sh_srf_file>
 <so4_a2_an_srf_file     hgrid="ne30np4" npg="3" ver="cmip7">atm/cam/chem/emis/cmip7/ne30/CEDS-CMIP-2025-04-18_20260826/so4_a2_res_trs-em-anthro_input4MIPs_emissions_CMIP_CEDS-CMIP-2025-04-18_gn_175001-202312_c20260826.nc</so4_a2_an_srf_file>
+<!-- no CMIP7 SOAG datasets exist; use the CMIP6 SOAGx1.5 files -->
+<soag_an_srf_file       hgrid="ne30np4" npg="3" ver="cmip7">atm/cam/chem/emis/historical_ne30pg3/emissions-cmip6_SOAGx1.5_anthro_surface_175001-201412_ne30pg3_c20200103.nc</soag_an_srf_file>
+<soag_bb_srf_file       hgrid="ne30np4" npg="3" ver="cmip7">atm/cam/chem/emis/historical_ne30pg3/emissions-cmip6_SOAGx1.5_bb_surface_175001-201512_ne30pg3_c20191119.nc</soag_bb_srf_file>
+<soag_bg_srf_file       hgrid="ne30np4" npg="3" ver="cmip7">atm/cam/chem/emis/historical_ne30pg3/emissions-cmip6_SOAGx1.5_biogenic_surface_1750_2015_ne30pg3_c20200629.nc</soag_bg_srf_file>
 
 <bc_a4_ar_ext_file      hgrid="ne30np4" npg="3" ver="cmip7">atm/cam/chem/emis/cmip7/ne30/CEDS-CMIP-2025-04-18_20251030/bc_a4-em-AIR-anthro_input4MIPs_emissions_CMIP_CEDS-CMIP-2025-04-18_gn_175001-202312_c20251030.nc</bc_a4_ar_ext_file>
 <no2_ar_ext_file        hgrid="ne30np4" npg="3" ver="cmip7">atm/cam/chem/emis/cmip7/ne30/CEDS-CMIP-2025-04-18_20251030/NO2-em-AIR-anthro_input4MIPs_emissions_CMIP_CEDS-CMIP-2025-04-18_gn_175001-202312_c20251030.nc</no2_ar_ext_file>

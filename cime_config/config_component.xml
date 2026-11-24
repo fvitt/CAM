@@ -300,9 +300,9 @@
       <value compset="HIST_CAM40%WCMD"   >waccm_ma_hist_cam4</value>
       <value compset="HIST_CAM60%WSLH"   >waccm_tsmlt_hist_cam6_slh</value>
       <value compset="HIST_CAM60%CSLH"   >hist_trop_strat_cam6_slh</value>
-      <value compset="HIST_CAM70%WA%CT">waccm_ma_hist_cam7</value>
+      <value compset="HIST_CAM70%WA%CT">hist_chem_cam7</value>
       <value compset="HIST_CAM70%WA%CSO">waccm_sc_hist_cam7</value>
-      <value compset="HIST_CAM70%WX">waccm_ma_hist_cam7</value>
+      <value compset="HIST_CAM70%WX">hist_chem_cam7</value>
       <value compset="HIST_CAM6.*CT1S">hist_trop_strat_vbs_cam6</value>
       <value compset="HIST_CAM7.*CT1S">hist_chem_cam7</value>
       <value compset="HIST_CAM7.*CT4S2">hist_chem_cam7</value>

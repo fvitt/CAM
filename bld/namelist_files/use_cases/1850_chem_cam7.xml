@@ -15,12 +15,6 @@
  'HCFC22', 'N2O', 'CFC114', 'CFC115', 'HCFC141B', 'HCFC142B', 'CH2BR2', 'CHBR3', 'H2402', 'OCS', 'SF6', 'CFC11eq'
 </flbc_list>
 
-<lght_no_prd_factor hgrid="ne30np4">2.0D0</lght_no_prd_factor>
-<dust_emis_fact hgrid="ne30np4">2.3D0</dust_emis_fact>
-
-<csw_time_type>CYCLICAL</csw_time_type>
-<csw_cycle_yr>1850</csw_cycle_yr>
-
 <!-- CMIP7 per-species emissions files are set in namelist_defaults_cam.xml (ver="cmip7") -->
 <emis_data_ver>cmip7</emis_data_ver>
 
@@ -29,6 +23,13 @@
 
 <srf_emis_type>CYCLICAL</srf_emis_type>
 <srf_emis_cycle_yr>1850</srf_emis_cycle_yr>
+
+<csw_time_type>CYCLICAL</csw_time_type>
+<csw_cycle_yr>1850</csw_cycle_yr>
+
+<dust_emis_fact hgrid="ne30np4">2.3D0</dust_emis_fact>
+
+<lght_no_prd_factor hgrid="ne30np4">2.0D0</lght_no_prd_factor>
 
 <!-- Solar data -->
 <solar_irrad_data_file>atm/cam/solar/SolarForcingCMIP7piControl_c20250103.nc</solar_irrad_data_file>
@@ -50,7 +51,7 @@
 <interpolate_nlon   hgrid="ne30np4">    288,     288,    288,     288,     288,     288,      288</interpolate_nlon>
 <avgflag_pertape                   >    'A',     'A',    'A',     'I',     'A',     'I',      'I'</avgflag_pertape>
 
-<fincl1>
+<fincl1 chem="trop_strat_mam5_t4s2">
  'ACTNI','ACTNL','ACTREI','ACTREL','AQSO4_H2O2','AQSO4_O3','AQ_SO2','AREA','CAPE',
  'FCTI','FCTL','FLASHFRQ','FLDSC','FLNR','FREQZM','FSNR','GS_SO2','H2SO4_sfnnuc1',
  'OMEGA500','PRECT',  'SOLSD','SST','TFIX','TMDMS','TMO3','TMOCS','TMSO2',
@@ -61,13 +62,13 @@
  'pom_c4DDF',  'so4_a1_sfgaex1', 'so4_a2_sfgaex1',
  'so4_a2_sfnnuc1','so4_a3_sfgaex1','so4_a5_sfgaex1','so4_c1AQH2SO4','so4_c1AQSO4',
  'so4_c1DDF','so4_c2AQH2SO4','so4_c2AQSO4','so4_c2DDF','so4_c3AQH2SO4','so4_c3AQSO4',
- 'so4_c3DDF','so4_c5AQH2SO4',
+ 'so4_c3DDF','so4_c5AQH2SO4','soa_a1_sfgaex1','soa_a2_sfgaex1','soa_c1DDF','soa_c2DDF',
  'CMEIOUT','EVAPSNOW','FRZRDT','MELTSDT','MELTSTOT','MNUCCDO','MNUCCRIO','MNUCCRO',
  'MNUDEPO','NCSEDTEN','NHOMO','NISEDTEN','NMELTO','NMELTS','NNUCCCO','NNUCCDO',
  'NNUCCRIO','NNUCCRO','NNUCCTO','NNUDEPO','NPRACSO','NPRAIO','NPRAO','NPRCIO','NPRCO',
  'NPSACWSO','NRSEDTEN','NSACWIO','NSSEDTEN','PRACSO','QCSEDTEN','QCSEVAP','QISEDTEN',
- 'QISEVAP','QVRES','VAPDEPSO','VTRMC','VTRMI', 'BERGO','BERGSO','BROX','BROY','BRY',
- 'BTTGWSDF','BTTGWSKE','BTTGWSPEC','BUTGWSPEC','BVTGWSPEC',
+ 'QISEVAP','QVRES','VAPDEPSO','VTRMC','VTRMI',
+ 'BERGO','BERGSO','BROX','BROY','BRY','BTTGWSDF','BTTGWSKE','BTTGWSPEC','BUTGWSPEC',
  'CFC11_CHML','CFC12_CHML','CH3CCL3_CHML','CH4_CHML','CLOX','CLOY','CLY','CO2_CHML',
  'CO_CHML','CO_CHMP','CT_H2O','DCOCHM','DH2O2CHM','DHNO3CHM','DO3CHM','DQCORE','DTCORE',
  'Dso4_a1CHM','Dso4_a2CHM','Dso4_a3CHM','Dso4_a5CHM','EVAPPREC','EVAPQZM','EVAPTZM',
@@ -79,12 +80,12 @@
  'PDELDRY','PM25','PM25_MMR','PRAIO','PRAO','PRCIO','PRCO','PSACWSO','PTEQ','PTTEND',
  'QCRESO','QIRESO','QRLC','QRSC','QTGW','RAD_ICE','RAD_LNAT','RAD_SULFC','RCO2_NO2_sum',
  'REFF_AERO','RO2_HO2_sum','RO2_NO3_sum','RO2_NO_sum','RO2_RO2_sum','SAD_AERO','SAD_ICE',
- 'SAD_LNAT','SAD_SULFC','SAD_TROP','SNOWQM','SO2_CHML','SO2_CHMP','SO2_XFRC',
+ 'SAD_LNAT','SAD_SULFC','SAD_TROP','SNOWQM','SO2_CHML','SO2_CHMP','SO2_XFRC','SOAG_CHMP',
  'TAQ', 'TBRY','TCLY','TOTH','TTEND_TOT','TTGW','TTGWORO','TTGWSDF','TTGWSDFORO',
  'TTGWSKE','TTGWSKEORO','TTGWSPEC','VEL_NAT2','dgnumwet1','dgnumwet2','dgnumwet3',
- 'jcl2o2','jh2o2','jno2','jo2_a','jo2_b','jo3_a','jo3_b','jpan',
- 'UTGWORO','VTGWORO', 'UTGWSPEC','VTGWSPEC', 'UTGW_TOTAL','VTGW_TOTAL',
- 'ZMDQ','ZMDT','QRAIN','QSNOW','RCMTEND_CLUBB','RVMTEND_CLUBB',
+ 'jcl2o2','jh2o2','jno2','jo2_a','jo2_b','jo3_a','jo3_b','jpan','so4_a1_CHMP',
+ 'so4_a2_CHMP','soa_a1_CHML','soa_a2','soa_a2_CHML','UTGWORO','UTGWSPEC','UTGW_TOTAL',
+ 'VTGWORO','VTGW_TOTAL','ZMDQ','ZMDT','QRAIN','QSNOW','RCMTEND_CLUBB','RVMTEND_CLUBB',
  'STEND_CLUBB','CMFMC_DP','PINT','WPTHLP_CLUBB','WPRTP_CLUBB','KVH_CLUBB',
 </fincl1>
 
