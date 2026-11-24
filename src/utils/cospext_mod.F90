@@ -95,6 +95,12 @@ contains
     integer :: lat0, lat1
     integer :: t0
 
+    !! The first index of the cospectra arrays is the FFT output index, where
+    !! index 1 is zonal wavenumber 0 (the zonal mean): index = kx + kxoff.
+    !! kxl, kxm, kxr, kxbeg, kxend are wavenumbers, so add kxoff to them
+    !! before using them as indices into cspr/csprp/csprn/csprpi/csprni.
+    integer, parameter :: kxoff = 1
+
     t0 = 1
     if (present(ioldest)) t0 = ioldest
 
@@ -238,8 +244,8 @@ contains
             if (kxbeg(j) > kxmin) then
 !               silm = sum(spct(kxl(j):2*kxl(j),j,k))
 !               simr = sum(spct(2*kxl(j):4*kxl(j),j,k))
-               silm = sum(spct(kxl(j):kxm(j),j,k))
-               simr = sum(spct(kxm(j):kxr(j),j,k))
+               silm = sum(spct(kxl(j)+kxoff:kxm(j)+kxoff,j,k))
+               simr = sum(spct(kxm(j)+kxoff:kxr(j)+kxoff,j,k))
                if (silm>0.0_r8 .and. simr>0.0_r8) then
 !                  slp(j,k) = MAX(1._r8-log(simr/silm)/log(2._r8),-0.3_r8)
 !                  slp(j,k) = MAX(1._r8-log(simr/silm)/log(krat),-0.3_r8)
@@ -284,7 +290,7 @@ contains
          do j=lat0,lat1
             if (kxbeg(j) > kxmin) then
                if (slpp(j,k)/=NOTSET.and.slpp(j,k)/=1._r8) then
-                  mflxrp(j,k) = sum(csprp(kxl(j):kxbeg(j),j,k),1)
+                  mflxrp(j,k) = sum(csprp(kxl(j)+kxoff:kxbeg(j)+kxoff,j,k),1)
                   bp = 1._r8-slpp(j,k)
                   fp = (real(kxend(j,k),r8)**bp-real(kxbeg(j),r8)**bp)/(real(kxbeg(j),r8)**bp-kxl(j)**bp)
                   mflxup(j,k) = mflxrp(j,k)*fp
@@ -294,7 +300,7 @@ contains
 !                  mflxup(j,k) = mflxrp(j,k)*fp
                end if
                if (slpp(j,k)/=NOTSET.and.slpp(j,k)==1._r8) then
-                  mflxrp(j,k) = sum(csprp(kxl(j):kxbeg(j),j,k),1)
+                  mflxrp(j,k) = sum(csprp(kxl(j)+kxoff:kxbeg(j)+kxoff,j,k),1)
                   fp = log(real(kxend(j,k),r8)/real(kxbeg(j),r8))/log(real(kxbeg(j),r8)/real(kxl(j),r8))
                   mflxup(j,k) = mflxrp(j,k)*fp
 !                  mflxrp(j,k) = sum(csprp(nint(kxlc):kxbeg(j),j,k),1)
@@ -307,7 +313,7 @@ contains
                end if
 
                if (slpn(j,k)/=NOTSET.and.slpn(j,k)/=1._r8) then
-                  mflxrn(j,k) = sum(csprn(kxl(j):kxbeg(j),j,k),1)
+                  mflxrn(j,k) = sum(csprn(kxl(j)+kxoff:kxbeg(j)+kxoff,j,k),1)
                   bn = 1._r8-slpn(j,k)
                   fn = (real(kxend(j,k),r8)**bn-real(kxbeg(j),r8)**bn)/(real(kxbeg(j),r8)**bn-kxl(j)**bn)
                   mflxun(j,k) = mflxrn(j,k)*fn
@@ -317,7 +323,7 @@ contains
 !                  mflxun(j,k) = mflxrn(j,k)*fn
                end if
                if (slpn(j,k)/=NOTSET.and.slpn(j,k)==1._r8) then
-                  mflxrn(j,k) = sum(csprn(kxl(j):kxbeg(j),j,k),1)
+                  mflxrn(j,k) = sum(csprn(kxl(j)+kxoff:kxbeg(j)+kxoff,j,k),1)
                   fn = log(real(kxend(j,k),r8)/real(kxbeg(j),r8))/log(real(kxbeg(j),r8)/real(kxl(j),r8))
                   mflxun(j,k) = mflxrn(j,k)*fn
 !                  mflxrn(j,k) = sum(csprn(nint(kxlc):kxbeg(j),j,k),1)
