@@ -615,30 +615,12 @@ contains
           call endrun(subname//': ERROR in carma_get_bin_rmass')
        end if
 
-       ! Init pointers to mode number and specie mass mixing ratios in
+       ! Init pointers to mode number and species mass mixing ratios in
        ! intersitial and cloud borne phases.
        do l = 1, nspec(m)
           mm = aero_props%indexer(m,l)
           if (l <= nspec(m)) then
-             call aero_props%get(bin_ndx=m, species_ndx=l, spectype=spectype)
-             if (trim(spectype) == 'sulfate') then
-                mw_carma(mm) = 96._r8
-             end if
-             if (trim(spectype) == 'black-c') then
-                mw_carma(mm) = 12._r8
-             end if
-             if (trim(spectype) == 'p-organic') then
-                mw_carma(mm) = 12._r8
-             end if
-             if (trim(spectype) == 's-organic') then
-                mw_carma(mm) = 250._r8
-             end if
-             if (trim(spectype) == 'dust') then
-                mw_carma(mm) = 12._r8
-             end if
-             if (trim(spectype) == 'seasalt') then
-                mw_carma(mm) = 57._r8
-             end if
+             call aero_props%get(bin_ndx=m, species_ndx=l, spec_mw=mw_carma(mm))
           end if
           mmrcw(:ncol,:,mm) = qqcw(mm)%fld(:ncol,:)
           vmrcw(:ncol,:,mm) = qqcw(mm)%fld(:ncol,:)
