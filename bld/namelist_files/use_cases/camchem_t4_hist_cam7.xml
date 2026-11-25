@@ -3,13 +3,11 @@
 <namelist_defaults>
 
 <!-- Initial conditions -->
-<ncdata hgrid="ne30np4" nlev="93">atm/cam/inic/se/b.e30_alpha09b.B1850C_MTt4s.ne30_t233_wgx3.360.cam.i.0031-01-01_c260821.nc</ncdata>
 
 <aoa_read_from_ic_file>.false.</aoa_read_from_ic_file>
 
 <!-- Lower Boundary -->
-<flbc_type>CYCLICAL</flbc_type>
-<flbc_cycle_yr>1850</flbc_cycle_yr>
+<flbc_type>SERIAL</flbc_type>
 <flbc_list>
  'CCL4', 'CF2CLBR', 'CF3BR', 'CFC11', 'CFC113', 'CFC12', 'CH3BR', 'CH3CCL3', 'CH3CL', 'CH4', 'CO2', 'H2',
  'HCFC22', 'N2O', 'CFC114', 'CFC115', 'HCFC141B', 'HCFC142B', 'CH2BR2', 'CHBR3', 'H2402', 'OCS', 'SF6', 'CFC11eq'
@@ -18,23 +16,21 @@
 <!-- CMIP7 per-species emissions files are set in namelist_defaults_cam.xml (ver="cmip7") -->
 <emis_data_ver>cmip7</emis_data_ver>
 
-<ext_frc_type>CYCLICAL</ext_frc_type>
-<ext_frc_cycle_yr>1850</ext_frc_cycle_yr>
+<ext_frc_type>INTERP_MISSING_MONTHS</ext_frc_type>
 
-<srf_emis_type>CYCLICAL</srf_emis_type>
-<srf_emis_cycle_yr>1850</srf_emis_cycle_yr>
+<srf_emis_type>INTERP_MISSING_MONTHS</srf_emis_type>
 
-<csw_time_type>CYCLICAL</csw_time_type>
-<csw_cycle_yr>1850</csw_cycle_yr>
+<csw_time_type>SERIAL</csw_time_type>
 
 <dust_emis_fact hgrid="ne30np4">2.3D0</dust_emis_fact>
 
 <lght_no_prd_factor hgrid="ne30np4">2.0D0</lght_no_prd_factor>
 
+<ubc_file_input_type model_top="lt">SERIAL</ubc_file_input_type>
+
 <!-- Solar data -->
-<solar_irrad_data_file>atm/cam/solar/SolarForcingCMIP7piControl_c20250103.nc</solar_irrad_data_file>
-<solar_data_type>FIXED</solar_data_type>
-<solar_data_ymd>18500701</solar_data_ymd>
+<solar_data_type>SERIAL</solar_data_type>
+<solar_irrad_data_file>atm/cam/solar/SolarForcingCMIP7-4.6_18491230-20240101_sumEPP_c20250630.nc</solar_irrad_data_file>
 
 <!-- history output -->
 
@@ -51,7 +47,7 @@
 <interpolate_nlon   hgrid="ne30np4">    288,     288,    288,     288,     288,     288,      288</interpolate_nlon>
 <avgflag_pertape                   >    'A',     'A',    'A',     'I',     'A',     'I',      'I'</avgflag_pertape>
 
-<fincl1 chem="trop_strat_mam5_t4s2">
+<fincl1>
  'ACTNI','ACTNL','ACTREI','ACTREL','AQSO4_H2O2','AQSO4_O3','AQ_SO2','AREA','CAPE',
  'FCTI','FCTL','FLASHFRQ','FLDSC','FLNR','FREQZM','FSNR','GS_SO2','H2SO4_sfnnuc1',
  'OMEGA500','PRECT',  'SOLSD','SST','TFIX','TMDMS','TMO3','TMOCS','TMSO2',

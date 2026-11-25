@@ -1,0 +1,51 @@
+<?xml version="1.0"?>
+
+<namelist_defaults>
+
+<!-- Initial conditions -->
+
+<aoa_read_from_ic_file>.false.</aoa_read_from_ic_file>
+
+<!-- Lower Boundary -->
+<flbc_type>SERIAL</flbc_type>
+<flbc_list>
+ 'CCL4', 'CF2CLBR', 'CF3BR', 'CFC11', 'CFC113', 'CFC12', 'CH3BR', 'CH3CCL3', 'CH3CL', 'CH4', 'CO2', 'H2',
+ 'HCFC22', 'N2O', 'CFC114', 'CFC115', 'HCFC141B', 'HCFC142B', 'CH2BR2', 'CHBR3', 'H2402', 'OCS', 'SF6', 'CFC11eq'
+</flbc_list>
+
+<!-- CMIP7 per-species emissions files are set in namelist_defaults_cam.xml (ver="cmip7") -->
+<emis_data_ver>cmip7</emis_data_ver>
+
+<ext_frc_type>INTERP_MISSING_MONTHS</ext_frc_type>
+
+<srf_emis_type>INTERP_MISSING_MONTHS</srf_emis_type>
+
+<csw_time_type>SERIAL</csw_time_type>
+
+<dust_emis_fact hgrid="ne30np4">2.3D0</dust_emis_fact>
+
+<lght_no_prd_factor hgrid="ne30np4">2.0D0</lght_no_prd_factor>
+
+<ubc_file_input_type model_top="lt">SERIAL</ubc_file_input_type>
+
+<!-- Solar data -->
+<solar_data_type>SERIAL</solar_data_type>
+<solar_irrad_data_file>atm/cam/solar/SolarForcingCMIP7-4.6_18491230-20240101_sumEPP_c20250630.nc</solar_irrad_data_file>
+
+<!-- history output -->
+
+<history_aero_optics>.true.</history_aero_optics>
+<history_chemspecies_srf>.false.</history_chemspecies_srf>
+<history_clubb>.false.</history_clubb>
+<history_cesm_forcing>.true.</history_cesm_forcing>
+
+<mfilt                             >      0,       5,     20,      40,      12,     120,       73</mfilt>
+<nhtfrq                            >      0,     -24,    -24,      -3,       0,      -2,     -120</nhtfrq>
+<ndens                             >      2,       2,      2,       2,       2,       1,        2</ndens>
+<avgflag_pertape                   >    'A',     'A',    'A',     'I',     'A',     'I',      'I'</avgflag_pertape>
+
+<fincl5>
+ 'Uzm','Vzm','Wzm','THzm', 'VTHzm','WTHzm','UVzm','UWzm'
+</fincl5>
+
+</namelist_defaults>
