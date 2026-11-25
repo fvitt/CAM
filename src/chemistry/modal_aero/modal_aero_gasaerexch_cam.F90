@@ -108,7 +108,7 @@ contains
       call set_species_ndx(aero_props)
 
       ! --- Gas-phase species indices (pcnst-space) ---
-      call cnst_get_ind('H2SO4', idx_h2so4, .false.)
+      call cnst_get_ind('H2SO4', idx_h2so4, abort=.false.)
       if ((idx_h2so4 <= 0) .or. (idx_h2so4 > pcnst)) then
          write (iulog, '(/a/a,i7)') &
             '*** modal_aero_gasaerexch_cam_init -- cannot find H2SO4 species', &
@@ -116,10 +116,10 @@ contains
          call endrun('modal_aero_gasaerexch_cam_init error: H2SO4 not found')
       end if
 
-      call cnst_get_ind('NH3', idx_nh3, .false.)
+      call cnst_get_ind('NH3', idx_nh3, abort=.false.)
 
       if (.not. cam_chempkg_is('geoschem_mam4')) then
-         call cnst_get_ind('MSA', idx_msa, .false.)
+         call cnst_get_ind('MSA', idx_msa, abort=.false.)
       else
          idx_msa = 0
       end if
@@ -584,7 +584,8 @@ contains
 
       ! true if two mode indices are the same mode, or both indicate no mode (<= 0)
       pure logical function same_mode(m1, m2)
-         integer, intent(in) :: m1, m2
+         integer, intent(in) :: m1
+         integer, intent(in) :: m2
          same_mode = (m1 == m2) .or. (m1 <= 0 .and. m2 <= 0)
       end function same_mode
 

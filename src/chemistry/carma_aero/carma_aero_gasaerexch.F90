@@ -1,13 +1,11 @@
 !----------------------------------------------------------------------
+! carma_aero_gasaerexch --- does carma aerosol gas-aerosol exchange for SOA
+!
+! Revision history:
+!   RCE 07.04.13:  Adapted from MIRAGE2 code
 !----------------------------------------------------------------------
-!BOP
-!
-! !MODULE: carma_aero_gasaerexch --- does carma aerosol gas-aerosol exchange for SOA
-!
-! !INTERFACE:
 module carma_aero_gasaerexch
 
-! !USES:
   use shr_kind_mod,    only:  r8 => shr_kind_r8
   use chem_mods,       only:  gas_pcnst
   use ref_pres,        only:  top_lev => clim_modal_aero_top_lev
@@ -48,21 +46,6 @@ module carma_aero_gasaerexch
   real(r8), allocatable :: condevap_fac(:,:)   ! conversion factor to mass mixing ratio (mw/mwdry)
   type(col_tend_diag_t) :: sfgaex1_diag     ! SOA column tendency diagnostics ('_sfgaex1')
   integer, allocatable :: sfgaex1_fld(:,:)  ! field index of each bin soa species
-! !DESCRIPTION: This module implements ...
-!
-! !REVISION HISTORY:
-!
-!   RCE 07.04.13:  Adapted from MIRAGE2 code
-!
-!EOP
-!----------------------------------------------------------------------
-!BOC
-
-! list private module data here
-
-!EOC
-!----------------------------------------------------------------------
-
 
 contains
 
@@ -231,39 +214,37 @@ contains
 ! !ROUTINE:  carma_aero_gasaerexch_sub --- ...
 !
 ! !INTERFACE:
-subroutine carma_aero_gasaerexch_sub(  aero_props, aero_state,  &
-                        pbuf, lchnk,    ncol,                    &
-                        deltat,   mbar,                          &
-                        t,        pmid,     pdel,                &
-                        q,                  raervmr              )
+  subroutine carma_aero_gasaerexch_sub(  aero_props, aero_state,  &
+                          pbuf, lchnk,    ncol,                    &
+                          deltat,   mbar,                          &
+                          t,        pmid,     pdel,                &
+                          q,                  raervmr              )
 
-  ! !USES:
-  use physconst,         only: gravit, mwdry
-  use cam_abortutils,    only: endrun
-  use aerosol_state_mod, only: aerosol_state
-  use physconst, only: mwdry, rair
-  use aero_gasaerexch,   only: aero_gasaerexch_uptkrates, &
-                               aero_gasaerexch_uptk_diag_out, soa_condevap_acc_t, &
-                               method_soa_reversible
+    ! !USES:
+    use physconst,         only: gravit, mwdry, rair
+    use aerosol_state_mod, only: aerosol_state
+    use aero_gasaerexch,   only: aero_gasaerexch_uptkrates, &
+                                 aero_gasaerexch_uptk_diag_out, soa_condevap_acc_t, &
+                                 method_soa_reversible
 
 ! !PARAMETERS:
-  class(aerosol_properties), intent(in) :: aero_props ! CARMA aerosol properties object
-  class(aerosol_state), intent(in) :: aero_state      ! CARMA aerosol state object
-  type(physics_buffer_desc), pointer :: pbuf(:)
+    class(aerosol_properties), intent(in) :: aero_props ! CARMA aerosol properties object
+    class(aerosol_state), intent(in) :: aero_state      ! CARMA aerosol state object
+    type(physics_buffer_desc), pointer :: pbuf(:)
 
-  integer,  intent(in)    :: lchnk                ! chunk identifier
-  integer,  intent(in)    :: ncol                 ! number of atmospheric column
-  real(r8), intent(in)    :: deltat               ! time step (s)
-  real(r8), intent(in)    :: mbar(ncol,pver)      ! mean wet atmospheric mass ( amu )
+    integer,  intent(in)    :: lchnk                ! chunk identifier
+    integer,  intent(in)    :: ncol                 ! number of atmospheric column
+    real(r8), intent(in)    :: deltat               ! time step (s)
+    real(r8), intent(in)    :: mbar(ncol,pver)      ! mean wet atmospheric mass ( amu )
 
-  real(r8), intent(inout) :: q(ncol,pver,gas_pcnst) ! tracer mixing ratio (TMR) array
-  ! *** MUST BE  #/kmol-air for number
-  ! *** MUST BE mol/mol-air for mass
-  ! *** NOTE ncol dimension
-  real(r8), intent(in)    :: raervmr (ncol,pver,ncnst_tot) ! aerosol mixing rations (vmr)
-  real(r8), intent(in)    :: t(pcols,pver)        ! temperature at model levels (K)
-  real(r8), intent(in)    :: pmid(pcols,pver)     ! pressure at model levels (Pa)
-  real(r8), intent(in)    :: pdel(pcols,pver)     ! pressure thickness of levels (Pa)
+    real(r8), intent(inout) :: q(ncol,pver,gas_pcnst) ! tracer mixing ratio (TMR) array
+    ! *** MUST BE  #/kmol-air for number
+    ! *** MUST BE mol/mol-air for mass
+    ! *** NOTE ncol dimension
+    real(r8), intent(in)    :: raervmr (ncol,pver,ncnst_tot) ! aerosol mixing rations (vmr)
+    real(r8), intent(in)    :: t(pcols,pver)        ! temperature at model levels (K)
+    real(r8), intent(in)    :: pmid(pcols,pver)     ! pressure at model levels (Pa)
+    real(r8), intent(in)    :: pdel(pcols,pver)     ! pressure thickness of levels (Pa)
 
 ! !DESCRIPTION:
 ! this version does only do condensation for SOA for CARMA
@@ -280,143 +261,143 @@ subroutine carma_aero_gasaerexch_sub(  aero_props, aero_state,  &
 !BOC
 
 ! local variables
-  integer, parameter :: method_soa = method_soa_reversible
+    integer, parameter :: method_soa = method_soa_reversible
 
-  integer :: i
-  integer :: j, jsoa
-  integer :: k
-  integer :: m, n
+    integer :: i
+    integer :: j, jsoa
+    integer :: k
+    integer :: m, n
 
 
-  real (r8) :: dqdt_soa_bin(nbins,nsoa)
-  real (r8) :: dqdt_soa_all(pcols,pver,nbins,nsoa)
-  real (r8) :: pdel_fac
-  real (r8) :: num_bin(pcols,pver,nbins)
-  real (r8) :: dqdt_soa_col(pcols,pver,nbins,nsoa)    ! SOA tendencies
-  real (r8) :: sum_dqdt_soa_col(pcols,pver,nsoa)      ! SOAG uptake (negative of gas tendency)
-  real (r8) :: sum_dqdt_soa(nsoa)         !   sum_dqdt_soa = soa tendency from soa  gas uptake (mol/mol/s)
-  real (r8) :: uptkrate(pcols,pver,nbins) ! gas-to-aerosol mass transfer rates (1/s)
-  real (r8) :: wetdiam(pcols,pver,nbins)  ! wet diameter of each bin (m)
-  logical   :: do_soa(nbins,nsoa)         ! soa species takes up gas in bin
-  logical   :: do_soag(nsoa)              ! soa gas species is present
+    real (r8) :: dqdt_soa_bin(nbins,nsoa)
+    real (r8) :: dqdt_soa_all(pcols,pver,nbins,nsoa)
+    real (r8) :: pdel_fac
+    real (r8) :: num_bin(pcols,pver,nbins)
+    real (r8) :: dqdt_soa_col(pcols,pver,nbins,nsoa)    ! SOA tendencies
+    real (r8) :: sum_dqdt_soa_col(pcols,pver,nsoa)      ! SOAG uptake (negative of gas tendency)
+    real (r8) :: sum_dqdt_soa(nsoa)         !   sum_dqdt_soa = soa tendency from soa  gas uptake (mol/mol/s)
+    real (r8) :: uptkrate(pcols,pver,nbins) ! gas-to-aerosol mass transfer rates (1/s)
+    real (r8) :: wetdiam(pcols,pver,nbins)  ! wet diameter of each bin (m)
+    logical   :: do_soa(nbins,nsoa)         ! soa species takes up gas in bin
+    logical   :: do_soag(nsoa)              ! soa gas species is present
 
-  real(r8) :: dqdt(ncol,pver,gas_pcnst)  ! TMR "delta q" array - NOTE dims
-  real(r8) :: qsrflx(pcols,nbins,nsoa)
-  ! process-specific column tracer tendencies
-  ! (1=gas condensation)
-  type(soa_condevap_acc_t) :: condevap   ! SOA condensation/evaporation diagnostics
+    real(r8) :: dqdt(ncol,pver,gas_pcnst)  ! TMR "delta q" array - NOTE dims
+    real(r8) :: qsrflx(pcols,nbins,nsoa)
+    ! process-specific column tracer tendencies
+    ! (1=gas condensation)
+    type(soa_condevap_acc_t) :: condevap   ! SOA condensation/evaporation diagnostics
 
-  real(r8), pointer :: dqdt_soa(:,:)
+    real(r8), pointer :: dqdt_soa(:,:)
 
-  real(r8) :: rhoair(pcols,pver)
-  real(r8), pointer :: nmr(:,:)
+    real(r8) :: rhoair(pcols,pver)
+    real(r8), pointer :: nmr(:,:)
 
 !----------------------------------------------------------------------
 !  bin number densities of bins that contain soa
 
-  num_bin(:,:,:) = 0._r8
+    num_bin(:,:,:) = 0._r8
 
-  rhoair(:ncol,:) = pmid(:ncol,:)/(rair*t(:ncol,:))   ! (kg-air/m3)
+    rhoair(:ncol,:) = pmid(:ncol,:)/(rair*t(:ncol,:))   ! (kg-air/m3)
 
-  do m = 1, nbins      ! main loop over aerosol bins
-     if (do_soag_any(m)) then  ! only bins that contain soa
-        ! get bin number densities for all aerosols
-        call aero_state%get_ambient_num(m,nmr) !  #/kg
-        num_bin(:ncol,:,m) = nmr(:ncol,:)*rhoair(:ncol,:) ! #/m3
-     end if
-  end do
+    do m = 1, nbins      ! main loop over aerosol bins
+       if (do_soag_any(m)) then  ! only bins that contain soa
+          ! get bin number densities for all aerosols
+          call aero_state%get_ambient_num(m,nmr) !  #/kg
+          num_bin(:ncol,:,m) = nmr(:ncol,:)*rhoair(:ncol,:) ! #/m3
+       end if
+    end do
 
 
 ! SOA will be updated in CARMA
 
 ! zero out tendencies and other
-  dqdt(:,:,:) = 0.0_r8
-  qsrflx(:,:,:) = 0.0_r8
+    dqdt(:,:,:) = 0.0_r8
+    qsrflx(:,:,:) = 0.0_r8
 
 !-------Initialize evap/cond diagnostics (ncols x pver)-----------
-  call soa_diag%reset(condevap)
+    call soa_diag%reset(condevap)
 !---------------------------------------------------
 ! compute gas-to-aerosol mass transfer rates
-  do m = 1, nbins
-     wetdiam(:ncol,:,m) = aero_state%wet_diameter(m, ncol, pver)
-  end do
-  call aero_gasaerexch_uptkrates( aero_props, ncol, pver, top_lev, num_bin, wetdiam, &
-                                  t, pmid, uptkrate )
+    do m = 1, nbins
+       wetdiam(:ncol,:,m) = aero_state%wet_diameter(m, ncol, pver)
+    end do
+    call aero_gasaerexch_uptkrates( aero_props, ncol, pver, top_lev, num_bin, wetdiam, &
+                                    t, pmid, uptkrate )
 
-  call aero_gasaerexch_uptk_diag_out( lchnk, ncol, nbins, num_bin, wetdiam, uptkrate )
+    call aero_gasaerexch_uptk_diag_out( lchnk, ncol, nbins, num_bin, wetdiam, uptkrate )
 
-  do n = 1, nbins
-     do_soa(n,:) = do_soag_any(n)  ! all soa species in bins that contain soa
-  end do
-  do_soag(:) = .true.
+    do n = 1, nbins
+       do_soa(n,:) = do_soag_any(n)  ! all soa species in bins that contain soa
+    end do
+    do_soag(:) = .true.
 
 !   compute tendencies for soag gas and soa interstitial aerosol in all grid cells
 !   (soa and poa from raervmr in bins that contain soa)
-  call soa_exch%tend( method_soa, ncol, pver, top_lev, deltat, t, pmid, &
-       do_soag_any, do_soa, do_soag, uptkrate, &
-       q, l_soag, raervmr, laer_soa, laer_poa, &
-       dqdt_soa_col, sum_dqdt_soa_col )
+    call soa_exch%tend( method_soa, ncol, pver, top_lev, deltat, t, pmid, &
+         do_soag_any, do_soa, do_soag, uptkrate, &
+         q, l_soag, raervmr, laer_soa, laer_poa, &
+         dqdt_soa_col, sum_dqdt_soa_col )
 
 !------- condensation/evaporation diagnostics sum of all bins
-  call soa_diag%accum_column( condevap, ncol, pver, top_lev, nbins, condevap_mask, condevap_fac, dqdt_soa_col )
+    call soa_diag%accum_column( condevap, ncol, pver, top_lev, nbins, condevap_mask, condevap_fac, dqdt_soa_col )
 
-  dqdt_soa_all(:,:,:,:) = 0.0_r8
-  do k=top_lev,pver
-     do i=1,ncol
-        dqdt_soa_bin(:,:) = dqdt_soa_col(i,k,:,:)
-        sum_dqdt_soa(:) = sum_dqdt_soa_col(i,k,:)
+    dqdt_soa_all(:,:,:,:) = 0.0_r8
+    do k=top_lev,pver
+       do i=1,ncol
+          dqdt_soa_bin(:,:) = dqdt_soa_col(i,k,:,:)
+          sum_dqdt_soa(:) = sum_dqdt_soa_col(i,k,:)
 
-        ! SOA is not updated here (state variables and pbuf), this is done in CARMA
-        pdel_fac = pdel(i,k)/gravit
+          ! SOA is not updated here (state variables and pbuf), this is done in CARMA
+          pdel_fac = pdel(i,k)/gravit
 
-        do n = 1, nbins
-           if ( do_soag_any(n) ) then
-              do jsoa = 1, nsoa
-                 qsrflx(i,n,jsoa) = qsrflx(i,n,jsoa) + dqdt_soa_bin(n,jsoa)*pdel_fac
-                 dqdt_soa_all(i,k,n,jsoa) = dqdt_soa_bin(n,jsoa)
-              end do
-           end if
-        end do ! n
+          do n = 1, nbins
+             if ( do_soag_any(n) ) then
+                do jsoa = 1, nsoa
+                   qsrflx(i,n,jsoa) = qsrflx(i,n,jsoa) + dqdt_soa_bin(n,jsoa)*pdel_fac
+                   dqdt_soa_all(i,k,n,jsoa) = dqdt_soa_bin(n,jsoa)
+                end do
+             end if
+          end do ! n
 
 !   compute TMR tendencies for SAOG gas
 !   due to simple gas uptake
-        do jsoa = 1, nsoa
-           dqdt(i,k,l_soag(jsoa)) = -sum_dqdt_soa(jsoa)
-        end do
+          do jsoa = 1, nsoa
+             dqdt(i,k,l_soag(jsoa)) = -sum_dqdt_soa(jsoa)
+          end do
 
-     end do   ! "i = 1, ncol"
-  end do     ! "k = top_lev, pver"
+       end do   ! "i = 1, ncol"
+    end do     ! "k = top_lev, pver"
 
 !  This applies dqdt tendencies for SOAG only , soa is done in CARMA
 !  apply the dqdt to update q
 !
-  do jsoa = 1, nsoa
-     do k = top_lev, pver
-        do i = 1, ncol
-           q(i,k,l_soag(jsoa)) = max (q(i,k,l_soag(jsoa)) + dqdt(i,k,l_soag(jsoa))*deltat, 1.0e-40_r8)
-        end do
-     end do
-  end do
+    do jsoa = 1, nsoa
+       do k = top_lev, pver
+          do i = 1, ncol
+             q(i,k,l_soag(jsoa)) = max (q(i,k,l_soag(jsoa)) + dqdt(i,k,l_soag(jsoa))*deltat, 1.0e-40_r8)
+          end do
+       end do
+    end do
 
 
-  !-----Outfld for condensation/evaporation------------------------------
-  call soa_diag%outfld( condevap, lchnk )
-  !-----------------------------------------------------------------------
-  !   do history file of column-tendency fields over SOA fields (as defined in CARMA) and set pointer
-  do m = 1, nbins
-     if (do_soag_any(m)) then
-        do j = 1, soa_exch%nsoa_bin(m)
-           call sfgaex1_diag%outfld( sfgaex1_fld(m,j), ncol, lchnk, soa_exch%mw_soa/mwdry, qsrflx(:,m,j) )
+    !-----Outfld for condensation/evaporation------------------------------
+    call soa_diag%outfld( condevap, lchnk )
+    !-----------------------------------------------------------------------
+    !   do history file of column-tendency fields over SOA fields (as defined in CARMA) and set pointer
+    do m = 1, nbins
+       if (do_soag_any(m)) then
+          do j = 1, soa_exch%nsoa_bin(m)
+             call sfgaex1_diag%outfld( sfgaex1_fld(m,j), ncol, lchnk, soa_exch%mw_soa/mwdry, qsrflx(:,m,j) )
 
-           !set pointer field
-           call pbuf_get_field(pbuf, dqdtsoa_idx(m,j),  dqdt_soa )
+             !set pointer field
+             call pbuf_get_field(pbuf, dqdtsoa_idx(m,j),  dqdt_soa )
 
-           dqdt_soa(:ncol,:) = dqdt_soa_all(:ncol,:,m,j) *(soa_exch%mw_soa/mbar(:ncol,:))
-        end do ! j = ...
-     end if
-  end do ! m = ...
+             dqdt_soa(:ncol,:) = dqdt_soa_all(:ncol,:,m,j) *(soa_exch%mw_soa/mbar(:ncol,:))
+          end do ! j = ...
+       end if
+    end do ! m = ...
 
-end subroutine carma_aero_gasaerexch_sub
+  end subroutine carma_aero_gasaerexch_sub
 
 !----------------------------------------------------------------------
 
