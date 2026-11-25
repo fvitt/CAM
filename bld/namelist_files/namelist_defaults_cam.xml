@@ -1551,6 +1551,8 @@
 <so4_a1_cv_ext_file     hgrid="ne30np4" npg="3" ver="cmip7">atm/cam/chem/emis/historical_ne30pg3/emissions-cmip6_so4_a1_contvolcano_vertical_850-5000_ne30pg3_c20200125.nc</so4_a1_cv_ext_file>
 <so4_a2_cv_ext_file     hgrid="ne30np4" npg="3" ver="cmip7">atm/cam/chem/emis/historical_ne30pg3/emissions-cmip6_so4_a2_contvolcano_vertical_850-5000_ne30pg3_c20200125.nc</so4_a2_cv_ext_file>
 
+<E90_srf_file           hgrid="ne30np4" npg="3" ver="cmip7">atm/cam/chem/emis/historical_ne30pg3/emissions_E90global_surface_1750_2015_ne30pg3_c20200630.nc</E90_srf_file>
+
 <!-- ne30 pg2 -->
 
 <dms_ot_srf_file     hgrid="ne30np4" npg="2" ver="cam6">atm/cam/chem/emis/historical_ne30pg2/emissions-cmip6_DMS_other_surface_1750_2015_ne30pg2_c20200630.nc</dms_ot_srf_file>
